@@ -20,7 +20,7 @@ import {
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import { ServerManager } from './serverManager'
 import type { McpClient as RuntimeMcpClient } from './mcpClient'
-import { ToolManager } from './toolManager'
+import { ToolManager, type ComputerUsePreviewObserver } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
 import { McpOAuthManager } from './mcpOAuthManager'
 import { getErrorMessageLabels } from '@shared/i18n'
@@ -134,7 +134,8 @@ export class McpService implements McpServicePort {
     providerRuntime: Pick<ProviderRuntimePort, 'generateCompletionStandalone'>,
     onRegistryChanged: () => void,
     private readonly publishEvent: DeepchatEventPublisher,
-    cacheImage?: (data: string) => Promise<string>
+    cacheImage?: (data: string) => Promise<string>,
+    computerUsePreviewObserver?: ComputerUsePreviewObserver
   ) {
     logger.info('Initializing MCP service')
 
@@ -167,7 +168,8 @@ export class McpService implements McpServicePort {
       this.locale,
       this.mcpSettings,
       this.serverManager,
-      this.publishEvent
+      this.publishEvent,
+      computerUsePreviewObserver
     )
     // init mcprouter manager
     try {
@@ -822,6 +824,7 @@ export class McpService implements McpServicePort {
       signal?: AbortSignal
       agentId?: string
       enabledServerIds?: string[]
+      runId?: string
     }
   ): Promise<{ content: string; rawData: MCPToolResponse }> {
     const toolCallResult = await this.toolManager.callTool(request, options)

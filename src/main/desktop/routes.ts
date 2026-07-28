@@ -3,6 +3,7 @@ import type {
   IShortcutPresenter,
   ITabPresenter,
   IWindowPresenter,
+  IComputerUsePreviewPresenter,
   IYoBrowserPresenter
 } from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
@@ -11,6 +12,7 @@ import {
   browserAttachCurrentWindowRoute,
   browserApplyImportRoute,
   browserClearSandboxDataRoute,
+  browserDismissPreviewRoute,
   browserDestroyRoute,
   browserDetachRoute,
   browserGetStatusRoute,
@@ -22,6 +24,8 @@ import {
   browserScanImportSourcesRoute,
   browserSetPreviewModeRoute,
   browserUpdateCurrentWindowBoundsRoute,
+  computerUseDismissPreviewRoute,
+  computerUseSetPreviewModeRoute,
   configGetFloatingButtonRoute,
   configGetLanguageRoute,
   configGetShortcutKeysRoute,
@@ -56,18 +60,28 @@ import {
 } from '@shared/contracts/routes'
 import { DEV_EVENTS } from '../events'
 import { createRouteMap, type DeepchatRouteMap, type RouteContext } from '@/routes/routeRegistry'
+import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 
 export function createDesktopRoutes(deps: {
   windowPresenter: IWindowPresenter
   shortcutPresenter: IShortcutPresenter
   browserPresenter: IYoBrowserPresenter
+  computerUsePreviewPresenter: IComputerUsePreviewPresenter
+  desktopSessionBinding: Pick<DesktopSessionBinding, 'getActiveId'>
   tabPresenter: ITabPresenter
   dialogService: DialogServicePort
   settings: DesktopSettings
   setFloatingButtonEnabled(enabled: boolean): void
   recordActivity(input: SettingsActivityInput): void
 }): DeepchatRouteMap {
-  const { windowPresenter, shortcutPresenter, browserPresenter, tabPresenter, dialogService } = deps
+  const {
+    windowPresenter,
+    shortcutPresenter,
+    browserPresenter,
+    computerUsePreviewPresenter,
+    tabPresenter,
+    dialogService
+  } = deps
   const readWindowState = (context: RouteContext) => {
     const window = context.windowId == null ? null : BrowserWindow.fromId(context.windowId)
     const exists = Boolean(window && !window.isDestroyed())
@@ -400,6 +414,50 @@ export function createDesktopRoutes(deps: {
             input.runId
           )
         )
+      }
+    ],
+    [
+      browserDismissPreviewRoute.name,
+      async (rawInput) => {
+        const input = browserDismissPreviewRoute.input.parse(rawInput)
+        return browserDismissPreviewRoute.output.parse({
+          dismissed: browserPresenter.dismissPreview(input.sessionId, input.runId)
+        })
+      }
+    ],
+    [
+      computerUseSetPreviewModeRoute.name,
+      async (rawInput, context) => {
+        const input = computerUseSetPreviewModeRoute.input.parse(rawInput)
+        if (
+          context.windowId == null ||
+          (input.mode !== 'stopped' &&
+            deps.desktopSessionBinding.getActiveId(context.webContentsId) !== input.sessionId)
+        ) {
+          return computerUseSetPreviewModeRoute.output.parse({
+            updated: false,
+            surface: 'none'
+          })
+        }
+        return computerUseSetPreviewModeRoute.output.parse(
+          await computerUsePreviewPresenter.setPreviewMode(
+            input.sessionId,
+            input.mode,
+            context.windowId
+          )
+        )
+      }
+    ],
+    [
+      computerUseDismissPreviewRoute.name,
+      async (rawInput, context) => {
+        const input = computerUseDismissPreviewRoute.input.parse(rawInput)
+        const active =
+          deps.desktopSessionBinding.getActiveId(context.webContentsId) === input.sessionId
+        return computerUseDismissPreviewRoute.output.parse({
+          dismissed:
+            active && computerUsePreviewPresenter.dismissPreview(input.sessionId, input.runId)
+        })
       }
     ],
     [

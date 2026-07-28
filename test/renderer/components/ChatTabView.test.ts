@@ -176,6 +176,12 @@ const setup = async (options: SetupOptions = {}) => {
       template: '<div data-testid="agent-browser-pip-stub" />'
     })
   }))
+  vi.doMock('@/components/computerUse/AgentComputerUsePiP.vue', () => ({
+    default: defineComponent({
+      name: 'AgentComputerUsePiP',
+      template: '<div data-testid="agent-computer-use-pip-stub" />'
+    })
+  }))
   vi.doMock('@/pages/AgentWelcomePage.vue', () => ({
     default: defineComponent({
       name: 'AgentWelcomePage',

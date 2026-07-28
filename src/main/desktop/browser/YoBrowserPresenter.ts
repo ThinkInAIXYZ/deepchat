@@ -23,10 +23,10 @@ import {
 import type { DownloadInfo } from '@shared/types/browser'
 import type { IWindowPresenter, IYoBrowserPresenter } from '@shared/types/desktop'
 import {
-  AgentBrowserNativeOverlay,
-  type AgentBrowserNativeOverlayAction,
-  type AgentBrowserNativeOverlayTarget
-} from './AgentBrowserNativeOverlay'
+  AgentPreviewCoordinator,
+  type AgentPreviewAction,
+  type AgentPreviewTarget
+} from '@/desktop/preview/AgentPreviewCoordinator'
 import { BrowserTab as BrowserPage } from './BrowserTab'
 import { BrowserProfileImportService } from './BrowserProfileImportService'
 import { CDPManager } from './CDPManager'
@@ -69,6 +69,7 @@ type SessionBrowserState = {
   previewTimer: ReturnType<typeof setTimeout> | null
   previewCapture: Promise<void> | null
   previewEpoch: number
+  previewClaimSequence: number
   previewSequence: number
   previewBurstUntil: number
 }
@@ -101,22 +102,25 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   )
   private browserDataMutationActive = false
   private readonly windowPresenter: IWindowPresenter
-  private readonly nativeOverlay: AgentBrowserNativeOverlay
+  private readonly previewCoordinator: AgentPreviewCoordinator
+  private readonly unregisterPreviewHandler: () => void
   readonly toolHandler: YoBrowserToolHandler
 
   constructor(
     windowPresenter: IWindowPresenter,
-    private readonly publishEvent: DeepchatEventPublisher
+    private readonly publishEvent: DeepchatEventPublisher,
+    previewCoordinator: AgentPreviewCoordinator
   ) {
     this.windowPresenter = windowPresenter
-    this.nativeOverlay = new AgentBrowserNativeOverlay((action, target) => {
+    this.previewCoordinator = previewCoordinator
+    this.unregisterPreviewHandler = previewCoordinator.register('browser', (action, target) => {
       this.handleNativePreviewAction(action, target)
     })
     this.toolHandler = new YoBrowserToolHandler(this)
   }
 
   async initialize(): Promise<void> {
-    await this.nativeOverlay.initialize()
+    await this.previewCoordinator.initialize()
   }
 
   async getBrowserStatus(sessionId: string): Promise<YoBrowserStatus> {
@@ -192,7 +196,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return false
     }
 
-    this.nativeOverlay.hide(this.nativeTargetRef(state))
+    this.previewCoordinator.hide(this.nativeTargetRef(state))
     await this.releasePreviewHost(state)
 
     this.detachOtherSessionBrowsers(hostWindowId, sessionId)
@@ -284,9 +288,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       if (runId != null && state.agentRunId != null && runId !== state.agentRunId) {
         return { updated: false, surface: 'none' }
       }
-      this.nativeOverlay.hide(this.nativeTargetRef(state))
+      this.previewCoordinator.hide(this.nativeTargetRef(state))
       await this.releasePreviewHost(state)
-      this.nativeOverlay.removeTarget(this.nativeTargetRef(state))
+      this.previewCoordinator.releaseClaim(this.nativeTargetRef(state))
       state.previewSurface = 'none'
       return { updated: true, surface: 'none' }
     }
@@ -299,7 +303,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return { updated: false, surface: 'none' }
     }
 
-    await this.nativeOverlay.initialize()
+    await this.previewCoordinator.initialize()
 
     const targetWindow = hostWindowId == null ? null : BrowserWindow.fromId(hostWindowId)
     if (hostWindowId != null && (!targetWindow || targetWindow.isDestroyed())) {
@@ -307,7 +311,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     if (mode === 'rendering') {
-      this.nativeOverlay.hide(this.nativeTargetRef(state))
+      this.previewCoordinator.hide(this.nativeTargetRef(state))
     }
     await this.stopPreviewCapture(state)
     if (mode === 'capturing' && (!targetWindow || state.visible)) {
@@ -322,25 +326,40 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     state.previewEpoch += 1
 
     if (mode === 'rendering') {
-      this.nativeOverlay.hide(this.nativeTargetRef(state))
-      state.previewSurface = this.nativeOverlay.isAvailable() ? 'native-overlay' : 'renderer-canvas'
+      this.previewCoordinator.hide(this.nativeTargetRef(state))
+      state.previewSurface = this.previewCoordinator.isAvailable()
+        ? 'native-overlay'
+        : 'renderer-canvas'
       return { updated: true, surface: state.previewSurface }
     }
 
     if (!targetWindow) {
       return { updated: false, surface: 'none' }
     }
-    const nativeTarget = this.nativeTarget(state)
-    state.previewSurface =
-      nativeTarget && this.nativeOverlay.prepare(nativeTarget, targetWindow)
-        ? 'native-overlay'
-        : 'renderer-canvas'
-
-    this.schedulePreviewCapture(state, 0, state.previewEpoch)
+    this.resumeClaimedPreview(state)
     return {
       updated: true,
       surface: state.previewSurface
     }
+  }
+
+  dismissPreview(sessionId: string, runId: string): boolean {
+    const state = this.sessionBrowsers.get(sessionId)
+    if (!state || state.agentRunId !== runId) {
+      return false
+    }
+
+    const dismissed = this.previewCoordinator.dismiss({
+      source: 'browser',
+      sessionId,
+      runId
+    })
+    if (dismissed) {
+      state.previewSurface = 'none'
+      void this.stopPreviewCapture(state)
+      this.emitPreviewSurface(state)
+    }
+    return dismissed
   }
 
   async destroySessionBrowser(sessionId: string): Promise<void> {
@@ -349,7 +368,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return
     }
 
-    this.nativeOverlay.removeTarget(this.nativeTargetRef(state))
+    this.previewCoordinator.releaseClaim(this.nativeTargetRef(state))
     await this.releasePreviewHost(state)
     await this.detachSessionBrowser(sessionId)
     state.page.destroy()
@@ -517,7 +536,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     for (const sessionId of Array.from(this.sessionBrowsers.keys())) {
       await this.destroySessionBrowser(sessionId)
     }
-    this.nativeOverlay.shutdown()
+    this.unregisterPreviewHandler()
   }
 
   private ensureSessionBrowserState(sessionId: string): SessionBrowserState {
@@ -557,6 +576,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       previewTimer: null,
       previewCapture: null,
       previewEpoch: 0,
+      previewClaimSequence: 0,
       previewSequence: 0,
       previewBurstUntil: 0
     }
@@ -675,7 +695,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return
     }
 
-    this.nativeOverlay.removeTarget(this.nativeTargetRef(state))
+    this.previewCoordinator.releaseClaim(this.nativeTargetRef(state))
     this.disposePreviewHost(state)
     state.page.destroy()
     state.overlay.destroy()
@@ -964,13 +984,31 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     agentRunId?: string
   ): void {
     if (activitySource === 'agent') {
+      const previousRunId = state.agentRunId
+      const nextRunId = agentRunId?.trim() || previousRunId || nanoid(12)
+      if (previousRunId && previousRunId !== nextRunId) {
+        this.previewCoordinator.removeTarget({
+          source: 'browser',
+          sessionId: state.sessionId,
+          runId: previousRunId
+        })
+        state.previewEpoch += 1
+      }
       state.owner = 'agent'
-      state.agentRunId = agentRunId?.trim() || state.agentRunId || nanoid(12)
+      state.agentRunId = nextRunId
+      state.previewClaimSequence = this.previewCoordinator.claim({
+        source: 'browser',
+        sessionId: state.sessionId,
+        runId: nextRunId
+      })
+      this.resumeClaimedPreview(state)
       return
     }
 
+    this.previewCoordinator.releaseClaim(this.nativeTargetRef(state))
     state.owner = 'user'
     state.agentRunId = undefined
+    state.previewClaimSequence = 0
   }
 
   private emitWindowUpdated(sessionId: string): void {
@@ -1320,7 +1358,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       state.previewHost = host
       host.once('closed', () => {
         if (state.previewHost === host) {
-          this.nativeOverlay.removeTarget(this.nativeTargetRef(state))
+          this.previewCoordinator.releaseClaim(this.nativeTargetRef(state))
           state.previewHost = null
           state.previewMode = 'stopped'
           state.previewSurface = 'none'
@@ -1398,6 +1436,44 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     host.destroy()
   }
 
+  private resumeClaimedPreview(state: SessionBrowserState): void {
+    if (state.previewMode !== 'capturing' || state.previewTargetWindowId == null) {
+      return
+    }
+    const target = this.nativeTarget(state)
+    const host = BrowserWindow.fromId(state.previewTargetWindowId)
+    if (!target || !host || host.isDestroyed() || state.visible) {
+      return
+    }
+
+    state.previewSurface = this.previewCoordinator.prepare(target, host)
+    this.emitPreviewSurface(state)
+    if (
+      state.previewSurface !== 'none' &&
+      state.previewTimer == null &&
+      state.previewCapture == null
+    ) {
+      this.schedulePreviewCapture(state, 0, state.previewEpoch)
+    }
+  }
+
+  private emitPreviewSurface(state: SessionBrowserState): void {
+    if (state.previewTargetWindowId == null || !state.agentRunId) {
+      return
+    }
+    this.windowPresenter.sendToWindow(
+      state.previewTargetWindowId,
+      DEEPCHAT_EVENT_CHANNEL,
+      createDeepchatEventEnvelope('browser.preview.surface.changed', {
+        windowId: state.previewTargetWindowId,
+        sessionId: state.sessionId,
+        runId: state.agentRunId,
+        surface: state.previewSurface,
+        version: Date.now()
+      })
+    )
+  }
+
   private schedulePreviewCapture(state: SessionBrowserState, delayMs: number, epoch: number): void {
     if (state.previewMode !== 'capturing' || state.previewEpoch !== epoch) {
       return
@@ -1409,6 +1485,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       void capture.finally(() => {
         if (state.previewCapture === capture) {
           state.previewCapture = null
+          if (state.previewTimer == null && state.previewMode === 'capturing') {
+            this.resumeClaimedPreview(state)
+          }
         }
       })
     }, delayMs)
@@ -1416,11 +1495,14 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   private async capturePreviewFrame(state: SessionBrowserState, epoch: number): Promise<void> {
+    const initialTarget = this.nativeTarget(state)
     if (
       state.previewMode !== 'capturing' ||
       state.previewEpoch !== epoch ||
       state.previewTargetWindowId == null ||
       !state.agentRunId ||
+      !initialTarget ||
+      !this.previewCoordinator.isCurrent(initialTarget) ||
       state.page.contents.isDestroyed()
     ) {
       return
@@ -1438,24 +1520,15 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       if (data.byteLength <= PREVIEW_MAX_BYTES) {
         if (state.previewSurface === 'native-overlay') {
           const target = this.nativeTarget(state)
-          if (target && target.captureEpoch === epoch) {
-            this.nativeOverlay.present(target, data)
+          if (target && target.epoch === epoch && !this.previewCoordinator.present(target, data)) {
+            const host = BrowserWindow.fromId(target.windowId)
+            state.previewSurface =
+              host && !host.isDestroyed() ? this.previewCoordinator.prepare(target, host) : 'none'
+            this.emitPreviewSurface(state)
           }
-        } else if (state.previewSurface === 'renderer-canvas') {
-          state.previewSequence += 1
-          this.windowPresenter.sendToWindow(
-            state.previewTargetWindowId,
-            DEEPCHAT_EVENT_CHANNEL,
-            createDeepchatEventEnvelope('browser.preview.frame', {
-              sessionId: state.sessionId,
-              runId: state.agentRunId,
-              sequence: state.previewSequence,
-              ...PREVIEW_FRAME,
-              mimeType: 'image/jpeg',
-              data,
-              timestamp: Date.now()
-            })
-          )
+        }
+        if (state.previewSurface === 'renderer-canvas') {
+          this.sendRendererPreviewFrame(state, data)
         }
       }
     } catch (error) {
@@ -1466,6 +1539,10 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     const active = state.page.contents.isLoading() || Date.now() < state.previewBurstUntil
+    const nextTarget = this.nativeTarget(state)
+    if (!nextTarget || !this.previewCoordinator.isCurrent(nextTarget)) {
+      return
+    }
     this.schedulePreviewCapture(
       state,
       active ? PREVIEW_ACTIVE_INTERVAL_MS : PREVIEW_IDLE_INTERVAL_MS,
@@ -1473,45 +1550,78 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     )
   }
 
-  private nativeTarget(state: SessionBrowserState): AgentBrowserNativeOverlayTarget | null {
-    if (state.previewTargetWindowId == null || !state.agentRunId) {
+  private nativeTarget(state: SessionBrowserState): AgentPreviewTarget | null {
+    if (
+      state.previewTargetWindowId == null ||
+      !state.agentRunId ||
+      state.previewClaimSequence <= 0
+    ) {
       return null
     }
     return {
+      source: 'browser',
       windowId: state.previewTargetWindowId,
       sessionId: state.sessionId,
       runId: state.agentRunId,
-      captureEpoch: state.previewEpoch
+      epoch: state.previewEpoch,
+      claimSequence: state.previewClaimSequence
     }
   }
 
+  private sendRendererPreviewFrame(state: SessionBrowserState, data: Buffer): void {
+    if (state.previewTargetWindowId == null || !state.agentRunId) {
+      return
+    }
+    state.previewSequence += 1
+    this.windowPresenter.sendToWindow(
+      state.previewTargetWindowId,
+      DEEPCHAT_EVENT_CHANNEL,
+      createDeepchatEventEnvelope('browser.preview.frame', {
+        sessionId: state.sessionId,
+        runId: state.agentRunId,
+        sequence: state.previewSequence,
+        ...PREVIEW_FRAME,
+        mimeType: 'image/jpeg',
+        data,
+        timestamp: Date.now()
+      })
+    )
+  }
+
   private nativeTargetRef(state: SessionBrowserState): {
+    source: 'browser'
     sessionId: string
     runId?: string
   } {
     return {
+      source: 'browser',
       sessionId: state.sessionId,
       ...(state.agentRunId ? { runId: state.agentRunId } : {})
     }
   }
 
-  private handleNativePreviewAction(
-    action: AgentBrowserNativeOverlayAction,
-    target: AgentBrowserNativeOverlayTarget
-  ): void {
+  private handleNativePreviewAction(action: AgentPreviewAction, target: AgentPreviewTarget): void {
     const state = this.sessionBrowsers.get(target.sessionId)
     if (
       !state ||
-      state.previewSurface !== 'native-overlay' ||
+      target.source !== 'browser' ||
       state.previewTargetWindowId !== target.windowId ||
       state.agentRunId !== target.runId ||
-      state.previewEpoch !== target.captureEpoch
+      state.previewEpoch !== target.epoch ||
+      state.previewClaimSequence !== target.claimSequence
     ) {
       return
     }
 
-    state.previewMode = 'rendering'
+    state.previewSurface = 'none'
     void this.stopPreviewCapture(state)
+    this.emitPreviewSurface(state)
+
+    if (action === 'superseded') {
+      return
+    }
+
+    state.previewMode = 'rendering'
 
     if (action === 'activate') {
       this.windowPresenter.show(target.windowId, true)

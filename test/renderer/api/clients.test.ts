@@ -4,6 +4,7 @@ import type { HooksNotificationsSettings } from '@shared/hooksNotifications'
 import { createAcpTerminalClient } from '../../../src/renderer/api/AcpTerminalClient'
 import { createAppRuntimeClient } from '../../../src/renderer/api/AppRuntimeClient'
 import { createBrowserClient } from '../../../src/renderer/api/BrowserClient'
+import { createComputerUseClient } from '../../../src/renderer/api/ComputerUseClient'
 import { createChatClient } from '../../../src/renderer/api/ChatClient'
 import { createConfigClient } from '../../../src/renderer/api/ConfigClient'
 import { createContextMenuClient } from '../../../src/renderer/api/ContextMenuClient'
@@ -877,6 +878,12 @@ describe('renderer api clients', () => {
               return { updated: true }
             case 'browser.setPreviewMode':
               return { updated: true, surface: 'renderer-canvas' }
+            case 'browser.dismissPreview':
+              return { dismissed: true }
+            case 'computerUse.setPreviewMode':
+              return { updated: true, surface: 'renderer-canvas' }
+            case 'computerUse.dismissPreview':
+              return { dismissed: true }
             case 'browser.clearSandboxData':
               return { cleared: true }
             case 'browser.import.scan':
@@ -2236,6 +2243,39 @@ describe('renderer api clients', () => {
     })
   })
 
+  it('routes Browser and Computer Use preview dismissal through typed registry names', async () => {
+    const bridge = createBridge()
+    const browserClient = createBrowserClient(bridge)
+    const computerUseClient = createComputerUseClient(bridge)
+
+    await expect(browserClient.dismissPreview('session-1', 'run-1')).resolves.toBe(true)
+    await expect(computerUseClient.dismissPreview('session-1', 'run-1')).resolves.toBe(true)
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'browser.dismissPreview', {
+      sessionId: 'session-1',
+      runId: 'run-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'computerUse.dismissPreview', {
+      sessionId: 'session-1',
+      runId: 'run-1'
+    })
+  })
+
+  it('routes Computer Use preview mode through the shared registry name', async () => {
+    const bridge = createBridge()
+    const client = createComputerUseClient(bridge)
+
+    await expect(client.setPreviewMode('session-1', 'eligible')).resolves.toEqual({
+      updated: true,
+      surface: 'renderer-canvas'
+    })
+
+    expect(bridge.invoke).toHaveBeenCalledWith('computerUse.setPreviewMode', {
+      sessionId: 'session-1',
+      mode: 'eligible'
+    })
+  })
+
   it('routes browser website-data import through typed registry names', async () => {
     const bridge = createBridge()
     const browserClient = createBrowserClient(bridge)
@@ -2911,5 +2951,22 @@ describe('renderer api clients', () => {
     browserClient.onPreviewAction(listener)
 
     expect(bridge.on).toHaveBeenCalledWith('browser.preview.action', listener)
+  })
+
+  it('subscribes to Computer Use preview frames and surface changes', () => {
+    const bridge = createBridge()
+    const client = createComputerUseClient(bridge)
+    const frameListener = vi.fn()
+    const surfaceListener = vi.fn()
+
+    client.onPreviewFrame(frameListener)
+    client.onPreviewSurfaceChanged(surfaceListener)
+
+    expect(bridge.on).toHaveBeenNthCalledWith(1, 'computerUse.preview.frame', frameListener)
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      2,
+      'computerUse.preview.surface.changed',
+      surfaceListener
+    )
   })
 })

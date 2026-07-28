@@ -609,16 +609,23 @@ describe('ToolService', () => {
     expect((toolService as any).agentToolManager).toBe(runtimeManager)
     expect(runtimeManager.agentWorkspacePath).toBe('C:\\runtime-workspace')
 
-    await toolService.callTool({
-      id: 'tool-1',
-      type: 'function',
-      function: { name: 'mcp_only', arguments: '{}' },
-      conversationId: 'conv-1'
-    })
+    await toolService.callTool(
+      {
+        id: 'tool-1',
+        type: 'function',
+        function: { name: 'mcp_only', arguments: '{}' },
+        conversationId: 'conv-1'
+      },
+      { runId: 'run-1' }
+    )
 
     expect(mcpService.callTool).toHaveBeenCalledWith(
       expect.objectContaining({ function: expect.objectContaining({ name: 'mcp_only' }) }),
-      expect.objectContaining({ agentId: 'agent-1', enabledServerIds: ['mcp-server'] })
+      expect.objectContaining({
+        agentId: 'agent-1',
+        enabledServerIds: ['mcp-server'],
+        runId: 'run-1'
+      })
     )
   })
 

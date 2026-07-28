@@ -74,7 +74,10 @@ describe('main kernel contracts', () => {
         'acpTerminal.kill',
         'browser.attachCurrentWindow',
         'browser.clearSandboxData',
+        'browser.dismissPreview',
         'browser.setPreviewMode',
+        'computerUse.dismissPreview',
+        'computerUse.setPreviewMode',
         'databaseSecurity.repairSchema',
         'debug.createMockChatSession',
         'config.addManualAcpAgent',
@@ -1788,7 +1791,10 @@ describe('main kernel contracts', () => {
         'browser.open.requested',
         'browser.preview.action',
         'browser.preview.frame',
+        'browser.preview.surface.changed',
         'browser.status.changed',
+        'computerUse.preview.frame',
+        'computerUse.preview.surface.changed',
         'chat.plan.updated',
         'chat.stream.completed',
         'chat.stream.failed',
@@ -1923,6 +1929,39 @@ describe('main kernel contracts', () => {
       DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
         ...payload,
         data: new DataView(new ArrayBuffer(3))
+      }).success
+    ).toBe(false)
+  })
+
+  it('validates bounded Computer Use preview frames with a target epoch', () => {
+    const payload = {
+      sessionId: 'session-1',
+      runId: 'run-1',
+      epoch: 2,
+      sequence: 3,
+      width: 480,
+      height: 300,
+      mimeType: 'image/jpeg',
+      timestamp: Date.now()
+    } as const
+
+    expect(
+      DEEPCHAT_EVENT_CATALOG['computerUse.preview.frame'].payload.safeParse({
+        ...payload,
+        data: new Uint8Array([1, 2, 3])
+      }).success
+    ).toBe(true)
+    expect(
+      DEEPCHAT_EVENT_CATALOG['computerUse.preview.frame'].payload.safeParse({
+        ...payload,
+        epoch: -1,
+        data: new Uint8Array([1, 2, 3])
+      }).success
+    ).toBe(false)
+    expect(
+      DEEPCHAT_EVENT_CATALOG['computerUse.preview.frame'].payload.safeParse({
+        ...payload,
+        data: new Uint8Array(512 * 1024 + 1)
       }).success
     ).toBe(false)
   })

@@ -9,13 +9,16 @@ const overlayHideMock = vi.fn()
 const overlayDestroyMock = vi.fn()
 const nativeInitializeMock = vi.fn(async () => false)
 const nativeIsAvailableMock = vi.fn(() => false)
-const nativePrepareMock = vi.fn(() => false)
+const nativePrepareMock = vi.fn(() => 'renderer-canvas')
 const nativePresentMock = vi.fn(() => true)
 const nativeHideMock = vi.fn()
 const nativeRemoveTargetMock = vi.fn()
-const nativeShutdownMock = vi.fn()
+const nativeReleaseClaimMock = vi.fn()
+const nativeClaimMock = vi.fn(() => 1)
+const nativeDismissMock = vi.fn(() => true)
+const nativeIsCurrentMock = vi.fn(() => true)
 let nativeActionHandler:
-  | ((action: 'activate' | 'dismiss', target: Record<string, unknown>) => void)
+  | ((action: 'activate' | 'dismiss' | 'superseded', target: Record<string, unknown>) => void)
   | null = null
 
 class MockWebContents extends EventEmitter {
@@ -167,8 +170,11 @@ describe('YoBrowserPresenter', () => {
     overlayDestroyMock.mockClear()
     nativeInitializeMock.mockResolvedValue(false)
     nativeIsAvailableMock.mockReturnValue(false)
-    nativePrepareMock.mockReturnValue(false)
+    nativePrepareMock.mockReturnValue('renderer-canvas')
     nativePresentMock.mockReturnValue(true)
+    nativeClaimMock.mockReturnValue(1)
+    nativeDismissMock.mockReturnValue(true)
+    nativeIsCurrentMock.mockReturnValue(true)
     nativeActionHandler = null
     vi.useFakeTimers()
   })
@@ -243,24 +249,6 @@ describe('YoBrowserPresenter', () => {
       }
     }))
 
-    vi.doMock('@/desktop/browser/AgentBrowserNativeOverlay', () => ({
-      AgentBrowserNativeOverlay: class {
-        constructor(
-          onAction: (action: 'activate' | 'dismiss', target: Record<string, unknown>) => void
-        ) {
-          nativeActionHandler = onAction
-        }
-
-        initialize = nativeInitializeMock
-        isAvailable = nativeIsAvailableMock
-        prepare = nativePrepareMock
-        present = nativePresentMock
-        hide = nativeHideMock
-        removeTarget = nativeRemoveTargetMock
-        shutdown = nativeShutdownMock
-      }
-    }))
-
     const { YoBrowserPresenter } = await import('@/desktop/browser/YoBrowserPresenter')
     const windowPresenter = {
       show: vi.fn((windowId: number) => {
@@ -285,9 +273,37 @@ describe('YoBrowserPresenter', () => {
       })
     }
 
-    const presenter = new YoBrowserPresenter(windowPresenter as any, (name, payload) => {
-      sendToAllWindowsMock('deepchat:event', createDeepchatEventEnvelope(name, payload))
-    })
+    const previewCoordinator = {
+      register: vi.fn(
+        (
+          _source: 'browser',
+          handler: (
+            action: 'activate' | 'dismiss' | 'superseded',
+            target: Record<string, unknown>
+          ) => void
+        ) => {
+          nativeActionHandler = handler
+          return vi.fn()
+        }
+      ),
+      initialize: nativeInitializeMock,
+      isAvailable: nativeIsAvailableMock,
+      claim: nativeClaimMock,
+      releaseClaim: nativeReleaseClaimMock,
+      dismiss: nativeDismissMock,
+      prepare: nativePrepareMock,
+      present: nativePresentMock,
+      hide: nativeHideMock,
+      removeTarget: nativeRemoveTargetMock,
+      isCurrent: nativeIsCurrentMock
+    }
+    const presenter = new YoBrowserPresenter(
+      windowPresenter as any,
+      (name, payload) => {
+        sendToAllWindowsMock('deepchat:event', createDeepchatEventEnvelope(name, payload))
+      },
+      previewCoordinator as never
+    )
 
     const getSessionWebContents = (sessionId: string) => {
       return ((presenter as any).sessionBrowsers.get(sessionId)?.view?.webContents ??
@@ -580,7 +596,7 @@ describe('YoBrowserPresenter', () => {
     windows.set(1, new MockBrowserWindow(1))
     nativeInitializeMock.mockResolvedValue(true)
     nativeIsAvailableMock.mockReturnValue(true)
-    nativePrepareMock.mockReturnValue(true)
+    nativePrepareMock.mockReturnValue('native-overlay')
     await presenter.initialize()
 
     const loadPromise = presenter.loadUrl(

@@ -355,6 +355,7 @@ export class ToolService implements ToolServicePort {
     return await this.options.mcpService.callTool(request, {
       agentId: options?.agentId ?? storedAccess?.agentId,
       enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds,
+      runId: options?.runId,
       signal: options?.signal
     })
   }

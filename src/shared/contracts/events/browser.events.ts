@@ -98,3 +98,14 @@ export const browserPreviewActionEvent = defineEventContract({
     runId: z.string().min(1)
   })
 })
+
+export const browserPreviewSurfaceChangedEvent = defineEventContract({
+  name: 'browser.preview.surface.changed',
+  payload: z.object({
+    windowId: z.number().int().positive(),
+    sessionId: z.string().min(1),
+    runId: z.string().min(1),
+    surface: z.enum(['native-overlay', 'renderer-canvas', 'none']),
+    version: TimestampMsSchema
+  })
+})

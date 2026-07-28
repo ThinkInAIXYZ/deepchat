@@ -4,23 +4,33 @@ import logger from '@shared/logger'
 
 type NativeKitOverlay = (typeof import('@zerob13/nativekit'))['overlay']
 
-export type AgentBrowserNativeOverlayTarget = {
+export type AgentPreviewSource = 'browser' | 'computer-use'
+
+export type AgentPreviewTarget = {
+  source: AgentPreviewSource
   windowId: number
   sessionId: string
   runId: string
-  captureEpoch: number
+  epoch: number
+  claimSequence: number
 }
 
-export type AgentBrowserNativeOverlayAction = 'activate' | 'dismiss'
+export type AgentPreviewSurface = 'native-overlay' | 'renderer-canvas' | 'none'
 
-type NativeOverlayActionHandler = (
-  action: AgentBrowserNativeOverlayAction,
-  target: AgentBrowserNativeOverlayTarget
-) => void
+export type AgentPreviewAction = 'activate' | 'dismiss' | 'superseded'
 
-type NativeOverlayTargetRef = {
+type AgentPreviewTargetRef = {
+  source?: AgentPreviewSource
   sessionId: string
   runId?: string
+}
+
+type AgentPreviewActionHandler = (action: AgentPreviewAction, target: AgentPreviewTarget) => void
+
+type AgentPreviewClaim = {
+  source: AgentPreviewSource
+  runId: string
+  sequence: number
 }
 
 type HostListeners = {
@@ -48,25 +58,35 @@ const OPEN_PANEL_ICON_DATA_URL =
 const CLOSE_ICON_DATA_URL =
   'data:image/png;base64,' +
   'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAdklEQVQ4jbWTSwrAIAxE31G71F111d6z9DoWQSSKn1DbB64yM5gY4SM24AaMQmuSNnoyFxDS8fTxQhc9GSsKvRBpDslTsFeCU9RcVTtK6zhEbe5dddaaOkRtpnHteib/teAaAxu9TsFo2tMQu7pIy6u8/Jle8wCGAVmb4KsRPAAAAABJRU5ErkJggg=='
-const TOOLBAR_OPTIONS: Parameters<NativeKitOverlay['start']>[0] = {
+
+const toolbarOptions = (source: AgentPreviewSource): Parameters<NativeKitOverlay['start']>[0] => ({
   toolbar: {
     style: 'dark',
-    buttons: [
-      {
-        id: OPEN_PANEL_CONTROL_ID,
-        imageData: OPEN_PANEL_ICON_DATA_URL,
-        tooltip: 'Open in side panel'
-      },
-      {
-        id: CLOSE_CONTROL_ID,
-        imageData: CLOSE_ICON_DATA_URL,
-        tooltip: 'Close'
-      }
-    ]
+    buttons:
+      source === 'browser'
+        ? [
+            {
+              id: OPEN_PANEL_CONTROL_ID,
+              imageData: OPEN_PANEL_ICON_DATA_URL,
+              tooltip: 'Open in side panel'
+            },
+            {
+              id: CLOSE_CONTROL_ID,
+              imageData: CLOSE_ICON_DATA_URL,
+              tooltip: 'Close'
+            }
+          ]
+        : [
+            {
+              id: CLOSE_CONTROL_ID,
+              imageData: CLOSE_ICON_DATA_URL,
+              tooltip: 'Close'
+            }
+          ]
   }
-}
+})
 
-export class AgentBrowserNativeOverlay {
+export class AgentPreviewCoordinator {
   private overlay: NativeKitOverlay | null = null
   private available = false
   private unavailable = false
@@ -74,23 +94,30 @@ export class AgentBrowserNativeOverlay {
   private host: BrowserWindow | null = null
   private hostListeners: HostListeners | null = null
   private hostSyncTimer: ReturnType<typeof setTimeout> | null = null
-  private target: AgentBrowserNativeOverlayTarget | null = null
+  private target: AgentPreviewTarget | null = null
   private desiredVisible = false
   private overlayVisible: boolean | null = null
   private activeSessionId: string | null = null
+  private toolbarSource: AgentPreviewSource | null = null
+  private nextClaimSequence = 0
+  private readonly claims = new Map<string, AgentPreviewClaim>()
+  private readonly dismissedRuns = new Map<string, string>()
+  private readonly handlers = new Map<AgentPreviewSource, AgentPreviewActionHandler>()
   private lastSlowPushWarningAt = 0
   private lastPushFailureWarningAt = 0
   private listeningForDisplays = false
 
   private readonly handleActivate = () => {
-    this.emitAction('activate')
+    if (this.target?.source === 'browser') {
+      this.emitAction('activate')
+    }
   }
 
   private readonly handleControl = (controlId: string) => {
-    if (controlId === OPEN_PANEL_CONTROL_ID) {
+    if (controlId === OPEN_PANEL_CONTROL_ID && this.target?.source === 'browser') {
       this.emitAction('activate')
     } else if (controlId === CLOSE_CONTROL_ID) {
-      this.emitAction('dismiss')
+      this.dismissCurrent()
     }
   }
 
@@ -98,7 +125,65 @@ export class AgentBrowserNativeOverlay {
     this.scheduleHostSync()
   }
 
-  constructor(private readonly onAction: NativeOverlayActionHandler) {}
+  register(source: AgentPreviewSource, handler: AgentPreviewActionHandler): () => void {
+    this.handlers.set(source, handler)
+    return () => {
+      if (this.handlers.get(source) === handler) {
+        this.handlers.delete(source)
+      }
+    }
+  }
+
+  claim(input: { source: AgentPreviewSource; sessionId: string; runId: string }): number {
+    const sessionId = input.sessionId.trim()
+    const runId = input.runId.trim()
+    if (!sessionId || !runId) {
+      return 0
+    }
+
+    if (this.dismissedRuns.get(sessionId) !== runId) {
+      this.dismissedRuns.delete(sessionId)
+    }
+
+    const sequence = ++this.nextClaimSequence
+    this.claims.set(sessionId, {
+      source: input.source,
+      runId,
+      sequence
+    })
+    return sequence
+  }
+
+  releaseClaim(target: AgentPreviewTargetRef): void {
+    const claim = this.claims.get(target.sessionId)
+    if (
+      claim &&
+      (target.source == null || claim.source === target.source) &&
+      (target.runId == null || claim.runId === target.runId)
+    ) {
+      this.claims.delete(target.sessionId)
+    }
+    this.removeTarget(target)
+  }
+
+  dismiss(target: AgentPreviewTargetRef): boolean {
+    const current = this.target
+    const claim = this.claims.get(target.sessionId)
+    const runId = target.runId ?? current?.runId ?? claim?.runId
+    if (!runId) {
+      return false
+    }
+    const currentOwnsRun =
+      current?.sessionId === target.sessionId && (target.runId == null || current.runId === runId)
+    const owner = currentOwnsRun ? current.source : claim?.source
+    if (target.source && owner !== target.source) {
+      return false
+    }
+
+    this.dismissedRuns.set(target.sessionId, runId)
+    this.removeTarget({ sessionId: target.sessionId, runId })
+    return true
+  }
 
   async initialize(): Promise<boolean> {
     if (this.available) {
@@ -119,32 +204,51 @@ export class AgentBrowserNativeOverlay {
     return this.available
   }
 
-  prepare(target: AgentBrowserNativeOverlayTarget, host: BrowserWindow): boolean {
-    if (!this.available || !this.overlay || host.isDestroyed()) {
-      return false
+  isCurrent(target: AgentPreviewTarget): boolean {
+    return this.matchesTarget(target) && this.matchesClaim(target) && !this.isDismissed(target)
+  }
+
+  prepare(target: AgentPreviewTarget, host: BrowserWindow): AgentPreviewSurface {
+    if (
+      host.isDestroyed() ||
+      !this.matchesClaim(target) ||
+      this.isDismissed(target) ||
+      target.claimSequence <= 0
+    ) {
+      return 'none'
     }
 
+    const previous = this.target
     const presentationChanged =
-      this.target != null && this.presentationId(this.target) !== this.presentationId(target)
+      previous != null && this.presentationId(previous) !== this.presentationId(target)
     if (presentationChanged) {
       this.desiredVisible = false
       this.setOverlayVisible(false)
       this.removeCurrentPresentation()
-    }
-
-    if (!this.attachHost(host)) {
-      this.disable('host_attach_failed')
-      return false
+      this.target = null
+      this.handlers.get(previous.source)?.('superseded', { ...previous })
     }
 
     this.target = { ...target }
     this.desiredVisible = true
-    return true
+
+    if (!this.available || !this.overlay) {
+      return 'renderer-canvas'
+    }
+    if (!this.configureToolbar(target.source)) {
+      this.disableNative('toolbar_update_failed')
+      return 'renderer-canvas'
+    }
+    if (!this.attachHost(host)) {
+      this.disableNative('host_attach_failed')
+      return 'renderer-canvas'
+    }
+    return 'native-overlay'
   }
 
-  present(target: AgentBrowserNativeOverlayTarget, jpeg: Buffer): boolean {
+  present(target: AgentPreviewTarget, jpeg: Buffer): boolean {
     const overlay = this.overlay
-    if (!this.available || !overlay || !this.matchesTarget(target) || !this.host) {
+    if (!this.available || !overlay || !this.isCurrent(target) || !this.host) {
       return false
     }
 
@@ -153,16 +257,17 @@ export class AgentBrowserNativeOverlay {
       const pushed = overlay.pushImage({
         hostId: this.hostId(target.windowId),
         presentationId: this.presentationId(target),
-        sessionId: this.nativeSessionId(target.sessionId),
+        sessionId: this.nativeSessionId(target),
         imageData: `data:image/jpeg;base64,${jpeg.toString('base64')}`
       })
       this.recordPushDuration(performance.now() - startedAt)
       if (!pushed) {
         this.warnFramePush(new Error('pushImage returned false'))
+        this.disableNative('frame_push_failed')
         return false
       }
 
-      const nativeSessionId = this.nativeSessionId(target.sessionId)
+      const nativeSessionId = this.nativeSessionId(target)
       if (this.activeSessionId !== nativeSessionId) {
         if (overlay.setActiveSession(nativeSessionId)) {
           this.activeSessionId = nativeSessionId
@@ -178,20 +283,21 @@ export class AgentBrowserNativeOverlay {
     } catch (error) {
       this.recordPushDuration(performance.now() - startedAt)
       this.warnFramePush(error)
+      this.disableNative('frame_push_failed')
       return false
     }
   }
 
-  hide(target?: NativeOverlayTargetRef): void {
-    if (target && !this.matchesRun(target)) {
+  hide(target?: AgentPreviewTargetRef): void {
+    if (target && !this.matchesRef(target)) {
       return
     }
     this.desiredVisible = false
     this.setOverlayVisible(false)
   }
 
-  removeTarget(target?: NativeOverlayTargetRef): void {
-    if (target && !this.matchesRun(target)) {
+  removeTarget(target?: AgentPreviewTargetRef): void {
+    if (target && !this.matchesRef(target)) {
       return
     }
     this.desiredVisible = false
@@ -202,27 +308,11 @@ export class AgentBrowserNativeOverlay {
 
   shutdown(): void {
     this.removeTarget()
-    this.unbindHost()
-    this.stopDisplayListeners()
-
-    const overlay = this.overlay
-    this.overlay = null
-    this.available = false
+    this.claims.clear()
+    this.dismissedRuns.clear()
+    this.handlers.clear()
     this.unavailable = true
-    this.overlayVisible = null
-    this.activeSessionId = null
-    this.initialization = null
-    if (!overlay) {
-      return
-    }
-
-    overlay.removeListener('activate', this.handleActivate)
-    overlay.removeListener('control', this.handleControl)
-    try {
-      overlay.stop()
-    } catch (error) {
-      this.warn('shutdown_failed', error)
-    }
+    this.stopNative()
   }
 
   private async start(): Promise<boolean> {
@@ -236,7 +326,7 @@ export class AgentBrowserNativeOverlay {
       const nativekit = await import('@zerob13/nativekit')
       const overlay = nativekit.overlay
       if (
-        !overlay.start(TOOLBAR_OPTIONS) ||
+        !overlay.start(toolbarOptions('browser')) ||
         !overlay.setMaxSize(PREVIEW_MAX_EDGE) ||
         !overlay.setVisible(false)
       ) {
@@ -253,21 +343,42 @@ export class AgentBrowserNativeOverlay {
       overlay.on('activate', this.handleActivate)
       overlay.on('control', this.handleControl)
       this.overlay = overlay
+      this.toolbarSource = 'browser'
       this.overlayVisible = false
       this.available = true
       this.startDisplayListeners()
       return true
     } catch (error) {
-      this.shutdown()
+      this.unavailable = true
+      this.stopNative()
       this.logUnavailable('load_failed', error)
       return false
     }
   }
 
-  private attachHost(host: BrowserWindow): boolean {
+  private configureToolbar(source: AgentPreviewSource): boolean {
+    if (!this.overlay || this.toolbarSource === source) {
+      return Boolean(this.overlay)
+    }
+    try {
+      if (!this.overlay.start(toolbarOptions(source))) {
+        return false
+      }
+      this.toolbarSource = source
+      return true
+    } catch (error) {
+      this.warn('toolbar_update_failed', error)
+      return false
+    }
+  }
+
+  private attachHost(host: BrowserWindow, force = false): boolean {
     const overlay = this.overlay
     if (!overlay || host.isDestroyed()) {
       return false
+    }
+    if (!force && this.host?.id === host.id && this.hostListeners) {
+      return true
     }
 
     if (this.host && this.host.id !== host.id) {
@@ -367,7 +478,7 @@ export class AgentBrowserNativeOverlay {
       this.hostSyncTimer = null
       const host = this.host
       if (host && !host.isDestroyed()) {
-        this.attachHost(host)
+        this.attachHost(host, true)
       }
     }, HOST_SYNC_DELAY_MS)
     this.hostSyncTimer.unref?.()
@@ -400,14 +511,27 @@ export class AgentBrowserNativeOverlay {
     screen.removeListener('display-metrics-changed', this.handleDisplayChange)
   }
 
-  private emitAction(action: AgentBrowserNativeOverlayAction): void {
+  private emitAction(action: 'activate' | 'dismiss'): void {
     const target = this.target
     if (!target) {
       return
     }
     this.desiredVisible = false
     this.setOverlayVisible(false)
-    this.onAction(action, { ...target })
+    this.handlers.get(target.source)?.(action, { ...target })
+  }
+
+  private dismissCurrent(): void {
+    const target = this.target
+    if (!target) {
+      return
+    }
+    this.dismissedRuns.set(target.sessionId, target.runId)
+    this.desiredVisible = false
+    this.setOverlayVisible(false)
+    this.removeCurrentPresentation()
+    this.target = null
+    this.handlers.get(target.source)?.('dismiss', { ...target })
   }
 
   private setOverlayVisible(visible: boolean): void {
@@ -437,20 +561,36 @@ export class AgentBrowserNativeOverlay {
     }
   }
 
-  private matchesTarget(target: AgentBrowserNativeOverlayTarget): boolean {
+  private matchesTarget(target: AgentPreviewTarget): boolean {
     return (
-      this.target?.windowId === target.windowId &&
+      this.target?.source === target.source &&
+      this.target.windowId === target.windowId &&
       this.target.sessionId === target.sessionId &&
       this.target.runId === target.runId &&
-      this.target.captureEpoch === target.captureEpoch
+      this.target.epoch === target.epoch &&
+      this.target.claimSequence === target.claimSequence
     )
   }
 
-  private matchesRun(target: NativeOverlayTargetRef): boolean {
+  private matchesRef(target: AgentPreviewTargetRef): boolean {
     return (
       this.target?.sessionId === target.sessionId &&
+      (target.source == null || this.target.source === target.source) &&
       (target.runId == null || this.target.runId === target.runId)
     )
+  }
+
+  private matchesClaim(target: AgentPreviewTarget): boolean {
+    const claim = this.claims.get(target.sessionId)
+    return (
+      claim?.source === target.source &&
+      claim.runId === target.runId &&
+      claim.sequence === target.claimSequence
+    )
+  }
+
+  private isDismissed(target: Pick<AgentPreviewTarget, 'sessionId' | 'runId'>): boolean {
+    return this.dismissedRuns.get(target.sessionId) === target.runId
   }
 
   private isHostEligible(host: BrowserWindow): boolean {
@@ -472,12 +612,12 @@ export class AgentBrowserNativeOverlay {
     return `chat-window:${windowId}`
   }
 
-  private presentationId(target: AgentBrowserNativeOverlayTarget): string {
-    return `agent-browser:${target.windowId}:${target.sessionId}`
+  private presentationId(target: AgentPreviewTarget): string {
+    return `agent-preview:${target.source}:${target.windowId}:${target.sessionId}`
   }
 
-  private nativeSessionId(sessionId: string): string {
-    return `agent-browser:${sessionId}`
+  private nativeSessionId(target: AgentPreviewTarget): string {
+    return `agent-preview:${target.source}:${target.sessionId}`
   }
 
   private normalizeBounds(bounds: Rectangle): Rectangle {
@@ -489,10 +629,34 @@ export class AgentBrowserNativeOverlay {
     }
   }
 
-  private disable(reason: string): void {
+  private disableNative(reason: string): void {
     this.unavailable = true
     this.logUnavailable(reason)
-    this.shutdown()
+    this.stopNative()
+  }
+
+  private stopNative(): void {
+    this.unbindHost()
+    this.stopDisplayListeners()
+
+    const overlay = this.overlay
+    this.overlay = null
+    this.available = false
+    this.overlayVisible = null
+    this.activeSessionId = null
+    this.toolbarSource = null
+    this.initialization = null
+    if (!overlay) {
+      return
+    }
+
+    overlay.removeListener('activate', this.handleActivate)
+    overlay.removeListener('control', this.handleControl)
+    try {
+      overlay.stop()
+    } catch (error) {
+      this.warn('shutdown_failed', error)
+    }
   }
 
   private recordPushDuration(durationMs: number): void {
@@ -503,7 +667,7 @@ export class AgentBrowserNativeOverlay {
       return
     }
     this.lastSlowPushWarningAt = Date.now()
-    logger.warn('[AgentBrowserNativeOverlay] Slow frame presentation', {
+    logger.warn('[AgentPreviewCoordinator] Slow frame presentation', {
       durationMs: Math.round(durationMs)
     })
   }
@@ -517,7 +681,7 @@ export class AgentBrowserNativeOverlay {
   }
 
   private logUnavailable(reason: string, error?: unknown): void {
-    logger.info('[AgentBrowserNativeOverlay] Native overlay unavailable', {
+    logger.info('[AgentPreviewCoordinator] Native overlay unavailable', {
       platform: process.platform,
       arch: process.arch,
       reason,
@@ -526,7 +690,7 @@ export class AgentBrowserNativeOverlay {
   }
 
   private warn(reason: string, error: unknown): void {
-    logger.warn('[AgentBrowserNativeOverlay] Native overlay operation failed', {
+    logger.warn('[AgentPreviewCoordinator] Native overlay operation failed', {
       reason,
       error: error instanceof Error ? error.message : String(error)
     })

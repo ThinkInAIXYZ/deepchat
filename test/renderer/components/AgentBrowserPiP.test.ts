@@ -66,6 +66,15 @@ const setup = async (
         runId: string
       }) => void)
     | null = null
+  let previewSurfaceChangedHandler:
+    | ((payload: {
+        windowId: number
+        sessionId: string
+        runId: string
+        surface: 'native-overlay' | 'renderer-canvas' | 'none'
+        version: number
+      }) => void)
+    | null = null
   const status = createStatus()
   const browserClient = {
     getStatus: vi.fn(async () => status),
@@ -73,6 +82,7 @@ const setup = async (
       updated: true,
       surface: options.surface ?? 'renderer-canvas'
     })),
+    dismissPreview: vi.fn(async () => true),
     onOpenRequestedForCurrentWindow: vi.fn(() => vi.fn()),
     onStatusChanged: vi.fn(
       (handler: (payload: { sessionId: string; status: YoBrowserStatus | null }) => void) => {
@@ -87,6 +97,10 @@ const setup = async (
     }),
     onPreviewAction: vi.fn((handler: NonNullable<typeof previewActionHandler>) => {
       previewActionHandler = handler
+      return vi.fn()
+    }),
+    onPreviewSurfaceChanged: vi.fn((handler: NonNullable<typeof previewSurfaceChangedHandler>) => {
+      previewSurfaceChangedHandler = handler
       return vi.fn()
     })
   }
@@ -142,6 +156,7 @@ const setup = async (
     emitStatus: statusChangedHandler!,
     emitPreviewFrame: previewFrameHandler!,
     emitPreviewAction: previewActionHandler!,
+    emitPreviewSurfaceChanged: previewSurfaceChangedHandler!,
     emitWindowState: windowStateHandler!
   }
 }
@@ -223,7 +238,7 @@ describe('AgentBrowserPiP', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="agent-browser-pip"]').exists()).toBe(false)
-    expect(browserClient.setPreviewMode).toHaveBeenCalledWith('session-1', 'rendering', 'run-1')
+    expect(browserClient.dismissPreview).toHaveBeenCalledWith('session-1', 'run-1')
   })
 
   it('ignores native actions targeted at another window', async () => {
@@ -305,6 +320,52 @@ describe('AgentBrowserPiP', () => {
 
     expect(drawImage).toHaveBeenCalledTimes(1)
     expect(wrapper.find('[data-testid="agent-browser-pip-placeholder"]').exists()).toBe(false)
+  })
+
+  it('clears retained Canvas pixels when another preview source supersedes Browser', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage: vi.fn()
+    } as never)
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => ({ close: vi.fn() }))
+    )
+    const { wrapper, emitPreviewFrame, emitPreviewSurfaceChanged } = await setup({ wide: true })
+
+    emitPreviewFrame({
+      sessionId: 'session-1',
+      runId: 'run-1',
+      sequence: 1,
+      width: 480,
+      height: 300,
+      mimeType: 'image/jpeg',
+      data: new Uint8Array([1, 2, 3]),
+      timestamp: Date.now()
+    })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="agent-browser-pip-placeholder"]').exists()).toBe(false)
+
+    emitPreviewSurfaceChanged({
+      windowId: 1,
+      sessionId: 'session-1',
+      runId: 'run-1',
+      surface: 'none',
+      version: Date.now()
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="agent-browser-pip"]').exists()).toBe(false)
+
+    emitPreviewSurfaceChanged({
+      windowId: 1,
+      sessionId: 'session-1',
+      runId: 'run-1',
+      surface: 'renderer-canvas',
+      version: Date.now()
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="agent-browser-pip-placeholder"]').exists()).toBe(true)
   })
 
   it('accepts a reset frame sequence when the Agent run changes', async () => {

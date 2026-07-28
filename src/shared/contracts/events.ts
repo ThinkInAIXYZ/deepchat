@@ -21,8 +21,13 @@ import {
   browserOpenRequestedEvent,
   browserPreviewActionEvent,
   browserPreviewFrameEvent,
+  browserPreviewSurfaceChangedEvent,
   browserStatusChangedEvent
 } from './events/browser.events'
+import {
+  computerUsePreviewFrameEvent,
+  computerUsePreviewSurfaceChangedEvent
+} from './events/computerUse.events'
 import {
   chatPlanUpdatedEvent,
   chatStreamCompletedEvent,
@@ -129,6 +134,7 @@ import {
 } from './events/workspace.events'
 
 export * from './events/browser.events'
+export * from './events/computerUse.events'
 export * from './events/acp-terminal.events'
 export * from './events/app-runtime.events'
 export * from './events/chat.events'
@@ -161,6 +167,9 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [browserActivityChangedEvent.name]: browserActivityChangedEvent,
   [browserPreviewActionEvent.name]: browserPreviewActionEvent,
   [browserPreviewFrameEvent.name]: browserPreviewFrameEvent,
+  [browserPreviewSurfaceChangedEvent.name]: browserPreviewSurfaceChangedEvent,
+  [computerUsePreviewFrameEvent.name]: computerUsePreviewFrameEvent,
+  [computerUsePreviewSurfaceChangedEvent.name]: computerUsePreviewSurfaceChangedEvent,
   [browserOpenRequestedEvent.name]: browserOpenRequestedEvent,
   [browserStatusChangedEvent.name]: browserStatusChangedEvent,
   [settingsChangedEvent.name]: settingsChangedEvent,

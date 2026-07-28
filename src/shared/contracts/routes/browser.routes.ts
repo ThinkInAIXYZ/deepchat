@@ -69,6 +69,17 @@ export const browserSetPreviewModeRoute = defineRouteContract({
   })
 })
 
+export const browserDismissPreviewRoute = defineRouteContract({
+  name: 'browser.dismissPreview',
+  input: z.object({
+    sessionId: z.string().min(1),
+    runId: z.string().min(1)
+  }),
+  output: z.object({
+    dismissed: z.boolean()
+  })
+})
+
 export const browserDestroyRoute = defineRouteContract({
   name: 'browser.destroy',
   input: z.object({

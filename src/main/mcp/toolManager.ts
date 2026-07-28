@@ -32,6 +32,26 @@ type McpToolAccessContext = {
   conversationId?: string
 }
 
+export type ComputerUsePreviewCall = {
+  conversationId: string
+  runId: string
+  toolCallId: string
+  toolName: string
+  args: Record<string, unknown>
+  source: {
+    serverName: string
+    ownerPluginId?: string
+    sourceId?: string
+  }
+}
+
+export type ComputerUsePreviewObserver = {
+  shouldCaptureAfterClick?(call: ComputerUsePreviewCall): boolean
+  started(call: ComputerUsePreviewCall): void
+  completed(call: ComputerUsePreviewCall, result: MCPToolResponse): void
+  failed(call: ComputerUsePreviewCall, error: unknown): void
+}
+
 type ActiveToolDefinitionsRefresh = {
   completion: Promise<void>
   settle: () => void
@@ -76,7 +96,8 @@ export class ToolManager {
     locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
     serverManager: ServerManager,
-    private readonly publishEvent: DeepchatEventPublisher
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly computerUsePreviewObserver?: ComputerUsePreviewObserver
   ) {
     this.agentSettings = agentSettings
     this.locale = locale
@@ -104,11 +125,13 @@ export class ToolManager {
   private isCuaComputerUseServer(client: McpClient, serverConfig?: MCPServerConfig): boolean {
     const clientConfig = client.serverConfig as {
       ownerPluginId?: unknown
+      source?: unknown
       sourceId?: unknown
     }
     const ownerPluginId = serverConfig?.ownerPluginId ?? clientConfig.ownerPluginId
+    const source = serverConfig?.source ?? clientConfig.source
     const sourceId = serverConfig?.sourceId ?? clientConfig.sourceId
-    return ownerPluginId === CUA_PLUGIN_ID || sourceId === CUA_PLUGIN_ID
+    return ownerPluginId === CUA_PLUGIN_ID || (source === 'plugin' && sourceId === CUA_PLUGIN_ID)
   }
 
   public async getRunningClients(): Promise<McpClient[]> {
@@ -582,8 +605,11 @@ export class ToolManager {
     toolCall: MCPToolCall,
     access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'> & {
       signal?: AbortSignal
+      runId?: string
     }
   ): Promise<MCPToolResponse> {
+    let previewCall: ComputerUsePreviewCall | null = null
+    let previewTerminalNotified = false
     try {
       access?.signal?.throwIfAborted()
       const finalName = toolCall.function.name
@@ -772,37 +798,32 @@ export class ToolManager {
         }
       }
 
+      previewCall =
+        originalName === 'get_window_state'
+          ? this.createComputerUsePreviewCall({
+              client: targetClient,
+              serverConfig,
+              toolCall,
+              toolName: originalName,
+              args: preparedArgs.args,
+              runId: access?.runId
+            })
+          : null
+      if (previewCall) {
+        this.notifyComputerUsePreview('started', previewCall)
+      }
+
       // Call the tool on the target client using the ORIGINAL name
       const result = access?.signal
         ? await targetClient.callTool(originalName, preparedArgs.args, { signal: access.signal })
         : await targetClient.callTool(originalName, preparedArgs.args)
       access?.signal?.throwIfAborted()
 
-      // Format response
-      let formattedContent: string | MCPContentItem[] = ''
-      if (typeof result.content === 'string') {
-        formattedContent = result.content
-      } else if (Array.isArray(result.content)) {
-        formattedContent = result.content.map((item): MCPContentItem => {
-          if (typeof item === 'string') {
-            return { type: 'text', text: item } as MCPTextContent
-          }
-          if (item.type === 'text' || item.type === 'image' || item.type === 'resource') {
-            return item as MCPContentItem
-          }
-          if (item.type && item.text) {
-            return { type: 'text', text: item.text } as MCPTextContent
-          }
-          return { type: 'text', text: JSON.stringify(item) } as MCPTextContent
-        })
-      } else if (result.content) {
-        formattedContent = JSON.stringify(result.content)
-      }
+      const response = this.formatToolResponse(toolCall.id, result)
 
-      const response: MCPToolResponse = {
-        toolCallId: toolCall.id,
-        content: formattedContent,
-        isError: result.isError
+      if (previewCall) {
+        this.notifyComputerUsePreview('completed', previewCall, response)
+        previewTerminalNotified = true
       }
 
       this.publishEvent('mcp.toolCall.result', {
@@ -811,8 +832,22 @@ export class ToolManager {
         version: Date.now()
       })
 
+      this.scheduleComputerUsePreviewAfterClick({
+        client: targetClient,
+        serverConfig,
+        toolCall,
+        toolName: originalName,
+        args: preparedArgs.args,
+        runId: access?.runId,
+        response,
+        signal: access?.signal
+      })
+
       return response
     } catch (error: unknown) {
+      if (previewCall && !previewTerminalNotified) {
+        this.notifyComputerUsePreview('failed', previewCall, error)
+      }
       if (access?.signal?.aborted || isAbortError(error)) {
         throw error
       }
@@ -824,6 +859,188 @@ export class ToolManager {
         content: `Error: Failed to execute tool '${toolCall.function.name}': ${errorMessage}`,
         isError: true
       }
+    }
+  }
+
+  private createComputerUsePreviewCall(input: {
+    client: McpClient
+    serverConfig: MCPServerConfig
+    toolCall: MCPToolCall
+    toolName: string
+    args: Record<string, unknown>
+    runId?: string
+  }): ComputerUsePreviewCall | null {
+    const conversationId = input.toolCall.conversationId?.trim()
+    const runId = input.runId?.trim()
+    if (
+      !conversationId ||
+      !runId ||
+      !this.isCuaComputerUseServer(input.client, input.serverConfig)
+    ) {
+      return null
+    }
+
+    const clientConfig = input.client.serverConfig as {
+      ownerPluginId?: unknown
+      sourceId?: unknown
+    }
+    const ownerPluginId = input.serverConfig.ownerPluginId ?? clientConfig.ownerPluginId
+    const sourceId = input.serverConfig.sourceId ?? clientConfig.sourceId
+    return {
+      conversationId,
+      runId,
+      toolCallId: input.toolCall.id,
+      toolName: input.toolName,
+      args: { ...input.args },
+      source: {
+        serverName: input.client.serverName,
+        ...(typeof ownerPluginId === 'string' ? { ownerPluginId } : {}),
+        ...(typeof sourceId === 'string' ? { sourceId } : {})
+      }
+    }
+  }
+
+  private scheduleComputerUsePreviewAfterClick(input: {
+    client: McpClient
+    serverConfig: MCPServerConfig
+    toolCall: MCPToolCall
+    toolName: string
+    args: Record<string, unknown>
+    runId?: string
+    response: MCPToolResponse
+    signal?: AbortSignal
+  }): void {
+    if (
+      input.toolName !== 'click' ||
+      input.response.isError === true ||
+      !this.computerUsePreviewObserver?.shouldCaptureAfterClick
+    ) {
+      return
+    }
+
+    const clickCall = this.createComputerUsePreviewCall(input)
+    const pid = this.readPositiveIntegerArg(input.args.pid)
+    const windowId = this.readPositiveIntegerArg(input.args.window_id)
+    if (!clickCall || pid == null || windowId == null) {
+      return
+    }
+
+    let shouldCapture = false
+    try {
+      shouldCapture = this.computerUsePreviewObserver.shouldCaptureAfterClick(clickCall)
+    } catch (error) {
+      logger.warn('[ToolManager] Computer Use preview eligibility check failed', {
+        toolCallId: clickCall.toolCallId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+    if (!shouldCapture) {
+      return
+    }
+
+    const snapshotCall: ComputerUsePreviewCall = {
+      ...clickCall,
+      toolCallId: `${clickCall.toolCallId}:pip-snapshot`,
+      toolName: 'get_window_state',
+      args: {
+        pid,
+        window_id: windowId
+      }
+    }
+    void this.captureComputerUsePreviewSnapshot(input.client, snapshotCall, input.signal)
+  }
+
+  private async captureComputerUsePreviewSnapshot(
+    client: McpClient,
+    call: ComputerUsePreviewCall,
+    signal?: AbortSignal
+  ): Promise<void> {
+    let started = false
+    try {
+      signal?.throwIfAborted()
+      this.notifyComputerUsePreview('started', call)
+      started = true
+      const result = signal
+        ? await client.callTool('get_window_state', call.args, { signal })
+        : await client.callTool('get_window_state', call.args)
+      signal?.throwIfAborted()
+      this.notifyComputerUsePreview(
+        'completed',
+        call,
+        this.formatToolResponse(call.toolCallId, result)
+      )
+    } catch (error) {
+      if (started) {
+        this.notifyComputerUsePreview('failed', call, error)
+      }
+    }
+  }
+
+  private formatToolResponse(
+    toolCallId: string,
+    result: { content?: unknown; isError?: boolean }
+  ): MCPToolResponse {
+    let formattedContent: string | MCPContentItem[] = ''
+    if (typeof result.content === 'string') {
+      formattedContent = result.content
+    } else if (Array.isArray(result.content)) {
+      formattedContent = result.content.map((item): MCPContentItem => {
+        if (typeof item === 'string') {
+          return { type: 'text', text: item } as MCPTextContent
+        }
+        if (item && typeof item === 'object' && ('type' in item || 'text' in item)) {
+          const contentItem = item as { type?: unknown; text?: unknown }
+          if (
+            contentItem.type === 'text' ||
+            contentItem.type === 'image' ||
+            contentItem.type === 'resource'
+          ) {
+            return item as MCPContentItem
+          }
+          if (contentItem.type && contentItem.text) {
+            return { type: 'text', text: String(contentItem.text) } as MCPTextContent
+          }
+        }
+        return { type: 'text', text: JSON.stringify(item) } as MCPTextContent
+      })
+    } else if (result.content) {
+      formattedContent = JSON.stringify(result.content)
+    }
+
+    return {
+      toolCallId,
+      content: formattedContent,
+      isError: result.isError
+    }
+  }
+
+  private readPositiveIntegerArg(value: unknown): number | null {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null
+  }
+
+  private notifyComputerUsePreview(
+    phase: 'started' | 'completed' | 'failed',
+    call: ComputerUsePreviewCall,
+    value?: MCPToolResponse | unknown
+  ): void {
+    const observer = this.computerUsePreviewObserver
+    if (!observer) {
+      return
+    }
+    try {
+      if (phase === 'started') {
+        observer.started(call)
+      } else if (phase === 'completed') {
+        observer.completed(call, value as MCPToolResponse)
+      } else {
+        observer.failed(call, value)
+      }
+    } catch (error) {
+      logger.warn('[ToolManager] Computer Use preview observer failed', {
+        phase,
+        toolCallId: call.toolCallId,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 

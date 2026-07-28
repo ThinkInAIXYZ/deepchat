@@ -446,7 +446,7 @@ function createRuntime() {
     activate: vi.fn().mockResolvedValue(undefined),
     deactivate: vi.fn().mockResolvedValue(undefined),
     getActive: vi.fn().mockResolvedValue(null),
-    getActiveId: vi.fn(() => null)
+    getActiveId: vi.fn((): string | null => null)
   }
   const sessionTurnPort = {
     sendMessage: vi.fn().mockResolvedValue({
@@ -1260,12 +1260,22 @@ function createRuntime() {
     attachSessionBrowser: vi.fn().mockResolvedValue(true),
     updateSessionBrowserBounds: vi.fn().mockResolvedValue(undefined),
     detachSessionBrowser: vi.fn().mockResolvedValue(undefined),
+    setPreviewMode: vi.fn().mockResolvedValue({ updated: true, surface: 'renderer-canvas' }),
+    dismissPreview: vi.fn(() => true),
     destroySessionBrowser: vi.fn().mockResolvedValue(undefined),
     goBack: vi.fn().mockResolvedValue(undefined),
     goForward: vi.fn().mockResolvedValue(undefined),
     reload: vi.fn().mockResolvedValue(undefined),
     clearSandboxData: vi.fn().mockResolvedValue(undefined)
   } as unknown as IYoBrowserPresenter
+  const computerUsePreviewPresenter = {
+    setPreviewMode: vi.fn(async (_sessionId: string, mode: string) => ({
+      updated: true,
+      surface: mode === 'stopped' ? 'none' : 'renderer-canvas'
+    })),
+    dismissPreview: vi.fn(() => true),
+    shutdown: vi.fn()
+  }
 
   const tabPresenter = {
     captureTabArea: vi.fn().mockResolvedValue('data:image/png;base64,capture'),
@@ -1552,6 +1562,8 @@ function createRuntime() {
     windowPresenter,
     shortcutPresenter,
     browserPresenter: yoBrowserPresenter,
+    computerUsePreviewPresenter,
+    desktopSessionBinding,
     tabPresenter,
     dialogService: dialogService as unknown as DialogServicePort,
     settings: desktopSettings as never,
@@ -1799,6 +1811,7 @@ function createRuntime() {
     knowledgeService,
     workspaceService,
     yoBrowserPresenter,
+    computerUsePreviewPresenter,
     tabPresenter,
     cronJobs,
     usageStatsService,
@@ -5900,6 +5913,66 @@ describe('dispatchDeepchatRoute', () => {
     expect(destroyResult).toEqual({ destroyed: true })
     expect(yoBrowserPresenter.clearSandboxData).toHaveBeenCalledTimes(1)
     expect(clearSandboxResult).toEqual({ cleared: true })
+  })
+
+  it('scopes Computer Use preview routes to the active sender session', async () => {
+    const { runtime, computerUsePreviewPresenter, desktopSessionBinding, yoBrowserPresenter } =
+      createRuntime()
+    const context = { webContentsId: 88, windowId: 3 }
+    desktopSessionBinding.getActiveId.mockReturnValue('session-1')
+
+    const eligible = await dispatchDeepchatRoute(
+      runtime,
+      'computerUse.setPreviewMode',
+      { sessionId: 'session-1', mode: 'eligible' },
+      context
+    )
+    const browserDismissed = await dispatchDeepchatRoute(
+      runtime,
+      'browser.dismissPreview',
+      { sessionId: 'session-1', runId: 'run-1' },
+      context
+    )
+    const dismissed = await dispatchDeepchatRoute(
+      runtime,
+      'computerUse.dismissPreview',
+      { sessionId: 'session-1', runId: 'run-1' },
+      context
+    )
+
+    desktopSessionBinding.getActiveId.mockReturnValue('session-2')
+    const rejected = await dispatchDeepchatRoute(
+      runtime,
+      'computerUse.setPreviewMode',
+      { sessionId: 'session-1', mode: 'eligible' },
+      context
+    )
+    const cleanup = await dispatchDeepchatRoute(
+      runtime,
+      'computerUse.setPreviewMode',
+      { sessionId: 'session-1', mode: 'stopped' },
+      context
+    )
+
+    expect(eligible).toEqual({ updated: true, surface: 'renderer-canvas' })
+    expect(computerUsePreviewPresenter.setPreviewMode).toHaveBeenNthCalledWith(
+      1,
+      'session-1',
+      'eligible',
+      3
+    )
+    expect(browserDismissed).toEqual({ dismissed: true })
+    expect(yoBrowserPresenter.dismissPreview).toHaveBeenCalledWith('session-1', 'run-1')
+    expect(dismissed).toEqual({ dismissed: true })
+    expect(computerUsePreviewPresenter.dismissPreview).toHaveBeenCalledWith('session-1', 'run-1')
+    expect(rejected).toEqual({ updated: false, surface: 'none' })
+    expect(cleanup).toEqual({ updated: true, surface: 'none' })
+    expect(computerUsePreviewPresenter.setPreviewMode).toHaveBeenNthCalledWith(
+      2,
+      'session-1',
+      'stopped',
+      3
+    )
   })
 
   it('dispatches phase3 tab routes through the renderer tab adapter', async () => {

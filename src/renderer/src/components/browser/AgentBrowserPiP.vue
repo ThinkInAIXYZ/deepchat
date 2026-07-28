@@ -170,6 +170,7 @@ let stopStatusChanged: (() => void) | null = null
 let stopActivityChanged: (() => void) | null = null
 let stopPreviewFrame: (() => void) | null = null
 let stopPreviewAction: (() => void) | null = null
+let stopPreviewSurfaceChanged: (() => void) | null = null
 let stopWindowStateChanged: (() => void) | null = null
 let dragState:
   | {
@@ -274,9 +275,13 @@ const loadStatus = async () => {
   }
 }
 
-const dismiss = () => {
-  dismissedRunId.value = currentRunId.value
+const dismiss = async () => {
+  const sessionId = currentSessionId.value
+  const runId = currentRunId.value
+  if (!sessionId || !runId) return
+  dismissedRunId.value = runId
   toolbarVisible.value = false
+  await browserClient.dismissPreview(sessionId, runId)
 }
 
 const openInPanel = async () => {
@@ -506,10 +511,25 @@ onMounted(() => {
       return
     }
     if (payload.action === 'dismiss') {
-      dismiss()
+      void dismiss()
       return
     }
     void openInPanel()
+  })
+  stopPreviewSurfaceChanged = browserClient.onPreviewSurfaceChanged((payload) => {
+    if (
+      payload.windowId !== currentWindowId.value ||
+      payload.sessionId !== currentSessionId.value ||
+      payload.runId !== currentRunId.value
+    ) {
+      return
+    }
+    if (payload.surface === 'none') {
+      frameDecodeVersion += 1
+      latestFrameSequence = -1
+      hasFrame.value = false
+    }
+    previewSurface.value = payload.surface
   })
   stopWindowStateChanged = windowClient.onCurrentStateChanged((payload) => {
     windowStateVersion += 1
@@ -533,6 +553,7 @@ onBeforeUnmount(() => {
   stopActivityChanged?.()
   stopPreviewFrame?.()
   stopPreviewAction?.()
+  stopPreviewSurfaceChanged?.()
   stopWindowStateChanged?.()
   if (currentSessionId.value) {
     pendingPreviewRequest = {

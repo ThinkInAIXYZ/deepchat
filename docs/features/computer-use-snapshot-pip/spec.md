@@ -2,33 +2,47 @@
 
 ## Status
 
-Proposed on 2026-07-28. Implementation has not started.
+Implemented on branch `codex/computer-use-snapshot-pip` on 2026-07-28.
 
-This proposal adds a read-only picture-in-picture surface for the current Computer Use target by
-reusing successful `get_window_state` image results that the Agent already requested. It does not
-add a capture loop, change the CUA runtime, enable the upstream experimental PiP, or modify CUA
-plugin policies and skill instructions.
+Format, i18n, lint, typecheck, focused main/renderer coverage, and the complete renderer suite pass.
+The complete main suite has one unrelated provider-metadata expectation failure in
+`test/main/provider/modelConfig.test.ts`; the same test fails in isolation and neither it nor its
+implementation is changed by this feature. Packaged native-overlay and Canvas-fallback QA,
+cross-platform interaction checks, and the 150 ms p95 result-to-visible measurement remain open and
+are tracked in `tasks.md`.
+
+This feature adds a read-only picture-in-picture surface for the current Computer Use target by
+reusing successful `get_window_state` image results. In addition to Agent-requested snapshots, one
+eligible successful `click` may schedule one private `get_window_state` refresh whose result is
+consumed only by PiP. It does not add a capture loop, change the CUA runtime, enable the upstream
+experimental PiP, or modify CUA plugin policies and skill instructions.
 
 The existing
 [Agent Browser NativeKit architecture](../../architecture/nativekit-agent-browser-pip/spec.md)
-remains the current implementation. This proposal extends its process-global native overlay into a
-shared, single-PiP coordinator while preserving Browser-specific behavior.
+now uses the implemented process-global, single-PiP coordinator shared with Computer Use while
+preserving Browser-specific behavior.
 
 GitHub issue sync was not requested and was not performed.
 
 ## Counterpoint
 
 Calling this surface "live Computer Use PiP" would promise behavior the available data source does
-not provide. A Computer Use tool result contains a point-in-time image only when the Agent calls
-`get_window_state`; no frame exists between those calls.
+not provide. A Computer Use tool result contains a point-in-time image only when
+`get_window_state` runs; no frame exists between those calls.
 
 Polling `get_window_state` merely to animate PiP is the wrong tradeoff. The call also performs
 accessibility-state work and updates the driver's element cache, so extra polling would consume
 driver, IPC, and model-adjacent resources while changing the semantics of the automation flow.
 
-The correct first version is therefore an honest **latest snapshot** surface:
+An event-driven refresh after a successful `click` is a narrower tradeoff than polling: it adds at
+most one capture at a user-visible state boundary, only while PiP is eligible, and does not put the
+private result on the Agent path. `get_window_state` still refreshes the CUA accessibility cache, so
+Agents must continue to obtain their own current state before selecting a later element index.
 
-- zero additional operating-system captures;
+The correct version is therefore an honest **latest snapshot** surface:
+
+- no idle or timer-driven captures;
+- at most one private snapshot request after each eligible successful `click`;
 - first appearance only after a valid snapshot exists;
 - immediate replacement when the next valid snapshot arrives;
 - retention of the last valid current-run image between snapshots;
@@ -40,7 +54,7 @@ The snapshot PiP is feasible without changing CUA.
 
 | Question | Finding | Consequence |
 | --- | --- | --- |
-| Is a usable image already available? | Successful `get_window_state` results contain an inline MCP image block. | Reuse that image; add no capture API or polling. |
+| Is a usable image already available? | Successful `get_window_state` results contain an inline MCP image block. | Reuse Agent-requested results and issue only an event-driven private refresh after eligible clicks; add no capture API or polling. |
 | Can the existing PiP surface be reused? | NativeKit accepts PNG/JPEG data URLs and supports repeated toolbar reconfiguration. | Share one native owner and switch explicit Browser/Computer profiles. |
 | Can a result be tied to the correct Agent run? | The Agent runtime has a stable `runId`, but the MCP branch currently drops it. | Forward internal execution metadata through the MCP service path. |
 | Can stale pixels be isolated? | ToolManager knows the resolved plugin source, original tool, prepared target arguments, and tool-call identity. | Observe at that boundary and validate run, target, claim, and epoch before display. |
@@ -64,8 +78,8 @@ The existing Agent Browser PiP solves a related problem, but it cannot be copied
 - Browser PiP offers **Open in panel**; Computer Use has no DeepChat side panel to open.
 - NativeKit exposes one process-global overlay manager whose toolbar is configured by
   `overlay.start()`. Two independent adapters would race and replace each other's configuration.
-- Browser emits frames continuously at a bounded rate; Computer Use must not add background polling
-  to simulate that behavior.
+- Browser emits frames continuously at a bounded rate; Computer Use uses discrete Agent-requested
+  and post-click snapshots and must not add background polling to simulate that behavior.
 
 ## User Experience
 
@@ -102,12 +116,22 @@ The Computer Use PiP:
 - disappears while DeepChat is not the foreground application, allowing the user to inspect the
   real target application instead.
 
+Post-click freshness changes without changing the layout:
+
+```text
+BEFORE  click -> Agent receives click result -> PiP retains the prior snapshot
+AFTER   click -> Agent receives click result
+              `-> private get_window_state -> PiP replaces the snapshot
+```
+
 The existing `common.close` translation is sufficient. This feature adds no user-facing copy.
 
 ## Goals
 
 - Let users supervise the current Computer Use target without leaving DeepChat.
-- Reuse the inline image already returned by a successful CUA `get_window_state` call.
+- Reuse inline images returned by successful CUA `get_window_state` calls.
+- Refresh PiP after an eligible successful `click` without exposing the private snapshot result to
+  the Agent, conversation, or generic MCP result event.
 - Show the first PiP only after a valid current-run image has been decoded.
 - Update the PiP after each later valid snapshot for the same active target.
 - Keep the last valid image visible between snapshots without showing stale images from another
@@ -126,7 +150,7 @@ The existing `common.close` translation is sufficient. This feature adds no user
 
 - Updating the CUA runtime, driver, plugin manifest, policies, skill, or packaged assets.
 - Enabling or integrating the upstream CUA experimental PiP.
-- Adding a CUA screenshot hook, daemon socket, post-action callback, or driver patch.
+- Adding a CUA driver screenshot hook, daemon socket, callback, or runtime patch.
 - Polling `get_window_state` to produce a 2-4 FPS stream.
 - Capturing external windows through Electron `desktopCapturer` or a new native capture module.
 - Presenting video, shared textures, WebRTC, or a GPU surface.
@@ -143,6 +167,8 @@ The existing `common.close` translation is sufficient. This feature adds no user
   `ownerPluginId` or `sourceId`, not by a user-editable server name.
 - **Snapshot call**: a CUA `get_window_state` tool invocation with valid `pid` and `window_id`
   arguments.
+- **Private post-click snapshot**: an asynchronous `get_window_state` invocation made through the
+  same resolved official CUA client after a successful `click`; its result is PiP-only.
 - **Snapshot frame**: the first supported inline image block in a successful snapshot result.
 - **Target**: the tuple `(pid, windowId)` within one chat session and Agent run.
 - **Run**: the stable Agent execution identity already carried as `ToolCallOptions.runId`.
@@ -156,7 +182,7 @@ The existing `common.close` translation is sufficient. This feature adds no user
 
 `sessionId` in the preview contract is the current chat `conversationId`.
 
-## Current Repository Contract
+## Baseline Repository Contract
 
 - `YoBrowserPresenter` owns Browser capture, preview mode, and frame delivery.
 - `AgentBrowserNativeOverlay` owns the current NativeKit integration and configures
@@ -178,11 +204,28 @@ The existing `common.close` translation is sufficient. This feature adds no user
   must consume the inline result before that persistence path and must not create another cached
   copy.
 
+## Implemented Deviations
+
+- Added source-specific `computerUse.preview.surface.changed` and
+  `browser.preview.surface.changed` events. They carry only bounded identity and surface metadata,
+  never image bytes, and let renderers react to native failure and cross-source arbitration without
+  polling.
+- Added an `epoch` to Computer Use surface and frame events so a later target in the same run cannot
+  accept an in-flight frame from the prior target.
+- The shared coordinator permanently falls back to Canvas after a NativeKit load, startup, toolbar,
+  host-attach, or frame-push failure for the current process. It does not repeatedly retry a failed
+  native path during Agent work.
+- An eligible successful official CUA `click` schedules one non-blocking private
+  `get_window_state({ pid, window_id })` call. The private response is routed only to the preview
+  observer and is never published as an MCP result or returned to the Agent.
+- No CUA runtime, driver, plugin manifest, policy, skill, or packaged asset was changed.
+
 ## Product Contract
 
 ### Frame Source
 
-Only an actual invocation that meets every condition may update the preview:
+Only an actual Agent-requested or private post-click invocation that meets every condition may
+update the preview:
 
 1. The resolved MCP client belongs to the official Computer Use plugin.
 2. The resolved original tool name is `get_window_state`.
@@ -194,6 +237,25 @@ Only an actual invocation that meets every condition may update the preview:
 
 Text, resources, cached preview references, permission responses, failed calls, and images from
 other CUA tools are not frame sources.
+
+### Private Post-click Refresh
+
+- Only the exact resolved original tool `click` is eligible; `right_click`, `double_click`, and
+  other actions do not implicitly expand this contract.
+- The click must succeed on the resolved official CUA client and carry finite positive integer
+  `pid` and `window_id` values.
+- The presenter must confirm that PiP is eligible and that the click still matches its active
+  session, run, target, and non-dismissed state.
+- The private call uses only `{ pid, window_id }`, starts asynchronously after click completion, and
+  does not delay or change the click response.
+- The private call bypasses Agent-facing permission and result publication because the triggering
+  click has already passed access checks and the plugin policy explicitly allows
+  `get_window_state`.
+- The private result enters only the same bounded preview observer and image pipeline. Its text,
+  accessibility tree, and other content are discarded.
+- A private-call failure retains the last valid frame and never changes Agent execution.
+- No private snapshot is scheduled while the preview is stopped, suspended, dismissed, stale, or
+  missing a valid active target.
 
 ### First Frame and Refresh
 
@@ -344,6 +406,7 @@ type ComputerUsePreviewCall = {
 }
 
 interface ComputerUsePreviewObserver {
+  shouldCaptureAfterClick?(call: ComputerUsePreviewCall): boolean
   started(call: ComputerUsePreviewCall): void
   completed(call: ComputerUsePreviewCall, result: MCPToolResponse): void
   failed(call: ComputerUsePreviewCall, error: unknown): void
@@ -351,8 +414,10 @@ interface ComputerUsePreviewObserver {
 ```
 
 Invoke `started` immediately before the resolved MCP client call. Invoke exactly one terminal
-callback after success or failure. The observer must not alter the MCP response, permission flow,
-abort semantics, tool latency, or error propagation.
+callback after success or failure. The optional post-click predicate is synchronous, failure-safe,
+and may authorize only a PiP-eligible current target. Agent-requested observer work must not alter
+the MCP response, permission flow, abort semantics, tool latency, or error propagation. Private
+post-click work is asynchronous and must not delay or mutate the original click result.
 
 Calls without a conversation ID or run ID remain valid MCP calls but are not preview-eligible.
 
@@ -493,6 +558,8 @@ retains useful detail on scaled displays without increasing overlay geometry.
 - Release superseded buffers and renderer resources promptly.
 - Reuse the original MCP response for conversation rendering; PiP must not create a second cached
   artifact.
+- Discard every non-image field from a private post-click response; do not publish, cache, persist,
+  or return that response to the Agent.
 
 ## Platform Behavior
 
@@ -507,15 +574,15 @@ The feature follows the existing NativeKit support matrix:
 | Linux native Wayland | Renderer Canvas fallback |
 | Missing/corrupt addon or native startup failure | Renderer Canvas fallback |
 
-No platform capture permission is added because the feature consumes the image already returned by
-the Computer Use tool. Existing CUA permission behavior is unchanged.
+No platform capture permission is added because both Agent-requested and private snapshots use the
+existing Computer Use tool. Existing CUA permission behavior is unchanged.
 
 If NativeKit fails after initialization, hide/remove the native presentation and publish the
 retained valid current frame to Canvas fallback without interrupting the Agent.
 
 ## Performance Budget
 
-- Additional operating-system captures: zero.
+- Additional captures: at most one per eligible successful `click`; zero when PiP is not eligible.
 - Additional idle polling: zero.
 - Idle CPU when no result is being transformed: effectively zero.
 - Maximum transforms in flight per active target: one.
@@ -535,6 +602,7 @@ These are acceptance budgets, not claims that every CUA action produces a snapsh
 | Missing run/session identity | Execute tool normally; skip preview |
 | Invalid `pid` or `window_id` | Execute tool normally; skip preview |
 | Failed `get_window_state` | Retain valid frame for same target; never show error payload |
+| Failed private post-click snapshot | Retain valid frame; do not change or delay the click result |
 | Unsupported or malformed image | Ignore frame and retain prior valid frame |
 | Oversized image | Reject frame and record a rate-limited metadata-only warning |
 | Stale/out-of-order result | Drop by claim, epoch, run, target, and tool-call validation |
@@ -554,6 +622,8 @@ Preview failures never change the MCP tool result or Agent execution outcome.
   the active DeepChat chat is foreground and working.
 - The PiP is never blank and appears only after its first valid frame.
 - Later valid snapshots for the same target replace the visible image.
+- An eligible successful `click` schedules a private PiP-only snapshot and may refresh the visible
+  image without adding screenshot content to the Agent response.
 - The Computer Use PiP contains exactly one **Close** button.
 - Dragging is native on supported platforms and renderer-local on fallback platforms.
 - Close suppresses only the current run and never changes the Agent or target application.
@@ -572,7 +642,8 @@ Preview failures never change the MCP tool result or Agent execution outcome.
 - CUA identity is determined from resolved plugin ownership metadata.
 - No generic MCP pixel event is introduced.
 - Native frames do not enter the renderer.
-- No new operating-system capture or CUA polling occurs.
+- No idle CUA polling or new capture subsystem is introduced; private capture is bounded to one
+  asynchronous request per eligible successful `click`.
 - Oversize, malformed, stale, and out-of-order images cannot replace a current frame.
 - All image bytes stay memory-only and are absent from logs and telemetry.
 
@@ -581,7 +652,8 @@ Preview failures never change the MCP tool result or Agent execution outcome.
 - Unit tests cover foreground-scoped claim arbitration, run-scoped dismissal, target changes, stale
   epochs, and lifecycle transitions.
 - MCP integration tests cover run propagation, trusted CUA recognition, permission paths, valid
-  result observation, failure observation, and unchanged tool responses.
+  result observation, post-click private capture isolation, failure observation, and unchanged tool
+  responses.
 - Image pipeline tests cover PNG/JPEG, malformed base64, unsupported MIME, dimension/input/output
   limits, aspect ratio, no upscale, and latest-wins scheduling.
 - Renderer tests cover native headless mode, Canvas fallback frame retention, close, focus,

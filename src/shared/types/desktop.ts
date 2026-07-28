@@ -11,6 +11,7 @@ import type {
   YoBrowserStatus
 } from './browser'
 import type { MCPToolDefinition } from './mcp'
+import type { ComputerUsePreviewMode, ComputerUsePreviewModeResult } from './computerUse'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 
@@ -129,6 +130,7 @@ export interface IYoBrowserPresenter {
     hostWindowId?: number,
     runId?: string
   ): Promise<BrowserPreviewModeResult>
+  dismissPreview(sessionId: string, runId: string): boolean
   destroySessionBrowser(sessionId: string): Promise<void>
   goBack(sessionId: string): Promise<void>
   goForward(sessionId: string): Promise<void>
@@ -154,6 +156,16 @@ export interface IYoBrowserPresenter {
       runId?: string
     ): Promise<string>
   }
+}
+
+export interface IComputerUsePreviewPresenter {
+  setPreviewMode(
+    sessionId: string,
+    mode: ComputerUsePreviewMode,
+    hostWindowId?: number
+  ): Promise<ComputerUsePreviewModeResult>
+  dismissPreview(sessionId: string, runId: string): boolean
+  shutdown(): void
 }
 
 export interface ITabPresenter {

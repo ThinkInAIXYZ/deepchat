@@ -24,6 +24,12 @@ function getDefaultDeepchatInvokeResult(
       return { updated: true }
     case 'browser.setPreviewMode':
       return { updated: true, surface: 'renderer-canvas' }
+    case 'browser.dismissPreview':
+      return { dismissed: true }
+    case 'computerUse.setPreviewMode':
+      return { updated: true, surface: 'renderer-canvas' }
+    case 'computerUse.dismissPreview':
+      return { dismissed: true }
     case 'browser.detach':
       return { detached: true }
     case 'browser.destroy':

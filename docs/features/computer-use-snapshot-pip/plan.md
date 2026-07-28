@@ -2,10 +2,16 @@
 
 ## Status
 
-Proposed on 2026-07-28. No implementation work is included in this document-only change.
+Implemented on branch `codex/computer-use-snapshot-pip` on 2026-07-28.
 
-CUA runtime, plugin, policy, skill, and asset updates are explicitly out of scope. The plan treats
-the current successful `get_window_state` image result as an immutable input.
+Phases 1-5 are implemented with focused automated coverage, and the complete renderer suite passes.
+The complete main suite retains one isolated, unrelated provider-metadata expectation failure.
+Performance measurement and packaged native and fallback platform QA remain open; the exact
+remaining work is recorded in `tasks.md`.
+
+CUA runtime, plugin, policy, skill, and asset updates are explicitly out of scope. The plan consumes
+successful Agent-requested snapshots plus one bounded private `get_window_state` result after an
+eligible successful `click`.
 
 ## Delivery Strategy
 
@@ -106,6 +112,22 @@ Emit `started` immediately before actual client invocation. Emit one terminal ca
 changing response mapping or error propagation.
 
 Calls lacking run/session identity and non-CUA calls should produce no preview callbacks.
+
+### 5a. Add a private post-click refresh
+
+After a successful exact `click` on the resolved official CUA client:
+
+- require valid current session/run plus positive integer `pid` and `window_id`;
+- synchronously ask the presenter whether the same target is PiP-eligible and not dismissed;
+- asynchronously call `get_window_state` on that already resolved client with only
+  `{ pid, window_id }`;
+- send the private result only through the preview observer;
+- never publish or return the private result to the Agent or conversation;
+- retain the original click response and latency behavior if capture fails.
+
+Do not trigger on permission responses, failed clicks, stale targets, `right_click`,
+`double_click`, inactive PiP, or arbitrary servers. Do not add timers, polling, or CUA runtime
+changes.
 
 ## Phase 3: Computer Use Snapshot Presenter
 
@@ -250,7 +272,7 @@ Add the smallest tests for:
 Instrument metadata-only durations for result receipt, transform completion, and NativeKit push.
 Verify:
 
-- zero added capture calls;
+- at most one added capture call per eligible successful `click` and none while PiP is ineligible;
 - zero idle polling;
 - one in-flight transform;
 - p95 result-to-visible latency at or below 150 ms;

@@ -32,6 +32,9 @@
       <AgentBrowserPiP
         :session-id="pageRouter.currentRoute === 'chat' ? pageRouter.chatSessionId : null"
       />
+      <AgentComputerUsePiP
+        :session-id="pageRouter.currentRoute === 'chat' ? pageRouter.chatSessionId : null"
+      />
     </div>
 
     <ChatSidePanel
@@ -47,6 +50,7 @@ import { createStartupClient } from '@api/StartupClient'
 import type { RendererStartupWorkloadTaskId } from '@shared/contracts/routes'
 import ChatSidePanel from '@/components/sidepanel/ChatSidePanel.vue'
 import AgentBrowserPiP from '@/components/browser/AgentBrowserPiP.vue'
+import AgentComputerUsePiP from '@/components/computerUse/AgentComputerUsePiP.vue'
 import NewThreadPage from '@/pages/NewThreadPage.vue'
 import ChatPage from '@/features/chat-page/ChatPage.vue'
 import AgentWelcomePage from '@/pages/AgentWelcomePage.vue'

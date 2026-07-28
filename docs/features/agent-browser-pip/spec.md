@@ -17,10 +17,10 @@ background viewport, read-only preview, panel handoff, and run-scoped dismissal 
 authoritative.
 
 On 2026-07-28, a
-[Computer Use latest-snapshot PiP extension](../computer-use-snapshot-pip/spec.md) was proposed.
-That proposal shares only process-global NativeKit presentation ownership; it does not generalize
-Browser page, capture, panel-handoff, or public feature contracts. Until implemented, it does not
-change the Browser behavior documented here.
+[Computer Use latest-snapshot PiP extension](../computer-use-snapshot-pip/spec.md) was implemented.
+It shares only process-global NativeKit presentation ownership; it does not generalize Browser
+page, capture, panel-handoff, or public feature contracts. Browser keeps **Open in panel** plus
+**Close**, continuous bounded capture, and its existing Canvas compatibility behavior.
 
 The referenced screenshot was not available in the current task context, so the interaction and
 layout are specified here while exact visual styling remains provisional.

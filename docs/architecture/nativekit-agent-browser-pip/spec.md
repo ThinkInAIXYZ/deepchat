@@ -58,9 +58,10 @@ GitHub issue sync was not requested and was not performed.
 
 On 2026-07-28, a
 [Computer Use latest-snapshot PiP extension](../../features/computer-use-snapshot-pip/spec.md) was
-proposed. It plans to extract the process-global NativeKit lifecycle into one shared PiP
-coordinator while preserving this document's Browser ownership and controls. Until that proposal is
-implemented, the Browser-only architecture documented here remains current.
+implemented. `AgentPreviewCoordinator` now owns the process-global NativeKit lifecycle and
+arbitrates one Browser or Computer Use presentation. Browser retains its page, capture, panel
+handoff, and **Open in panel** plus **Close** behavior; Computer Use contributes only bounded latest
+snapshots with **Close**.
 
 ## Counterpoint
 
@@ -253,21 +254,24 @@ focusless render-host BaseWindow -> Agent WebContentsView at 1280 x 800
 - branches completed frames to exactly one surface;
 - stops capture and clears the surface on every existing lifecycle edge.
 
-#### `AgentBrowserNativeOverlay`
+#### `AgentPreviewCoordinator`
 
-A focused main-process adapter owns only:
+A focused process-global main-process coordinator owns only:
 
 - dynamic package loading and one-time capability detection;
 - `overlay.start()` / `stop()` lifecycle;
 - one active host and one active presentation;
+- Browser and Computer Use toolbar profile switching;
+- latest explicit source claim and shared run-scoped dismissal;
 - host move/resize/close synchronization;
 - JPEG `Buffer` to data-URL conversion;
 - prepaint-before-show ordering;
-- mapping NativeKit `activate` and configured `control` IDs to the current logical
-  `{ sessionId, runId, windowId }`;
+- mapping NativeKit activation and configured controls to the current source-specific handler;
 - timing counters around synchronous native calls.
 
-It is not a general Presenter, registry, plugin system, or cross-native abstraction.
+`YoBrowserPresenter` remains the Browser producer and `ComputerUsePreviewPresenter` remains the
+Computer Use producer. The coordinator is not a public preview framework, plugin system, or
+cross-native abstraction.
 
 #### Renderer
 
