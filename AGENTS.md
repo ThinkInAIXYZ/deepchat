@@ -16,5 +16,5 @@
 - Keep provider and ACP registry refreshes produced by normal builds.
 - Use Conventional Commits (`type(scope): subject`, <=50 chars); never add AI co-authors.
 - Target routine PRs to `dev`; only release branches target `main`.
-- Use SDD only for substantial work that needs durable shared decisions.
+- Assess scope first; use SDD only for large features or complex changes, never small local work.
 - For UI changes, include concise BEFORE/AFTER ASCII layouts in the PR.
