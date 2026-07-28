@@ -3,6 +3,7 @@ import type {
   DatabaseUnlockProgressPayload,
   DatabaseUnlockRequestPayload
 } from '@shared/contracts/databaseSecurity'
+import type { SplashDebugMode } from '@shared/contracts/splash'
 
 interface SplashActivityItem {
   key: string
@@ -18,6 +19,7 @@ interface DeepchatSplashApi {
   onUpdate(listener: (payload: SplashUpdatePayload) => void): () => void
   onUnlockRequest(listener: (payload: DatabaseUnlockRequestPayload) => void): () => void
   onUnlockProgress(listener: (payload: DatabaseUnlockProgressPayload) => void): () => void
+  onDebugMode(listener: (mode: SplashDebugMode) => void): () => void
   submitUnlock(payload: { requestId: string; password: string }): void
   cancelUnlock(payload: { requestId: string }): void
 }

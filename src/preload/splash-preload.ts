@@ -8,6 +8,7 @@ import {
   type DatabaseUnlockProgressPayload,
   type DatabaseUnlockRequestPayload
 } from '@shared/contracts/databaseSecurity'
+import { SPLASH_DEBUG_MODE_CHANNEL, type SplashDebugMode } from '@shared/contracts/splash'
 
 interface SplashActivityItem {
   key: string
@@ -41,6 +42,8 @@ const splashApi = Object.freeze({
     onSplashChannel(DATABASE_UNLOCK_REQUEST_CHANNEL, listener),
   onUnlockProgress: (listener: SplashListener<DatabaseUnlockProgressPayload>) =>
     onSplashChannel(DATABASE_UNLOCK_PROGRESS_CHANNEL, listener),
+  onDebugMode: (listener: SplashListener<SplashDebugMode>) =>
+    onSplashChannel(SPLASH_DEBUG_MODE_CHANNEL, listener),
   submitUnlock: (payload: { requestId: string; password: string }) => {
     if (!payload.requestId || typeof payload.password !== 'string') {
       return

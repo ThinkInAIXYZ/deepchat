@@ -8,6 +8,7 @@ import {
   DATABASE_UNLOCK_REQUEST_CHANNEL,
   DATABASE_UNLOCK_SUBMIT_CHANNEL
 } from '../../../src/shared/contracts/databaseSecurity'
+import { SPLASH_DEBUG_MODE_CHANNEL } from '../../../src/shared/contracts/splash'
 
 type Listener = (_event: unknown, payload: unknown) => void
 
@@ -271,6 +272,7 @@ describe('preload IPC boundaries', () => {
         deepchatSplash: {
           onUnlockRequest: (callback: (payload: typeof validUnlockRequest) => void) => () => void
           onUnlockProgress: (callback: (payload: typeof validUnlockProgress) => void) => () => void
+          onDebugMode: (callback: (mode: 'loading' | 'system-unlock' | 'unlock') => void) => () => void
           submitUnlock: (payload: { requestId: string; password: string }) => void
           cancelUnlock: (payload: { requestId: string }) => void
         }
@@ -279,6 +281,7 @@ describe('preload IPC boundaries', () => {
 
     expect(Object.keys(deepchatSplash).sort()).toEqual([
       'cancelUnlock',
+      'onDebugMode',
       'onUnlockProgress',
       'onUnlockRequest',
       'onUpdate',
@@ -287,15 +290,20 @@ describe('preload IPC boundaries', () => {
 
     const unlockRequestCallback = vi.fn()
     const unlockProgressCallback = vi.fn()
+    const debugModeCallback = vi.fn()
     const unsubscribeRequest = deepchatSplash.onUnlockRequest(unlockRequestCallback)
     const unsubscribeProgress = deepchatSplash.onUnlockProgress(unlockProgressCallback)
+    const unsubscribeDebugMode = deepchatSplash.onDebugMode(debugModeCallback)
     const [requestListener] = listeners.get(DATABASE_UNLOCK_REQUEST_CHANNEL) ?? []
     const [progressListener] = listeners.get(DATABASE_UNLOCK_PROGRESS_CHANNEL) ?? []
+    const [debugModeListener] = listeners.get(SPLASH_DEBUG_MODE_CHANNEL) ?? []
 
     requestListener?.({}, validUnlockRequest)
     progressListener?.({}, validUnlockProgress)
+    debugModeListener?.({}, 'unlock')
     unsubscribeRequest()
     unsubscribeProgress()
+    unsubscribeDebugMode()
 
     deepchatSplash.submitUnlock({ requestId: 'unlock-1', password: 'secret' })
     deepchatSplash.submitUnlock({ requestId: '', password: 'secret' })
@@ -305,6 +313,7 @@ describe('preload IPC boundaries', () => {
 
     expect(unlockRequestCallback).toHaveBeenCalledWith(validUnlockRequest)
     expect(unlockProgressCallback).toHaveBeenCalledWith(validUnlockProgress)
+    expect(debugModeCallback).toHaveBeenCalledWith('unlock')
     expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
       DATABASE_UNLOCK_REQUEST_CHANNEL,
       requestListener

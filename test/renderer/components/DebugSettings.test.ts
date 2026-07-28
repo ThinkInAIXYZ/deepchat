@@ -18,7 +18,9 @@ const settingsPageShellStub = defineComponent({
 })
 
 const debugClientMock = vi.hoisted(() => ({
-  createMockChatSession: vi.fn()
+  createMockChatSession: vi.fn(),
+  showSplashScenario: vi.fn(),
+  closeSplashScenario: vi.fn()
 }))
 const upgradeClientMock = vi.hoisted(() => ({
   mockDownloadedUpdate: vi.fn(),
@@ -58,6 +60,12 @@ vi.mock('vue-i18n', () => ({
         'about.mockChatCreateFailed': '创建Mock会话失败',
         'settings.debug.unavailableDescription': '当前不可用',
         'settings.debug.guidance.failed': '操作失败',
+        'settings.debug.splash.title': '启动窗口',
+        'settings.debug.splash.description': '预览启动窗口状态',
+        'settings.debug.splash.loading': '预览加载中',
+        'settings.debug.splash.systemUnlock': '预览系统解锁',
+        'settings.debug.splash.unlock': '预览手动解锁',
+        'common.close': '关闭',
         'common.error.operationFailed': '操作失败'
       }
       return messages[key] ?? key
@@ -71,6 +79,8 @@ describe('DebugSettings', () => {
     upgradeStoreMock.isMockUpdate = false
     upgradeStoreMock.refreshStatus.mockResolvedValue(undefined)
     windowClientMock.startGuidedOnboarding.mockResolvedValue({ started: true, focused: true })
+    debugClientMock.showSplashScenario.mockResolvedValue({ shown: true })
+    debugClientMock.closeSplashScenario.mockResolvedValue({ closed: true })
     debugClientMock.createMockChatSession.mockResolvedValue({
       created: true,
       sessionId: 'debug-long-chat-test',
@@ -105,6 +115,25 @@ describe('DebugSettings', () => {
     expect(wrapper.text()).toContain('创建长会话Mock数据')
     expect(wrapper.text()).toContain('模拟已下载更新')
     expect(upgradeStoreMock.refreshStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens Splash scenarios and enables close only for an open preview', async () => {
+    const wrapper = await mountPage()
+    await flushPromises()
+
+    const loadingButton = wrapper.findAll('button').find((button) => button.text() === '预览加载中')!
+    const closeButton = wrapper.findAll('button').find((button) => button.text() === '关闭')!
+    expect(closeButton.attributes('disabled')).toBeDefined()
+
+    await loadingButton.trigger('click')
+    await flushPromises()
+    expect(debugClientMock.showSplashScenario).toHaveBeenCalledWith('loading')
+    expect(closeButton.attributes('disabled')).toBeUndefined()
+
+    await closeButton.trigger('click')
+    await flushPromises()
+    expect(debugClientMock.closeSplashScenario).toHaveBeenCalledTimes(1)
+    expect(closeButton.attributes('disabled')).toBeDefined()
   })
 
   it('runs onboarding, creates mock chat with pending state, and shows success feedback', async () => {

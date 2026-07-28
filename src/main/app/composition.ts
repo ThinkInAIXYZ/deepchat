@@ -233,6 +233,7 @@ export async function createMainProcessControl(dependencies: {
   startupRunId: string
   requestUpdateInstall: (installAction: () => void) => Promise<void>
   onWindowCreated: (isMainWindow: boolean) => void
+  splash: import('./splashWindow').SplashWindow
   bindControl: (control: MainProcessControl) => void
 }) {
   const databaseSecurityService = dependencies.databaseSecurityService
@@ -1909,7 +1910,8 @@ export async function createMainProcessControl(dependencies: {
       },
       publishSessionsUpdated: (sessionIds) => {
         publishDeepchatEvent(sessionsUpdatedEvent.name, { sessionIds, reason: 'created' })
-      }
+      },
+      splash: dependencies.splash
     })
     const routeDispatcher = createRouteDispatcher({
       appDatabaseMaintenance: {

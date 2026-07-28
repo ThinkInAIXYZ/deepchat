@@ -31,7 +31,11 @@ import {
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute
 } from './routes/database-security.routes'
-import { debugCreateMockChatSessionRoute } from './routes/debug.routes'
+import {
+  debugCloseSplashScenarioRoute,
+  debugCreateMockChatSessionRoute,
+  debugShowSplashScenarioRoute
+} from './routes/debug.routes'
 import {
   memoryAddRoute,
   memoryApproveDirectiveRoute,
@@ -1014,6 +1018,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [upgradeClearMockRoute.name]: upgradeClearMockRoute,
   [upgradeRestartToUpdateRoute.name]: upgradeRestartToUpdateRoute,
   [debugCreateMockChatSessionRoute.name]: debugCreateMockChatSessionRoute,
+  [debugShowSplashScenarioRoute.name]: debugShowSplashScenarioRoute,
+  [debugCloseSplashScenarioRoute.name]: debugCloseSplashScenarioRoute,
   [dialogRespondRoute.name]: dialogRespondRoute,
   [dialogErrorRoute.name]: dialogErrorRoute,
   [toolsListDefinitionsRoute.name]: toolsListDefinitionsRoute,

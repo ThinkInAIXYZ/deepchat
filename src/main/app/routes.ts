@@ -8,7 +8,9 @@ import {
   databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
+  debugCloseSplashScenarioRoute,
   debugCreateMockChatSessionRoute,
+  debugShowSplashScenarioRoute,
   performanceRecordRendererRoute,
   startupGetBootstrapRoute,
   type DatabaseSecurityStatus,
@@ -25,6 +27,7 @@ import {
 import type { ProjectService } from '@/project'
 import type { LoggingService } from './logging'
 import type { RendererPerformanceLogService } from './rendererPerformanceLogService'
+import type { SplashWindow } from './splashWindow'
 
 export function createAppRoutes(deps: {
   logging: Pick<LoggingService, 'openFolder'>
@@ -49,6 +52,7 @@ export function createAppRoutes(deps: {
   disableDatabaseEncryption(currentPassword: string): Promise<DatabaseSecurityStatus>
   recordActivity(input: SettingsActivityInput): void
   publishSessionsUpdated(sessionIds: string[]): void
+  splash: Pick<SplashWindow, 'showDebugScenario' | 'closeDebugScenario'>
 }): DeepchatRouteMap {
   const recordEncryptionActivity = (action: 'enabled' | 'updated' | 'disabled', key: string) => {
     deps.recordActivity({
@@ -186,6 +190,29 @@ export function createAppRoutes(deps: {
             deps.startup.replayTarget('main')
             return startupGetBootstrapRoute.output.parse({ bootstrap })
           }
+        })
+      }
+    ],
+    [
+      debugShowSplashScenarioRoute.name,
+      async (rawInput) => {
+        const input = debugShowSplashScenarioRoute.input.parse(rawInput)
+        if (!import.meta.env.DEV || app.isPackaged) {
+          return debugShowSplashScenarioRoute.output.parse({ shown: false })
+        }
+        await deps.splash.showDebugScenario(input.mode)
+        return debugShowSplashScenarioRoute.output.parse({ shown: true })
+      }
+    ],
+    [
+      debugCloseSplashScenarioRoute.name,
+      async (rawInput) => {
+        debugCloseSplashScenarioRoute.input.parse(rawInput)
+        if (!import.meta.env.DEV || app.isPackaged) {
+          return debugCloseSplashScenarioRoute.output.parse({ closed: false })
+        }
+        return debugCloseSplashScenarioRoute.output.parse({
+          closed: await deps.splash.closeDebugScenario()
         })
       }
     ],

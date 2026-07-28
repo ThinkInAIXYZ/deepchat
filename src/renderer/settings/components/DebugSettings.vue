@@ -41,12 +41,37 @@
         </Button>
       </div>
     </section>
+
+    <section class="rounded-xl border border-border bg-card p-4">
+      <div class="flex flex-col gap-1">
+        <h2 class="text-base font-semibold text-foreground">
+          {{ t('settings.debug.splash.title') }}
+        </h2>
+        <p class="text-sm text-muted-foreground">{{ t('settings.debug.splash.description') }}</p>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <Button
+          v-for="scenario in splashScenarios"
+          :key="scenario.mode"
+          variant="outline"
+          :disabled="isRunningSplashAction"
+          @click="showSplashScenario(scenario.mode)"
+        >
+          <Spinner v-if="isRunningSplashAction" class="mr-2 size-4" />
+          {{ scenario.label }}
+        </Button>
+        <Button variant="outline" :disabled="isRunningSplashAction || !isSplashPreviewOpen" @click="closeSplashScenario">
+          {{ t('common.close') }}
+        </Button>
+      </div>
+    </section>
   </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { onMounted, ref } from 'vue'
+import type { SplashDebugMode } from '@shared/contracts/splash'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
@@ -65,6 +90,13 @@ const windowClient = createWindowClient()
 const upgrade = useUpgradeStore()
 const isCreatingMockChat = ref(false)
 const isRunningDebugAction = ref(false)
+const isRunningSplashAction = ref(false)
+const isSplashPreviewOpen = ref(false)
+const splashScenarios: Array<{ mode: SplashDebugMode; label: string }> = [
+  { mode: 'loading', label: t('settings.debug.splash.loading') },
+  { mode: 'system-unlock', label: t('settings.debug.splash.systemUnlock') },
+  { mode: 'unlock', label: t('settings.debug.splash.unlock') }
+]
 
 const showToastError = (description: string) => {
   toast({
@@ -129,6 +161,48 @@ const createMockChat = async () => {
     showToastError(error instanceof Error ? error.message : t('about.mockChatCreateFailed'))
   } finally {
     isCreatingMockChat.value = false
+  }
+}
+
+const showSplashScenario = async (mode: SplashDebugMode) => {
+  if (isRunningSplashAction.value) {
+    return
+  }
+
+  isRunningSplashAction.value = true
+  try {
+    const result = await debugClient.showSplashScenario(mode)
+    if (!result.shown) {
+      showToastError(t('settings.debug.unavailableDescription'))
+      return
+    }
+    isSplashPreviewOpen.value = true
+  } catch (error) {
+    console.error('[DebugSettings] Failed to show Splash preview', error)
+    showToastError(error instanceof Error ? error.message : t('settings.debug.guidance.failed'))
+  } finally {
+    isRunningSplashAction.value = false
+  }
+}
+
+const closeSplashScenario = async () => {
+  if (isRunningSplashAction.value || !isSplashPreviewOpen.value) {
+    return
+  }
+
+  isRunningSplashAction.value = true
+  try {
+    const result = await debugClient.closeSplashScenario()
+    if (!result.closed) {
+      showToastError(t('settings.debug.unavailableDescription'))
+      return
+    }
+    isSplashPreviewOpen.value = false
+  } catch (error) {
+    console.error('[DebugSettings] Failed to close Splash preview', error)
+    showToastError(error instanceof Error ? error.message : t('settings.debug.guidance.failed'))
+  } finally {
+    isRunningSplashAction.value = false
   }
 }
 
