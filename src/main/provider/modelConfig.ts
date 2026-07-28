@@ -516,7 +516,6 @@ export class ModelConfigHelper {
       ...definedConfigFields(userConfig),
       isUserDefined: Boolean(userConfig)
     })
-    normalizedFinalConfig.isUserDefined = Boolean(userConfig)
     return normalizedFinalConfig
   }
 

@@ -21,15 +21,19 @@ describe('normalizeUserModelConfigEntry', () => {
   })
 
   it.each([
-    ['missing source', entry({ config: { isUserDefined: true } })],
-    ['null source', entry({ source: null, config: { isUserDefined: true } })],
-    ['legacy metadata key', entry()]
-  ])('recognizes legacy user intent from %s', (_label, value) => {
-    expect(
-      normalizeUserModelConfigEntry(value, {
-        legacyUserKey: _label === 'legacy metadata key'
-      })
-    ).toMatchObject({
+    {
+      label: 'missing source',
+      value: entry({ config: { isUserDefined: true } }),
+      legacyUserKey: false
+    },
+    {
+      label: 'null source',
+      value: entry({ source: null, config: { isUserDefined: true } }),
+      legacyUserKey: false
+    },
+    { label: 'legacy metadata key', value: entry(), legacyUserKey: true }
+  ])('recognizes legacy user intent from $label', ({ value, legacyUserKey }) => {
+    expect(normalizeUserModelConfigEntry(value, { legacyUserKey })).toMatchObject({
       source: 'user',
       config: { isUserDefined: true }
     })

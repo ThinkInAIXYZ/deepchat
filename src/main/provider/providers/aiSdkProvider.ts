@@ -2008,24 +2008,16 @@ export class AiSdkProvider extends BaseLLMProvider {
           normalizedRawType
         )
         const supportedEndpointTypes = rawSupportedEndpointTypes
-        const contextLengthCandidate = [
-          rawModel.context_length,
-          rawModel.contextLength,
-          rawModel.input_token_limit,
-          rawModel.max_input_tokens
-        ].find(
-          (candidate): candidate is number =>
-            typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0
-        )
+        const contextLengthCandidate =
+          toPositiveFiniteNumber(rawModel.context_length) ??
+          toPositiveFiniteNumber(rawModel.contextLength) ??
+          toPositiveFiniteNumber(rawModel.input_token_limit) ??
+          toPositiveFiniteNumber(rawModel.max_input_tokens)
 
-        const maxTokensCandidate = [
-          rawModel.max_tokens,
-          rawModel.max_output_tokens,
-          rawModel.output_token_limit
-        ].find(
-          (candidate): candidate is number =>
-            typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0
-        )
+        const maxTokensCandidate =
+          toPositiveFiniteNumber(rawModel.max_tokens) ??
+          toPositiveFiniteNumber(rawModel.max_output_tokens) ??
+          toPositiveFiniteNumber(rawModel.output_token_limit)
 
         const capabilityFamilyHint = resolveCapabilityFamilyHint(rawModel.id, ownedBy)
         const defaultEndpointType = resolveNewApiEndpointTypeFromRoute(

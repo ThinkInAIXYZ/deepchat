@@ -53,6 +53,13 @@ describe('provider model facts', () => {
       type: ModelType.Chat
     })
     expect(facts).not.toHaveProperty('selectableEndpointTypes')
+    expect(hasPersistedDerivedProviderModelFields(facts, 'new-api')).toBe(false)
+    expect(
+      hasPersistedDerivedProviderModelFields(
+        { ...facts, selectableEndpointTypes: ['openai'] },
+        'new-api'
+      )
+    ).toBe(true)
   })
 
   it('retains explicit custom-model facts on catalog-backed providers', () => {

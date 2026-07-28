@@ -640,12 +640,17 @@ export class OllamaProvider extends BaseLLMProvider {
           ...model.details,
           ...showResponse.details
         },
-        model_info: {
-          ...(contextLength !== undefined ? { context_length: contextLength } : {}),
-          ...(embeddingLength !== undefined ? { embedding_length: embeddingLength } : {}),
-          ...(visionEmbeddingLength ? { vision: { embedding_length: visionEmbeddingLength } } : {}),
-          ...(Object.keys(general).length > 0 ? { general } : {})
-        },
+        model_info: this.mergeModelInfo(
+          {
+            ...(contextLength !== undefined ? { context_length: contextLength } : {}),
+            ...(embeddingLength !== undefined ? { embedding_length: embeddingLength } : {}),
+            ...(visionEmbeddingLength
+              ? { vision: { embedding_length: visionEmbeddingLength } }
+              : {}),
+            ...(Object.keys(general).length > 0 ? { general } : {})
+          },
+          model.model_info
+        ),
         ...(capabilities !== undefined ? { capabilities } : {})
       }
     } catch (error) {

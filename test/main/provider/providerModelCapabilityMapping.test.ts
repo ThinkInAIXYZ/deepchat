@@ -250,13 +250,13 @@ describe('ProviderSettings provider model capability mapping', () => {
     expect(presenter.resolveEffectiveModels(rawModels, 'custom-relay')).toHaveLength(3)
     expect(getProviderById).toHaveBeenCalledOnce()
     expect(resolveModelConfigWithProvider).toHaveBeenCalledTimes(3)
-    for (const [model] of rawModels.entries()) {
+    for (const [index, rawModel] of rawModels.entries()) {
       expect(resolveModelConfigWithProvider).toHaveBeenNthCalledWith(
-        model + 1,
-        rawModels[model].id,
+        index + 1,
+        rawModel.id,
         'custom-relay',
         undefined,
-        rawModels[model],
+        rawModel,
         provider
       )
     }

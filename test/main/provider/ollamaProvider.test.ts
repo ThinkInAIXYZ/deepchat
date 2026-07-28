@@ -294,6 +294,29 @@ describe('OllamaProvider.fetchModels', () => {
     expect(models[0]).not.toHaveProperty('capabilities')
   })
 
+  it('preserves list model info when the show response is sparse', async () => {
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    ;(ollamaProvider as any).ollama = {
+      list: vi.fn(async () => ({
+        models: [createModel('qwen3:8b', { family: 'qwen', contextLength: 32768 })]
+      })),
+      show: vi.fn(async () => ({
+        details: {},
+        model_info: {
+          'qwen.embedding_length': 4096
+        },
+        capabilities: ['chat']
+      }))
+    }
+
+    const models = await ollamaProvider.listModels()
+
+    expect(models[0].model_info).toMatchObject({
+      context_length: 32768,
+      embedding_length: 4096
+    })
+  })
+
   it('confirms pull success against the ollama list model set', async () => {
     const ollamaProvider = new OllamaProvider(provider, providerSettings)
     ;(ollamaProvider as any).ollama = {

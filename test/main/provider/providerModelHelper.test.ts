@@ -105,6 +105,25 @@ const createModelConfig = (overrides?: Partial<ModelConfig>): ModelConfig => ({
   ...overrides
 })
 
+const modelConfigCacheKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
+
+const createGetModelConfigMock = (configState: Map<string, ModelConfig>) =>
+  vi.fn(
+    (
+      modelId: string,
+      providerId?: string,
+      _capabilityProviderId?: string,
+      _resolvedIdentity?: unknown,
+      providerFacts?: ReturnType<typeof createBaseModel>
+    ) =>
+      (providerId ? configState.get(modelConfigCacheKey(providerId, modelId)) : undefined) ??
+      createModelConfig({
+        maxTokens: providerFacts?.maxTokens,
+        contextLength: providerFacts?.contextLength,
+        type: providerFacts?.type
+      })
+  )
+
 describe('ProviderModelHelper cache', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -794,31 +813,16 @@ describe('ProviderSettings effective model projection', () => {
     ])
 
     const configState = new Map<string, ModelConfig>()
-    const cacheKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
     const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       modelConfigHelper: {
         getModelRouteConfig: vi.fn(() => ({})),
-        getModelConfig: vi.fn(
-          (
-            modelId: string,
-            providerId?: string,
-            _capabilityProviderId?: string,
-            _resolvedIdentity?: unknown,
-            providerFacts?: ReturnType<typeof createBaseModel>
-          ) =>
-            (providerId ? configState.get(cacheKey(providerId, modelId)) : undefined) ??
-            createModelConfig({
-              maxTokens: providerFacts?.maxTokens,
-              contextLength: providerFacts?.contextLength,
-              type: providerFacts?.type
-            })
-        ),
+        getModelConfig: createGetModelConfigMock(configState),
         setModelConfig: vi.fn((modelId: string, providerId: string, config: ModelConfig) => {
-          configState.set(cacheKey(providerId, modelId), config)
+          configState.set(modelConfigCacheKey(providerId, modelId), config)
           return config
         }),
         resetModelConfig: vi.fn((modelId: string, providerId: string) => {
-          configState.delete(cacheKey(providerId, modelId))
+          configState.delete(modelConfigCacheKey(providerId, modelId))
         }),
         importConfigs: vi.fn()
       },
@@ -869,30 +873,15 @@ describe('ProviderSettings effective model projection', () => {
     ])
 
     const configState = new Map<string, ModelConfig>()
-    const cacheKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
     const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       modelConfigHelper: {
         getModelRouteConfig: vi.fn(() => ({})),
-        getModelConfig: vi.fn(
-          (
-            modelId: string,
-            providerId?: string,
-            _capabilityProviderId?: string,
-            _resolvedIdentity?: unknown,
-            providerFacts?: ReturnType<typeof createBaseModel>
-          ) =>
-            (providerId ? configState.get(cacheKey(providerId, modelId)) : undefined) ??
-            createModelConfig({
-              maxTokens: providerFacts?.maxTokens,
-              contextLength: providerFacts?.contextLength,
-              type: providerFacts?.type
-            })
-        ),
+        getModelConfig: createGetModelConfigMock(configState),
         setModelConfig: vi.fn(),
         resetModelConfig: vi.fn(),
         importConfigs: vi.fn(() => {
           configState.set(
-            cacheKey('openai', 'gpt-5'),
+            modelConfigCacheKey('openai', 'gpt-5'),
             createModelConfig({
               maxTokens: 24000
             })
