@@ -1,18 +1,23 @@
 /**
  * Adapters Registry Unit Tests
  */
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   getAdapter,
   getAllAdapters,
   registerAdapter,
   detectAdapter,
   ClaudeCodeAdapter,
+  CodexAdapter,
   CursorAdapter,
   WindsurfAdapter,
   CopilotAdapter,
   KiroAdapter,
   AntigravityAdapter,
+  OpenCodeAdapter,
+  GooseAdapter,
+  KiloCodeAdapter,
+  CopilotUserAdapter,
   AgentsAdapter
 } from '../../../../../src/main/skill/sync/adapters'
 import type {
@@ -23,75 +28,34 @@ import type {
 } from '../../../../../src/shared/types/skillSync'
 
 describe('Adapters Registry', () => {
-  describe('getAdapter', () => {
-    it('should return ClaudeCodeAdapter for claude-code id', () => {
-      const adapter = getAdapter('claude-code')
-      expect(adapter).toBeInstanceOf(ClaudeCodeAdapter)
-    })
+  const builtinAdapters = [
+    ['claude-code', ClaudeCodeAdapter],
+    ['codex', CodexAdapter],
+    ['cursor', CursorAdapter],
+    ['windsurf', WindsurfAdapter],
+    ['copilot', CopilotAdapter],
+    ['kiro', KiroAdapter],
+    ['antigravity', AntigravityAdapter],
+    ['opencode', OpenCodeAdapter],
+    ['goose', GooseAdapter],
+    ['kilocode', KiloCodeAdapter],
+    ['copilot-user', CopilotUserAdapter],
+    ['agents', AgentsAdapter]
+  ] as const
 
-    it('should return CursorAdapter for cursor id', () => {
-      const adapter = getAdapter('cursor')
-      expect(adapter).toBeInstanceOf(CursorAdapter)
-    })
+  describe('built-in adapters', () => {
+    it('should register every exported built-in adapter', () => {
+      expect(getAllAdapters().map((adapter) => adapter.id)).toEqual(
+        builtinAdapters.map(([id]) => id)
+      )
 
-    it('should return WindsurfAdapter for windsurf id', () => {
-      const adapter = getAdapter('windsurf')
-      expect(adapter).toBeInstanceOf(WindsurfAdapter)
-    })
-
-    it('should return CopilotAdapter for copilot id', () => {
-      const adapter = getAdapter('copilot')
-      expect(adapter).toBeInstanceOf(CopilotAdapter)
-    })
-
-    it('should return KiroAdapter for kiro id', () => {
-      const adapter = getAdapter('kiro')
-      expect(adapter).toBeInstanceOf(KiroAdapter)
-    })
-
-    it('should return AntigravityAdapter for antigravity id', () => {
-      const adapter = getAdapter('antigravity')
-      expect(adapter).toBeInstanceOf(AntigravityAdapter)
-    })
-
-    it('should return AgentsAdapter for agents id', () => {
-      const adapter = getAdapter('agents')
-      expect(adapter).toBeInstanceOf(AgentsAdapter)
+      for (const [id, Adapter] of builtinAdapters) {
+        expect(getAdapter(id)).toBeInstanceOf(Adapter)
+      }
     })
 
     it('should return undefined for unknown id', () => {
-      const adapter = getAdapter('unknown-adapter')
-      expect(adapter).toBeUndefined()
-    })
-  })
-
-  describe('getAllAdapters', () => {
-    it('should return all registered adapters', () => {
-      const adapters = getAllAdapters()
-
-      expect(adapters.length).toBeGreaterThanOrEqual(6)
-
-      const ids = adapters.map((a) => a.id)
-      expect(ids).toContain('claude-code')
-      expect(ids).toContain('cursor')
-      expect(ids).toContain('windsurf')
-      expect(ids).toContain('copilot')
-      expect(ids).toContain('kiro')
-      expect(ids).toContain('antigravity')
-      expect(ids).toContain('agents')
-    })
-
-    it('should return array of IFormatAdapter instances', () => {
-      const adapters = getAllAdapters()
-
-      for (const adapter of adapters) {
-        expect(adapter.id).toBeDefined()
-        expect(adapter.name).toBeDefined()
-        expect(typeof adapter.parse).toBe('function')
-        expect(typeof adapter.serialize).toBe('function')
-        expect(typeof adapter.detect).toBe('function')
-        expect(typeof adapter.getCapabilities).toBe('function')
-      }
+      expect(getAdapter('unknown-adapter')).toBeUndefined()
     })
   })
 
@@ -242,50 +206,6 @@ No specific format here.`
 
       const adapter = detectAdapter(content)
       expect(adapter).toBeUndefined()
-    })
-  })
-
-  describe('exported adapter classes', () => {
-    it('should export ClaudeCodeAdapter', () => {
-      expect(ClaudeCodeAdapter).toBeDefined()
-      const instance = new ClaudeCodeAdapter()
-      expect(instance.id).toBe('claude-code')
-    })
-
-    it('should export CursorAdapter', () => {
-      expect(CursorAdapter).toBeDefined()
-      const instance = new CursorAdapter()
-      expect(instance.id).toBe('cursor')
-    })
-
-    it('should export WindsurfAdapter', () => {
-      expect(WindsurfAdapter).toBeDefined()
-      const instance = new WindsurfAdapter()
-      expect(instance.id).toBe('windsurf')
-    })
-
-    it('should export CopilotAdapter', () => {
-      expect(CopilotAdapter).toBeDefined()
-      const instance = new CopilotAdapter()
-      expect(instance.id).toBe('copilot')
-    })
-
-    it('should export KiroAdapter', () => {
-      expect(KiroAdapter).toBeDefined()
-      const instance = new KiroAdapter()
-      expect(instance.id).toBe('kiro')
-    })
-
-    it('should export AntigravityAdapter', () => {
-      expect(AntigravityAdapter).toBeDefined()
-      const instance = new AntigravityAdapter()
-      expect(instance.id).toBe('antigravity')
-    })
-
-    it('should export AgentsAdapter', () => {
-      expect(AgentsAdapter).toBeDefined()
-      const instance = new AgentsAdapter()
-      expect(instance.id).toBe('agents')
     })
   })
 })

@@ -2398,22 +2398,15 @@ describe('SkillService', () => {
     })
 
     it('should return folder tree for existing skill', async () => {
-      // Reset readdirSync to return files for the skill folder
-      let callCount = 0
-      ;(fs.readdirSync as Mock).mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          // First call is for discovering skills
-          return [{ name: 'test-skill', isDirectory: () => true }]
-        }
-        // Subsequent calls are for building tree - return empty to prevent recursion
-        return [{ name: 'SKILL.md', isDirectory: () => false }]
-      })
-
       const tree = await skillService.getSkillFolderTree('test-skill')
 
-      expect(Array.isArray(tree)).toBe(true)
-      expect(tree.length).toBeGreaterThanOrEqual(0)
+      expect(tree).toEqual([
+        {
+          name: 'SKILL.md',
+          type: 'file',
+          path: `${DEFAULT_SKILLS_DIR}/test-skill/SKILL.md`
+        }
+      ])
     })
   })
 

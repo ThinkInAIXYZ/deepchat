@@ -298,20 +298,6 @@ description: A test prompt
 
       expect(result).not.toBeNull()
     })
-
-    it('should return null for unrecognized format', () => {
-      const content = `Just plain text without any structure`
-
-      const context = {
-        filePath: '/path/to/file.txt',
-        folderPath: '/path/to'
-      }
-
-      const result = converter.autoDetectAndParse(content, context)
-
-      // May or may not be null depending on adapter detection logic
-      // Some adapters may accept plain markdown
-    })
   })
 
   describe('getToolCapabilities', () => {

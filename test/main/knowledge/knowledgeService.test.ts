@@ -422,14 +422,5 @@ describe('KnowledgeService Validation Methods', () => {
       expect(close).toHaveBeenCalled()
       expect((knowledgeService as any).knowledgeBases.has(config.id)).toBe(false)
     })
-
-    it('should not interfere with existing KnowledgeService functionality', () => {
-      // Verify that the new methods don't break existing functionality
-      expect(typeof knowledgeService.validateFile).toBe('function')
-      expect(typeof knowledgeService.getSupportedFileExtensions).toBe('function')
-      expect(typeof knowledgeService.addFile).toBe('function')
-      expect(typeof knowledgeService.deleteFile).toBe('function')
-      expect(typeof knowledgeService.listFiles).toBe('function')
-    })
   })
 })

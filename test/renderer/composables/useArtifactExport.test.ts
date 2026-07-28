@@ -30,7 +30,9 @@ describe('useArtifactExport', () => {
 
   it('throws for invalid svg content', async () => {
     const api = useArtifactExport(vi.fn())
-    await expect(api.exportSVG(mkArtifact('image/svg+xml', 'NOT_SVG', 'bad'))).rejects.toBeTruthy()
+    await expect(api.exportSVG(mkArtifact('image/svg+xml', 'NOT_SVG', 'bad'))).rejects.toThrow(
+      'Invalid SVG content'
+    )
   })
 
   it('exports code and copies content', async () => {

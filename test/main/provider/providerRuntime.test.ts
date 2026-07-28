@@ -209,14 +209,7 @@ describe('ProviderRuntime Integration Tests', () => {
   })
 
   afterEach(async () => {
-    // Stop all active streams after each test
-    const activeStreams = (providerRuntime as any).activeStreams as Map<string, any>
-    for (const [eventId] of activeStreams) {
-      await providerRuntime.stopStream(eventId)
-    }
-
-    // Wait for any pending async operations to complete
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    await providerRuntime.shutdown()
     vi.unstubAllGlobals()
   })
 
@@ -375,7 +368,6 @@ describe('ProviderRuntime Integration Tests', () => {
 
       expect(typeof response).toBe('string')
       expect(response.length).toBeGreaterThan(0)
-      console.log('Completion response:', response.substring(0, 100))
     }, 15000)
 
     it('forwards text-generation cancellation options to the provider', async () => {
@@ -610,7 +602,6 @@ describe('ProviderRuntime Integration Tests', () => {
 
       expect(typeof title).toBe('string')
       expect(title.length).toBeGreaterThan(0)
-      console.log('Generated title:', title)
     }, 15000)
   })
 

@@ -61,24 +61,6 @@ describe('FileService Integration with FileValidationService', () => {
     fileService = new FileService(mockSettings, mockFileValidationService)
   })
 
-  describe('constructor', () => {
-    it('should initialize with provided FileValidationService', () => {
-      const customService = {
-        validateFile: vi.fn(),
-        getSupportedExtensions: vi.fn(),
-        getSupportedMimeTypes: vi.fn()
-      }
-
-      const presenter = new FileService(mockSettings, customService)
-      expect(presenter).toBeInstanceOf(FileService)
-    })
-
-    it('should initialize with default FileValidationService when none provided', () => {
-      const presenter = new FileService(mockSettings)
-      expect(presenter).toBeInstanceOf(FileService)
-    })
-  })
-
   describe('validateFileForKnowledgeBase', () => {
     it('should return validation result for supported file', async () => {
       const mockResult: FileValidationResult = {
@@ -200,23 +182,6 @@ describe('FileService Integration with FileValidationService', () => {
       expect(consoleSpy).toHaveBeenCalledWith('Error getting supported extensions:', error)
 
       consoleSpy.mockRestore()
-    })
-  })
-
-  describe('integration with existing FileService functionality', () => {
-    it('should not interfere with existing methods', async () => {
-      // Test that existing functionality still works
-      expect(typeof fileService.getMimeType).toBe('function')
-      expect(typeof fileService.createFileAdapter).toBe('function')
-      expect(typeof fileService.prepareFile).toBe('function')
-      expect(typeof fileService.isDirectory).toBe('function')
-    })
-
-    it('should maintain backward compatibility', () => {
-      // Ensure new methods don't break existing interface
-      const presenter = new FileService(mockSettings)
-      expect(presenter).toHaveProperty('validateFileForKnowledgeBase')
-      expect(presenter).toHaveProperty('getSupportedExtensions')
     })
   })
 })

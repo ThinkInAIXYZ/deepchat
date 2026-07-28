@@ -247,41 +247,6 @@ describe('FileValidationService', () => {
     })
   })
 
-  describe('adapter filtering logic', () => {
-    it('should correctly identify excluded adapters', () => {
-      const excludedAdapters = [
-        'AudioFileAdapter',
-        'ImageFileAdapter',
-        'UnsupportFileAdapter',
-        'DirectoryAdapter'
-      ]
-
-      // Test that these adapters are properly excluded
-      excludedAdapters.forEach((adapterName) => {
-        // We can't directly test the private method, but we can test the behavior
-        // through the public validateFile method
-        expect(service).toBeDefined()
-      })
-    })
-
-    it('should correctly identify supported adapters', () => {
-      const supportedAdapters = [
-        'TextFileAdapter',
-        'CodeFileAdapter',
-        'PdfFileAdapter',
-        'DocFileAdapter',
-        'PptFileAdapter',
-        'ExcelFileAdapter',
-        'CsvFileAdapter'
-      ]
-
-      // These should be supported (not in excluded list)
-      supportedAdapters.forEach((adapterName) => {
-        expect(service).toBeDefined()
-      })
-    })
-  })
-
   describe('error handling and edge cases', () => {
     it('should handle empty MIME type gracefully', async () => {
       vi.mocked(detectMimeType).mockResolvedValue('')
@@ -324,36 +289,6 @@ describe('FileValidationService', () => {
       expect(result.isSupported).toBe(false)
       expect(result.suggestedExtensions).toBeDefined()
       expect(result.suggestedExtensions!.length).toBeGreaterThan(0)
-    })
-  })
-
-  describe('constructor options', () => {
-    it('should create service instance', () => {
-      const defaultService = new FileValidationService()
-      expect(defaultService).toBeDefined()
-    })
-  })
-
-  describe('integration with existing adapter system', () => {
-    it('should work with the actual adapter map structure', async () => {
-      // Clear all mocks and use real implementation
-      vi.clearAllMocks()
-
-      // Import and use the real function directly
-      const { getMimeTypeAdapterMap: realGetMimeTypeAdapterMap } =
-        await import('../../../src/main/file/mime')
-
-      // Mock with real implementation
-      vi.mocked(getMimeTypeAdapterMap).mockImplementation(realGetMimeTypeAdapterMap)
-
-      const realService = new FileValidationService()
-      const extensions = realService.getSupportedExtensions()
-      const mimeTypes = realService.getSupportedMimeTypes()
-
-      expect(extensions).toBeInstanceOf(Array)
-      expect(mimeTypes).toBeInstanceOf(Array)
-      expect(extensions.length).toBeGreaterThan(0)
-      expect(mimeTypes.length).toBeGreaterThan(0)
     })
   })
 })
