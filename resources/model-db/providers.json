@@ -15484,6 +15484,79 @@
           "type": "chat"
         },
         {
+          "id": "nvidia/cosmos-reason2-8b",
+          "name": "Cosmos Reason2 8B",
+          "display_name": "Cosmos Reason2 8B",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2025-12-01",
+          "last_updated": "2025-12-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nvidia/nemotron-nano-12b-v2-vl",
+          "name": "Nemotron Nano 12B v2 VL",
+          "display_name": "Nemotron Nano 12B v2 VL",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2025-10-28",
+          "last_updated": "2025-10-28",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "nvidia/bevformer",
           "name": "bevformer",
           "display_name": "bevformer",
@@ -15553,6 +15626,38 @@
           "type": "chat"
         },
         {
+          "id": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+          "name": "Llama 3.3 Nemotron Super 49B v1.5",
+          "display_name": "Llama 3.3 Nemotron Super 49B v1.5",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-07-25",
+          "last_updated": "2025-07-25",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "nvidia/cosmos-transfer2_5-2b",
           "name": "cosmos-transfer2.5-2b",
           "display_name": "cosmos-transfer2.5-2b",
@@ -15579,6 +15684,38 @@
           "open_weights": true,
           "release_date": "2026-02-26",
           "last_updated": "2026-02-26",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "name": "Llama 3.1 Nemotron Nano 8B v1",
+          "display_name": "Llama 3.1 Nemotron Nano 8B v1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-03-18",
+          "last_updated": "2025-03-18",
           "cost": {
             "input": 0,
             "output": 0
@@ -15648,7 +15785,7 @@
           "type": "chat"
         },
         {
-          "id": "nvidia/llama-3_1-nemotron-safety-guard-8b-v3",
+          "id": "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
           "name": "llama-3.1-nemotron-safety-guard-8b-v3",
           "display_name": "llama-3.1-nemotron-safety-guard-8b-v3",
           "modalities": {
@@ -15672,6 +15809,69 @@
           "open_weights": true,
           "release_date": "2025-10-28",
           "last_updated": "2025-10-28",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "name": "Llama 3.3 Nemotron Super 49B v1",
+          "display_name": "Llama 3.3 Nemotron Super 49B v1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-04-07",
+          "last_updated": "2025-04-07",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "name": "Llama 3.1 Nemotron 70B Instruct",
+          "display_name": "Llama 3.1 Nemotron 70B Instruct",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-04-15",
+          "last_updated": "2025-04-15",
           "cost": {
             "input": 0,
             "output": 0
@@ -15774,6 +15974,38 @@
           "open_weights": true,
           "release_date": "2025-06-13",
           "last_updated": "2025-06-30",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+          "name": "Llama 3.1 Nemotron Ultra 253B",
+          "display_name": "Llama 3.1 Nemotron Ultra 253B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-04-07",
+          "last_updated": "2025-04-07",
           "cost": {
             "input": 0,
             "output": 0
@@ -15907,6 +16139,39 @@
           "open_weights": true,
           "release_date": "2024-03-17",
           "last_updated": "2025-01-17",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+          "name": "Llama 3.1 Nemotron Nano VL 8B v1",
+          "display_name": "Llama 3.1 Nemotron Nano VL 8B v1",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32768,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2025-04-10",
+          "last_updated": "2025-04-10",
           "cost": {
             "input": 0,
             "output": 0
@@ -16066,6 +16331,37 @@
           "knowledge": "2024-09",
           "release_date": "2025-08-18",
           "last_updated": "2025-08-18",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nvidia/riva-translate-4b-instruct-v1.1",
+          "name": "riva-translate-4b-instruct-v1_1",
+          "display_name": "riva-translate-4b-instruct-v1_1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 4096
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-12-12",
+          "last_updated": "2025-12-12",
           "cost": {
             "input": 0,
             "output": 0
@@ -16301,37 +16597,6 @@
           "type": "chat"
         },
         {
-          "id": "nvidia/riva-translate-4b-instruct-v1_1",
-          "name": "riva-translate-4b-instruct-v1_1",
-          "display_name": "riva-translate-4b-instruct-v1_1",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 4096
-          },
-          "temperature": false,
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2025-12-12",
-          "last_updated": "2025-12-12",
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
           "id": "google/google-paligemma",
           "name": "paligemma",
           "display_name": "paligemma",
@@ -16364,6 +16629,38 @@
           "type": "chat"
         },
         {
+          "id": "google/gemma-3-4b-it",
+          "name": "Gemma 3 4B IT",
+          "display_name": "Gemma 3 4B IT",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2025-03-12",
+          "last_updated": "2025-03-12",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "google/gemma-2-2b-it",
           "name": "Gemma 2 2b It",
           "display_name": "Gemma 2 2b It",
@@ -16388,6 +16685,38 @@
           "open_weights": true,
           "release_date": "2024-07-16",
           "last_updated": "2024-07-16",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "google/gemma-3-12b-it",
+          "name": "Gemma 3 12B IT",
+          "display_name": "Gemma 3 12B IT",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2025-03-12",
+          "last_updated": "2025-03-12",
           "cost": {
             "input": 0,
             "output": 0
@@ -16494,6 +16823,40 @@
           "knowledge": "2024-06",
           "release_date": "2025-06-12",
           "last_updated": "2025-06-12",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "thinkingmachines/inkling",
+          "name": "Inkling",
+          "display_name": "Inkling",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-15",
+          "last_updated": "2026-07-15",
           "cost": {
             "input": 0,
             "output": 0
@@ -16782,7 +17145,7 @@
           "type": "chat"
         },
         {
-          "id": "abacusai/dracarys-llama-3_1-70b-instruct",
+          "id": "abacusai/dracarys-llama-3.1-70b-instruct",
           "name": "dracarys-llama-3.1-70b-instruct",
           "display_name": "dracarys-llama-3.1-70b-instruct",
           "modalities": {
@@ -16813,7 +17176,7 @@
           "type": "chat"
         },
         {
-          "id": "upstage/solar-10_7b-instruct",
+          "id": "upstage/solar-10.7b-instruct",
           "name": "solar-10.7b-instruct",
           "display_name": "solar-10.7b-instruct",
           "modalities": {
@@ -16973,6 +17336,39 @@
           "type": "chat"
         },
         {
+          "id": "mistralai/mistral-medium-3.5-128b",
+          "name": "Mistral Medium 3.5",
+          "display_name": "Mistral Medium 3.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-04-29",
+          "last_updated": "2026-04-29",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "mistralai/mistral-nemotron",
           "name": "mistral-nemotron",
           "display_name": "mistral-nemotron",
@@ -17101,6 +17497,38 @@
           "type": "chat"
         },
         {
+          "id": "mistralai/ministral-14b-instruct-2512",
+          "name": "Ministral 3 14B Instruct 2512",
+          "display_name": "Ministral 3 14B Instruct 2512",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2025-12-02",
+          "last_updated": "2025-12-02",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "mistralai/mixtral-8x22b-instruct",
           "name": "Mistral: Mixtral 8x22B Instruct",
           "display_name": "Mistral: Mixtral 8x22B Instruct",
@@ -17125,37 +17553,6 @@
           "open_weights": true,
           "release_date": "2024-04-17",
           "last_updated": "2024-04-17",
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "mistralai/mistral-7b-instruct-v03",
-          "name": "Mistral-7B-Instruct-v0.3",
-          "display_name": "Mistral-7B-Instruct-v0.3",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 65536,
-            "output": 65536
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2025-04-01",
-          "last_updated": "2025-04-01",
           "cost": {
             "input": 0,
             "output": 0
@@ -17217,6 +17614,37 @@
           "open_weights": true,
           "release_date": "2023-12-10",
           "last_updated": "2026-03-15",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "mistralai/mistral-7b-instruct-v0.3",
+          "name": "Mistral-7B-Instruct-v0.3",
+          "display_name": "Mistral-7B-Instruct-v0.3",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 65536,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-04-01",
+          "last_updated": "2025-04-01",
           "cost": {
             "input": 0,
             "output": 0
@@ -17603,6 +18031,43 @@
           "open_weights": true,
           "release_date": "2024-08-29",
           "last_updated": "2025-03-10",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "poolside/laguna-xs-2.1",
+          "name": "Laguna XS 2.1",
+          "display_name": "Laguna XS 2.1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-07-02",
+          "last_updated": "2026-07-02",
           "cost": {
             "input": 0,
             "output": 0
@@ -50569,6 +51034,52 @@
           "type": "chat"
         },
         {
+          "id": "kimi-k3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 262144
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
+          "cost": {
+            "input": 2,
+            "output": 8,
+            "cache_read": 0.25
+          },
+          "type": "chat"
+        },
+        {
           "id": "mimo-v2.5-pro",
           "name": "MiMo-V2.5-Pro",
           "display_name": "MiMo-V2.5-Pro",
@@ -50732,6 +51243,38 @@
       "doc": "https://docs.abliteration.ai/models",
       "models": [
         {
+          "id": "abliterated-model-large",
+          "name": "Abliterated Model Large",
+          "display_name": "Abliterated Model Large",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 999990
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-07-25",
+          "last_updated": "2026-07-28",
+          "cost": {
+            "input": 5,
+            "output": 5
+          },
+          "type": "chat"
+        },
+        {
           "id": "abliterated-model",
           "name": "Abliterated Model",
           "display_name": "Abliterated Model",
@@ -50751,12 +51294,13 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-01-06",
-          "last_updated": "2026-01-06",
+          "last_updated": "2026-07-28",
           "cost": {
             "input": 3,
             "output": 3
@@ -85158,6 +85702,46 @@
           "type": "chat"
         },
         {
+          "id": "moonshotai/kimi-k3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
+          "cost": {
+            "input": 3,
+            "output": 12.5,
+            "cache_read": 0.5
+          },
+          "type": "chat"
+        },
+        {
           "id": "openai/gpt-oss-120b",
           "name": "GPT OSS 120B",
           "display_name": "GPT OSS 120B",
@@ -103734,6 +104318,43 @@
           "knowledge": "2026-02-16",
           "release_date": "2026-07-09",
           "last_updated": "2026-07-09",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "duo-chat-opus-5",
+          "name": "Agentic Chat (Claude Opus 5)",
+          "display_name": "Agentic Chat (Claude Opus 5)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05",
+          "release_date": "2026-07-24",
+          "last_updated": "2026-07-24",
           "cost": {
             "input": 0,
             "output": 0,
@@ -160277,6 +160898,810 @@
             "output": 0,
             "cache_read": 0,
             "cache_write": 0
+          },
+          "type": "chat"
+        }
+      ]
+    },
+    "hyper": {
+      "id": "hyper",
+      "name": "Charm Hyper",
+      "display_name": "Charm Hyper",
+      "api": "https://hyper.charm.land/v1",
+      "doc": "https://hyper.charm.land",
+      "models": [
+        {
+          "id": "qwen3.7-plus",
+          "name": "Qwen3.7 Plus",
+          "display_name": "Qwen3.7 Plus",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-04",
+          "release_date": "2026-06-15",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 1.2,
+            "output": 4.8,
+            "cache_read": 0.24
+          },
+          "type": "chat"
+        },
+        {
+          "id": "glm-5",
+          "name": "GLM-5",
+          "display_name": "GLM-5",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 202752,
+            "output": 20275
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-04-13",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.91,
+            "output": 2.814,
+            "cache_write": 0.455
+          },
+          "type": "chat"
+        },
+        {
+          "id": "glm-5.1",
+          "name": "GLM-5.1",
+          "display_name": "GLM-5.1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 202800,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-06-04",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 1.52425,
+            "output": 4.7905,
+            "cache_read": 0.283075
+          },
+          "type": "chat"
+        },
+        {
+          "id": "deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash",
+          "display_name": "DeepSeek V4 Flash",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-05",
+          "release_date": "2026-07-06",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.2,
+            "output": 0.4,
+            "cache_read": 0.04
+          },
+          "type": "chat"
+        },
+        {
+          "id": "kimi-k2.5",
+          "name": "Kimi K2.5",
+          "display_name": "Kimi K2.5",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 26214
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2025-01",
+          "release_date": "2026-04-13",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.53,
+            "output": 2.66,
+            "cache_write": 0.265
+          },
+          "type": "chat"
+        },
+        {
+          "id": "minimax-m2.7",
+          "name": "MiniMax-M2.7",
+          "display_name": "MiniMax-M2.7",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 204800,
+            "output": 20480
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-06-05",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.42,
+            "output": 1.62,
+            "cache_write": 0.21
+          },
+          "type": "chat"
+        },
+        {
+          "id": "glm-5.2",
+          "name": "GLM-5.2",
+          "display_name": "GLM-5.2",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-06-30",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.28
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.7-max",
+          "name": "Qwen3.7 Max",
+          "display_name": "Qwen3.7 Max",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-05-28",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 2.5,
+            "output": 7.5,
+            "cache_read": 0.5
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.6-max",
+          "name": "Qwen3.6 Max Preview",
+          "display_name": "Qwen3.6 Max Preview",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2025-04",
+          "release_date": "2026-05-20",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 2,
+            "output": 12,
+            "cache_read": 0.2,
+            "cache_write": 2.5
+          },
+          "type": "chat"
+        },
+        {
+          "id": "kimi-k2.6",
+          "name": "Kimi K2.6",
+          "display_name": "Kimi K2.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262000,
+            "output": 262000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2025-01",
+          "release_date": "2026-07-03",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.95,
+            "output": 4,
+            "cache_write": 0.16
+          },
+          "type": "chat"
+        },
+        {
+          "id": "llama-4-maverick-17b-128e-instruct-fp8",
+          "name": "Llama 4 Maverick 17B Instruct",
+          "display_name": "Llama 4 Maverick 17B Instruct",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 430000,
+            "output": 43000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2024-08",
+          "release_date": "2026-04-30",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.2675,
+            "output": 0.9175,
+            "cache_write": 0.13375
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gemma-4-26b-a4b-it",
+          "name": "Gemma 4 26B A4B IT",
+          "display_name": "Gemma 4 26B A4B IT",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 25600
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-04-30",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.114,
+            "output": 0.398,
+            "cache_write": 0.057
+          },
+          "type": "chat"
+        },
+        {
+          "id": "llama-3.3-70b-instruct",
+          "name": "Llama-3.3-70B-Instruct",
+          "display_name": "Llama-3.3-70B-Instruct",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 12800
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2023-12",
+          "release_date": "2026-04-30",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.6066,
+            "output": 1.0386,
+            "cache_write": 0.3033
+          },
+          "type": "chat"
+        },
+        {
+          "id": "deepseek-v4-pro",
+          "name": "DeepSeek V4 Pro",
+          "display_name": "DeepSeek V4 Pro",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-05",
+          "release_date": "2026-07-06",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 2.4,
+            "output": 4.8,
+            "cache_read": 0.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-oss-120b",
+          "name": "GPT OSS 120B",
+          "display_name": "GPT OSS 120B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 13107
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-04-13",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.178,
+            "output": 0.68,
+            "cache_write": 0.089
+          },
+          "type": "chat"
+        },
+        {
+          "id": "kimi-k2.7-code",
+          "name": "Kimi K2.7 Code",
+          "display_name": "Kimi K2.7 Code",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262000,
+            "output": 262000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2025-01",
+          "release_date": "2026-07-03",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.95,
+            "output": 4,
+            "cache_read": 0.19
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.6-flash",
+          "name": "Qwen3.6 Flash",
+          "display_name": "Qwen3.6 Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-05-20",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 1,
+            "output": 4,
+            "cache_read": 0.1,
+            "cache_write": 1.25
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3-coder-480b-a35b-instruct-int4-mixed-ar",
+          "name": "Qwen3-Coder 480B-A35B Instruct",
+          "display_name": "Qwen3-Coder 480B-A35B Instruct",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 106000,
+            "output": 10600
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-04",
+          "release_date": "2026-04-30",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.601,
+            "output": 2.085,
+            "cache_write": 0.3005
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.6-plus",
+          "name": "Qwen3.6 Plus",
+          "display_name": "Qwen3.6 Plus",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-04",
+          "release_date": "2026-05-20",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 2,
+            "output": 6,
+            "cache_read": 0.2,
+            "cache_write": 2.5
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3-next-80b-a3b-instruct",
+          "name": "Qwen3-Next 80B-A3B Instruct",
+          "display_name": "Qwen3-Next 80B-A3B Instruct",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 26214
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-04",
+          "release_date": "2026-04-30",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.12188,
+            "output": 1.145,
+            "cache_write": 0.06094
           },
           "type": "chat"
         }
@@ -238730,7 +240155,7 @@
           "cost": {
             "input": 0.169,
             "output": 0.507,
-            "cache_read": 0.0169
+            "cache_read": 0.0338
           },
           "type": "chat"
         },
@@ -240011,9 +241436,69 @@
           "type": "chat"
         },
         {
+          "id": "alicloud-qwen3.7-flash",
+          "name": "alicloud-qwen3.7-flash",
+          "display_name": "alicloud-qwen3.7-flash",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 991000,
+            "output": 991000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0.282,
+            "output": 1.128,
+            "cache_read": 0.0564
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen3.7-plus",
           "name": "qwen3.7-plus",
           "display_name": "qwen3.7-plus",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 991000,
+            "output": 991000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0.282,
+            "output": 1.128,
+            "cache_read": 0.0564
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.7-flash",
+          "name": "qwen3.7-flash",
+          "display_name": "qwen3.7-flash",
           "modalities": {
             "input": [
               "text"
@@ -240066,6 +241551,35 @@
           "type": "chat"
         },
         {
+          "id": "nemotron-3-super-120b-a12b-free",
+          "name": "nemotron-3-super-120b-a12b-free",
+          "display_name": "nemotron-3-super-120b-a12b-free",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "claude-opus-4-8-think",
           "name": "claude-opus-4-8-think",
           "display_name": "claude-opus-4-8-think",
@@ -240114,35 +241628,6 @@
             "input": 5,
             "output": 25,
             "cache_read": 0.5
-          },
-          "type": "chat"
-        },
-        {
-          "id": "nemotron-3-super-120b-a12b-free",
-          "name": "nemotron-3-super-120b-a12b-free",
-          "display_name": "nemotron-3-super-120b-a12b-free",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cache_read": 0
           },
           "type": "chat"
         },
@@ -241728,6 +243213,30 @@
           "type": "chat"
         },
         {
+          "id": "wan2.7-i2v",
+          "name": "wan2.7-i2v",
+          "display_name": "wan2.7-i2v",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "wan2.7-videoedit",
           "name": "wan2.7-videoedit",
           "display_name": "wan2.7-videoedit",
@@ -241799,33 +243308,9 @@
           "type": "chat"
         },
         {
-          "id": "wan2.7-i2v",
-          "name": "wan2.7-i2v",
-          "display_name": "wan2.7-i2v",
-          "modalities": {
-            "input": [
-              "image",
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "wan2.7-image-pro",
-          "name": "wan2.7-image-pro",
-          "display_name": "wan2.7-image-pro",
+          "id": "wan2.7-image",
+          "name": "wan2.7-image",
+          "display_name": "wan2.7-image",
           "modalities": {
             "input": [
               "text",
@@ -241848,9 +243333,9 @@
           "type": "imageGeneration"
         },
         {
-          "id": "wan2.7-image",
-          "name": "wan2.7-image",
-          "display_name": "wan2.7-image",
+          "id": "wan2.7-image-pro",
+          "name": "wan2.7-image-pro",
+          "display_name": "wan2.7-image-pro",
           "modalities": {
             "input": [
               "text",
@@ -245713,25 +247198,6 @@
           "type": "imageGeneration"
         },
         {
-          "id": "zai-glm-5-turbo",
-          "name": "zai-glm-5-turbo",
-          "display_name": "zai-glm-5-turbo",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 1.2,
-            "output": 3.9996,
-            "cache_read": 0.24
-          },
-          "type": "chat"
-        },
-        {
           "id": "qwen3.6-plus-preview-free",
           "name": "qwen3.6-plus-preview-free",
           "display_name": "qwen3.6-plus-preview-free",
@@ -245764,6 +247230,25 @@
             "input": 0,
             "output": 0,
             "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "zai-glm-5-turbo",
+          "name": "zai-glm-5-turbo",
+          "display_name": "zai-glm-5-turbo",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 1.2,
+            "output": 3.9996,
+            "cache_read": 0.24
           },
           "type": "chat"
         },
@@ -246398,6 +247883,52 @@
           "type": "chat"
         },
         {
+          "id": "cc-minimax-m2.7",
+          "name": "cc-minimax-m2.7",
+          "display_name": "cc-minimax-m2.7",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.1,
+            "output": 0.1
+          },
+          "type": "chat"
+        },
+        {
+          "id": "cc-minimax-m2.7-highspeed",
+          "name": "cc-minimax-m2.7-highspeed",
+          "display_name": "cc-minimax-m2.7-highspeed",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.1,
+            "output": 0.1
+          },
+          "type": "chat"
+        },
+        {
           "id": "minimax-m2.5",
           "name": "minimax-m2.5",
           "display_name": "minimax-m2.5",
@@ -246459,52 +247990,6 @@
           "id": "mm-minimax-m2.7-highspeed",
           "name": "mm-minimax-m2.7-highspeed",
           "display_name": "mm-minimax-m2.7-highspeed",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.1,
-            "output": 0.1
-          },
-          "type": "chat"
-        },
-        {
-          "id": "cc-minimax-m2.7",
-          "name": "cc-minimax-m2.7",
-          "display_name": "cc-minimax-m2.7",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.1,
-            "output": 0.1
-          },
-          "type": "chat"
-        },
-        {
-          "id": "cc-minimax-m2.7-highspeed",
-          "name": "cc-minimax-m2.7-highspeed",
-          "display_name": "cc-minimax-m2.7-highspeed",
           "modalities": {
             "input": [
               "text"
@@ -246687,31 +248172,6 @@
           "type": "chat"
         },
         {
-          "id": "doubao-seedream-4-5",
-          "name": "doubao-seedream-4-5",
-          "display_name": "doubao-seedream-4-5",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0,
-            "cache_read": 0
-          },
-          "type": "imageGeneration"
-        },
-        {
           "id": "sora-2",
           "name": "sora-2",
           "display_name": "sora-2",
@@ -246744,6 +248204,79 @@
           "cost": {
             "input": 2,
             "output": 2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "doubao-seedream-4-5",
+          "name": "doubao-seedream-4-5",
+          "display_name": "doubao-seedream-4-5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "gpt-4o-audio-preview",
+          "name": "gpt-4o-audio-preview",
+          "display_name": "gpt-4o-audio-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 128000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2.5,
+            "output": 10
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-4o-mini-audio-preview",
+          "name": "gpt-4o-mini-audio-preview",
+          "display_name": "gpt-4o-mini-audio-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.15,
+            "output": 0.6
           },
           "type": "chat"
         },
@@ -246993,37 +248526,130 @@
           "type": "chat"
         },
         {
-          "id": "gpt-4o-audio-preview",
-          "name": "gpt-4o-audio-preview",
-          "display_name": "gpt-4o-audio-preview",
+          "id": "kimi-for-coding-free",
+          "name": "kimi-for-coding-free",
+          "display_name": "kimi-for-coding-free",
           "modalities": {
             "input": [
-              "text",
-              "audio"
+              "text"
             ]
           },
           "limit": {
-            "context": 128000,
-            "output": 128000
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "o3-pro",
+          "name": "o3-pro",
+          "display_name": "o3-pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 200000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "cost": {
+            "input": 20,
+            "output": 80,
+            "cache_read": 20
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qianfan-ocr",
+          "name": "qianfan-ocr",
+          "display_name": "qianfan-ocr",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 32000,
+            "output": 32000
           },
           "tool_call": false,
           "reasoning": {
             "supported": false
           },
           "cost": {
-            "input": 2.5,
-            "output": 10
+            "input": 0.062,
+            "output": 0.248
           },
           "type": "chat"
         },
         {
-          "id": "gpt-4o-mini-audio-preview",
-          "name": "gpt-4o-mini-audio-preview",
-          "display_name": "gpt-4o-mini-audio-preview",
+          "id": "qianfan-ocr-fast",
+          "name": "qianfan-ocr-fast",
+          "display_name": "qianfan-ocr-fast",
           "modalities": {
             "input": [
               "text",
-              "audio"
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 32000,
+            "output": 32000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.664,
+            "output": 2.738336
+          },
+          "type": "chat"
+        },
+        {
+          "id": "wan2.5-t2v-preview",
+          "name": "wan2.5-t2v-preview",
+          "display_name": "wan2.5-t2v-preview",
+          "modalities": {
+            "input": [
+              "text"
             ]
           },
           "limit": {
@@ -247035,8 +248661,80 @@
             "supported": false
           },
           "cost": {
-            "input": 0.15,
-            "output": 0.6
+            "input": 2,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "step-3.5-flash",
+          "name": "step-3.5-flash",
+          "display_name": "step-3.5-flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.11,
+            "output": 0.33
+          },
+          "type": "chat"
+        },
+        {
+          "id": "wan2.5-i2v-preview",
+          "name": "wan2.5-i2v-preview",
+          "display_name": "wan2.5-i2v-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "wan2.2-i2v-plus",
+          "name": "wan2.2-i2v-plus",
+          "display_name": "wan2.2-i2v-plus",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0
           },
           "type": "chat"
         },
@@ -247351,219 +249049,6 @@
             "input": 0,
             "output": 0,
             "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "wan2.5-i2v-preview",
-          "name": "wan2.5-i2v-preview",
-          "display_name": "wan2.5-i2v-preview",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "step-3.5-flash",
-          "name": "step-3.5-flash",
-          "display_name": "step-3.5-flash",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.11,
-            "output": 0.33
-          },
-          "type": "chat"
-        },
-        {
-          "id": "wan2.5-t2v-preview",
-          "name": "wan2.5-t2v-preview",
-          "display_name": "wan2.5-t2v-preview",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "wan2.2-i2v-plus",
-          "name": "wan2.2-i2v-plus",
-          "display_name": "wan2.2-i2v-plus",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "kimi-for-coding-free",
-          "name": "kimi-for-coding-free",
-          "display_name": "kimi-for-coding-free",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "o3-pro",
-          "name": "o3-pro",
-          "display_name": "o3-pro",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 200000,
-            "output": 200000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "effort",
-              "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
-              "visibility": "hidden"
-            }
-          },
-          "cost": {
-            "input": 20,
-            "output": 80,
-            "cache_read": 20
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qianfan-ocr",
-          "name": "qianfan-ocr",
-          "display_name": "qianfan-ocr",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 32000,
-            "output": 32000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.062,
-            "output": 0.248
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qianfan-ocr-fast",
-          "name": "qianfan-ocr-fast",
-          "display_name": "qianfan-ocr-fast",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 32000,
-            "output": 32000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.664,
-            "output": 2.738336
           },
           "type": "chat"
         },
@@ -248389,6 +249874,37 @@
           "type": "chat"
         },
         {
+          "id": "grok-4",
+          "name": "grok-4",
+          "display_name": "grok-4",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 3.3,
+            "output": 16.5,
+            "cache_read": 0.825
+          },
+          "type": "chat"
+        },
+        {
           "id": "grok-4-fast-non-reasoning",
           "name": "grok-4-fast-non-reasoning",
           "display_name": "grok-4-fast-non-reasoning",
@@ -248675,6 +250191,125 @@
           "type": "chat"
         },
         {
+          "id": "DeepSeek-OCR",
+          "name": "DeepSeek-OCR",
+          "display_name": "DeepSeek-OCR",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8000,
+            "output": 8000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.02,
+            "output": 0.02
+          },
+          "type": "chat"
+        },
+        {
+          "id": "alicloud-kimi-k2-instruct",
+          "name": "alicloud-kimi-k2-instruct",
+          "display_name": "alicloud-kimi-k2-instruct",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.548,
+            "output": 2.192
+          },
+          "type": "chat"
+        },
+        {
+          "id": "veo-3.0-generate-preview",
+          "name": "veo-3.0-generate-preview",
+          "display_name": "veo-3.0-generate-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 2,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "veo-3.1-fast-generate-preview",
+          "name": "veo-3.1-fast-generate-preview",
+          "display_name": "veo-3.1-fast-generate-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "veo-3.1-generate-preview",
+          "name": "veo-3.1-generate-preview",
+          "display_name": "veo-3.1-generate-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 2,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "deepseek-ocr",
           "name": "deepseek-ocr",
           "display_name": "deepseek-ocr",
@@ -248818,156 +250453,6 @@
             "input": 2,
             "output": 8,
             "cache_read": 0.5
-          },
-          "type": "chat"
-        },
-        {
-          "id": "grok-4",
-          "name": "grok-4",
-          "display_name": "grok-4",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "cost": {
-            "input": 3.3,
-            "output": 16.5,
-            "cache_read": 0.825
-          },
-          "type": "chat"
-        },
-        {
-          "id": "DeepSeek-OCR",
-          "name": "DeepSeek-OCR",
-          "display_name": "DeepSeek-OCR",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8000,
-            "output": 8000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.02,
-            "output": 0.02
-          },
-          "type": "chat"
-        },
-        {
-          "id": "alicloud-kimi-k2-instruct",
-          "name": "alicloud-kimi-k2-instruct",
-          "display_name": "alicloud-kimi-k2-instruct",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.548,
-            "output": 2.192
-          },
-          "type": "chat"
-        },
-        {
-          "id": "veo-3.0-generate-preview",
-          "name": "veo-3.0-generate-preview",
-          "display_name": "veo-3.0-generate-preview",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 2,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "veo-3.1-fast-generate-preview",
-          "name": "veo-3.1-fast-generate-preview",
-          "display_name": "veo-3.1-fast-generate-preview",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "veo-3.1-generate-preview",
-          "name": "veo-3.1-generate-preview",
-          "display_name": "veo-3.1-generate-preview",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 2,
-            "cache_read": 0
           },
           "type": "chat"
         },
@@ -249740,6 +251225,36 @@
           "type": "chat"
         },
         {
+          "id": "ernie-5.0-thinking-preview",
+          "name": "ernie-5.0-thinking-preview",
+          "display_name": "ernie-5.0-thinking-preview",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 183000,
+            "output": 183000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0.822,
+            "output": 3.288,
+            "cache_read": 0.822
+          },
+          "type": "chat"
+        },
+        {
           "id": "inclusionAI/Ling-1T",
           "name": "inclusionAI/Ling-1T",
           "display_name": "inclusionAI/Ling-1T",
@@ -249790,224 +251305,6 @@
             "output": 2.192
           },
           "type": "chat"
-        },
-        {
-          "id": "ernie-5.0-thinking-preview",
-          "name": "ernie-5.0-thinking-preview",
-          "display_name": "ernie-5.0-thinking-preview",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 183000,
-            "output": 183000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "cost": {
-            "input": 0.822,
-            "output": 3.288,
-            "cache_read": 0.822
-          },
-          "type": "chat"
-        },
-        {
-          "id": "doubao-seedream-4-0",
-          "name": "doubao-seedream-4-0",
-          "display_name": "doubao-seedream-4-0",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0,
-            "cache_read": 0
-          },
-          "type": "imageGeneration"
-        },
-        {
-          "id": "embedding-v1",
-          "name": "embedding-v1",
-          "display_name": "embedding-v1",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.068,
-            "output": 0
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "ernie-4.5-turbo-latest",
-          "name": "ernie-4.5-turbo-latest",
-          "display_name": "ernie-4.5-turbo-latest",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 135000,
-            "output": 135000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.11,
-            "output": 0.44
-          },
-          "type": "chat"
-        },
-        {
-          "id": "glm-4.5-x",
-          "name": "glm-4.5-x",
-          "display_name": "glm-4.5-x",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2.2,
-            "output": 8.91,
-            "cache_read": 0.44
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gme-qwen2-vl-2b-instruct",
-          "name": "gme-qwen2-vl-2b-instruct",
-          "display_name": "gme-qwen2-vl-2b-instruct",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.138,
-            "output": 0.138
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "bce-reranker-base",
-          "name": "bce-reranker-base",
-          "display_name": "bce-reranker-base",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.068,
-            "output": 0
-          },
-          "type": "rerank"
-        },
-        {
-          "id": "codex-mini-latest",
-          "name": "codex-mini-latest",
-          "display_name": "codex-mini-latest",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 1.5,
-            "output": 6,
-            "cache_read": 0.375
-          },
-          "type": "chat"
-        },
-        {
-          "id": "tao-8k",
-          "name": "tao-8k",
-          "display_name": "tao-8k",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.068,
-            "output": 0.068
-          },
-          "type": "embedding"
         },
         {
           "id": "gte-rerank-v2",
@@ -250497,6 +251794,194 @@
           "type": "rerank"
         },
         {
+          "id": "doubao-seedream-4-0",
+          "name": "doubao-seedream-4-0",
+          "display_name": "doubao-seedream-4-0",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "embedding-v1",
+          "name": "embedding-v1",
+          "display_name": "embedding-v1",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.068,
+            "output": 0
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "ernie-4.5-turbo-latest",
+          "name": "ernie-4.5-turbo-latest",
+          "display_name": "ernie-4.5-turbo-latest",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 135000,
+            "output": 135000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.11,
+            "output": 0.44
+          },
+          "type": "chat"
+        },
+        {
+          "id": "glm-4.5-x",
+          "name": "glm-4.5-x",
+          "display_name": "glm-4.5-x",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2.2,
+            "output": 8.91,
+            "cache_read": 0.44
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gme-qwen2-vl-2b-instruct",
+          "name": "gme-qwen2-vl-2b-instruct",
+          "display_name": "gme-qwen2-vl-2b-instruct",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.138,
+            "output": 0.138
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "bce-reranker-base",
+          "name": "bce-reranker-base",
+          "display_name": "bce-reranker-base",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.068,
+            "output": 0
+          },
+          "type": "rerank"
+        },
+        {
+          "id": "codex-mini-latest",
+          "name": "codex-mini-latest",
+          "display_name": "codex-mini-latest",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 1.5,
+            "output": 6,
+            "cache_read": 0.375
+          },
+          "type": "chat"
+        },
+        {
+          "id": "tao-8k",
+          "name": "tao-8k",
+          "display_name": "tao-8k",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.068,
+            "output": 0.068
+          },
+          "type": "embedding"
+        },
+        {
           "id": "jina-clip-v2",
           "name": "jina-clip-v2",
           "display_name": "jina-clip-v2",
@@ -250568,6 +252053,31 @@
           "type": "embedding"
         },
         {
+          "id": "gpt-4o-search-preview",
+          "name": "gpt-4o-search-preview",
+          "display_name": "gpt-4o-search-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2.5,
+            "output": 10,
+            "cache_read": 1.25
+          },
+          "type": "chat"
+        },
+        {
           "id": "DeepSeek-R1",
           "name": "DeepSeek-R1",
           "display_name": "DeepSeek-R1",
@@ -250598,31 +252108,6 @@
           "cost": {
             "input": 0.4,
             "output": 2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gpt-4o-search-preview",
-          "name": "gpt-4o-search-preview",
-          "display_name": "gpt-4o-search-preview",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 128000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2.5,
-            "output": 10,
-            "cache_read": 1.25
           },
           "type": "chat"
         },
@@ -251051,58 +252536,6 @@
           "type": "chat"
         },
         {
-          "id": "gemini-embedding-001",
-          "name": "gemini-embedding-001",
-          "display_name": "gemini-embedding-001",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.15,
-            "output": 0.15
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "gpt-oss-120b",
-          "name": "gpt-oss-120b",
-          "display_name": "gpt-oss-120b",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "cost": {
-            "input": 0.18,
-            "output": 0.9
-          },
-          "type": "chat"
-        },
-        {
           "id": "Qwen2-VL-72B-Instruct",
           "name": "Qwen2-VL-72B-Instruct",
           "display_name": "Qwen2-VL-72B-Instruct",
@@ -251168,6 +252601,58 @@
             "input": 0.2,
             "output": 0.2,
             "cache_read": 0.02
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gemini-embedding-001",
+          "name": "gemini-embedding-001",
+          "display_name": "gemini-embedding-001",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.15,
+            "output": 0.15
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "gpt-oss-120b",
+          "name": "gpt-oss-120b",
+          "display_name": "gpt-oss-120b",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 131072
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0.18,
+            "output": 0.9
           },
           "type": "chat"
         },
@@ -252178,29 +253663,6 @@
           "type": "chat"
         },
         {
-          "id": "ernie-x1.1-preview",
-          "name": "ernie-x1.1-preview",
-          "display_name": "ernie-x1.1-preview",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "cost": {
-            "input": 0.136,
-            "output": 0.544
-          },
-          "type": "chat"
-        },
-        {
           "id": "minimax-m2",
           "name": "minimax-m2",
           "display_name": "minimax-m2",
@@ -252226,6 +253688,277 @@
           "cost": {
             "input": 0.288,
             "output": 1.152
+          },
+          "type": "chat"
+        },
+        {
+          "id": "ernie-x1.1-preview",
+          "name": "ernie-x1.1-preview",
+          "display_name": "ernie-x1.1-preview",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0.136,
+            "output": 0.544
+          },
+          "type": "chat"
+        },
+        {
+          "id": "ernie-4.5-0.3b",
+          "name": "ernie-4.5-0.3b",
+          "display_name": "ernie-4.5-0.3b",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.0136,
+            "output": 0.0544
+          },
+          "type": "chat"
+        },
+        {
+          "id": "ernie-4.5-turbo-128k-preview",
+          "name": "ernie-4.5-turbo-128k-preview",
+          "display_name": "ernie-4.5-turbo-128k-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.108,
+            "output": 0.432
+          },
+          "type": "chat"
+        },
+        {
+          "id": "ernie-x1-turbo",
+          "name": "ernie-x1-turbo",
+          "display_name": "ernie-x1-turbo",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 50500,
+            "output": 50500
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0.136,
+            "output": 0.544
+          },
+          "type": "chat"
+        },
+        {
+          "id": "MiniMaxAI/MiniMax-M1-80k",
+          "name": "MiniMaxAI/MiniMax-M1-80k",
+          "display_name": "MiniMaxAI/MiniMax-M1-80k",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.6,
+            "output": 2.4
+          },
+          "type": "chat"
+        },
+        {
+          "id": "Qwen/Qwen2.5-VL-32B-Instruct",
+          "name": "Qwen/Qwen2.5-VL-32B-Instruct",
+          "display_name": "Qwen/Qwen2.5-VL-32B-Instruct",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.24,
+            "output": 0.24
+          },
+          "type": "chat"
+        },
+        {
+          "id": "baidu/ERNIE-4.5-300B-A47B",
+          "name": "baidu/ERNIE-4.5-300B-A47B",
+          "display_name": "baidu/ERNIE-4.5-300B-A47B",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.32,
+            "output": 1.28,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "bge-large-en",
+          "name": "bge-large-en",
+          "display_name": "bge-large-en",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.068,
+            "output": 0.068
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "bge-large-zh",
+          "name": "bge-large-zh",
+          "display_name": "bge-large-zh",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.068,
+            "output": 0.068
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "codestral-latest",
+          "name": "codestral-latest",
+          "display_name": "codestral-latest",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.4,
+            "output": 1.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "tencent/Hunyuan-A13B-Instruct",
+          "name": "tencent/Hunyuan-A13B-Instruct",
+          "display_name": "tencent/Hunyuan-A13B-Instruct",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.14,
+            "output": 0.56
+          },
+          "type": "chat"
+        },
+        {
+          "id": "unsloth/gemma-3-27b-it",
+          "name": "unsloth/gemma-3-27b-it",
+          "display_name": "unsloth/gemma-3-27b-it",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.22,
+            "output": 0.22,
+            "cache_read": 0
           },
           "type": "chat"
         },
@@ -252415,125 +254148,9 @@
           "type": "chat"
         },
         {
-          "id": "MiniMaxAI/MiniMax-M1-80k",
-          "name": "MiniMaxAI/MiniMax-M1-80k",
-          "display_name": "MiniMaxAI/MiniMax-M1-80k",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.6,
-            "output": 2.4
-          },
-          "type": "chat"
-        },
-        {
-          "id": "Qwen/Qwen2.5-VL-32B-Instruct",
-          "name": "Qwen/Qwen2.5-VL-32B-Instruct",
-          "display_name": "Qwen/Qwen2.5-VL-32B-Instruct",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.24,
-            "output": 0.24
-          },
-          "type": "chat"
-        },
-        {
-          "id": "baidu/ERNIE-4.5-300B-A47B",
-          "name": "baidu/ERNIE-4.5-300B-A47B",
-          "display_name": "baidu/ERNIE-4.5-300B-A47B",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.32,
-            "output": 1.28,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "bge-large-en",
-          "name": "bge-large-en",
-          "display_name": "bge-large-en",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.068,
-            "output": 0.068
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "bge-large-zh",
-          "name": "bge-large-zh",
-          "display_name": "bge-large-zh",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.068,
-            "output": 0.068
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "codestral-latest",
-          "name": "codestral-latest",
-          "display_name": "codestral-latest",
+          "id": "qwen-qwq-32b",
+          "name": "qwen-qwq-32b",
+          "display_name": "qwen-qwq-32b",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -252544,121 +254161,7 @@
           },
           "cost": {
             "input": 0.4,
-            "output": 1.2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "tencent/Hunyuan-A13B-Instruct",
-          "name": "tencent/Hunyuan-A13B-Instruct",
-          "display_name": "tencent/Hunyuan-A13B-Instruct",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.14,
-            "output": 0.56
-          },
-          "type": "chat"
-        },
-        {
-          "id": "unsloth/gemma-3-27b-it",
-          "name": "unsloth/gemma-3-27b-it",
-          "display_name": "unsloth/gemma-3-27b-it",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.22,
-            "output": 0.22,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "ernie-4.5-0.3b",
-          "name": "ernie-4.5-0.3b",
-          "display_name": "ernie-4.5-0.3b",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.0136,
-            "output": 0.0544
-          },
-          "type": "chat"
-        },
-        {
-          "id": "ernie-4.5-turbo-128k-preview",
-          "name": "ernie-4.5-turbo-128k-preview",
-          "display_name": "ernie-4.5-turbo-128k-preview",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.108,
-            "output": 0.432
-          },
-          "type": "chat"
-        },
-        {
-          "id": "ernie-x1-turbo",
-          "name": "ernie-x1-turbo",
-          "display_name": "ernie-x1-turbo",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 50500,
-            "output": 50500
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "cost": {
-            "input": 0.136,
-            "output": 0.544
+            "output": 0.8
           },
           "type": "chat"
         },
@@ -252705,24 +254208,6 @@
           "type": "chat"
         },
         {
-          "id": "qwen-qwq-32b",
-          "name": "qwen-qwq-32b",
-          "display_name": "qwen-qwq-32b",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.4,
-            "output": 0.8
-          },
-          "type": "chat"
-        },
-        {
           "id": "unsloth/gemma-3-12b-it",
           "name": "unsloth/gemma-3-12b-it",
           "display_name": "unsloth/gemma-3-12b-it",
@@ -252756,6 +254241,24 @@
           "cost": {
             "input": 0.38,
             "output": 1.52
+          },
+          "type": "chat"
+        },
+        {
+          "id": "tencent/Hunyuan-MT-7B",
+          "name": "tencent/Hunyuan-MT-7B",
+          "display_name": "tencent/Hunyuan-MT-7B",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
           },
           "type": "chat"
         },
@@ -252830,24 +254333,6 @@
             "output": 0.034
           },
           "type": "rerank"
-        },
-        {
-          "id": "tencent/Hunyuan-MT-7B",
-          "name": "tencent/Hunyuan-MT-7B",
-          "display_name": "tencent/Hunyuan-MT-7B",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.2,
-            "output": 0.2
-          },
-          "type": "chat"
         },
         {
           "id": "V3",
@@ -253085,6 +254570,65 @@
           "type": "chat"
         },
         {
+          "id": "sonar",
+          "name": "sonar",
+          "display_name": "sonar",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 1.6,
+            "output": 1.6
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-embedding-v4",
+          "name": "text-embedding-v4",
+          "display_name": "text-embedding-v4",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.08,
+            "output": 0.08
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "stepfun-ai/step3",
+          "name": "stepfun-ai/step3",
+          "display_name": "stepfun-ai/step3",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 1.1,
+            "output": 2.75
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen-plus-2025-07-28",
           "name": "qwen-plus-2025-07-28",
           "display_name": "qwen-plus-2025-07-28",
@@ -253145,88 +254689,6 @@
           "type": "chat"
         },
         {
-          "id": "sonar",
-          "name": "sonar",
-          "display_name": "sonar",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 1.6,
-            "output": 1.6
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-embedding-v4",
-          "name": "text-embedding-v4",
-          "display_name": "text-embedding-v4",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.08,
-            "output": 0.08
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "stepfun-ai/step3",
-          "name": "stepfun-ai/step3",
-          "display_name": "stepfun-ai/step3",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 1.1,
-            "output": 2.75
-          },
-          "type": "chat"
-        },
-        {
-          "id": "AiHubmix-Phi-4-mini-reasoning",
-          "name": "AiHubmix-Phi-4-mini-reasoning",
-          "display_name": "AiHubmix-Phi-4-mini-reasoning",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 128000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.12,
-            "output": 0.12
-          },
-          "type": "chat"
-        },
-        {
           "id": "qwen-turbo-latest",
           "name": "qwen-turbo-latest",
           "display_name": "qwen-turbo-latest",
@@ -253253,6 +254715,29 @@
             "input": 0.046,
             "output": 0.092,
             "cache_read": 0.0092
+          },
+          "type": "chat"
+        },
+        {
+          "id": "AiHubmix-Phi-4-mini-reasoning",
+          "name": "AiHubmix-Phi-4-mini-reasoning",
+          "display_name": "AiHubmix-Phi-4-mini-reasoning",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 128000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.12,
+            "output": 0.12
           },
           "type": "chat"
         },
@@ -253312,24 +254797,6 @@
           "type": "chat"
         },
         {
-          "id": "grok-3",
-          "name": "grok-3",
-          "display_name": "grok-3",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 3,
-            "output": 15
-          },
-          "type": "chat"
-        },
-        {
           "id": "aihub-Phi-4-mini-instruct",
           "name": "aihub-Phi-4-mini-instruct",
           "display_name": "aihub-Phi-4-mini-instruct",
@@ -253349,6 +254816,66 @@
           "cost": {
             "input": 0.12,
             "output": 0.48
+          },
+          "type": "chat"
+        },
+        {
+          "id": "grok-3",
+          "name": "grok-3",
+          "display_name": "grok-3",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 3,
+            "output": 15
+          },
+          "type": "chat"
+        },
+        {
+          "id": "doubao-embedding-text-240715",
+          "name": "doubao-embedding-text-240715",
+          "display_name": "doubao-embedding-text-240715",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.7,
+            "output": 0.7
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "grok-3-beta",
+          "name": "grok-3-beta",
+          "display_name": "grok-3-beta",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 3,
+            "output": 15,
+            "cache_read": 0
           },
           "type": "chat"
         },
@@ -253448,67 +254975,6 @@
           "type": "chat"
         },
         {
-          "id": "doubao-embedding-text-240715",
-          "name": "doubao-embedding-text-240715",
-          "display_name": "doubao-embedding-text-240715",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.7,
-            "output": 0.7
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "grok-3-beta",
-          "name": "grok-3-beta",
-          "display_name": "grok-3-beta",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 3,
-            "output": 15,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "grok-3-fast",
-          "name": "grok-3-fast",
-          "display_name": "grok-3-fast",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 5.5,
-            "output": 27.5,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
           "id": "qwen3-8b",
           "name": "qwen3-8b",
           "display_name": "qwen3-8b",
@@ -253534,6 +255000,63 @@
           "cost": {
             "input": 0.08,
             "output": 0.8,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "grok-3-fast",
+          "name": "grok-3-fast",
+          "display_name": "grok-3-fast",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 5.5,
+            "output": 27.5,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "grok-3-fast-beta",
+          "name": "grok-3-fast-beta",
+          "display_name": "grok-3-fast-beta",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 5.5,
+            "output": 27.5,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "grok-3-mini",
+          "name": "grok-3-mini",
+          "display_name": "grok-3-mini",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.3,
+            "output": 0.501,
             "cache_read": 0
           },
           "type": "chat"
@@ -253587,63 +255110,6 @@
           "type": "chat"
         },
         {
-          "id": "grok-3-fast-beta",
-          "name": "grok-3-fast-beta",
-          "display_name": "grok-3-fast-beta",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 5.5,
-            "output": 27.5,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "grok-3-mini",
-          "name": "grok-3-mini",
-          "display_name": "grok-3-mini",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.3,
-            "output": 0.501,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "grok-3-mini-beta",
-          "name": "grok-3-mini-beta",
-          "display_name": "grok-3-mini-beta",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.33,
-            "output": 0.5511,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
           "id": "qwen3-1.7b",
           "name": "qwen3-1.7b",
           "display_name": "qwen3-1.7b",
@@ -253669,6 +255135,25 @@
           "cost": {
             "input": 0.046,
             "output": 0.46,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "grok-3-mini-beta",
+          "name": "grok-3-mini-beta",
+          "display_name": "grok-3-mini-beta",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.33,
+            "output": 0.5511,
             "cache_read": 0
           },
           "type": "chat"
@@ -254404,6 +255889,24 @@
           "type": "chat"
         },
         {
+          "id": "grok-2-1212",
+          "name": "grok-2-1212",
+          "display_name": "grok-2-1212",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 1.8,
+            "output": 9
+          },
+          "type": "chat"
+        },
+        {
           "id": "wan2.6-t2i",
           "name": "wan2.6-t2i",
           "display_name": "wan2.6-t2i",
@@ -254428,9 +255931,9 @@
           "type": "imageGeneration"
         },
         {
-          "id": "grok-2-1212",
-          "name": "grok-2-1212",
-          "display_name": "grok-2-1212",
+          "id": "sf-kimi-k2-thinking",
+          "name": "sf-kimi-k2-thinking",
+          "display_name": "sf-kimi-k2-thinking",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -254440,27 +255943,8 @@
             "supported": false
           },
           "cost": {
-            "input": 1.8,
-            "output": 9
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gpt-image-test",
-          "name": "gpt-image-test",
-          "display_name": "gpt-image-test",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 5,
-            "output": 40,
-            "cache_read": 0
+            "input": 0.548,
+            "output": 2.192
           },
           "type": "chat"
         },
@@ -254910,9 +256394,9 @@
           "type": "chat"
         },
         {
-          "id": "sf-kimi-k2-thinking",
-          "name": "sf-kimi-k2-thinking",
-          "display_name": "sf-kimi-k2-thinking",
+          "id": "gpt-image-test",
+          "name": "gpt-image-test",
+          "display_name": "gpt-image-test",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -254922,15 +256406,16 @@
             "supported": false
           },
           "cost": {
-            "input": 0.548,
-            "output": 2.192
+            "input": 5,
+            "output": 40,
+            "cache_read": 0
           },
           "type": "chat"
         },
         {
-          "id": "text-babbage-001",
-          "name": "text-babbage-001",
-          "display_name": "text-babbage-001",
+          "id": "deepseek-ai/DeepSeek-V2.5",
+          "name": "deepseek-ai/DeepSeek-V2.5",
+          "display_name": "deepseek-ai/DeepSeek-V2.5",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -254940,545 +256425,8 @@
             "supported": false
           },
           "cost": {
-            "input": 0.5,
-            "output": 0.5
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-davinci-002",
-          "name": "text-davinci-002",
-          "display_name": "text-davinci-002",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 20,
-            "output": 20
-          },
-          "type": "chat"
-        },
-        {
-          "id": "tts-1-hd-1106",
-          "name": "tts-1-hd-1106",
-          "display_name": "tts-1-hd-1106",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 30,
-            "output": 30
-          }
-        },
-        {
-          "id": "tts-1-hd",
-          "name": "tts-1-hd",
-          "display_name": "tts-1-hd",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 30,
-            "output": 30
-          }
-        },
-        {
-          "id": "tts-1-1106",
-          "name": "tts-1-1106",
-          "display_name": "tts-1-1106",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 15,
-            "output": 15
-          }
-        },
-        {
-          "id": "tts-1",
-          "name": "tts-1",
-          "display_name": "tts-1",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 15,
-            "output": 15
-          }
-        },
-        {
-          "id": "text-ada-001",
-          "name": "text-ada-001",
-          "display_name": "text-ada-001",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.4,
-            "output": 0.4
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-curie-001",
-          "name": "text-curie-001",
-          "display_name": "text-curie-001",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-moderation-stable",
-          "name": "text-moderation-stable",
-          "display_name": "text-moderation-stable",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.2,
-            "output": 0.2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-moderation-latest",
-          "name": "text-moderation-latest",
-          "display_name": "text-moderation-latest",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.2,
-            "output": 0.2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-moderation-007",
-          "name": "text-moderation-007",
-          "display_name": "text-moderation-007",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.2,
-            "output": 0.2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-embedding-v1",
-          "name": "text-embedding-v1",
-          "display_name": "text-embedding-v1",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.1,
-            "output": 0.1
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "whisper-1",
-          "name": "whisper-1",
-          "display_name": "whisper-1",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 100,
-            "output": 100
-          },
-          "type": "chat"
-        },
-        {
-          "id": "whisper-large-v3",
-          "name": "whisper-large-v3",
-          "display_name": "whisper-large-v3",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 30.834,
-            "output": 30.834
-          },
-          "type": "chat"
-        },
-        {
-          "id": "whisper-large-v3-turbo",
-          "name": "whisper-large-v3-turbo",
-          "display_name": "whisper-large-v3-turbo",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 5.556,
-            "output": 5.556
-          },
-          "type": "chat"
-        },
-        {
-          "id": "step-2-16k",
-          "name": "step-2-16k",
-          "display_name": "step-2-16k",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-embedding-ada-002",
-          "name": "text-embedding-ada-002",
-          "display_name": "text-embedding-ada-002",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.1,
-            "output": 0.1
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "text-embedding-3-small",
-          "name": "text-embedding-3-small",
-          "display_name": "text-embedding-3-small",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.02,
-            "output": 0.02
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "text-embedding-3-large",
-          "name": "text-embedding-3-large",
-          "display_name": "text-embedding-3-large",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.13,
-            "output": 0.13
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "text-davinci-edit-001",
-          "name": "text-davinci-edit-001",
-          "display_name": "text-davinci-edit-001",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 20,
-            "output": 20
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-davinci-003",
-          "name": "text-davinci-003",
-          "display_name": "text-davinci-003",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 20,
-            "output": 20
-          },
-          "type": "chat"
-        },
-        {
-          "id": "yi-large",
-          "name": "yi-large",
-          "display_name": "yi-large",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 3,
-            "output": 3
-          },
-          "type": "chat"
-        },
-        {
-          "id": "yi-large-rag",
-          "name": "yi-large-rag",
-          "display_name": "yi-large-rag",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 4,
-            "output": 4
-          },
-          "type": "chat"
-        },
-        {
-          "id": "yi-large-turbo",
-          "name": "yi-large-turbo",
-          "display_name": "yi-large-turbo",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 1.8,
-            "output": 1.8
-          },
-          "type": "chat"
-        },
-        {
-          "id": "yi-lightning",
-          "name": "yi-lightning",
-          "display_name": "yi-lightning",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.2,
-            "output": 0.2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "yi-medium",
-          "name": "yi-medium",
-          "display_name": "yi-medium",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.4,
-            "output": 0.4
-          },
-          "type": "chat"
-        },
-        {
-          "id": "yi-vl-plus",
-          "name": "yi-vl-plus",
-          "display_name": "yi-vl-plus",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.000852,
-            "output": 0.000852
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-search-ada-doc-001",
-          "name": "text-search-ada-doc-001",
-          "display_name": "text-search-ada-doc-001",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 20,
-            "output": 20
+            "input": 0.16,
+            "output": 0.32
           },
           "type": "chat"
         },
@@ -257626,6 +258574,561 @@
           "type": "chat"
         },
         {
+          "id": "text-curie-001",
+          "name": "text-curie-001",
+          "display_name": "text-curie-001",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "tts-1-hd-1106",
+          "name": "tts-1-hd-1106",
+          "display_name": "tts-1-hd-1106",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 30,
+            "output": 30
+          }
+        },
+        {
+          "id": "text-davinci-003",
+          "name": "text-davinci-003",
+          "display_name": "text-davinci-003",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 20,
+            "output": 20
+          },
+          "type": "chat"
+        },
+        {
+          "id": "tts-1-hd",
+          "name": "tts-1-hd",
+          "display_name": "tts-1-hd",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 30,
+            "output": 30
+          }
+        },
+        {
+          "id": "tts-1-1106",
+          "name": "tts-1-1106",
+          "display_name": "tts-1-1106",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 15,
+            "output": 15
+          }
+        },
+        {
+          "id": "tts-1",
+          "name": "tts-1",
+          "display_name": "tts-1",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 15,
+            "output": 15
+          }
+        },
+        {
+          "id": "text-babbage-001",
+          "name": "text-babbage-001",
+          "display_name": "text-babbage-001",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.5,
+            "output": 0.5
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-ada-001",
+          "name": "text-ada-001",
+          "display_name": "text-ada-001",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.4,
+            "output": 0.4
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-search-ada-doc-001",
+          "name": "text-search-ada-doc-001",
+          "display_name": "text-search-ada-doc-001",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 20,
+            "output": 20
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-davinci-002",
+          "name": "text-davinci-002",
+          "display_name": "text-davinci-002",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 20,
+            "output": 20
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-moderation-latest",
+          "name": "text-moderation-latest",
+          "display_name": "text-moderation-latest",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-moderation-007",
+          "name": "text-moderation-007",
+          "display_name": "text-moderation-007",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "whisper-1",
+          "name": "whisper-1",
+          "display_name": "whisper-1",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 100,
+            "output": 100
+          },
+          "type": "chat"
+        },
+        {
+          "id": "whisper-large-v3",
+          "name": "whisper-large-v3",
+          "display_name": "whisper-large-v3",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 30.834,
+            "output": 30.834
+          },
+          "type": "chat"
+        },
+        {
+          "id": "whisper-large-v3-turbo",
+          "name": "whisper-large-v3-turbo",
+          "display_name": "whisper-large-v3-turbo",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 5.556,
+            "output": 5.556
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-embedding-v1",
+          "name": "text-embedding-v1",
+          "display_name": "text-embedding-v1",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.1,
+            "output": 0.1
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "step-2-16k",
+          "name": "step-2-16k",
+          "display_name": "step-2-16k",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-embedding-ada-002",
+          "name": "text-embedding-ada-002",
+          "display_name": "text-embedding-ada-002",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.1,
+            "output": 0.1
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "text-embedding-3-small",
+          "name": "text-embedding-3-small",
+          "display_name": "text-embedding-3-small",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.02,
+            "output": 0.02
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "text-embedding-3-large",
+          "name": "text-embedding-3-large",
+          "display_name": "text-embedding-3-large",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.13,
+            "output": 0.13
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "text-davinci-edit-001",
+          "name": "text-davinci-edit-001",
+          "display_name": "text-davinci-edit-001",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 20,
+            "output": 20
+          },
+          "type": "chat"
+        },
+        {
+          "id": "yi-large",
+          "name": "yi-large",
+          "display_name": "yi-large",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 3,
+            "output": 3
+          },
+          "type": "chat"
+        },
+        {
+          "id": "yi-large-rag",
+          "name": "yi-large-rag",
+          "display_name": "yi-large-rag",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 4,
+            "output": 4
+          },
+          "type": "chat"
+        },
+        {
+          "id": "yi-large-turbo",
+          "name": "yi-large-turbo",
+          "display_name": "yi-large-turbo",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 1.8,
+            "output": 1.8
+          },
+          "type": "chat"
+        },
+        {
+          "id": "yi-lightning",
+          "name": "yi-lightning",
+          "display_name": "yi-lightning",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "yi-medium",
+          "name": "yi-medium",
+          "display_name": "yi-medium",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.4,
+            "output": 0.4
+          },
+          "type": "chat"
+        },
+        {
+          "id": "yi-vl-plus",
+          "name": "yi-vl-plus",
+          "display_name": "yi-vl-plus",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.000852,
+            "output": 0.000852
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-moderation-stable",
+          "name": "text-moderation-stable",
+          "display_name": "text-moderation-stable",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
+          },
+          "type": "chat"
+        },
+        {
           "id": "Baichuan3-Turbo",
           "name": "Baichuan3-Turbo",
           "display_name": "Baichuan3-Turbo",
@@ -259578,9 +261081,9 @@
           "type": "chat"
         },
         {
-          "id": "deepseek-ai/DeepSeek-V2.5",
-          "name": "deepseek-ai/DeepSeek-V2.5",
-          "display_name": "deepseek-ai/DeepSeek-V2.5",
+          "id": "deepseek-r1-distill-qianfan-llama-8b",
+          "name": "deepseek-r1-distill-qianfan-llama-8b",
+          "display_name": "deepseek-r1-distill-qianfan-llama-8b",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -259590,8 +261093,82 @@
             "supported": false
           },
           "cost": {
-            "input": 0.16,
-            "output": 0.32
+            "input": 0.137,
+            "output": 0.548
+          },
+          "type": "chat"
+        },
+        {
+          "id": "doubao-1-5-pro-256k-250115",
+          "name": "doubao-1-5-pro-256k-250115",
+          "display_name": "doubao-1-5-pro-256k-250115",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.684,
+            "output": 1.2312
+          },
+          "type": "chat"
+        },
+        {
+          "id": "doubao-1-5-pro-32k-250115",
+          "name": "doubao-1-5-pro-32k-250115",
+          "display_name": "doubao-1-5-pro-32k-250115",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.108,
+            "output": 0.27
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-4o-2024-08-06-global",
+          "name": "gpt-4o-2024-08-06-global",
+          "display_name": "gpt-4o-2024-08-06-global",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2.5,
+            "output": 10,
+            "cache_read": 1.25
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-4o-mini-global",
+          "name": "gpt-4o-mini-global",
+          "display_name": "gpt-4o-mini-global",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.15,
+            "output": 0.6,
+            "cache_read": 0.075
           },
           "type": "chat"
         },
@@ -259765,98 +261342,6 @@
           "cost": {
             "input": 0.274,
             "output": 0.685
-          },
-          "type": "chat"
-        },
-        {
-          "id": "deepseek-r1-distill-qianfan-llama-8b",
-          "name": "deepseek-r1-distill-qianfan-llama-8b",
-          "display_name": "deepseek-r1-distill-qianfan-llama-8b",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.137,
-            "output": 0.548
-          },
-          "type": "chat"
-        },
-        {
-          "id": "doubao-1-5-pro-256k-250115",
-          "name": "doubao-1-5-pro-256k-250115",
-          "display_name": "doubao-1-5-pro-256k-250115",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.684,
-            "output": 1.2312
-          },
-          "type": "chat"
-        },
-        {
-          "id": "doubao-1-5-pro-32k-250115",
-          "name": "doubao-1-5-pro-32k-250115",
-          "display_name": "doubao-1-5-pro-32k-250115",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.108,
-            "output": 0.27
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gpt-4o-2024-08-06-global",
-          "name": "gpt-4o-2024-08-06-global",
-          "display_name": "gpt-4o-2024-08-06-global",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2.5,
-            "output": 10,
-            "cache_read": 1.25
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gpt-4o-mini-global",
-          "name": "gpt-4o-mini-global",
-          "display_name": "gpt-4o-mini-global",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.15,
-            "output": 0.6,
-            "cache_read": 0.075
           },
           "type": "chat"
         }
@@ -268521,6 +270006,11 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "type": "imageGeneration"
         },
