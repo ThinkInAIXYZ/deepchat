@@ -24,5 +24,6 @@
   "settings-remote": "Remote",
   "settings-plugins": "Plugins",
   "settings-overview": "Settings Overview",
-  "settings-memory": "Memory"
+  "settings-memory": "Memory",
+  "settings-debug": "Debug"
 }

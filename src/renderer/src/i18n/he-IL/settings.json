@@ -1928,7 +1928,10 @@
       "sourceError": "טעינת מקורות ה-Agent נכשלה",
       "emptySources": "אין מקורות לייבוא",
       "emptySourcesDescription": "לא נמצא Agent אחר עם Skills זמינים.",
-      "sourceKind": { "internal": "DeepChat", "external": "חיצוני" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "חיצוני"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills לייבוא",
       "selectedCount": "{count} נבחרו",
@@ -1938,8 +1941,16 @@
       "previewError": "תצוגה מקדימה של Skills נכשלה",
       "emptyPreview": "אין Skills זמינים",
       "emptyPreviewDescription": "ל-Agent הזה אין Skills שניתן לייבא.",
-      "status": { "ready": "מוכן", "conflict": "התנגשות", "unavailable": "לא זמין" },
-      "strategy": { "skip": "דלג", "rename": "שנה שם", "overwrite": "החלף" },
+      "status": {
+        "ready": "מוכן",
+        "conflict": "התנגשות",
+        "unavailable": "לא זמין"
+      },
+      "strategy": {
+        "skip": "דלג",
+        "rename": "שנה שם",
+        "overwrite": "החלף"
+      },
       "renameTarget": "ייובא בשם {name}",
       "executeError": "ייבוא Skills נכשל",
       "importing": "מייבא...",
@@ -3173,5 +3184,23 @@
     "scopeGlobalPlugins": "עמוד זה הוא גלובלי לאפליקציה: התקנה, הפעלה ומצב תהליך של תוספים רשמיים משותפים לכל סוכני DeepChat.",
     "scopeCurrentAgent": "עמוד זה הוא מדיניות סוכן: השינויים משפיעים רק על זמינות Skills/MCP של „{agent}”, לא על התקנות גלובליות.",
     "currentAgentFallback": "הסוכן הנוכחי"
+  },
+  "debug": {
+    "description": "Development-only tools for previewing mock states and guided flows.",
+    "unavailableTitle": "Debug tools unavailable",
+    "unavailableDescription": "This action is available only in development mode.",
+    "splash": {
+      "title": "Splash window",
+      "description": "Preview startup-window states without starting a real database unlock flow.",
+      "loading": "Preview loading",
+      "systemUnlock": "Preview system unlock",
+      "unlock": "Preview manual unlock",
+      "failed": "Unable to show the splash scenario."
+    },
+    "guidance": {
+      "title": "Guidance and data",
+      "description": "Create development-only onboarding, conversation, and update mocks.",
+      "failed": "Unable to start the debug guided flow."
+    }
   }
 }

@@ -1928,7 +1928,10 @@
       "sourceError": "載入 Agent 來源失敗",
       "emptySources": "沒有可匯入的來源",
       "emptySourcesDescription": "找不到其他包含可用 Skills 的 Agent。",
-      "sourceKind": { "internal": "DeepChat", "external": "外部" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "外部"
+      },
       "skillCount": "{count} 個 Skills",
       "previewTitle": "要匯入的 Skills",
       "selectedCount": "已選擇 {count} 個",
@@ -1938,8 +1941,16 @@
       "previewError": "預覽 Skills 失敗",
       "emptyPreview": "沒有可用的 Skills",
       "emptyPreviewDescription": "此 Agent 沒有可匯入的 Skills。",
-      "status": { "ready": "可匯入", "conflict": "衝突", "unavailable": "不可用" },
-      "strategy": { "skip": "略過", "rename": "重新命名", "overwrite": "覆寫" },
+      "status": {
+        "ready": "可匯入",
+        "conflict": "衝突",
+        "unavailable": "不可用"
+      },
+      "strategy": {
+        "skip": "略過",
+        "rename": "重新命名",
+        "overwrite": "覆寫"
+      },
       "renameTarget": "將匯入為 {name}",
       "executeError": "匯入 Skills 失敗",
       "importing": "正在匯入...",
@@ -3173,5 +3184,23 @@
     "scopeGlobalPlugins": "目前頁面為應用全域：官方外掛的安裝、啟用與程序對所有 DeepChat Agent 共用。",
     "scopeCurrentAgent": "目前頁面為 Agent 策略：僅影響「{agent}」可用的 Skills / MCP，不會全域停用資源。",
     "currentAgentFallback": "目前 Agent"
+  },
+  "debug": {
+    "description": "僅在開發模式下顯示的情境與引導偵錯工具。",
+    "unavailableTitle": "偵錯工具無法使用",
+    "unavailableDescription": "此操作僅能在開發模式下使用。",
+    "splash": {
+      "title": "啟動視窗",
+      "description": "不觸發真實資料庫解鎖流程，即可預覽啟動視窗狀態。",
+      "loading": "預覽載入中",
+      "systemUnlock": "預覽系統解鎖",
+      "unlock": "預覽手動解鎖",
+      "failed": "無法顯示啟動視窗情境。"
+    },
+    "guidance": {
+      "title": "引導與資料",
+      "description": "建立僅供開發環境使用的引導、對話和更新模擬。",
+      "failed": "無法啟動偵錯引導。"
+    }
   }
 }

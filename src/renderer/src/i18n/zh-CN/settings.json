@@ -2283,7 +2283,10 @@
       "sourceError": "加载 Agent 来源失败",
       "emptySources": "没有可导入的来源",
       "emptySourcesDescription": "未找到其他包含可用 Skills 的 Agent。",
-      "sourceKind": { "internal": "DeepChat", "external": "外部" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "外部"
+      },
       "skillCount": "{count} 个 Skills",
       "previewTitle": "要导入的 Skills",
       "selectedCount": "已选择 {count} 个",
@@ -2293,8 +2296,16 @@
       "previewError": "预览 Skills 失败",
       "emptyPreview": "没有可用的 Skills",
       "emptyPreviewDescription": "此 Agent 没有可导入的 Skills。",
-      "status": { "ready": "可导入", "conflict": "冲突", "unavailable": "不可用" },
-      "strategy": { "skip": "跳过", "rename": "重命名", "overwrite": "覆盖" },
+      "status": {
+        "ready": "可导入",
+        "conflict": "冲突",
+        "unavailable": "不可用"
+      },
+      "strategy": {
+        "skip": "跳过",
+        "rename": "重命名",
+        "overwrite": "覆盖"
+      },
       "renameTarget": "将导入为 {name}",
       "executeError": "导入 Skills 失败",
       "importing": "正在导入...",
@@ -3163,6 +3174,24 @@
         "memory-persona-anchor": "更新人格锚点",
         "memory-reindex": "重建记忆索引"
       }
+    }
+  },
+  "debug": {
+    "description": "仅在开发模式下显示的场景与引导调试工具。",
+    "unavailableTitle": "调试工具不可用",
+    "unavailableDescription": "此操作仅在开发模式下可用。",
+    "splash": {
+      "title": "启动窗口",
+      "description": "在不触发真实数据库解锁流程的情况下预览启动窗口状态。",
+      "loading": "预览加载中",
+      "systemUnlock": "预览系统解锁",
+      "unlock": "预览手动解锁",
+      "failed": "无法显示启动窗口场景。"
+    },
+    "guidance": {
+      "title": "引导与数据",
+      "description": "创建仅供开发环境使用的引导、会话和更新模拟。",
+      "failed": "无法启动调试引导。"
     }
   }
 }

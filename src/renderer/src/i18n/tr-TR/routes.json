@@ -24,5 +24,6 @@
   "settings-overview": "Ayarlara Genel Bakış",
   "settings-scheduled-tasks": "Zamanlanmış görevler",
   "settings-memory": "Bellek",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "Debug"
 }

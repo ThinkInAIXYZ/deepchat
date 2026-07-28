@@ -24,5 +24,6 @@
   "settings-plugins": "افزونه‌ها",
   "settings-overview": "نمای کلی تنظیمات",
   "settings-memory": "حافظه",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "Debug"
 }

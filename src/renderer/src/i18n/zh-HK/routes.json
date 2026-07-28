@@ -24,5 +24,6 @@
   "settings-plugins": "插件",
   "settings-overview": "設定概覽",
   "settings-memory": "記憶",
-  "plugins": "插件"
+  "plugins": "插件",
+  "settings-debug": "偵錯"
 }

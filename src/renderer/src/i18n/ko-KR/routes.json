@@ -24,5 +24,6 @@
   "settings-plugins": "Plugins",
   "settings-overview": "설정 개요",
   "settings-memory": "메모리",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "디버그"
 }

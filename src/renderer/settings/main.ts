@@ -14,7 +14,7 @@ import { settingsRouteComponents } from './settingsRouteComponents'
 
 const runtimePlatform = getRuntimePlatform()
 const runtimeArch = getRuntimeArch()
-const settingsRouteItems = getSettingsRouteItems(runtimePlatform, runtimeArch)
+const settingsRouteItems = getSettingsRouteItems(runtimePlatform, runtimeArch, import.meta.env.DEV)
 
 // Create router instance specifically for settings
 const router = createRouter({
