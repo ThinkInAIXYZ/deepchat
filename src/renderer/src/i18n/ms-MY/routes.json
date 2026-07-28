@@ -24,5 +24,6 @@
   "settings-overview": "Gambaran keseluruhan tetapan",
   "settings-scheduled-tasks": "Tugasan berjadual",
   "settings-memory": "Memori",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "Debug"
 }

@@ -1928,7 +1928,10 @@
       "sourceError": "بارگذاری مبدأهای Agent ناموفق بود",
       "emptySources": "مبدأی برای وارد کردن وجود ندارد",
       "emptySourcesDescription": "Agent دیگری با Skillهای قابل استفاده پیدا نشد.",
-      "sourceKind": { "internal": "DeepChat", "external": "خارجی" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "خارجی"
+      },
       "skillCount": "{count} Skill",
       "previewTitle": "Skillهای قابل وارد کردن",
       "selectedCount": "{count} انتخاب شده",
@@ -1938,8 +1941,16 @@
       "previewError": "پیش‌نمایش Skillها ناموفق بود",
       "emptyPreview": "Skill قابل استفاده‌ای وجود ندارد",
       "emptyPreviewDescription": "این Agent هیچ Skill قابل وارد کردنی ندارد.",
-      "status": { "ready": "آماده", "conflict": "تعارض", "unavailable": "در دسترس نیست" },
-      "strategy": { "skip": "رد کردن", "rename": "تغییر نام", "overwrite": "جایگزینی" },
+      "status": {
+        "ready": "آماده",
+        "conflict": "تعارض",
+        "unavailable": "در دسترس نیست"
+      },
+      "strategy": {
+        "skip": "رد کردن",
+        "rename": "تغییر نام",
+        "overwrite": "جایگزینی"
+      },
       "renameTarget": "با نام {name} وارد می‌شود",
       "executeError": "وارد کردن Skillها ناموفق بود",
       "importing": "در حال وارد کردن...",
@@ -3173,5 +3184,23 @@
     "scopeGlobalPlugins": "این صفحه سراسری برنامه است: نصب، فعال‌سازی و وضعیت فرایند افزونه‌های رسمی بین همه عامل‌های DeepChat مشترک است.",
     "scopeCurrentAgent": "این صفحه سیاست عامل است: تغییرات فقط روی در دسترس بودن Skills/MCP برای «{agent}» اثر می‌گذارد، نه روی نصب‌های سراسری.",
     "currentAgentFallback": "عامل فعلی"
+  },
+  "debug": {
+    "description": "Development-only tools for previewing mock states and guided flows.",
+    "unavailableTitle": "Debug tools unavailable",
+    "unavailableDescription": "This action is available only in development mode.",
+    "splash": {
+      "title": "Splash window",
+      "description": "Preview startup-window states without starting a real database unlock flow.",
+      "loading": "Preview loading",
+      "systemUnlock": "Preview system unlock",
+      "unlock": "Preview manual unlock",
+      "failed": "Unable to show the splash scenario."
+    },
+    "guidance": {
+      "title": "Guidance and data",
+      "description": "Create development-only onboarding, conversation, and update mocks.",
+      "failed": "Unable to start the debug guided flow."
+    }
   }
 }

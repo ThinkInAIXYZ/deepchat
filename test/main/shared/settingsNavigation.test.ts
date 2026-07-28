@@ -22,6 +22,22 @@ describe('settings navigation helpers', () => {
     expect(getSettingsNavigationGroups()[0]?.key).toBe('overview')
   })
 
+  it('keeps development-only routes hidden unless explicitly enabled', () => {
+    expect(getSettingsRouteItems().some((item) => item.routeName === 'settings-debug')).toBe(false)
+    expect(getSettingsNavigationItems().some((item) => item.routeName === 'settings-debug')).toBe(
+      false
+    )
+    expect(
+      getSettingsRouteItems(undefined, undefined, true).some(
+        (item) => item.routeName === 'settings-debug'
+      )
+    ).toBe(true)
+    expect(resolveSettingsNavigationPath('settings-debug')).toBe('/overview')
+    expect(
+      resolveSettingsNavigationPath('settings-debug', undefined, undefined, undefined, true)
+    ).toBe('/debug')
+  })
+
   it('resolves provider routes with params', () => {
     expect(
       resolveSettingsNavigationPath('settings-provider', {

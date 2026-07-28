@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import type {
   IShortcutPresenter,
   ITabPresenter,
@@ -314,6 +314,9 @@ export function createDesktopRoutes(deps: {
       windowStartGuidedOnboardingRoute.name,
       async (rawInput) => {
         windowStartGuidedOnboardingRoute.input.parse(rawInput)
+        if (!import.meta.env.DEV || app.isPackaged) {
+          return windowStartGuidedOnboardingRoute.output.parse({ started: false, focused: false })
+        }
         await windowPresenter.sendToAllWindows(DEV_EVENTS.START_GUIDED_ONBOARDING)
         return windowStartGuidedOnboardingRoute.output.parse({
           started: true,

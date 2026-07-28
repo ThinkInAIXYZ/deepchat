@@ -2229,7 +2229,10 @@
       "sourceError": "Agent kaynakları yüklenemedi",
       "emptySources": "İçe aktarma kaynağı yok",
       "emptySourcesDescription": "Kullanılabilir Skills öğelerine sahip başka bir Agent bulunamadı.",
-      "sourceKind": { "internal": "DeepChat", "external": "Harici" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "Harici"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "İçe aktarılacak Skills",
       "selectedCount": "{count} seçildi",
@@ -2239,8 +2242,16 @@
       "previewError": "Skills önizlemesi yüklenemedi",
       "emptyPreview": "Kullanılabilir Skills yok",
       "emptyPreviewDescription": "Bu Agent’ın içe aktarılabilir Skills öğesi yok.",
-      "status": { "ready": "Hazır", "conflict": "Çakışma", "unavailable": "Kullanılamıyor" },
-      "strategy": { "skip": "Atla", "rename": "Yeniden adlandır", "overwrite": "Üzerine yaz" },
+      "status": {
+        "ready": "Hazır",
+        "conflict": "Çakışma",
+        "unavailable": "Kullanılamıyor"
+      },
+      "strategy": {
+        "skip": "Atla",
+        "rename": "Yeniden adlandır",
+        "overwrite": "Üzerine yaz"
+      },
       "renameTarget": "{name} olarak içe aktarılacak",
       "executeError": "Skills içe aktarılamadı",
       "importing": "İçe aktarılıyor...",
@@ -3164,5 +3175,23 @@
     "scopeGlobalPlugins": "Bu sayfa uygulama genelindedir: resmi eklentilerin kurulumu, etkinleştirilmesi ve süreç durumu tüm DeepChat ajanları arasında paylaşılır.",
     "scopeCurrentAgent": "Bu sayfa ajan politikasıdır: değişiklikler yalnızca “{agent}” için Skills/MCP kullanılabilirliğini etkiler, global kurulumları etkilemez.",
     "currentAgentFallback": "geçerli ajan"
+  },
+  "debug": {
+    "description": "Development-only tools for previewing mock states and guided flows.",
+    "unavailableTitle": "Debug tools unavailable",
+    "unavailableDescription": "This action is available only in development mode.",
+    "splash": {
+      "title": "Splash window",
+      "description": "Preview startup-window states without starting a real database unlock flow.",
+      "loading": "Preview loading",
+      "systemUnlock": "Preview system unlock",
+      "unlock": "Preview manual unlock",
+      "failed": "Unable to show the splash scenario."
+    },
+    "guidance": {
+      "title": "Guidance and data",
+      "description": "Create development-only onboarding, conversation, and update mocks.",
+      "failed": "Unable to start the debug guided flow."
+    }
   }
 }

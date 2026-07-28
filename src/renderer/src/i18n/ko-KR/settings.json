@@ -1926,7 +1926,10 @@
       "sourceError": "Failed to load Agent sources",
       "emptySources": "No import sources",
       "emptySourcesDescription": "No other Agent with available Skills was found.",
-      "sourceKind": { "internal": "DeepChat", "external": "External" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "External"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills to import",
       "selectedCount": "{count} selected",
@@ -1936,8 +1939,16 @@
       "previewError": "Failed to preview Skills",
       "emptyPreview": "No Skills available",
       "emptyPreviewDescription": "This Agent has no Skills that can be imported.",
-      "status": { "ready": "Ready", "conflict": "Conflict", "unavailable": "Unavailable" },
-      "strategy": { "skip": "Skip", "rename": "Rename", "overwrite": "Overwrite" },
+      "status": {
+        "ready": "Ready",
+        "conflict": "Conflict",
+        "unavailable": "Unavailable"
+      },
+      "strategy": {
+        "skip": "Skip",
+        "rename": "Rename",
+        "overwrite": "Overwrite"
+      },
       "renameTarget": "Will be imported as {name}",
       "executeError": "Failed to import Skills",
       "importing": "Importing...",
@@ -3173,5 +3184,23 @@
     "scopeGlobalPlugins": "이 페이지는 앱 전역 설정입니다. 공식 플러그인의 설치·활성화·프로세스 상태는 모든 DeepChat 에이전트에서 공유됩니다.",
     "scopeCurrentAgent": "이 페이지는 에이전트 정책입니다. 변경 사항은 “{agent}”의 Skills/MCP 사용 가능 여부에만 영향을 주며, 전역 설치에는 영향을 주지 않습니다.",
     "currentAgentFallback": "현재 에이전트"
+  },
+  "debug": {
+    "description": "Development-only tools for previewing mock states and guided flows.",
+    "unavailableTitle": "Debug tools unavailable",
+    "unavailableDescription": "This action is available only in development mode.",
+    "splash": {
+      "title": "Splash window",
+      "description": "Preview startup-window states without starting a real database unlock flow.",
+      "loading": "Preview loading",
+      "systemUnlock": "Preview system unlock",
+      "unlock": "Preview manual unlock",
+      "failed": "Unable to show the splash scenario."
+    },
+    "guidance": {
+      "title": "Guidance and data",
+      "description": "Create development-only onboarding, conversation, and update mocks.",
+      "failed": "Unable to start the debug guided flow."
+    }
   }
 }

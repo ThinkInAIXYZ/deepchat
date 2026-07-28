@@ -2229,7 +2229,10 @@
       "sourceError": "Agent-Quellen konnten nicht geladen werden",
       "emptySources": "Keine Importquellen",
       "emptySourcesDescription": "Kein anderer Agent mit verfügbaren Skills gefunden.",
-      "sourceKind": { "internal": "DeepChat", "external": "Extern" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "Extern"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Zu importierende Skills",
       "selectedCount": "{count} ausgewählt",
@@ -2239,8 +2242,16 @@
       "previewError": "Skills konnten nicht angezeigt werden",
       "emptyPreview": "Keine Skills verfügbar",
       "emptyPreviewDescription": "Dieser Agent hat keine importierbaren Skills.",
-      "status": { "ready": "Bereit", "conflict": "Konflikt", "unavailable": "Nicht verfügbar" },
-      "strategy": { "skip": "Überspringen", "rename": "Umbenennen", "overwrite": "Überschreiben" },
+      "status": {
+        "ready": "Bereit",
+        "conflict": "Konflikt",
+        "unavailable": "Nicht verfügbar"
+      },
+      "strategy": {
+        "skip": "Überspringen",
+        "rename": "Umbenennen",
+        "overwrite": "Überschreiben"
+      },
       "renameTarget": "Wird als {name} importiert",
       "executeError": "Skills konnten nicht importiert werden",
       "importing": "Wird importiert...",
@@ -3164,5 +3175,23 @@
     "scopeGlobalPlugins": "Diese Seite ist app-weit: Installation, Aktivierung und Prozessstatus offizieller Plugins gelten für alle DeepChat-Agenten.",
     "scopeCurrentAgent": "Diese Seite ist Agent-Richtlinie: Änderungen betreffen nur die Skills/MCP-Verfügbarkeit von „{agent}“, nicht die globalen Installationen.",
     "currentAgentFallback": "aktueller Agent"
+  },
+  "debug": {
+    "description": "Development-only tools for previewing mock states and guided flows.",
+    "unavailableTitle": "Debug tools unavailable",
+    "unavailableDescription": "This action is available only in development mode.",
+    "splash": {
+      "title": "Splash window",
+      "description": "Preview startup-window states without starting a real database unlock flow.",
+      "loading": "Preview loading",
+      "systemUnlock": "Preview system unlock",
+      "unlock": "Preview manual unlock",
+      "failed": "Unable to show the splash scenario."
+    },
+    "guidance": {
+      "title": "Guidance and data",
+      "description": "Create development-only onboarding, conversation, and update mocks.",
+      "failed": "Unable to start the debug guided flow."
+    }
   }
 }

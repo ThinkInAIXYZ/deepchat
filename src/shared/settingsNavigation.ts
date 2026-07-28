@@ -21,6 +21,7 @@ export interface SettingsNavigationItem {
     | 'settings-database'
     | 'settings-shortcut'
     | 'settings-about'
+    | 'settings-debug'
   path: string
   titleKey: string
   icon: string
@@ -30,6 +31,7 @@ export interface SettingsNavigationItem {
   supportedPlatforms?: string[]
   supportedTargets?: string[]
   hiddenInSidebar?: boolean
+  developmentOnly?: boolean
 }
 
 export type SettingsNavigationGroupKey =
@@ -294,6 +296,16 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     position: 11,
     groupKey: 'system',
     keywords: ['about', 'version', 'info', '关于', '版本']
+  },
+  {
+    routeName: 'settings-debug',
+    path: '/debug',
+    titleKey: 'routes.settings-debug',
+    icon: 'lucide:bug',
+    position: 12,
+    groupKey: 'system',
+    developmentOnly: true,
+    keywords: ['debug', 'mock', 'development', '调试', '模拟']
   }
 ]
 
@@ -343,22 +355,32 @@ export const isSettingsNavigationItemSupported = (
   )
 }
 
-export const getSettingsRouteItems = (platform?: string, arch?: string): SettingsNavigationItem[] =>
-  SETTINGS_NAVIGATION_ITEMS.filter((item) =>
-    isSettingsNavigationItemSupported(item, platform, arch)
+export const getSettingsRouteItems = (
+  platform?: string,
+  arch?: string,
+  includeDevelopmentItems = false
+): SettingsNavigationItem[] =>
+  SETTINGS_NAVIGATION_ITEMS.filter(
+    (item) =>
+      isSettingsNavigationItemSupported(item, platform, arch) &&
+      (includeDevelopmentItems || !item.developmentOnly)
   )
 
 export const getSettingsNavigationItems = (
   platform?: string,
-  arch?: string
+  arch?: string,
+  includeDevelopmentItems = false
 ): SettingsNavigationItem[] =>
-  getSettingsRouteItems(platform, arch).filter((item) => !item.hiddenInSidebar)
+  getSettingsRouteItems(platform, arch, includeDevelopmentItems).filter(
+    (item) => !item.hiddenInSidebar
+  )
 
 export const getSettingsNavigationGroups = (
   platform?: string,
-  arch?: string
+  arch?: string,
+  includeDevelopmentItems = false
 ): SettingsNavigationGroup[] => {
-  const items = getSettingsNavigationItems(platform, arch)
+  const items = getSettingsNavigationItems(platform, arch, includeDevelopmentItems)
 
   return SETTINGS_NAVIGATION_GROUPS.map((group) => ({
     ...group,
@@ -372,9 +394,10 @@ export const resolveSettingsNavigationPath = (
   routeName: SettingsNavigationItem['routeName'],
   params?: Record<string, string>,
   platform?: string,
-  arch?: string
+  arch?: string,
+  includeDevelopmentItems = false
 ): string => {
-  const item = getSettingsRouteItems(platform, arch).find(
+  const item = getSettingsRouteItems(platform, arch, includeDevelopmentItems).find(
     (navigationItem) => navigationItem.routeName === routeName
   )
   if (!item) {

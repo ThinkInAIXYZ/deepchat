@@ -2284,7 +2284,10 @@
       "sourceError": "Failed to load Agent sources",
       "emptySources": "No import sources",
       "emptySourcesDescription": "No other Agent with available Skills was found.",
-      "sourceKind": { "internal": "DeepChat", "external": "External" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "External"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills to import",
       "selectedCount": "{count} selected",
@@ -2294,8 +2297,16 @@
       "previewError": "Failed to preview Skills",
       "emptyPreview": "No Skills available",
       "emptyPreviewDescription": "This Agent has no Skills that can be imported.",
-      "status": { "ready": "Ready", "conflict": "Conflict", "unavailable": "Unavailable" },
-      "strategy": { "skip": "Skip", "rename": "Rename", "overwrite": "Overwrite" },
+      "status": {
+        "ready": "Ready",
+        "conflict": "Conflict",
+        "unavailable": "Unavailable"
+      },
+      "strategy": {
+        "skip": "Skip",
+        "rename": "Rename",
+        "overwrite": "Overwrite"
+      },
       "renameTarget": "Will be imported as {name}",
       "executeError": "Failed to import Skills",
       "importing": "Importing...",
@@ -3164,6 +3175,24 @@
         "memory-persona-anchor": "Updated persona anchor",
         "memory-reindex": "Reindexed memory"
       }
+    }
+  },
+  "debug": {
+    "description": "Development-only tools for previewing mock states and guided flows.",
+    "unavailableTitle": "Debug tools unavailable",
+    "unavailableDescription": "This action is available only in development mode.",
+    "splash": {
+      "title": "Splash window",
+      "description": "Preview startup-window states without starting a real database unlock flow.",
+      "loading": "Preview loading",
+      "systemUnlock": "Preview system unlock",
+      "unlock": "Preview manual unlock",
+      "failed": "Unable to show the splash scenario."
+    },
+    "guidance": {
+      "title": "Guidance and data",
+      "description": "Create development-only onboarding, conversation, and update mocks.",
+      "failed": "Unable to start the debug guided flow."
     }
   }
 }
