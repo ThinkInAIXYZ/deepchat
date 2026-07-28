@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
-const { mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
+const { mockGetProvider, mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
+  mockGetProvider: vi.fn(),
   mockRunAiSdkCoreStream: vi.fn(),
   mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'ok' })
 }))
@@ -23,6 +24,15 @@ vi.mock('../../../src/main/provider/aiSdk', () => ({
   runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
+vi.mock('../../../src/main/provider/providerDbLoader', () => ({
+  providerDbLoader: {
+    subscribeCatalogChanges: vi.fn(),
+    getDb: vi.fn().mockReturnValue(null),
+    getProvider: mockGetProvider,
+    getModel: vi.fn()
+  }
+}))
+
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'anthropic',
   name: 'Anthropic',
@@ -37,18 +47,6 @@ const createProviderSettings = (): ProviderSettingsPort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
-    getDbProviderModels: vi.fn().mockReturnValue([
-      {
-        id: 'claude-sonnet-4-5-20250929',
-        name: 'Claude Sonnet 4.5',
-        group: 'Claude',
-        contextLength: 200000,
-        maxTokens: 64000,
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      }
-    ]),
     getModelConfig: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(true)
@@ -59,6 +57,29 @@ describe('AiSdkProvider anthropic', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetProvider.mockReturnValue({
+      id: 'anthropic',
+      name: 'Anthropic',
+      models: [
+        {
+          id: 'claude-sonnet-4-5-20250929',
+          display_name: 'Claude Sonnet 4.5',
+          modalities: {
+            input: ['text', 'image'],
+            output: ['text']
+          },
+          limit: {
+            context: 200000,
+            output: 64000
+          },
+          tool_call: true,
+          reasoning: {
+            supported: true
+          },
+          type: 'chat'
+        }
+      ]
+    })
     mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
     delete process.env.ANTHROPIC_API_KEY
   })
@@ -160,18 +181,18 @@ describe('AiSdkProvider anthropic', () => {
     )
   })
 
-  it('reads model metadata from the provider database snapshot', async () => {
+  it('reads model identities without duplicating catalog capability state', async () => {
     const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     const models = await (provider as any).fetchProviderModels()
 
     expect(models).toEqual([
-      expect.objectContaining({
+      {
         id: 'claude-sonnet-4-5-20250929',
+        name: 'Claude Sonnet 4.5',
+        group: 'default',
         providerId: 'anthropic',
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      })
+        isCustom: false
+      }
     ])
   })
 
@@ -211,6 +232,8 @@ describe('AiSdkProvider anthropic', () => {
         name: 'Claude 3.7 Sonnet'
       })
     ])
+    expect(models[0]).not.toHaveProperty('contextLength')
+    expect(models[0]).not.toHaveProperty('maxTokens')
   })
 
   it('throws refresh errors for custom anthropic-compatible providers when remote fetch fails', async () => {

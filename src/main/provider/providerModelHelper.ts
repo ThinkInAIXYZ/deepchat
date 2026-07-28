@@ -1,16 +1,12 @@
 import logger from '@shared/logger'
-import type { ModelConfig, MODEL_META, ModelRouteConfig } from '@shared/types/provider'
-import {
-  isNewApiEndpointType,
-  ModelType,
-  resolveNewApiModelTypeFromMetadata,
-  resolveNewApiSelectableEndpointTypes
-} from '@shared/model'
+import type { MODEL_META, ModelRouteConfig } from '@shared/types/provider'
+import { isNewApiEndpointType, ModelType, resolveNewApiModelTypeFromMetadata } from '@shared/model'
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import ElectronStore from 'electron-store'
 import path from 'path'
 import type { StoreLike } from '@/config/storeLike'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { emitModelsChanged } from './eventPublishers'
 
 export interface IModelStore {
@@ -20,8 +16,27 @@ export interface IModelStore {
 
 export const PROVIDER_MODELS_DIR = 'provider_models'
 const PROVIDER_MODEL_CACHE_TTL_MS = 250
+const CATALOG_DERIVED_MODEL_FIELDS = [
+  'contextLength',
+  'maxTokens',
+  'vision',
+  'functionCall',
+  'reasoning',
+  'enableSearch',
+  'type'
+] as const satisfies ReadonlyArray<keyof MODEL_META>
 
-type ModelConfigResolver = (modelId: string, providerId?: string) => ModelConfig
+export function normalizeProviderModelFacts(model: MODEL_META, providerId: string): MODEL_META {
+  const normalizedModel = { ...model }
+  delete normalizedModel.selectableEndpointTypes
+  if (normalizedModel.isCustom !== true && isProviderDbBackedProvider(providerId)) {
+    for (const key of CATALOG_DERIVED_MODEL_FIELDS) {
+      delete normalizedModel[key]
+    }
+  }
+  return normalizedModel
+}
+
 type ProviderModelRouteSource = Pick<
   MODEL_META,
   'id' | 'endpointType' | 'supportedEndpointTypes' | 'type' | 'ownedBy'
@@ -33,7 +48,6 @@ type ModelStatusRemover = (providerId: string, modelId: string) => void
 
 interface ProviderModelHelperOptions {
   userDataPath: string
-  getModelConfig: ModelConfigResolver
   setModelStatus: ModelStatusUpdater
   deleteModelStatus: ModelStatusRemover
   publishEvent: DeepchatEventPublisher
@@ -60,7 +74,6 @@ function isNonChatModelType(type: ModelType | undefined): type is ModelType {
 
 export class ProviderModelHelper {
   private readonly userDataPath: string
-  private readonly getModelConfig: ModelConfigResolver
   private readonly setModelStatus: ModelStatusUpdater
   private readonly deleteModelStatus: ModelStatusRemover
   private readonly publishEvent: DeepchatEventPublisher
@@ -71,13 +84,12 @@ export class ProviderModelHelper {
     {
       expiresAt: number
       models: readonly MODEL_META[]
-      routeModelsById: ReadonlyMap<string, ProviderModelRouteSource>
+      modelsById: ReadonlyMap<string, MODEL_META>
     }
   >()
 
   constructor(options: ProviderModelHelperOptions) {
     this.userDataPath = options.userDataPath
-    this.getModelConfig = options.getModelConfig
     this.setModelStatus = options.setModelStatus
     this.deleteModelStatus = options.deleteModelStatus
     this.publishEvent = options.publishEvent
@@ -158,10 +170,18 @@ export class ProviderModelHelper {
     return normalizedModel
   }
 
+  private hasDerivedProviderProjection(providerId: string, model: MODEL_META): boolean {
+    return (
+      model.selectableEndpointTypes !== undefined ||
+      (isProviderDbBackedProvider(providerId) &&
+        CATALOG_DERIVED_MODEL_FIELDS.some((key) => model[key] !== undefined))
+    )
+  }
+
   private resolveNewApiEffectiveModelType(
     model: ProviderModelRouteSource,
     config?: ModelRouteConfig
-  ): ModelType {
+  ): ModelType | undefined {
     const userConfigType =
       config?.isUserDefined === true && isModelType(config.type) ? config.type : undefined
     if (userConfigType) {
@@ -190,90 +210,34 @@ export class ProviderModelHelper {
       return providerConfigType
     }
 
-    return ModelType.Chat
+    return undefined
   }
 
-  private applyResolvedModelConfig(
-    model: MODEL_META,
+  resolveProviderModelRouteMetadata(
     providerId: string,
-    resolvedConfig?: ModelConfig
-  ): MODEL_META {
-    const normalizedModel = this.cloneModel(model)
-    const config = resolvedConfig ?? this.getModelConfig(normalizedModel.id, providerId)
-
-    if (config) {
-      normalizedModel.maxTokens = config.maxTokens
-      normalizedModel.contextLength = config.contextLength
-      normalizedModel.vision =
-        normalizedModel.vision !== undefined ? normalizedModel.vision : config.vision || false
-      normalizedModel.functionCall =
-        normalizedModel.functionCall !== undefined
-          ? normalizedModel.functionCall
-          : config.functionCall || false
-      normalizedModel.reasoning =
-        normalizedModel.reasoning !== undefined
-          ? normalizedModel.reasoning
-          : config.reasoning || false
-      normalizedModel.endpointType = config.endpointType ?? normalizedModel.endpointType
-      normalizedModel.ownedBy = normalizedModel.ownedBy ?? config.ownedBy
-      if (providerId === 'new-api') {
-        normalizedModel.type = this.resolveNewApiEffectiveModelType(normalizedModel, config)
-        return normalizedModel
-      }
-
-      normalizedModel.type =
-        resolveVideoGenerationCompatType({
-          modelId: normalizedModel.id,
-          type: config.type ?? normalizedModel.type,
-          apiEndpoint: config.apiEndpoint,
-          endpointType: normalizedModel.endpointType,
-          supportedEndpointTypes: normalizedModel.supportedEndpointTypes
-        }) ??
-        (normalizedModel.type !== undefined ? normalizedModel.type : config.type || ModelType.Chat)
-      return normalizedModel
-    }
-
-    normalizedModel.vision = normalizedModel.vision || false
-    normalizedModel.functionCall = normalizedModel.functionCall || false
-    normalizedModel.reasoning = normalizedModel.reasoning || false
-    if (providerId === 'new-api') {
-      normalizedModel.type = this.resolveNewApiEffectiveModelType(normalizedModel)
-      return normalizedModel
-    }
-
-    normalizedModel.type =
-      resolveVideoGenerationCompatType({
-        modelId: normalizedModel.id,
-        type: normalizedModel.type,
-        endpointType: normalizedModel.endpointType,
-        supportedEndpointTypes: normalizedModel.supportedEndpointTypes
-      }) ??
-      (normalizedModel.type || ModelType.Chat)
-    return normalizedModel
-  }
-
-  private applyNewApiEndpointCompatibility(model: MODEL_META, providerId: string): MODEL_META {
-    if (providerId !== 'new-api') {
-      return model
-    }
-
-    const selectableEndpointTypes = resolveNewApiSelectableEndpointTypes(
-      model.supportedEndpointTypes,
-      model.id,
-      {
-        type: model.type
-      }
-    )
-    return selectableEndpointTypes ? { ...model, selectableEndpointTypes } : model
-  }
-
-  private resolveProviderModelRouteMetadata(
     model: ProviderModelRouteSource,
-    providerId: string,
     config?: ModelRouteConfig
   ): ProviderModelRouteMetadata {
-    const endpointType = config?.endpointType ?? model.endpointType
-    const ownedBy = model.ownedBy ?? config?.ownedBy
+    const isUserConfig = config?.isUserDefined === true
+    const storedEndpointType = isNewApiEndpointType(model.endpointType)
+      ? model.endpointType
+      : undefined
+    const configuredEndpointType = isNewApiEndpointType(config?.endpointType)
+      ? config.endpointType
+      : undefined
+    const endpointType = isUserConfig
+      ? (configuredEndpointType ?? storedEndpointType)
+      : (storedEndpointType ?? configuredEndpointType)
+    const storedOwnedBy = typeof model.ownedBy === 'string' ? model.ownedBy : undefined
+    const configuredOwnedBy = typeof config?.ownedBy === 'string' ? config.ownedBy : undefined
+    const ownedBy = isUserConfig
+      ? (configuredOwnedBy ?? storedOwnedBy)
+      : (storedOwnedBy ?? configuredOwnedBy)
+    const storedType = isModelType(model.type) ? model.type : undefined
+    const configuredType = isModelType(config?.type) ? config.type : undefined
+    const preferredType = isUserConfig
+      ? (configuredType ?? storedType)
+      : (storedType ?? configuredType)
     const modelWithRoute = {
       ...model,
       endpointType,
@@ -284,25 +248,23 @@ export class ProviderModelHelper {
         ? this.resolveNewApiEffectiveModelType(modelWithRoute, config)
         : (resolveVideoGenerationCompatType({
             modelId: model.id,
-            type: config?.type ?? model.type,
+            type: preferredType,
             apiEndpoint: config?.apiEndpoint,
             endpointType,
             supportedEndpointTypes: model.supportedEndpointTypes
-          }) ??
-          model.type ??
-          config?.type)
+          }) ?? preferredType)
 
     return {
       endpointType,
-      supportedEndpointTypes: model.supportedEndpointTypes
-        ? [...model.supportedEndpointTypes]
+      supportedEndpointTypes: Array.isArray(model.supportedEndpointTypes)
+        ? model.supportedEndpointTypes.filter(isNewApiEndpointType)
         : undefined,
       type,
       ownedBy
     }
   }
 
-  private getResolvedProviderModels(providerId: string): readonly MODEL_META[] {
+  private getStoredProviderModels(providerId: string): readonly MODEL_META[] {
     const cached = this.providerModelsCache.get(providerId)
     if (cached && cached.expiresAt > Date.now()) {
       return cached.models
@@ -311,7 +273,11 @@ export class ProviderModelHelper {
     const store = this.getProviderModelStore(providerId)
     const storedModels = (store.get('models') || []) as MODEL_META[]
     const normalizedStoredModels = storedModels.map((model) =>
-      this.normalizeStoredModel(model, providerId, 'getProviderModels')
+      this.normalizeStoredModel(
+        normalizeProviderModelFacts(model, providerId),
+        providerId,
+        'getProviderModels'
+      )
     )
 
     const incorrectProviderIds = normalizedStoredModels.filter(
@@ -324,43 +290,69 @@ export class ProviderModelHelper {
     }
 
     const shouldPersistNormalizedModels = normalizedStoredModels.some(
-      (model, index) => model.providerId !== storedModels[index]?.providerId
+      (model, index) =>
+        model.providerId !== storedModels[index]?.providerId ||
+        this.hasDerivedProviderProjection(providerId, storedModels[index])
     )
     if (shouldPersistNormalizedModels) {
       store.set('models', this.cloneModels(normalizedStoredModels))
     }
 
-    const result = normalizedStoredModels.map((model) =>
-      this.applyNewApiEndpointCompatibility(
-        this.applyResolvedModelConfig(model, providerId),
-        providerId
-      )
-    )
-
+    const cachedModels = this.cloneModels(normalizedStoredModels)
     this.providerModelsCache.set(providerId, {
       expiresAt: Date.now() + PROVIDER_MODEL_CACHE_TTL_MS,
-      models: this.cloneModels(result),
-      routeModelsById: new Map(
-        normalizedStoredModels.map((model) => [
-          model.id,
-          {
-            id: model.id,
-            endpointType: model.endpointType,
-            supportedEndpointTypes: model.supportedEndpointTypes
-              ? [...model.supportedEndpointTypes]
-              : undefined,
-            type: model.type,
-            ownedBy: model.ownedBy
-          }
-        ])
-      )
+      models: cachedModels,
+      modelsById: new Map(cachedModels.map((model) => [model.id, model]))
     })
 
-    return result
+    return normalizedStoredModels
   }
 
   getProviderModels(providerId: string): MODEL_META[] {
-    return this.cloneModels(this.getResolvedProviderModels(providerId))
+    return this.cloneModels(this.getStoredProviderModels(providerId))
+  }
+
+  getProviderModel(providerId: string, modelId: string): MODEL_META | undefined {
+    const store = this.getProviderModelStore(providerId)
+    const cached = this.providerModelsCache.get(providerId)
+    const hasFreshCache = cached !== undefined && cached.expiresAt > Date.now()
+    if (cached && hasFreshCache) {
+      const cachedModel = cached.modelsById.get(modelId)
+      if (cachedModel) {
+        return this.cloneModel(cachedModel)
+      }
+    }
+
+    if (store.getProviderModel) {
+      if (!hasFreshCache) {
+        const providerModel = store.getProviderModel('provider', modelId)
+        if (providerModel) {
+          return this.normalizeStoredModel(
+            normalizeProviderModelFacts(providerModel, providerId),
+            providerId,
+            'getProviderModel'
+          )
+        }
+      }
+      const customModel = store.getProviderModel('custom', modelId)
+      return customModel
+        ? this.normalizeStoredModel(customModel, providerId, 'getProviderModel')
+        : undefined
+    }
+
+    const providerModel = this.getStoredProviderModels(providerId).find(
+      (model) => model.id === modelId
+    )
+    if (providerModel) {
+      return this.cloneModel(providerModel)
+    }
+
+    const customModel = ((store.get('custom_models') || []) as MODEL_META[]).find(
+      (model) => model.id === modelId
+    )
+    return customModel
+      ? this.normalizeStoredModel(customModel, providerId, 'getProviderModel')
+      : undefined
   }
 
   getProviderModelRouteMetadata(
@@ -371,11 +363,11 @@ export class ProviderModelHelper {
     const store = this.getProviderModelStore(providerId)
     let cached = this.providerModelsCache.get(providerId)
     if ((!cached || cached.expiresAt <= Date.now()) && !store.getProviderModel) {
-      this.getResolvedProviderModels(providerId)
+      this.getStoredProviderModels(providerId)
       cached = this.providerModelsCache.get(providerId)
     }
     const hasFreshCache = Boolean(cached && cached.expiresAt > Date.now())
-    const cachedModel = hasFreshCache ? cached?.routeModelsById.get(modelId) : undefined
+    const cachedModel = hasFreshCache ? cached?.modelsById.get(modelId) : undefined
     const rawStoredModel =
       hasFreshCache || !store.getProviderModel
         ? undefined
@@ -383,11 +375,14 @@ export class ProviderModelHelper {
     const storedModel =
       cachedModel ??
       (rawStoredModel
-        ? this.normalizeStoredModel(rawStoredModel, providerId, 'getProviderModelRouteMetadata')
+        ? this.normalizeStoredModel(
+            normalizeProviderModelFacts(rawStoredModel, providerId),
+            providerId,
+            'getProviderModelRouteMetadata'
+          )
         : undefined)
     if (storedModel) {
-      const config = resolvedConfig ?? this.getModelConfig(modelId, providerId)
-      return this.resolveProviderModelRouteMetadata(storedModel, providerId, config)
+      return this.resolveProviderModelRouteMetadata(providerId, storedModel, resolvedConfig)
     }
 
     const customModel = store.getProviderModel
@@ -397,8 +392,7 @@ export class ProviderModelHelper {
       return undefined
     }
 
-    const config = resolvedConfig ?? this.getModelConfig(modelId, providerId)
-    return this.resolveProviderModelRouteMetadata(customModel, providerId, config)
+    return this.resolveProviderModelRouteMetadata(providerId, customModel, resolvedConfig)
   }
 
   setProviderModels(providerId: string, models: MODEL_META[]): void {
@@ -407,20 +401,13 @@ export class ProviderModelHelper {
     )
 
     // Validate and fix providerId for all models before storing
-    const validatedModels = models.map((model) => {
-      if (model.providerId && model.providerId !== providerId) {
-        console.warn(
-          `[ProviderModelHelper] setProviderModels: Model ${model.id} has incorrect providerId: expected "${providerId}", got "${model.providerId}". Fixing it.`
-        )
-        model.providerId = providerId
-      } else if (!model.providerId) {
-        console.warn(
-          `[ProviderModelHelper] setProviderModels: Model ${model.id} missing providerId, setting to "${providerId}"`
-        )
-        model.providerId = providerId
-      }
-      return model
-    })
+    const validatedModels = models.map((model) =>
+      this.normalizeStoredModel(
+        normalizeProviderModelFacts(model, providerId),
+        providerId,
+        'setProviderModels'
+      )
+    )
 
     // Log validation results
     const incorrectProviderIds = validatedModels.filter((m) => m.providerId !== providerId)
@@ -441,16 +428,9 @@ export class ProviderModelHelper {
   getCustomModels(providerId: string): MODEL_META[] {
     const store = this.getProviderModelStore(providerId)
     const customModels = (store.get('custom_models') || []) as MODEL_META[]
-    return customModels.map((model) => {
-      const config = this.getModelConfig(model.id, providerId)
-      model.vision = model.vision !== undefined ? model.vision : false
-      model.functionCall = model.functionCall !== undefined ? model.functionCall : false
-      model.reasoning = model.reasoning !== undefined ? model.reasoning : false
-      model.type = model.type || ModelType.Chat
-      model.endpointType = config?.endpointType ?? model.endpointType
-      model.ownedBy = model.ownedBy ?? config?.ownedBy
-      return model
-    })
+    return customModels.map((model) =>
+      this.normalizeStoredModel(model, providerId, 'getCustomModels')
+    )
   }
 
   setCustomModels(providerId: string, models: MODEL_META[]): void {

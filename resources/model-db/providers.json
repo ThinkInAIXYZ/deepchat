@@ -265873,8 +265873,8 @@
             ]
           },
           "limit": {
-            "context": 512288,
-            "output": 512288
+            "context": 262144,
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -269205,8 +269205,8 @@
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 262144
+            "context": 256000,
+            "output": 64000
           },
           "temperature": true,
           "tool_call": true,
@@ -275736,6 +275736,34 @@
           "type": "chat"
         },
         {
+          "id": "gemini-omni-flash",
+          "name": "gemini-omni-flash",
+          "display_name": "gemini-omni-flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
           "id": "gemini-3.1-flash-lite-image-as",
           "name": "gemini-3.1-flash-lite-image-as",
           "display_name": "gemini-3.1-flash-lite-image-as",
@@ -275765,6 +275793,76 @@
           "id": "gemini-3.1-flash-image-as",
           "name": "gemini-3.1-flash-image-as",
           "display_name": "gemini-3.1-flash-image-as",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 65536,
+            "output": 65536
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "gemini-3-pro-image-as",
+          "name": "gemini-3-pro-image-as",
+          "display_name": "gemini-3-pro-image-as",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 65536,
+            "output": 65536
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "level",
+              "level": "high",
+              "level_options": [
+                "low",
+                "high"
+              ],
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "gemini-2.5-flash-image-as",
+          "name": "gemini-2.5-flash-image-as",
+          "display_name": "gemini-2.5-flash-image-as",
           "modalities": {
             "input": [
               "text",

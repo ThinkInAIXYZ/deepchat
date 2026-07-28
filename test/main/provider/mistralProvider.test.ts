@@ -104,7 +104,7 @@ describe('AiSdkProvider mistral', () => {
     })
   })
 
-  it('maps Mistral provider DB metadata into provider models', async () => {
+  it('maps Mistral catalog identities without duplicating capability state', async () => {
     mockGetProvider.mockReturnValue({
       id: 'mistral',
       name: 'Mistral',
@@ -132,17 +132,13 @@ describe('AiSdkProvider mistral', () => {
     const models = await provider.fetchModels()
 
     expect(models).toEqual([
-      expect.objectContaining({
+      {
         id: 'mistral-small-latest',
         name: 'Mistral Small',
         group: 'default',
         providerId: 'mistral',
-        vision: true,
-        functionCall: true,
-        reasoning: true,
-        contextLength: 256000,
-        maxTokens: 32000
-      })
+        isCustom: false
+      }
     ])
   })
 

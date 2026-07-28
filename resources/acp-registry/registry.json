@@ -467,7 +467,7 @@
     {
       "id": "dimcode",
       "name": "DimCode",
-      "version": "0.2.37",
+      "version": "0.2.38",
       "description": "A coding agent that puts leading models at your command.",
       "website": "https://dimcode.dev/docs/acp.html",
       "authors": [
@@ -476,7 +476,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "dimcode@0.2.37",
+          "package": "dimcode@0.2.38",
           "args": [
             "acp"
           ]
@@ -1016,7 +1016,7 @@
     {
       "id": "opencode",
       "name": "OpenCode",
-      "version": "1.18.7",
+      "version": "1.18.8",
       "description": "The open source coding agent",
       "repository": "https://github.com/anomalyco/opencode",
       "website": "https://opencode.ai",
@@ -1028,52 +1028,52 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.7/opencode-darwin-arm64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.8/opencode-darwin-arm64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "47efed233667713fd3e0603ddaea95d0ee2076ce00dc9faa7dbc9208aeb13505"
+            "sha256": "0fb2e11a819dd97949f0f7e0348e0e0c4fd8c42b3a5ed7aee1f0d437c94b9f0c"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.7/opencode-darwin-x64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.8/opencode-darwin-x64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "feee11da7697a80e2fcf943ff9ca392d4e960c5ddabd918bdd6e4de790279b7e"
+            "sha256": "0193ed3f295bb93f073ae0e8fa0737e9b31f167464761901589401fd278d4cc4"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.7/opencode-linux-arm64.tar.gz",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.8/opencode-linux-arm64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "6c791e453c2ca03ee3dea09ebd16bfdfac4837e45d344a1487cd196b80090fc7"
+            "sha256": "3e1b4f3bd12764c911f9211910608f85429b6209900a662c7ed27196c9033b93"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.7/opencode-linux-x64.tar.gz",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.8/opencode-linux-x64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "cb5d9d6d2f8fbef0a9c975ed4494f73b2a62f4e4ffd508bcc3212da4fa76c3da"
+            "sha256": "b72014b8b53427fdb5a628d2433569ee7ccd289bd5c4490636064b24791c1305"
           },
           "windows-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.7/opencode-windows-arm64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.8/opencode-windows-arm64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "98c6eff0c989b21ef02f3777fe67404c9ed72bc21dac42b8a0607b00f2ec338f"
+            "sha256": "3a2c5a6f246bd0fdb395b35d8cc60f1be86f7f794a22cb517d2fe8de9aa951b4"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.7/opencode-windows-x64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.8/opencode-windows-x64.zip",
             "cmd": "./opencode.exe",
             "args": [
               "acp"
             ],
-            "sha256": "54598e262c0744e6c3b9ddba85764917a48d366a9aa6c817c2feb9d34b3f1105"
+            "sha256": "85baa5de531db8d611fb5d9a62ffee00f6de69ae26e4845ec091dd2da4eb5fd1"
           }
         }
       }
@@ -1205,7 +1205,7 @@
     {
       "id": "sigit",
       "name": "siGit Code",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "description": "Local-first coding agent. Runs entirely on your machine with optional on-device LLM inference via Onde.",
       "repository": "https://github.com/getsigit/sigit",
       "website": "https://github.com/getsigit/sigit",
@@ -1216,38 +1216,38 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.0/sigit-macos-arm64.tar.gz",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.1/sigit-macos-arm64.tar.gz",
             "cmd": "./sigit",
-            "sha256": "838b74d568056eac55984d1c72a9a8d2daaa2a186a4c0291a64fc236d4692d1b"
+            "sha256": "fd93a72b30d6693babd8948d5004c6d1679cba15492ef0aecd361aacd49caea5"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.0/sigit-macos-amd64.tar.gz",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.1/sigit-macos-amd64.tar.gz",
             "cmd": "./sigit",
-            "sha256": "40807eaf27da7e6a1ed26b8373527b258680261ac2efba70a9cad16a2a48b7ae"
+            "sha256": "e65b3ec94b648e49b6ce36bcfa8369fe1cfa1f654e8186fd01b573abaade32e4"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.0/sigit-linux-arm64",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.1/sigit-linux-arm64",
             "cmd": "./sigit-linux-arm64",
-            "sha256": "2f653855a7525fe55d3ef35bef9315922ecdb87628db39a5e8b3e7918654d99a"
+            "sha256": "d11372da905760163208c2b60f0b391908802743130bdd9e67af1dd12bd6eda9"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.0/sigit-linux-amd64",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.1/sigit-linux-amd64",
             "cmd": "./sigit-linux-amd64",
-            "sha256": "550e48128ea4f100f3d933e49007b9aa7638a9dd3d3168f1711c98dccfcfc898"
+            "sha256": "78c568d45e17e248cc779ed2c7dd2dc3d81622a30b6b34e81efcc9f233a488ad"
           },
           "windows-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.0/sigit-win-arm64.exe",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.1/sigit-win-arm64.exe",
             "cmd": "./sigit-win-arm64.exe",
-            "sha256": "8043814d0e8c54045729d8624deb632a81564cd4ef15be55858f6b66892c6bf6"
+            "sha256": "0108ec8951ea03607da900ddcac46561d73299f163c7086a2d0fab306208c141"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.0/sigit-win-amd64.exe",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.1/sigit-win-amd64.exe",
             "cmd": "./sigit-win-amd64.exe",
-            "sha256": "2a0310954901bc75227a2da5ad757f40b90193b4a6189bfb89bac8b50336b986"
+            "sha256": "5cae0a88569e0bee33fd7e04ed573bec4d73548d5e031b69abe7d944efabb75f"
           }
         },
         "npx": {
-          "package": "@smbcloud/sigit@1.5.0"
+          "package": "@smbcloud/sigit@1.5.1"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/sigit.svg"

@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
+import { LEGACY_MODEL_CONFIG_META_KEY, normalizeUserModelConfigEntry } from '../userModelConfig'
 
 type ProviderRow = {
   id: string
@@ -346,12 +347,13 @@ export class ProviderSettingsTable extends BaseTable {
     return Boolean(this.db.prepare('SELECT 1 FROM model_configs WHERE cache_key = ?').get(cacheKey))
   }
 
-  setModelConfigStoreEntry(cacheKey: string, value: unknown): void {
+  setModelConfigStoreEntry(cacheKey: string, value: unknown): boolean {
+    const normalizedEntry = normalizeUserModelConfigEntry(value)
+    if (!normalizedEntry) {
+      return false
+    }
+
     const timestamp = now()
-    const entry = value as Partial<IModelConfig> | undefined
-    const providerId = typeof entry?.providerId === 'string' ? entry.providerId : ''
-    const modelId = typeof entry?.id === 'string' ? entry.id : ''
-    const source = typeof entry?.source === 'string' ? entry.source : null
     const existing = this.db
       .prepare('SELECT created_at FROM model_configs WHERE cache_key = ?')
       .get(cacheKey) as { created_at: number } | undefined
@@ -370,13 +372,49 @@ export class ProviderSettingsTable extends BaseTable {
       )
       .run(
         cacheKey,
-        providerId,
-        modelId,
-        source,
-        stringifyJson(value),
+        normalizedEntry.providerId,
+        normalizedEntry.id,
+        normalizedEntry.source,
+        stringifyJson(normalizedEntry),
         existing?.created_at ?? timestamp,
         timestamp
       )
+    return true
+  }
+
+  migrateModelConfigsToUserOnly(): { removed: number; preserved: number } {
+    const snapshot = this.listModelConfigStore()
+    const legacyMeta = snapshot[LEGACY_MODEL_CONFIG_META_KEY] as
+      | { userConfigKeys?: unknown }
+      | undefined
+    const legacyUserKeys = new Set(
+      Array.isArray(legacyMeta?.userConfigKeys)
+        ? legacyMeta.userConfigKeys.filter(
+            (key): key is string => typeof key === 'string' && key.length > 0
+          )
+        : []
+    )
+    const preservedEntries = Object.entries(snapshot).flatMap(([cacheKey, value]) => {
+      if (cacheKey === LEGACY_MODEL_CONFIG_META_KEY) {
+        return []
+      }
+      const entry = normalizeUserModelConfigEntry(value, {
+        legacyUserKey: legacyUserKeys.has(cacheKey)
+      })
+      return entry ? ([[cacheKey, entry]] as Array<[string, IModelConfig]>) : []
+    })
+
+    this.db.transaction(() => {
+      this.clearModelConfigStore()
+      for (const [cacheKey, entry] of preservedEntries) {
+        this.setModelConfigStoreEntry(cacheKey, entry)
+      }
+    })()
+
+    return {
+      removed: Object.keys(snapshot).length - preservedEntries.length,
+      preserved: preservedEntries.length
+    }
   }
 
   deleteModelConfigStoreEntry(cacheKey: string): void {

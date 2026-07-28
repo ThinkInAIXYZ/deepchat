@@ -197,9 +197,90 @@ describe('basic API-key provider registrations', () => {
     expect(models).toEqual([
       expect.objectContaining({
         id: 'example-chat-model',
-        providerId: 'modelsell'
+        providerId: 'modelsell',
+        ownedBy: 'modelsell'
       })
     ])
+    expect(models[0]).not.toHaveProperty('contextLength')
+    expect(models[0]).not.toHaveProperty('maxTokens')
+  })
+
+  it('keeps omitted OpenRouter capability metadata sparse', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        data: [{ id: 'openai/gpt-future', name: 'GPT Future' }]
+      })
+    }) as unknown as typeof fetch
+
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'openrouter',
+        name: 'OpenRouter',
+        baseUrl: 'https://openrouter.ai/api/v1'
+      }),
+      createProviderSettings()
+    )
+    const models = await provider.fetchModels()
+
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'openai/gpt-future',
+        name: 'GPT Future',
+        providerId: 'openrouter'
+      })
+    ])
+    expect(models[0]).not.toHaveProperty('contextLength')
+    expect(models[0]).not.toHaveProperty('maxTokens')
+    expect(models[0]).not.toHaveProperty('vision')
+    expect(models[0]).not.toHaveProperty('functionCall')
+    expect(models[0]).not.toHaveProperty('reasoning')
+  })
+
+  it('keeps inferred remote capabilities and invalid limits out of provider facts', async () => {
+    const cases = [
+      { providerId: 'groq', modelId: 'opaque-model' },
+      { providerId: 'tokenflux', modelId: 'opaque-model' },
+      { providerId: '302ai', modelId: 'gpt-4o-future' }
+    ] as const
+
+    for (const { providerId, modelId } of cases) {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: modelId,
+              context_length: -1,
+              context_size: Number.NaN,
+              context_window: Number.POSITIVE_INFINITY,
+              content_length: 0,
+              max_tokens: Number.NaN,
+              max_output_tokens: -1,
+              max_completion_tokens: Number.POSITIVE_INFINITY
+            }
+          ]
+        })
+      }) as unknown as typeof fetch
+
+      const provider = new AiSdkProvider(
+        createProvider({
+          id: providerId,
+          name: providerId,
+          baseUrl: `https://${providerId}.example/v1`
+        }),
+        createProviderSettings()
+      )
+      const models = await provider.fetchModels()
+
+      expect(models).toHaveLength(1)
+      expect(models[0]).toMatchObject({ id: modelId, providerId })
+      expect(models[0]).not.toHaveProperty('contextLength')
+      expect(models[0]).not.toHaveProperty('maxTokens')
+      expect(models[0]).not.toHaveProperty('vision')
+      expect(models[0]).not.toHaveProperty('functionCall')
+      expect(models[0]).not.toHaveProperty('reasoning')
+    }
   })
 
   it('discovers and classifies GreenPT models with flagship models first', async () => {
@@ -343,7 +424,7 @@ describe('basic API-key provider registrations', () => {
     ])
   })
 
-  it('maps provider DB metadata into built-in provider models', async () => {
+  it('keeps catalog-backed provider models free of duplicated capability state', async () => {
     mockGetProvider.mockReturnValue({
       id: 'nvidia',
       name: 'NVIDIA',
@@ -372,16 +453,13 @@ describe('basic API-key provider registrations', () => {
 
     expect(mockGetProvider).toHaveBeenCalledWith('nvidia')
     expect(models).toEqual([
-      expect.objectContaining({
+      {
         id: 'microsoft/phi-4-mini-instruct',
         name: 'Phi-4 Mini',
         group: 'default',
         providerId: 'nvidia',
-        functionCall: true,
-        reasoning: false,
-        contextLength: 131072,
-        maxTokens: 8192
-      })
+        isCustom: false
+      }
     ])
   })
 
@@ -421,16 +499,13 @@ describe('basic API-key provider registrations', () => {
 
     expect(mockGetProvider).toHaveBeenCalledWith('stepfun-step-plan')
     expect(models).toEqual([
-      expect.objectContaining({
+      {
         id: 'step-router-v1',
         name: 'Step Router v1',
         group: 'Token Plan',
         providerId: 'stepfun-step-plan',
-        functionCall: true,
-        reasoning: false,
-        contextLength: 256000,
-        maxTokens: 32000
-      })
+        isCustom: false
+      }
     ])
   })
 

@@ -64,7 +64,7 @@ describe('AiSdkProvider doubao', () => {
     vi.clearAllMocks()
   })
 
-  it('maps doubao catalog entries into provider models', async () => {
+  it('stores only doubao catalog identity in provider models', async () => {
     mockGetProvider.mockReturnValue({
       id: 'doubao',
       name: 'Doubao',
@@ -92,14 +92,13 @@ describe('AiSdkProvider doubao', () => {
     const models = await provider.fetchModels()
 
     expect(models).toEqual([
-      expect.objectContaining({
+      {
         id: 'doubao-seed-2.0-pro',
         name: 'Doubao-Seed 2.0 Pro',
+        group: 'default',
         providerId: 'doubao',
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      })
+        isCustom: false
+      }
     ])
   })
 })

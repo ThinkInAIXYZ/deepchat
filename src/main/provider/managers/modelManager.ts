@@ -34,30 +34,9 @@ export class ModelManager {
         )
         model.providerId = providerId
       }
-      const config = this.options.providerSettings.getModelConfig(model.id, providerId)
-
-      model.maxTokens = config.maxTokens
-      model.contextLength = config.contextLength
-
-      if (config.isUserDefined) {
-        model.vision = config.vision
-        model.functionCall = config.functionCall
-        model.reasoning = config.reasoning
-        model.type = config.type
-        model.endpointType = config.endpointType ?? model.endpointType
-        model.ownedBy = config.ownedBy ?? model.ownedBy
-      } else {
-        model.vision = model.vision !== undefined ? model.vision : config.vision
-        model.functionCall =
-          model.functionCall !== undefined ? model.functionCall : config.functionCall
-        model.reasoning = model.reasoning !== undefined ? model.reasoning : config.reasoning
-        model.type = model.type || config.type
-        model.endpointType = model.endpointType ?? config.endpointType
-        model.ownedBy = model.ownedBy ?? config.ownedBy
-      }
-
       return model
     })
+    models = this.options.providerSettings.resolveEffectiveModels(models, providerId)
 
     // Final validation
     const incorrectProviderIds = models.filter((m) => m.providerId !== providerId)

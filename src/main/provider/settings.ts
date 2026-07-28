@@ -3,7 +3,6 @@ import type {
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
-  ModelConfigSource,
   ModelRouteConfig,
   RENDERER_MODEL_META,
   IModelConfig
@@ -13,6 +12,7 @@ import {
   ModelType,
   isNewApiEndpointType,
   resolveNewApiEndpointTypeFromRoute,
+  resolveNewApiSelectableEndpointTypes,
   type NewApiRouteMeta
 } from '@shared/model'
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
@@ -34,6 +34,7 @@ import { modelCapabilities } from '@/provider/modelCapabilities'
 import { ProviderHelper } from '@/provider/providerHelper'
 import { ModelStatusHelper } from '@/provider/modelStatusHelper'
 import {
+  normalizeProviderModelFacts,
   ProviderModelHelper,
   PROVIDER_MODELS_DIR,
   type ProviderModelRouteMetadata
@@ -245,6 +246,7 @@ export interface ProviderSettingsPort {
   getProviderById(id: string): LLM_PROVIDER | undefined
   setProviderById(id: string, provider: LLM_PROVIDER): void
   getProviderModels(providerId: string): MODEL_META[]
+  resolveEffectiveModels(models: MODEL_META[], providerId: string): MODEL_META[]
   getProviderModelRouteMetadata(
     providerId: string,
     modelId: string,
@@ -273,14 +275,10 @@ export interface ProviderSettingsPort {
   getModelConfig(
     modelId: string,
     providerId?: string,
-    resolvedIdentity?: ResolvedCapabilityIdentity
+    resolvedIdentity?: ResolvedCapabilityIdentity,
+    providerFacts?: MODEL_META
   ): ModelConfig
-  setModelConfig(
-    modelId: string,
-    providerId: string,
-    config: ModelConfig,
-    options?: { source?: ModelConfigSource }
-  ): void
+  setModelConfig(modelId: string, providerId: string, config: ModelConfig): void
   resetModelConfig(modelId: string, providerId: string): void
   getAllModelConfigs(): Record<string, IModelConfig>
   getProviderModelConfigs(providerId: string): Array<{ modelId: string; config: ModelConfig }>
@@ -359,16 +357,11 @@ export class ProviderSettings implements ProviderSettingsPort {
 
     // Initialize model configuration helper
     this.modelConfigHelper = new ModelConfigHelper(
-      this.currentAppVersion,
-      new ModelConfigDbStore(() => database.settingsTable) as unknown as ConstructorParameters<
-        typeof ModelConfigHelper
-      >[1]
+      new ModelConfigDbStore(() => database.settingsTable)
     )
 
     this.providerModelHelper = new ProviderModelHelper({
       userDataPath: this.userDataPath,
-      getModelConfig: (modelId: string, providerId?: string) =>
-        this.getModelConfig(modelId, providerId),
       setModelStatus: this.modelStatusHelper.setModelStatus.bind(this.modelStatusHelper),
       deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper),
       publishEvent: this.publishEvent
@@ -455,20 +448,23 @@ export class ProviderSettings implements ProviderSettingsPort {
     emitModelsChanged(this.publishEvent, providerId)
   }
 
-  private resolveCapabilityRoute(
+  private resolveCapabilityRouteWithProvider(
     providerId: string,
     modelId: string,
     routeOverride?: CapabilityRouteOverride,
-    resolvedModelConfig?: ModelRouteConfig
+    resolvedModelConfig?: ModelRouteConfig,
+    providerFacts?: MODEL_META,
+    provider?: LLM_PROVIDER
   ): NewApiRouteMeta | null {
-    const provider = this.providerHelper?.getProviderById?.(providerId)
     const providerApiType = provider?.apiType
     const modelConfig = resolvedModelConfig ?? this.getModelRouteConfig(modelId, providerId)
-    const storedRoute = this.providerModelHelper.getProviderModelRouteMetadata?.(
-      providerId,
-      modelId,
-      modelConfig
-    )
+    const storedRoute = providerFacts
+      ? this.providerModelHelper.resolveProviderModelRouteMetadata(
+          providerId,
+          providerFacts,
+          modelConfig
+        )
+      : this.providerModelHelper.getProviderModelRouteMetadata?.(providerId, modelId, modelConfig)
     const overriddenEndpointType = isNewApiEndpointType(routeOverride?.endpointType)
       ? routeOverride.endpointType
       : undefined
@@ -478,7 +474,7 @@ export class ProviderSettings implements ProviderSettingsPort {
     const storedEndpointType = isNewApiEndpointType(storedRoute?.endpointType)
       ? storedRoute.endpointType
       : undefined
-    const ownedBy = routeOverride?.ownedBy ?? storedRoute?.ownedBy ?? modelConfig.ownedBy
+    const ownedBy = routeOverride?.ownedBy ?? modelConfig.ownedBy ?? storedRoute?.ownedBy
     const capabilityFamilyHint = resolveCapabilityFamilyHint(modelId, ownedBy)
     const route: NewApiRouteMeta = {
       endpointType: overriddenEndpointType ?? configuredEndpointType ?? storedEndpointType,
@@ -501,19 +497,31 @@ export class ProviderSettings implements ProviderSettingsPort {
     return hasEndpointEvidence || providerApiType || ownedBy || storedRoute ? route : null
   }
 
-  private resolveCapabilityIdentityForModel(
+  private resolveCapabilityIdentityWithProvider(
     providerId: string,
     modelId: string,
     routeOverride?: CapabilityRouteOverride,
-    resolvedModelConfig?: ModelRouteConfig
+    resolvedModelConfig?: ModelRouteConfig,
+    providerFacts?: MODEL_META,
+    provider?: LLM_PROVIDER
   ): ResolvedCapabilityIdentity {
-    const route = this.resolveCapabilityRoute(
+    const route = this.resolveCapabilityRouteWithProvider(
       providerId,
       modelId,
       routeOverride,
-      resolvedModelConfig
+      resolvedModelConfig,
+      providerFacts,
+      provider
     )
-    const provider = this.providerHelper?.getProviderById?.(providerId)
+    return this.resolveCapabilityIdentityFromRoute(providerId, modelId, route, provider)
+  }
+
+  private resolveCapabilityIdentityFromRoute(
+    providerId: string,
+    modelId: string,
+    route: NewApiRouteMeta | null,
+    provider?: LLM_PROVIDER
+  ): ResolvedCapabilityIdentity {
     return resolveCapabilityIdentity({
       providerId,
       modelId,
@@ -523,33 +531,21 @@ export class ProviderSettings implements ProviderSettingsPort {
     })
   }
 
-  private resolveStoredModelCapabilityIdentity(
+  private resolveCapabilityIdentityForModel(
     providerId: string,
-    model: ProviderModelRouteMetadata & { id: string },
-    provider = this.providerHelper?.getProviderById?.(providerId)
+    modelId: string,
+    routeOverride?: CapabilityRouteOverride,
+    resolvedModelConfig?: ModelRouteConfig,
+    providerFacts?: MODEL_META
   ): ResolvedCapabilityIdentity {
-    const capabilityFamilyHint = resolveCapabilityFamilyHint(model.id, model.ownedBy)
-    const route: NewApiRouteMeta = {
-      endpointType: isNewApiEndpointType(model.endpointType) ? model.endpointType : undefined,
-      supportedEndpointTypes: model.supportedEndpointTypes,
-      type: model.type,
-      providerApiType: provider?.apiType,
-      ownedBy: model.ownedBy,
-      capabilityFamilyHint
-    }
-    const endpointType =
-      route.endpointType ??
-      (provider?.apiType === 'new-api' || Boolean(route.supportedEndpointTypes?.length)
-        ? resolveNewApiEndpointTypeFromRoute(route, model.id)
-        : undefined)
-
-    return resolveCapabilityIdentity({
+    return this.resolveCapabilityIdentityWithProvider(
       providerId,
-      modelId: model.id,
-      ownedBy: model.ownedBy,
-      endpointType,
-      explicitProviderId: provider?.capabilityProviderId
-    })
+      modelId,
+      routeOverride,
+      resolvedModelConfig,
+      providerFacts,
+      this.providerHelper?.getProviderById?.(providerId)
+    )
   }
 
   getCapabilitySnapshot(input: CapabilitySnapshotResolutionInput): ResolvedModelCapabilitySnapshot {
@@ -1064,28 +1060,61 @@ export class ProviderSettings implements ProviderSettingsPort {
   }
 
   getProviderModels(providerId: string): MODEL_META[] {
-    const models = this.providerModelHelper.getProviderModels(providerId)
+    return this.resolveEffectiveModels(
+      this.providerModelHelper.getProviderModels(providerId),
+      providerId
+    )
+  }
+
+  resolveEffectiveModels(models: MODEL_META[], providerId: string): MODEL_META[] {
     const provider = this.providerHelper?.getProviderById?.(providerId)
-    return models.map((model) => {
-      if (model.reasoning === true || !modelCapabilities.hasReasoningCandidate(model.id)) {
-        return model
-      }
+    return models.map((model) =>
+      this.resolveEffectiveModelWithProvider(model, providerId, provider)
+    )
+  }
 
-      const identity = this.resolveStoredModelCapabilityIdentity(providerId, model, provider)
+  private resolveEffectiveModelWithProvider(
+    model: MODEL_META,
+    providerId: string,
+    provider?: LLM_PROVIDER
+  ): MODEL_META {
+    const providerFacts = normalizeProviderModelFacts(model, providerId)
+    const config = this.resolveModelConfigWithProvider(
+      providerFacts.id,
+      providerId,
+      undefined,
+      providerFacts,
+      provider
+    )
+    const resolvedModel: MODEL_META = {
+      ...providerFacts,
+      providerId,
+      maxTokens: config.maxTokens,
+      contextLength: config.contextLength,
+      vision: config.vision,
+      functionCall: config.functionCall,
+      reasoning: config.reasoning,
+      enableSearch: config.enableSearch,
+      type: config.type,
+      endpointType: config.endpointType ?? providerFacts.endpointType,
+      ownedBy: config.ownedBy ?? providerFacts.ownedBy
+    }
+    if (providerId !== 'new-api' && provider?.apiType !== 'new-api') {
+      return resolvedModel
+    }
 
-      if (identity.providerId === providerId) {
-        return model
-      }
-
-      const catalog = modelCapabilities.getCatalogCapabilitySnapshot(
-        identity.providerId,
-        identity.catalogModelId ?? identity.requestModelId
-      )
-      return {
-        ...model,
-        reasoning: catalog.supportsReasoning
-      }
-    })
+    const selectableEndpointTypes = resolveNewApiSelectableEndpointTypes(
+      resolvedModel.supportedEndpointTypes,
+      resolvedModel.id,
+      { type: resolvedModel.type }
+    )
+    const {
+      selectableEndpointTypes: _storedSelectableEndpointTypes,
+      ...modelWithoutStoredProjection
+    } = resolvedModel
+    return selectableEndpointTypes
+      ? { ...modelWithoutStoredProjection, selectableEndpointTypes }
+      : modelWithoutStoredProjection
   }
 
   getProviderModelRouteMetadata(
@@ -1121,7 +1150,7 @@ export class ProviderSettings implements ProviderSettingsPort {
         Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : undefined
       ),
       functionCall: resolveModelFunctionCall(m.tool_call),
-      reasoning: this.getCapabilitySnapshot({ providerId, modelId: m.id }).supportsReasoning,
+      reasoning: modelCapabilities.getCatalogCapabilitySnapshot(resolvedId, m.id).supportsReasoning,
       type: this.inferProviderDbModelType(m)
     }))
   }
@@ -1169,7 +1198,10 @@ export class ProviderSettings implements ProviderSettingsPort {
   }
 
   getCustomModels(providerId: string): MODEL_META[] {
-    return this.providerModelHelper.getCustomModels(providerId)
+    return this.resolveEffectiveModels(
+      this.providerModelHelper.getCustomModels(providerId),
+      providerId
+    )
   }
 
   isKnownModel(providerId: string, modelId: string): boolean {
@@ -1214,26 +1246,70 @@ export class ProviderSettings implements ProviderSettingsPort {
 
   /** Return only persisted fields that may participate in route selection. */
   getModelRouteConfig(modelId: string, providerId?: string): ModelRouteConfig {
-    return (
-      this.modelConfigHelper?.getModelRouteConfig(modelId, providerId) ??
-      this.getModelConfig(modelId, providerId)
-    )
+    return this.modelConfigHelper.getModelRouteConfig(modelId, providerId)
   }
 
   /** Resolve the complete effective configuration from stored intent and capability defaults. */
   getModelConfig(
     modelId: string,
     providerId?: string,
-    resolvedIdentity?: ResolvedCapabilityIdentity
+    resolvedIdentity?: ResolvedCapabilityIdentity,
+    providerFacts?: MODEL_META
   ): ModelConfig {
-    const capabilityProviderId = providerId
-      ? this.providerHelper?.getProviderById?.(providerId)?.capabilityProviderId
-      : undefined
+    const provider = providerId ? this.providerHelper?.getProviderById?.(providerId) : undefined
+    return this.resolveModelConfigWithProvider(
+      modelId,
+      providerId,
+      resolvedIdentity,
+      providerFacts,
+      provider
+    )
+  }
+
+  private resolveModelConfigWithProvider(
+    modelId: string,
+    providerId: string | undefined,
+    resolvedIdentity: ResolvedCapabilityIdentity | undefined,
+    providerFacts: MODEL_META | undefined,
+    provider: LLM_PROVIDER | undefined
+  ): ModelConfig {
+    const capabilityProviderId = provider?.capabilityProviderId
+    const rawProviderFacts =
+      providerFacts ??
+      (providerId ? this.providerModelHelper.getProviderModel(providerId, modelId) : undefined)
+    const routeConfig = this.modelConfigHelper.getModelRouteConfig(modelId, providerId)
+    const route =
+      providerId !== undefined
+        ? this.resolveCapabilityRouteWithProvider(
+            providerId,
+            modelId,
+            undefined,
+            routeConfig,
+            rawProviderFacts,
+            provider
+          )
+        : null
+    const effectiveProviderFacts =
+      rawProviderFacts && route
+        ? {
+            ...rawProviderFacts,
+            endpointType: route.endpointType,
+            supportedEndpointTypes: route.supportedEndpointTypes,
+            type: route.type,
+            ownedBy: route.ownedBy
+          }
+        : rawProviderFacts
+    const capabilityIdentity =
+      resolvedIdentity ??
+      (providerId
+        ? this.resolveCapabilityIdentityFromRoute(providerId, modelId, route, provider)
+        : undefined)
     return this.modelConfigHelper.getModelConfig(
       modelId,
       providerId,
       capabilityProviderId,
-      resolvedIdentity
+      capabilityIdentity,
+      effectiveProviderFacts
     )
   }
 
@@ -1243,14 +1319,8 @@ export class ProviderSettings implements ProviderSettingsPort {
    * @param providerId - The provider ID
    * @param config - The model configuration
    */
-  setModelConfig(
-    modelId: string,
-    providerId: string,
-    config: ModelConfig,
-    options?: { source?: ModelConfigSource }
-  ): void {
-    const storedConfig = this.modelConfigHelper.setModelConfig(modelId, providerId, config, options)
-    this.providerModelHelper.invalidateProviderModelsCache(providerId)
+  setModelConfig(modelId: string, providerId: string, config: ModelConfig): void {
+    const storedConfig = this.modelConfigHelper.setModelConfig(modelId, providerId, config)
     emitModelConfigChanged(
       this.publishEvent,
       providerId,
@@ -1268,7 +1338,6 @@ export class ProviderSettings implements ProviderSettingsPort {
    */
   resetModelConfig(modelId: string, providerId: string): void {
     this.modelConfigHelper.resetModelConfig(modelId, providerId)
-    this.providerModelHelper.invalidateProviderModelsCache(providerId)
     emitModelConfigReset(this.publishEvent, providerId, modelId)
   }
 
@@ -1310,7 +1379,6 @@ export class ProviderSettings implements ProviderSettingsPort {
    */
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean = false): void {
     this.modelConfigHelper.importConfigs(configs, overwrite)
-    this.providerModelHelper.invalidateAllProviderModelsCache()
     emitModelConfigsImported(this.publishEvent, overwrite)
   }
 }

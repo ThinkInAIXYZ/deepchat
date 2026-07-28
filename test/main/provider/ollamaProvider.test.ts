@@ -98,6 +98,7 @@ describe('OllamaProvider.fetchModels', () => {
           type: ModelType.Chat
         } satisfies MODEL_META
       ]),
+      getDbProviderModels: vi.fn(() => []),
       getCustomModels: vi.fn(() => []),
       setProviderModels: vi.fn(),
       ensureModelStatus: vi.fn()
@@ -148,6 +149,7 @@ describe('OllamaProvider.fetchModels', () => {
 
   it('merges local and running models, keeps running-only models, and preserves capabilities', async () => {
     const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    vi.mocked(providerSettings.getProviderModels).mockClear()
 
     vi.spyOn(ollamaProvider, 'listModels').mockResolvedValue([
       createModel('deepseek-r1:1.5b', {
@@ -204,6 +206,7 @@ describe('OllamaProvider.fetchModels', () => {
         })
       ])
     )
+    expect(providerSettings.getProviderModels).not.toHaveBeenCalled()
     expect(providerSettings.ensureModelStatus).toHaveBeenCalledWith(
       'ollama',
       'deepseek-r1:1.5b',
@@ -216,6 +219,40 @@ describe('OllamaProvider.fetchModels', () => {
     )
     expect(providerSettings.ensureModelStatus).toHaveBeenCalledWith('ollama', 'qwen3:8b', true)
     expect(providerSettings.setProviderModels).toHaveBeenCalledWith('ollama', models)
+  })
+
+  it('does not promote catalog fallback capabilities into provider facts', async () => {
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    vi.spyOn(ollamaProvider, 'listModels').mockRejectedValue(new Error('ollama unavailable'))
+    vi.spyOn(ollamaProvider, 'listRunningModels').mockResolvedValue([])
+    vi.mocked(providerSettings.getDbProviderModels).mockReturnValue([
+      {
+        id: 'catalog-model',
+        name: 'Catalog Model',
+        provider: 'ollama',
+        providerId: 'ollama',
+        group: 'default',
+        enabled: false,
+        isCustom: false,
+        contextLength: 131072,
+        maxTokens: 32000,
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        type: ModelType.Chat
+      }
+    ])
+
+    await expect(ollamaProvider.fetchModels()).resolves.toEqual([
+      {
+        id: 'catalog-model',
+        name: 'Catalog Model',
+        providerId: 'ollama',
+        isCustom: false,
+        group: 'default',
+        description: undefined
+      }
+    ])
   })
 
   it('uses ollama list output as the local model source when the SDK list is empty', async () => {
@@ -253,6 +290,8 @@ describe('OllamaProvider.fetchModels', () => {
         })
       ])
     )
+    expect(models[0]).not.toHaveProperty('model_info')
+    expect(models[0]).not.toHaveProperty('capabilities')
   })
 
   it('confirms pull success against the ollama list model set', async () => {

@@ -25,6 +25,42 @@ describe('GithubCopilotProvider request timeout', () => {
     vi.unstubAllGlobals()
   })
 
+  it('does not promote catalog capabilities into provider facts', async () => {
+    const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
+      provider: { id: string }
+      providerSettings: Pick<ProviderSettingsPort, 'getDbProviderModels'>
+    }
+    provider.provider = { id: 'github-copilot' }
+    provider.providerSettings = {
+      getDbProviderModels: vi.fn().mockReturnValue([
+        {
+          id: 'gpt-5.6-sol',
+          name: 'GPT-5.6 Sol',
+          provider: 'github-copilot',
+          providerId: 'github-copilot',
+          group: 'default',
+          enabled: false,
+          isCustom: false,
+          contextLength: 1_050_000,
+          maxTokens: 32_000,
+          vision: true,
+          functionCall: true,
+          reasoning: true
+        }
+      ])
+    }
+
+    await expect((provider as any).fetchProviderModels()).resolves.toEqual([
+      {
+        id: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        group: 'default',
+        providerId: 'github-copilot',
+        isCustom: false
+      }
+    ])
+  })
+
   it('aborts completion requests when the model timeout elapses', async () => {
     vi.useFakeTimers()
 

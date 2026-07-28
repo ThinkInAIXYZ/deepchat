@@ -6,7 +6,6 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { parse as parseYaml } from 'yaml'
 import { nanoid } from 'nanoid'
 import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
-import { ModelType } from '@shared/model'
 import {
   PROVIDER_IMPORT_CUSTOM_API_TYPES,
   PROVIDER_IMPORT_SOURCE_IDS,
@@ -1391,11 +1390,7 @@ export class ProviderImportService {
         group: sourceModel?.group || 'custom',
         providerId,
         isCustom: true,
-        enabled: true,
-        vision: false,
-        functionCall: false,
-        reasoning: false,
-        type: ModelType.Chat
+        enabled: true
       }
     })
   }

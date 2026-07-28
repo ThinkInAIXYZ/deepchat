@@ -5,19 +5,11 @@ import {
   ModelType,
   isNewApiEndpointType,
   resolveNewApiModelTypeFromMetadata,
-  resolveNewApiSelectableEndpointTypes,
   resolveNewApiEndpointTypeFromRoute,
   type NewApiEndpointType
 } from '@shared/model'
 import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
-import {
-  DEFAULT_MODEL_CONTEXT_LENGTH,
-  DEFAULT_MODEL_MAX_TOKENS,
-  resolveDerivedModelMaxTokens,
-  resolveModelContextLength,
-  resolveModelFunctionCall
-} from '@shared/modelConfigDefaults'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { LLMResponse } from '@shared/types/provider'
@@ -67,7 +59,6 @@ import {
 } from '../providerRegistry'
 import { providerDbLoader } from '../../provider/providerDbLoader'
 import { modelCapabilities } from '../modelCapabilities'
-import { isImageInputSupported } from '@shared/types/model-db'
 import {
   buildResolvedCapabilitySnapshot,
   isOpenCodeGoAnthropicRoute,
@@ -190,6 +181,10 @@ function toModelRecordArray(payload: unknown): Array<Record<string, unknown>> {
   }
 
   return []
+}
+
+function toPositiveFiniteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
 function toErrorMessage(error: unknown, fallback: string): string {
@@ -590,10 +585,6 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
   }
 
-  public getProviderModelConfig(modelId: string): ModelConfig {
-    return this.providerSettings.getModelConfig(modelId, this.provider.id) ?? ({} as ModelConfig)
-  }
-
   public stringifyMessageContent(content: ChatMessage['content']): string {
     if (typeof content === 'string') {
       return content
@@ -623,24 +614,6 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
 
     return normalizedTitle.slice(0, 60)
-  }
-
-  public getDbProviderModels(providerId = this.provider.id): MODEL_META[] {
-    return this.providerSettings.getDbProviderModels(providerId)
-  }
-
-  public updateProviderManagedModelConfig(modelId: string, config: Partial<ModelConfig>): void {
-    this.providerSettings.setModelConfig(
-      modelId,
-      this.provider.id,
-      {
-        ...this.getProviderModelConfig(modelId),
-        ...config
-      },
-      {
-        source: 'provider'
-      }
-    )
   }
 
   public getModelFetchTimeoutMs(): number {
@@ -1047,8 +1020,9 @@ export class AiSdkProvider extends BaseLLMProvider {
         group: 'default',
         providerId: this.provider.id,
         isCustom: false,
-        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-        maxTokens: DEFAULT_MODEL_MAX_TOKENS
+        ...(typeof model.owned_by === 'string' && model.owned_by.trim().length > 0
+          ? { ownedBy: model.owned_by.trim() }
+          : {})
       })
     }
 
@@ -1376,19 +1350,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   private mapConfigDbModels(providerId = this.provider.id): MODEL_META[] {
-    return this.getDbProviderModels(providerId).map((model) => ({
-      id: model.id,
-      name: model.name,
-      group: model.group || 'default',
-      providerId: this.provider.id,
-      isCustom: false,
-      contextLength: model.contextLength,
-      maxTokens: model.maxTokens,
-      vision: model.vision || false,
-      functionCall: model.functionCall || false,
-      reasoning: model.reasoning || false,
-      ...(model.type ? { type: model.type } : {})
-    }))
+    return this.mapProviderDbModels('default', providerId)
   }
 
   private async fetchAnthropicModelsWithFallback(): Promise<MODEL_META[]> {
@@ -1433,21 +1395,13 @@ export class AiSdkProvider extends BaseLLMProvider {
       const models = Array.isArray(payload.data)
         ? payload.data
             .filter((model): model is { id: string; display_name?: string } => !!model?.id)
-            .map((model) => {
-              const existingConfig = this.getProviderModelConfig(model.id)
-              return {
-                id: model.id,
-                name: model.display_name || model.id,
-                providerId: this.provider.id,
-                maxTokens: existingConfig.maxTokens || 64_000,
-                group: 'Claude',
-                isCustom: false,
-                contextLength: existingConfig.contextLength || 200_000,
-                vision: existingConfig.vision || false,
-                functionCall: existingConfig.functionCall || false,
-                reasoning: existingConfig.reasoning || false
-              }
-            })
+            .map((model) => ({
+              id: model.id,
+              name: model.display_name || model.id,
+              providerId: this.provider.id,
+              group: 'Claude',
+              isCustom: false
+            }))
         : []
 
       return models.length > 0 ? models : fallbackModels
@@ -1521,22 +1475,23 @@ export class AiSdkProvider extends BaseLLMProvider {
                 !lowerName.includes('gemma-3n-e4b-it')
               )
             })
-            .map((model) => ({
-              id: model.name,
-              name: model.displayName || model.name,
-              group: /\b(exp|preview)\b/i.test(model.name)
-                ? 'experimental'
-                : /\bgemma\b/i.test(model.name)
-                  ? 'gemma'
-                  : 'default',
-              providerId: this.provider.id,
-              isCustom: false,
-              contextLength: model.inputTokenLimit,
-              maxTokens: model.outputTokenLimit,
-              vision: false,
-              functionCall: false,
-              reasoning: false
-            }))
+            .map((model) => {
+              const contextLength = toPositiveFiniteNumber(model.inputTokenLimit)
+              const maxTokens = toPositiveFiniteNumber(model.outputTokenLimit)
+              return {
+                id: model.name,
+                name: model.displayName || model.name,
+                group: /\b(exp|preview)\b/i.test(model.name)
+                  ? 'experimental'
+                  : /\bgemma\b/i.test(model.name)
+                    ? 'gemma'
+                    : 'default',
+                providerId: this.provider.id,
+                isCustom: false,
+                ...(contextLength !== undefined ? { contextLength } : {}),
+                ...(maxTokens !== undefined ? { maxTokens } : {})
+              }
+            })
         : []
 
       return models.length > 0 ? models : fallbackModels
@@ -1566,36 +1521,23 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
   }
 
-  private mapProviderDbModels(group: string): MODEL_META[] {
-    const sourceId = this.definition.providerDbSourceId || this.provider.id
+  private mapProviderDbModels(
+    group: string,
+    sourceId = this.definition.providerDbSourceId || this.provider.id
+  ): MODEL_META[] {
     const resolvedId = modelCapabilities.resolveProviderId(sourceId) || sourceId
     const provider = providerDbLoader.getProvider(resolvedId)
     if (!provider || !Array.isArray(provider.models)) {
       return []
     }
 
-    return provider.models.map((model) => {
-      const inputs = model.modalities?.input
-      const outputs = model.modalities?.output
-      const hasImageInput = Array.isArray(inputs) && inputs.includes('image')
-      const hasImageOutput = Array.isArray(outputs) && outputs.includes('image')
-      const modelType = hasImageOutput ? ModelType.ImageGeneration : ModelType.Chat
-
-      return {
-        id: model.id,
-        name: model.display_name || model.name || model.id,
-        group,
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: resolveModelContextLength(model.limit?.context),
-        maxTokens: resolveDerivedModelMaxTokens(model.limit?.output),
-        vision: hasImageInput,
-        functionCall: resolveModelFunctionCall(model.tool_call),
-        reasoning: Boolean(model.reasoning?.supported),
-        enableSearch: Boolean(model.search?.supported),
-        type: modelType
-      }
-    })
+    return provider.models.map((model) => ({
+      id: model.id,
+      name: model.display_name || model.name || model.id,
+      group,
+      providerId: this.provider.id,
+      isCustom: false
+    }))
   }
 
   private mapOpenAICodexModels(): MODEL_META[] {
@@ -1620,22 +1562,6 @@ export class AiSdkProvider extends BaseLLMProvider {
     const models = this.mapProviderDbModels(this.definition.providerDbGroup || 'Kimi Code')
     const stableModel = models.find((model) => model.id === 'kimi-for-coding')
     return stableModel ? [stableModel] : models
-  }
-
-  private syncProviderModelConfig(modelId: string, nextConfig: Partial<ModelConfig>): void {
-    const existingConfig = this.getProviderModelConfig(modelId)
-    const merged = {
-      ...existingConfig,
-      ...nextConfig
-    }
-
-    const changed = Object.keys(nextConfig).some(
-      (key) => existingConfig[key as keyof ModelConfig] !== merged[key as keyof ModelConfig]
-    )
-
-    if (changed) {
-      this.updateProviderManagedModelConfig(modelId, merged)
-    }
   }
 
   private async fetchProviderModelsByStrategy(
@@ -1664,8 +1590,6 @@ export class AiSdkProvider extends BaseLLMProvider {
             group: 'default',
             providerId: this.provider.id,
             isCustom: false,
-            contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-            maxTokens: DEFAULT_MODEL_MAX_TOKENS,
             description: typeof model.description === 'string' ? model.description : undefined
           }))
       }
@@ -1696,8 +1620,6 @@ export class AiSdkProvider extends BaseLLMProvider {
               providerId: this.provider.id,
               isCustom: false,
               type,
-              contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-              maxTokens: DEFAULT_MODEL_MAX_TOKENS,
               ownedBy: typeof model.owned_by === 'string' ? model.owned_by : undefined
             } satisfies MODEL_META
           })
@@ -1718,9 +1640,7 @@ export class AiSdkProvider extends BaseLLMProvider {
             name: model.id as string,
             group: 'default',
             providerId: this.provider.id,
-            isCustom: false,
-            contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-            maxTokens: DEFAULT_MODEL_MAX_TOKENS
+            isCustom: false
           }))
       }
       case 'astraflow': {
@@ -1748,9 +1668,7 @@ export class AiSdkProvider extends BaseLLMProvider {
             name: model.id as string,
             group: 'default',
             providerId: this.provider.id,
-            isCustom: false,
-            contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-            maxTokens: DEFAULT_MODEL_MAX_TOKENS
+            isCustom: false
           }))
       }
       case 'openrouter':
@@ -1790,8 +1708,6 @@ export class AiSdkProvider extends BaseLLMProvider {
           continue
         }
 
-        const existingConfig = this.getProviderModelConfig(modelId)
-
         if (strategy === 'groq') {
           const status =
             typeof model.status === 'number'
@@ -1806,15 +1722,20 @@ export class AiSdkProvider extends BaseLLMProvider {
           }
         }
 
-        const features = Array.isArray(model.features)
-          ? model.features.filter((item): item is string => typeof item === 'string')
+        const rawFeatures = model.features
+        const hasFeatureFacts = Array.isArray(rawFeatures)
+        const features = Array.isArray(rawFeatures)
+          ? rawFeatures.filter((item): item is string => typeof item === 'string')
           : []
-        const supportedParameters = Array.isArray(model.supported_parameters)
-          ? model.supported_parameters.filter((item): item is string => typeof item === 'string')
+        const rawSupportedParameters = model.supported_parameters
+        const hasSupportedParameterFacts = Array.isArray(rawSupportedParameters)
+        const supportedParameters = Array.isArray(rawSupportedParameters)
+          ? rawSupportedParameters.filter((item): item is string => typeof item === 'string')
           : []
-        const inputModalities = Array.isArray(
+        const hasInputModalityFacts = Array.isArray(
           (model.architecture as Record<string, unknown>)?.input_modalities
         )
+        const inputModalities = hasInputModalityFacts
           ? ((model.architecture as Record<string, unknown>).input_modalities as unknown[]).filter(
               (item): item is string => typeof item === 'string'
             )
@@ -1822,108 +1743,80 @@ export class AiSdkProvider extends BaseLLMProvider {
 
         const contextLength =
           strategy === 'openrouter'
-            ? (typeof model.context_length === 'number' ? model.context_length : undefined) ||
-              (typeof (model.top_provider as Record<string, unknown>)?.context_length === 'number'
-                ? ((model.top_provider as Record<string, unknown>).context_length as number)
-                : undefined) ||
-              existingConfig.contextLength ||
-              4096
+            ? (toPositiveFiniteNumber(model.context_length) ??
+              toPositiveFiniteNumber(
+                (model.top_provider as Record<string, unknown>)?.context_length
+              ))
             : strategy === 'ppio'
-              ? (typeof model.context_size === 'number' ? model.context_size : undefined) ||
-                existingConfig.contextLength ||
-                4096
+              ? toPositiveFiniteNumber(model.context_size)
               : strategy === 'groq'
-                ? (typeof model.context_size === 'number' ? model.context_size : undefined) ||
-                  (typeof model.context_window === 'number' ? model.context_window : undefined) ||
-                  existingConfig.contextLength ||
-                  4096
+                ? (toPositiveFiniteNumber(model.context_size) ??
+                  toPositiveFiniteNumber(model.context_window))
                 : strategy === 'tokenflux'
-                  ? (typeof model.context_length === 'number' ? model.context_length : undefined) ||
-                    existingConfig.contextLength ||
-                    4096
-                  : (typeof model.content_length === 'number' ? model.content_length : undefined) ||
-                    existingConfig.contextLength ||
-                    4096
+                  ? toPositiveFiniteNumber(model.context_length)
+                  : toPositiveFiniteNumber(model.content_length)
 
         const maxTokens =
           strategy === 'openrouter'
-            ? (typeof (model.top_provider as Record<string, unknown>)?.max_completion_tokens ===
-              'number'
-                ? ((model.top_provider as Record<string, unknown>).max_completion_tokens as number)
-                : undefined) ||
-              existingConfig.maxTokens ||
-              2048
+            ? toPositiveFiniteNumber(
+                (model.top_provider as Record<string, unknown>)?.max_completion_tokens
+              )
             : strategy === 'ppio'
-              ? (typeof model.max_output_tokens === 'number'
-                  ? model.max_output_tokens
-                  : undefined) ||
-                existingConfig.maxTokens ||
-                2048
+              ? toPositiveFiniteNumber(model.max_output_tokens)
               : strategy === 'groq'
-                ? (typeof model.max_output_tokens === 'number'
-                    ? model.max_output_tokens
-                    : undefined) ||
-                  (typeof model.max_tokens === 'number' ? model.max_tokens : undefined) ||
-                  existingConfig.maxTokens ||
-                  2048
+                ? (toPositiveFiniteNumber(model.max_output_tokens) ??
+                  toPositiveFiniteNumber(model.max_tokens))
                 : strategy === 'tokenflux'
-                  ? existingConfig.maxTokens || Math.min(contextLength / 2, 4096)
-                  : typeof model.max_completion_tokens === 'number' &&
-                      model.max_completion_tokens > 0
-                    ? (model.max_completion_tokens as number)
-                    : existingConfig.maxTokens || 2048
+                  ? undefined
+                  : toPositiveFiniteNumber(model.max_completion_tokens)
 
         const hasFunctionCalling =
           strategy === 'openrouter'
-            ? supportedParameters.includes('tools')
+            ? hasSupportedParameterFacts
+              ? supportedParameters.includes('tools')
+              : undefined
             : strategy === 'ppio'
-              ? features.includes('function-calling')
+              ? hasFeatureFacts
+                ? features.includes('function-calling')
+                : undefined
               : strategy === 'groq'
-                ? features.includes('function-calling') ||
-                  (!modelId.toLowerCase().includes('distil') &&
-                    !modelId.toLowerCase().includes('gemma'))
+                ? hasFeatureFacts
+                  ? features.includes('function-calling')
+                  : undefined
                 : strategy === 'tokenflux'
-                  ? true
-                  : model.supported_tools === true
+                  ? undefined
+                  : typeof model.supported_tools === 'boolean'
+                    ? model.supported_tools
+                    : undefined
 
         const hasVision =
           strategy === 'openrouter'
-            ? inputModalities.includes('image')
+            ? hasInputModalityFacts
+              ? inputModalities.includes('image')
+              : undefined
             : strategy === 'ppio'
-              ? features.includes('vision')
+              ? hasFeatureFacts
+                ? features.includes('vision')
+                : undefined
               : strategy === 'groq'
-                ? features.includes('vision') ||
-                  modelId.toLowerCase().includes('vision') ||
-                  modelId.toLowerCase().includes('llava')
+                ? hasFeatureFacts
+                  ? features.includes('vision')
+                  : undefined
                 : strategy === 'tokenflux'
-                  ? Boolean(model.supports_vision)
-                  : modelId.includes('vision') ||
-                    modelId.includes('gpt-4o') ||
-                    (typeof model.description === 'string' &&
-                      model.description.includes('vision')) ||
-                    (typeof model.description_en === 'string' &&
-                      model.description_en.toLowerCase().includes('vision')) ||
-                    modelId.includes('claude') ||
-                    modelId.includes('gemini') ||
-                    (modelId.includes('qwen') && modelId.includes('vl'))
+                  ? typeof model.supports_vision === 'boolean'
+                    ? model.supports_vision
+                    : undefined
+                  : typeof model.supports_vision === 'boolean'
+                    ? model.supports_vision
+                    : hasInputModalityFacts
+                      ? inputModalities.includes('image')
+                      : undefined
 
         const reasoning =
-          strategy === 'openrouter'
+          strategy === 'openrouter' && hasSupportedParameterFacts
             ? supportedParameters.includes('reasoning') ||
-              supportedParameters.includes('include_reasoning') ||
-              existingConfig.reasoning ||
-              false
-            : existingConfig.reasoning || false
-
-        this.syncProviderModelConfig(modelId, {
-          contextLength,
-          maxTokens,
-          functionCall: hasFunctionCalling,
-          vision: hasVision,
-          reasoning,
-          temperature: existingConfig.temperature,
-          type: existingConfig.type
-        })
+              supportedParameters.includes('include_reasoning')
+            : undefined
 
         models.push({
           id: modelId,
@@ -1940,17 +1833,17 @@ export class AiSdkProvider extends BaseLLMProvider {
           group: 'default',
           providerId: this.provider.id,
           isCustom: false,
-          contextLength,
-          maxTokens,
+          ...(contextLength !== undefined ? { contextLength } : {}),
+          ...(maxTokens !== undefined ? { maxTokens } : {}),
           description:
             typeof model.description === 'string'
               ? model.description
               : strategy === 'groq'
                 ? `Groq model ${modelId}`
                 : undefined,
-          vision: hasVision,
-          functionCall: hasFunctionCalling,
-          reasoning
+          ...(hasVision !== undefined ? { vision: hasVision } : {}),
+          ...(hasFunctionCalling !== undefined ? { functionCall: hasFunctionCalling } : {}),
+          ...(reasoning !== undefined ? { reasoning } : {})
         })
       }
 
@@ -2010,7 +1903,6 @@ export class AiSdkProvider extends BaseLLMProvider {
               : `${region.split('-')[0]}.${model.modelId}`,
             name: model.modelId?.replace('anthropic.', '') || '<Unknown>',
             providerId: this.provider.id,
-            maxTokens: 64_000,
             group: `AWS Bedrock Claude - ${
               model.modelId?.includes('opus')
                 ? 'opus'
@@ -2020,11 +1912,7 @@ export class AiSdkProvider extends BaseLLMProvider {
                     ? 'haiku'
                     : 'other'
             }`,
-            isCustom: false,
-            contextLength: 200_000,
-            vision: false,
-            functionCall: false,
-            reasoning: false
+            isCustom: false
           })) || []
       )
     } catch (error) {
@@ -2045,7 +1933,6 @@ export class AiSdkProvider extends BaseLLMProvider {
       .map((model) => {
         const modelId = model.id.trim()
         const isAnthropicModel = isOpenCodeGoAnthropicRoute(this.provider.id, modelId)
-        const existingConfig = this.getProviderModelConfig(modelId)
         const endpointType = isAnthropicModel ? 'anthropic' : 'openai'
 
         return {
@@ -2057,11 +1944,6 @@ export class AiSdkProvider extends BaseLLMProvider {
           endpointType,
           supportedEndpointTypes: [endpointType],
           ownedBy: typeof model.owned_by === 'string' ? model.owned_by : 'opencode',
-          contextLength: existingConfig.contextLength || DEFAULT_MODEL_CONTEXT_LENGTH,
-          maxTokens: existingConfig.maxTokens || DEFAULT_MODEL_MAX_TOKENS,
-          vision: existingConfig.vision || false,
-          functionCall: existingConfig.functionCall || false,
-          reasoning: existingConfig.reasoning || false,
           type: ModelType.Chat
         } satisfies MODEL_META
       })
@@ -2112,8 +1994,10 @@ export class AiSdkProvider extends BaseLLMProvider {
           typeof rawModel.owned_by === 'string' && rawModel.owned_by.trim().length > 0
             ? rawModel.owned_by.trim()
             : undefined
-        const rawSupportedEndpointTypes = Array.isArray(rawModel.supported_endpoint_types)
-          ? rawModel.supported_endpoint_types.filter(isNewApiEndpointType)
+        const supportedEndpointTypeValue = rawModel.supported_endpoint_types
+        const hasSupportedEndpointTypes = Array.isArray(supportedEndpointTypeValue)
+        const rawSupportedEndpointTypes = hasSupportedEndpointTypes
+          ? supportedEndpointTypeValue.filter(isNewApiEndpointType)
           : []
 
         const normalizedRawType =
@@ -2124,15 +2008,6 @@ export class AiSdkProvider extends BaseLLMProvider {
           normalizedRawType
         )
         const supportedEndpointTypes = rawSupportedEndpointTypes
-        const selectableEndpointTypes = resolveNewApiSelectableEndpointTypes(
-          rawSupportedEndpointTypes,
-          rawModel.id,
-          {
-            type,
-            rawType: normalizedRawType
-          }
-        )
-
         const contextLengthCandidate = [
           rawModel.context_length,
           rawModel.contextLength,
@@ -2140,7 +2015,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           rawModel.max_input_tokens
         ].find(
           (candidate): candidate is number =>
-            typeof candidate === 'number' && Number.isFinite(candidate)
+            typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0
         )
 
         const maxTokensCandidate = [
@@ -2149,7 +2024,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           rawModel.output_token_limit
         ].find(
           (candidate): candidate is number =>
-            typeof candidate === 'number' && Number.isFinite(candidate)
+            typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0
         )
 
         const capabilityFamilyHint = resolveCapabilityFamilyHint(rawModel.id, ownedBy)
@@ -2162,43 +2037,15 @@ export class AiSdkProvider extends BaseLLMProvider {
           },
           rawModel.id
         )
-        const capabilityIdentity = resolveModelCapabilityIdentity({
-          providerId: this.provider.id,
-          modelId: rawModel.id,
-          ownedBy,
-          endpointType: defaultEndpointType,
-          explicitProviderId: this.provider.capabilityProviderId
-        })
-        const capabilityModel = modelCapabilities.getProviderCapabilityModelMatch(
-          capabilityIdentity.providerId,
-          capabilityIdentity.catalogModelId ?? capabilityIdentity.requestModelId
-        )?.model
-        const catalogCapabilities = modelCapabilities.getCatalogCapabilitySnapshot(
-          capabilityIdentity.providerId,
-          capabilityIdentity.catalogModelId ?? capabilityIdentity.requestModelId
-        )
-        const capabilityReasoning = catalogCapabilities.supportsReasoning
-        const capabilityVision = capabilityModel
-          ? isImageInputSupported(capabilityModel)
-          : undefined
-        const capabilityFunctionCall =
-          typeof capabilityModel?.tool_call === 'boolean'
-            ? resolveModelFunctionCall(capabilityModel.tool_call)
-            : undefined
-
         return {
           id: rawModel.id,
           name: typeof rawModel.name === 'string' ? rawModel.name : rawModel.id,
           group: ownedBy ?? 'default',
           providerId: this.provider.id,
           isCustom: false,
-          supportedEndpointTypes,
-          ...(selectableEndpointTypes ? { selectableEndpointTypes } : {}),
+          ...(hasSupportedEndpointTypes ? { supportedEndpointTypes } : {}),
           endpointType: defaultEndpointType,
           ownedBy,
-          ...(capabilityVision !== undefined ? { vision: capabilityVision } : {}),
-          ...(capabilityFunctionCall !== undefined ? { functionCall: capabilityFunctionCall } : {}),
-          ...(capabilityModel || capabilityReasoning ? { reasoning: capabilityReasoning } : {}),
           ...(typeof rawModel.description === 'string'
             ? { description: rawModel.description }
             : {}),
@@ -2209,31 +2056,6 @@ export class AiSdkProvider extends BaseLLMProvider {
           ...(maxTokensCandidate !== undefined ? { maxTokens: maxTokensCandidate } : {})
         } satisfies MODEL_META
       })
-
-    for (const model of models) {
-      if (this.providerSettings.hasUserModelConfig(model.id, this.provider.id)) {
-        continue
-      }
-
-      const existingConfig = this.getProviderModelConfig(model.id)
-      this.updateProviderManagedModelConfig(model.id, {
-        ...existingConfig,
-        type: model.type ?? existingConfig.type,
-        vision: model.vision ?? existingConfig.vision,
-        functionCall: model.functionCall ?? existingConfig.functionCall,
-        reasoning: model.reasoning ?? existingConfig.reasoning,
-        apiEndpoint:
-          model.endpointType === 'image-generation'
-            ? ApiEndpointType.Image
-            : model.endpointType === 'video-generation'
-              ? ApiEndpointType.Video
-              : model.type === ModelType.TTS
-                ? ApiEndpointType.AudioSpeech
-                : ApiEndpointType.Chat,
-        endpointType: model.endpointType ?? existingConfig.endpointType,
-        ownedBy: model.ownedBy ?? existingConfig.ownedBy
-      })
-    }
 
     return models
   }

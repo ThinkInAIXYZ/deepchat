@@ -9,7 +9,6 @@ import type {
   ModelConfig,
   ProviderStreamOptions
 } from '@shared/types/provider'
-import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, type ProviderGenerateTextOptions } from '../baseProvider'
 import {
@@ -224,9 +223,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
         name: voice.name && voice.name.trim().length > 0 ? voice.name : voice.voice_id,
         group: 'default',
         providerId: this.provider.id,
-        isCustom: false,
-        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-        maxTokens: DEFAULT_MODEL_MAX_TOKENS
+        isCustom: false
       }))
 
       const defaultVoice: MODEL_META = {
@@ -234,9 +231,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
         name: 'Default Voice',
         group: 'default',
         providerId: this.provider.id,
-        isCustom: false,
-        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-        maxTokens: DEFAULT_MODEL_MAX_TOKENS
+        isCustom: false
       }
 
       return [defaultVoice, ...models]

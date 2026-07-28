@@ -203,6 +203,12 @@ describe('ProviderRuntime Integration Tests', () => {
     mockProviderSettings.getCustomModels = vi.fn().mockReturnValue([])
     mockProviderSettings.getProviderModels = vi.fn().mockReturnValue([])
     mockProviderSettings.getModelStatus = vi.fn().mockReturnValue(true)
+    mockProviderSettings.resolveEffectiveModels = vi.fn((models, providerId) =>
+      models.map((model) => ({
+        ...model,
+        ...mockProviderSettings.getModelConfig(model.id, providerId)
+      }))
+    )
 
     // Create new instance for each test
     providerRuntime = createProviderRuntime(mockProviderSettings)

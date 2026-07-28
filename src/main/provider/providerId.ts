@@ -6,6 +6,7 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   together: 'togetherai',
   github: 'github-models',
   'azure-openai': 'azure',
+  'openai-codex': 'openai',
   'aws-bedrock': 'amazon-bedrock',
   ppio: 'ppinfra',
   fireworks: 'fireworks-ai',

@@ -54,6 +54,7 @@ vi.mock('../../../src/main/provider/providerDbLoader', () => {
 import { ModelConfigHelper } from '../../../src/main/provider/modelConfig'
 import { modelCapabilities } from '../../../src/main/provider/modelCapabilities'
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
+import { resolveCapabilityIdentity } from '../../../src/main/provider/capabilityIdentity'
 
 describe('Provider DB strict matching and user overrides', () => {
   beforeEach(() => {
@@ -61,6 +62,25 @@ describe('Provider DB strict matching and user overrides', () => {
     state.mockStores.clear()
     state.mockDb = {
       providers: {
+        openai: {
+          id: 'openai',
+          name: 'OpenAI',
+          models: [
+            {
+              id: 'gpt-5.6-sol',
+              limit: { context: 1_050_000, output: 128_000 },
+              modalities: { input: ['text', 'image'], output: ['text'] },
+              tool_call: true
+            },
+            {
+              id: 'opaque-renderer',
+              type: 'imageGeneration',
+              limit: { context: 65_536, output: 8_192 },
+              modalities: { input: ['text'], output: ['image'] },
+              tool_call: false
+            }
+          ]
+        },
         'test-provider': {
           id: 'test-provider',
           name: 'Test Provider',
@@ -258,7 +278,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('returns provider DB config on strict provider+model match', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
     const cfg = helper.getModelConfig('test-model', 'test-provider')
     expect(cfg.maxTokens).toBe(2000)
     expect(cfg.contextLength).toBe(10000)
@@ -275,8 +295,20 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(cfg.temperature).toBe(0.6)
   })
 
+  it('resolves OpenAI Codex models through the OpenAI catalog identity', () => {
+    const helper = new ModelConfigHelper()
+
+    const config = helper.getModelConfig('gpt-5.6-sol', 'openai-codex')
+
+    expect(config).toMatchObject({
+      contextLength: 1_050_000,
+      maxTokens: 32_000,
+      reasoning: true
+    })
+  })
+
   it('applies partial fallbacks when limit fields are missing', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
     const cfg1 = helper.getModelConfig('partial-limit', 'test-provider')
     expect(cfg1.contextLength).toBe(16000)
     expect(cfg1.maxTokens).toBe(4096)
@@ -294,7 +326,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('caps provider-derived maxTokens defaults at 32000', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
     const cfg = helper.getModelConfig('large-output', 'test-provider')
 
     expect(cfg.contextLength).toBe(200000)
@@ -302,7 +334,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('preserves explicit tool_call=false from provider DB', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
     const cfg = helper.getModelConfig('tool-call-disabled', 'test-provider')
     expect(cfg.contextLength).toBe(16000)
     expect(cfg.maxTokens).toBe(4096)
@@ -310,7 +342,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('falls back to safe defaults when providerId is not provided', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
     const cfg = helper.getModelConfig('test-model')
     expect(cfg.contextLength).toBe(16000)
     expect(cfg.maxTokens).toBe(4096)
@@ -319,7 +351,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('uses capability identity instead of provider iteration order for proxy defaults', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const proxyConfig = helper.getModelConfig('kimi-k3', 'new-api')
     const directConfig = helper.getModelConfig('kimi-k3', 'moonshot')
@@ -341,7 +373,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('does not inherit globally unique defaults for custom models under a known provider', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const knownProviderConfig = helper.getModelConfig('foreign-only', 'test-provider')
     const proxyConfig = helper.getModelConfig('foreign-only', 'new-api')
@@ -358,7 +390,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('preserves user ownership when reading route-only configuration', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
     const helperInternals = helper as any
     const cacheKey = helperInternals.generateCacheKey('new-api', 'custom-route-model')
 
@@ -394,7 +426,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('keeps an explicit capability provider override authoritative for proxy defaults', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const config = helper.getModelConfig('kimi-k3', 'new-api', 'capability-team')
 
@@ -405,7 +437,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('uses safe defaults instead of selecting an ambiguous global model match', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const cfg = helper.getModelConfig('shared-model', 'new-api')
 
@@ -413,8 +445,125 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(cfg.maxTokens).toBe(4096)
   })
 
+  it('keeps New API catalog defaults stable across reset, refresh, and restart', () => {
+    const modelId = 'gpt-5.6-sol'
+    const providerId = 'new-api'
+    const providerFacts = {
+      id: modelId,
+      name: 'GPT-5.6 Sol',
+      group: 'openai',
+      providerId,
+      isCustom: false,
+      endpointType: 'openai' as const,
+      supportedEndpointTypes: ['openai'] as const,
+      ownedBy: 'openai',
+      type: ModelType.Chat
+    }
+    const identity = resolveCapabilityIdentity({
+      providerId,
+      modelId,
+      ownedBy: providerFacts.ownedBy,
+      endpointType: providerFacts.endpointType
+    })
+    const resolveConfig = (helper: ModelConfigHelper, facts = providerFacts) =>
+      helper.getModelConfig(modelId, providerId, undefined, identity, {
+        ...facts,
+        supportedEndpointTypes: [...facts.supportedEndpointTypes]
+      })
+    const helper = new ModelConfigHelper()
+
+    expect(resolveConfig(helper)).toMatchObject({
+      contextLength: 1_050_000,
+      maxTokens: 32_000,
+      isUserDefined: false
+    })
+
+    helper.resetModelConfig(modelId, providerId)
+    expect(resolveConfig(helper)).toMatchObject({
+      contextLength: 1_050_000,
+      maxTokens: 32_000
+    })
+
+    expect(
+      resolveConfig(helper, { ...providerFacts, name: 'GPT-5.6 Sol (refreshed)' })
+    ).toMatchObject({
+      contextLength: 1_050_000,
+      maxTokens: 32_000
+    })
+
+    const restartedHelper = new ModelConfigHelper()
+    expect(resolveConfig(restartedHelper)).toMatchObject({
+      contextLength: 1_050_000,
+      maxTokens: 32_000
+    })
+
+    restartedHelper.setModelConfig(modelId, providerId, {
+      ...resolveConfig(restartedHelper),
+      contextLength: 200_000
+    })
+    expect(resolveConfig(restartedHelper).contextLength).toBe(200_000)
+
+    restartedHelper.resetModelConfig(modelId, providerId)
+    expect(resolveConfig(restartedHelper)).toMatchObject({
+      contextLength: 1_050_000,
+      maxTokens: 32_000,
+      isUserDefined: false
+    })
+  })
+
+  it('keeps the catalog model type when sparse provider route facts omit it', () => {
+    const modelId = 'opaque-renderer'
+    const providerId = 'new-api'
+    const identity = resolveCapabilityIdentity({
+      providerId,
+      modelId,
+      ownedBy: 'openai',
+      endpointType: 'openai'
+    })
+    const helper = new ModelConfigHelper()
+    const config = helper.getModelConfig(modelId, providerId, undefined, identity, {
+      id: modelId,
+      name: 'Opaque Renderer',
+      group: 'openai',
+      providerId,
+      isCustom: false,
+      endpointType: 'openai',
+      supportedEndpointTypes: ['openai'],
+      ownedBy: 'openai'
+    })
+
+    expect(config.type).toBe(ModelType.ImageGeneration)
+    expect(config.apiEndpoint).toBe(ApiEndpointType.Image)
+  })
+
+  it('recomputes the API endpoint when provider facts override the catalog model type', () => {
+    const modelId = 'opaque-renderer'
+    const providerId = 'new-api'
+    const identity = resolveCapabilityIdentity({
+      providerId,
+      modelId,
+      ownedBy: 'openai',
+      endpointType: 'openai'
+    })
+    const helper = new ModelConfigHelper()
+    const config = helper.getModelConfig(modelId, providerId, undefined, identity, {
+      id: modelId,
+      name: 'Opaque Renderer',
+      group: 'openai',
+      providerId,
+      isCustom: false,
+      endpointType: 'openai',
+      supportedEndpointTypes: ['openai'],
+      ownedBy: 'openai',
+      type: ModelType.Chat
+    })
+
+    expect(config.type).toBe(ModelType.Chat)
+    expect(config.apiEndpoint).toBe(ApiEndpointType.Chat)
+  })
+
   it('prefers user config over provider DB and persists across restart', () => {
-    const helper1 = new ModelConfigHelper('1.0.0')
+    const helper1 = new ModelConfigHelper()
     const userCfg = {
       maxTokens: 64000,
       contextLength: 128000,
@@ -429,18 +578,18 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(read1).toMatchObject({ ...userCfg, isUserDefined: true })
 
     // Simulate app restart: new helper instance, same version
-    const helper2 = new ModelConfigHelper('1.0.0')
+    const helper2 = new ModelConfigHelper()
     const read2 = helper2.getModelConfig('test-model', 'test-provider')
     expect(read2).toMatchObject({ ...userCfg, isUserDefined: true })
 
     // Simulate version bump: non-user entries would be cleared, user entries remain
-    const helper3 = new ModelConfigHelper('2.0.0')
+    const helper3 = new ModelConfigHelper()
     const read3 = helper3.getModelConfig('test-model', 'test-provider')
     expect(read3).toMatchObject({ ...userCfg, isUserDefined: true })
   })
 
-  it('caps legacy provider-managed cache values on read while preserving user values', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+  it('rejects provider-derived imports while preserving user values', () => {
+    const helper = new ModelConfigHelper()
     const helperAny = helper as any
     const providerCacheKey = helperAny.generateCacheKey('test-provider', 'large-output')
 
@@ -467,21 +616,17 @@ describe('Provider DB strict matching and user overrides', () => {
 
     const providerRead = helper.getModelConfig('large-output', 'test-provider')
     expect(providerRead.maxTokens).toBe(32000)
+    expect(providerRead.contextLength).toBe(200000)
 
-    helper.setModelConfig(
-      'large-output',
-      'test-provider',
-      {
-        maxTokens: 64000,
-        contextLength: 128000,
-        temperature: 0.6,
-        vision: false,
-        functionCall: true,
-        reasoning: false,
-        type: ModelType.Chat
-      },
-      { source: 'user' }
-    )
+    helper.setModelConfig('large-output', 'test-provider', {
+      maxTokens: 64000,
+      contextLength: 128000,
+      temperature: 0.6,
+      vision: false,
+      functionCall: true,
+      reasoning: false,
+      type: ModelType.Chat
+    })
 
     const userRead = helper.getModelConfig('large-output', 'test-provider')
     expect(userRead.maxTokens).toBe(64000)
@@ -489,7 +634,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('matches DB with case-insensitive provider/model IDs for provider data (strictly lowercase in DB)', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
     const cfg = helper.getModelConfig('TEST-MODEL', 'TEST-PROVIDER')
     // DB lookup lowercases internally
     expect(cfg.contextLength).toBe(10000)
@@ -497,7 +642,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('matches mixed-case provider DB model IDs case-insensitively', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const cfg = helper.getModelConfig('minimax-m2.5', 'minimax')
 
@@ -508,7 +653,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('applies MiniMax-M3 provider defaults when the provider DB cache is stale', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const cfg = helper.getModelConfig('minimax-m3', 'minimax')
 
@@ -520,33 +665,20 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(cfg.forceInterleavedThinkingCompat).toBe(true)
   })
 
-  it('keeps MiniMax-M3 context floor after provider cache merge', () => {
-    const helper = new ModelConfigHelper('1.0.0')
-    const helperAny = helper as any
-    const providerCacheKey = helperAny.generateCacheKey('minimax', 'minimax-m3')
-
-    helper.importConfigs(
-      {
-        [providerCacheKey]: {
-          id: 'minimax-m3',
-          providerId: 'minimax',
-          source: 'provider',
-          config: {
-            maxTokens: 32000,
-            contextLength: 512000,
-            temperature: 0.6,
-            vision: true,
-            functionCall: true,
-            reasoning: true,
-            type: ModelType.Chat,
-            isUserDefined: false
-          }
-        }
-      },
-      false
-    )
-
-    const cfg = helper.getModelConfig('minimax-m3', 'minimax')
+  it('keeps MiniMax-M3 context floor after provider facts merge', () => {
+    const helper = new ModelConfigHelper()
+    const cfg = helper.getModelConfig('minimax-m3', 'minimax', undefined, undefined, {
+      id: 'minimax-m3',
+      name: 'MiniMax M3',
+      group: 'default',
+      providerId: 'minimax',
+      contextLength: 512000,
+      maxTokens: 32000,
+      vision: true,
+      functionCall: true,
+      reasoning: true,
+      type: ModelType.Chat
+    })
 
     expect(cfg.contextLength).toBe(1_000_000)
     expect(cfg.forceInterleavedThinkingCompat).toBe(true)
@@ -554,7 +686,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('prefers portrait defaults over legacy reasoning defaults', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const cfg = helper.getModelConfig('claude-portrait', 'test-provider')
 
@@ -564,7 +696,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('preserves provider portrait sentinel budgets', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const cfg = helper.getModelConfig('gemini-budget', 'test-provider')
 
@@ -573,7 +705,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('keeps none as the provider default effort without enabling reasoning', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const cfg = helper.getModelConfig('gpt-5.2', 'test-provider')
 
@@ -583,7 +715,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('forces Moonshot Kimi defaults to the thinking-enabled temperature when reasoning defaults on', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const cfg = helper.getModelConfig('moonshotai/kimi-k2.6', 'moonshot')
 
@@ -592,7 +724,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('forces Moonshot Kimi :thinking variants to keep reasoning on and temperature at 1.0', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+    const helper = new ModelConfigHelper()
 
     const cfg = helper.getModelConfig('moonshotai/kimi-k2.6:thinking', 'moonshot')
 
@@ -600,37 +732,31 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(cfg.temperature).toBe(1)
   })
 
-  it('recomputes reasoning-related fields for provider cached configs', () => {
-    const helper = new ModelConfigHelper('1.0.0')
+  it('merges provider facts without persisting derived configuration', () => {
+    const helper = new ModelConfigHelper()
 
-    helper.setModelConfig(
-      'claude-portrait',
-      'test-provider',
-      {
-        maxTokens: 8192,
-        contextLength: 65536,
-        temperature: 0.3,
-        vision: true,
-        functionCall: true,
-        reasoning: true,
-        type: ModelType.Chat,
-        thinkingBudget: 9999,
-        reasoningEffort: 'high',
-        verbosity: 'high'
-      },
-      { source: 'provider' }
-    )
-
-    const cfg = helper.getModelConfig('claude-portrait', 'test-provider')
+    const cfg = helper.getModelConfig('claude-portrait', 'test-provider', undefined, undefined, {
+      id: 'claude-portrait',
+      name: 'Claude Portrait',
+      group: 'default',
+      providerId: 'test-provider',
+      maxTokens: 8192,
+      contextLength: 65536,
+      vision: true,
+      functionCall: true,
+      reasoning: true,
+      type: ModelType.Chat
+    })
 
     expect(cfg.contextLength).toBe(65536)
     expect(cfg.maxTokens).toBe(8192)
     expect(cfg.vision).toBe(true)
     expect(cfg.functionCall).toBe(true)
-    expect(cfg.reasoning).toBe(false)
+    expect(cfg.reasoning).toBe(true)
     expect(cfg.thinkingBudget).toBe(2048)
     expect(cfg.reasoningEffort).toBeUndefined()
     expect(cfg.verbosity).toBeUndefined()
     expect(cfg.isUserDefined).toBe(false)
+    expect(helper.exportConfigs()).toEqual({})
   })
 })

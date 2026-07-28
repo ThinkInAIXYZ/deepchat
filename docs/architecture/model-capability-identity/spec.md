@@ -409,3 +409,13 @@ consumer instead of resolving the same model configuration and snapshot twice.
 
 None. The identity precedence, two-phase dependency, policy semantics, compatibility behavior, and
 validation requirements are fixed by this specification.
+
+## Evolution
+
+The later
+[`model-config-source-of-truth`](../model-config-source-of-truth/spec.md) architecture replaces the
+historical provider-derived model-config cache described by this specification. Capability identity
+remains authoritative, while sparse provider facts live only in `provider_models`, user intent
+lives only in `model_configs`, and complete effective configuration is derived at read time. Its
+one-time user-only migration is an evolution of storage ownership rather than a capability-identity
+cache.

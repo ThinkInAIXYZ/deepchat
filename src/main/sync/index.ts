@@ -417,7 +417,7 @@ export class SyncService {
           this.copyFile(backupDbSource.path, this.DB_PATH)
           this.cleanupDatabaseSidecarFiles(this.DB_PATH)
           if (usesSqliteConfigStorage) {
-            configImportService.ensureConfigMigrationMarker()
+            configImportService.finalizeSqliteConfigImport()
           } else {
             configImportService.importLegacyConfig(extractionDir, 'overwrite')
           }
@@ -452,7 +452,7 @@ export class SyncService {
             summary.tableCounts.new_sessions || summary.tableCounts.conversations || 0
 
           if (usesSqliteConfigStorage) {
-            configImportService.ensureConfigMigrationMarker()
+            configImportService.finalizeSqliteConfigImport()
           } else {
             configImportService.importLegacyConfig(extractionDir, 'increment')
           }

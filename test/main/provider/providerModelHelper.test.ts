@@ -121,7 +121,6 @@ describe('ProviderModelHelper cache', () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -146,7 +145,6 @@ describe('ProviderModelHelper cache', () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -175,7 +173,6 @@ describe('ProviderModelHelper cache', () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -199,11 +196,52 @@ describe('ProviderModelHelper cache', () => {
     expect(storeState.get).toHaveBeenCalledTimes(1)
   })
 
-  it('enriches cached NewAPI openai-only chat models with chat selectable endpoints', async () => {
+  it('removes stale catalog projections from provider-db-backed model storage', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () => undefined as unknown as ModelConfig,
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
+    })
+    const store = helper.getProviderModelStore('openai-codex')
+    store.set('models', [
+      {
+        id: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        group: 'Codex',
+        providerId: 'openai-codex',
+        isCustom: false,
+        contextLength: 16000,
+        maxTokens: 4096,
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        type: ModelType.Chat,
+        selectableEndpointTypes: ['openai']
+      }
+    ])
+    const storeState = storeStates.get('models_openai-codex')!
+    storeState.set.mockClear()
+
+    const models = helper.getProviderModels('openai-codex')
+
+    expect(models).toEqual([
+      {
+        id: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        group: 'Codex',
+        providerId: 'openai-codex',
+        isCustom: false
+      }
+    ])
+    expect(storeState.set).toHaveBeenCalledWith('models', models)
+  })
+
+  it('returns cached NewAPI route facts without deriving selectable endpoints', async () => {
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -228,16 +266,15 @@ describe('ProviderModelHelper cache', () => {
     expect(models[0]).toMatchObject({
       id: 'gpt-5.5',
       supportedEndpointTypes: ['openai'],
-      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
       endpointType: 'openai'
     })
+    expect(models[0]).not.toHaveProperty('selectableEndpointTypes')
   })
 
-  it('enriches cached NewAPI relay chat models with chat selectable endpoints', async () => {
+  it('does not materialize missing type fields in the raw cache', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -262,17 +299,15 @@ describe('ProviderModelHelper cache', () => {
     expect(models[0]).toMatchObject({
       id: 'proxy-chat',
       supportedEndpointTypes: ['openai'],
-      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
-      endpointType: 'openai',
-      type: ModelType.Chat
+      endpointType: 'openai'
     })
+    expect(models[0]).not.toHaveProperty('type')
   })
 
-  it('recomputes stale cached NewAPI selectable endpoint types', async () => {
+  it('drops selectable endpoints because they are an effective projection', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -297,18 +332,15 @@ describe('ProviderModelHelper cache', () => {
 
     expect(models[0]).toMatchObject({
       id: 'gpt-5.5',
-      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini']
+      supportedEndpointTypes: ['openai']
     })
+    expect(models[0]).not.toHaveProperty('selectableEndpointTypes')
   })
 
-  it('computes NewAPI selectable endpoint types from the resolved model type', async () => {
+  it('does not project effective types into cached provider facts', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: (modelId: string) =>
-        createModelConfig({
-          type: modelId === 'gpt-image-2' ? ModelType.ImageGeneration : ModelType.Embedding
-        }),
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -338,26 +370,16 @@ describe('ProviderModelHelper cache', () => {
 
     const models = helper.getProviderModels('new-api')
 
-    expect(models[0]).toMatchObject({
-      id: 'gpt-image-2',
-      type: ModelType.ImageGeneration,
-      selectableEndpointTypes: ['image-generation']
-    })
-    expect(models[1]).toMatchObject({
-      id: 'text-embedding-3-large',
-      type: ModelType.Embedding,
-      selectableEndpointTypes: ['openai']
-    })
+    expect(models[0]).not.toHaveProperty('type')
+    expect(models[0]).not.toHaveProperty('selectableEndpointTypes')
+    expect(models[1]).not.toHaveProperty('type')
+    expect(models[1]).not.toHaveProperty('selectableEndpointTypes')
   })
 
-  it('derives NewAPI media type from cached endpoint metadata before default chat config', async () => {
+  it('keeps cached media endpoint metadata sparse', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () =>
-        createModelConfig({
-          isUserDefined: false
-        }),
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -378,21 +400,14 @@ describe('ProviderModelHelper cache', () => {
 
     const models = helper.getProviderModels('new-api')
 
-    expect(models[0]).toMatchObject({
-      id: 'gpt-image-2',
-      type: ModelType.ImageGeneration,
-      selectableEndpointTypes: ['image-generation']
-    })
+    expect(models[0]).toMatchObject({ id: 'gpt-image-2', endpointType: 'image-generation' })
+    expect(models[0]).not.toHaveProperty('type')
   })
 
-  it('derives NewAPI media type from sparse cached media model ids', async () => {
+  it('does not derive media type from a sparse cached model id', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () =>
-        createModelConfig({
-          isUserDefined: false
-        }),
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -415,22 +430,16 @@ describe('ProviderModelHelper cache', () => {
 
     expect(models[0]).toMatchObject({
       id: 'gpt-image-2',
-      type: ModelType.ImageGeneration,
       supportedEndpointTypes: ['openai'],
-      selectableEndpointTypes: ['image-generation'],
       endpointType: 'openai'
     })
+    expect(models[0]).not.toHaveProperty('type')
   })
 
-  it('derives NewAPI media type when legacy user config has no explicit type', async () => {
+  it('does not mix legacy user config into cached provider facts', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () =>
-        createModelConfig({
-          type: undefined,
-          isUserDefined: true
-        }),
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -451,22 +460,14 @@ describe('ProviderModelHelper cache', () => {
 
     const models = helper.getProviderModels('new-api')
 
-    expect(models[0]).toMatchObject({
-      id: 'sora-3',
-      type: ModelType.VideoGeneration,
-      selectableEndpointTypes: ['video-generation']
-    })
+    expect(models[0]).toMatchObject({ id: 'sora-3', endpointType: 'video-generation' })
+    expect(models[0]).not.toHaveProperty('type')
   })
 
-  it('keeps explicit user NewAPI chat type ahead of provider media metadata', async () => {
+  it('does not mix explicit user type into cached provider facts', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () =>
-        createModelConfig({
-          type: ModelType.Chat,
-          isUserDefined: true
-        }),
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -489,19 +490,15 @@ describe('ProviderModelHelper cache', () => {
 
     expect(models[0]).toMatchObject({
       id: 'media-debug-model',
-      type: ModelType.Chat,
-      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini']
+      endpointType: 'image-generation'
     })
+    expect(models[0]).not.toHaveProperty('type')
   })
 
   it('uses targeted model reads for route metadata when the store supports them', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
-    const getModelConfig = vi.fn(() =>
-      createModelConfig({ endpointType: 'anthropic', ownedBy: 'moonshot' })
-    )
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -527,17 +524,14 @@ describe('ProviderModelHelper cache', () => {
     }))
 
     expect(helper.getProviderModelRouteMetadata('new-api', 'kimi-k3')).toEqual({
-      endpointType: 'anthropic',
+      endpointType: undefined,
       supportedEndpointTypes: ['openai', 'anthropic'],
       type: ModelType.Chat,
-      ownedBy: 'moonshot'
+      ownedBy: undefined
     })
     expect(getProviderModel).toHaveBeenCalledOnce()
     expect(getProviderModel).toHaveBeenCalledWith('provider', 'kimi-k3')
     expect(listModels).not.toHaveBeenCalled()
-    expect(getModelConfig).toHaveBeenCalledOnce()
-
-    getModelConfig.mockClear()
     expect(
       helper.getProviderModelRouteMetadata(
         'new-api',
@@ -548,14 +542,12 @@ describe('ProviderModelHelper cache', () => {
       endpointType: 'openai',
       ownedBy: 'moonshot'
     })
-    expect(getModelConfig).not.toHaveBeenCalled()
   })
 
   it('keeps stored non-New API model type authoritative in route metadata', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () => createModelConfig({ type: ModelType.Chat }),
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -592,20 +584,55 @@ describe('ProviderModelHelper cache', () => {
     })
   })
 
-  it('keeps cached route metadata independent from derived model defaults', async () => {
+  it('applies explicit user route intent after provider route facts', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
-    const getModelConfig = vi.fn(() =>
-      createModelConfig({ endpointType: 'anthropic', ownedBy: 'derived-owner' })
-    )
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig,
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
+    })
+    const model = {
+      ...createBaseModel('new-api', 'routed-model'),
+      type: ModelType.ImageGeneration,
+      endpointType: 'image-generation' as const,
+      ownedBy: 'provider-owner'
+    }
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [model])
+
+    expect(
+      helper.getProviderModelRouteMetadata(
+        'new-api',
+        model.id,
+        createModelConfig({
+          type: ModelType.Chat,
+          endpointType: 'anthropic',
+          ownedBy: 'user-owner',
+          isUserDefined: true
+        })
+      )
+    ).toMatchObject({
+      type: ModelType.Chat,
+      endpointType: 'anthropic',
+      ownedBy: 'user-owner'
+    })
+  })
+
+  it('does not synthesize a chat type for sparse route facts', async () => {
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
     })
     const providerModel = {
-      ...createBaseModel('new-api', 'aggregated-model'),
+      id: 'aggregated-model',
+      name: 'Aggregated Model',
+      group: 'default',
+      providerId: 'new-api',
+      isCustom: false,
       endpointType: undefined,
       ownedBy: undefined,
       supportedEndpointTypes: ['openai', 'anthropic'] as const
@@ -621,23 +648,21 @@ describe('ProviderModelHelper cache', () => {
     }))
 
     expect(helper.getProviderModels('new-api')[0]).toMatchObject({
-      endpointType: 'anthropic',
-      ownedBy: 'derived-owner'
+      endpointType: undefined,
+      ownedBy: undefined
     })
     expect(helper.getProviderModelRouteMetadata('new-api', providerModel.id, {})).toEqual({
       endpointType: undefined,
       supportedEndpointTypes: ['openai', 'anthropic'],
-      type: ModelType.Chat,
+      type: undefined,
       ownedBy: undefined
     })
-    expect(getModelConfig).toHaveBeenCalledOnce()
   })
 
   it('uses a fresh provider cache as negative evidence before reading a custom model', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () => createModelConfig(),
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -675,7 +700,6 @@ describe('ProviderModelHelper cache', () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -700,7 +724,6 @@ describe('ProviderModelHelper cache', () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -712,7 +735,7 @@ describe('ProviderModelHelper cache', () => {
   })
 })
 
-describe('ProviderSettings provider model cache invalidation', () => {
+describe('ProviderSettings effective model projection', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.useFakeTimers()
@@ -724,7 +747,7 @@ describe('ProviderSettings provider model cache invalidation', () => {
     vi.useRealTimers()
   })
 
-  it('refreshes cached provider models after setModelConfig and resetModelConfig', async () => {
+  it('applies set and reset immediately without invalidating raw model facts', async () => {
     const [{ ProviderSettings }, { ProviderModelHelper }] = await Promise.all([
       import('../../../src/main/provider/settings'),
       import('../../../src/main/provider/providerModelHelper')
@@ -734,8 +757,21 @@ describe('ProviderSettings provider model cache invalidation', () => {
     const cacheKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
     const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       modelConfigHelper: {
-        getModelConfig: vi.fn((modelId: string, providerId?: string) =>
-          providerId ? configState.get(cacheKey(providerId, modelId)) : undefined
+        getModelRouteConfig: vi.fn(() => ({})),
+        getModelConfig: vi.fn(
+          (
+            modelId: string,
+            providerId?: string,
+            _capabilityProviderId?: string,
+            _resolvedIdentity?: unknown,
+            providerFacts?: ReturnType<typeof createBaseModel>
+          ) =>
+            (providerId ? configState.get(cacheKey(providerId, modelId)) : undefined) ??
+            createModelConfig({
+              maxTokens: providerFacts?.maxTokens,
+              contextLength: providerFacts?.contextLength,
+              type: providerFacts?.type
+            })
         ),
         setModelConfig: vi.fn((modelId: string, providerId: string, config: ModelConfig) => {
           configState.set(cacheKey(providerId, modelId), config)
@@ -757,8 +793,6 @@ describe('ProviderSettings provider model cache invalidation', () => {
 
     presenterWithHelper.providerModelHelper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: (modelId: string, providerId?: string) =>
-        presenter.getModelConfig(modelId, providerId),
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -788,7 +822,7 @@ describe('ProviderSettings provider model cache invalidation', () => {
     expect(resetModels[0].maxTokens).toBe(8000)
   })
 
-  it('refreshes cached provider models after importModelConfigs', async () => {
+  it('applies imported user config without invalidating raw model facts', async () => {
     const [{ ProviderSettings }, { ProviderModelHelper }] = await Promise.all([
       import('../../../src/main/provider/settings'),
       import('../../../src/main/provider/providerModelHelper')
@@ -798,8 +832,21 @@ describe('ProviderSettings provider model cache invalidation', () => {
     const cacheKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
     const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       modelConfigHelper: {
-        getModelConfig: vi.fn((modelId: string, providerId?: string) =>
-          providerId ? configState.get(cacheKey(providerId, modelId)) : undefined
+        getModelRouteConfig: vi.fn(() => ({})),
+        getModelConfig: vi.fn(
+          (
+            modelId: string,
+            providerId?: string,
+            _capabilityProviderId?: string,
+            _resolvedIdentity?: unknown,
+            providerFacts?: ReturnType<typeof createBaseModel>
+          ) =>
+            (providerId ? configState.get(cacheKey(providerId, modelId)) : undefined) ??
+            createModelConfig({
+              maxTokens: providerFacts?.maxTokens,
+              contextLength: providerFacts?.contextLength,
+              type: providerFacts?.type
+            })
         ),
         setModelConfig: vi.fn(),
         resetModelConfig: vi.fn(),
@@ -823,8 +870,6 @@ describe('ProviderSettings provider model cache invalidation', () => {
 
     presenterWithHelper.providerModelHelper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
-      getModelConfig: (modelId: string, providerId?: string) =>
-        presenter.getModelConfig(modelId, providerId),
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -905,13 +950,6 @@ describe('ProviderSettings provider DB model mapping', () => {
         type: ModelType.Rerank
       })
     ])
-    expect(getCapabilitySnapshot).toHaveBeenNthCalledWith(1, {
-      providerId: 'aihubmix',
-      modelId: 'text-embedding-3-small'
-    })
-    expect(getCapabilitySnapshot).toHaveBeenNthCalledWith(2, {
-      providerId: 'aihubmix',
-      modelId: 'rerank-v1'
-    })
+    expect(getCapabilitySnapshot).not.toHaveBeenCalled()
   })
 })

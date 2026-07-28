@@ -13,7 +13,6 @@ import type {
   ProgressResponse
 } from '@shared/types/provider'
 import { ModelType } from '@shared/model'
-import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import {
   BaseLLMProvider,
   SUMMARY_TITLES_PROMPT,
@@ -96,15 +95,20 @@ export class OllamaProvider extends BaseLLMProvider {
     }
   }
 
-  private mergeCapabilities(...sources: Array<string[] | undefined>): string[] {
+  private mergeCapabilities(...sources: Array<string[] | undefined>): string[] | undefined {
+    if (!sources.some(Array.isArray)) {
+      return undefined
+    }
+
     return Array.from(new Set(sources.flatMap((source) => (Array.isArray(source) ? source : []))))
   }
 
-  private normalizeCapabilities(capabilities?: string[]): string[] {
-    const capabilitySet = new Set(Array.isArray(capabilities) ? capabilities.filter(Boolean) : [])
-    if (capabilitySet.size === 0) {
-      capabilitySet.add('chat')
+  private normalizeCapabilities(capabilities?: string[]): string[] | undefined {
+    if (!Array.isArray(capabilities)) {
+      return undefined
     }
+
+    const capabilitySet = new Set(capabilities.filter(Boolean))
     if (capabilitySet.has('completion')) {
       capabilitySet.add('chat')
     }
@@ -194,8 +198,7 @@ export class OllamaProvider extends BaseLLMProvider {
         families: ['default'],
         parameter_size: '',
         quantization_level: ''
-      },
-      capabilities: ['chat']
+      }
     }
   }
 
@@ -332,22 +335,21 @@ export class OllamaProvider extends BaseLLMProvider {
     }
   }
 
-  private resolveOllamaModelMeta(model: OllamaModel, cachedModel?: MODEL_META): MODEL_META {
-    const capabilitySet = new Set(
-      this.mergeCapabilities(
-        model.capabilities,
-        cachedModel?.type === ModelType.Embedding ? ['embedding'] : undefined,
-        cachedModel?.vision ? ['vision'] : undefined,
-        cachedModel?.functionCall ? ['tools'] : undefined,
-        cachedModel?.reasoning ? ['thinking'] : undefined
-      )
-    )
-
+  private resolveOllamaModelMeta(model: OllamaModel): MODEL_META {
+    const hasCapabilityFacts = Array.isArray(model.capabilities)
+    const capabilitySet = new Set(model.capabilities ?? [])
+    const hasVisionEmbedding =
+      typeof model.model_info?.vision?.embedding_length === 'number' &&
+      Number.isFinite(model.model_info.vision.embedding_length) &&
+      model.model_info.vision.embedding_length > 0
+    const contextLength = model.model_info?.context_length
     const resolvedType = capabilitySet.has('embedding')
       ? ModelType.Embedding
-      : (cachedModel?.type ?? ModelType.Chat)
+      : capabilitySet.has('chat') || capabilitySet.has('completion')
+        ? ModelType.Chat
+        : undefined
 
-    const family = model.details?.family || cachedModel?.group || 'default'
+    const family = model.details?.family || 'default'
     const parameterSize = model.details?.parameter_size || ''
     const description = `${parameterSize} ${family} model`.trim()
 
@@ -355,18 +357,18 @@ export class OllamaProvider extends BaseLLMProvider {
       id: model.name,
       name: model.name,
       providerId: this.provider.id,
-      contextLength:
-        model.model_info?.context_length ??
-        cachedModel?.contextLength ??
-        DEFAULT_MODEL_CONTEXT_LENGTH,
-      maxTokens: cachedModel?.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS,
+      ...(typeof contextLength === 'number' && Number.isFinite(contextLength) && contextLength > 0
+        ? { contextLength }
+        : {}),
       isCustom: false,
       group: family,
       description,
-      vision: capabilitySet.has('vision') || Boolean(model.model_info?.vision?.embedding_length),
-      functionCall: capabilitySet.has('tools'),
-      reasoning: capabilitySet.has('thinking'),
-      type: resolvedType
+      ...(hasCapabilityFacts || hasVisionEmbedding
+        ? { vision: capabilitySet.has('vision') || hasVisionEmbedding }
+        : {}),
+      ...(hasCapabilityFacts ? { functionCall: capabilitySet.has('tools') } : {}),
+      ...(hasCapabilityFacts ? { reasoning: capabilitySet.has('thinking') } : {}),
+      ...(resolvedType !== undefined ? { type: resolvedType } : {})
     }
   }
 
@@ -450,10 +452,6 @@ export class OllamaProvider extends BaseLLMProvider {
         this.listRunningModels()
       ])
 
-      const cachedModels = new Map(
-        this.providerSettings.getProviderModels(this.provider.id).map((model) => [model.id, model])
-      )
-
       const mergedModels = new Map<string, OllamaModel>()
       for (const localModel of localModels) {
         mergedModels.set(localModel.name, localModel)
@@ -468,7 +466,7 @@ export class OllamaProvider extends BaseLLMProvider {
 
       const resolvedModels = Array.from(mergedModels.values()).map((model) => {
         this.providerSettings.ensureModelStatus(this.provider.id, model.name, true)
-        return this.resolveOllamaModelMeta(model, cachedModels.get(model.name))
+        return this.resolveOllamaModelMeta(model)
       })
 
       return resolvedModels
@@ -478,15 +476,9 @@ export class OllamaProvider extends BaseLLMProvider {
         id: model.id,
         name: model.name,
         providerId: this.provider.id,
-        contextLength: model.contextLength,
-        maxTokens: model.maxTokens,
         isCustom: false,
         group: model.group || 'default',
-        description: undefined,
-        vision: model.vision || false,
-        functionCall: model.functionCall || false,
-        reasoning: model.reasoning || false,
-        ...(model.type ? { type: model.type } : {})
+        description: undefined
       }))
     }
   }
@@ -608,22 +600,18 @@ export class OllamaProvider extends BaseLLMProvider {
       const family = model.details.family
       const architecture = this.findModelInfoString(entries, 'general.architecture')
       const exactPrefixes = Array.from(new Set([family, architecture].filter(Boolean) as string[]))
-      const context_length =
-        this.findModelInfoNumber(
-          entries,
-          exactPrefixes.map((prefix) => `${prefix}.context_length`),
-          (key) =>
-            key.endsWith('.context_length') && !key.includes('.vision.') && !key.includes('.audio.')
-        ) ?? DEFAULT_MODEL_CONTEXT_LENGTH
-      const embedding_length =
-        this.findModelInfoNumber(
-          entries,
-          exactPrefixes.map((prefix) => `${prefix}.embedding_length`),
-          (key) =>
-            key.endsWith('.embedding_length') &&
-            !key.includes('.vision.') &&
-            !key.includes('.audio.')
-        ) ?? 512
+      const contextLength = this.findModelInfoNumber(
+        entries,
+        exactPrefixes.map((prefix) => `${prefix}.context_length`),
+        (key) =>
+          key.endsWith('.context_length') && !key.includes('.vision.') && !key.includes('.audio.')
+      )
+      const embeddingLength = this.findModelInfoNumber(
+        entries,
+        exactPrefixes.map((prefix) => `${prefix}.embedding_length`),
+        (key) =>
+          key.endsWith('.embedding_length') && !key.includes('.vision.') && !key.includes('.audio.')
+      )
       const visionEmbeddingLength = this.findModelInfoNumber(
         entries,
         exactPrefixes.map((prefix) => `${prefix}.vision.embedding_length`),
@@ -653,26 +641,19 @@ export class OllamaProvider extends BaseLLMProvider {
           ...showResponse.details
         },
         model_info: {
-          context_length,
-          embedding_length,
+          ...(contextLength !== undefined ? { context_length: contextLength } : {}),
+          ...(embeddingLength !== undefined ? { embedding_length: embeddingLength } : {}),
           ...(visionEmbeddingLength ? { vision: { embedding_length: visionEmbeddingLength } } : {}),
           ...(Object.keys(general).length > 0 ? { general } : {})
         },
-        capabilities
+        ...(capabilities !== undefined ? { capabilities } : {})
       }
     } catch (error) {
       console.warn(
-        `Failed to get info for model ${model.name}, using defaults:`,
+        `Failed to get info for model ${model.name}, preserving sparse metadata:`,
         (error as Error).message
       )
-      return {
-        ...model,
-        model_info: {
-          context_length: 4096,
-          embedding_length: 512
-        },
-        capabilities: this.normalizeCapabilities(['chat'])
-      }
+      return model
     }
   }
 

@@ -194,8 +194,6 @@ export class AcpProvider extends BaseLLMProvider {
           group: 'ACP',
           providerId: this.provider.id, // Ensure providerId is explicitly set
           isCustom: true,
-          contextLength: 8192,
-          maxTokens: 4096,
           description: agent.description || agent.command,
           functionCall: true,
           reasoning: false,

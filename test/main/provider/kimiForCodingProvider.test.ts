@@ -143,17 +143,13 @@ describe('AiSdkProvider kimi-for-coding', () => {
     expect(mockGetProvider).toHaveBeenCalledWith('kimi-for-coding')
     expect(models).toHaveLength(1)
     expect(models).toEqual([
-      expect.objectContaining({
+      {
         id: 'kimi-for-coding',
         name: 'K2.7 Code',
         group: 'Kimi Code',
         providerId: 'kimi-for-coding',
-        vision: true,
-        functionCall: true,
-        reasoning: true,
-        contextLength: 262144,
-        maxTokens: 32000
-      })
+        isCustom: false
+      }
     ])
   })
 

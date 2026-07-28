@@ -214,12 +214,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         name: m.name,
         group: m.group,
         providerId: m.providerId,
-        isCustom: m.isCustom,
-        contextLength: m.contextLength,
-        maxTokens: m.maxTokens,
-        vision: m.vision,
-        functionCall: m.functionCall,
-        reasoning: m.reasoning
+        isCustom: m.isCustom
       }))
     }
 

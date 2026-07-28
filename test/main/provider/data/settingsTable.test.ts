@@ -112,6 +112,91 @@ describeIfSqlite('ProviderSettingsTable', () => {
       id: 'gpt-4',
       providerId: 'openai'
     })
+    expect(
+      table.setModelConfigStoreEntry('openai-_-provider-cache', {
+        id: 'provider-cache',
+        providerId: 'openai',
+        source: 'provider',
+        config: { maxTokens: 4096, isUserDefined: false }
+      })
+    ).toBe(false)
+    expect(table.getModelConfigStoreEntry('openai-_-provider-cache')).toBeUndefined()
+
+    db.close()
+  })
+
+  it('migrates legacy rows using explicit user intent without value heuristics', () => {
+    const { db, table } = createTable()
+    const insert = db.prepare(
+      `INSERT INTO model_configs (
+        cache_key, provider_id, model_id, source, config_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 1, 1)`
+    )
+    insert.run(
+      '__meta__',
+      '',
+      '',
+      null,
+      JSON.stringify({ userConfigKeys: ['legacy-user', 'explicit-provider'] })
+    )
+    insert.run(
+      'legacy-user',
+      'openai',
+      'legacy',
+      null,
+      JSON.stringify({
+        id: 'legacy',
+        providerId: 'openai',
+        config: { maxTokens: 1234, isUserDefined: false }
+      })
+    )
+    insert.run(
+      'explicit-provider',
+      'openai',
+      'provider-cache',
+      'provider',
+      JSON.stringify({
+        id: 'provider-cache',
+        providerId: 'openai',
+        source: 'provider',
+        config: { maxTokens: 4096, isUserDefined: false }
+      })
+    )
+    insert.run(
+      'unknown-legacy',
+      'openai',
+      'unknown',
+      null,
+      JSON.stringify({
+        id: 'unknown',
+        providerId: 'openai',
+        config: { maxTokens: 9999, isUserDefined: false }
+      })
+    )
+    insert.run(
+      'explicit-user',
+      'openai',
+      'custom',
+      'user',
+      JSON.stringify({
+        id: 'custom',
+        providerId: 'openai',
+        source: 'user',
+        config: { maxTokens: 200000, isUserDefined: true }
+      })
+    )
+
+    expect(table.migrateModelConfigsToUserOnly()).toEqual({ removed: 3, preserved: 2 })
+    expect(table.listModelConfigStore()).toEqual({
+      'legacy-user': expect.objectContaining({
+        source: 'user',
+        config: expect.objectContaining({ maxTokens: 1234, isUserDefined: true })
+      }),
+      'explicit-user': expect.objectContaining({
+        source: 'user',
+        config: expect.objectContaining({ maxTokens: 200000, isUserDefined: true })
+      })
+    })
 
     db.close()
   })

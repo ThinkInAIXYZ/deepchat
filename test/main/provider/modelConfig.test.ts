@@ -9,7 +9,6 @@ import { modelCapabilities } from '../../../src/main/provider/modelCapabilities'
 // Mock electron-store with in-memory storage
 const mockStores = new Map<string, Record<string, any>>()
 
-const CURRENT_VERSION = '1.0.0'
 const rebuildModelCapabilities = () => {
   const capabilities = modelCapabilities as unknown as { rebuildIndexFromDb: () => void }
   capabilities.rebuildIndexFromDb()
@@ -75,7 +74,7 @@ describe('ModelConfigHelper', () => {
     mockStores.clear()
 
     // Initialize test instances
-    modelConfigHelper = new ModelConfigHelper(CURRENT_VERSION)
+    modelConfigHelper = new ModelConfigHelper()
   })
 
   afterEach(() => {
@@ -282,44 +281,62 @@ describe('ModelConfigHelper', () => {
     })
   })
 
-  describe('Metadata synchronization and provider-managed configs', () => {
+  describe('User-only persistence', () => {
     const providerId = 'openai'
     const providerManagedModelId = 'gpt-5-mini'
     const userManagedModelId = 'custom-user-model'
 
-    it('marks provider-managed configs as non-user entries', () => {
-      const providerConfig: ModelConfig = {
-        maxTokens: 64000,
-        contextLength: 128000,
-        temperature: 0.4,
-        vision: false,
-        functionCall: true,
-        reasoning: false,
-        type: ModelType.Chat
-      }
-
-      modelConfigHelper.setModelConfig(providerManagedModelId, providerId, providerConfig, {
-        source: 'provider'
+    it('rejects provider-derived entries during import', () => {
+      const helperAny = modelConfigHelper as any
+      const providerKey = helperAny.generateCacheKey(providerId, providerManagedModelId)
+      modelConfigHelper.importConfigs({
+        [providerKey]: {
+          id: providerManagedModelId,
+          providerId,
+          source: 'provider',
+          config: {
+            maxTokens: 64000,
+            contextLength: 128000,
+            vision: false,
+            functionCall: true,
+            reasoning: false,
+            type: ModelType.Chat,
+            isUserDefined: false
+          }
+        }
       })
 
       expect(modelConfigHelper.hasUserConfig(providerManagedModelId, providerId)).toBe(false)
-
-      const storedConfig = modelConfigHelper.getModelConfig(providerManagedModelId, providerId)
-      expect(storedConfig.isUserDefined).toBe(false)
-      expect(storedConfig.maxTokens).toBe(32000)
+      expect(modelConfigHelper.exportConfigs()).not.toHaveProperty(providerKey)
     })
 
-    it('keeps user configs but drops provider configs when defaults change', () => {
-      const providerConfig: ModelConfig = {
-        maxTokens: 4321,
-        contextLength: 8765,
-        temperature: 0.3,
-        vision: false,
-        functionCall: false,
-        reasoning: false,
-        type: ModelType.Chat
-      }
+    it('preserves legacy user entries whose source was serialized as null', () => {
+      const helperAny = modelConfigHelper as any
+      const userKey = helperAny.generateCacheKey(providerId, userManagedModelId)
+      modelConfigHelper.importConfigs({
+        [userKey]: {
+          id: userManagedModelId,
+          providerId,
+          source: null,
+          config: {
+            maxTokens: 9876,
+            contextLength: 5432,
+            isUserDefined: true
+          }
+        } as any
+      })
 
+      expect(modelConfigHelper.exportConfigs()[userKey]).toMatchObject({
+        source: 'user',
+        config: {
+          maxTokens: 9876,
+          contextLength: 5432,
+          isUserDefined: true
+        }
+      })
+    })
+
+    it('keeps only user intent across helper instances', () => {
       const userConfig: ModelConfig = {
         maxTokens: 9876,
         contextLength: 5432,
@@ -330,16 +347,12 @@ describe('ModelConfigHelper', () => {
         type: ModelType.Chat
       }
 
-      modelConfigHelper.setModelConfig(providerManagedModelId, providerId, providerConfig, {
-        source: 'provider'
-      })
       modelConfigHelper.setModelConfig(userManagedModelId, providerId, userConfig)
 
       const helperAny = modelConfigHelper as any
-      const providerKey = helperAny.generateCacheKey(providerId, providerManagedModelId)
       const userKey = helperAny.generateCacheKey(providerId, userManagedModelId)
 
-      const refreshedHelper = new ModelConfigHelper('2.0.0')
+      const refreshedHelper = new ModelConfigHelper()
 
       expect(refreshedHelper.hasUserConfig(userManagedModelId, providerId)).toBe(true)
       expect(refreshedHelper.getModelConfig(userManagedModelId, providerId).maxTokens).toBe(
@@ -347,16 +360,7 @@ describe('ModelConfigHelper', () => {
       )
 
       expect(refreshedHelper.hasUserConfig(providerManagedModelId, providerId)).toBe(false)
-
-      const refreshedProviderConfig = refreshedHelper.getModelConfig(
-        providerManagedModelId,
-        providerId
-      )
-      expect(refreshedProviderConfig.maxTokens).not.toBe(providerConfig.maxTokens)
-      expect(refreshedProviderConfig.isUserDefined).toBe(false)
-
       const refreshedStore = (refreshedHelper as any).modelConfigStore
-      expect(refreshedStore.get(providerKey)).toBeUndefined()
       expect(refreshedStore.get(userKey)).toBeDefined()
     })
   })

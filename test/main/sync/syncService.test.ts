@@ -7,7 +7,7 @@ import type { SettingsDatabase } from '@/settings/data/database'
 
 const configImportMocks = vi.hoisted(() => ({
   importLegacyConfig: vi.fn(),
-  ensureConfigMigrationMarker: vi.fn(),
+  finalizeSqliteConfigImport: vi.fn(),
   readManifest: vi.fn()
 }))
 
@@ -270,8 +270,8 @@ vi.mock('../../../src/main/sync/configImportService', async () => {
       configImportMocks.importLegacyConfig(extractionDir, mode)
     }
 
-    ensureConfigMigrationMarker() {
-      configImportMocks.ensureConfigMigrationMarker()
+    finalizeSqliteConfigImport() {
+      configImportMocks.finalizeSqliteConfigImport()
     }
   }
 
@@ -331,7 +331,7 @@ describe('SyncService backup import', () => {
 
   beforeEach(() => {
     configImportMocks.importLegacyConfig.mockClear()
-    configImportMocks.ensureConfigMigrationMarker.mockClear()
+    configImportMocks.finalizeSqliteConfigImport.mockClear()
     configImportMocks.readManifest.mockClear()
     cloudStorageMocks.testConnection.mockReset()
     cloudStorageMocks.uploadBackup.mockReset()
@@ -731,7 +731,7 @@ describe('SyncService backup import', () => {
 
     const result = await runImport(backupFile, ImportMode.INCREMENT)
     expect(result.success).toBe(true)
-    expect(configImportMocks.ensureConfigMigrationMarker).toHaveBeenCalledTimes(1)
+    expect(configImportMocks.finalizeSqliteConfigImport).toHaveBeenCalledTimes(1)
     expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
 
     const state = readMockDbState(path.join(userDataDir, 'app_db', 'agent.db'))
@@ -823,7 +823,7 @@ describe('SyncService backup import', () => {
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
     expect(sqlitePresenter.importLegacyChatDb).not.toHaveBeenCalled()
     expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
-    expect(configImportMocks.ensureConfigMigrationMarker).not.toHaveBeenCalled()
+    expect(configImportMocks.finalizeSqliteConfigImport).not.toHaveBeenCalled()
   })
 
   it('rejects unsupported future backup versions before touching local data', async () => {
@@ -859,7 +859,7 @@ describe('SyncService backup import', () => {
     expect(result.message).toBe('sync.error.unsupportedBackupVersion')
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
     expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
-    expect(configImportMocks.ensureConfigMigrationMarker).not.toHaveBeenCalled()
+    expect(configImportMocks.finalizeSqliteConfigImport).not.toHaveBeenCalled()
   })
 
   it('rejects unsupported future config schema versions before touching local data', async () => {
@@ -897,7 +897,7 @@ describe('SyncService backup import', () => {
     expect(result.message).toBe('sync.error.unsupportedBackupVersion')
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
     expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
-    expect(configImportMocks.ensureConfigMigrationMarker).not.toHaveBeenCalled()
+    expect(configImportMocks.finalizeSqliteConfigImport).not.toHaveBeenCalled()
   })
 
   it('rejects v2 backups without sqlite config metadata before touching local data', async () => {
@@ -933,7 +933,7 @@ describe('SyncService backup import', () => {
     expect(result.message).toBe('sync.error.noValidBackup')
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
     expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
-    expect(configImportMocks.ensureConfigMigrationMarker).not.toHaveBeenCalled()
+    expect(configImportMocks.finalizeSqliteConfigImport).not.toHaveBeenCalled()
   })
 
   it('returns a specific error when an encrypted backup has no local database key', async () => {

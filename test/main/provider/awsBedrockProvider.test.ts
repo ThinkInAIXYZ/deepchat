@@ -3,13 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AWS_BEDROCK_PROVIDER } from '@shared/types/provider'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
-const { mockBedrockClient, mockBedrockSend, mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } =
-  vi.hoisted(() => ({
-    mockBedrockClient: vi.fn(),
-    mockBedrockSend: vi.fn(),
-    mockRunAiSdkCoreStream: vi.fn(),
-    mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'ok' })
-  }))
+const {
+  mockBedrockClient,
+  mockBedrockSend,
+  mockGetProvider,
+  mockRunAiSdkCoreStream,
+  mockRunAiSdkGenerateText
+} = vi.hoisted(() => ({
+  mockBedrockClient: vi.fn(),
+  mockBedrockSend: vi.fn(),
+  mockGetProvider: vi.fn(),
+  mockRunAiSdkCoreStream: vi.fn(),
+  mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'ok' })
+}))
 
 vi.mock('electron', () => ({
   app: {
@@ -37,22 +43,19 @@ vi.mock('../../../src/main/provider/aiSdk', () => ({
   runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
+vi.mock('../../../src/main/provider/providerDbLoader', () => ({
+  providerDbLoader: {
+    subscribeCatalogChanges: vi.fn(),
+    getDb: vi.fn().mockReturnValue(null),
+    getProvider: mockGetProvider,
+    getModel: vi.fn()
+  }
+}))
+
 const createProviderSettings = (): ProviderSettingsPort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
-    getDbProviderModels: vi.fn().mockReturnValue([
-      {
-        id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-        name: 'Claude 3.5 Sonnet',
-        group: 'Bedrock Claude',
-        contextLength: 200000,
-        maxTokens: 64000,
-        vision: false,
-        functionCall: false,
-        reasoning: false
-      }
-    ]),
     getModelConfig: vi.fn().mockReturnValue(undefined),
     getSetting: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
@@ -75,6 +78,29 @@ const createProvider = (overrides?: Partial<AWS_BEDROCK_PROVIDER>): AWS_BEDROCK_
 describe('AiSdkProvider aws-bedrock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetProvider.mockReturnValue({
+      id: 'amazon-bedrock',
+      name: 'Amazon Bedrock',
+      models: [
+        {
+          id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+          display_name: 'Claude 3.5 Sonnet',
+          modalities: {
+            input: ['text'],
+            output: ['text']
+          },
+          limit: {
+            context: 200000,
+            output: 64000
+          },
+          tool_call: false,
+          reasoning: {
+            supported: false
+          },
+          type: 'chat'
+        }
+      ]
+    })
     mockBedrockClient.mockImplementation(() => ({
       config: {
         region: vi.fn().mockResolvedValue('us-east-1')
@@ -125,6 +151,11 @@ describe('AiSdkProvider aws-bedrock', () => {
         providerId: 'aws-bedrock'
       })
     ])
+    expect(models[0]).not.toHaveProperty('contextLength')
+    expect(models[0]).not.toHaveProperty('maxTokens')
+    expect(models[0]).not.toHaveProperty('vision')
+    expect(models[0]).not.toHaveProperty('functionCall')
+    expect(models[0]).not.toHaveProperty('reasoning')
   })
 
   it('falls back to the provider DB snapshot when the Bedrock catalog lookup fails', async () => {
@@ -136,7 +167,7 @@ describe('AiSdkProvider aws-bedrock', () => {
     expect(models).toEqual([
       expect.objectContaining({
         id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-        group: 'Bedrock Claude'
+        group: 'default'
       })
     ])
   })

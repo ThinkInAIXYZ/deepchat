@@ -1,8 +1,8 @@
-import { ApiEndpointType, ModelType, isNewApiEndpointType } from '@shared/model'
+import { ApiEndpointType, ModelType } from '@shared/model'
 import type {
   IModelConfig,
+  MODEL_META,
   ModelConfig,
-  ModelConfigSource,
   ModelRouteConfig
 } from '@shared/types/provider'
 import {
@@ -30,11 +30,16 @@ import { modelCapabilities, type CapabilityModelMatch } from './modelCapabilitie
 import type { StoreLike } from '@/config/storeLike'
 import { resolveCapabilityIdentity } from './capabilityIdentity'
 import type { ResolvedCapabilityIdentity } from '@shared/types/model-capabilities'
+import { normalizeUserModelConfigEntry } from './userModelConfig'
 
 const SPECIAL_CONCAT_CHAR = '-_-'
 
-const MODEL_CONFIG_META_KEY = '__meta__'
 const MINIMAX_M3_CONTEXT_LENGTH = 1_000_000
+
+const definedConfigFields = (config: ModelConfig | undefined): Partial<ModelConfig> =>
+  config
+    ? Object.fromEntries(Object.entries(config).filter(([, value]) => value !== undefined))
+    : {}
 
 const isMiniMaxProviderId = (providerId: string | undefined): boolean => {
   const normalized = providerId?.trim().toLowerCase()
@@ -66,40 +71,17 @@ const normalizeVerbosityValue = (
     : undefined
 }
 
-interface ModelConfigStoreMeta {
-  lastRefreshVersion?: string
-  userConfigKeys: string[]
-}
-
-type ModelConfigStoreSchema = Record<string, IModelConfig | ModelConfigStoreMeta>
-
 export class ModelConfigHelper {
-  private modelConfigStore: StoreLike<ModelConfigStoreSchema>
+  private modelConfigStore: StoreLike<Record<string, unknown>>
   private memoryCache: Map<string, IModelConfig> = new Map()
   private cacheInitialized: boolean = false
-  private currentVersion: string
 
   constructor(
-    appVersion: string = '0.0.0',
-    store: StoreLike<ModelConfigStoreSchema> = new ElectronStore<ModelConfigStoreSchema>({
+    store: StoreLike<Record<string, unknown>> = new ElectronStore<Record<string, unknown>>({
       name: 'model-config'
     })
   ) {
     this.modelConfigStore = store
-    this.currentVersion = appVersion
-    this.ensureStoreSynced()
-  }
-
-  private ensureStoreSynced(): void {
-    const meta = this.getStoreMeta()
-    if (!meta) {
-      this.initializeMetaFromLegacyStore()
-      return
-    }
-
-    if (meta.lastRefreshVersion !== this.currentVersion) {
-      this.refreshDerivedConfigs(meta)
-    }
   }
 
   /**
@@ -192,13 +174,9 @@ export class ModelConfigHelper {
       portrait,
       portrait?.verbosity ?? model.reasoning?.verbosity
     )
-    const contextLimit = isMiniMaxM3Model(providerId, model.id)
-      ? Math.max(model.limit?.context ?? 0, MINIMAX_M3_CONTEXT_LENGTH)
-      : model.limit?.context
-
-    return this.applyProviderSpecificPolicies(providerId, model.id, {
+    return {
       maxTokens: resolveDerivedModelMaxTokens(model.limit?.output),
-      contextLength: resolveModelContextLength(contextLimit),
+      contextLength: resolveModelContextLength(model.limit?.context),
       timeout: DEFAULT_MODEL_TIMEOUT,
       temperature: 0.6,
       topP: undefined,
@@ -216,9 +194,7 @@ export class ModelConfigHelper {
               ? ApiEndpointType.AudioSpeech
               : ApiEndpointType.Chat,
       thinkingBudget,
-      forceInterleavedThinkingCompat: isMiniMaxM3Model(providerId, model.id)
-        ? true
-        : forceInterleavedThinkingCompat,
+      forceInterleavedThinkingCompat,
       reasoningEffort,
       reasoningVisibility,
       verbosity,
@@ -229,119 +205,61 @@ export class ModelConfigHelper {
         | 'balanced'
         | 'precise',
       maxCompletionTokens: undefined
-    })
-  }
-
-  private initializeMetaFromLegacyStore(): void {
-    const legacyEntries = this.modelConfigStore.store
-    const userKeys: Set<string> = new Set()
-
-    Object.entries(legacyEntries).forEach(([key, value]) => {
-      if (this.isMetaKey(key)) {
-        return
-      }
-
-      const entry = value as IModelConfig | undefined
-      if (entry && this.isEntryUserDefined(entry)) {
-        userKeys.add(key)
-        const updatedEntry: IModelConfig = {
-          ...entry,
-          source: 'user',
-          config: {
-            ...entry.config,
-            isUserDefined: true
-          }
-        }
-        this.modelConfigStore.set(key, updatedEntry)
-      } else {
-        this.modelConfigStore.delete(key)
-      }
-    })
-
-    this.memoryCache.clear()
-    this.cacheInitialized = false
-
-    this.updateStoreMeta({
-      lastRefreshVersion: this.currentVersion,
-      userConfigKeys: Array.from(userKeys)
-    })
-  }
-
-  private refreshDerivedConfigs(meta: ModelConfigStoreMeta): void {
-    const userKeySet = new Set(meta.userConfigKeys || [])
-
-    Object.keys(this.modelConfigStore.store).forEach((key) => {
-      if (this.isMetaKey(key)) {
-        return
-      }
-
-      if (userKeySet.has(key)) {
-        return
-      }
-
-      this.modelConfigStore.delete(key)
-      this.memoryCache.delete(key)
-    })
-
-    this.cacheInitialized = false
-
-    this.updateStoreMeta({
-      lastRefreshVersion: this.currentVersion,
-      userConfigKeys: Array.from(userKeySet)
-    })
-  }
-
-  private getStoreMeta(): ModelConfigStoreMeta | undefined {
-    const meta = this.modelConfigStore.get(MODEL_CONFIG_META_KEY)
-    return meta as ModelConfigStoreMeta | undefined
-  }
-
-  private updateStoreMeta(meta: ModelConfigStoreMeta): void {
-    this.modelConfigStore.set(MODEL_CONFIG_META_KEY, meta)
-  }
-
-  private getOrCreateMeta(): ModelConfigStoreMeta {
-    let meta = this.getStoreMeta()
-    if (!meta) {
-      this.initializeMetaFromLegacyStore()
-      meta = this.getStoreMeta()
     }
-    if (!meta) {
-      meta = {
-        lastRefreshVersion: this.currentVersion,
-        userConfigKeys: []
-      }
-      this.updateStoreMeta(meta)
-    }
-    return meta
   }
 
-  private isMetaKey(key: string): boolean {
-    return key === MODEL_CONFIG_META_KEY
-  }
-
-  private isEntryUserDefined(entry: IModelConfig | undefined): boolean {
-    if (!entry) return false
-    if (entry.source) {
-      return entry.source === 'user'
-    }
-    return entry.config?.isUserDefined === true
-  }
-
-  private updateUserConfigKeys(cacheKey: string, source: ModelConfigSource): void {
-    const meta = this.getOrCreateMeta()
-    const userKeys = new Set(meta.userConfigKeys || [])
-
-    if (source === 'user') {
-      userKeys.add(cacheKey)
-    } else {
-      userKeys.delete(cacheKey)
+  private applyProviderFacts(config: ModelConfig, facts?: MODEL_META): ModelConfig {
+    if (!facts) {
+      return config
     }
 
-    this.updateStoreMeta({
-      lastRefreshVersion: this.currentVersion,
-      userConfigKeys: Array.from(userKeys)
-    })
+    const contextLength =
+      typeof facts.contextLength === 'number' &&
+      Number.isFinite(facts.contextLength) &&
+      facts.contextLength > 0
+        ? Math.round(facts.contextLength)
+        : config.contextLength
+    const maxTokens =
+      typeof facts.maxTokens === 'number' && Number.isFinite(facts.maxTokens) && facts.maxTokens > 0
+        ? resolveDerivedModelMaxTokens(facts.maxTokens)
+        : config.maxTokens
+    const type =
+      resolveVideoGenerationCompatType({
+        modelId: facts.id,
+        type: facts.type ?? config.type,
+        apiEndpoint: config.apiEndpoint,
+        endpointType: facts.endpointType ?? config.endpointType,
+        supportedEndpointTypes: facts.supportedEndpointTypes
+      }) ??
+      facts.type ??
+      config.type
+    const endpointType = facts.endpointType ?? config.endpointType
+    const apiEndpoint =
+      endpointType === 'image-generation' || type === ModelType.ImageGeneration
+        ? ApiEndpointType.Image
+        : endpointType === 'video-generation' || type === ModelType.VideoGeneration
+          ? ApiEndpointType.Video
+          : type === ModelType.TTS
+            ? ApiEndpointType.AudioSpeech
+            : facts.type !== undefined
+              ? ApiEndpointType.Chat
+              : config.apiEndpoint
+
+    return {
+      ...config,
+      contextLength,
+      maxTokens,
+      vision: typeof facts.vision === 'boolean' ? facts.vision : config.vision,
+      functionCall:
+        typeof facts.functionCall === 'boolean' ? facts.functionCall : config.functionCall,
+      reasoning: typeof facts.reasoning === 'boolean' ? facts.reasoning : config.reasoning,
+      type,
+      apiEndpoint,
+      endpointType,
+      ownedBy: typeof facts.ownedBy === 'string' ? facts.ownedBy : config.ownedBy,
+      enableSearch:
+        typeof facts.enableSearch === 'boolean' ? facts.enableSearch : config.enableSearch
+    }
   }
 
   /**
@@ -403,8 +321,10 @@ export class ModelConfigHelper {
 
     const allConfigs = this.modelConfigStore.store
     Object.entries(allConfigs).forEach(([key, value]) => {
-      if (this.isMetaKey(key) || !value) return
-      this.memoryCache.set(key, value as IModelConfig)
+      const entry = normalizeUserModelConfigEntry(value)
+      if (entry) {
+        this.memoryCache.set(key, entry)
+      }
     })
     this.cacheInitialized = true
   }
@@ -446,24 +366,21 @@ export class ModelConfigHelper {
       endpointType: config.endpointType,
       ownedBy: config.ownedBy,
       type: config.type,
-      isUserDefined: entry.source === 'user' || config.isUserDefined === true
+      isUserDefined: true
     }
   }
 
   /**
-   * Resolve model configuration from user intent, the authoritative capability identity,
-   * provider-managed cache, or safe defaults in that order.
+   * Resolve model configuration from safe defaults, catalog data, provider facts, and user intent.
    */
   getModelConfig(
     modelId: string,
     providerId?: string,
     capabilityProviderId?: string,
-    resolvedIdentity?: ResolvedCapabilityIdentity
+    resolvedIdentity?: ResolvedCapabilityIdentity,
+    providerFacts?: MODEL_META
   ): ModelConfig {
     this.initializeCache()
-
-    let storedConfig: ModelConfig | null = null
-    let storedSource: ModelConfigSource | undefined
 
     // 统一小写用于 DB 严格匹配；用户配置读取先原样，再尝试小写键
     const normModelIdRaw = modelId ? modelId.toLowerCase() : modelId
@@ -472,20 +389,7 @@ export class ModelConfigHelper {
     const normProviderId = providerId ? providerId.toLowerCase() : providerId
 
     const cachedEntry = this.getStoredConfigEntry(modelId, providerId)
-    if (cachedEntry?.config) {
-      storedConfig = cachedEntry.config
-      storedSource = cachedEntry.source ?? (cachedEntry.config.isUserDefined ? 'user' : undefined)
-    }
-
-    const isUserConfig = storedSource === 'user'
-
-    if (storedConfig && isUserConfig) {
-      const finalUserConfig = this.applyProviderSpecificPolicies(providerId, modelId, {
-        ...storedConfig
-      })
-      finalUserConfig.isUserDefined = true
-      return finalUserConfig
-    }
+    const userConfig = cachedEntry?.config
 
     let finalConfig: ModelConfig | null = null
 
@@ -539,44 +443,12 @@ export class ModelConfigHelper {
       }
     }
 
-    if (storedConfig && storedSource && storedSource !== 'user') {
-      finalConfig = {
-        ...finalConfig,
-        maxTokens:
-          storedConfig.maxTokens !== undefined
-            ? resolveDerivedModelMaxTokens(storedConfig.maxTokens)
-            : finalConfig.maxTokens,
-        contextLength: storedConfig.contextLength ?? finalConfig.contextLength,
-        timeout: storedConfig.timeout ?? finalConfig.timeout,
-        temperature: storedConfig.temperature ?? finalConfig.temperature,
-        topP: storedConfig.topP ?? finalConfig.topP,
-        vision: storedConfig.vision ?? finalConfig.vision,
-        speechRecognition: storedConfig.speechRecognition ?? finalConfig.speechRecognition,
-        functionCall: storedConfig.functionCall ?? finalConfig.functionCall,
-        type: storedConfig.type ?? finalConfig.type,
-        maxCompletionTokens: storedConfig.maxCompletionTokens ?? finalConfig.maxCompletionTokens,
-        conversationId: storedConfig.conversationId ?? finalConfig.conversationId,
-        apiEndpoint: storedConfig.apiEndpoint ?? finalConfig.apiEndpoint,
-        endpointType: isNewApiEndpointType(storedConfig.endpointType)
-          ? storedConfig.endpointType
-          : finalConfig.endpointType,
-        ownedBy: storedConfig.ownedBy ?? finalConfig.ownedBy,
-        enableSearch: storedConfig.enableSearch ?? finalConfig.enableSearch,
-        forcedSearch: storedConfig.forcedSearch ?? finalConfig.forcedSearch,
-        searchStrategy: storedConfig.searchStrategy ?? finalConfig.searchStrategy,
-        reasoning: finalConfig.reasoning,
-        thinkingBudget: finalConfig.thinkingBudget,
-        forceInterleavedThinkingCompat: finalConfig.forceInterleavedThinkingCompat,
-        reasoningEffort: finalConfig.reasoningEffort,
-        verbosity: finalConfig.verbosity
-      }
-    }
-
     const normalizedFinalConfig = this.applyProviderSpecificPolicies(providerId, modelId, {
-      ...finalConfig!,
-      isUserDefined: false
+      ...this.applyProviderFacts(finalConfig, providerFacts),
+      ...definedConfigFields(userConfig),
+      isUserDefined: Boolean(userConfig)
     })
-    normalizedFinalConfig.isUserDefined = false
+    normalizedFinalConfig.isUserDefined = Boolean(userConfig)
     return normalizedFinalConfig
   }
 
@@ -586,39 +458,27 @@ export class ModelConfigHelper {
    * @param providerId - The provider ID
    * @param config - The model configuration
    */
-  setModelConfig(
-    modelId: string,
-    providerId: string,
-    config: ModelConfig,
-    options?: { source?: ModelConfigSource }
-  ): ModelConfig {
+  setModelConfig(modelId: string, providerId: string, config: ModelConfig): ModelConfig {
     const cacheKey = this.generateCacheKey(providerId, modelId)
-    const source: ModelConfigSource = options?.source ?? 'user'
-    const normalizedMaxTokens =
-      source === 'provider'
-        ? resolveDerivedModelMaxTokens(config.maxTokens)
-        : (config.maxTokens ?? undefined)
     const normalizedTimeout =
       typeof config.timeout === 'number' && Number.isFinite(config.timeout) && config.timeout > 0
         ? Math.round(config.timeout)
         : undefined
     const storedConfig: ModelConfig = this.applyProviderSpecificPolicies(providerId, modelId, {
       ...config,
-      ...(normalizedMaxTokens !== undefined ? { maxTokens: normalizedMaxTokens } : {}),
       ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
-      isUserDefined: source === 'user'
+      isUserDefined: true
     })
     const configData: IModelConfig = {
       id: modelId,
       providerId: providerId,
       config: storedConfig,
-      source
+      source: 'user'
     }
 
     // Update both store and cache
     this.modelConfigStore.set(cacheKey, configData)
     this.memoryCache.set(cacheKey, configData)
-    this.updateUserConfigKeys(cacheKey, source)
 
     return storedConfig
   }
@@ -629,12 +489,19 @@ export class ModelConfigHelper {
    * @param providerId - The provider ID
    */
   resetModelConfig(modelId: string, providerId: string): void {
-    const cacheKey = this.generateCacheKey(providerId, modelId)
+    const cacheKeys = new Set([
+      this.generateCacheKey(providerId, modelId),
+      this.generateCacheKey(
+        providerId.toLowerCase(),
+        modelId.toLowerCase().replace(/^models\//, '')
+      )
+    ])
 
     // Remove from both store and cache
-    this.modelConfigStore.delete(cacheKey)
-    this.memoryCache.delete(cacheKey)
-    this.updateUserConfigKeys(cacheKey, 'provider')
+    for (const cacheKey of cacheKeys) {
+      this.modelConfigStore.delete(cacheKey)
+      this.memoryCache.delete(cacheKey)
+    }
   }
 
   /**
@@ -648,7 +515,6 @@ export class ModelConfigHelper {
     // Return data from cache for better performance
     const result: Record<string, IModelConfig> = {}
     this.memoryCache.forEach((value, key) => {
-      if (this.isMetaKey(key)) return
       result[key] = value
     })
     return result
@@ -683,29 +549,8 @@ export class ModelConfigHelper {
    * @returns boolean
    */
   hasUserConfig(modelId: string, providerId: string): boolean {
-    // Initialize cache if not already done
     this.initializeCache()
-
-    const cacheKey = this.generateCacheKey(providerId, modelId)
-
-    // Check cache first
-    const cachedEntry = this.memoryCache.get(cacheKey)
-    if (cachedEntry) {
-      const source = cachedEntry.source ?? (cachedEntry.config.isUserDefined ? 'user' : undefined)
-      if (source === 'user') {
-        return true
-      }
-    }
-
-    // If not in cache, check store and update cache if found
-    const storeEntry = this.modelConfigStore.get(cacheKey) as IModelConfig | undefined
-    if (storeEntry) {
-      this.memoryCache.set(cacheKey, storeEntry)
-      const source = storeEntry.source ?? (storeEntry.config.isUserDefined ? 'user' : undefined)
-      return source === 'user'
-    }
-
-    return false
+    return Boolean(this.getStoredConfigEntry(modelId, providerId))
   }
 
   /**
@@ -721,42 +566,19 @@ export class ModelConfigHelper {
       this.cacheInitialized = false
     }
 
-    const meta = this.getOrCreateMeta()
-    const userKeySet = overwrite ? new Set<string>() : new Set<string>(meta.userConfigKeys || [])
-
     Object.entries(configs).forEach(([key, value]) => {
-      if (this.isMetaKey(key) || !value) return
+      const entry = normalizeUserModelConfigEntry(value)
+      if (!entry) return
 
-      if (!overwrite && this.hasStoreEntry(key)) {
+      if (!overwrite && normalizeUserModelConfigEntry(this.modelConfigStore.get(key))) {
         return
       }
 
-      const entry = value as IModelConfig
-      const source = entry.source ?? (entry.config?.isUserDefined ? 'user' : 'provider')
-      const storedEntry: IModelConfig = {
-        ...entry,
-        source,
-        config: {
-          ...entry.config,
-          isUserDefined: source === 'user'
-        }
-      }
-
-      this.modelConfigStore.set(key, storedEntry)
-      this.memoryCache.set(key, storedEntry)
-
-      if (source === 'user') {
-        userKeySet.add(key)
-      } else {
-        userKeySet.delete(key)
-      }
+      this.modelConfigStore.set(key, entry)
+      this.memoryCache.set(key, entry)
     })
 
     this.cacheInitialized = false
-    this.updateStoreMeta({
-      lastRefreshVersion: this.currentVersion,
-      userConfigKeys: Array.from(userKeySet)
-    })
   }
 
   /**
@@ -774,10 +596,6 @@ export class ModelConfigHelper {
     this.clearStore()
     this.memoryCache.clear()
     this.cacheInitialized = false
-    this.updateStoreMeta({
-      lastRefreshVersion: this.currentVersion,
-      userConfigKeys: []
-    })
   }
 
   /**
@@ -794,13 +612,6 @@ export class ModelConfigHelper {
   clearMemoryCache(): void {
     this.memoryCache.clear()
     this.cacheInitialized = false
-  }
-
-  private hasStoreEntry(key: string): boolean {
-    if (typeof this.modelConfigStore.has === 'function') {
-      return this.modelConfigStore.has(key)
-    }
-    return this.modelConfigStore.get(key) !== undefined
   }
 
   private clearStore(): void {
