@@ -4,9 +4,11 @@ import Loading from './loading.vue'
 import { createRendererI18n } from '../src/i18n/bootstrap'
 
 async function bootstrap() {
-  const { i18n } = await createRendererI18n({
+  const { i18n, languageState } = await createRendererI18n({
     getLanguageState: () => window.deepchatSplash.getLanguageState()
   })
+
+  document.documentElement.dir = languageState.direction === 'rtl' ? 'rtl' : 'auto'
 
   const app = createApp(Loading)
   app.use(i18n)
