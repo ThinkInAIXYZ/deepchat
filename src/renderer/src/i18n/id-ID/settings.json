@@ -3177,21 +3177,21 @@
     "currentAgentFallback": "agen saat ini"
   },
   "debug": {
-    "description": "Development-only tools for previewing mock states and guided flows.",
-    "unavailableTitle": "Debug tools unavailable",
-    "unavailableDescription": "This action is available only in development mode.",
+    "description": "Alat khusus pengembangan untuk mempratinjau status tiruan dan alur terpandu.",
+    "unavailableTitle": "Alat debug tidak tersedia",
+    "unavailableDescription": "Tindakan ini hanya tersedia dalam mode pengembangan.",
     "splash": {
-      "title": "Splash window",
-      "description": "Preview startup-window states without starting a real database unlock flow.",
-      "loading": "Preview loading",
-      "systemUnlock": "Preview system unlock",
-      "unlock": "Preview manual unlock",
-      "failed": "Unable to show the splash scenario."
+      "title": "Jendela pembuka",
+      "description": "Pratinjau status jendela pembuka tanpa memulai alur pembukaan kunci basis data yang sebenarnya.",
+      "loading": "Pratinjau pemuatan",
+      "systemUnlock": "Pratinjau pembukaan kunci sistem",
+      "unlock": "Pratinjau pembukaan kunci manual",
+      "failed": "Tidak dapat menampilkan skenario jendela pembuka."
     },
     "guidance": {
-      "title": "Guidance and data",
-      "description": "Create development-only onboarding, conversation, and update mocks.",
-      "failed": "Unable to start the debug guided flow."
+      "title": "Panduan dan data",
+      "description": "Buat tiruan onboarding, percakapan, dan pembaruan khusus pengembangan.",
+      "failed": "Tidak dapat memulai alur terpandu debug."
     }
   }
 }

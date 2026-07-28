@@ -3177,21 +3177,21 @@
     "currentAgentFallback": "ejen semasa"
   },
   "debug": {
-    "description": "Development-only tools for previewing mock states and guided flows.",
-    "unavailableTitle": "Debug tools unavailable",
-    "unavailableDescription": "This action is available only in development mode.",
+    "description": "Alat khusus pembangunan untuk pratonton keadaan olok-olok dan aliran berpandu.",
+    "unavailableTitle": "Alat nyahpepijat tidak tersedia",
+    "unavailableDescription": "Tindakan ini hanya tersedia dalam mod pembangunan.",
     "splash": {
-      "title": "Splash window",
-      "description": "Preview startup-window states without starting a real database unlock flow.",
-      "loading": "Preview loading",
-      "systemUnlock": "Preview system unlock",
-      "unlock": "Preview manual unlock",
-      "failed": "Unable to show the splash scenario."
+      "title": "Tetingkap permulaan",
+      "description": "Pratonton keadaan tetingkap permulaan tanpa memulakan aliran nyahkunci pangkalan data sebenar.",
+      "loading": "Pratonton pemuatan",
+      "systemUnlock": "Pratonton nyahkunci sistem",
+      "unlock": "Pratonton nyahkunci manual",
+      "failed": "Tidak dapat memaparkan senario tetingkap permulaan."
     },
     "guidance": {
-      "title": "Guidance and data",
-      "description": "Create development-only onboarding, conversation, and update mocks.",
-      "failed": "Unable to start the debug guided flow."
+      "title": "Panduan dan data",
+      "description": "Cipta olok-olok onboarding, perbualan dan kemas kini khusus pembangunan.",
+      "failed": "Tidak dapat memulakan aliran berpandu nyahpepijat."
     }
   }
 }

@@ -146,6 +146,28 @@ describe('DebugSettings', () => {
     })
   })
 
+  it('prevents duplicate debug actions while an action is running', async () => {
+    let resolveOnboarding!: (value: { started: boolean; focused: boolean }) => void
+    windowClientMock.startGuidedOnboarding.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveOnboarding = resolve
+      })
+    )
+    const wrapper = await mountPage()
+    await flushPromises()
+
+    const onboardingButton = wrapper.get('button')
+    await onboardingButton.trigger('click')
+    await nextTick()
+
+    expect(onboardingButton.attributes('disabled')).toBeDefined()
+    expect(windowClientMock.startGuidedOnboarding).toHaveBeenCalledTimes(1)
+
+    resolveOnboarding({ started: true, focused: true })
+    await flushPromises()
+    expect(onboardingButton.attributes('disabled')).toBeUndefined()
+  })
+
   it('switches update action between create and clear based on mock state', async () => {
     const wrapper = await mountPage()
     await flushPromises()

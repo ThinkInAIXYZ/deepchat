@@ -3186,21 +3186,21 @@
     "currentAgentFallback": "عامل فعلی"
   },
   "debug": {
-    "description": "Development-only tools for previewing mock states and guided flows.",
-    "unavailableTitle": "Debug tools unavailable",
-    "unavailableDescription": "This action is available only in development mode.",
+    "description": "ابزارهای مخصوص توسعه برای پیش‌نمایش وضعیت‌های شبیه‌سازی‌شده و جریان‌های راهنما.",
+    "unavailableTitle": "ابزارهای اشکال‌زدایی در دسترس نیستند",
+    "unavailableDescription": "این عمل فقط در حالت توسعه در دسترس است.",
     "splash": {
-      "title": "Splash window",
-      "description": "Preview startup-window states without starting a real database unlock flow.",
-      "loading": "Preview loading",
-      "systemUnlock": "Preview system unlock",
-      "unlock": "Preview manual unlock",
-      "failed": "Unable to show the splash scenario."
+      "title": "پنجرهٔ آغازین",
+      "description": "وضعیت‌های پنجرهٔ آغازین را بدون شروع فرایند واقعی بازگشایی پایگاه داده پیش‌نمایش کنید.",
+      "loading": "پیش‌نمایش بارگذاری",
+      "systemUnlock": "پیش‌نمایش بازگشایی سیستم",
+      "unlock": "پیش‌نمایش بازگشایی دستی",
+      "failed": "نمایش سناریوی پنجرهٔ آغازین ممکن نیست."
     },
     "guidance": {
-      "title": "Guidance and data",
-      "description": "Create development-only onboarding, conversation, and update mocks.",
-      "failed": "Unable to start the debug guided flow."
+      "title": "راهنما و داده‌ها",
+      "description": "نمونه‌های مخصوص توسعه برای راه‌اندازی اولیه، گفت‌وگوها و به‌روزرسانی‌ها ایجاد کنید.",
+      "failed": "شروع جریان راهنمای اشکال‌زدایی ممکن نیست."
     }
   }
 }

@@ -3177,21 +3177,21 @@
     "currentAgentFallback": "agente actual"
   },
   "debug": {
-    "description": "Development-only tools for previewing mock states and guided flows.",
-    "unavailableTitle": "Debug tools unavailable",
-    "unavailableDescription": "This action is available only in development mode.",
+    "description": "Herramientas exclusivas para desarrollo que permiten previsualizar estados simulados y flujos guiados.",
+    "unavailableTitle": "Herramientas de depuración no disponibles",
+    "unavailableDescription": "Esta acción solo está disponible en modo de desarrollo.",
     "splash": {
-      "title": "Splash window",
-      "description": "Preview startup-window states without starting a real database unlock flow.",
-      "loading": "Preview loading",
-      "systemUnlock": "Preview system unlock",
-      "unlock": "Preview manual unlock",
-      "failed": "Unable to show the splash scenario."
+      "title": "Ventana de inicio",
+      "description": "Previsualiza los estados de la ventana de inicio sin iniciar un flujo real de desbloqueo de la base de datos.",
+      "loading": "Previsualizar carga",
+      "systemUnlock": "Previsualizar desbloqueo del sistema",
+      "unlock": "Previsualizar desbloqueo manual",
+      "failed": "No se puede mostrar el escenario de inicio."
     },
     "guidance": {
-      "title": "Guidance and data",
-      "description": "Create development-only onboarding, conversation, and update mocks.",
-      "failed": "Unable to start the debug guided flow."
+      "title": "Guía y datos",
+      "description": "Crea simulaciones exclusivas para desarrollo de incorporación, conversaciones y actualizaciones.",
+      "failed": "No se puede iniciar el flujo guiado de depuración."
     }
   }
 }

@@ -14,8 +14,9 @@
       </div>
 
       <div class="mt-4 flex flex-wrap gap-2">
-        <Button variant="outline" @click="startGuidedOnboarding">
-          <Icon icon="lucide:route" class="mr-2 size-4" />
+        <Button variant="outline" :disabled="isRunningDebugAction" @click="startGuidedOnboarding">
+          <Spinner v-if="isRunningDebugAction" class="mr-2 size-4" />
+          <Icon v-else icon="lucide:route" class="mr-2 size-4" />
           {{ t('about.mockOnboardingButton') }}
         </Button>
         <Button variant="outline" :disabled="isCreatingMockChat" @click="createMockChat">
@@ -23,12 +24,19 @@
           <Icon v-else icon="lucide:database" class="mr-2 size-4" />
           {{ isCreatingMockChat ? t('about.mockChatCreating') : t('about.mockChatButton') }}
         </Button>
-        <Button v-if="!upgrade.isMockUpdate" variant="outline" @click="mockDownloadedUpdate">
-          <Icon icon="lucide:download" class="mr-2 size-4" />
+        <Button
+          v-if="!upgrade.isMockUpdate"
+          variant="outline"
+          :disabled="isRunningDebugAction"
+          @click="mockDownloadedUpdate"
+        >
+          <Spinner v-if="isRunningDebugAction" class="mr-2 size-4" />
+          <Icon v-else icon="lucide:download" class="mr-2 size-4" />
           {{ t('about.mockUpdateButton') }}
         </Button>
-        <Button v-else variant="outline" @click="clearMockUpdate">
-          <Icon icon="lucide:rotate-ccw" class="mr-2 size-4" />
+        <Button v-else variant="outline" :disabled="isRunningDebugAction" @click="clearMockUpdate">
+          <Spinner v-if="isRunningDebugAction" class="mr-2 size-4" />
+          <Icon v-else icon="lucide:rotate-ccw" class="mr-2 size-4" />
           {{ t('about.clearMockUpdateButton') }}
         </Button>
       </div>
@@ -56,6 +64,7 @@ const upgradeClient = createUpgradeClient()
 const windowClient = createWindowClient()
 const upgrade = useUpgradeStore()
 const isCreatingMockChat = ref(false)
+const isRunningDebugAction = ref(false)
 
 const showToastError = (description: string) => {
   toast({
@@ -65,17 +74,36 @@ const showToastError = (description: string) => {
   })
 }
 
-const startGuidedOnboarding = async () => {
+const runDebugAction = async (
+  action: () => Promise<boolean>,
+  unavailableMessage: string,
+  logLabel: string,
+  failureMessage: string
+) => {
+  if (isRunningDebugAction.value) {
+    return
+  }
+
+  isRunningDebugAction.value = true
   try {
-    const result = await windowClient.startGuidedOnboarding()
-    if (!result.started) {
-      showToastError(t('settings.debug.unavailableDescription'))
+    if (!(await action())) {
+      showToastError(t(unavailableMessage))
     }
   } catch (error) {
-    console.error('[DebugSettings] Failed to start guided onboarding', error)
-    showToastError(error instanceof Error ? error.message : t('settings.debug.guidance.failed'))
+    console.error(`[DebugSettings] ${logLabel}`, error)
+    showToastError(error instanceof Error ? error.message : t(failureMessage))
+  } finally {
+    isRunningDebugAction.value = false
   }
 }
+
+const startGuidedOnboarding = () =>
+  runDebugAction(
+    async () => (await windowClient.startGuidedOnboarding()).started,
+    'settings.debug.unavailableDescription',
+    'Failed to start guided onboarding',
+    'settings.debug.guidance.failed'
+  )
 
 const createMockChat = async () => {
   if (isCreatingMockChat.value) {
@@ -104,29 +132,21 @@ const createMockChat = async () => {
   }
 }
 
-const mockDownloadedUpdate = async () => {
-  try {
-    const updated = await upgradeClient.mockDownloadedUpdate()
-    if (!updated) {
-      showToastError(t('settings.debug.unavailableDescription'))
-    }
-  } catch (error) {
-    console.error('[DebugSettings] Failed to create mock update', error)
-    showToastError(error instanceof Error ? error.message : t('settings.debug.guidance.failed'))
-  }
-}
+const mockDownloadedUpdate = () =>
+  runDebugAction(
+    upgradeClient.mockDownloadedUpdate,
+    'settings.debug.unavailableDescription',
+    'Failed to create mock update',
+    'settings.debug.guidance.failed'
+  )
 
-const clearMockUpdate = async () => {
-  try {
-    const updated = await upgradeClient.clearMockUpdate()
-    if (!updated) {
-      showToastError(t('settings.debug.unavailableDescription'))
-    }
-  } catch (error) {
-    console.error('[DebugSettings] Failed to clear mock update', error)
-    showToastError(error instanceof Error ? error.message : t('settings.debug.guidance.failed'))
-  }
-}
+const clearMockUpdate = () =>
+  runDebugAction(
+    upgradeClient.clearMockUpdate,
+    'settings.debug.unavailableDescription',
+    'Failed to clear mock update',
+    'settings.debug.guidance.failed'
+  )
 
 onMounted(() => {
   void upgrade.refreshStatus()
