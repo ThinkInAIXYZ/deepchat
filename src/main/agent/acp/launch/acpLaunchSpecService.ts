@@ -35,6 +35,7 @@ type DownloadedArchive = {
 
 const SAFE_INSTALL_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
 const SHA256_PATTERN = /^[a-f0-9]{64}$/i
+const ACP_BINARY_DOWNLOAD_TIMEOUT_MS = 2 * 60_000
 
 const sanitizeRelativePath = (input: string): string => {
   const trimmed = input.replace(/^\.\/+/, '').trim()
@@ -416,7 +417,9 @@ export class AcpLaunchSpecService {
         throw new Error(`Invalid archive URL for ACP registry agent ${agent.id}`)
       }
       const archivePath = path.join(tempDir, archiveName)
-      const response = await fetch(url)
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(ACP_BINARY_DOWNLOAD_TIMEOUT_MS)
+      })
       if (!response.ok) {
         throw new Error(`Failed to download archive: ${response.status} ${response.statusText}`)
       }

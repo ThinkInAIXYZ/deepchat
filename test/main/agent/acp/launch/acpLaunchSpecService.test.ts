@@ -8,6 +8,18 @@ import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
 
 vi.unmock('fs')
 
+const platformMap: Record<string, string> = {
+  darwin: 'darwin',
+  linux: 'linux',
+  win32: 'windows'
+}
+const archMap: Record<string, string> = {
+  arm64: 'aarch64',
+  x64: 'x86_64'
+}
+
+const getCurrentPlatformKey = () => `${platformMap[process.platform]}-${archMap[process.arch]}`
+
 describe('AcpLaunchSpecService', () => {
   const tempDirs: string[] = []
 
@@ -32,16 +44,7 @@ describe('AcpLaunchSpecService', () => {
 
   it('prefers binary over npx and uvx for preview generation', () => {
     const service = createService()
-    const platformMap: Record<string, string> = {
-      darwin: 'darwin',
-      linux: 'linux',
-      win32: 'windows'
-    }
-    const archMap: Record<string, string> = {
-      arm64: 'aarch64',
-      x64: 'x86_64'
-    }
-    const platformKey = `${platformMap[process.platform]}-${archMap[process.arch]}`
+    const platformKey = getCurrentPlatformKey()
 
     const preview = service.buildRegistryPreview({
       id: 'codex-acp',
@@ -97,16 +100,7 @@ describe('AcpLaunchSpecService', () => {
 
   it('rejects unsafe registry install path segments', async () => {
     const service = createService()
-    const platformMap: Record<string, string> = {
-      darwin: 'darwin',
-      linux: 'linux',
-      win32: 'windows'
-    }
-    const archMap: Record<string, string> = {
-      arm64: 'aarch64',
-      x64: 'x86_64'
-    }
-    const platformKey = `${platformMap[process.platform]}-${archMap[process.arch]}`
+    const platformKey = getCurrentPlatformKey()
 
     await expect(
       service.ensureRegistryAgentInstalled(
@@ -132,16 +126,7 @@ describe('AcpLaunchSpecService', () => {
 
   it('verifies a registry binary checksum before extracting it', async () => {
     const service = createService()
-    const platformMap: Record<string, string> = {
-      darwin: 'darwin',
-      linux: 'linux',
-      win32: 'windows'
-    }
-    const archMap: Record<string, string> = {
-      arm64: 'aarch64',
-      x64: 'x86_64'
-    }
-    const platformKey = `${platformMap[process.platform]}-${archMap[process.arch]}`
+    const platformKey = getCurrentPlatformKey()
     const archive = zipSync({ 'codex-acp': Buffer.from('binary') })
     const sha256 = createHash('sha256').update(archive).digest('hex')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(archive)))
@@ -172,16 +157,7 @@ describe('AcpLaunchSpecService', () => {
 
   it('rejects a registry binary with a mismatched checksum', async () => {
     const service = createService()
-    const platformMap: Record<string, string> = {
-      darwin: 'darwin',
-      linux: 'linux',
-      win32: 'windows'
-    }
-    const archMap: Record<string, string> = {
-      arm64: 'aarch64',
-      x64: 'x86_64'
-    }
-    const platformKey = `${platformMap[process.platform]}-${archMap[process.arch]}`
+    const platformKey = getCurrentPlatformKey()
     const archive = zipSync({ 'codex-acp': Buffer.from('tampered') })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(archive)))
 
@@ -212,18 +188,55 @@ describe('AcpLaunchSpecService', () => {
     expect(fs.existsSync(path.join(state.installDir!, 'codex-acp'))).toBe(false)
   })
 
+  it('aborts a stalled registry binary download after the bounded timeout', async () => {
+    const service = createService()
+    const platformKey = getCurrentPlatformKey()
+    const timeoutController = new AbortController()
+    const timeoutSignal = timeoutController.signal
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeoutSignal)
+    const fetchMock = vi.fn(
+      (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const installPromise = service.ensureRegistryAgentInstalled(
+      {
+        id: 'codex-acp',
+        name: 'Codex CLI',
+        version: '0.10.0',
+        distribution: {
+          binary: {
+            [platformKey]: {
+              archive: 'https://example.com/codex.zip',
+              cmd: './codex-acp'
+            }
+          }
+        },
+        source: 'registry',
+        enabled: false
+      },
+      null
+    )
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    timeoutController.abort(new DOMException('download timed out', 'TimeoutError'))
+
+    await expect(installPromise).resolves.toMatchObject({
+      status: 'error',
+      error: 'download timed out'
+    })
+    expect(timeoutSpy).toHaveBeenCalledWith(120_000)
+    expect(fetchMock).toHaveBeenCalledWith('https://example.com/codex.zip', {
+      signal: timeoutSignal
+    })
+  })
+
   it('uninstalls binary registry agents by removing the install directory', async () => {
     const service = createService()
-    const platformMap: Record<string, string> = {
-      darwin: 'darwin',
-      linux: 'linux',
-      win32: 'windows'
-    }
-    const archMap: Record<string, string> = {
-      arm64: 'aarch64',
-      x64: 'x86_64'
-    }
-    const platformKey = `${platformMap[process.platform]}-${archMap[process.arch]}`
+    const platformKey = getCurrentPlatformKey()
 
     const agent = {
       id: 'codex-acp',
@@ -258,16 +271,7 @@ describe('AcpLaunchSpecService', () => {
 
   it('rejects uninstall paths outside the managed install root', async () => {
     const service = createService()
-    const platformMap: Record<string, string> = {
-      darwin: 'darwin',
-      linux: 'linux',
-      win32: 'windows'
-    }
-    const archMap: Record<string, string> = {
-      arm64: 'aarch64',
-      x64: 'x86_64'
-    }
-    const platformKey = `${platformMap[process.platform]}-${archMap[process.arch]}`
+    const platformKey = getCurrentPlatformKey()
 
     await expect(
       service.uninstallRegistryAgent(
