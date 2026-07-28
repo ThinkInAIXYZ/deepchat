@@ -144,6 +144,7 @@ export interface AcpAgentConfig {
 export interface AcpRegistryBinaryDistribution {
   archive: string
   cmd: string
+  sha256?: string
   args?: string[]
   env?: Record<string, string>
 }

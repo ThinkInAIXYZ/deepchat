@@ -2,6 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { execFileSync } from 'child_process'
+import { createHash } from 'crypto'
 import { unzipSync } from 'fflate'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type {
@@ -27,7 +28,13 @@ type RegistryDistributionSelection =
       }
     }
 
+type DownloadedArchive = {
+  archivePath: string
+  tempDir: string
+}
+
 const SAFE_INSTALL_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
+const SHA256_PATTERN = /^[a-f0-9]{64}$/i
 
 const sanitizeRelativePath = (input: string): string => {
   const trimmed = input.replace(/^\.\/+/, '').trim()
@@ -192,9 +199,16 @@ export class AcpLaunchSpecService {
       }
       ensureDir(installDir)
 
-      const archivePath = await this.downloadArchive(binaryConfig.archive, agent)
-      await this.extractArchive(archivePath, installDir)
-      fs.rmSync(archivePath, { force: true })
+      const downloadedArchive = await this.downloadArchive(
+        binaryConfig.archive,
+        agent,
+        binaryConfig.sha256
+      )
+      try {
+        await this.extractArchive(downloadedArchive.archivePath, installDir)
+      } finally {
+        fs.rmSync(downloadedArchive.tempDir, { recursive: true, force: true })
+      }
 
       const installedCommand = this.resolveInstalledBinaryPath(installDir, binaryConfig.cmd)
       if (!installedCommand) {
@@ -389,18 +403,42 @@ export class AcpLaunchSpecService {
     return `${platform}-${arch}`
   }
 
-  private async downloadArchive(url: string, agent: AcpRegistryAgent): Promise<string> {
+  private async downloadArchive(
+    url: string,
+    agent: AcpRegistryAgent,
+    expectedSha256?: string
+  ): Promise<DownloadedArchive> {
     const safeAgentId = sanitizeInstallSegment(agent.id, 'agent id')
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `deepchat-acp-${safeAgentId}-`))
-    const archivePath = path.join(tempDir, path.basename(new URL(url).pathname))
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`Failed to download archive: ${response.status} ${response.statusText}`)
-    }
+    try {
+      const archiveName = path.basename(new URL(url).pathname)
+      if (!archiveName) {
+        throw new Error(`Invalid archive URL for ACP registry agent ${agent.id}`)
+      }
+      const archivePath = path.join(tempDir, archiveName)
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Failed to download archive: ${response.status} ${response.statusText}`)
+      }
 
-    const arrayBuffer = await response.arrayBuffer()
-    fs.writeFileSync(archivePath, Buffer.from(arrayBuffer))
-    return archivePath
+      const archive = Buffer.from(await response.arrayBuffer())
+      if (expectedSha256 !== undefined) {
+        const normalizedSha256 = expectedSha256.trim().toLowerCase()
+        if (!SHA256_PATTERN.test(normalizedSha256)) {
+          throw new Error(`Invalid SHA-256 checksum for ACP registry agent ${agent.id}`)
+        }
+        const actualSha256 = createHash('sha256').update(archive).digest('hex')
+        if (actualSha256 !== normalizedSha256) {
+          throw new Error(`SHA-256 checksum mismatch for ACP registry agent ${agent.id}`)
+        }
+      }
+
+      fs.writeFileSync(archivePath, archive)
+      return { archivePath, tempDir }
+    } catch (error) {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+      throw error
+    }
   }
 
   private async extractArchive(archivePath: string, targetDir: string): Promise<void> {

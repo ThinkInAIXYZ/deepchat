@@ -34,7 +34,15 @@ type RegistryManifestFixture = {
     version: string
     icon?: string
     distribution: {
-      npx: {
+      binary?: Record<
+        string,
+        {
+          archive: string
+          cmd: string
+          sha256?: string
+        }
+      >
+      npx?: {
         package: string
       }
     }
@@ -139,6 +147,78 @@ describe('AcpRegistryService', () => {
 
     expect(globalFetch).not.toHaveBeenCalled()
     expect(service.listAgents()).toHaveLength(1)
+  })
+
+  it('preserves valid binary checksums while normalizing the registry', async () => {
+    const checksum = 'A'.repeat(64)
+    writeBuiltInManifest({
+      version: '1',
+      agents: [
+        {
+          id: 'binary-agent',
+          name: 'Binary Agent',
+          version: '1.0.0',
+          distribution: {
+            binary: {
+              'darwin-aarch64': {
+                archive: 'https://example.com/binary-agent.zip',
+                cmd: './binary-agent',
+                sha256: checksum
+              }
+            }
+          }
+        }
+      ]
+    })
+
+    const AcpRegistryService = await importService()
+    const service = new AcpRegistryService({
+      isPrivacyModeEnabled: () => true
+    })
+
+    await service.initialize()
+
+    expect(service.listAgents()[0].distribution.binary?.['darwin-aarch64']?.sha256).toBe(
+      checksum.toLowerCase()
+    )
+  })
+
+  it('rejects binary targets with malformed checksums', async () => {
+    writeBuiltInManifest({
+      version: '1',
+      agents: [
+        {
+          id: 'binary-agent',
+          name: 'Binary Agent',
+          version: '1.0.0',
+          distribution: {
+            binary: {
+              'darwin-aarch64': {
+                archive: 'https://example.com/binary-agent.zip',
+                cmd: './binary-agent',
+                sha256: 'not-a-checksum'
+              }
+            },
+            npx: {
+              package: 'binary-agent@1.0.0'
+            }
+          }
+        }
+      ]
+    })
+
+    const AcpRegistryService = await importService()
+    const service = new AcpRegistryService({
+      isPrivacyModeEnabled: () => true
+    })
+
+    await service.initialize()
+
+    expect(service.listAgents()[0].distribution).toEqual({
+      npx: {
+        package: 'binary-agent@1.0.0'
+      }
+    })
   })
 
   it('writes refreshed icon cache and prunes stale cached icons', async () => {

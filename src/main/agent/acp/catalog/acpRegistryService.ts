@@ -35,6 +35,8 @@ type AcpRegistryServiceOptions = {
   isPrivacyModeEnabled?: () => boolean
 }
 
+const SHA256_PATTERN = /^[a-f0-9]{64}$/i
+
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
 const normalizeArgs = (value: unknown): string[] | undefined => {
@@ -76,9 +78,16 @@ const normalizeBinaryTarget = (value: unknown): AcpRegistryBinaryDistribution | 
     return null
   }
 
+  const rawSha256 = record.sha256
+  const sha256 = typeof rawSha256 === 'string' ? rawSha256.trim().toLowerCase() : undefined
+  if (rawSha256 !== undefined && (!sha256 || !SHA256_PATTERN.test(sha256))) {
+    return null
+  }
+
   return {
     archive,
     cmd,
+    ...(sha256 ? { sha256 } : {}),
     args: normalizeArgs(record.args),
     env: normalizeEnv(record.env)
   }

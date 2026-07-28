@@ -1,14 +1,22 @@
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import { createHash } from 'crypto'
+import { zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
+
+vi.unmock('fs')
 
 describe('AcpLaunchSpecService', () => {
   const tempDirs: string[] = []
 
   afterEach(() => {
+    for (const tempDir of tempDirs) {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
     tempDirs.length = 0
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -120,6 +128,88 @@ describe('AcpLaunchSpecService', () => {
         null
       )
     ).rejects.toThrow('Unsafe ACP registry agent id')
+  })
+
+  it('verifies a registry binary checksum before extracting it', async () => {
+    const service = createService()
+    const platformMap: Record<string, string> = {
+      darwin: 'darwin',
+      linux: 'linux',
+      win32: 'windows'
+    }
+    const archMap: Record<string, string> = {
+      arm64: 'aarch64',
+      x64: 'x86_64'
+    }
+    const platformKey = `${platformMap[process.platform]}-${archMap[process.arch]}`
+    const archive = zipSync({ 'codex-acp': Buffer.from('binary') })
+    const sha256 = createHash('sha256').update(archive).digest('hex')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(archive)))
+
+    const state = await service.ensureRegistryAgentInstalled(
+      {
+        id: 'codex-acp',
+        name: 'Codex CLI',
+        version: '0.10.0',
+        distribution: {
+          binary: {
+            [platformKey]: {
+              archive: 'https://example.com/codex.zip',
+              cmd: './codex-acp',
+              sha256
+            }
+          }
+        },
+        source: 'registry',
+        enabled: false
+      },
+      null
+    )
+
+    expect(state.status).toBe('installed')
+    expect(fs.readFileSync(path.join(state.installDir!, 'codex-acp'), 'utf-8')).toBe('binary')
+  })
+
+  it('rejects a registry binary with a mismatched checksum', async () => {
+    const service = createService()
+    const platformMap: Record<string, string> = {
+      darwin: 'darwin',
+      linux: 'linux',
+      win32: 'windows'
+    }
+    const archMap: Record<string, string> = {
+      arm64: 'aarch64',
+      x64: 'x86_64'
+    }
+    const platformKey = `${platformMap[process.platform]}-${archMap[process.arch]}`
+    const archive = zipSync({ 'codex-acp': Buffer.from('tampered') })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(archive)))
+
+    const state = await service.ensureRegistryAgentInstalled(
+      {
+        id: 'codex-acp',
+        name: 'Codex CLI',
+        version: '0.10.0',
+        distribution: {
+          binary: {
+            [platformKey]: {
+              archive: 'https://example.com/codex.zip',
+              cmd: './codex-acp',
+              sha256: createHash('sha256').update('expected').digest('hex')
+            }
+          }
+        },
+        source: 'registry',
+        enabled: false
+      },
+      null
+    )
+
+    expect(state).toMatchObject({
+      status: 'error',
+      error: 'SHA-256 checksum mismatch for ACP registry agent codex-acp'
+    })
+    expect(fs.existsSync(path.join(state.installDir!, 'codex-acp'))).toBe(false)
   })
 
   it('uninstalls binary registry agents by removing the install directory', async () => {
