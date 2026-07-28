@@ -157,6 +157,50 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('discovers Modelsell models through the OpenAI-compatible endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        object: 'list',
+        data: [{ id: 'example-chat-model', owned_by: 'modelsell' }]
+      })
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'modelsell',
+        name: 'Modelsell',
+        baseUrl: 'https://modelsell.com/v1'
+      }),
+      createProviderSettings()
+    )
+    const models = await provider.fetchModels()
+
+    expect(resolveAiSdkProviderDefinition(createProvider({ id: 'modelsell' }))).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      routeStrategy: 'none',
+      embeddingStrategy: 'openai'
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://modelsell.com/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'example-chat-model',
+        providerId: 'modelsell'
+      })
+    ])
+  })
+
   it('discovers and classifies GreenPT models with flagship models first', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

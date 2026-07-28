@@ -2,6 +2,25 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 
 describe('DEFAULT_PROVIDERS', () => {
+  it('includes Modelsell as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'modelsell',
+        name: 'Modelsell',
+        apiType: 'openai-completions',
+        baseUrl: 'https://modelsell.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://modelsell.com/',
+          apiKey: 'https://modelsell.com/console/token',
+          docs: 'https://modelsell.com/docs/api-reference',
+          models: 'https://modelsell.com/v1/models',
+          defaultBaseUrl: 'https://modelsell.com/v1'
+        })
+      })
+    )
+  })
+
   it('includes GreenPT as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

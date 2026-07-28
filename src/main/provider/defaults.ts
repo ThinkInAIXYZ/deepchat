@@ -400,6 +400,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'modelsell',
+    name: 'Modelsell',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://modelsell.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://modelsell.com/',
+      apiKey: 'https://modelsell.com/console/token',
+      docs: 'https://modelsell.com/docs/api-reference',
+      models: 'https://modelsell.com/v1/models',
+      defaultBaseUrl: 'https://modelsell.com/v1'
+    }
+  },
+  {
     id: 'straico',
     name: 'Straico',
     apiType: 'openai-completions',

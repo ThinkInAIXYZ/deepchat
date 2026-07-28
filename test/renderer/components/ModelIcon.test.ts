@@ -89,6 +89,7 @@ describe('ModelIcon', () => {
     const tokenlabIcon = (await import('@/assets/llm-icons/tokenlab.webp?url')).default
     const daoxeIcon = (await import('@/assets/llm-icons/daoxe.png?url')).default
     const greenptIcon = (await import('@/assets/llm-icons/greenpt.svg?url')).default
+    const modelsellIcon = (await import('@/assets/llm-icons/modelsell.png?url')).default
 
     const nvidia = mount(ModelIcon, {
       props: {
@@ -120,6 +121,11 @@ describe('ModelIcon', () => {
         modelId: 'greenpt'
       }
     })
+    const modelsell = mount(ModelIcon, {
+      props: {
+        modelId: 'modelsell'
+      }
+    })
 
     expect(nvidia.get('img').attributes('src')).toBe(nvidiaIcon)
     expect(huggingface.get('img').attributes('src')).toBe(huggingFaceIcon)
@@ -127,6 +133,7 @@ describe('ModelIcon', () => {
     expect(tokenlab.get('img').attributes('src')).toBe(tokenlabIcon)
     expect(daoxe.get('img').attributes('src')).toBe(daoxeIcon)
     expect(greenpt.get('img').attributes('src')).toBe(greenptIcon)
+    expect(modelsell.get('img').attributes('src')).toBe(modelsellIcon)
   })
 
   it('keeps fuzzy matching for common model ids and provider apiType fallback', async () => {
