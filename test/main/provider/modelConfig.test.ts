@@ -188,6 +188,7 @@ describe('ModelConfigHelper', () => {
           }
         }
       } as any)
+      rebuildModelCapabilities()
 
       try {
         expect(modelConfigHelper.getModelConfig(modelId, providerId)).toMatchObject({
