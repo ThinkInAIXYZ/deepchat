@@ -72,25 +72,23 @@ describe('OpenAIResponsesProvider', () => {
     const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     ;(provider as any).isInitialized = true
 
-    try {
-      for await (const _event of provider.coreStream(
-        [{ role: 'user', content: 'hello' }],
-        'gpt-4o',
-        {
-          maxTokens: 1024,
-          contextLength: 8192,
-          vision: false,
-          functionCall: false,
-          reasoning: false,
-          type: 'chat'
-        } as ModelConfig,
-        0.7,
-        256,
-        []
-      )) {
-        break
-      }
-    } catch {}
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'hello' }],
+      'gpt-4o',
+      {
+        maxTokens: 1024,
+        contextLength: 8192,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: 'chat'
+      } as ModelConfig,
+      0.7,
+      256,
+      []
+    )) {
+      break
+    }
 
     const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
 
@@ -115,26 +113,24 @@ describe('OpenAIResponsesProvider', () => {
     )
     ;(provider as any).isInitialized = true
 
-    try {
-      for await (const _event of provider.coreStream(
-        [{ role: 'user', content: 'paint' }],
-        'gpt-image-1',
-        {
-          apiEndpoint: 'image',
-          maxTokens: 1024,
-          contextLength: 8192,
-          vision: false,
-          functionCall: false,
-          reasoning: false,
-          type: 'chat'
-        } as ModelConfig,
-        0.7,
-        256,
-        []
-      )) {
-        break
-      }
-    } catch {}
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'paint' }],
+      'gpt-image-1',
+      {
+        apiEndpoint: 'image',
+        maxTokens: 1024,
+        contextLength: 8192,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: 'chat'
+      } as ModelConfig,
+      0.7,
+      256,
+      []
+    )) {
+      break
+    }
 
     const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
 

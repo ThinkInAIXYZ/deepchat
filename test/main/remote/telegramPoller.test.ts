@@ -137,15 +137,14 @@ describe('TelegramPoller', () => {
 
     await vi.waitFor(() => {
       expect(poller.getStatusSnapshot().state).toBe('error')
+      expect(client.getUpdates).toHaveBeenCalledTimes(1)
+      expect(poller.getStatusSnapshot().lastError).toContain(
+        'terminated by other getUpdates request'
+      )
+      expect(onFatalError).toHaveBeenCalledWith(
+        expect.stringContaining('terminated by other getUpdates request')
+      )
     })
-
-    await new Promise((resolve) => setTimeout(resolve, 20))
-
-    expect(client.getUpdates).toHaveBeenCalledTimes(1)
-    expect(poller.getStatusSnapshot().lastError).toContain('terminated by other getUpdates request')
-    expect(onFatalError).toHaveBeenCalledWith(
-      expect.stringContaining('terminated by other getUpdates request')
-    )
   })
 
   it('keeps retrying transient failures without auto-disable callback', async () => {

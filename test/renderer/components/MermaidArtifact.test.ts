@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, it, expect, vi } from 'vitest'
 import MermaidArtifact from '@/components/artifacts/MermaidArtifact.vue'
 
@@ -35,8 +35,7 @@ describe('MermaidArtifact', () => {
         attachTo: document.body
       })
 
-      // Wait for component to mount and initialize
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await flushPromises()
 
       const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       expect(mermaidRef.exists()).toBe(true)
@@ -61,8 +60,7 @@ describe('MermaidArtifact', () => {
         attachTo: document.body
       })
 
-      // Wait for component to mount and initialize
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await flushPromises()
 
       const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       expect(mermaidRef.exists()).toBe(true)
@@ -89,7 +87,7 @@ describe('MermaidArtifact', () => {
         attachTo: document.body
       })
 
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await flushPromises()
 
       const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       expect(mermaidRef.element.innerHTML).not.toContain('<script>')
@@ -111,7 +109,7 @@ describe('MermaidArtifact', () => {
         attachTo: document.body
       })
 
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await flushPromises()
 
       const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       expect(mermaidRef.element.innerHTML).not.toContain('onclick')
@@ -132,7 +130,7 @@ describe('MermaidArtifact', () => {
         attachTo: document.body
       })
 
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await flushPromises()
 
       const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       expect(mermaidRef.element.innerHTML).not.toContain('javascript:')
@@ -154,7 +152,7 @@ describe('MermaidArtifact', () => {
         attachTo: document.body
       })
 
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await flushPromises()
 
       const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       // The img tag should be completely removed

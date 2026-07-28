@@ -162,140 +162,65 @@ describe('ModelConfigHelper', () => {
     })
   })
 
-  describe('Complete Configuration Priority Chain', () => {
-    // Test with a model that has both default and provider-specific configurations
-    const testModelId = 'gpt-4' // This model should have default settings
-    const testProviderId = 'openai' // This provider should have specific settings for gpt-4
+  describe('Configuration Priority', () => {
+    it('uses provider metadata until a user config overrides it', () => {
+      const providerId = 'test-provider'
+      const modelId = 'provider-model'
+      const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          [providerId]: {
+            id: providerId,
+            models: [
+              {
+                id: modelId,
+                modalities: { input: ['text', 'image'], output: ['text'] },
+                limit: { context: 32768, output: 8192 },
+                tool_call: false,
+                reasoning: { supported: false },
+                type: 'chat'
+              }
+            ]
+          }
+        }
+      } as any)
 
-    it('should return default configuration when no provider is specified', () => {
-      // Get configuration without provider - should use default pattern matching
-      const configWithoutProvider = modelConfigHelper.getModelConfig(testModelId)
+      try {
+        expect(modelConfigHelper.getModelConfig(modelId, providerId)).toMatchObject({
+          maxTokens: 8192,
+          contextLength: 32768,
+          vision: true,
+          functionCall: false,
+          reasoning: false,
+          type: ModelType.Chat,
+          isUserDefined: false
+        })
 
-      // Should return a valid configuration (from default settings)
-      expect(configWithoutProvider).toBeDefined()
-      expect(configWithoutProvider.maxTokens).toBeGreaterThan(0)
-      expect(configWithoutProvider.contextLength).toBeGreaterThan(0)
-      expect(typeof configWithoutProvider.temperature).toBe('number')
-      expect(typeof configWithoutProvider.vision).toBe('boolean')
-      expect(typeof configWithoutProvider.functionCall).toBe('boolean')
-      expect(typeof configWithoutProvider.reasoning).toBe('boolean')
-      expect(configWithoutProvider.type).toBe(ModelType.Chat)
-    })
+        const userConfig: ModelConfig = {
+          maxTokens: 9999,
+          contextLength: 65536,
+          temperature: 0.2,
+          vision: false,
+          functionCall: true,
+          reasoning: true,
+          type: ModelType.Chat
+        }
+        modelConfigHelper.setModelConfig(modelId, providerId, userConfig)
 
-    it('should return provider-specific configuration when provider is specified', () => {
-      // Get configuration with provider - should use provider-specific settings if available
-      const configWithProvider = modelConfigHelper.getModelConfig(testModelId, testProviderId)
-      const configWithoutProvider = modelConfigHelper.getModelConfig(testModelId)
+        expect(modelConfigHelper.getModelConfig(modelId, providerId)).toMatchObject({
+          ...userConfig,
+          isUserDefined: true
+        })
 
-      // Both should be valid configurations
-      expect(configWithProvider).toBeDefined()
-      expect(configWithoutProvider).toBeDefined()
+        modelConfigHelper.resetModelConfig(modelId, providerId)
 
-      // They might be the same or different depending on whether provider-specific config exists
-      // But both should be valid configurations
-      expect(configWithProvider.maxTokens).toBeGreaterThan(0)
-      expect(configWithProvider.contextLength).toBeGreaterThan(0)
-    })
-
-    it('should prioritize user config over provider config over default config', () => {
-      // Step 1: Get baseline configurations
-      const defaultConfig = modelConfigHelper.getModelConfig(testModelId) // No provider
-      const providerConfig = modelConfigHelper.getModelConfig(testModelId, testProviderId) // With provider
-
-      console.log('Default config maxTokens:', defaultConfig.maxTokens)
-      console.log('Provider config maxTokens:', providerConfig.maxTokens)
-
-      // Step 2: Set user configuration with unique values
-      const userConfig: ModelConfig = {
-        maxTokens: 99999, // Unique value to identify user config
-        contextLength: 88888, // Unique value
-        temperature: 0.123, // Unique value
-        vision: true,
-        functionCall: true,
-        reasoning: true,
-        type: ModelType.Chat
+        expect(modelConfigHelper.getModelConfig(modelId, providerId)).toMatchObject({
+          maxTokens: 8192,
+          contextLength: 32768,
+          isUserDefined: false
+        })
+      } finally {
+        getDbSpy.mockRestore()
       }
-
-      modelConfigHelper.setModelConfig(testModelId, testProviderId, userConfig)
-
-      // Step 3: Verify user config takes priority
-      const retrievedConfig = modelConfigHelper.getModelConfig(testModelId, testProviderId)
-      expect(retrievedConfig).toMatchObject(userConfig)
-      expect(retrievedConfig.isUserDefined).toBe(true)
-      expect(retrievedConfig.maxTokens).toBe(99999) // Should be user config value
-      expect(retrievedConfig.contextLength).toBe(88888) // Should be user config value
-      expect(retrievedConfig.temperature).toBe(0.123) // Should be user config value
-    })
-
-    it('should fall back to provider config after user config reset', () => {
-      // Step 1: Set user configuration
-      const userConfig: ModelConfig = {
-        maxTokens: 77777,
-        contextLength: 66666,
-        temperature: 0.999,
-        vision: false,
-        functionCall: false,
-        reasoning: false,
-        type: ModelType.Chat
-      }
-
-      modelConfigHelper.setModelConfig(testModelId, testProviderId, userConfig)
-
-      // Step 2: Verify user config is active
-      const configWithUserSettings = modelConfigHelper.getModelConfig(testModelId, testProviderId)
-      expect(configWithUserSettings.maxTokens).toBe(77777)
-
-      // Step 3: Get expected fallback config (provider or default)
-      const expectedFallbackConfig = modelConfigHelper.getModelConfig(testModelId, testProviderId)
-
-      // Step 4: Reset user configuration
-      modelConfigHelper.resetModelConfig(testModelId, testProviderId)
-
-      // Step 5: Verify fallback to provider/default config
-      const configAfterReset = modelConfigHelper.getModelConfig(testModelId, testProviderId)
-      expect(configAfterReset.maxTokens).not.toBe(77777) // Should not be user config
-      expect(configAfterReset.maxTokens).toBeGreaterThan(0) // Should be valid config
-
-      // Should match the provider config or default config
-      expect(configAfterReset.contextLength).toBeGreaterThan(0)
-      expect(typeof configAfterReset.temperature).toBe('number')
-      expect(typeof configAfterReset.vision).toBe('boolean')
-    })
-
-    it('should handle configuration priority with different model types', () => {
-      // Test with a model that should match default patterns
-      const chatModelId = 'gpt-3.5-turbo'
-      const visionModelId = 'gpt-4-vision'
-
-      // Get configurations for different model types
-      const chatConfig = modelConfigHelper.getModelConfig(chatModelId, testProviderId)
-      const visionConfig = modelConfigHelper.getModelConfig(visionModelId, testProviderId)
-
-      // Both should be valid
-      expect(chatConfig).toBeDefined()
-      expect(visionConfig).toBeDefined()
-
-      // Vision model might have different default settings
-      expect(chatConfig.type).toBe(ModelType.Chat)
-      expect(visionConfig.type).toBe(ModelType.Chat) // Both should be chat type by default
-
-      // Test user override
-      const customVisionConfig: ModelConfig = {
-        maxTokens: 12000,
-        contextLength: 24000,
-        temperature: 0.7,
-        vision: true, // Enable vision for this model
-        functionCall: false,
-        reasoning: false,
-        type: ModelType.Chat
-      }
-
-      modelConfigHelper.setModelConfig(visionModelId, testProviderId, customVisionConfig)
-      const retrievedVisionConfig = modelConfigHelper.getModelConfig(visionModelId, testProviderId)
-
-      expect(retrievedVisionConfig).toMatchObject(customVisionConfig)
-      expect(retrievedVisionConfig.isUserDefined).toBe(true)
-      expect(retrievedVisionConfig.vision).toBe(true) // User setting should override
     })
 
     it('should maintain configuration isolation between different providers', () => {
@@ -430,35 +355,20 @@ describe('ModelConfigHelper', () => {
   })
 
   describe('Edge Cases and Error Handling', () => {
-    it('should handle edge cases gracefully', () => {
-      // Empty model ID
-      const configEmptyModel = modelConfigHelper.getModelConfig('', 'test-provider')
-      expect(configEmptyModel).toBeDefined()
-      expect(configEmptyModel.maxTokens).toBeGreaterThan(0)
-
-      // Undefined provider ID
-      const configUndefinedProvider = modelConfigHelper.getModelConfig('test-model', undefined)
-      expect(configUndefinedProvider).toBeDefined()
-      expect(configUndefinedProvider.maxTokens).toBeGreaterThan(0)
-    })
-
-    it('should verify test state isolation', () => {
-      const testKey = 'test-state-isolation'
-      const testProvider = 'test-provider'
-
-      // Set configuration
-      modelConfigHelper.setModelConfig(testKey, testProvider, {
-        maxTokens: 999,
-        contextLength: 999,
-        temperature: 0.9,
-        vision: true,
+    it.each([
+      { label: 'empty model IDs', modelId: '', providerId: 'test-provider' },
+      { label: 'missing provider IDs', modelId: 'test-model', providerId: undefined }
+    ])('returns safe defaults for $label', ({ modelId, providerId }) => {
+      expect(modelConfigHelper.getModelConfig(modelId, providerId)).toMatchObject({
+        maxTokens: 4096,
+        contextLength: 16000,
+        temperature: 0.6,
+        vision: false,
         functionCall: true,
-        reasoning: true,
-        type: ModelType.Chat
+        reasoning: false,
+        type: ModelType.Chat,
+        isUserDefined: false
       })
-
-      expect(modelConfigHelper.hasUserConfig(testKey, testProvider)).toBe(true)
-      // Note: afterEach will clean this up for subsequent tests
     })
   })
 
