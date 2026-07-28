@@ -198,6 +198,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'rocket',
     'rotate-ccw',
     'rotate-cw',
+    'route',
     'save',
     'scale',
     'scaling',
