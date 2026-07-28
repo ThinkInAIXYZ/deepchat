@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const createdWindows = vi.hoisted(() => [] as MockBrowserWindow[])
@@ -368,9 +369,96 @@ describe('SplashWindow display gating', () => {
     const fallbackUrl = splashWindow.loadURL.mock.calls.at(-1)?.[0]
     expect(fallbackUrl).toMatch(/^data:text\/html/)
     const fallbackHtml = decodeURIComponent(fallbackUrl!.split(',', 2)[1])
-    expect(fallbackHtml).toContain("if (mode === 'loading')")
-    expect(fallbackHtml).toContain("if (mode === 'system-unlock')")
-    expect(fallbackHtml).toContain('Development preview — password submission is disabled.')
+    let debugModeListener: ((mode: 'loading' | 'system-unlock' | 'unlock') => void) | undefined
+    let unlockRequestListener:
+      | ((payload: {
+          requestId: string
+          reason: 'invalid' | 'manual-required' | 'system-key-missing'
+          safeStorageAvailable: boolean
+        }) => void)
+      | undefined
+    const splash = {
+      onDebugMode: vi.fn((listener) => {
+        debugModeListener = listener
+      }),
+      onUnlockRequest: vi.fn((listener) => {
+        unlockRequestListener = listener
+      }),
+      onUnlockProgress: vi.fn(),
+      submitUnlock: vi.fn(),
+      cancelUnlock: vi.fn()
+    }
+    const dom = new JSDOM(fallbackHtml, {
+      runScripts: 'dangerously',
+      beforeParse(window) {
+        Object.defineProperty(window, 'deepchatSplash', { value: splash })
+      }
+    })
+
+    try {
+      const { document } = dom.window
+      const subtitle = document.getElementById('subtitle')!
+      const password = document.getElementById('password') as HTMLInputElement
+      const actions = document.getElementById('actions')!
+      const submit = document.getElementById('submit') as HTMLButtonElement
+      const quit = document.getElementById('quit') as HTMLButtonElement
+      const hint = document.getElementById('hint')!
+
+      expect(debugModeListener).toBeTypeOf('function')
+      expect(unlockRequestListener).toBeTypeOf('function')
+
+      debugModeListener?.('loading')
+      expect(subtitle.textContent).toBe('Unlocking local database')
+      expect(hint.textContent).toBe('DeepChat is starting.')
+      expect(password.hidden).toBe(true)
+      expect(actions.hidden).toBe(true)
+
+      debugModeListener?.('system-unlock')
+      expect(subtitle.textContent).toBe('Unlocking local database')
+      expect(hint.textContent).toBe(
+        'DeepChat is reading the saved password from the system credential store.'
+      )
+      expect(password.hidden).toBe(true)
+      expect(actions.hidden).toBe(true)
+
+      debugModeListener?.('unlock')
+      expect(subtitle.textContent).toBe('Local database is encrypted')
+      expect(hint.textContent).toBe('Development preview — password submission is disabled.')
+      expect(password.disabled).toBe(true)
+      expect(submit.disabled).toBe(true)
+      expect(quit.disabled).toBe(true)
+      password.value = 'preview-password'
+      password.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+      document
+        .getElementById('panel')!
+        .dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
+      quit.click()
+      expect(splash.submitUnlock).not.toHaveBeenCalled()
+      expect(splash.cancelUnlock).not.toHaveBeenCalled()
+
+      unlockRequestListener?.({
+        requestId: 'request-1',
+        reason: 'manual-required',
+        safeStorageAvailable: true
+      })
+      expect(password.disabled).toBe(false)
+      expect(quit.disabled).toBe(false)
+      expect(submit.disabled).toBe(true)
+      password.value = 'real-password'
+      password.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+      expect(submit.disabled).toBe(false)
+      document
+        .getElementById('panel')!
+        .dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
+      quit.click()
+      expect(splash.submitUnlock).toHaveBeenCalledWith({
+        requestId: 'request-1',
+        password: 'real-password'
+      })
+      expect(splash.cancelUnlock).toHaveBeenCalledWith({ requestId: 'request-1' })
+    } finally {
+      dom.window.close()
+    }
   })
 
   it('stops splash renderer fallback quietly after the hidden splash is suppressed', async () => {

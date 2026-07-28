@@ -9,6 +9,8 @@
 - [x] Add the scoped preload mode listener and support all preview states in Vue and inline fallback
   splash renderers.
 - [x] Add Splash controls to development Debug Settings with busy and unavailable states.
-- [x] Add focused route, SplashWindow, preload, renderer, and Debug-page regression tests.
+- [x] Add focused route, SplashWindow, preload, renderer, and Debug-page regression tests, including
+  executable DOM coverage for all inline-fallback debug states, preview action isolation, and real
+  unlock IPC.
 - [x] Format, validate i18n, lint, node typecheck, and run focused checks.
 - [ ] Run web typecheck (blocked: `vue-tsc` is unavailable in this worktree).

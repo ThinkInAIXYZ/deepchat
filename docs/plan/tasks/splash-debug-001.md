@@ -34,6 +34,13 @@ fallback renderer.
 
 ## Verification
 
-Run focused route, SplashWindow, preload boundary, splash renderer and DebugSettings tests; then the
-relevant typecheck. Update the feature task checklist. Do not stage unrelated files. Commit all intended
-files with a Conventional Commit after tests pass.
+- [x] Run focused route, SplashWindow, preload boundary, splash renderer, and DebugSettings tests.
+- [x] Add DOM-executed inline fallback coverage for all debug states, preview action isolation, and real
+  unlock IPC behavior.
+- [x] Format the changed test and documentation files.
+- [ ] Run web typecheck (blocked: `vue-tsc` is unavailable in this worktree).
+- [x] Run node typecheck.
+- [x] Update the feature task checklist.
+- [x] Commit all intended files with a Conventional Commit after tests pass.
+
+Do not stage unrelated files.
