@@ -265,6 +265,7 @@ onBeforeUnmount(() => {
 .aurora-ribbon--top {
   top: -28vmax;
   left: -26vmax;
+  animation: aurora-sweep-one 26s ease-in-out infinite alternate;
   background: linear-gradient(
     100deg,
     transparent 9%,
@@ -277,6 +278,7 @@ onBeforeUnmount(() => {
 .aurora-ribbon--bottom {
   right: -38vmax;
   bottom: -27vmax;
+  animation: aurora-sweep-two 32s ease-in-out infinite alternate;
   background: linear-gradient(
     95deg,
     transparent 6%,
@@ -297,14 +299,17 @@ onBeforeUnmount(() => {
 }
 
 .aurora-pool--blue {
+  animation: aurora-pool-one 14s ease-in-out infinite alternate;
   background: radial-gradient(ellipse, rgb(22 142 255 / 45%), transparent 67%);
 }
 
 .aurora-pool--violet {
+  animation: aurora-pool-two 18s ease-in-out infinite alternate;
   background: radial-gradient(ellipse, rgb(102 52 238 / 35%), transparent 67%);
 }
 
 .aurora-pool--cyan {
+  animation: aurora-pool-three 22s ease-in-out infinite alternate;
   background: radial-gradient(ellipse, rgb(61 213 255 / 28%), transparent 66%);
 }
 
@@ -637,6 +642,7 @@ onBeforeUnmount(() => {
 
 .unlock-input:focus {
   border-color: rgb(96 165 250 / 84%);
+  box-shadow: 0 0 0 3px rgb(96 165 250 / 35%);
 }
 
 .unlock-message {
@@ -1037,10 +1043,11 @@ onBeforeUnmount(() => {
   .aurora-pool,
   .logo-bloom,
   .core-flare,
-  .logo-loader__wake,
   .speed-line,
   .logo-mark,
-  .logo-mark :deep(path) {
+  .logo-mark :deep(path),
+  .unlock-logo,
+  .unlock-logo :deep(path) {
     animation: none;
   }
 
