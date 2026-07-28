@@ -37,6 +37,7 @@ type ComputerUsePreviewState = {
   sessionId: string
   mode: ComputerUsePreviewMode
   hostWindowId: number | null
+  hostClosedListener: (() => void) | null
   runId: string | null
   toolCallId: string | null
   toolCallEpoch: number
@@ -82,6 +83,13 @@ export class ComputerUsePreviewPresenter
 
   shouldCaptureAfterClick(call: ComputerUsePreviewCall): boolean {
     const state = this.states.get(call.conversationId)
+    if (state?.hostWindowId != null) {
+      const host = BrowserWindow.fromId(state.hostWindowId)
+      if (!host || host.isDestroyed()) {
+        this.stopState(state)
+        return false
+      }
+    }
     const pid = this.readPositiveInteger(call.args.pid)
     const targetWindowId = this.readPositiveInteger(call.args.window_id)
     return Boolean(
@@ -195,28 +203,30 @@ export class ComputerUsePreviewPresenter
       ) {
         return { updated: false, surface: 'none' }
       }
-      state.epoch += 1
-      state.mode = 'stopped'
-      if (state.runId) {
-        this.previewCoordinator.releaseClaim({
-          source: 'computer-use',
-          sessionId: state.sessionId,
-          runId: state.runId
-        })
-      }
-      this.states.delete(normalizedSessionId)
+      this.stopState(state)
       return { updated: true, surface: 'none' }
     }
 
     const host = hostWindowId == null ? null : BrowserWindow.fromId(hostWindowId)
     if (!host || host.isDestroyed()) {
+      const state = this.states.get(normalizedSessionId)
+      if (state && (state.hostWindowId == null || state.hostWindowId === hostWindowId)) {
+        this.stopState(state)
+      }
       return { updated: false, surface: 'none' }
     }
 
     this.stopOtherSessionsForHost(normalizedSessionId, host.id)
     await this.previewCoordinator.initialize()
+    if (host.isDestroyed()) {
+      const state = this.states.get(normalizedSessionId)
+      if (state && (state.hostWindowId == null || state.hostWindowId === host.id)) {
+        this.stopState(state)
+      }
+      return { updated: false, surface: 'none' }
+    }
     const state = this.states.get(normalizedSessionId) ?? this.createState(normalizedSessionId)
-    state.hostWindowId = host.id
+    this.bindHost(state, host)
     state.mode = mode
 
     if (mode === 'suspended') {
@@ -256,15 +266,8 @@ export class ComputerUsePreviewPresenter
 
   shutdown(): void {
     for (const state of this.states.values()) {
-      if (state.runId) {
-        this.previewCoordinator.releaseClaim({
-          source: 'computer-use',
-          sessionId: state.sessionId,
-          runId: state.runId
-        })
-      }
+      this.stopState(state)
     }
-    this.states.clear()
     this.unregisterPreviewHandler()
   }
 
@@ -273,6 +276,7 @@ export class ComputerUsePreviewPresenter
       sessionId,
       mode: 'stopped',
       hostWindowId: null,
+      hostClosedListener: null,
       runId: null,
       toolCallId: null,
       toolCallEpoch: 0,
@@ -289,6 +293,51 @@ export class ComputerUsePreviewPresenter
     }
     this.states.set(sessionId, state)
     return state
+  }
+
+  private bindHost(state: ComputerUsePreviewState, host: BrowserWindow): void {
+    if (state.hostWindowId === host.id && state.hostClosedListener) {
+      return
+    }
+    this.unbindHost(state)
+    const closed = () => {
+      if (state.hostClosedListener !== closed) {
+        return
+      }
+      state.hostClosedListener = null
+      this.stopState(state)
+    }
+    state.hostWindowId = host.id
+    state.hostClosedListener = closed
+    host.once('closed', closed)
+  }
+
+  private unbindHost(state: ComputerUsePreviewState): void {
+    const host = state.hostWindowId == null ? null : BrowserWindow.fromId(state.hostWindowId)
+    if (host && state.hostClosedListener) {
+      host.removeListener('closed', state.hostClosedListener)
+    }
+    state.hostWindowId = null
+    state.hostClosedListener = null
+  }
+
+  private stopState(state: ComputerUsePreviewState): void {
+    if (this.states.get(state.sessionId) !== state) {
+      return
+    }
+    state.epoch += 1
+    state.mode = 'stopped'
+    state.frame = null
+    state.pendingSnapshot = null
+    if (state.runId) {
+      this.previewCoordinator.releaseClaim({
+        source: 'computer-use',
+        sessionId: state.sessionId,
+        runId: state.runId
+      })
+    }
+    this.unbindHost(state)
+    this.states.delete(state.sessionId)
   }
 
   private readPositiveInteger(value: unknown): number | null {
@@ -436,9 +485,13 @@ export class ComputerUsePreviewPresenter
     announceSurface = false
   ): ComputerUsePreviewSurface {
     const target = this.previewTarget(state)
-    const host = state.hostWindowId == null ? null : BrowserWindow.fromId(state.hostWindowId)
-    if (!target || !host || host.isDestroyed() || state.mode !== 'eligible') {
+    if (!target || state.mode !== 'eligible') {
       return this.setSurface(state, 'none', announceSurface)
+    }
+    const host = state.hostWindowId == null ? null : BrowserWindow.fromId(state.hostWindowId)
+    if (!host || host.isDestroyed()) {
+      this.stopState(state)
+      return 'none'
     }
     return this.setSurface(state, this.previewCoordinator.prepare(target, host), announceSurface)
   }
@@ -539,18 +592,7 @@ export class ComputerUsePreviewPresenter
       if (otherSessionId === sessionId || state.hostWindowId !== hostWindowId) {
         continue
       }
-      state.epoch += 1
-      state.mode = 'stopped'
-      state.frame = null
-      state.pendingSnapshot = null
-      if (state.runId) {
-        this.previewCoordinator.releaseClaim({
-          source: 'computer-use',
-          sessionId: state.sessionId,
-          runId: state.runId
-        })
-      }
-      this.states.delete(otherSessionId)
+      this.stopState(state)
     }
   }
 

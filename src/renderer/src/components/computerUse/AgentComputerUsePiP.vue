@@ -169,12 +169,12 @@ const resetFrame = (runId = '', epoch = -1) => {
   }
 }
 
-const dismiss = async () => {
+const dismiss = () => {
   const sessionId = currentSessionId.value
   const runId = currentRunId.value
   if (!sessionId || !runId) return
   dismissedRunId.value = runId
-  await computerUseClient.dismissPreview(sessionId, runId)
+  void computerUseClient.dismissPreview(sessionId, runId).catch(() => undefined)
 }
 
 const isControl = (target: EventTarget | null) =>
@@ -397,7 +397,11 @@ onBeforeUnmount(() => {
   stopPreviewSurfaceChanged?.()
   stopWindowStateChanged?.()
   if (currentSessionId.value) {
-    void computerUseClient.setPreviewMode(currentSessionId.value, 'stopped')
+    pendingPreviewRequest = {
+      sessionId: currentSessionId.value,
+      mode: 'stopped'
+    }
+    drainPreviewRequests()
   }
 })
 </script>

@@ -248,8 +248,8 @@ other CUA tools are not frame sources.
   session, run, target, and non-dismissed state.
 - The private call uses only `{ pid, window_id }`, starts asynchronously after click completion, and
   does not delay or change the click response.
-- The private call bypasses Agent-facing permission and result publication because the triggering
-  click has already passed access checks and the plugin policy explicitly allows
+- The private call bypasses Agent-facing permission and result publication only after confirming
+  that the triggering click passed access checks and the current plugin policy explicitly allows
   `get_window_state`.
 - The private result enters only the same bounded preview observer and image pipeline. Its text,
   accessibility tree, and other content are discarded.

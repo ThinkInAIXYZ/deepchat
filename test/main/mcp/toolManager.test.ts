@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ToolManager, type ComputerUsePreviewObserver } from '@/mcp/toolManager'
+import * as toolPolicyStore from '@/plugin/toolPolicyStore'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -770,6 +771,10 @@ describe('ToolManager', () => {
   })
 
   it('refreshes PiP after a trusted click without exposing or awaiting the private snapshot', async () => {
+    let snapshotPolicy: 'allow' | 'ask' = 'allow'
+    vi.spyOn(toolPolicyStore, 'getPluginToolPolicy').mockImplementation((_serverId, toolName) =>
+      toolName === 'get_window_state' ? snapshotPolicy : null
+    )
     const client = createClient(
       'cua-driver',
       [
@@ -940,6 +945,25 @@ describe('ToolManager', () => {
       privateFailure
     )
     expect(publishEvent).toHaveBeenCalledTimes(2)
+
+    snapshotPolicy = 'ask'
+    const guardedResult = await manager.callTool(
+      {
+        id: 'cua-click-3',
+        type: 'function',
+        function: {
+          name: 'click',
+          arguments: '{"pid":12,"window_id":34,"x":50,"y":60}'
+        },
+        conversationId: 'session-1'
+      },
+      { runId: 'run-1' }
+    )
+
+    expect(guardedResult.content).toBe('clicked')
+    expect(client.callTool).toHaveBeenCalledTimes(5)
+    expect(observer.shouldCaptureAfterClick).toHaveBeenCalledTimes(2)
+    expect(observer.started).toHaveBeenCalledTimes(2)
   })
 
   it('does not privately snapshot failed, invalid-target, or untrusted clicks', async () => {

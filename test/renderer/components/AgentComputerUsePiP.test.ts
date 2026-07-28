@@ -1,10 +1,20 @@
 import { defineComponent, nextTick, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type {
+  ComputerUsePreviewMode,
+  ComputerUsePreviewModeResult
+} from '@shared/types/computerUse'
 
 const mountedWrappers: Array<{ unmount: () => void }> = []
 
-const setup = async (surface: 'native-overlay' | 'renderer-canvas' = 'renderer-canvas') => {
+const setup = async (
+  surface: 'native-overlay' | 'renderer-canvas' = 'renderer-canvas',
+  setPreviewMode?: (
+    sessionId: string,
+    mode: ComputerUsePreviewMode
+  ) => Promise<ComputerUsePreviewModeResult>
+) => {
   vi.resetModules()
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
     x: 0,
@@ -47,10 +57,11 @@ const setup = async (surface: 'native-overlay' | 'renderer-canvas' = 'renderer-c
   const stopWindowStateSubscription = vi.fn()
   const computerUseClient = {
     setPreviewMode: vi.fn(
-      async (_sessionId: string, mode: 'eligible' | 'suspended' | 'stopped') => ({
-        updated: true,
-        surface: mode === 'eligible' ? surface : ('none' as const)
-      })
+      setPreviewMode ??
+        (async (_sessionId: string, mode: 'eligible' | 'suspended' | 'stopped') => ({
+          updated: true,
+          surface: mode === 'eligible' ? surface : ('none' as const)
+        }))
     ),
     dismissPreview: vi.fn(async () => true),
     onPreviewSurfaceChanged: vi.fn((handler: (payload: SurfacePayload) => void) => {
@@ -205,6 +216,7 @@ describe('AgentComputerUsePiP', () => {
     expect(pip.get('button').attributes('aria-label')).toBe('common.close')
     expect(wrapper.find('[aria-label="common.open"]').exists()).toBe(false)
 
+    computerUseClient.dismissPreview.mockRejectedValueOnce(new Error('dismiss failed'))
     await pip.get('button').trigger('click')
     await flushPromises()
 
@@ -369,6 +381,32 @@ describe('AgentComputerUsePiP', () => {
     expect(computerUseClient.setPreviewMode).toHaveBeenCalledWith('session-2', 'stopped')
     expect(stopSurfaceSubscription).toHaveBeenCalledOnce()
     expect(stopWindowStateSubscription).toHaveBeenCalledOnce()
+  })
+
+  it('queues teardown behind an in-flight preview mode update', async () => {
+    let resolveEligible: ((result: ComputerUsePreviewModeResult) => void) | undefined
+    const setPreviewMode = vi.fn(async (_sessionId: string, mode: ComputerUsePreviewMode) => {
+      if (mode === 'eligible') {
+        return await new Promise<ComputerUsePreviewModeResult>((resolve) => {
+          resolveEligible = resolve
+        })
+      }
+      return { updated: true, surface: 'none' as const }
+    })
+    const { wrapper } = await setup('renderer-canvas', setPreviewMode)
+    const callsBeforeUnmount = setPreviewMode.mock.calls.length
+    expect(setPreviewMode).toHaveBeenLastCalledWith('session-1', 'eligible')
+
+    wrapper.unmount()
+    mountedWrappers.splice(mountedWrappers.indexOf(wrapper), 1)
+    await nextTick()
+
+    expect(setPreviewMode).toHaveBeenCalledTimes(callsBeforeUnmount)
+    resolveEligible?.({ updated: true, surface: 'renderer-canvas' })
+    await flushPromises()
+
+    expect(setPreviewMode).toHaveBeenCalledTimes(callsBeforeUnmount + 1)
+    expect(setPreviewMode).toHaveBeenLastCalledWith('session-1', 'stopped')
   })
 
   it('stops and releases the fallback when the Agent run terminates', async () => {

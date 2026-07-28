@@ -913,6 +913,7 @@ export class ToolManager {
     if (
       input.toolName !== 'click' ||
       input.response.isError === true ||
+      getPluginToolPolicy(input.client.serverName, 'get_window_state') !== 'allow' ||
       !this.computerUsePreviewObserver?.shouldCaptureAfterClick
     ) {
       return

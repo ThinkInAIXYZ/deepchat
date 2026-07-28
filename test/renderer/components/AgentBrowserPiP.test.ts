@@ -194,12 +194,14 @@ describe('AgentBrowserPiP', () => {
   })
 
   it('stays dismissed for the current run', async () => {
-    const { wrapper } = await setup()
+    const { wrapper, browserClient } = await setup()
+    browserClient.dismissPreview.mockRejectedValueOnce(new Error('dismiss failed'))
 
     await wrapper.get('[aria-label="common.close"]').trigger('click')
-    await nextTick()
+    await flushPromises()
 
     expect(wrapper.find('[data-testid="agent-browser-pip"]').exists()).toBe(false)
+    expect(browserClient.dismissPreview).toHaveBeenCalledWith('session-1', 'run-1')
   })
 
   it('renders no Canvas surface and handles native panel actions', async () => {

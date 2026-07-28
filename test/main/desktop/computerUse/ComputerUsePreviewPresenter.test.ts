@@ -161,6 +161,27 @@ describe('ComputerUsePreviewPresenter', () => {
     expect(presenter.shouldCaptureAfterClick(click)).toBe(false)
   })
 
+  it('releases preview state when the host closes without renderer cleanup', async () => {
+    const { presenter, coordinator, windows } = await setup()
+    await presenter.setPreviewMode('session-1', 'eligible', 7)
+    presenter.started(call('snapshot'))
+
+    const host = windows.get(7)!
+    host.destroyed = true
+    host.emit('closed')
+
+    expect(coordinator.releaseClaim).toHaveBeenCalledWith({
+      source: 'computer-use',
+      sessionId: 'session-1',
+      runId: 'run-1'
+    })
+    expect(presenter.shouldCaptureAfterClick(call('click', { toolName: 'click' }))).toBe(false)
+    await expect(presenter.setPreviewMode('session-1', 'stopped', 7)).resolves.toEqual({
+      updated: false,
+      surface: 'none'
+    })
+  })
+
   it('publishes a bounded Canvas frame only after a valid current snapshot', async () => {
     const { presenter, coordinator, windowPresenter } = await setup()
     await expect(presenter.setPreviewMode('session-1', 'eligible', 7)).resolves.toEqual({

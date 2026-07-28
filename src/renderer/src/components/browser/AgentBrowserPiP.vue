@@ -275,13 +275,13 @@ const loadStatus = async () => {
   }
 }
 
-const dismiss = async () => {
+const dismiss = () => {
   const sessionId = currentSessionId.value
   const runId = currentRunId.value
   if (!sessionId || !runId) return
   dismissedRunId.value = runId
   toolbarVisible.value = false
-  await browserClient.dismissPreview(sessionId, runId)
+  void browserClient.dismissPreview(sessionId, runId).catch(() => undefined)
 }
 
 const openInPanel = async () => {

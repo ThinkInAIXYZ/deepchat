@@ -314,8 +314,9 @@ pnpm run format
 pnpm run i18n
 pnpm run lint
 pnpm run typecheck
-pnpm test -- test/main
-pnpm test -- test/renderer
+pnpm run test:main
+pnpm run test:renderer
+pnpm exec electron-vite build
 ```
 
 Prefer narrower test file invocations during development. Run the complete affected main and
