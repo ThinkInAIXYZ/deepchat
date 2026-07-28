@@ -2229,7 +2229,10 @@
       "sourceError": "Impossibile caricare gli Agents di origine",
       "emptySources": "Nessuna origine di importazione",
       "emptySourcesDescription": "Non è stato trovato nessun altro Agent con Skills disponibili.",
-      "sourceKind": { "internal": "DeepChat", "external": "Esterno" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "Esterno"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills da importare",
       "selectedCount": "{count} selezionati",
@@ -2239,8 +2242,16 @@
       "previewError": "Impossibile visualizzare l’anteprima degli Skills",
       "emptyPreview": "Nessuno Skill disponibile",
       "emptyPreviewDescription": "Questo Agent non ha Skills importabili.",
-      "status": { "ready": "Pronto", "conflict": "Conflitto", "unavailable": "Non disponibile" },
-      "strategy": { "skip": "Ignora", "rename": "Rinomina", "overwrite": "Sovrascrivi" },
+      "status": {
+        "ready": "Pronto",
+        "conflict": "Conflitto",
+        "unavailable": "Non disponibile"
+      },
+      "strategy": {
+        "skip": "Ignora",
+        "rename": "Rinomina",
+        "overwrite": "Sovrascrivi"
+      },
       "renameTarget": "Verrà importato come {name}",
       "executeError": "Impossibile importare gli Skills",
       "importing": "Importazione...",
@@ -3164,5 +3175,23 @@
     "scopeGlobalPlugins": "Questa pagina è globale all’app: installazione, abilitazione e stato dei processi dei plugin ufficiali sono condivisi da tutti gli agenti DeepChat.",
     "scopeCurrentAgent": "Questa pagina è policy dell’agente: le modifiche riguardano solo la disponibilità Skills/MCP di «{agent}», non le installazioni globali.",
     "currentAgentFallback": "agente corrente"
+  },
+  "debug": {
+    "description": "Strumenti riservati allo sviluppo per visualizzare in anteprima stati simulati e flussi guidati.",
+    "unavailableTitle": "Strumenti di debug non disponibili",
+    "unavailableDescription": "Questa azione è disponibile solo in modalità sviluppo.",
+    "splash": {
+      "title": "Finestra di avvio",
+      "description": "Visualizza in anteprima gli stati della finestra di avvio senza avviare un reale flusso di sblocco del database.",
+      "loading": "Anteprima del caricamento",
+      "systemUnlock": "Anteprima dello sblocco del sistema",
+      "unlock": "Anteprima dello sblocco manuale",
+      "failed": "Impossibile mostrare lo scenario della finestra di avvio."
+    },
+    "guidance": {
+      "title": "Guida e dati",
+      "description": "Crea simulazioni di onboarding, conversazioni e aggiornamenti riservate allo sviluppo.",
+      "failed": "Impossibile avviare il flusso guidato di debug."
+    }
   }
 }

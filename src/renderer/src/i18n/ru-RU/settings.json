@@ -1928,7 +1928,10 @@
       "sourceError": "Failed to load Agent sources",
       "emptySources": "No import sources",
       "emptySourcesDescription": "No other Agent with available Skills was found.",
-      "sourceKind": { "internal": "DeepChat", "external": "External" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "External"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills to import",
       "selectedCount": "{count} selected",
@@ -1938,8 +1941,16 @@
       "previewError": "Failed to preview Skills",
       "emptyPreview": "No Skills available",
       "emptyPreviewDescription": "This Agent has no Skills that can be imported.",
-      "status": { "ready": "Ready", "conflict": "Conflict", "unavailable": "Unavailable" },
-      "strategy": { "skip": "Skip", "rename": "Rename", "overwrite": "Overwrite" },
+      "status": {
+        "ready": "Ready",
+        "conflict": "Conflict",
+        "unavailable": "Unavailable"
+      },
+      "strategy": {
+        "skip": "Skip",
+        "rename": "Rename",
+        "overwrite": "Overwrite"
+      },
       "renameTarget": "Will be imported as {name}",
       "executeError": "Failed to import Skills",
       "importing": "Importing...",
@@ -3173,5 +3184,23 @@
     "scopeGlobalPlugins": "Эта страница глобальна для приложения: установка, включение и состояние процессов официальных плагинов общие для всех агентов DeepChat.",
     "scopeCurrentAgent": "Эта страница — политика агента: изменения влияют только на доступность Skills/MCP у «{agent}», а не на глобальные установки.",
     "currentAgentFallback": "текущий агент"
+  },
+  "debug": {
+    "description": "Инструменты только для разработки для предварительного просмотра имитируемых состояний и управляемых сценариев.",
+    "unavailableTitle": "Инструменты отладки недоступны",
+    "unavailableDescription": "Это действие доступно только в режиме разработки.",
+    "splash": {
+      "title": "Окно запуска",
+      "description": "Просматривайте состояния окна запуска без запуска настоящего процесса разблокировки базы данных.",
+      "loading": "Предварительный просмотр загрузки",
+      "systemUnlock": "Предварительный просмотр системной разблокировки",
+      "unlock": "Предварительный просмотр ручной разблокировки",
+      "failed": "Не удалось отобразить сценарий окна запуска."
+    },
+    "guidance": {
+      "title": "Руководство и данные",
+      "description": "Создавайте макеты процесса адаптации, бесед и обновлений только для разработки.",
+      "failed": "Не удалось запустить управляемый сценарий отладки."
+    }
   }
 }

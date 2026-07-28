@@ -1928,7 +1928,10 @@
       "sourceError": "Impossible de charger les Agents sources",
       "emptySources": "Aucune source d’import",
       "emptySourcesDescription": "Aucun autre Agent avec des Skills disponibles n’a été trouvé.",
-      "sourceKind": { "internal": "DeepChat", "external": "Externe" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "Externe"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills à importer",
       "selectedCount": "{count} sélectionnés",
@@ -1938,8 +1941,16 @@
       "previewError": "Impossible de prévisualiser les Skills",
       "emptyPreview": "Aucun Skill disponible",
       "emptyPreviewDescription": "Cet Agent ne possède aucun Skill importable.",
-      "status": { "ready": "Prêt", "conflict": "Conflit", "unavailable": "Indisponible" },
-      "strategy": { "skip": "Ignorer", "rename": "Renommer", "overwrite": "Remplacer" },
+      "status": {
+        "ready": "Prêt",
+        "conflict": "Conflit",
+        "unavailable": "Indisponible"
+      },
+      "strategy": {
+        "skip": "Ignorer",
+        "rename": "Renommer",
+        "overwrite": "Remplacer"
+      },
       "renameTarget": "Sera importé sous le nom {name}",
       "executeError": "Impossible d’importer les Skills",
       "importing": "Import en cours...",
@@ -3173,5 +3184,23 @@
     "scopeGlobalPlugins": "Cette page est globale à l’application : l’installation, l’activation et l’état des processus des plugins officiels sont partagés par tous les agents DeepChat.",
     "scopeCurrentAgent": "Cette page est une politique d’agent : les modifications n’affectent que la disponibilité Skills/MCP de « {agent} », pas les installations globales.",
     "currentAgentFallback": "agent actuel"
+  },
+  "debug": {
+    "description": "Outils réservés au développement pour prévisualiser des états simulés et des parcours guidés.",
+    "unavailableTitle": "Outils de débogage indisponibles",
+    "unavailableDescription": "Cette action n’est disponible qu’en mode développement.",
+    "splash": {
+      "title": "Fenêtre de démarrage",
+      "description": "Prévisualisez les états de la fenêtre de démarrage sans lancer de véritable processus de déverrouillage de la base de données.",
+      "loading": "Prévisualiser le chargement",
+      "systemUnlock": "Prévisualiser le déverrouillage système",
+      "unlock": "Prévisualiser le déverrouillage manuel",
+      "failed": "Impossible d’afficher le scénario de démarrage."
+    },
+    "guidance": {
+      "title": "Guidage et données",
+      "description": "Créez des simulations d’intégration, de conversations et de mises à jour réservées au développement.",
+      "failed": "Impossible de démarrer le parcours guidé de débogage."
+    }
   }
 }

@@ -171,24 +171,24 @@ describe('ModelConfigHelper', () => {
     it('uses provider metadata until a user config overrides it', () => {
       const providerId = 'test-provider'
       const modelId = 'provider-model'
-      const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
-        providers: {
-          [providerId]: {
-            id: providerId,
-            models: [
-              {
-                id: modelId,
-                modalities: { input: ['text', 'image'], output: ['text'] },
-                limit: { context: 32768, output: 8192 },
-                tool_call: false,
-                reasoning: { supported: false },
-                type: 'chat'
-              }
-            ]
-          }
-        }
-      } as any)
-      rebuildModelCapabilities()
+      const providerModel = {
+        id: modelId,
+        modalities: { input: ['text', 'image'], output: ['text'] },
+        limit: { context: 32768, output: 8192 },
+        tool_call: false,
+        reasoning: { supported: false },
+        type: 'chat'
+      } as any
+      const hasProviderSpy = vi
+        .spyOn(modelCapabilities, 'hasProvider')
+        .mockImplementation((id) => id === providerId)
+      const capabilityMatchSpy = vi
+        .spyOn(modelCapabilities, 'getProviderCapabilityModelMatch')
+        .mockImplementation((id, candidateModelId) =>
+          id === providerId && candidateModelId === modelId
+            ? { providerId, modelId, model: providerModel }
+            : undefined
+        )
 
       try {
         expect(modelConfigHelper.getModelConfig(modelId, providerId)).toMatchObject({
@@ -225,7 +225,8 @@ describe('ModelConfigHelper', () => {
           isUserDefined: false
         })
       } finally {
-        getDbSpy.mockRestore()
+        capabilityMatchSpy.mockRestore()
+        hasProviderSpy.mockRestore()
       }
     })
 

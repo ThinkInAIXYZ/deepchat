@@ -478,23 +478,35 @@ const settings: Ref<
     path: string
   }[]
 > = ref(
-  getSettingsRouteItems(runtimePlatform, runtimeArch).map((item) => ({
+  getSettingsRouteItems(runtimePlatform, runtimeArch, import.meta.env.DEV).map((item) => ({
     title: item.titleKey,
     name: item.routeName,
     icon: item.icon,
-    path: resolveSettingsNavigationPath(item.routeName, undefined, runtimePlatform, runtimeArch)
+    path: resolveSettingsNavigationPath(
+      item.routeName,
+      undefined,
+      runtimePlatform,
+      runtimeArch,
+      import.meta.env.DEV
+    )
   }))
 )
 
 const settingGroups = ref(
-  getSettingsNavigationGroups(runtimePlatform, runtimeArch).map((group) => ({
+  getSettingsNavigationGroups(runtimePlatform, runtimeArch, import.meta.env.DEV).map((group) => ({
     key: group.key,
     titleKey: group.titleKey,
     items: group.items.map((item) => ({
       title: item.titleKey,
       name: item.routeName,
       icon: item.icon,
-      path: resolveSettingsNavigationPath(item.routeName, undefined, runtimePlatform, runtimeArch)
+      path: resolveSettingsNavigationPath(
+        item.routeName,
+        undefined,
+        runtimePlatform,
+        runtimeArch,
+        import.meta.env.DEV
+      )
     }))
   }))
 )

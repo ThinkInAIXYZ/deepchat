@@ -118,6 +118,9 @@ const { browserWindowState } = vi.hoisted(() => {
 })
 
 vi.mock('electron', () => ({
+  app: {
+    isPackaged: false
+  },
   BrowserWindow: {
     fromId: (windowId: number) => browserWindowState.windows.get(windowId) ?? null,
     fromWebContents: (webContents: { id: number }) =>

@@ -116,52 +116,6 @@
         </Button>
 
         <Button
-          v-if="showMockUpdateControls && !upgrade.isMockUpdate"
-          variant="outline"
-          size="sm"
-          class="mb-2 text-xs"
-          @click="handleMockDownloadedUpdate"
-        >
-          {{ t('about.mockUpdateButton') }}
-        </Button>
-
-        <Button
-          v-if="showMockUpdateControls && upgrade.isMockUpdate"
-          variant="outline"
-          size="sm"
-          class="mb-2 text-xs"
-          @click="handleClearMockUpdate"
-        >
-          {{ t('about.clearMockUpdateButton') }}
-        </Button>
-
-        <Button
-          v-if="showMockUpdateControls"
-          variant="outline"
-          size="sm"
-          class="mb-2 text-xs"
-          @click="handleStartMockOnboarding"
-        >
-          {{ t('about.mockOnboardingButton') }}
-        </Button>
-
-        <Button
-          v-if="showMockUpdateControls"
-          variant="outline"
-          size="sm"
-          class="mb-2 text-xs"
-          :disabled="isCreatingMockChat"
-          @click="handleCreateMockChat"
-        >
-          <Icon
-            icon="lucide:database"
-            class="mr-1 h-3 w-3"
-            :class="{ 'animate-pulse': isCreatingMockChat }"
-          />
-          {{ isCreatingMockChat ? t('about.mockChatCreating') : t('about.mockChatButton') }}
-        </Button>
-
-        <Button
           v-if="upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
@@ -242,7 +196,6 @@
 <script setup lang="ts">
 import { createBrowserClient } from '@api/BrowserClient'
 import { createConfigClient } from '@api/ConfigClient'
-import { createDebugClient } from '@api/DebugClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -281,15 +234,12 @@ const languageStore = useLanguageStore()
 const route = useRoute()
 const browserClient = createBrowserClient()
 const configClient = createConfigClient()
-const debugClient = createDebugClient()
 const deviceClient = createDeviceClient()
 const windowClient = createWindowClient()
 const appVersion = ref('')
 const upgrade = useUpgradeStore()
 const updateChannel = ref('stable')
 const isDisclaimerOpen = ref(false)
-const isCreatingMockChat = ref(false)
-const showMockUpdateControls = computed(() => import.meta.env.DEV)
 let cleanupCheckForUpdates: (() => void) | null = null
 
 const formattedUpdateVersion = computed(() => {
@@ -348,52 +298,6 @@ const handlePrimaryAction = async () => {
 
 const handleManualDownload = async (type: 'github' | 'official') => {
   await upgrade.handleUpdate(type)
-}
-
-const handleMockDownloadedUpdate = async () => {
-  const status = await upgrade.mockDownloadedUpdate()
-  if (status === 'error' && upgrade.updateError) {
-    showUpdateErrorToast(upgrade.updateError)
-  }
-}
-
-const handleClearMockUpdate = async () => {
-  const status = await upgrade.clearMockUpdate()
-  if (status === 'error' && upgrade.updateError) {
-    showUpdateErrorToast(upgrade.updateError)
-  }
-}
-
-const handleStartMockOnboarding = async () => {
-  await windowClient.startGuidedOnboarding()
-}
-
-const handleCreateMockChat = async () => {
-  if (isCreatingMockChat.value) {
-    return
-  }
-
-  isCreatingMockChat.value = true
-  try {
-    const result = await debugClient.createMockChatSession()
-    if (!result.created || !result.sessionId) {
-      showUpdateErrorToast(t('about.mockChatCreateUnavailable'))
-      return
-    }
-
-    toast({
-      title: t('about.mockChatCreated'),
-      description: t('about.mockChatCreatedDesc', {
-        title: result.title ?? result.sessionId,
-        count: result.messageCount
-      })
-    })
-  } catch (error) {
-    console.error('mockChatCreateError:', error)
-    showUpdateErrorToast(error instanceof Error ? error.message : t('about.mockChatCreateFailed'))
-  } finally {
-    isCreatingMockChat.value = false
-  }
 }
 
 const handleExternalCheckUpdate = async () => {

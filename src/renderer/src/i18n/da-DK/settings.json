@@ -1861,7 +1861,10 @@
       "sourceError": "Kunne ikke indlæse Agent-kilder",
       "emptySources": "Ingen importkilder",
       "emptySourcesDescription": "Der blev ikke fundet andre Agenter med tilgængelige Skills.",
-      "sourceKind": { "internal": "DeepChat", "external": "Ekstern" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "Ekstern"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills der skal importeres",
       "selectedCount": "{count} valgt",
@@ -1871,8 +1874,16 @@
       "previewError": "Kunne ikke forhåndsvise Skills",
       "emptyPreview": "Ingen tilgængelige Skills",
       "emptyPreviewDescription": "Denne Agent har ingen Skills, der kan importeres.",
-      "status": { "ready": "Klar", "conflict": "Konflikt", "unavailable": "Utilgængelig" },
-      "strategy": { "skip": "Spring over", "rename": "Omdøb", "overwrite": "Overskriv" },
+      "status": {
+        "ready": "Klar",
+        "conflict": "Konflikt",
+        "unavailable": "Utilgængelig"
+      },
+      "strategy": {
+        "skip": "Spring over",
+        "rename": "Omdøb",
+        "overwrite": "Overskriv"
+      },
       "renameTarget": "Importeres som {name}",
       "executeError": "Kunne ikke importere Skills",
       "importing": "Importerer...",
@@ -3173,5 +3184,23 @@
     "scopeGlobalPlugins": "Denne side er app-global: installation, aktivering og processtatus for officielle plugins deles af alle DeepChat-agenter.",
     "scopeCurrentAgent": "Denne side er agentpolitik: ændringer påvirker kun Skills/MCP-tilgængelighed for “{agent}”, ikke globale installationer.",
     "currentAgentFallback": "aktuel agent"
+  },
+  "debug": {
+    "description": "Værktøjer kun til udvikling til forhåndsvisning af mock-tilstande og guidede forløb.",
+    "unavailableTitle": "Fejlfindingsværktøjer er ikke tilgængelige",
+    "unavailableDescription": "Denne handling er kun tilgængelig i udviklingstilstand.",
+    "splash": {
+      "title": "Opstartsvindue",
+      "description": "Forhåndsvis opstartsvinduets tilstande uden at starte et rigtigt databaseoplåsningsforløb.",
+      "loading": "Forhåndsvis indlæsning",
+      "systemUnlock": "Forhåndsvis systemoplåsning",
+      "unlock": "Forhåndsvis manuel oplåsning",
+      "failed": "Kan ikke vise opstartsscenariet."
+    },
+    "guidance": {
+      "title": "Vejledning og data",
+      "description": "Opret mock-data til introduktion, samtaler og opdateringer, som kun bruges under udvikling.",
+      "failed": "Kan ikke starte det guidede fejlfindingsforløb."
+    }
   }
 }

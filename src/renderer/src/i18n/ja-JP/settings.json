@@ -1928,7 +1928,10 @@
       "sourceError": "Agent の読み込みに失敗しました",
       "emptySources": "インポート元がありません",
       "emptySourcesDescription": "利用可能な Skills を持つ他の Agent が見つかりませんでした。",
-      "sourceKind": { "internal": "DeepChat", "external": "外部" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "外部"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "インポートする Skills",
       "selectedCount": "{count} 件選択中",
@@ -1938,8 +1941,16 @@
       "previewError": "Skills のプレビューに失敗しました",
       "emptyPreview": "利用可能な Skills がありません",
       "emptyPreviewDescription": "この Agent にはインポート可能な Skills がありません。",
-      "status": { "ready": "準備完了", "conflict": "競合", "unavailable": "利用不可" },
-      "strategy": { "skip": "スキップ", "rename": "名前を変更", "overwrite": "上書き" },
+      "status": {
+        "ready": "準備完了",
+        "conflict": "競合",
+        "unavailable": "利用不可"
+      },
+      "strategy": {
+        "skip": "スキップ",
+        "rename": "名前を変更",
+        "overwrite": "上書き"
+      },
       "renameTarget": "{name} としてインポートされます",
       "executeError": "Skills のインポートに失敗しました",
       "importing": "インポート中...",
@@ -3173,5 +3184,23 @@
     "scopeGlobalPlugins": "このページはアプリ全体設定です。公式プラグインのインストール・有効化・プロセス状態は、すべての DeepChat エージェントで共有されます。",
     "scopeCurrentAgent": "このページはエージェント方針です。変更は「{agent}」の Skills/MCP 利用可否にのみ影響し、グローバルなインストールには影響しません。",
     "currentAgentFallback": "現在のエージェント"
+  },
+  "debug": {
+    "description": "モック状態やガイド付きフローをプレビューするための、開発専用ツールです。",
+    "unavailableTitle": "デバッグツールを利用できません",
+    "unavailableDescription": "この操作は開発モードでのみ利用できます。",
+    "splash": {
+      "title": "スプラッシュウィンドウ",
+      "description": "実際のデータベース解除フローを開始せずに、起動ウィンドウの状態をプレビューします。",
+      "loading": "読み込みをプレビュー",
+      "systemUnlock": "システム解除をプレビュー",
+      "unlock": "手動解除をプレビュー",
+      "failed": "スプラッシュシナリオを表示できません。"
+    },
+    "guidance": {
+      "title": "ガイダンスとデータ",
+      "description": "オンボーディング、会話、更新用の開発専用モックを作成します。",
+      "failed": "デバッグ用ガイドフローを開始できません。"
+    }
   }
 }

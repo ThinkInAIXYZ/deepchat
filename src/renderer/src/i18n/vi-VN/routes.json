@@ -24,5 +24,6 @@
   "settings-overview": "Tổng quan về cài đặt",
   "settings-scheduled-tasks": "Tác vụ đã lên lịch",
   "settings-memory": "Bộ nhớ",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "Debug"
 }

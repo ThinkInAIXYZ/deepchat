@@ -2229,7 +2229,10 @@
       "sourceError": "Agent-Quellen konnten nicht geladen werden",
       "emptySources": "Keine Importquellen",
       "emptySourcesDescription": "Kein anderer Agent mit verfügbaren Skills gefunden.",
-      "sourceKind": { "internal": "DeepChat", "external": "Extern" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "Extern"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Zu importierende Skills",
       "selectedCount": "{count} ausgewählt",
@@ -2239,8 +2242,16 @@
       "previewError": "Skills konnten nicht angezeigt werden",
       "emptyPreview": "Keine Skills verfügbar",
       "emptyPreviewDescription": "Dieser Agent hat keine importierbaren Skills.",
-      "status": { "ready": "Bereit", "conflict": "Konflikt", "unavailable": "Nicht verfügbar" },
-      "strategy": { "skip": "Überspringen", "rename": "Umbenennen", "overwrite": "Überschreiben" },
+      "status": {
+        "ready": "Bereit",
+        "conflict": "Konflikt",
+        "unavailable": "Nicht verfügbar"
+      },
+      "strategy": {
+        "skip": "Überspringen",
+        "rename": "Umbenennen",
+        "overwrite": "Überschreiben"
+      },
       "renameTarget": "Wird als {name} importiert",
       "executeError": "Skills konnten nicht importiert werden",
       "importing": "Wird importiert...",
@@ -3164,5 +3175,23 @@
     "scopeGlobalPlugins": "Diese Seite ist app-weit: Installation, Aktivierung und Prozessstatus offizieller Plugins gelten für alle DeepChat-Agenten.",
     "scopeCurrentAgent": "Diese Seite ist Agent-Richtlinie: Änderungen betreffen nur die Skills/MCP-Verfügbarkeit von „{agent}“, nicht die globalen Installationen.",
     "currentAgentFallback": "aktueller Agent"
+  },
+  "debug": {
+    "description": "Nur für die Entwicklung bestimmte Werkzeuge zur Vorschau von Mock-Zuständen und geführten Abläufen.",
+    "unavailableTitle": "Debug-Werkzeuge nicht verfügbar",
+    "unavailableDescription": "Diese Aktion ist nur im Entwicklungsmodus verfügbar.",
+    "splash": {
+      "title": "Startfenster",
+      "description": "Startfenster-Zustände in der Vorschau anzeigen, ohne einen echten Datenbankentsperrvorgang zu starten.",
+      "loading": "Laden in Vorschau anzeigen",
+      "systemUnlock": "Systementsperrung in Vorschau anzeigen",
+      "unlock": "Manuelle Entsperrung in Vorschau anzeigen",
+      "failed": "Das Startfenster-Szenario kann nicht angezeigt werden."
+    },
+    "guidance": {
+      "title": "Anleitung und Daten",
+      "description": "Nur für die Entwicklung bestimmte Mock-Daten für Onboarding, Unterhaltungen und Updates erstellen.",
+      "failed": "Der geführte Debug-Ablauf kann nicht gestartet werden."
+    }
   }
 }

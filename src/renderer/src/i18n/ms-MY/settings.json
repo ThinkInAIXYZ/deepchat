@@ -2229,7 +2229,10 @@
       "sourceError": "Failed to load Agent sources",
       "emptySources": "No import sources",
       "emptySourcesDescription": "No other Agent with available Skills was found.",
-      "sourceKind": { "internal": "DeepChat", "external": "External" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "External"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills to import",
       "selectedCount": "{count} selected",
@@ -2239,8 +2242,16 @@
       "previewError": "Failed to preview Skills",
       "emptyPreview": "No Skills available",
       "emptyPreviewDescription": "This Agent has no Skills that can be imported.",
-      "status": { "ready": "Ready", "conflict": "Conflict", "unavailable": "Unavailable" },
-      "strategy": { "skip": "Skip", "rename": "Rename", "overwrite": "Overwrite" },
+      "status": {
+        "ready": "Ready",
+        "conflict": "Conflict",
+        "unavailable": "Unavailable"
+      },
+      "strategy": {
+        "skip": "Skip",
+        "rename": "Rename",
+        "overwrite": "Overwrite"
+      },
       "renameTarget": "Will be imported as {name}",
       "executeError": "Failed to import Skills",
       "importing": "Importing...",
@@ -3164,5 +3175,23 @@
     "scopeGlobalPlugins": "Halaman ini bersifat global aplikasi: pemasangan, pengaktifan dan status proses plugin rasmi dikongsi oleh semua ejen DeepChat.",
     "scopeCurrentAgent": "Halaman ini ialah polisi ejen: perubahan hanya menjejaskan ketersediaan Skills/MCP untuk “{agent}”, bukan pemasangan global.",
     "currentAgentFallback": "ejen semasa"
+  },
+  "debug": {
+    "description": "Alat khusus pembangunan untuk pratonton keadaan olok-olok dan aliran berpandu.",
+    "unavailableTitle": "Alat nyahpepijat tidak tersedia",
+    "unavailableDescription": "Tindakan ini hanya tersedia dalam mod pembangunan.",
+    "splash": {
+      "title": "Tetingkap permulaan",
+      "description": "Pratonton keadaan tetingkap permulaan tanpa memulakan aliran nyahkunci pangkalan data sebenar.",
+      "loading": "Pratonton pemuatan",
+      "systemUnlock": "Pratonton nyahkunci sistem",
+      "unlock": "Pratonton nyahkunci manual",
+      "failed": "Tidak dapat memaparkan senario tetingkap permulaan."
+    },
+    "guidance": {
+      "title": "Panduan dan data",
+      "description": "Cipta olok-olok onboarding, perbualan dan kemas kini khusus pembangunan.",
+      "failed": "Tidak dapat memulakan aliran berpandu nyahpepijat."
+    }
   }
 }

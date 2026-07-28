@@ -2229,7 +2229,10 @@
       "sourceError": "Agent kaynakları yüklenemedi",
       "emptySources": "İçe aktarma kaynağı yok",
       "emptySourcesDescription": "Kullanılabilir Skills öğelerine sahip başka bir Agent bulunamadı.",
-      "sourceKind": { "internal": "DeepChat", "external": "Harici" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "Harici"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "İçe aktarılacak Skills",
       "selectedCount": "{count} seçildi",
@@ -2239,8 +2242,16 @@
       "previewError": "Skills önizlemesi yüklenemedi",
       "emptyPreview": "Kullanılabilir Skills yok",
       "emptyPreviewDescription": "Bu Agent’ın içe aktarılabilir Skills öğesi yok.",
-      "status": { "ready": "Hazır", "conflict": "Çakışma", "unavailable": "Kullanılamıyor" },
-      "strategy": { "skip": "Atla", "rename": "Yeniden adlandır", "overwrite": "Üzerine yaz" },
+      "status": {
+        "ready": "Hazır",
+        "conflict": "Çakışma",
+        "unavailable": "Kullanılamıyor"
+      },
+      "strategy": {
+        "skip": "Atla",
+        "rename": "Yeniden adlandır",
+        "overwrite": "Üzerine yaz"
+      },
       "renameTarget": "{name} olarak içe aktarılacak",
       "executeError": "Skills içe aktarılamadı",
       "importing": "İçe aktarılıyor...",
@@ -3164,5 +3175,23 @@
     "scopeGlobalPlugins": "Bu sayfa uygulama genelindedir: resmi eklentilerin kurulumu, etkinleştirilmesi ve süreç durumu tüm DeepChat ajanları arasında paylaşılır.",
     "scopeCurrentAgent": "Bu sayfa ajan politikasıdır: değişiklikler yalnızca “{agent}” için Skills/MCP kullanılabilirliğini etkiler, global kurulumları etkilemez.",
     "currentAgentFallback": "geçerli ajan"
+  },
+  "debug": {
+    "description": "Sahte durumları ve rehberli akışları önizlemek için yalnızca geliştirmeye yönelik araçlar.",
+    "unavailableTitle": "Hata ayıklama araçları kullanılamıyor",
+    "unavailableDescription": "Bu eylem yalnızca geliştirme modunda kullanılabilir.",
+    "splash": {
+      "title": "Açılış penceresi",
+      "description": "Gerçek bir veritabanı kilit açma akışını başlatmadan açılış penceresi durumlarını önizleyin.",
+      "loading": "Yükleme önizlemesi",
+      "systemUnlock": "Sistem kilit açma önizlemesi",
+      "unlock": "Manuel kilit açma önizlemesi",
+      "failed": "Açılış senaryosu gösterilemiyor."
+    },
+    "guidance": {
+      "title": "Rehberlik ve veriler",
+      "description": "Yalnızca geliştirme için işe alıştırma, konuşma ve güncelleme sahte verileri oluşturun.",
+      "failed": "Hata ayıklama rehberli akışı başlatılamıyor."
+    }
   }
 }

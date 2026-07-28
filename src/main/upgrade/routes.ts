@@ -1,3 +1,4 @@
+import { app } from 'electron'
 import type { UpgradeService } from './index'
 import type { UpdateSettings } from './settings'
 import {
@@ -77,6 +78,9 @@ export function createUpgradeRoutes(deps: {
       upgradeMockDownloadedRoute.name,
       async (rawInput) => {
         upgradeMockDownloadedRoute.input.parse(rawInput)
+        if (!import.meta.env.DEV || app.isPackaged) {
+          return upgradeMockDownloadedRoute.output.parse({ updated: false })
+        }
         return upgradeMockDownloadedRoute.output.parse({ updated: upgrade.mockDownloadedUpdate() })
       }
     ],
@@ -84,6 +88,9 @@ export function createUpgradeRoutes(deps: {
       upgradeClearMockRoute.name,
       async (rawInput) => {
         upgradeClearMockRoute.input.parse(rawInput)
+        if (!import.meta.env.DEV || app.isPackaged) {
+          return upgradeClearMockRoute.output.parse({ updated: false })
+        }
         return upgradeClearMockRoute.output.parse({ updated: upgrade.clearMockUpdate() })
       }
     ],

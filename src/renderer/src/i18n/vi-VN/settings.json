@@ -2229,7 +2229,10 @@
       "sourceError": "Không thể tải các Agent nguồn",
       "emptySources": "Không có nguồn nhập",
       "emptySourcesDescription": "Không tìm thấy Agent nào khác có Skills khả dụng.",
-      "sourceKind": { "internal": "DeepChat", "external": "Bên ngoài" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "Bên ngoài"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills sẽ nhập",
       "selectedCount": "Đã chọn {count}",
@@ -2239,8 +2242,16 @@
       "previewError": "Không thể xem trước Skills",
       "emptyPreview": "Không có Skills khả dụng",
       "emptyPreviewDescription": "Agent này không có Skills có thể nhập.",
-      "status": { "ready": "Sẵn sàng", "conflict": "Xung đột", "unavailable": "Không khả dụng" },
-      "strategy": { "skip": "Bỏ qua", "rename": "Đổi tên", "overwrite": "Ghi đè" },
+      "status": {
+        "ready": "Sẵn sàng",
+        "conflict": "Xung đột",
+        "unavailable": "Không khả dụng"
+      },
+      "strategy": {
+        "skip": "Bỏ qua",
+        "rename": "Đổi tên",
+        "overwrite": "Ghi đè"
+      },
       "renameTarget": "Sẽ được nhập với tên {name}",
       "executeError": "Không thể nhập Skills",
       "importing": "Đang nhập...",
@@ -3164,5 +3175,23 @@
     "scopeGlobalPlugins": "Trang này mang tính toàn ứng dụng: cài đặt, bật/tắt và trạng thái tiến trình của plugin chính thức được chia sẻ cho mọi tác nhân DeepChat.",
     "scopeCurrentAgent": "Trang này là chính sách tác nhân: thay đổi chỉ ảnh hưởng đến khả dụng Skills/MCP của “{agent}”, không ảnh hưởng cài đặt toàn cục.",
     "currentAgentFallback": "tác nhân hiện tại"
+  },
+  "debug": {
+    "description": "Công cụ chỉ dành cho phát triển để xem trước các trạng thái giả lập và quy trình có hướng dẫn.",
+    "unavailableTitle": "Công cụ gỡ lỗi không khả dụng",
+    "unavailableDescription": "Thao tác này chỉ khả dụng trong chế độ phát triển.",
+    "splash": {
+      "title": "Cửa sổ khởi động",
+      "description": "Xem trước các trạng thái của cửa sổ khởi động mà không bắt đầu quy trình mở khóa cơ sở dữ liệu thực.",
+      "loading": "Xem trước đang tải",
+      "systemUnlock": "Xem trước mở khóa hệ thống",
+      "unlock": "Xem trước mở khóa thủ công",
+      "failed": "Không thể hiển thị kịch bản khởi động."
+    },
+    "guidance": {
+      "title": "Hướng dẫn và dữ liệu",
+      "description": "Tạo các mô phỏng chỉ dành cho phát triển cho quá trình làm quen, cuộc trò chuyện và cập nhật.",
+      "failed": "Không thể bắt đầu quy trình gỡ lỗi có hướng dẫn."
+    }
   }
 }

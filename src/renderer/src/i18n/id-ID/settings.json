@@ -2229,7 +2229,10 @@
       "sourceError": "Gagal memuat Agent sumber",
       "emptySources": "Tidak ada sumber impor",
       "emptySourcesDescription": "Tidak ditemukan Agent lain dengan Skills yang tersedia.",
-      "sourceKind": { "internal": "DeepChat", "external": "Eksternal" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "Eksternal"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills yang akan diimpor",
       "selectedCount": "{count} dipilih",
@@ -2239,8 +2242,16 @@
       "previewError": "Gagal menampilkan pratinjau Skills",
       "emptyPreview": "Tidak ada Skills tersedia",
       "emptyPreviewDescription": "Agent ini tidak memiliki Skills yang dapat diimpor.",
-      "status": { "ready": "Siap", "conflict": "Konflik", "unavailable": "Tidak tersedia" },
-      "strategy": { "skip": "Lewati", "rename": "Ganti nama", "overwrite": "Timpa" },
+      "status": {
+        "ready": "Siap",
+        "conflict": "Konflik",
+        "unavailable": "Tidak tersedia"
+      },
+      "strategy": {
+        "skip": "Lewati",
+        "rename": "Ganti nama",
+        "overwrite": "Timpa"
+      },
       "renameTarget": "Akan diimpor sebagai {name}",
       "executeError": "Gagal mengimpor Skills",
       "importing": "Mengimpor...",
@@ -3164,5 +3175,23 @@
     "scopeGlobalPlugins": "Halaman ini bersifat global aplikasi: instalasi, pengaktifan, dan status proses plugin resmi dibagikan ke semua agen DeepChat.",
     "scopeCurrentAgent": "Halaman ini adalah kebijakan agen: perubahan hanya memengaruhi ketersediaan Skills/MCP untuk “{agent}”, bukan instalasi global.",
     "currentAgentFallback": "agen saat ini"
+  },
+  "debug": {
+    "description": "Alat khusus pengembangan untuk mempratinjau status tiruan dan alur terpandu.",
+    "unavailableTitle": "Alat debug tidak tersedia",
+    "unavailableDescription": "Tindakan ini hanya tersedia dalam mode pengembangan.",
+    "splash": {
+      "title": "Jendela pembuka",
+      "description": "Pratinjau status jendela pembuka tanpa memulai alur pembukaan kunci basis data yang sebenarnya.",
+      "loading": "Pratinjau pemuatan",
+      "systemUnlock": "Pratinjau pembukaan kunci sistem",
+      "unlock": "Pratinjau pembukaan kunci manual",
+      "failed": "Tidak dapat menampilkan skenario jendela pembuka."
+    },
+    "guidance": {
+      "title": "Panduan dan data",
+      "description": "Buat tiruan onboarding, percakapan, dan pembaruan khusus pengembangan.",
+      "failed": "Tidak dapat memulai alur terpandu debug."
+    }
   }
 }

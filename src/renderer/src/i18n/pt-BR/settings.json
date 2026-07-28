@@ -1928,7 +1928,10 @@
       "sourceError": "Failed to load Agent sources",
       "emptySources": "No import sources",
       "emptySourcesDescription": "No other Agent with available Skills was found.",
-      "sourceKind": { "internal": "DeepChat", "external": "External" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "External"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills to import",
       "selectedCount": "{count} selected",
@@ -1938,8 +1941,16 @@
       "previewError": "Failed to preview Skills",
       "emptyPreview": "No Skills available",
       "emptyPreviewDescription": "This Agent has no Skills that can be imported.",
-      "status": { "ready": "Ready", "conflict": "Conflict", "unavailable": "Unavailable" },
-      "strategy": { "skip": "Skip", "rename": "Rename", "overwrite": "Overwrite" },
+      "status": {
+        "ready": "Ready",
+        "conflict": "Conflict",
+        "unavailable": "Unavailable"
+      },
+      "strategy": {
+        "skip": "Skip",
+        "rename": "Rename",
+        "overwrite": "Overwrite"
+      },
       "renameTarget": "Will be imported as {name}",
       "executeError": "Failed to import Skills",
       "importing": "Importing...",
@@ -3173,5 +3184,23 @@
     "scopeGlobalPlugins": "Esta página é global do app: instalação, ativação e estado de processo dos plugins oficiais são compartilhados por todos os agentes DeepChat.",
     "scopeCurrentAgent": "Esta página é política do agente: as alterações afetam apenas a disponibilidade de Skills/MCP de “{agent}”, não as instalações globais.",
     "currentAgentFallback": "agente atual"
+  },
+  "debug": {
+    "description": "Ferramentas exclusivas de desenvolvimento para visualizar estados simulados e fluxos guiados.",
+    "unavailableTitle": "Ferramentas de depuração indisponíveis",
+    "unavailableDescription": "Esta ação está disponível apenas no modo de desenvolvimento.",
+    "splash": {
+      "title": "Janela de inicialização",
+      "description": "Visualize os estados da janela de inicialização sem iniciar um fluxo real de desbloqueio do banco de dados.",
+      "loading": "Visualizar carregamento",
+      "systemUnlock": "Visualizar desbloqueio do sistema",
+      "unlock": "Visualizar desbloqueio manual",
+      "failed": "Não foi possível mostrar o cenário de inicialização."
+    },
+    "guidance": {
+      "title": "Orientação e dados",
+      "description": "Crie simulações exclusivas de desenvolvimento para integração, conversas e atualizações.",
+      "failed": "Não foi possível iniciar o fluxo guiado de depuração."
+    }
   }
 }

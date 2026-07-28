@@ -1926,7 +1926,10 @@
       "sourceError": "Failed to load Agent sources",
       "emptySources": "No import sources",
       "emptySourcesDescription": "No other Agent with available Skills was found.",
-      "sourceKind": { "internal": "DeepChat", "external": "External" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "External"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills to import",
       "selectedCount": "{count} selected",
@@ -1936,8 +1939,16 @@
       "previewError": "Failed to preview Skills",
       "emptyPreview": "No Skills available",
       "emptyPreviewDescription": "This Agent has no Skills that can be imported.",
-      "status": { "ready": "Ready", "conflict": "Conflict", "unavailable": "Unavailable" },
-      "strategy": { "skip": "Skip", "rename": "Rename", "overwrite": "Overwrite" },
+      "status": {
+        "ready": "Ready",
+        "conflict": "Conflict",
+        "unavailable": "Unavailable"
+      },
+      "strategy": {
+        "skip": "Skip",
+        "rename": "Rename",
+        "overwrite": "Overwrite"
+      },
       "renameTarget": "Will be imported as {name}",
       "executeError": "Failed to import Skills",
       "importing": "Importing...",
@@ -3173,5 +3184,23 @@
     "scopeGlobalPlugins": "이 페이지는 앱 전역 설정입니다. 공식 플러그인의 설치·활성화·프로세스 상태는 모든 DeepChat 에이전트에서 공유됩니다.",
     "scopeCurrentAgent": "이 페이지는 에이전트 정책입니다. 변경 사항은 “{agent}”의 Skills/MCP 사용 가능 여부에만 영향을 주며, 전역 설치에는 영향을 주지 않습니다.",
     "currentAgentFallback": "현재 에이전트"
+  },
+  "debug": {
+    "description": "모의 상태와 안내 흐름을 미리 보기 위한 개발 전용 도구입니다.",
+    "unavailableTitle": "디버그 도구를 사용할 수 없습니다",
+    "unavailableDescription": "이 작업은 개발 모드에서만 사용할 수 있습니다.",
+    "splash": {
+      "title": "스플래시 창",
+      "description": "실제 데이터베이스 잠금 해제 흐름을 시작하지 않고 시작 창 상태를 미리 봅니다.",
+      "loading": "로딩 미리 보기",
+      "systemUnlock": "시스템 잠금 해제 미리 보기",
+      "unlock": "수동 잠금 해제 미리 보기",
+      "failed": "스플래시 시나리오를 표시할 수 없습니다."
+    },
+    "guidance": {
+      "title": "안내 및 데이터",
+      "description": "온보딩, 대화, 업데이트를 위한 개발 전용 모의를 만듭니다.",
+      "failed": "디버그 안내 흐름을 시작할 수 없습니다."
+    }
   }
 }

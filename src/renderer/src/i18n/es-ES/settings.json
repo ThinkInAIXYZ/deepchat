@@ -2229,7 +2229,10 @@
       "sourceError": "No se pudieron cargar los Agents de origen",
       "emptySources": "No hay orígenes de importación",
       "emptySourcesDescription": "No se encontró otro Agent con Skills disponibles.",
-      "sourceKind": { "internal": "DeepChat", "external": "Externo" },
+      "sourceKind": {
+        "internal": "DeepChat",
+        "external": "Externo"
+      },
       "skillCount": "{count} Skills",
       "previewTitle": "Skills para importar",
       "selectedCount": "{count} seleccionados",
@@ -2239,8 +2242,16 @@
       "previewError": "No se pudieron previsualizar los Skills",
       "emptyPreview": "No hay Skills disponibles",
       "emptyPreviewDescription": "Este Agent no tiene Skills que se puedan importar.",
-      "status": { "ready": "Listo", "conflict": "Conflicto", "unavailable": "No disponible" },
-      "strategy": { "skip": "Omitir", "rename": "Renombrar", "overwrite": "Sobrescribir" },
+      "status": {
+        "ready": "Listo",
+        "conflict": "Conflicto",
+        "unavailable": "No disponible"
+      },
+      "strategy": {
+        "skip": "Omitir",
+        "rename": "Renombrar",
+        "overwrite": "Sobrescribir"
+      },
       "renameTarget": "Se importará como {name}",
       "executeError": "No se pudieron importar los Skills",
       "importing": "Importando...",
@@ -3164,5 +3175,23 @@
     "scopeGlobalPlugins": "Esta página es global de la app: la instalación, habilitación y estado de proceso de los plugins oficiales se comparten entre todos los agentes DeepChat.",
     "scopeCurrentAgent": "Esta página es política del agente: los cambios solo afectan la disponibilidad de Skills/MCP de «{agent}», no las instalaciones globales.",
     "currentAgentFallback": "agente actual"
+  },
+  "debug": {
+    "description": "Herramientas exclusivas para desarrollo que permiten previsualizar estados simulados y flujos guiados.",
+    "unavailableTitle": "Herramientas de depuración no disponibles",
+    "unavailableDescription": "Esta acción solo está disponible en modo de desarrollo.",
+    "splash": {
+      "title": "Ventana de inicio",
+      "description": "Previsualiza los estados de la ventana de inicio sin iniciar un flujo real de desbloqueo de la base de datos.",
+      "loading": "Previsualizar carga",
+      "systemUnlock": "Previsualizar desbloqueo del sistema",
+      "unlock": "Previsualizar desbloqueo manual",
+      "failed": "No se puede mostrar el escenario de inicio."
+    },
+    "guidance": {
+      "title": "Guía y datos",
+      "description": "Crea simulaciones exclusivas para desarrollo de incorporación, conversaciones y actualizaciones.",
+      "failed": "No se puede iniciar el flujo guiado de depuración."
+    }
   }
 }
