@@ -56,6 +56,12 @@ contracts remain in force. The current renderer Canvas remains the compatibility
 
 GitHub issue sync was not requested and was not performed.
 
+On 2026-07-28, a
+[Computer Use latest-snapshot PiP extension](../../features/computer-use-snapshot-pip/spec.md) was
+proposed. It plans to extract the process-global NativeKit lifecycle into one shared PiP
+coordinator while preserving this document's Browser ownership and controls. Until that proposal is
+implemented, the Browser-only architecture documented here remains current.
+
 ## Counterpoint
 
 The NativeKit path will make panel dragging fluid and allow the panel to leave the DeepChat window.
