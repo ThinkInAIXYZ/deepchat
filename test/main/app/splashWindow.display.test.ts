@@ -1,7 +1,9 @@
+import path from 'node:path'
 import { JSDOM } from 'jsdom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const createdWindows = vi.hoisted(() => [] as MockBrowserWindow[])
+const browserWindowOptions = vi.hoisted(() => [] as Record<string, unknown>[])
 const mockIpcMain = vi.hoisted(() => ({
   on: vi.fn()
 }))
@@ -46,7 +48,8 @@ class MockBrowserWindow {
   private readonly handlers = new Map<string, Array<(...args: unknown[]) => void>>()
   private readonly webContentsHandlers = new Map<string, Array<(...args: unknown[]) => void>>()
 
-  constructor() {
+  constructor(options: Record<string, unknown>) {
+    browserWindowOptions.push(options)
     createdWindows.push(this)
   }
 
@@ -133,6 +136,17 @@ const flushPromises = async () => {
 }
 
 describe('SplashWindow display gating', () => {
+  it('keeps the splash document root transparent', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const documentSource = readFileSync(
+      path.resolve(process.cwd(), 'src/renderer/splash/index.html'),
+      'utf8'
+    )
+
+    expect(documentSource).toContain('background: transparent;')
+    expect(documentSource).not.toContain('background: #020817;')
+  })
+
   let manager: InstanceType<
     typeof import('../../../src/main/app/splashWindow').SplashWindow
   > | null = null
@@ -140,6 +154,7 @@ describe('SplashWindow display gating', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     createdWindows.length = 0
+    browserWindowOptions.length = 0
     mockIpcMain.on.mockClear()
     splashLoadMocks.loadURL = undefined
     splashLoadMocks.loadFile = undefined
@@ -155,6 +170,18 @@ describe('SplashWindow display gating', () => {
     }
     vi.useRealTimers()
     createdWindows.length = 0
+  })
+
+  it('creates a transparent splash window canvas', async () => {
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
+
+    manager = new SplashWindow()
+    await manager.create()
+
+    expect(browserWindowOptions[0]).toMatchObject({
+      transparent: true,
+      backgroundColor: '#00000000'
+    })
   })
 
   it('waits 200ms before showing the splash window', async () => {
@@ -369,6 +396,10 @@ describe('SplashWindow display gating', () => {
     const fallbackUrl = splashWindow.loadURL.mock.calls.at(-1)?.[0]
     expect(fallbackUrl).toMatch(/^data:text\/html/)
     const fallbackHtml = decodeURIComponent(fallbackUrl!.split(',', 2)[1])
+    expect(fallbackHtml).toContain(
+      'html, body { width: 100%; height: 100%; margin: 0; background: transparent;'
+    )
+    expect(fallbackHtml).toContain('.shell--manual-unlock { background: #020817; }')
     let debugModeListener: ((mode: 'loading' | 'system-unlock' | 'unlock') => void) | undefined
     let unlockRequestListener:
       | ((payload: {

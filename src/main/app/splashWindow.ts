@@ -88,7 +88,8 @@ export class SplashWindow {
         show: false, // 先隐藏窗口，等待 ready-to-show 以避免白屏
         autoHideMenuBar: true,
         skipTaskbar: true,
-        backgroundColor: '#020817',
+        transparent: true,
+        backgroundColor: '#00000000',
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
@@ -487,9 +488,10 @@ export class SplashWindow {
     <title>DeepChat</title>
     <style>
       * { box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; margin: 0; background: #020817; color: #fff; overflow: hidden; }
+      html, body { width: 100%; height: 100%; margin: 0; background: transparent; color: #fff; overflow: hidden; }
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       .shell { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 32px; }
+      .shell--manual-unlock { background: #020817; }
       .panel { width: min(340px, 100%); display: flex; flex-direction: column; gap: 11px; }
       .title { font-size: 22px; font-weight: 600; }
       .subtitle, .hint, label { color: rgba(255,255,255,.72); font-size: 13px; line-height: 1.45; }
@@ -522,6 +524,7 @@ export class SplashWindow {
     <script>
       const splash = window.deepchatSplash
       let requestId = ''
+      const shell = document.querySelector('.shell')
       const panel = document.getElementById('panel')
       const subtitle = document.getElementById('subtitle')
       const label = document.getElementById('label')
@@ -533,6 +536,7 @@ export class SplashWindow {
       const hint = document.getElementById('hint')
       const setDebugMode = (mode) => {
         requestId = ''
+        shell.classList.toggle('shell--manual-unlock', mode === 'unlock')
         password.value = ''
         error.hidden = true
         if (mode === 'loading') {
@@ -561,6 +565,7 @@ export class SplashWindow {
         hint.textContent = 'Development preview — password submission is disabled.'
       }
       const setUnlock = (payload) => {
+        shell.classList.add('shell--manual-unlock')
         password.disabled = false
         quit.disabled = false
         requestId = payload.requestId

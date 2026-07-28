@@ -74,6 +74,9 @@ Settings > Debug (development only)
   branch directly and marks only manual-unlock debug mode as preview-only.
 - The inline fallback renderer receives the same event and can render loading, system-unlock, and the
   disabled manual-unlock preview. It must retain existing real unlock IPC behavior.
+- The splash BrowserWindow canvas and document root are transparent for loading and system credential
+  unlock states, so their visual effects do not appear inside an opaque rectangular backdrop. Manual
+  password unlock intentionally retains an opaque readable background behind its form.
 
 ## Typed Route Contract
 
