@@ -285,6 +285,7 @@ export const SYSTEM_INMEM_MCP_SERVERS: Record<string, MCPServerConfig> = {
 
 export class McpSettings {
   private mcpStore: StoreLike<IMcpSettings & Record<string, unknown>>
+  private mcpDatabase?: McpDatabase
 
   constructor() {
     // Initialize MCP settings storage
@@ -306,6 +307,7 @@ export class McpSettings {
   }
 
   connectDatabase(database: McpDatabase): void {
+    this.mcpDatabase = database
     this.mcpStore = new McpDbStore(() => database.settingsTable) as unknown as StoreLike<
       IMcpSettings & Record<string, unknown>
     >
@@ -315,8 +317,16 @@ export class McpSettings {
     return this.mcpStore.get<string>('mcprouterApiKey', '')
   }
 
-  setRouterApiKey(key: string): void {
-    this.mcpStore.set('mcprouterApiKey', key)
+  setRouterApiKeyAndServers(key: string, servers?: Record<string, MCPServerConfig>): void {
+    if (this.mcpDatabase) {
+      this.mcpDatabase.settingsTable.setRouterApiKeyAndServers(key, servers)
+      return
+    }
+
+    this.mcpStore.set({
+      mcprouterApiKey: key,
+      ...(servers ? { mcpServers: servers } : {})
+    })
   }
 
   private getDefaultEnabledServerNames(): string[] {

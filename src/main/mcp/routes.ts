@@ -26,7 +26,6 @@ import {
   mcpRouterListInstalledServerIdsRoute,
   mcpRouterListServersRoute,
   mcpRouterSetApiKeyRoute,
-  mcpRouterUpdateServersAuthRoute,
   mcpSetAutoDetectNpmRegistryRoute,
   mcpSetCustomNpmRegistryRoute,
   mcpSetEnabledRoute,
@@ -407,14 +406,6 @@ export function createMcpRoutes(deps: {
         return mcpRouterListInstalledServerIdsRoute.output.parse({
           installedSourceIds: await mcpService.listInstalledServerIds(input.source, input.sourceIds)
         })
-      }
-    ],
-    [
-      mcpRouterUpdateServersAuthRoute.name,
-      async (rawInput) => {
-        const input = mcpRouterUpdateServersAuthRoute.input.parse(rawInput)
-        await mcpService.updateMcpRouterServersAuth(input.apiKey)
-        return mcpRouterUpdateServersAuthRoute.output.parse({ updated: true })
       }
     ]
   ])

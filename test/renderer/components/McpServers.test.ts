@@ -10,8 +10,15 @@ const passthrough = (name: string) =>
 
 const buttonStub = defineComponent({
   name: 'Button',
+  props: {
+    disabled: {
+      type: Boolean,
+      default: false
+    }
+  },
   emits: ['click'],
-  template: '<button data-testid="action-button" @click="$emit(\'click\')"><slot /></button>'
+  template:
+    '<button data-testid="action-button" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
 })
 
 const serverCardStub = defineComponent({
@@ -38,7 +45,7 @@ const mcpServerFormStub = defineComponent({
     nameError: { type: String, default: undefined },
     submissionError: { type: String, default: undefined }
   },
-  emits: ['submit', 'input-change'],
+  emits: ['submit', 'input-change', 'name-change'],
   template: `
     <div>
       <p v-if="nameError || submissionError" data-testid="add-server-error">
@@ -51,7 +58,15 @@ const mcpServerFormStub = defineComponent({
       >
         submit
       </button>
-      <button data-testid="change-server-name" @click="$emit('input-change')">change</button>
+      <button
+        data-testid="change-server-name"
+        @click="$emit('name-change'); $emit('input-change')"
+      >
+        change name
+      </button>
+      <button data-testid="change-server-command" @click="$emit('input-change')">
+        change command
+      </button>
     </div>
   `
 })
@@ -77,7 +92,7 @@ const setup = async (options: SetupOptions = {}) => {
     push: vi.fn().mockResolvedValue(undefined)
   }
 
-  const toast = vi.fn()
+  const notifyRenderer = vi.fn()
   const defaultServerList = options.withServers
     ? [
         {
@@ -145,10 +160,8 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/mcp', () => ({
     useMcpStore: () => mcpStore
   }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast
-    })
+  vi.doMock('@/services/notifications/rendererNotificationPort', () => ({
+    notifyRenderer
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -189,7 +202,8 @@ const setup = async (options: SetupOptions = {}) => {
   return {
     wrapper,
     router,
-    mcpStore
+    mcpStore,
+    notifyRenderer
   }
 }
 
@@ -230,12 +244,15 @@ describe('McpServers', () => {
     )
     expect(mcpStore.clearMcpInstallCache).not.toHaveBeenCalled()
 
+    await wrapper.find('[data-testid="change-server-command"]').trigger('click')
+    expect(wrapper.find('[data-testid="add-server-error"]').exists()).toBe(true)
+
     await wrapper.find('[data-testid="change-server-name"]').trigger('click')
 
     expect(wrapper.find('[data-testid="add-server-error"]').exists()).toBe(false)
   })
 
-  it('ignores an add result after its dialog generation closes', async () => {
+  it('keeps the add dialog open until the pending operation settles', async () => {
     const { wrapper, mcpStore } = await setup()
     let resolveAdd: (result: { status: 'duplicate' }) => void = () => undefined
     mcpStore.addServer.mockImplementationOnce(
@@ -250,10 +267,17 @@ describe('McpServers', () => {
     await wrapper.find('[data-testid="submit-server"]').trigger('click')
     wrapper.findAllComponents({ name: 'Dialog' })[0].vm.$emit('update:open', false)
     await wrapper.vm.$nextTick()
+
+    expect(
+      (wrapper.vm as unknown as { isAddServerDialogOpen: boolean }).isAddServerDialogOpen
+    ).toBe(true)
+
     resolveAdd({ status: 'duplicate' })
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="add-server-error"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="add-server-error"]').text()).toBe(
+      'settings.mcp.serverForm.nameDuplicate'
+    )
   })
 
   it('only shows all, running, and stopped filters', async () => {
@@ -403,5 +427,78 @@ describe('McpServers', () => {
     await authCallbackInput!.trigger('keydown.enter')
 
     expect(mcpStore.completeServerAuthFromCallbackUrl).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps edit failures in the dialog and closes only after a successful retry', async () => {
+    const { wrapper, mcpStore } = await setup({ withServers: true })
+    mcpStore.updateServer.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const viewModel = wrapper.vm as unknown as {
+      isEditServerDialogOpen: boolean
+      openEditServerDialog(serverName: string): void
+      handleEditServer(serverName: string, config: Record<string, unknown>): Promise<void>
+    }
+
+    viewModel.openEditServerDialog('running-server')
+    await viewModel.handleEditServer('running-server', { command: 'node' })
+    await wrapper.vm.$nextTick()
+
+    expect(viewModel.isEditServerDialogOpen).toBe(true)
+    expect(wrapper.get('[data-testid="add-server-error"]').text()).toBe(
+      'common.error.requestFailed'
+    )
+
+    await wrapper.findAll('[data-testid="change-server-command"]').at(-1)!.trigger('click')
+    expect(wrapper.find('[data-testid="add-server-error"]').exists()).toBe(false)
+
+    await viewModel.handleEditServer('running-server', { command: 'node' })
+
+    expect(viewModel.isEditServerDialogOpen).toBe(false)
+  })
+
+  it('keeps remove failures in the confirmation dialog', async () => {
+    const { wrapper, mcpStore } = await setup({ withServers: true })
+    mcpStore.removeServer.mockResolvedValueOnce(false)
+    const viewModel = wrapper.vm as unknown as {
+      isRemoveConfirmDialogOpen: boolean
+      handleRemoveServer(serverName: string): Promise<void>
+      confirmRemoveServer(): Promise<void>
+    }
+
+    await viewModel.handleRemoveServer('running-server')
+    await viewModel.confirmRemoveServer()
+    await wrapper.vm.$nextTick()
+
+    expect(viewModel.isRemoveConfirmDialogOpen).toBe(true)
+    expect(wrapper.get('[role="alert"]').text()).toBe('common.error.requestFailed')
+  })
+
+  it('keeps callback authentication failures beside the callback input', async () => {
+    const { wrapper, mcpStore, notifyRenderer } = await setup({ withServers: true })
+    mcpStore.completeServerAuthFromCallbackUrl.mockResolvedValueOnce(null)
+
+    await wrapper.find('[data-testid="authenticate-server"]').trigger('click')
+    await flushPromises()
+    const authCallbackInput = wrapper.findAll('input').at(-1)!
+    await authCallbackInput.setValue('http://localhost:3333/callback?code=bad')
+    await authCallbackInput.trigger('keydown.enter')
+    await flushPromises()
+
+    expect(wrapper.get('#mcp-auth-callback-error').text()).toBe('common.error.requestFailed')
+    expect(notifyRenderer).not.toHaveBeenCalled()
+  })
+
+  it('reports toggle failures through the semantic notification port', async () => {
+    const { wrapper, mcpStore, notifyRenderer } = await setup({ withServers: true })
+    mcpStore.toggleServer.mockResolvedValueOnce(false)
+
+    await wrapper.find('[data-testid="server-card"]').trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.mcp.toggleFailed',
+      title: 'common.error.operationFailed',
+      description: 'common.error.requestFailed'
+    })
   })
 })

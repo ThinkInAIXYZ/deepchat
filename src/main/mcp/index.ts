@@ -483,7 +483,8 @@ export class McpService implements McpServicePort {
   }
 
   async setMcpRouterApiKey(key: string): Promise<void> {
-    this.mcpSettings.setRouterApiKey(key)
+    const normalizedApiKey = key.trim()
+    await this.synchronizeMcpRouterServersAuth(normalizedApiKey)
   }
 
   async isServerInstalled(source: string, sourceId: string): Promise<boolean> {
@@ -510,29 +511,54 @@ export class McpService implements McpServicePort {
     return [...installedIds]
   }
 
-  async updateMcpRouterServersAuth(apiKey: string): Promise<void> {
+  private async synchronizeMcpRouterServersAuth(normalizedApiKey: string): Promise<void> {
+    const currentApiKey = this.mcpSettings.getRouterApiKey()
     const servers = await this.mcpSettings.getMcpServers()
-    const updates: Array<{ name: string; config: Partial<MCPServerConfig> }> = []
+    let updatedServerCount = 0
 
     for (const [serverName, config] of Object.entries(servers)) {
-      if (config.source === 'mcprouter' && config.customHeaders) {
-        const updatedHeaders = {
-          ...config.customHeaders,
-          Authorization: `Bearer ${apiKey}`
-        }
-        updates.push({
-          name: serverName,
-          config: { customHeaders: updatedHeaders }
-        })
+      if (config.source !== 'mcprouter') {
+        continue
       }
+
+      const updatedHeaders = { ...config.customHeaders }
+      const authorizationHeaderNames = Object.keys(updatedHeaders).filter(
+        (name) => name.toLowerCase() === 'authorization'
+      )
+      const expectedAuthorization = normalizedApiKey ? `Bearer ${normalizedApiKey}` : undefined
+      const alreadySynchronized = expectedAuthorization
+        ? authorizationHeaderNames.length === 1 &&
+          authorizationHeaderNames[0] === 'Authorization' &&
+          updatedHeaders.Authorization === expectedAuthorization
+        : authorizationHeaderNames.length === 0
+
+      if (alreadySynchronized) {
+        continue
+      }
+
+      for (const name of authorizationHeaderNames) {
+        delete updatedHeaders[name]
+      }
+      if (expectedAuthorization) {
+        updatedHeaders.Authorization = expectedAuthorization
+      }
+
+      servers[serverName] = {
+        ...config,
+        customHeaders: updatedHeaders
+      }
+      updatedServerCount += 1
     }
 
-    // Batch update Authorization for all servers
-    for (const update of updates) {
-      await this.mcpSettings.updateMcpServer(update.name, update.config)
+    if (currentApiKey === normalizedApiKey && updatedServerCount === 0) {
+      return
     }
 
-    logger.info(`Updated Authorization for ${updates.length} mcprouter servers`)
+    this.mcpSettings.setRouterApiKeyAndServers(
+      normalizedApiKey,
+      updatedServerCount > 0 ? servers : undefined
+    )
+    logger.info(`Synchronized Authorization for ${updatedServerCount} mcprouter servers`)
   }
 
   private scheduleBackgroundRegistryUpdate(): void {

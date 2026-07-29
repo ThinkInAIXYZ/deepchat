@@ -468,37 +468,19 @@ export const useMcpStore = defineStore('mcp', () => {
   const hasTools = computed(() => toolCount.value > 0)
 
   // ==================== Mutations ====================
-  // Mutations for write operations with automatic cache invalidation
+  // Mutation wrappers for write operations
   const addServerMutation = useIpcMutation({
     mutation: (serverName: string, serverConfig: MCPServerConfig) =>
-      mcpClient.addMcpServer(serverName, serverConfig),
-    invalidateQueries: () => [
-      ['mcp', 'config'],
-      ['mcp', 'tools'],
-      ['mcp', 'clients'],
-      ['mcp', 'resources']
-    ]
+      mcpClient.addMcpServer(serverName, serverConfig)
   })
 
   const updateServerMutation = useIpcMutation({
     mutation: (serverName: string, serverConfig: Partial<MCPServerConfig>) =>
-      mcpClient.updateMcpServer(serverName, serverConfig),
-    invalidateQueries: () => [
-      ['mcp', 'config'],
-      ['mcp', 'tools'],
-      ['mcp', 'clients'],
-      ['mcp', 'resources']
-    ]
+      mcpClient.updateMcpServer(serverName, serverConfig)
   })
 
   const removeServerMutation = useIpcMutation({
-    mutation: (serverName: string) => mcpClient.removeMcpServer(serverName),
-    invalidateQueries: () => [
-      ['mcp', 'config'],
-      ['mcp', 'tools'],
-      ['mcp', 'clients'],
-      ['mcp', 'resources']
-    ]
+    mutation: (serverName: string) => mcpClient.removeMcpServer(serverName)
   })
 
   const setMcpServerEnabledMutation = useIpcMutation({
@@ -511,6 +493,22 @@ export const useMcpStore = defineStore('mcp', () => {
     mutation: (enabled: boolean) => mcpClient.setMcpEnabled(enabled),
     invalidateQueries: () => [['mcp', 'config']]
   })
+
+  const refreshServerMutationQueries = async (): Promise<void> => {
+    const results = await Promise.allSettled([
+      runQuery(configQuery, { force: true }),
+      toolsQuery.refetch(),
+      clientsQuery.refetch(),
+      resourcesQuery.refetch()
+    ])
+    const failures = results.filter((result) => result.status === 'rejected')
+    if (failures.length > 0) {
+      console.warn(
+        `[MCP] Server configuration was saved, but ${failures.length} follow-up queries failed`,
+        failures.map((failure) => failure.reason)
+      )
+    }
+  }
 
   // ==================== 方法 ====================
   // 加载MCP配置
@@ -668,8 +666,11 @@ export const useMcpStore = defineStore('mcp', () => {
     try {
       const result = await addServerMutation.mutateAsync([serverName, serverConfig])
       if (result.status === 'added') {
-        // Cache invalidation happens automatically, trigger config refresh
-        await runQuery(configQuery, { force: true })
+        config.value.mcpServers = {
+          ...config.value.mcpServers,
+          [serverName]: { ...serverConfig }
+        }
+        void refreshServerMutationQueries()
       }
       return result
     } catch (error) {
@@ -682,8 +683,17 @@ export const useMcpStore = defineStore('mcp', () => {
   const updateServer = async (serverName: string, serverConfig: Partial<MCPServerConfig>) => {
     try {
       await updateServerMutation.mutateAsync([serverName, serverConfig])
-      // Cache invalidation happens automatically, trigger config refresh
-      await runQuery(configQuery, { force: true })
+      const currentConfig = config.value.mcpServers[serverName]
+      if (currentConfig) {
+        config.value.mcpServers = {
+          ...config.value.mcpServers,
+          [serverName]: {
+            ...currentConfig,
+            ...serverConfig
+          }
+        }
+      }
+      void refreshServerMutationQueries()
       return true
     } catch (error) {
       console.error(t('mcp.errors.updateServerFailed'), error)
@@ -695,8 +705,13 @@ export const useMcpStore = defineStore('mcp', () => {
   const removeServer = async (serverName: string) => {
     try {
       await removeServerMutation.mutateAsync([serverName])
-      // Cache invalidation happens automatically, trigger config refresh
-      await runQuery(configQuery, { force: true })
+      const nextServers = { ...config.value.mcpServers }
+      delete nextServers[serverName]
+      config.value.mcpServers = nextServers
+      delete serverStatuses.value[serverName]
+      delete serverAuthStatuses.value[serverName]
+      delete serverLoadingStates.value[serverName]
+      void refreshServerMutationQueries()
       return true
     } catch (error) {
       console.error(t('mcp.errors.removeServerFailed'), error)

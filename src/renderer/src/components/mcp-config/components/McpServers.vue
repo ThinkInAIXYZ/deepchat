@@ -24,7 +24,7 @@ import {
 } from '@shadcn/components/ui/sheet'
 import { useMcpStore } from '@/stores/mcp'
 import { useI18n } from 'vue-i18n'
-import { useToast } from '@/components/use-toast'
+import { notifyRenderer } from '@/services/notifications/rendererNotificationPort'
 import { useRouter } from 'vue-router'
 import McpServerCard from './McpServerCard.vue'
 import McpServerForm from '../McpServerForm.vue'
@@ -35,18 +35,21 @@ import type { MCPServerConfig } from '@shared/types/mcp'
 
 const mcpStore = useMcpStore()
 const { t } = useI18n()
-const { toast } = useToast()
 const router = useRouter()
 const props = withDefaults(
   defineProps<{
     showFooterAddButton?: boolean
     serverEnabledOverrides?: Record<string, boolean>
+    serverLoadingOverrides?: Record<string, boolean>
     agentScopedToggle?: boolean
+    agentScopedBusy?: boolean
   }>(),
   {
     showFooterAddButton: true,
     serverEnabledOverrides: () => ({}),
-    agentScopedToggle: false
+    serverLoadingOverrides: () => ({}),
+    agentScopedToggle: false,
+    agentScopedBusy: false
   }
 )
 
@@ -60,6 +63,10 @@ const isRemoveConfirmDialogOpen = ref(false)
 const isAuthCallbackDialogOpen = ref(false)
 const addServerError = ref<'duplicate' | 'failed' | null>(null)
 const isAddingServer = ref(false)
+const editServerError = ref<string | null>(null)
+const isEditingServer = ref(false)
+const removeServerError = ref<string | null>(null)
+const isRemovingServer = ref(false)
 const isToolPanelOpen = ref(false)
 const isPromptPanelOpen = ref(false)
 const isResourceViewerOpen = ref(false)
@@ -70,11 +77,13 @@ const selectedServerForResources = ref<string>('')
 const selectedDetailServerName = ref('')
 const selectedServerForAuth = ref('')
 const authCallbackUrl = ref('')
+const authCallbackError = ref<string | null>(null)
 const isSubmittingAuthCallback = ref(false)
 const searchQuery = ref('')
 const activeFilter = ref<'all' | 'running' | 'stopped'>('all')
 const MCP_FILTERS = ['all', 'running', 'stopped'] as const
 let addServerDialogGeneration = 0
+let editServerDialogGeneration = 0
 
 watch(
   () => mcpStore.mcpInstallCache,
@@ -86,12 +95,32 @@ watch(
   { immediate: true }
 )
 
-watch(isAddServerDialogOpen, (newIsAddServerDialogOpen) => {
-  addServerDialogGeneration += 1
-  if (!newIsAddServerDialogOpen) {
-    mcpStore.clearMcpInstallCache()
-    addServerError.value = null
-  }
+watch(
+  isAddServerDialogOpen,
+  (newIsAddServerDialogOpen) => {
+    addServerDialogGeneration += 1
+    if (!newIsAddServerDialogOpen) {
+      mcpStore.clearMcpInstallCache()
+      addServerError.value = null
+    }
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  isEditServerDialogOpen,
+  (open) => {
+    editServerDialogGeneration += 1
+    if (!open) {
+      editServerError.value = null
+      selectedServer.value = ''
+    }
+  },
+  { flush: 'sync' }
+)
+
+watch(authCallbackUrl, () => {
+  authCallbackError.value = null
 })
 const isDeepChatManagedServer = (config?: MCPServerConfig) => {
   return config?.source === 'deepchat'
@@ -163,14 +192,30 @@ const clearAddServerError = () => {
   addServerError.value = null
 }
 
+const clearFailedAddServerError = () => {
+  if (addServerError.value === 'failed') {
+    addServerError.value = null
+  }
+}
+
+const clearEditServerError = () => {
+  editServerError.value = null
+}
+
 const openAddServerDialog = () => {
   isAddServerDialogOpen.value = true
+}
+
+const handleAddDialogOpenChange = (open: boolean) => {
+  if (!open && isAddingServer.value) return
+  isAddServerDialogOpen.value = open
 }
 
 const closeAuthCallbackDialog = () => {
   isAuthCallbackDialogOpen.value = false
   selectedServerForAuth.value = ''
   authCallbackUrl.value = ''
+  authCallbackError.value = null
 }
 
 const refreshSelectedServerAuthStatus = async () => {
@@ -188,35 +233,67 @@ const refreshSelectedServerAuthStatus = async () => {
 useEventListener(window, 'focus', refreshSelectedServerAuthStatus)
 
 const handleEditServer = async (serverName: string, serverConfig: Partial<MCPServerConfig>) => {
-  const success = await mcpStore.updateServer(serverName, serverConfig)
+  if (isEditingServer.value) return
+
+  isEditingServer.value = true
+  editServerError.value = null
+  const dialogGeneration = editServerDialogGeneration
+  let success = false
+  try {
+    success = await mcpStore.updateServer(serverName, serverConfig)
+  } catch (error) {
+    console.error('[McpServers] Failed to update server:', serverName, error)
+  }
+  if (
+    dialogGeneration !== editServerDialogGeneration ||
+    !isEditServerDialogOpen.value ||
+    selectedServer.value !== serverName
+  ) {
+    isEditingServer.value = false
+    return
+  }
+
+  isEditingServer.value = false
   if (success) {
     isEditServerDialogOpen.value = false
-    selectedServer.value = ''
+  } else {
+    editServerError.value = t('common.error.requestFailed')
   }
 }
 
 const handleRemoveServer = async (serverName: string) => {
   const config = mcpStore.config.mcpServers[serverName]
   if (config?.type === 'inmemory' || isDeepChatManagedServer(config)) {
-    toast({
-      title: t('settings.mcp.cannotRemoveBuiltIn'),
-      description: t('settings.mcp.builtInServerCannotBeRemoved'),
-      variant: 'destructive'
-    })
     return
   }
+  removeServerError.value = null
   selectedServer.value = serverName
   isRemoveConfirmDialogOpen.value = true
 }
 
 const confirmRemoveServer = async () => {
+  if (isRemovingServer.value) return
+
   const serverName = selectedServer.value
-  await mcpStore.removeServer(serverName)
-  isRemoveConfirmDialogOpen.value = false
+  isRemovingServer.value = true
+  removeServerError.value = null
+  let success = false
+  try {
+    success = await mcpStore.removeServer(serverName)
+  } catch (error) {
+    console.error('[McpServers] Failed to remove server:', serverName, error)
+  }
+  isRemovingServer.value = false
+
+  if (success) {
+    isRemoveConfirmDialogOpen.value = false
+  } else {
+    removeServerError.value = t('common.error.requestFailed')
+  }
 }
 
 const handleToggleServer = async (serverName: string) => {
-  if (mcpStore.serverLoadingStates[serverName]) {
+  if (mcpStore.serverLoadingStates[serverName] || props.agentScopedBusy) {
     return
   }
 
@@ -228,7 +305,9 @@ const handleToggleServer = async (serverName: string) => {
 
   const config = mcpStore.config.mcpServers[serverName]
   if (isDeepChatManagedServer(config)) {
-    toast({
+    notifyRenderer({
+      kind: 'info',
+      code: 'settings.mcp.managedServerReadOnly',
       title: t('settings.mcp.managedServerReadOnly'),
       description: t('settings.mcp.managedServerReadOnlyDesc')
     })
@@ -237,10 +316,11 @@ const handleToggleServer = async (serverName: string) => {
 
   const success = await mcpStore.toggleServer(serverName)
   if (!success) {
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.mcp.toggleFailed',
       title: t('common.error.operationFailed'),
-      description: t('common.error.requestFailed'),
-      variant: 'destructive'
+      description: t('common.error.requestFailed')
     })
   }
 }
@@ -248,10 +328,11 @@ const handleToggleServer = async (serverName: string) => {
 const handleAuthenticateServer = async (serverName: string) => {
   const status = await mcpStore.startServerAuth(serverName)
   if (!status) {
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.mcp.authStartFailed',
       title: t('settings.mcp.authFailed'),
-      description: t('common.error.requestFailed'),
-      variant: 'destructive'
+      description: t('common.error.requestFailed')
     })
     return
   }
@@ -263,6 +344,7 @@ const handleAuthenticateServer = async (serverName: string) => {
 
   selectedServerForAuth.value = serverName
   authCallbackUrl.value = ''
+  authCallbackError.value = null
   isAuthCallbackDialogOpen.value = true
 }
 
@@ -285,11 +367,7 @@ const submitAuthCallbackUrl = async () => {
       return
     }
 
-    toast({
-      title: t('settings.mcp.authFailed'),
-      description: status?.error || t('common.error.requestFailed'),
-      variant: 'destructive'
-    })
+    authCallbackError.value = status?.error || t('common.error.requestFailed')
   } finally {
     isSubmittingAuthCallback.value = false
   }
@@ -313,7 +391,9 @@ const openEditServerDialog = (serverName: string) => {
 
   const config = mcpStore.config.mcpServers[serverName]
   if (isDeepChatManagedServer(config)) {
-    toast({
+    notifyRenderer({
+      kind: 'info',
+      code: 'settings.mcp.managedServerReadOnly',
       title: t('settings.mcp.managedServerReadOnly'),
       description: t('settings.mcp.managedServerReadOnlyDesc')
     })
@@ -321,7 +401,28 @@ const openEditServerDialog = (serverName: string) => {
   }
 
   selectedServer.value = serverName
+  editServerError.value = null
   isEditServerDialogOpen.value = true
+}
+
+const handleEditDialogOpenChange = (open: boolean) => {
+  if (!open && isEditingServer.value) return
+  isEditServerDialogOpen.value = open
+}
+
+const handleRemoveDialogOpenChange = (open: boolean) => {
+  if (!open && isRemovingServer.value) return
+  isRemoveConfirmDialogOpen.value = open
+  if (!open) removeServerError.value = null
+}
+
+const handleAuthDialogOpenChange = (open: boolean) => {
+  if (!open && isSubmittingAuthCallback.value) return
+  if (open) {
+    isAuthCallbackDialogOpen.value = true
+  } else {
+    closeAuthCallbackDialog()
+  }
 }
 
 const handleViewTools = async (serverName: string) => {
@@ -412,8 +513,10 @@ defineExpose({
             }"
             :is-built-in="isBuiltInServer(server.name)"
             :is-managed="mcpStore.config.mcpServers[server.name]?.source === 'deepchat'"
-            :is-loading="mcpStore.serverLoadingStates[server.name]"
-            :disabled="mcpStore.configLoading"
+            :is-loading="
+              mcpStore.serverLoadingStates[server.name] || props.serverLoadingOverrides[server.name]
+            "
+            :disabled="mcpStore.configLoading || (props.agentScopedToggle && props.agentScopedBusy)"
             :tools-count="getServerToolsCount(server.name)"
             :prompts-count="getServerPromptsCount(server.name)"
             :resources-count="getServerResourcesCount(server.name)"
@@ -461,7 +564,7 @@ defineExpose({
 
         <!-- Action buttons -->
         <div class="flex space-x-2">
-          <Dialog v-model:open="isAddServerDialogOpen">
+          <Dialog :open="isAddServerDialogOpen" @update:open="handleAddDialogOpenChange">
             <DialogTrigger v-if="props.showFooterAddButton" as-child>
               <Button size="sm" class="h-8 px-3 text-xs">
                 <Icon icon="lucide:plus" class="mr-1.5 h-3 w-3" />
@@ -489,7 +592,8 @@ defineExpose({
                   addServerError === 'failed' ? t('mcp.errors.addServerFailed') : undefined
                 "
                 @submit="handleAddServer"
-                @input-change="clearAddServerError"
+                @input-change="clearFailedAddServerError"
+                @name-change="clearAddServerError"
               />
             </DialogContent>
           </Dialog>
@@ -582,7 +686,7 @@ defineExpose({
     </Sheet>
 
     <!-- Edit server dialog -->
-    <Dialog v-model:open="isEditServerDialogOpen">
+    <Dialog :open="isEditServerDialogOpen" @update:open="handleEditDialogOpenChange">
       <DialogContent class="w-[95vw] max-w-[500px] px-0 h-[85vh] max-h-[500px] flex flex-col">
         <DialogHeader class="px-3 shrink-0 pb-2">
           <DialogTitle class="text-base">{{
@@ -597,13 +701,16 @@ defineExpose({
           :server-name="selectedServer"
           :initial-config="mcpStore.config.mcpServers[selectedServer]"
           :edit-mode="true"
+          :submitting="isEditingServer"
+          :submission-error="editServerError || undefined"
           @submit="(name, config) => handleEditServer(name, config)"
+          @input-change="clearEditServerError"
         />
       </DialogContent>
     </Dialog>
 
     <!-- Remove server confirmation dialog -->
-    <Dialog v-model:open="isRemoveConfirmDialogOpen">
+    <Dialog :open="isRemoveConfirmDialogOpen" @update:open="handleRemoveDialogOpenChange">
       <DialogContent class="w-[90vw] max-w-[380px]">
         <DialogHeader>
           <DialogTitle class="text-base">{{
@@ -613,23 +720,34 @@ defineExpose({
             {{ t('settings.mcp.confirmRemoveServer', { name: selectedServer }) }}
           </DialogDescription>
         </DialogHeader>
+        <p v-if="removeServerError" role="alert" class="text-sm text-destructive">
+          {{ removeServerError }}
+        </p>
         <div class="mt-2 flex flex-row items-center justify-end gap-3">
           <Button
             variant="outline"
             size="sm"
             class="min-w-24"
+            :disabled="isRemovingServer"
             @click="isRemoveConfirmDialogOpen = false"
           >
             {{ t('common.cancel') }}
           </Button>
-          <Button variant="destructive" size="sm" class="min-w-24" @click="confirmRemoveServer">
+          <Button
+            variant="destructive"
+            size="sm"
+            class="min-w-24"
+            :disabled="isRemovingServer"
+            @click="confirmRemoveServer"
+          >
+            <Spinner v-if="isRemovingServer" data-icon="inline-start" />
             {{ t('common.confirm') }}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
 
-    <Dialog v-model:open="isAuthCallbackDialogOpen">
+    <Dialog :open="isAuthCallbackDialogOpen" @update:open="handleAuthDialogOpenChange">
       <DialogContent class="w-[90vw] max-w-[460px]">
         <DialogHeader>
           <DialogTitle class="text-base">{{ t('settings.mcp.authCallbackTitle') }}</DialogTitle>
@@ -641,10 +759,26 @@ defineExpose({
           <Input
             v-model="authCallbackUrl"
             :placeholder="t('settings.mcp.authCallbackPlaceholder')"
+            :disabled="isSubmittingAuthCallback"
+            :aria-invalid="Boolean(authCallbackError)"
+            :aria-describedby="authCallbackError ? 'mcp-auth-callback-error' : undefined"
             @keydown.enter.prevent="submitAuthCallbackUrl"
           />
+          <p
+            v-if="authCallbackError"
+            id="mcp-auth-callback-error"
+            role="alert"
+            class="text-sm text-destructive"
+          >
+            {{ authCallbackError }}
+          </p>
           <div class="flex justify-end gap-2">
-            <Button variant="outline" size="sm" @click="closeAuthCallbackDialog">
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="isSubmittingAuthCallback"
+              @click="closeAuthCallbackDialog"
+            >
               {{ t('common.cancel') }}
             </Button>
             <Button

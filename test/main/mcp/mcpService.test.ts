@@ -582,6 +582,120 @@ describe('McpService', () => {
     ).resolves.toEqual(['context7'])
     expect(providerSettings.getMcpServers).toHaveBeenCalledTimes(1)
   })
+
+  it('removes every router authorization header when the API key is cleared', async () => {
+    const presenter = createMcpService(createProviderSettings(true))
+    const setRouterApiKeyAndServers = vi.fn()
+    ;(presenter as any).mcpSettings = {
+      getRouterApiKey: vi.fn().mockReturnValue('old-key'),
+      getMcpServers: vi.fn().mockResolvedValue({
+        primary: {
+          source: 'mcprouter',
+          customHeaders: {
+            Authorization: 'Bearer old-key',
+            'X-Router-Region': 'global'
+          }
+        },
+        legacy: {
+          source: 'mcprouter',
+          customHeaders: {
+            authorization: 'Bearer legacy-key'
+          }
+        },
+        local: {
+          source: 'custom',
+          customHeaders: {
+            Authorization: 'Bearer unrelated-key'
+          }
+        }
+      }),
+      setRouterApiKeyAndServers
+    }
+
+    await presenter.setMcpRouterApiKey('   ')
+
+    expect(setRouterApiKeyAndServers).toHaveBeenCalledOnce()
+    expect(setRouterApiKeyAndServers).toHaveBeenCalledWith('', {
+      primary: {
+        source: 'mcprouter',
+        customHeaders: { 'X-Router-Region': 'global' }
+      },
+      legacy: {
+        source: 'mcprouter',
+        customHeaders: {}
+      },
+      local: {
+        source: 'custom',
+        customHeaders: {
+          Authorization: 'Bearer unrelated-key'
+        }
+      }
+    })
+  })
+
+  it('rewrites only router authorization headers that differ from the API key', async () => {
+    const presenter = createMcpService(createProviderSettings(true))
+    const setRouterApiKeyAndServers = vi.fn()
+    ;(presenter as any).mcpSettings = {
+      getRouterApiKey: vi.fn().mockReturnValue('current-key'),
+      getMcpServers: vi.fn().mockResolvedValue({
+        synchronized: {
+          source: 'mcprouter',
+          customHeaders: {
+            Authorization: 'Bearer current-key'
+          }
+        },
+        stale: {
+          source: 'mcprouter',
+          customHeaders: {
+            authorization: 'Bearer old-key',
+            'X-Router-Region': 'global'
+          }
+        }
+      }),
+      setRouterApiKeyAndServers
+    }
+
+    await presenter.setMcpRouterApiKey(' current-key ')
+
+    expect(setRouterApiKeyAndServers).toHaveBeenCalledOnce()
+    expect(setRouterApiKeyAndServers).toHaveBeenCalledWith('current-key', {
+      synchronized: {
+        source: 'mcprouter',
+        customHeaders: {
+          Authorization: 'Bearer current-key'
+        }
+      },
+      stale: {
+        source: 'mcprouter',
+        customHeaders: {
+          Authorization: 'Bearer current-key',
+          'X-Router-Region': 'global'
+        }
+      }
+    })
+  })
+
+  it('does not rewrite Router credentials that are already synchronized', async () => {
+    const presenter = createMcpService(createProviderSettings(true))
+    const setRouterApiKeyAndServers = vi.fn()
+    ;(presenter as any).mcpSettings = {
+      getRouterApiKey: vi.fn().mockReturnValue('current-key'),
+      getMcpServers: vi.fn().mockResolvedValue({
+        synchronized: {
+          source: 'mcprouter',
+          customHeaders: {
+            Authorization: 'Bearer current-key'
+          }
+        }
+      }),
+      setRouterApiKeyAndServers
+    }
+
+    await presenter.setMcpRouterApiKey('current-key')
+
+    expect(setRouterApiKeyAndServers).not.toHaveBeenCalled()
+  })
 })
 
 describe('McpService sampling events', () => {

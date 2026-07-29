@@ -388,14 +388,4 @@ export const mcpRouterListInstalledServerIdsRoute = defineRouteContract({
   })
 })
 
-export const mcpRouterUpdateServersAuthRoute = defineRouteContract({
-  name: 'mcp.router.updateServersAuth',
-  input: z.object({
-    apiKey: z.string()
-  }),
-  output: z.object({
-    updated: z.literal(true)
-  })
-})
-
 export type McpRouterMarketItem = z.infer<typeof McpRouterMarketItemSchema>

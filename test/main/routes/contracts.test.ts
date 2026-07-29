@@ -140,7 +140,6 @@ describe('main kernel contracts', () => {
         'mcp.router.listInstalledServerIds',
         'mcp.router.listServers',
         'mcp.router.setApiKey',
-        'mcp.router.updateServersAuth',
         'mcp.submitSamplingDecision',
         'mcp.updateServer',
         'nowledgeMem.getConfig',
