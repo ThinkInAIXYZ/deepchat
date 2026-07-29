@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "Benachrichtigungen",
+    "actionFailed": "Aktion fehlgeschlagen. Erneut versuchen.",
+    "entities": "{count} betroffen",
+    "occurrences": "{count} Vorkommnisse",
+    "pending": "{count} weitere warten"
+  },
   "loading": "Wird geladen...",
   "copy": "Kopieren",
   "copied": "Kopiert",

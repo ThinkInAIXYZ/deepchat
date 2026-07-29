@@ -31,6 +31,28 @@ afterEach(() => {
 })
 
 describe('NotificationManager', () => {
+  it('uses native content only for non-aggregating success and information', () => {
+    const time = new FakeNotificationTime()
+    const { presenter, presentations } = createPresenter()
+    const manager = new NotificationManager({ presenter, clock: time, scheduler: time })
+
+    manager.notify({
+      kind: 'success',
+      code: 'settings.saved',
+      title: 'Saved'
+    })
+    expect(presentations[0].options.content).toBe('native')
+    presentations[0].events.onClosed('auto')
+
+    manager.notify({
+      kind: 'success',
+      code: 'sync.completed',
+      key: 'sync-a',
+      title: 'Sync complete'
+    })
+    expect(presentations[1].options.content).toBe('managed')
+  })
+
   it('aggregates a stable identity without presenting or extending its deadline again', () => {
     const time = new FakeNotificationTime()
     const { presenter, presentations } = createPresenter()

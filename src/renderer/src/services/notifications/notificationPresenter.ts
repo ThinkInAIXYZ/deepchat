@@ -8,6 +8,7 @@ export type NotificationPresentationEvents = Readonly<{
 export type NotificationPresentationOptions = Readonly<{
   displayBudgetMs: number
   slot: 'transient' | 'persistent'
+  content: 'native' | 'managed'
 }>
 
 export interface NotificationPresentationHandle {

@@ -181,7 +181,8 @@ export class NotificationManager {
       request.code !== entry.request.code ||
       nextPolicy.priority !== entry.priority ||
       nextPolicy.displayBudgetMs !== entry.displayBudgetMs ||
-      nextPolicy.maxLifetimeMs !== entry.maxLifetimeMs
+      nextPolicy.maxLifetimeMs !== entry.maxLifetimeMs ||
+      nextPolicy.content !== entry.content
     ) {
       throw new Error(`Notification contract changed for active identity "${entry.identity}"`)
     }
@@ -250,6 +251,7 @@ export class NotificationManager {
       priority: resolved.priority,
       displayBudgetMs: resolved.displayBudgetMs,
       maxLifetimeMs: resolved.maxLifetimeMs,
+      content: resolved.content,
       order,
       location: resolved.slot === 'transient' ? 'transient' : 'persistent',
       members,
@@ -270,7 +272,8 @@ export class NotificationManager {
         entry.record,
         {
           displayBudgetMs: entry.displayBudgetMs,
-          slot
+          slot,
+          content: entry.content
         },
         {
           onClosed: (reason) => {

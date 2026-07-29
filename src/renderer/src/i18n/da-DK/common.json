@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "Notifikationer",
+    "actionFailed": "Handlingen mislykkedes. Prøv igen.",
+    "entities": "{count} berørt",
+    "occurrences": "{count} forekomster",
+    "pending": "{count} mere venter"
+  },
   "add": "tilføjet",
   "cancel": "Annuller",
   "retry": "Prøv igen",

@@ -83,7 +83,7 @@
         @update:open="handleProviderImportDialogOpenChange"
         @confirm="confirmProviderImport"
       />
-      <Toaster :theme="toasterTheme" />
+      <NotificationHost surface="settings" :theme="toasterTheme" :dir="languageStore.dir" />
     </div>
   </TooltipProvider>
 </template>
@@ -104,10 +104,9 @@ import { useModelCheckStore } from '../src/stores/modelCheck'
 import { Button } from '@shadcn/components/ui/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
-import { Toaster } from '@shadcn/components/ui/sonner'
+import NotificationHost from '@/services/notifications/NotificationHost.vue'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
-import 'vue-sonner/style.css'
 import { useToast } from '@/components/use-toast'
 import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'

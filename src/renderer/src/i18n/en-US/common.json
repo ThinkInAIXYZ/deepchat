@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "Notifications",
+    "actionFailed": "Action failed. Try again.",
+    "entities": "{count} affected",
+    "occurrences": "{count} occurrences",
+    "pending": "{count} more waiting"
+  },
   "enabled": "Enabled",
   "disabled": "Disabled",
   "loading": "Loading...",

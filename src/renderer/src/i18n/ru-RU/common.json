@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "Уведомления",
+    "actionFailed": "Не удалось выполнить действие. Повторите попытку.",
+    "entities": "Затронуто: {count}",
+    "occurrences": "Срабатываний: {count}",
+    "pending": "Ещё {count} в ожидании"
+  },
   "enabled": "Включено",
   "disabled": "Выключено",
   "loading": "Загрузка...",

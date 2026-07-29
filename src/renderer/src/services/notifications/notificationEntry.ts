@@ -19,6 +19,7 @@ export type ManagedNotificationEntry = {
   priority: number
   displayBudgetMs: number
   maxLifetimeMs: number
+  content: 'native' | 'managed'
   order: number
   location: NotificationEntryLocation
   presentation?: NotificationPresentationHandle

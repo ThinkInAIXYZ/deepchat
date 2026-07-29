@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "Thông báo",
+    "actionFailed": "Thao tác thất bại. Hãy thử lại.",
+    "entities": "{count} mục bị ảnh hưởng",
+    "occurrences": "Xảy ra {count} lần",
+    "pending": "Còn {count} mục đang chờ"
+  },
   "enabled": "Đã bật",
   "disabled": "Đã tắt",
   "loading": "Đang tải...",

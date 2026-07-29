@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "اعلان‌ها",
+    "actionFailed": "عملیات ناموفق بود. دوباره تلاش کنید.",
+    "entities": "{count} مورد تحت تأثیر",
+    "occurrences": "{count} بار رخ داده",
+    "pending": "{count} مورد دیگر در انتظار"
+  },
   "enabled": "روشن",
   "disabled": "خاموش",
   "loading": "در حال بارگذاری...",

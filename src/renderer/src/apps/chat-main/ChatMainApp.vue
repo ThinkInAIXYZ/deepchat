@@ -10,8 +10,8 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
-import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
+import NotificationHost from '@/services/notifications/NotificationHost.vue'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
@@ -23,7 +23,6 @@ import MessageDialog from '@/components/ui/MessageDialog.vue'
 import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
 import { ensureIconsLoaded } from '@/lib/iconLoader'
-import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 import { useFontManager } from '@/composables/useFontManager'
 import { applyDocumentAppearance } from '@/foundation/appearance/documentAppearance'
 import AppBar from '@/components/AppBar.vue'
@@ -634,8 +633,7 @@ onBeforeUnmount(() => {
     <!-- Global message dialog -->
     <MessageDialog />
     <McpSamplingDialog />
-    <!-- Global Toast notifications -->
-    <Toaster :theme="toasterTheme" />
+    <NotificationHost surface="main" :theme="toasterTheme" :dir="langStore.dir" />
     <SelectedTextContextMenu />
     <TranslatePopup />
     <SpotlightOverlay />

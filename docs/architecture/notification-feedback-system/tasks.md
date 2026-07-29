@@ -21,10 +21,10 @@
 
 ## Sonner presentation
 
-- [ ] Add the one-way Sonner Adapter without Promise or update APIs.
-- [ ] Add stable-height aggregate, progress, and actionable content.
-- [ ] Replace both raw Toaster mounts with the shared Host.
-- [ ] Add top-right offsets, localized accessibility labels, and semantic tokens.
+- [x] Add the one-way Sonner Adapter without Promise or update APIs.
+- [x] Add stable-height aggregate, progress, and actionable content.
+- [x] Replace both raw Toaster mounts with the shared Host.
+- [x] Add top-right offsets, localized accessibility labels, and semantic tokens.
 - [ ] Enforce the direct `vue-sonner` import boundary.
 - [ ] Test stable identity, native timing, maximum lifetime, height, and stack offsets.
 

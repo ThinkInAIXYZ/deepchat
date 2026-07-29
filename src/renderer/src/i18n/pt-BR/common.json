@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "Notificações",
+    "actionFailed": "A ação falhou. Tente novamente.",
+    "entities": "{count} afetados",
+    "occurrences": "{count} ocorrências",
+    "pending": "Mais {count} aguardando"
+  },
   "enabled": "Ativado",
   "disabled": "Desativado",
   "loading": "Carregando...",

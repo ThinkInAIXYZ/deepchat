@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "Notificaciones",
+    "actionFailed": "La acción falló. Inténtalo de nuevo.",
+    "entities": "{count} afectados",
+    "occurrences": "{count} ocurrencias",
+    "pending": "{count} más en espera"
+  },
   "loading": "Cargando...",
   "copy": "Copiar",
   "copied": "Copiado",

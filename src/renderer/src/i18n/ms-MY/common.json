@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "Pemberitahuan",
+    "actionFailed": "Tindakan gagal. Cuba lagi.",
+    "entities": "{count} terjejas",
+    "occurrences": "{count} kejadian",
+    "pending": "{count} lagi menunggu"
+  },
   "loading": "memuatkan...",
   "copy": "salinan",
   "copied": "disalin",

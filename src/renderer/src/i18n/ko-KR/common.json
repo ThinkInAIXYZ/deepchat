@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "알림",
+    "actionFailed": "작업에 실패했습니다. 다시 시도하세요.",
+    "entities": "{count}개 영향받음",
+    "occurrences": "{count}회 발생",
+    "pending": "{count}개 더 대기 중"
+  },
   "loading": "로딩 중...",
   "copy": "복사",
   "paste": "붙여넣기",

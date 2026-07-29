@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "התראות",
+    "actionFailed": "הפעולה נכשלה. נסה שוב.",
+    "entities": "{count} מושפעים",
+    "occurrences": "{count} מופעים",
+    "pending": "{count} נוספים ממתינים"
+  },
   "enabled": "מופעל",
   "disabled": "מושבת",
   "loading": "טוען...",

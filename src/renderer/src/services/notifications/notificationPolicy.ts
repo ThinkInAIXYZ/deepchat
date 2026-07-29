@@ -28,6 +28,7 @@ export type ResolvedNotificationPolicy = Readonly<{
   displayBudgetMs: number
   maxLifetimeMs: number
   slot: 'transient' | 'persistent'
+  content: 'native' | 'managed'
 }>
 
 const TRANSIENT_PRIORITY: Record<Exclude<NotificationKind, 'actionable' | 'progress'>, number> = {
@@ -51,36 +52,46 @@ const TRANSIENT_POLICIES = Object.freeze(
         priority: TRANSIENT_PRIORITY[kind],
         displayBudgetMs: NOTIFICATION_POLICY_DEFAULTS.displayBudgetMs[kind],
         maxLifetimeMs: NOTIFICATION_POLICY_DEFAULTS.maxLifetimeMs[kind],
-        slot: 'transient' as const
+        slot: 'transient' as const,
+        content: kind === 'success' || kind === 'info' ? ('native' as const) : ('managed' as const)
       })
     ])
   ) as Record<keyof typeof TRANSIENT_PRIORITY, ResolvedNotificationPolicy>
 )
+
+const MANAGED_TRANSIENT_POLICIES = Object.freeze({
+  success: Object.freeze({ ...TRANSIENT_POLICIES.success, content: 'managed' as const }),
+  info: Object.freeze({ ...TRANSIENT_POLICIES.info, content: 'managed' as const })
+})
 
 const ACTIONABLE_POLICIES = Object.freeze({
   normal: Object.freeze({
     priority: ACTIONABLE_PRIORITY.normal,
     displayBudgetMs: Infinity,
     maxLifetimeMs: Infinity,
-    slot: 'persistent' as const
+    slot: 'persistent' as const,
+    content: 'managed' as const
   }),
   high: Object.freeze({
     priority: ACTIONABLE_PRIORITY.high,
     displayBudgetMs: Infinity,
     maxLifetimeMs: Infinity,
-    slot: 'persistent' as const
+    slot: 'persistent' as const,
+    content: 'managed' as const
   }),
   critical: Object.freeze({
     priority: ACTIONABLE_PRIORITY.critical,
     displayBudgetMs: Infinity,
     maxLifetimeMs: Infinity,
-    slot: 'persistent' as const
+    slot: 'persistent' as const,
+    content: 'managed' as const
   }),
   untilResolved: Object.freeze({
     priority: 80,
     displayBudgetMs: Infinity,
     maxLifetimeMs: Infinity,
-    slot: 'persistent' as const
+    slot: 'persistent' as const,
+    content: 'managed' as const
   })
 })
 
@@ -88,7 +99,8 @@ const PROGRESS_POLICY: ResolvedNotificationPolicy = Object.freeze({
   priority: 25,
   displayBudgetMs: Infinity,
   maxLifetimeMs: Infinity,
-  slot: 'persistent'
+  slot: 'persistent',
+  content: 'managed'
 })
 
 export class NotificationPolicy {
@@ -117,7 +129,15 @@ export class NotificationPolicy {
       return PROGRESS_POLICY
     }
 
-    return TRANSIENT_POLICIES[request.kind]
+    const resolved = TRANSIENT_POLICIES[request.kind]
+    if (
+      (request.kind === 'success' || request.kind === 'info') &&
+      'key' in request &&
+      typeof request.key === 'string'
+    ) {
+      return MANAGED_TRANSIENT_POLICIES[request.kind]
+    }
+    return resolved
   }
 
   canBecomeTransientCandidate(request: NotificationRequest): boolean {

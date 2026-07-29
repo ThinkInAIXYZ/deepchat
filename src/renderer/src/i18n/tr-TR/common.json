@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "label": "Bildirimler",
+    "actionFailed": "İşlem başarısız oldu. Tekrar deneyin.",
+    "entities": "{count} etkilendi",
+    "occurrences": "{count} kez oluştu",
+    "pending": "{count} tane daha bekliyor"
+  },
   "loading": "Yükleniyor...",
   "copy": "Kopyala",
   "copied": "Kopyalandı",
