@@ -3020,7 +3020,7 @@
       "error": "Error",
       "invalidAgent": "Agen tidak tersedia atau dinonaktifkan. Pilih agen lain."
     },
-    "runNowSuccess": "Tugas terjadwal dimulai"
+    "runNowSuccess": "Tugas terjadwal selesai"
   },
   "memory": {
     "description": "Tinjau, konfigurasi, dan kelola apa yang diingat setiap agen di seluruh sesi. Memori terpisah per agen.",

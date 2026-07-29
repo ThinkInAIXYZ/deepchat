@@ -1570,7 +1570,7 @@
       "error": "錯誤",
       "invalidAgent": "Agent 不存在或已停用，請重新選擇 Agent。"
     },
-    "runNowSuccess": "排程任務已觸發"
+    "runNowSuccess": "排程任務已完成"
   },
   "about": {
     "title": "關於我們",

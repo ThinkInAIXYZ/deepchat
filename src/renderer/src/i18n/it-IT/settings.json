@@ -3020,7 +3020,7 @@
       "error": "Errore",
       "invalidAgent": "Agent mancante o disattivato. Scegli un altro Agent."
     },
-    "runNowSuccess": "Attività pianificata avviata"
+    "runNowSuccess": "Attività pianificata completata"
   },
   "memory": {
     "description": "Esamina, configura e gestisci ciò che ogni agente ricorda tra le sessioni. La memoria è separata per ogni agente.",

@@ -1570,7 +1570,7 @@
       "error": "Erro",
       "invalidAgent": "O agente está ausente ou desabilitado. Escolha outro agente."
     },
-    "runNowSuccess": "Tarefa agendada iniciada"
+    "runNowSuccess": "Tarefa agendada concluída"
   },
   "about": {
     "title": "Sobre Nós",

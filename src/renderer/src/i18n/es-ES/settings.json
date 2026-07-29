@@ -3020,7 +3020,7 @@
       "error": "Error",
       "invalidAgent": "El agente no existe o está deshabilitado. Elige otro agente."
     },
-    "runNowSuccess": "Tarea programada iniciada"
+    "runNowSuccess": "Tarea programada completada"
   },
   "memory": {
     "description": "Revisa, configura y gestiona lo que cada agente recuerda entre sesiones. La memoria es independiente para cada agente.",

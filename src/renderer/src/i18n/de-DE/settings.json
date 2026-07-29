@@ -3020,7 +3020,7 @@
       "error": "Fehler",
       "invalidAgent": "Agent fehlt oder ist deaktiviert. Wählen Sie einen anderen Agent."
     },
-    "runNowSuccess": "Geplante Aufgabe gestartet"
+    "runNowSuccess": "Geplante Aufgabe abgeschlossen"
   },
   "memory": {
     "description": "Prüfen, konfigurieren und verwalten Sie, woran sich jeder Agent sitzungsübergreifend erinnert. Das Gedächtnis ist auf einzelne Agenten beschränkt.",

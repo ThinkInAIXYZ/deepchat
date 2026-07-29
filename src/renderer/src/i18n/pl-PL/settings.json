@@ -3020,7 +3020,7 @@
       "error": "Błąd",
       "invalidAgent": "Agent jest niedostępny lub wyłączony. Wybierz innego agenta."
     },
-    "runNowSuccess": "Zaplanowane zadanie uruchomione"
+    "runNowSuccess": "Zaplanowane zadanie zakończone"
   },
   "memory": {
     "description": "Przeglądaj, konfiguruj i zarządzaj tym, co każdy agent zapamiętuje między sesjami. Pamięć jest odrębna dla każdego agenta.",

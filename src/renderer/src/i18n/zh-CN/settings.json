@@ -1915,7 +1915,7 @@
       "error": "错误",
       "invalidAgent": "Agent 不存在或已停用，请重新选择 Agent。"
     },
-    "runNowSuccess": "定时任务已触发"
+    "runNowSuccess": "定时任务已完成"
   },
   "about": {
     "title": "关于我们",

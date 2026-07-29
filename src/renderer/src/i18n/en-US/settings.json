@@ -1916,7 +1916,7 @@
       "error": "Error",
       "invalidAgent": "Agent is missing or disabled. Choose another agent."
     },
-    "runNowSuccess": "Scheduled task started"
+    "runNowSuccess": "Scheduled task completed"
   },
   "about": {
     "title": "About Us",

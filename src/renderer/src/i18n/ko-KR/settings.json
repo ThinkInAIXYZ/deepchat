@@ -1570,7 +1570,7 @@
       "error": "오류",
       "invalidAgent": "에이전트가 없거나 비활성화되었습니다. 다른 에이전트를 선택하세요."
     },
-    "runNowSuccess": "예약 작업이 시작되었습니다"
+    "runNowSuccess": "예약 작업이 완료되었습니다"
   },
   "about": {
     "title": "우리에 대해",

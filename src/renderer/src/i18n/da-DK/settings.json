@@ -1503,7 +1503,7 @@
       "error": "Fejl",
       "invalidAgent": "Agent mangler eller er deaktiveret. Vælg en anden agent."
     },
-    "runNowSuccess": "Planlagt opgave startet"
+    "runNowSuccess": "Planlagt opgave fuldført"
   },
   "about": {
     "title": "Om os",

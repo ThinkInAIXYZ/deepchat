@@ -3020,7 +3020,7 @@
       "error": "Ralat",
       "invalidAgent": "Ejen tiada atau dilumpuhkan. Pilih ejen lain."
     },
-    "runNowSuccess": "Tugasan berjadual dimulakan"
+    "runNowSuccess": "Tugasan berjadual selesai"
   },
   "memory": {
     "description": "Semak, konfigur dan urus apa yang diingati oleh setiap ejen merentas sesi. Memori berasingan bagi setiap ejen.",

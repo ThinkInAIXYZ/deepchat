@@ -3020,7 +3020,7 @@
       "error": "Hata",
       "invalidAgent": "Ajan eksik veya devre dışı. Başka bir ajan seçin."
     },
-    "runNowSuccess": "Zamanlanmış görev başlatıldı"
+    "runNowSuccess": "Zamanlanmış görev tamamlandı"
   },
   "memory": {
     "description": "Her aracının oturumlar arasında neyi hatırladığını inceleyin, yapılandırın ve yönetin. Bellek her aracı için ayrıdır.",

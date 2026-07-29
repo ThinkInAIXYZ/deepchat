@@ -3020,7 +3020,7 @@
       "error": "Lỗi",
       "invalidAgent": "Agent bị thiếu hoặc đã tắt. Hãy chọn agent khác."
     },
-    "runNowSuccess": "Tác vụ đã lên lịch đã bắt đầu"
+    "runNowSuccess": "Tác vụ đã lên lịch đã hoàn tất"
   },
   "memory": {
     "description": "Xem lại, cấu hình và quản lý những gì mỗi tác nhân ghi nhớ qua các phiên. Bộ nhớ được tách riêng theo từng tác nhân.",
