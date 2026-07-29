@@ -18,20 +18,6 @@ describe('KnowledgeFileItem', () => {
   async function setup() {
     vi.resetModules()
 
-    let progressListener:
-      | ((progress: { fileId: string; completed: number; error: number; total: number }) => void)
-      | null = null
-    const stopFileProgress = vi.fn()
-    const knowledgeClient = {
-      onFileProgress: vi.fn((listener) => {
-        progressListener = listener
-        return stopFileProgress
-      })
-    }
-
-    vi.doMock('@api/KnowledgeClient', () => ({
-      createKnowledgeClient: () => knowledgeClient
-    }))
     vi.doMock('@/lib/utils', () => ({
       getMimeTypeIcon: () => 'lucide:file-text'
     }))
@@ -58,6 +44,11 @@ describe('KnowledgeFileItem', () => {
             size: 1024,
             totalChunks: 3
           }
+        },
+        progress: {
+          completed: 2,
+          error: 1,
+          total: 4
         }
       },
       global: {
@@ -77,45 +68,18 @@ describe('KnowledgeFileItem', () => {
       }
     })
 
-    return {
-      wrapper,
-      knowledgeClient,
-      progressListener: () => progressListener,
-      stopFileProgress
-    }
+    return { wrapper }
   }
 
-  it('updates progress from typed events and unsubscribes on unmount', async () => {
-    const { wrapper, knowledgeClient, progressListener, stopFileProgress } = await setup()
-    const listener = progressListener()
+  it('renders progress supplied by the page-level event subscription', async () => {
+    const { wrapper } = await setup()
 
-    expect(knowledgeClient.onFileProgress).toHaveBeenCalledTimes(1)
-    listener?.({
-      fileId: 'file-1',
-      completed: 2,
-      error: 1,
-      total: 4
-    })
-    expect((wrapper.vm as any).progress).toEqual({
+    expect((wrapper.vm as any).fileProgress).toEqual({
       completed: 2,
       error: 1,
       total: 4
     })
     expect((wrapper.vm as any).progressPercent).toBe(75)
-
-    listener?.({
-      fileId: 'other-file',
-      completed: 4,
-      error: 0,
-      total: 4
-    })
-    expect((wrapper.vm as any).progress).toEqual({
-      completed: 2,
-      error: 1,
-      total: 4
-    })
-
     wrapper.unmount()
-    expect(stopFileProgress).toHaveBeenCalledTimes(1)
   })
 })

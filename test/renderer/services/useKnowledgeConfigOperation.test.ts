@@ -124,4 +124,25 @@ describe('useKnowledgeConfigOperation', () => {
     wrapper.unmount()
     consoleError.mockRestore()
   })
+
+  it('uses the operation-specific failure copy when the source can diagnose the failure', async () => {
+    const { wrapper, operation, controller } = await setup()
+
+    await operation.run({
+      code: 'settings.knowledgeBase.test.dimensions',
+      source: 'dialog',
+      label: 'common.saving',
+      perform: vi.fn().mockResolvedValue(false),
+      commit: vi.fn(),
+      failure: () => ({
+        title: 'settings.knowledgeBase.autoDetectDimensionsError'
+      })
+    })
+
+    expect(controller.fail).toHaveBeenCalledWith({
+      code: 'settings.knowledgeBase.test.dimensions.failed',
+      title: 'settings.knowledgeBase.autoDetectDimensionsError'
+    })
+    wrapper.unmount()
+  })
 })

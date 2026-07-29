@@ -6,12 +6,18 @@ import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
 
 export type KnowledgeConfigOperationSource = 'dialog' | 'panel'
 
+export type KnowledgeConfigOperationFailure = Readonly<{
+  title: string
+  description?: string
+}>
+
 export type KnowledgeConfigOperation = Readonly<{
   code: string
   source: KnowledgeConfigOperationSource
   label: string
   perform: () => Promise<boolean>
   commit: () => void
+  failure?: () => KnowledgeConfigOperationFailure
 }>
 
 export function useKnowledgeConfigOperation() {
@@ -27,9 +33,9 @@ export function useKnowledgeConfigOperation() {
   const run = async (operation: KnowledgeConfigOperation): Promise<boolean> => {
     if (pending.value) return false
 
+    controller.begin(operationId, operation.label)
     source.value = operation.source
     retryOperation = operation
-    controller.begin(operationId, operation.label)
 
     let persisted = false
     try {
@@ -40,9 +46,20 @@ export function useKnowledgeConfigOperation() {
       })
     }
     if (!persisted) {
+      let failure: KnowledgeConfigOperationFailure | undefined
+      try {
+        failure = operation.failure?.()
+      } catch (error) {
+        console.error(`[KnowledgeConfigOperation] ${operation.code} failure copy failed`, {
+          name: error instanceof Error ? error.name : 'UnknownError'
+        })
+      }
+      failure ??= {
+        title: t('common.error.operationFailed')
+      }
       controller.fail({
         code: `${operation.code}.failed`,
-        title: t('common.error.operationFailed')
+        ...failure
       })
       return false
     }
@@ -55,11 +72,11 @@ export function useKnowledgeConfigOperation() {
       })
     }
 
-    retryOperation = null
     controller.succeed({
       code: `${operation.code}.succeeded`,
       title: t('common.saved')
     })
+    retryOperation = null
     controller.clear()
     source.value = null
     return true
