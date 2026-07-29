@@ -4809,6 +4809,7 @@ describe('dispatchDeepchatRoute', () => {
       runtime,
       'providers.runAcpDebugAction',
       {
+        requestId: 'debug-request-1',
         agentId: 'codex-acp',
         action: 'initialize',
         payload: {}
@@ -4861,6 +4862,7 @@ describe('dispatchDeepchatRoute', () => {
       page_size: 50
     })
     expect(acpProviderAdminPort.runAcpDebugAction).toHaveBeenCalledWith({
+      requestId: 'debug-request-1',
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {},

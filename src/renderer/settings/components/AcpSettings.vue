@@ -8,17 +8,44 @@
             {{ t('settings.acp.enabledDescription') }}
           </p>
         </div>
-        <Switch
-          dir="ltr"
-          :model-value="acpEnabled"
-          class="scale-125"
-          :disabled="toggling"
-          @update:model-value="handleToggle"
+        <div class="flex min-w-0 items-center gap-3">
+          <InlineOperationFeedback
+            v-if="pageOperation?.kind === 'acp-toggle'"
+            :snapshot="pageFeedback"
+            :retry-label="t('common.retry')"
+            @retry="retryPageOperation"
+          />
+          <Switch
+            dir="ltr"
+            :model-value="acpEnabled"
+            class="scale-125"
+            :disabled="!loaded || loading || isAnyMutationPending"
+            @update:model-value="handleToggle"
+          />
+        </div>
+      </div>
+
+      <div
+        v-if="loadError"
+        role="alert"
+        class="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+      >
+        <span>{{ loadError }}</span>
+        <Button size="sm" variant="ghost" :disabled="loading" @click="loadAcpData">
+          {{ t('common.retry') }}
+        </Button>
+      </div>
+
+      <div v-if="showPageFeedbackFallback" class="flex justify-end">
+        <InlineOperationFeedback
+          :snapshot="pageFeedback"
+          :retry-label="t('common.retry')"
+          @retry="retryPageOperation"
         />
       </div>
 
       <div
-        v-if="acpEnabled"
+        v-if="acpEnabled && loaded"
         class="rounded-xl border bg-muted/20 px-4 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
       >
         <div class="space-y-1">
@@ -39,7 +66,7 @@
     </div>
 
     <div class="flex-1 overflow-y-auto">
-      <div v-if="acpEnabled" class="p-4 space-y-6">
+      <div v-if="acpEnabled && loaded" class="p-4 space-y-6">
         <Collapsible v-if="showSharedMcpSection" v-model:open="sharedMcpOpen" class="space-y-4">
           <div class="flex items-start justify-between gap-4">
             <div>
@@ -129,14 +156,14 @@
                     <Button
                       size="sm"
                       variant="destructive"
-                      :disabled="Boolean(agentPending[agent.id])"
+                      :disabled="isAnyMutationPending"
                       @click="confirmRegistryAgentUninstall(agent)"
                     >
                       {{ t('settings.acp.registryUninstallAction') }}
                     </Button>
                     <Switch
                       :model-value="agent.enabled"
-                      :disabled="Boolean(agentPending[agent.id])"
+                      :disabled="isAnyMutationPending"
                       @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
                     />
                   </div>
@@ -166,12 +193,14 @@
                     v-model="envDrafts[agent.id]"
                     class="min-h-[92px] font-mono text-xs"
                     :placeholder="t('settings.acp.envOverridePlaceholder')"
+                    :disabled="isAnyMutationPending"
+                    @update:model-value="clearPageFeedbackForAgent(agent.id)"
                   />
                   <div class="flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      :disabled="Boolean(agentPending[agent.id])"
+                      :disabled="isAnyMutationPending"
                       @click="saveEnvOverride(agent)"
                     >
                       {{ t('common.save') }}
@@ -179,7 +208,7 @@
                     <Button
                       size="sm"
                       variant="ghost"
-                      :disabled="Boolean(agentPending[agent.id])"
+                      :disabled="isAnyMutationPending"
                       @click="clearEnvOverride(agent)"
                     >
                       {{ t('common.clear') }}
@@ -187,7 +216,7 @@
                     <Button
                       size="sm"
                       variant="outline"
-                      :disabled="Boolean(agentPending[agent.id])"
+                      :disabled="isAnyMutationPending"
                       @click="repairRegistryAgent(agent)"
                     >
                       {{ t('settings.acp.registryRepair') }}
@@ -195,10 +224,17 @@
                     <Button
                       size="sm"
                       variant="outline"
+                      :disabled="isAnyMutationPending"
                       @click="openInspector(agent.id, agent.name)"
                     >
                       {{ t('settings.acp.debug.entry') }}
                     </Button>
+                    <InlineOperationFeedback
+                      v-if="pageOperation?.agentId === agent.id"
+                      :snapshot="pageFeedback"
+                      :retry-label="t('common.retry')"
+                      @retry="retryPageOperation"
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -220,7 +256,7 @@
               <Button size="sm" variant="outline" @click="manualSectionOpen = !manualSectionOpen">
                 {{ manualSectionOpen ? t('common.collapse') : t('common.expand') }}
               </Button>
-              <Button size="sm" @click="openManualDialog()">
+              <Button size="sm" :disabled="isAnyMutationPending" @click="openManualDialog()">
                 {{ t('settings.acp.addCustomAgent') }}
               </Button>
             </div>
@@ -253,7 +289,7 @@
                     </div>
                     <Switch
                       :model-value="agent.enabled"
-                      :disabled="Boolean(agentPending[agent.id])"
+                      :disabled="isAnyMutationPending"
                       @update:model-value="(value) => toggleManualAgent(agent, Boolean(value))"
                     />
                   </div>
@@ -276,13 +312,18 @@
                     </div>
                   </div>
                   <div class="flex flex-wrap gap-2">
-                    <Button size="sm" variant="ghost" @click="openManualDialog(agent)">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      :disabled="isAnyMutationPending"
+                      @click="openManualDialog(agent)"
+                    >
                       {{ t('common.edit') }}
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
-                      :disabled="Boolean(agentPending[agent.id])"
+                      :disabled="isAnyMutationPending"
                       @click="confirmAndDeleteManualAgent(agent)"
                     >
                       {{ t('common.delete') }}
@@ -290,10 +331,17 @@
                     <Button
                       size="sm"
                       variant="outline"
+                      :disabled="isAnyMutationPending"
                       @click="openInspector(agent.id, agent.name)"
                     >
                       {{ t('settings.acp.debug.entry') }}
                     </Button>
+                    <InlineOperationFeedback
+                      v-if="pageOperation?.agentId === agent.id"
+                      :snapshot="pageFeedback"
+                      :retry-label="t('common.retry')"
+                      @retry="retryPageOperation"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -302,13 +350,17 @@
         </Collapsible>
       </div>
 
-      <div v-else class="p-6 text-sm text-muted-foreground text-center">
+      <div v-else-if="loading" class="p-6 text-sm text-muted-foreground text-center">
+        {{ t('settings.acp.loading') }}
+      </div>
+
+      <div v-else-if="loaded" class="p-6 text-sm text-muted-foreground text-center">
         {{ t('settings.acp.enableToAccess') }}
       </div>
     </div>
 
-    <Dialog :open="manualDialog.open" @update:open="(value) => (manualDialog.open = value)">
-      <DialogContent class="sm:max-w-[560px]">
+    <Dialog :open="manualDialog.open" @update:open="handleManualDialogOpenChange">
+      <DialogContent class="sm:max-w-[560px]" :inert="manualSaving || undefined">
         <DialogHeader>
           <DialogTitle>
             {{
@@ -328,6 +380,8 @@
             <Input
               v-model="manualDialog.name"
               :placeholder="t('settings.acp.profileDialog.agentNamePlaceholder')"
+              :aria-invalid="Boolean(manualDialog.error)"
+              @update:model-value="handleManualDialogEdited"
             />
           </div>
           <div class="space-y-2">
@@ -335,6 +389,8 @@
             <Input
               v-model="manualDialog.command"
               :placeholder="t('settings.acp.commandPlaceholder')"
+              :aria-invalid="Boolean(manualDialog.error)"
+              @update:model-value="handleManualDialogEdited"
             />
           </div>
           <div class="space-y-2">
@@ -343,6 +399,7 @@
               v-model="manualDialogArgsText"
               class="min-h-[96px] font-mono text-xs"
               :placeholder="t('settings.mcp.serverForm.argsPlaceholder')"
+              @update:model-value="handleManualDialogEdited"
             />
           </div>
           <div class="space-y-2">
@@ -351,16 +408,24 @@
               v-model="manualDialog.env"
               class="min-h-[120px] font-mono text-xs"
               :placeholder="t('settings.acp.envOverridePlaceholder')"
+              @update:model-value="handleManualDialogEdited"
             />
           </div>
           <div class="flex items-center justify-between rounded-md border px-3 py-2">
             <div class="text-sm text-muted-foreground">{{ t('common.enabled') }}</div>
-            <Switch v-model="manualDialog.enabled" />
+            <Switch v-model="manualDialog.enabled" @update:model-value="handleManualDialogEdited" />
           </div>
+          <p v-if="manualDialog.error" role="alert" class="text-xs text-destructive">
+            {{ manualDialog.error }}
+          </p>
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" @click="manualDialog.open = false">
+          <Button
+            variant="ghost"
+            :disabled="manualSaving"
+            @click="handleManualDialogOpenChange(false)"
+          >
             {{ t('common.cancel') }}
           </Button>
           <Button :disabled="manualSaving" @click="saveManualAgent">
@@ -370,7 +435,7 @@
       </DialogContent>
     </Dialog>
 
-    <Dialog :open="registryDialog.open" @update:open="(value) => (registryDialog.open = value)">
+    <Dialog :open="registryDialog.open" @update:open="handleRegistryDialogOpenChange">
       <DialogContent hide-close class="sm:max-w-[760px] p-0 overflow-hidden">
         <div class="flex flex-col max-h-[80vh]">
           <DialogHeader class="px-5 pt-5 pb-4 border-b space-y-4 text-left">
@@ -392,8 +457,13 @@
                     <Icon icon="lucide:external-link" class="h-4 w-4 ml-2" />
                   </a>
                 </Button>
-                <Button size="sm" variant="outline" :disabled="refreshing" @click="refreshRegistry">
-                  <Spinner v-if="refreshing" data-icon="inline-start" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  :disabled="isAnyMutationPending"
+                  @click="refreshRegistry"
+                >
+                  <Spinner v-if="isRegistryRefreshPending" data-icon="inline-start" />
                   <Icon v-else icon="lucide:refresh-cw" data-icon="inline-start" />
                   {{ t('settings.acp.registryRefresh') }}
                 </Button>
@@ -402,7 +472,8 @@
                   variant="ghost"
                   class="h-9 w-9"
                   :aria-label="t('settings.acp.debug.close')"
-                  @click="registryDialog.open = false"
+                  :disabled="isRegistryDialogPending"
+                  @click="handleRegistryDialogOpenChange(false)"
                 >
                   <Icon icon="lucide:x" class="h-4 w-4" />
                 </Button>
@@ -445,6 +516,16 @@
                   {{ t('settings.acp.installFilters.notInstalled') }}
                 </Button>
               </div>
+              <InlineOperationFeedback
+                v-if="
+                  pageFeedback.status === 'error' &&
+                  (pageOperation?.kind === 'registry-refresh' ||
+                    pageOperation?.kind === 'registry-install')
+                "
+                :snapshot="pageFeedback"
+                :retry-label="t('common.retry')"
+                @retry="retryPageOperation"
+              />
             </div>
           </DialogHeader>
 
@@ -537,7 +618,7 @@
     />
 
     <AgentTransferDialog
-      v-model:open="transferDialogOpen"
+      :open="transferDialogOpen"
       mode="delete-agent"
       :source-agent-id="pendingDeleteAgent?.id ?? ''"
       :source-agent-name="pendingDeleteAgent?.name ?? ''"
@@ -546,6 +627,7 @@
       :loading="transferDialogLoading"
       :busy="transferDialogBusy"
       :error="transferDialogError"
+      @update:open="handleTransferDialogOpenChange"
       @confirm-move="handleDeleteAgentWithMove"
       @confirm-delete="handleDeleteAgentWithSessions"
     />
@@ -553,15 +635,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { AcpManualAgent } from '@shared/types/acp'
 import type { AcpRegistryAgent } from '@shared/types/acp'
 import type { AgentTransferImpact } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
-import { useToast } from '@/components/use-toast'
 import { createConfigClient } from '@api/ConfigClient'
 import { createSessionClient } from '@api/SessionClient'
 import { Icon } from '@iconify/vue'
+import { nanoid } from 'nanoid'
 import {
   Card,
   CardContent,
@@ -590,9 +672,12 @@ import AcpDebugDialog from './AcpDebugDialog.vue'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import AgentMcpSelector from '@/components/mcp-config/AgentMcpSelector.vue'
 import AcpAgentIcon from '@/components/icons/AcpAgentIcon.vue'
+import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@/services/notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const { t } = useI18n()
-const { toast } = useToast()
 const configClient = createConfigClient()
 
 type RegistryDialogFilter = 'all' | 'installed' | 'not_installed'
@@ -601,12 +686,52 @@ type PendingDeleteAgent = {
   name: string
   source: 'manual' | 'registry'
 }
+type PageOperation =
+  | {
+      kind: 'acp-toggle'
+      agentId: null
+      enabled: boolean
+    }
+  | {
+      kind: 'registry-toggle'
+      agentId: string
+      enabled: boolean
+    }
+  | {
+      kind: 'manual-toggle'
+      agentId: string
+      enabled: boolean
+    }
+  | {
+      kind: 'env-save'
+      agentId: string
+      env: Record<string, string>
+    }
+  | {
+      kind: 'repair'
+      agentId: string
+    }
+  | {
+      kind: 'registry-refresh'
+      agentId: null
+    }
+  | {
+      kind: 'registry-install'
+      agentId: string
+    }
+  | {
+      kind: 'manual-save'
+      agentId: string | null
+    }
+  | {
+      kind: 'delete-agent'
+      agentId: string
+    }
 
 const acpEnabled = ref(false)
-const toggling = ref(false)
 const loading = ref(false)
-const refreshing = ref(false)
-const manualSaving = ref(false)
+const loaded = ref(false)
+const loadError = ref<string | null>(null)
 const manualSectionOpen = ref(false)
 const sharedMcpOpen = ref(false)
 const sharedMcpCount = ref(0)
@@ -614,16 +739,18 @@ const sharedMcpCount = ref(0)
 const registryAgents = ref<AcpRegistryAgent[]>([])
 const manualAgents = ref<AcpManualAgent[]>([])
 const envDrafts = reactive<Record<string, string>>({})
-const agentPending = reactive<Record<string, boolean>>({})
 const transferAgents = ref<
   Array<{ id: string; name: string; type: 'deepchat' | 'acp'; enabled?: boolean }>
 >([])
 const transferDialogOpen = ref(false)
 const transferDialogLoading = ref(false)
-const transferDialogBusy = ref(false)
 const transferDialogError = ref<string | null>(null)
 const transferImpact = ref<AgentTransferImpact | null>(null)
 const pendingDeleteAgent = ref<PendingDeleteAgent | null>(null)
+const pageFeedbackController = createRendererSurfaceFeedbackController('settings')
+const { snapshot: pageFeedback } = useSurfaceFeedback(pageFeedbackController)
+const pageOperationId = `settings.acp.operation:${nanoid(8)}`
+const pageOperation = ref<PageOperation | null>(null)
 
 const debugDialog = reactive({
   open: false,
@@ -638,8 +765,10 @@ const manualDialog = reactive({
   command: '',
   args: [] as string[],
   env: '',
-  enabled: true
+  enabled: true,
+  error: null as string | null
 })
+const manualDialogDirty = ref(false)
 
 const registryDialog = reactive({
   open: false,
@@ -723,12 +852,45 @@ const installBadgeClass = (agent: AcpRegistryAgent) => {
 }
 
 const installedRegistryAgents = computed(() =>
-  registryAgents.value.filter((agent) => agent.installState?.status === 'installed')
+  registryAgents.value.filter(
+    (agent) =>
+      agent.installState?.status === 'installed' || Boolean(agent.installState?.installedAt)
+  )
 )
 
 const showSharedMcpSection = computed(
   () => installedRegistryAgents.value.length > 0 || manualAgents.value.length > 0
 )
+
+const pageFeedbackHasInlineAnchor = computed(() => {
+  const operation = pageOperation.value
+  if (!operation) return false
+  if (operation.kind === 'acp-toggle') return true
+  if (operation.kind === 'registry-refresh' || operation.kind === 'registry-install') {
+    return registryDialog.open
+  }
+  if (operation.kind === 'manual-save') return manualDialog.open
+  if (operation.kind === 'delete-agent') return transferDialogOpen.value
+  if (operation.kind === 'manual-toggle') {
+    return (
+      manualSectionOpen.value && manualAgents.value.some((agent) => agent.id === operation.agentId)
+    )
+  }
+  return installedRegistryAgents.value.some((agent) => agent.id === operation.agentId)
+})
+
+const showPageFeedbackFallback = computed(
+  () =>
+    pageFeedback.value.status !== 'idle' &&
+    pageOperation.value !== null &&
+    !pageFeedbackHasInlineAnchor.value
+)
+
+watch(pageFeedback, (snapshot) => {
+  if (snapshot.status === 'idle') {
+    pageOperation.value = null
+  }
+})
 
 const filteredRegistryCatalogAgents = computed(() => {
   const keyword = registryDialog.search.trim().toLowerCase()
@@ -756,86 +918,192 @@ const filteredRegistryCatalogAgents = computed(() => {
   })
 })
 
-const setAgentPending = (agentId: string, pending: boolean) => {
-  if (pending) {
-    agentPending[agentId] = true
-  } else {
-    delete agentPending[agentId]
-  }
-}
+const pageMutationPending = computed(() => pageFeedback.value.status === 'pending')
+const manualSaving = computed(
+  () => pageMutationPending.value && pageOperation.value?.kind === 'manual-save'
+)
+const transferDialogBusy = computed(
+  () => pageMutationPending.value && pageOperation.value?.kind === 'delete-agent'
+)
+const isRegistryDialogPending = computed(
+  () =>
+    pageMutationPending.value &&
+    (pageOperation.value?.kind === 'registry-refresh' ||
+      pageOperation.value?.kind === 'registry-install')
+)
+const isRegistryRefreshPending = computed(
+  () => isRegistryDialogPending.value && pageOperation.value?.kind === 'registry-refresh'
+)
+const isAnyMutationPending = pageMutationPending
 
-const handleError = (error: unknown, description?: string, title?: string) => {
-  console.error('[ACP] settings error:', error)
-  toast({
-    title: title ?? t('settings.acp.saveFailed'),
-    description:
-      description ?? (error instanceof Error ? error.message : t('common.error.requestFailed')),
-    variant: 'destructive'
-  })
-}
+const dirtyEnvDrafts = reactive(new Set<string>())
+const hasUnsavedDrafts = computed(
+  () => dirtyEnvDrafts.size > 0 || (manualDialog.open && manualDialogDirty.value)
+)
 
 const syncEnvDrafts = (agents: AcpRegistryAgent[]) => {
+  const currentIds = new Set(agents.map((agent) => agent.id))
+  Object.keys(envDrafts).forEach((agentId) => {
+    if (!currentIds.has(agentId)) {
+      delete envDrafts[agentId]
+      dirtyEnvDrafts.delete(agentId)
+    }
+  })
   agents.forEach((agent) => {
-    envDrafts[agent.id] = stringifyEnvBlock(agent.envOverride)
+    if (!dirtyEnvDrafts.has(agent.id)) {
+      envDrafts[agent.id] = stringifyEnvBlock(agent.envOverride)
+    }
   })
 }
 
-const loadSharedMcpCount = async () => {
-  sharedMcpCount.value = (await configClient.getAcpSharedMcpSelections()).length
+const updateRegistryAgent = (
+  agentId: string,
+  update: (agent: AcpRegistryAgent) => AcpRegistryAgent
+) => {
+  registryAgents.value = registryAgents.value.map((agent) =>
+    agent.id === agentId ? update(agent) : agent
+  )
+}
+
+const updateManualAgent = (updated: AcpManualAgent) => {
+  const index = manualAgents.value.findIndex((agent) => agent.id === updated.id)
+  if (index === -1) {
+    manualAgents.value = [...manualAgents.value, updated]
+    return
+  }
+  manualAgents.value = manualAgents.value.map((agent) =>
+    agent.id === updated.id ? updated : agent
+  )
+}
+
+let loadGeneration = 0
+const invalidatePendingLoad = () => {
+  loadGeneration += 1
+  loading.value = false
 }
 
 const loadAcpData = async () => {
+  const generation = ++loadGeneration
   loading.value = true
+  loadError.value = null
   try {
-    acpEnabled.value = await configClient.getAcpEnabled()
-    if (!acpEnabled.value) {
+    const enabled = await configClient.getAcpEnabled()
+    if (generation !== loadGeneration) return
+
+    if (!enabled) {
+      acpEnabled.value = false
       registryAgents.value = []
       manualAgents.value = []
       sharedMcpCount.value = 0
+      loaded.value = true
       return
     }
 
-    const [registryList, manualList] = await Promise.all([
+    const [registryList, manualList, sharedSelections] = await Promise.all([
       configClient.listAcpRegistryAgents(),
-      configClient.listManualAcpAgents()
+      configClient.listManualAcpAgents(),
+      configClient.getAcpSharedMcpSelections()
     ])
+    if (generation !== loadGeneration) return
 
+    acpEnabled.value = true
     registryAgents.value = registryList
     manualAgents.value = manualList
+    sharedMcpCount.value = sharedSelections.length
     syncEnvDrafts(registryList)
-    await loadSharedMcpCount()
+    loaded.value = true
   } catch (error) {
-    handleError(error)
+    if (generation !== loadGeneration) return
+    console.error('[ACP] Failed to load settings:', error)
+    loadError.value = t('common.error.requestFailed')
   } finally {
-    loading.value = false
+    if (generation === loadGeneration) {
+      loading.value = false
+    }
   }
 }
 
+const beginPageOperation = (operation: PageOperation, label: string) => {
+  if (isAnyMutationPending.value) return false
+  pageOperation.value = operation
+  pageFeedbackController.begin(pageOperationId, label)
+  return true
+}
+
+const completePageOperation = (code: string, showConfirmation = false) => {
+  pageFeedbackController.succeed({
+    code,
+    title: t('common.saved')
+  })
+  if (!showConfirmation) {
+    pageFeedbackController.clear()
+    pageOperation.value = null
+  }
+}
+
+const failPageOperation = (code: string, title: string) => {
+  pageFeedbackController.fail({
+    code,
+    title
+  })
+}
+
 const handleToggle = async (enabled: boolean) => {
-  if (toggling.value) return
-  toggling.value = true
+  if (
+    !beginPageOperation(
+      {
+        kind: 'acp-toggle',
+        agentId: null,
+        enabled
+      },
+      t('common.saving')
+    )
+  ) {
+    return
+  }
+
   try {
     await configClient.setAcpEnabled(enabled)
+    invalidatePendingLoad()
     acpEnabled.value = enabled
+    loadError.value = null
+    completePageOperation('settings.acp.enabledChanged')
     if (enabled) {
-      await loadAcpData()
+      loaded.value = false
+      void loadAcpData()
+    } else {
+      registryAgents.value = []
+      manualAgents.value = []
+      sharedMcpCount.value = 0
     }
   } catch (error) {
-    handleError(error)
-  } finally {
-    toggling.value = false
+    console.error('[ACP] Failed to change ACP availability:', error)
+    failPageOperation('settings.acp.enabledChangeFailed', t('common.error.operationFailed'))
   }
 }
 
 const refreshRegistry = async () => {
-  refreshing.value = true
+  if (
+    !beginPageOperation(
+      {
+        kind: 'registry-refresh',
+        agentId: null
+      },
+      t('common.loading')
+    )
+  ) {
+    return
+  }
+
   try {
-    registryAgents.value = await configClient.refreshAcpRegistry(true)
-    syncEnvDrafts(registryAgents.value)
+    const refreshed = await configClient.refreshAcpRegistry(true)
+    invalidatePendingLoad()
+    registryAgents.value = refreshed
+    syncEnvDrafts(refreshed)
+    completePageOperation('settings.acp.registryRefreshed')
   } catch (error) {
-    handleError(error)
-  } finally {
-    refreshing.value = false
+    console.error('[ACP] Failed to refresh registry:', error)
+    failPageOperation('settings.acp.registryRefreshFailed', t('common.error.requestFailed'))
   }
 }
 
@@ -844,60 +1112,214 @@ const handleSharedMcpUpdated = (selections: string[]) => {
 }
 
 const toggleRegistryAgent = async (agent: AcpRegistryAgent, enabled: boolean) => {
-  setAgentPending(agent.id, true)
+  if (
+    !beginPageOperation(
+      {
+        kind: 'registry-toggle',
+        agentId: agent.id,
+        enabled
+      },
+      t('common.saving')
+    )
+  ) {
+    return
+  }
+
   try {
     await configClient.setAcpAgentEnabled(agent.id, enabled)
-    await loadAcpData()
+    invalidatePendingLoad()
+    updateRegistryAgent(agent.id, (current) => ({ ...current, enabled }))
+    completePageOperation('settings.acp.registryAgentToggled')
   } catch (error) {
-    handleError(error)
-  } finally {
-    setAgentPending(agent.id, false)
+    console.error('[ACP] Failed to change registry agent state:', error)
+    failPageOperation('settings.acp.registryAgentToggleFailed', t('settings.acp.saveFailed'))
   }
 }
 
-const saveEnvOverride = async (agent: AcpRegistryAgent) => {
-  setAgentPending(agent.id, true)
+const saveEnvOverride = async (
+  agent: AcpRegistryAgent,
+  env = parseEnvBlock(envDrafts[agent.id] ?? '')
+) => {
+  if (
+    !beginPageOperation(
+      {
+        kind: 'env-save',
+        agentId: agent.id,
+        env
+      },
+      t('common.saving')
+    )
+  ) {
+    return
+  }
+
   try {
-    await configClient.setAcpAgentEnvOverride(agent.id, parseEnvBlock(envDrafts[agent.id] ?? ''))
-    await loadAcpData()
-    toast({ title: t('settings.acp.saveSuccess') })
+    await configClient.setAcpAgentEnvOverride(agent.id, env)
+    invalidatePendingLoad()
+    dirtyEnvDrafts.delete(agent.id)
+    envDrafts[agent.id] = stringifyEnvBlock(env)
+    updateRegistryAgent(agent.id, (current) => ({ ...current, envOverride: env }))
+    completePageOperation('settings.acp.envOverrideSaved', true)
   } catch (error) {
-    handleError(error)
-  } finally {
-    setAgentPending(agent.id, false)
+    console.error('[ACP] Failed to save environment overrides:', error)
+    failPageOperation('settings.acp.envOverrideSaveFailed', t('settings.acp.saveFailed'))
   }
 }
 
 const clearEnvOverride = async (agent: AcpRegistryAgent) => {
+  if (isAnyMutationPending.value) return
   envDrafts[agent.id] = ''
-  await saveEnvOverride(agent)
+  dirtyEnvDrafts.add(agent.id)
+  await saveEnvOverride(agent, {})
 }
 
 const installRegistryAgent = async (agent: AcpRegistryAgent) => {
-  setAgentPending(agent.id, true)
+  if (
+    !beginPageOperation(
+      {
+        kind: 'registry-install',
+        agentId: agent.id
+      },
+      t('common.loading')
+    )
+  ) {
+    return
+  }
+
   try {
-    if (agent.installState?.status === 'error') {
-      await configClient.repairAcpAgent(agent.id)
-    } else {
-      await configClient.ensureAcpAgentInstalled(agent.id)
-    }
-    await loadAcpData()
+    const installState =
+      agent.installState?.status === 'error'
+        ? await configClient.repairAcpAgent(agent.id)
+        : await configClient.ensureAcpAgentInstalled(agent.id)
+    invalidatePendingLoad()
+    updateRegistryAgent(agent.id, (current) => ({ ...current, installState }))
+    completePageOperation('settings.acp.registryAgentInstalled')
   } catch (error) {
-    handleError(error)
-  } finally {
-    setAgentPending(agent.id, false)
+    console.error('[ACP] Failed to install registry agent:', error)
+    failPageOperation('settings.acp.registryAgentInstallFailed', t('common.error.operationFailed'))
   }
 }
 
 const repairRegistryAgent = async (agent: AcpRegistryAgent) => {
-  setAgentPending(agent.id, true)
+  if (
+    !beginPageOperation(
+      {
+        kind: 'repair',
+        agentId: agent.id
+      },
+      t('common.loading')
+    )
+  ) {
+    return
+  }
+
   try {
-    await configClient.repairAcpAgent(agent.id)
-    await loadAcpData()
+    const installState = await configClient.repairAcpAgent(agent.id)
+    invalidatePendingLoad()
+    updateRegistryAgent(agent.id, (current) => ({ ...current, installState }))
+    completePageOperation('settings.acp.registryAgentRepaired')
   } catch (error) {
-    handleError(error)
-  } finally {
-    setAgentPending(agent.id, false)
+    console.error('[ACP] Failed to repair registry agent:', error)
+    failPageOperation('settings.acp.registryAgentRepairFailed', t('common.error.operationFailed'))
+  }
+}
+
+const clearPageFeedbackForAgent = (agentId: string) => {
+  dirtyEnvDrafts.add(agentId)
+  if (
+    pageOperation.value?.kind !== 'env-save' ||
+    pageOperation.value.agentId !== agentId ||
+    pageFeedback.value.status === 'pending'
+  ) {
+    return
+  }
+  if (pageFeedback.value.status === 'success' || pageFeedback.value.status === 'error') {
+    pageFeedbackController.clear()
+  }
+  pageOperation.value = null
+}
+
+const retryPageOperation = async () => {
+  const operation = pageOperation.value
+  const feedback = pageFeedback.value
+  if (!operation || feedback.status !== 'error') return
+
+  switch (operation.kind) {
+    case 'acp-toggle':
+      await handleToggle(operation.enabled)
+      return
+    case 'registry-toggle': {
+      const agent = registryAgents.value.find((item) => item.id === operation.agentId)
+      if (agent) {
+        await toggleRegistryAgent(agent, operation.enabled)
+      } else {
+        pageFeedbackController.clear()
+      }
+      return
+    }
+    case 'manual-toggle': {
+      const agent = manualAgents.value.find((item) => item.id === operation.agentId)
+      if (agent) {
+        await toggleManualAgent(agent, operation.enabled)
+      } else {
+        pageFeedbackController.clear()
+      }
+      return
+    }
+    case 'env-save': {
+      const agent = registryAgents.value.find((item) => item.id === operation.agentId)
+      if (agent) {
+        await saveEnvOverride(agent, operation.env)
+      } else {
+        pageFeedbackController.clear()
+      }
+      return
+    }
+    case 'repair': {
+      const agent = registryAgents.value.find((item) => item.id === operation.agentId)
+      if (agent) {
+        await repairRegistryAgent(agent)
+      } else {
+        pageFeedbackController.clear()
+      }
+      return
+    }
+    case 'registry-refresh':
+      await refreshRegistry()
+      return
+    case 'registry-install': {
+      const agent = registryAgents.value.find((item) => item.id === operation.agentId)
+      if (agent) {
+        await installRegistryAgent(agent)
+      } else {
+        pageFeedbackController.clear()
+      }
+      return
+    }
+    case 'manual-save':
+      manualDialog.open = true
+      manualDialog.error = feedback.title
+      await saveManualAgent()
+      return
+    case 'delete-agent':
+      if (pendingDeleteAgent.value?.id === operation.agentId) {
+        transferDialogOpen.value = true
+      } else {
+        pageFeedbackController.clear()
+      }
+  }
+}
+
+const handleRegistryDialogOpenChange = (open: boolean) => {
+  if (!open && isRegistryDialogPending.value) return
+  registryDialog.open = open
+  if (
+    !open &&
+    (pageOperation.value?.kind === 'registry-refresh' ||
+      pageOperation.value?.kind === 'registry-install') &&
+    pageFeedback.value.status === 'error'
+  ) {
+    pageFeedbackController.clear()
   }
 }
 
@@ -907,7 +1329,35 @@ const openInspector = (agentId: string, agentName: string) => {
   debugDialog.open = true
 }
 
+const clearManualDialogError = (clearOperation = true) => {
+  manualDialog.error = null
+  if (
+    clearOperation &&
+    pageOperation.value?.kind === 'manual-save' &&
+    pageFeedback.value.status !== 'pending' &&
+    pageFeedback.value.status !== 'idle'
+  ) {
+    pageFeedbackController.clear()
+  }
+}
+
+const handleManualDialogEdited = () => {
+  manualDialogDirty.value = true
+  clearManualDialogError()
+}
+
+const handleManualDialogOpenChange = (open: boolean) => {
+  if (!open && manualSaving.value) return
+  manualDialog.open = open
+  if (!open) {
+    manualDialogDirty.value = false
+    clearManualDialogError()
+  }
+}
+
 const openManualDialog = (agent?: AcpManualAgent) => {
+  clearManualDialogError()
+  manualDialogDirty.value = false
   manualDialog.agentId = agent?.id ?? ''
   manualDialog.name = agent?.name ?? ''
   manualDialog.command = agent?.command ?? ''
@@ -919,15 +1369,23 @@ const openManualDialog = (agent?: AcpManualAgent) => {
 
 const saveManualAgent = async () => {
   if (!manualDialog.name.trim() || !manualDialog.command.trim()) {
-    toast({
-      title: t('settings.acp.missingFieldsTitle'),
-      description: t('settings.acp.missingFieldsDesc'),
-      variant: 'destructive'
-    })
+    manualDialog.error = t('settings.acp.missingFieldsTitle')
+    return
+  }
+  manualDialogDirty.value = true
+  if (
+    !beginPageOperation(
+      {
+        kind: 'manual-save',
+        agentId: manualDialog.agentId || null
+      },
+      t('common.saving')
+    )
+  ) {
     return
   }
 
-  manualSaving.value = true
+  manualDialog.error = null
   try {
     const payload = {
       name: manualDialog.name.trim(),
@@ -937,46 +1395,76 @@ const saveManualAgent = async () => {
       enabled: manualDialog.enabled
     }
 
-    if (manualDialog.agentId) {
-      await configClient.updateManualAcpAgent(manualDialog.agentId, payload)
-    } else {
-      await configClient.addManualAcpAgent(payload)
+    const savedAgent = manualDialog.agentId
+      ? await configClient.updateManualAcpAgent(manualDialog.agentId, payload)
+      : await configClient.addManualAcpAgent(payload)
+    if (!savedAgent) {
+      throw new Error(`ACP agent "${manualDialog.agentId}" no longer exists`)
     }
 
+    invalidatePendingLoad()
+    updateManualAgent(savedAgent)
+    manualSectionOpen.value = true
+    manualDialogDirty.value = false
+    completePageOperation('settings.acp.manualAgentSaved')
     manualDialog.open = false
-    await loadAcpData()
-    toast({ title: t('settings.acp.saveSuccess') })
   } catch (error) {
-    handleError(error)
-  } finally {
-    manualSaving.value = false
+    console.error('[ACP] Failed to save manual agent:', error)
+    manualDialog.error = t('settings.acp.saveFailed')
+    failPageOperation('settings.acp.manualAgentSaveFailed', manualDialog.error)
   }
 }
 
 const toggleManualAgent = async (agent: AcpManualAgent, enabled: boolean) => {
-  setAgentPending(agent.id, true)
+  if (
+    !beginPageOperation(
+      {
+        kind: 'manual-toggle',
+        agentId: agent.id,
+        enabled
+      },
+      t('common.saving')
+    )
+  ) {
+    return
+  }
+
   try {
-    await configClient.updateManualAcpAgent(agent.id, { enabled })
-    await loadAcpData()
+    const updated = await configClient.updateManualAcpAgent(agent.id, { enabled })
+    if (!updated) {
+      throw new Error(`ACP agent "${agent.id}" no longer exists`)
+    }
+    invalidatePendingLoad()
+    updateManualAgent(updated)
+    completePageOperation('settings.acp.manualAgentToggled')
   } catch (error) {
-    handleError(error)
-  } finally {
-    setAgentPending(agent.id, false)
+    console.error('[ACP] Failed to change manual agent state:', error)
+    failPageOperation('settings.acp.manualAgentToggleFailed', t('settings.acp.saveFailed'))
   }
 }
 
+let transferLoadGeneration = 0
 const openAgentTransferDialog = async (agent: PendingDeleteAgent) => {
+  if (
+    pageOperation.value?.kind === 'delete-agent' &&
+    pageFeedback.value.status !== 'pending' &&
+    pageFeedback.value.status !== 'idle'
+  ) {
+    pageFeedbackController.clear()
+  }
   pendingDeleteAgent.value = agent
   transferDialogOpen.value = true
   transferDialogLoading.value = true
   transferDialogError.value = null
   transferImpact.value = null
+  const generation = ++transferLoadGeneration
   try {
     const sessionClient = createSessionClient()
     const [impact, agents] = await Promise.all([
       sessionClient.getAgentTransferImpact(agent.id),
       configClient.listAgents()
     ])
+    if (generation !== transferLoadGeneration || pendingDeleteAgent.value?.id !== agent.id) return
     transferImpact.value = impact
     transferAgents.value = agents
       .filter((item) => item.type === 'deepchat')
@@ -987,9 +1475,28 @@ const openAgentTransferDialog = async (agent: PendingDeleteAgent) => {
         enabled: item.enabled
       }))
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
+    if (generation !== transferLoadGeneration) return
+    console.error('[ACP] Failed to load agent transfer impact:', error)
+    transferDialogError.value = t('common.error.requestFailed')
   } finally {
-    transferDialogLoading.value = false
+    if (generation === transferLoadGeneration) {
+      transferDialogLoading.value = false
+    }
+  }
+}
+
+const handleTransferDialogOpenChange = (open: boolean) => {
+  if (!open && transferDialogBusy.value) return
+  transferDialogOpen.value = open
+  if (open) return
+
+  transferLoadGeneration += 1
+  transferDialogLoading.value = false
+  transferDialogError.value = null
+  transferImpact.value = null
+  pendingDeleteAgent.value = null
+  if (pageOperation.value?.kind === 'delete-agent' && pageFeedback.value.status === 'error') {
+    pageFeedbackController.clear()
   }
 }
 
@@ -1012,52 +1519,87 @@ const confirmRegistryAgentUninstall = async (agent: AcpRegistryAgent) => {
 const finishDeleteAgent = async (agent: PendingDeleteAgent) => {
   if (agent.source === 'registry') {
     await configClient.uninstallAcpRegistryAgent(agent.id)
-    toast({ title: t('settings.acp.deleteSuccess') })
+    invalidatePendingLoad()
+    dirtyEnvDrafts.delete(agent.id)
+    updateRegistryAgent(agent.id, (current) => ({
+      ...current,
+      enabled: false,
+      envOverride: undefined,
+      installState: {
+        status: 'not_installed',
+        version: current.version,
+        distributionType: current.installState?.distributionType ?? null,
+        lastCheckedAt: Date.now(),
+        installedAt: null,
+        installDir: null,
+        error: null
+      }
+    }))
   } else {
     const removed = await configClient.removeManualAcpAgent(agent.id)
     if (!removed) {
       throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
     }
+    invalidatePendingLoad()
+    manualAgents.value = manualAgents.value.filter((item) => item.id !== agent.id)
   }
 
-  await loadAcpData()
   transferDialogOpen.value = false
+  transferLoadGeneration += 1
   pendingDeleteAgent.value = null
 }
 
 const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => {
   const agent = pendingDeleteAgent.value
   if (!agent) return
-  setAgentPending(agent.id, true)
-  transferDialogBusy.value = true
+  if (
+    !beginPageOperation(
+      {
+        kind: 'delete-agent',
+        agentId: agent.id
+      },
+      t('common.loading')
+    )
+  ) {
+    return
+  }
   transferDialogError.value = null
   try {
     const sessionClient = createSessionClient()
     await sessionClient.moveAgentSessions(agent.id, payload.targetAgentId)
     await finishDeleteAgent(agent)
+    completePageOperation('settings.acp.agentDeleted')
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    transferDialogBusy.value = false
-    setAgentPending(agent.id, false)
+    console.error('[ACP] Failed to move conversations before deleting agent:', error)
+    transferDialogError.value = t('common.error.operationFailed')
+    failPageOperation('settings.acp.agentDeleteFailed', transferDialogError.value)
   }
 }
 
 const handleDeleteAgentWithSessions = async () => {
   const agent = pendingDeleteAgent.value
   if (!agent) return
-  setAgentPending(agent.id, true)
-  transferDialogBusy.value = true
+  if (
+    !beginPageOperation(
+      {
+        kind: 'delete-agent',
+        agentId: agent.id
+      },
+      t('common.loading')
+    )
+  ) {
+    return
+  }
   transferDialogError.value = null
   try {
     const sessionClient = createSessionClient()
     await sessionClient.deleteAgentSessions(agent.id)
     await finishDeleteAgent(agent)
+    completePageOperation('settings.acp.agentDeleted')
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    transferDialogBusy.value = false
-    setAgentPending(agent.id, false)
+    console.error('[ACP] Failed to delete agent and its conversations:', error)
+    transferDialogError.value = t('common.error.operationFailed')
+    failPageOperation('settings.acp.agentDeleteFailed', transferDialogError.value)
   }
 }
 
@@ -1086,12 +1628,17 @@ const registryActionIcon = (agent: AcpRegistryAgent) => {
 }
 
 const registryActionSpins = (agent: AcpRegistryAgent) => {
-  return agent.installState?.status === 'installing'
+  return (
+    agent.installState?.status === 'installing' ||
+    (pageMutationPending.value &&
+      pageOperation.value?.kind === 'registry-install' &&
+      pageOperation.value.agentId === agent.id)
+  )
 }
 
 const isRegistryActionDisabled = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  return Boolean(agentPending[agent.id]) || status === 'installing'
+  return isAnyMutationPending.value || status === 'installing'
 }
 
 const handleRegistryCatalogAction = async (agent: AcpRegistryAgent) => {
@@ -1104,6 +1651,34 @@ const handleRegistryCatalogAction = async (agent: AcpRegistryAgent) => {
   }
   await installRegistryAgent(agent)
 }
+
+const discardAcpDrafts = () => {
+  dirtyEnvDrafts.clear()
+  syncEnvDrafts(registryAgents.value)
+  manualDialogDirty.value = false
+  manualDialog.open = false
+  manualDialog.error = null
+
+  if (
+    (pageOperation.value?.kind === 'env-save' || pageOperation.value?.kind === 'manual-save') &&
+    pageFeedback.value.status !== 'pending' &&
+    pageFeedback.value.status !== 'idle'
+  ) {
+    pageFeedbackController.clear()
+  }
+}
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'acp-settings',
+  onDiscard: discardAcpDrafts
+})
+const stopLeaveRiskSync = watch(
+  [pageMutationPending, hasUnsavedDrafts],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 let cleanupAgentsChanged: (() => void) | null = null
@@ -1124,6 +1699,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  invalidatePendingLoad()
+  transferLoadGeneration += 1
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
   if (refreshTimer) {
     clearTimeout(refreshTimer)
     refreshTimer = null

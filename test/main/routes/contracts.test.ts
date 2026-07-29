@@ -1517,11 +1517,13 @@ describe('main kernel contracts', () => {
 
     expect(
       DEEPCHAT_ROUTE_CATALOG['providers.runAcpDebugAction'].input.parse({
+        requestId: 'debug-request-1',
         agentId: 'codex-acp',
         action: 'initialize',
         payload: {}
       })
     ).toEqual({
+      requestId: 'debug-request-1',
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {}

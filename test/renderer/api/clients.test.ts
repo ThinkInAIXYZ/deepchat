@@ -2361,6 +2361,7 @@ describe('renderer api clients', () => {
       page_size: 50
     })
     await providerClient.runAcpDebugAction({
+      requestId: 'debug-request-1',
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {},
@@ -2380,6 +2381,7 @@ describe('renderer api clients', () => {
       }
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'providers.runAcpDebugAction', {
+      requestId: 'debug-request-1',
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {},

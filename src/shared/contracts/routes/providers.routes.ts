@@ -201,6 +201,7 @@ export const providersSyncModelScopeMcpServersRoute = defineRouteContract({
 export const providersRunAcpDebugActionRoute = defineRouteContract({
   name: 'providers.runAcpDebugAction',
   input: z.object({
+    requestId: z.string().min(1).max(128),
     agentId: z.string().min(1),
     action: AcpDebugActionSchema,
     payload: z.record(z.string(), z.unknown()).optional(),

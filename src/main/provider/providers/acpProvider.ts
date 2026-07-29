@@ -527,6 +527,7 @@ export class AcpProvider extends BaseLLMProvider {
       events.push(record)
       if (request.webContentsId) {
         this.publishEvent('providers.acp.debug.event', {
+          requestId: request.requestId,
           webContentsId: request.webContentsId,
           agentId: agent.id,
           event: record,

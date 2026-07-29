@@ -57,6 +57,7 @@ export type AcpDebugEventKind =
   | 'error'
 
 export interface AcpDebugRequest {
+  requestId: string
   agentId: string
   action: AcpDebugActionType
   payload?: Record<string, unknown>
