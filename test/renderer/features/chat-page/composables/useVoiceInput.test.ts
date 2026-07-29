@@ -66,7 +66,7 @@ function createHarness(
 
   const modelClient = createModelClient()
   configureModelClient(modelClient)
-  const toast = vi.fn()
+  const notify = vi.fn()
   const insertRecognizedText = vi.fn()
   const scope = effectScope()
   let voiceInput!: ReturnType<typeof useVoiceInput>
@@ -76,7 +76,7 @@ function createHarness(
       chatInputRef: ref({ insertRecognizedText }),
       getActiveModelSelection: () => selection.value,
       modelClient,
-      toast,
+      notify,
       t: (key) => key
     })
   })
@@ -86,7 +86,7 @@ function createHarness(
     selection,
     speechInput,
     modelClient,
-    toast,
+    notify,
     insertRecognizedText,
     stop: () => {
       voiceInput.cleanup()
@@ -148,7 +148,7 @@ describe('useVoiceInput', () => {
     harness.stop()
   })
 
-  it('adapts speech callbacks to the chat input, model client, and existing toasts', async () => {
+  it('adapts speech callbacks to the chat input, model client, and notifications', async () => {
     const harness = createHarness()
     harness.modelClient.getModelConfig.mockResolvedValue({ speechRecognition: true })
 
@@ -174,20 +174,22 @@ describe('useVoiceInput', () => {
     )
 
     speechOptions.onError('not-allowed')
-    expect(harness.toast).toHaveBeenCalledWith({
+    expect(harness.notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.voice.permissionDenied',
       title: 'chat.input.voiceRecognitionPermissionDeniedTitle',
-      description: 'chat.input.voiceRecognitionPermissionDeniedDescription',
-      variant: 'destructive'
+      description: 'chat.input.voiceRecognitionPermissionDeniedDescription'
     })
 
     speechOptions.onError('aborted')
-    expect(harness.toast).toHaveBeenCalledTimes(1)
+    expect(harness.notify).toHaveBeenCalledTimes(1)
 
     speechOptions.onUnsupported()
-    expect(harness.toast).toHaveBeenLastCalledWith({
+    expect(harness.notify).toHaveBeenLastCalledWith({
+      kind: 'warning',
+      code: 'chat.voice.unsupported',
       title: 'chat.input.voiceRecognitionUnsupportedTitle',
-      description: 'chat.input.voiceRecognitionUnsupportedDescription',
-      variant: 'destructive'
+      description: 'chat.input.voiceRecognitionUnsupportedDescription'
     })
     harness.stop()
   })

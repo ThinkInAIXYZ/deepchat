@@ -6,8 +6,6 @@ import MemoryUpdateChip from '@/components/chat/MemoryUpdateChip.vue'
 const memoryActivity = vi.hoisted(() => ({ store: null as any }))
 const popoverBehavior = vi.hoisted(() => ({ forceContent: false }))
 
-const toast = vi.hoisted(() => vi.fn())
-
 vi.mock('@/stores/ui/memoryActivity', async () => {
   const { reactive } = await vi.importActual<typeof import('vue')>('vue')
   const store = reactive({
@@ -39,10 +37,6 @@ vi.mock('@/stores/ui/memoryActivity', async () => {
     useMemoryActivityStore: () => store
   }
 })
-
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({ toast })
-}))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -196,7 +190,6 @@ describe('MemoryUpdateChip', () => {
     store.forget.mockReset()
     store.amend.mockReset()
     popoverBehavior.forceContent = false
-    toast.mockClear()
   })
 
   it('renders retryable amend errors with a specific message', async () => {
@@ -235,10 +228,6 @@ describe('MemoryUpdateChip', () => {
     expect(memoryActivity.store.amend).toHaveBeenCalledWith('m1', 'edited content')
     expect(wrapper.find('textarea').exists()).toBe(true)
     expect(wrapper.find('textarea').attributes('aria-label')).toBe('chat.memory.actions.edit')
-    expect(toast).toHaveBeenCalledWith({
-      title: 'chat.memory.toast.amendFailed',
-      variant: 'destructive'
-    })
   })
 
   it('disables undo and edit actions for archived chip items', async () => {
@@ -360,7 +349,6 @@ describe('MemoryUpdateChip', () => {
     expect(memoryActivity.store.forget).not.toHaveBeenCalled()
     expect(memoryActivity.store.startChipEdit).not.toHaveBeenCalled()
     expect(memoryActivity.store.amend).not.toHaveBeenCalled()
-    expect(toast).not.toHaveBeenCalled()
   })
 
   it('blocks leaked portal actions while hidden', async () => {
@@ -404,6 +392,5 @@ describe('MemoryUpdateChip', () => {
       memoryId: 'm1',
       text: 'edited content'
     })
-    expect(toast).not.toHaveBeenCalled()
   })
 })
