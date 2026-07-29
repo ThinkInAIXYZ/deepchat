@@ -521,6 +521,22 @@ describe('main kernel contracts', () => {
       }
     })
     expect(
+      DEEPCHAT_ROUTE_CATALOG['nowledgeMem.testConnection'].input.parse({
+        config: {
+          baseUrl: 'http://draft.local',
+          apiKey: 'draft-secret',
+          timeout: 12000
+        }
+      })
+    ).toEqual({
+      config: {
+        baseUrl: 'http://draft.local',
+        apiKey: 'draft-secret',
+        timeout: 12000
+      }
+    })
+    expect(DEEPCHAT_ROUTE_CATALOG['nowledgeMem.testConnection'].input.parse({})).toEqual({})
+    expect(
       DEEPCHAT_ROUTE_CATALOG['nowledgeMem.testConnection'].output.parse({
         result: {
           success: true,

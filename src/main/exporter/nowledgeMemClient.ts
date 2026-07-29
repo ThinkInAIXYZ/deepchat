@@ -70,16 +70,21 @@ export class NowledgeMemClient {
   /**
    * Test connection to nowledge-mem API
    */
-  async testConnection(): Promise<NowledgeMemApiResponse<{ message: string }>> {
+  async testConnection(
+    configOverride?: NowledgeMemConfig
+  ): Promise<NowledgeMemApiResponse<{ message: string }>> {
     try {
-      await this.ensureConfigLoaded()
-      const response = await fetch(`${this.config.baseUrl}/api/health`, {
+      if (!configOverride) {
+        await this.ensureConfigLoaded()
+      }
+      const config = configOverride ?? this.config
+      const response = await fetch(this.resolveHealthUrl(config.baseUrl), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          ...(this.config.apiKey && { Authorization: `Bearer ${this.config.apiKey}` })
+          ...(config.apiKey && { Authorization: `Bearer ${config.apiKey}` })
         },
-        signal: AbortSignal.timeout(this.config.timeout)
+        signal: AbortSignal.timeout(config.timeout)
       })
 
       return {
@@ -94,6 +99,17 @@ export class NowledgeMemClient {
         error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
+  }
+
+  private resolveHealthUrl(baseUrl: string): string {
+    const url = new URL(baseUrl)
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.username || url.password) {
+      throw new TypeError('Nowledge Mem URL must use HTTP or HTTPS without embedded credentials')
+    }
+    url.search = ''
+    url.hash = ''
+    url.pathname = `${url.pathname.replace(/\/+$/, '')}/api/health`
+    return url.toString()
   }
 
   /**

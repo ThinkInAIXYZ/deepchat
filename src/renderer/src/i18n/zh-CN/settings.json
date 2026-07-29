@@ -1641,7 +1641,15 @@
       "seconds": "秒",
       "testConnection": "测试连接",
       "timeout": "超时",
-      "title": "Nowledge Mem 导出配置"
+      "title": "Nowledge Mem 导出配置",
+      "configLoadFailed": "无法加载配置",
+      "configSaved": "配置已保存",
+      "configSaveFailed": "无法保存配置",
+      "configReset": "配置已重置",
+      "configResetFailed": "无法重置配置",
+      "connectionSucceeded": "连接成功",
+      "connectionFailed": "无法使用当前配置建立连接",
+      "invalidBaseUrl": "请输入不含账号或查询参数的 HTTP(S) 地址"
     }
   },
   "mcp": {

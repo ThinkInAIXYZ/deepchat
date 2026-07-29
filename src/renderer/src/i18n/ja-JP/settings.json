@@ -1296,7 +1296,15 @@
       "seconds": "秒",
       "testConnection": "接続をテストする",
       "timeout": "タイムアウト",
-      "title": "Nowledge Mem エクスポート設定"
+      "title": "Nowledge Mem エクスポート設定",
+      "configLoadFailed": "設定を読み込めませんでした",
+      "configSaved": "設定を保存しました",
+      "configSaveFailed": "設定を保存できませんでした",
+      "configReset": "設定をリセットしました",
+      "configResetFailed": "設定をリセットできませんでした",
+      "connectionSucceeded": "接続に成功しました",
+      "connectionFailed": "現在の設定では接続できませんでした",
+      "invalidBaseUrl": "認証情報やクエリパラメーターを含まない HTTP または HTTPS アドレスを入力してください"
     }
   },
   "mcp": {

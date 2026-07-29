@@ -1285,7 +1285,15 @@
       "timeout": "פסק זמן (Timeout)",
       "saveConfig": "שמור",
       "resetConfig": "אפס",
-      "seconds": "שניות"
+      "seconds": "שניות",
+      "configLoadFailed": "לא ניתן לטעון את התצורה",
+      "configSaved": "התצורה נשמרה",
+      "configSaveFailed": "לא ניתן לשמור את התצורה",
+      "configReset": "התצורה אופסה",
+      "configResetFailed": "לא ניתן לאפס את התצורה",
+      "connectionSucceeded": "החיבור הצליח",
+      "connectionFailed": "לא ניתן להתחבר עם התצורה הנוכחית",
+      "invalidBaseUrl": "הזן כתובת HTTP או HTTPS ללא פרטי התחברות או פרמטרים של שאילתה"
     },
     "deleteFile": {
       "title": "אישור מחיקת קובץ",

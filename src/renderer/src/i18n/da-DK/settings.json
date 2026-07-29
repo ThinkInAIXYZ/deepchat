@@ -1218,7 +1218,15 @@
       "timeout": "Timeout",
       "saveConfig": "Gem",
       "resetConfig": "Nulstil",
-      "seconds": "sekunder"
+      "seconds": "sekunder",
+      "configLoadFailed": "Konfigurationen kunne ikke indlæses",
+      "configSaved": "Konfigurationen er gemt",
+      "configSaveFailed": "Konfigurationen kunne ikke gemmes",
+      "configReset": "Konfigurationen er nulstillet",
+      "configResetFailed": "Konfigurationen kunne ikke nulstilles",
+      "connectionSucceeded": "Forbindelsen lykkedes",
+      "connectionFailed": "Der kunne ikke oprettes forbindelse med den aktuelle konfiguration",
+      "invalidBaseUrl": "Angiv en HTTP- eller HTTPS-adresse uden loginoplysninger eller forespørgselsparametre"
     },
     "deleteFile": {
       "title": "Bekræft sletning af fil",

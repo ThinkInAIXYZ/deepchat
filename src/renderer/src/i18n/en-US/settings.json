@@ -1631,7 +1631,15 @@
       "timeout": "Timeout",
       "saveConfig": "Save",
       "resetConfig": "Reset",
-      "seconds": "seconds"
+      "seconds": "seconds",
+      "configLoadFailed": "Could not load the configuration",
+      "configSaved": "Configuration saved",
+      "configSaveFailed": "Could not save the configuration",
+      "configReset": "Configuration reset",
+      "configResetFailed": "Could not reset the configuration",
+      "connectionSucceeded": "Connection successful",
+      "connectionFailed": "Could not connect with the current configuration",
+      "invalidBaseUrl": "Enter an HTTP or HTTPS address without credentials or query parameters"
     },
     "deleteFile": {
       "title": "Delete file confirmation",

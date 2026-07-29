@@ -1296,7 +1296,15 @@
       "seconds": "seconde",
       "testConnection": "Tester la connexion",
       "timeout": "dépassement de délai",
-      "title": "Configuration d'exportation Nowledge Mem"
+      "title": "Configuration d'exportation Nowledge Mem",
+      "configLoadFailed": "Impossible de charger la configuration",
+      "configSaved": "Configuration enregistrée",
+      "configSaveFailed": "Impossible d’enregistrer la configuration",
+      "configReset": "Configuration réinitialisée",
+      "configResetFailed": "Impossible de réinitialiser la configuration",
+      "connectionSucceeded": "Connexion réussie",
+      "connectionFailed": "Impossible de se connecter avec la configuration actuelle",
+      "invalidBaseUrl": "Saisissez une adresse HTTP ou HTTPS sans identifiants ni paramètres de requête"
     }
   },
   "mcp": {

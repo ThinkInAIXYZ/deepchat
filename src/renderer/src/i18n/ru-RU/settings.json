@@ -1296,7 +1296,15 @@
       "seconds": "секунда",
       "testConnection": "Тестовое соединение",
       "timeout": "превышение времени",
-      "title": "Конфигурация экспорта Nowledge Mem"
+      "title": "Конфигурация экспорта Nowledge Mem",
+      "configLoadFailed": "Не удалось загрузить конфигурацию",
+      "configSaved": "Конфигурация сохранена",
+      "configSaveFailed": "Не удалось сохранить конфигурацию",
+      "configReset": "Конфигурация сброшена",
+      "configResetFailed": "Не удалось сбросить конфигурацию",
+      "connectionSucceeded": "Подключение установлено",
+      "connectionFailed": "Не удалось подключиться с текущей конфигурацией",
+      "invalidBaseUrl": "Введите адрес HTTP или HTTPS без учётных данных и параметров запроса"
     }
   },
   "mcp": {

@@ -1296,7 +1296,15 @@
       "seconds": "ثانیه",
       "testConnection": "آزمایش اتصال",
       "timeout": "زمان گذشته",
-      "title": "پیکربندی صادرات Nowledge Mem"
+      "title": "پیکربندی صادرات Nowledge Mem",
+      "configLoadFailed": "پیکربندی بارگیری نشد",
+      "configSaved": "پیکربندی ذخیره شد",
+      "configSaveFailed": "پیکربندی ذخیره نشد",
+      "configReset": "پیکربندی بازنشانی شد",
+      "configResetFailed": "پیکربندی بازنشانی نشد",
+      "connectionSucceeded": "اتصال با موفقیت برقرار شد",
+      "connectionFailed": "با پیکربندی فعلی اتصال برقرار نشد",
+      "invalidBaseUrl": "یک نشانی HTTP یا HTTPS بدون اطلاعات ورود یا پارامترهای پرس‌وجو وارد کنید"
     }
   },
   "mcp": {

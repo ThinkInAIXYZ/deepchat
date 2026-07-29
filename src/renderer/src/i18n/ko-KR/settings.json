@@ -1296,7 +1296,15 @@
       "seconds": "초",
       "testConnection": "연결 테스트",
       "timeout": "초과 시간",
-      "title": "Nowledge Mem 내보내기 설정"
+      "title": "Nowledge Mem 내보내기 설정",
+      "configLoadFailed": "구성을 불러올 수 없습니다",
+      "configSaved": "구성이 저장되었습니다",
+      "configSaveFailed": "구성을 저장할 수 없습니다",
+      "configReset": "구성이 재설정되었습니다",
+      "configResetFailed": "구성을 재설정할 수 없습니다",
+      "connectionSucceeded": "연결에 성공했습니다",
+      "connectionFailed": "현재 구성으로 연결할 수 없습니다",
+      "invalidBaseUrl": "자격 증명이나 쿼리 매개변수가 없는 HTTP 또는 HTTPS 주소를 입력하세요"
     }
   },
   "mcp": {

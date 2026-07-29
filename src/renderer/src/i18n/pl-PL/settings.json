@@ -1630,7 +1630,15 @@
       "timeout": "Limit czasu",
       "saveConfig": "Zapisz",
       "resetConfig": "Zresetuj",
-      "seconds": "sekundy"
+      "seconds": "sekundy",
+      "configLoadFailed": "Nie udało się wczytać konfiguracji",
+      "configSaved": "Konfiguracja została zapisana",
+      "configSaveFailed": "Nie udało się zapisać konfiguracji",
+      "configReset": "Konfiguracja została zresetowana",
+      "configResetFailed": "Nie udało się zresetować konfiguracji",
+      "connectionSucceeded": "Połączenie powiodło się",
+      "connectionFailed": "Nie udało się połączyć przy użyciu bieżącej konfiguracji",
+      "invalidBaseUrl": "Wprowadź adres HTTP lub HTTPS bez danych logowania i parametrów zapytania"
     },
     "deleteFile": {
       "title": "Potwierdzenie usunięcia pliku",

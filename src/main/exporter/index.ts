@@ -106,13 +106,13 @@ export class ConversationExporterService implements IConversationExporter {
     }
   }
 
-  async testNowledgeMemConnection(): Promise<{
+  async testNowledgeMemConnection(config?: NowledgeMemConfig): Promise<{
     success: boolean
     message?: string
     error?: string
   }> {
     try {
-      const result = await this.nowledgeMemClient.testConnection()
+      const result = await this.nowledgeMemClient.testConnection(config)
       return {
         success: result.success,
         message: result.success ? 'Connection successful' : undefined,

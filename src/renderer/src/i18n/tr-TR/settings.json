@@ -1641,7 +1641,15 @@
       "seconds": "saniye",
       "testConnection": "Bağlantıyı Test Et",
       "timeout": "Zaman aşımı",
-      "title": "Nowledge Bellek Dışa Aktarma"
+      "title": "Nowledge Bellek Dışa Aktarma",
+      "configLoadFailed": "Yapılandırma yüklenemedi",
+      "configSaved": "Yapılandırma kaydedildi",
+      "configSaveFailed": "Yapılandırma kaydedilemedi",
+      "configReset": "Yapılandırma sıfırlandı",
+      "configResetFailed": "Yapılandırma sıfırlanamadı",
+      "connectionSucceeded": "Bağlantı başarılı",
+      "connectionFailed": "Mevcut yapılandırmayla bağlantı kurulamadı",
+      "invalidBaseUrl": "Kimlik bilgileri veya sorgu parametreleri içermeyen bir HTTP ya da HTTPS adresi girin"
     }
   },
   "mcp": {

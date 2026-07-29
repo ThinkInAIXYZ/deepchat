@@ -3489,7 +3489,13 @@ describe('dispatchDeepchatRoute', () => {
     const testResult = await dispatchDeepchatRoute(
       runtime,
       'nowledgeMem.testConnection',
-      {},
+      {
+        config: {
+          baseUrl: 'http://draft.local',
+          apiKey: 'draft-secret',
+          timeout: 12000
+        }
+      },
       context
     )
 
@@ -3499,7 +3505,11 @@ describe('dispatchDeepchatRoute', () => {
       apiKey: 'secret',
       timeout: 45000
     })
-    expect(exporter.testNowledgeMemConnection).toHaveBeenCalledTimes(1)
+    expect(exporter.testNowledgeMemConnection).toHaveBeenCalledWith({
+      baseUrl: 'http://draft.local',
+      apiKey: 'draft-secret',
+      timeout: 12000
+    })
     expect(getResult).toEqual({
       config: {
         baseUrl: 'http://127.0.0.1:14242',

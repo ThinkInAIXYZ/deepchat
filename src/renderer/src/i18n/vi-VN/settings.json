@@ -1630,7 +1630,15 @@
       "timeout": "Hết giờ",
       "saveConfig": "Lưu",
       "resetConfig": "Đặt lại",
-      "seconds": "giây"
+      "seconds": "giây",
+      "configLoadFailed": "Không thể tải cấu hình",
+      "configSaved": "Đã lưu cấu hình",
+      "configSaveFailed": "Không thể lưu cấu hình",
+      "configReset": "Đã đặt lại cấu hình",
+      "configResetFailed": "Không thể đặt lại cấu hình",
+      "connectionSucceeded": "Kết nối thành công",
+      "connectionFailed": "Không thể kết nối bằng cấu hình hiện tại",
+      "invalidBaseUrl": "Nhập địa chỉ HTTP hoặc HTTPS không chứa thông tin đăng nhập hay tham số truy vấn"
     },
     "deleteFile": {
       "title": "Xóa xác nhận tập tin",

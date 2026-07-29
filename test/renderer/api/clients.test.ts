@@ -2556,7 +2556,12 @@ describe('renderer api clients', () => {
       apiKey: 'secret',
       timeout: 45000
     })
-    const testResult = await nowledgeMemClient.testConnection()
+    const testConfig = {
+      baseUrl: 'http://draft.local',
+      apiKey: 'draft-secret',
+      timeout: 12000
+    }
+    const testResult = await nowledgeMemClient.testConnection(testConfig)
 
     expect(testResult).toEqual({
       success: true,
@@ -2570,7 +2575,9 @@ describe('renderer api clients', () => {
         timeout: 45000
       }
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'nowledgeMem.testConnection', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'nowledgeMem.testConnection', {
+      config: testConfig
+    })
   })
 
   it('routes skill file reads through the shared registry name', async () => {

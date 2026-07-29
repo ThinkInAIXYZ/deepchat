@@ -1641,7 +1641,15 @@
       "seconds": "detik",
       "testConnection": "koneksi uji",
       "timeout": "batas waktu",
-      "title": "Konfigurasi ekspor Nowledge Mem"
+      "title": "Konfigurasi ekspor Nowledge Mem",
+      "configLoadFailed": "Konfigurasi tidak dapat dimuat",
+      "configSaved": "Konfigurasi disimpan",
+      "configSaveFailed": "Konfigurasi tidak dapat disimpan",
+      "configReset": "Konfigurasi diatur ulang",
+      "configResetFailed": "Konfigurasi tidak dapat diatur ulang",
+      "connectionSucceeded": "Koneksi berhasil",
+      "connectionFailed": "Tidak dapat terhubung dengan konfigurasi saat ini",
+      "invalidBaseUrl": "Masukkan alamat HTTP atau HTTPS tanpa kredensial atau parameter kueri"
     }
   },
   "mcp": {
