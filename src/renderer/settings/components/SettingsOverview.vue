@@ -53,7 +53,7 @@
         interactive
         @select="openRoute('settings-deepchat-agents')"
       />
-      <Card class="min-w-0">
+      <Card class="min-w-0 border-none bg-accent shadow-none">
         <CardHeader class="gap-2 pb-2">
           <div class="flex items-center justify-between gap-3">
             <CardDescription class="truncate">
@@ -68,7 +68,7 @@
               v-for="task in quickTasks"
               :key="task.key"
               type="button"
-              class="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background/70 px-2 text-start text-xs transition-colors hover:bg-accent"
+              class="flex h-8 min-w-0 items-center gap-2 rounded-md bg-card/60 px-2 text-start text-xs transition-colors hover:bg-card"
               :title="t(task.descriptionKey)"
               @click="openRoute(task.routeName)"
             >
@@ -77,7 +77,7 @@
                 class="size-4 shrink-0"
                 :class="task.done ? 'text-emerald-500' : 'text-muted-foreground'"
               />
-              <span class="min-w-0 truncate font-medium">{{ t(task.labelKey) }}</span>
+              <span class="min-w-0 truncate">{{ t(task.labelKey) }}</span>
             </button>
           </div>
         </CardContent>
@@ -87,12 +87,13 @@
     <section
       ref="usageDashboardRef"
       data-testid="settings-overview-usage-dashboard"
-      class="min-h-[640px] overflow-hidden rounded-lg border border-border"
+      class="min-h-[640px] overflow-hidden rounded-xl"
     >
       <DashboardSettings />
     </section>
 
     <SettingsSectionCard
+      class="border-none bg-accent shadow-none"
       :title="t('settings.controlCenter.activity.title')"
       :description="t('settings.controlCenter.activity.description')"
     >
@@ -108,7 +109,7 @@
           <TableRow
             v-for="activity in activities"
             :key="activity.id"
-            class=""
+            class="cursor-pointer"
             @click="openActivity(activity)"
           >
             <TableCell class="whitespace-nowrap text-xs text-muted-foreground">

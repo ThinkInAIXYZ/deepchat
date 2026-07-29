@@ -554,21 +554,16 @@ describe('DashboardSettings', () => {
     expect(header.classes()).toContain('sm:flex-row')
     expect(wrapper.find('[data-testid="summary-card-tokenUsage"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="summary-card-nostalgia"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'ChartTooltip' }).exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'ChartCrosshair' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="token-usage-input-dot"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="token-usage-input-dot"]').attributes('style')).toContain(
       'var(--primary-600)'
     )
     expect(wrapper.find('[data-testid="token-usage-output-dot"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="token-usage-cached-dot"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="token-usage-cost-dot"]').exists()).toBe(true)
-    expect(wrapper.findAllComponents({ name: 'VisArea' })).toHaveLength(4)
+    expect(wrapper.find('[data-testid="token-usage-cost-dot"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="token-usage-total-row"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="token-usage-cost-row"]').text()).toContain(
-      'Trend over the last 30 days'
-    )
+    expect(wrapper.find('[data-testid="token-usage-cost-row"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="token-usage-list"]').text()).not.toContain('Uncached')
     expect(wrapper.find('[data-testid="cached-tokens-bar"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="provider-breakdown-chart"]').exists()).toBe(true)
@@ -583,10 +578,8 @@ describe('DashboardSettings', () => {
     expect(wrapper.find('[data-testid="summary-card-nostalgia"]').html()).toContain(
       'whitespace-normal'
     )
-    expect(wrapper.find('[data-testid="summary-card-nostalgia"]').html()).toContain('md:col-span-2')
-    expect(wrapper.find('[data-testid="summary-card-nostalgia"]').html()).toContain(
-      'lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]'
-    )
+    expect(wrapper.find('[data-testid="usage-summary-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="summary-card-tokenUsage"]').html()).toContain('lg:border-l')
     expect(wrapper.find('[data-testid="nostalgia-details"]').html()).toContain('space-y-2')
     expect(wrapper.find('[data-testid="nostalgia-rotating-value"]').text()).toBe('17 days')
 
@@ -631,7 +624,7 @@ describe('DashboardSettings', () => {
     expect(getUsageDashboard).toHaveBeenCalledTimes(2)
   })
 
-  it('renders token usage tooltip content with raw values for all series', async () => {
+  it('renders calendar tooltip content with raw values for all series on hover', async () => {
     const { wrapper } = await setup(
       buildDashboard({
         calendar: [
@@ -659,49 +652,16 @@ describe('DashboardSettings', () => {
       })
     )
 
-    const crosshair = wrapper.getComponent({ name: 'ChartCrosshair' })
-    const template = crosshair.props('template') as (
-      datum: {
-        index: number
-        date: string
-        inputTokens: number
-        outputTokens: number
-        cachedTokens: number
-        cost: number
-        inputValue: number
-        outputValue: number
-        cachedValue: number
-        costValue: number
-      },
-      x: number | Date,
-      data: unknown[],
-      leftNearestDatumIndex?: number
-    ) => HTMLElement | undefined
+    const cells = wrapper.findAll('[data-testid="calendar-cell"].opacity-100')
+    await cells[cells.length - 1].trigger('mouseenter', { clientX: 40, clientY: 40 })
 
-    const tooltip = template(
-      {
-        index: 1,
-        date: '2026-03-02',
-        inputTokens: 25,
-        outputTokens: 5,
-        cachedTokens: 4,
-        cost: 0.0007,
-        inputValue: 50,
-        outputValue: 25,
-        cachedValue: 40,
-        costValue: 58.3
-      },
-      1,
-      [],
-      1
-    )
-
-    expect(tooltip).toBeInstanceOf(HTMLElement)
+    const tooltip = document.body.querySelector('[data-testid="calendar-tooltip"]')
+    expect(tooltip).not.toBeNull()
     expect(tooltip?.textContent).toContain('Mar 2, 2026')
     expect(tooltip?.textContent).toContain('input:25')
     expect(tooltip?.textContent).toContain('output:5')
     expect(tooltip?.textContent).toContain('cached:4')
-    expect(tooltip?.textContent).toContain('cost:$0.0007')
+    expect(tooltip?.textContent).not.toContain('$0.0007')
     expect(tooltip?.textContent).not.toContain('input:50')
   })
 
@@ -726,7 +686,6 @@ describe('DashboardSettings', () => {
     )
 
     expect(wrapper.find('[data-testid="summary-card-tokenUsage"]').text()).toContain('0')
-    expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="total-tokens-input-ratio"]').text()).toBe('0%')
     expect(wrapper.find('[data-testid="total-tokens-output-ratio"]').text()).toBe('0%')
     expect(wrapper.find('[data-testid="cached-tokens-cached-ratio"]').text()).toBe('0%')
@@ -757,7 +716,7 @@ describe('DashboardSettings', () => {
     expect(wrapper.find('[data-testid="cached-tokens-uncached-ratio"]').exists()).toBe(false)
   })
 
-  it('keeps the merged token usage chart when the last 30 days have no cost data', async () => {
+  it('keeps the token usage summary when the last 30 days have no cost data', async () => {
     const { wrapper } = await setup(
       buildDashboard({
         calendar: Array.from({ length: 28 }, (_, index) => ({
@@ -773,10 +732,8 @@ describe('DashboardSettings', () => {
       })
     )
 
-    expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="token-usage-cost-row"]').text()).toContain(
-      'Trend over the last 30 days'
-    )
+    expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="token-usage-cost-row"]').exists()).toBe(false)
   })
 
   it('renders N/A for days together when the first usage record is unavailable', async () => {
