@@ -31,7 +31,7 @@
     "integrityDescriptor": "runtime/${target.platform}/${arch}/integrity.json",
     "adapterContract": {
       "hostBundleId": "com.wefonk.deepchat",
-      "driverVersion": "0.12.6",
+      "driverVersion": "0.13.1",
       "contractVersion": "0.2.0",
       "toolsListSchemaVersion": "1",
       "capabilityVersion": "1",
@@ -47,7 +47,7 @@
       "mode": "user-confirmed",
       "provider": "trycua",
       "strategy": "bundled-plugin-helper",
-      "minVersion": "0.12.6",
+      "minVersion": "0.13.1",
       "guideUrl": "https://cua.ai/docs/cua-driver/guide/getting-started/installation"
     }
   },
@@ -58,9 +58,6 @@
       "transport": "stdio",
       "command": "${runtime.cua-driver.command}",
       "args": ["mcp", "--embedded"],
-      "env": {
-        "CUA_DRIVER_RS_SPAWN_UIA_WORKER": "0"
-      },
       "autoApprove": [],
       "startMode": "onDemand",
       "surfaces": ["tools"],
@@ -107,7 +104,7 @@
         "end_session": "allow",
         "debug_window_info": "deny",
         "launch_app": "ask",
-        "kill_app": "ask",
+        "kill_app": "deny",
         "bring_to_front": "ask",
         "click": "ask",
         "right_click": "ask",
@@ -129,7 +126,7 @@
         "install_ffmpeg": "ask",
         "set_agent_cursor_enabled": "ask",
         "set_agent_cursor_motion": "ask",
-        "set_agent_cursor_style": "ask",
+        "set_agent_cursor_theme": "ask",
         "replay_trajectory": "ask",
         "zoom": "ask",
         "page": "ask",

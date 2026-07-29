@@ -30,6 +30,7 @@ const vendorRoot = process.env.DEEPCHAT_CUA_VENDOR_ROOT
 const upstreamMetadataPath = path.join(vendorRoot, 'upstream.json')
 const helperBinaryName = 'cua-driver'
 const upstreamDarwinHelperAppDirName = 'CuaDriver.app'
+const upstreamDarwinThemeAuthoringExecutableName = 'cua-cursor-theme'
 export const darwinHelperAppDirName = CUA_DARWIN_HELPER_APP_NAME
 export const darwinHelperBinaryName = CUA_DARWIN_HELPER_EXECUTABLE_NAME
 export const darwinHelperBundleIdentifier = CUA_DARWIN_HELPER_BUNDLE_IDENTIFIER
@@ -346,6 +347,10 @@ async function renameDarwinHelperExecutable(appPath) {
 
 export async function normalizeDarwinHelperBundle(appPath) {
   await renameDarwinHelperExecutable(appPath)
+  await fs.rm(
+    path.join(appPath, 'Contents', 'MacOS', upstreamDarwinThemeAuthoringExecutableName),
+    { force: true }
+  )
   await rewriteDarwinHelperInfoPlist(appPath)
   await fs.rm(path.join(appPath, 'Contents', '_CodeSignature'), { recursive: true, force: true })
   await fs.rm(path.join(appPath, 'Contents', 'CodeResources'), { force: true })

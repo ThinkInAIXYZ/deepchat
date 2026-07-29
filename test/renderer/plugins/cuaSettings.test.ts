@@ -149,7 +149,7 @@ describe('CUA plugin settings', () => {
         arch: 'x64',
         runtime: {
           state: 'installed',
-          version: '0.12.6',
+          version: '0.13.1',
           command: '/mock/cua-driver'
         },
         mcpServers: [
@@ -190,7 +190,7 @@ describe('CUA plugin settings', () => {
         arch: 'x64',
         runtime: {
           state: 'installed',
-          version: '0.12.6',
+          version: '0.13.1',
           command: '/mock/cua-driver'
         },
         mcpServers: [
@@ -209,7 +209,7 @@ describe('CUA plugin settings', () => {
         arch: 'x64',
         runtime: {
           state: 'installed',
-          version: '0.12.6',
+          version: '0.13.1',
           command: '/mock/cua-driver'
         },
         mcpServers: [
@@ -257,7 +257,7 @@ describe('CUA plugin settings', () => {
         arch: 'x64',
         runtime: {
           state: 'installed',
-          version: '0.12.6',
+          version: '0.13.1',
           command: '/mock/cua-driver'
         },
         mcpServers: [
@@ -291,7 +291,7 @@ describe('CUA plugin settings', () => {
       arch: 'x64',
       runtime: {
         state: 'installed',
-        version: '0.12.6',
+        version: '0.13.1',
         command: '/mock/cua-driver'
       }
     }
@@ -383,7 +383,7 @@ describe('CUA plugin settings', () => {
         arch: 'x64',
         runtime: {
           state: 'missing',
-          version: '0.12.6'
+          version: '0.13.1'
         },
         mcpServers: [
           {

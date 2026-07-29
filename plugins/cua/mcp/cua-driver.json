@@ -4,9 +4,6 @@
   "transport": "stdio",
   "command": "${runtime.cua-driver.command}",
   "args": ["mcp", "--embedded"],
-  "env": {
-    "CUA_DRIVER_RS_SPAWN_UIA_WORKER": "0"
-  },
   "autoApprove": [],
   "startMode": "onDemand",
   "surfaces": ["tools"],

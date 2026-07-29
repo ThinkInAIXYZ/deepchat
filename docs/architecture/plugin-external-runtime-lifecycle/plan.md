@@ -3,7 +3,7 @@
 ## Status
 
 Lifecycle and model-facing CUA compatibility implementation are complete with automated validation.
-The native Calculator retry and native release validation remain pending.
+The v0.13.1 native cross-platform release gates remain pending.
 
 ## 1. Freeze the contracts
 
@@ -110,6 +110,22 @@ The native Calculator retry and native release validation remain pending.
 - Measure warm-daemon idle CPU, handle/file-descriptor count, and residual windows on Linux X11
   with and without a compositor.
 - Do not enable Linux arm64 CUA solely because upstream now publishes an artifact.
+
+## 11. Upgrade the closed CUA contract to 0.13.1
+
+- Pin `cua-driver-rs-v0.13.1`, its release commit, assets, and SHA-256 values.
+- Regenerate the native tool catalog and update the closed policy for the cursor-theme rename,
+  cursor session contract, and `browser_type.replace`.
+- Deny `kill_app` until a later driver exposes the session needed for standard-mode ownership
+  proof; keep cooperative close in the skill and bind a direct native failure smoke to 0.13.1.
+- Remove the retired UIA-worker environment variable from manifests, packaging validation, the
+  embedded adapter, and tests.
+- Remove the macOS `cua-cursor-theme` authoring sidecar during staging before signing and
+  descriptor generation.
+- Keep the empty-token compatibility shim narrowly scoped and document structured token recovery
+  without parsing or synthesizing tokens.
+- Leave normal `start_session.cursor_theme` unset and avoid adding a parameter-policy shim to the
+  adapter.
 
 ## Compatibility and rollback
 

@@ -658,7 +658,7 @@ describe('ToolManager', () => {
             serverName,
             displayName: 'CUA Driver',
             toolCatalog: {
-              version: '0.12.6',
+              version: '0.13.1',
               tools: [
                 {
                   name: 'check_permissions',
@@ -1385,7 +1385,7 @@ describe('ToolManager', () => {
       elements: [
         {
           element_index: 2,
-          element_token: 's9:2',
+          element_token: '00000002',
           role: 'AXButton',
           label: 'Clear'
         }
@@ -1418,7 +1418,7 @@ describe('ToolManager', () => {
       { type: 'text', text: 'window tree' },
       {
         type: 'text',
-        text: expect.stringContaining('2="s9:2"')
+        text: expect.stringContaining('2="00000002"')
       }
     ])
   })

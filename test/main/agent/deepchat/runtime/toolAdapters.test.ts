@@ -314,7 +314,7 @@ describe('DeepChat tool adapters', () => {
     const content = [
       { type: 'image' as const, data: 'YWJj', mimeType: 'image/png' },
       { type: 'text' as const, text: 'window tree' },
-      { type: 'text' as const, text: '## CUA structured handles\n2="s9:2"' }
+      { type: 'text' as const, text: '## CUA structured handles\n2="00000002"' }
     ]
 
     const result = await normalizeToolResultContent(
@@ -562,29 +562,31 @@ describe('DeepChat tool adapters', () => {
     ])
   })
 
-  it('passes a stale CUA token error through unchanged', async () => {
-    const error =
-      'element_token is stale; call get_window_state again to refresh'
+  it.each(['stale_element_token', 'generation_mismatch', 'invalid_element_token'])(
+    'passes the CUA token refusal %s through unchanged',
+    async (code) => {
+      const error = JSON.stringify({ code })
 
-    await expect(
-      normalizeToolResultContent(
-        {
-          providerSettings: {} as any,
-          agentSettings: {} as any,
-          providerRuntime: {} as any,
-          getAbortSignal: () => undefined,
-          getSessionModel: () => ({})
-        },
-        {
-          sessionId: 'session-1',
-          toolCallId: 'call-1',
-          toolName: 'click',
-          toolArgs: '{"element_token":"s8:2"}',
-          content: error,
-          isError: true,
-          ownerPluginId: 'com.deepchat.plugins.cua'
-        }
-      )
-    ).resolves.toBe(error)
-  })
+      await expect(
+        normalizeToolResultContent(
+          {
+            providerSettings: {} as any,
+            agentSettings: {} as any,
+            providerRuntime: {} as any,
+            getAbortSignal: () => undefined,
+            getSessionModel: () => ({})
+          },
+          {
+            sessionId: 'session-1',
+            toolCallId: 'call-1',
+            toolName: 'click',
+            toolArgs: '{"element_token":"00000002"}',
+            content: error,
+            isError: true,
+            ownerPluginId: 'com.deepchat.plugins.cua'
+          }
+        )
+      ).resolves.toBe(error)
+    }
+  )
 })

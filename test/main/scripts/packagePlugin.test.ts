@@ -64,7 +64,7 @@ async function createCuaPluginFixture() {
       integrityDescriptor: 'runtime/${target.platform}/${arch}/integrity.json',
       adapterContract: {
         hostBundleId: 'com.wefonk.deepchat',
-        driverVersion: '0.12.6',
+        driverVersion: '0.13.1',
         contractVersion: '0.2.0',
         toolsListSchemaVersion: '1',
         capabilityVersion: '1',
@@ -84,9 +84,6 @@ async function createCuaPluginFixture() {
         transport: 'stdio',
         command: '${runtime.cua-driver.command}',
         args: ['mcp', '--embedded'],
-        env: {
-          CUA_DRIVER_RS_SPAWN_UIA_WORKER: '0'
-        },
         autoApprove: [],
         startMode: 'onDemand',
         surfaces: ['tools'],
@@ -105,7 +102,7 @@ async function createCuaPluginFixture() {
   }
   const toolCatalog = `${JSON.stringify(
     {
-      version: '0.12.6',
+      version: '0.13.1',
       tools: [
         {
           name: 'check_permissions',
@@ -211,7 +208,7 @@ describe('package-plugin', () => {
     expect(manifest.engines.targets).toEqual(['win32/arm64'])
     expect(manifest.source.url).toContain('deepchat-plugin-cua-0.0.0-win32-arm64.dcplugin')
     expect(manifest.mcpServers[0].args).toEqual(['mcp', '--embedded'])
-    expect(manifest.mcpServers[0].env.CUA_DRIVER_RS_SPAWN_UIA_WORKER).toBe('0')
+    expect(manifest.mcpServers[0]).not.toHaveProperty('env')
     expect(Object.keys(files).filter((file) => file.startsWith('runtime/')).sort()).toEqual([
       'runtime/win32/arm64/cua-driver.exe',
       'runtime/win32/arm64/integrity.json',
@@ -224,7 +221,7 @@ describe('package-plugin', () => {
       schemaVersion: 1,
       pluginId: 'com.deepchat.plugins.cua',
       runtimeId: 'cua-driver',
-      runtimeVersion: '0.12.6',
+      runtimeVersion: '0.13.1',
       target: 'win32/arm64',
       runtimeRoot: 'runtime/win32/arm64',
       binaryPath: 'cua-driver.exe',
@@ -507,20 +504,20 @@ describe('package-plugin', () => {
     expect(result.status).toBe(0)
   })
 
-  it('rejects CUA manifests that omit the UIA worker guard', async () => {
+  it('rejects CUA manifests that declare environment overrides', async () => {
     const fixture = await createCuaPluginFixture()
     const outDir = path.join(fixture.root, 'out')
     const manifestPath = path.join(fixture.pluginDir, 'plugin.json')
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
-    delete manifest.mcpServers[0].env.CUA_DRIVER_RS_SPAWN_UIA_WORKER
+    manifest.mcpServers[0].env = {
+      CUA_DRIVER_RS_SPAWN_UIA_WORKER: '0'
+    }
     await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 
     const result = runPackagePlugin(fixture.pluginDir, outDir, 'win32', 'x64')
 
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain(
-      'CUA MCP server env must only disable CUA_DRIVER_RS_SPAWN_UIA_WORKER'
-    )
+    expect(result.stderr).toContain('CUA MCP server must not declare environment overrides')
   })
 
   it('rejects a static catalog that is not covered by explicit tool policy', async () => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { parsePluginToolCatalog } from '@/plugin/toolCatalog'
 
 const createCatalog = () => ({
-  version: '0.12.6',
+  version: '0.13.1',
   tools: [
     {
       name: 'inspect_screen',
@@ -30,7 +30,7 @@ describe('plugin tool catalog', () => {
     const catalog = parsePluginToolCatalog(createCatalog(), 'fixture.json')
 
     expect(catalog).toEqual({
-      version: '0.12.6',
+      version: '0.13.1',
       tools: [
         {
           name: 'inspect_screen',

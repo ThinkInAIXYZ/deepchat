@@ -40,7 +40,9 @@ copy a personal profile, or automate a generic consent dialog.
 - Prefer current semantic refs over coordinates.
 - `browser_click` defaults to trusted browser input. Use `input_route: "dom_event"` only when
   synthetic click semantics are acceptable; never silently switch trust class after a refusal.
-- `browser_type` requires a current editable ref. Re-snapshot to verify delivered text.
+- `browser_type` requires a current editable ref. Omit `replace` or use `replace: false` to insert
+  at the caret. Use `replace: true` to replace the current value; `text: ""` then clears it.
+  Re-snapshot to verify delivered text.
 - `browser_set_input_files` accepts explicit absolute regular files and bypasses the native picker.
 - `browser_download` requires destructive-action approval and an existing canonical destination
   directory.

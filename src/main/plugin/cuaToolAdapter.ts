@@ -29,9 +29,9 @@ export function normalizeCuaToolArguments(
     return args
   }
 
-  // CUA 0.12.6 declares an optional unconstrained string, but its resolver treats any present
-  // token as authoritative and rejects "". Keep this compatibility shim local to CUA until the
-  // upstream schema rejects empty tokens and provider argument generation stops zero-filling them.
+  // CUA declares an optional unconstrained string, but its resolver treats any present token as
+  // authoritative and rejects "". Keep this compatibility shim local to CUA until the upstream
+  // schema rejects empty tokens and provider argument generation stops zero-filling them.
   const normalized = { ...args }
   delete normalized.element_token
   return normalized
@@ -78,7 +78,7 @@ export function buildCuaWindowStateProjection(
 
   const lines = [
     '## CUA structured handles',
-    'Use only a non-empty element_token from this latest snapshot; element_index remains the fallback.'
+    'Use only handles from this latest snapshot: prefer a non-empty element_token, or use its same-snapshot element_index as the fallback.'
   ]
   if (snapshotId) {
     lines.push(`snapshot_id=${JSON.stringify(snapshotId)}`)
