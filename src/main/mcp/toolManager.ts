@@ -21,11 +21,7 @@ import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { McpSettings } from './settings'
 import type { DesktopSettings } from '@/desktop/settings'
 import { CUA_PLUGIN_ID } from '@shared/types/plugin'
-import {
-  appendCuaStructuredProjection,
-  buildCuaWindowStateProjection,
-  normalizeCuaToolArguments
-} from '@/plugin/cuaToolAdapter'
+import { appendCuaResultProjections, normalizeCuaToolArguments } from '@/plugin/cuaToolAdapter'
 import type {
   PluginOwnedToolCatalogRegistration,
   PluginRuntimeStartReason
@@ -911,9 +907,10 @@ export class ToolManager {
         ...formattedResponse,
         content:
           ownerPluginId === CUA_PLUGIN_ID
-            ? appendCuaStructuredProjection(
+            ? appendCuaResultProjections(
                 formattedResponse.content,
-                buildCuaWindowStateProjection(originalName, result.structuredContent)
+                originalName,
+                result.structuredContent
               )
             : formattedResponse.content,
         ...(ownerPluginId ? { ownerPluginId } : {})

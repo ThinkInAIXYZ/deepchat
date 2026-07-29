@@ -49,4 +49,5 @@ copy a personal profile, or automate a generic consent dialog.
 - Use `browser_dialog` only for page-owned JavaScript dialogs. Browser permission UI and native
   dialogs remain native-window work.
 
-The legacy `page` tool is compatibility-only. Do not start new browser workflows with it.
+The legacy `page` tool is compatibility-only. Do not start new browser workflows with it, and use
+only its read-only `get_text` or `query_dom` actions in this bundled contract.

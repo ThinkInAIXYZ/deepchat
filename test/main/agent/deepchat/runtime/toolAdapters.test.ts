@@ -562,31 +562,41 @@ describe('DeepChat tool adapters', () => {
     ])
   })
 
-  it.each(['stale_element_token', 'generation_mismatch', 'invalid_element_token'])(
-    'passes the CUA token refusal %s through unchanged',
-    async (code) => {
-      const error = JSON.stringify({ code })
+  it.each([
+    [
+      'stale_element_token',
+      'element_token is stale; call get_window_state again to refresh'
+    ],
+    ['generation_mismatch', 'element_token belongs to another runtime generation'],
+    ['invalid_element_token', 'element_token has invalid format']
+  ])('passes the projected CUA token refusal %s through unchanged', async (code, message) => {
+    const content = [
+      { type: 'text' as const, text: message },
+      {
+        type: 'text' as const,
+        text: `## CUA structured refusal\nrefusal.code=${JSON.stringify(code)}`
+      }
+    ]
 
-      await expect(
-        normalizeToolResultContent(
-          {
-            providerSettings: {} as any,
-            agentSettings: {} as any,
-            providerRuntime: {} as any,
-            getAbortSignal: () => undefined,
-            getSessionModel: () => ({})
-          },
-          {
-            sessionId: 'session-1',
-            toolCallId: 'call-1',
-            toolName: 'click',
-            toolArgs: '{"element_token":"00000002"}',
-            content: error,
-            isError: true,
-            ownerPluginId: 'com.deepchat.plugins.cua'
-          }
-        )
-      ).resolves.toBe(error)
-    }
-  )
+    await expect(
+      normalizeToolResultContent(
+        {
+          providerSettings: {} as any,
+          agentSettings: {} as any,
+          providerRuntime: {} as any,
+          getAbortSignal: () => undefined,
+          getSessionModel: () => ({})
+        },
+        {
+          sessionId: 'session-1',
+          toolCallId: 'call-1',
+          toolName: 'click',
+          toolArgs: '{"element_token":"00000002"}',
+          content,
+          isError: true,
+          ownerPluginId: 'com.deepchat.plugins.cua'
+        }
+      )
+    ).resolves.toBe(content)
+  })
 })

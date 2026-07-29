@@ -14,14 +14,13 @@ Core workflow:
 8. `end_session`
 
 Prefer a non-empty opaque element token from the latest snapshot for the same `pid` and
-`window_id`. On `stale_element_token`, `generation_mismatch`, or `invalid_element_token`, take one
-fresh snapshot and retry only with its replacement token. Element indices are the compatibility
-fallback, but never reuse an index from the rejected token's older snapshot. Use pixel coordinates
-when an explicitly requested screenshot clearly shows a target missing from the accessibility
-tree.
+`window_id`. When the model-visible `refusal.code` is `stale_element_token`,
+`generation_mismatch`, or `invalid_element_token`, take one fresh snapshot and retry only with its
+replacement token. Element indices are the compatibility fallback, but never reuse an index from
+the rejected token's older snapshot. Use pixel coordinates when an explicitly requested screenshot
+clearly shows a target missing from the accessibility tree.
 
-Close apps cooperatively and verify exit. The bundled v0.13.1 contract denies `kill_app`; do not
-inject undeclared session arguments to bypass that policy.
+Close apps cooperatively and verify exit.
 
 For Chromium-family page content, bind the exact native window with `get_browser_state` and use the
 typed `browser_*` tools. The legacy `page` tool is compatibility-only.

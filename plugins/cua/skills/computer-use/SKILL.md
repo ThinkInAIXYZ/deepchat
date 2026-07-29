@@ -53,9 +53,9 @@ bundled DeepChat plugin.
 Prefer a non-empty `element_token` from the latest `get_window_state` result for the same `pid` and
 `window_id`. Treat every token as opaque: do not parse, shorten, increment, or synthesize it. Never
 send `element_token: ""`; omit it when falling back to `element_index` or pixel coordinates. If an
-action returns `stale_element_token`, `generation_mismatch`, or `invalid_element_token`,
-re-snapshot once and retry with the new token. Never reuse the rejected token or silently fall back
-to an index from the older snapshot.
+action appends a `## CUA structured refusal` whose `refusal.code` is `stale_element_token`,
+`generation_mismatch`, or `invalid_element_token`, re-snapshot once and retry with the new token.
+Never reuse the rejected token or silently fall back to an index from the older snapshot.
 
 Element indices are the compatibility fallback and have the same latest-snapshot scope. Re-snapshot
 when an index is missing, stale, or from another window.
@@ -116,8 +116,7 @@ target is outside the current visible window.
 - For app launch: use `launch_app`.
 - For app exit: use the platform's cooperative close path and verify the process/window exited.
   On macOS prefer the app's Quit action or `hotkey` with Command-Q; on Windows prefer its close
-  control. `kill_app` is unavailable in this bundled driver contract and must not be retried or
-  bypassed with undeclared arguments.
+  control.
 - For opening files or URLs in an app: use `launch_app` with the platform-supported file or URL
   arguments.
 - For supported browser page content: prefer `get_browser_state` plus the typed `browser_*` tools.

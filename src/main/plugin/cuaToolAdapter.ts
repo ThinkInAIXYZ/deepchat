@@ -10,6 +10,8 @@ const CUA_ELEMENT_TOKEN_TOOLS = new Set([
   'scroll'
 ])
 
+const CUA_REFUSAL_CODE_PATTERN = /^[a-z][a-z0-9_]{0,127}$/
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -101,6 +103,19 @@ export function buildCuaWindowStateProjection(
   return lines.join('\n')
 }
 
+export function buildCuaRefusalProjection(structuredContent: unknown): string | undefined {
+  if (!isRecord(structuredContent) || !isRecord(structuredContent.refusal)) {
+    return undefined
+  }
+
+  const code = structuredContent.refusal.code
+  if (typeof code !== 'string' || !CUA_REFUSAL_CODE_PATTERN.test(code)) {
+    return undefined
+  }
+
+  return `## CUA structured refusal\nrefusal.code=${JSON.stringify(code)}`
+}
+
 export function appendCuaStructuredProjection(
   content: string | MCPContentItem[],
   projection: string | undefined
@@ -112,4 +127,19 @@ export function appendCuaStructuredProjection(
     return content ? `${content}\n\n${projection}` : projection
   }
   return [...content, { type: 'text', text: projection }]
+}
+
+export function appendCuaResultProjections(
+  content: string | MCPContentItem[],
+  toolName: string,
+  structuredContent: unknown
+): string | MCPContentItem[] {
+  const withWindowState = appendCuaStructuredProjection(
+    content,
+    buildCuaWindowStateProjection(toolName, structuredContent)
+  )
+  return appendCuaStructuredProjection(
+    withWindowState,
+    buildCuaRefusalProjection(structuredContent)
+  )
 }

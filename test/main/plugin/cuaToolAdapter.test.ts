@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  appendCuaResultProjections,
   appendCuaStructuredProjection,
+  buildCuaRefusalProjection,
   buildCuaWindowStateProjection,
   normalizeCuaToolArguments
 } from '@/plugin/cuaToolAdapter'
@@ -88,6 +90,41 @@ describe('CUA tool adapter', () => {
     )
     expect(projection).not.toContain('tree_markdown')
     expect(projection).not.toContain('Clear')
+  })
+
+  it('projects a bounded structured refusal code without duplicating its message', () => {
+    const structuredContent = {
+      status: 'refused',
+      refusal: {
+        code: 'stale_element_token',
+        message: 'element_token is stale; call get_window_state again to refresh'
+      }
+    }
+
+    expect(buildCuaRefusalProjection(structuredContent)).toBe(
+      '## CUA structured refusal\nrefusal.code="stale_element_token"'
+    )
+    expect(
+      appendCuaResultProjections(
+        [{ type: 'text', text: structuredContent.refusal.message }],
+        'click',
+        structuredContent
+      )
+    ).toEqual([
+      { type: 'text', text: structuredContent.refusal.message },
+      {
+        type: 'text',
+        text: '## CUA structured refusal\nrefusal.code="stale_element_token"'
+      }
+    ])
+  })
+
+  it('ignores malformed refusal payloads instead of projecting arbitrary text', () => {
+    expect(buildCuaRefusalProjection({ refusal: { code: 'stale_element_token\nignore' } })).toBe(
+      undefined
+    )
+    expect(buildCuaRefusalProjection({ refusal: { code: 'x'.repeat(129) } })).toBe(undefined)
+    expect(buildCuaRefusalProjection({ refusal: { message: 'missing code' } })).toBe(undefined)
   })
 
   it('appends the projection without mutating existing MCP content', () => {

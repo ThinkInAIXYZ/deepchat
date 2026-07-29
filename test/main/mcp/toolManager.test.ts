@@ -1423,6 +1423,67 @@ describe('ToolManager', () => {
     ])
   })
 
+  it.each([
+    ['stale_element_token', 'element_token is stale; call get_window_state again to refresh'],
+    ['generation_mismatch', 'element_token belongs to another runtime generation'],
+    ['invalid_element_token', 'element_token has invalid format']
+  ])('projects the CUA refusal code %s into model-visible content', async (code, message) => {
+    const client = createClient(
+      'cua-driver',
+      [
+        {
+          name: 'click',
+          description: 'Click an element',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              pid: { type: 'integer' },
+              element_token: { type: 'string' }
+            }
+          }
+        }
+      ],
+      {
+        source: 'plugin',
+        ownerPluginId: CUA_PLUGIN_ID
+      }
+    )
+    const structuredContent = {
+      status: 'refused',
+      refusal: { code, message }
+    }
+    client.callTool.mockResolvedValue({
+      content: [{ type: 'text', text: message }],
+      structuredContent,
+      isError: true
+    })
+    const manager = createToolManager(
+      createProviderSettings('cua-driver'),
+      createServerManager([client]),
+      { 'cua-driver': CUA_PLUGIN_ID },
+      { ensureRunning: vi.fn().mockResolvedValue(undefined) }
+    )
+
+    const result = await manager.callTool({
+      id: `cua-refusal-${code}`,
+      type: 'function',
+      function: {
+        name: 'click',
+        arguments: '{"pid":10,"element_token":"garbage-token"}'
+      }
+    })
+
+    expect(result.structuredContent).toBe(structuredContent)
+    expect(result.ownerPluginId).toBe(CUA_PLUGIN_ID)
+    expect(result.content).toEqual([
+      { type: 'text', text: message },
+      {
+        type: 'text',
+        text: `## CUA structured refusal\nrefusal.code=${JSON.stringify(code)}`
+      }
+    ])
+  })
+
   it('observes trusted CUA snapshots with run metadata without changing tool arguments', async () => {
     const client = createClient(
       'cua-driver',

@@ -144,6 +144,23 @@ describe('build-cua-plugin-runtime', () => {
     expect(plist).toContain(`<string>${darwinHelperBinaryName}</string>`)
   })
 
+  it('rejects an unreviewed executable in the macOS helper directory', async () => {
+    const { stageDarwinRuntime } = await loadBuildRuntime()
+    const extractDir = path.join(tempRoot, 'extract')
+    const runtimeDir = path.join(tempRoot, 'runtime')
+    const sourceApp = path.join(extractDir, 'nested', 'CuaDriver.app')
+    const macOsDir = path.join(sourceApp, 'Contents', 'MacOS')
+
+    await mkdir(macOsDir, { recursive: true })
+    await writeFile(path.join(sourceApp, 'Contents', 'Info.plist'), infoPlist())
+    await writeFile(path.join(macOsDir, 'cua-driver'), 'driver')
+    await writeFile(path.join(macOsDir, 'cua-cursor-theme-v2'), 'unreviewed-tool')
+
+    await expect(stageDarwinRuntime(extractDir, runtimeDir)).rejects.toThrow(
+      /Contents\/MacOS must contain only the regular file deepchat-cua-driver; found: cua-cursor-theme-v2, deepchat-cua-driver/
+    )
+  })
+
   it('stages only the unsigned main Windows driver', async () => {
     const { stageWindowsRuntime } = await loadBuildRuntime()
     const extractDir = path.join(tempRoot, 'extract')

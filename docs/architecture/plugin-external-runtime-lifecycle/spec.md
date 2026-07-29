@@ -260,6 +260,9 @@ DeepChat preserves the MCP protocol's raw `structuredContent` separately from di
 For CUA `get_window_state`, the model-facing text receives a compact projection of the latest
 snapshot id, `element_index` to non-empty `element_token` mapping, and degraded/escalation metadata.
 It does not duplicate `tree_markdown` or the complete structured element array in the prompt.
+For any CUA result carrying `structuredContent.refusal.code`, DeepChat appends a bounded,
+single-line code projection to model-visible `content` while preserving the raw structured value.
+The human-readable refusal message is already present in MCP text content and is not duplicated.
 
 CUA 0.13.1 declares `element_token` as an optional unconstrained string but rejects an empty string
 at runtime and gives any present token precedence over a valid index. Immediately before dispatch,
@@ -280,9 +283,10 @@ model/provider argument generation stop producing empty optional tokens.
 
 A non-empty token is preferred when it came from the latest `get_window_state`. Tokens are opaque;
 the current eight-hex-digit representation must not be parsed or synthesized by DeepChat. When
-upstream returns `stale_element_token`, `generation_mismatch`, or `invalid_element_token`, the
-packaged skill requires one fresh `get_window_state` call and a retry with the new token. It must
-not reuse a stale token or silently fall back to an older snapshot's index.
+the projected `refusal.code` is `stale_element_token`, `generation_mismatch`, or
+`invalid_element_token`, the packaged skill requires one fresh `get_window_state` call and a retry
+with the new token. It must not reuse a stale token or silently fall back to an older snapshot's
+index.
 
 ### CUA 0.13.1 tool-contract changes
 
@@ -398,9 +402,10 @@ The upstream UIA worker is not part of the 0.13.1 release contract. DeepChat con
 only `cua-driver.exe` on Windows and removes the obsolete worker opt-in environment variable.
 
 The macOS `cua-cursor-theme` executable is an authoring utility, not part of the embedded runtime.
-Staging removes it before signing and integrity descriptor generation. The bundled `cua.default`
-theme is binary-tested; loading a separately preinstalled custom theme remains a native release
-gate even though the upstream loader supports it.
+Staging removes it and immediately requires `Contents/MacOS` to contain only the regular
+`deepchat-cua-driver` file before signing and integrity descriptor generation. The bundled
+`cua.default` theme is binary-tested; loading a separately preinstalled custom theme remains a
+native release gate even though the upstream loader supports it.
 
 `--no-permissions-gate` skips only the upstream macOS TCC first-launch UI. It does not disable
 DeepChat's per-tool approval or the driver's `--permission-mode standard` authorization. DeepChat
@@ -420,7 +425,8 @@ Automated gates:
 - exact CUA tool catalog/policy parity tests;
 - explicit local `kill_app === deny` coverage;
 - seven-tool empty-token normalization and zero-coordinate preservation tests;
-- raw MCP `structuredContent`, compact CUA token projection, and stale-token guidance tests;
+- raw MCP `structuredContent`, compact CUA token/refusal projections, and stale-token guidance
+  tests;
 - explicit CUA screenshot visual-grounding and no-vision fallback tests;
 - macOS signing and entitlement contract tests.
 

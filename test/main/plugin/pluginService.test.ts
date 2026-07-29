@@ -1795,6 +1795,7 @@ describe('PluginService', () => {
     })
     expect(server.args).toEqual(['mcp', '--embedded'])
     expect(server.env).toBeUndefined()
+    expect(mcpConfig.env).toBeUndefined()
     expect(server).toMatchObject({
       startMode: 'onDemand',
       surfaces: ['tools'],
@@ -2001,10 +2002,12 @@ describe('PluginService', () => {
     expect(combined).toContain('check_permissions')
     expect(combined).toContain('set_agent_cursor_theme')
     expect(combined).toContain('browser_type({ replace: true, text: "" })')
+    expect(combined).toContain('## CUA structured refusal')
+    expect(combined).toContain('refusal.code')
     expect(combined).toContain('generation_mismatch')
-    expect(combined).toContain('kill_app` is unavailable')
     expect(combined).toContain('single-session object')
     expect(combined).toContain('do not pass appearance fields')
+    expect(combined).toContain('read-only `get_text` or `query_dom`')
     expect(combined).toMatch(/Omit\s+`cursor_theme` during normal session setup/)
     expect(combined).toContain('`cua.default` is the bundled, verified theme')
     expect(combined).toContain('DeepChat Computer Use.app')
@@ -2018,6 +2021,9 @@ describe('PluginService', () => {
     expect(combined).toContain('zoom({ pid, window_id')
     expect(combined).toContain('Repeated zoom calls are a failure signal')
     expect(combined).toContain('Do not ask the user to install CUA manually')
+    expect(combined).not.toContain('kill_app')
+    expect(combined).not.toContain('undeclared session arguments')
+    expect(combined).not.toContain('call the native driver directly')
     expect(combined).not.toContain('Bash')
     expect(combined).not.toContain('cua-driver <tool')
     expect(combined).not.toContain('open -n -g -a')

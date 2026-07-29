@@ -188,7 +188,9 @@ The maintained model-facing adapter contract is:
   zero coordinates, and every unrelated falsy value;
 - preserve raw MCP `structuredContent` while projecting the latest snapshot/token mapping compactly
   beside the existing accessibility tree;
-- re-snapshot and retry once with a new token when upstream returns `stale_element_token`,
+- project a bounded `structuredContent.refusal.code` into model-visible content without duplicating
+  the human-readable refusal message;
+- re-snapshot and retry once with a new token when the projected code is `stale_element_token`,
   `generation_mismatch`, or `invalid_element_token`;
 - never retry a failed token against an older snapshot's `element_index`;
 - send screenshots for bounded visual grounding only when the caller explicitly passes

@@ -60,12 +60,14 @@
       valid zero coordinates or unrelated falsy values.
 - [x] Preserve raw MCP `structuredContent` and expose a compact latest-snapshot token projection to
       the model.
+- [x] Project bounded CUA `refusal.code` values into model-visible content while retaining the raw
+      structured refusal.
 - [x] Pass stale-token errors through unchanged and document fresh-snapshot retry behavior in the
       packaged CUA skill.
 - [x] Analyze CUA screenshots only for explicit `include_screenshot: true` calls and append bounded
       visual grounding or a clear unavailable result.
-- [x] Cover empty/index/token/pixel arguments, structured token projection, screenshot gating, and
-      stale-token guidance with automated tests.
+- [x] Cover empty/index/token/pixel arguments, structured token/refusal projections, screenshot
+      gating, and stale-token guidance with automated tests.
 - [ ] Re-run the native Calculator action-and-verification scenario.
 
 ## Environment and integrity

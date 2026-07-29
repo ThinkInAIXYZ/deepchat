@@ -73,8 +73,8 @@ The v0.13.1 native cross-platform release gates remain pending.
 - Keep the daemon warm after first tool use until shutdown or disable.
 - Normalize empty optional `element_token` only for the seven affected CUA action tools while
   preserving zero coordinates and every unrelated falsy value.
-- Preserve raw MCP `structuredContent` and append a compact CUA snapshot/token projection without
-  duplicating the full accessibility tree.
+- Preserve raw MCP `structuredContent` and append compact CUA snapshot/token and refusal-code
+  projections without duplicating the full accessibility tree or refusal message.
 - Send a returned CUA screenshot through the resolved vision model only when
   `include_screenshot: true`; append bounded grounding text and keep the raw image out of the main
   tool transcript.
