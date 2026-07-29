@@ -79,9 +79,12 @@ type AgentPreviewTarget = {
 }
 
 interface AgentPreviewCoordinator {
+  register(source: AgentPreviewSource, handler: AgentPreviewActionHandler): () => void
   initialize(): Promise<boolean>
   isAvailable(): boolean
+  isCurrent(target: AgentPreviewTarget): boolean
   claim(input: { source: AgentPreviewSource; sessionId: string; runId: string }): number
+  dismiss(target: AgentPreviewTargetRef): boolean
   prepare(target: AgentPreviewTarget, host: BrowserWindow): AgentPreviewSurface
   present(target: AgentPreviewTarget, frame: Buffer): boolean
   hide(target?: AgentPreviewTargetRef): void

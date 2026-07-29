@@ -213,8 +213,8 @@ The existing `common.close` translation is sufficient. This feature adds no user
 - Added an `epoch` to Computer Use surface and frame events so a later target in the same run cannot
   accept an in-flight frame from the prior target.
 - The shared coordinator permanently disables native PiP after a NativeKit load, startup, toolbar,
-  host-attach, or frame-push failure for the current process. Computer Use then exposes no preview
-  surface and does not repeatedly retry during Agent work.
+  or host-attach failure for the current process. A frame-push failure retains the previous native
+  presentation and retries on the next valid snapshot.
 - An eligible successful official CUA `click` schedules one non-blocking private
   `get_window_state({ pid, window_id })` call. The private response is routed only to the preview
   observer and is never published as an MCP result or returned to the Agent.
@@ -576,8 +576,9 @@ The feature follows the existing NativeKit support matrix:
 No platform capture permission is added because both Agent-requested and private snapshots use the
 existing Computer Use tool. Existing CUA permission behavior is unchanged.
 
-If NativeKit fails after initialization, hide/remove the native presentation, disable preview
-state, and continue the Agent without interruption.
+If toolbar configuration or host attachment fails after initialization, hide/remove the native
+presentation, disable preview state, and continue the Agent without interruption. A frame-push
+failure retains the previous presentation and retries without interrupting the Agent.
 
 ## Performance Budget
 

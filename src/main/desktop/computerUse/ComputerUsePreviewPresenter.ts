@@ -529,6 +529,10 @@ export class ComputerUsePreviewPresenter
     announceSurface = false
   ): ComputerUsePreviewSurface {
     const surface = this.prepareCurrent(state, announceSurface)
+    if (surface === 'none' && !this.previewCoordinator.isAvailable()) {
+      this.stopState(state)
+      return surface
+    }
     const frame = state.frame
     const target = this.previewTarget(state)
     if (surface === 'none' || !frame || !target || state.hostWindowId == null) {

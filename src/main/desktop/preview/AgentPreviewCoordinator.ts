@@ -263,7 +263,6 @@ export class AgentPreviewCoordinator {
       this.recordPushDuration(performance.now() - startedAt)
       if (!pushed) {
         this.warnFramePush(new Error('pushImage returned false'))
-        this.disableNative('frame_push_failed')
         return false
       }
 
@@ -283,7 +282,6 @@ export class AgentPreviewCoordinator {
     } catch (error) {
       this.recordPushDuration(performance.now() - startedAt)
       this.warnFramePush(error)
-      this.disableNative('frame_push_failed')
       return false
     }
   }

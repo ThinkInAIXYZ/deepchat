@@ -200,6 +200,26 @@ describe('AgentPreviewCoordinator', () => {
     coordinator.shutdown()
   })
 
+  it('keeps NativeKit available after a transient frame push failure', async () => {
+    const { coordinator, browserTarget, overlay, host } = await setup()
+    const target = browserTarget()
+
+    await coordinator.initialize()
+    expect(coordinator.prepare(target, host as never)).toBe('native-overlay')
+    expect(coordinator.present(target, Buffer.from('frame-1'))).toBe(true)
+
+    overlay.pushImage.mockReturnValueOnce(false)
+    expect(coordinator.present(target, Buffer.from('frame-2'))).toBe(false)
+    expect(coordinator.isAvailable()).toBe(true)
+    expect(overlay.stop).not.toHaveBeenCalled()
+    expect(overlay.removeImage).not.toHaveBeenCalled()
+
+    expect(coordinator.prepare(target, host as never)).toBe('native-overlay')
+    expect(coordinator.present(target, Buffer.from('frame-3'))).toBe(true)
+
+    coordinator.shutdown()
+  })
+
   it('switches to the close-only Computer Use toolbar and ignores activation', async () => {
     const { coordinator, browserAction, browserTarget, computerAction, overlay, host } =
       await setup()
