@@ -242,9 +242,9 @@ import type { AcceptableValue } from 'reka-ui'
 import { useThemeStore } from '@/stores/theme'
 import { useRoute } from 'vue-router'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@/services/notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()

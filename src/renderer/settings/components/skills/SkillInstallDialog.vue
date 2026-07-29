@@ -174,9 +174,9 @@ import {
   AlertDialogTitle
 } from '@shadcn/components/ui/alert-dialog'
 import { useSkillsStore } from '@/stores/skillsStore'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@/services/notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import { createSkillClient } from '@api/SkillClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createFileClient } from '@api/FileClient'

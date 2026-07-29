@@ -180,13 +180,13 @@ const setup = async (
       focusMainWindow: vi.fn().mockResolvedValue(true)
     })
   }))
-  vi.doMock('@/services/notifications/rendererNotificationPort', () => ({
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
     notifyRenderer
   }))
-  vi.doMock('@/services/notifications/rendererNotificationRuntime', () => ({
+  vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
     createRendererSurfaceFeedbackController: () => feedbackController
   }))
-  vi.doMock('@/services/notifications/useSurfaceFeedback', () => ({
+  vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
     useSurfaceFeedback: () => ({
       snapshot: feedbackSnapshot,
       setActive: vi.fn()

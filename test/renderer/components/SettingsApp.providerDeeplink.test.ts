@@ -309,7 +309,7 @@ const mountSettingsApp = async (options?: {
       template: '<span />'
     }
   }))
-  vi.doMock('@/services/notifications/rendererNotificationRuntime', () => ({
+  vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
     rendererNotificationManager: {
       notify
     }

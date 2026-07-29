@@ -22,11 +22,11 @@ vi.mock('@api/ConfigClient', () => ({
   createConfigClient: () => configClient
 }))
 
-vi.mock('@/services/notifications/rendererNotificationRuntime', () => ({
+vi.mock('@renderer-notifications/rendererNotificationRuntime', () => ({
   createRendererSurfaceFeedbackController: () => feedback.controller
 }))
 
-vi.mock('@/services/notifications/useSurfaceFeedback', async () => {
+vi.mock('@renderer-notifications/useSurfaceFeedback', async () => {
   const { shallowRef } = await vi.importActual<typeof import('vue')>('vue')
   feedback.snapshot = shallowRef({ status: 'idle', version: 0 })
   return {

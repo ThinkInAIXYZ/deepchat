@@ -5,7 +5,7 @@ import {
   SurfaceFeedbackController,
   type NotificationPresenter,
   type SurfaceVisibilitySource
-} from '@/services/notifications'
+} from '@renderer-notifications'
 import { FakeNotificationTime } from '../../../helpers/fakeNotificationTime'
 
 class FakeSurfaceVisibility implements SurfaceVisibilitySource {

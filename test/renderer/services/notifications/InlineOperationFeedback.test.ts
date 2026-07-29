@@ -1,8 +1,8 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
-import type { SurfaceFeedbackSnapshot } from '@/services/notifications'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import type { SurfaceFeedbackSnapshot } from '@renderer-notifications'
 
 vi.mock('@iconify/vue', () => ({
   Icon: defineComponent({

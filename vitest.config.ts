@@ -40,6 +40,10 @@ export default defineConfig({
             // Renderer process aliases (match electron.vite.config.ts renderer config)
             { find: '@/', replacement: resolve('src/renderer/src/') + '/' },
             { find: '@api', replacement: resolve('src/renderer/api') },
+            {
+              find: '@renderer-notifications',
+              replacement: resolve('src/renderer/services/notifications')
+            },
             { find: '@shared', replacement: resolve('src/shared') },
             { find: '@shadcn', replacement: resolve('src/shadcn') },
             { find: 'electron', replacement: resolve('test/mocks/electron.ts') },

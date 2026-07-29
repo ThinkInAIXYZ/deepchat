@@ -160,7 +160,7 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/mcp', () => ({
     useMcpStore: () => mcpStore
   }))
-  vi.doMock('@/services/notifications/rendererNotificationPort', () => ({
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
     notifyRenderer
   }))
   vi.doMock('vue-i18n', () => ({

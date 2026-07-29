@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import NotificationHost from '@/services/notifications/NotificationHost.vue'
+import NotificationHost from '@renderer-notifications/NotificationHost.vue'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({

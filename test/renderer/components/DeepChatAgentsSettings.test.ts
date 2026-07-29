@@ -132,7 +132,7 @@ vi.mock('@api/ToolClient', () => ({
 vi.mock('@api/SessionClient', () => ({
   createSessionClient: () => clientMocks.sessionClient
 }))
-vi.mock('@/services/notifications/rendererNotificationPort', () => ({
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
   notifyRenderer: clientMocks.notifyRenderer
 }))
 vi.mock('@/stores/uiSettingsStore', () => ({

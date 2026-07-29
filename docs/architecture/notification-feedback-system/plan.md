@@ -20,6 +20,11 @@ aggregation, deadlines, suppression, overflow, and diagnostics before connecting
 
 ## 2. Add the Sonner Adapter and Host
 
+Place the renderer-owned implementation in `src/renderer/services/notifications`, outside every
+renderer application root. Expose it through the narrow `@renderer-notifications` alias and enforce
+that the service never imports chat, settings, floating, splash, or browser-overlay application
+code.
+
 Create one adapter boundary that is the only managed caller of `vue-sonner`. It presents a new
 Sonner object once and subscribes component-backed content to the external Notification Record.
 It exposes dismissal but no Promise or same-ID update API.

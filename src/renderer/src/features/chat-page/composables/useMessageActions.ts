@@ -5,7 +5,7 @@ import type {
   AttachmentFallbackPolicy,
   AttachmentPreparationSummary
 } from '@shared/types/agent-interface'
-import type { RendererNotificationNotifier } from '@/services/notifications/rendererNotificationPort'
+import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
 
 type MessageStore = ReturnType<typeof useMessageStore>
 type SessionStore = ReturnType<typeof useSessionStore>

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ObservableNotificationRecord } from '@/services/notifications'
+import { ObservableNotificationRecord } from '@renderer-notifications'
 
 const sonner = vi.hoisted(() => ({
   success: vi.fn(() => 'success-toast'),
@@ -17,7 +17,7 @@ vi.mock('vue-sonner', () => ({
   }
 }))
 
-import { SonnerNotificationPresenter } from '@/services/notifications/sonnerNotificationPresenter'
+import { SonnerNotificationPresenter } from '@renderer-notifications/sonnerNotificationPresenter'
 
 const createRecord = (kind: 'success' | 'info' | 'error' | 'actionable' | 'progress' = 'error') =>
   new ObservableNotificationRecord({

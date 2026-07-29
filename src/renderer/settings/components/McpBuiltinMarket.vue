@@ -197,9 +197,9 @@ import { createMcpClient } from '@api/McpClient'
 import { Separator } from '@shadcn/components/ui/separator'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { nanoid } from 'nanoid'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@/services/notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 
 withDefaults(
   defineProps<{

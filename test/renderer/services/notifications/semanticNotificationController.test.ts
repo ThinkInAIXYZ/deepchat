@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { NotificationLifecycleEvent } from '@/services/notifications/notificationManager'
+import type { NotificationLifecycleEvent } from '@renderer-notifications/notificationManager'
 import {
   SemanticNotificationController,
   type SemanticNotificationManagerPort
-} from '@/services/notifications/semanticNotificationController'
-import type { NotificationRecovery } from '@/services/notifications/notificationRequest'
-import type { NotificationRequest } from '@/services/notifications/notificationTypes'
+} from '@renderer-notifications/semanticNotificationController'
+import type { NotificationRecovery } from '@renderer-notifications/notificationRequest'
+import type { NotificationRequest } from '@renderer-notifications/notificationTypes'
 
 const createHarness = () => {
   const notifications = {

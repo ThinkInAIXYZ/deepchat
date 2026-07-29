@@ -3,7 +3,7 @@ import {
   useSpeechRecognition,
   type SpeechRecognitionErrorCode
 } from '@/components/chat/composables/useSpeechRecognition'
-import type { RendererNotificationNotifier } from '@/services/notifications/rendererNotificationPort'
+import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
 
 type ModelSelection = {
   providerId: string

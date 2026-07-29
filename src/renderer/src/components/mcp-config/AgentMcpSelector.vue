@@ -5,9 +5,9 @@ import { createConfigClient } from '@api/ConfigClient'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { Button } from '@shadcn/components/ui/button'
 import { nanoid } from 'nanoid'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@/services/notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 
 const emit = defineEmits<{
   'update:selections': [selections: string[]]

@@ -67,6 +67,12 @@ No layer may become a generic God Object:
 
 ### Shared notification contract
 
+Renderer notification infrastructure lives in `src/renderer/services/notifications` because it is
+consumed independently by the chat and settings renderer applications. It may depend on Vue,
+Sonner, and cross-process contracts, but it must not import any renderer application root, store,
+feature, or composition runtime. Each renderer bundle creates its own runtime instance; no
+in-memory singleton is shared across webContents.
+
 Renderer-local requests use a discriminated union:
 
 - simple success and information do not require invented keys or scopes;

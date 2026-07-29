@@ -5,7 +5,7 @@ import type {
   SurfaceFeedbackController,
   SurfaceFeedbackResult,
   SurfaceFeedbackSnapshot
-} from '../../../src/renderer/src/services/notifications/surfaceFeedbackController'
+} from '@renderer-notifications/surfaceFeedbackController'
 
 const systemPromptStore = vi.hoisted(() => ({
   prompts: [] as Array<Record<string, unknown>>,

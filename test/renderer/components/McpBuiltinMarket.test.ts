@@ -144,10 +144,10 @@ describe('McpBuiltinMarket', () => {
     vi.doMock('@api/McpClient', () => ({
       createMcpClient: () => mcpClient
     }))
-    vi.doMock('@/services/notifications/rendererNotificationRuntime', () => ({
+    vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
       createRendererSurfaceFeedbackController: createFeedbackController
     }))
-    vi.doMock('@/services/notifications/useSurfaceFeedback', () => ({
+    vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
       useSurfaceFeedback: (controller: object) => ({
         snapshot: feedbackBindings.get(controller),
         setActive: vi.fn()

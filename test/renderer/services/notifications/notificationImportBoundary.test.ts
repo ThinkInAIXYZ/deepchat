@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 const RENDERER_ROOT = 'src/renderer'
 const ALLOWED_VUE_SONNER_IMPORTERS = [
-  'src/renderer/src/services/notifications/NotificationHost.vue',
-  'src/renderer/src/services/notifications/sonnerNotificationPresenter.ts'
+  'src/renderer/services/notifications/NotificationHost.vue',
+  'src/renderer/services/notifications/sonnerNotificationPresenter.ts'
 ]
 const SOURCE_EXTENSIONS = new Set([
   '.cjs',
@@ -53,8 +53,10 @@ describe('notification import boundary', () => {
   })
 
   it('does not retain the legacy toast compatibility entry point', async () => {
-    const { existsSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compatibilityEntrypoints = (await listRendererSources()).filter((path) =>
+      /(?:^|\/)use-toast\.(?:[cm]?[jt]sx?|vue)$/.test(path)
+    )
 
-    expect(existsSync(resolve('src/renderer/src/components/use-toast.ts'))).toBe(false)
+    expect(compatibilityEntrypoints).toEqual([])
   })
 })

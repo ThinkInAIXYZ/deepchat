@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "apps": [
     {
       "id": "chat-main",
@@ -37,6 +37,15 @@
       "entryExists": true
     }
   ],
+  "sharedServices": [
+    {
+      "id": "notifications",
+      "root": "src/renderer/services/notifications",
+      "rootExists": true
+    }
+  ],
+  "sharedServiceToAppImports": [],
+  "sharedServiceToAppImportCount": 0,
   "browser": {
     "legacyDirectoryExists": false,
     "activeOverlayDirectory": "src/renderer/browser-overlay"
@@ -84,10 +93,6 @@
     },
     {
       "file": "src/renderer/settings/App.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/App.vue",
       "specifier": "@/stores/modelStore"
     },
     {
@@ -112,10 +117,6 @@
     },
     {
       "file": "src/renderer/settings/components/AboutUsSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/AboutUsSettings.vue",
       "specifier": "@/stores/language"
     },
     {
@@ -128,19 +129,7 @@
     },
     {
       "file": "src/renderer/settings/components/AcpDebugDialog.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/AcpDebugDialog.vue",
       "specifier": "@/stores/uiSettingsStore"
-    },
-    {
-      "file": "src/renderer/settings/components/AcpDependencyDialog.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/AcpProfileDialog.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/AcpSettings.vue",
@@ -153,14 +142,6 @@
     {
       "file": "src/renderer/settings/components/AcpSettings.vue",
       "specifier": "@/components/mcp-config/AgentMcpSelector.vue"
-    },
-    {
-      "file": "src/renderer/settings/components/AcpSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/AcpTerminalDialog.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/AddCustomModelButton.vue",
@@ -185,10 +166,6 @@
     {
       "file": "src/renderer/settings/components/BuiltinKnowledgeSettings.vue",
       "specifier": "@/components/ModelSelect.vue"
-    },
-    {
-      "file": "src/renderer/settings/components/BuiltinKnowledgeSettings.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/BuiltinKnowledgeSettings.vue",
@@ -232,10 +209,6 @@
     },
     {
       "file": "src/renderer/settings/components/common/PrivacySettingsSection.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/common/PrivacySettingsSection.vue",
       "specifier": "@/stores/uiSettingsStore"
     },
     {
@@ -249,14 +222,6 @@
     {
       "file": "src/renderer/settings/components/CommonSettings.vue",
       "specifier": "@/stores/uiSettingsStore"
-    },
-    {
-      "file": "src/renderer/settings/components/CronJobsSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/DataSettings.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/DataSettings.vue",
@@ -273,10 +238,6 @@
     {
       "file": "src/renderer/settings/components/DataSettings.vue",
       "specifier": "@/stores/sync"
-    },
-    {
-      "file": "src/renderer/settings/components/DebugSettings.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/DebugSettings.vue",
@@ -300,23 +261,11 @@
     },
     {
       "file": "src/renderer/settings/components/DeepChatAgentsSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/DeepChatAgentsSettings.vue",
       "specifier": "@/stores/modelStore"
     },
     {
       "file": "src/renderer/settings/components/DeepChatAgentsSettings.vue",
       "specifier": "@/stores/uiSettingsStore"
-    },
-    {
-      "file": "src/renderer/settings/components/DifyKnowledgeSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/DifyKnowledgeSettings.vue",
-      "specifier": "@/stores/mcp"
     },
     {
       "file": "src/renderer/settings/components/display/FontSettingsSection.vue",
@@ -344,19 +293,7 @@
     },
     {
       "file": "src/renderer/settings/components/EnvironmentsSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/EnvironmentsSettings.vue",
       "specifier": "@/stores/ui/project"
-    },
-    {
-      "file": "src/renderer/settings/components/FastGptKnowledgeSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/FastGptKnowledgeSettings.vue",
-      "specifier": "@/stores/mcp"
     },
     {
       "file": "src/renderer/settings/components/GeminiSafetyConfig.vue",
@@ -375,16 +312,8 @@
       "specifier": "@/stores/modelCheck"
     },
     {
-      "file": "src/renderer/settings/components/KnowledgeFile.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
       "file": "src/renderer/settings/components/KnowledgeFileItem.vue",
       "specifier": "@/lib/utils"
-    },
-    {
-      "file": "src/renderer/settings/components/McpBuiltinMarket.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/McpSettings.vue",
@@ -393,10 +322,6 @@
     {
       "file": "src/renderer/settings/components/McpSettings.vue",
       "specifier": "@/components/onboarding/GuidedOnboardingOverlay.vue"
-    },
-    {
-      "file": "src/renderer/settings/components/McpSettings.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/McpSettings.vue",
@@ -428,35 +353,7 @@
     },
     {
       "file": "src/renderer/settings/components/MemoryConfigInlinePanel.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/MemoryConfigInlinePanel.vue",
       "specifier": "@/stores/modelStore"
-    },
-    {
-      "file": "src/renderer/settings/components/MemoryDiagnosticsPanel.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/MemoryDirectivesPanel.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/MemoryInboxBar.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/MemoryInlinePanel.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/MemoryListView.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/MemoryPersonaPanel.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/ModelProviderSettings.vue",
@@ -515,14 +412,6 @@
       "specifier": "@/stores/uiSettingsStore"
     },
     {
-      "file": "src/renderer/settings/components/NotificationsHooksSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/NowledgeMemSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
       "file": "src/renderer/settings/components/OllamaProviderSettingsDetail.vue",
       "specifier": "@/components/settings/ModelConfigItem.vue"
     },
@@ -548,10 +437,6 @@
     },
     {
       "file": "src/renderer/settings/components/prompt/CustomPromptSettingsSection.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/prompt/CustomPromptSettingsSection.vue",
       "specifier": "@/lib/download"
     },
     {
@@ -560,23 +445,11 @@
     },
     {
       "file": "src/renderer/settings/components/prompt/PromptEditorSheet.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/prompt/PromptEditorSheet.vue",
       "specifier": "@/lib/utils"
     },
     {
       "file": "src/renderer/settings/components/prompt/SystemPromptSettingsSection.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/prompt/SystemPromptSettingsSection.vue",
       "specifier": "@/stores/systemPromptStore"
-    },
-    {
-      "file": "src/renderer/settings/components/ProviderApiConfig.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/ProviderApiConfig.vue",
@@ -607,22 +480,6 @@
       "specifier": "@/stores/uiSettingsStore"
     },
     {
-      "file": "src/renderer/settings/components/ProviderRateLimitConfig.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/RagflowKnowledgeSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/RagflowKnowledgeSettings.vue",
-      "specifier": "@/stores/mcp"
-    },
-    {
-      "file": "src/renderer/settings/components/RemoteSettings.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
       "file": "src/renderer/settings/components/SettingsOverview.vue",
       "specifier": "@/stores/modelStore"
     },
@@ -647,32 +504,12 @@
       "specifier": "@/stores/shortcutKey"
     },
     {
-      "file": "src/renderer/settings/components/skills/InstallFromGitDialog.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillAgentsTab.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillAgentsTab.vue",
-      "specifier": "@/stores/skillsStore"
-    },
-    {
       "file": "src/renderer/settings/components/skills/SkillDetailDialog.vue",
       "specifier": "@/components/markdown/MarkdownRenderer.vue"
     },
     {
       "file": "src/renderer/settings/components/skills/SkillFolderTree.vue",
       "specifier": "@/stores/skillsStore"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillImportExportTab.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillInstallDialog.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/skills/SkillInstallDialog.vue",
@@ -685,10 +522,6 @@
     {
       "file": "src/renderer/settings/components/skills/SkillsSettings.vue",
       "specifier": "@/components/onboarding/GuidedOnboardingOverlay.vue"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillsSettings.vue",
-      "specifier": "@/components/use-toast"
     },
     {
       "file": "src/renderer/settings/components/skills/SkillsSettings.vue",
@@ -719,13 +552,21 @@
       "specifier": "@/lib/onboardingResume"
     },
     {
+      "file": "src/renderer/settings/lib/useExternalKnowledgeConfigs.ts",
+      "specifier": "@/stores/mcp"
+    },
+    {
       "file": "src/renderer/settings/main.ts",
       "specifier": "../src/lib/iconLoader"
+    },
+    {
+      "file": "src/renderer/settings/main.ts",
+      "specifier": "@/assets/main.css"
     },
     {
       "file": "src/renderer/settings/main.ts",
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 171
+  "settingsToChatAppImportCount": 129
 }

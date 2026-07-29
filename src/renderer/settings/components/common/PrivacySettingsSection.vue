@@ -50,9 +50,9 @@ import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
 import { Switch } from '@shadcn/components/ui/switch'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@/services/notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const { t } = useI18n()

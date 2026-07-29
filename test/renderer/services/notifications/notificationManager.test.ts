@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { NotificationManager, type NotificationPresenter } from '@/services/notifications'
+import { NotificationManager, type NotificationPresenter } from '@renderer-notifications'
 import { FakeNotificationTime } from '../../../helpers/fakeNotificationTime'
 
 type Presentation = {

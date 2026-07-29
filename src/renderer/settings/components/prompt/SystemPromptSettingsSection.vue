@@ -165,11 +165,11 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import type { AcceptableValue } from 'reka-ui'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import type {
   SurfaceFeedbackController,
   SurfaceFeedbackSnapshot
-} from '@/services/notifications/surfaceFeedbackController'
+} from '@renderer-notifications/surfaceFeedbackController'
 import SystemPromptEditorSheet from './SystemPromptEditorSheet.vue'
 import { useSystemPromptStore } from '@/stores/systemPromptStore'
 import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'

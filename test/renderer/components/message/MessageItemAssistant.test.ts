@@ -24,7 +24,7 @@ vi.mock('@/stores/ui/memoryActivity', () => ({
   useMemoryActivityStore: () => memoryActivity
 }))
 
-vi.mock('@/services/notifications/rendererNotificationPort', () => ({
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
   notifyRenderer
 }))
 

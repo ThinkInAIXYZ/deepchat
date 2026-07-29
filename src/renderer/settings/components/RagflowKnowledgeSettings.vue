@@ -229,7 +229,7 @@ import {
   DialogDescription
 } from '@shadcn/components/ui/dialog'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import {
   Tooltip,
   TooltipContent,

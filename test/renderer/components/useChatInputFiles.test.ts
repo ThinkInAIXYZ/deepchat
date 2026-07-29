@@ -18,7 +18,7 @@ const { notifyMock, fileClient } = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@/services/notifications/rendererNotificationPort', () => ({
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
   notifyRenderer: notifyMock
 }))
 

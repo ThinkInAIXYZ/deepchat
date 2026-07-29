@@ -240,7 +240,7 @@ import {
 } from '@shadcn/components/ui/context-menu'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'
-import { notifyRenderer } from '@/services/notifications/rendererNotificationPort'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useMemoryActivityStore } from '@/stores/ui/memoryActivity'
 const props = defineProps<{
   message: DisplayAssistantMessage

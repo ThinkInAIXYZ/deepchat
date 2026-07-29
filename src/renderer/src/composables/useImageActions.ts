@@ -1,6 +1,6 @@
 import { createFileClient } from '@api/FileClient'
 import { useI18n } from 'vue-i18n'
-import { notifyRenderer } from '@/services/notifications/rendererNotificationPort'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 export type ImageActionSource = {
   source: string

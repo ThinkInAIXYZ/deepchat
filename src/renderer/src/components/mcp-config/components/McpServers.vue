@@ -24,7 +24,7 @@ import {
 } from '@shadcn/components/ui/sheet'
 import { useMcpStore } from '@/stores/mcp'
 import { useI18n } from 'vue-i18n'
-import { notifyRenderer } from '@/services/notifications/rendererNotificationPort'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useRouter } from 'vue-router'
 import McpServerCard from './McpServerCard.vue'
 import McpServerForm from '../McpServerForm.vue'

@@ -1,8 +1,8 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { nanoid } from 'nanoid'
-import { createRendererSurfaceFeedbackController } from '@/services/notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 
 export type KnowledgeConfigOperationSource = 'dialog' | 'panel'
 

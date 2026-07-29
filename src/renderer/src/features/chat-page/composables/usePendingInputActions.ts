@@ -1,6 +1,6 @@
 import type { ComputedRef } from 'vue'
 import type { usePendingInputStore } from '@/stores/ui/pendingInput'
-import type { RendererNotificationNotifier } from '@/services/notifications/rendererNotificationPort'
+import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
 
 type PendingInputStore = ReturnType<typeof usePendingInputStore>
 

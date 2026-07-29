@@ -199,10 +199,10 @@ async function setup(options: SetupOptions = {}) {
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: () => sessionClient
   }))
-  vi.doMock('@/services/notifications/rendererNotificationRuntime', () => ({
+  vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
     createRendererSurfaceFeedbackController: () => feedbackController
   }))
-  vi.doMock('@/services/notifications/useSurfaceFeedback', () => ({
+  vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
     useSurfaceFeedback: () => ({
       snapshot: feedbackSnapshot,
       setActive: vi.fn()

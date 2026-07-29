@@ -197,11 +197,11 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { Label } from '@shadcn/components/ui/label'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import type {
   SurfaceFeedbackController,
   SurfaceFeedbackSnapshot
-} from '@/services/notifications/surfaceFeedbackController'
+} from '@renderer-notifications/surfaceFeedbackController'
 import { usePromptsStore } from '@/stores/prompts'
 import PromptEditorSheet from './PromptEditorSheet.vue'
 import type { Prompt } from '@shared/types/prompt'

@@ -270,7 +270,7 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
-import { notifyRenderer } from '@/services/notifications/rendererNotificationPort'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 defineOptions({
   inheritAttrs: false

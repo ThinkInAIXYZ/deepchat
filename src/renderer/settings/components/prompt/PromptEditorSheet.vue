@@ -293,10 +293,10 @@ import {
   SheetHeader,
   SheetTitle
 } from '@shadcn/components/ui/sheet'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@/services/notifications/rendererNotificationRuntime'
-import type { SurfaceFeedbackSnapshot } from '@/services/notifications/surfaceFeedbackController'
-import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import type { SurfaceFeedbackSnapshot } from '@renderer-notifications/surfaceFeedbackController'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import { createFileClient } from '@api/FileClient'
 import { MessageFile } from '@shared/chat'
 import { getMimeTypeIcon } from '@/lib/utils'

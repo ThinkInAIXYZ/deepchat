@@ -328,7 +328,7 @@ import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOve
 import MemoryTurnDialog from '@/components/chat/MemoryTurnDialog.vue'
 import MemoryUpdateChip from '@/components/chat/MemoryUpdateChip.vue'
 import TraceDialog from '@/components/trace/TraceDialog.vue'
-import { notifyRenderer } from '@/services/notifications/rendererNotificationPort'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { createChatClient } from '../../../api/ChatClient'
 import { createModelClient } from '@api/ModelClient'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'

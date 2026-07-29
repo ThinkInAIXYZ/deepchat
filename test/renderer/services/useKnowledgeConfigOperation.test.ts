@@ -31,10 +31,10 @@ async function setup() {
     })
   }
 
-  vi.doMock('@/services/notifications/rendererNotificationRuntime', () => ({
+  vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
     createRendererSurfaceFeedbackController: () => controller
   }))
-  vi.doMock('@/services/notifications/useSurfaceFeedback', () => ({
+  vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
     useSurfaceFeedback: () => ({
       snapshot,
       setActive: vi.fn()

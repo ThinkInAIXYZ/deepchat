@@ -228,8 +228,8 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
-import type { SurfaceFeedbackSnapshot } from '@/services/notifications/surfaceFeedbackController'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import type { SurfaceFeedbackSnapshot } from '@renderer-notifications/surfaceFeedbackController'
 import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const props = withDefaults(

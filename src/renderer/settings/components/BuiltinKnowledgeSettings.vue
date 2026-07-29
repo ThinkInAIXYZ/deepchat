@@ -631,7 +631,7 @@ import {
 } from '@shadcn/components/ui/accordion'
 import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { useMcpStore } from '@/stores/mcp'

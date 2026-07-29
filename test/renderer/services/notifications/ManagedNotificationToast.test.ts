@@ -1,8 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import ManagedNotificationToast from '@/services/notifications/ManagedNotificationToast.vue'
-import { ObservableNotificationRecord } from '@/services/notifications'
+import ManagedNotificationToast from '@renderer-notifications/ManagedNotificationToast.vue'
+import { ObservableNotificationRecord } from '@renderer-notifications'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({

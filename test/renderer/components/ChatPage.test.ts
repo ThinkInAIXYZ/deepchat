@@ -303,7 +303,7 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
   }))
-  vi.doMock('@/services/notifications/rendererNotificationPort', () => ({
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
     notifyRenderer: notify
   }))
   vi.doMock('@/stores/ui/spotlight', () => ({

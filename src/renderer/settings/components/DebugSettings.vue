@@ -96,9 +96,9 @@ import { createDebugClient } from '@api/DebugClient'
 import { createUpgradeClient } from '@api/UpgradeClient'
 import { createWindowClient } from '@api/WindowClient'
 import { useUpgradeStore } from '@/stores/upgrade'
-import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@/services/notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const { t } = useI18n()

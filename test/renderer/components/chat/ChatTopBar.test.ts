@@ -53,7 +53,7 @@ vi.mock('@/stores/ui/sidepanel', () => ({
 vi.mock('@/stores/ui/sidebar', () => ({
   useSidebarStore: () => stores.sidebar
 }))
-vi.mock('@/services/notifications/rendererNotificationPort', () => ({
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
   notifyRenderer
 }))
 vi.mock('vue-i18n', () => ({

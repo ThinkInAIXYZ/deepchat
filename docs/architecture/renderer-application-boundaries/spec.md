@@ -82,6 +82,9 @@ src/renderer/src/
 - `features` 可以依赖 `api`、跨进程 contracts、`platform` 与 `foundation`，不得 import 另一个 app 的 composition root。
 - `platform` 不得 import feature UI；`foundation` 不得 import Vue、Pinia、IPC 或 feature/app 模块。
 - `renderer/api/*Client` 是唯一 transport adapter；不得新增 `platform/bridge/*` 或按业务领域转发所有 client 的 facade。
+- `src/renderer/services/*` 仅承载两个及以上 renderer app 真正共享的 renderer-only
+  implementation；必须通过窄 alias 暴露，且不得反向 import 任一 app root、store、feature
+  或 composition runtime。每个 webContents 仍创建自己的模块实例，不共享运行时单例。
 - 每个 app 创建自己的 Pinia/plugin 实例。可共享 store 定义、types 与 pure utilities，不可共享运行中的 store 实例。
 - settings → chat-app 的既有直接 import 是批准的历史基线；Phase 0 后不得新增，后续仅能减少或用明确 contract 替换。
 
