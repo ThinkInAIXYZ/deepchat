@@ -82,9 +82,6 @@ describe('KnowledgeFile', () => {
     vi.doMock('@api/FileClient', () => ({
       createFileClient: () => fileClient
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      toast: vi.fn()
-    }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
         t: (key: string) => key

@@ -19,8 +19,7 @@ const mocks = vi.hoisted(() => ({
   deviceClient: {
     selectDirectory: vi.fn(),
     selectFiles: vi.fn()
-  },
-  toast: vi.fn()
+  }
 }))
 
 vi.mock('@api/SkillClient', () => ({
@@ -33,10 +32,6 @@ vi.mock('@api/DeviceClient', () => ({
 
 vi.mock('@api/FileClient', () => ({
   createFileClient: () => ({ getPathForFile: vi.fn() })
-}))
-
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({ toast: mocks.toast })
 }))
 
 vi.mock('vue-i18n', () => ({

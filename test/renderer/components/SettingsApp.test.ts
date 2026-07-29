@@ -251,12 +251,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     const wrapper = mount(SettingsApp, {
       global: {
@@ -488,12 +482,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     const wrapper = mount(SettingsApp, {
       global: {
@@ -703,12 +691,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
@@ -908,12 +890,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
@@ -1128,12 +1104,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
@@ -1344,12 +1314,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
@@ -1487,10 +1451,6 @@ describe('Settings App', () => {
       useI18n: () => ({ t: (key: string) => key, locale })
     }))
     vi.doMock('@iconify/vue', () => ({ Icon: { name: 'Icon', template: '<span />' } }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn(() => ({ dismiss: vi.fn() })) })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     const wrapper = mount(SettingsApp, {
       global: {

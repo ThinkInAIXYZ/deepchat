@@ -194,9 +194,6 @@ describe('skill sync settings components', () => {
     vi.doMock('@api/SkillSyncClient', () => ({
       createSkillSyncClient: () => skillSyncClient
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
-    }))
     vi.doMock('@/stores/skillsStore', () => ({
       useSkillsStore: () => ({ loadSkills })
     }))
@@ -304,9 +301,6 @@ describe('skill sync settings components', () => {
     vi.doMock('@api/SkillSyncClient', () => ({
       createSkillSyncClient: () => skillSyncClient
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
-    }))
     vi.doMock('@/stores/skillsStore', () => ({
       useSkillsStore: () => ({ loadSkills: vi.fn() })
     }))
@@ -411,13 +405,9 @@ describe('skill sync settings components', () => {
       scanAgents: vi.fn().mockResolvedValueOnce([agent]).mockResolvedValueOnce([afterAgent]),
       getAgentDetail: vi.fn().mockResolvedValueOnce(beforeDetail).mockResolvedValueOnce(afterDetail)
     }
-    const toast = vi.fn()
     const loadSkills = vi.fn().mockResolvedValue(undefined)
     vi.doMock('@api/SkillSyncClient', () => ({
       createSkillSyncClient: () => skillSyncClient
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast })
     }))
     vi.doMock('@/stores/skillsStore', () => ({
       useSkillsStore: () => ({ loadSkills })
@@ -465,7 +455,6 @@ describe('skill sync settings components', () => {
     expect(adoptButton).toBeUndefined()
     expect(skillSyncClient.scanAgents).toHaveBeenCalledOnce()
     expect(loadSkills).not.toHaveBeenCalled()
-    expect(toast).not.toHaveBeenCalled()
   })
 
   it('renders skill detail markdown without frontmatter', async () => {
@@ -705,12 +694,8 @@ describe('skill sync settings components', () => {
       }),
       installFromGit: vi.fn().mockResolvedValue([{ success: true, skillName: 'guizang-ppt-skill' }])
     }
-    const toast = vi.fn()
     vi.doMock('@api/SkillClient', () => ({
       createSkillClient: () => skillClient
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast })
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -931,9 +916,6 @@ describe('skill sync settings components', () => {
         selectDirectory: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] })
       })
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
-    }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
         t: (key: string, params?: Record<string, unknown>) =>
@@ -1137,9 +1119,6 @@ describe('skill sync settings components', () => {
     vi.doMock('@api/ProjectClient', () => ({
       createProjectClient: () => projectClient
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
-    }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
         t: (key: string) => key
@@ -1321,9 +1300,6 @@ describe('skill sync settings components', () => {
     }))
     vi.doMock('@api/ProjectClient', () => ({
       createProjectClient: () => projectClient
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
