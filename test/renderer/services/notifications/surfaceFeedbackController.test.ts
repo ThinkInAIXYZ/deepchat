@@ -157,6 +157,37 @@ describe('SurfaceFeedbackController', () => {
     expect(controller.getSnapshot().status).toBe('success')
   })
 
+  it('rechecks inline availability after notification creation starts', () => {
+    const time = new FakeNotificationTime()
+    const visibility = new FakeSurfaceVisibility()
+    const dismiss = vi.fn()
+    let controller: SurfaceFeedbackController
+    const notify = vi.fn(() => {
+      controller.acquireLease()
+      return { dismiss }
+    })
+    controller = new SurfaceFeedbackController({
+      clock: time,
+      scheduler: time,
+      operations: new OperationRegistry(time),
+      operationOwner: { process: 'renderer', rendererId: 'settings' },
+      notifications: { notify },
+      visibility
+    })
+
+    controller.begin('settings.agent.save', 'Saving')
+    controller.fail({
+      code: 'settings.agent.saveFailed',
+      title: 'Save failed'
+    })
+    time.advanceBy(200)
+
+    expect(notify).toHaveBeenCalledOnce()
+    expect(dismiss).toHaveBeenCalledOnce()
+    expect(dismiss).toHaveBeenCalledWith('surface-reclaimed')
+    expect(controller.getSnapshot().status).toBe('error')
+  })
+
   it('hands terminal feedback off once and lets inline reclaim it', () => {
     const { controller, presentations, time } = createHarness()
     const lease = controller.acquireLease()

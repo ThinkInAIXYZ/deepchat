@@ -75,6 +75,43 @@ describe('ManagedNotificationToast', () => {
     expect(wrapper.findAll('.notification-toast__detail')).toHaveLength(1)
   })
 
+  it('keeps bounded geometry while localized copy and counters grow', async () => {
+    const record = createRecord({
+      kind: 'actionable',
+      title: 'A'.repeat(180),
+      description: 'B'.repeat(240),
+      occurrenceCount: 9,
+      pendingCount: 9,
+      action: {
+        label: 'C'.repeat(120),
+        onClick: vi.fn()
+      }
+    })
+    const { wrapper } = mountToast(record)
+    const root = wrapper.get('.notification-toast')
+    const rootElement = root.element
+
+    record.patch({
+      title: 'D'.repeat(360),
+      description: 'E'.repeat(480),
+      occurrenceCount: 1_000,
+      entityCount: 1_000,
+      pendingCount: 1_000
+    })
+    await nextTick()
+
+    expect(root.element).toBe(rootElement)
+    expect(wrapper.findAll('.notification-toast__title')).toHaveLength(1)
+    expect(wrapper.findAll('.notification-toast__detail')).toHaveLength(1)
+    expect(wrapper.get('.notification-toast__count').text()).toBe('×99+')
+    expect(wrapper.get('.notification-toast__pending').text()).toBe('+99+')
+    expect(wrapper.get('.notification-toast__title').attributes('title')).toBe('D'.repeat(360))
+    expect(wrapper.get('.notification-toast__detail-text').attributes('title')).toBe(
+      'E'.repeat(480)
+    )
+    expect(wrapper.get('.notification-toast__action').attributes('title')).toBe('C'.repeat(120))
+  })
+
   it('closes only after an actionable callback succeeds', async () => {
     const action = {
       label: 'Repair',
