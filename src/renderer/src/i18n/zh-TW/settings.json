@@ -2638,7 +2638,21 @@
       "safe_storage_unavailable": "系統安全金鑰儲存不可用，持久化快取已停用。"
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "變更尚未儲存",
+    "dirtyDescription": "現在離開並放棄這些變更嗎？",
+    "busyTitle": "正在儲存",
+    "busyDescription": "請等待儲存完成後再離開。",
+    "stay": "繼續編輯",
+    "discard": "放棄變更"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "正在儲存…",
+      "saved": "已儲存",
+      "saveFailed": "儲存失敗，變更仍保留",
+      "retry": "重試"
+    },
     "title": "DeepChat 智能體",
     "description": "管理 DeepChat 智能體，以及它們為新會話帶入的預設值。",
     "builtIn": "內建",

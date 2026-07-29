@@ -33,9 +33,9 @@
 - [x] Add generation-safe Surface Lease handoff.
 - [x] Pause inline success fade while the document is hidden.
 - [x] Add the inline operation feedback component/controller.
-- [ ] Add Agent settings pending, success, persistent failure, and retry states.
-- [ ] Derive Agent dirty state from canonical editable data.
-- [ ] Guard route and window close for dirty or in-flight Agent data.
+- [x] Add Agent settings pending, success, persistent failure, and retry states.
+- [x] Derive Agent dirty state from canonical editable data.
+- [x] Guard route and window close for dirty or in-flight Agent data.
 - [ ] Test handoff races, reclamation, hidden-document timing, and close behavior.
 
 ## Main Router and semantic producers

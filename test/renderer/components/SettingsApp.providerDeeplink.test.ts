@@ -3,6 +3,13 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, reactive, ref } from 'vue'
 import { SETTINGS_EVENTS } from '@/events'
 
+vi.mock('../../../src/renderer/settings/components/SettingsLeaveGuardDialog.vue', () => ({
+  default: defineComponent({
+    name: 'SettingsLeaveGuardDialog',
+    template: '<div />'
+  })
+}))
+
 vi.mock('@api/DeviceClient', () => ({
   createDeviceClient: () => ({
     getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
@@ -72,6 +79,7 @@ const mountSettingsApp = async (options?: {
     isReady: vi.fn().mockResolvedValue(undefined),
     push,
     replace: vi.fn().mockResolvedValue(undefined),
+    beforeEach: vi.fn(() => vi.fn()),
     getRoutes: vi.fn(() => [
       {
         path: '/common',

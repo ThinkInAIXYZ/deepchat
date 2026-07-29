@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Bộ nhớ đệm lâu dài không khả dụng vì không có kho khóa an toàn."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Thay đổi chưa lưu",
+    "dirtyDescription": "Rời đi và bỏ các thay đổi?",
+    "busyTitle": "Đang lưu",
+    "busyDescription": "Hãy chờ lưu xong trước khi rời đi.",
+    "stay": "Tiếp tục chỉnh sửa",
+    "discard": "Bỏ thay đổi"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Đang lưu…",
+      "saved": "Đã lưu",
+      "saveFailed": "Không thể lưu. Các thay đổi vẫn được giữ.",
+      "retry": "Thử lại"
+    },
     "title": "DeepChat Agent",
     "description": "Quản lý các tác nhân DeepChat và các giá trị mặc định mà chúng đưa vào các phiên mới.",
     "builtIn": "Tích hợp sẵn",

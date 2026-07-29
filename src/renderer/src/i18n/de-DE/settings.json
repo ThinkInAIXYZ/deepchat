@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Der persistente Cache ist nicht verfügbar, weil keine sichere Schlüsselspeicherung verfügbar ist."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Nicht gespeicherte Änderungen",
+    "dirtyDescription": "Jetzt verlassen und Änderungen verwerfen?",
+    "busyTitle": "Speichern läuft",
+    "busyDescription": "Warten Sie vor dem Verlassen, bis das Speichern abgeschlossen ist.",
+    "stay": "Weiter bearbeiten",
+    "discard": "Änderungen verwerfen"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Wird gespeichert…",
+      "saved": "Gespeichert",
+      "saveFailed": "Speichern fehlgeschlagen. Änderungen bleiben erhalten.",
+      "retry": "Erneut versuchen"
+    },
     "title": "DeepChat Agents",
     "description": "DeepChat Agent und ihre Standardwerte für neue Sitzungen verwalten.",
     "builtIn": "Integriert",

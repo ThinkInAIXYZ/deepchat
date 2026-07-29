@@ -2638,7 +2638,21 @@
       "safe_storage_unavailable": "Le cache persistant est indisponible, car aucun stockage sécurisé des clés n’est disponible."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Modifications non enregistrées",
+    "dirtyDescription": "Quitter et abandonner vos modifications ?",
+    "busyTitle": "Enregistrement en cours",
+    "busyDescription": "Attendez la fin de l’enregistrement avant de quitter.",
+    "stay": "Continuer",
+    "discard": "Abandonner"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Enregistrement…",
+      "saved": "Enregistré",
+      "saveFailed": "Échec de l’enregistrement. Modifications conservées.",
+      "retry": "Réessayer"
+    },
     "title": "Agents DeepChat",
     "description": "Gérez les agents DeepChat et les valeurs par défaut qu'ils injectent dans les nouvelles sessions.",
     "builtIn": "Intégré",

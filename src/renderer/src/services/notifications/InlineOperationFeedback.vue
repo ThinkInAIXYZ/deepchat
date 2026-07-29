@@ -74,7 +74,8 @@ const accessibleLabel = computed(() => {
 <style scoped>
 .inline-operation-feedback {
   display: inline-flex;
-  max-width: min(360px, 45vw);
+  max-width: min(360px, 100%);
+  min-width: 0;
   min-height: 20px;
   align-items: center;
   gap: 6px;

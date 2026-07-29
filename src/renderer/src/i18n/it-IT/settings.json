@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "La cache persistente non è disponibile perché non è disponibile l’archiviazione sicura delle chiavi."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Modifiche non salvate",
+    "dirtyDescription": "Uscire e scartare le modifiche?",
+    "busyTitle": "Salvataggio in corso",
+    "busyDescription": "Attendi il completamento del salvataggio prima di uscire.",
+    "stay": "Continua a modificare",
+    "discard": "Scarta modifiche"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Salvataggio…",
+      "saved": "Salvato",
+      "saveFailed": "Salvataggio non riuscito. Le modifiche sono state mantenute.",
+      "retry": "Riprova"
+    },
     "title": "DeepChat Agents",
     "description": "Gestisci DeepChat Agent e i valori predefiniti per le nuove sessioni.",
     "builtIn": "Integrato",

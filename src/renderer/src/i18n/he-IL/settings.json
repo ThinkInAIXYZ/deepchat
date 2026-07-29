@@ -2638,7 +2638,21 @@
       "safe_storage_unavailable": "המטמון המתמשך אינו זמין משום שאין אחסון מאובטח למפתחות."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "שינויים שלא נשמרו",
+    "dirtyDescription": "לצאת ולבטל את השינויים?",
+    "busyTitle": "השמירה מתבצעת",
+    "busyDescription": "יש להמתין לסיום השמירה לפני היציאה.",
+    "stay": "להמשיך לערוך",
+    "discard": "לבטל שינויים"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "שומר…",
+      "saved": "נשמר",
+      "saveFailed": "השמירה נכשלה. השינויים לא אבדו.",
+      "retry": "נסה שוב"
+    },
     "title": "סוכני DeepChat",
     "description": "נהלו את סוכני DeepChat ואת הברירות שהם מחילים על שיחות חדשות.",
     "builtIn": "מובנה",

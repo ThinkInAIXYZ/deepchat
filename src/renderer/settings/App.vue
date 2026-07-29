@@ -83,6 +83,7 @@
         @update:open="handleProviderImportDialogOpenChange"
         @confirm="confirmProviderImport"
       />
+      <SettingsLeaveGuardDialog />
       <NotificationHost surface="settings" :theme="toasterTheme" :dir="languageStore.dir" />
     </div>
   </TooltipProvider>
@@ -122,6 +123,8 @@ import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchem
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
+import SettingsLeaveGuardDialog from './components/SettingsLeaveGuardDialog.vue'
+import { settingsLeaveGuard } from './services/settingsLeaveGuard'
 import { nanoid } from 'nanoid'
 import {
   getSettingsNavigationGroups,
@@ -181,6 +184,7 @@ const { isMacOS, isWinMacOS } = useDeviceVersion()
 const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
+const removeSettingsRouteGuard = router.beforeEach(() => settingsLeaveGuard.requestLeave())
 const title = useTitle()
 const pendingProviderImportPreview = computed(() => providerDeeplinkImportStore.preview)
 const pendingProviderImportToken = computed(() => providerDeeplinkImportStore.previewToken)
@@ -735,9 +739,39 @@ onMounted(async () => {
 // Same focus handler as before; VueUse manages lifecycle cleanup.
 useEventListener(window, 'focus', handleWindowFocus)
 
-const closeWindow = async () => {
-  await windowClient.closeSettings()
+const performWindowClose = async () => {
+  try {
+    await windowClient.closeSettings()
+  } catch (error) {
+    console.error('[Settings] Failed to close settings window:', error)
+  }
 }
+
+const closeWindow = async () => {
+  if (await settingsLeaveGuard.requestLeave()) {
+    await performWindowClose()
+  }
+}
+
+let nativeCloseRetryPending = false
+const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+  if (!settingsLeaveGuard.isBlocking()) return
+
+  event.preventDefault()
+  event.returnValue = false
+  if (nativeCloseRetryPending) return
+
+  nativeCloseRetryPending = true
+  void settingsLeaveGuard
+    .requestLeave()
+    .then((allowed) => {
+      if (allowed) void performWindowClose()
+    })
+    .finally(() => {
+      nativeCloseRetryPending = false
+    })
+}
+useEventListener(window, 'beforeunload', handleBeforeUnload)
 
 onBeforeUnmount(() => {
   if (errorDisplayTimer.value) {
@@ -747,6 +781,7 @@ onBeforeUnmount(() => {
 
   cleanupSettingsNavigate()
   cleanupSettingsProviderInstall()
+  removeSettingsRouteGuard()
   settingsEventCleanups.splice(0).forEach((cleanup) => cleanup())
   cleanupMcpDeeplink()
 })

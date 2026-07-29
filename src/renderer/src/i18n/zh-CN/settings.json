@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "系统安全密钥存储不可用，持久化缓存已停用。"
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "修改尚未保存",
+    "dirtyDescription": "现在离开并放弃这些修改吗？",
+    "busyTitle": "正在保存",
+    "busyDescription": "请等待保存完成后再离开。",
+    "stay": "继续编辑",
+    "discard": "放弃修改"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "正在保存…",
+      "saved": "已保存",
+      "saveFailed": "保存失败，修改仍保留",
+      "retry": "重试"
+    },
     "title": "DeepChat Agents",
     "description": "管理 DeepChat Agent 以及它们的新会话默认值。",
     "builtIn": "内置",

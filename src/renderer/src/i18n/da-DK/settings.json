@@ -2638,7 +2638,21 @@
       "safe_storage_unavailable": "Den vedvarende cache er utilgængelig, fordi sikker nøglelagring ikke er tilgængelig."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Ikke-gemte ændringer",
+    "dirtyDescription": "Forlad siden og kassér ændringerne?",
+    "busyTitle": "Gemmer",
+    "busyDescription": "Vent på, at lagringen bliver færdig, før du forlader siden.",
+    "stay": "Fortsæt redigering",
+    "discard": "Kassér ændringer"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Gemmer…",
+      "saved": "Gemt",
+      "saveFailed": "Kunne ikke gemme. Ændringerne er bevaret.",
+      "retry": "Prøv igen"
+    },
     "title": "DeepChat-agenter",
     "description": "Administrer DeepChat-agenter og de standardværdier, de bruger i nye sessioner.",
     "builtIn": "Indbygget",

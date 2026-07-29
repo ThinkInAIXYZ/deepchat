@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Cache berterusan tidak tersedia kerana storan kunci selamat tidak tersedia."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Perubahan belum disimpan",
+    "dirtyDescription": "Keluar dan buang perubahan?",
+    "busyTitle": "Sedang menyimpan",
+    "busyDescription": "Tunggu sehingga simpanan selesai sebelum keluar.",
+    "stay": "Teruskan mengedit",
+    "discard": "Buang perubahan"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Menyimpan…",
+      "saved": "Disimpan",
+      "saveFailed": "Tidak dapat menyimpan. Perubahan dikekalkan.",
+      "retry": "Cuba lagi"
+    },
     "title": "DeepChat Agents",
     "description": "Urus DeepChat Agent dan lalai sesi baharu mereka.",
     "builtIn": "terbina dalam",

@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Cache persisten tidak tersedia karena penyimpanan kunci aman tidak tersedia."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Perubahan belum disimpan",
+    "dirtyDescription": "Keluar dan buang perubahan?",
+    "busyTitle": "Sedang menyimpan",
+    "busyDescription": "Tunggu hingga penyimpanan selesai sebelum keluar.",
+    "stay": "Lanjutkan mengedit",
+    "discard": "Buang perubahan"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Menyimpan…",
+      "saved": "Tersimpan",
+      "saveFailed": "Tidak dapat menyimpan. Perubahan tetap dipertahankan.",
+      "retry": "Coba lagi"
+    },
     "title": "DeepChat Agents",
     "description": "Kelola DeepChat Agent dan default sesi barunya.",
     "builtIn": "Bawaan",

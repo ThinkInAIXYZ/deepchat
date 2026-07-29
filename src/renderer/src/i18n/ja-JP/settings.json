@@ -2638,7 +2638,21 @@
       "safe_storage_unavailable": "安全な鍵ストレージを利用できないため、永続キャッシュを利用できません。"
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "未保存の変更",
+    "dirtyDescription": "変更を破棄して移動しますか？",
+    "busyTitle": "保存中",
+    "busyDescription": "保存が完了してから移動してください。",
+    "stay": "編集を続ける",
+    "discard": "変更を破棄"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "保存中…",
+      "saved": "保存しました",
+      "saveFailed": "保存できませんでした。変更は保持されています。",
+      "retry": "再試行"
+    },
     "title": "DeepChatエージェント",
     "description": "DeepChatエージェントと、新しいセッションに適用する既定値を管理します。",
     "builtIn": "内蔵",

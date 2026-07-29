@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Trwała pamięć podręczna jest niedostępna, ponieważ bezpieczny magazyn kluczy nie jest dostępny."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Niezapisane zmiany",
+    "dirtyDescription": "Opuścić stronę i odrzucić zmiany?",
+    "busyTitle": "Zapisywanie w toku",
+    "busyDescription": "Poczekaj na zakończenie zapisywania.",
+    "stay": "Kontynuuj edycję",
+    "discard": "Odrzuć zmiany"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Zapisywanie…",
+      "saved": "Zapisano",
+      "saveFailed": "Nie udało się zapisać. Zmiany zachowano.",
+      "retry": "Spróbuj ponownie"
+    },
     "title": "DeepChat Agent",
     "description": "Zarządzaj agentami DeepChat i ustawieniami domyślnymi, które wprowadzają do nowych sesji.",
     "builtIn": "Wbudowany",
