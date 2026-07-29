@@ -85,9 +85,7 @@ async function setup() {
     }),
     rejectDirective: vi.fn().mockResolvedValue({ ...draft, status: 'rejected' })
   }
-  const toast = vi.fn()
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
-  vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       t: (key: string, params?: Record<string, unknown>) =>
@@ -108,7 +106,7 @@ async function setup() {
     global: { stubs }
   })
   await flushPromises()
-  return { wrapper, memoryClient, toast }
+  return { wrapper, memoryClient }
 }
 
 describe('MemoryInboxBar directives', () => {
@@ -135,6 +133,8 @@ describe('MemoryInboxBar directives', () => {
 
     await approve.trigger('click')
     await flushPromises()
+    await approve.trigger('click')
+    expect(memoryClient.approveDirective).toHaveBeenCalledOnce()
     memoryClient.listDirectives.mockReturnValueOnce(stale.promise)
     const refresh = wrapper
       .findAll('button')
@@ -157,7 +157,7 @@ describe('MemoryInboxBar directives', () => {
   })
 
   it('keeps a draft visible and explains capacity rejection', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
+    const { wrapper, memoryClient } = await setup()
     memoryClient.approveDirective.mockResolvedValueOnce({
       action: 'rejected',
       directive: null,
@@ -172,15 +172,14 @@ describe('MemoryInboxBar directives', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Do not proactively mention Project X.')
-    expect(toast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      title: 'settings.memory.redesign.directiveCapacityTitle',
-      description: `settings.memory.redesign.directiveCapacityDescription:{"max":${AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT}}`
-    })
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('error')
+    expect(feedback.text()).toContain('settings.memory.redesign.directiveCapacityTitle')
+    expect(feedback.text()).toContain(String(AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT))
   })
 
   it('keeps persona results available when directive loading fails', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
+    const { wrapper, memoryClient } = await setup()
     memoryClient.listPersonaDrafts.mockResolvedValueOnce([personaDraft()])
     memoryClient.listDirectives.mockRejectedValueOnce(new Error('directive read failed'))
 
@@ -192,6 +191,8 @@ describe('MemoryInboxBar directives', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Proposed persona content')
-    expect(toast).toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
+      'error'
+    )
   })
 })

@@ -23,11 +23,18 @@
           {{ t('settings.memory.redesign.inboxDescription') }}
         </p>
       </div>
-      <Button variant="ghost" size="sm" class="h-8 text-xs" :disabled="loading" @click="load">
+      <Button variant="ghost" size="sm" class="h-8 text-xs" :disabled="loading" @click="refresh">
         <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
         {{ t('settings.memory.redesign.refresh') }}
       </Button>
     </div>
+
+    <MemoryInlineFeedback
+      v-if="feedback"
+      class="mt-3"
+      :feedback="feedback"
+      @clear="clearFeedback"
+    />
 
     <div v-if="loading" class="mt-3 py-4 text-center text-xs text-muted-foreground">
       {{ t('common.loading') }}
@@ -62,6 +69,7 @@
               variant="outline"
               size="sm"
               class="h-8 text-xs"
+              :disabled="pendingConflictIds.has(conflict.challenger.id)"
               @click="resolveConflict(conflict.challenger.id, 'keep_target')"
             >
               {{ t('settings.deepchatAgents.memoryManager.keepTarget') }}
@@ -70,6 +78,7 @@
               variant="outline"
               size="sm"
               class="h-8 text-xs"
+              :disabled="pendingConflictIds.has(conflict.challenger.id)"
               @click="resolveConflict(conflict.challenger.id, 'keep_challenger')"
             >
               {{ t('settings.deepchatAgents.memoryManager.keepChallenger') }}
@@ -77,6 +86,7 @@
             <Button
               size="sm"
               class="h-8 text-xs"
+              :disabled="pendingConflictIds.has(conflict.challenger.id)"
               @click="resolveConflict(conflict.challenger.id, 'keep_both')"
             >
               {{ t('settings.deepchatAgents.memoryManager.keepBoth') }}
@@ -119,10 +129,21 @@
             </div>
           </div>
           <div class="mt-3 flex justify-end gap-2">
-            <Button variant="outline" size="sm" class="h-8 text-xs" @click="rejectDraft(draft.id)">
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-8 text-xs"
+              :disabled="pendingPersonaIds.has(draft.id)"
+              @click="rejectDraft(draft.id)"
+            >
               {{ t('settings.deepchatAgents.memoryManager.reject') }}
             </Button>
-            <Button size="sm" class="h-8 text-xs" @click="approveDraft(draft.id)">
+            <Button
+              size="sm"
+              class="h-8 text-xs"
+              :disabled="pendingPersonaIds.has(draft.id)"
+              @click="approveDraft(draft.id)"
+            >
               {{ t('settings.deepchatAgents.memoryManager.approve') }}
             </Button>
           </div>
@@ -186,14 +207,11 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
-import { useToast } from '@/components/use-toast'
 import { createMemoryClient } from '@api/MemoryClient'
 import type { MemoryConflictItem, MemoryDirectiveItem, MemoryItem } from '@shared/contracts/routes'
 import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@shared/types/agent-memory'
-import {
-  notifyMemoryActionFailed,
-  notifyMemoryDirectiveCommandRejected
-} from './memoryRedesignUtils'
+import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
+import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
 
 const props = defineProps<{
   agentId: string
@@ -204,14 +222,18 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const { toast } = useToast()
 const memoryClient = createMemoryClient()
+const panelFeedback = useMemoryInlineFeedback('MemoryInboxBar')
+const feedback = panelFeedback.feedback
+const clearFeedback = panelFeedback.clear
 
 const loading = ref(false)
 const conflicts = ref<MemoryConflictItem[]>([])
 const drafts = ref<MemoryItem[]>([])
 const versions = ref<MemoryItem[]>([])
 const directiveDrafts = ref<MemoryDirectiveItem[]>([])
+const pendingConflictIds = ref<ReadonlySet<string>>(new Set())
+const pendingPersonaIds = ref<ReadonlySet<string>>(new Set())
 const directivePendingIds = ref<ReadonlySet<string>>(new Set())
 let requestId = 0
 let loadedAgentId = ''
@@ -236,10 +258,6 @@ const activePersonaContent = computed<string | null>(() => {
   return active?.content ?? null
 })
 
-function notifyFailed(error?: unknown): void {
-  notifyMemoryActionFailed(toast, t, error)
-}
-
 async function load(): Promise<void> {
   const agentId = props.agentId
   if (!agentId || !visible.value) return
@@ -250,6 +268,8 @@ async function load(): Promise<void> {
     drafts.value = []
     versions.value = []
     directiveDrafts.value = []
+    pendingConflictIds.value = new Set()
+    pendingPersonaIds.value = new Set()
     directivePendingIds.value = new Set()
   }
   const current = ++requestId
@@ -288,38 +308,68 @@ async function load(): Promise<void> {
       failed = true
     }
 
-    if (failed) notifyFailed(failure)
+    if (failed) panelFeedback.fail(failure)
   } finally {
     if (current === requestId && props.agentId === agentId) loading.value = false
   }
+}
+
+function refresh(): void {
+  clearFeedback()
+  void load()
+}
+
+function setPending(target: typeof pendingConflictIds, id: string, pending: boolean): void {
+  const next = new Set(target.value)
+  if (pending) next.add(id)
+  else next.delete(id)
+  target.value = next
 }
 
 async function resolveConflict(
   challengerId: string,
   outcome: 'keep_target' | 'keep_challenger' | 'keep_both'
 ): Promise<void> {
+  if (pendingConflictIds.value.has(challengerId)) return
+  const agentId = props.agentId
+  clearFeedback()
+  setPending(pendingConflictIds, challengerId, true)
   try {
     // Main broadcasts memory.updated for this mutation, which bumps
     // refreshToken and reloads this panel; no need to also reload locally.
-    await memoryClient.resolveConflict(props.agentId, challengerId, outcome)
+    await memoryClient.resolveConflict(agentId, challengerId, outcome)
   } catch (error) {
-    notifyFailed(error)
+    if (props.agentId === agentId) panelFeedback.fail(error)
+  } finally {
+    if (props.agentId === agentId) setPending(pendingConflictIds, challengerId, false)
   }
 }
 
 async function approveDraft(draftId: string): Promise<void> {
+  if (pendingPersonaIds.value.has(draftId)) return
+  const agentId = props.agentId
+  clearFeedback()
+  setPending(pendingPersonaIds, draftId, true)
   try {
-    await memoryClient.approvePersonaDraft(props.agentId, draftId)
+    await memoryClient.approvePersonaDraft(agentId, draftId)
   } catch (error) {
-    notifyFailed(error)
+    if (props.agentId === agentId) panelFeedback.fail(error)
+  } finally {
+    if (props.agentId === agentId) setPending(pendingPersonaIds, draftId, false)
   }
 }
 
 async function rejectDraft(draftId: string): Promise<void> {
+  if (pendingPersonaIds.value.has(draftId)) return
+  const agentId = props.agentId
+  clearFeedback()
+  setPending(pendingPersonaIds, draftId, true)
   try {
-    await memoryClient.rejectPersonaDraft(props.agentId, draftId)
+    await memoryClient.rejectPersonaDraft(agentId, draftId)
   } catch (error) {
-    notifyFailed(error)
+    if (props.agentId === agentId) panelFeedback.fail(error)
+  } finally {
+    if (props.agentId === agentId) setPending(pendingPersonaIds, draftId, false)
   }
 }
 
@@ -331,15 +381,17 @@ function setDirectivePending(directiveId: string, pending: boolean): void {
 }
 
 async function approveDirective(directiveId: string): Promise<void> {
+  if (directivePendingIds.value.has(directiveId)) return
   const agentId = props.agentId
   directiveRevision += 1
+  clearFeedback()
   setDirectivePending(directiveId, true)
   let shouldReload = false
   try {
     const result = await memoryClient.approveDirective(agentId, directiveId)
     if (props.agentId !== agentId) return
     if (result.action === 'rejected') {
-      notifyMemoryDirectiveCommandRejected(toast, t, result.reason)
+      panelFeedback.rejectDirective(result.reason)
       return
     }
     directiveDrafts.value = directiveDrafts.value.filter(
@@ -348,7 +400,7 @@ async function approveDirective(directiveId: string): Promise<void> {
   } catch (error) {
     if (props.agentId === agentId) {
       shouldReload = true
-      notifyFailed(error)
+      panelFeedback.fail(error)
     }
   } finally {
     if (props.agentId === agentId) {
@@ -360,15 +412,17 @@ async function approveDirective(directiveId: string): Promise<void> {
 }
 
 async function rejectDirective(directiveId: string): Promise<void> {
+  if (directivePendingIds.value.has(directiveId)) return
   const agentId = props.agentId
   directiveRevision += 1
+  clearFeedback()
   setDirectivePending(directiveId, true)
   let shouldReload = false
   try {
     const rejected = await memoryClient.rejectDirective(agentId, directiveId)
     if (props.agentId !== agentId) return
     if (!rejected) {
-      notifyFailed()
+      panelFeedback.fail()
       return
     }
     directiveDrafts.value = directiveDrafts.value.filter(
@@ -377,7 +431,7 @@ async function rejectDirective(directiveId: string): Promise<void> {
   } catch (error) {
     if (props.agentId === agentId) {
       shouldReload = true
-      notifyFailed(error)
+      panelFeedback.fail(error)
     }
   } finally {
     if (props.agentId === agentId) {
@@ -387,6 +441,11 @@ async function rejectDirective(directiveId: string): Promise<void> {
     }
   }
 }
+
+watch(
+  () => props.agentId,
+  () => clearFeedback()
+)
 
 watch(
   () => [props.agentId, props.refreshToken],

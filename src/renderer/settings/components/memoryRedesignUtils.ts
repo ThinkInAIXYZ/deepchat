@@ -1,12 +1,5 @@
-import {
-  AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT,
-  type AgentMemoryCategory
-} from '@shared/types/agent-memory'
-import type {
-  MemoryAuditEvent,
-  MemoryDirectiveCommandResult,
-  MemoryItem
-} from '@shared/contracts/routes'
+import type { AgentMemoryCategory } from '@shared/types/agent-memory'
+import type { MemoryAuditEvent, MemoryItem } from '@shared/contracts/routes'
 
 export const ADD_CATEGORY_NONE = 'none'
 
@@ -47,44 +40,6 @@ export function matchesCategoryFilter(memory: MemoryItem, filter: MemoryCategory
 export function categoryLabelKey(category: AgentMemoryCategory | null | undefined): string {
   if (category == null) return 'settings.deepchatAgents.memoryManager.categoryUncategorized'
   return `settings.deepchatAgents.memoryManager.category.${category}`
-}
-
-type MemoryToast = (options: {
-  variant?: 'destructive'
-  title: string
-  description?: string
-}) => void
-
-type MemoryTranslator = (key: string, params?: Record<string, unknown>) => string
-
-export function notifyMemoryActionFailed(
-  toast: MemoryToast,
-  t: MemoryTranslator,
-  error?: unknown
-): void {
-  toast({
-    variant: 'destructive',
-    title: t('settings.deepchatAgents.memoryManager.actionFailed'),
-    description: error instanceof Error ? error.message : error ? String(error) : undefined
-  })
-}
-
-export function notifyMemoryDirectiveCommandRejected(
-  toast: MemoryToast,
-  t: MemoryTranslator,
-  reason: Extract<MemoryDirectiveCommandResult, { action: 'rejected' }>['reason']
-): void {
-  if (reason !== 'capacity') {
-    notifyMemoryActionFailed(toast, t)
-    return
-  }
-  toast({
-    variant: 'destructive',
-    title: t('settings.memory.redesign.directiveCapacityTitle'),
-    description: t('settings.memory.redesign.directiveCapacityDescription', {
-      max: AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT
-    })
-  })
 }
 
 const relativeTimeFormatters = new Map<string, Intl.RelativeTimeFormat>()
