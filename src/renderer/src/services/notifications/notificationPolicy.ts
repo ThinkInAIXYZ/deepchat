@@ -3,26 +3,9 @@ import type {
   NotificationKind,
   NotificationRequest
 } from './notificationTypes'
+import { NOTIFICATION_POLICY_DEFAULTS, NOTIFICATION_PRIORITIES } from '@shared/notifications'
 
-export const NOTIFICATION_POLICY_DEFAULTS = Object.freeze({
-  displayBudgetMs: Object.freeze({
-    success: 2_400,
-    info: 4_000,
-    warning: 6_000,
-    error: 8_000
-  }),
-  maxLifetimeMs: Object.freeze({
-    success: 15_000,
-    info: 30_000,
-    warning: 45_000,
-    error: 60_000
-  }),
-  inlineSuccessDisplayBudgetMs: 2_000,
-  surfaceHandoffGraceMs: 200,
-  transientCandidateFreshnessMs: 8_000,
-  actionableQueueCapacity: 3,
-  actionableQueueTtlMs: 10 * 60_000
-})
+export { NOTIFICATION_POLICY_DEFAULTS } from '@shared/notifications'
 
 export type ResolvedNotificationPolicy = Readonly<{
   priority: number
@@ -33,17 +16,13 @@ export type ResolvedNotificationPolicy = Readonly<{
 }>
 
 const TRANSIENT_PRIORITY: Record<Exclude<NotificationKind, 'actionable' | 'progress'>, number> = {
-  success: 10,
-  info: 20,
-  warning: 30,
-  error: 40
+  success: NOTIFICATION_PRIORITIES.success,
+  info: NOTIFICATION_PRIORITIES.info,
+  warning: NOTIFICATION_PRIORITIES.warning,
+  error: NOTIFICATION_PRIORITIES.error
 }
 
-const ACTIONABLE_PRIORITY = {
-  normal: 50,
-  high: 60,
-  critical: 70
-} as const
+const ACTIONABLE_PRIORITY = NOTIFICATION_PRIORITIES.actionable
 
 const TRANSIENT_POLICIES = Object.freeze(
   Object.fromEntries(
@@ -88,7 +67,7 @@ const ACTIONABLE_POLICIES = Object.freeze({
     content: 'managed' as const
   }),
   untilResolved: Object.freeze({
-    priority: 80,
+    priority: ACTIONABLE_PRIORITY.untilResolved,
     displayBudgetMs: Infinity,
     maxLifetimeMs: Infinity,
     slot: 'persistent' as const,
@@ -97,7 +76,7 @@ const ACTIONABLE_POLICIES = Object.freeze({
 })
 
 const PROGRESS_POLICY: ResolvedNotificationPolicy = Object.freeze({
-  priority: 25,
+  priority: NOTIFICATION_PRIORITIES.progress,
   displayBudgetMs: Infinity,
   maxLifetimeMs: Infinity,
   slot: 'persistent',

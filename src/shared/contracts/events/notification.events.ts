@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { semanticNotificationDeliverySchema } from '../../notifications/semanticNotification'
 import { defineEventContract } from '../common'
 
 export const notificationErrorEvent = defineEventContract({
@@ -19,4 +20,9 @@ export const databaseRepairSuggestedEvent = defineEventContract({
     reason: z.string(),
     dedupeKey: z.string()
   })
+})
+
+export const semanticNotificationEvent = defineEventContract({
+  name: 'notification.semantic',
+  payload: semanticNotificationDeliverySchema
 })
