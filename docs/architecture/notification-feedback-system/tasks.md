@@ -25,8 +25,8 @@
 - [x] Add stable-height aggregate, progress, and actionable content.
 - [x] Replace both raw Toaster mounts with the shared Host.
 - [x] Add top-right offsets, localized accessibility labels, and semantic tokens.
-- [ ] Enforce the direct `vue-sonner` import boundary.
-- [ ] Test stable identity, native timing, maximum lifetime, height, and stack offsets.
+- [x] Enforce the direct `vue-sonner` import boundary.
+- [x] Test stable identity, native timing, maximum lifetime, height, and stack offsets.
 
 ## Inline feedback and Agent settings
 
@@ -36,7 +36,7 @@
 - [x] Add Agent settings pending, success, persistent failure, and retry states.
 - [x] Derive Agent dirty state from canonical editable data.
 - [x] Guard route and window close for dirty or in-flight Agent data.
-- [ ] Test handoff races, reclamation, hidden-document timing, and close behavior.
+- [x] Test handoff races, reclamation, hidden-document timing, and close behavior.
 
 ## Main Router and semantic producers
 
@@ -53,21 +53,21 @@
 
 ## Renderer audit and migration
 
-- [ ] Classify every existing Toast call.
-- [ ] Move visible save/edit outcomes inline.
-- [ ] Remove redundant success and duplicate error messages.
-- [ ] Correct false-success dialog and state transitions.
-- [ ] Migrate retained transient, actionable, and progress intents.
-- [ ] Keep stores UI-agnostic and return truthful typed outcomes.
-- [ ] Delete `use-toast.ts` without a compatibility entry point.
+- [x] Classify every existing Toast call.
+- [x] Move visible save/edit outcomes inline.
+- [x] Remove redundant success and duplicate error messages.
+- [x] Correct false-success dialog and state transitions.
+- [x] Migrate retained transient, actionable, and progress intents.
+- [x] Keep stores UI-agnostic and return truthful typed outcomes.
+- [x] Delete `use-toast.ts` without a compatibility entry point.
 
 ## Validation and delivery
 
-- [ ] Run focused core, Router, Adapter, Surface Lease, Agent, MCP, and deeplink tests.
-- [ ] Run formatter and i18n validation.
-- [ ] Run lint and type checking.
-- [ ] Run relevant main and renderer suites.
-- [ ] Run the full test suite and production build when permitted.
-- [ ] Complete a severity-ordered review before every commit and fix all findings.
-- [ ] Commit locally with Conventional Commits.
-- [ ] Do not push.
+- [x] Run focused core, Router, Adapter, Surface Lease, Agent, MCP, and deeplink tests.
+- [x] Run formatter and i18n validation.
+- [x] Run lint and type checking.
+- [x] Run relevant main and renderer suites.
+- [x] Run the full test suite and production build when permitted.
+- [x] Complete a severity-ordered review before every commit and fix all findings.
+- [x] Commit locally with Conventional Commits.
+- [x] Do not push.

@@ -1,6 +1,6 @@
 # Zero Inbound Candidates
 
-Generated on 2026-07-26.
+Generated on 2026-07-29.
 
 These files have no in-repo importers inside their scope and need manual classification before deletion.
 
@@ -82,12 +82,9 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## renderer-settings
 
-- Candidate count: 14
+- Candidate count: 11
 
-- `components/AcpDependencyDialog.vue`
-- `components/AcpProfileDialog.vue`
 - `components/AcpProfileManagerDialog.vue`
-- `components/AcpTerminalDialog.vue`
 - `components/common/AutoCompactionSettingsSection.vue`
 - `components/common/DefaultModelSettingsSection.vue`
 - `components/prompt/PromptSettingsHeader.vue`
@@ -98,3 +95,11 @@ These files have no in-repo importers inside their scope and need manual classif
 - `icons/MinimizeIcon.vue`
 - `icons/RestoreIcon.vue`
 - `main.ts`
+
+## renderer-shared
+
+- Candidate count: 3
+
+- `notifications/InlineOperationFeedback.vue`
+- `notifications/NotificationHost.vue`
+- `notifications/rendererNotificationPort.ts`
