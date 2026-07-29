@@ -29,7 +29,6 @@ const upgradeClientMock = vi.hoisted(() => ({
 const windowClientMock = vi.hoisted(() => ({
   startGuidedOnboarding: vi.fn()
 }))
-const toastMock = vi.hoisted(() => vi.fn())
 const splashScenarioMessages = reactive({
   'settings.debug.splash.loading': '预览加载中',
   'settings.debug.splash.systemUnlock': '预览系统解锁',
@@ -44,7 +43,6 @@ vi.mock('@api/DebugClient', () => ({ createDebugClient: () => debugClientMock })
 vi.mock('@api/UpgradeClient', () => ({ createUpgradeClient: () => upgradeClientMock }))
 vi.mock('@api/WindowClient', () => ({ createWindowClient: () => windowClientMock }))
 vi.mock('@/stores/upgrade', () => ({ useUpgradeStore: () => upgradeStoreMock }))
-vi.mock('@/components/use-toast', () => ({ useToast: () => ({ toast: toastMock }) }))
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: { title?: string; count?: number }) => {
@@ -191,10 +189,31 @@ describe('DebugSettings', () => {
       messageCount: 200
     })
     await flushPromises()
-    expect(toastMock).toHaveBeenCalledWith({
-      title: 'Mock会话已创建',
-      description: '已创建Debug long chat test，共200条消息'
-    })
+    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
+    expect(feedback.attributes('data-status')).toBe('success')
+    expect(feedback.text()).toContain('Mock会话已创建')
+    expect(feedback.attributes('aria-label')).toContain('已创建Debug long chat test，共200条消息')
+  })
+
+  it('keeps debug failures inline without exposing exception messages', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    debugClientMock.createMockChatSession.mockRejectedValueOnce(
+      new Error('/private/debug/session.db')
+    )
+    const wrapper = await mountPage()
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === '创建长会话Mock数据')!
+      .trigger('click')
+    await flushPromises()
+
+    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
+    expect(feedback.attributes('data-status')).toBe('error')
+    expect(feedback.text()).toContain('创建Mock会话失败')
+    expect(wrapper.text()).not.toContain('/private/debug/session.db')
+    consoleError.mockRestore()
   })
 
   it('prevents duplicate debug actions while an action is running', async () => {
