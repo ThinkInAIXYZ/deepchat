@@ -390,8 +390,11 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
   }
 
   async function getSystemPrompts(): Promise<SystemPrompt[]> {
-    const result = await bridge.invoke(configGetSystemPromptsRoute.name, {})
-    return result.prompts as unknown as SystemPrompt[]
+    return (await getSystemPromptState()).prompts
+  }
+
+  async function getSystemPromptState() {
+    return await bridge.invoke(configGetSystemPromptsRoute.name, {})
   }
 
   async function getDefaultSystemPromptId() {
@@ -768,6 +771,7 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     updateCustomPrompt,
     deleteCustomPrompt,
     getSystemPrompts,
+    getSystemPromptState,
     getDefaultSystemPromptId,
     getDefaultSystemPrompt,
     setDefaultSystemPrompt,

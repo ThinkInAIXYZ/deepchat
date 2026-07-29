@@ -19,71 +19,51 @@ export const usePromptsStore = defineStore('prompts', () => {
 
   const prompts = computed(() => promptsQuery.data.value ?? [])
 
-  const loadPrompts = async () => {
-    try {
-      await promptsQuery.refetch()
-    } catch (error) {
-      console.error('Failed to load custom prompts:', error)
+  const loadPrompts = async (): Promise<Prompt[]> => {
+    const state = await promptsQuery.refetch(true)
+    if (state.status !== 'success') {
+      throw state.error
     }
+    return state.data
   }
 
   const invalidateCustomPrompts = (): EntryKey[] => [customPromptsKey]
 
   const savePromptsMutation = useIpcMutation({
-    mutation: (prompts: Prompt[]) => configClient.setCustomPrompts(prompts),
+    mutation: async (prompts: Prompt[]) => (await configClient.setCustomPrompts(prompts)).prompts,
     invalidateQueries: () => invalidateCustomPrompts()
   })
 
-  const savePrompts = async (newPrompts: Prompt[]) => {
-    try {
-      await savePromptsMutation.mutateAsync([newPrompts])
-    } catch (error) {
-      console.error('Failed to save custom prompts:', error)
-      throw error
-    }
+  const savePrompts = async (newPrompts: Prompt[]): Promise<Prompt[]> => {
+    return (await savePromptsMutation.mutateAsync([newPrompts])) as Prompt[]
   }
 
   const addPromptMutation = useIpcMutation({
-    mutation: (prompt: Prompt) => configClient.addCustomPrompt(prompt),
+    mutation: async (prompt: Prompt) => (await configClient.addCustomPrompt(prompt)).prompts,
     invalidateQueries: () => invalidateCustomPrompts()
   })
 
-  const addPrompt = async (prompt: Prompt) => {
-    try {
-      await addPromptMutation.mutateAsync([prompt])
-    } catch (error) {
-      console.error('Failed to add custom prompt:', error)
-      throw error
-    }
+  const addPrompt = async (prompt: Prompt): Promise<Prompt[]> => {
+    return (await addPromptMutation.mutateAsync([prompt])) as Prompt[]
   }
 
   const updatePromptMutation = useIpcMutation({
-    mutation: (promptId: string, updates: Partial<Prompt>) =>
-      configClient.updateCustomPrompt(promptId, updates),
+    mutation: async (promptId: string, updates: Partial<Prompt>) =>
+      (await configClient.updateCustomPrompt(promptId, updates)).prompts,
     invalidateQueries: () => invalidateCustomPrompts()
   })
 
-  const updatePrompt = async (promptId: string, updates: Partial<Prompt>) => {
-    try {
-      await updatePromptMutation.mutateAsync([promptId, updates])
-    } catch (error) {
-      console.error('Failed to update custom prompt:', error)
-      throw error
-    }
+  const updatePrompt = async (promptId: string, updates: Partial<Prompt>): Promise<Prompt[]> => {
+    return (await updatePromptMutation.mutateAsync([promptId, updates])) as Prompt[]
   }
 
   const deletePromptMutation = useIpcMutation({
-    mutation: (promptId: string) => configClient.deleteCustomPrompt(promptId),
+    mutation: async (promptId: string) => (await configClient.deleteCustomPrompt(promptId)).prompts,
     invalidateQueries: () => invalidateCustomPrompts()
   })
 
-  const deletePrompt = async (promptId: string) => {
-    try {
-      await deletePromptMutation.mutateAsync([promptId])
-    } catch (error) {
-      console.error('Failed to delete custom prompt:', error)
-      throw error
-    }
+  const deletePrompt = async (promptId: string): Promise<Prompt[]> => {
+    return (await deletePromptMutation.mutateAsync([promptId])) as Prompt[]
   }
 
   return {
