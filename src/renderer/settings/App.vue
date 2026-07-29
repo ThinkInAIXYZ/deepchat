@@ -80,6 +80,7 @@
         :preview="pendingProviderImportPreview"
         :confirm-disabled="providerImportConfirmDisabled"
         :submitting="isImportingProvider"
+        :error="providerImportError"
         @update:open="handleProviderImportDialogOpenChange"
         @confirm="confirmProviderImport"
       />
@@ -111,7 +112,6 @@ import { rendererNotificationManager } from '@/services/notifications/rendererNo
 import { SemanticNotificationController } from '@/services/notifications/semanticNotificationController'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
-import { useToast } from '@/components/use-toast'
 import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
@@ -156,7 +156,6 @@ setupFontListener()
 
 const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
-const { toast } = useToast()
 const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
@@ -174,6 +173,7 @@ const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDe
 setupMcpDeeplink()
 
 const isImportingProvider = ref(false)
+const providerImportError = ref<string | null>(null)
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
@@ -351,6 +351,7 @@ const applyProviderInstallPreview = async (preview: ProviderInstallPreview) => {
   }
 
   await nextTick()
+  providerImportError.value = null
   providerDeeplinkImportStore.openPreview(preview)
 }
 
@@ -381,11 +382,15 @@ const syncPendingProviderInstall = async () => {
       try {
         windowClient.requeuePendingSettingsProviderInstall(preview)
       } catch (requeueError) {
-        console.error('Failed to requeue pending provider install preview:', requeueError)
+        console.error('[SettingsApp] Failed to requeue provider install preview', {
+          name: requeueError instanceof Error ? requeueError.name : 'UnknownError'
+        })
       }
     }
 
-    console.error('Failed to sync pending provider install preview:', error)
+    console.error('[SettingsApp] Failed to sync provider install preview', {
+      name: error instanceof Error ? error.name : 'UnknownError'
+    })
   } finally {
     isProcessingProviderPreview.value = false
   }
@@ -397,8 +402,53 @@ const handleProviderInstall = async () => {
 
 const handleProviderImportDialogOpenChange = (open: boolean) => {
   if (!open) {
+    providerImportError.value = null
     providerDeeplinkImportStore.clearPreview()
     releaseProviderPreviewProcessing()
+  }
+}
+
+const notifyProviderImportWarning = (code: string, title: string, description?: string) => {
+  try {
+    rendererNotificationManager.notify({
+      kind: 'warning',
+      code,
+      title,
+      description
+    })
+  } catch (error) {
+    console.error('[SettingsApp] Failed to present provider import warning', {
+      name: error instanceof Error ? error.name : 'UnknownError'
+    })
+  }
+}
+
+const refreshImportedProviderModels = async (providerId: string) => {
+  try {
+    await modelStore.refreshProviderModels(providerId)
+  } catch (error) {
+    console.error('[SettingsApp] Imported provider model refresh failed', {
+      name: error instanceof Error ? error.name : 'UnknownError'
+    })
+    notifyProviderImportWarning(
+      'settings.provider.importModelRefreshFailed',
+      t('settings.provider.toast.refreshModelsFailedTitle'),
+      t('settings.provider.toast.refreshModelsFailedDescription')
+    )
+  }
+}
+
+const navigateAfterProviderImport = async (providerId: string) => {
+  try {
+    await navigateToProviderSettings(providerId)
+  } catch (error) {
+    console.error('[SettingsApp] Imported provider navigation failed', {
+      name: error instanceof Error ? error.name : 'UnknownError'
+    })
+    notifyProviderImportWarning(
+      'settings.provider.importNavigationFailed',
+      t('common.error.operationFailed')
+    )
   }
 }
 
@@ -409,11 +459,14 @@ const confirmProviderImport = async () => {
   }
 
   isImportingProvider.value = true
+  providerImportError.value = null
 
   try {
+    let importedProviderId: string
     if (preview.kind === 'builtin') {
       const targetProvider = providerStore.providers.find((provider) => provider.id === preview.id)
       if (!targetProvider) {
+        providerImportError.value = t('common.error.operationFailed')
         return
       }
 
@@ -422,8 +475,7 @@ const confirmProviderImport = async () => {
         await providerStore.updateProviderStatus(preview.id, true)
       }
 
-      await modelStore.refreshProviderModels(preview.id)
-      await navigateToProviderSettings(preview.id)
+      importedProviderId = preview.id
     } else {
       const providerId = nanoid()
       const newProvider: LLM_PROVIDER = {
@@ -437,19 +489,19 @@ const confirmProviderImport = async () => {
       }
 
       await providerStore.addCustomProvider(newProvider)
-      await modelStore.refreshProviderModels(providerId)
-      await navigateToProviderSettings(providerId)
+      importedProviderId = providerId
     }
 
+    await navigateAfterProviderImport(importedProviderId)
+    providerImportError.value = null
     providerDeeplinkImportStore.clearPreview()
     releaseProviderPreviewProcessing()
+    void refreshImportedProviderModels(importedProviderId)
   } catch (error) {
-    console.error('Failed to import provider from deeplink:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+    console.error('[SettingsApp] Provider import failed', {
+      name: error instanceof Error ? error.name : 'UnknownError'
     })
+    providerImportError.value = t('common.error.operationFailed')
   } finally {
     isImportingProvider.value = false
   }

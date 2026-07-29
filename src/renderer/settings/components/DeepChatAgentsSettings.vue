@@ -720,9 +720,9 @@ import { Switch } from '@shadcn/components/ui/switch'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { useRouter } from 'vue-router'
-import { useToast } from '@/components/use-toast'
 import InlineOperationFeedback from '@/services/notifications/InlineOperationFeedback.vue'
 import { createRendererSurfaceFeedbackController } from '@/services/notifications/rendererNotificationRuntime'
+import { notifyRenderer } from '@/services/notifications/rendererNotificationPort'
 import { useSurfaceFeedback } from '@/services/notifications/useSurfaceFeedback'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
@@ -845,7 +845,6 @@ const GROUP_ORDER = [
   'yobrowser'
 ]
 const { t } = useI18n()
-const { toast } = useToast()
 const router = useRouter()
 const configClient = createConfigClient()
 const projectClient = createProjectClient()
@@ -1631,7 +1630,9 @@ const saveAgent = async () => {
       title: t('settings.deepchatAgents.saveFeedback.saved')
     })
   } catch (error) {
-    console.error('[DeepChatAgents] save failed:', error)
+    console.error('[DeepChatAgents] Save failed', {
+      name: error instanceof Error ? error.name : 'UnknownError'
+    })
     feedbackSourceSignature.value = submittedSignature
     saveFeedbackController.fail({
       code: SAVE_FAILURE_CODE,
@@ -1655,7 +1656,10 @@ const removeAgent = async () => {
     transferImpact.value = impact
     allAgents.value = list
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
+    console.error('[DeepChatAgents] Failed to load transfer impact', {
+      name: error instanceof Error ? error.name : 'UnknownError'
+    })
+    transferDialogError.value = t('common.error.operationFailed')
   } finally {
     transferDialogLoading.value = false
   }
@@ -1664,16 +1668,29 @@ const removeAgent = async () => {
 const finishDeleteAgent = async (agentId: string) => {
   const result = await configClient.deleteDeepChatAgent(agentId)
   if (!result.removed) {
-    throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
+    transferDialogError.value = t('dialog.agentTransfer.agentDeleteBlocked')
+    return
   }
-  if (result.cleanupPendingRestart) {
-    toast({
-      title: t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
-    })
-  }
-  await loadAgents('deepchat')
+  allAgents.value = allAgents.value.filter((agent) => agent.id !== agentId)
+  const nextAgent =
+    deepchatAgents.value.find((agent) => agent.id === 'deepchat') ?? deepchatAgents.value[0] ?? null
+  selectedAgentId.value = nextAgent?.id ?? null
+  assignForm(fromAgent(nextAgent))
   transferDialogOpen.value = false
   pendingDeleteAgent.value = null
+  if (result.cleanupPendingRestart) {
+    try {
+      notifyRenderer({
+        kind: 'info',
+        code: 'settings.deepchatAgent.cleanupPendingRestart',
+        title: t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
+      })
+    } catch (error) {
+      console.error('[DeepChatAgents] Failed to present cleanup notice', {
+        name: error instanceof Error ? error.name : 'UnknownError'
+      })
+    }
+  }
 }
 
 const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => {
@@ -1687,7 +1704,10 @@ const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => 
     await sessionClient.moveAgentSessions(agent.id, payload.targetAgentId)
     await finishDeleteAgent(agent.id)
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
+    console.error('[DeepChatAgents] Failed to move sessions before deletion', {
+      name: error instanceof Error ? error.name : 'UnknownError'
+    })
+    transferDialogError.value = t('common.error.operationFailed')
   } finally {
     deleting.value = false
     transferDialogBusy.value = false
@@ -1705,7 +1725,10 @@ const handleDeleteAgentWithSessions = async () => {
     await sessionClient.deleteAgentSessions(agent.id)
     await finishDeleteAgent(agent.id)
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
+    console.error('[DeepChatAgents] Failed to delete agent sessions', {
+      name: error instanceof Error ? error.name : 'UnknownError'
+    })
+    transferDialogError.value = t('common.error.operationFailed')
   } finally {
     deleting.value = false
     transferDialogBusy.value = false

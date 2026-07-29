@@ -70,7 +70,6 @@ async function setup(options?: {
 }) {
   vi.resetModules()
 
-  const toast = vi.fn()
   const providerClient = {
     getKeyStatus: vi.fn().mockResolvedValue(null),
     refreshModels: vi.fn().mockResolvedValue(undefined)
@@ -104,12 +103,6 @@ async function setup(options?: {
   vi.doMock('@/stores/modelCheck', () => ({
     useModelCheckStore: () => modelCheckStore
   }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast
-    })
-  }))
-
   vi.doMock('@shadcn/components/ui/input', () => ({
     Input: createInputStub()
   }))
@@ -160,7 +153,6 @@ async function setup(options?: {
 
   return {
     wrapper,
-    toast,
     providerClient,
     modelCheckStore
   }
@@ -295,7 +287,7 @@ describe('ProviderApiConfig', () => {
   })
 
   it('shows the metadata sync hint for DB-backed providers and delegates refresh to the provider client', async () => {
-    const { wrapper, toast, providerClient } = await setup({
+    const { wrapper, providerClient } = await setup({
       provider: createProvider({
         id: 'doubao',
         name: 'Doubao',
@@ -313,15 +305,16 @@ describe('ProviderApiConfig', () => {
     await flushPromises()
 
     expect(providerClient.refreshModels).toHaveBeenCalledWith('doubao')
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.provider.toast.refreshModelsSuccessTitle',
-      description: 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata',
-      duration: 4000
-    })
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').attributes('data-status')).toBe(
+      'success'
+    )
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
+      'settings.provider.toast.refreshModelsSuccessTitle'
+    )
   })
 
   it('refreshes only models for non DB-backed providers', async () => {
-    const { wrapper, toast, providerClient } = await setup()
+    const { wrapper, providerClient } = await setup()
 
     expect(wrapper.text()).not.toContain('settings.provider.refreshModelsWithMetadataHint')
 
@@ -332,11 +325,9 @@ describe('ProviderApiConfig', () => {
     await flushPromises()
 
     expect(providerClient.refreshModels).toHaveBeenCalledWith('deepseek')
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.provider.toast.refreshModelsSuccessTitle',
-      description: 'settings.provider.toast.refreshModelsSuccessDescription',
-      duration: 4000
-    })
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').attributes('data-status')).toBe(
+      'success'
+    )
   })
 
   it('disables provider verification when the provider is not enabled', async () => {
@@ -369,8 +360,8 @@ describe('ProviderApiConfig', () => {
     expect(wrapper.emitted('validate-key')).toBeUndefined()
   })
 
-  it('shows a destructive toast when metadata-backed refresh fails', async () => {
-    const { wrapper, toast, providerClient } = await setup({
+  it('keeps metadata-backed refresh failures beside the initiating control', async () => {
+    const { wrapper, providerClient } = await setup({
       provider: createProvider({
         id: 'doubao',
         name: 'Doubao',
@@ -387,17 +378,16 @@ describe('ProviderApiConfig', () => {
     await flushPromises()
 
     expect(providerClient.refreshModels).toHaveBeenCalledWith('doubao')
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.provider.toast.refreshModelsFailedTitle',
-      description:
-        'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata: network down',
-      variant: 'destructive',
-      duration: 4000
-    })
+    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
+    expect(feedback.attributes('data-status')).toBe('error')
+    expect(feedback.attributes('aria-label')).toContain(
+      'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'
+    )
+    expect(feedback.attributes('aria-label')).not.toContain('network down')
   })
 
-  it('extracts nested API error messages for refresh failures', async () => {
-    const { wrapper, toast, providerClient } = await setup({
+  it('does not expose nested provider errors in refresh feedback', async () => {
+    const { wrapper, providerClient } = await setup({
       provider: createProvider({
         id: 'custom-anthropic',
         name: 'Custom Anthropic',
@@ -416,12 +406,12 @@ describe('ProviderApiConfig', () => {
     await refreshButton!.trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.provider.toast.refreshModelsFailedTitle',
-      description: 'settings.provider.toast.refreshModelsFailedDescription: Invalid API key',
-      variant: 'destructive',
-      duration: 4000
-    })
+    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
+    expect(feedback.attributes('data-status')).toBe('error')
+    expect(feedback.attributes('aria-label')).toBe(
+      'settings.provider.toast.refreshModelsFailedTitle. settings.provider.toast.refreshModelsFailedDescription'
+    )
+    expect(wrapper.text()).not.toContain('Invalid API key')
   })
 
   it('creates ProviderClient for provider API actions', async () => {
@@ -441,9 +431,6 @@ describe('ProviderApiConfig', () => {
     }))
     vi.doMock('@/stores/modelCheck', () => ({
       useModelCheckStore: () => ({ openDialog: vi.fn() })
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
     }))
     vi.doMock('@shadcn/components/ui/input', () => ({ Input: createInputStub() }))
     vi.doMock('@shadcn/components/ui/button', () => ({ Button: buttonStub }))

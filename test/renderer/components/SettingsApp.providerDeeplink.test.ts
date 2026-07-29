@@ -22,6 +22,14 @@ vi.mock('@api/ConfigClient', () => ({
   })
 }))
 
+vi.mock('@api/NotificationClient', () => ({
+  createNotificationClient: () => ({
+    onSemanticNotification: vi.fn(() => vi.fn()),
+    notifyRendererReady: vi.fn().mockResolvedValue(true),
+    acknowledgePresentation: vi.fn().mockResolvedValue(true)
+  })
+}))
+
 const createProviderDeeplinkImportStore = () => {
   const store = reactive({
     preview: null as Record<string, unknown> | null,
@@ -42,6 +50,7 @@ const mountSettingsApp = async (options?: {
   routeName?: 'settings-common' | 'settings-provider'
   providerId?: string
   failImport?: boolean
+  failModelRefresh?: boolean
   failPreviewApply?: boolean
   failConsumeOnce?: boolean
   failRequeue?: boolean
@@ -138,11 +147,13 @@ const mountSettingsApp = async (options?: {
 
   const modelStore = reactive({
     initialize: vi.fn().mockResolvedValue(undefined),
-    refreshProviderModels: vi.fn().mockResolvedValue(undefined),
+    refreshProviderModels: options?.failModelRefresh
+      ? vi.fn().mockRejectedValue(new Error('refresh failed'))
+      : vi.fn().mockResolvedValue(undefined),
     ensureProviderModelsReady: vi.fn().mockResolvedValue(undefined)
   })
   const providerDeeplinkImportStore = createProviderDeeplinkImportStore()
-  const toast = vi.fn(() => ({ dismiss: vi.fn() }))
+  const notify = vi.fn(() => ({ id: 'notification', dismiss: vi.fn() }))
   const ipcOn = vi.fn()
   const ipcRemoveListener = vi.fn()
   const ipcRemoveAllListeners = vi.fn()
@@ -292,15 +303,16 @@ const mountSettingsApp = async (options?: {
     })
   }))
   vi.doMock('@iconify/vue', () => ({
+    addCollection: vi.fn(),
     Icon: {
       name: 'Icon',
       template: '<span />'
     }
   }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast
-    })
+  vi.doMock('@/services/notifications/rendererNotificationRuntime', () => ({
+    rendererNotificationManager: {
+      notify
+    }
   }))
   vi.doMock('nanoid', () => ({
     nanoid: () => 'custom-provider-id'
@@ -323,10 +335,10 @@ const mountSettingsApp = async (options?: {
         }),
         ProviderDeeplinkImportDialog: defineComponent({
           name: 'ProviderDeeplinkImportDialog',
-          props: ['open', 'preview', 'confirmDisabled', 'submitting'],
+          props: ['open', 'preview', 'confirmDisabled', 'submitting', 'error'],
           emits: ['confirm', 'update:open'],
           template:
-            '<div v-if="open" data-testid="provider-import-dialog"><span data-testid="provider-import-kind">{{ preview?.kind }}</span><button data-testid="confirm-import" :disabled="confirmDisabled || submitting" @click="$emit(\'confirm\')" /><button data-testid="cancel-import" @click="$emit(\'update:open\', false)" /></div>'
+            '<div v-if="open" data-testid="provider-import-dialog"><span data-testid="provider-import-kind">{{ preview?.kind }}</span><span v-if="error" data-testid="provider-import-error">{{ error }}</span><button data-testid="confirm-import" :disabled="confirmDisabled || submitting" @click="$emit(\'confirm\')" /><button data-testid="cancel-import" @click="$emit(\'update:open\', false)" /></div>'
         }),
         Toaster: true,
         Icon: true
@@ -344,7 +356,7 @@ const mountSettingsApp = async (options?: {
     wrapper,
     route,
     push,
-    toast,
+    notify,
     providerStore,
     modelStore,
     providerDeeplinkImportStore,
@@ -464,16 +476,11 @@ describe('SettingsApp provider deeplink', () => {
   })
 
   it('keeps the provider import preview open when import fails', async () => {
-    const {
-      wrapper,
-      toast,
-      providerDeeplinkImportStore,
-      installHandler,
-      queuePendingProviderInstall
-    } = await mountSettingsApp({
-      routeName: 'settings-common',
-      failImport: true
-    })
+    const { wrapper, providerDeeplinkImportStore, installHandler, queuePendingProviderInstall } =
+      await mountSettingsApp({
+        routeName: 'settings-common',
+        failImport: true
+      })
 
     const payload = {
       kind: 'builtin' as const,
@@ -493,11 +500,49 @@ describe('SettingsApp provider deeplink', () => {
 
     expect(providerDeeplinkImportStore.preview).toEqual(payload)
     expect(wrapper.get('[data-testid="provider-import-dialog"]').exists()).toBe(true)
-    expect(toast).toHaveBeenCalledWith(
+    expect(wrapper.get('[data-testid="provider-import-error"]').text()).toBe(
+      'common.error.operationFailed'
+    )
+    expect(wrapper.text()).not.toContain('apply failed')
+  })
+
+  it('does not duplicate a custom provider when post-import model refresh fails', async () => {
+    const {
+      wrapper,
+      providerStore,
+      providerDeeplinkImportStore,
+      notify,
+      installHandler,
+      queuePendingProviderInstall
+    } = await mountSettingsApp({
+      routeName: 'settings-provider',
+      providerId: 'deepseek',
+      failModelRefresh: true
+    })
+
+    const payload = {
+      kind: 'custom' as const,
+      name: 'minimax Proxy',
+      type: 'minimax',
+      baseUrl: 'https://minimax.example.com/v1',
+      apiKey: 'sk-minimax-custom',
+      maskedApiKey: 'sk-m...stom',
+      iconModelId: 'minimax'
+    }
+
+    queuePendingProviderInstall(payload)
+    await installHandler?.({})
+    await flushPromises()
+    await wrapper.get('[data-testid="confirm-import"]').trigger('click')
+    await flushPromises()
+
+    expect(providerStore.addCustomProvider).toHaveBeenCalledOnce()
+    expect(providerDeeplinkImportStore.preview).toBeNull()
+    expect(wrapper.find('[data-testid="provider-import-dialog"]').exists()).toBe(false)
+    expect(notify).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'common.error.operationFailed',
-        description: 'apply failed',
-        variant: 'destructive'
+        code: 'settings.provider.importModelRefreshFailed',
+        kind: 'warning'
       })
     )
   })

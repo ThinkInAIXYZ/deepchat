@@ -71,11 +71,12 @@ const DropdownMenuItemStub = defineComponent({
 const AgentTransferDialogStub = defineComponent({
   name: 'AgentTransferDialog',
   props: {
-    open: { type: Boolean, default: false }
+    open: { type: Boolean, default: false },
+    error: { type: String, default: null }
   },
   emits: ['update:open', 'confirm-move', 'confirm-delete'],
   template:
-    '<button v-if="open" data-testid="confirm-delete-agent" @click="$emit(\'confirm-delete\')">confirm</button>'
+    '<div v-if="open"><span v-if="error" data-testid="agent-transfer-error">{{ error }}</span><button data-testid="confirm-delete-agent" @click="$emit(\'confirm-delete\')">confirm</button></div>'
 })
 
 const clientMocks = vi.hoisted(() => ({
@@ -96,7 +97,7 @@ const clientMocks = vi.hoisted(() => ({
     autoCompactionTriggerThreshold: 80,
     autoCompactionRetainRecentPairs: 2
   },
-  toast: vi.fn()
+  notifyRenderer: vi.fn()
 }))
 
 type ProjectClientMockSource = {
@@ -131,8 +132,8 @@ vi.mock('@api/ToolClient', () => ({
 vi.mock('@api/SessionClient', () => ({
   createSessionClient: () => clientMocks.sessionClient
 }))
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({ toast: clientMocks.toast })
+vi.mock('@/services/notifications/rendererNotificationPort', () => ({
+  notifyRenderer: clientMocks.notifyRenderer
 }))
 vi.mock('@/stores/uiSettingsStore', () => ({
   useUiSettingsStore: () => clientMocks.uiSettingsStore
@@ -524,9 +525,42 @@ describe('DeepChatAgentsSettings', () => {
 
     expect(clientMocks.sessionClient.deleteAgentSessions).toHaveBeenCalledWith('custom-agent')
     expect(deleteDeepChatAgent).toHaveBeenCalledWith('custom-agent')
-    expect(clientMocks.toast).toHaveBeenCalledWith({
+    expect(clientMocks.notifyRenderer).toHaveBeenCalledWith({
+      kind: 'info',
+      code: 'settings.deepchatAgent.cleanupPendingRestart',
       title: 'settings.deepchatAgents.memoryManager.cleanupPendingRestart'
     })
+    expect(wrapper.find('[data-testid="deepchat-agent-row-custom-agent"]').exists()).toBe(false)
+  })
+
+  it('keeps raw agent deletion failures inside diagnostics', async () => {
+    const agent = {
+      id: 'custom-agent',
+      type: 'deepchat',
+      name: 'Custom Agent',
+      enabled: true,
+      protected: false,
+      description: '',
+      avatar: null,
+      config: {}
+    }
+    const deleteDeepChatAgent = vi.fn().mockRejectedValue(new Error('secret database path'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper } = await mountSettings({
+      agents: [agent],
+      configService: { deleteDeepChatAgent }
+    })
+
+    await wrapper.get('[data-testid="deepchat-agent-delete-button"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="confirm-delete-agent"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="agent-transfer-error"]').text()).toBe(
+      'common.error.operationFailed'
+    )
+    expect(wrapper.text()).not.toContain('secret database path')
+    consoleError.mockRestore()
   })
 
   it('mounts and saves DeepChat agents with cloneable model selections', async () => {
