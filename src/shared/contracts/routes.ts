@@ -240,6 +240,10 @@ import {
   modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute
 } from './routes/models.routes'
+import {
+  notificationAcknowledgePresentationRoute,
+  notificationRendererReadyRoute
+} from './routes/notification.routes'
 import { ocrClearCacheRoute, ocrGetRuntimeStatusRoute } from './routes/ocr.routes'
 import {
   onboardingCompleteRoute,
@@ -530,6 +534,7 @@ export * from './routes/knowledge.routes'
 export * from './routes/mcp.routes'
 export * from './routes/memory.routes'
 export * from './routes/models.routes'
+export * from './routes/notification.routes'
 export * from './routes/nowledgeMem.routes'
 export * from './routes/onboarding.routes'
 export * from './routes/oauth.routes'
@@ -578,6 +583,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [windowRequeuePendingSettingsProviderInstallRoute.name]:
     windowRequeuePendingSettingsProviderInstallRoute,
   [windowStartGuidedOnboardingRoute.name]: windowStartGuidedOnboardingRoute,
+  [notificationRendererReadyRoute.name]: notificationRendererReadyRoute,
+  [notificationAcknowledgePresentationRoute.name]: notificationAcknowledgePresentationRoute,
   [deviceGetAppVersionRoute.name]: deviceGetAppVersionRoute,
   [deviceGetInfoRoute.name]: deviceGetInfoRoute,
   [deviceSelectDirectoryRoute.name]: deviceSelectDirectoryRoute,

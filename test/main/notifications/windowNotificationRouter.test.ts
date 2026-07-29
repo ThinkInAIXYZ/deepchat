@@ -340,6 +340,33 @@ describe('WindowNotificationRouter', () => {
     expect(targets.deliveries[1].delivery).toMatchObject({ episodeId })
   })
 
+  it('does not trust a renderer that became ready again before invalidation is reconciled', async () => {
+    const { router, targets } = createRouter()
+    targets.targets = [{ windowId: 2, webContentsId: 22, kind: 'settings' }]
+    targets.focusedWindowId = 2
+
+    const episodeId = await router.occur({
+      code: 'databaseSecurity.repairSuggested',
+      reason: 'type-mismatch',
+      dedupeKey: 'agent-db'
+    })
+    await router.availabilityChanged({
+      unavailableWebContentsIds: [22]
+    })
+
+    expect(targets.deliveries).toHaveLength(1)
+
+    targets.targets = [{ windowId: 1, webContentsId: 11, kind: 'main' }]
+    targets.focusedWindowId = 1
+    await router.availabilityChanged()
+
+    expect(targets.deliveries).toHaveLength(2)
+    expect(targets.deliveries[1]).toMatchObject({
+      target: { webContentsId: 11 },
+      delivery: { episodeId }
+    })
+  })
+
   it('accepts presentation suppression only from the renderer that received it', async () => {
     const { router, targets, episodes } = createRouter()
     targets.targets = [

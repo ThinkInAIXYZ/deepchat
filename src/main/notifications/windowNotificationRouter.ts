@@ -56,6 +56,10 @@ export type WindowNotificationSource = Readonly<{
   webContentsId: number
 }>
 
+export type WindowNotificationAvailabilityChange = Readonly<{
+  unavailableWebContentsIds?: readonly number[]
+}>
+
 export type WindowNotificationRouterDependencies = Readonly<{
   clock: NotificationClock
   scheduler: NotificationScheduler
@@ -216,11 +220,12 @@ export class WindowNotificationRouter {
     })
   }
 
-  availabilityChanged(): Promise<void> {
+  availabilityChanged(change: WindowNotificationAvailabilityChange = {}): Promise<void> {
     return this.enqueue(async () => {
       this.assertActive()
-      await this.reconcileDeliveredTargets()
-      await this.flushPending()
+      const unavailableWebContentsIds = new Set(change.unavailableWebContentsIds)
+      await this.reconcileDeliveredTargets(unavailableWebContentsIds)
+      await this.flushPending(unavailableWebContentsIds)
     })
   }
 
@@ -397,7 +402,9 @@ export class WindowNotificationRouter {
     return pending
   }
 
-  private async flushPending(): Promise<void> {
+  private async flushPending(
+    unavailableWebContentsIds: ReadonlySet<number> = new Set()
+  ): Promise<void> {
     const pendingRecords = Array.from(this.pendingByEpisodeId.values()).sort(
       (left, right) => right.resolved.priority - left.resolved.priority || left.order - right.order
     )
@@ -415,7 +422,11 @@ export class WindowNotificationRouter {
         continue
       }
 
-      const target = await this.deliverOccurrence(pending.episodeId, pending)
+      const target = await this.deliverOccurrence(
+        pending.episodeId,
+        pending,
+        unavailableWebContentsIds
+      )
       if (!target) continue
 
       this.removePending(pending.episodeId)
@@ -423,9 +434,13 @@ export class WindowNotificationRouter {
     }
   }
 
-  private async reconcileDeliveredTargets(): Promise<void> {
+  private async reconcileDeliveredTargets(
+    unavailableWebContentsIds: ReadonlySet<number>
+  ): Promise<void> {
     for (const [episodeId, deliveredTarget] of Array.from(this.deliveredByEpisodeId.entries())) {
-      const currentTarget = await this.targets.getTargetByWebContents(deliveredTarget.webContentsId)
+      const currentTarget = unavailableWebContentsIds.has(deliveredTarget.webContentsId)
+        ? undefined
+        : await this.targets.getTargetByWebContents(deliveredTarget.webContentsId)
       if (currentTarget?.kind === deliveredTarget.kind) {
         this.deliveredByEpisodeId.set(episodeId, currentTarget)
         continue

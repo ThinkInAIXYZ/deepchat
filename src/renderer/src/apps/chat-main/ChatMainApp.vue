@@ -3,6 +3,7 @@ import { onMounted, ref, watch, onBeforeUnmount, computed, provide } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { createConfigClient } from '@api/ConfigClient'
+import { createNotificationClient } from '@api/NotificationClient'
 import { createOnboardingClient } from '@api/OnboardingClient'
 import SelectedTextContextMenu from '@/components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from '@/stores/artifact'
@@ -12,6 +13,8 @@ import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useToast } from '@/components/use-toast'
 import NotificationHost from '@/services/notifications/NotificationHost.vue'
+import { rendererNotificationManager } from '@/services/notifications/rendererNotificationRuntime'
+import { SemanticNotificationController } from '@/services/notifications/semanticNotificationController'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
@@ -55,6 +58,7 @@ provide(RENDERER_PERFORMANCE_REPORTER, performanceReporter)
 
 const route = useRoute()
 const configClient = createConfigClient()
+const notificationClient = createNotificationClient()
 const onboardingClient = createOnboardingClient()
 const windowClient = createWindowClient()
 const artifactStore = useArtifactStore()
@@ -85,6 +89,15 @@ const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const { t, locale } = useI18n()
+const semanticNotificationController = new SemanticNotificationController({
+  notifications: rendererNotificationManager,
+  translate: (key, params) => t(key, params ?? {}),
+  acknowledgePresentation: (episodeId) => notificationClient.acknowledgePresentation(episodeId),
+  openSettings: async (navigation) => {
+    await configClient.openSettings(navigation)
+  }
+})
+let cleanupSemanticNotifications: (() => void) | undefined
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
@@ -538,6 +551,19 @@ watch(
 
 onMounted(() => {
   performanceReporter.recordStartup('shell-mounted')
+  cleanupSemanticNotifications = notificationClient.onSemanticNotification((delivery) => {
+    semanticNotificationController.handle(delivery)
+  })
+  void notificationClient
+    .notifyRendererReady()
+    .then((ready) => {
+      if (!ready) {
+        console.warn('[Notification] Main renderer was not accepted as a delivery target')
+      }
+    })
+    .catch((error) => {
+      console.error('[Notification] Failed to register main renderer', error)
+    })
 
   // Ensure icons are loaded (load asynchronously, can happen in parallel with store init)
   void ensureIconsLoaded()
@@ -604,6 +630,9 @@ onBeforeUnmount(() => {
 
   cleanupAppIpcRuntime()
   cleanupMcpDeeplink()
+  cleanupSemanticNotifications?.()
+  cleanupSemanticNotifications = undefined
+  semanticNotificationController.dispose()
   performanceReporter.dispose()
 })
 </script>

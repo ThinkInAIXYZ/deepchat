@@ -96,6 +96,7 @@ import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick, unref 
 import { useI18n } from 'vue-i18n'
 import { useEventListener, useTitle } from '@vueuse/core'
 import { createDeviceClient } from '@api/DeviceClient'
+import { createNotificationClient } from '@api/NotificationClient'
 import { createWindowClient } from '@api/WindowClient'
 import { getRuntimeArch, getRuntimePlatform } from '@api/runtime'
 import CloseIcon from './icons/CloseIcon.vue'
@@ -106,6 +107,8 @@ import { Button } from '@shadcn/components/ui/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
 import NotificationHost from '@/services/notifications/NotificationHost.vue'
+import { rendererNotificationManager } from '@/services/notifications/rendererNotificationRuntime'
+import { SemanticNotificationController } from '@/services/notifications/semanticNotificationController'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { useToast } from '@/components/use-toast'
@@ -144,6 +147,7 @@ type SettingsWindowState = Window & {
 }
 
 const deviceClient = createDeviceClient()
+const notificationClient = createNotificationClient()
 const windowClient = createWindowClient()
 const settingsEventCleanups: Array<() => void> = []
 
@@ -265,6 +269,14 @@ const openDatabaseRepairSection = async () => {
   })
   await publishSettingsSection(DATABASE_REPAIR_SECTION)
 }
+
+const semanticNotificationController = new SemanticNotificationController({
+  notifications: rendererNotificationManager,
+  translate: (key, params) => t(key, params ?? {}),
+  acknowledgePresentation: (episodeId) => notificationClient.acknowledgePresentation(episodeId),
+  openSettings: () => openDatabaseRepairSection()
+})
+let cleanupSemanticNotifications: (() => void) | undefined
 
 const showDatabaseRepairSuggestedToast = (payload: DatabaseRepairSuggestedPayload) => {
   toast({
@@ -683,6 +695,19 @@ const handleWindowFocus = () => {
 
 onMounted(async () => {
   startupWorkloadStore?.connect()
+  cleanupSemanticNotifications = notificationClient.onSemanticNotification((delivery) => {
+    semanticNotificationController.handle(delivery)
+  })
+  void notificationClient
+    .notifyRendererReady()
+    .then((ready) => {
+      if (!ready) {
+        console.warn('[Notification] Settings renderer was not accepted as a delivery target')
+      }
+    })
+    .catch((error) => {
+      console.error('[Notification] Failed to register settings renderer', error)
+    })
 
   // Listen for window maximize/unmaximize events
   deviceClient.getDeviceInfo().then((deviceInfo) => {
@@ -784,6 +809,9 @@ onBeforeUnmount(() => {
   removeSettingsRouteGuard()
   settingsEventCleanups.splice(0).forEach((cleanup) => cleanup())
   cleanupMcpDeeplink()
+  cleanupSemanticNotifications?.()
+  cleanupSemanticNotifications = undefined
+  semanticNotificationController.dispose()
 })
 </script>
 
