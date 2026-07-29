@@ -451,7 +451,13 @@ describe('SkillService Agent scopes', () => {
       success: true,
       installedSkillName: 'draft-skill'
     })
-    expect(install.mock.calls[0][5]).toBe('writer')
+    expect(install).toHaveBeenCalledWith(
+      draftPath,
+      expect.objectContaining({
+        sourceType: 'created',
+        agentId: 'writer'
+      })
+    )
   })
 
   it('revalidates persisted selections against an explicit transfer target Agent', async () => {

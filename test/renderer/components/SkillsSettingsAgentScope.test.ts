@@ -21,10 +21,9 @@ const mocks = vi.hoisted(() => ({
     onCatalogChanged: vi.fn(),
     readSkillFile: vi.fn(),
     setSkillDisabled: vi.fn(),
-    saveSkillWithExtension: vi.fn(),
+    updateSkillFile: vi.fn(),
     uninstallSkill: vi.fn()
-  },
-  toast: vi.fn()
+  }
 }))
 
 let catalogChangedListener: ((payload: { agentIds?: string[] }) => void) | undefined
@@ -37,11 +36,6 @@ vi.mock('@api/SkillClient', () => ({
 }))
 vi.mock('@api/WindowClient', () => ({
   createWindowClient: () => ({})
-}))
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({
-    toast: mocks.toast
-  })
 }))
 vi.mock('@/composables/useGuidedOnboardingStep', () => ({
   useGuidedOnboardingStep: () => ({
@@ -109,13 +103,13 @@ const SkillDetailDialogStub = defineComponent({
     '<div data-testid="skill-detail-state" :data-open="String(open)">{{ markdown ?? "" }}<button v-if="open" data-testid="detail-save" @click="$emit(\'save\', \'# Updated\')">save</button></div>'
 })
 
-const mountAgentScopeSkillsSettings = async () => {
+const mountSkillsSettings = async (scope: 'global' | 'agent') => {
   const SkillsSettings = (
     await import('../../../src/renderer/settings/components/skills/SkillsSettings.vue')
   ).default
   return mount(SkillsSettings, {
     props: {
-      scope: 'agent'
+      scope
     },
     global: {
       stubs: {
@@ -145,6 +139,9 @@ const mountAgentScopeSkillsSettings = async () => {
     }
   })
 }
+
+const mountAgentScopeSkillsSettings = () => mountSkillsSettings('agent')
+const mountGlobalSkillsSettings = () => mountSkillsSettings('global')
 
 describe('SkillsSettings agent scope', () => {
   beforeEach(() => {
@@ -204,7 +201,7 @@ describe('SkillsSettings agent scope', () => {
       return () => undefined
     })
     mocks.skillClient.readSkillFile.mockResolvedValue('# Skill')
-    mocks.skillClient.saveSkillWithExtension.mockResolvedValue({ success: true })
+    mocks.skillClient.updateSkillFile.mockResolvedValue({ success: true })
     mocks.skillClient.uninstallSkill.mockResolvedValue({ success: true })
   })
 
@@ -235,6 +232,24 @@ describe('SkillsSettings agent scope', () => {
     catalogChangedListener?.({ agentIds: ['agent-a'] })
     await flushPromises()
     expect(mocks.skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a global Skill detail open when the selected Agent changes', async () => {
+    const { useAgentStore } = await import('@/stores/ui/agent')
+    const agentStore = useAgentStore()
+    agentStore.setSelectedAgent('agent-a')
+    const wrapper = await mountGlobalSkillsSettings()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="view-skill-alpha"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="skill-detail-state"]').attributes('data-open')).toBe('true')
+
+    agentStore.setSelectedAgent('agent-b')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="skill-detail-state"]').attributes('data-open')).toBe('true')
+    expect(mocks.skillClient.readSkillFile).toHaveBeenCalledTimes(1)
   })
 
   it('hides Add Skill actions when the selected target is not a DeepChat Agent', async () => {
@@ -333,7 +348,7 @@ describe('SkillsSettings agent scope', () => {
     expect(wrapper.find('[data-testid="skill-skill-beta"]').text()).toContain('skill-beta:false')
   })
 
-  it('suppresses a stale toggle error after the selected Agent changes', async () => {
+  it('settles a stale toggle error without blocking the next Agent', async () => {
     const { useAgentStore } = await import('@/stores/ui/agent')
     const agentStore = useAgentStore()
     agentStore.setSelectedAgent('agent-a')
@@ -347,7 +362,16 @@ describe('SkillsSettings agent scope', () => {
     await flushPromises()
 
     await wrapper.get('[data-testid="skill-skill-beta"]').trigger('click')
-    mocks.skillClient.getUnifiedSkillCatalog.mockResolvedValueOnce([])
+    mocks.skillClient.getUnifiedSkillCatalog.mockResolvedValueOnce([
+      {
+        name: 'skill-beta',
+        description: 'Beta',
+        path: '',
+        skillRoot: '',
+        deepchatDisabled: false,
+        mutable: true
+      }
+    ])
     mocks.configClient.listAgents.mockResolvedValueOnce([
       {
         id: 'agent-b',
@@ -363,7 +387,10 @@ describe('SkillsSettings agent scope', () => {
     rejectToggle(new Error('Agent A toggle failed'))
     await flushPromises()
 
-    expect(mocks.toast).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('Agent A toggle failed')
+    await wrapper.get('[data-testid="view-skill-beta"]').trigger('click')
+    await flushPromises()
+    expect(mocks.skillClient.readSkillFile).toHaveBeenCalledWith('skill-beta', 'agent-b')
   })
 
   it('clears the previous Agent catalog when the next scoped load fails', async () => {
@@ -390,7 +417,8 @@ describe('SkillsSettings agent scope', () => {
 
     expect(wrapper.find('[data-testid="skill-skill-alpha"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('settings.skills.agents.loadFailed')
-    expect(wrapper.text()).toContain('catalog unavailable')
+    expect(wrapper.text()).toContain('common.error.requestFailed')
+    expect(wrapper.text()).not.toContain('catalog unavailable')
   })
 
   it('drops a stale detail response after the selected Agent changes', async () => {
@@ -437,12 +465,12 @@ describe('SkillsSettings agent scope', () => {
     expect(detailState.text()).not.toContain('Agent A Skill')
   })
 
-  it('does not let a stale save close the next Agent Skill detail', async () => {
+  it('settles the previous Agent save before opening the next Agent Skill detail', async () => {
     const { useAgentStore } = await import('@/stores/ui/agent')
     const agentStore = useAgentStore()
     agentStore.setSelectedAgent('agent-a')
     let resolveSave!: (result: { success: boolean }) => void
-    mocks.skillClient.saveSkillWithExtension.mockReturnValueOnce(
+    mocks.skillClient.updateSkillFile.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveSave = resolve
       })
@@ -478,14 +506,18 @@ describe('SkillsSettings agent scope', () => {
     await wrapper.get('[data-testid="view-skill-beta"]').trigger('click')
     await flushPromises()
 
+    expect(mocks.skillClient.readSkillFile).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="skill-detail-state"]').attributes('data-open')).toBe('false')
+
     resolveSave({ success: true })
+    await flushPromises()
+    await wrapper.get('[data-testid="view-skill-beta"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.get('[data-testid="skill-detail-state"]').attributes('data-open')).toBe('true')
-    expect(mocks.skillClient.saveSkillWithExtension).toHaveBeenCalledWith(
+    expect(mocks.skillClient.updateSkillFile).toHaveBeenCalledWith(
       'skill-alpha',
       '# Updated',
-      expect.any(Object),
       'agent-a'
     )
   })

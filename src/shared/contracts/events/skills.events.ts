@@ -15,12 +15,15 @@ export const skillsCatalogChangedEvent = defineEventContract({
       'disabled-updated',
       'management-state-updated',
       'git-installed',
+      'sync-imported',
       'sync-directory-updated'
     ]),
     name: z.string().optional(),
+    disabled: z.boolean().optional(),
     agentIds: z.array(EntityIdSchema).optional(),
     skill: SkillMetadataSchema.optional(),
     skills: z.array(SkillMetadataSchema).optional(),
+    extensionChanged: z.boolean().optional(),
     version: z.number().int()
   })
 })
