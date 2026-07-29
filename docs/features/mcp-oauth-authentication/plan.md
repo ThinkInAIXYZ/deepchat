@@ -12,14 +12,14 @@ stores.
 - MCP requires clients to discover protected resource metadata from `WWW-Authenticate` 401
   challenges, falling back to well-known metadata URLs.
 - MCP clients must send the OAuth `resource` parameter in both authorization and token requests.
-- OpenCode handles remote MCP OAuth by detecting 401, attempting DCR when supported, and storing
-  tokens for future requests.
+- MCP 2026-07-28 requires issuer-aware authorization behavior and identifies native clients through
+  client metadata. Client ID Metadata Documents are preferred; DCR is a legacy fallback.
 - Codex documents OAuth for Streamable HTTP MCP servers through `codex mcp login <server-name>`.
 - OpenAI Codex provider auth already has PKCE/state/token refresh/storage; only its browser
   transport changes from embedded `BrowserWindow` redirect interception to external browser +
   loopback callback.
-- Linear's current MCP endpoint supports the exact happy path: 401 challenge, protected resource
-  metadata, authorization server metadata, DCR endpoint, PKCE S256, and `read write` scopes.
+- Linear's observed endpoint supports the existing happy path: 401 challenge, protected resource
+  metadata, authorization server metadata, PKCE S256, and `read write` scopes.
 - The installed MCP SDK already exposes:
   - `OAuthClientProvider`
   - `auth(provider, { serverUrl, authorizationCode })`
@@ -98,13 +98,13 @@ Non-responsibilities:
 Normal server start must not open a browser.
 
 ```text
-ServerManager.startServer(name)
+ServerManager.startServer(serverId)
   -> McpClient.connect()
      -> no bearer header:
         - if stored OAuth tokens exist, pass McpOAuthProvider to StreamableHTTP transport
         - if no tokens exist, connect unauthenticated
      -> auth challenge / UnauthorizedError
-        - McpOAuthManager.discover(name, baseUrl)
+        - McpOAuthManager.discover(serverId, baseUrl)
         - store status: required
         - publish mcp.server.auth.changed
         - keep server stopped with normal last error
@@ -117,15 +117,16 @@ unless the user removes that header in config.
 
 ```text
 Renderer Authenticate button
-  -> mcp.startServerAuth(serverName)
-  -> McpService.startServerAuth(serverName)
-  -> McpOAuthManager.startAuth(serverName, serverConfig)
+  -> mcp.startServerAuth(serverId)
+  -> McpService.startServerAuth(serverId)
+  -> McpOAuthManager.startAuth(serverId, serverConfig)
      -> start node:http loopback server on 127.0.0.1 random available port
      -> create MCP SDK OAuthClientProvider with redirect_uri from that port
      -> call SDK auth(provider, { serverUrl })
      -> provider.redirectToAuthorization(url) opens shell.openExternal(url)
      -> wait for callback
      -> validate method, host, path, state
+     -> validate callback iss matrix against the discovered authorization issuer
      -> call SDK auth(provider, { serverUrl, authorizationCode })
      -> provider.saveTokens(tokens)
      -> close callback server
@@ -134,8 +135,9 @@ Renderer Authenticate button
 ```
 
 Use `auth(...)` for the auth route instead of a throwaway MCP `Client.connect(...)`. It is smaller
-and lets the SDK own discovery, DCR, resource indicators, PKCE token exchange, and refresh-token
-shape.
+and lets the SDK own discovery, client metadata, resource indicators, PKCE token exchange, and
+refresh-token shape. Prefer a Client ID Metadata Document. Use DCR only when the discovered
+authorization server requires the legacy path.
 
 ### 3. Runtime Requests
 
@@ -162,7 +164,7 @@ cleanly.
 
 ```text
 Renderer paste callback URL
-  -> mcp.completeServerAuthFromCallbackUrl(serverName, callbackUrl)
+  -> mcp.completeServerAuthFromCallbackUrl(serverId, callbackUrl)
   -> McpOAuthManager validates against pending flow
   -> calls SDK auth(provider, { serverUrl, authorizationCode })
   -> stores tokens
@@ -220,6 +222,7 @@ export type McpServerAuthState =
   | 'error'
 
 export interface McpServerAuthStatus {
+  serverId: string
   serverName: string
   state: McpServerAuthState
   resource?: string
@@ -240,31 +243,50 @@ Envelope:
 
 ```ts
 interface McpOAuthCredentialEnvelope {
-  version: 1
-  storage: 'safeStorage' | 'file'
+  version: 2
+  storage: 'safeStorage'
   entries: Record<string, StoredMcpOAuthCredentials>
   updatedAt: number
 }
 ```
 
-Credential key:
+Shipped v1 credential key, used only as migration input:
 
 ```text
-sha256(serverName + "\n" + baseUrl + "\n" + resource)
+sha256(serverName + "\n" + baseUrl + "\n" + resource + "\n" + issuer)
 ```
 
-This avoids token sharing across renamed or re-pointed MCP entries. Rename losing auth is acceptable
-for the first increment.
+The MCP v2 identity migration replaces that shipped key with:
+
+```text
+sha256(
+  serverId + "\n" +
+  configGeneration + "\n" +
+  bindingHash + "\n" +
+  baseUrl + "\n" +
+  resource + "\n" +
+  issuer
+)
+```
+
+Rename preserves authentication. Re-pointing or an identity-bearing auth change increments the
+generation/binding and invalidates the credential. Display name is never authentication identity.
+
+When `safeStorage.isEncryptionAvailable()` is false, or Linux
+`safeStorage.getSelectedStorageBackend()` is `basic_text`, keep credentials in a process-local
+memory store and expose only a non-secret `persistent: false` status. Do not write tokens, refresh
+tokens, client secrets, or private keys to a plaintext file, even with mode `0600`. Store the
+encrypted envelope itself with restrictive file permissions as defense in depth.
 
 ## Routes And Events
 
 Add routes:
 
 ```text
-mcp.getServerAuthStatus     { serverName } -> { status }
-mcp.startServerAuth         { serverName } -> { status }
-mcp.completeServerAuthFromCallbackUrl { serverName, callbackUrl } -> { status }
-mcp.logoutServerAuth        { serverName } -> { status }
+mcp.getServerAuthStatus     { serverId } -> { status }
+mcp.startServerAuth         { serverId } -> { status }
+mcp.completeServerAuthFromCallbackUrl { serverId, callbackUrl } -> { status }
+mcp.logoutServerAuth        { serverId } -> { status }
 ```
 
 Add event:
@@ -289,6 +311,14 @@ oauth.openaiCodex.completeBrowserLoginFromUrl { callbackUrl } -> { status }
 - Accept only `GET`.
 - Require exact host and callback path.
 - Require exact `state`.
+- After those outer checks, apply the issuer matrix before processing or displaying `code`, `error`,
+  `error_description`, or `error_uri`:
+  - support flag `true` + `iss` present: simple exact string comparison with discovered issuer;
+  - support flag `true` + `iss` absent: reject;
+  - support flag false/absent + `iss` present: simple exact string comparison;
+  - support flag false/absent + `iss` absent: continue.
+- Do not normalize, parse/rebuild, case-fold, decode, or add/remove trailing slashes before issuer
+  comparison.
 - On success, write this HTML body text:
 
 ```text
@@ -343,10 +373,16 @@ MCP card sketch:
   - parses Linear-shaped `WWW-Authenticate`
   - saves required/authenticated/error status
   - validates callback state/path/host
+  - covers all four authorization-response issuer matrix cases
+  - proves issuer mismatch/missing-required issuer is rejected before OAuth error or code handling
+  - proves superficially equivalent but non-identical issuer strings are rejected
   - does not leak tokens in status
 - `test/main/mcp/oauthCredentialStore.test.ts`
   - saves/loads safeStorage envelope
-  - falls back to file envelope
+  - uses memory-only storage when safeStorage is unavailable
+  - treats Linux `basic_text` as non-persistent
+  - never emits a plaintext secret envelope
+  - separates credentials by issuer
   - removes one server credential on logout
 - `test/main/mcp/mcpClient.test.ts`
   - passes OAuth provider only when stored tokens exist or interactive auth is explicit
@@ -373,26 +409,23 @@ MCP card sketch:
   - shows paste fallback only while pending
   - calls the new callback URL completion route
 
-Manual smoke after implementation:
+Manual smoke after implementation uses `MV-AUTH-01` and `MV-AUTH-03` from
+`../../architecture/mcp-v2-protocol/manual-verification.md`. The MCP-specific sequence covers the
+local pinned browser flow before the public Linear smoke. The remaining Codex-specific checks are:
 
 ```text
-1. Add linear HTTP MCP: https://mcp.linear.app/mcp
-2. Enable MCP and the server
-3. Confirm card shows Authenticate and no browser auto-opens
-4. Click Authenticate
-5. Complete Linear OAuth
-6. Confirm callback page text
-7. Confirm server starts and tools load
-8. Restart DeepChat and confirm token reuse/refresh
-9. Start OpenAI Codex sign-in and confirm the system browser opens
-10. Complete Google login and confirm DeepChat authenticates
-11. Repeat with the callback listener stopped/unreachable and confirm pasted callback URL fallback
+1. Start OpenAI Codex sign-in and confirm the system browser opens
+2. Complete Google login and confirm DeepChat authenticates
 ```
+
+The unavailable-listener paste fallback remains a focused loopback fixture unless a reviewed
+packaged-build fault injection exists. The normal product flow binds the listener before opening
+the browser, so manually killing it can consume or invalidate the pending OAuth state.
 
 ## Risks
 
-- Some enterprise servers reject DCR. Do not solve before a concrete server requires it; add
-  pre-registered `clientId/clientSecret` config only then.
+- Some legacy servers require DCR. Keep it as an issuer-scoped compatibility fallback after CIMD
+  discovery, and never reuse registered client information across issuers.
 - Some providers require a fixed redirect URI. Use random loopback first; add an advanced fixed port
   only if a real provider needs it.
 - Existing SDK behavior may auto-redirect when an auth provider is passed. Keep runtime provider

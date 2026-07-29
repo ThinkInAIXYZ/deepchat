@@ -40,7 +40,9 @@ callback URL back into DeepChat for parsing if the browser could not reach the l
 ## External References
 
 - MCP authorization spec:
-  https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization
+  https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization
+- MCP authorization changes:
+  https://modelcontextprotocol.io/specification/2026-07-28/changelog
 - OpenAI Codex MCP docs:
   https://developers.openai.com/codex/mcp
 - Linear Codex MCP integration:
@@ -59,8 +61,8 @@ callback URL back into DeepChat for parsing if the browser could not reach the l
 - Start a loopback callback server only when the user clicks authenticate/sign in.
 - Open the provider authorization URL in the user's external browser.
 - Complete the authorization code + PKCE flow, persist tokens securely, and reconnect the server.
-- Reuse the installed MCP SDK OAuth flow instead of hand-rolling discovery, DCR, token exchange,
-  refresh, and resource-indicator behavior.
+- Reuse the installed MCP SDK OAuth flow instead of hand-rolling discovery, client metadata, token
+  exchange, refresh, and resource-indicator behavior.
 - Move OpenAI Codex OAuth from embedded `BrowserWindow` auth to external browser loopback auth.
 - Add a paste-callback-url fallback for OpenAI Codex and MCP auth attempts while a matching pending
   flow still exists.
@@ -71,10 +73,10 @@ callback URL back into DeepChat for parsing if the browser could not reach the l
 - No new OAuth framework for every provider in the app.
 - No cloud sync of MCP OAuth tokens.
 - No device-code flow.
-- No first increment for SSE OAuth unless it falls out naturally from the same provider with no
-  extra UI or storage surface.
-- No enterprise static OAuth client UI in the first increment. Add it only when a real supported
-  server needs pre-registered client credentials and DCR/client metadata is insufficient.
+- No new OAuth behavior for deprecated SSE. Existing SSE credentials remain a legacy compatibility
+  concern while new authorization modes target Streamable HTTP.
+- Machine and enterprise authorization are specified separately in
+  `docs/features/mcp-authorization-extensions/`.
 - No shared token store across MCP and OpenAI Codex; only the loopback callback page/listener helper
   is shared.
 
@@ -87,16 +89,34 @@ callback URL back into DeepChat for parsing if the browser could not reach the l
 - Clicking authenticate starts a localhost callback server, opens the authorization URL, and waits
   for the callback.
 - The callback accepts only the expected loopback host, path, method, and state.
+- After method/host/path/state validation, the callback applies the authorization-response issuer
+  matrix before processing or displaying `code`, `error`, `error_description`, or `error_uri`:
+  - metadata says `authorization_response_iss_parameter_supported: true` and `iss` is present:
+    require simple exact string equality with the discovered authorization-server issuer;
+  - metadata says `true` and `iss` is absent: reject;
+  - metadata says `false` or omits the flag and `iss` is present: require the same simple exact
+    string equality;
+  - metadata says `false` or omits the flag and `iss` is absent: continue.
+- Issuer comparison performs no URL parsing, normalization, trailing-slash rewriting, case folding,
+  or percent-decoding.
 - Successful callback returns an HTML page containing exactly:
   `Authentication complete. You can return to DeepChat. If DeepChat does not update, copy the full URL from your browser and paste it into DeepChat.`
-- Tokens and dynamic client information are stored under app user data using `safeStorage` when
-  available, with a `0600` file fallback.
+- Tokens and dynamic client information are encrypted using Electron `safeStorage`. If secure
+  encryption is unavailable, or Linux reports the weak `basic_text` backend, secrets remain
+  memory-only for the current process and the UI explains that sign-in will be required again after
+  restart.
 - Access tokens, refresh tokens, auth codes, and client secrets never go to renderer state, logs,
   config sync, or MCP server config.
 - After successful auth, the MCP server restarts or reconnects and its tools/prompts/resources load
   through the existing MCP presenter path.
 - Expired access tokens are refreshed through the SDK/provider path when a refresh token exists.
 - Invalid/expired credentials clear token status and return the card to the authenticate state.
+- Credentials are bound to immutable local server ID/config generation/binding hash, protected
+  resource, authorization issuer, and server endpoint. A credential discovered for one binding or
+  issuer is never offered to another.
+- Client metadata identifies DeepChat as a native application. Client ID Metadata Documents are
+  preferred; Dynamic Client Registration remains a legacy fallback only when the authorization
+  server requires it.
 - Existing bearer-token MCP configs keep working; `customHeaders.Authorization` remains higher
   priority than OAuth auto-detection.
 - OpenAI Codex sign-in opens the system browser with `shell.openExternal` and no longer loads the

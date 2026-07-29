@@ -17,6 +17,34 @@ Today MCP stores and checks per-server `autoApprove` permissions. That creates d
 Remove MCP-specific permission handling so MCP does no extra approval, denial, or auto-approval
 processing. After upgrade, historical MCP permission settings are cleared or ignored.
 
+This removal requires one main-process, source-aware `ToolPermissionBroker`. The current
+`SessionPermissionPort` exposes approval mutation but not a complete evaluate/request/wait/cancel
+flow, and current MCP composition still calls `mcpService.grantPermission`. Simply deleting
+`ToolManager` checks would leave MCP App calls, which may happen outside an active model turn,
+without an executable consent boundary.
+
+The broker is the only entry point for host-owned tool consent. It receives immutable execution
+context:
+
+```ts
+interface ToolPermissionRequest {
+  requestId: string
+  conversationId: string
+  serverId: string
+  toolName: string
+  arguments: unknown
+  argumentsHash: string
+  source: 'model' | 'mcp-app'
+}
+```
+
+It evaluates the current agent/session policy, creates a host-owned pending request when user input
+is required, presents a bounded/redacted argument view, resumes exactly one caller, and supports
+denial, cancellation, renderer destruction, conversation deletion, and timeout. The canonical
+arguments remain main-owned and their hash is rechecked immediately before execution. An App
+request supplies none of these identities; main derives them from its bound App descriptor and
+execution context.
+
 ## Acceptance Criteria
 
 - MCP tool execution no longer checks `MCPServerConfig.autoApprove`.
@@ -25,7 +53,13 @@ processing. After upgrade, historical MCP permission settings are cleared or ign
 - MCP add/edit/import/sync paths do not reintroduce `autoApprove`.
 - MCP UI no longer displays per-server auto-approve controls.
 - MCP permission request/session-cache code paths are removed from the MCP presenter.
-- Agent/session permission mode remains the only tool-execution permission gate.
+- One main-process `ToolPermissionBroker` owns evaluate/request/resume/cancel/timeout behavior for
+  host-owned model and MCP App tool calls.
+- Agent/session permission mode remains the policy evaluated by that broker.
+- MCP App-origin tool calls enter the broker with main-derived conversation/server/tool/argument
+  identity and cannot restore an App-level or server-level auto-approval path.
+- A response is matched by opaque request ID and sender context, resolves one pending request, and
+  cannot approve another conversation or changed argument payload.
 - MCP OAuth authentication remains separate and unchanged; authentication is not a permission gate.
 - Agent-scoped MCP server/plugin selection remains unchanged; selection is not a permission system.
 
@@ -35,7 +69,15 @@ processing. After upgrade, historical MCP permission settings are cleared or ign
 - Do not change ACP `session/request_permission` handling.
 - Do not change plugin installation trust or plugin ownership metadata.
 - Do not change MCP OAuth credential storage or authentication prompts.
+- Do not grant an MCP App durable permission from its iframe origin, resource URI, or server
+  identity.
+- Do not add a persistent App grant, MCP grant, or parallel permission cache to the broker.
 - Do not change server enablement, agent server selection, or plugin server selection.
+
+The main-owned MCP App host may suspend that App instance's tool channel after a denial so automatic
+polling cannot reopen the dialog. The suspension stores no approval, rejects all App-origin tool
+calls until a host-owned retry, and disappears on teardown. It is execution lifecycle state, not a
+permission grant or cache.
 
 ## Compatibility
 

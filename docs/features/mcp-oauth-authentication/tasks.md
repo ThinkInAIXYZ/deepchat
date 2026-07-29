@@ -24,7 +24,28 @@ Status: implementation complete, manual external OAuth smoke pending.
 - [x] Add pending Codex paste fallback UI to `OpenAICodexOAuth`.
 - [x] Add i18n strings for auth states and actions.
 - [x] Add focused main tests for Codex external-browser and pasted callback URL flow.
-- [ ] Manual smoke against `https://mcp.linear.app/mcp`.
+- [ ] Execute the pinned local and Linear read-only OAuth cases in the ecosystem manual verification
+      runbook.
 - [ ] Manual smoke OpenAI Codex sign-in with Google through external browser.
+- [x] Cover unavailable-listener paste fallback in the focused loopback fixture; do not require a
+      packaged manual smoke without reviewed fault injection.
 - [x] Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint`.
 - [x] Run typecheck and focused Codex auth tests.
+
+## MCP 2026-07-28 Conformance
+
+The checked file-fallback task above records the shipped implementation. The following tasks replace
+that behavior rather than treating it as acceptable final storage.
+
+- [ ] Move MCP OAuth types and providers to the v2 client SDK.
+- [ ] Prefer Client ID Metadata Documents and keep DCR as an issuer-scoped legacy fallback.
+- [ ] Declare DeepChat as a native application in client metadata.
+- [ ] Implement all four authorization-response `iss` cases with simple exact string comparison,
+      no normalization, and validation before code/error processing or display.
+- [ ] Bind stored credentials to immutable server ID/generation/binding, server endpoint, protected
+      resource, and issuer.
+- [ ] Replace the plaintext `0600` fallback with memory-only credentials when `safeStorage` is
+      unavailable.
+- [ ] Treat Linux safeStorage `basic_text` as unavailable for persistent secrets.
+- [ ] Add tests proving secrets never enter config, renderer state, logs, or plaintext files.
+- [ ] Keep deprecated SSE OAuth unchanged and target new authorization behavior to Streamable HTTP.
