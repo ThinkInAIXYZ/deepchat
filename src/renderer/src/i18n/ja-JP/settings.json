@@ -1332,6 +1332,7 @@
       "name": "サーバー名",
       "namePlaceholder": "サーバー名を入力",
       "nameRequired": "サーバー名は必須です",
+      "nameDuplicate": "同じ名前のサーバーがすでに存在します。",
       "type": "サーバータイプ",
       "typePlaceholder": "サーバータイプを選択",
       "typeStdio": "標準入力と出力（STDIO）",

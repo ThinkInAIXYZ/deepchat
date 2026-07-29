@@ -1687,6 +1687,7 @@
       "name": "服务器名称",
       "namePlaceholder": "输入服务器名称",
       "nameRequired": "服务器名称不能为空",
+      "nameDuplicate": "已存在同名服务器，请换一个名称。",
       "type": "服务器类型",
       "typePlaceholder": "选择服务器类型",
       "typeStdio": "标准输入输出(Stdio)",

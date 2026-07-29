@@ -58,6 +58,8 @@ const isAddServerDialogOpen = ref(false)
 const isEditServerDialogOpen = ref(false)
 const isRemoveConfirmDialogOpen = ref(false)
 const isAuthCallbackDialogOpen = ref(false)
+const addServerError = ref<'duplicate' | 'failed' | null>(null)
+const isAddingServer = ref(false)
 const isToolPanelOpen = ref(false)
 const isPromptPanelOpen = ref(false)
 const isResourceViewerOpen = ref(false)
@@ -72,6 +74,7 @@ const isSubmittingAuthCallback = ref(false)
 const searchQuery = ref('')
 const activeFilter = ref<'all' | 'running' | 'stopped'>('all')
 const MCP_FILTERS = ['all', 'running', 'stopped'] as const
+let addServerDialogGeneration = 0
 
 watch(
   () => mcpStore.mcpInstallCache,
@@ -84,8 +87,10 @@ watch(
 )
 
 watch(isAddServerDialogOpen, (newIsAddServerDialogOpen) => {
+  addServerDialogGeneration += 1
   if (!newIsAddServerDialogOpen) {
     mcpStore.clearMcpInstallCache()
+    addServerError.value = null
   }
 })
 const isDeepChatManagedServer = (config?: MCPServerConfig) => {
@@ -134,10 +139,28 @@ const getServerEnabled = (serverName: string, fallback: boolean) =>
   props.serverEnabledOverrides[serverName] ?? fallback
 
 const handleAddServer = async (serverName: string, serverConfig: MCPServerConfig) => {
-  const result = await mcpStore.addServer(serverName, serverConfig)
-  if (result.success) {
-    isAddServerDialogOpen.value = false
+  if (isAddingServer.value) return
+
+  isAddingServer.value = true
+  addServerError.value = null
+  const dialogGeneration = addServerDialogGeneration
+  try {
+    const result = await mcpStore.addServer(serverName, serverConfig)
+    if (dialogGeneration !== addServerDialogGeneration || !isAddServerDialogOpen.value) {
+      return
+    }
+    if (result.status === 'added') {
+      isAddServerDialogOpen.value = false
+      return
+    }
+    addServerError.value = result.status
+  } finally {
+    isAddingServer.value = false
   }
+}
+
+const clearAddServerError = () => {
+  addServerError.value = null
 }
 
 const openAddServerDialog = () => {
@@ -456,7 +479,17 @@ defineExpose({
               </DialogHeader>
               <McpServerForm
                 :default-json-config="mcpStore.mcpInstallCache || undefined"
+                :submitting="isAddingServer"
+                :name-error="
+                  addServerError === 'duplicate'
+                    ? t('settings.mcp.serverForm.nameDuplicate')
+                    : undefined
+                "
+                :submission-error="
+                  addServerError === 'failed' ? t('mcp.errors.addServerFailed') : undefined
+                "
                 @submit="handleAddServer"
+                @input-change="clearAddServerError"
               />
             </DialogContent>
           </Dialog>

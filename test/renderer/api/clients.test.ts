@@ -661,6 +661,8 @@ describe('renderer api clients', () => {
                   storage: 'safeStorage'
                 }
               }
+            case 'mcp.addServer':
+              return { result: { status: 'duplicate' } }
             case 'mcp.router.listServers':
               return {
                 servers: [
@@ -2735,6 +2737,21 @@ describe('renderer api clients', () => {
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'mcp.router.installServer', {
       serverKey: 'context7'
+    })
+  })
+
+  it('returns typed MCP add outcomes to the initiating renderer', async () => {
+    const bridge = createBridge()
+    const mcpClient = createMcpClient(bridge)
+    const config = { type: 'stdio', command: 'node' } as const
+
+    await expect(mcpClient.addMcpServer('duplicate-server', config)).resolves.toEqual({
+      status: 'duplicate'
+    })
+
+    expect(bridge.invoke).toHaveBeenCalledWith('mcp.addServer', {
+      serverName: 'duplicate-server',
+      config
     })
   })
 

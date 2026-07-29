@@ -96,7 +96,7 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
 
   async function addMcpServer(serverName: string, config: MCPServerConfig) {
     const result = await bridge.invoke(mcpAddServerRoute.name, { serverName, config })
-    return result.success
+    return result.result
   }
 
   async function updateMcpServer(serverName: string, config: Partial<MCPServerConfig>) {

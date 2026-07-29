@@ -130,15 +130,15 @@ export function createMcpRoutes(deps: {
       mcpAddServerRoute.name,
       async (rawInput) => {
         const input = mcpAddServerRoute.input.parse(rawInput)
-        const success = await mcpService.addMcpServer(input.serverName, input.config)
-        if (success) {
+        const result = await mcpService.addMcpServer(input.serverName, input.config)
+        if (result.status === 'added') {
           serverActivity(
             'created',
             input.serverName,
             'settings.controlCenter.activity.mcpServerCreated'
           )
         }
-        return mcpAddServerRoute.output.parse({ success })
+        return mcpAddServerRoute.output.parse({ result })
       }
     ],
     [

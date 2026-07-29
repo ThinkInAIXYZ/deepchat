@@ -1687,6 +1687,7 @@
       "name": "Servername",
       "namePlaceholder": "Servernamen eingeben",
       "nameRequired": "Servername darf nicht leer sein",
+      "nameDuplicate": "Ein Server mit diesem Namen ist bereits vorhanden.",
       "type": "Servertyp",
       "typePlaceholder": "Servertyp auswählen",
       "typeStdio": "Standard-Ein-/Ausgabe (Stdio)",

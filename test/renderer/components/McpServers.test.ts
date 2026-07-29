@@ -31,6 +31,31 @@ const serverCardStub = defineComponent({
   `
 })
 
+const mcpServerFormStub = defineComponent({
+  name: 'McpServerForm',
+  props: {
+    submitting: { type: Boolean, default: false },
+    nameError: { type: String, default: undefined },
+    submissionError: { type: String, default: undefined }
+  },
+  emits: ['submit', 'input-change'],
+  template: `
+    <div>
+      <p v-if="nameError || submissionError" data-testid="add-server-error">
+        {{ nameError || submissionError }}
+      </p>
+      <button
+        data-testid="submit-server"
+        :disabled="submitting"
+        @click="$emit('submit', 'duplicate-server', { type: 'stdio', command: 'node' })"
+      >
+        submit
+      </button>
+      <button data-testid="change-server-name" @click="$emit('input-change')">change</button>
+    </div>
+  `
+})
+
 type SetupOptions = {
   withServers?: boolean
   showFooterAddButton?: boolean
@@ -101,7 +126,7 @@ const setup = async (options: SetupOptions = {}) => {
     resources: [],
     visibleResources: [],
     serverLoadingStates: {},
-    addServer: vi.fn().mockResolvedValue({ success: true }),
+    addServer: vi.fn().mockResolvedValue({ status: 'added' }),
     updateServer: vi.fn().mockResolvedValue(true),
     removeServer: vi.fn().mockResolvedValue(true),
     toggleServer: vi.fn().mockResolvedValue(true),
@@ -152,7 +177,7 @@ const setup = async (options: SetupOptions = {}) => {
         DialogDescription: passthrough('DialogDescription'),
         DialogFooter: passthrough('DialogFooter'),
         McpServerCard: serverCardStub,
-        McpServerForm: true,
+        McpServerForm: mcpServerFormStub,
         McpToolPanel: true,
         McpPromptPanel: true,
         McpResourceViewer: true,
@@ -185,6 +210,50 @@ describe('McpServers', () => {
     const { wrapper } = await setup({ showFooterAddButton: false })
 
     expect(wrapper.text()).not.toContain('common.add')
+  })
+
+  it('keeps duplicate add feedback inline until the server name changes', async () => {
+    const { wrapper, mcpStore } = await setup()
+    mcpStore.addServer.mockResolvedValueOnce({ status: 'duplicate' })
+
+    ;(wrapper.vm as unknown as { openAddServerDialog: () => void }).openAddServerDialog()
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="submit-server"]').trigger('click')
+    await flushPromises()
+
+    expect(mcpStore.addServer).toHaveBeenCalledWith('duplicate-server', {
+      type: 'stdio',
+      command: 'node'
+    })
+    expect(wrapper.find('[data-testid="add-server-error"]').text()).toBe(
+      'settings.mcp.serverForm.nameDuplicate'
+    )
+    expect(mcpStore.clearMcpInstallCache).not.toHaveBeenCalled()
+
+    await wrapper.find('[data-testid="change-server-name"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="add-server-error"]').exists()).toBe(false)
+  })
+
+  it('ignores an add result after its dialog generation closes', async () => {
+    const { wrapper, mcpStore } = await setup()
+    let resolveAdd: (result: { status: 'duplicate' }) => void = () => undefined
+    mcpStore.addServer.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveAdd = resolve
+        })
+    )
+
+    ;(wrapper.vm as unknown as { openAddServerDialog: () => void }).openAddServerDialog()
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="submit-server"]').trigger('click')
+    wrapper.findAllComponents({ name: 'Dialog' })[0].vm.$emit('update:open', false)
+    await wrapper.vm.$nextTick()
+    resolveAdd({ status: 'duplicate' })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="add-server-error"]').exists()).toBe(false)
   })
 
   it('only shows all, running, and stopped filters', async () => {

@@ -8,6 +8,7 @@ import {
   type McpSamplingDecision,
   type McpSamplingRequestPayload,
   type MCPServerConfig,
+  type McpAddServerResult,
   type McpServerAuthStatus,
   type McpServicePort,
   type MCPToolCall,
@@ -23,15 +24,14 @@ import type { McpClient as RuntimeMcpClient } from './mcpClient'
 import { ToolManager, type ComputerUsePreviewObserver } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
 import { McpOAuthManager } from './mcpOAuthManager'
-import { getErrorMessageLabels } from '@shared/i18n'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PromptSettings } from '@/agent/promptSettings'
-import type { DesktopSettings } from '@/desktop/settings'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { PluginRuntimeSupervisor } from '@/plugin/runtimeSupervisor'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { SemanticNotificationPublisher } from '@/notifications'
 import { McpSettings } from './settings'
 
 type McpToolAccessContext = {
@@ -71,7 +71,6 @@ export class McpService implements McpServicePort {
   private mcpOAuthManager: McpOAuthManager
   private providerSettings: Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>
   private readonly promptSettings: Pick<PromptSettings, 'getCustomPrompts'>
-  private readonly locale: Pick<DesktopSettings, 'getLanguage'>
   private readonly mcpSettings: McpSettings
   private readonly privacy: PrivacySettingsPort
   private isInitialized: boolean = false
@@ -80,6 +79,7 @@ export class McpService implements McpServicePort {
   private cacheImage?: (data: string) => Promise<string>
   private readonly onRegistryChanged: () => void
   private shutdownPromise: Promise<void> | null = null
+  private addMcpServerTail: Promise<void> = Promise.resolve()
   private readonly pluginRuntimeSupervisor: PluginRuntimeSupervisor
   private pendingSamplingRequests = new Map<
     string,
@@ -129,12 +129,12 @@ export class McpService implements McpServicePort {
     providerSettings: Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>,
     agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>,
     promptSettings: Pick<PromptSettings, 'getCustomPrompts'>,
-    locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
     privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
     providerRuntime: Pick<ProviderRuntimePort, 'generateCompletionStandalone'>,
     onRegistryChanged: () => void,
+    semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
     cacheImage?: (data: string) => Promise<string>,
     pluginRuntimeSupervisor?: PluginRuntimeSupervisor,
@@ -144,7 +144,6 @@ export class McpService implements McpServicePort {
 
     this.providerSettings = providerSettings
     this.promptSettings = promptSettings
-    this.locale = locale
     this.mcpSettings = mcpSettings
     this.privacy = privacy
     this.cacheImage = cacheImage
@@ -154,7 +153,6 @@ export class McpService implements McpServicePort {
       this.restartServerAfterAuthentication(serverName)
     )
     this.serverManager = new ServerManager(
-      this.locale,
       this.mcpSettings,
       this.privacy,
       inMemoryServerFactory,
@@ -164,14 +162,15 @@ export class McpService implements McpServicePort {
         config: this.providerSettings
       },
       () => this.handleRegistryChanged(),
+      semanticNotifications,
       this.publishEvent,
       this.mcpOAuthManager
     )
     this.toolManager = new ToolManager(
       agentSettings,
-      this.locale,
       this.mcpSettings,
       this.serverManager,
+      semanticNotifications,
       this.publishEvent,
       {
         ownsServer: (serverName) => this.pluginRuntimeSupervisor.ownsServer(serverName),
@@ -687,28 +686,28 @@ export class McpService implements McpServicePort {
   }
 
   // Add MCP server
-  async addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean> {
+  async addMcpServer(serverName: string, config: MCPServerConfig): Promise<McpAddServerResult> {
+    const result = this.addMcpServerTail.then(() => this.addMcpServerOnce(serverName, config))
+    this.addMcpServerTail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
+
+  private async addMcpServerOnce(
+    serverName: string,
+    config: MCPServerConfig
+  ): Promise<McpAddServerResult> {
     if (this.pluginRuntimeSupervisor.ownsServer(serverName)) {
       throw new Error(`MCP server "${serverName}" is owned by an enabled plugin`)
     }
     const existingServers = await this.getMcpServers()
     if (existingServers[serverName]) {
-      console.error(`[MCP] Failed to add server: Server name "${serverName}" already exists.`)
-      // Get current language and send notification
-      const locale = this.locale.getLanguage() || 'zh-CN'
-      const errorMessages = getErrorMessageLabels(locale)
-      this.publishEvent('notification.error', {
-        title: errorMessages.addMcpServerErrorTitle || 'Failed to add server',
-        message:
-          errorMessages.addMcpServerDuplicateMessage?.replace('{serverName}', serverName) ||
-          `Server name "${serverName}" already exists. Please choose a different name.`,
-        id: `mcp-error-add-server-${serverName}-${Date.now()}`,
-        type: 'error'
-      })
-      return false
+      return { status: 'duplicate' }
     }
     await this.mcpSettings.addMcpServer(serverName, config)
-    return true
+    return { status: 'added' }
   }
 
   // Update MCP server configuration

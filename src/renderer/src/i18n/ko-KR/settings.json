@@ -1332,6 +1332,7 @@
       "name": "서버 이름",
       "namePlaceholder": "서버 이름 입력",
       "nameRequired": "서버 이름이 필요합니다",
+      "nameDuplicate": "같은 이름의 서버가 이미 있습니다.",
       "type": "서버 유형",
       "typePlaceholder": "서버 유형 선택",
       "typeStdio": "표준 입력 및 출력 (STDIO)",

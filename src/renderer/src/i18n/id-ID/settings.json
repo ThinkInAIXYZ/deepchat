@@ -1687,6 +1687,7 @@
       "name": "Nama server",
       "namePlaceholder": "Masukkan nama server",
       "nameRequired": "Nama server tidak boleh kosong",
+      "nameDuplicate": "Server dengan nama ini sudah ada.",
       "type": "Jenis server",
       "typePlaceholder": "Pilih jenis server",
       "typeStdio": "Input dan output standar (Stdio)",

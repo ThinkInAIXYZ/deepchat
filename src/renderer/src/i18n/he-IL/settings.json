@@ -1343,6 +1343,7 @@
       "name": "שם השרת",
       "namePlaceholder": "הזן את שם השרת",
       "nameRequired": "שם השרת נדרש",
+      "nameDuplicate": "שרת בשם הזה כבר קיים.",
       "type": "סוג שרת",
       "typePlaceholder": "בחר סוג שרת",
       "typeStdio": "קלט ופלט סטנדרטי (Stdio)",

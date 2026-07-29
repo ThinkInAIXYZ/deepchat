@@ -591,6 +591,7 @@ function createRuntime() {
     server_url: 'https://mcp.context7.com/mcp'
   }
   const mcpService = {
+    addMcpServer: vi.fn().mockResolvedValue({ status: 'added' }),
     getNpmRegistryStatus: vi.fn().mockResolvedValue({
       currentRegistry: 'https://registry.npmjs.org/',
       isFromCache: false,
@@ -3676,6 +3677,30 @@ describe('dispatchDeepchatRoute', () => {
     expect(installedResult).toEqual({ installed: false })
     expect(installedIdsResult).toEqual({ installedSourceIds: ['context7'] })
     expect(installResult).toEqual({ installed: true })
+  })
+
+  it('returns typed MCP add results and records only persisted additions', async () => {
+    const { runtime, mcpService, sqlitePresenter } = createRuntime()
+    const context = { webContentsId: 42, windowId: 7 }
+    const config = { type: 'stdio', command: 'node' } as const
+
+    const added = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.addServer',
+      { serverName: 'new-server', config },
+      context
+    )
+    vi.mocked(mcpService.addMcpServer).mockResolvedValueOnce({ status: 'duplicate' })
+    const duplicate = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.addServer',
+      { serverName: 'new-server', config },
+      context
+    )
+
+    expect(added).toEqual({ result: { status: 'added' } })
+    expect(duplicate).toEqual({ result: { status: 'duplicate' } })
+    expect(sqlitePresenter.recordSettingsActivity).toHaveBeenCalledOnce()
   })
 
   it('dispatches NPM registry routes through McpService', async () => {

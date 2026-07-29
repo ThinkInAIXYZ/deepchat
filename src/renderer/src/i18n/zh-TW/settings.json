@@ -1332,6 +1332,7 @@
       "name": "伺服器名稱",
       "namePlaceholder": "輸入伺服器名稱",
       "nameRequired": "伺服器名稱不能為空",
+      "nameDuplicate": "已有同名伺服器，請使用其他名稱。",
       "type": "伺服器類型",
       "typePlaceholder": "選擇伺服器類型",
       "typeStdio": "標準輸入輸出(Stdio)",

@@ -1343,6 +1343,7 @@
       "name": "Nome do Servidor",
       "namePlaceholder": "Digite o nome do servidor",
       "nameRequired": "O nome do servidor é obrigatório",
+      "nameDuplicate": "Já existe um servidor com esse nome.",
       "type": "Tipo de Servidor",
       "typePlaceholder": "Selecionar tipo de servidor",
       "typeStdio": "Entrada e saída padrão (Stdio)",

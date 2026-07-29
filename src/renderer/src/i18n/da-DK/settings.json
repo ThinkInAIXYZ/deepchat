@@ -1276,6 +1276,7 @@
       "name": "Servernavn",
       "namePlaceholder": "Indtast servernavn",
       "nameRequired": "Servernavn er påkrævet",
+      "nameDuplicate": "Der findes allerede en server med dette navn.",
       "type": "Servertype",
       "typePlaceholder": "Vælg servertype",
       "typeStdio": "Standard input/output (Stdio)",

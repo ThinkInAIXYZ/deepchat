@@ -1687,6 +1687,7 @@
       "name": "Sunucu Adı",
       "namePlaceholder": "Sunucu adını girin",
       "nameRequired": "Sunucu adı gerekli",
+      "nameDuplicate": "Bu ada sahip bir sunucu zaten var.",
       "type": "Sunucu Türü",
       "typePlaceholder": "Sunucu türünü seçin",
       "typeStdio": "Standart giriş ve çıkış (Stdio)",

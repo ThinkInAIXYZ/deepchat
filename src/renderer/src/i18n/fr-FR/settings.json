@@ -1332,6 +1332,7 @@
       "name": "Nom du serveur",
       "namePlaceholder": "Entrer le nom du serveur",
       "nameRequired": "Le nom du serveur est requis",
+      "nameDuplicate": "Un serveur portant ce nom existe déjà.",
       "type": "Type de serveur",
       "typePlaceholder": "Sélectionner le type de serveur",
       "typeStdio": "Entrée et sortie standard (Stdio)",

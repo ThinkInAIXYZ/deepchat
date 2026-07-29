@@ -1689,6 +1689,7 @@
       "name": "Server Name",
       "namePlaceholder": "Enter server name",
       "nameRequired": "Server name is required",
+      "nameDuplicate": "A server with this name already exists.",
       "type": "Server Type",
       "typePlaceholder": "Select server type",
       "typeStdio": "Standard input and output (Stdio)",

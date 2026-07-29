@@ -22,6 +22,10 @@ const toolManagerMocks = vi.hoisted(() => ({
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+const semanticNotificationsMock = vi.hoisted(() => ({
+  occur: vi.fn(),
+  recover: vi.fn()
+}))
 
 vi.mock('../../../src/main/mcp/serverManager', () => ({
   ServerManager: vi.fn().mockImplementation(() => ({
@@ -59,16 +63,16 @@ const createMcpService = (providerSettings: any, onRegistryChanged = vi.fn()) =>
     providerSettings,
     providerSettings,
     { getCustomPrompts: vi.fn().mockResolvedValue([]) },
-    { getLanguage: vi.fn().mockReturnValue('en-US') },
     providerSettings,
     { isEnabled: () => providerSettings.privacyModeEnabled === true },
     vi.fn() as never,
     {} as never,
     onRegistryChanged,
+    semanticNotificationsMock,
     publishDeepchatEventMock
   )
 
-describe('McpService#setMcpServerEnabled', () => {
+describe('McpService', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
@@ -130,9 +134,55 @@ describe('McpService#setMcpServerEnabled', () => {
       setMcpEnabled: vi.fn().mockResolvedValue(undefined),
       getMcpServers: vi.fn().mockResolvedValue(servers),
       getEnabledMcpServers: vi.fn().mockResolvedValue(enabledServers),
-      getLanguage: vi.fn().mockReturnValue('en-US'),
+      addMcpServer: vi.fn().mockResolvedValue(undefined),
       privacyModeEnabled
     }) as any
+
+  it('returns a typed duplicate result without mutating settings', async () => {
+    const providerSettings = createProviderSettings(true, false, {
+      existing: { type: 'stdio', command: 'node' }
+    })
+    const presenter = createMcpService(providerSettings)
+
+    await expect(
+      presenter.addMcpServer('existing', { type: 'stdio', command: 'node' })
+    ).resolves.toEqual({ status: 'duplicate' })
+
+    expect(providerSettings.addMcpServer).not.toHaveBeenCalled()
+    expect(publishDeepchatEventMock).not.toHaveBeenCalled()
+  })
+
+  it('persists a new server and returns an added result', async () => {
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
+    const config = { type: 'stdio', command: 'node' } as const
+
+    await expect(presenter.addMcpServer('new-server', config)).resolves.toEqual({
+      status: 'added'
+    })
+
+    expect(providerSettings.addMcpServer).toHaveBeenCalledWith('new-server', config)
+  })
+
+  it('serializes concurrent adds so duplicate results remain truthful', async () => {
+    const servers: Record<string, any> = {}
+    const providerSettings = createProviderSettings(true)
+    providerSettings.getMcpServers.mockImplementation(async () => ({ ...servers }))
+    providerSettings.addMcpServer.mockImplementation(async (name: string, config: any) => {
+      servers[name] = config
+    })
+    const presenter = createMcpService(providerSettings)
+    const config = { type: 'stdio', command: 'node' } as const
+
+    await expect(
+      Promise.all([
+        presenter.addMcpServer('shared-name', config),
+        presenter.addMcpServer('shared-name', config)
+      ])
+    ).resolves.toEqual([{ status: 'added' }, { status: 'duplicate' }])
+
+    expect(providerSettings.addMcpServer).toHaveBeenCalledOnce()
+  })
 
   it('starts a server immediately after enabling it when MCP is active', async () => {
     const providerSettings = createProviderSettings(true)

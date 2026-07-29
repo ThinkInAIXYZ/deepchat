@@ -1688,6 +1688,7 @@
       "name": "Tên máy chủ",
       "namePlaceholder": "Nhập tên máy chủ",
       "nameRequired": "Tên máy chủ là bắt buộc",
+      "nameDuplicate": "Đã tồn tại máy chủ có tên này.",
       "type": "Loại máy chủ",
       "typePlaceholder": "Chọn loại máy chủ",
       "typeStdio": "Đầu vào và đầu ra tiêu chuẩn (Stdio)",

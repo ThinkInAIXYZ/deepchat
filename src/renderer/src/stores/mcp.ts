@@ -666,16 +666,15 @@ export const useMcpStore = defineStore('mcp', () => {
   // 添加服务器
   const addServer = async (serverName: string, serverConfig: MCPServerConfig) => {
     try {
-      const success = await addServerMutation.mutateAsync([serverName, serverConfig])
-      if (success) {
+      const result = await addServerMutation.mutateAsync([serverName, serverConfig])
+      if (result.status === 'added') {
         // Cache invalidation happens automatically, trigger config refresh
         await runQuery(configQuery, { force: true })
-        return { success: true, message: '' }
       }
-      return { success: false, message: t('mcp.errors.addServerFailed') }
+      return result
     } catch (error) {
-      console.error(t('mcp.errors.addServerFailed'), error)
-      return { success: false, message: t('mcp.errors.addServerFailed') }
+      console.error('[MCP] Failed to add server', error)
+      return { status: 'failed' as const }
     }
   }
 

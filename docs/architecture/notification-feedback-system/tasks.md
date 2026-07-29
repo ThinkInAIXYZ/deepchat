@@ -11,7 +11,7 @@
 ## Contracts and lifecycle cores
 
 - [x] Add the renderer notification request contract.
-- [ ] Add the main semantic notification intent contract.
+- [x] Add the main semantic notification intent contract.
 - [x] Add injectable Clock, Scheduler, and privacy-safe diagnostics ports.
 - [x] Add observable notification records.
 - [x] Implement and test Operation Registry.
@@ -40,11 +40,11 @@
 
 ## Main Router and semantic producers
 
-- [ ] Add single-target Window Notification Router.
-- [ ] Add bounded pending actionable storage and recovery cancellation.
-- [ ] Migrate MCP connection occurrence and recovery.
-- [ ] Migrate MCP tool-list occurrence and recovery.
-- [ ] Return duplicate MCP add failure to the initiating surface.
+- [x] Add single-target Window Notification Router.
+- [x] Add bounded pending actionable storage and recovery cancellation.
+- [x] Migrate MCP connection occurrence and recovery.
+- [x] Migrate MCP tool-list occurrence and recovery.
+- [x] Return duplicate MCP add failure to the initiating surface.
 - [ ] Replace provider deeplink arbitrary messages with typed error codes.
 - [ ] Remove process-level network-shaped user notification.
 - [ ] Generalize database repair suggestion to the semantic intent contract.

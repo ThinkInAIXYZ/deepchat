@@ -53,7 +53,8 @@ import {
   AggregatedWindowNotificationDiagnostics,
   ElectronWindowNotificationTargets,
   WindowNotificationRouter,
-  createNotificationRoutes
+  createNotificationRoutes,
+  type SemanticNotificationPublisher
 } from '../notifications'
 import { DesktopSettings } from '../desktop/settings'
 import { FontSettings } from '../desktop/fontSettings'
@@ -359,6 +360,18 @@ export async function createMainProcessControl(dependencies: {
       .catch((error) => {
         logger.warn('[NotificationRouter] renderer invalidation failed', error)
       })
+  }
+  const semanticNotifications: SemanticNotificationPublisher = {
+    occur: (intent) => {
+      void semanticNotificationRouter.occur(intent).catch((error) => {
+        logger.warn('[NotificationRouter] occurrence failed', error)
+      })
+    },
+    recover: (intent) => {
+      void semanticNotificationRouter.recover(intent).catch((error) => {
+        logger.warn('[NotificationRouter] recovery failed', error)
+      })
+    }
   }
   const publishDeepchatEvent = (name: DeepchatEventName, payload: unknown): void => {
     windowPresenter.sendToAllWindows(
@@ -691,7 +704,6 @@ export async function createMainProcessControl(dependencies: {
     providerSettings,
     agentSettings,
     promptSettings,
-    desktopSettings,
     dependencies.mcpSettings,
     dependencies.privacySettings,
     createInMemoryServerFactory({
@@ -706,6 +718,7 @@ export async function createMainProcessControl(dependencies: {
     }),
     providerRuntime,
     () => deepChatAgentHarness.refreshToolRegistry(),
+    semanticNotifications,
     publishDeepchatEvent,
     (data) => deviceService.cacheImage(data),
     pluginRuntimeSupervisor,

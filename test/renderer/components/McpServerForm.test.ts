@@ -47,7 +47,7 @@ const checkboxStub = defineComponent({
 })
 
 describe('McpServerForm', () => {
-  it('renders editable auto approve checkboxes and submits selected permissions', async () => {
+  it('renders editable permissions and submission feedback', async () => {
     vi.resetModules()
 
     vi.doMock('@api/DeviceClient', () => ({
@@ -129,5 +129,13 @@ describe('McpServerForm', () => {
     expect(submitEvent?.[1]).toMatchObject({
       autoApprove: ['read', 'write']
     })
+
+    await wrapper.setProps({
+      submitting: true,
+      submissionError: 'A server with this name already exists.'
+    })
+
+    expect(wrapper.get('[role="alert"]').text()).toBe('A server with this name already exists.')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
   })
 })

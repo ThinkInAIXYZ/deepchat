@@ -7,6 +7,10 @@ import * as toolPolicyStore from '@/plugin/toolPolicyStore'
 
 const TOOL_POLICY_PLUGIN_ID = 'com.deepchat.plugins.permission-test'
 const { registerPluginToolPolicy, unregisterPluginToolPolicies } = toolPolicyStore
+const semanticNotifications = {
+  occur: vi.fn(),
+  recover: vi.fn()
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -71,8 +75,7 @@ describe('ToolManager', () => {
         }
       }),
       getAcpAgents: vi.fn().mockResolvedValue([]),
-      getAgentMcpSelections: vi.fn().mockResolvedValue([]),
-      getLanguage: vi.fn().mockReturnValue('en-US')
+      getAgentMcpSelections: vi.fn().mockResolvedValue([])
     }
   }
 
@@ -116,9 +119,9 @@ describe('ToolManager', () => {
   ) {
     return new ToolManager(
       providerSettings as never,
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
       providerSettings as never,
       serverManager as never,
+      semanticNotifications,
       vi.fn(),
       {
         ownsServer: (serverName) => Object.hasOwn(pluginOwners, serverName),
@@ -934,7 +937,7 @@ describe('ToolManager', () => {
     expect(client.callTool).not.toHaveBeenCalled()
   })
 
-  it('records plugin tool-list failures without showing a global toast', async () => {
+  it('records plugin tool-list failures without publishing a semantic occurrence', async () => {
     const client = createClient('plugin-server', [], {
       source: 'plugin',
       ownerPluginId: 'com.deepchat.fixture'
@@ -953,6 +956,30 @@ describe('ToolManager', () => {
       'plugin-server',
       'tool list failed'
     )
+    expect(semanticNotifications.occur).not.toHaveBeenCalled()
+  })
+
+  it('publishes and recovers semantic tool-list episodes for regular servers', async () => {
+    const client = createClient('regular-server')
+    const providerSettings = createProviderSettings('regular-server')
+    const serverManager = createServerManager([client])
+    const manager = createToolManager(providerSettings as never, serverManager as never)
+    client.listTools.mockRejectedValueOnce(new Error('tool list failed'))
+
+    await expect(manager.getAllToolDefinitions()).resolves.toEqual([])
+
+    expect(semanticNotifications.occur).toHaveBeenCalledWith({
+      code: 'mcp.toolListFailed',
+      serverName: 'regular-server'
+    })
+
+    manager.invalidateRegistry()
+    await expect(manager.getAllToolDefinitions()).resolves.toHaveLength(1)
+
+    expect(semanticNotifications.recover).toHaveBeenCalledWith({
+      code: 'mcp.toolListFailed',
+      serverName: 'regular-server'
+    })
   })
 
   it('skips ACP access checks when provider hint is non-ACP', async () => {
@@ -1561,9 +1588,9 @@ describe('ToolManager', () => {
     const providerSettings = createProviderSettings('cua-driver')
     const manager = new ToolManager(
       providerSettings as never,
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
       providerSettings as never,
       createServerManager([client]) as never,
+      semanticNotifications,
       publishEvent,
       {
         ownsServer: (serverName) => serverName === 'cua-driver',

@@ -30,10 +30,14 @@ const props = defineProps<{
   initialConfig?: MCPServerConfig
   editMode?: boolean
   defaultJsonConfig?: string
+  submitting?: boolean
+  nameError?: string
+  submissionError?: string
 }>()
 
 const emit = defineEmits<{
   submit: [serverName: string, config: MCPServerConfig]
+  'input-change': []
 }>()
 
 // 表单状态
@@ -53,6 +57,10 @@ const customHeaders = ref('')
 const customHeadersFocused = ref(false)
 const customHeadersDisplayValue = ref('')
 const npmRegistry = ref(props.initialConfig?.customNpmRegistry || '')
+
+watch(name, () => {
+  emit('input-change')
+})
 
 // 判断是否是inmemory类型
 const isInMemoryType = computed(() => type.value === 'inmemory')
@@ -684,6 +692,9 @@ HTTP-Referer=deepchatai.cn`
             required
           />
         </div>
+        <p v-if="nameError" role="alert" class="text-xs text-destructive">
+          {{ nameError }}
+        </p>
 
         <!-- 图标 -->
         <div class="space-y-2">
@@ -973,8 +984,17 @@ HTTP-Referer=deepchatai.cn`
     </ScrollArea>
 
     <!-- 提交按钮 -->
-    <div class="flex justify-end pt-2 border-t px-4">
-      <Button type="submit" size="sm" :disabled="!isFormValid">
+    <div class="flex items-center justify-between gap-3 pt-2 border-t px-4">
+      <p v-if="submissionError" role="alert" class="min-w-0 text-xs text-destructive">
+        {{ submissionError }}
+      </p>
+      <Button type="submit" size="sm" class="ml-auto" :disabled="!isFormValid || submitting">
+        <Icon
+          v-if="submitting"
+          icon="lucide:loader-circle"
+          class="mr-1.5 size-3.5 animate-spin"
+          aria-hidden="true"
+        />
         {{ t('settings.mcp.serverForm.submit') }}
       </Button>
     </div>

@@ -1687,6 +1687,7 @@
       "name": "Nama pelayan",
       "namePlaceholder": "Masukkan nama pelayan",
       "nameRequired": "Nama pelayan tidak boleh kosong",
+      "nameDuplicate": "Pelayan dengan nama ini sudah wujud.",
       "type": "Jenis pelayan",
       "typePlaceholder": "Pilih jenis pelayan",
       "typeStdio": "Input dan output standard (Stdio)",
