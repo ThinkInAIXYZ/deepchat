@@ -102,12 +102,6 @@ async function setup() {
     AlertDialogHeader: passthrough('AlertDialogHeader'),
     AlertDialogTitle: passthrough('AlertDialogTitle')
   }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast: vi.fn()
-    })
-  }))
-
   const ProviderRateLimitConfig = (
     await import('../../../src/renderer/settings/components/ProviderRateLimitConfig.vue')
   ).default
@@ -156,5 +150,98 @@ describe('ProviderRateLimitConfig', () => {
 
     wrapper.unmount()
     expect(stopRateLimitEvents).toHaveBeenCalledTimes(1)
+  })
+
+  it('rolls back failed updates and retries from persistent inline feedback', async () => {
+    const { wrapper, providerClient } = await setup()
+    providerClient.updateProviderRateLimit.mockRejectedValueOnce(new Error('transport details'))
+
+    await wrapper.get('[data-testid="rate-limit-switch"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.getComponent(switchStub).props('modelValue')).toBe(false)
+    expect(wrapper.emitted('configChanged')).toBeUndefined()
+    const failure = wrapper.get('[data-testid="inline-operation-feedback"]')
+    expect(failure.attributes('data-status')).toBe('error')
+    expect(failure.text()).not.toContain('transport details')
+
+    const retry = wrapper.findAll('button').find((button) => button.text().includes('common.retry'))
+    expect(retry).toBeTruthy()
+    await retry!.trigger('click')
+    await flushPromises()
+
+    expect(providerClient.updateProviderRateLimit).toHaveBeenCalledTimes(2)
+    expect(wrapper.getComponent(switchStub).props('modelValue')).toBe(true)
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').attributes('data-status')).toBe(
+      'success'
+    )
+  })
+
+  it('keeps a successful save truthful when status projection refresh fails', async () => {
+    const { wrapper, providerClient } = await setup()
+    providerClient.getProviderRateLimitStatus.mockRejectedValueOnce(new Error('status unavailable'))
+
+    await wrapper.get('[data-testid="rate-limit-switch"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('configChanged')).toHaveLength(1)
+    expect(wrapper.getComponent(switchStub).props('modelValue')).toBe(true)
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').attributes('data-status')).toBe(
+      'success'
+    )
+  })
+
+  it('blocks settings navigation while a rate-limit write is in flight', async () => {
+    const { wrapper, providerClient } = await setup()
+    let resolveUpdate!: (value: { enabled: boolean; qpsLimit: number }) => void
+    providerClient.updateProviderRateLimit.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveUpdate = resolve
+      })
+    )
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+
+    await wrapper.get('[data-testid="rate-limit-switch"]').trigger('click')
+    await flushPromises()
+
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('busy')
+    expect(wrapper.get('[data-testid="rate-limit-switch"]').attributes('disabled')).toBeDefined()
+
+    resolveUpdate({ enabled: true, qpsLimit: 0.5 })
+    await flushPromises()
+
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+  })
+
+  it('coalesces polling and event refreshes while status IPC is slow', async () => {
+    const { providerClient, emitRateLimitEvent } = await setup()
+    let resolveStatus!: (value: {
+      config: { enabled: boolean; qpsLimit: number }
+      currentQps: number
+      queueLength: number
+      lastRequestTime: number
+    }) => void
+    providerClient.getProviderRateLimitStatus.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStatus = resolve
+      })
+    )
+
+    emitRateLimitEvent({ providerId: 'deepseek', version: 1 })
+    emitRateLimitEvent({ providerId: 'deepseek', version: 2 })
+    await flushPromises()
+
+    expect(providerClient.getProviderRateLimitStatus).toHaveBeenCalledTimes(2)
+
+    resolveStatus({
+      config: { enabled: false, qpsLimit: 0.5 },
+      currentQps: 0,
+      queueLength: 0,
+      lastRequestTime: 0
+    })
+    await flushPromises()
+
+    expect(providerClient.getProviderRateLimitStatus).toHaveBeenCalledTimes(3)
   })
 })

@@ -556,7 +556,7 @@ describe('DataSettings', () => {
     ).toBe(false)
   })
 
-  it('shows an error toast when updating privacy mode fails', async () => {
+  it('keeps privacy update failures inline without exposing transport details', async () => {
     const { wrapper, toast, uiSettingsStore } = await setup()
 
     uiSettingsStore.setPrivacyModeEnabled = vi.fn().mockRejectedValue(new Error('IPC failed'))
@@ -564,11 +564,11 @@ describe('DataSettings', () => {
     await wrapper.get('[data-testid="privacy-mode-switch"]').trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'Operation failed',
-      description: 'IPC failed',
-      variant: 'destructive'
-    })
+    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
+    expect(feedback.attributes('data-status')).toBe('error')
+    expect(feedback.text()).toContain('Operation failed')
+    expect(feedback.text()).not.toContain('IPC failed')
+    expect(toast).not.toHaveBeenCalled()
   })
 
   it('does not render a repair result summary before any repair run', async () => {
