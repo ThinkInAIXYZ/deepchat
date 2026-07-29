@@ -25,18 +25,23 @@ import {
   type NotificationDiagnosticEvent,
   type NotificationDiagnosticReason,
   type NotificationDiagnostics,
+  type NotificationProgrammaticCloseReason,
   type NotificationRequest
 } from './notificationTypes'
 
 export type ManagedNotificationHandle = Readonly<{
   logicalId: string
-  dismiss: () => void
+  dismiss: (reason?: NotificationProgrammaticCloseReason) => void
 }>
 
 export type NotificationLifecycleEvent = Readonly<{
   logicalId: string
   reason: NotificationCloseReason
   requests: readonly NotificationRequest[]
+}>
+
+export type NotificationNotifyOptions = Readonly<{
+  onLifecycleEvent?: (event: NotificationLifecycleEvent) => void
 }>
 
 export type NotificationManagerDependencies = Readonly<{
@@ -50,7 +55,11 @@ export type NotificationManagerDependencies = Readonly<{
 
 type PendingIntegrationEvent =
   | Readonly<{ type: 'diagnostic'; event: NotificationDiagnosticEvent }>
-  | Readonly<{ type: 'lifecycle'; event: NotificationLifecycleEvent }>
+  | Readonly<{
+      type: 'lifecycle'
+      event: NotificationLifecycleEvent
+      listeners: readonly ((event: NotificationLifecycleEvent) => void)[]
+    }>
 
 export class NotificationManager {
   private readonly byIdentity = new Map<string, ManagedNotificationEntry>()
@@ -64,6 +73,10 @@ export class NotificationManager {
   private readonly transientArbiter: TransientNotificationArbiter
   private readonly persistentArbiter: PersistentNotificationArbiter
   private readonly pendingIntegrationEvents: PendingIntegrationEvent[] = []
+  private readonly lifecycleListeners = new Map<
+    string,
+    Set<(event: NotificationLifecycleEvent) => void>
+  >()
   private sequence = 0
   private mutationDepth = 0
   private flushingIntegrationEvents = false
@@ -95,7 +108,10 @@ export class NotificationManager {
     this.persistentArbiter = new PersistentNotificationArbiter(this.scheduler, this.policy, hooks)
   }
 
-  notify(request: NotificationRequest): ManagedNotificationHandle {
+  notify(
+    request: NotificationRequest,
+    options: NotificationNotifyOptions = {}
+  ): ManagedNotificationHandle {
     return this.runMutation(() => {
       if (this.disposed) throw new Error('NotificationManager is disposed')
 
@@ -103,11 +119,23 @@ export class NotificationManager {
       const identity = resolveNotificationIdentity(normalizedRequest)
       const existing = identity ? this.byIdentity.get(identity) : undefined
       if (existing) {
-        this.aggregate(existing, normalizedRequest)
+        const listenerRegistered = this.registerLifecycleListener(
+          existing,
+          options.onLifecycleEvent
+        )
+        try {
+          this.aggregate(existing, normalizedRequest)
+        } catch (error) {
+          if (listenerRegistered && options.onLifecycleEvent) {
+            this.unregisterLifecycleListener(existing, options.onLifecycleEvent)
+          }
+          throw error
+        }
         return this.toHandle(existing)
       }
 
       const entry = this.createEntry(normalizedRequest, identity)
+      this.registerLifecycleListener(entry, options.onLifecycleEvent)
       if (normalizedRequest.kind === 'actionable') {
         this.persistentArbiter.offerActionable(entry)
       } else if (normalizedRequest.kind === 'progress') {
@@ -387,12 +415,15 @@ export class NotificationManager {
   private toHandle(entry: ManagedNotificationEntry): ManagedNotificationHandle {
     return Object.freeze({
       logicalId: entry.logicalId,
-      dismiss: () => this.dismiss(entry.logicalId)
+      dismiss: (reason: NotificationProgrammaticCloseReason = 'programmatic') =>
+        this.dismiss(entry.logicalId, reason)
     })
   }
 
   private emitLifecycle(entry: ManagedNotificationEntry, reason: NotificationCloseReason): void {
-    if (!this.onLifecycleEvent) return
+    const listeners = Array.from(this.lifecycleListeners.get(entry.logicalId) ?? [])
+    this.lifecycleListeners.delete(entry.logicalId)
+    if (!this.onLifecycleEvent && listeners.length === 0) return
 
     const requests =
       entry.members && entry.members.size > 0 ? Array.from(entry.members.values()) : [entry.request]
@@ -403,9 +434,34 @@ export class NotificationManager {
           logicalId: entry.logicalId,
           reason,
           requests: Object.freeze(requests)
-        })
+        }),
+        listeners: Object.freeze(listeners)
       })
     )
+  }
+
+  private registerLifecycleListener(
+    entry: ManagedNotificationEntry,
+    listener?: (event: NotificationLifecycleEvent) => void
+  ): boolean {
+    if (!listener) return false
+    const listeners = this.lifecycleListeners.get(entry.logicalId) ?? new Set()
+    const sizeBefore = listeners.size
+    listeners.add(listener)
+    this.lifecycleListeners.set(entry.logicalId, listeners)
+    return listeners.size !== sizeBefore
+  }
+
+  private unregisterLifecycleListener(
+    entry: ManagedNotificationEntry,
+    listener: (event: NotificationLifecycleEvent) => void
+  ): void {
+    const listeners = this.lifecycleListeners.get(entry.logicalId)
+    if (!listeners) return
+    listeners.delete(listener)
+    if (listeners.size === 0) {
+      this.lifecycleListeners.delete(entry.logicalId)
+    }
   }
 
   private recordDiagnostic(
@@ -458,7 +514,7 @@ export class NotificationManager {
         const pending = this.pendingIntegrationEvents[index]
         index += 1
         if (pending.type === 'lifecycle') {
-          this.dispatchLifecycle(pending.event)
+          this.dispatchLifecycle(pending.event, pending.listeners)
         } else {
           this.dispatchDiagnostic(pending.event)
         }
@@ -469,11 +525,19 @@ export class NotificationManager {
     }
   }
 
-  private dispatchLifecycle(event: NotificationLifecycleEvent): void {
-    try {
-      this.onLifecycleEvent?.(event)
-    } catch (error) {
-      this.reportIntegrationError('lifecycle listener', error)
+  private dispatchLifecycle(
+    event: NotificationLifecycleEvent,
+    listeners: readonly ((event: NotificationLifecycleEvent) => void)[]
+  ): void {
+    for (const listener of [
+      ...(this.onLifecycleEvent ? [this.onLifecycleEvent] : []),
+      ...listeners
+    ]) {
+      try {
+        listener(event)
+      } catch (error) {
+        this.reportIntegrationError('lifecycle listener', error)
+      }
     }
   }
 

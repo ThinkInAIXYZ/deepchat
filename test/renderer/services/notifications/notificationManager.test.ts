@@ -31,6 +31,86 @@ afterEach(() => {
 })
 
 describe('NotificationManager', () => {
+  it('delivers per-request lifecycle events, including synchronous policy drops', () => {
+    const time = new FakeNotificationTime()
+    const { presenter } = createPresenter()
+    const manager = new NotificationManager({ presenter, clock: time, scheduler: time })
+    const onLifecycleEvent = vi.fn()
+
+    manager.notify({
+      kind: 'error',
+      code: 'mcp.connectionFailed',
+      title: 'Connection failed'
+    })
+    manager.notify(
+      {
+        kind: 'success',
+        code: 'settings.saved',
+        title: 'Saved'
+      },
+      { onLifecycleEvent }
+    )
+
+    expect(onLifecycleEvent).toHaveBeenCalledOnce()
+    expect(onLifecycleEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'programmatic',
+        requests: [expect.objectContaining({ code: 'settings.saved' })]
+      })
+    )
+  })
+
+  it('preserves a surface-reclaimed close reason from its handle', () => {
+    const time = new FakeNotificationTime()
+    const { presenter } = createPresenter()
+    const onLifecycleEvent = vi.fn()
+    const manager = new NotificationManager({ presenter, clock: time, scheduler: time })
+    const handle = manager.notify(
+      {
+        kind: 'error',
+        code: 'settings.saveFailed',
+        title: 'Save failed'
+      },
+      { onLifecycleEvent }
+    )
+
+    handle.dismiss('surface-reclaimed')
+
+    expect(onLifecycleEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'surface-reclaimed' })
+    )
+  })
+
+  it('registers an aggregate lifecycle listener before record subscribers can close it', () => {
+    const time = new FakeNotificationTime()
+    const { presenter, presentations } = createPresenter()
+    const manager = new NotificationManager({ presenter, clock: time, scheduler: time })
+    const first = manager.notify({
+      kind: 'error',
+      code: 'mcp.connectionFailed',
+      key: 'server-a',
+      title: 'Connection failed'
+    })
+    const onLifecycleEvent = vi.fn()
+    presentations[0].record.subscribe(() => {
+      first.dismiss()
+    })
+
+    manager.notify(
+      {
+        kind: 'error',
+        code: 'mcp.connectionFailed',
+        key: 'server-a',
+        title: 'Connection still failing'
+      },
+      { onLifecycleEvent }
+    )
+
+    expect(onLifecycleEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'programmatic' })
+    )
+  })
+
   it('uses native content only for non-aggregating success and information', () => {
     const time = new FakeNotificationTime()
     const { presenter, presentations } = createPresenter()

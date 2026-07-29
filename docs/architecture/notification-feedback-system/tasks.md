@@ -30,9 +30,9 @@
 
 ## Inline feedback and Agent settings
 
-- [ ] Add generation-safe Surface Lease handoff.
-- [ ] Pause inline success fade while the document is hidden.
-- [ ] Add the inline operation feedback component/controller.
+- [x] Add generation-safe Surface Lease handoff.
+- [x] Pause inline success fade while the document is hidden.
+- [x] Add the inline operation feedback component/controller.
 - [ ] Add Agent settings pending, success, persistent failure, and retry states.
 - [ ] Derive Agent dirty state from canonical editable data.
 - [ ] Guard route and window close for dirty or in-flight Agent data.

@@ -17,6 +17,7 @@ export const NOTIFICATION_POLICY_DEFAULTS = Object.freeze({
     warning: 45_000,
     error: 60_000
   }),
+  inlineSuccessDisplayBudgetMs: 2_000,
   surfaceHandoffGraceMs: 200,
   transientCandidateFreshnessMs: 8_000,
   actionableQueueCapacity: 3,
@@ -104,6 +105,14 @@ const PROGRESS_POLICY: ResolvedNotificationPolicy = Object.freeze({
 })
 
 export class NotificationPolicy {
+  get inlineSuccessDisplayBudgetMs(): number {
+    return NOTIFICATION_POLICY_DEFAULTS.inlineSuccessDisplayBudgetMs
+  }
+
+  get surfaceHandoffGraceMs(): number {
+    return NOTIFICATION_POLICY_DEFAULTS.surfaceHandoffGraceMs
+  }
+
   get transientCandidateFreshnessMs(): number {
     return NOTIFICATION_POLICY_DEFAULTS.transientCandidateFreshnessMs
   }

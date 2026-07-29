@@ -72,6 +72,11 @@ export type NotificationCloseReason =
   | 'max-lifetime'
   | 'surface-reclaimed'
 
+export type NotificationProgrammaticCloseReason = Extract<
+  NotificationCloseReason,
+  'programmatic' | 'surface-reclaimed'
+>
+
 export type NotificationDiagnosticReason =
   | 'lower-priority'
   | 'candidate-replaced'
