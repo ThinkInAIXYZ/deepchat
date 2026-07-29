@@ -405,13 +405,36 @@ onUnmounted(() => {
   }
 })
 
+const patchScopedSkillDisabled = (name: string, disabled: boolean) => {
+  const targetSkill = scopedSkills.value.find((s) => s.name === name)
+  if (targetSkill) {
+    targetSkill.disabled = disabled
+    targetSkill.deepchatDisabled = disabled
+  }
+}
+
 const setupEventListeners = () => {
-  const handleSkillEvent = (payload: { agentIds?: string[] }) => {
+  const handleSkillEvent = (payload: {
+    reason?: string
+    name?: string
+    disabled?: boolean
+    agentIds?: string[]
+  }) => {
     // The Pinia store owns the built-in catalog refresh. This page only owns
     // the separately loaded Agent-scoped catalog.
     if (!isAgentScope.value) return
-    const affectedAgentId = isAgentScope.value ? targetAgentId.value : 'deepchat'
+    const affectedAgentId = targetAgentId.value
     if (payload.agentIds?.length && !payload.agentIds.includes(affectedAgentId)) {
+      return
+    }
+    // A disable/enable toggle only flips one flag; patch it in place so the
+    // list does not flash the loading skeleton.
+    if (
+      payload.reason === 'disabled-updated' &&
+      payload.name &&
+      typeof payload.disabled === 'boolean'
+    ) {
+      patchScopedSkillDisabled(payload.name, payload.disabled)
       return
     }
     void loadSkills()
@@ -547,6 +570,10 @@ const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean
   }
 
   const requestedAgentId = targetAgent.value.id
+  const previousDisabled =
+    scopedSkills.value.find((s) => s.name === skill.name)?.deepchatDisabled ?? false
+  // Optimistic update; the catalog-changed event confirms it without a reload.
+  patchScopedSkillDisabled(skill.name, disabled)
   try {
     await skillClient.setSkillDisabled(skill.name, disabled, requestedAgentId)
     if (requestedAgentId !== targetAgentId.value) return false
@@ -559,6 +586,7 @@ const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean
     return true
   } catch (error) {
     if (requestedAgentId !== targetAgentId.value) return false
+    patchScopedSkillDisabled(skill.name, previousDisabled)
     toast({
       title: disabled ? t('settings.skills.disable.failed') : t('settings.skills.enable.failed'),
       description: error instanceof Error ? error.message : String(error),

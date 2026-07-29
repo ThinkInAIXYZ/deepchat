@@ -18,6 +18,7 @@ export const skillsCatalogChangedEvent = defineEventContract({
       'sync-directory-updated'
     ]),
     name: z.string().optional(),
+    disabled: z.boolean().optional(),
     agentIds: z.array(EntityIdSchema).optional(),
     skill: SkillMetadataSchema.optional(),
     skills: z.array(SkillMetadataSchema).optional(),

@@ -261,6 +261,7 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
         | 'git-installed'
         | 'sync-directory-updated'
       name?: string
+      disabled?: boolean
       agentIds?: string[]
       version: number
     }) => void

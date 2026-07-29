@@ -247,8 +247,27 @@ export const useSkillsStore = defineStore('skills', () => {
     await loadSkillRuntime(name)
   }
 
+  const patchSkillDisabled = (agentId: string, name: string, disabled: boolean) => {
+    const targetSkill = skillCatalogs.value[agentId]?.find((s) => s.name === name)
+    if (targetSkill) {
+      targetSkill.disabled = disabled
+      targetSkill.deepchatDisabled = disabled
+    }
+  }
+
   const setSkillDisabled = async (name: string, disabled: boolean): Promise<void> => {
-    await skillClient.setSkillDisabled(name, disabled)
+    const previousDisabled =
+      skillCatalogs.value[BUILTIN_AGENT_ID]?.find((s) => s.name === name)?.deepchatDisabled ?? false
+
+    // Optimistic update: reloading the whole catalog here would flash the
+    // loading skeleton over the list, so patch the item in place instead.
+    patchSkillDisabled(BUILTIN_AGENT_ID, name, disabled)
+    try {
+      await skillClient.setSkillDisabled(name, disabled)
+    } catch (e) {
+      patchSkillDisabled(BUILTIN_AGENT_ID, name, previousDisabled)
+      throw e
+    }
   }
 
   const saveSkillWithExtension = async (
@@ -284,6 +303,20 @@ export const useSkillsStore = defineStore('skills', () => {
               ...Object.keys(catalogLoading.value)
             ])
           )
+
+      // A disable/enable toggle only flips one flag; patch it in place so the
+      // list does not flash the loading skeleton. This also keeps windows that
+      // did not initiate the toggle in sync.
+      if (
+        payload.reason === 'disabled-updated' &&
+        payload.name &&
+        typeof payload.disabled === 'boolean'
+      ) {
+        for (const agentId of affectedAgentIds) {
+          patchSkillDisabled(agentId, payload.name, payload.disabled)
+        }
+        return
+      }
 
       for (const agentId of affectedAgentIds) {
         if (agentId === BUILTIN_AGENT_ID || isSkillsLoaded(agentId) || isSkillsLoading(agentId)) {

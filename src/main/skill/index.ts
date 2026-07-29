@@ -1332,6 +1332,7 @@ export class SkillService implements SkillServicePort {
       this.publishEvent('skills.catalog.changed', {
         reason: 'disabled-updated',
         name,
+        disabled,
         agentIds: [normalizedAgentId],
         version: Date.now()
       })
