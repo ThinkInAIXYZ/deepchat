@@ -207,24 +207,7 @@ const mountSettingsApp = async (options?: {
         window.electron?.ipcRenderer?.on('settings:provider-install', wrapped)
         return () =>
           window.electron?.ipcRenderer?.removeListener('settings:provider-install', wrapped)
-      }),
-      onNotificationError: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
-        const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-        window.electron?.ipcRenderer?.on('notification:show-error', wrapped)
-        return () =>
-          window.electron?.ipcRenderer?.removeListener('notification:show-error', wrapped)
-      }),
-      onDatabaseRepairSuggested: vi
-        .fn()
-        .mockImplementation((listener: (payload: unknown) => void) => {
-          const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-          window.electron?.ipcRenderer?.on('notification:database-repair-suggested', wrapped)
-          return () =>
-            window.electron?.ipcRenderer?.removeListener(
-              'notification:database-repair-suggested',
-              wrapped
-            )
-        })
+      })
     })
   }))
   vi.doMock('../../../src/renderer/src/stores/uiSettingsStore', () => ({

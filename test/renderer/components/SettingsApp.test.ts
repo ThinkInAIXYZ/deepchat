@@ -20,20 +20,6 @@ const windowClientListenerImpls = vi.hoisted(() => ({
     const wrapped = () => listener()
     window.electron?.ipcRenderer?.on('settings:provider-install', wrapped)
     return () => window.electron?.ipcRenderer?.removeListener('settings:provider-install', wrapped)
-  },
-  onNotificationError: (listener: (payload: unknown) => void) => {
-    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-    window.electron?.ipcRenderer?.on('notification:show-error', wrapped)
-    return () => window.electron?.ipcRenderer?.removeListener('notification:show-error', wrapped)
-  },
-  onDatabaseRepairSuggested: (listener: (payload: unknown) => void) => {
-    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-    window.electron?.ipcRenderer?.on('notification:database-repair-suggested', wrapped)
-    return () =>
-      window.electron?.ipcRenderer?.removeListener(
-        'notification:database-repair-suggested',
-        wrapped
-      )
   }
 }))
 
@@ -50,11 +36,7 @@ const windowClientMock = vi.hoisted(() => ({
   onSettingsNavigate: vi.fn().mockImplementation(windowClientListenerImpls.onSettingsNavigate),
   onSettingsProviderInstall: vi
     .fn()
-    .mockImplementation(windowClientListenerImpls.onSettingsProviderInstall),
-  onNotificationError: vi.fn().mockImplementation(windowClientListenerImpls.onNotificationError),
-  onDatabaseRepairSuggested: vi
-    .fn()
-    .mockImplementation(windowClientListenerImpls.onDatabaseRepairSuggested)
+    .mockImplementation(windowClientListenerImpls.onSettingsProviderInstall)
 }))
 
 const appRuntimeClientMock = vi.hoisted(() => ({
@@ -101,12 +83,6 @@ beforeEach(() => {
   windowClientMock.onSettingsProviderInstall
     .mockReset()
     .mockImplementation(windowClientListenerImpls.onSettingsProviderInstall)
-  windowClientMock.onNotificationError
-    .mockReset()
-    .mockImplementation(windowClientListenerImpls.onNotificationError)
-  windowClientMock.onDatabaseRepairSuggested
-    .mockReset()
-    .mockImplementation(windowClientListenerImpls.onDatabaseRepairSuggested)
 })
 
 afterEach(() => {

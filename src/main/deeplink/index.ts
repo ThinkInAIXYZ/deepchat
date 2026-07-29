@@ -10,6 +10,7 @@ import {
   type ProviderInstallDeeplinkPayload,
   type ProviderInstallPreview
 } from '@shared/providerDeeplink'
+import type { ProviderDeeplinkFailureReason } from '@shared/notifications'
 import type {
   DeeplinkDesktopPort,
   DeeplinkMcpInstallPort,
@@ -31,6 +32,16 @@ interface MCPInstallConfig {
       type?: 'sse' | 'stdio' | 'http'
     }
   >
+}
+
+class ProviderDeeplinkError extends Error {
+  constructor(
+    readonly reason: ProviderDeeplinkFailureReason,
+    message: string
+  ) {
+    super(message)
+    this.name = 'ProviderDeeplinkError'
+  }
 }
 
 /**
@@ -351,28 +362,44 @@ export class DeeplinkService {
       this.redactSearchParamsForLog(params)
     )
 
+    let preview: ProviderInstallPreview
     try {
-      const preview = this.parseProviderInstallParams(params)
+      preview = this.parseProviderInstallParams(params)
+    } catch (error) {
+      const isExpectedRejection = error instanceof ProviderDeeplinkError
+      const reason = isExpectedRejection ? error.reason : ('invalid-payload' as const)
+      if (isExpectedRejection) {
+        console.error('Rejected provider install deeplink:', { reason })
+      } else {
+        console.error('Unexpected error parsing provider install deeplink:', error)
+      }
+      this.reportProviderInstallFailure(reason)
+      return
+    }
+
+    try {
       const requested = await this.providerInstall.requestInstall(preview)
       if (!requested) {
-        this.notifyProviderImportError('Failed to open settings window for provider deeplink.')
+        this.reportProviderInstallFailure('settings-unavailable')
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid provider deeplink.'
-      console.error('Error parsing provider install deeplink:', error)
-      this.notifyProviderImportError(message)
+      console.error('Error opening settings for provider install deeplink:', error)
+      this.reportProviderInstallFailure('settings-unavailable')
     }
   }
 
   private parseProviderInstallParams(params: URLSearchParams): ProviderInstallPreview {
     const version = params.get('v')
     if (version !== PROVIDER_INSTALL_VERSION) {
-      throw new Error(`Unsupported provider deeplink version: ${version || 'missing'}`)
+      throw new ProviderDeeplinkError(
+        'unsupported-version',
+        `Unsupported provider deeplink version: ${version || 'missing'}`
+      )
     }
 
     const rawData = params.get('data')
     if (!rawData) {
-      throw new Error("Missing 'data' parameter")
+      throw new ProviderDeeplinkError('invalid-payload', "Missing 'data' parameter")
     }
 
     const payload = this.parseProviderInstallPayload(rawData)
@@ -382,14 +409,17 @@ export class DeeplinkService {
       const baseUrl = this.sanitizeProviderInstallField(payload.baseUrl, 'baseUrl')
       const apiKey = this.sanitizeProviderInstallField(payload.apiKey, 'apiKey')
       if (!id) {
-        throw new Error('Provider id is required.')
+        throw new ProviderDeeplinkError('invalid-payload', 'Provider id is required.')
       }
       if (id === 'acp') {
-        throw new Error('ACP provider deeplinks are not supported.')
+        throw new ProviderDeeplinkError(
+          'unsupported-provider',
+          'ACP provider deeplinks are not supported.'
+        )
       }
 
       if (!this.providerInstall.hasProvider(id)) {
-        throw new Error(`Unknown provider id: ${id}`)
+        throw new ProviderDeeplinkError('provider-not-found', `Unknown provider id: ${id}`)
       }
 
       return {
@@ -408,16 +438,25 @@ export class DeeplinkService {
     const baseUrl = this.sanitizeProviderInstallField(payload.baseUrl, 'baseUrl')
     const apiKey = this.sanitizeProviderInstallField(payload.apiKey, 'apiKey')
     if (!name) {
-      throw new Error('Provider name is required for custom provider imports.')
+      throw new ProviderDeeplinkError(
+        'invalid-payload',
+        'Provider name is required for custom provider imports.'
+      )
     }
     if (!type) {
-      throw new Error('Provider type is required for custom provider imports.')
+      throw new ProviderDeeplinkError(
+        'invalid-payload',
+        'Provider type is required for custom provider imports.'
+      )
     }
     if (type === 'acp') {
-      throw new Error('ACP provider deeplinks are not supported.')
+      throw new ProviderDeeplinkError(
+        'unsupported-provider',
+        'ACP provider deeplinks are not supported.'
+      )
     }
     if (!isProviderInstallCustomType(type)) {
-      throw new Error(`Unsupported provider type: ${type}`)
+      throw new ProviderDeeplinkError('unsupported-provider', `Unsupported provider type: ${type}`)
     }
 
     return {
@@ -434,7 +473,7 @@ export class DeeplinkService {
   private parseProviderInstallPayload(rawData: string): ProviderInstallDeeplinkPayload {
     const sanitizedBase64 = rawData.replace(/\s+/g, '')
     if (!sanitizedBase64) {
-      throw new Error('Provider deeplink data is empty.')
+      throw new ProviderDeeplinkError('invalid-payload', 'Provider deeplink data is empty.')
     }
 
     let jsonString = ''
@@ -442,11 +481,12 @@ export class DeeplinkService {
       const buffer = Buffer.from(sanitizedBase64, 'base64')
       const normalizedOutput = buffer.toString('base64')
       if (sanitizedBase64 !== normalizedOutput) {
-        throw new Error('Invalid base64 payload.')
+        throw new ProviderDeeplinkError('invalid-payload', 'Invalid base64 payload.')
       }
       jsonString = buffer.toString('utf8')
     } catch (error) {
-      throw new Error(
+      throw new ProviderDeeplinkError(
+        'invalid-payload',
         error instanceof Error ? error.message : 'Failed to decode provider deeplink payload.'
       )
     }
@@ -455,11 +495,17 @@ export class DeeplinkService {
     try {
       parsed = JSON.parse(jsonString)
     } catch {
-      throw new Error('Provider deeplink payload is not valid JSON.')
+      throw new ProviderDeeplinkError(
+        'invalid-payload',
+        'Provider deeplink payload is not valid JSON.'
+      )
     }
 
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('Provider deeplink payload must be an object.')
+      throw new ProviderDeeplinkError(
+        'invalid-payload',
+        'Provider deeplink payload must be an object.'
+      )
     }
 
     const payload = parsed as Partial<ProviderInstallDeeplinkPayload> & Record<string, unknown>
@@ -467,14 +513,23 @@ export class DeeplinkService {
     const hasType = typeof payload.type === 'string'
 
     if (hasId === hasType) {
-      throw new Error("Provider deeplink payload must include either 'id' or 'type'.")
+      throw new ProviderDeeplinkError(
+        'invalid-payload',
+        "Provider deeplink payload must include either 'id' or 'type'."
+      )
     }
 
     if (typeof payload.baseUrl !== 'string') {
-      throw new Error("Provider deeplink payload must include a string 'baseUrl'.")
+      throw new ProviderDeeplinkError(
+        'invalid-payload',
+        "Provider deeplink payload must include a string 'baseUrl'."
+      )
     }
     if (typeof payload.apiKey !== 'string') {
-      throw new Error("Provider deeplink payload must include a string 'apiKey'.")
+      throw new ProviderDeeplinkError(
+        'invalid-payload',
+        "Provider deeplink payload must include a string 'apiKey'."
+      )
     }
 
     if (hasId) {
@@ -486,7 +541,10 @@ export class DeeplinkService {
     }
 
     if (typeof payload.name !== 'string') {
-      throw new Error("Custom provider deeplink payload must include a string 'name'.")
+      throw new ProviderDeeplinkError(
+        'invalid-payload',
+        "Custom provider deeplink payload must include a string 'name'."
+      )
     }
 
     return {
@@ -500,13 +558,16 @@ export class DeeplinkService {
   private sanitizeProviderInstallField(value: string, field: string): string {
     const sanitized = this.sanitizeStringParameter(value)
     if (value.trim().length > 0 && sanitized.length === 0) {
-      throw new Error(`Provider deeplink field '${field}' is invalid.`)
+      throw new ProviderDeeplinkError(
+        'invalid-payload',
+        `Provider deeplink field '${field}' is invalid.`
+      )
     }
     return sanitized
   }
 
-  private notifyProviderImportError(message: string): void {
-    this.providerInstall.notifyError(message)
+  private reportProviderInstallFailure(reason: ProviderDeeplinkFailureReason): void {
+    this.providerInstall.reportFailure(reason)
   }
 
   private redactDeepLinkUrlForLog(url: string): string {

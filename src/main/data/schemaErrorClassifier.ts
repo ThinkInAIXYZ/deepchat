@@ -1,9 +1,14 @@
-import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchema'
+import type { DatabaseRepairReason, SemanticNotificationIntent } from '@shared/notifications'
 
 interface SchemaErrorMatch {
-  reason: string
+  reason: DatabaseRepairReason
   dedupeKey: string
 }
+
+type DatabaseRepairSuggestedIntent = Extract<
+  SemanticNotificationIntent,
+  { code: 'databaseSecurity.repairSuggested' }
+>
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -61,17 +66,16 @@ export function classifySchemaError(error: unknown): SchemaErrorMatch | null {
   return null
 }
 
-export function buildDatabaseRepairSuggestedPayload(
+export function buildDatabaseRepairSuggestedIntent(
   error: unknown
-): DatabaseRepairSuggestedPayload | null {
+): DatabaseRepairSuggestedIntent | null {
   const classified = classifySchemaError(error)
   if (!classified) {
     return null
   }
 
   return {
-    title: 'settings.data.databaseRepair.toastSuggestedTitle',
-    message: 'settings.data.databaseRepair.toastSuggestedDescription',
+    code: 'databaseSecurity.repairSuggested',
     reason: classified.reason,
     dedupeKey: classified.dedupeKey
   }

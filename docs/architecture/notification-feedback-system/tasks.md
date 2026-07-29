@@ -45,11 +45,11 @@
 - [x] Migrate MCP connection occurrence and recovery.
 - [x] Migrate MCP tool-list occurrence and recovery.
 - [x] Return duplicate MCP add failure to the initiating surface.
-- [ ] Replace provider deeplink arbitrary messages with typed error codes.
-- [ ] Remove process-level network-shaped user notification.
-- [ ] Generalize database repair suggestion to the semantic intent contract.
-- [ ] Delete main-process notification localization and timestamp IDs.
-- [ ] Delete the old `notification.error` contract and both renderer queues.
+- [x] Replace provider deeplink arbitrary messages with typed error codes.
+- [x] Remove process-level network-shaped user notification.
+- [x] Generalize database repair suggestion to the semantic intent contract.
+- [x] Delete main-process notification localization and timestamp IDs.
+- [x] Delete the old `notification.error` contract and both renderer queues.
 
 ## Renderer audit and migration
 

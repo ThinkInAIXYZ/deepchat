@@ -1,4 +1,5 @@
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
+import type { ProviderDeeplinkFailureReason } from '@shared/notifications'
 
 export type DeeplinkStartPayload = {
   msg: string
@@ -20,5 +21,5 @@ export interface DeeplinkMcpInstallPort {
 export interface DeeplinkProviderInstallPort {
   hasProvider(providerId: string): boolean
   requestInstall(preview: ProviderInstallPreview): Promise<boolean>
-  notifyError(message: string): void
+  reportFailure(reason: ProviderDeeplinkFailureReason): void
 }

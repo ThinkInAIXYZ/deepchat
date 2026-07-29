@@ -47,20 +47,6 @@ export function startApp(): void {
   // Handle unhandled exceptions to prevent app crash or error dialogs
   process.on('uncaughtException', (error) => {
     log.error('Uncaught Exception:', error)
-
-    const msg = error.message || 'Unknown error'
-    const isNetworkError = [
-      'net::ERR',
-      'ECONNRESET',
-      'ETIMEDOUT',
-      'ENOTFOUND',
-      'Network Error',
-      'fetch failed'
-    ].some((k) => msg.includes(k))
-
-    if (isNetworkError) {
-      mainProcess?.notifyUnhandledError(error)
-    }
   })
 
   process.on('unhandledRejection', (reason) => {

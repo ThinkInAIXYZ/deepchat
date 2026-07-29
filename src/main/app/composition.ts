@@ -217,7 +217,6 @@ export interface MainProcessControl {
   confirmShutdown(): Promise<boolean>
   cancelShutdown(): void
   hasMainWindows(): boolean
-  notifyUnhandledError(error: Error): void
   stop(): Promise<void>
 }
 
@@ -728,7 +727,7 @@ export async function createMainProcessControl(dependencies: {
     window: windowPresenter,
     config: providerSettings,
     mcp: mcpService,
-    publishEvent: publishDeepchatEvent
+    notifications: semanticNotifications
   })
   deeplinkService = new DeeplinkService(
     deeplinkActions.desktop,
@@ -2406,14 +2405,6 @@ export async function createMainProcessControl(dependencies: {
     confirmShutdown: async () => await knowledgeService.confirmShutdown(),
     cancelShutdown: () => windowPresenter.setApplicationQuitting(false),
     hasMainWindows: () => windowPresenter.getAllWindows().length > 0,
-    notifyUnhandledError: (error) => {
-      publishDeepchatEvent('notification.error', {
-        id: Date.now().toString(),
-        title: 'Network Error',
-        message: error.message || 'Unknown error',
-        type: 'error'
-      })
-    },
     stop
   }
 

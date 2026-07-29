@@ -11,7 +11,6 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
-import { useToast } from '@/components/use-toast'
 import NotificationHost from '@/services/notifications/NotificationHost.vue'
 import { rendererNotificationManager } from '@/services/notifications/rendererNotificationRuntime'
 import { SemanticNotificationController } from '@/services/notifications/semanticNotificationController'
@@ -44,7 +43,6 @@ import {
   type GuidedOnboardingResumeTrigger
 } from '@/lib/onboardingResume'
 import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
-import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchema'
 import { createWindowClient } from '@api/WindowClient'
 import {
   RENDERER_PERFORMANCE_REPORTER,
@@ -69,7 +67,6 @@ const pageRouterStore = usePageRouterStore()
 const sidepanelStore = useSidepanelStore()
 const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
-const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
 setupFontListener()
@@ -101,11 +98,6 @@ let cleanupSemanticNotifications: (() => void) | undefined
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
-// Error notification queue and currently displayed error
-const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
-const currentErrorId = ref<string | null>(null)
-let errorDisplayTimer: number | null = null
-
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 
 watch(
@@ -138,80 +130,6 @@ watch(
   },
   { immediate: true }
 )
-
-// Handle error notifications
-const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
-  // Check if error with same ID already exists in queue to prevent duplicates
-  const existingErrorIndex = errorQueue.value.findIndex((e) => e.id === error.id)
-
-  if (existingErrorIndex === -1) {
-    // If there's currently an error being displayed, add new error to queue
-    if (currentErrorId.value) {
-      if (errorQueue.value.length > 5) {
-        errorQueue.value.shift()
-      }
-      errorQueue.value.push(error)
-    } else {
-      // Otherwise display this error directly
-      displayError(error)
-    }
-  }
-}
-
-// Display specified error
-const displayError = (error: { id: string; title: string; message: string; type: string }) => {
-  // Update currently displayed error ID
-  currentErrorId.value = error.id
-
-  // Show error notification
-  const { dismiss } = toast({
-    title: error.title,
-    description: error.message,
-    variant: 'destructive',
-    onOpenChange: (open) => {
-      if (!open) {
-        // Also show the next error when the current toast closes.
-        handleErrorClosed(error.id)
-      }
-    }
-  })
-
-  // Set timer to automatically close current error after 3 seconds
-  if (errorDisplayTimer) {
-    clearTimeout(errorDisplayTimer)
-  }
-
-  errorDisplayTimer = window.setTimeout(() => {
-    // Dismissal invokes onOpenChange(false). Call the handler as a fallback for
-    // environments where it does not, while its ID guard prevents double advancement.
-    dismiss()
-    handleErrorClosed(error.id)
-  }, 3000)
-}
-
-// Handle logic after an error toast closes
-const handleErrorClosed = (errorId: string) => {
-  if (currentErrorId.value !== errorId) {
-    return
-  }
-
-  // Clear current error ID
-  currentErrorId.value = null
-
-  // Display next error in queue (if any)
-  if (errorQueue.value.length > 0) {
-    const nextError = errorQueue.value.shift()
-    if (nextError) {
-      displayError(nextError)
-    }
-  } else {
-    // Queue is empty, clear timer
-    if (errorDisplayTimer) {
-      clearTimeout(errorDisplayTimer)
-      errorDisplayTimer = null
-    }
-  }
-}
 
 const router = useRouter()
 const activeTab = ref('chat')
@@ -378,29 +296,6 @@ const handleStartDeeplink = (_event: unknown, payload?: Omit<StartDeeplinkPayloa
   void activatePendingStartDeeplink()
 }
 
-const handleDatabaseRepairSuggested = (payload: unknown) => {
-  const repairPayload = payload as DatabaseRepairSuggestedPayload | undefined
-  if (!repairPayload) {
-    return
-  }
-
-  toast({
-    title: t(repairPayload.title),
-    description: t(repairPayload.message, {
-      reason: t(`settings.data.databaseRepair.reasons.${repairPayload.reason}`)
-    }),
-    action: {
-      label: t('settings.data.databaseRepair.toastAction'),
-      onClick: () => {
-        void configClient.openSettings({
-          routeName: 'settings-database',
-          section: 'database-repair'
-        })
-      }
-    }
-  })
-}
-
 const handleStartGuidedOnboardingDev = async () => {
   if (!import.meta.env.DEV) {
     return
@@ -485,8 +380,6 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
   },
   handleStartGuidedOnboardingDev,
   handleWindowFocused: () => handleResumeGuidedOnboarding('window-focus'),
-  showErrorToast,
-  handleDatabaseRepairSuggested,
   handleZoomIn,
   handleZoomOut,
   handleZoomResume,
@@ -621,13 +514,7 @@ onMounted(() => {
   )
 })
 
-// Clear timers and event listeners before component unmounts
 onBeforeUnmount(() => {
-  if (errorDisplayTimer) {
-    clearTimeout(errorDisplayTimer)
-    errorDisplayTimer = null
-  }
-
   cleanupAppIpcRuntime()
   cleanupMcpDeeplink()
   cleanupSemanticNotifications?.()

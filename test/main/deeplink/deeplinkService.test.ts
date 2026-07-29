@@ -25,7 +25,10 @@ const presenterMock = vi.hoisted(() => ({
   mcpService: {
     isReady: vi.fn().mockReturnValue(true)
   },
-  publishEvent: vi.fn()
+  semanticNotifications: {
+    occur: vi.fn(),
+    recover: vi.fn()
+  }
 }))
 
 vi.mock('electron', () => ({
@@ -46,7 +49,7 @@ describe('DeeplinkService', () => {
       window: presenterMock.windowPresenter as any,
       config: presenterMock.providerSettings as any,
       mcp: presenterMock.mcpService as any,
-      publishEvent: presenterMock.publishEvent
+      notifications: presenterMock.semanticNotifications
     })
     return new DeeplinkService(actions.desktop, actions.mcp, actions.provider)
   }
@@ -56,7 +59,8 @@ describe('DeeplinkService', () => {
     presenterMock.windowPresenter.createSettingsWindow.mockResolvedValue(9)
     presenterMock.windowPresenter.createAppWindow.mockResolvedValue(1)
     presenterMock.windowPresenter.sendToWindow.mockReturnValue(true)
-    presenterMock.publishEvent.mockReset()
+    presenterMock.semanticNotifications.occur.mockReset()
+    presenterMock.semanticNotifications.recover.mockReset()
     presenterMock.windowPresenter.sendSettingsNavigation.mockReturnValue(true)
     presenterMock.windowPresenter.setPendingSettingsProviderInstall.mockReset()
     presenterMock.windowPresenter.getAllWindows.mockReturnValue([])
@@ -345,7 +349,7 @@ describe('DeeplinkService', () => {
     )
   })
 
-  it('rejects invalid provider payloads and emits an error notification', async () => {
+  it('classifies invalid provider payloads without forwarding exception copy', async () => {
     const deeplinkService = await createDeeplinkService()
     const payload = {
       id: 'openai',
@@ -359,13 +363,95 @@ describe('DeeplinkService', () => {
     await deeplinkService.handleDeepLink(url)
 
     expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
-    expect(presenterMock.publishEvent).toHaveBeenCalledWith(
-      'notification.error',
-      expect.objectContaining({
-        title: 'Provider Deeplink',
-        type: 'error'
-      })
+    expect(presenterMock.semanticNotifications.occur).toHaveBeenCalledWith({
+      code: 'providerDeeplink.failed',
+      reason: 'invalid-payload'
+    })
+  })
+
+  it('classifies unsupported provider deeplink versions', async () => {
+    const deeplinkService = await createDeeplinkService()
+
+    await deeplinkService.handleDeepLink('deepchat://provider/install?v=2&data=ignored')
+
+    expect(presenterMock.semanticNotifications.occur).toHaveBeenCalledWith({
+      code: 'providerDeeplink.failed',
+      reason: 'unsupported-version'
+    })
+  })
+
+  it('classifies provider ids that are absent from the catalog', async () => {
+    const deeplinkService = await createDeeplinkService()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const data = createProviderInstallBase64({
+      id: 'missing-provider',
+      baseUrl: 'https://proxy.example.com/v1',
+      apiKey: 'sk1'
+    })
+
+    await deeplinkService.handleDeepLink(`deepchat://provider/install?v=1&data=${data}`)
+
+    expect(presenterMock.semanticNotifications.occur).toHaveBeenCalledWith({
+      code: 'providerDeeplink.failed',
+      reason: 'provider-not-found'
+    })
+    expect(consoleError).toHaveBeenCalledWith('Rejected provider install deeplink:', {
+      reason: 'provider-not-found'
+    })
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('missing-provider')
+  })
+
+  it('classifies provider kinds that cannot be imported', async () => {
+    const deeplinkService = await createDeeplinkService()
+    const data = createProviderInstallBase64({
+      name: 'ACP',
+      type: 'acp',
+      baseUrl: '',
+      apiKey: ''
+    })
+
+    await deeplinkService.handleDeepLink(`deepchat://provider/install?v=1&data=${data}`)
+
+    expect(presenterMock.semanticNotifications.occur).toHaveBeenCalledWith({
+      code: 'providerDeeplink.failed',
+      reason: 'unsupported-provider'
+    })
+  })
+
+  it('classifies a missing settings target separately from payload failures', async () => {
+    const deeplinkService = await createDeeplinkService()
+    presenterMock.windowPresenter.createSettingsWindow.mockResolvedValue(null)
+    const data = createProviderInstallBase64({
+      id: 'openai',
+      baseUrl: 'https://proxy.example.com/v1',
+      apiKey: 'sk1'
+    })
+
+    await deeplinkService.handleDeepLink(`deepchat://provider/install?v=1&data=${data}`)
+
+    expect(presenterMock.semanticNotifications.occur).toHaveBeenCalledWith({
+      code: 'providerDeeplink.failed',
+      reason: 'settings-unavailable'
+    })
+  })
+
+  it('classifies an unexpected settings failure separately from payload failures', async () => {
+    const deeplinkService = await createDeeplinkService()
+    presenterMock.windowPresenter.createSettingsWindow.mockRejectedValue(
+      new Error('window creation failed')
     )
+    const data = createProviderInstallBase64({
+      id: 'openai',
+      baseUrl: 'https://proxy.example.com/v1',
+      apiKey: 'sk1'
+    })
+
+    await deeplinkService.handleDeepLink(`deepchat://provider/install?v=1&data=${data}`)
+
+    expect(presenterMock.semanticNotifications.occur).toHaveBeenCalledWith({
+      code: 'providerDeeplink.failed',
+      reason: 'settings-unavailable'
+    })
   })
 
   it('rejects provider payloads with missing base64 padding', async () => {

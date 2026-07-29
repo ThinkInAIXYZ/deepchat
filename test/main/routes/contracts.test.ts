@@ -1811,7 +1811,6 @@ describe('main kernel contracts', () => {
         'config.systemPrompts.changed',
         'config.systemTheme.changed',
         'config.theme.changed',
-        'databaseSecurity.repairSuggested',
         'dialog.requested',
         'knowledge.file.progress',
         'knowledge.file.updated',
@@ -1826,7 +1825,7 @@ describe('main kernel contracts', () => {
         'models.changed',
         'models.config.changed',
         'models.status.changed',
-        'notification.error',
+        'notification.semantic',
         'oauth.openaiCodex.statusChanged',
         'providers.acp.debug.event',
         'providers.changed',
@@ -1874,6 +1873,8 @@ describe('main kernel contracts', () => {
       ])
     )
     expect(new Set(eventKeys).size).toBe(eventKeys.length)
+    expect(eventKeys).not.toContain('notification.error')
+    expect(eventKeys).not.toContain('databaseSecurity.repairSuggested')
   })
 
   it('requires upgrade release dates to be normalized before event publication', () => {

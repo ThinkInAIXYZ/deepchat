@@ -100,6 +100,38 @@ describe('SemanticNotificationController', () => {
     )
   })
 
+  it.each([
+    'unsupported-version',
+    'invalid-payload',
+    'provider-not-found',
+    'unsupported-provider',
+    'settings-unavailable'
+  ] as const)('translates provider deeplink reason "%s" in the renderer', (reason) => {
+    const { controller, notifications } = createHarness()
+
+    controller.handle({
+      kind: 'occur',
+      episodeId: `episode-${reason}`,
+      intent: {
+        code: 'providerDeeplink.failed',
+        reason
+      }
+    })
+
+    expect(notifications.notify).toHaveBeenCalledWith(
+      {
+        kind: 'error',
+        code: 'providerDeeplink.failed',
+        key: reason,
+        title: 'common.notifications.providerDeeplinkFailed.title',
+        description: `common.notifications.providerDeeplinkFailed.reasons.${reason}`
+      },
+      expect.objectContaining({
+        onLifecycleEvent: expect.any(Function)
+      })
+    )
+  })
+
   it('recovers only the member associated with the exact episode', () => {
     const { controller, notifications } = createHarness()
 

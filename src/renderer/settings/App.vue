@@ -122,7 +122,6 @@ import { ensureIconsLoaded } from '../src/lib/iconLoader'
 import { useFontManager } from '../src/composables/useFontManager'
 import { applyDocumentAppearance } from '../src/foundation/appearance/documentAppearance'
 import { markStartupInteractive } from '../src/lib/startupDeferred'
-import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchema'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
@@ -149,7 +148,6 @@ type SettingsWindowState = Window & {
 const deviceClient = createDeviceClient()
 const notificationClient = createNotificationClient()
 const windowClient = createWindowClient()
-const settingsEventCleanups: Array<() => void> = []
 
 // Initialize stores
 const uiSettingsStore = useUiSettingsStore()
@@ -175,9 +173,6 @@ const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDe
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
 setupMcpDeeplink()
 
-const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
-const currentErrorId = ref<string | null>(null)
-const errorDisplayTimer = ref<number | null>(null)
 const isImportingProvider = ref(false)
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
@@ -277,21 +272,6 @@ const semanticNotificationController = new SemanticNotificationController({
   openSettings: () => openDatabaseRepairSection()
 })
 let cleanupSemanticNotifications: (() => void) | undefined
-
-const showDatabaseRepairSuggestedToast = (payload: DatabaseRepairSuggestedPayload) => {
-  toast({
-    title: t(payload.title),
-    description: t(payload.message, {
-      reason: t(`settings.data.databaseRepair.reasons.${payload.reason}`)
-    }),
-    action: {
-      label: t('settings.data.databaseRepair.toastAction'),
-      onClick: () => {
-        void openDatabaseRepairSection()
-      }
-    }
-  })
-}
 
 const handleSettingsNavigate = async (payload?: SettingsNavigationPayload) => {
   const routeName = payload?.routeName
@@ -635,60 +615,6 @@ watch(
   { immediate: true }
 )
 
-const handleErrorClosed = () => {
-  currentErrorId.value = null
-
-  if (errorQueue.value.length > 0) {
-    const nextError = errorQueue.value.shift()
-    if (nextError) {
-      displayError(nextError)
-    }
-  } else if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
-  }
-}
-
-const displayError = (error: { id: string; title: string; message: string; type: string }) => {
-  currentErrorId.value = error.id
-
-  const { dismiss } = toast({
-    title: error.title,
-    description: error.message,
-    variant: 'destructive',
-    onOpenChange: (open) => {
-      if (!open) {
-        handleErrorClosed()
-      }
-    }
-  })
-
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-  }
-
-  errorDisplayTimer.value = window.setTimeout(() => {
-    dismiss()
-  }, 3000)
-}
-
-const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
-  const exists = errorQueue.value.findIndex((item) => item.id === error.id)
-  if (exists !== -1) {
-    return
-  }
-
-  if (currentErrorId.value) {
-    if (errorQueue.value.length > 5) {
-      errorQueue.value.shift()
-    }
-    errorQueue.value.push(error)
-    return
-  }
-
-  displayError(error)
-}
-
 const handleWindowFocus = () => {
   void syncPendingProviderInstall()
 }
@@ -713,14 +639,6 @@ onMounted(async () => {
   deviceClient.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
-
-  const cleanupNotificationError = windowClient.onNotificationError((error) => {
-    showErrorToast(error)
-  })
-  const cleanupDatabaseRepairSuggested = windowClient.onDatabaseRepairSuggested((payload) => {
-    showDatabaseRepairSuggestedToast(payload as DatabaseRepairSuggestedPayload)
-  })
-  settingsEventCleanups.push(cleanupNotificationError, cleanupDatabaseRepairSuggested)
 
   const [settingsLoadResult, routerReadyResult] = await Promise.allSettled([
     uiSettingsStore.loadSettings(),
@@ -799,15 +717,9 @@ const handleBeforeUnload = (event: BeforeUnloadEvent) => {
 useEventListener(window, 'beforeunload', handleBeforeUnload)
 
 onBeforeUnmount(() => {
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
-  }
-
   cleanupSettingsNavigate()
   cleanupSettingsProviderInstall()
   removeSettingsRouteGuard()
-  settingsEventCleanups.splice(0).forEach((cleanup) => cleanup())
   cleanupMcpDeeplink()
   cleanupSemanticNotifications?.()
   cleanupSemanticNotifications = undefined
