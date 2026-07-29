@@ -1404,18 +1404,6 @@ export async function createMainProcessControl(dependencies: {
     })
 
     void startupWorkloadCoordinator.scheduleTask({
-      id: 'main:yo-browser',
-      target: 'main',
-      phase: 'background',
-      resource: 'io',
-      labelKey: 'startup.main.yoBrowser',
-      runId: mainRunId,
-      run: async () => {
-        await initializeYoBrowser()
-      }
-    })
-
-    void startupWorkloadCoordinator.scheduleTask({
       id: 'main:skills-sync-scan',
       target: 'main',
       phase: 'background',
@@ -1481,15 +1469,6 @@ export async function createMainProcessControl(dependencies: {
       logger.info('FloatingButtonPresenter initialized successfully')
     } catch (error) {
       console.error('Failed to initialize FloatingButtonPresenter:', error)
-    }
-  }
-
-  async function initializeYoBrowser() {
-    try {
-      await yoBrowserPresenter.initialize()
-      logger.info('YoBrowserPresenter initialized')
-    } catch (error) {
-      console.error('Failed to initialize YoBrowserPresenter:', error)
     }
   }
 

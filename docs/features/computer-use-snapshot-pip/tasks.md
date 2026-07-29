@@ -68,6 +68,12 @@ measurement and packaged platform QA are still open.
   - Reject stale frame sequences and release renderer resources on teardown.
   - Reuse `common.close` without adding new copy.
 
+- [x] T09a - Disable fallback UI when NativeKit is unavailable
+  - Load NativeKit only when a concrete Computer Use target exists.
+  - Return `none` after a process-stable native load failure.
+  - Subscribe to no renderer frames and render no Computer Use PiP.
+  - Preserve CUA tool execution and results.
+
 - [x] T10 - Complete lifecycle and privacy cleanup
   - Hide on host blur/hide/minimize and inactive route/session.
   - Remove on terminal run/session, target change, host close, and shutdown.
@@ -112,7 +118,8 @@ measurement and packaged platform QA are still open.
 
 - [ ] T15 - Run packaged platform QA
   - Verify one NativeKit native-overlay runtime.
-  - Verify one renderer Canvas-fallback runtime.
+  - Verify one native-unavailable runtime.
+  - Verify Browser opens its existing side panel and Computer Use shows no PiP.
   - Exercise host focus/minimize/restore and target-app foreground behavior.
   - Exercise Browser/Computer source transitions and toolbar profile changes.
   - Exercise close, later run, route/session switch, and app shutdown.
@@ -153,8 +160,7 @@ measurement and packaged platform QA are still open.
 - Computer Use PiP has only **Close**, is read-only, and never affects the Agent or target
   application.
 - Run, target, session, host, and epoch validation prevent stale pixel disclosure.
-- Native delivery avoids renderer image traffic; unsupported runtimes use the bounded Canvas
-  fallback.
+- Native delivery avoids renderer image traffic; unsupported runtimes expose no Computer Use PiP.
 - Image work is memory-only, bounded, latest-wins, and covered by focused tests.
 - Browser PiP behavior remains regression-tested.
-- Required checks and at least one native plus one fallback packaged QA run pass.
+- Required checks and at least one native plus one native-unavailable packaged QA run pass.

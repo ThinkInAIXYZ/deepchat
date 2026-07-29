@@ -103,7 +103,6 @@ export type ShortcutKeySetting = Record<string, string>
 export type ShortcutKey = string
 
 export interface IYoBrowserPresenter {
-  initialize(): Promise<void>
   getBrowserStatus(sessionId: string): Promise<YoBrowserStatus>
   loadUrl(
     sessionId: string,

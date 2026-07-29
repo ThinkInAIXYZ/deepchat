@@ -110,6 +110,15 @@ describe('AgentPreviewCoordinator', () => {
     }
   }
 
+  it('does not start NativeKit until initialization is requested', async () => {
+    const { coordinator, overlay } = await setup()
+
+    expect(overlay.start).not.toHaveBeenCalled()
+
+    await expect(coordinator.initialize()).resolves.toBe(true)
+    expect(overlay.start).toHaveBeenCalledOnce()
+  })
+
   it('pushes a current JPEG before showing the native panel', async () => {
     const { coordinator, browserTarget, overlay, host } = await setup()
     const target = browserTarget()
@@ -266,21 +275,21 @@ describe('AgentPreviewCoordinator', () => {
     coordinator.shutdown()
   })
 
-  it('returns Canvas fallback when native startup fails', async () => {
+  it('disables preview when native startup fails', async () => {
     const { coordinator, browserTarget, overlay, host } = await setup(false)
     const target = browserTarget(1)
 
     await expect(coordinator.initialize()).resolves.toBe(false)
-    expect(coordinator.prepare(target, host as never)).toBe('renderer-canvas')
+    expect(coordinator.prepare(target, host as never)).toBe('none')
     expect(overlay.attachHost).not.toHaveBeenCalled()
   })
 
-  it('falls back permanently when the first real host cannot attach', async () => {
+  it('disables preview permanently when the first real host cannot attach', async () => {
     const { coordinator, browserTarget, overlay, host } = await setup()
     overlay.attachHost.mockReturnValue(false)
     await coordinator.initialize()
 
-    expect(coordinator.prepare(browserTarget(1), host as never)).toBe('renderer-canvas')
+    expect(coordinator.prepare(browserTarget(1), host as never)).toBe('none')
     expect(coordinator.isAvailable()).toBe(false)
     await expect(coordinator.initialize()).resolves.toBe(false)
     expect(overlay.stop).toHaveBeenCalledTimes(1)

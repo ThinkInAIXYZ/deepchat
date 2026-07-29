@@ -70,8 +70,8 @@ importers:
         specifier: ^2.5.6
         version: 2.6.0
       '@zerob13/nativekit':
-        specifier: 0.6.2
-        version: 0.6.2(electron@40.10.5)
+        specifier: 0.6.3
+        version: 0.6.3(electron@40.10.5)
       ai:
         specifier: ^7.0.37
         version: 7.0.37(zod@4.4.3)
@@ -3295,8 +3295,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@zerob13/nativekit@0.6.2':
-    resolution: {integrity: sha512-8CuHX/vRRMq64/59vz5SrpIeJXsaNAqz1WcNuGCLSoprBPfDK22yxlccbBQiIZN1do9s9v5CgUQNw7M9rgCO1A==}
+  '@zerob13/nativekit@0.6.3':
+    resolution: {integrity: sha512-RDzp4//FKrQkNt2OgL74ClQBDxWzt32JRXW1vDFAgm/ri5ipyL1v78Izwt8tQpZ3y+K18S5MThiD5Vm4hWqmCQ==}
     engines: {node: '>=18'}
     cpu: [arm64, x64]
     os: [darwin, linux, win32]
@@ -9958,7 +9958,7 @@ snapshots:
   '@yuuang/ffi-rs-win32-x64-msvc@1.3.2':
     optional: true
 
-  '@zerob13/nativekit@0.6.2(electron@40.10.5)':
+  '@zerob13/nativekit@0.6.3(electron@40.10.5)':
     dependencies:
       electron: 40.10.5
       node-addon-api: 8.9.0

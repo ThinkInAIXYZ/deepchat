@@ -23,7 +23,9 @@ describe('ComputerUsePreviewPresenter', () => {
     vi.restoreAllMocks()
   })
 
-  const setup = async (nativeSurface: 'native-overlay' | 'renderer-canvas' = 'renderer-canvas') => {
+  const setup = async (
+    nativeSurface: 'native-overlay' | 'renderer-canvas' | 'none' = 'renderer-canvas'
+  ) => {
     const windows = new Map<number, MockBrowserWindow>([[7, new MockBrowserWindow(7)]])
     vi.doMock('electron', () => ({
       BrowserWindow: {
@@ -57,7 +59,8 @@ describe('ComputerUsePreviewPresenter', () => {
           return vi.fn()
         }
       ),
-      initialize: vi.fn(async () => nativeSurface === 'native-overlay'),
+      initialize: vi.fn(async () => nativeSurface !== 'none'),
+      isAvailable: vi.fn(() => nativeSurface !== 'none'),
       claim: vi.fn(() => ++nextClaimSequence),
       releaseClaim: vi.fn(),
       dismiss: vi.fn(() => true),
@@ -159,6 +162,33 @@ describe('ComputerUsePreviewPresenter', () => {
     await presenter.setPreviewMode('session-1', 'eligible', 7)
     expect(presenter.dismissPreview('session-1', 'run-1')).toBe(true)
     expect(presenter.shouldCaptureAfterClick(click)).toBe(false)
+  })
+
+  it('loads NativeKit for the first concrete target and disables preview when loading fails', async () => {
+    const { presenter, coordinator, windowPresenter } = await setup('none')
+
+    await expect(presenter.setPreviewMode('session-1', 'eligible', 7)).resolves.toEqual({
+      updated: true,
+      surface: 'none'
+    })
+    expect(coordinator.initialize).not.toHaveBeenCalled()
+
+    const currentCall = call('snapshot')
+    presenter.started(currentCall)
+
+    await vi.waitFor(() => expect(coordinator.initialize).toHaveBeenCalledOnce())
+    expect(presenter.shouldCaptureAfterClick(call('click', { toolName: 'click' }))).toBe(false)
+
+    await completeWithImage(presenter, currentCall, await createPng())
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(coordinator.prepare).not.toHaveBeenCalled()
+    expect(coordinator.present).not.toHaveBeenCalled()
+    expect(
+      windowPresenter.sendToWindow.mock.calls.some(
+        ([, , envelope]) => (envelope as { name?: string }).name === 'computerUse.preview.frame'
+      )
+    ).toBe(false)
   })
 
   it('releases preview state when the host closes without renderer cleanup', async () => {

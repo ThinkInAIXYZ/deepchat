@@ -83796,6 +83796,34 @@
           "type": "chat"
         },
         {
+          "id": "gemini-embedding",
+          "name": "Gemini Embedding 001",
+          "display_name": "Gemini Embedding 001",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 2048,
+            "output": 1
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2025-05",
+          "release_date": "2025-05-20",
+          "last_updated": "2025-05-20",
+          "type": "chat"
+        },
+        {
           "id": "gpt-5-mini",
           "name": "gpt-5-mini",
           "display_name": "gpt-5-mini",
@@ -85417,43 +85445,6 @@
           "type": "chat"
         },
         {
-          "id": "zai-org/glm-5.1",
-          "name": "GLM-5.1",
-          "display_name": "GLM-5.1",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 200000,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2026-04-07",
-          "last_updated": "2026-04-07",
-          "cost": {
-            "input": 1.4,
-            "output": 4.4
-          },
-          "type": "chat"
-        },
-        {
           "id": "zai-org/glm-5.2",
           "name": "GLM-5.2",
           "display_name": "GLM-5.2",
@@ -85618,46 +85609,6 @@
           "cost": {
             "input": 1,
             "output": 2.5
-          },
-          "type": "chat"
-        },
-        {
-          "id": "moonshotai/kimi-k2.6",
-          "name": "Kimi K2.6",
-          "display_name": "Kimi K2.6",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "attachment": true,
-          "open_weights": true,
-          "knowledge": "2025-01",
-          "release_date": "2026-04-21",
-          "last_updated": "2026-04-21",
-          "cost": {
-            "input": 0.85,
-            "output": 3.5
           },
           "type": "chat"
         },
@@ -104712,38 +104663,6 @@
           "type": "chat"
         },
         {
-          "id": "nvidia-nemotron-cascade-2-30b-a3b",
-          "name": "Nemotron Cascade 2 30B A3B",
-          "display_name": "Nemotron Cascade 2 30B A3B",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 32768
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2026-03-24",
-          "last_updated": "2026-06-11",
-          "cost": {
-            "input": 0.14,
-            "output": 0.8
-          },
-          "type": "chat"
-        },
-        {
           "id": "openai-gpt-54-pro",
           "name": "GPT-5.4 Pro",
           "display_name": "GPT-5.4 Pro",
@@ -119715,6 +119634,61 @@
         }
       ]
     },
+    "modal": {
+      "id": "modal",
+      "name": "Modal",
+      "display_name": "Modal",
+      "api": "https://inference.us-west.modal.direct/v1",
+      "doc": "https://modal.com/docs/guide/endpoints",
+      "models": [
+        {
+          "id": "thinkingmachines/Inkling-NVFP4",
+          "name": "Inkling",
+          "display_name": "Inkling",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 262144
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-15",
+          "last_updated": "2026-07-15",
+          "cost": {
+            "input": 1.2,
+            "output": 5,
+            "cache_read": 0.27
+          },
+          "type": "chat"
+        }
+      ]
+    },
     "qihang-ai": {
       "id": "qihang-ai",
       "name": "QiHang",
@@ -120497,6 +120471,50 @@
             "input": 0.83,
             "output": 3.85,
             "cache_read": 0.16
+          },
+          "type": "chat"
+        },
+        {
+          "id": "moonshotai/Kimi-K3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 327680,
+            "output": 32768
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-27",
+          "last_updated": "2026-07-28",
+          "cost": {
+            "input": 3,
+            "output": 15
           },
           "type": "chat"
         },
@@ -160962,8 +160980,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "video"
+              "image"
             ],
             "output": [
               "text"
@@ -161032,9 +161049,9 @@
           "release_date": "2026-04-13",
           "last_updated": "2026-07-22",
           "cost": {
-            "input": 0.91,
-            "output": 2.814,
-            "cache_write": 0.455
+            "input": 0.81,
+            "output": 2.624,
+            "cache_write": 0.405
           },
           "type": "chat"
         },
@@ -161070,9 +161087,9 @@
           "release_date": "2026-06-04",
           "last_updated": "2026-07-22",
           "cost": {
-            "input": 1.52425,
-            "output": 4.7905,
-            "cache_read": 0.283075
+            "input": 1.52432,
+            "output": 4.79072,
+            "cache_read": 0.283088
           },
           "type": "chat"
         },
@@ -161153,15 +161170,15 @@
               ]
             }
           },
-          "attachment": true,
+          "attachment": false,
           "open_weights": true,
           "knowledge": "2025-01",
           "release_date": "2026-04-13",
           "last_updated": "2026-07-22",
           "cost": {
-            "input": 0.53,
-            "output": 2.66,
-            "cache_write": 0.265
+            "input": 0.528,
+            "output": 2.79,
+            "cache_write": 0.264
           },
           "type": "chat"
         },
@@ -161202,9 +161219,9 @@
           "release_date": "2026-06-05",
           "last_updated": "2026-07-22",
           "cost": {
-            "input": 0.42,
-            "output": 1.62,
-            "cache_write": 0.21
+            "input": 0.348,
+            "output": 1.332,
+            "cache_write": 0.174
           },
           "type": "chat"
         },
@@ -161221,8 +161238,8 @@
             ]
           },
           "limit": {
-            "context": 1048576,
-            "output": 131072
+            "context": 1000000,
+            "output": 128000
           },
           "temperature": true,
           "tool_call": true,
@@ -161395,9 +161412,9 @@
           "release_date": "2026-04-30",
           "last_updated": "2026-07-22",
           "cost": {
-            "input": 0.2675,
-            "output": 0.9175,
-            "cache_write": 0.13375
+            "input": 0.284,
+            "output": 0.934,
+            "cache_write": 0.142
           },
           "type": "chat"
         },
@@ -161432,9 +161449,9 @@
           "release_date": "2026-04-30",
           "last_updated": "2026-07-22",
           "cost": {
-            "input": 0.114,
-            "output": 0.398,
-            "cache_write": 0.057
+            "input": 0.13,
+            "output": 0.424,
+            "cache_write": 0.065
           },
           "type": "chat"
         },
@@ -161548,9 +161565,9 @@
           "release_date": "2026-04-13",
           "last_updated": "2026-07-22",
           "cost": {
-            "input": 0.178,
-            "output": 0.68,
-            "cache_write": 0.089
+            "input": 0.176,
+            "output": 0.652,
+            "cache_write": 0.088
           },
           "type": "chat"
         },
@@ -161568,8 +161585,8 @@
             ]
           },
           "limit": {
-            "context": 262000,
-            "output": 262000
+            "context": 256000,
+            "output": 16000
           },
           "temperature": false,
           "tool_call": true,
@@ -161665,9 +161682,9 @@
           "release_date": "2026-04-30",
           "last_updated": "2026-07-22",
           "cost": {
-            "input": 0.601,
-            "output": 2.085,
-            "cache_write": 0.3005
+            "input": 0.569,
+            "output": 2.135,
+            "cache_write": 0.2845
           },
           "type": "chat"
         },
@@ -161744,9 +161761,9 @@
           "release_date": "2026-04-30",
           "last_updated": "2026-07-22",
           "cost": {
-            "input": 0.12188,
-            "output": 1.145,
-            "cache_write": 0.06094
+            "input": 0.1175,
+            "output": 1.136,
+            "cache_write": 0.05875
           },
           "type": "chat"
         }
@@ -168106,81 +168123,12 @@
           "attachment": true,
           "open_weights": false,
           "knowledge": "2025-01",
-          "release_date": "2025-11-18",
+          "release_date": "2026-02-19",
           "last_updated": "2026-02-19",
           "cost": {
             "input": 2,
             "output": 12,
             "cache_read": 0.2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "google/gemini-3-pro-preview",
-          "name": "Gemini 3 Pro Preview",
-          "display_name": "Gemini 3 Pro Preview",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 64000
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "level",
-              "level": "high",
-              "level_options": [
-                "low",
-                "high"
-              ],
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thought_signatures"
-              ]
-            }
-          },
-          "attachment": true,
-          "open_weights": false,
-          "knowledge": "2025-01",
-          "release_date": "2025-11-18",
-          "last_updated": "2025-11-18",
-          "cost": {
-            "input": 2,
-            "output": 12,
-            "cache_read": 0.2,
-            "tiers": [
-              {
-                "input": 4,
-                "output": 18,
-                "cache_read": 0.4,
-                "tier": {
-                  "type": "context",
-                  "size": 200000
-                }
-              }
-            ],
-            "context_over_200k": {
-              "input": 4,
-              "output": 18,
-              "cache_read": 0.4
-            }
           },
           "type": "chat"
         },
@@ -207182,6 +207130,70 @@
       "doc": "https://www.xpersona.co/docs",
       "models": [
         {
+          "id": "claude-sonnet-4-6",
+          "name": "Claude Sonnet 4.6",
+          "display_name": "Claude Sonnet 4.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "mixed",
+              "budget": {
+                "min": 1024,
+                "unit": "tokens"
+              },
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Anthropic recommends adaptive thinking with effort for Claude 4.6; budget_tokens remains a deprecated compatibility path.",
+                "Anthropic API defaults effort to high; lower effort levels should be chosen per workload."
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-08-31",
+          "release_date": "2026-02-17",
+          "last_updated": "2026-03-13",
+          "cost": {
+            "input": 0.9,
+            "output": 5.55,
+            "reasoning": 5.55,
+            "cache_read": 0.09
+          },
+          "type": "chat"
+        },
+        {
           "id": "xpersona-frieren-coder",
           "name": "Xpersona Frieren 1",
           "display_name": "Xpersona Frieren 1",
@@ -207213,6 +207225,183 @@
             "input": 1.5,
             "output": 6,
             "reasoning": 6,
+            "cache_read": 0.15
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gemini-3.5-flash",
+          "name": "Gemini 3.5 Flash",
+          "display_name": "Gemini 3.5 Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "level",
+              "level": "high",
+              "level_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2026-05-19",
+          "last_updated": "2026-05-19",
+          "cost": {
+            "input": 1.55,
+            "output": 12.2,
+            "reasoning": 12.2,
+            "cache_read": 0.155
+          },
+          "type": "chat"
+        },
+        {
+          "id": "claude-haiku-4-5",
+          "name": "Claude Haiku 4.5 (latest)",
+          "display_name": "Claude Haiku 4.5 (latest)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "budget",
+              "budget": {
+                "min": 1024,
+                "unit": "tokens"
+              },
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude 4 manual thinking uses thinking.type = \"enabled\" with budget_tokens.",
+                "Interleaved thinking requires the interleaved-thinking-2025-05-14 beta header for this model family."
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-02-28",
+          "release_date": "2025-10-15",
+          "last_updated": "2025-10-15",
+          "cost": {
+            "input": 0.6,
+            "output": 3.7,
+            "reasoning": 3.7,
+            "cache_read": 0.06
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.6-sol",
+          "name": "GPT-5.6 Sol",
+          "display_name": "GPT-5.6 Sol",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 372000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "cost": {
+            "input": 1.5,
+            "output": 12,
+            "reasoning": 12,
             "cache_read": 0.15
           },
           "type": "chat"
@@ -207273,9 +207462,196 @@
           "last_updated": "2026-06-09",
           "cost": {
             "input": 3,
-            "output": 18,
-            "reasoning": 18,
+            "output": 18.5,
+            "reasoning": 18.5,
             "cache_read": 0.3
+          },
+          "type": "chat"
+        },
+        {
+          "id": "claude-opus-4-8",
+          "name": "Claude Opus 4.8",
+          "display_name": "Claude Opus 4.8",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude Opus 4.7 and newer Opus models require thinking.type = \"adaptive\" to enable thinking explicitly.",
+                "Manual budget_tokens requests return 400 on Claude Opus 4.7 and newer adaptive-only Opus models.",
+                "task_budget is separate from thinking control and should not be treated as a thinking budget."
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-01",
+          "release_date": "2026-05-28",
+          "last_updated": "2026-05-28",
+          "cost": {
+            "input": 1.5,
+            "output": 9.25,
+            "reasoning": 9.25,
+            "cache_read": 0.15
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.5",
+          "name": "GPT-5.5",
+          "display_name": "GPT-5.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-12-01",
+          "release_date": "2026-04-23",
+          "last_updated": "2026-04-23",
+          "cost": {
+            "input": 1.5,
+            "output": 12,
+            "reasoning": 12,
+            "cache_read": 0.15
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.4",
+          "name": "GPT-5.4",
+          "display_name": "GPT-5.4",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "none",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-08-31",
+          "release_date": "2026-03-05",
+          "last_updated": "2026-03-05",
+          "cost": {
+            "input": 0.75,
+            "output": 6,
+            "reasoning": 6,
+            "cache_read": 0.075
           },
           "type": "chat"
         },
@@ -207323,6 +207699,197 @@
             "output": 18,
             "reasoning": 18,
             "cache_read": 0.3
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.4-mini",
+          "name": "GPT-5.4 mini",
+          "display_name": "GPT-5.4 mini",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "none",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-08-31",
+          "release_date": "2026-03-17",
+          "last_updated": "2026-03-17",
+          "cost": {
+            "input": 0.375,
+            "output": 4,
+            "reasoning": 4,
+            "cache_read": 0.0375
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.6",
+          "name": "GPT-5.6",
+          "display_name": "GPT-5.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 372000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "cost": {
+            "input": 1.5,
+            "output": 12,
+            "reasoning": 12,
+            "cache_read": 0.15
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.6-terra",
+          "name": "GPT-5.6 Terra",
+          "display_name": "GPT-5.6 Terra",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 372000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "cost": {
+            "input": 1.5,
+            "output": 2,
+            "reasoning": 2,
+            "cache_read": 0.15
           },
           "type": "chat"
         }
@@ -261755,9 +262322,106 @@
           "type": "imageGeneration"
         },
         {
+          "id": "anthropic/claude-fable-5:batch",
+          "name": "Anthropic: Claude Fable 5 (batch)",
+          "display_name": "Anthropic: Claude Fable 5 (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "omitted",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Adaptive thinking is always on for Claude Fable 5 and Claude Mythos 5; thinking.type = \"disabled\" is rejected.",
+                "Manual budget_tokens requests return 400 on Claude Fable 5 and Claude Mythos 5.",
+                "thinking.display defaults to omitted; set display to summarized to receive readable thinking summaries."
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "anthropic/claude-haiku-4.5",
           "name": "Anthropic: Claude Haiku 4.5",
           "display_name": "Anthropic: Claude Haiku 4.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 64000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "budget",
+              "budget": {
+                "min": 1024,
+                "unit": "tokens"
+              },
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude 4 manual thinking uses thinking.type = \"enabled\" with budget_tokens.",
+                "Interleaved thinking requires the interleaved-thinking-2025-05-14 beta header for this model family."
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "anthropic/claude-haiku-4.5:batch",
+          "name": "Anthropic: Claude Haiku 4.5 (batch)",
+          "display_name": "Anthropic: Claude Haiku 4.5 (batch)",
           "modalities": {
             "input": [
               "text",
@@ -261893,6 +262557,52 @@
           "type": "imageGeneration"
         },
         {
+          "id": "anthropic/claude-opus-4.1:batch",
+          "name": "Anthropic: Claude Opus 4.1 (batch)",
+          "display_name": "Anthropic: Claude Opus 4.1 (batch)",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 32000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "budget",
+              "budget": {
+                "min": 1024,
+                "unit": "tokens"
+              },
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude 4 manual thinking uses thinking.type = \"enabled\" with budget_tokens.",
+                "Interleaved thinking requires the interleaved-thinking-2025-05-14 beta header for this model family."
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "anthropic/claude-opus-4.5",
           "name": "Anthropic: Claude Opus 4.5",
           "display_name": "Anthropic: Claude Opus 4.5",
@@ -261945,9 +262655,114 @@
           "type": "imageGeneration"
         },
         {
+          "id": "anthropic/claude-opus-4.5:batch",
+          "name": "Anthropic: Claude Opus 4.5 (batch)",
+          "display_name": "Anthropic: Claude Opus 4.5 (batch)",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 64000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "mixed",
+              "budget": {
+                "min": 1024,
+                "unit": "tokens"
+              },
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude Opus 4.5 uses manual thinking.type = \"enabled\" with budget_tokens; effort can be used alongside the thinking budget.",
+                "Interleaved thinking requires the interleaved-thinking-2025-05-14 beta header."
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "anthropic/claude-opus-4.6",
           "name": "Anthropic: Claude Opus 4.6",
           "display_name": "Anthropic: Claude Opus 4.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "mixed",
+              "budget": {
+                "min": 1024,
+                "unit": "tokens"
+              },
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Anthropic recommends adaptive thinking with effort for Claude 4.6; budget_tokens remains a deprecated compatibility path.",
+                "Anthropic API defaults effort to high; lower effort levels should be chosen per workload."
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "anthropic/claude-opus-4.6:batch",
+          "name": "Anthropic: Claude Opus 4.6 (batch)",
+          "display_name": "Anthropic: Claude Opus 4.6 (batch)",
           "modalities": {
             "input": [
               "text",
@@ -262100,6 +262915,57 @@
           "type": "imageGeneration"
         },
         {
+          "id": "anthropic/claude-opus-4.7:batch",
+          "name": "Anthropic: Claude Opus 4.7 (batch)",
+          "display_name": "Anthropic: Claude Opus 4.7 (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "omitted",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude Opus 4.7 and newer Opus models require thinking.type = \"adaptive\" to enable thinking explicitly.",
+                "Manual budget_tokens requests return 400 on Claude Opus 4.7 and newer adaptive-only Opus models.",
+                "task_budget is separate from thinking control and should not be treated as a thinking budget."
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "anthropic/claude-opus-4.8",
           "name": "Anthropic: Claude Opus 4.8",
           "display_name": "Anthropic: Claude Opus 4.8",
@@ -262154,6 +263020,57 @@
           "id": "anthropic/claude-opus-4.8-fast",
           "name": "Anthropic: Claude Opus 4.8 (Fast)",
           "display_name": "Anthropic: Claude Opus 4.8 (Fast)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "omitted",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude Opus 4.7 and newer Opus models require thinking.type = \"adaptive\" to enable thinking explicitly.",
+                "Manual budget_tokens requests return 400 on Claude Opus 4.7 and newer adaptive-only Opus models.",
+                "task_budget is separate from thinking control and should not be treated as a thinking budget."
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "anthropic/claude-opus-4.8:batch",
+          "name": "Anthropic: Claude Opus 4.8 (batch)",
+          "display_name": "Anthropic: Claude Opus 4.8 (batch)",
           "modalities": {
             "input": [
               "text",
@@ -262350,6 +263267,53 @@
           "type": "imageGeneration"
         },
         {
+          "id": "anthropic/claude-sonnet-4.5:batch",
+          "name": "Anthropic: Claude Sonnet 4.5 (batch)",
+          "display_name": "Anthropic: Claude Sonnet 4.5 (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "budget",
+              "budget": {
+                "min": 1024,
+                "unit": "tokens"
+              },
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude 4 manual thinking uses thinking.type = \"enabled\" with budget_tokens.",
+                "Interleaved thinking requires the interleaved-thinking-2025-05-14 beta header for this model family."
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "anthropic/claude-sonnet-4.6",
           "name": "Anthropic: Claude Sonnet 4.6",
           "display_name": "Anthropic: Claude Sonnet 4.6",
@@ -262428,6 +263392,31 @@
             "reasoning": {
               "supported": true
             }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "anthropic/claude-sonnet-5:batch",
+          "name": "Anthropic: Claude Sonnet 5 (batch)",
+          "display_name": "Anthropic: Claude Sonnet 5 (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "type": "imageGeneration"
@@ -263207,6 +264196,99 @@
           "type": "imageGeneration"
         },
         {
+          "id": "google/gemini-2.5-flash-lite:batch",
+          "name": "Google: Gemini 2.5 Flash Lite (batch)",
+          "display_name": "Google: Gemini 2.5 Flash Lite (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65535
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "budget",
+              "budget": {
+                "default": -1,
+                "min": 512,
+                "max": 24576,
+                "auto": -1,
+                "unit": "tokens"
+              },
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "google/gemini-2.5-flash:batch",
+          "name": "Google: Gemini 2.5 Flash (batch)",
+          "display_name": "Google: Gemini 2.5 Flash (batch)",
+          "modalities": {
+            "input": [
+              "image",
+              "text",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65535
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "budget",
+              "budget": {
+                "default": -1,
+                "min": 0,
+                "max": 24576,
+                "auto": -1,
+                "off": 0,
+                "unit": "tokens"
+              },
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "google/gemini-2.5-pro",
           "name": "Google: Gemini 2.5 Pro",
           "display_name": "Google: Gemini 2.5 Pro",
@@ -263344,9 +264426,101 @@
           "type": "imageGeneration"
         },
         {
+          "id": "google/gemini-2.5-pro:batch",
+          "name": "Google: Gemini 2.5 Pro (batch)",
+          "display_name": "Google: Gemini 2.5 Pro (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "budget",
+              "budget": {
+                "default": -1,
+                "min": 128,
+                "max": 32768,
+                "auto": -1,
+                "unit": "tokens"
+              },
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "google/gemini-3-flash-preview",
           "name": "Google: Gemini 3 Flash Preview",
           "display_name": "Google: Gemini 3 Flash Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65535
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "level",
+              "level": "high",
+              "level_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "google/gemini-3-flash-preview:batch",
+          "name": "Google: Gemini 3 Flash Preview (batch)",
+          "display_name": "Google: Gemini 3 Flash Preview (batch)",
           "modalities": {
             "input": [
               "text",
@@ -263628,6 +264802,33 @@
           "type": "imageGeneration"
         },
         {
+          "id": "google/gemini-3.1-flash-lite:batch",
+          "name": "Google: Gemini 3.1 Flash Lite (batch)",
+          "display_name": "Google: Gemini 3.1 Flash Lite (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "google/gemini-3.1-pro-preview",
           "name": "Google: Gemini 3.1 Pro Preview",
           "display_name": "Google: Gemini 3.1 Pro Preview",
@@ -263680,6 +264881,50 @@
               "text",
               "audio",
               "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "level",
+              "level": "high",
+              "level_options": [
+                "low",
+                "high"
+              ],
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "google/gemini-3.1-pro-preview:batch",
+          "name": "Google: Gemini 3.1 Pro Preview (batch)",
+          "display_name": "Google: Gemini 3.1 Pro Preview (batch)",
+          "modalities": {
+            "input": [
+              "audio",
+              "image",
+              "text",
               "video"
             ],
             "output": [
@@ -263794,9 +265039,128 @@
           "type": "imageGeneration"
         },
         {
+          "id": "google/gemini-3.5-flash-lite:batch",
+          "name": "Google: Gemini 3.5 Flash Lite (batch)",
+          "display_name": "Google: Gemini 3.5 Flash Lite (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "google/gemini-3.5-flash:batch",
+          "name": "Google: Gemini 3.5 Flash (batch)",
+          "display_name": "Google: Gemini 3.5 Flash (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "level",
+              "level": "high",
+              "level_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "google/gemini-3.6-flash",
           "name": "Google: Gemini 3.6 Flash",
           "display_name": "Google: Gemini 3.6 Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "level",
+              "level": "high",
+              "level_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "google/gemini-3.6-flash:batch",
+          "name": "Google: Gemini 3.6 Flash (batch)",
+          "display_name": "Google: Gemini 3.6 Flash (batch)",
           "modalities": {
             "input": [
               "text",
@@ -264884,6 +266248,32 @@
             "reasoning": {
               "supported": true
             }
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "minimax/minimax-m3:batch",
+          "name": "MiniMax: MiniMax M3 (batch)",
+          "display_name": "MiniMax: MiniMax M3 (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 524288,
+            "output": 524288
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "type": "imageGeneration"
         },
@@ -266552,6 +267942,31 @@
           "type": "imageGeneration"
         },
         {
+          "id": "openai/gpt-5-mini:batch",
+          "name": "OpenAI: GPT-5 Mini (batch)",
+          "display_name": "OpenAI: GPT-5 Mini (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "openai/gpt-5-nano",
           "name": "OpenAI: GPT-5 Nano",
           "display_name": "OpenAI: GPT-5 Nano",
@@ -266600,6 +268015,31 @@
           "type": "imageGeneration"
         },
         {
+          "id": "openai/gpt-5-nano:batch",
+          "name": "OpenAI: GPT-5 Nano (batch)",
+          "display_name": "OpenAI: GPT-5 Nano (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "openai/gpt-5-pro",
           "name": "OpenAI: GPT-5 Pro",
           "display_name": "OpenAI: GPT-5 Pro",
@@ -266637,6 +268077,31 @@
               ],
               "visibility": "hidden"
             }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "openai/gpt-5:batch",
+          "name": "OpenAI: GPT-5 (batch)",
+          "display_name": "OpenAI: GPT-5 (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "type": "imageGeneration"
@@ -266855,6 +268320,31 @@
           "type": "imageGeneration"
         },
         {
+          "id": "openai/gpt-5.1:batch",
+          "name": "OpenAI: GPT-5.1 (batch)",
+          "display_name": "OpenAI: GPT-5.1 (batch)",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "openai/gpt-5.2",
           "name": "OpenAI: GPT-5.2",
           "display_name": "OpenAI: GPT-5.2",
@@ -267017,6 +268507,31 @@
               ],
               "visibility": "hidden"
             }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "openai/gpt-5.2:batch",
+          "name": "OpenAI: GPT-5.2 (batch)",
+          "display_name": "OpenAI: GPT-5.2 (batch)",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "type": "imageGeneration"
@@ -267242,9 +268757,107 @@
           "type": "imageGeneration"
         },
         {
+          "id": "openai/gpt-5.4-mini:batch",
+          "name": "OpenAI: GPT-5.4 Mini (batch)",
+          "display_name": "OpenAI: GPT-5.4 Mini (batch)",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false,
+            "effort": "none",
+            "verbosity": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "none",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "openai/gpt-5.4-nano",
           "name": "OpenAI: GPT-5.4 Nano",
           "display_name": "OpenAI: GPT-5.4 Nano",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false,
+            "effort": "none",
+            "verbosity": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "none",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "openai/gpt-5.4-nano:batch",
+          "name": "OpenAI: GPT-5.4 Nano (batch)",
+          "display_name": "OpenAI: GPT-5.4 Nano (batch)",
           "modalities": {
             "input": [
               "image",
@@ -267338,6 +268951,31 @@
           "type": "imageGeneration"
         },
         {
+          "id": "openai/gpt-5.4:batch",
+          "name": "OpenAI: GPT-5.4 (batch)",
+          "display_name": "OpenAI: GPT-5.4 (batch)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
           "id": "openai/gpt-5.5",
           "name": "OpenAI: GPT-5.5",
           "display_name": "OpenAI: GPT-5.5",
@@ -267411,6 +269049,31 @@
             "reasoning": {
               "supported": true
             }
+          },
+          "attachment": true,
+          "type": "imageGeneration"
+        },
+        {
+          "id": "openai/gpt-5.5:batch",
+          "name": "OpenAI: GPT-5.5 (batch)",
+          "display_name": "OpenAI: GPT-5.5 (batch)",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "type": "imageGeneration"
@@ -268509,57 +270172,6 @@
           "type": "imageGeneration"
         },
         {
-          "id": "poolside/laguna-m.1",
-          "name": "Poolside: Laguna M.1",
-          "display_name": "Poolside: Laguna M.1",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 32768
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "poolside/laguna-m.1:free",
-          "name": "Poolside: Laguna M.1 (free)",
-          "display_name": "Poolside: Laguna M.1 (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 32768
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "type": "chat"
-        },
-        {
           "id": "poolside/laguna-s-2.1",
           "name": "Poolside: Laguna S 2.1",
           "display_name": "Poolside: Laguna S 2.1",
@@ -269251,7 +270863,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 32768
+            "output": 65536
           },
           "temperature": true,
           "tool_call": true,
@@ -269285,7 +270897,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 32768
+            "output": 65536
           },
           "tool_call": true,
           "reasoning": {
@@ -281567,6 +283179,36 @@
             "output": 1.88,
             "cache_read": 0.032,
             "cache_write": 0.4
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen/qwen3.7-flash",
+          "name": "Qwen: Qwen3.7-Flash",
+          "display_name": "Qwen: Qwen3.7-Flash",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 991000,
+            "output": 991000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0.282,
+            "output": 1.128,
+            "cache_read": 0.0564
           },
           "type": "chat"
         },

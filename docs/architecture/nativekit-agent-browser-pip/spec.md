@@ -2,8 +2,10 @@
 
 ## Status
 
-Implemented on 2026-07-23. DeepChat now prefers NativeKit for the Agent browser PiP on supported
-runtimes and retains the renderer Canvas as the compatibility fallback.
+Implemented on 2026-07-23. DeepChat uses NativeKit for Agent preview PiP on supported runtimes.
+NativeKit is dynamically imported only when Browser first requests capture or Computer Use first
+has a concrete preview target. If the addon cannot load, Browser opens the existing side-panel
+browser and Computer Use runs without PiP.
 
 The dependency was upgraded from 0.5.1 to 0.5.2 on 2026-07-23. Version 0.5.1's published macOS
 arm64 and x64 binaries declared macOS 15.0 as their deployment target. Version 0.5.2 corrects both
@@ -41,18 +43,23 @@ the circular bezel. NativeKit now draws a style-aware layer background and borde
 template image while retaining native button input, tooltip, accessibility, hover, and pressed
 behavior. The JavaScript API and five-prebuild architecture matrix remain unchanged.
 
+Version 0.6.3 statically links the MSVC runtime into the Windows x64 prebuild so loading the addon
+does not depend on a separately installed dynamic runtime. The JavaScript API and five-prebuild
+architecture matrix remain unchanged.
+
 Automated integration, a real NativeKit addon smoke test, and a packaged macOS arm64 build are
 complete. Cross-platform interaction runs and the 60/120 Hz latency gates remain release QA work;
 they are tracked explicitly in `tasks.md` and are not implied by implementation completion.
 
-The migration pins `@zerob13/nativekit` to exactly `0.6.2`. The reviewed source is tag
-[`v0.6.2`](https://github.com/zerob13/nativekit/tree/v0.6.2), commit `b40e63d`. The npm registry
-exposes `0.6.2` with Electron `>=28.0.0` and Node `>=18` compatibility.
+The migration pins `@zerob13/nativekit` to exactly `0.6.3`. The reviewed source is tag
+[`v0.6.3`](https://github.com/zerob13/nativekit/tree/v0.6.3), commit `aa58266`. The npm registry
+exposes `0.6.3` with Electron `>=28.0.0` and Node `>=18` compatibility.
 
 This architecture supersedes only the user-facing PiP surface and frame-delivery path in
 `docs/features/agent-browser-pip/spec.md`. The existing Agent-page ownership, fixed background
 viewport, read-only preview, panel handoff, run-scoped dismissal, and single-page identity
-contracts remain in force. The current renderer Canvas remains the compatibility fallback.
+contracts remain in force. The renderer Canvas implementation remains source-compatible, but
+native capability failure no longer selects it as a product fallback.
 
 GitHub issue sync was not requested and was not performed.
 
@@ -70,7 +77,7 @@ The reviewed implementations move the native window directly inside AppKit, Win3
 not route drag samples through renderer state or IPC.
 
 That confirmed window-motion result is separate from the remote page's content refresh rate.
-NativeKit 0.6.2 still accepts complete PNG/JPEG data URLs through a synchronous
+NativeKit 0.6.3 still accepts complete PNG/JPEG data URLs through a synchronous
 `overlay.pushImage()` call, decodes each image natively, and exposes no shared texture, raw-buffer
 stream, partial update, or animation API.
 
@@ -120,7 +127,8 @@ half of the path:
 - the PiP disappears with the app content region and cannot use native work-area clamping.
 
 The correct ownership layer for the floating surface is the Electron main process plus NativeKit.
-The renderer should retain only eligibility coordination and the compatibility Canvas.
+The renderer owns eligibility coordination and Browser side-panel handoff when NativeKit is
+unavailable.
 
 ## User Need
 
@@ -132,11 +140,11 @@ When an Agent operates YoBrowser in the background, the user needs a preview tha
 - remains read-only and cannot forward input to the remote page;
 - opens the existing Browser panel on deliberate activation;
 - dismisses only the current run;
-- fails safely on platforms where NativeKit 0.6.2 cannot provide an overlay.
+- fails safely on platforms where NativeKit 0.6.3 cannot provide an overlay.
 
 ## Goals
 
-- Use exact dependency version `@zerob13/nativekit@0.6.2`.
+- Use exact dependency version `@zerob13/nativekit@0.6.3`.
 - Make NativeKit the preferred PiP surface on its supported runtime matrix.
 - Allow the PiP to be dragged anywhere inside the current display work area, including completely
   outside the DeepChat window.
@@ -146,8 +154,9 @@ When an Agent operates YoBrowser in the background, the user needs a preview tha
 - Let AppKit, Win32, or XCB own drag, work-area clamping, z-order, and native panel controls.
 - Preserve one in-flight capture, epoch/run validation, last-valid-frame retention, and bounded
   image size.
-- Preserve the current Canvas PiP as a graceful fallback instead of forcing Linux onto X11 or
-  breaking Windows arm64.
+- Keep NativeKit out of application startup and load it only for a concrete PiP request.
+- When NativeKit is unavailable, open Browser in the existing side panel and suppress Computer Use
+  PiP without affecting either Agent tool.
 - Hide the native panel synchronously on stale session, panel visibility, host blur/hide/minimize,
   run terminal state, page destruction, or app shutdown.
 - Add packaging validation so a supported packaged build cannot silently omit its `.node` prebuild.
@@ -167,7 +176,7 @@ When an Agent operates YoBrowser in the background, the user needs a preview tha
 - Completing the deferred multi-tab or Fit-desktop work from the original feature SDD.
 - Adding a generic native-capability framework around one NativeKit consumer.
 
-## NativeKit 0.6.2 Contract
+## NativeKit 0.6.3 Contract
 
 ### Useful API
 
@@ -199,7 +208,7 @@ this migration. One visible PiP and one current target make them unnecessary.
   presents with `UpdateLayeredWindow`.
 - Linux synchronously updates its dedicated XCB overlay thread and decodes through GdkPixbuf.
 - Dragging stays inside the platform implementation and emits no renderer `mousemove` IPC.
-- Movement and transitions are immediate; 0.6.2 has no animation API.
+- Movement and transitions are immediate; 0.6.3 has no animation API.
 - The native `control` event carries the caller-defined ID but no presentation ID. This is safe
   only while DeepChat enforces the one-visible-PiP invariant.
 
@@ -209,11 +218,11 @@ this migration. One visible PiP and one current target make them unnecessary.
 | --- | --- | --- |
 | macOS arm64/x64 | Native overlay | Published prebuild; non-activating `NSPanel` |
 | Windows x64 | Native overlay | Published prebuild; owned layered topmost `HWND` |
-| Windows arm64 | Canvas fallback | NativeKit 0.6.2 publishes no win32-arm64 prebuild |
+| Windows arm64 | Browser side panel; no Computer Use PiP | NativeKit 0.6.3 publishes no win32-arm64 prebuild |
 | Linux x64/arm64 under X11/integrated XWayland | Native overlay | Published prebuild and global XCB window model |
 | Linux x64/arm64 under `xwayland-satellite` | Native overlay | 0.5.4 embeds the XCB panel in the Electron host; dragging is clipped to host bounds |
-| Linux native Wayland | Canvas fallback | No global positioning or compatible X11 window handle |
-| Missing/corrupt addon or native startup failure | Canvas fallback | App startup and Agent tools must remain usable |
+| Linux native Wayland | Browser side panel; no Computer Use PiP | No global positioning or compatible X11 window handle |
+| Missing/corrupt addon or native startup failure | Browser side panel; no Computer Use PiP | App startup and Agent tools remain usable |
 
 DeepChat will not change the user's Linux display backend merely to enable PiP.
 
@@ -233,13 +242,13 @@ focusless render-host BaseWindow -> Agent WebContentsView at 1280 x 800
                                              |
                          +-------------------+-------------------+
                          |                                       |
-                 native capability                        fallback capability
+                 native capability                   native unavailable
                          |                                       |
-                         v                                       v
-              JPEG Buffer -> base64 data URL          typed preview-frame event
-                         |                                       |
-                         v                                       v
-              @zerob13/nativekit overlay              existing Vue Canvas PiP
+                         v                              +--------+--------+
+              JPEG Buffer -> base64 data URL           |                 |
+                         |                              v                 v
+                         v                    Browser activate event   Computer Use
+              @zerob13/nativekit overlay      -> existing side panel   no PiP
                          |
                AppKit / Win32 / XCB panel
 ```
@@ -250,7 +259,8 @@ focusless render-host BaseWindow -> Agent WebContentsView at 1280 x 800
 
 - remains authoritative for page, run, render-host, capture epoch, and preview mode;
 - validates the sender's `BrowserWindow` and current Agent run;
-- selects `native-overlay`, `renderer-canvas`, or `none`;
+- selects `native-overlay` or `none` for native capability handling;
+- requests the existing Browser side panel when native capability is unavailable;
 - branches completed frames to exactly one surface;
 - stops capture and clears the surface on every existing lifecycle edge.
 
@@ -279,10 +289,10 @@ cross-native abstraction.
 
 - current-session, panel, run, and window eligibility derivation;
 - the existing `setPreviewMode` request coalescing;
-- current Canvas rendering and drag only when main selects `renderer-canvas`;
 - handling typed native actions for open-panel and run dismissal.
 
 On `native-overlay`, it renders no PiP DOM and receives no frame bytes.
+On native capability failure, the same typed activation path opens the Browser side panel.
 
 ## Surface Selection Contract
 
@@ -297,14 +307,18 @@ type BrowserPreviewModeResult = {
 }
 ```
 
-Selection is process-stable after NativeKit initialization:
+Selection is process-stable after on-demand NativeKit initialization:
 
-1. Dynamically import `@zerob13/nativekit`.
-2. Start the overlay and keep it globally hidden.
-3. On the first eligible host, validate `attachHost()` with the real
+1. Do not import NativeKit from application startup, Browser background rendering, or Computer Use
+   eligibility alone.
+2. Dynamically import `@zerob13/nativekit` on the first concrete Browser capture or Computer Use
+   target.
+3. Start the overlay and keep it globally hidden.
+4. On the first eligible host, validate `attachHost()` with the real
    `BrowserWindow.getNativeWindowHandle()`.
-4. Use `native-overlay` after both steps succeed.
-5. Otherwise record one redacted capability warning and use `renderer-canvas` for the process.
+5. Use `native-overlay` after both steps succeed.
+6. Otherwise record one redacted capability warning, keep the capability disabled for the process,
+   open Browser in its existing side panel, and expose no Computer Use PiP.
 
 A transient bad frame does not switch surfaces. NativeKit keeps the previous valid presentation,
 and the next bounded capture retries.
@@ -365,7 +379,7 @@ debounced path.
 
 ## Interaction Contract
 
-NativeKit 0.6.2 defines the native interaction surface:
+NativeKit 0.6.3 defines the native interaction surface:
 
 - drag any image area outside the toolbar buttons;
 - double-click the image to activate;
@@ -427,11 +441,12 @@ forward clicks into the remote page.
 Controls are configured left-to-right as **Open in panel** then **Close**. The actual NativeKit
 symbols are platform-native. The diagram shows structure, not exact icons.
 
-### Compatibility fallback
+### Native capability unavailable
 
 ```text
 Windows arm64 / native Wayland / unavailable addon
-  -> keep the existing in-conversation Canvas card and controls
+  -> Browser: open the existing side-panel browser
+  -> Computer Use: continue without PiP
 ```
 
 ## Lifecycle Matrix
@@ -481,7 +496,7 @@ Native feel is split into two measurable promises.
 - no main-process task longer than 50 ms attributable to PiP frame presentation.
 
 The initial implementation may fall back to the current 4 FPS active cap if the synchronous
-NativeKit decode/present gate fails. It must not raise the cap above 8 FPS with NativeKit 0.6.2.
+NativeKit decode/present gate fails. It must not raise the cap above 8 FPS with NativeKit 0.6.3.
 
 These are release gates, not runtime promises for arbitrary hardware. The visible claim is
 "native movement with a fresh read-only preview," not "native-rate browser video."
@@ -503,20 +518,20 @@ These are release gates, not runtime promises for arbitrary hardware. The visibl
 
 ## Packaging and Compatibility
 
-- Add exact dependency `"@zerob13/nativekit": "0.6.2"`.
+- Add exact dependency `"@zerob13/nativekit": "0.6.3"`.
 - Mark `@zerob13/nativekit` as a disallowed install-time build in `pnpm-workspace.yaml`; published
-  prebuilds are resolved at runtime, and unsupported targets must fall back instead of compiling a
-  local addon.
+  prebuilds are resolved at runtime, and unsupported targets must disable native PiP instead of
+  compiling a local addon.
 - Keep it external to the Electron main bundle so `node-gyp-build` resolves the packaged native
   addon.
 - Unpack `node_modules/@zerob13/nativekit/prebuilds/**/*` from ASAR.
 - Verify `node.napi.armv8.node` after packaging for darwin-arm64 and linux-arm64, and verify
   `node.napi.node` for darwin-x64, win32-x64, and linux-x64.
-- Do not make win32-arm64 packaging fail; that target intentionally uses Canvas fallback with
-  version 0.6.2.
+- Do not make win32-arm64 packaging fail; that target intentionally uses the source-specific
+  unavailable behavior with version 0.6.3.
 - Do not source-build the addon as part of a normal DeepChat release.
-- A missing supported prebuild is a packaging failure. An unsupported runtime is a capability
-  fallback.
+- A missing supported prebuild is a packaging failure. An unsupported runtime disables native PiP
+  without blocking application startup or Agent tools.
 
 No persisted data or settings schema changes are required.
 
@@ -533,8 +548,11 @@ so rollback does not navigate pages, migrate user data, or change stored setting
 
 ## Failure Semantics
 
-- Dynamic import or `overlay.start()` failure: log once and use Canvas for the process.
-- First real-host `attachHost()` failure: mark the native capability unavailable and use Canvas.
+- Dynamic import or `overlay.start()` failure: log once and disable native PiP for the process.
+- First real-host `attachHost()` failure: mark the native capability unavailable for the process.
+- Browser native capability failure: publish the existing activate action and open the side panel.
+- Computer Use native capability failure: expose no preview surface and keep tool execution
+  unchanged.
 - Frame capture/resize/encode failure: retain the previous frame and retry on the next bounded tick.
 - `pushImage()` failure: NativeKit transactionally retains its previous presentation; log a
   rate-limited warning and retry.
@@ -542,12 +560,12 @@ so rollback does not navigate pages, migrate user data, or change stored setting
 - Native action with no current logical target: ignore.
 - Panel activation timeout: keep or restore the native PiP; never lose the live page.
 - Host close or addon shutdown: cleanup is idempotent.
-- Fallback Canvas failure: preserve the existing last-frame and placeholder behavior.
 
 ## Acceptance Criteria
 
-- Supported platforms load exactly NativeKit 0.6.2 and use its native overlay.
-- Windows arm64, native Wayland, and unavailable-addon cases keep the existing Canvas PiP.
+- Supported platforms load exactly NativeKit 0.6.3 and use its native overlay.
+- Windows arm64, native Wayland, and unavailable-addon cases open Browser in the existing side
+  panel and show no Computer Use PiP.
 - The preferred path sends no `browser.preview.frame` payload to the renderer.
 - The remote page retains the same `WebContents`, `WebContentsView`, session, URL, DOM state,
   scroll state, cookies, and CDP target across native PiP and Browser panel handoff.
@@ -568,18 +586,18 @@ so rollback does not navigate pages, migrate user data, or change stored setting
   capped at 4 FPS.
 - The packaged app contains the correct prebuild on every supported target.
 - Renderer/preload security boundaries remain unchanged.
-- Existing Canvas PiP tests remain as fallback coverage; native adapter, presenter selection,
-  action mapping, packaging, and packaged smoke tests are added.
+- Tests cover on-demand loading, process-stable disablement, Browser side-panel handoff, Computer
+  Use no-surface behavior, native adapter selection, action mapping, and packaging.
 - `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, typecheck, focused tests, build, and packaged
   platform checks pass after implementation.
 
 ## Implementation Evidence
 
-Recorded on 2026-07-23:
+Recorded through 2026-07-29:
 
-- `@zerob13/nativekit` is pinned to `0.6.2`, remains external to the main bundle, and its prebuilds
+- `@zerob13/nativekit` is pinned to `0.6.3`, remains external to the main bundle, and its prebuilds
   are unpacked from ASAR.
-- NativeKit 0.6.2 configures a fixed dark custom toolbar with larger caller-provided transparent
+- NativeKit 0.6.3 configures a fixed dark custom toolbar with larger caller-provided transparent
   PNG templates for `open-panel` and `close`, emits their IDs through `control`, sizes the native
   panel to 360 x 225 DIP, and keeps root-level sizing independent of host bounds.
 - The published 0.5.5 tarball uses `node.napi.node` for all five prebuilds. This matches
@@ -595,6 +613,8 @@ Recorded on 2026-07-23:
   Platform addon and packaged application validation are delegated to CI.
 - The published 0.6.2 package contains the reviewed macOS contrast fix and all five expected
   prebuilds. ARM64 uses `node.napi.armv8.node`; x64 uses `node.napi.node`.
+- The published 0.6.3 package contains the same five prebuilds and statically links the Windows
+  x64 prebuild to the MSVC runtime.
 - The published 0.5.4 macOS arm64 and x64 binaries both report `minos 12.0`; the previous 0.5.1
   prebuilds reported `minos 15.0`.
 - A real Electron smoke test loaded NativeKit 0.5.4 and completed
@@ -612,7 +632,8 @@ Recorded on 2026-07-23:
   `app.asar.unpacked/node_modules/@zerob13/nativekit/prebuilds/darwin-arm64/nativekit.napi.node`
   was present, byte-identical to the installed 0.5.4 prebuild, and reported `minos 12.0`. The
   packaged DeepChat executable and `LSMinimumSystemVersion` also report macOS 12.0.
-- Focused NativeKit adapter, packaging configuration, and Canvas fallback tests pass all 23 tests,
+- Focused NativeKit adapter, packaging configuration, and renderer Canvas regression tests pass all
+  23 tests,
   including configured control mapping and unknown-control rejection.
 - After merging `origin/dev` at `011407ab6`, the merge-focused suite passes all 90 tests and the
   current full main suite passes 405 files and 4,636 tests, with 19 files and 233 tests skipped.
@@ -622,14 +643,16 @@ Recorded on 2026-07-23:
   `App.startup.test.ts` mock returns `undefined` from `initAppStores()` while production chains
   `.then()`. That baseline mismatch leaves 15 unrelated startup tests failing and is outside this
   migration.
-- Windows, Linux, macOS x64, native Wayland fallback, out-of-window visual interaction, and
+- Windows, Linux, macOS x64, native Wayland unavailable behavior, out-of-window visual interaction,
+  and
   60/120 Hz performance measurements remain unverified on physical target environments.
 
 ## Resolved Decisions
 
-- NativeKit version is exactly 0.6.2.
+- NativeKit version is exactly 0.6.3.
 - Native movement is the primary smoothness win; the page remains a bounded snapshot stream.
-- The current Canvas is retained only as a compatibility fallback.
+- NativeKit is never loaded by application startup or eligibility-only state.
+- Native capability failure opens Browser in the existing side panel and disables Computer Use PiP.
 - Linux display backend is not forced.
 - NativeKit's caller-configured toolbar is used; no companion Vue/native toolbar window is added.
 - One visible PiP makes NativeKit's unscoped action callbacks safe.

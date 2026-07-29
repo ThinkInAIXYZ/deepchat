@@ -119,10 +119,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.toolHandler = new YoBrowserToolHandler(this)
   }
 
-  async initialize(): Promise<void> {
-    await this.previewCoordinator.initialize()
-  }
-
   async getBrowserStatus(sessionId: string): Promise<YoBrowserStatus> {
     return this.toStatus(this.sessionBrowsers.get(sessionId) ?? null)
   }
@@ -303,11 +299,15 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return { updated: false, surface: 'none' }
     }
 
-    await this.previewCoordinator.initialize()
-
     const targetWindow = hostWindowId == null ? null : BrowserWindow.fromId(hostWindowId)
     if (hostWindowId != null && (!targetWindow || targetWindow.isDestroyed())) {
       return { updated: false, surface: 'none' }
+    }
+    if (mode === 'capturing') {
+      await this.previewCoordinator.initialize()
+      if (targetWindow?.isDestroyed()) {
+        return { updated: false, surface: 'none' }
+      }
     }
 
     if (mode === 'rendering') {
@@ -327,9 +327,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
     if (mode === 'rendering') {
       this.previewCoordinator.hide(this.nativeTargetRef(state))
-      state.previewSurface = this.previewCoordinator.isAvailable()
-        ? 'native-overlay'
-        : 'renderer-canvas'
       return { updated: true, surface: state.previewSurface }
     }
 
@@ -337,6 +334,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return { updated: false, surface: 'none' }
     }
     this.resumeClaimedPreview(state)
+    if (state.previewSurface === 'none') {
+      this.openBrowserPanelForUnavailablePreview(state)
+    }
     return {
       updated: true,
       surface: state.previewSurface
@@ -1525,6 +1525,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
             state.previewSurface =
               host && !host.isDestroyed() ? this.previewCoordinator.prepare(target, host) : 'none'
             this.emitPreviewSurface(state)
+            if (state.previewSurface === 'none') {
+              this.openBrowserPanelForUnavailablePreview(state)
+            }
           }
         }
         if (state.previewSurface === 'renderer-canvas') {
@@ -1597,6 +1600,16 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       source: 'browser',
       sessionId: state.sessionId,
       ...(state.agentRunId ? { runId: state.agentRunId } : {})
+    }
+  }
+
+  private openBrowserPanelForUnavailablePreview(state: SessionBrowserState): void {
+    if (this.previewCoordinator.isAvailable()) {
+      return
+    }
+    const target = this.nativeTarget(state)
+    if (target) {
+      this.handleNativePreviewAction('activate', target)
     }
   }
 

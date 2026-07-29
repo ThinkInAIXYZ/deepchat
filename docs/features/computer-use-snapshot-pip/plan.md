@@ -6,7 +6,7 @@ Implemented on branch `codex/computer-use-snapshot-pip` on 2026-07-28.
 
 Phases 1-5 are implemented with focused automated coverage, and the complete renderer suite passes.
 The complete main suite retains one isolated, unrelated provider-metadata expectation failure.
-Performance measurement and packaged native and fallback platform QA remain open; the exact
+Performance measurement and packaged native and native-unavailable platform QA remain open; the exact
 remaining work is recorded in `tasks.md`.
 
 CUA runtime, plugin, policy, skill, and asset updates are explicitly out of scope. The plan consumes
@@ -20,8 +20,8 @@ configuration is global, so implementing a second standalone overlay adapter fir
 known Browser/Computer race.
 
 Then carry existing Agent run identity through the MCP execution path and observe only resolved,
-trusted CUA calls. Build the snapshot transform and renderer fallback after those identities are
-available. Finish with arbitration, lifecycle hardening, and Browser regression verification.
+trusted CUA calls. Build the bounded snapshot transform after those identities are available.
+Finish with arbitration, lifecycle hardening, and Browser regression verification.
 
 ```text
 shared NativeKit owner
@@ -30,7 +30,7 @@ shared NativeKit owner
         |
         +--> Computer Use observer -> presenter -> snapshot producer
                                             |
-                                  native or Canvas surface
+                                  native or no PiP surface
 ```
 
 ## Phase 1: Shared PiP Ownership
@@ -42,7 +42,7 @@ one coordinator instantiated in `src/main/app/composition.ts`.
 
 Keep the extraction narrow:
 
-- one dynamic NativeKit import and capability result;
+- one on-demand NativeKit import and process-stable capability result;
 - one `overlay.start()` and `overlay.stop()` lifecycle;
 - one host attachment and host/display listener set;
 - one visible presentation;
@@ -50,8 +50,8 @@ Keep the extraction narrow:
 - source-specific activation/control callbacks;
 - common visibility, removal, prepaint, and latency behavior.
 
-The Browser presenter remains authoritative for Browser page/run/capture state. Migrate its current
-native adapter calls to the coordinator without changing Browser contracts or fallback behavior.
+The Browser presenter remains authoritative for Browser page/run/capture state. Native
+unavailability uses the existing Browser activation event to open the side panel.
 
 ### 2. Add explicit toolbar profiles
 
@@ -176,12 +176,12 @@ In main:
 5. Encode JPEG quality 72.
 6. Reject output larger than 512 KiB.
 7. Revalidate epoch and claim.
-8. Present to NativeKit or emit the Canvas fallback frame.
+8. Present to NativeKit when available; otherwise expose no preview surface.
 
 Keep one transform in flight and one replaceable latest pending result. Add rate-limited,
 metadata-only warnings for validation and latency failures.
 
-## Phase 4: Typed Desktop Contracts and Renderer Fallback
+## Phase 4: Typed Desktop Contracts and Renderer Coordination
 
 ### 9. Add routes and events
 
@@ -192,7 +192,8 @@ Add Computer Use preview schemas beside the existing desktop/browser contract or
 - `computerUse.preview.frame`.
 
 Expose them through the existing typed preload/client boundary. Validate route sender and session
-binding in main. Emit frame events only for Canvas fallback.
+binding in main. Keep the bounded frame event source-compatible, but do not publish it when native
+capability is unavailable.
 
 ### 10. Add the renderer controller
 
@@ -205,20 +206,17 @@ Derive:
 - current route;
 - host focus.
 
-Send `eligible`, `suspended`, or `stopped` only when the derived mode changes. On native surfaces,
-render nothing and never subscribe to image payloads.
+Send `eligible`, `suspended`, or `stopped` only when the derived mode changes. On
+`native-overlay` or `none`, render nothing and never subscribe to image payloads.
 
-### 11. Add the Canvas fallback
+### 11. Handle native unavailability
 
-For fallback only:
+When NativeKit is unavailable:
 
-- render one bounded Canvas card;
-- expose one existing translated **Close** button;
-- make non-control surface points draggable with pointer capture;
-- decode a frame before replacing current Canvas pixels;
-- reject stale session/run/sequence events;
-- release image resources on replacement and unmount;
-- forward no input to the target application.
+- return `none` for Computer Use preview mode;
+- subscribe to no renderer frame bytes;
+- render no Computer Use PiP DOM;
+- leave CUA tool execution, results, and target input unchanged.
 
 Do not add a generic Browser/Computer Vue component unless the completed implementation has
 meaningful stable duplication.
@@ -264,8 +262,8 @@ Add the smallest tests for:
 - successful, failed, aborted, and out-of-order observer callbacks;
 - presenter run/target/epoch transitions;
 - image validation, resize, output limit, and latest-wins behavior;
-- native delivery versus Canvas-only frame publication;
-- renderer focus/session modes, close, frame retention, and cleanup.
+- native delivery versus unavailable no-surface behavior;
+- renderer focus/session modes, close, unavailable no-DOM behavior, and cleanup.
 
 ### 16. Measure performance
 
@@ -284,16 +282,17 @@ Verify:
 Verify at least:
 
 - one packaged native-overlay runtime;
-- one packaged Canvas-fallback runtime;
+- one packaged native-unavailable runtime;
 - host focus/minimize/restore;
 - target application foreground transition;
 - Browser-to-Computer and Computer-to-Browser claims;
 - native toolbar profile switching;
+- Browser side-panel handoff and Computer Use no-surface behavior when NativeKit is unavailable;
 - run close/restart and session switching;
 - malformed and oversized image handling.
 
-Keep the feature behind an internal gate until both surface paths pass if the platform matrix cannot
-complete in the implementation change.
+Keep the feature behind an internal gate until native and unavailable behavior pass if the platform
+matrix cannot complete in the implementation change.
 
 ### 18. Close documentation
 

@@ -233,15 +233,15 @@ export class AgentPreviewCoordinator {
     this.desiredVisible = true
 
     if (!this.available || !this.overlay) {
-      return 'renderer-canvas'
+      return 'none'
     }
     if (!this.configureToolbar(target.source)) {
       this.disableNative('toolbar_update_failed')
-      return 'renderer-canvas'
+      return 'none'
     }
     if (!this.attachHost(host)) {
       this.disableNative('host_attach_failed')
-      return 'renderer-canvas'
+      return 'none'
     }
     return 'native-overlay'
   }

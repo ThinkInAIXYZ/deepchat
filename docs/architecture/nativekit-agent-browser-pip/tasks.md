@@ -21,19 +21,21 @@ remain open.
 
 ## Dependency and packaging
 
-- [x] Add exact dependency `@zerob13/nativekit@0.6.2`.
+- [x] Add exact dependency `@zerob13/nativekit@0.6.3`.
 - [x] Refresh `pnpm-lock.yaml`.
 - [x] Disable NativeKit install-time source builds in `pnpm-workspace.yaml`.
 - [x] Keep NativeKit external to the Electron main bundle.
 - [x] Add the NativeKit prebuild glob to `asarUnpack`.
 - [x] Extend `afterPack` validation for supported target tuples.
-- [x] Keep Windows arm64 packaging valid with Canvas fallback.
+- [x] Keep Windows arm64 packaging valid without requiring a NativeKit prebuild.
 - [x] Add or update packaging configuration tests.
 
 ## Native overlay adapter
 
 - [x] Add focused `AgentBrowserNativeOverlay` main-process adapter.
-- [x] Dynamically import and start NativeKit without blocking app startup.
+- [x] Remove the NativeKit initialization task from app startup.
+- [x] Dynamically import and start NativeKit only for the first Browser capture or concrete Computer
+      Use target.
 - [x] Detect unsupported runtime, import failure, startup failure, and first-host attach failure.
 - [x] Enforce one active host, presentation, and logical target.
 - [x] Convert bounded JPEG buffers to data URLs only at the native boundary.
@@ -51,8 +53,10 @@ remain open.
 
 ## Presenter integration
 
-- [x] Initialize and shut down the adapter with `YoBrowserPresenter`.
-- [x] Select `native-overlay`, `renderer-canvas`, or `none` process-stably.
+- [x] Route on-demand initialization and shutdown through the main-process presenters.
+- [x] Select `native-overlay` or `none` process-stably after on-demand initialization.
+- [x] Open Browser in its existing side panel when NativeKit is unavailable.
+- [x] Disable Computer Use PiP when NativeKit is unavailable without changing CUA execution.
 - [x] Return the selected surface from `setPreviewMode`.
 - [x] Route each completed frame to exactly one surface.
 - [x] Revalidate window, session, run, mode, surface, and epoch before presentation.
@@ -62,7 +66,7 @@ remain open.
 - [x] Hide on blur, hide, minimize, panel open, and preview stop.
 - [x] Remove on run terminal, target replacement, page/session destruction, and host close.
 - [x] Retain the fixed 1280 x 800 render host and same live page identity.
-- [x] Add presenter native/fallback routing and lifecycle tests.
+- [x] Add presenter native/unavailable routing and lifecycle tests.
 
 ## Contracts and renderer
 
@@ -71,7 +75,7 @@ remain open.
 - [x] Update desktop routes and `BrowserClient`.
 - [x] Track the acknowledged surface in `AgentBrowserPiP.vue`.
 - [x] Render no PiP DOM and decode no frame on the native path.
-- [x] Keep the current Canvas UI and frame path unchanged as fallback.
+- [x] Keep the current Canvas UI and frame path source-compatible.
 - [x] Validate exact window/session/run before native activate or dismiss handling.
 - [x] Open the existing Browser panel on activate.
 - [x] Reuse current run-scoped dismissal on hide.
@@ -90,8 +94,9 @@ remain open.
 - [x] Keep active capture at 4 FPS unless profiling clears an increase, capped at 8 FPS.
 - [x] Smoke-test macOS arm64 through the upstream demo and DeepChat addon sequence.
 - [ ] Smoke-test macOS x64, Windows x64, and Linux X11/XWayland.
-- [x] Verify Canvas fallback selection for Windows arm64 in automated coverage.
-- [ ] Verify Canvas fallback on a physical native Wayland session.
+- [x] Verify Browser side-panel handoff and Computer Use no-surface behavior for unavailable
+      NativeKit in automated coverage.
+- [ ] Verify the same unavailable behavior on a physical native Wayland session.
 - [x] Inspect the macOS arm64 packaged artifact for the correct unpacked prebuild.
 
 ## Final validation
