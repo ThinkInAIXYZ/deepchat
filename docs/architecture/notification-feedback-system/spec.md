@@ -199,6 +199,12 @@ one visible actionable + one bounded arbitration queue
 - overflow retains the highest-priority records and emits diagnostics;
 - no "view all" action is shown without a real destination.
 
+Progress and actionable feedback share one persistent visual slot. Actionable feedback preempts a
+visible progress record; the still-active progress record keeps updating off-screen and resumes
+after actionable arbitration is empty. User dismissal suppresses that progress presentation until
+the operation settles, so subsequent progress events do not make it reappear. This preserves one
+persistent interruption without losing Operation state.
+
 Sonner manages the pause-aware display budget for finite presentations. Manager owns a separate
 absolute `maxLifetime` that repeated aggregation cannot extend. Actionable records do not expire
 from display duration; they close from action, dismissal, recovery, or explicit lifecycle policy.
@@ -280,7 +286,7 @@ The Host uses:
 - top-right placement;
 - a 96 px main-window top offset that clears app chrome;
 - a 52 px settings-window top offset that clears its title bar;
-- one transient and one actionable visible record;
+- one transient and one persistent visible record;
 - low-saturation DeepChat semantic tokens;
 - localized container and close-button accessible labels.
 

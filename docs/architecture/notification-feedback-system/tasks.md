@@ -10,13 +10,14 @@
 
 ## Contracts and lifecycle cores
 
-- [ ] Add renderer and main semantic notification contracts.
-- [ ] Add injectable Clock, Scheduler, and privacy-safe diagnostics ports.
-- [ ] Add observable notification records.
-- [ ] Implement and test Operation Registry.
-- [ ] Implement and test Episode Registry.
-- [ ] Implement and test transient and actionable Policy.
-- [ ] Implement and test Notification Manager.
+- [x] Add the renderer notification request contract.
+- [ ] Add the main semantic notification intent contract.
+- [x] Add injectable Clock, Scheduler, and privacy-safe diagnostics ports.
+- [x] Add observable notification records.
+- [x] Implement and test Operation Registry.
+- [x] Implement and test Episode Registry.
+- [x] Implement and test transient and actionable Policy.
+- [x] Implement and test Notification Manager.
 
 ## Sonner presentation
 

@@ -29,7 +29,7 @@ Replace both raw Toaster mounts with a shared Host that owns:
 - top-right placement and per-renderer offset;
 - rich semantic colors overridden by low-saturation DeepChat tokens;
 - localized accessibility labels;
-- the configured transient/actionable slots;
+- one transient slot and one progress/actionable persistent slot;
 - Adapter attach and detach.
 
 Create a stable-height component for aggregate, progress, and actionable records. Verify height and
