@@ -408,7 +408,7 @@
     {
       "id": "devin",
       "name": "Devin",
-      "version": "3000.2.17",
+      "version": "3000.3.22",
       "description": "Devin CLI coding agent by Cognition",
       "website": "https://docs.devin.ai/cli",
       "authors": [
@@ -419,42 +419,42 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-aarch64-apple-darwin.tar.gz",
+            "archive": "https://static.devin.ai/cli/3000.3.22/devin-3000.3.22-aarch64-apple-darwin.tar.gz",
             "cmd": "./bin/devin",
             "args": [
               "acp"
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-x86_64-apple-darwin.tar.gz",
+            "archive": "https://static.devin.ai/cli/3000.3.22/devin-3000.3.22-x86_64-apple-darwin.tar.gz",
             "cmd": "./bin/devin",
             "args": [
               "acp"
             ]
           },
           "linux-aarch64": {
-            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-aarch64-unknown-linux.tar.gz",
+            "archive": "https://static.devin.ai/cli/3000.3.22/devin-3000.3.22-aarch64-unknown-linux.tar.gz",
             "cmd": "./bin/devin",
             "args": [
               "acp"
             ]
           },
           "linux-x86_64": {
-            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-x86_64-unknown-linux.tar.gz",
+            "archive": "https://static.devin.ai/cli/3000.3.22/devin-3000.3.22-x86_64-unknown-linux.tar.gz",
             "cmd": "./bin/devin",
             "args": [
               "acp"
             ]
           },
           "windows-aarch64": {
-            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-aarch64-pc-windows.zip",
+            "archive": "https://static.devin.ai/cli/3000.3.22/devin-3000.3.22-aarch64-pc-windows.zip",
             "cmd": "./bin\\devin.exe",
             "args": [
               "acp"
             ]
           },
           "windows-x86_64": {
-            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-x86_64-pc-windows.zip",
+            "archive": "https://static.devin.ai/cli/3000.3.22/devin-3000.3.22-x86_64-pc-windows.zip",
             "cmd": "./bin\\devin.exe",
             "args": [
               "acp"
@@ -467,7 +467,7 @@
     {
       "id": "dimcode",
       "name": "DimCode",
-      "version": "0.2.38",
+      "version": "0.2.39",
       "description": "A coding agent that puts leading models at your command.",
       "website": "https://dimcode.dev/docs/acp.html",
       "authors": [
@@ -476,7 +476,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "dimcode@0.2.38",
+          "package": "dimcode@0.2.39",
           "args": [
             "acp"
           ]
@@ -487,7 +487,7 @@
     {
       "id": "dirac",
       "name": "Dirac",
-      "version": "0.4.28",
+      "version": "0.4.29",
       "description": "Reduces API costs by more than 50%, produces better and faster work. Uses Hash anchored parallel edits, AST manipulation and a whole lot of neat optimizations. Fully Open Source.",
       "repository": "https://github.com/dirac-run/dirac",
       "website": "https://dirac.run",
@@ -498,7 +498,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/dirac.svg",
       "distribution": {
         "npx": {
-          "package": "dirac-cli@0.4.28",
+          "package": "dirac-cli@0.4.29",
           "args": [
             "--acp"
           ]
@@ -508,7 +508,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.182.0",
+      "version": "0.183.0",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -517,7 +517,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "droid@0.182.0",
+          "package": "droid@0.183.0",
           "args": [
             "exec",
             "--output-format",
@@ -534,7 +534,7 @@
     {
       "id": "fast-agent",
       "name": "fast-agent",
-      "version": "0.9.26",
+      "version": "0.9.27",
       "description": "Code and build agents with comprehensive multi-provider support",
       "repository": "https://github.com/evalstate/fast-agent",
       "website": "https://fast-agent.ai",
@@ -544,7 +544,7 @@
       "license": "Apache 2.0",
       "distribution": {
         "uvx": {
-          "package": "fast-agent-acp==0.9.26",
+          "package": "fast-agent-acp==0.9.27",
           "args": [
             "-x"
           ]
@@ -576,7 +576,7 @@
     {
       "id": "github-copilot-cli",
       "name": "GitHub Copilot",
-      "version": "1.0.75",
+      "version": "1.0.76",
       "description": "GitHub's AI pair programmer",
       "repository": "https://github.com/github/copilot-cli",
       "website": "https://github.com/features/copilot/cli/",
@@ -586,7 +586,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@github/copilot@1.0.75",
+          "package": "@github/copilot@1.0.76",
           "args": [
             "--acp"
           ]
@@ -614,7 +614,7 @@
     {
       "id": "goose",
       "name": "goose",
-      "version": "1.44.0",
+      "version": "1.45.0",
       "description": "A local, extensible, open source AI agent that automates engineering tasks",
       "repository": "https://github.com/block/goose",
       "website": "https://block.github.io/goose/",
@@ -625,44 +625,44 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/block/goose/releases/download/v1.44.0/goose-aarch64-apple-darwin.tar.bz2",
+            "archive": "https://github.com/block/goose/releases/download/v1.45.0/goose-aarch64-apple-darwin.tar.bz2",
             "cmd": "./goose",
             "args": [
               "acp"
             ],
-            "sha256": "711de24143300be612c17a1f6d19d7f53095b454869f46f1ffcca78ee14b1861"
+            "sha256": "3a1b41197ff670c36b0b6285f41ccd949966ee037933f38c5e11c9356799ce58"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/block/goose/releases/download/v1.44.0/goose-x86_64-apple-darwin.tar.bz2",
+            "archive": "https://github.com/block/goose/releases/download/v1.45.0/goose-x86_64-apple-darwin.tar.bz2",
             "cmd": "./goose",
             "args": [
               "acp"
             ],
-            "sha256": "edc8a9582adc9e65084304b440b1c0edfc0ab58e81a1e50b456efff82a8c460b"
+            "sha256": "ab45c8c14ce10a2951b0b1f314a23f297c2206a10af121a01d4e347cc4042ab1"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/block/goose/releases/download/v1.44.0/goose-aarch64-unknown-linux-gnu.tar.bz2",
+            "archive": "https://github.com/block/goose/releases/download/v1.45.0/goose-aarch64-unknown-linux-gnu.tar.bz2",
             "cmd": "./goose",
             "args": [
               "acp"
             ],
-            "sha256": "ab0d4d44e4b4251b64d0d9784882383137893bd6f68f45593ad6c186a2bdc2a9"
+            "sha256": "54afad8e160068cb1769ca2ad3e19e36e8472775e68d7bc89cc90e7779c552d1"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/block/goose/releases/download/v1.44.0/goose-x86_64-unknown-linux-gnu.tar.bz2",
+            "archive": "https://github.com/block/goose/releases/download/v1.45.0/goose-x86_64-unknown-linux-gnu.tar.bz2",
             "cmd": "./goose",
             "args": [
               "acp"
             ],
-            "sha256": "87883ab52e3748e49cf7b1ed08677337651c35d6f68f1ef9f74e8c58bcaecd73"
+            "sha256": "ec5da5f018cf68ea446887d30decf847542035ffcf91536d1d134ed94bb24401"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/block/goose/releases/download/v1.44.0/goose-x86_64-pc-windows-msvc.zip",
+            "archive": "https://github.com/block/goose/releases/download/v1.45.0/goose-x86_64-pc-windows-msvc.zip",
             "cmd": "./goose-package\\goose.exe",
             "args": [
               "acp"
             ],
-            "sha256": "50ed0ee034355036b94718b65aad5b7a2ec4fd6d80f6ae4fc7f26e623aa5b193"
+            "sha256": "6d9853bdc614cdbae41d700075953ddbdc28264f8c0e8f2b7fd3d859ffb1c762"
           }
         }
       },
@@ -671,7 +671,7 @@
     {
       "id": "grok-build",
       "name": "Grok Build",
-      "version": "0.2.113",
+      "version": "0.2.115",
       "description": "xAI's coding agent and CLI",
       "website": "https://x.ai/cli",
       "authors": [
@@ -680,7 +680,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@xai-official/grok@0.2.113",
+          "package": "@xai-official/grok@0.2.115",
           "args": [
             "agent",
             "stdio"
@@ -813,7 +813,7 @@
     {
       "id": "kilo",
       "name": "Kilo",
-      "version": "7.4.16",
+      "version": "7.4.17",
       "description": "The open source coding agent",
       "repository": "https://github.com/Kilo-Org/kilocode",
       "website": "https://kilo.ai/",
@@ -825,48 +825,48 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.16/kilo-darwin-arm64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.17/kilo-darwin-arm64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "09617440c98987418401c719f2884b4f5b35cac0518c8fbaf88f027ee7f6a704"
+            "sha256": "b51f33f7c47fb77c6252fcacfc20ba7c90a979ecd757cc9aadb246338f8c266a"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.16/kilo-darwin-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.17/kilo-darwin-x64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "cdcec1e0aabee3712071af1772e611a7d118e0782fcc7074c66212c92ab1ccac"
+            "sha256": "4670655e95869ff25b398d5c24b0a9c890ebef18dc23af4c6faa586c97d75cc9"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.16/kilo-linux-arm64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.17/kilo-linux-arm64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "625653aa0cf3bc2096525b61faffc513fe089beeabf4c10b9aa94c1ec7d0e1cf"
+            "sha256": "b0342209411e4e16a161541e36b7d01d6972e965abea1c13c2e0eec021acfdf7"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.16/kilo-linux-x64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.17/kilo-linux-x64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "dd233dbee98d19f35a62ad3fdc8bd4ed912a8300f0ddd61f432633fe148f136b"
+            "sha256": "8bc8b4918c0634c185e1c54be049b4110b9e37d59f3dc93c6411d63c23b11034"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.16/kilo-windows-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.17/kilo-windows-x64.zip",
             "cmd": "./kilo.exe",
             "args": [
               "acp"
             ],
-            "sha256": "10552edc9a50232267becee068d942ca599e18bfe9f942e1a8320c08256e30a5"
+            "sha256": "4313a14a20ab3609702ab3c52e232f28aba52bbd7eb41853297ba947a452d4d2"
           }
         },
         "npx": {
-          "package": "@kilocode/cli@7.4.16",
+          "package": "@kilocode/cli@7.4.17",
           "args": [
             "acp"
           ]
