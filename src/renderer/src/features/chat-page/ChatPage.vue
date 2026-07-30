@@ -212,6 +212,7 @@
                     :agent-id="sessionStore.activeSession?.agentId ?? 'deepchat'"
                     :workspace-path="sessionStore.activeSession?.projectDir ?? null"
                     :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
+                    :supports-vision="composerSupportsVision"
                     :is-generating="isGenerating"
                     :submit-disabled="isInputSubmitDisabled"
                     :queue-submit-enabled="isGenerating && hasDraftInput"
@@ -223,6 +224,7 @@
                     @pending-skills-change="recordComposerSkillsChange"
                     @queue-submit="onQueueSubmit"
                     @submit="onSubmit"
+                    @switch-vision-model="switchToVisionModel"
                     @toggle-voice-input="onToggleVoiceInput"
                   >
                     <template #toolbar>
@@ -1132,6 +1134,17 @@ function getActiveModelSelection(): { providerId: string; modelId: string } | nu
     modelId: activeSession.modelId
   }
 }
+
+const composerSupportsVision = computed<boolean | null>(() => {
+  const selection = getActiveModelSelection()
+  if (!selection || selection.providerId === 'acp' || !modelStore.initialized) {
+    return null
+  }
+  return (
+    modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.vision ??
+    null
+  )
+})
 
 const {
   isVoiceInputEnabled,

@@ -60,6 +60,7 @@ type SetupOptions = {
   autoScrollEnabled?: boolean
   cachedMeasurements?: Readonly<Record<string, number>>
   mockChatSearch?: boolean
+  modelVision?: boolean
   performanceReporter?: {
     recordChatSession: ReturnType<typeof vi.fn>
   }
@@ -212,6 +213,16 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const modelStore = reactive({
+    initialized: true,
+    findChatSelectableModel: vi.fn((providerId: string, modelId: string) => ({
+      providerId,
+      providerName: providerId,
+      model: {
+        id: modelId,
+        name: modelId,
+        vision: options.modelVision ?? false
+      }
+    })),
     findModelByIdOrName: vi.fn((id: string) => ({
       model: {
         id,
@@ -428,6 +439,14 @@ const setup = async (options: SetupOptions = {}) => {
           type: String,
           default: 'deepchat'
         },
+        isAcpSession: {
+          type: Boolean,
+          default: false
+        },
+        supportsVision: {
+          type: Boolean,
+          default: null
+        },
         submitDisabled: {
           type: Boolean,
           default: false
@@ -445,7 +464,14 @@ const setup = async (options: SetupOptions = {}) => {
           default: false
         }
       },
-      emits: ['update:modelValue', 'update:files', 'command-submit', 'queue-submit', 'submit'],
+      emits: [
+        'update:modelValue',
+        'update:files',
+        'command-submit',
+        'queue-submit',
+        'submit',
+        'switch-vision-model'
+      ],
       setup(_, { expose }) {
         expose({
           triggerAttach: chatInputTriggerAttach,
@@ -738,6 +764,20 @@ describe('ChatPage', () => {
     })
 
     expect(wrapper.findComponent({ name: 'ChatInputBox' }).props('agentId')).toBe('agent-b')
+  })
+
+  it('passes the active DeepChat model vision capability to the composer', async () => {
+    const { wrapper } = await setup({
+      activeSessionPatch: {
+        providerId: 'openai',
+        modelId: 'vision-model'
+      },
+      modelVision: true
+    })
+
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+    expect(input.props('isAcpSession')).toBe(false)
+    expect(input.props('supportsVision')).toBe(true)
   })
 
   it('reports only safe chat-session phase and epoch metadata', async () => {

@@ -106,6 +106,7 @@
             :agent-id="selectedAgent.id"
             :workspace-path="projectStore.selectedProject?.path ?? null"
             :is-acp-session="isAcpSelectedAgent"
+            :supports-vision="composerSupportsVision"
             :editable="!isSubmittingInput"
             :submit-disabled="isAcpWorkdirUnavailable || isSubmittingInput"
             :is-attachment-preparation-pending="isPreparingAttachments"
@@ -113,6 +114,7 @@
             @pending-skills-change="onPendingSkillsChange"
             @command-submit="onCommandSubmit"
             @submit="onSubmit"
+            @switch-vision-model="switchToVisionModel"
             @toggle-voice-input="onToggleVoiceInput"
           >
             <template #toolbar>
@@ -133,7 +135,7 @@
         </div>
 
         <!-- Status bar -->
-        <ChatStatusBar :acp-draft-session-id="acpDraftSessionId" />
+        <ChatStatusBar ref="chatStatusBarRef" :acp-draft-session-id="acpDraftSessionId" />
       </div>
 
       <GuidedOnboardingOverlay
@@ -257,6 +259,7 @@ const chatInputRef = ref<{
   clearPendingSkills?: () => void
   focusInput?: () => void
 } | null>(null)
+const chatStatusBarRef = ref<{ openModelPicker?: () => boolean } | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const acpDraftModelSelection = ref<SubmissionModelSelection | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
@@ -364,6 +367,20 @@ const selectedAgent = computed(() => {
 })
 const isAcpSelectedAgent = computed(() => selectedAgent.value.type === 'acp')
 const isDeepChatSelectedAgent = computed(() => selectedAgent.value.type === 'deepchat')
+const composerSupportsVision = computed<boolean | null>(() => {
+  if (
+    isAcpSelectedAgent.value ||
+    !modelStore.initialized ||
+    !draftStore.providerId ||
+    !draftStore.modelId
+  ) {
+    return null
+  }
+  return (
+    modelStore.findChatSelectableModel(draftStore.providerId, draftStore.modelId)?.model.vision ??
+    null
+  )
+})
 const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
@@ -1138,6 +1155,12 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
 
 function onAttach() {
   chatInputRef.value?.triggerAttach()
+}
+
+function switchToVisionModel(): void {
+  void nextTick(() => {
+    chatStatusBarRef.value?.openModelPicker?.()
+  })
 }
 
 function onToggleVoiceInput() {

@@ -25,6 +25,7 @@ const createChatInputBoxStub = () =>
       sessionId: { type: String, default: null },
       workspacePath: { type: String, default: null },
       isAcpSession: { type: Boolean, default: false },
+      supportsVision: { type: Boolean, default: null },
       editable: { type: Boolean, default: true },
       submitDisabled: { type: Boolean, default: false }
     },
@@ -33,7 +34,8 @@ const createChatInputBoxStub = () =>
       'update:files',
       'submit',
       'command-submit',
-      'pending-skills-change'
+      'pending-skills-change',
+      'switch-vision-model'
     ],
     setup(props, { expose }) {
       expose({
@@ -48,7 +50,9 @@ const createChatInputBoxStub = () =>
           'data-agent-id': props.agentId,
           'data-editable': String(props.editable),
           'data-workspace-path': props.workspacePath ?? '',
-          'data-is-acp-session': String(props.isAcpSession)
+          'data-is-acp-session': String(props.isAcpSession),
+          'data-supports-vision':
+            props.supportsVision === null ? 'unknown' : String(props.supportsVision)
         })
     }
   })
@@ -466,6 +470,32 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     })
 
     expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-1')
+  })
+
+  it('passes the resolved DeepChat draft model capability to the composer', async () => {
+    const { agentStore, draftStore, modelStore, wrapper } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    agentStore.selectedAgent = {
+      id: 'deepchat',
+      name: 'DeepChat',
+      type: 'deepchat',
+      enabled: true
+    }
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'vision-model', name: 'Vision', vision: true }]
+      }
+    ]
+    draftStore.providerId = 'openai'
+    draftStore.modelId = 'vision-model'
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-supports-vision')).toBe(
+      'true'
+    )
   })
 
   it('shows a warning and blocks ACP draft/send when the selected workdir is invalid', async () => {

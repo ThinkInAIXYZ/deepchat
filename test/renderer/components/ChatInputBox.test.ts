@@ -1,7 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
-import { defineComponent, ref, nextTick } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, inject, ref, nextTick } from 'vue'
 import { CHAT_INPUT_WORKSPACE_ITEM_MIME } from '@/lib/chatInputWorkspaceReference'
+import {
+  ATTACHMENT_NODE_CONTEXT,
+  INPUT_NODE_ACTIONS,
+  type AttachmentNodeContext,
+  type InputNodeActions
+} from '@/components/chat/nodes/symbols'
 
 const handlePasteMock = vi.fn().mockResolvedValue(undefined)
 const handleDropMock = vi.fn().mockResolvedValue(undefined)
@@ -15,6 +21,7 @@ const pendingSkillsRef = ref<string[]>([])
 const activateSkillMock = vi.fn().mockResolvedValue(undefined)
 const deactivateSkillMock = vi.fn().mockResolvedValue(undefined)
 const closeDialogMock = vi.fn()
+const getOcrRuntimeStatusMock = vi.fn()
 const useChatInputMentionsMock = vi.fn((_options?: unknown) => ({
   atSuggestion: {},
   slashSuggestion: {},
@@ -200,6 +207,12 @@ vi.mock('@/components/chat-input/McpIndicator.vue', () => ({
   })
 }))
 
+vi.mock('@api/OcrClient', () => ({
+  createOcrClient: () => ({
+    getRuntimeStatus: getOcrRuntimeStatusMock
+  })
+}))
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => key
@@ -216,6 +229,7 @@ describe('ChatInputBox attachments', () => {
     lastEditorInstance = null
     mockEditorText = ''
     closeDialogMock.mockClear()
+    getOcrRuntimeStatusMock.mockReset()
     Object.assign(((window as any).api ??= {}), {
       toRelativePath: vi.fn((filePath: string, basePath?: string) => {
         if (typeof filePath !== 'string' || typeof basePath !== 'string') {
@@ -274,6 +288,51 @@ describe('ChatInputBox attachments', () => {
 
     expect(skillsAgentId?.value).toBe('agent-a')
     expect(mentionOptions?.agentId.value).toBe('agent-a')
+  })
+
+  it('provides reactive attachment context and fails open when OCR status cannot be read', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    let attachmentContext: AttachmentNodeContext | undefined
+    let inputNodeActions: InputNodeActions | undefined
+    const Probe = defineComponent({
+      setup() {
+        attachmentContext = inject(ATTACHMENT_NODE_CONTEXT)
+        inputNodeActions = inject(INPUT_NODE_ACTIONS)
+        return () => null
+      }
+    })
+    const ChatInputBox = (await import('@/components/chat/ChatInputBox.vue')).default
+    const wrapper = mount(ChatInputBox, {
+      props: {
+        modelValue: '',
+        isAcpSession: false,
+        supportsVision: null
+      },
+      slots: {
+        toolbar: Probe
+      }
+    })
+
+    expect(attachmentContext?.isAcpSession.value).toBe(false)
+    expect(attachmentContext?.supportsVision.value).toBeNull()
+
+    await wrapper.setProps({ isAcpSession: true, supportsVision: false })
+
+    expect(attachmentContext?.isAcpSession.value).toBe(true)
+    expect(attachmentContext?.supportsVision.value).toBe(false)
+
+    getOcrRuntimeStatusMock.mockRejectedValueOnce(new Error('status unavailable'))
+    await attachmentContext?.refreshOcrAvailability()
+    expect(attachmentContext?.ocrAvailability.value).toEqual({ status: 'unknown' })
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[ChatInputBox] Failed to load OCR availability:',
+      expect.any(Error)
+    )
+
+    inputNodeActions?.switchToVisionModel()
+    await flushPromises()
+    expect(wrapper.emitted('switch-vision-model')).toHaveLength(1)
+    warnSpy.mockRestore()
   })
 
   const dispatchPaste = async (wrapper: Awaited<ReturnType<typeof mountComponent>>, data: any) => {
