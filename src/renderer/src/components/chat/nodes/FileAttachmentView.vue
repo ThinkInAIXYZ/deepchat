@@ -12,7 +12,7 @@
           type="button"
           contenteditable="false"
           data-testid="attachment-representation-trigger"
-          class="inline-flex h-4 shrink-0 items-center justify-center rounded-sm text-[10px] font-medium transition-[color,background-color,opacity] hover:bg-muted-foreground/20 hover:text-foreground focus:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          class="attachment-representation-trigger inline-flex h-4 shrink-0 items-center justify-center rounded-sm text-[10px] font-medium transition-[color,background-color,opacity] hover:bg-muted-foreground/20 hover:text-foreground focus:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           :class="
             hasExplicitPreference
               ? 'max-w-20 gap-0.5 border border-border/70 bg-background/70 px-1 text-foreground opacity-100'
@@ -43,7 +43,6 @@
             :key="option.value"
             :value="option.value"
             :disabled="option.disabled"
-            :title="option.disabledReason"
           >
             <span class="min-w-0">
               <span class="block">{{ t(option.labelKey) }}</span>
@@ -228,3 +227,11 @@ function handleRemove() {
   }
 }
 </script>
+
+<style scoped>
+@media (pointer: coarse) {
+  .attachment-representation-trigger {
+    opacity: 1;
+  }
+}
+</style>

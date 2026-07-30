@@ -155,7 +155,8 @@ representation and allow the OCR snapshot to be inspected.
 Composer representation controls use progressive disclosure:
 
 - `auto` is the implicit default and does not render a persistent label on image or PDF chips;
-- an accessible attachment-options trigger is discoverable on hover and keyboard focus;
+- an accessible attachment-options trigger is discoverable on hover and keyboard focus, and remains
+  visible for coarse-pointer devices that cannot hover;
 - explicit `image`, `embedded_text` and `ocr_text` preferences remain visible as compact intent
   badges until the user restores `auto`;
 - menu actions keep action-oriented labels, while badges keep the existing short state labels;
@@ -167,8 +168,10 @@ Composer representation controls use progressive disclosure:
 - ACP composers hide representation controls and intent badges because ACP does not consume the
   DeepChat attachment representation contract. Stored preferences remain unchanged and become
   visible again when the draft returns to a DeepChat Agent;
-- OCR availability is read on demand when the attachment menu opens. Composer nodes never poll the
-  runtime or reuse a potentially stale plugin-catalog snapshot.
+- OCR availability is read on demand when the attachment menu opens. A short-lived successful
+  snapshot is shared across nodes, and an expired snapshot remains authoritative while its refresh
+  is in flight so a known unavailable capability cannot flicker back to selectable. Composer nodes
+  never poll the runtime or reuse a potentially stale plugin-catalog snapshot.
 
 ## Acceptance Criteria
 

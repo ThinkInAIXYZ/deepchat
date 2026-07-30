@@ -213,25 +213,52 @@ provide(INPUT_NODE_ACTIONS, actions)
 const attachmentOcrAvailability = ref<AttachmentOcrAvailability>({ status: 'unknown' })
 const attachmentIsAcpSession = computed(() => props.isAcpSession)
 const attachmentSupportsVision = computed(() => props.supportsVision)
+const ATTACHMENT_OCR_AVAILABILITY_TTL_MS = 30_000
 let attachmentOcrClient: OcrClient | null = null
+let attachmentOcrStatusLoadedAt = 0
+let attachmentOcrStatusRequest: Promise<void> | null = null
 let attachmentOcrStatusRequestId = 0
 
 async function refreshAttachmentOcrAvailability(): Promise<void> {
-  const requestId = ++attachmentOcrStatusRequestId
-  attachmentOcrAvailability.value = { status: 'loading' }
+  const cacheAge = Date.now() - attachmentOcrStatusLoadedAt
+  if (
+    attachmentOcrAvailability.value.status !== 'unknown' &&
+    cacheAge >= 0 &&
+    cacheAge < ATTACHMENT_OCR_AVAILABILITY_TTL_MS
+  ) {
+    return
+  }
+  if (attachmentOcrStatusRequest) {
+    await attachmentOcrStatusRequest
+    return
+  }
 
-  try {
-    attachmentOcrClient ??= createOcrClient()
-    const status = await attachmentOcrClient.getRuntimeStatus()
-    if (requestId === attachmentOcrStatusRequestId) {
+  const requestId = ++attachmentOcrStatusRequestId
+  const request = (async () => {
+    try {
+      attachmentOcrClient ??= createOcrClient()
+      const status = await attachmentOcrClient.getRuntimeStatus()
+      if (requestId !== attachmentOcrStatusRequestId) {
+        return
+      }
       attachmentOcrAvailability.value = status.availability
+      attachmentOcrStatusLoadedAt = Date.now()
+    } catch (error) {
+      if (requestId !== attachmentOcrStatusRequestId) {
+        return
+      }
+      attachmentOcrAvailability.value = { status: 'unknown' }
+      attachmentOcrStatusLoadedAt = 0
+      console.warn('[ChatInputBox] Failed to load OCR availability:', error)
     }
-  } catch (error) {
-    if (requestId !== attachmentOcrStatusRequestId) {
-      return
+  })()
+  attachmentOcrStatusRequest = request
+  try {
+    await request
+  } finally {
+    if (attachmentOcrStatusRequest === request) {
+      attachmentOcrStatusRequest = null
     }
-    attachmentOcrAvailability.value = { status: 'unknown' }
-    console.warn('[ChatInputBox] Failed to load OCR availability:', error)
   }
 }
 

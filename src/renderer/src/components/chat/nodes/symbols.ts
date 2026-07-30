@@ -12,9 +12,7 @@ export interface InputNodeActions {
   cancelCommandForm: () => void
 }
 
-export type AttachmentOcrAvailability =
-  | { status: 'unknown' | 'loading' }
-  | OcrRuntimeStatus['availability']
+export type AttachmentOcrAvailability = { status: 'unknown' } | OcrRuntimeStatus['availability']
 
 export interface AttachmentNodeContext {
   isAcpSession: ComputedRef<boolean>

@@ -15,6 +15,7 @@ const chatInputClearPendingSkillsMock = vi.fn(() => {
   chatInputPendingSkillsSnapshotRef.value = []
 })
 const chatInputPendingSkillsSnapshotRef: { value: string[] } = { value: [] }
+const chatStatusBarOpenModelPickerMock = vi.fn(() => true)
 
 const createChatInputBoxStub = () =>
   defineComponent({
@@ -90,6 +91,7 @@ const setup = async (options?: {
   chatInputTriggerAttachMock.mockReset()
   chatInputClearPendingSkillsMock.mockClear()
   chatInputPendingSkillsSnapshotRef.value = []
+  chatStatusBarOpenModelPickerMock.mockClear()
   const initialSelectedProject = Object.prototype.hasOwnProperty.call(
     options ?? {},
     'selectedProject'
@@ -312,7 +314,13 @@ const setup = async (options?: {
     default: passthrough('ChatInputToolbar')
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
-    default: passthrough('ChatStatusBar')
+    default: defineComponent({
+      name: 'ChatStatusBar',
+      setup(_, { expose }) {
+        expose({ openModelPicker: chatStatusBarOpenModelPickerMock })
+        return () => h('div', { 'data-testid': 'chat-status-bar' })
+      }
+    })
   }))
   vi.doMock('@shadcn/components/ui/tooltip', () => ({
     TooltipProvider: passthrough('TooltipProvider')
@@ -331,8 +339,7 @@ const setup = async (options?: {
         DropdownMenuLabel: passthrough('DropdownMenuLabel'),
         DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
         Icon: true,
-        ChatInputToolbar: true,
-        ChatStatusBar: true
+        ChatInputToolbar: true
       }
     }
   })
@@ -349,6 +356,7 @@ const setup = async (options?: {
     modelClient,
     sessionClient,
     chatClient,
+    chatStatusBarOpenModelPickerMock,
     isDirectoryMock,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
@@ -495,6 +503,30 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
 
     expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-supports-vision')).toBe(
       'true'
+    )
+  })
+
+  it('cancels attachment preparation before opening the vision model picker', async () => {
+    const { chatClient, chatStatusBarOpenModelPickerMock, wrapper } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    const submission = {
+      submissionId: 'submission-1',
+      cancelled: false,
+      mainDispatched: true
+    }
+    ;(wrapper.vm as any).activeSubmission = submission
+    ;(wrapper.vm as any).isPreparingAttachments = true
+
+    wrapper.findComponent({ name: 'ChatInputBox' }).vm.$emit('switch-vision-model')
+    await flushPromises()
+
+    expect(submission.cancelled).toBe(true)
+    expect(chatClient.cancelSubmission).toHaveBeenCalledWith('submission-1')
+    expect(chatStatusBarOpenModelPickerMock).toHaveBeenCalledOnce()
+    expect(chatClient.cancelSubmission.mock.invocationCallOrder[0]).toBeLessThan(
+      chatStatusBarOpenModelPickerMock.mock.invocationCallOrder[0]!
     )
   })
 

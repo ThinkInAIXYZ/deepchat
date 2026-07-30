@@ -139,9 +139,10 @@ an on-demand OCR availability snapshot.
 The chat page and new-thread page derive model capability from their effective provider/model
 selection and pass `null` until the renderer can resolve the selected model. `ChatInputBox` provides
 that state to TipTap attachment nodes, owns one request-versioned OCR status read shared by its
-nodes, and resets a failed read to `unknown` rather than retaining stale availability. Nodes treat
-both unknown model capability and unknown OCR availability as selectable; the main router is the
-only enforcement boundary.
+nodes, coalesces concurrent reads and reuses a successful snapshot for a short TTL. Refresh does not
+replace known availability with an indistinguishable loading state; a failed read resets to
+`unknown` rather than retaining stale availability. Nodes treat both unknown model capability and
+unknown OCR availability as selectable; the main router is the only enforcement boundary.
 
 The composer hides representation controls entirely for ACP without mutating stored preferences.
 For DeepChat, an `auto` attachment renders only a focusable attachment-options affordance that is

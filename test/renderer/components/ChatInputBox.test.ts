@@ -22,6 +22,15 @@ const activateSkillMock = vi.fn().mockResolvedValue(undefined)
 const deactivateSkillMock = vi.fn().mockResolvedValue(undefined)
 const closeDialogMock = vi.fn()
 const getOcrRuntimeStatusMock = vi.fn()
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve
+  })
+  return { promise, resolve }
+}
+
 const useChatInputMentionsMock = vi.fn((_options?: unknown) => ({
   atSuggestion: {},
   slashSuggestion: {},
@@ -333,6 +342,60 @@ describe('ChatInputBox attachments', () => {
     await flushPromises()
     expect(wrapper.emitted('switch-vision-model')).toHaveLength(1)
     warnSpy.mockRestore()
+  })
+
+  it('retains known OCR availability while refreshing and reuses a short-lived snapshot', async () => {
+    let attachmentContext: AttachmentNodeContext | undefined
+    const Probe = defineComponent({
+      setup() {
+        attachmentContext = inject(ATTACHMENT_NODE_CONTEXT)
+        return () => null
+      }
+    })
+    const unavailable = {
+      status: 'unavailable',
+      reason: 'service_closed',
+      lightOcrVersion: '0.5.5',
+      bundleId: 'test-bundle'
+    } as const
+    const available = {
+      status: 'available',
+      lightOcrVersion: '0.5.5',
+      bundleId: 'test-bundle'
+    } as const
+    const nextStatus = createDeferred<{ availability: typeof available }>()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    getOcrRuntimeStatusMock
+      .mockResolvedValueOnce({ availability: unavailable })
+      .mockReturnValueOnce(nextStatus.promise)
+    const ChatInputBox = (await import('@/components/chat/ChatInputBox.vue')).default
+    const wrapper = mount(ChatInputBox, {
+      props: { modelValue: '' },
+      slots: { toolbar: Probe }
+    })
+    const context = attachmentContext!
+
+    try {
+      await context.refreshOcrAvailability()
+      expect(context.ocrAvailability.value).toEqual(unavailable)
+
+      await context.refreshOcrAvailability()
+      expect(getOcrRuntimeStatusMock).toHaveBeenCalledOnce()
+
+      nowSpy.mockReturnValue(31_001)
+      const refresh = context.refreshOcrAvailability()
+      const joinedRefresh = context.refreshOcrAvailability()
+
+      expect(getOcrRuntimeStatusMock).toHaveBeenCalledTimes(2)
+      expect(context.ocrAvailability.value).toEqual(unavailable)
+
+      nextStatus.resolve({ availability: available })
+      await Promise.all([refresh, joinedRefresh])
+      expect(context.ocrAvailability.value).toEqual(available)
+    } finally {
+      wrapper.unmount()
+      nowSpy.mockRestore()
+    }
   })
 
   const dispatchPaste = async (wrapper: Awaited<ReturnType<typeof mountComponent>>, data: any) => {

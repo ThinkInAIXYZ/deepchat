@@ -182,6 +182,11 @@ import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
+import {
+  openChatStatusBarModelPicker,
+  switchAttachmentToVisionModel,
+  type ChatStatusBarModelPicker
+} from '@/components/chat/attachmentModelPicker'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
@@ -259,7 +264,7 @@ const chatInputRef = ref<{
   clearPendingSkills?: () => void
   focusInput?: () => void
 } | null>(null)
-const chatStatusBarRef = ref<{ openModelPicker?: () => boolean } | null>(null)
+const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const acpDraftModelSelection = ref<SubmissionModelSelection | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
@@ -1157,10 +1162,12 @@ function onAttach() {
   chatInputRef.value?.triggerAttach()
 }
 
+function openAttachmentModelPicker(): void {
+  openChatStatusBarModelPicker(chatStatusBarRef, 'NewThreadPage')
+}
+
 function switchToVisionModel(): void {
-  void nextTick(() => {
-    chatStatusBarRef.value?.openModelPicker?.()
-  })
+  switchAttachmentToVisionModel(cancelSubmissionPreparation, openAttachmentModelPicker)
 }
 
 function onToggleVoiceInput() {

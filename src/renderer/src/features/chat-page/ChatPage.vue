@@ -323,6 +323,10 @@ import MessageList from '@/components/chat/MessageList.vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import AttachmentPreparationDialog from '@/components/chat/AttachmentPreparationDialog.vue'
+import {
+  openChatStatusBarModelPicker,
+  type ChatStatusBarModelPicker
+} from '@/components/chat/attachmentModelPicker'
 import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
@@ -1083,12 +1087,10 @@ const chatInputRef = ref<{
   getDocumentSnapshot?: () => JSONContent
   restoreDocumentSnapshot?: (document: JSONContent) => void
 } | null>(null)
-const chatStatusBarRef = ref<{ openModelPicker?: () => boolean } | null>(null)
+const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 
 function openAttachmentModelPicker(): void {
-  void nextTick(() => {
-    chatStatusBarRef.value?.openModelPicker?.()
-  })
+  openChatStatusBarModelPicker(chatStatusBarRef, 'ChatPage')
 }
 
 const {

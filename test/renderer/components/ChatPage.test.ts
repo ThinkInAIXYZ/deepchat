@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, provide, reactive, ref } from 'vue'
+import { defineComponent, h, provide, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { WORKSPACE_EVENTS } from '@/events'
 
@@ -273,6 +273,7 @@ const setup = async (options: SetupOptions = {}) => {
   const chatInputTriggerAttach = vi.fn()
   const chatInputGetPendingSkillsSnapshot = vi.fn((): string[] => [])
   const chatInputClearPendingSkills = vi.fn()
+  const chatStatusBarOpenModelPicker = vi.fn(() => true)
   const attachmentPreparationStore = reactive({
     consumeInitialDraftRecovery: vi.fn(() => null),
     stageInitialDraftRecovery: vi.fn(),
@@ -553,7 +554,10 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
     default: defineComponent({
       name: 'ChatStatusBar',
-      template: '<div class="chat-status-bar-stub" />'
+      setup(_, { expose }) {
+        expose({ openModelPicker: chatStatusBarOpenModelPicker })
+        return () => h('div', { class: 'chat-status-bar-stub' })
+      }
     })
   }))
   vi.doMock('@/components/chat/MemoryUpdateChip.vue', () => ({
@@ -671,6 +675,7 @@ const setup = async (options: SetupOptions = {}) => {
     chatInputTriggerAttach,
     chatInputGetPendingSkillsSnapshot,
     chatInputClearPendingSkills,
+    chatStatusBarOpenModelPicker,
     recentMessageMeasurementCache,
     disposeChatSearch,
     emitPlanUpdated: (payload: any) => {
@@ -778,6 +783,15 @@ describe('ChatPage', () => {
     const input = wrapper.findComponent({ name: 'ChatInputBox' })
     expect(input.props('isAcpSession')).toBe(false)
     expect(input.props('supportsVision')).toBe(true)
+  })
+
+  it('routes the composer vision-model action to the existing model picker', async () => {
+    const { chatStatusBarOpenModelPicker, wrapper } = await setup()
+
+    wrapper.findComponent({ name: 'ChatInputBox' }).vm.$emit('switch-vision-model')
+    await flushPromises()
+
+    expect(chatStatusBarOpenModelPicker).toHaveBeenCalledOnce()
   })
 
   it('reports only safe chat-session phase and epoch metadata', async () => {

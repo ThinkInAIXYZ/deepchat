@@ -44,7 +44,9 @@ built-in OCR, MCP, Skills and Remote route to their real owners instead of dupli
 configuration inside Plugin state. Built-in OCR stays first in the catalog and remains visible when
 its runtime is unavailable. Its catalog snapshot and refresh-error state live in the shared catalog
 store; a failed refresh must not leave a stale Available badge visible or fail the rest of the
-catalog.
+catalog. The compact catalog card therefore suppresses stale status entirely, while the diagnostic
+management page may retain its last snapshot only when it also renders an explicit stale warning;
+the surfaces intentionally optimize for different levels of diagnostic context.
 
 ## Validation
 
