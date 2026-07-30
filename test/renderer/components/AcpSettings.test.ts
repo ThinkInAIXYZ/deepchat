@@ -122,6 +122,16 @@ type SetupOptions = {
 async function setup(options: SetupOptions = {}) {
   vi.resetModules()
 
+  const discardSharedMcpRetryIntent = vi.fn()
+  const AgentMcpSelectorStub = defineComponent({
+    name: 'AgentMcpSelector',
+    emits: ['update:selections', 'persistence-state'],
+    setup(_props, { expose }) {
+      expose({ discardRetryIntent: discardSharedMcpRetryIntent })
+      return {}
+    },
+    template: '<div />'
+  })
   const feedbackSnapshot = shallowRef<any>({ status: 'idle', version: 0 })
   const feedbackController = {
     begin: vi.fn((operationId: string, label: string) => {
@@ -217,7 +227,7 @@ async function setup(options: SetupOptions = {}) {
     default: passthrough('AcpDebugDialog')
   }))
   vi.doMock('@/components/mcp-config/AgentMcpSelector.vue', () => ({
-    default: passthrough('AgentMcpSelector')
+    default: AgentMcpSelectorStub
   }))
   vi.doMock('@/components/agent/AgentTransferDialog.vue', () => ({
     default: AgentTransferDialogStub
@@ -258,7 +268,7 @@ async function setup(options: SetupOptions = {}) {
         DialogTitle: passthrough('DialogTitle'),
         AgentTransferDialog: AgentTransferDialogStub,
         AcpDebugDialog: passthrough('AcpDebugDialog'),
-        AgentMcpSelector: passthrough('AgentMcpSelector'),
+        AgentMcpSelector: AgentMcpSelectorStub,
         AcpAgentIcon: passthrough('AcpAgentIcon'),
         Icon: true
       }
@@ -272,6 +282,7 @@ async function setup(options: SetupOptions = {}) {
     sessionClient,
     feedbackController,
     feedbackSnapshot,
+    discardSharedMcpRetryIntent,
     settingsLeaveGuard
   }
 }
@@ -380,6 +391,33 @@ describe('AcpSettings', () => {
     resolveSave?.()
     await flushPromises()
 
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+    wrapper.unmount()
+  })
+
+  it('guards shared MCP selection persistence and retained retry intent', async () => {
+    const { wrapper, discardSharedMcpRetryIntent, settingsLeaveGuard } = await setup({
+      registryAgents: [installedAgent()]
+    })
+    const selector = wrapper.findComponent({ name: 'AgentMcpSelector' })
+    const collapseButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'common.expand')
+
+    selector.vm.$emit('persistence-state', 'saving')
+    await flushPromises()
+
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('busy')
+    expect(collapseButton?.attributes('disabled')).toBeDefined()
+
+    selector.vm.$emit('persistence-state', 'retryable')
+    await flushPromises()
+
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+    const leave = settingsLeaveGuard.requestLeave()
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await expect(leave).resolves.toBe(true)
+    expect(discardSharedMcpRetryIntent).toHaveBeenCalledOnce()
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
     wrapper.unmount()
   })

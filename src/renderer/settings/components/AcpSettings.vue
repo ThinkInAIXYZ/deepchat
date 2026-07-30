@@ -79,7 +79,12 @@
               <Badge variant="outline">
                 {{ t('settings.acp.mcpAccessBadge', { count: sharedMcpCount }) }}
               </Badge>
-              <Button size="sm" variant="outline" @click="sharedMcpOpen = !sharedMcpOpen">
+              <Button
+                size="sm"
+                variant="outline"
+                :disabled="sharedMcpLeaveRisk !== 'clean'"
+                @click="sharedMcpOpen = !sharedMcpOpen"
+              >
                 {{ sharedMcpOpen ? t('common.collapse') : t('common.expand') }}
               </Button>
             </div>
@@ -88,7 +93,11 @@
           <CollapsibleContent>
             <Card>
               <CardContent class="pt-6">
-                <AgentMcpSelector @update:selections="handleSharedMcpUpdated" />
+                <AgentMcpSelector
+                  ref="sharedMcpSelectorRef"
+                  @update:selections="handleSharedMcpUpdated"
+                  @persistence-state="handleSharedMcpPersistenceState"
+                />
               </CardContent>
             </Card>
           </CollapsibleContent>
@@ -675,7 +684,7 @@ import AcpAgentIcon from '@/components/icons/AcpAgentIcon.vue'
 import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
 import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
-import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
+import { settingsLeaveGuard, type SettingsLeaveRisk } from '../services/settingsLeaveGuard'
 
 const { t } = useI18n()
 const configClient = createConfigClient()
@@ -735,6 +744,8 @@ const loadError = ref<string | null>(null)
 const manualSectionOpen = ref(false)
 const sharedMcpOpen = ref(false)
 const sharedMcpCount = ref(0)
+const sharedMcpLeaveRisk = ref<SettingsLeaveRisk>('clean')
+const sharedMcpSelectorRef = ref<InstanceType<typeof AgentMcpSelector> | null>(null)
 
 const registryAgents = ref<AcpRegistryAgent[]>([])
 const manualAgents = ref<AcpManualAgent[]>([])
@@ -934,11 +945,16 @@ const isRegistryDialogPending = computed(
 const isRegistryRefreshPending = computed(
   () => isRegistryDialogPending.value && pageOperation.value?.kind === 'registry-refresh'
 )
-const isAnyMutationPending = pageMutationPending
+const isAnyMutationPending = computed(
+  () => pageMutationPending.value || sharedMcpLeaveRisk.value === 'busy'
+)
 
 const dirtyEnvDrafts = reactive(new Set<string>())
 const hasUnsavedDrafts = computed(
-  () => dirtyEnvDrafts.size > 0 || (manualDialog.open && manualDialogDirty.value)
+  () =>
+    dirtyEnvDrafts.size > 0 ||
+    (manualDialog.open && manualDialogDirty.value) ||
+    sharedMcpLeaveRisk.value === 'dirty'
 )
 
 const syncEnvDrafts = (agents: AcpRegistryAgent[]) => {
@@ -1109,6 +1125,10 @@ const refreshRegistry = async () => {
 
 const handleSharedMcpUpdated = (selections: string[]) => {
   sharedMcpCount.value = selections.length
+}
+
+const handleSharedMcpPersistenceState = (state: 'idle' | 'saving' | 'retryable') => {
+  sharedMcpLeaveRisk.value = state === 'saving' ? 'busy' : state === 'retryable' ? 'dirty' : 'clean'
 }
 
 const toggleRegistryAgent = async (agent: AcpRegistryAgent, enabled: boolean) => {
@@ -1658,6 +1678,8 @@ const discardAcpDrafts = () => {
   manualDialogDirty.value = false
   manualDialog.open = false
   manualDialog.error = null
+  sharedMcpSelectorRef.value?.discardRetryIntent()
+  sharedMcpLeaveRisk.value = 'clean'
 
   if (
     (pageOperation.value?.kind === 'env-save' || pageOperation.value?.kind === 'manual-save') &&
@@ -1673,7 +1695,7 @@ const leaveGuardLease = settingsLeaveGuard.register({
   onDiscard: discardAcpDrafts
 })
 const stopLeaveRiskSync = watch(
-  [pageMutationPending, hasUnsavedDrafts],
+  [isAnyMutationPending, hasUnsavedDrafts],
   ([busy, dirty]) => {
     leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
   },

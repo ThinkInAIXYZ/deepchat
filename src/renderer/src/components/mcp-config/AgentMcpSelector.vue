@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { createConfigClient } from '@api/ConfigClient'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
@@ -11,6 +11,7 @@ import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 
 const emit = defineEmits<{
   'update:selections': [selections: string[]]
+  'persistence-state': [state: 'idle' | 'saving' | 'retryable']
 }>()
 
 const { t } = useI18n()
@@ -26,11 +27,14 @@ type AgentMcpServerConfig = {
 }
 
 const loading = ref(false)
-const saving = computed(() => saveFeedback.value.status === 'pending')
+const saving = ref(false)
 const loadError = ref<string | null>(null)
 const availableServers = ref<Array<{ name: string; config: AgentMcpServerConfig }>>([])
 const selections = ref<string[]>([])
 const retrySelections = ref<string[] | null>(null)
+const persistenceState = computed<'idle' | 'saving' | 'retryable'>(() =>
+  saving.value ? 'saving' : retrySelections.value ? 'retryable' : 'idle'
+)
 
 const selectableServers = computed(() =>
   availableServers.value.filter((server) => server.config.type !== 'inmemory')
@@ -74,6 +78,8 @@ const persist = async (
   nextSelections: string[],
   previousSelections: string[] = selections.value
 ) => {
+  if (saving.value) return false
+  saving.value = true
   saveFeedbackController.begin(saveOperationId, t('common.saving'))
   try {
     await configClient.setAcpSharedMcpSelections(nextSelections)
@@ -95,10 +101,13 @@ const persist = async (
       description: t('common.error.requestFailed')
     })
     return false
+  } finally {
+    saving.value = false
   }
 }
 
 const toggleServer = async (serverName: string, checked: boolean) => {
+  if (saving.value) return
   const prev = [...selections.value]
   const next = checked
     ? Array.from(new Set([...selections.value, serverName]))
@@ -115,8 +124,31 @@ const retrySave = async () => {
   await persist(next, previous)
 }
 
+const discardRetryIntent = () => {
+  if (!retrySelections.value) return
+  retrySelections.value = null
+  if (saveFeedback.value.status === 'success' || saveFeedback.value.status === 'error') {
+    saveFeedbackController.clearSettled()
+  }
+}
+
+defineExpose({ discardRetryIntent })
+
 onMounted(() => {
   void load()
+})
+
+const stopPersistenceStateSync = watch(
+  persistenceState,
+  (state) => {
+    emit('persistence-state', state)
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  stopPersistenceStateSync()
+  emit('persistence-state', 'idle')
 })
 </script>
 

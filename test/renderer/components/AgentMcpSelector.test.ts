@@ -14,7 +14,8 @@ const feedback = vi.hoisted(() => ({
   controller: {
     begin: vi.fn(),
     succeed: vi.fn(),
-    fail: vi.fn()
+    fail: vi.fn(),
+    clearSettled: vi.fn()
   }
 }))
 
@@ -127,6 +128,12 @@ describe('AgentMcpSelector', () => {
         }
       }
     )
+    feedback.controller.clearSettled.mockImplementation(() => {
+      feedback.snapshot!.value = {
+        status: 'idle',
+        version: feedback.snapshot!.value.version + 1
+      }
+    })
     configClient.getMcpServers.mockResolvedValue({
       filesystem: {
         type: 'stdio'
@@ -177,6 +184,30 @@ describe('AgentMcpSelector', () => {
     expect(wrapper.emitted('update:selections')?.[0]).toEqual([['filesystem']])
   })
 
+  it('keeps persistence guarded when feedback cannot begin', async () => {
+    let resolveSave: () => void = () => undefined
+    feedback.controller.begin.mockImplementationOnce(() => false)
+    configClient.setAcpSharedMcpSelections.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    const wrapper = mountSelector()
+    await flushPromises()
+
+    await wrapper.get('input[type="checkbox"]').trigger('click')
+
+    expect(wrapper.get('input[type="checkbox"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.emitted('persistence-state')?.at(-1)).toEqual(['saving'])
+
+    resolveSave()
+    await flushPromises()
+
+    expect(configClient.setAcpSharedMcpSelections).toHaveBeenCalledWith(['filesystem'])
+    expect(wrapper.emitted('persistence-state')?.at(-1)).toEqual(['idle'])
+  })
+
   it('reverts failed selections and retries the intended value inline', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     configClient.setAcpSharedMcpSelections.mockRejectedValueOnce(new Error('disk full'))
@@ -197,6 +228,30 @@ describe('AgentMcpSelector', () => {
     expect(configClient.setAcpSharedMcpSelections).toHaveBeenNthCalledWith(2, ['filesystem'])
     expect((wrapper.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
     expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toBe('common.saved')
+    expect(wrapper.emitted('persistence-state')).toEqual([
+      ['idle'],
+      ['saving'],
+      ['retryable'],
+      ['saving'],
+      ['idle']
+    ])
+    consoleError.mockRestore()
+  })
+
+  it('discards retained retry intent when its owner confirms navigation', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    configClient.setAcpSharedMcpSelections.mockRejectedValueOnce(new Error('disk full'))
+    const wrapper = mountSelector()
+    await flushPromises()
+
+    await wrapper.get('input[type="checkbox"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('persistence-state')?.at(-1)).toEqual(['retryable'])
+
+    wrapper.vm.discardRetryIntent()
+
+    expect(feedback.controller.clearSettled).toHaveBeenCalledOnce()
+    expect(wrapper.emitted('persistence-state')?.at(-1)).toEqual(['idle'])
     consoleError.mockRestore()
   })
 })

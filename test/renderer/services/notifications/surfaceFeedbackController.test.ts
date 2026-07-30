@@ -119,6 +119,19 @@ describe('SurfaceFeedbackController', () => {
     )
   })
 
+  it('rejects a blank pending label without throwing or leaking an operation', () => {
+    const { controller, operations } = createHarness()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    expect(controller.begin('settings.agent.save', '   ')).toBe(false)
+    expect(controller.getSnapshot().status).toBe('idle')
+    expect(operations.get('settings.agent.save')).toBeUndefined()
+    expect(consoleError).toHaveBeenCalledWith(
+      '[SurfaceFeedbackController] begin failed',
+      expect.any(TypeError)
+    )
+  })
+
   it('requires pending work to be explicitly cancelled instead of silently clearing it', () => {
     const { controller, operationEvents } = createHarness()
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
