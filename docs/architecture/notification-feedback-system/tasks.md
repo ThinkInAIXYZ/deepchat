@@ -82,4 +82,4 @@
 - [x] Do not push.
 - [x] Add real-dialog discard, observed-result non-replay, and unmount-disposal seam tests.
 - [x] Add real-router coverage for settings navigation blocking.
-- [ ] Re-run focused and full validation after the corrective audit.
+- [x] Re-run focused and full validation after the corrective audit.
