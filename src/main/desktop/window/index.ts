@@ -102,7 +102,7 @@ export class WindowPresenter implements IWindowPresenter {
     this.tabPresenter = tabPresenter
   }
 
-  isFirstPartyAudioOwner(webContentsId: number): boolean {
+  isFirstPartyPermissionOwner(webContentsId: number): boolean {
     const directWindow = Array.from(this.windows.values()).find(
       (window) => !window.isDestroyed() && window.webContents.id === webContentsId
     )
@@ -112,6 +112,14 @@ export class WindowPresenter implements IWindowPresenter {
 
     const tabWindowId = this.tabPresenter?.getWindowIdByWebContentsId(webContentsId)
     if (tabWindowId && this.tabPresenter.getWindowType(tabWindowId) === 'chat') {
+      return true
+    }
+
+    if (
+      this.settingsWindow &&
+      !this.settingsWindow.isDestroyed() &&
+      this.settingsWindow.webContents.id === webContentsId
+    ) {
       return true
     }
 

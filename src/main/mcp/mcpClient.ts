@@ -97,6 +97,7 @@ const MCP_CONTROL_RESULT_MAX_BYTES = 32 * 1024 * 1024
 const MCP_ELICITATION_MAX_MESSAGE_BYTES = 32 * 1024
 const MCP_ELICITATION_MAX_URL_BYTES = 8 * 1024
 const MCP_ELICITATION_MAX_FIELDS = 256
+const MCP_ELICITATION_MAX_CONTENT_BYTES = 1024 * 1024
 const MCP_CUSTOM_HEADER_MAX_COUNT = 64
 const MCP_CUSTOM_HEADER_MAX_NAME_BYTES = 256
 const MCP_CUSTOM_HEADER_MAX_VALUE_BYTES = 16 * 1024
@@ -221,6 +222,26 @@ function isUnsupportedCapabilityError(error: unknown): boolean {
 // MCP client class
 const isAbortError = (error: unknown): boolean =>
   error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
+
+const withUnsupportedCapabilityFallback = async <T>(
+  request: () => Promise<T>,
+  fallback: T,
+  signal?: AbortSignal
+): Promise<T> => {
+  try {
+    const result = await request()
+    signal?.throwIfAborted()
+    return result
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) {
+      throw error
+    }
+    if (isUnsupportedCapabilityError(error)) {
+      return fallback
+    }
+    throw error
+  }
+}
 
 export class McpClient {
   private client: Client | null = null
@@ -1059,7 +1080,11 @@ export class McpClient {
     let abortListener: (() => void) | undefined
     if (signal) {
       abortListener = () => {
-        void this.runtime.elicitation.cancelElicitationRequest(requestId, 'cancelled by server')
+        void this.runtime.elicitation
+          .cancelElicitationRequest(requestId, 'cancelled by server')
+          .catch((error) => {
+            console.warn(`[MCP] Failed to cancel elicitation request ${requestId}:`, error)
+          })
       }
       signal.addEventListener('abort', abortListener, { once: true })
       if (signal.aborted) {
@@ -1081,7 +1106,11 @@ export class McpClient {
           )
         }
         acceptedContent = validation.value as ElicitResult['content']
-        assertBoundedMcpJson(acceptedContent, 'MCP elicitation accepted content', 1024 * 1024)
+        assertBoundedMcpJson(
+          acceptedContent,
+          'MCP elicitation accepted content',
+          MCP_ELICITATION_MAX_CONTENT_BYTES
+        )
       }
       return {
         action: decision.action,
@@ -1502,15 +1531,21 @@ export class McpClient {
     signal?.throwIfAborted()
     await this.ensureConnectedForRequest(signal)
     signal?.throwIfAborted()
-    if (!this.client) {
+    const client = this.client
+    if (!client) {
       throw new Error(`MCP client ${this.serverName} not initialized`)
     }
     if (this.serverDoesNotAdvertise('tools')) {
       return { tools: [] }
     }
-    const result = signal
-      ? await this.client.listTools(cursor ? { cursor } : undefined, { signal })
-      : await this.client.listTools(cursor ? { cursor } : undefined)
+    const result = await withUnsupportedCapabilityFallback(
+      () =>
+        signal
+          ? client.listTools(cursor ? { cursor } : undefined, { signal })
+          : client.listTools(cursor ? { cursor } : undefined),
+      { tools: [] },
+      signal
+    )
     this.assertControlResult(result, 'tool list page')
     return {
       ...result,
@@ -1563,15 +1598,21 @@ export class McpClient {
     signal?.throwIfAborted()
     await this.ensureConnectedForRequest(signal)
     signal?.throwIfAborted()
-    if (!this.client) {
+    const client = this.client
+    if (!client) {
       throw new Error(`MCP client ${this.serverName} not initialized`)
     }
     if (this.serverDoesNotAdvertise('prompts')) {
       return { prompts: [] }
     }
-    const result = signal
-      ? await this.client.listPrompts(cursor ? { cursor } : undefined, { signal })
-      : await this.client.listPrompts(cursor ? { cursor } : undefined)
+    const result = await withUnsupportedCapabilityFallback(
+      () =>
+        signal
+          ? client.listPrompts(cursor ? { cursor } : undefined, { signal })
+          : client.listPrompts(cursor ? { cursor } : undefined),
+      { prompts: [] },
+      signal
+    )
     this.assertControlResult(result, 'prompt list page')
     return result
   }
@@ -1648,15 +1689,21 @@ export class McpClient {
     signal?.throwIfAborted()
     await this.ensureConnectedForRequest(signal)
     signal?.throwIfAborted()
-    if (!this.client) {
+    const client = this.client
+    if (!client) {
       throw new Error(`MCP client ${this.serverName} not initialized`)
     }
     if (this.serverDoesNotAdvertise('resources')) {
       return { resources: [] }
     }
-    const result = signal
-      ? await this.client.listResources(cursor ? { cursor } : undefined, { signal })
-      : await this.client.listResources(cursor ? { cursor } : undefined)
+    const result = await withUnsupportedCapabilityFallback(
+      () =>
+        signal
+          ? client.listResources(cursor ? { cursor } : undefined, { signal })
+          : client.listResources(cursor ? { cursor } : undefined),
+      { resources: [] },
+      signal
+    )
     this.assertControlResult(result, 'resource list page')
     return result
   }
@@ -1668,15 +1715,21 @@ export class McpClient {
     signal?.throwIfAborted()
     await this.ensureConnectedForRequest(signal)
     signal?.throwIfAborted()
-    if (!this.client) {
+    const client = this.client
+    if (!client) {
       throw new Error(`MCP client ${this.serverName} not initialized`)
     }
     if (this.serverDoesNotAdvertise('resources')) {
       return { resourceTemplates: [] }
     }
-    const result = signal
-      ? await this.client.listResourceTemplates(cursor ? { cursor } : undefined, { signal })
-      : await this.client.listResourceTemplates(cursor ? { cursor } : undefined)
+    const result = await withUnsupportedCapabilityFallback(
+      () =>
+        signal
+          ? client.listResourceTemplates(cursor ? { cursor } : undefined, { signal })
+          : client.listResourceTemplates(cursor ? { cursor } : undefined),
+      { resourceTemplates: [] },
+      signal
+    )
     this.assertControlResult(result, 'resource template list page')
     return result
   }

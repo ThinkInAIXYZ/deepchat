@@ -1552,7 +1552,7 @@
       "scopes": "범위",
       "clientAuthentication": "ID 공급자 클라이언트 인증",
       "publicClient": "공개 클라이언트",
-      "confidentialClient": "클라이언트 비밀 값",
+      "confidentialClient": "기밀 클라이언트",
       "clientSecret": "ID 공급자 클라이언트 비밀 값",
       "clientSecretMissing": "로그인 전에 클라이언트 비밀 값을 구성해야 합니다.",
       "authenticated": "인증됨",

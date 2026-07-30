@@ -526,6 +526,7 @@ const refreshDiagnostics = async () => {
   const requestGeneration = ++diagnosticsRequestGeneration
   isDiagnosticsLoading.value = true
   diagnosticsError.value = ''
+  diagnostics.value = null
   try {
     const nextDiagnostics = await mcpClient.getServerDiagnostics(serverName)
     if (
@@ -563,9 +564,12 @@ const copyDiagnostics = () => {
 
 watch(
   () =>
-    mcpStore.serverList.find((server) => server.name === diagnosticsServerName.value)?.isRunning,
-  () => {
-    if (isDiagnosticsOpen.value) {
+    [
+      diagnosticsServerName.value,
+      mcpStore.serverList.find((server) => server.name === diagnosticsServerName.value)?.isRunning
+    ] as const,
+  ([serverName, isRunning], [previousServerName, wasRunning]) => {
+    if (isDiagnosticsOpen.value && serverName === previousServerName && isRunning !== wasRunning) {
       void refreshDiagnostics()
     }
   }

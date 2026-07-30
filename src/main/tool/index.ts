@@ -453,6 +453,7 @@ export class ToolService implements ToolServicePort {
     }
 
     const definition = this.getMcpDefinition(toolName, request.conversationId)
+    this.createExpectedMcpTarget(toolName, definition)
     if (!this.shouldBrokerMcpTool(definition)) {
       return null
     }
@@ -527,11 +528,16 @@ export class ToolService implements ToolServicePort {
     conversationId?: string
   ): MCPToolDefinition | undefined {
     const normalizedConversationId = conversationId?.trim()
-    return (
-      (normalizedConversationId
-        ? this.conversationMcpDefinitions.get(normalizedConversationId)?.get(toolName)
-        : undefined) ?? this.globalMcpDefinitions.get(toolName)
-    )
+    if (normalizedConversationId) {
+      const definitions = this.conversationMcpDefinitions.get(normalizedConversationId)
+      if (definitions) {
+        return definitions.get(toolName)
+      }
+      if (this.globalMapperConversationId !== null) {
+        return undefined
+      }
+    }
+    return this.globalMcpDefinitions.get(toolName)
   }
 
   private createExpectedMcpTarget(

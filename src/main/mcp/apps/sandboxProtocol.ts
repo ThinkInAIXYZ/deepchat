@@ -4,8 +4,23 @@ import { MCP_APP_SCHEME, type McpAppSandboxRegistry } from './sandboxRegistry'
 
 let schemeRegistered = false
 
+const normalizeCspSource = (source: string): string | null => {
+  const valid = Array.from(source).every((character) => {
+    const codePoint = character.codePointAt(0) ?? 0
+    return character !== ';' && !/\s/u.test(character) && codePoint >= 0x20 && codePoint !== 0x7f
+  })
+  return source.length > 0 && valid ? source : null
+}
+
 const joinSources = (...groups: Array<string[] | undefined>): string =>
-  Array.from(new Set(groups.flatMap((group) => group ?? []))).join(' ')
+  Array.from(
+    new Set(
+      groups
+        .flatMap((group) => group ?? [])
+        .map(normalizeCspSource)
+        .filter((source): source is string => source !== null)
+    )
+  ).join(' ')
 
 export const buildMcpAppContentSecurityPolicy = (csp?: McpAppCsp): string => {
   const resources = csp?.resourceDomains ?? []

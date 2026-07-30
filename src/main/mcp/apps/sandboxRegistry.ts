@@ -137,14 +137,14 @@ export class McpAppSandboxRegistry {
   private readonly observedWebContents = new Set<number>()
   private publishConsent?: ConsentPublisher
   private configuredSession: Session | null = null
-  private isFirstPartyAudioOwner: (webContentsId: number) => boolean = () => false
+  private isFirstPartyPermissionOwner: (webContentsId: number) => boolean = () => false
 
   setConsentPublisher(publisher: ConsentPublisher): void {
     this.publishConsent = publisher
   }
 
-  setFirstPartyAudioOwnerValidator(validator: (webContentsId: number) => boolean): void {
-    this.isFirstPartyAudioOwner = validator
+  setFirstPartyPermissionOwnerValidator(validator: (webContentsId: number) => boolean): void {
+    this.isFirstPartyPermissionOwner = validator
   }
 
   create(input: {
@@ -388,16 +388,8 @@ export class McpAppSandboxRegistry {
       const instanceId =
         parseMcpAppInstanceId(requestingUrl) ?? parseMcpAppInstanceId(securityOrigin)
       if (!instanceId) {
-        const mediaTypes =
-          'mediaTypes' in details && Array.isArray(details.mediaTypes)
-            ? details.mediaTypes.map(String)
-            : undefined
         callback(
-          permission === 'media' &&
-            mediaTypes?.length === 1 &&
-            mediaTypes[0] === 'audio' &&
-            details.isMainFrame &&
-            this.isFirstPartyAudioOwner(owner.id) &&
+          this.isFirstPartyPermissionOwner(owner.id) &&
             isFirstPartyRendererUrl(requestingUrl) &&
             isFirstPartyRendererUrl(owner.getURL())
         )
@@ -432,17 +424,14 @@ export class McpAppSandboxRegistry {
         .catch(() => callback(false))
     })
 
-    target.setPermissionCheckHandler((owner, permission, requestingOrigin, details) => {
+    target.setPermissionCheckHandler((owner, _permission, requestingOrigin, details) => {
       const instanceId =
         parseMcpAppInstanceId(requestingOrigin) ??
         parseMcpAppInstanceId(details.securityOrigin) ??
         parseMcpAppInstanceId(details.requestingUrl)
       if (!instanceId) {
         return (
-          permission === 'media' &&
-          details.mediaType === 'audio' &&
-          details.isMainFrame &&
-          Boolean(owner && this.isFirstPartyAudioOwner(owner.id)) &&
+          Boolean(owner && this.isFirstPartyPermissionOwner(owner.id)) &&
           isFirstPartyRendererUrl(requestingOrigin) &&
           isFirstPartyRendererUrl(owner?.getURL() ?? requestingOrigin)
         )

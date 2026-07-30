@@ -311,6 +311,35 @@ describe('McpServers', () => {
     ).toBe('stopped-id')
   })
 
+  it('clears diagnostics while loading a different server', async () => {
+    const { wrapper, getServerDiagnostics } = await setup({ withServers: true })
+    let resolveStopped!: (value: ReturnType<typeof createDiagnostics>) => void
+    getServerDiagnostics
+      .mockResolvedValueOnce(createDiagnostics('running-id'))
+      .mockImplementationOnce(
+        () =>
+          new Promise<ReturnType<typeof createDiagnostics>>((resolve) => {
+            resolveStopped = resolve
+          })
+      )
+
+    const diagnosticButtons = wrapper.findAll('[data-testid="diagnostics-server"]')
+    await diagnosticButtons[0].trigger('click')
+    await flushPromises()
+    expect(
+      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
+    ).toBe('running-id')
+
+    await diagnosticButtons[1].trigger('click')
+    expect((wrapper.vm as unknown as { diagnostics: unknown }).diagnostics).toBeNull()
+
+    resolveStopped(createDiagnostics('stopped-id'))
+    await flushPromises()
+    expect(
+      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
+    ).toBe('stopped-id')
+  })
+
   it('keeps duplicate add feedback inline until the server name changes', async () => {
     const { wrapper, mcpStore } = await setup()
     mcpStore.addServer.mockResolvedValueOnce({ status: 'duplicate' })

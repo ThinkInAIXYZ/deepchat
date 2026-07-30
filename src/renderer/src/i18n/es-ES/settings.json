@@ -1898,7 +1898,7 @@
       "scopes": "Ámbitos",
       "clientAuthentication": "Autenticación de cliente del proveedor de identidad",
       "publicClient": "Cliente público",
-      "confidentialClient": "Secreto de cliente",
+      "confidentialClient": "Cliente confidencial",
       "clientSecret": "Secreto de cliente del proveedor de identidad",
       "clientSecretMissing": "Debes configurar un secreto de cliente antes de iniciar sesión.",
       "authenticated": "Autenticado",

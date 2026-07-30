@@ -87,9 +87,9 @@ describe('MCP App sandbox registry', () => {
     expect(registry.getForProtocol(instance.instanceId)).toBeNull()
   })
 
-  it('preserves first-party audio while requiring consent for each App media request', async () => {
+  it('preserves first-party permissions while requiring consent for App media', async () => {
     const registry = new McpAppSandboxRegistry()
-    registry.setFirstPartyAudioOwnerValidator((webContentsId) => webContentsId === 1)
+    registry.setFirstPartyPermissionOwnerValidator((webContentsId) => webContentsId === 1)
     const instance = createInstance(registry)
     let permissionRequestHandler:
       | ((
@@ -103,13 +103,23 @@ describe('MCP App sandbox registry', () => {
           }
         ) => void)
       | undefined
+    let permissionCheckHandler:
+      | ((
+          owner: { id: number; getURL(): string } | null,
+          permission: string,
+          requestingOrigin: string,
+          details: { securityOrigin: string; requestingUrl: string }
+        ) => boolean)
+      | undefined
     const targetSession = {
       setPermissionRequestHandler: vi.fn(
         (handler: NonNullable<typeof permissionRequestHandler>) => {
           permissionRequestHandler = handler
         }
       ),
-      setPermissionCheckHandler: vi.fn()
+      setPermissionCheckHandler: vi.fn((handler: NonNullable<typeof permissionCheckHandler>) => {
+        permissionCheckHandler = handler
+      })
     }
     registry.configureDefaultSessionPermissions(targetSession as never)
 
@@ -138,8 +148,19 @@ describe('MCP App sandbox registry', () => {
           isMainFrame: true
         }
       )
-      expect(firstPartyCameraDecision).toHaveBeenCalledWith(false)
+      expect(firstPartyCameraDecision).toHaveBeenCalledWith(true)
     }
+    expect(
+      permissionCheckHandler!(
+        { id: 1, getURL: () => 'file:///deepchat/index.html' },
+        'notifications',
+        'file:///deepchat/index.html',
+        {
+          securityOrigin: 'file:///deepchat/index.html',
+          requestingUrl: 'file:///deepchat/index.html'
+        }
+      )
+    ).toBe(true)
 
     const arbitraryFileDecision = vi.fn()
     permissionRequestHandler!(
@@ -153,6 +174,17 @@ describe('MCP App sandbox registry', () => {
       }
     )
     expect(arbitraryFileDecision).toHaveBeenCalledWith(false)
+    expect(
+      permissionCheckHandler!(
+        { id: 2, getURL: () => 'file:///tmp/unrelated.html' },
+        'notifications',
+        'file:///tmp/unrelated.html',
+        {
+          securityOrigin: 'file:///tmp/unrelated.html',
+          requestingUrl: 'file:///tmp/unrelated.html'
+        }
+      )
+    ).toBe(false)
 
     const consentRequestIds: string[] = []
     registry.setConsentPublisher((_windowId, payload) => {

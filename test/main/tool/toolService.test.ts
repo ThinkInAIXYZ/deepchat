@@ -1017,7 +1017,7 @@ describe('ToolService', () => {
     expect(mcpService.callTool).not.toHaveBeenCalled()
   })
 
-  it('rejects an unstable MCP target before consuming permission approval', async () => {
+  it('rejects an unstable MCP target during pre-check and execution', async () => {
     const definition = buildToolDefinition('mcp_only', 'server-a')
     definition.server.id = undefined
     const mcpService = {
@@ -1044,18 +1044,19 @@ describe('ToolService', () => {
         .permissionBroker,
       'authorizeExecution'
     )
+    const request = {
+      id: 'permission-1',
+      type: 'function' as const,
+      function: { name: 'mcp_only', arguments: '{}' },
+      conversationId: 'session-1'
+    }
 
     await expect(
-      toolService.callTool(
-        {
-          id: 'permission-1',
-          type: 'function',
-          function: { name: 'mcp_only', arguments: '{}' },
-          conversationId: 'session-1'
-        },
-        { permissionMode: 'default' }
-      )
+      toolService.preCheckToolPermission(request, { permissionMode: 'default' })
     ).rejects.toThrow('no stable execution binding')
+    await expect(toolService.callTool(request, { permissionMode: 'default' })).rejects.toThrow(
+      'no stable execution binding'
+    )
 
     expect(authorizeExecution).not.toHaveBeenCalled()
     expect(mcpService.callTool).not.toHaveBeenCalled()

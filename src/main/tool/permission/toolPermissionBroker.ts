@@ -6,7 +6,7 @@ const MAX_ARGUMENT_BYTES = 1024 * 1024
 const MAX_ARGUMENT_PREVIEW_BYTES = 16 * 1024
 const MAX_ARGUMENT_DEPTH = 64
 const MAX_ARGUMENT_KEYS = 10_000
-const MAX_PENDING_PER_BROKER = 64
+const MAX_PENDING_PER_CONVERSATION = 64
 const DEFAULT_REQUEST_TIMEOUT_MS = 2 * 60 * 1000
 
 export type ToolPermissionSource = 'model' | 'mcp-app'
@@ -236,6 +236,7 @@ export class ToolPermissionBroker {
 
   private createPending(context: ToolPermissionContext, signal?: AbortSignal): PendingPermission {
     signal?.throwIfAborted()
+    this.pruneExpired()
     const { hash, preview } = serializeArguments(context.arguments)
     const existing = Array.from(this.pending.values()).find(
       (entry) =>
@@ -253,7 +254,10 @@ export class ToolPermissionBroker {
       this.attachAbort(existing, signal)
       return existing
     }
-    if (this.pending.size >= MAX_PENDING_PER_BROKER) {
+    const conversationPending = Array.from(this.pending.values()).filter(
+      (entry) => entry.conversationId === context.conversationId
+    ).length
+    if (conversationPending >= MAX_PENDING_PER_CONVERSATION) {
       throw new Error('Too many pending tool permission requests')
     }
 
@@ -334,6 +338,16 @@ export class ToolPermissionBroker {
     }
     pending.abortCleanups.clear()
     this.pending.delete(requestId)
+  }
+
+  private pruneExpired(): void {
+    const now = Date.now()
+    for (const pending of this.pending.values()) {
+      if (pending.expiresAt <= now) {
+        this.settleAppPermission(pending, { allowed: false, reason: 'timeout' })
+        this.deletePending(pending.requestId)
+      }
+    }
   }
 
   private attachAbort(pending: PendingPermission, signal?: AbortSignal): void {

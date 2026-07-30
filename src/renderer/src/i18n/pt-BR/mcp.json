@@ -338,7 +338,7 @@
       "camera": "Câmera",
       "microphone": "Microfone",
       "geolocation": "Localização",
-      "clipboardWrite": "Gravação na área de transferência"
+      "clipboardWrite": "Escrever na área de transferência"
     },
     "consent": {
       "title": "Solicitação do MCP App",

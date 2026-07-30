@@ -140,4 +140,27 @@ describe('ToolPermissionBroker', () => {
     expect(broker.deny(appRequestId, modelContext.conversationId)).toBe(true)
     await expect(appDecision).resolves.toEqual({ allowed: false, reason: 'denied' })
   })
+
+  it('limits pending requests per conversation without blocking other conversations', () => {
+    const broker = new ToolPermissionBroker()
+    const createContext = (conversationId: string, value: number) => ({
+      conversationId,
+      serverId: 'server',
+      serverName: 'fixture',
+      toolName: 'write',
+      arguments: { value },
+      source: 'model' as const,
+      permissionType: 'write' as const,
+      permissionMode: 'default' as const
+    })
+
+    for (let index = 0; index < 64; index += 1) {
+      expect(broker.evaluateModel(createContext('busy', index))).not.toBeNull()
+    }
+    expect(() => broker.evaluateModel(createContext('busy', 64))).toThrow(
+      'Too many pending tool permission requests'
+    )
+    expect(broker.evaluateModel(createContext('other', 0))).not.toBeNull()
+    broker.clear()
+  })
 })

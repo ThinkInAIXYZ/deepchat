@@ -1552,7 +1552,7 @@
       "scopes": "היקפים",
       "clientAuthentication": "אימות לקוח אצל ספק הזהות",
       "publicClient": "לקוח ציבורי",
-      "confidentialClient": "סוד לקוח",
+      "confidentialClient": "לקוח חסוי",
       "clientSecret": "סוד לקוח של ספק הזהות",
       "clientSecretMissing": "יש להגדיר סוד לקוח לפני הכניסה.",
       "authenticated": "מאומת",

@@ -23,6 +23,21 @@ describe('MCP App sandbox policy', () => {
     expect(buildMcpAppContentSecurityPolicy(undefined)).toContain("frame-src 'none'")
   })
 
+  it('drops CSP sources containing directive separators or whitespace', () => {
+    const policy = buildMcpAppContentSecurityPolicy({
+      connectDomains: [
+        'https://api.example.com',
+        'https://safe.example; script-src *',
+        'https://line.example\nscript-src *'
+      ]
+    })
+
+    expect(policy).toContain('connect-src https://api.example.com')
+    expect(policy).not.toContain('https://safe.example')
+    expect(policy).not.toContain('https://line.example')
+    expect(policy).not.toContain('script-src *')
+  })
+
   it('uses declared base URI domains without implicitly adding the sandbox origin', () => {
     const policy = buildMcpAppContentSecurityPolicy({
       baseUriDomains: ['https://assets.example.com']

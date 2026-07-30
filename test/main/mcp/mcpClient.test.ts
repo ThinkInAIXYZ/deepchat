@@ -38,6 +38,8 @@ vi.mock('fs', () => ({
 const presenterMocks = vi.hoisted(() => ({
   handleSamplingRequest: vi.fn(),
   cancelSamplingRequest: vi.fn(),
+  handleElicitationRequest: vi.fn(),
+  cancelElicitationRequest: vi.fn(),
   generateCompletionStandalone: vi.fn(),
   getProviderModels: vi.fn(),
   getCustomModels: vi.fn()
@@ -45,6 +47,8 @@ const presenterMocks = vi.hoisted(() => ({
 
 const mockHandleSamplingRequest = presenterMocks.handleSamplingRequest
 const mockCancelSamplingRequest = presenterMocks.cancelSamplingRequest
+const mockHandleElicitationRequest = presenterMocks.handleElicitationRequest
+const mockCancelElicitationRequest = presenterMocks.cancelElicitationRequest
 const mockGenerateCompletionStandalone = presenterMocks.generateCompletionStandalone
 const mockGetProviderModels = presenterMocks.getProviderModels
 const mockGetCustomModels = presenterMocks.getCustomModels
@@ -68,6 +72,10 @@ function createMcpClient(
       sampling: {
         handleSamplingRequest: mockHandleSamplingRequest,
         cancelSamplingRequest: mockCancelSamplingRequest
+      },
+      elicitation: {
+        handleElicitationRequest: mockHandleElicitationRequest,
+        cancelElicitationRequest: mockCancelElicitationRequest
       },
       completion: {
         generateCompletionStandalone: mockGenerateCompletionStandalone
@@ -137,6 +145,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
     mockHandleSamplingRequest.mockReset()
     mockCancelSamplingRequest.mockReset()
+    mockHandleElicitationRequest.mockReset()
+    mockCancelElicitationRequest.mockReset()
     mockGenerateCompletionStandalone.mockReset()
     mockGetProviderModels.mockReset()
     mockGetCustomModels.mockReset()
@@ -680,6 +690,44 @@ describe('McpClient Runtime Command Processing Tests', () => {
       expect(sdkClient.listTools).toHaveBeenCalledOnce()
     })
 
+    it('treats unknown paginated list methods as empty pages', async () => {
+      const unsupportedError = new ProtocolError(
+        ProtocolErrorCode.MethodNotFound,
+        'Unknown list method'
+      )
+      const sdkClient = {
+        connect: vi.fn().mockResolvedValue(undefined),
+        callTool: vi.fn(),
+        listTools: vi.fn().mockRejectedValue(unsupportedError),
+        listPrompts: vi.fn().mockRejectedValue(unsupportedError),
+        getPrompt: vi.fn(),
+        listResources: vi.fn().mockRejectedValue(unsupportedError),
+        listResourceTemplates: vi.fn().mockRejectedValue(unsupportedError),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern'),
+        getServerCapabilities: vi.fn(() => ({
+          tools: {},
+          prompts: {},
+          resources: {}
+        }))
+      }
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const client = createMcpClient('partial-server', {
+        type: 'stdio',
+        command: 'partial-server',
+        args: []
+      })
+
+      await expect(client.listToolsPage()).resolves.toEqual({ tools: [] })
+      await expect(client.listPromptsPage()).resolves.toEqual({ prompts: [] })
+      await expect(client.listResourcesPage()).resolves.toEqual({ resources: [] })
+      await expect(client.listResourceTemplatesPage()).resolves.toEqual({
+        resourceTemplates: []
+      })
+    })
+
     it('treats unknown prompts/list as an empty prompt list', async () => {
       const sdkClient = {
         connect: vi.fn().mockResolvedValue(undefined),
@@ -939,6 +987,47 @@ describe('McpClient Runtime Command Processing Tests', () => {
       ).rejects.toMatchObject({
         code: ProtocolErrorCode.InvalidParams
       })
+    })
+
+    it('handles a rejected server cancellation without an unhandled rejection', async () => {
+      const cancellationError = new Error('cancel failed')
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      mockHandleElicitationRequest.mockImplementationOnce(() => new Promise(() => undefined))
+      mockCancelElicitationRequest.mockRejectedValueOnce(cancellationError)
+      const controller = new AbortController()
+      const client = createMcpClient('server-one', {
+        type: 'stdio'
+      }) as unknown as {
+        handleElicitationCreate(request: unknown, context: unknown): Promise<unknown>
+      }
+
+      const pending = client.handleElicitationCreate(
+        {
+          params: {
+            mode: 'url',
+            message: 'Open the authorization page',
+            url: 'https://example.com/authorize'
+          }
+        },
+        {
+          mcpReq: {
+            signal: controller.signal
+          }
+        }
+      )
+      controller.abort()
+
+      await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(mockCancelElicitationRequest).toHaveBeenCalledWith(
+        expect.any(String),
+        'cancelled by server'
+      )
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to cancel elicitation request'),
+        cancellationError
+      )
+      consoleWarnSpy.mockRestore()
     })
   })
 
