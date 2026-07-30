@@ -277,7 +277,7 @@
       "text": "texto"
     },
     "description": "Verifique o contexto compartilhado pelo servidor MCP e decida se gera uma resposta.",
-    "imageAlt": "Imagem {índice}",
+    "imageAlt": "Imagem {index}",
     "messagesTitle": "Contexto do Diálogo",
     "noModels": "Nenhum modelo qualificado foi ativado.\nAtive um modelo aplicável nas \"Configurações\" para continuar.",
     "noVisionModels": "Nenhum modelo com recursos visuais está ativado.\nAtive um modelo visual nas \"Configurações\" para continuar.",

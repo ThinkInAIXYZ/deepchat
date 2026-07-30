@@ -129,7 +129,7 @@
     "noToolsAvailable": "暂无可用工具",
     "selectToolToDebug": "选择要调试的工具",
     "dialogDescription": "调试和测试MCP服务器提供的工具",
-    "toolsCount": "个工具",
+    "toolsCount": "{count} 个工具",
     "availableTools": "可用工具",
     "toolList": "工具列表",
     "functionDescription": "功能描述",
@@ -281,7 +281,7 @@
       "text": "文本"
     },
     "description": "查看 MCP 服务器共享的上下文并选择是否生成响应。",
-    "imageAlt": "图片{索引}",
+    "imageAlt": "图片 {index}",
     "messagesTitle": "对话上下文",
     "noModels": "没有启用符合条件的模型。\n在\"设置\"中启用适用的模型以继续。",
     "noVisionModels": "未启用任何具有视觉功能的模型。\n在\"设置\"中启用视觉模型以继续。",

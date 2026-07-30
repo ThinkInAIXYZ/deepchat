@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Beispiel: http://127.0.0.1:7890",
     "invalidProxyUrl": "Ungültige Proxy-Adresse. Bitte eine gültige http/https URL eingeben",
     "addCustomSearchEngine": "Benutzerdefinierte Suchmaschine hinzufügen",
-    "addCustomSearchEngineDesc": "Fügen Sie eine neue Suchmaschine hinzu. Name und Such-URL sind erforderlich. Die URL muss {query} als Platzhalter für die Suchanfrage enthalten.",
+    "addCustomSearchEngineDesc": "Fügen Sie eine neue Suchmaschine hinzu. Name und Such-URL sind erforderlich. Die URL muss {'{'}query{'}'} als Platzhalter für die Suchanfrage enthalten.",
     "searchEngineName": "Name der Suchmaschine",
     "searchEngineNamePlaceholder": "Name der Suchmaschine eingeben",
     "searchEngineUrl": "Such-URL",

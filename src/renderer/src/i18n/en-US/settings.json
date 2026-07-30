@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Example: http://127.0.0.1:7890",
     "invalidProxyUrl": "Invalid proxy URL, please enter valid http/https URL",
     "addCustomSearchEngine": "Add Custom Search Engine",
-    "addCustomSearchEngineDesc": "Add a new search engine by providing a name and search URL. The URL must include {query} as the query placeholder.",
+    "addCustomSearchEngineDesc": "Add a new search engine by providing a name and search URL. The URL must include {'{'}query{'}'} as the query placeholder.",
     "searchEngineName": "Search Engine Name",
     "searchEngineNamePlaceholder": "Enter search engine name",
     "searchEngineUrl": "Search URL",
@@ -1257,7 +1257,7 @@
       },
       "disableAllModels": {
         "title": "Confirm Disable All Models",
-        "content": "Are you sure you want to disable all models?",
+        "content": "Are you sure you want to disable all models for \"{name}\"?",
         "confirm": "Disable All"
       },
       "configModels": {

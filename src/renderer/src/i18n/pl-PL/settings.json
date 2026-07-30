@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Przykład: http://127.0.0.1:7890",
     "invalidProxyUrl": "Nieprawidłowy serwer proxy URL, proszę wprowadzić prawidłowy http/https URL",
     "addCustomSearchEngine": "Dodaj niestandardową wyszukiwarkę",
-    "addCustomSearchEngineDesc": "Dodaj nową wyszukiwarkę podając nazwę i wyszukaj URL. URL musi zawierać {query} jako symbol zastępczy zapytania.",
+    "addCustomSearchEngineDesc": "Dodaj nową wyszukiwarkę podając nazwę i wyszukaj URL. URL musi zawierać {'{'}query{'}'} jako symbol zastępczy zapytania.",
     "searchEngineName": "Nazwa wyszukiwarki",
     "searchEngineNamePlaceholder": "Wpisz nazwę wyszukiwarki",
     "searchEngineUrl": "Wyszukaj URL",
@@ -1256,7 +1256,7 @@
       },
       "disableAllModels": {
         "title": "Potwierdź wyłączenie wszystkich modeli",
-        "content": "Czy na pewno chcesz wyłączyć wszystkie modele?",
+        "content": "Czy na pewno chcesz wyłączyć wszystkie modele dostawcy „{name}”?",
         "confirm": "Wyłącz wszystko"
       },
       "configModels": {

@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Örnek: http://127.0.0.1:7890",
     "invalidProxyUrl": "Geçersiz proxy URL, lütfen geçerli http/https URL girin",
     "addCustomSearchEngine": "Özel Arama Motoru Ekle",
-    "addCustomSearchEngineDesc": "Bir ad girerek yeni bir arama motoru ekleyin ve URL'yi arayın. URL, sorgu yer tutucusu olarak {query} öğesini içermelidir.",
+    "addCustomSearchEngineDesc": "Bir ad girerek yeni bir arama motoru ekleyin ve URL'yi arayın. URL, sorgu yer tutucusu olarak {'{'}query{'}'} öğesini içermelidir.",
     "searchEngineName": "Arama Motoru Adı",
     "searchEngineNamePlaceholder": "Arama motoru adını girin",
     "searchEngineUrl": "URL'da ara",

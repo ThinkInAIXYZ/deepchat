@@ -29,9 +29,9 @@
       "command": "명령 실행"
     },
     "description": {
-      "all": "읽기 및 쓰기 작업을 수행하려면 '{servername}'의 '{toolname}'을 허용합니까?",
-      "read": "읽기 작업을 수행하려면 '{servername}'의 '{toolname}'을 허용합니까?",
-      "write": "쓰기 작업을 수행하려면 '{servername}'의 '{toolname}'을 허용합니까?",
+      "all": "읽기 및 쓰기 작업을 수행하려면 '{serverName}'의 '{toolName}'을 허용합니까?",
+      "read": "읽기 작업을 수행하려면 '{serverName}'의 '{toolName}'을 허용합니까?",
+      "write": "쓰기 작업을 수행하려면 '{serverName}'의 '{toolName}'을 허용합니까?",
       "command": "명령 실행: {command}",
       "commandWithRisk": "명령 실행: {command}\n\n위험 등급: {riskLevel}\n\n제안: {suggestion}"
     },

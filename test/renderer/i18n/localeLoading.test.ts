@@ -34,6 +34,27 @@ describe('renderer locale loading', () => {
     expect(await firstLoad).toHaveProperty('common')
   })
 
+  it('renders literal search placeholders and named confirmation parameters', async () => {
+    const messages = await loadLocaleMessages('en-US')
+    const { i18n } = await createRendererI18n({
+      getLanguageState: async () => ({
+        requestedLanguage: 'en-US',
+        locale: 'en-US',
+        direction: 'auto'
+      }),
+      loadMessages: async () => messages
+    })
+
+    expect(i18n.global.t('settings.common.searchEngineUrlPlaceholder')).toBe(
+      'Ex: https://a.com/search?q={query}'
+    )
+    expect(
+      i18n.global.t('settings.provider.dialog.disableAllModels.content', {
+        name: 'Example'
+      })
+    ).toBe('Are you sure you want to disable all models for "Example"?')
+  })
+
   it('loads only the resolved locale and fallback before creating i18n', async () => {
     const catalog: Record<string, RendererLocaleMessages> = {
       'en-US': createMessages('English'),

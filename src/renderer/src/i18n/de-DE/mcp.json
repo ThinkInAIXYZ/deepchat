@@ -129,7 +129,7 @@
     "noToolsAvailable": "Keine Tools verfügbar",
     "selectToolToDebug": "Tool zum Debuggen auswählen",
     "dialogDescription": "Von MCP-Servern bereitgestellte Tools debuggen und testen",
-    "toolsCount": "Tools",
+    "toolsCount": "{count} Tools",
     "availableTools": "Verfügbare Tools",
     "toolList": "Tool-Liste",
     "functionDescription": "Funktionsbeschreibung",

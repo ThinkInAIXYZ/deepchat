@@ -281,7 +281,7 @@
     "messagesTitle": "Contexte de la conversation",
     "noModels": "Aucun modèle éligible n'est activé.\nActivez un modèle applicable dans les \"Paramètres\" pour continuer.",
     "autoApproveIn": "Approuver automatiquement à l'aide de {model} après {seconds} secondes",
-    "autoApproving": "Exemple de requête MCP de {serveur}",
+    "autoApproving": "Exemple de requête MCP de {server}",
     "maxTokensInfo": "Longueur de réponse maximale : {maxTokens} jetons",
     "noVisionModels": "Aucun modèle visuellement activé n’est activé.\nActivez le modèle visuel dans Paramètres pour continuer.",
     "preference": {
@@ -299,7 +299,7 @@
     "sendResponse": "Envoyer la réponse",
     "sessionActive": "Session active - la demande sera automatiquement approuvée",
     "systemPrompt": "Invite système",
-    "title": "Demande d'échantillonnage de {serveur}",
+    "title": "Demande d'échantillonnage de {server}",
     "unknownHint": "invite sans nom",
     "unknownMime": "Type MIME inconnu",
     "unknownServer": "serveur inconnu",

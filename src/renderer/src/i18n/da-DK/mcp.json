@@ -167,7 +167,7 @@
       "text": "tekst"
     },
     "description": "Se konteksten delt af MCP-serveren og vælg, om der skal genereres et svar.",
-    "imageAlt": "Billede{indeks}",
+    "imageAlt": "Billede {index}",
     "maxTokensInfo": "Maksimal svarlængde: {maxTokens} tokens",
     "messagesTitle": "Samtalekontekst",
     "noModels": "Ingen kvalificerede modeller er aktiveret.\nAktivér en passende model i \"Indstillinger\" for at fortsætte.",
@@ -299,7 +299,7 @@
     "searchPlaceholder": "Søgeværktøjer...",
     "selectToolToDebug": "Vælg et værktøj til fejlretning",
     "toolList": "Værktøjsliste",
-    "toolsCount": "værktøjer",
+    "toolsCount": "{count} værktøjer",
     "type": "type",
     "title": "MCP værktøjer",
     "acpManagedHint": "MCP-værktøjer administreres af \"ACP Agent\"",

@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Ejemplo: http://127.0.0.1:7890",
     "invalidProxyUrl": "URL de proxy no válida. Introduce una URL http/https válida",
     "addCustomSearchEngine": "Añadir motor de búsqueda personalizado",
-    "addCustomSearchEngineDesc": "Añade un motor de búsqueda indicando un nombre y una URL de búsqueda. La URL debe incluir {query} como marcador de posición de la consulta.",
+    "addCustomSearchEngineDesc": "Añade un motor de búsqueda indicando un nombre y una URL de búsqueda. La URL debe incluir {'{'}query{'}'} como marcador de posición de la consulta.",
     "searchEngineName": "Nombre del motor de búsqueda",
     "searchEngineNamePlaceholder": "Introduce el nombre del motor de búsqueda",
     "searchEngineUrl": "URL de búsqueda",

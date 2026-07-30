@@ -129,7 +129,7 @@
     "noToolsAvailable": "Kullanılabilir araç yok",
     "selectToolToDebug": "Hata ayıklamak için bir araç seçin",
     "dialogDescription": "MCP sunucuları tarafından sağlanan hata ayıklama ve test araçları",
-    "toolsCount": "araç",
+    "toolsCount": "{count} araç",
     "availableTools": "Mevcut Araçlar",
     "toolList": "Araç Listesi",
     "functionDescription": "Fonksiyon Açıklaması",
@@ -281,7 +281,7 @@
       "text": "Metin"
     },
     "description": "MCP sunucusu tarafından paylaşılan içeriği inceleyin ve bir yanıt oluşturulup oluşturulmayacağını seçin.",
-    "imageAlt": "Resim {索引}",
+    "imageAlt": "Resim {index}",
     "messagesTitle": "Konuşma bağlamı",
     "noModels": "Hiçbir uygun model etkin değil.\nDevam etmek için \"Ayarlar\" bölümünde uygun bir modeli etkinleştirin.",
     "noVisionModels": "Hiçbir görsel özellikli model etkin değil.\nDevam etmek için \"Ayarlar\" bölümünde bir görsel modeli etkinleştirin.",

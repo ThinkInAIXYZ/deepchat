@@ -129,7 +129,7 @@
     "noToolsAvailable": "Tiada alat tersedia lagi",
     "selectToolToDebug": "Pilih alat untuk nyahpepijat",
     "dialogDescription": "Alat penyahpepijatan dan ujian yang disediakan oleh pelayan MCP",
-    "toolsCount": "alatan",
+    "toolsCount": "{count} alatan",
     "availableTools": "Alat yang ada",
     "toolList": "Senarai alatan",
     "functionDescription": "Penerangan fungsi",
@@ -281,7 +281,7 @@
       "text": "teks"
     },
     "description": "Lihat konteks yang dikongsi oleh pelayan MCP dan pilih sama ada untuk menjana respons.",
-    "imageAlt": "Gambar{索引}",
+    "imageAlt": "Gambar {index}",
     "messagesTitle": "konteks perbualan",
     "noModels": "Tiada model yang sepadan didayakan.\nDayakan model yang berkenaan dalam Tetapan untuk meneruskan.",
     "noVisionModels": "Tiada model yang didayakan secara visual didayakan.\nDayakan model visual dalam Tetapan untuk meneruskan.",

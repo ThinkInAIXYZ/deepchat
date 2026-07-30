@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Esempio: http://127.0.0.1:7890",
     "invalidProxyUrl": "URL proxy non valido, inserisci un URL http/https valido",
     "addCustomSearchEngine": "Aggiungi motore di ricerca personalizzato",
-    "addCustomSearchEngineDesc": "Aggiungi un nuovo motore di ricerca fornendo nome e URL di ricerca. L'URL deve contenere {query} come placeholder della query.",
+    "addCustomSearchEngineDesc": "Aggiungi un nuovo motore di ricerca fornendo nome e URL di ricerca. L'URL deve contenere {'{'}query{'}'} come placeholder della query.",
     "searchEngineName": "Nome motore di ricerca",
     "searchEngineNamePlaceholder": "Inserisci il nome del motore di ricerca",
     "searchEngineUrl": "URL di ricerca",

@@ -29,12 +29,12 @@
     "customProxyUrlPlaceholder": "Например: http://127.0.0.1:7890",
     "invalidProxyUrl": "Недействительный URL прокси, введите действительный http/https URL",
     "addCustomSearchEngine": "Добавить пользовательскую поисковую систему",
-    "addCustomSearchEngineDesc": "Добавьте новую поисковую систему, указав имя и URL поиска. URL должен включать {query} в качестве заполнителя.",
+    "addCustomSearchEngineDesc": "Добавьте новую поисковую систему, указав имя и URL поиска. URL должен включать {'{'}query{'}'} в качестве заполнителя.",
     "searchEngineName": "Название поисковой системы",
     "searchEngineNamePlaceholder": "Введите название поисковой системы",
     "searchEngineUrl": "URL поиска",
-    "searchEngineUrlPlaceholder": "Например: https://example.com/search?q={query}",
-    "searchEngineUrlError": "URL должен содержать {query} в качестве заполнителя запроса",
+    "searchEngineUrlPlaceholder": "Например: https://example.com/search?q={'{'}query{'}'}",
+    "searchEngineUrlError": "URL должен содержать {'{'}query{'}'} в качестве заполнителя запроса",
     "deleteCustomSearchEngine": "Удалить пользовательскую поисковую систему",
     "deleteCustomSearchEngineDesc": "Вы уверены, что хотите удалить пользовательскую поисковую систему \"{name}\"? Это действие нельзя отменить.",
     "contentProtection": "Защита экрана",
@@ -1272,11 +1272,11 @@
     "unknown": "Неизвестный статус",
     "reAddFile": {
       "title": "Повторная загрузка подтверждения",
-      "content": "Вы уверены, что повторно загрузите файл \"{filename}\"?"
+      "content": "Вы уверены, что повторно загрузите файл \"{fileName}\"?"
     },
     "deleteFile": {
       "title": "Удалить подтверждение файла",
-      "content": "Вы обязательно удалите файл \"{filename}\"? Эта операция не восстановлена."
+      "content": "Вы обязательно удалите файл \"{fileName}\"? Эта операция не восстановлена."
     },
     "resumeAllPausedTasks": "Восстановление одного клика",
     "pauseAllRunningTasks": "Пауза с одним щелчком",
@@ -2477,12 +2477,12 @@
       "generatePairCode": "Сгенерировать",
       "clearPairCode": "Очистить",
       "pairCodeExpiresAt": "Истекает в {time}",
-      "pairDialogTitle": "Связка Telegram",
-      "pairDialogDescription": "Сгенерируйте код привязки и завершите привязку в чате с вашим ботом Telegram.",
+      "pairDialogTitle": "Связка {channel}",
+      "pairDialogDescription": "Сгенерируйте код привязки и завершите привязку в чате с вашим ботом {channel}.",
       "pairDialogInstruction": "Отправьте эту команду соответствующему боту:",
-      "bindingsDialogTitle": "Привязанные сессии",
-      "bindingsDialogDescription": "Удаляйте привязки Telegram к сессиям по одной.",
-      "bindingsEmpty": "Пока нет привязок Telegram.",
+      "bindingsDialogTitle": "Привязанные сессии {channel}",
+      "bindingsDialogDescription": "Удаляйте привязки удалённых сессий по одной.",
+      "bindingsEmpty": "Пока нет привязок.",
       "pairingSuccessTitle": "Привязка завершена",
       "pairingSuccessDescription": "Список разрешённых ID пользователей обновлён.",
       "clearBindings": "Очистить привязки",

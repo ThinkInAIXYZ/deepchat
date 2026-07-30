@@ -17,6 +17,78 @@ const listJsonNamespaces = (localeDirectory) =>
     .map((fileName) => path.basename(fileName, '.json'))
     .sort()
 
+const flattenMessages = (value, prefix, messages) => {
+  if (typeof value === 'string') {
+    messages.set(prefix, value)
+    return
+  }
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    flattenMessages(child, prefix ? `${prefix}.${key}` : key, messages)
+  }
+}
+
+const readLocaleMessages = (i18nRoot, locale) => {
+  const localeDirectory = path.join(i18nRoot, locale)
+  const messages = new Map()
+
+  for (const namespace of listJsonNamespaces(localeDirectory)) {
+    const namespacePath = path.join(localeDirectory, `${namespace}.json`)
+    const namespaceMessages = JSON.parse(fs.readFileSync(namespacePath, 'utf8'))
+    flattenMessages(namespaceMessages, namespace, messages)
+  }
+
+  return messages
+}
+
+const uniqueSorted = (values) => [...new Set(values)].sort()
+
+const parseMessageContract = (message) => {
+  const invalidLiteralQuotes = []
+  const literalValues = []
+  const messageWithoutLiterals = message.replace(
+    /\{(['"])(.*?)\1\}/gs,
+    (interpolation, quote, value) => {
+      literalValues.push(value)
+      if (quote !== "'") {
+        invalidLiteralQuotes.push(quote)
+      }
+      return ' '.repeat(interpolation.length)
+    }
+  )
+  const namedParameters = Array.from(
+    messageWithoutLiterals.matchAll(/\{([\p{L}_$][\p{L}\p{N}_$-]*)\}/gu),
+    (match) => match[1]
+  )
+  const listParameters = Array.from(
+    messageWithoutLiterals.matchAll(/\{(\d+)\}/g),
+    (match) => match[1]
+  )
+
+  return {
+    namedParameters: uniqueSorted(namedParameters),
+    listParameters: uniqueSorted(listParameters),
+    literalValues: literalValues.sort(),
+    invalidLiteralQuotes
+  }
+}
+
+const contractsMatch = (expected, actual) =>
+  JSON.stringify({
+    namedParameters: expected.namedParameters,
+    listParameters: expected.listParameters,
+    literalValues: expected.literalValues
+  }) ===
+  JSON.stringify({
+    namedParameters: actual.namedParameters,
+    listParameters: actual.listParameters,
+    literalValues: actual.literalValues
+  })
+
 const findDefaultImport = (source, namespace) => {
   const escapedNamespace = escapeRegExp(namespace)
   const importPattern = new RegExp(
@@ -76,6 +148,71 @@ export function validateLocaleNamespaceRegistrations(i18nRoot) {
   }
 }
 
+export function validateLocaleMessageContracts(i18nRoot, baselineLocale = 'en-US') {
+  const issues = []
+  const locales = listLocaleDirectories(i18nRoot)
+
+  if (!locales.includes(baselineLocale)) {
+    return {
+      issues: [{ kind: 'missing-baseline-locale', locale: baselineLocale }],
+      baselineLocale,
+      messageCount: 0,
+      localeCount: locales.length
+    }
+  }
+
+  const baselineMessages = readLocaleMessages(i18nRoot, baselineLocale)
+  const baselineContracts = new Map(
+    Array.from(baselineMessages, ([key, message]) => [key, parseMessageContract(message)])
+  )
+
+  for (const locale of locales) {
+    const messages = readLocaleMessages(i18nRoot, locale)
+
+    for (const [key, message] of messages) {
+      const actual = parseMessageContract(message)
+
+      if (actual.invalidLiteralQuotes.length > 0) {
+        issues.push({
+          kind: 'invalid-literal-interpolation',
+          locale,
+          key
+        })
+      }
+
+      if (locale === baselineLocale) {
+        continue
+      }
+
+      const expected = baselineContracts.get(key)
+      if (expected && !contractsMatch(expected, actual)) {
+        issues.push({
+          kind: 'message-contract-mismatch',
+          locale,
+          key,
+          expected: {
+            namedParameters: expected.namedParameters,
+            listParameters: expected.listParameters,
+            literalValues: expected.literalValues
+          },
+          actual: {
+            namedParameters: actual.namedParameters,
+            listParameters: actual.listParameters,
+            literalValues: actual.literalValues
+          }
+        })
+      }
+    }
+  }
+
+  return {
+    issues,
+    baselineLocale,
+    messageCount: baselineMessages.size,
+    localeCount: locales.length
+  }
+}
+
 export function formatI18nValidationIssue(issue) {
   switch (issue.kind) {
     case 'missing-index':
@@ -86,6 +223,15 @@ export function formatI18nValidationIssue(issue) {
       return `${issue.locale}: ${issue.namespace}.json is not imported`
     case 'missing-export':
       return `${issue.locale}: ${issue.namespace}.json is imported but not exported`
+    case 'missing-baseline-locale':
+      return `baseline locale ${issue.locale} does not exist`
+    case 'invalid-literal-interpolation':
+      return `${issue.locale}: ${issue.key} uses double quotes in a literal interpolation`
+    case 'message-contract-mismatch':
+      return (
+        `${issue.locale}: ${issue.key} has a different message contract ` +
+        `(expected ${JSON.stringify(issue.expected)}, got ${JSON.stringify(issue.actual)})`
+      )
     default:
       return JSON.stringify(issue)
   }

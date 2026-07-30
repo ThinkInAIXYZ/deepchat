@@ -129,7 +129,7 @@
     "noToolsAvailable": "Nessuno strumento disponibile",
     "selectToolToDebug": "Seleziona uno strumento da debuggare",
     "dialogDescription": "Debug e test degli strumenti forniti dai server MCP",
-    "toolsCount": "strumenti",
+    "toolsCount": "{count} strumenti",
     "availableTools": "Strumenti disponibili",
     "toolList": "Elenco strumenti",
     "functionDescription": "Descrizione funzione",
@@ -281,7 +281,7 @@
       "text": "Testo"
     },
     "description": "Controlla il contesto condiviso dal server MCP e scegli se generare una risposta.",
-    "imageAlt": "Immagine {索引}",
+    "imageAlt": "Immagine {index}",
     "messagesTitle": "Contesto conversazione",
     "noModels": "Nessun modello idoneo attivo.\nAttiva un modello adatto in \"Impostazioni\" per continuare.",
     "noVisionModels": "Nessun modello con capacità visive attivo.\nAttiva un modello vision in \"Impostazioni\" per continuare.",

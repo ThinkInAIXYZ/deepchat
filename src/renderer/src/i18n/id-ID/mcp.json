@@ -129,7 +129,7 @@
     "noToolsAvailable": "Belum ada alat yang tersedia",
     "selectToolToDebug": "Pilih alat untuk di-debug",
     "dialogDescription": "Alat debugging dan pengujian disediakan oleh server MCP",
-    "toolsCount": "alat",
+    "toolsCount": "{count} alat",
     "availableTools": "Alat yang tersedia",
     "toolList": "Daftar alat",
     "functionDescription": "Deskripsi fungsi",
@@ -281,7 +281,7 @@
       "text": "teks"
     },
     "description": "Lihat konteks berbagi server MCP dan pilih apakah akan menghasilkan respons.",
-    "imageAlt": "Gambar{索引}",
+    "imageAlt": "Gambar {index}",
     "messagesTitle": "konteks percakapan",
     "noModels": "Tidak ada model yang cocok yang diaktifkan.\nAktifkan model yang berlaku di Pengaturan untuk melanjutkan.",
     "noVisionModels": "Tidak ada model yang diaktifkan secara visual yang diaktifkan.\nAktifkan model visual di Pengaturan untuk melanjutkan.",

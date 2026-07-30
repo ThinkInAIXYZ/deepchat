@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Contohnya: http://127.0.0.1:7890",
     "invalidProxyUrl": "Alamat proksi tidak sah, sila masukkan http/https URL yang sah",
     "addCustomSearchEngine": "Tambah enjin carian tersuai",
-    "addCustomSearchEngineDesc": "Untuk menambah enjin carian baharu, anda perlu memberikan nama dan carian URL. URL mesti mengandungi {query} sebagai pemegang tempat pertanyaan.",
+    "addCustomSearchEngineDesc": "Untuk menambah enjin carian baharu, anda perlu memberikan nama dan carian URL. URL mesti mengandungi {'{'}query{'}'} sebagai pemegang tempat pertanyaan.",
     "searchEngineName": "Nama enjin carian",
     "searchEngineNamePlaceholder": "Sila masukkan nama enjin carian",
     "searchEngineUrl": "Cari URL",

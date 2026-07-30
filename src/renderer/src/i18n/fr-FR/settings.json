@@ -29,7 +29,7 @@
     "customProxyUrlPlaceholder": "Exemple : http://127.0.0.1:7890",
     "invalidProxyUrl": "URL de proxy invalide, veuillez entrer une URL http/https valide",
     "addCustomSearchEngine": "Ajouter un moteur de recherche personnalisé",
-    "addCustomSearchEngineDesc": "Ajoutez un nouveau moteur de recherche en fournissant un nom et une URL de recherche. L'URL doit inclure {query} comme espace réservé pour la requête.",
+    "addCustomSearchEngineDesc": "Ajoutez un nouveau moteur de recherche en fournissant un nom et une URL de recherche. L'URL doit inclure {'{'}query{'}'} comme espace réservé pour la requête.",
     "searchEngineName": "Nom du moteur de recherche",
     "searchEngineNamePlaceholder": "Entrez le nom du moteur de recherche",
     "searchEngineUrl": "URL de recherche",
@@ -943,7 +943,7 @@
       },
       "disableAllModels": {
         "title": "Confirmer la désactivation de tous les modèles",
-        "content": "Êtes-vous sûr de vouloir désactiver tous les modèles ?",
+        "content": "Êtes-vous sûr de vouloir désactiver tous les modèles de « {name} » ?",
         "confirm": "Désactiver tout"
       },
       "configModels": {
@@ -1117,7 +1117,7 @@
         "errorDetails": "Détails d'erreur",
         "errors": "Erreur {count}",
         "fetchingServers": "Obtenir la liste des serveurs MCP ...",
-        "imported": "{comte} Les services ont été importés",
+        "imported": "{count} services ont été importés",
         "importingServers": "Configuration d'importation de serveur ...",
         "invalidServerData": "Données de serveur non valides",
         "noApiKey": "Veuillez d'abord configurer la clé de l'API Modelcope",
@@ -1414,7 +1414,7 @@
     "confirmDelete": {
       "cancel": "Annuler",
       "confirm": "supprimer",
-      "description": "Êtes-vous sûr de vouloir supprimer le serveur {nom}? Cette opération ne peut pas être annulée.",
+      "description": "Êtes-vous sûr de vouloir supprimer le serveur {name}? Cette opération ne peut pas être annulée.",
       "title": "Confirmer la suppression"
     },
     "confirmRemoveServer": "Êtes-vous sûr de vouloir supprimer le serveur {name} ? Cette action ne peut pas être annulée.",
@@ -2477,12 +2477,12 @@
       "generatePairCode": "Générer",
       "clearPairCode": "Effacer",
       "pairCodeExpiresAt": "Expire à {time}",
-      "pairDialogTitle": "Association Telegram",
-      "pairDialogDescription": "Générez un code d’association puis terminez l’association dans la conversation avec votre bot Telegram.",
+      "pairDialogTitle": "Association {channel}",
+      "pairDialogDescription": "Générez un code d’association puis terminez l’association dans la conversation avec votre bot {channel}.",
       "pairDialogInstruction": "Envoyez cette commande au bot correspondant :",
-      "bindingsDialogTitle": "Sessions liées",
-      "bindingsDialogDescription": "Supprimez les liaisons de session Telegram une par une.",
-      "bindingsEmpty": "Aucune liaison Telegram pour le moment.",
+      "bindingsDialogTitle": "Sessions {channel} liées",
+      "bindingsDialogDescription": "Supprimez les liaisons de session distante une par une.",
+      "bindingsEmpty": "Aucune liaison pour le moment.",
       "pairingSuccessTitle": "Association terminée",
       "pairingSuccessDescription": "La liste des IDs utilisateur autorisés a été actualisée.",
       "clearBindings": "Effacer les liaisons",

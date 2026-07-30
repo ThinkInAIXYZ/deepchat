@@ -159,7 +159,7 @@
     "annotations": "註解",
     "selectToolToDebug": "選擇要調試的工具",
     "dialogDescription": "調試和測試 MCP 伺服器提供的工具",
-    "toolsCount": "工具",
+    "toolsCount": "{count} 個工具",
     "availableTools": "可用工具",
     "invalidJson": "無效的 JSON 格式",
     "inputHint": "請以 JSON 格式輸入參數",
@@ -277,7 +277,7 @@
       "text": "文字"
     },
     "description": "查看 MCP 伺服器共享的上下文並選擇是否產生回應。",
-    "imageAlt": "圖片{索引}",
+    "imageAlt": "圖片 {index}",
     "messagesTitle": "對話上下文",
     "noModels": "沒有啟用符合條件的模型。\n在「設定」中啟用適用的模型以繼續。",
     "noVisionModels": "未啟用任何具有視覺功能的模型。\n在「設定」中啟用視覺模型以繼續。",

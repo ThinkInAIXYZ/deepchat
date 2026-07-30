@@ -134,7 +134,7 @@
     "annotations": "주석",
     "selectToolToDebug": "디버그할 도구 선택",
     "dialogDescription": "MCP 서버에서 제공하는 도구 디버그 및 테스트",
-    "toolsCount": "도구",
+    "toolsCount": "{count}개 도구",
     "availableTools": "사용 가능한 도구",
     "invalidJson": "잘못된 JSON 형식",
     "inputHint": "JSON 형식으로 매개변수를 입력하세요",
@@ -276,7 +276,7 @@
       "image": "그림",
       "text": "텍스트"
     },
-    "imageAlt": "이미지{인덱스}",
+    "imageAlt": "이미지 {index}",
     "description": "MCP 서버가 공유하는 컨텍스트를 보고 응답 생성 여부를 선택합니다.",
     "messagesTitle": "대화 맥락",
     "noModels": "일치하는 모델이 활성화되어 있지 않습니다.\n계속하려면 설정에서 해당 모델을 활성화하세요.",

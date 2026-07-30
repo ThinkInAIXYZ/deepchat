@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Ví dụ: http://127.0.0.1:7890",
     "invalidProxyUrl": "Proxy URL không hợp lệ, vui lòng nhập http/https URL hợp lệ",
     "addCustomSearchEngine": "Thêm công cụ tìm kiếm tùy chỉnh",
-    "addCustomSearchEngineDesc": "Thêm công cụ tìm kiếm mới bằng cách cung cấp tên và tìm kiếm URL. URL phải bao gồm {query} làm phần giữ chỗ truy vấn.",
+    "addCustomSearchEngineDesc": "Thêm công cụ tìm kiếm mới bằng cách cung cấp tên và tìm kiếm URL. URL phải bao gồm {'{'}query{'}'} làm phần giữ chỗ truy vấn.",
     "searchEngineName": "Tên công cụ tìm kiếm",
     "searchEngineNamePlaceholder": "Nhập tên công cụ tìm kiếm",
     "searchEngineUrl": "Tìm kiếm URL",
@@ -1256,7 +1256,7 @@
       },
       "disableAllModels": {
         "title": "Xác nhận Tắt tất cả các kiểu máy",
-        "content": "Bạn có chắc chắn muốn tắt tất cả các kiểu máy không?",
+        "content": "Bạn có chắc chắn muốn tắt tất cả mô hình của \"{name}\" không?",
         "confirm": "Vô hiệu hóa tất cả"
       },
       "configModels": {

@@ -29,12 +29,12 @@
     "customProxyUrlPlaceholder": "예: http://127.0.0.1:7890",
     "invalidProxyUrl": "잘못된 프록시 URL, 유효한 http/https URL을 입력하세요",
     "addCustomSearchEngine": "사용자 정의 검색 엔진 추가",
-    "addCustomSearchEngineDesc": "새 검색 엔진을 추가하려면 이름과 검색 URL을 제공해야 합니다. URL에는 {query}가 쿼리 자리 표시자로 포함되어야 합니다.",
+    "addCustomSearchEngineDesc": "새 검색 엔진을 추가하려면 이름과 검색 URL을 제공해야 합니다. URL에는 {'{'}query{'}'}가 쿼리 자리 표시자로 포함되어야 합니다.",
     "searchEngineName": "검색 엔진 이름",
     "searchEngineNamePlaceholder": "검색 엔진 이름을 입력하세요",
     "searchEngineUrl": "검색 URL",
-    "searchEngineUrlPlaceholder": "예: https://a.com/search?q={query}",
-    "searchEngineUrlError": "URL에는 {query}가 쿼리 자리 표시자로 포함되어야 합니다",
+    "searchEngineUrlPlaceholder": "예: https://a.com/search?q={'{'}query{'}'}",
+    "searchEngineUrlError": "URL에는 {'{'}query{'}'}가 쿼리 자리 표시자로 포함되어야 합니다",
     "deleteCustomSearchEngine": "커스텀 검색 엔진 삭제",
     "deleteCustomSearchEngineDesc": "정말로 커스텀 검색 엔진 \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
     "testSearchEngine": "검색 엔진 테스트",
@@ -1272,11 +1272,11 @@
     "unknown": "알 수없는 상태",
     "reAddFile": {
       "title": "확인 확인",
-      "content": "\"{filename}\"파일을 다시 업로드하시겠습니까?"
+      "content": "\"{fileName}\"파일을 다시 업로드하시겠습니까?"
     },
     "deleteFile": {
       "title": "파일 확인 삭제",
-      "content": "\"{filename}\"파일을 삭제해야합니까? 이 작업은 복원되지 않습니다."
+      "content": "\"{fileName}\"파일을 삭제해야합니까? 이 작업은 복원되지 않습니다."
     },
     "resumeAllPausedTasks": "원 클릭 복구",
     "pauseAllRunningTasks": "한 번의 클릭 일시 중지",

@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Misalnya: http://127.0.0.1:7890",
     "invalidProxyUrl": "Alamat proxy tidak valid, masukkan http/https URL yang valid",
     "addCustomSearchEngine": "Tambahkan mesin pencari khusus",
-    "addCustomSearchEngineDesc": "Untuk menambahkan mesin pencari baru, berikan nama dan cari URL. {query} harus disertakan dalam URL sebagai placeholder kueri.",
+    "addCustomSearchEngineDesc": "Untuk menambahkan mesin pencari baru, berikan nama dan cari URL. {'{'}query{'}'} harus disertakan dalam URL sebagai placeholder kueri.",
     "searchEngineName": "Nama mesin pencari",
     "searchEngineNamePlaceholder": "Silakan masukkan nama mesin pencari",
     "searchEngineUrl": "Telusuri URL",

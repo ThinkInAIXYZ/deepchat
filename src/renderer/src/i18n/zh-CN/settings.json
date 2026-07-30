@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "例如: http://127.0.0.1:7890",
     "invalidProxyUrl": "无效的代理地址，请输入有效的 http/https URL",
     "addCustomSearchEngine": "添加自定义搜索引擎",
-    "addCustomSearchEngineDesc": "添加一个新的搜索引擎，需要提供名称和搜索URL。URL中必须包含{query}作为查询占位符。",
+    "addCustomSearchEngineDesc": "添加一个新的搜索引擎，需要提供名称和搜索URL。URL中必须包含{'{'}query{'}'}作为查询占位符。",
     "searchEngineName": "搜索引擎名称",
     "searchEngineNamePlaceholder": "请输入搜索引擎名称",
     "searchEngineUrl": "搜索URL",
