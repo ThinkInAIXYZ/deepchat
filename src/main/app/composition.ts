@@ -1252,9 +1252,6 @@ export async function createMainProcessControl(dependencies: {
     deeplinkService.processStartupUrl()
   )
   ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter)
-  dependencies.mcpAppSandboxRegistry.setFirstPartyPermissionOwnerValidator((webContentsId) =>
-    (windowPresenter as WindowPresenter).isFirstPartyPermissionOwner(webContentsId)
-  )
   floatingButtonPresenter = new FloatingButtonPresenter(
     agentSettings,
     desktopSettings,

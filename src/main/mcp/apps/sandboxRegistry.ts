@@ -137,14 +137,9 @@ export class McpAppSandboxRegistry {
   private readonly observedWebContents = new Set<number>()
   private publishConsent?: ConsentPublisher
   private configuredSession: Session | null = null
-  private isFirstPartyPermissionOwner: (webContentsId: number) => boolean = () => false
 
   setConsentPublisher(publisher: ConsentPublisher): void {
     this.publishConsent = publisher
-  }
-
-  setFirstPartyPermissionOwnerValidator(validator: (webContentsId: number) => boolean): void {
-    this.isFirstPartyPermissionOwner = validator
   }
 
   create(input: {
@@ -388,11 +383,8 @@ export class McpAppSandboxRegistry {
       const instanceId =
         parseMcpAppInstanceId(requestingUrl) ?? parseMcpAppInstanceId(securityOrigin)
       if (!instanceId) {
-        callback(
-          this.isFirstPartyPermissionOwner(owner.id) &&
-            isFirstPartyRendererUrl(requestingUrl) &&
-            isFirstPartyRendererUrl(owner.getURL())
-        )
+        const ownerUrl = owner.getURL()
+        callback(!isFirstPartyRendererUrl(ownerUrl) || isFirstPartyRendererUrl(requestingUrl))
         return
       }
 
@@ -425,15 +417,16 @@ export class McpAppSandboxRegistry {
     })
 
     target.setPermissionCheckHandler((owner, _permission, requestingOrigin, details) => {
+      const requestingUrl =
+        requestingOrigin || details.requestingUrl || details.securityOrigin || owner?.getURL() || ''
       const instanceId =
-        parseMcpAppInstanceId(requestingOrigin) ??
+        parseMcpAppInstanceId(requestingUrl) ??
         parseMcpAppInstanceId(details.securityOrigin) ??
         parseMcpAppInstanceId(details.requestingUrl)
       if (!instanceId) {
+        const ownerUrl = owner?.getURL()
         return (
-          Boolean(owner && this.isFirstPartyPermissionOwner(owner.id)) &&
-          isFirstPartyRendererUrl(requestingOrigin) &&
-          isFirstPartyRendererUrl(owner?.getURL() ?? requestingOrigin)
+          !ownerUrl || !isFirstPartyRendererUrl(ownerUrl) || isFirstPartyRendererUrl(requestingUrl)
         )
       }
       // MCP App browser permissions are request-scoped; there is no standing grant to check.

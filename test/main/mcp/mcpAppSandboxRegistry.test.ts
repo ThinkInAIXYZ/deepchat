@@ -87,9 +87,8 @@ describe('MCP App sandbox registry', () => {
     expect(registry.getForProtocol(instance.instanceId)).toBeNull()
   })
 
-  it('preserves first-party permissions while requiring consent for App media', async () => {
+  it('preserves default-session permissions while isolating App frames', async () => {
     const registry = new McpAppSandboxRegistry()
-    registry.setFirstPartyPermissionOwnerValidator((webContentsId) => webContentsId === 1)
     const instance = createInstance(registry)
     let permissionRequestHandler:
       | ((
@@ -162,26 +161,48 @@ describe('MCP App sandbox registry', () => {
       )
     ).toBe(true)
 
-    const arbitraryFileDecision = vi.fn()
+    const browserDecision = vi.fn()
     permissionRequestHandler!(
-      { id: 2, getURL: () => 'file:///tmp/unrelated.html' },
-      'media',
-      arbitraryFileDecision,
+      { id: 2, getURL: () => 'https://example.com' },
+      'notifications',
+      browserDecision,
       {
-        requestingUrl: 'file:///tmp/unrelated.html',
-        mediaTypes: ['audio'],
+        requestingUrl: 'https://example.com',
         isMainFrame: true
       }
     )
-    expect(arbitraryFileDecision).toHaveBeenCalledWith(false)
+    expect(browserDecision).toHaveBeenCalledWith(true)
     expect(
       permissionCheckHandler!(
-        { id: 2, getURL: () => 'file:///tmp/unrelated.html' },
+        { id: 2, getURL: () => 'https://example.com' },
         'notifications',
-        'file:///tmp/unrelated.html',
+        'https://example.com',
         {
-          securityOrigin: 'file:///tmp/unrelated.html',
-          requestingUrl: 'file:///tmp/unrelated.html'
+          securityOrigin: 'https://example.com',
+          requestingUrl: 'https://example.com'
+        }
+      )
+    ).toBe(true)
+
+    const nestedRemoteDecision = vi.fn()
+    permissionRequestHandler!(
+      { id: 1, getURL: () => 'file:///deepchat/index.html' },
+      'notifications',
+      nestedRemoteDecision,
+      {
+        requestingUrl: 'https://example.com',
+        isMainFrame: false
+      }
+    )
+    expect(nestedRemoteDecision).toHaveBeenCalledWith(false)
+    expect(
+      permissionCheckHandler!(
+        { id: 1, getURL: () => 'file:///deepchat/index.html' },
+        'notifications',
+        'https://example.com',
+        {
+          securityOrigin: 'https://example.com',
+          requestingUrl: 'https://example.com'
         }
       )
     ).toBe(false)

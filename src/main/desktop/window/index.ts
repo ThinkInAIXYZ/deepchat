@@ -102,35 +102,6 @@ export class WindowPresenter implements IWindowPresenter {
     this.tabPresenter = tabPresenter
   }
 
-  isFirstPartyPermissionOwner(webContentsId: number): boolean {
-    const directWindow = Array.from(this.windows.values()).find(
-      (window) => !window.isDestroyed() && window.webContents.id === webContentsId
-    )
-    if (directWindow && this.tabPresenter?.getWindowType(directWindow.id) === 'chat') {
-      return true
-    }
-
-    const tabWindowId = this.tabPresenter?.getWindowIdByWebContentsId(webContentsId)
-    if (tabWindowId && this.tabPresenter.getWindowType(tabWindowId) === 'chat') {
-      return true
-    }
-
-    if (
-      this.settingsWindow &&
-      !this.settingsWindow.isDestroyed() &&
-      this.settingsWindow.webContents.id === webContentsId
-    ) {
-      return true
-    }
-
-    const floatingWindow = this.floatingChatWindow?.getWindow()
-    return Boolean(
-      floatingWindow &&
-      !floatingWindow.isDestroyed() &&
-      floatingWindow.webContents.id === webContentsId
-    )
-  }
-
   private setupManagedWindowOpenHandler(window: BrowserWindow): void {
     window.webContents.setWindowOpenHandler(({ url }) => {
       openExternalUrl(url, 'managed window')
