@@ -999,7 +999,12 @@ export class McpClient {
     }
     let url: string | undefined
     if (params.mode === 'url') {
-      const candidate = new URL(params.url)
+      let candidate: URL
+      try {
+        candidate = new URL(params.url)
+      } catch {
+        throw new ProtocolError(ProtocolErrorCode.InvalidParams, 'Elicitation URL is invalid')
+      }
       if (candidate.protocol !== 'https:' && candidate.protocol !== 'http:') {
         throw new ProtocolError(
           ProtocolErrorCode.InvalidParams,

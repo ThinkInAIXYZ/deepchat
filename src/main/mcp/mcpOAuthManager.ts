@@ -38,6 +38,7 @@ type PendingMcpOAuthFlow = {
   serverId: string
   serverName: string
   serverUrl: string
+  initialBinding: McpCredentialBinding
   binding: McpCredentialBinding
   provider: DeepChatMcpOAuthProvider
   callbackSession: OAuthLoopbackCallbackSession
@@ -307,7 +308,10 @@ export class McpOAuthManager {
         })
       }
       const existing = this.statuses.get(binding.serverId)
-      if (!existing || !['authenticated', 'error'].includes(existing.state)) {
+      if (existing?.state === 'authenticated') {
+        return { ...existing, serverName, credential }
+      }
+      if (!existing || existing.state !== 'error') {
         return this.buildStatus(serverName, binding, mode, {
           state: 'none',
           authenticated: false,
@@ -431,7 +435,6 @@ export class McpOAuthManager {
     if (mode !== 'interactive') {
       try {
         await this.createRuntimeProvider(serverName, completeConfig)
-        await Promise.resolve(this.onAuthenticated?.(serverName))
       } catch (error) {
         this.setStatus(
           this.buildStatus(serverName, binding, mode, {
@@ -441,7 +444,14 @@ export class McpOAuthManager {
             credential: this.getSelectedCredentialStatus(binding, mode)
           })
         )
+        return this.getStatus(serverName, config)
       }
+      await Promise.resolve(this.onAuthenticated?.(serverName)).catch((error) => {
+        logger.warn(
+          '[MCP OAuth] Failed to restart server after machine authentication:',
+          sanitizeError(error)
+        )
+      })
       return this.getStatus(serverName, config)
     }
 
@@ -510,6 +520,7 @@ export class McpOAuthManager {
       serverId: binding.serverId,
       serverName,
       serverUrl: config.baseUrl,
+      initialBinding: binding,
       binding,
       provider,
       callbackSession
@@ -569,9 +580,10 @@ export class McpOAuthManager {
       )
       return this.getStatus(serverName, config)
     }
+    const callbackCredentialKey = createMcpCredentialKey('interactive_oauth', binding)
     if (
-      createMcpCredentialKey('interactive_oauth', flow.binding) !==
-      createMcpCredentialKey('interactive_oauth', binding)
+      callbackCredentialKey !== createMcpCredentialKey('interactive_oauth', flow.initialBinding) &&
+      callbackCredentialKey !== createMcpCredentialKey('interactive_oauth', flow.binding)
     ) {
       this.failAuthFlow(flow, new Error('MCP OAuth server binding changed during authentication'))
       return this.getStatus(serverName, config)
@@ -830,7 +842,6 @@ export class McpOAuthManager {
         currentConfig.authorization?.protectedResourceUrl !== protectedResourceUrl ||
         currentConfig.authorization?.clientId !== clientId
       if (needsUpdate) {
-        this.onServerBindingChanged?.(startingBinding.serverId)
         await this.settings.updateMcpServer(currentServerName, {
           authorization: nextAuthorization
         })

@@ -361,6 +361,7 @@ export class ToolService implements ToolServicePort {
     // Route to MCP (default)
     const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
     const definition = this.getMcpDefinition(toolName, request.conversationId)
+    const expectedTarget = this.createExpectedMcpTarget(toolName, definition)
     const permissionContext = this.createMcpPermissionContext(
       request,
       definition,
@@ -385,7 +386,6 @@ export class ToolService implements ToolServicePort {
       }
     }
 
-    const expectedTarget = this.createExpectedMcpTarget(toolName, definition)
     return await this.options.mcpService.callTool(request, {
       agentId: options?.agentId ?? storedAccess?.agentId,
       enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds,

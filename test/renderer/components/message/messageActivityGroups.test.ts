@@ -79,6 +79,57 @@ describe('messageActivityGroups', () => {
     expect(items.map((item) => item.kind)).toEqual(['activity-group', 'block', 'activity-group'])
   })
 
+  it('projects MCP Apps beside their collapsible activity group', () => {
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: true,
+      blocks: [
+        createBlock('reasoning_content', { content: 'first' }),
+        createBlock('tool_call', {
+          tool_call: {
+            id: 'tc1',
+            name: 'render_chart',
+            mcpResult: {
+              schemaVersion: 1,
+              serverId: 'server-id',
+              configGeneration: 1,
+              bindingHash: 'binding-hash',
+              toolName: 'render_chart',
+              app: {
+                schemaVersion: 1,
+                serverId: 'server-id',
+                configGeneration: 1,
+                bindingHash: 'binding-hash',
+                serverName: 'charts',
+                toolName: 'render_chart',
+                resourceUri: 'ui://chart/index.html',
+                resourceMimeType: 'text/html;profile=mcp-app'
+              }
+            }
+          }
+        }),
+        createBlock('reasoning_content', { content: 'last' })
+      ]
+    })
+
+    expect(items.map((item) => item.kind)).toEqual(['activity-group', 'mcp-app'])
+    expect(items[0]).toMatchObject({
+      kind: 'activity-group',
+      reasoningCount: 2,
+      toolCallCount: 1
+    })
+    expect(items[1]).toMatchObject({
+      kind: 'mcp-app',
+      block: {
+        type: 'tool_call',
+        tool_call: {
+          id: 'tc1'
+        }
+      }
+    })
+  })
+
   it('ignores empty reasoning signature blocks when merging continuous activity', () => {
     const items = buildAssistantRenderItems({
       messageId: 'm1',

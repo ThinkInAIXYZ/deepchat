@@ -94,6 +94,7 @@ const activeFilter = ref<'all' | 'running' | 'stopped'>('all')
 const MCP_FILTERS = ['all', 'running', 'stopped'] as const
 let addServerDialogGeneration = 0
 let editServerDialogGeneration = 0
+let diagnosticsRequestGeneration = 0
 
 watch(
   () => mcpStore.mcpInstallCache,
@@ -518,18 +519,33 @@ const handleViewResources = async (serverName: string) => {
 }
 
 const refreshDiagnostics = async () => {
-  if (!diagnosticsServerName.value || isDiagnosticsLoading.value) {
+  if (!diagnosticsServerName.value) {
     return
   }
+  const serverName = diagnosticsServerName.value
+  const requestGeneration = ++diagnosticsRequestGeneration
   isDiagnosticsLoading.value = true
   diagnosticsError.value = ''
   try {
-    diagnostics.value = await mcpClient.getServerDiagnostics(diagnosticsServerName.value)
+    const nextDiagnostics = await mcpClient.getServerDiagnostics(serverName)
+    if (
+      requestGeneration === diagnosticsRequestGeneration &&
+      serverName === diagnosticsServerName.value
+    ) {
+      diagnostics.value = nextDiagnostics
+    }
   } catch (error) {
-    diagnostics.value = null
-    diagnosticsError.value = error instanceof Error ? error.message : String(error)
+    if (
+      requestGeneration === diagnosticsRequestGeneration &&
+      serverName === diagnosticsServerName.value
+    ) {
+      diagnostics.value = null
+      diagnosticsError.value = error instanceof Error ? error.message : String(error)
+    }
   } finally {
-    isDiagnosticsLoading.value = false
+    if (requestGeneration === diagnosticsRequestGeneration) {
+      isDiagnosticsLoading.value = false
+    }
   }
 }
 

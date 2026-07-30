@@ -22,6 +22,7 @@ import type {
   McpServerAuthStatus,
   McpServerDiagnostics,
   McpSamplingDecision,
+  McpToolAnnotations,
   PromptListEntry,
   Resource,
   ResourceListEntry,
@@ -123,16 +124,30 @@ const BoundedJsonValueSchema = JsonValueSchema.refine(
   },
   { message: 'MCP App payload exceeds the 2 MiB route limit' }
 )
-const BoundedMcpJsonObjectSchema = z.record(z.string().max(256), JsonValueSchema).refine(
-  (value) => {
-    try {
-      return new TextEncoder().encode(JSON.stringify(value)).byteLength <= 2 * 1024 * 1024
-    } catch {
-      return false
-    }
-  },
-  { message: 'MCP JSON object exceeds the 2 MiB route limit' }
-)
+const isBoundedMcpJsonObject = (value: unknown): boolean => {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength <= 2 * 1024 * 1024
+  } catch {
+    return false
+  }
+}
+const BoundedMcpJsonObjectSchema = z
+  .record(z.string().max(256), JsonValueSchema)
+  .refine(isBoundedMcpJsonObject, {
+    message: 'MCP JSON object exceeds the 2 MiB route limit'
+  })
+const McpToolAnnotationsSchema: z.ZodType<McpToolAnnotations> = z
+  .object({
+    title: z.string().max(512).optional(),
+    readOnlyHint: z.boolean().optional(),
+    destructiveHint: z.boolean().optional(),
+    idempotentHint: z.boolean().optional(),
+    openWorldHint: z.boolean().optional()
+  })
+  .catchall(JsonValueSchema)
+  .refine(isBoundedMcpJsonObject, {
+    message: 'MCP tool annotations exceed the 2 MiB route limit'
+  })
 const McpElicitationDecisionSchema: z.ZodType<McpElicitationDecision> = z.object({
   requestId: z.string().min(1).max(256),
   action: z.enum(['accept', 'decline', 'cancel']),
@@ -265,7 +280,7 @@ const McpAppServerToolSchema: z.ZodType<Tool> = z.object({
   icons: z.array(McpAppServerIconSchema).max(32).optional(),
   inputSchema: BoundedMcpJsonObjectSchema,
   outputSchema: BoundedMcpJsonObjectSchema.optional(),
-  annotations: BoundedMcpJsonObjectSchema.optional(),
+  annotations: McpToolAnnotationsSchema.optional(),
   _meta: BoundedMcpJsonObjectSchema.optional(),
   execution: BoundedMcpJsonObjectSchema.optional()
 })
@@ -273,7 +288,7 @@ const McpAppPreparedViewSchema: z.ZodType<McpAppPreparedView> = z.object({
   instanceId: z.string().min(16).max(128),
   sandboxUrl: z.string().startsWith('mcp-app://').max(512),
   html: z.string().max(2 * 1024 * 1024),
-  sandbox: z.literal('allow-scripts allow-same-origin allow-forms'),
+  sandbox: z.literal('allow-scripts allow-same-origin'),
   tool: McpAppServerToolSchema,
   csp: McpAppCspSchema.optional(),
   permissions: McpAppPermissionsSchema.optional(),

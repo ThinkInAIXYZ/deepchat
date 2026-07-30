@@ -55,6 +55,30 @@ describe('ToolPermissionBroker', () => {
     ).toBe(false)
   })
 
+  it('reuses approval for equivalent arguments with different key insertion order', () => {
+    const broker = new ToolPermissionBroker()
+    const base = {
+      conversationId: 'conversation',
+      serverId: 'server',
+      serverName: 'fixture',
+      toolName: 'read',
+      arguments: { z: 1, a: 2 },
+      source: 'model' as const,
+      permissionType: 'read' as const,
+      permissionMode: 'default' as const
+    }
+    const request = broker.evaluateModel(base)
+
+    expect(request).not.toBeNull()
+    expect(broker.approve(request!.requestId, base.conversationId)).toBe(true)
+    expect(
+      broker.authorizeExecution({
+        ...base,
+        arguments: { a: 2, z: 1 }
+      })
+    ).toEqual({ allowed: true })
+  })
+
   it.each([
     ['generation', { configGeneration: 2 }],
     ['binding', { bindingHash: 'binding-b' }],

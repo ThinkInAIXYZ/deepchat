@@ -166,6 +166,7 @@ const isLinuxBasicTextBackend = (): boolean => {
 export class McpOAuthCredentialStore {
   private readonly filePath: string
   private loaded = false
+  private loadFailed = false
   private records: McpCredentialData = {}
 
   constructor(filePath?: string) {
@@ -346,6 +347,7 @@ export class McpOAuthCredentialStore {
 
   clearEntry(key: string): void {
     this.ensureLoaded()
+    this.assertWritable()
     if (!this.records[key]) {
       return
     }
@@ -386,6 +388,7 @@ export class McpOAuthCredentialStore {
 
   clearServerCredentials(serverId: string): void {
     this.ensureLoaded()
+    this.assertWritable()
     let changed = false
     for (const [key, record] of Object.entries(this.records)) {
       if (
@@ -408,6 +411,7 @@ export class McpOAuthCredentialStore {
 
   clearEnterpriseProfileCredentials(profileId: string): void {
     this.ensureLoaded()
+    this.assertWritable()
     let changed = false
     for (const [key, record] of Object.entries(this.records)) {
       if (
@@ -431,6 +435,7 @@ export class McpOAuthCredentialStore {
 
   private saveRecord(key: string, record: StoredCredentialRecord): void {
     this.ensureLoaded()
+    this.assertWritable()
     if (!isBoundedString(key, MAX_CREDENTIAL_KEY_BYTES)) {
       throw new Error('MCP credential key is invalid')
     }
@@ -542,6 +547,13 @@ export class McpOAuthCredentialStore {
       }
     } catch {
       this.records = {}
+      this.loadFailed = true
+    }
+  }
+
+  private assertWritable(): void {
+    if (this.loadFailed) {
+      throw new Error('MCP credential store is unavailable')
     }
   }
 

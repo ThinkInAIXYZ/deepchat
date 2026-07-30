@@ -69,6 +69,12 @@ describe('MCP App sandbox registry', () => {
       detail: descriptor.toolName
     })
     await vi.waitFor(() => expect(consentRequestId).not.toBe(''))
+    expect(
+      registry.submitConsent(consentRequestId, true, {
+        webContentsId: 7,
+        windowId: 12
+      })
+    ).toBe(false)
     isLive = false
 
     expect(
@@ -78,11 +84,10 @@ describe('MCP App sandbox registry', () => {
       })
     ).toBe(false)
     await expect(decision).resolves.toBe(false)
-    expect(instance.browserPermissionGrants).not.toContain('camera')
     expect(registry.getForProtocol(instance.instanceId)).toBeNull()
   })
 
-  it('preserves first-party audio while requiring an instance grant for declared App media', async () => {
+  it('preserves first-party audio while requiring consent for each App media request', async () => {
     const registry = new McpAppSandboxRegistry()
     registry.setFirstPartyAudioOwnerValidator((webContentsId) => webContentsId === 1)
     const instance = createInstance(registry)
@@ -149,10 +154,27 @@ describe('MCP App sandbox registry', () => {
     )
     expect(arbitraryFileDecision).toHaveBeenCalledWith(false)
 
-    let consentRequestId = ''
+    const consentRequestIds: string[] = []
     registry.setConsentPublisher((_windowId, payload) => {
-      consentRequestId = payload.request.requestId
+      consentRequestIds.push(payload.request.requestId)
     })
+    const undeclaredMicrophoneDecision = vi.fn()
+    permissionRequestHandler!(
+      {
+        id: 7,
+        getURL: () => `mcp-app://${instance.instanceId}/sandbox.html`
+      },
+      'media',
+      undeclaredMicrophoneDecision,
+      {
+        requestingUrl: `mcp-app://${instance.instanceId}/sandbox.html`,
+        mediaTypes: ['audio'],
+        isMainFrame: false
+      }
+    )
+    expect(undeclaredMicrophoneDecision).toHaveBeenCalledWith(false)
+    expect(consentRequestIds).toHaveLength(0)
+
     const appDecision = vi.fn()
     permissionRequestHandler!(
       {
@@ -167,13 +189,37 @@ describe('MCP App sandbox registry', () => {
         isMainFrame: false
       }
     )
-    await vi.waitFor(() => expect(consentRequestId).not.toBe(''))
+    await vi.waitFor(() => expect(consentRequestIds).toHaveLength(1))
     expect(
-      registry.submitConsent(consentRequestId, true, {
+      registry.submitConsent(consentRequestIds[0], true, {
         webContentsId: 7,
         windowId: 11
       })
     ).toBe(true)
     await vi.waitFor(() => expect(appDecision).toHaveBeenCalledWith(true))
+
+    const repeatedDecision = vi.fn()
+    permissionRequestHandler!(
+      {
+        id: 7,
+        getURL: () => `mcp-app://${instance.instanceId}/sandbox.html`
+      },
+      'media',
+      repeatedDecision,
+      {
+        requestingUrl: `mcp-app://${instance.instanceId}/sandbox.html`,
+        mediaTypes: ['video'],
+        isMainFrame: false
+      }
+    )
+    await vi.waitFor(() => expect(consentRequestIds).toHaveLength(2))
+    expect(repeatedDecision).not.toHaveBeenCalled()
+    expect(
+      registry.submitConsent(consentRequestIds[1], true, {
+        webContentsId: 7,
+        windowId: 11
+      })
+    ).toBe(true)
+    await vi.waitFor(() => expect(repeatedDecision).toHaveBeenCalledWith(true))
   })
 })

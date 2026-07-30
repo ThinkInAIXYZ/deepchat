@@ -18,6 +18,17 @@ describe('McpOAuthCredentialStore', () => {
     })
     vi.mocked(fs.mkdirSync).mockImplementation(() => undefined as unknown as string)
     vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(false)
+    vi.mocked(safeStorage.encryptString).mockImplementation((value) =>
+      Buffer.from(`wrapped:${value.split('').reverse().join('')}`, 'utf8')
+    )
+    vi.mocked(safeStorage.decryptString).mockImplementation((value) =>
+      value
+        .toString('utf8')
+        .replace(/^wrapped:/, '')
+        .split('')
+        .reverse()
+        .join('')
+    )
   })
 
   it('removes only the requested credential scope', () => {
@@ -121,7 +132,11 @@ describe('McpOAuthCredentialStore', () => {
     expect(fs.writeFileSync).not.toHaveBeenCalled()
   })
 
-  it('removes an unreadable persistent envelope instead of resurrecting stale credentials', () => {
+  it('preserves an unreadable envelope and refuses to overwrite stored credentials', () => {
+    vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(true)
+    vi.mocked(safeStorage.decryptString).mockImplementationOnce(() => {
+      throw new Error('cannot decrypt')
+    })
     savedContent = JSON.stringify({
       version: 2,
       storage: 'safeStorage',
@@ -131,8 +146,17 @@ describe('McpOAuthCredentialStore', () => {
     const store = new McpOAuthCredentialStore('/tmp/deepchat-mcp-oauth/credentials.json')
 
     expect(store.load('stale')).toBeNull()
-    expect(fs.unlinkSync).toHaveBeenCalledWith('/tmp/deepchat-mcp-oauth/credentials.json')
-    expect(safeStorage.decryptString).not.toHaveBeenCalled()
+    expect(safeStorage.decryptString).toHaveBeenCalledOnce()
+    expect(fs.unlinkSync).not.toHaveBeenCalled()
+    expect(() =>
+      store.saveClientSecret('replacement', 'new-secret', {
+        serverId: '71e8637a-1889-4749-b04e-f5a79adefb06',
+        configGeneration: 1,
+        bindingHash: 'binding',
+        endpoint: 'https://mcp.example.com/mcp'
+      })
+    ).toThrow('MCP credential store is unavailable')
+    expect(fs.writeFileSync).not.toHaveBeenCalled()
   })
 
   it('matches interactive credentials by every finalized binding field', () => {

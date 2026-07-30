@@ -1017,6 +1017,50 @@ describe('ToolService', () => {
     expect(mcpService.callTool).not.toHaveBeenCalled()
   })
 
+  it('rejects an unstable MCP target before consuming permission approval', async () => {
+    const definition = buildToolDefinition('mcp_only', 'server-a')
+    definition.server.id = undefined
+    const mcpService = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([definition]),
+      callTool: vi.fn()
+    } as any
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => false } as any,
+      mcpService,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: {
+        getModelConfig: vi.fn()
+      } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'session-1'
+    })
+    const authorizeExecution = vi.spyOn(
+      (toolService as unknown as { permissionBroker: { authorizeExecution(): unknown } })
+        .permissionBroker,
+      'authorizeExecution'
+    )
+
+    await expect(
+      toolService.callTool(
+        {
+          id: 'permission-1',
+          type: 'function',
+          function: { name: 'mcp_only', arguments: '{}' },
+          conversationId: 'session-1'
+        },
+        { permissionMode: 'default' }
+      )
+    ).rejects.toThrow('no stable execution binding')
+
+    expect(authorizeExecution).not.toHaveBeenCalled()
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+  })
+
   it('observes a late agent permission failure after pre-check synchronously cancels', async () => {
     let rejectPermission!: (reason?: unknown) => void
     const permission = new Promise<never>((_, reject) => {

@@ -201,8 +201,16 @@ vi.mock('electron', () => ({
   safeStorage: {
     isEncryptionAvailable: vi.fn(() => false),
     getSelectedStorageBackend: vi.fn(() => 'keychain'),
-    encryptString: vi.fn((value: string) => Buffer.from(value, 'utf-8')),
-    decryptString: vi.fn((value: Buffer) => value.toString('utf-8'))
+    encryptString: vi.fn((value: string) =>
+      Buffer.from(`mock-safe-storage:${Buffer.from(value, 'utf8').toString('base64')}`, 'utf8')
+    ),
+    decryptString: vi.fn((value: Buffer) => {
+      const wrapped = value.toString('utf8')
+      if (!wrapped.startsWith('mock-safe-storage:')) {
+        throw new Error('Invalid mock safeStorage payload')
+      }
+      return Buffer.from(wrapped.slice('mock-safe-storage:'.length), 'base64').toString('utf8')
+    })
   }
 }))
 

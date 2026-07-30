@@ -87,11 +87,10 @@ const createHarness = () => {
     prefersBorder: false,
     advisoryDomain: 'charts.example.com',
     expiresAt: Date.now() + 60_000,
-    toolAccessSuspended: false,
-    browserPermissionGrants: new Set()
+    toolAccessSuspended: false
   }
   const registry = {
-    create: vi.fn((input: Record<string, unknown>) => Object.assign(instance, input)),
+    create: vi.fn((input: Record<string, unknown>) => ({ ...instance, ...input })),
     assertOwned: vi.fn(() => instance),
     revoke: vi.fn(),
     requestConsent: vi.fn().mockResolvedValue(true),

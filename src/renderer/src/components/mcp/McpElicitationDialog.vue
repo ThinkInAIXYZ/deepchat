@@ -33,6 +33,11 @@ const updateMultiValue = (name: string, event: Event) => {
   )
 }
 
+const isMultiValueSelected = (name: string, value: string): boolean => {
+  const selected = store.values[name]
+  return Array.isArray(selected) && selected.includes(value)
+}
+
 const onDialogToggle = (open: boolean) => {
   if (!open) {
     void store.cancel()
@@ -90,10 +95,14 @@ const onDialogToggle = (open: boolean) => {
             :id="`mcp-elicit-${field.name}`"
             multiple
             class="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm"
-            :value="store.values[field.name] as string[]"
             @change="updateMultiValue(field.name, $event)"
           >
-            <option v-for="option in field.options" :key="option.value" :value="option.value">
+            <option
+              v-for="option in field.options"
+              :key="option.value"
+              :value="option.value"
+              :selected="isMultiValueSelected(field.name, option.value)"
+            >
               {{ option.title }}
             </option>
           </select>

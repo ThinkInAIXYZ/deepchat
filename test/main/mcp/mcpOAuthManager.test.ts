@@ -90,6 +90,61 @@ describe('McpOAuthManager', () => {
     expect(publishDeepchatEventMock).toHaveBeenCalledTimes(1)
   })
 
+  it('accepts callback input bound to the pre-discovery OAuth configuration', async () => {
+    const manager = new McpOAuthManager(createStore(null), publishDeepchatEventMock)
+    const initialBinding = {
+      ...serverIdentity,
+      endpoint: 'https://mcp.example/mcp'
+    }
+    const resolveCallbackUrl = vi.fn(() => ({
+      kind: 'success' as const,
+      code: 'code',
+      state: 'state',
+      url: 'http://localhost/callback?code=code&state=state'
+    }))
+    const failAuthFlow = vi.spyOn(
+      manager as unknown as { failAuthFlow: (...args: unknown[]) => void },
+      'failAuthFlow'
+    )
+    const internals = manager as unknown as {
+      pendingFlows: Map<string, unknown>
+    }
+    internals.pendingFlows.set(serverIdentity.serverId, {
+      serverId: serverIdentity.serverId,
+      serverName: 'example',
+      serverUrl: initialBinding.endpoint,
+      initialBinding,
+      binding: {
+        ...initialBinding,
+        configGeneration: 2,
+        bindingHash: 'b'.repeat(64),
+        authorizationServerIssuer: 'https://auth.example/',
+        protectedResourceUrl: initialBinding.endpoint,
+        clientId: 'dynamic-client'
+      },
+      provider: {},
+      callbackSession: {
+        resolveCallbackUrl,
+        close: vi.fn()
+      },
+      flowPromise: Promise.resolve()
+    })
+
+    await manager.completeAuthFromCallbackUrl(
+      'example',
+      {
+        type: 'http',
+        baseUrl: initialBinding.endpoint,
+        authorization: { mode: 'interactive' },
+        ...serverIdentity
+      },
+      'http://localhost/callback?code=code&state=state'
+    )
+
+    expect(resolveCallbackUrl).toHaveBeenCalledOnce()
+    expect(failAuthFlow).not.toHaveBeenCalled()
+  })
+
   it('classifies HTTP status shaped OAuth failures', () => {
     const config = {
       type: 'http',
@@ -260,7 +315,7 @@ describe('McpOAuthManager', () => {
         clientId: 'dynamic-client'
       }
     })
-    expect(bindingChanged).toHaveBeenCalledTimes(2)
+    expect(bindingChanged).toHaveBeenCalledOnce()
     expect(store.saveEntry).toHaveBeenCalledWith(
       expect.not.stringMatching(/^old-key$/),
       expect.objectContaining({
@@ -348,6 +403,58 @@ describe('McpOAuthManager', () => {
     await expect(validateResourceURL(new URL(endpoint), new URL(endpoint))).resolves.toEqual(
       new URL(endpoint)
     )
+  })
+
+  it('preserves successful machine authentication when the server restart fails', async () => {
+    const endpoint = 'https://mcp.example/mcp'
+    const issuer = 'https://auth.example/'
+    const binding = {
+      ...serverIdentity,
+      endpoint,
+      authorizationServerIssuer: issuer,
+      protectedResourceUrl: endpoint,
+      clientId: 'machine-client'
+    }
+    const config = {
+      type: 'http' as const,
+      baseUrl: endpoint,
+      authorization: {
+        mode: 'client_credentials' as const,
+        authorizationServerIssuer: issuer,
+        protectedResourceUrl: endpoint,
+        clientId: 'machine-client'
+      },
+      ...serverIdentity
+    }
+    const store = createStore(null)
+    vi.mocked(store.loadClientSecret).mockReturnValue({
+      secret: 'client-secret',
+      binding,
+      updatedAt: 1
+    })
+    vi.mocked(store.getCredentialRecordStatus).mockReturnValue({
+      configured: true,
+      updatedAt: 1
+    })
+    discoverOAuthServerInfoMock.mockResolvedValue({
+      authorizationServerUrl: issuer,
+      authorizationServerMetadata: {
+        issuer,
+        token_endpoint_auth_methods_supported: ['client_secret_basic']
+      },
+      resourceMetadata: { resource: endpoint }
+    })
+    authMock.mockResolvedValue('AUTHORIZED')
+    const onAuthenticated = vi.fn().mockRejectedValue(new Error('restart failed'))
+    const manager = new McpOAuthManager(store, publishDeepchatEventMock, onAuthenticated)
+
+    const status = await manager.startAuth('example', config)
+
+    expect(onAuthenticated).toHaveBeenCalledWith('example')
+    expect(status).toMatchObject({
+      state: 'authenticated',
+      authenticated: true
+    })
   })
 
   it('fails closed before selecting a private-key provider with incompatible discovery', async () => {

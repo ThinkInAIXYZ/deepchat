@@ -43,13 +43,13 @@ export type McpAppSandboxInstance = {
   advisoryDomain?: string
   expiresAt: number
   toolAccessSuspended: boolean
-  browserPermissionGrants: Set<McpAppConsentKind>
 }
 
 type PendingConsent = {
   requestId: string
   instanceId: string
   webContentsId: number
+  windowId: number
   kind: McpAppConsentKind
   dedupeKey: string
   promise: Promise<boolean>
@@ -187,8 +187,7 @@ export class McpAppSandboxRegistry {
       prefersBorder: input.prefersBorder,
       advisoryDomain: input.advisoryDomain,
       expiresAt: Date.now() + DEFAULT_INSTANCE_TTL_MS,
-      toolAccessSuspended: false,
-      browserPermissionGrants: new Set()
+      toolAccessSuspended: false
     }
     this.instances.set(instanceId, instance)
     this.liveValidators.set(instanceId, input.validateLive)
@@ -321,6 +320,7 @@ export class McpAppSandboxRegistry {
       requestId,
       instanceId: instance.instanceId,
       webContentsId: instance.webContentsId,
+      windowId: instance.windowId,
       kind: input.kind,
       dedupeKey,
       promise,
@@ -353,7 +353,11 @@ export class McpAppSandboxRegistry {
 
   submitConsent(requestId: string, approved: boolean, context: McpAppRouteContext): boolean {
     const pending = this.pendingConsents.get(requestId)
-    if (!pending || pending.webContentsId !== context.webContentsId) {
+    if (
+      !pending ||
+      pending.webContentsId !== context.webContentsId ||
+      pending.windowId !== context.windowId
+    ) {
       return false
     }
     if (approved) {
@@ -362,9 +366,6 @@ export class McpAppSandboxRegistry {
         pending.resolve(false)
         this.deletePendingConsent(requestId)
         return false
-      }
-      if (hasDeclaredPermission(instance.permissions, pending.kind)) {
-        instance.browserPermissionGrants.add(pending.kind)
       }
     }
     pending.resolve(approved)
@@ -418,21 +419,14 @@ export class McpAppSandboxRegistry {
         callback(false)
         return
       }
-      if (kinds.every((kind) => instance.browserPermissionGrants.has(kind))) {
-        callback(true)
-        return
-      }
-
       void Promise.all(
-        kinds
-          .filter((kind) => !instance.browserPermissionGrants.has(kind))
-          .map((kind) =>
-            this.requestConsent(instance, {
-              kind,
-              title: kind,
-              detail: instance.descriptor.toolName
-            })
-          )
+        kinds.map((kind) =>
+          this.requestConsent(instance, {
+            kind,
+            title: kind,
+            detail: instance.descriptor.toolName
+          })
+        )
       )
         .then((decisions) => callback(decisions.every(Boolean)))
         .catch(() => callback(false))
@@ -453,18 +447,8 @@ export class McpAppSandboxRegistry {
           isFirstPartyRendererUrl(owner?.getURL() ?? requestingOrigin)
         )
       }
-      const instance = this.getForProtocol(instanceId)
-      const kinds = resolvePermissionKinds(
-        permission,
-        details.mediaType ? [String(details.mediaType)] : undefined
-      )
-      return Boolean(
-        owner &&
-        instance &&
-        instance.webContentsId === owner.id &&
-        kinds.length > 0 &&
-        kinds.every((kind) => instance.browserPermissionGrants.has(kind))
-      )
+      // MCP App browser permissions are request-scoped; there is no standing grant to check.
+      return false
     })
   }
 

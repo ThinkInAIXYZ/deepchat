@@ -16,6 +16,11 @@ export type AssistantRenderItem =
       reasoningCount: number
       toolCallCount: number
     }
+  | {
+      kind: 'mcp-app'
+      key: string
+      block: DisplayAssistantMessageBlock
+    }
 
 export type BuildAssistantRenderItemsOptions = {
   blocks: DisplayAssistantMessageBlock[]
@@ -139,6 +144,15 @@ export const buildAssistantRenderItems = ({
     const group = buildActivityGroupItem(messageId, messageUpdatedAt, activityBuffer)
     if (group) {
       items.push(group)
+    }
+    for (const { block, index } of activityBuffer) {
+      if (block.type === 'tool_call' && block.tool_call?.mcpResult?.app) {
+        items.push({
+          kind: 'mcp-app',
+          key: buildBlockKey(block, messageId, index),
+          block
+        })
+      }
     }
     activityBuffer = []
   }

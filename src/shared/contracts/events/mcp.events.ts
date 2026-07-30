@@ -40,6 +40,9 @@ const McpSamplingRequestSchema: z.ZodType<McpSamplingRequestPayload> = z
     requestId: z.string().min(1).max(256),
     serverName: z.string().min(1).max(256),
     serverLabel: z.string().max(512).optional(),
+    serverId: z.string().min(1).max(256).optional(),
+    configGeneration: z.number().int().positive().optional(),
+    bindingHash: z.string().min(1).max(256).optional(),
     systemPrompt: z
       .string()
       .max(1024 * 1024)

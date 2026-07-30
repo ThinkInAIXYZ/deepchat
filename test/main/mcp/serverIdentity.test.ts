@@ -59,6 +59,21 @@ describe('MCP server identity', () => {
     expect(identity.bindingHash).not.toBe(computeMcpBindingHash(current))
   })
 
+  it('hashes equivalent configuration independently of object insertion order', () => {
+    const first = {
+      type: 'stdio' as const,
+      command: 'node',
+      env: { Z_VAR: 'last', A_VAR: 'first' }
+    }
+    const second = {
+      command: 'node',
+      env: { A_VAR: 'first', Z_VAR: 'last' },
+      type: 'stdio' as const
+    }
+
+    expect(computeMcpBindingHash(first)).toBe(computeMcpBindingHash(second))
+  })
+
   it('canonicalizes authorization binding material without retaining dead fields', () => {
     expect(
       sanitizeMcpAuthorizationConfig({

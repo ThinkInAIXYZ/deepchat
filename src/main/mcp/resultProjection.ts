@@ -71,8 +71,7 @@ const cloneBoundedJson = (value: unknown, state: BoundedCloneState, depth = 0): 
 const cloneContentForPersistence = (
   content: MCPContentItem[],
   state: BoundedCloneState
-): { content: MCPContentItem[]; binaryContentOmitted: boolean } => {
-  let binaryContentOmitted = false
+): MCPContentItem[] => {
   const durable: MCPContentItem[] = []
 
   for (const item of content) {
@@ -82,7 +81,7 @@ const cloneContentForPersistence = (
     }
   }
 
-  return { content: durable, binaryContentOmitted }
+  return durable
 }
 
 const readUiMeta = (tool: Tool): Record<string, unknown> | undefined => {
@@ -168,7 +167,8 @@ export const createPersistedMcpToolResult = (input: {
   }
 
   const contentState: BoundedCloneState = { keys: 0, truncated: false }
-  const contentResult = cloneContentForPersistence(result.content ?? [], contentState)
+  const content = cloneContentForPersistence(result.content ?? [], contentState)
+  let binaryContentOmitted = false
   const structuredState: BoundedCloneState = { keys: 0, truncated: false }
   const structuredContent =
     result.structuredContent === undefined
@@ -188,7 +188,7 @@ export const createPersistedMcpToolResult = (input: {
     bindingHash: config.bindingHash,
     toolName: tool.name,
     ...(result.isError ? { isError: true } : {}),
-    ...(contentResult.content.length > 0 ? { content: contentResult.content } : {}),
+    ...(content.length > 0 ? { content } : {}),
     ...(structuredContent !== undefined ? { structuredContent } : {}),
     ...(meta ? { meta } : {}),
     ...(app ? { app } : {})
@@ -198,11 +198,11 @@ export const createPersistedMcpToolResult = (input: {
     const withoutBinary: MCPContentItem[] = []
     for (const item of durable.content) {
       if (item.type === 'image' || item.type === 'audio') {
-        contentResult.binaryContentOmitted = true
+        binaryContentOmitted = true
         continue
       }
       if (item.type === 'resource' && 'blob' in item.resource && item.resource.blob) {
-        contentResult.binaryContentOmitted = true
+        binaryContentOmitted = true
         const resource = { ...item.resource }
         delete resource.blob
         withoutBinary.push({ ...item, resource })
@@ -229,7 +229,7 @@ export const createPersistedMcpToolResult = (input: {
     ...(contentState.truncated ? { content: true } : {}),
     ...(structuredState.truncated ? { structuredContent: true } : {}),
     ...(metaState.truncated ? { meta: true } : {}),
-    ...(contentResult.binaryContentOmitted ? { binaryContentOmitted: true } : {})
+    ...(binaryContentOmitted ? { binaryContentOmitted: true } : {})
   }
   if (Object.keys(truncated).length > 0) {
     durable.truncated = truncated

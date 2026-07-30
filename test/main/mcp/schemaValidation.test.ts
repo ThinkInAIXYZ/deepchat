@@ -54,6 +54,20 @@ describe('MCP schema validation', () => {
     ).toThrow('unsupported JSON Schema dialect')
   })
 
+  it('accepts the draft-07 HTTP dialect without a fragment', () => {
+    expect(
+      validateAndCloneJsonSchema(
+        {
+          $schema: 'http://json-schema.org/draft-07/schema',
+          type: 'object'
+        },
+        'tool input'
+      )
+    ).toMatchObject({
+      $schema: 'http://json-schema.org/draft-07/schema'
+    })
+  })
+
   it('rejects cyclic and excessively composed JSON before crossing host boundaries', () => {
     const cyclic: Record<string, unknown> = {}
     cyclic.self = cyclic
@@ -87,5 +101,25 @@ describe('MCP schema validation', () => {
     expect(cloned).toEqual(tool)
     expect(cloned.inputSchema).not.toBe(tool.inputSchema)
     expect(cloned._meta).not.toBe(tool._meta)
+  })
+
+  it('clones explicit undefined values with JSON serialization semantics', () => {
+    const cloned = validateAndCloneMcpTool(
+      {
+        name: 'inspect',
+        inputSchema: {
+          type: 'object',
+          optional: undefined
+        },
+        _meta: {
+          optional: undefined,
+          values: ['kept', undefined]
+        }
+      },
+      'fixture'
+    )
+
+    expect(cloned.inputSchema).toEqual({ type: 'object' })
+    expect(cloned._meta).toEqual({ values: ['kept', null] })
   })
 })

@@ -1,6 +1,7 @@
 <template>
   <div class="flex flex-col w-full">
     <button
+      v-if="renderMode !== 'app-only'"
       type="button"
       data-testid="tool-call-trigger"
       class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-left text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none overflow-hidden bg-accent hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -57,6 +58,7 @@
     </button>
 
     <div
+      v-if="renderMode !== 'app-only'"
       class="grid w-full overflow-hidden transition-[grid-template-rows,opacity,margin-top,margin-bottom] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
       :class="
         isExpanded
@@ -203,7 +205,14 @@
     </div>
 
     <McpAppView
-      v-if="mcpAppDescriptor && mcpAppResult && appConversationId && appMessageId && appBlockId"
+      v-if="
+        renderMode !== 'tool-only' &&
+        mcpAppDescriptor &&
+        mcpAppResult &&
+        appConversationId &&
+        appMessageId &&
+        appBlockId
+      "
       :descriptor="mcpAppDescriptor"
       :result="mcpAppResult"
       :conversation-id="appConversationId"
@@ -239,6 +248,7 @@ const props = defineProps<{
   block: DisplayAssistantMessageBlock
   messageId?: string
   threadId?: string
+  renderMode?: 'full' | 'tool-only' | 'app-only'
 }>()
 
 type ExpansionSource = 'auto' | 'manual' | null

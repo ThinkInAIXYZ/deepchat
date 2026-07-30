@@ -109,6 +109,23 @@ describeIfSqlite('DeepChatAssistantBlocksTable MCP App source binding', () => {
     db.close()
   })
 
+  it('uses the tool call ID when the persisted block has no block ID', () => {
+    const { db, table } = createTable()
+    const block = createBlock()
+    delete block.id
+    table.replaceForMessage('message-1', [block])
+    const toolInput = { series: [1, 2, 3] }
+
+    expect(table.matchesMcpAppSource('message-1', 'call-1', descriptor, toolInput)).toBe(true)
+    expect(
+      table.updateMcpAppModelContext('message-1', 'call-1', descriptor, toolInput, {
+        approvedHash: 'approved'
+      })
+    ).toBe(true)
+
+    db.close()
+  })
+
   it('updates model context only for the exact persisted source', () => {
     const { db, table } = createTable()
     table.replaceForMessage('message-1', [createBlock()])

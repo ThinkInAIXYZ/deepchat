@@ -74,7 +74,7 @@ const canonicalize = (value: unknown, state: CanonicalizeState, depth = 0): unkn
     state.seen.add(value)
     const output = Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => left.localeCompare(right))
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
         .map(([key, entry]) => {
           state.keys += 1
           if (state.keys > MAX_ARGUMENT_KEYS) {

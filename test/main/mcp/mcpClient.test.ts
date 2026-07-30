@@ -913,6 +913,35 @@ describe('McpClient Runtime Command Processing Tests', () => {
     })
   })
 
+  describe('Elicitation support', () => {
+    it('reports malformed URLs as invalid protocol parameters', async () => {
+      const client = createMcpClient('server-one', {
+        type: 'stdio'
+      }) as unknown as {
+        handleElicitationCreate(request: unknown, context: unknown): Promise<unknown>
+      }
+
+      await expect(
+        client.handleElicitationCreate(
+          {
+            params: {
+              mode: 'url',
+              message: 'Open the authorization page',
+              url: 'not-an-absolute-url'
+            }
+          },
+          {
+            mcpReq: {
+              signal: new AbortController().signal
+            }
+          }
+        )
+      ).rejects.toMatchObject({
+        code: ProtocolErrorCode.InvalidParams
+      })
+    })
+  })
+
   describe('Sampling support', () => {
     it('should prepare sampling payload and chat messages from request params', () => {
       const client = createMcpClient('server-one', {

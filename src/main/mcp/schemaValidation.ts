@@ -10,6 +10,7 @@ const MAX_COMPOSITION_BRANCHES = 256
 const SUPPORTED_JSON_SCHEMA_DIALECTS = new Set([
   'https://json-schema.org/draft/2020-12/schema',
   'https://json-schema.org/draft/2020-12/schema#',
+  'http://json-schema.org/draft-07/schema',
   'http://json-schema.org/draft-07/schema#',
   'https://json-schema.org/draft-07/schema',
   'https://json-schema.org/draft-07/schema#'
@@ -58,7 +59,9 @@ function cloneBoundedJson(value: unknown, label: string, limits: CloneLimits): u
         throw new Error(`${label} contains a circular reference at ${path}`)
       }
       state.seen.add(current)
-      const cloned = current.map((entry, index) => visit(entry, depth + 1, `${path}/${index}`))
+      const cloned = current.map((entry, index) =>
+        entry === undefined ? null : visit(entry, depth + 1, `${path}/${index}`)
+      )
       state.seen.delete(current)
       return cloned
     }
@@ -72,7 +75,7 @@ function cloneBoundedJson(value: unknown, label: string, limits: CloneLimits): u
     }
     state.seen.add(current)
 
-    const entries = Object.entries(current)
+    const entries = Object.entries(current).filter(([, entry]) => entry !== undefined)
     state.keys += entries.length
     if (state.keys > MAX_JSON_KEYS) {
       throw new Error(`${label} exceeds the maximum JSON key count`)

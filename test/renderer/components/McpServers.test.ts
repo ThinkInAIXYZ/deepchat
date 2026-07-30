@@ -37,12 +37,15 @@ const serverCardStub = defineComponent({
       required: true
     }
   },
-  emits: ['toggle', 'authenticate', 'remove'],
+  emits: ['toggle', 'authenticate', 'remove', 'diagnostics'],
   template: `
     <div>
       <button data-testid="server-card" @click="$emit('toggle')">{{ server.name }}:{{ server.enabled }}</button>
       <button data-testid="authenticate-server" @click="$emit('authenticate')">auth</button>
       <button data-testid="remove-server" @click="$emit('remove')">remove</button>
+      <button data-testid="diagnostics-server" @click="$emit('diagnostics')">
+        {{ server.name }} diagnostics
+      </button>
     </div>
   `
 })
@@ -88,6 +91,27 @@ type SetupOptions = {
     mcpServers?: Record<string, Record<string, unknown>>
   }
 }
+
+const createDiagnostics = (serverId: string) => ({
+  serverId,
+  serverName: 'fixture',
+  owner: 'deepchat' as const,
+  transport: 'http' as const,
+  connectionState: 'running' as const,
+  era: 'modern' as const,
+  protocolVersion: '2025-06-18',
+  probe: {
+    outcome: 'modern' as const
+  },
+  extensions: [],
+  clientExtensions: [],
+  cacheState: 'active' as const,
+  subscriptions: [],
+  auth: {
+    state: 'none' as const
+  },
+  updatedAt: 1
+})
 
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
@@ -180,6 +204,17 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('vue-router', () => ({
     useRouter: () => router
   }))
+  const getServerDiagnostics = vi.fn()
+  vi.doMock('@api/McpClient', () => ({
+    createMcpClient: () => ({
+      getServerDiagnostics
+    })
+  }))
+  vi.doMock('@api/DeviceClient', () => ({
+    createDeviceClient: () => ({
+      copyText: vi.fn()
+    })
+  }))
 
   const McpServers = (await import('@/components/mcp-config/components/McpServers.vue')).default
 
@@ -213,7 +248,8 @@ const setup = async (options: SetupOptions = {}) => {
     wrapper,
     router,
     mcpStore,
-    notifyRenderer
+    notifyRenderer,
+    getServerDiagnostics
   }
 }
 
@@ -241,6 +277,38 @@ describe('McpServers', () => {
 
     expect(wrapper.text()).toContain('mcp.tools.refresh')
     expect(wrapper.text()).not.toContain('common.refresh')
+  })
+
+  it('ignores diagnostics responses from a previously selected server', async () => {
+    const { wrapper, getServerDiagnostics } = await setup({ withServers: true })
+    let resolveRunning!: (value: ReturnType<typeof createDiagnostics>) => void
+    let resolveStopped!: (value: ReturnType<typeof createDiagnostics>) => void
+    getServerDiagnostics.mockImplementation(
+      (serverName: string) =>
+        new Promise<ReturnType<typeof createDiagnostics>>((resolve) => {
+          if (serverName === 'running-server') {
+            resolveRunning = resolve
+          } else {
+            resolveStopped = resolve
+          }
+        })
+    )
+
+    const diagnosticButtons = wrapper.findAll('[data-testid="diagnostics-server"]')
+    await diagnosticButtons[0].trigger('click')
+    await diagnosticButtons[1].trigger('click')
+
+    resolveStopped(createDiagnostics('stopped-id'))
+    await flushPromises()
+    expect(
+      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
+    ).toBe('stopped-id')
+
+    resolveRunning(createDiagnostics('running-id'))
+    await flushPromises()
+    expect(
+      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
+    ).toBe('stopped-id')
   })
 
   it('keeps duplicate add feedback inline until the server name changes', async () => {
@@ -432,7 +500,12 @@ describe('McpServers', () => {
     await confirmButton?.trigger('click')
 
     expect(mcpStore.removeServer).toHaveBeenCalledWith('running-server')
-    expect(removeDialog?.attributes('data-open')).toBe('false')
+    expect(
+      wrapper
+        .findAll('[data-testid="dialog"]')
+        .find((dialog) => dialog.text().includes('settings.mcp.removeServerDialog.title'))
+        ?.attributes('data-open')
+    ).toBe('false')
 
     resolveRemoval(true)
     await flushPromises()

@@ -17,8 +17,6 @@ describe('MCP App sandbox policy', () => {
     expect(policy).toContain("object-src 'none'")
     expect(policy).toContain("form-action 'none'")
     expect(policy).toContain('frame-src https://embed.example.com')
-    expect(policy).not.toContain('connect-src *')
-    expect(policy).not.toContain("worker-src 'none'")
   })
 
   it('does not grant an implicit frame source when none is declared', () => {

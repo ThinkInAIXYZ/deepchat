@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
 const passthrough = (name: string, tag = 'div') =>
   defineComponent({
@@ -44,6 +44,15 @@ const checkboxStub = defineComponent({
   emits: ['update:checked'],
   template:
     '<input type="checkbox" data-testid="checkbox" :checked="checked" :disabled="disabled" @click="$emit(\'update:checked\', !checked)" />'
+})
+
+const selectStub = defineComponent({
+  name: 'Select',
+  props: {
+    modelValue: { type: String, default: '' }
+  },
+  emits: ['update:modelValue'],
+  template: '<div><slot /></div>'
 })
 
 const loadMcpServerForm = async () => {
@@ -95,7 +104,7 @@ const globalStubs = {
   Label: passthrough('Label', 'label'),
   Textarea: textareaStub,
   ScrollArea: passthrough('ScrollArea'),
-  Select: passthrough('Select'),
+  Select: selectStub,
   SelectContent: passthrough('SelectContent'),
   SelectItem: passthrough('SelectItem'),
   SelectTrigger: passthrough('SelectTrigger'),
@@ -194,5 +203,49 @@ describe('McpServerForm', () => {
     expect(wrapper.find('#json-config-error').exists()).toBe(false)
     expect(wrapper.find('#server-name').exists()).toBe(true)
     consoleError.mockRestore()
+  })
+
+  it('accepts IPv6 loopback URLs and validates credentials for the selected mode', async () => {
+    const McpServerForm = await loadMcpServerForm()
+    const wrapper = mount(McpServerForm, {
+      props: {
+        serverName: 'loopback-server',
+        editMode: true,
+        initialConfig: {
+          type: 'http',
+          command: '',
+          args: [],
+          env: {},
+          descriptions: '',
+          icons: '',
+          enabled: true,
+          baseUrl: 'http://[::1]:3000/mcp',
+          authorization: {
+            mode: 'client_credentials',
+            protectedResourceUrl: 'http://[::1]:3000/mcp',
+            authorizationServerIssuer: 'http://[::1]:3001',
+            clientId: 'machine-client'
+          }
+        }
+      },
+      global: {
+        stubs: globalStubs
+      }
+    })
+    await flushPromises()
+
+    await wrapper.get('#credential-input').setValue('client-secret')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+    await wrapper.find('form').trigger('submit')
+    expect(wrapper.emitted('submit')?.[0]?.[2]).toEqual({
+      kind: 'client_secret',
+      secret: 'client-secret'
+    })
+
+    const authorizationSelect = wrapper.findAllComponents({ name: 'Select' })[1]
+    authorizationSelect.vm.$emit('update:modelValue', 'private_key_jwt')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
   })
 })

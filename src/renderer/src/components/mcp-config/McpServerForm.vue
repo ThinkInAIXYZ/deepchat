@@ -267,7 +267,7 @@ const isSecureOrLoopbackUrl = (value: string): boolean => {
     const url = new URL(value)
     return (
       url.protocol === 'https:' ||
-      (url.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(url.hostname))
+      (url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
     )
   } catch {
     return false
@@ -291,9 +291,9 @@ const isAuthorizationValid = computed(() => {
   if (authorizationMode.value === 'cross_app_access' && !identityProfileId.value) {
     return false
   }
-  return Boolean(
-    selectedCredentialStatus.value?.configured || credentialSecret.value || privateKey.value
-  )
+  if (selectedCredentialStatus.value?.configured) return true
+  if (authorizationMode.value === 'private_key_jwt') return Boolean(privateKey.value)
+  return Boolean(credentialSecret.value)
 })
 
 // 新增：验证 Key=Value 格式的函数
