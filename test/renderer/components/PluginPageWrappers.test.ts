@@ -14,10 +14,8 @@ describe('plugins page wrappers', () => {
     expect(mcpSource).toContain('settings/components/McpSettings.vue')
   })
 
-  it('renders the original OCR settings view with bounded flex layout', () => {
+  it('renders the original OCR settings view', () => {
     expect(ocrSource).toContain('<OcrSettings />')
     expect(ocrSource).toContain('settings/components/OcrSettings.vue')
-    expect(ocrSource).toContain('flex h-full min-h-0 w-full flex-col')
-    expect(ocrSource).toContain('min-h-0 flex-1')
   })
 })

@@ -128,8 +128,17 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 
 Expose OCR as a built-in capability in the main-window Plugins Hub. Keep the legacy
 `settings-ocr` route registered for direct navigation and persisted settings activity, but hide it
-from the Settings sidebar. The Plugins Hub entry remains visible when the runtime is unavailable so
-users can inspect the reason.
+from the Settings sidebar. The route continues to render the same management component as a
+compatibility surface; the Plugins Hub remains the canonical entry. When an ACP agent is selected,
+Spotlight falls back to that compatibility route because the whole Plugins Hub is gated. The Plugins
+Hub entry remains visible when the runtime is unavailable so users can inspect the reason. Both
+surfaces may coexist in separate windows, but only the visible, focused instance polls runtime
+status.
+
+Runtime-status polling runs only while the owning renderer document is visible and its window is
+focused. Returning to an active surface refreshes status immediately. Catalog refresh failure is
+shown as an unknown status even when a previous snapshot exists; it must not keep presenting a stale
+Available badge.
 
 The OCR management page provides:
 

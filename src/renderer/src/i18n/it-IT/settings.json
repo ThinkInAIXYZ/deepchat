@@ -133,7 +133,7 @@
       "assets_missing": "In questa installazione mancano risorse OCR offline necessarie.",
       "runtime_manifest_invalid": "Il manifesto del runtime OCR integrato non è valido.",
       "service_closed": "Il servizio OCR è in fase di arresto.",
-      "unsupported_platform": "L’OCR non è disponibile per questa piattaforma e architettura nella versione 0.3.4."
+      "unsupported_platform": "L’OCR non è disponibile per questa piattaforma e architettura."
     },
     "processStates": {
       "idle": "Inattivo",

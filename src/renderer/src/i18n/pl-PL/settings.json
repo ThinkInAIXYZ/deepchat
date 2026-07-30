@@ -133,7 +133,7 @@
       "assets_missing": "W tej instalacji brakuje wymaganych zasobów OCR offline.",
       "runtime_manifest_invalid": "Manifest wbudowanego środowiska OCR jest nieprawidłowy.",
       "service_closed": "Usługa OCR jest zamykana.",
-      "unsupported_platform": "OCR nie jest dostępny dla tej platformy i architektury w wersji 0.3.4."
+      "unsupported_platform": "OCR nie jest dostępny dla tej platformy i architektury."
     },
     "processStates": {
       "idle": "Bezczynny",

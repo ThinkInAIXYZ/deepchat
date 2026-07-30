@@ -9,6 +9,10 @@ management, and the existing MCP, Skills and Remote management surfaces. Built-i
 route to their owning modules and do not adopt plugin installation or enablement semantics. ACP
 availability is shown as a boundary state rather than pretending ACP is an installable Plugin.
 
+The hub remains unavailable while an ACP agent is selected. OCR does not run for ACP sessions, but
+its configuration still affects DeepChat agents, so the Spotlight OCR action opens the retained
+`settings-ocr` compatibility route in that state instead of navigating into the blocked hub.
+
 The hub must preserve direct navigation, back/refresh behavior, loading/empty/error states and platform
 availability. Plugin-specific settings render in a Desktop-owned settings window; Plugin code does not create
 its own unmanaged BrowserWindow.
@@ -38,7 +42,9 @@ Renderer routes use typed clients. Official detail pages display install/enable/
 state and surface action errors without exposing filesystem secrets. Virtual cards and pages for
 built-in OCR, MCP, Skills and Remote route to their real owners instead of duplicating
 configuration inside Plugin state. Built-in OCR stays first in the catalog and remains visible when
-its runtime is unavailable.
+its runtime is unavailable. Its catalog snapshot and refresh-error state live in the shared catalog
+store; a failed refresh must not leave a stale Available badge visible or fail the rest of the
+catalog.
 
 ## Validation
 

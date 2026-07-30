@@ -133,7 +133,7 @@
       "assets_missing": "Bu kurulumda gerekli çevrimdışı OCR varlıkları eksik.",
       "runtime_manifest_invalid": "Yerleşik OCR çalışma zamanı bildirimi geçersiz.",
       "service_closed": "OCR hizmeti kapatılıyor.",
-      "unsupported_platform": "OCR, 0.3.4 sürümünde bu platform ve mimari için kullanılamıyor."
+      "unsupported_platform": "OCR bu platform ve mimari için kullanılamıyor."
     },
     "processStates": {
       "idle": "Boşta",

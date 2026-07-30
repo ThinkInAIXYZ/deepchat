@@ -2624,7 +2624,7 @@
       "assets_missing": "Nødvendige offline OCR-aktiver mangler i denne installation.",
       "runtime_manifest_invalid": "Manifestet for den indbyggede OCR-runtime er ugyldigt.",
       "service_closed": "OCR-tjenesten lukker ned.",
-      "unsupported_platform": "OCR er ikke tilgængelig for denne platform og arkitektur i version 0.3.4."
+      "unsupported_platform": "OCR er ikke tilgængelig for denne platform og arkitektur."
     },
     "processStates": {
       "idle": "Inaktiv",

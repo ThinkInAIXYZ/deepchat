@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0 w-full flex-col">
-    <div class="shrink-0 px-4 pt-4">
+    <div class="mx-auto w-full max-w-7xl shrink-0 px-4 pt-4 lg:px-6">
       <Button variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
         <Icon icon="lucide:arrow-left" class="mr-2 size-4" />
         {{ t('common.back') }}

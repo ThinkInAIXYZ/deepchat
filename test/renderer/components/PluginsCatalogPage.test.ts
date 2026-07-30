@@ -267,6 +267,24 @@ describe('PluginsCatalogPage', () => {
     warn.mockRestore()
   })
 
+  it('marks a cached OCR status as stale when refresh fails', async () => {
+    const { wrapper, ocrClient } = await mountCatalog()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const ocrCard = wrapper.findAll('article')[0]
+
+    expect(ocrCard.text()).toContain('Available')
+    ocrClient.getRuntimeStatus.mockRejectedValueOnce(new Error('OCR refresh unavailable'))
+
+    await (wrapper.vm as any).loadCatalog()
+    await flushPromises()
+
+    expect(ocrCard.text()).toContain('OCR status could not be loaded.')
+    expect(ocrCard.text()).not.toContain('Available')
+    expect(ocrCard.findAll('span.rounded-full')).toHaveLength(1)
+    expect(wrapper.find('.text-destructive').exists()).toBe(false)
+    warn.mockRestore()
+  })
+
   it('keeps the current remote catalog when the IPC refresh fails', async () => {
     const { wrapper, remoteControlClient } = await mountCatalog()
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)

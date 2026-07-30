@@ -477,6 +477,13 @@ export const useSpotlightStore = defineStore('spotlight', () => {
         await router.push({ name: 'plugins-mcp' })
         return
       case 'open-ocr':
+        if (
+          agentStore.selectedAgent &&
+          (agentStore.selectedAgent.agentType ?? agentStore.selectedAgent.type) === 'acp'
+        ) {
+          await navigateToSettings('settings-ocr')
+          return
+        }
         await router.push({ name: 'plugins-builtin-ocr' })
         return
       case 'open-remote':

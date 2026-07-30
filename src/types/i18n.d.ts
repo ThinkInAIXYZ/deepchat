@@ -3911,6 +3911,7 @@ declare module 'vue-i18n' {
       available: string
       add: string
       manage: string
+      builtinCapability: string
       emptySearch: string
       pluginNotFound: string
       actionResult: string

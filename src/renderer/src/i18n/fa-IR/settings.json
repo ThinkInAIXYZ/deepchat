@@ -2624,7 +2624,7 @@
       "assets_missing": "دارایی‌های آفلاین موردنیاز OCR در این نصب وجود ندارند.",
       "runtime_manifest_invalid": "مانیفست محیط اجرای OCR داخلی نامعتبر است.",
       "service_closed": "سرویس OCR در حال خاموش‌شدن است.",
-      "unsupported_platform": "OCR در نسخهٔ 0.3.4 برای این پلتفرم و معماری در دسترس نیست."
+      "unsupported_platform": "OCR برای این پلتفرم و معماری در دسترس نیست."
     },
     "processStates": {
       "idle": "بیکار",

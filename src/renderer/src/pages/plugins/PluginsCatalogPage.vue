@@ -52,12 +52,12 @@
                   v-if="item.badge"
                   class="shrink-0 rounded-full border px-2 py-0.5 text-[11px]"
                   :class="
-                    item.badgeVariant === 'success'
+                    item.badge.variant === 'success'
                       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                       : 'border-border text-muted-foreground'
                   "
                 >
-                  {{ item.badge }}
+                  {{ item.badge.text }}
                 </span>
               </div>
               <p class="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
@@ -98,18 +98,21 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import { createOcrClient } from '@api/OcrClient'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
-import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
 import { CUA_PLUGIN_ID, type PluginActionResult, type PluginListItem } from '@shared/types/plugin'
 import type { RemoteChannel } from '@shared/types/remote'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
+
+type CatalogBadge = {
+  text: string
+  variant: 'success' | 'neutral'
+}
 
 type CatalogItemBase = {
   id: string
   title: string
   description: string
   typeBadge?: string
-  badge?: string
-  badgeVariant: 'success' | 'neutral'
+  badge?: CatalogBadge
   icon: string
   iconClass?: string
   actionLabel: string
@@ -166,13 +169,12 @@ const ocrClient = createOcrClient()
 const pluginClient = createPluginClient()
 const remoteControlClient = createRemoteControlClient()
 const pluginCatalogStore = usePluginCatalogStore()
-const { plugins, remoteChannels, remoteStatuses } = storeToRefs(pluginCatalogStore)
+const { plugins, remoteChannels, remoteStatuses, ocrStatus, ocrStatusHasError } =
+  storeToRefs(pluginCatalogStore)
 
 const loading = ref(false)
 const errorMessage = ref('')
 const pendingItemId = ref<string | null>(null)
-const ocrStatus = ref<OcrRuntimeStatus | null>(null)
-const ocrStatusLoadFailed = ref(false)
 
 const isPending = (itemId: string) => pendingItemId.value === itemId
 const pluginTitle = (plugin: PluginListItem): string =>
@@ -195,19 +197,22 @@ const catalogItems = computed<CatalogItem[]>(() => {
     id: 'builtin:ocr',
     kind: 'builtin',
     title: t('routes.settings-ocr'),
-    description:
-      ocrAvailability?.status === 'unavailable'
+    description: ocrStatusHasError.value
+      ? t('settings.ocr.statusLoadFailed')
+      : ocrAvailability?.status === 'unavailable'
         ? t(`settings.ocr.unavailableReasons.${ocrAvailability.reason}`)
-        : ocrStatusLoadFailed.value
-          ? t('settings.ocr.statusLoadFailed')
-          : t('settings.ocr.description'),
+        : t('settings.ocr.description'),
     typeBadge: t('settings.pluginsHub.builtinCapability'),
-    badge: ocrAvailability
-      ? ocrAvailability.status === 'available'
-        ? t('settings.ocr.available')
-        : t('settings.ocr.unavailable')
-      : undefined,
-    badgeVariant: ocrAvailability?.status === 'available' ? 'success' : 'neutral',
+    badge:
+      !ocrStatusHasError.value && ocrAvailability
+        ? {
+            text:
+              ocrAvailability.status === 'available'
+                ? t('settings.ocr.available')
+                : t('settings.ocr.unavailable'),
+            variant: ocrAvailability.status === 'available' ? 'success' : 'neutral'
+          }
+        : undefined,
     icon: 'lucide:scan-text',
     actionLabel: t('settings.pluginsHub.manage')
   }
@@ -221,8 +226,12 @@ const catalogItems = computed<CatalogItem[]>(() => {
       enabled,
       title: pluginTitle(plugin),
       description: pluginDescription(plugin),
-      badge: enabled ? t('settings.plugins.status.enabled') : t('settings.plugins.status.disabled'),
-      badgeVariant: enabled ? 'success' : 'neutral',
+      badge: {
+        text: enabled
+          ? t('settings.plugins.status.enabled')
+          : t('settings.plugins.status.disabled'),
+        variant: enabled ? 'success' : 'neutral'
+      },
       icon: pluginIcon(plugin),
       iconClass: isFeishuOfficialPlugin(plugin) ? remoteIconClassByChannel.feishu : undefined,
       actionLabel: enabled ? t('settings.pluginsHub.manage') : t('settings.pluginsHub.add')
@@ -241,10 +250,12 @@ const catalogItems = computed<CatalogItem[]>(() => {
         enabled,
         title: t(channel.titleKey),
         description: t(channel.descriptionKey),
-        badge: enabled
-          ? t('settings.plugins.status.enabled')
-          : t('settings.plugins.status.disabled'),
-        badgeVariant: enabled ? 'success' : 'neutral',
+        badge: {
+          text: enabled
+            ? t('settings.plugins.status.enabled')
+            : t('settings.plugins.status.disabled'),
+          variant: enabled ? 'success' : 'neutral'
+        },
         icon: remoteIconByChannel[channel.id],
         iconClass: remoteIconClassByChannel[channel.id],
         actionLabel: enabled ? t('settings.pluginsHub.manage') : t('settings.pluginsHub.add')
@@ -294,13 +305,12 @@ async function loadRemoteCatalog(): Promise<void> {
 }
 
 async function loadOcrCatalog(): Promise<void> {
+  const version = pluginCatalogStore.beginOcrRefresh()
   try {
-    ocrStatus.value = await ocrClient.getRuntimeStatus()
-    ocrStatusLoadFailed.value = false
+    const status = await ocrClient.getRuntimeStatus()
+    pluginCatalogStore.replaceOcrStatus(status, version)
   } catch (error) {
-    if (!ocrStatus.value) {
-      ocrStatusLoadFailed.value = true
-    }
+    pluginCatalogStore.markOcrStatusRefreshFailed(version)
     console.warn('[PluginsCatalogPage] Failed to load OCR status:', error)
   }
 }

@@ -2624,7 +2624,7 @@
       "assets_missing": "이 설치에 필요한 오프라인 OCR 자산이 없습니다.",
       "runtime_manifest_invalid": "내장 OCR 런타임 매니페스트가 올바르지 않습니다.",
       "service_closed": "OCR 서비스를 종료하는 중입니다.",
-      "unsupported_platform": "버전 0.3.4에서는 이 플랫폼과 아키텍처에서 OCR을 사용할 수 없습니다."
+      "unsupported_platform": "이 플랫폼과 아키텍처에서는 OCR을 사용할 수 없습니다."
     },
     "processStates": {
       "idle": "유휴",

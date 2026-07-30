@@ -133,7 +133,7 @@
       "assets_missing": "Faltan recursos OCR sin conexión necesarios en esta instalación.",
       "runtime_manifest_invalid": "El manifiesto del entorno OCR incluido no es válido.",
       "service_closed": "El servicio OCR se está cerrando.",
-      "unsupported_platform": "OCR no está disponible para esta plataforma y arquitectura en la versión 0.3.4."
+      "unsupported_platform": "OCR no está disponible para esta plataforma y arquitectura."
     },
     "processStates": {
       "idle": "Inactivo",

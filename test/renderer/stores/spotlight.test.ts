@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from 'vitest'
 const setupStore = async (options?: {
   hasActiveSession?: boolean
   historyHits?: Array<Record<string, unknown>>
+  selectedAgent?: {
+    type: 'deepchat' | 'acp'
+    agentType?: 'deepchat' | 'acp'
+  }
 }) => {
   vi.resetModules()
 
@@ -42,6 +46,7 @@ const setupStore = async (options?: {
   })
   const agentStore = reactive({
     enabledAgents: [],
+    selectedAgent: options?.selectedAgent,
     setSelectedAgent: vi.fn()
   })
   const pageRouterStore = reactive({
@@ -248,7 +253,7 @@ describe('spotlightStore new-chat action', () => {
   })
 
   it('keeps OCR searchable after moving its management page to the plugins hub', async () => {
-    const { store, router } = await setupStore()
+    const { store, router, settingsClient } = await setupStore()
 
     store.setOpen(true)
     store.setQuery('文字识别')
@@ -265,6 +270,27 @@ describe('spotlightStore new-chat action', () => {
     await store.executeItem(ocrAction)
 
     expect(router.push).toHaveBeenCalledWith({ name: 'plugins-builtin-ocr' })
+    expect(settingsClient.openSettings).not.toHaveBeenCalled()
+  })
+
+  it('opens the compatible OCR settings route when an ACP agent blocks the plugins hub', async () => {
+    const { store, router, settingsClient } = await setupStore({
+      selectedAgent: {
+        type: 'acp'
+      }
+    })
+
+    store.setOpen(true)
+    store.setQuery('ocr')
+    await flushPromises()
+
+    const ocrAction = store.results.value.find((item) => item.id === 'action:open-ocr')
+    await store.executeItem(ocrAction)
+
+    expect(settingsClient.openSettings).toHaveBeenCalledWith({
+      routeName: 'settings-ocr'
+    })
+    expect(router.push).not.toHaveBeenCalled()
   })
 
   it('reruns an active query when provider matches change', async () => {
