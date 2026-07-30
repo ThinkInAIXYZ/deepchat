@@ -29,7 +29,7 @@ export default defineConfig({
           name: 'renderer',
           environment: 'jsdom',
           include: ['test/renderer/**/*.{test,spec}.{js,ts}'],
-          setupFiles: ['./test/setup.ts'],
+          setupFiles: ['./test/setup.renderer.ts'],
           globals: true,
           testTimeout: TEST_TIMEOUT_MS,
           hookTimeout: TEST_TIMEOUT_MS,
