@@ -233,15 +233,15 @@ export class AgentPreviewCoordinator {
     this.desiredVisible = true
 
     if (!this.available || !this.overlay) {
-      return 'renderer-canvas'
+      return 'none'
     }
     if (!this.configureToolbar(target.source)) {
       this.disableNative('toolbar_update_failed')
-      return 'renderer-canvas'
+      return 'none'
     }
     if (!this.attachHost(host)) {
       this.disableNative('host_attach_failed')
-      return 'renderer-canvas'
+      return 'none'
     }
     return 'native-overlay'
   }
@@ -263,7 +263,6 @@ export class AgentPreviewCoordinator {
       this.recordPushDuration(performance.now() - startedAt)
       if (!pushed) {
         this.warnFramePush(new Error('pushImage returned false'))
-        this.disableNative('frame_push_failed')
         return false
       }
 
@@ -283,7 +282,6 @@ export class AgentPreviewCoordinator {
     } catch (error) {
       this.recordPushDuration(performance.now() - startedAt)
       this.warnFramePush(error)
-      this.disableNative('frame_push_failed')
       return false
     }
   }

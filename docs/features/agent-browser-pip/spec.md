@@ -9,18 +9,19 @@ size and shows a low-frame-rate, read-only Canvas mirror in PiP. A visible multi
 Fit-desktop emulation remain deferred. Packaged Windows and Linux validation remains open.
 
 On 2026-07-23, the
-[NativeKit 0.6.0 surface migration](../../architecture/nativekit-agent-browser-pip/spec.md) was
+[NativeKit 0.6.3 surface migration](../../architecture/nativekit-agent-browser-pip/spec.md) was
 implemented. That architecture supersedes this document's renderer-owned PiP surface and
-frame-delivery path: supported runtimes use a native, out-of-window draggable panel, while the
-Canvas described here remains the compatibility fallback. This document's page ownership, fixed
-background viewport, read-only preview, panel handoff, and run-scoped dismissal contracts remain
-authoritative.
+frame-delivery path: supported runtimes use a native, out-of-window draggable panel. When the
+native addon is unavailable, Browser opens in the existing side panel instead of selecting the
+Canvas described here. This document's page ownership, fixed background viewport, read-only
+preview, panel handoff, and run-scoped dismissal contracts remain authoritative.
 
 On 2026-07-28, a
 [Computer Use latest-snapshot PiP extension](../computer-use-snapshot-pip/spec.md) was implemented.
 It shares only process-global NativeKit presentation ownership; it does not generalize Browser
 page, capture, panel-handoff, or public feature contracts. Browser keeps **Open in panel** plus
-**Close**, continuous bounded capture, and its existing Canvas compatibility behavior.
+**Close**, continuous bounded native capture, and side-panel handoff when native PiP is
+unavailable.
 
 The referenced screenshot was not available in the current task context, so the interaction and
 layout are specified here while exact visual styling remains provisional.
@@ -45,9 +46,10 @@ is a compatibility defect and must not become part of a new adaptive-surface des
 
 The requested behavior is:
 
-- never open a closed right-side panel merely because an Agent uses YoBrowser;
+- keep a closed right-side panel closed while native PiP is available; open it automatically only
+  when the native PiP capability is unavailable;
 - show the Agent-operated page in the existing Browser panel when that surface is already visible;
-- otherwise show it as a draggable in-chat floating preview;
+- otherwise, when native PiP is available, show it as a draggable native floating preview;
 - make the floating preview read-only while the Agent operates the same live page in a normal-size
   background render host;
 - move the same live page between the background render host and panel without reload or state

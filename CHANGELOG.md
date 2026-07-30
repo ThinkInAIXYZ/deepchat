@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.1.0-beta.9 (2026-07-29)
+- Added Directives to Agent Memory: instructions you write take effect immediately, instructions the model suggests stay as drafts until you approve them, and suppression directives keep a topic out of recalled memory. Clearing memories now keeps your directives
+- Made Agent Memory time-aware: it records when a fact was true, so expired plans and outdated states are no longer recalled as current; corrections and deletions now stick instead of reappearing in the next conversation; and memory maintenance runs incrementally instead of rescanning everything
+- Added fully offline PDF OCR (Light-OCR 0.5.5): multi-page recognition with a per-attachment Auto / Text / OCR switch, page-aware truncation that reports which pages were included, and results cached and reused across history, retry, export and search
+- Added GreenPT and Modelsell as built-in providers, with model lists fetched live from the provider
+- Fixed enabling Computer Use blacking out the desktop on Linux/X11: the driver now starts only when a tool actually needs it, its files are verified before every launch, and a runtime that exits uncleanly is quarantined with Test runtime and Retry runtime controls in Settings
+- Upgraded the bundled Computer Use driver to v0.13.1, and added a read-only picture-in-picture showing the latest snapshot of the app being controlled
+- Made native preview support load only on first use so missing dependencies no longer affect startup: Browser opens in the side panel when native preview is unavailable, Computer Use keeps working without picture-in-picture, and Windows x64 now uses a statically linked runtime to reduce missing-DLL launch failures
+- Fixed model context and output limits being overwritten on refresh, reset, restart and backup restore — GPT-5.6-sol on New API was capped at 16000/4096 instead of 1050000/32000 — and fixed Kimi K3 on New API sending temperature and top_p, which it does not support
+- Replaced the startup window with an animated DeepChat splash
+- Redesigned the Settings overview and usage dashboard: hovering a day in the activity calendar now shows that day's input, output and cache-hit tokens. The usage trend chart and estimated cost figures have been removed
+- Fixed confirming a message deletion doing nothing, and delete failures now show an error instead of failing silently
+- Fixed three Agent Skills issues: importing from another Agent failing with "An object could not be cloned", a failed skill snapshot migration blocking startup, and the skill list flickering when toggling a skill on or off
+- Agent Memory 新增 Directives（长期指令）：自己写的指令立即生效，模型建议的指令先存为草稿、经你确认后才生效，抑制类指令可以让某个话题不再被记忆召回。清空记忆时会保留这些指令
+- Agent Memory 现在理解时间：会记录一条信息在什么时间范围内成立，过期的计划和已失效的状态不再被当作当前事实召回；纠正和删除会真正生效，不会在下一次对话里重新冒出来；记忆整理改为增量进行，不再每次全量扫描
+- 新增完全离线的 PDF OCR（Light-OCR 0.5.5）：支持多页识别，每个附件可单独选择 Auto / 文本 / OCR；超出限制时会明确告知识别到了哪些页面。识别结果会缓存，并在历史、重试、导出和搜索中复用
+- 新增 GreenPT 与 Modelsell 两个内置 Provider，模型列表从服务商动态获取
+- 修复 Linux/X11 下启用 Computer Use 导致桌面黑屏的问题：驱动改为在工具真正需要时才启动，每次启动前校验文件完整性；异常退出的运行时会被隔离，并在设置中提供「测试运行时」和「重试运行时」操作
+- 内置 Computer Use 驱动升级至 v0.13.1，并新增只读画中画，显示被操作应用的最新截图
+- 原生预览能力改为首次使用时才加载，避免依赖缺失影响应用启动：原生预览不可用时 Browser 自动打开侧边栏、Computer Use 不显示画中画但功能照常；Windows x64 改用静态链接运行时，减少缺少 DLL 导致的启动失败
+- 修复模型上下文与输出上限在刷新、重置、重启和备份恢复后被覆盖的问题（New API 下 GPT-5.6-sol 会被限制为 16000/4096 而非 1050000/32000），以及 New API 下 Kimi K3 发送了它并不支持的 temperature 和 top_p
+- 启动窗口更换为带动画的 DeepChat 启动页
+- 重做设置概览页与用量面板：在活跃日历上悬停某一天可查看当天的输入、输出与缓存命中 token。已移除用量趋势图和费用估算
+- 修复点击确认删除消息后没有任何反应的问题，删除失败时也会给出错误提示而不再静默失败
+- 修复 Agent Skills 的三个问题：从其他 Agent 导入时报「An object could not be cloned」、技能快照迁移失败会阻塞启动、开关技能时列表闪烁
+
 ## v1.1.0-beta.8 (2026-07-26)
 - Added fully offline OCR for image attachments (Light-OCR): images are routed to vision or OCR based on the selected model, OCR text is reused across history, retry, edit and compaction, and per-attachment mode, cancellation and cache controls are available in Settings
 - Gave every Agent its own Skills root and catalog, replacing the shared catalog and its sync workflow with explicit import from another Agent or from an external DeepChat data directory

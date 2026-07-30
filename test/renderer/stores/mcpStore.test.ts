@@ -251,9 +251,6 @@ describe('useMcpStore', () => {
         'cua-driver': {
           command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
           args: ['mcp', '--embedded'],
-          env: {
-            CUA_DRIVER_RS_SPAWN_UIA_WORKER: '0'
-          },
           descriptions: 'Computer Use',
           icons: 'plugin',
           autoApprove: [],

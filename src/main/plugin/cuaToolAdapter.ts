@@ -10,6 +10,8 @@ const CUA_ELEMENT_TOKEN_TOOLS = new Set([
   'scroll'
 ])
 
+const CUA_REFUSAL_CODE_PATTERN = /^[a-z][a-z0-9_]{0,127}$/
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -29,9 +31,9 @@ export function normalizeCuaToolArguments(
     return args
   }
 
-  // CUA 0.12.6 declares an optional unconstrained string, but its resolver treats any present
-  // token as authoritative and rejects "". Keep this compatibility shim local to CUA until the
-  // upstream schema rejects empty tokens and provider argument generation stops zero-filling them.
+  // CUA declares an optional unconstrained string, but its resolver treats any present token as
+  // authoritative and rejects "". Keep this compatibility shim local to CUA until the upstream
+  // schema rejects empty tokens and provider argument generation stops zero-filling them.
   const normalized = { ...args }
   delete normalized.element_token
   return normalized
@@ -78,7 +80,7 @@ export function buildCuaWindowStateProjection(
 
   const lines = [
     '## CUA structured handles',
-    'Use only a non-empty element_token from this latest snapshot; element_index remains the fallback.'
+    'Use only handles from this latest snapshot: prefer a non-empty element_token, or use its same-snapshot element_index as the fallback.'
   ]
   if (snapshotId) {
     lines.push(`snapshot_id=${JSON.stringify(snapshotId)}`)
@@ -101,6 +103,19 @@ export function buildCuaWindowStateProjection(
   return lines.join('\n')
 }
 
+export function buildCuaRefusalProjection(structuredContent: unknown): string | undefined {
+  if (!isRecord(structuredContent) || !isRecord(structuredContent.refusal)) {
+    return undefined
+  }
+
+  const code = structuredContent.refusal.code
+  if (typeof code !== 'string' || !CUA_REFUSAL_CODE_PATTERN.test(code)) {
+    return undefined
+  }
+
+  return `## CUA structured refusal\nrefusal.code=${JSON.stringify(code)}`
+}
+
 export function appendCuaStructuredProjection(
   content: string | MCPContentItem[],
   projection: string | undefined
@@ -112,4 +127,19 @@ export function appendCuaStructuredProjection(
     return content ? `${content}\n\n${projection}` : projection
   }
   return [...content, { type: 'text', text: projection }]
+}
+
+export function appendCuaResultProjections(
+  content: string | MCPContentItem[],
+  toolName: string,
+  structuredContent: unknown
+): string | MCPContentItem[] {
+  const withWindowState = appendCuaStructuredProjection(
+    content,
+    buildCuaWindowStateProjection(toolName, structuredContent)
+  )
+  return appendCuaStructuredProjection(
+    withWindowState,
+    buildCuaRefusalProjection(structuredContent)
+  )
 }

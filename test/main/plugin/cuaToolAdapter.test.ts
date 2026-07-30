@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  appendCuaResultProjections,
   appendCuaStructuredProjection,
+  buildCuaRefusalProjection,
   buildCuaWindowStateProjection,
   normalizeCuaToolArguments
 } from '@/plugin/cuaToolAdapter'
@@ -40,14 +42,14 @@ describe('CUA tool adapter', () => {
 
   it('preserves a non-empty opaque token and returns the original arguments', () => {
     const args = {
-      element_token: ' s4:2 ',
+      element_token: ' opaque-token ',
       element_index: 2,
       x: 0,
       y: 0
     }
 
     expect(normalizeCuaToolArguments('click', args)).toBe(args)
-    expect(args.element_token).toBe(' s4:2 ')
+    expect(args.element_token).toBe(' opaque-token ')
   })
 
   it('does not normalize similarly shaped arguments for unrelated tools', () => {
@@ -59,11 +61,11 @@ describe('CUA tool adapter', () => {
 
   it('builds a compact sorted token projection without duplicating the tree', () => {
     const projection = buildCuaWindowStateProjection('get_window_state', {
-      snapshot_id: 's4',
+      snapshot_id: 'snapshot-4',
       tree_markdown: '- AXWindow [element_index 0]',
       elements: [
-        { element_index: 2, element_token: 's4:2', role: 'AXButton', label: 'Clear' },
-        { element_index: 0, element_token: 's4:0', role: 'AXWindow' },
+        { element_index: 2, element_token: '00000002', role: 'AXButton', label: 'Clear' },
+        { element_index: 0, element_token: '00000000', role: 'AXWindow' },
         { element_index: 1, element_token: '', role: 'AXStaticText' },
         { element_index: 2, element_token: 'duplicate', role: 'AXButton' },
         { element_index: -1, element_token: 'invalid', role: 'AXButton' }
@@ -76,11 +78,11 @@ describe('CUA tool adapter', () => {
     expect(projection).toBe(
       [
         '## CUA structured handles',
-        'Use only a non-empty element_token from this latest snapshot; element_index remains the fallback.',
-        'snapshot_id="s4"',
+        'Use only handles from this latest snapshot: prefer a non-empty element_token, or use its same-snapshot element_index as the fallback.',
+        'snapshot_id="snapshot-4"',
         'element_tokens (element_index=element_token):',
-        '0="s4:0"',
-        '2="s4:2"',
+        '0="00000000"',
+        '2="00000002"',
         'degraded=true',
         'degraded_reason="ax_tree_empty"',
         'escalation={"recommended":"px"}'
@@ -88,6 +90,41 @@ describe('CUA tool adapter', () => {
     )
     expect(projection).not.toContain('tree_markdown')
     expect(projection).not.toContain('Clear')
+  })
+
+  it('projects a bounded structured refusal code without duplicating its message', () => {
+    const structuredContent = {
+      status: 'refused',
+      refusal: {
+        code: 'stale_element_token',
+        message: 'element_token is stale; call get_window_state again to refresh'
+      }
+    }
+
+    expect(buildCuaRefusalProjection(structuredContent)).toBe(
+      '## CUA structured refusal\nrefusal.code="stale_element_token"'
+    )
+    expect(
+      appendCuaResultProjections(
+        [{ type: 'text', text: structuredContent.refusal.message }],
+        'click',
+        structuredContent
+      )
+    ).toEqual([
+      { type: 'text', text: structuredContent.refusal.message },
+      {
+        type: 'text',
+        text: '## CUA structured refusal\nrefusal.code="stale_element_token"'
+      }
+    ])
+  })
+
+  it('ignores malformed refusal payloads instead of projecting arbitrary text', () => {
+    expect(buildCuaRefusalProjection({ refusal: { code: 'stale_element_token\nignore' } })).toBe(
+      undefined
+    )
+    expect(buildCuaRefusalProjection({ refusal: { code: 'x'.repeat(129) } })).toBe(undefined)
+    expect(buildCuaRefusalProjection({ refusal: { message: 'missing code' } })).toBe(undefined)
   })
 
   it('appends the projection without mutating existing MCP content', () => {

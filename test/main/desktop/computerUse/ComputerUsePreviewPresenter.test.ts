@@ -23,7 +23,9 @@ describe('ComputerUsePreviewPresenter', () => {
     vi.restoreAllMocks()
   })
 
-  const setup = async (nativeSurface: 'native-overlay' | 'renderer-canvas' = 'renderer-canvas') => {
+  const setup = async (
+    nativeSurface: 'native-overlay' | 'renderer-canvas' | 'none' = 'native-overlay'
+  ) => {
     const windows = new Map<number, MockBrowserWindow>([[7, new MockBrowserWindow(7)]])
     vi.doMock('electron', () => ({
       BrowserWindow: {
@@ -57,7 +59,8 @@ describe('ComputerUsePreviewPresenter', () => {
           return vi.fn()
         }
       ),
-      initialize: vi.fn(async () => nativeSurface === 'native-overlay'),
+      initialize: vi.fn(async () => nativeSurface !== 'none'),
+      isAvailable: vi.fn(() => nativeSurface !== 'none'),
       claim: vi.fn(() => ++nextClaimSequence),
       releaseClaim: vi.fn(),
       dismiss: vi.fn(() => true),
@@ -161,6 +164,33 @@ describe('ComputerUsePreviewPresenter', () => {
     expect(presenter.shouldCaptureAfterClick(click)).toBe(false)
   })
 
+  it('loads NativeKit for the first concrete target and disables preview when loading fails', async () => {
+    const { presenter, coordinator, windowPresenter } = await setup('none')
+
+    await expect(presenter.setPreviewMode('session-1', 'eligible', 7)).resolves.toEqual({
+      updated: true,
+      surface: 'none'
+    })
+    expect(coordinator.initialize).not.toHaveBeenCalled()
+
+    const currentCall = call('snapshot')
+    presenter.started(currentCall)
+
+    await vi.waitFor(() => expect(coordinator.initialize).toHaveBeenCalledOnce())
+    expect(presenter.shouldCaptureAfterClick(call('click', { toolName: 'click' }))).toBe(false)
+
+    await completeWithImage(presenter, currentCall, await createPng())
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(coordinator.prepare).not.toHaveBeenCalled()
+    expect(coordinator.present).not.toHaveBeenCalled()
+    expect(
+      windowPresenter.sendToWindow.mock.calls.some(
+        ([, , envelope]) => (envelope as { name?: string }).name === 'computerUse.preview.frame'
+      )
+    ).toBe(false)
+  })
+
   it('releases preview state when the host closes without renderer cleanup', async () => {
     const { presenter, coordinator, windows } = await setup()
     await presenter.setPreviewMode('session-1', 'eligible', 7)
@@ -183,7 +213,7 @@ describe('ComputerUsePreviewPresenter', () => {
   })
 
   it('publishes a bounded Canvas frame only after a valid current snapshot', async () => {
-    const { presenter, coordinator, windowPresenter } = await setup()
+    const { presenter, coordinator, windowPresenter } = await setup('renderer-canvas')
     await expect(presenter.setPreviewMode('session-1', 'eligible', 7)).resolves.toEqual({
       updated: true,
       surface: 'none'
@@ -236,7 +266,7 @@ describe('ComputerUsePreviewPresenter', () => {
   })
 
   it('clears the old target epoch and rejects an out-of-order result', async () => {
-    const { presenter, windowPresenter } = await setup()
+    const { presenter, windowPresenter } = await setup('renderer-canvas')
     await presenter.setPreviewMode('session-1', 'eligible', 7)
     const first = call('tool-1')
     presenter.started(first)
@@ -298,8 +328,30 @@ describe('ComputerUsePreviewPresenter', () => {
     ).toBe(false)
   })
 
+  it('stops preview when frame preparation disables NativeKit', async () => {
+    const { presenter, coordinator } = await setup()
+    await presenter.setPreviewMode('session-1', 'eligible', 7)
+    const currentCall = call('tool-native-failure')
+    presenter.started(currentCall)
+
+    coordinator.prepare.mockImplementationOnce(() => {
+      coordinator.isAvailable.mockReturnValue(false)
+      return 'none'
+    })
+    await completeWithImage(presenter, currentCall, await createPng(320, 200))
+    await vi.waitFor(() => expect(coordinator.prepare).toHaveBeenCalledTimes(2))
+
+    expect(coordinator.present).not.toHaveBeenCalled()
+    expect(coordinator.releaseClaim).toHaveBeenCalledWith({
+      source: 'computer-use',
+      sessionId: 'session-1',
+      runId: 'run-1'
+    })
+    expect(presenter.shouldCaptureAfterClick(call('click', { toolName: 'click' }))).toBe(false)
+  })
+
   it('rejects malformed images and keeps the last valid same-target frame', async () => {
-    const { presenter, windowPresenter } = await setup()
+    const { presenter, windowPresenter } = await setup('renderer-canvas')
     await presenter.setPreviewMode('session-1', 'eligible', 7)
     const validCall = call('tool-valid')
     presenter.started(validCall)
@@ -335,7 +387,7 @@ describe('ComputerUsePreviewPresenter', () => {
   })
 
   it('enforces image bounds without upscaling the last valid frame', async () => {
-    const { presenter, windowPresenter } = await setup()
+    const { presenter, windowPresenter } = await setup('renderer-canvas')
     await presenter.setPreviewMode('session-1', 'eligible', 7)
     const validCall = call('tool-small')
     presenter.started(validCall)
@@ -399,7 +451,7 @@ describe('ComputerUsePreviewPresenter', () => {
   })
 
   it('drops intermediate transforms and publishes only the latest overlapping snapshot', async () => {
-    const { presenter, windowPresenter } = await setup()
+    const { presenter, windowPresenter } = await setup('renderer-canvas')
     await presenter.setPreviewMode('session-1', 'eligible', 7)
     const first = call('tool-first')
     const intermediate = call('tool-intermediate')
@@ -433,7 +485,7 @@ describe('ComputerUsePreviewPresenter', () => {
   })
 
   it('retains the last valid frame after failed and aborted snapshot calls', async () => {
-    const { presenter, windowPresenter } = await setup()
+    const { presenter, windowPresenter } = await setup('renderer-canvas')
     await presenter.setPreviewMode('session-1', 'eligible', 7)
     const valid = call('tool-valid')
     presenter.started(valid)
@@ -462,7 +514,7 @@ describe('ComputerUsePreviewPresenter', () => {
   })
 
   it('dismisses only the current run and permits a later run', async () => {
-    const { presenter, coordinator, windowPresenter } = await setup()
+    const { presenter, coordinator, windowPresenter } = await setup('renderer-canvas')
     await presenter.setPreviewMode('session-1', 'eligible', 7)
     const first = call('tool-1')
     presenter.started(first)

@@ -28,7 +28,7 @@ vi.mock('node:fs', async () => {
 
 const contract: CuaEmbeddedRuntimeContract = {
   hostBundleId: 'com.wefonk.deepchat',
-  driverVersion: '0.12.6',
+  driverVersion: '0.13.1',
   contractVersion: '0.2.0',
   toolsListSchemaVersion: '1',
   capabilityVersion: '1',
@@ -36,12 +36,11 @@ const contract: CuaEmbeddedRuntimeContract = {
 }
 
 const cuaEnvironment = {
-  CUA_DRIVER_RS_SPAWN_UIA_WORKER: '0',
   DEEPCHAT_PLUGIN_ID: 'com.deepchat.plugins.cua'
 }
 
 const metadata = (pid: number): CuaDaemonMetadata => ({
-  driver_version: '0.12.6',
+  driver_version: '0.13.1',
   contract_version: '0.2.0',
   tools_list_schema_version: '1',
   capability_version: '1',
@@ -183,7 +182,6 @@ describe('CuaEmbeddedRuntimeAdapter', () => {
           ],
           env: {
             CUA_LOG: 'debug',
-            CUA_DRIVER_RS_SPAWN_UIA_WORKER: '0',
             DEEPCHAT_PLUGIN_ID: 'com.deepchat.plugins.cua'
           },
           inheritEnv: 'minimal'
@@ -205,7 +203,6 @@ describe('CuaEmbeddedRuntimeAdapter', () => {
       expect(options.env).toMatchObject({
         DISPLAY: ':0',
         CUA_LOG: 'debug',
-        CUA_DRIVER_RS_SPAWN_UIA_WORKER: '0',
         DEEPCHAT_PLUGIN_ID: 'com.deepchat.plugins.cua'
       })
       expect(options.env).not.toHaveProperty('DEEPCHAT_TEST_SECRET')
@@ -260,7 +257,7 @@ describe('CuaEmbeddedRuntimeAdapter', () => {
     }
   })
 
-  it('rejects manifest-controlled CUA authorization environment', () => {
+  it('rejects manifest-controlled CUA environment additions', () => {
     expect(
       () =>
         new CuaEmbeddedRuntimeAdapter({
@@ -284,7 +281,7 @@ describe('CuaEmbeddedRuntimeAdapter', () => {
             CUA_DRIVER_RS_SPAWN_UIA_WORKER: '1'
           }
         })
-    ).toThrow(/invalid value/)
+    ).toThrow(/must contain exactly/)
   })
 
   it('closes parent-liveness stdin when metadata validation fails', async () => {
@@ -299,7 +296,7 @@ describe('CuaEmbeddedRuntimeAdapter', () => {
       },
       {
         spawnProcess: () => child,
-        requestMetadata: async () => ({ ...metadata(child.pid!), driver_version: '0.12.5' }),
+        requestMetadata: async () => ({ ...metadata(child.pid!), driver_version: '0.13.0' }),
         createEndpoint: () => '/tmp/deepchat-cua-123-aabbccddeeff.sock',
         captureEndpointIdentity: () => undefined,
         cleanupEndpoint: vi.fn()

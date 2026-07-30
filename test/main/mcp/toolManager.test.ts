@@ -661,7 +661,7 @@ describe('ToolManager', () => {
             serverName,
             displayName: 'CUA Driver',
             toolCatalog: {
-              version: '0.12.6',
+              version: '0.13.1',
               tools: [
                 {
                   name: 'check_permissions',
@@ -1412,7 +1412,7 @@ describe('ToolManager', () => {
       elements: [
         {
           element_index: 2,
-          element_token: 's9:2',
+          element_token: '00000002',
           role: 'AXButton',
           label: 'Clear'
         }
@@ -1445,7 +1445,68 @@ describe('ToolManager', () => {
       { type: 'text', text: 'window tree' },
       {
         type: 'text',
-        text: expect.stringContaining('2="s9:2"')
+        text: expect.stringContaining('2="00000002"')
+      }
+    ])
+  })
+
+  it.each([
+    ['stale_element_token', 'element_token is stale; call get_window_state again to refresh'],
+    ['generation_mismatch', 'element_token belongs to another runtime generation'],
+    ['invalid_element_token', 'element_token has invalid format']
+  ])('projects the CUA refusal code %s into model-visible content', async (code, message) => {
+    const client = createClient(
+      'cua-driver',
+      [
+        {
+          name: 'click',
+          description: 'Click an element',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              pid: { type: 'integer' },
+              element_token: { type: 'string' }
+            }
+          }
+        }
+      ],
+      {
+        source: 'plugin',
+        ownerPluginId: CUA_PLUGIN_ID
+      }
+    )
+    const structuredContent = {
+      status: 'refused',
+      refusal: { code, message }
+    }
+    client.callTool.mockResolvedValue({
+      content: [{ type: 'text', text: message }],
+      structuredContent,
+      isError: true
+    })
+    const manager = createToolManager(
+      createProviderSettings('cua-driver'),
+      createServerManager([client]),
+      { 'cua-driver': CUA_PLUGIN_ID },
+      { ensureRunning: vi.fn().mockResolvedValue(undefined) }
+    )
+
+    const result = await manager.callTool({
+      id: `cua-refusal-${code}`,
+      type: 'function',
+      function: {
+        name: 'click',
+        arguments: '{"pid":10,"element_token":"garbage-token"}'
+      }
+    })
+
+    expect(result.structuredContent).toBe(structuredContent)
+    expect(result.ownerPluginId).toBe(CUA_PLUGIN_ID)
+    expect(result.content).toEqual([
+      { type: 'text', text: message },
+      {
+        type: 'text',
+        text: `## CUA structured refusal\nrefusal.code=${JSON.stringify(code)}`
       }
     ])
   })

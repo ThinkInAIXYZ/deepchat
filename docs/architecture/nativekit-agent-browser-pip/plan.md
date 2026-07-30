@@ -6,9 +6,9 @@ Implemented on 2026-07-23 through Phase 4. The macOS arm64 packaging and native-
 of Phase 5 is complete; physical cross-platform interaction and performance measurements remain
 open release QA.
 
-This plan implements the contract in `spec.md` with the smallest stable change: one main-process
-NativeKit adapter, one surface-selection branch in `YoBrowserPresenter`, two typed contract
-extensions, and the existing Canvas retained intact as fallback.
+This plan implements the contract in `spec.md` with one process-global NativeKit coordinator,
+on-demand loading at the first concrete preview target, and source-specific unavailable behavior:
+Browser opens its existing side panel and Computer Use exposes no PiP.
 
 ## Selected Approach
 
@@ -22,11 +22,12 @@ existing page/session/capture owner
               |
        completed JPEG frame
               |
-       +------+------+
-       |             |
-       v             v
-NativeKit adapter   existing renderer event
-supported runtime   compatibility fallback
+       +------+----------------+
+       |                       |
+       v                       v
+NativeKit adapter       native unavailable
+supported runtime       Browser -> side panel
+                        Computer Use -> no PiP
 ```
 
 DeepChat does not need a second browser page, a second Electron window, a new preload capability,
@@ -37,21 +38,23 @@ the renderer Canvas and owns only the native panel.
 
 ### Dependency and packaging
 
-- Pin `"@zerob13/nativekit": "0.6.2"` in `package.json` and refresh the local install metadata.
+- Pin `"@zerob13/nativekit": "0.6.3"` in `package.json` and refresh the local install metadata.
 - Add `@zerob13/nativekit: false` to `pnpm-workspace.yaml` `allowBuilds`; the published prebuild
   should load directly, and an unsupported target should not silently become a local source build.
 - Keep the package external to the Electron main bundle.
 - Add `node_modules/@zerob13/nativekit/prebuilds/**/*` to `asarUnpack`.
 - Extend the packaging validation to require the matching prebuild only for supported target
   tuples.
-- Treat Windows arm64 as intentionally unsupported by NativeKit 0.6.2 rather than a packaging
-  error.
+- Treat Windows arm64 as intentionally unsupported by NativeKit 0.6.3 rather than a packaging
+  error; Browser uses its side panel and Computer Use runs without PiP.
 
-### Main-process adapter
+### Main-process coordinator
 
-Add `src/main/desktop/browser/AgentBrowserNativeOverlay.ts`. The adapter owns:
+Use `src/main/desktop/preview/AgentPreviewCoordinator.ts` as the shared native owner. The
+coordinator owns:
 
-- lazy dynamic import, process-stable capability state, and one-time warning;
+- lazy dynamic import on the first concrete preview target, process-stable capability state, and
+  one-time warning;
 - `start`, first-host validation, host refresh, visibility, image replacement, image removal, and
   shutdown;
 - the single active logical target;
@@ -63,26 +66,30 @@ Add `src/main/desktop/browser/AgentBrowserNativeOverlay.ts`. The adapter owns:
   presentation;
 - timing around synchronous `pushImage()` calls.
 
-The adapter exposes a narrow DeepChat-facing API:
+The coordinator exposes a narrow DeepChat-facing API:
 
 ```ts
-type NativeOverlayTarget = {
+type AgentPreviewTarget = {
+  source: 'browser' | 'computer-use'
   windowId: number
   sessionId: string
   runId: string
-  captureEpoch: number
+  epoch: number
+  claimSequence: number
 }
 
-type NativeOverlayCapability = 'available' | 'unavailable'
-
-interface AgentBrowserNativeOverlay {
-  initialize(): Promise<NativeOverlayCapability>
-  attachHost(window: BrowserWindow): boolean
-  updateTarget(target: NativeOverlayTarget): void
-  present(frame: Buffer): boolean
-  setVisible(visible: boolean): boolean
-  removeTarget(): void
-  detachHost(windowId: number): void
+interface AgentPreviewCoordinator {
+  register(source: AgentPreviewSource, handler: AgentPreviewActionHandler): () => void
+  initialize(): Promise<boolean>
+  isAvailable(): boolean
+  isCurrent(target: AgentPreviewTarget): boolean
+  claim(input: { source: AgentPreviewSource; sessionId: string; runId: string }): number
+  dismiss(target: AgentPreviewTargetRef): boolean
+  prepare(target: AgentPreviewTarget, host: BrowserWindow): AgentPreviewSurface
+  present(target: AgentPreviewTarget, frame: Buffer): boolean
+  hide(target?: AgentPreviewTargetRef): void
+  removeTarget(target?: AgentPreviewTargetRef): void
+  releaseClaim(target: AgentPreviewTargetRef): void
   shutdown(): void
 }
 ```
@@ -99,15 +106,20 @@ Extend `YoBrowserPresenter` preview state with:
 - native logical target and visibility;
 - existing capture epoch as the stale-frame guard.
 
-The presenter performs these operations in order:
+The Browser presenter performs these operations in order:
 
 1. Resolve and validate the owning `BrowserWindow`.
-2. Select the process-stable surface.
-3. Keep the existing page in the 1280 x 800 render host.
-4. Capture, resize, and encode with one frame in flight.
-5. Revalidate session, run, window, mode, surface, and epoch.
-6. Present to exactly one destination.
-7. Schedule the next capture only after presentation returns.
+2. Load NativeKit only for `capturing`; `rendering` and application startup do not load it.
+3. Select the process-stable surface.
+4. Keep the existing page in the 1280 x 800 render host.
+5. Capture, resize, and encode with one frame in flight.
+6. Revalidate session, run, window, mode, surface, and epoch.
+7. Present to exactly one destination.
+8. Schedule the next capture only after presentation returns.
+
+Computer Use records eligibility without loading NativeKit. Its first concrete target initializes
+the coordinator. A failed initialization removes the preview state while leaving CUA execution
+unchanged.
 
 For the first native frame, `present()` runs while hidden and `setVisible(true)` follows only after
 success. Temporary ineligibility hides the panel without removing the presentation. Terminal
@@ -148,6 +160,9 @@ The renderer accepts a native action only when `windowId`, `sessionId`, and `run
 current state. Activation opens the existing Browser panel. Dismissal updates the existing
 run-scoped dismissal state.
 
+When Browser receives `none` because the coordinator is unavailable, main reuses the typed
+activation event to open the same Browser panel. Computer Use remains headless on `none`.
+
 ### Host and lifecycle synchronization
 
 - Attach with `BrowserWindow.getContentBounds()` and `getNativeWindowHandle()`.
@@ -168,8 +183,8 @@ run-scoped dismissal state.
 4. Extend configuration and `afterPack` tests for the published prebuild matrix.
 5. Verify dynamic import in an unpackaged development build.
 
-Exit condition: unsupported runtimes select fallback without startup failure, while supported
-packaged targets fail validation if their prebuild is absent.
+Exit condition: unsupported runtimes do not load during startup and use source-specific unavailable
+behavior, while supported packaged targets fail validation if their prebuild is absent.
 
 ### Phase 2: Native adapter
 
@@ -185,12 +200,13 @@ Exit condition: the adapter never exposes NativeKit outside main and every failu
 
 ### Phase 3: Presenter routing
 
-1. Initialize the adapter with `YoBrowserPresenter`.
-2. return the selected surface from `setPreviewMode`.
-3. Route completed frames directly to native or renderer, never both.
-4. Add host visibility and bounds synchronization.
-5. Preserve capture epoch and one-in-flight scheduling across surface changes.
-6. Start with the existing 4 FPS active interval; raise to at most 8 FPS only after profiling.
+1. Remove NativeKit initialization from application startup.
+2. Initialize the coordinator from the first Browser capture or concrete Computer Use target.
+3. Return the selected surface from `setPreviewMode`.
+4. Route completed frames directly to native or renderer, never both.
+5. Add host visibility and bounds synchronization.
+6. Preserve capture epoch and one-in-flight scheduling across surface changes.
+7. Start with the existing 4 FPS active interval; raise to at most 8 FPS only after profiling.
 
 Exit condition: supported runtime traffic contains no renderer frame payload on the native path.
 
@@ -210,22 +226,25 @@ Exit condition: native activation and **Open in panel** open the same Browser pa
 2. Verify full out-of-window movement and work-area clamping.
 3. Measure first-frame latency, frame age, `pushImage()` duration, and main-thread long tasks.
 4. Repeat interaction smoke tests on Windows x64 and Linux X11/XWayland.
-5. Verify Canvas fallback on Windows arm64 and native Wayland.
+5. Verify Browser side-panel handoff and absence of Computer Use PiP on Windows arm64 and native
+   Wayland.
 6. Build packaged artifacts and inspect the unpacked prebuild.
 
 Exit condition: every acceptance criterion in `spec.md` has recorded evidence.
 
-## Expected File Map
+## Relevant File Map
 
-Likely touched files:
+The implemented behavior is owned by:
 
 - `package.json`
 - `pnpm-lock.yaml`
 - `pnpm-workspace.yaml`
 - `electron-builder.yml`
 - `scripts/afterPack.js`
-- `src/main/desktop/browser/AgentBrowserNativeOverlay.ts`
+- `src/main/app/composition.ts`
+- `src/main/desktop/preview/AgentPreviewCoordinator.ts`
 - `src/main/desktop/browser/YoBrowserPresenter.ts`
+- `src/main/desktop/computerUse/ComputerUsePreviewPresenter.ts`
 - `src/main/desktop/routes.ts`
 - `src/shared/contracts/routes/browser.routes.ts`
 - `src/shared/contracts/events/browser.events.ts`
@@ -241,9 +260,9 @@ No preload file, persisted-settings schema, database migration, or new renderer 
 ### Automated
 
 - adapter capability, lifecycle, stale-target, failure, and callback tests;
-- presenter native/fallback selection and exclusive frame-routing tests;
+- presenter native/unavailable selection and exclusive frame-routing tests;
 - route and event schema tests;
-- renderer native/no-DOM, Canvas fallback, activate, and run-scoped dismiss tests;
+- renderer native/no-DOM, unavailable activation, and run-scoped dismiss tests;
 - ASAR configuration and platform-aware `afterPack` tests;
 - existing `YoBrowserPresenter` and `AgentBrowserPiP` regression suites.
 
@@ -273,16 +292,17 @@ For each supported native platform:
 8. Start a later run and verify PiP can appear again.
 9. Exercise blur, minimize, display change, session switch, page close, and app quit.
 
-For each fallback platform, repeat the product flow and verify the current in-chat Canvas remains.
+For each unavailable platform, verify Browser opens the existing side panel and Computer Use
+continues without PiP.
 
 ## Rollout and Rollback
 
-Land the adapter and Canvas fallback together. Do not remove the renderer frame path in this
-migration.
+Keep the renderer frame path source-compatible, but do not select it after native capability
+failure.
 
-If performance or native stability misses the gate, keep surface selection on
-`renderer-canvas`. Full rollback removes the adapter, dependency, and packaging rule without
-touching page ownership or stored data.
+If performance or native stability misses the gate, disable native PiP with the same source-specific
+behavior. Full rollback removes the adapter, dependency, and packaging rule without touching page
+ownership or stored data.
 
 ## Complexity Limits
 

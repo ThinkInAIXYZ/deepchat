@@ -314,7 +314,7 @@ describe('DeepChat tool adapters', () => {
     const content = [
       { type: 'image' as const, data: 'YWJj', mimeType: 'image/png' },
       { type: 'text' as const, text: 'window tree' },
-      { type: 'text' as const, text: '## CUA structured handles\n2="s9:2"' }
+      { type: 'text' as const, text: '## CUA structured handles\n2="00000002"' }
     ]
 
     const result = await normalizeToolResultContent(
@@ -562,9 +562,21 @@ describe('DeepChat tool adapters', () => {
     ])
   })
 
-  it('passes a stale CUA token error through unchanged', async () => {
-    const error =
+  it.each([
+    [
+      'stale_element_token',
       'element_token is stale; call get_window_state again to refresh'
+    ],
+    ['generation_mismatch', 'element_token belongs to another runtime generation'],
+    ['invalid_element_token', 'element_token has invalid format']
+  ])('passes the projected CUA token refusal %s through unchanged', async (code, message) => {
+    const content = [
+      { type: 'text' as const, text: message },
+      {
+        type: 'text' as const,
+        text: `## CUA structured refusal\nrefusal.code=${JSON.stringify(code)}`
+      }
+    ]
 
     await expect(
       normalizeToolResultContent(
@@ -579,12 +591,12 @@ describe('DeepChat tool adapters', () => {
           sessionId: 'session-1',
           toolCallId: 'call-1',
           toolName: 'click',
-          toolArgs: '{"element_token":"s8:2"}',
-          content: error,
+          toolArgs: '{"element_token":"00000002"}',
+          content,
           isError: true,
           ownerPluginId: 'com.deepchat.plugins.cua'
         }
       )
-    ).resolves.toBe(error)
+    ).resolves.toBe(content)
   })
 })

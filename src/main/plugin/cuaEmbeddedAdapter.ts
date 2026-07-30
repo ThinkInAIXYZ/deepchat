@@ -23,11 +23,9 @@ const MAX_HANDSHAKE_BYTES = 64 * 1024
 const UNIX_SOCKET_PATH_LIMIT = 104
 const CUA_ENDPOINT_NAME_PATTERN = /^deepchat-cua-\d+-[a-f0-9]{12}\.sock$/i
 const CUA_PIPE_NAME_PATTERN = /^\\\\\.\\pipe\\deepchat-cua-\d+-[a-f0-9]{12}$/i
-const CUA_UIA_WORKER_ENV = 'CUA_DRIVER_RS_SPAWN_UIA_WORKER'
 const CUA_LOG_ENV = 'CUA_LOG'
 const MAX_STDERR_BYTES = 16 * 1024
 const EXPECTED_CUA_ENVIRONMENT = Object.freeze({
-  [CUA_UIA_WORKER_ENV]: '0',
   DEEPCHAT_PLUGIN_ID: CUA_PLUGIN_ID
 })
 

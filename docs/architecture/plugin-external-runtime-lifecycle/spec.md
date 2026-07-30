@@ -2,8 +2,9 @@
 
 ## Status
 
-Lifecycle and model-facing CUA 0.12.6 compatibility implementation are complete with automated
-validation. The native Calculator retry and native release gates remain pending.
+Lifecycle and model-facing CUA 0.13.1 compatibility implementation are complete with automated
+validation. Native Windows/Linux behavior, release-signed macOS behavior, and preinstalled custom
+cursor themes remain release-gated.
 
 ## Context
 
@@ -36,7 +37,7 @@ plugin-owned external processes.
    state.
 3. Start CUA only when one of its tools is invoked, while keeping its tool catalog visible before
    process startup.
-4. Upgrade the bundled driver to pinned upstream release `cua-driver-rs-v0.12.6` and adapt to its
+4. Upgrade the bundled driver to pinned upstream release `cua-driver-rs-v0.13.1` and adapt to its
    embedded daemon/proxy contract.
 5. Fail closed on stale crash evidence, runtime integrity failures, incomplete packaged catalogs,
    and unsupported launch contracts.
@@ -226,7 +227,7 @@ Runtime manifests may select a closed host adapter. CUA uses `cua-embedded-v1`; 
 continue to use the direct stdio path. Adapter-specific state does not leak into the generic MCP
 configuration persisted in SQLite.
 
-## CUA 0.12.6 adapter
+## CUA 0.13.1 adapter
 
 The CUA adapter starts two related processes:
 
@@ -239,7 +240,7 @@ The CUA adapter starts two related processes:
 The daemon stdin remains open for parent-liveness. Startup completes only after a newline-delimited
 metadata response validates:
 
-- driver version `0.12.6`;
+- driver version `0.13.1`;
 - contract version `0.2.0`;
 - tools-list schema version `1`;
 - capability version `1`;
@@ -259,8 +260,11 @@ DeepChat preserves the MCP protocol's raw `structuredContent` separately from di
 For CUA `get_window_state`, the model-facing text receives a compact projection of the latest
 snapshot id, `element_index` to non-empty `element_token` mapping, and degraded/escalation metadata.
 It does not duplicate `tree_markdown` or the complete structured element array in the prompt.
+For any CUA result carrying `structuredContent.refusal.code`, DeepChat appends a bounded,
+single-line code projection to model-visible `content` while preserving the raw structured value.
+The human-readable refusal message is already present in MCP text content and is not duplicated.
 
-CUA 0.12.6 declares `element_token` as an optional unconstrained string but rejects an empty string
+CUA 0.13.1 declares `element_token` as an optional unconstrained string but rejects an empty string
 at runtime and gives any present token precedence over a valid index. Immediately before dispatch,
 the closed CUA adapter therefore removes only an empty or whitespace-only `element_token` from these
 seven tools:
@@ -277,10 +281,32 @@ The adapter preserves every other value, including `x: 0`, `y: 0`, empty arrays,
 non-empty opaque token. The normalization naturally becomes a no-op after upstream schemas and
 model/provider argument generation stop producing empty optional tokens.
 
-A non-empty token is preferred when it came from the latest `get_window_state`. The upstream stale
-token error is passed through unchanged. The packaged skill requires one fresh
-`get_window_state` call and a retry with the new token; it must not reuse a stale token or silently
-fall back to an older index.
+A non-empty token is preferred when it came from the latest `get_window_state`. Tokens are opaque;
+the current eight-hex-digit representation must not be parsed or synthesized by DeepChat. When
+the projected `refusal.code` is `stale_element_token`, `generation_mismatch`, or
+`invalid_element_token`, the packaged skill requires one fresh `get_window_state` call and a retry
+with the new token. It must not reuse a stale token or silently fall back to an older snapshot's
+index.
+
+### CUA 0.13.1 tool-contract changes
+
+The static catalog, closed policy, skill, and tests track these reviewed changes together:
+
+- `set_agent_cursor_style` is replaced by `set_agent_cursor_theme`;
+- cursor state and mutation tools use a required stable `session`;
+- `set_agent_cursor_motion` no longer accepts appearance fields, and
+  `get_agent_cursor_state` returns a single-session state object;
+- `browser_type` accepts `replace`; an empty replacement clears the editable field;
+- normal `start_session` calls omit optional `cursor_theme`, while an explicit user theme request
+  uses the reviewed `set_agent_cursor_theme` action;
+- `kill_app` is denied because the 0.13.1 public `launch_app` and `kill_app` schemas omit
+  `session`, preventing standard-mode ownership proof. DeepChat does not rely on the proxy's
+  current acceptance of undeclared fields.
+
+The `kill_app` mitigation is version-specific. A direct native smoke test must use a disposable
+fixture process rather than the DeepChat product path, because the closed policy blocks the call
+before it reaches the driver. A future driver upgrade may restore `ask` only after native testing
+confirms an owned process can be terminated and a foreign process remains denied.
 
 Screenshot delivery is opt-in at the tool-call boundary:
 
@@ -367,14 +393,19 @@ security task and do not block CUA remediation.
 
 | Target | CUA artifact policy | Signature/integrity policy |
 | --- | --- | --- |
-| macOS arm64/x64 | Bundle upstream `.app`, rebrand/sanitize, then DeepChat-sign | Verify helper, sign helper before parent app, preserve notarization |
-| Windows x64/arm64 | Bundle only `cua-driver.exe`; omit UIA worker | Keep unsigned; checksum/file-set gate; set `CUA_DRIVER_RS_SPAWN_UIA_WORKER=0` |
+| macOS arm64/x64 | Bundle upstream `.app`, remove authoring sidecar, rebrand/sanitize, then DeepChat-sign | Verify helper, sign helper before parent app, preserve notarization |
+| Windows x64/arm64 | Bundle only `cua-driver.exe`; omit UIA worker | Keep unsigned; checksum/file-set gate |
 | Linux x64 | Bundle executable | Checksum/file-set gate and executable mode |
 | Linux arm64 | DeepChat still builds/releases; CUA remains unbundled until validated | Unsupported CUA target |
 
-The upstream UIA worker is opt-in, requires a separate UIAccess signing/deployment contract, and is
-not necessary for the standard CUA path. Omitting `cua-driver-uia.exe` is the primary defense; the
-strictly-false environment flag is defense in depth.
+The upstream UIA worker is not part of the 0.13.1 release contract. DeepChat continues to package
+only `cua-driver.exe` on Windows and removes the obsolete worker opt-in environment variable.
+
+The macOS `cua-cursor-theme` executable is an authoring utility, not part of the embedded runtime.
+Staging removes it and immediately requires `Contents/MacOS` to contain only the regular
+`deepchat-cua-driver` file before signing and integrity descriptor generation. The bundled
+`cua.default` theme is binary-tested; loading a separately preinstalled custom theme remains a
+native release gate even though the upstream loader supports it.
 
 `--no-permissions-gate` skips only the upstream macOS TCC first-launch UI. It does not disable
 DeepChat's per-tool approval or the driver's `--permission-mode standard` authorization. DeepChat
@@ -392,13 +423,17 @@ Automated gates:
 - controlled-environment tests;
 - integrity descriptor and platform package tests;
 - exact CUA tool catalog/policy parity tests;
+- explicit local `kill_app === deny` coverage;
 - seven-tool empty-token normalization and zero-coordinate preservation tests;
-- raw MCP `structuredContent`, compact CUA token projection, and stale-token guidance tests;
+- raw MCP `structuredContent`, compact CUA token/refusal projections, and stale-token guidance
+  tests;
 - explicit CUA screenshot visual-grounding and no-vision fallback tests;
 - macOS signing and entitlement contract tests.
 
 Native release gates:
 
+- a version-gated direct-driver ownership smoke with a disposable process on each supported
+  platform;
 - macOS arm64 and x64 packaged helper, TCC, screen capture, input, restart, and notarized-app tests;
 - Windows x64 and arm64 clean consumer-machine tests with Defender real-time protection enabled,
   recording `Get-MpComputerStatus`, installation, first launch, tool execution, restart, and
@@ -446,3 +481,21 @@ Model-facing compatibility verification completed on 2026-07-28:
 
 The native Calculator flow must be rerun after restarting the development app before the
 model-facing native behavior is accepted.
+
+CUA 0.13.1 upgrade verification completed on 2026-07-29:
+
+- `pnpm run plugin:bundle -- --name cua --platform darwin --arch arm64` and
+  `pnpm run plugin:verify -- --name cua --platform darwin --arch arm64 --plugin-root
+  build/bundled-plugins` passed with a development-signed artifact;
+- the generated macOS arm64 catalog reports driver 0.13.1 and 49 tools, and the packaged runtime
+  excludes `cua-cursor-theme`;
+- 182 focused CUA, plugin, MCP, package, and renderer tests passed;
+- `pnpm run test:main`: 467 files and 5568 tests passed; 20 files and 279 tests were
+  conditionally skipped;
+- `pnpm run test:renderer`: 207 files and 1653 tests passed;
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`, and
+  `pnpm run plugin:validate -- --name cua` passed.
+
+The direct-driver ownership smoke, Windows/Linux native catalogs and runtime behavior,
+release-signed/notarized macOS behavior, and preinstalled custom-theme loading remain native
+release gates.

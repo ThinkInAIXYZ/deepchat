@@ -12,9 +12,18 @@ Use these checks after enabling the CUA plugin:
 - `start_session` keeps `capture_scope: auto` window-only until an explicit `escalate_session`.
 - `click` or `set_value` works with a non-empty token from the latest same-window snapshot.
 - An empty optional token does not override a valid element index or pixel coordinate.
-- A stale-token error triggers one fresh snapshot and retry with the replacement token.
+- Each projected `stale_element_token`, `generation_mismatch`, or `invalid_element_token`
+  `refusal.code` triggers one fresh snapshot and retry with the replacement token, without using an
+  older snapshot index.
 - `get_browser_state` either creates an exact browser/window binding or returns a structured
   refusal; typed browser mutation never proceeds from a heuristic binding.
+- `browser_type({ replace: true, text: "" })` clears a current editable ref and a fresh browser
+  snapshot confirms the empty value.
+- Cursor state/mutation calls require the declared `session`; motion calls contain no appearance
+  fields, and the verified bundled theme id is `cua.default`.
+- A normal `start_session` omits `cursor_theme`; an explicit appearance request goes through
+  `set_agent_cursor_theme`.
+- App exit uses a cooperative close path and verifies that the process/window exited.
 - `start_recording`, `stop_recording`, and `get_recording_state` are permission-gated.
 - `end_session` clears the run's cursor and session state.
 - Plugin disable removes the `cua-driver` tools after the tool surface refreshes.

@@ -2,6 +2,17 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 describe('session boundary composition', () => {
+  it('does not load NativeKit from the application startup workload', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource).not.toContain('main:yo-browser')
+    expect(compositionSource).not.toContain('yoBrowserPresenter.initialize()')
+  })
+
   it('reuses one default LegacyChatImportService across startup and skill repair', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const compositionSource = readFileSync(

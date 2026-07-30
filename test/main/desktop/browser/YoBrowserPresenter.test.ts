@@ -569,6 +569,72 @@ describe('YoBrowserPresenter', () => {
     expect(previewHosts[0].destroyed).toBe(true)
   })
 
+  it('loads NativeKit only when Browser capture is requested', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+
+    expect(nativeInitializeMock).not.toHaveBeenCalled()
+
+    await presenter.setPreviewMode('session-a', 'rendering', 1, 'run-1')
+    expect(nativeInitializeMock).not.toHaveBeenCalled()
+
+    await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')
+    expect(nativeInitializeMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens Browser in the side panel when NativeKit is unavailable', async () => {
+    const { presenter, windows, windowPresenter, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    nativePrepareMock.mockReturnValue('none')
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    sendToAllWindowsMock.mockClear()
+
+    await expect(presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')).resolves.toEqual({
+      updated: true,
+      surface: 'none'
+    })
+
+    expect(windowPresenter.show).toHaveBeenCalledWith(1, true)
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(
+      'deepchat:event',
+      expect.objectContaining({
+        name: 'browser.preview.action',
+        payload: {
+          action: 'activate',
+          windowId: 1,
+          sessionId: 'session-a',
+          runId: 'run-1'
+        }
+      }),
+      1
+    )
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getSessionWebContents('session-a')?.capturePage).not.toHaveBeenCalled()
+  })
+
   it('rejects preview capture for a stale Agent run', async () => {
     const { presenter, windows, getSessionWebContents } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
@@ -597,7 +663,6 @@ describe('YoBrowserPresenter', () => {
     nativeInitializeMock.mockResolvedValue(true)
     nativeIsAvailableMock.mockReturnValue(true)
     nativePrepareMock.mockReturnValue('native-overlay')
-    await presenter.initialize()
 
     const loadPromise = presenter.loadUrl(
       'session-a',

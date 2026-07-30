@@ -104,6 +104,12 @@ describe('build-cua-plugin-runtime', () => {
     const runtimeDir = path.join(tempRoot, 'runtime')
     const sourceApp = path.join(extractDir, 'nested', 'CuaDriver.app')
     const sourceExecutable = path.join(sourceApp, 'Contents', 'MacOS', 'cua-driver')
+    const sourceThemeAuthoringExecutable = path.join(
+      sourceApp,
+      'Contents',
+      'MacOS',
+      'cua-cursor-theme'
+    )
 
     await mkdir(path.dirname(sourceExecutable), { recursive: true })
     await mkdir(path.join(sourceApp, 'Contents', '_CodeSignature'), { recursive: true })
@@ -111,7 +117,9 @@ describe('build-cua-plugin-runtime', () => {
     await writeFile(path.join(sourceApp, 'Contents', 'CodeResources'), 'legacy')
     await writeFile(path.join(sourceApp, 'Contents', '_CodeSignature', 'CodeResources'), 'signed')
     await writeFile(sourceExecutable, 'driver')
+    await writeFile(sourceThemeAuthoringExecutable, 'theme-authoring-tool')
     await chmod(sourceExecutable, 0o755)
+    await chmod(sourceThemeAuthoringExecutable, 0o755)
 
     await stageDarwinRuntime(extractDir, runtimeDir)
 
@@ -124,6 +132,9 @@ describe('build-cua-plugin-runtime', () => {
       readFile(path.join(targetApp, 'Contents', 'MacOS', 'cua-driver'), 'utf8')
     ).rejects.toThrow()
     await expect(
+      readFile(path.join(targetApp, 'Contents', 'MacOS', 'cua-cursor-theme'), 'utf8')
+    ).rejects.toThrow()
+    await expect(
       readFile(path.join(targetApp, 'Contents', '_CodeSignature', 'CodeResources'), 'utf8')
     ).rejects.toThrow()
     await expect(readFile(path.join(targetApp, 'Contents', 'CodeResources'), 'utf8')).rejects.toThrow()
@@ -131,6 +142,23 @@ describe('build-cua-plugin-runtime', () => {
     expect(plist).toContain('<key>CFBundleName</key>\n    <string>DeepChat Computer Use</string>')
     expect(plist).toContain('<key>CFBundleDisplayName</key>')
     expect(plist).toContain(`<string>${darwinHelperBinaryName}</string>`)
+  })
+
+  it('rejects an unreviewed executable in the macOS helper directory', async () => {
+    const { stageDarwinRuntime } = await loadBuildRuntime()
+    const extractDir = path.join(tempRoot, 'extract')
+    const runtimeDir = path.join(tempRoot, 'runtime')
+    const sourceApp = path.join(extractDir, 'nested', 'CuaDriver.app')
+    const macOsDir = path.join(sourceApp, 'Contents', 'MacOS')
+
+    await mkdir(macOsDir, { recursive: true })
+    await writeFile(path.join(sourceApp, 'Contents', 'Info.plist'), infoPlist())
+    await writeFile(path.join(macOsDir, 'cua-driver'), 'driver')
+    await writeFile(path.join(macOsDir, 'cua-cursor-theme-v2'), 'unreviewed-tool')
+
+    await expect(stageDarwinRuntime(extractDir, runtimeDir)).rejects.toThrow(
+      /Contents\/MacOS must contain only the regular file deepchat-cua-driver; found: cua-cursor-theme-v2, deepchat-cua-driver/
+    )
   })
 
   it('stages only the unsigned main Windows driver', async () => {
@@ -171,7 +199,7 @@ describe('build-cua-plugin-runtime', () => {
     const outputPath = path.join(tempRoot, 'tool-catalog.json')
     const readCommand = vi.fn(() =>
       JSON.stringify({
-        version: '0.12.6',
+        version: '0.13.1',
         tools: [
           {
             name: 'click',
@@ -192,11 +220,11 @@ describe('build-cua-plugin-runtime', () => {
     )
 
     await expect(
-      generateCuaToolCatalog('/runtime/cua-driver', outputPath, '0.12.6', {
+      generateCuaToolCatalog('/runtime/cua-driver', outputPath, '0.13.1', {
         readCommand
       })
     ).resolves.toMatchObject({
-      version: '0.12.6',
+      version: '0.13.1',
       tools: [{ name: 'click' }]
     })
     expect(readCommand).toHaveBeenCalledWith(
@@ -207,7 +235,7 @@ describe('build-cua-plugin-runtime', () => {
         windowsHide: true
       }
     )
-    await expect(readFile(outputPath, 'utf8')).resolves.toContain('"version": "0.12.6"')
+    await expect(readFile(outputPath, 'utf8')).resolves.toContain('"version": "0.13.1"')
   })
 
   it('rejects a generated catalog with a different driver version', async () => {
@@ -217,11 +245,11 @@ describe('build-cua-plugin-runtime', () => {
       generateCuaToolCatalog(
         '/runtime/cua-driver',
         path.join(tempRoot, 'tool-catalog.json'),
-        '0.12.6',
+        '0.13.1',
         {
           readCommand: () =>
             JSON.stringify({
-              version: '0.12.5',
+              version: '0.13.0',
               tools: [
                 {
                   name: 'click',
@@ -235,7 +263,7 @@ describe('build-cua-plugin-runtime', () => {
             })
         }
       )
-    ).rejects.toThrow(/Expected 0\.12\.6, got 0\.12\.5/)
+    ).rejects.toThrow(/Expected 0\.13\.1, got 0\.13\.0/)
   })
 
   it('rejects malformed safety annotations instead of emitting a partial catalog', async () => {
@@ -243,10 +271,10 @@ describe('build-cua-plugin-runtime', () => {
     const outputPath = path.join(tempRoot, 'tool-catalog.json')
 
     await expect(
-      generateCuaToolCatalog('/runtime/cua-driver', outputPath, '0.12.6', {
+      generateCuaToolCatalog('/runtime/cua-driver', outputPath, '0.13.1', {
         readCommand: () =>
           JSON.stringify({
-            version: '0.12.6',
+            version: '0.13.1',
             tools: [
               {
                 name: 'click',

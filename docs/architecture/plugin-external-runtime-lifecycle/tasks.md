@@ -32,7 +32,7 @@
 - [x] Add a supervised changed-fingerprint start and explicit user retry for the same fingerprint.
 - [x] Treat integrity mismatch as non-bypassable and keep installation intent unchanged.
 
-## CUA 0.12.6
+## CUA 0.12.6 foundation
 
 - [x] Pin tag, commit, assets, checksums, and exact protocol versions.
 - [x] Implement private endpoint generation and daemon metadata handshake.
@@ -40,18 +40,34 @@
 - [x] Remove obsolete 0.7.1 launch flags and environment variables.
 - [x] Keep the daemon warm after first use and stop it on disable/shutdown.
 
+## CUA 0.13.1 contract upgrade
+
+- [x] Pin the 0.13.1 release commit, assets, checksums, and driver handshake version.
+- [x] Rename cursor style policy/docs to theme and cover the complete cursor session contract.
+- [x] Document and test `browser_type.replace`, including empty replacement clearing.
+- [x] Deny `kill_app` locally and document the version-specific upstream session-schema defect.
+- [x] Remove the obsolete UIA-worker environment contract from source, packaging, and tests.
+- [x] Exclude the macOS `cua-cursor-theme` authoring sidecar before signing and attestation.
+- [ ] Regenerate the native catalog and verify 49 macOS, 50 Windows, and 53 Linux tools.
+  - macOS arm64 generated 49 tools and passed bundle/verification locally on 2026-07-29.
+  - Windows and Linux counts remain native-CI gates.
+- [ ] Run native driver ownership smoke with a disposable process on each supported platform.
+- [ ] Validate preinstalled custom cursor themes after sidecar removal.
+
 ## Model-facing CUA compatibility
 
 - [x] Normalize empty `element_token` for the seven affected CUA action tools without removing
       valid zero coordinates or unrelated falsy values.
 - [x] Preserve raw MCP `structuredContent` and expose a compact latest-snapshot token projection to
       the model.
+- [x] Project bounded CUA `refusal.code` values into model-visible content while retaining the raw
+      structured refusal.
 - [x] Pass stale-token errors through unchanged and document fresh-snapshot retry behavior in the
       packaged CUA skill.
 - [x] Analyze CUA screenshots only for explicit `include_screenshot: true` calls and append bounded
       visual grounding or a clear unavailable result.
-- [x] Cover empty/index/token/pixel arguments, structured token projection, screenshot gating, and
-      stale-token guidance with automated tests.
+- [x] Cover empty/index/token/pixel arguments, structured token/refusal projections, screenshot
+      gating, and stale-token guidance with automated tests.
 - [ ] Re-run the native Calculator action-and-verification scenario.
 
 ## Environment and integrity
@@ -127,6 +143,19 @@ Model-facing compatibility validation completed on 2026-07-28:
 - focused CUA adapter/ToolManager/result-normalizer tests: 62 passed;
 - `pnpm run test:main`: 5416 passed, 277 skipped by environment gates;
 - full Node/Web type checks, formatting, lint, i18n, and CUA plugin manifest validation passed.
+
+CUA 0.13.1 upgrade validation completed on 2026-07-29:
+
+- macOS arm64 plugin bundle and verification passed with a development-signed artifact;
+- the generated catalog reported 49 tools for driver 0.13.1, and the package excluded
+  `cua-cursor-theme`;
+- 182 focused tests passed;
+- `pnpm run test:main`: 467 files and 5568 tests passed; 20 files and 279 tests were skipped;
+- `pnpm run test:renderer`: 207 files and 1653 tests passed;
+- formatting, i18n, lint, Node/Web type checks, and CUA manifest validation passed.
+
+Windows/Linux native catalogs and behavior, the version-gated direct-driver ownership smoke,
+release-signed/notarized macOS behavior, and preinstalled custom themes remain unchecked above.
 
 ## Review hardening
 

@@ -3,7 +3,7 @@
 ## Status
 
 Lifecycle and model-facing CUA compatibility implementation are complete with automated validation.
-The native Calculator retry and native release validation remain pending.
+The v0.13.1 native cross-platform release gates remain pending.
 
 ## 1. Freeze the contracts
 
@@ -64,7 +64,7 @@ The native Calculator retry and native release validation remain pending.
   intent, removes the obsolete server record, and cannot block unrelated plugin activation.
 - Add explicit `runtime.test` and `runtime.retry` plugin actions; do not overload plugin enable.
 
-## 7. Upgrade and adapt CUA
+## 7. Establish the CUA 0.12.6 foundation
 
 - Pin `cua-driver-rs-v0.12.6` and exact release assets/checksums.
 - Remove obsolete 0.7.1 `--no-daemon-relaunch` and MCP-mode environment assumptions.
@@ -73,8 +73,8 @@ The native Calculator retry and native release validation remain pending.
 - Keep the daemon warm after first tool use until shutdown or disable.
 - Normalize empty optional `element_token` only for the seven affected CUA action tools while
   preserving zero coordinates and every unrelated falsy value.
-- Preserve raw MCP `structuredContent` and append a compact CUA snapshot/token projection without
-  duplicating the full accessibility tree.
+- Preserve raw MCP `structuredContent` and append compact CUA snapshot/token and refusal-code
+  projections without duplicating the full accessibility tree or refusal message.
 - Send a returned CUA screenshot through the resolved vision model only when
   `include_screenshot: true`; append bounded grounding text and keep the raw image out of the main
   tool transcript.
@@ -89,8 +89,8 @@ The native Calculator retry and native release validation remain pending.
 - Verify the CUA runtime file set and identity immediately before spawn.
 - On macOS, update the exact entitlement contract and preserve helper-before-parent signing and
   notarization.
-- On Windows, switch to the binary-only archive, omit the unsigned UIA worker, and explicitly set
-  its opt-in variable to false.
+- On Windows, package only the primary executable, omit the unsigned UIA worker, and do not declare
+  its retired opt-in environment variable.
 
 ## 9. Adapt UI and diagnostics
 
@@ -110,6 +110,22 @@ The native Calculator retry and native release validation remain pending.
 - Measure warm-daemon idle CPU, handle/file-descriptor count, and residual windows on Linux X11
   with and without a compositor.
 - Do not enable Linux arm64 CUA solely because upstream now publishes an artifact.
+
+## 11. Upgrade the closed CUA contract to 0.13.1
+
+- Pin `cua-driver-rs-v0.13.1`, its release commit, assets, and SHA-256 values.
+- Regenerate the native tool catalog and update the closed policy for the cursor-theme rename,
+  cursor session contract, and `browser_type.replace`.
+- Deny `kill_app` until a later driver exposes the session needed for standard-mode ownership
+  proof; keep cooperative close in the skill and bind a direct native failure smoke to 0.13.1.
+- Remove the retired UIA-worker environment variable from manifests, packaging validation, the
+  embedded adapter, and tests.
+- Remove the macOS `cua-cursor-theme` authoring sidecar during staging before signing and
+  descriptor generation.
+- Keep the empty-token compatibility shim narrowly scoped and document structured token recovery
+  without parsing or synthesizing tokens.
+- Leave normal `start_session.cursor_theme` unset and avoid adding a parameter-policy shim to the
+  adapter.
 
 ## Compatibility and rollback
 

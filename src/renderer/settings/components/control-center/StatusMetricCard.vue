@@ -1,9 +1,9 @@
 <template>
   <Card
     :class="[
-      'min-w-0',
+      'min-w-0 border-none bg-accent shadow-none',
       interactive
-        ? ' transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+        ? ' transition-colors hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
         : ''
     ]"
     :role="interactive ? 'button' : undefined"

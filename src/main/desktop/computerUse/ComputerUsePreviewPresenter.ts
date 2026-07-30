@@ -51,6 +51,7 @@ type ComputerUsePreviewState = {
   nextFrameSequence: number
   transformActive: boolean
   pendingSnapshot: PendingSnapshot | null
+  nativeInitialization: Promise<boolean> | null
 }
 
 const FRAME_MAX_WIDTH = 480
@@ -149,7 +150,7 @@ export class ComputerUsePreviewPresenter
 
     if (state.mode === 'eligible') {
       if (targetChanged || state.surface === 'none') {
-        this.presentCurrent(state)
+        this.requestCurrentPresentation(state)
       } else {
         this.prepareCurrent(state)
       }
@@ -217,14 +218,6 @@ export class ComputerUsePreviewPresenter
     }
 
     this.stopOtherSessionsForHost(normalizedSessionId, host.id)
-    await this.previewCoordinator.initialize()
-    if (host.isDestroyed()) {
-      const state = this.states.get(normalizedSessionId)
-      if (state && (state.hostWindowId == null || state.hostWindowId === host.id)) {
-        this.stopState(state)
-      }
-      return { updated: false, surface: 'none' }
-    }
     const state = this.states.get(normalizedSessionId) ?? this.createState(normalizedSessionId)
     this.bindHost(state, host)
     state.mode = mode
@@ -239,7 +232,7 @@ export class ComputerUsePreviewPresenter
       return { updated: true, surface: 'none' }
     }
 
-    const surface = this.presentCurrent(state, true)
+    const surface = this.requestCurrentPresentation(state, true)
     return { updated: true, surface }
   }
 
@@ -289,7 +282,8 @@ export class ComputerUsePreviewPresenter
       frame: null,
       nextFrameSequence: 0,
       transformActive: false,
-      pendingSnapshot: null
+      pendingSnapshot: null,
+      nativeInitialization: null
     }
     this.states.set(sessionId, state)
     return state
@@ -496,11 +490,49 @@ export class ComputerUsePreviewPresenter
     return this.setSurface(state, this.previewCoordinator.prepare(target, host), announceSurface)
   }
 
+  private requestCurrentPresentation(
+    state: ComputerUsePreviewState,
+    announceSurface = false
+  ): ComputerUsePreviewSurface {
+    if (!this.previewTarget(state) || state.mode !== 'eligible') {
+      return this.setSurface(state, 'none', announceSurface)
+    }
+    if (this.previewCoordinator.isAvailable()) {
+      return this.presentCurrent(state, announceSurface)
+    }
+    if (!state.nativeInitialization) {
+      const initialization = this.previewCoordinator.initialize()
+      state.nativeInitialization = initialization
+      void initialization
+        .then((available) => {
+          if (this.states.get(state.sessionId) !== state || state.mode !== 'eligible') {
+            return
+          }
+          if (!available) {
+            this.setSurface(state, 'none', true)
+            this.stopState(state)
+            return
+          }
+          this.presentCurrent(state, true)
+        })
+        .finally(() => {
+          if (state.nativeInitialization === initialization) {
+            state.nativeInitialization = null
+          }
+        })
+    }
+    return this.setSurface(state, 'none', announceSurface)
+  }
+
   private presentCurrent(
     state: ComputerUsePreviewState,
     announceSurface = false
   ): ComputerUsePreviewSurface {
     const surface = this.prepareCurrent(state, announceSurface)
+    if (surface === 'none' && !this.previewCoordinator.isAvailable()) {
+      this.stopState(state)
+      return surface
+    }
     const frame = state.frame
     const target = this.previewTarget(state)
     if (surface === 'none' || !frame || !target || state.hostWindowId == null) {

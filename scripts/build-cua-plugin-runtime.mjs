@@ -30,6 +30,7 @@ const vendorRoot = process.env.DEEPCHAT_CUA_VENDOR_ROOT
 const upstreamMetadataPath = path.join(vendorRoot, 'upstream.json')
 const helperBinaryName = 'cua-driver'
 const upstreamDarwinHelperAppDirName = 'CuaDriver.app'
+const upstreamDarwinThemeAuthoringExecutableName = 'cua-cursor-theme'
 export const darwinHelperAppDirName = CUA_DARWIN_HELPER_APP_NAME
 export const darwinHelperBinaryName = CUA_DARWIN_HELPER_EXECUTABLE_NAME
 export const darwinHelperBundleIdentifier = CUA_DARWIN_HELPER_BUNDLE_IDENTIFIER
@@ -344,8 +345,27 @@ async function renameDarwinHelperExecutable(appPath) {
   await fs.rename(upstreamExecutable, deepchatExecutable)
 }
 
+async function assertDarwinHelperExecutableClosure(appPath) {
+  const macOsDir = path.join(appPath, 'Contents', 'MacOS')
+  const entries = await fs.readdir(macOsDir, { withFileTypes: true })
+  const valid =
+    entries.length === 1 &&
+    entries[0].name === darwinHelperBinaryName &&
+    entries[0].isFile()
+  if (!valid) {
+    throw new Error(
+      `CUA macOS helper Contents/MacOS must contain only the regular file ${darwinHelperBinaryName}; found: ${entries.map((entry) => entry.name).sort().join(', ') || 'none'}`
+    )
+  }
+}
+
 export async function normalizeDarwinHelperBundle(appPath) {
   await renameDarwinHelperExecutable(appPath)
+  await fs.rm(
+    path.join(appPath, 'Contents', 'MacOS', upstreamDarwinThemeAuthoringExecutableName),
+    { force: true }
+  )
+  await assertDarwinHelperExecutableClosure(appPath)
   await rewriteDarwinHelperInfoPlist(appPath)
   await fs.rm(path.join(appPath, 'Contents', '_CodeSignature'), { recursive: true, force: true })
   await fs.rm(path.join(appPath, 'Contents', 'CodeResources'), { force: true })

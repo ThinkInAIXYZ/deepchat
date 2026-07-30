@@ -14,7 +14,7 @@ const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
 const CUA_INTEGRITY_DESCRIPTOR_NAME = 'integrity.json'
 const CUA_EMBEDDED_ADAPTER_CONTRACT = Object.freeze({
   hostBundleId: 'com.wefonk.deepchat',
-  driverVersion: '0.12.6',
+  driverVersion: '0.13.1',
   contractVersion: '0.2.0',
   toolsListSchemaVersion: '1',
   capabilityVersion: '1',
@@ -482,8 +482,8 @@ function validateCuaRuntime(pluginDir, manifest, args) {
     throw new Error(`CUA MCP server toolCatalog must be ${expectedCatalogPath}`)
   }
   const env = cuaServer.env ?? {}
-  if (!flatRecordEquals(env, { CUA_DRIVER_RS_SPAWN_UIA_WORKER: '0' })) {
-    throw new Error('CUA MCP server env must only disable CUA_DRIVER_RS_SPAWN_UIA_WORKER')
+  if (!flatRecordEquals(env, {})) {
+    throw new Error('CUA MCP server must not declare environment overrides')
   }
 
   const catalogFile = assertFile(pluginDir, expectedCatalogPath, `CUA MCP tool catalog ${key}`)

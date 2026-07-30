@@ -32,7 +32,8 @@ bundled DeepChat plugin.
 ## Required Loop
 
 1. Declare one stable run identity with `start_session({ session, capture_scope: "auto" })`. Reuse
-   that `session` value for every state and action call in the run.
+   that `session` value for every state and action call whose advertised schema declares it. Omit
+   `cursor_theme` during normal session setup.
 2. Resolve the app with `list_apps`. Match localized names, English names, romanized names, bundle
    identifiers, executable names, and common abbreviations. Prefer stable identifiers when a result
    provides them.
@@ -50,11 +51,11 @@ bundled DeepChat plugin.
 8. Call `end_session({ session })` after the run, including orderly error cleanup.
 
 Prefer a non-empty `element_token` from the latest `get_window_state` result for the same `pid` and
-`window_id`. Never send `element_token: ""`; omit it when falling back to `element_index` or pixel
-coordinates. If an action returns
-`element_token is stale; call get_window_state again to refresh`, re-snapshot once and retry with
-the new token. Never reuse the stale token or silently fall back to an index from the older
-snapshot.
+`window_id`. Treat every token as opaque: do not parse, shorten, increment, or synthesize it. Never
+send `element_token: ""`; omit it when falling back to `element_index` or pixel coordinates. If an
+action appends a `## CUA structured refusal` whose `refusal.code` is `stale_element_token`,
+`generation_mismatch`, or `invalid_element_token`, re-snapshot once and retry with the new token.
+Never reuse the rejected token or silently fall back to an index from the older snapshot.
 
 Element indices are the compatibility fallback and have the same latest-snapshot scope. Re-snapshot
 when an index is missing, stale, or from another window.
@@ -113,6 +114,9 @@ target is outside the current visible window.
 ## Navigation Patterns
 
 - For app launch: use `launch_app`.
+- For app exit: use the platform's cooperative close path and verify the process/window exited.
+  On macOS prefer the app's Quit action or `hotkey` with Command-Q; on Windows prefer its close
+  control.
 - For opening files or URLs in an app: use `launch_app` with the platform-supported file or URL
   arguments.
 - For supported browser page content: prefer `get_browser_state` plus the typed `browser_*` tools.
@@ -122,9 +126,15 @@ target is outside the current visible window.
 
 ## Agent Cursor
 
-Use `get_agent_cursor_state` to inspect the cursor overlay. Use `set_agent_cursor_enabled`,
-`set_agent_cursor_motion`, or `set_agent_cursor_style` only when the user asks to show, hide,
-animate, or restyle the agent cursor.
+Use `get_agent_cursor_state({ session })` to inspect the cursor overlay. Its state is a
+single-session object with `enabled`, `motion`, `position`, `session`, `theme`, and `visual_state`.
+Use `set_agent_cursor_enabled({ session, ... })` or `set_agent_cursor_motion({ session, ... })`
+only when the user asks to show, hide, or change motion; do not pass appearance fields to the
+motion tool.
+
+Use `set_agent_cursor_theme({ session, theme_id, ... })` only when the user explicitly asks to
+change appearance. `cua.default` is the bundled, verified theme. Do not guess a custom theme id;
+use one only when the user supplies an exact installed id.
 
 ## Recording
 

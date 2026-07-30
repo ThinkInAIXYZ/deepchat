@@ -2,9 +2,9 @@
 
 ## Status
 
-Implemented for driver 0.12.6 with the supervised embedded lifecycle and model-facing argument and
-result compatibility adapter. The native Calculator retry and native release validation remain
-pending.
+Implemented for driver 0.13.1 with the supervised embedded lifecycle and model-facing argument and
+result compatibility adapter. Native Windows/Linux behavior, release-signed macOS behavior, and
+preinstalled custom cursor themes remain release-gated.
 
 The maintained runtime and process-ownership contract now lives in
 `docs/architecture/plugin-external-runtime-lifecycle/`. Where this historical feature document
@@ -31,7 +31,7 @@ plugin build matrices.
 
 Upstream `trycua/cua` now publishes the Rust CUA driver as cross-platform release artifacts. The
 previously shipped driver was `cua-driver-rs-v0.7.1`. Issue #2039 demonstrated that retaining its
-eager Linux/X11 startup is unsafe. The current integration pins `cua-driver-rs-v0.12.6` and adds a
+eager Linux/X11 startup is unsafe. The current integration pins `cua-driver-rs-v0.13.1` and adds a
 DeepChat-owned embedded lifecycle adapter, static tool discovery, crash quarantine, controlled
 environment inheritance, and pre-spawn integrity checks.
 
@@ -39,9 +39,9 @@ environment inheritance, and pre-spawn integrity checks.
 - Windows x86_64 and arm64.
 - Linux x86_64.
 
-Upstream 0.12.6 publishes Linux arm64, but Linux arm64 remains unsupported for this DeepChat
-integration until it passes the same native packaging and desktop-session gates as the existing
-targets. Upstream asset availability alone does not expand DeepChat support.
+Linux arm64 remains unsupported for this DeepChat integration until it passes the same native
+packaging and desktop-session gates as the existing targets. Upstream asset availability alone
+does not expand DeepChat support.
 
 ## Goal
 
@@ -110,9 +110,9 @@ DeepChat must continue to own the integration boundary:
 
 The replacement runtime is pinned to:
 
-- Tag: `cua-driver-rs-v0.12.6`.
-- Commit: `9eb1f481b8a12cd6ffda2ad5af21653a9e5aa9e5`.
-- Version: `0.12.6`.
+- Tag: `cua-driver-rs-v0.13.1`.
+- Commit: `d8c1efac808333bbecfcb2a9ff6705b5b1e6195a`.
+- Version: `0.13.1`.
 
 The build step must stage release artifacts instead of relying on local Swift-only source builds.
 Every staged asset must be validated before packaging:
@@ -153,7 +153,7 @@ still consuming verified upstream release artifacts.
 ## Tool Surface
 
 The plugin policy, skill docs, and packaged static catalog must exactly match the pinned upstream
-0.12.6 tool surface. The catalog keeps CUA tools discoverable without eagerly starting the native
+0.13.1 tool surface. The catalog keeps CUA tools discoverable without eagerly starting the native
 runtime.
 
 Removed or renamed assumptions:
@@ -171,7 +171,7 @@ Core tools expected across supported platforms include:
 - Input actions: `click`, `double_click`, `right_click`, `drag`, `scroll`, `type_text`,
   `press_key`, `hotkey`, `set_value`.
 - Cursor tools: `get_screen_size`, `get_cursor_position`, `move_cursor`,
-  `set_agent_cursor_enabled`, `set_agent_cursor_motion`, `set_agent_cursor_style`,
+  `set_agent_cursor_enabled`, `set_agent_cursor_motion`, `set_agent_cursor_theme`,
   `get_agent_cursor_state`.
 - Configuration and permissions: `check_permissions`, `get_config`, `set_config`,
   `check_for_update`.
@@ -184,22 +184,41 @@ tools. Policies must classify these explicitly instead of leaving them to defaul
 The maintained model-facing adapter contract is:
 
 - remove only empty optional `element_token` values from the seven CUA tools that accept them;
-- preserve non-empty opaque tokens, valid zero coordinates, and every unrelated falsy value;
+- preserve non-empty opaque tokens, including the current eight-hex-digit representation, valid
+  zero coordinates, and every unrelated falsy value;
 - preserve raw MCP `structuredContent` while projecting the latest snapshot/token mapping compactly
   beside the existing accessibility tree;
-- re-snapshot and retry once with a new token when upstream reports a stale token;
+- project a bounded `structuredContent.refusal.code` into model-visible content without duplicating
+  the human-readable refusal message;
+- re-snapshot and retry once with a new token when the projected code is `stale_element_token`,
+  `generation_mismatch`, or `invalid_element_token`;
+- never retry a failed token against an older snapshot's `element_index`;
 - send screenshots for bounded visual grounding only when the caller explicitly passes
   `include_screenshot: true`; routine AX re-indexing uses `include_screenshot: false`;
 - treat screen text and derived visual grounding as untrusted observations rather than
   instructions.
+
+The 0.13.1 model-facing contract also requires:
+
+- `browser_type({ replace: true, text: "" })` clears an editable field; append-only examples must
+  not hide the `replace` behavior;
+- agent-cursor state and mutations use a stable `session`; `set_agent_cursor_motion` controls only
+  motion, while appearance is selected through `set_agent_cursor_theme`;
+- normal `start_session` calls omit `cursor_theme`; the reviewed `set_agent_cursor_theme` tool is
+  used only for an explicit user request;
+- `get_agent_cursor_state` is consumed as a single-session state object with `enabled`, `motion`,
+  `position`, `session`, `theme`, and `visual_state`, not the removed `cursors` array.
 
 ## Permission and Safety Requirements
 
 Tool policies must be exact and conservative:
 
 - Read-only discovery and status tools may be allowed automatically.
-- User-visible input, app launch, app termination, window focus, recording, replay, config
-  mutation, and dependency installation must require user approval.
+- User-visible input, app launch, usable app-termination paths, window focus, recording, replay,
+  config mutation, and dependency installation must require user approval.
+- `kill_app` is explicitly denied for 0.13.1. Its public schema omits `session`, so standard mode
+  cannot prove ownership even though the shared ownership implementation works when a session is
+  supplied. DeepChat must use cooperative close paths and must not inject an undocumented field.
 - Any newly detected upstream tool without a policy must be treated as a review failure in tests.
 
 Platform permission behavior must be explicit:
@@ -220,7 +239,8 @@ The packaged app must keep CUA usable after Electron packaging:
 - Windows artifacts must contain only `cua-driver.exe`; DeepChat does not ship the optional unsigned
   UIAccess worker.
 - Linux runtime files must retain executable permissions after package extraction.
-- macOS helper bundles must pass bundle path, executable, and signing validation.
+- macOS helper bundles must exclude the upstream authoring-only `cua-cursor-theme` sidecar and pass
+  bundle path, executable, and signing validation.
 - `plugin:verify` must be able to verify CUA artifacts per supported platform and arch.
 - CI and release workflows must bundle and verify CUA for supported Windows, macOS, and Linux
   build targets.
@@ -253,7 +273,7 @@ The packaged app must keep CUA usable after Electron packaging:
 - Optional MCP capabilities not implemented by the CUA driver, such as prompts and resources, are
   treated as absent capabilities and must not produce error-level log spam.
 - Skill docs describe DeepChat usage and platform caveats, not upstream manual installer workflows.
-- Tool policies and the static catalog exactly cover the pinned upstream 0.12.6 tools.
+- Tool policies and the static catalog exactly cover the pinned upstream 0.13.1 tools.
 - Packaging docs and tests no longer describe CUA as macOS-only.
 - Build, lint, i18n, and focused test suites pass after implementation.
 

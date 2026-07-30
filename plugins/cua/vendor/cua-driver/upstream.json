@@ -2,35 +2,35 @@
   "sourceKind": "upstream-release",
   "upstreamRepo": "https://github.com/trycua/cua.git",
   "upstreamSubdir": "libs/cua-driver/rust",
-  "tag": "cua-driver-rs-v0.12.6",
-  "commit": "9eb1f481b8a12cd6ffda2ad5af21653a9e5aa9e5",
-  "version": "0.12.6",
-  "updatedAt": "2026-07-24",
-  "releaseUrl": "https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.12.6",
+  "tag": "cua-driver-rs-v0.13.1",
+  "commit": "d8c1efac808333bbecfcb2a9ff6705b5b1e6195a",
+  "version": "0.13.1",
+  "updatedAt": "2026-07-29",
+  "releaseUrl": "https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.13.1",
   "checksumsAsset": "checksums.txt",
-  "checksumsSha256": "21486096e0c5901cafcaaf652144308abb3f088a2d9785941585a002c571233f",
+  "checksumsSha256": "9dc81da0fda626ca79ed603ebe0d9913c291d89ab348bedbaefd2adb24547ed8",
   "supportedTargets": ["darwin/arm64", "darwin/x64", "win32/x64", "win32/arm64", "linux/x64"],
   "unsupportedTargets": ["linux/arm64"],
   "assets": {
     "darwin-arm64": {
-      "name": "cua-driver-rs-0.12.6-darwin-arm64.tar.gz",
-      "sha256": "c64017d5878d022df34137082fb918ae0d4304e28890569ff14458f1a54fd361"
+      "name": "cua-driver-rs-0.13.1-darwin-arm64.tar.gz",
+      "sha256": "17e09bd109bfb0d99b5bf9b0b75575e8f797ff30cb13be17988b2709b09d1ee5"
     },
     "darwin-x64": {
-      "name": "cua-driver-rs-0.12.6-darwin-x86_64.tar.gz",
-      "sha256": "1b177b9a94ab98d7467c0d16d0513e9324a8e51c944cb0f9a694cc2e4844cc80"
+      "name": "cua-driver-rs-0.13.1-darwin-x86_64.tar.gz",
+      "sha256": "f5df0e5600a26a822de872dd8361fc820bd3fde611ab91c1ddc3ddaa2ede1933"
     },
     "windows-x64": {
-      "name": "cua-driver-rs-0.12.6-windows-x86_64-binary.zip",
-      "sha256": "d18a0ca02314c6dc7dfdfbb20aac8f52c7b1547308f182546a9252a991d4d0dd"
+      "name": "cua-driver-rs-0.13.1-windows-x86_64-binary.zip",
+      "sha256": "3d30f7cd62300d26f06e2f4136118b11b1bef22a59897d454e479d1f425be46a"
     },
     "windows-arm64": {
-      "name": "cua-driver-rs-0.12.6-windows-arm64-binary.zip",
-      "sha256": "f8df8f5394a85dea8bd3764030d89ef73c040398f14e4a19d2ce7fd0e7fb7db3"
+      "name": "cua-driver-rs-0.13.1-windows-arm64-binary.zip",
+      "sha256": "0e15330f9a4461faae64264e9e642c93fa1e5080177c874f0c9136688bde06fa"
     },
     "linux-x64": {
-      "name": "cua-driver-rs-0.12.6-linux-x86_64-binary.tar.gz",
-      "sha256": "795b8464a25b036fe1a47d9cd1f560d6b4e2ab58e23630c0de3d9feff4757039"
+      "name": "cua-driver-rs-0.13.1-linux-x86_64-binary.tar.gz",
+      "sha256": "0676c727980a1a5ea792d715f576ec12e7c15099493a01af2a74ea64b036303f"
     }
   },
   "releasePolicy": "Stage pinned upstream release assets at build time. Do not run upstream installers or require PATH-installed runtime binaries for the bundled DeepChat plugin."

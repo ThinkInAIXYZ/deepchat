@@ -524,7 +524,7 @@ const setupEventListeners = () => {
     // the separately loaded Agent-scoped catalog.
     if (!isAgentScope.value) return
     if (payload.reason === 'sync-directory-updated') return
-    const affectedAgentId = isAgentScope.value ? targetAgentId.value : 'deepchat'
+    const affectedAgentId = targetAgentId.value
     if (payload.agentIds?.length && !payload.agentIds.includes(affectedAgentId)) {
       return
     }
@@ -760,9 +760,7 @@ const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean
   const requestedAgentId = targetAgent.value.id
   await skillClient.setSkillDisabled(skill.name, disabled, requestedAgentId)
   if (requestedAgentId !== targetAgentId.value) return false
-  scopedSkills.value = scopedSkills.value.map((item) =>
-    item.name === skill.name ? { ...item, disabled, deepchatDisabled: disabled } : item
-  )
+  applyScopedSkillDisabled(skill.name, disabled)
   return true
 }
 

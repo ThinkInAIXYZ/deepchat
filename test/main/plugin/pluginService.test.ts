@@ -929,7 +929,7 @@ describe('PluginService', () => {
     const integrityRelativePath = 'runtime/darwin/arm64/integrity.json'
     await mkdir(path.join(root, 'runtime', 'darwin', 'arm64'), { recursive: true })
     const catalogContents = `${JSON.stringify({
-      version: '0.12.6',
+      version: '0.13.1',
       tools: [
         {
           name: 'check_permissions',
@@ -957,7 +957,7 @@ describe('PluginService', () => {
         ],
         adapterContract: {
           hostBundleId: 'com.wefonk.deepchat',
-          driverVersion: '0.12.6',
+          driverVersion: '0.13.1',
           contractVersion: '0.2.0',
           toolsListSchemaVersion: '1',
           capabilityVersion: '1',
@@ -971,7 +971,6 @@ describe('PluginService', () => {
           transport: 'stdio',
           command: '${runtime.cua-driver.command}',
           args: ['mcp', '--embedded'],
-          env: { CUA_DRIVER_RS_SPAWN_UIA_WORKER: '0' },
           autoApprove: [],
           startMode: 'onDemand',
           surfaces: ['tools'],
@@ -991,7 +990,7 @@ describe('PluginService', () => {
           schemaVersion: 1,
           pluginId: 'com.deepchat.plugins.cua',
           runtimeId: 'cua-driver',
-          runtimeVersion: '0.12.6',
+          runtimeVersion: '0.13.1',
           target: 'darwin/arm64',
           runtimeRoot: 'runtime/darwin/arm64',
           binaryPath: 'DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
@@ -1140,8 +1139,8 @@ describe('PluginService', () => {
     const commandPath = path.join(pluginRoot, commandName)
     const commandContents =
       process.platform === 'win32'
-        ? `@echo off\r\n> "${markerPath}" echo executed\r\necho cua-driver 0.12.6\r\n`
-        : `#!/bin/sh\nprintf executed > '${markerPath}'\nprintf 'cua-driver 0.12.6\\n'\n`
+        ? `@echo off\r\n> "${markerPath}" echo executed\r\necho cua-driver 0.13.1\r\n`
+        : `#!/bin/sh\nprintf executed > '${markerPath}'\nprintf 'cua-driver 0.13.1\\n'\n`
     await writeFile(commandPath, commandContents)
     if (process.platform !== 'win32') {
       await chmod(commandPath, 0o755)
@@ -1157,7 +1156,7 @@ describe('PluginService', () => {
         adapter: 'cua-embedded-v1',
         adapterContract: {
           hostBundleId: 'com.wefonk.deepchat',
-          driverVersion: '0.12.6',
+          driverVersion: '0.13.1',
           contractVersion: '1',
           toolsListSchemaVersion: '1',
           capabilityVersion: '1',
@@ -1170,7 +1169,7 @@ describe('PluginService', () => {
     expect(status).toMatchObject({
       state: 'installed',
       command: commandPath,
-      version: '0.12.6'
+      version: '0.13.1'
     })
     expect(fs.existsSync(markerPath)).toBe(false)
   })
@@ -1216,7 +1215,7 @@ describe('PluginService', () => {
       displayName: 'CUA Driver',
       state: 'installed',
       command: '/plugin/cua-driver',
-      version: 'cua-driver 0.12.6'
+      version: 'cua-driver 0.13.1'
     })
     presenter.__mocks.mcpService.checkPluginRuntimePermissions.mockResolvedValue({
       structuredContent: {
@@ -1587,7 +1586,6 @@ describe('PluginService', () => {
       type: 'stdio',
       command: '/fixture/cua-driver',
       args: ['mcp', '--embedded'],
-      env: { CUA_DRIVER_RS_SPAWN_UIA_WORKER: '0' },
       enabled: false,
       source: 'plugin',
       sourceId: 'com.deepchat.plugins.cua',
@@ -1789,16 +1787,15 @@ describe('PluginService', () => {
     )
     expect(manifest.runtime.adapterContract).toEqual({
       hostBundleId: 'com.wefonk.deepchat',
-      driverVersion: '0.12.6',
+      driverVersion: '0.13.1',
       contractVersion: '0.2.0',
       toolsListSchemaVersion: '1',
       capabilityVersion: '1',
       mcpProtocolVersion: '2025-06-18'
     })
     expect(server.args).toEqual(['mcp', '--embedded'])
-    expect(server.env).toEqual({
-      CUA_DRIVER_RS_SPAWN_UIA_WORKER: '0'
-    })
+    expect(server.env).toBeUndefined()
+    expect(mcpConfig.env).toBeUndefined()
     expect(server).toMatchObject({
       startMode: 'onDemand',
       surfaces: ['tools'],
@@ -1808,7 +1805,6 @@ describe('PluginService', () => {
     expect(mcpConfig).toEqual(
       expect.objectContaining({
         args: server.args,
-        env: server.env,
         startMode: server.startMode,
         surfaces: server.surfaces,
         toolCatalog: server.toolCatalog,
@@ -1817,7 +1813,7 @@ describe('PluginService', () => {
     )
   })
 
-  it('keeps CUA v0.12.6 tool policies explicit and conservative', async () => {
+  it('keeps CUA v0.13.1 tool policies explicit and conservative', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
     const manifestTools = manifest.toolPolicies.find(
@@ -1844,7 +1840,6 @@ describe('PluginService', () => {
     ]
     const EXPECTED_ASK = [
       'launch_app',
-      'kill_app',
       'bring_to_front',
       'click',
       'right_click',
@@ -1863,7 +1858,7 @@ describe('PluginService', () => {
       'install_ffmpeg',
       'set_agent_cursor_enabled',
       'set_agent_cursor_motion',
-      'set_agent_cursor_style',
+      'set_agent_cursor_theme',
       'replay_trajectory',
       'zoom',
       'page',
@@ -1879,6 +1874,7 @@ describe('PluginService', () => {
     ]
     const EXPECTED_DENY = [
       'debug_window_info',
+      'kill_app',
       'mouse_button_down',
       'mouse_button_up',
       'mouse_drag'
@@ -1897,6 +1893,10 @@ describe('PluginService', () => {
       expect(policy.tools[tool]).toBe('deny')
     }
 
+    expect(manifestTools.kill_app).toBe('deny')
+    expect(policy.tools.kill_app).toBe('deny')
+    expect(manifestTools.set_agent_cursor_style).toBeUndefined()
+    expect(policy.tools.set_agent_cursor_style).toBeUndefined()
     expect(manifestTools.screenshot).toBeUndefined()
     expect(manifestTools.set_recording).toBeUndefined()
     expect(manifestTools.type_text_chars).toBeUndefined()
@@ -1915,22 +1915,35 @@ describe('PluginService', () => {
       sourceKind: 'upstream-release',
       upstreamRepo: 'https://github.com/trycua/cua.git',
       upstreamSubdir: 'libs/cua-driver/rust',
-      tag: 'cua-driver-rs-v0.12.6',
-      commit: '9eb1f481b8a12cd6ffda2ad5af21653a9e5aa9e5',
-      version: '0.12.6',
-      checksumsSha256: '21486096e0c5901cafcaaf652144308abb3f088a2d9785941585a002c571233f',
+      tag: 'cua-driver-rs-v0.13.1',
+      commit: 'd8c1efac808333bbecfcb2a9ff6705b5b1e6195a',
+      version: '0.13.1',
+      checksumsSha256: '9dc81da0fda626ca79ed603ebe0d9913c291d89ab348bedbaefd2adb24547ed8',
       supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
       unsupportedTargets: ['linux/arm64']
     })
-    expect(metadata.assets['windows-x64'].name).toBe(
-      'cua-driver-rs-0.12.6-windows-x86_64-binary.zip'
-    )
-    expect(metadata.assets['windows-arm64'].name).toBe(
-      'cua-driver-rs-0.12.6-windows-arm64-binary.zip'
-    )
-    expect(metadata.assets['linux-x64'].name).toBe(
-      'cua-driver-rs-0.12.6-linux-x86_64-binary.tar.gz'
-    )
+    expect(metadata.assets).toEqual({
+      'darwin-arm64': {
+        name: 'cua-driver-rs-0.13.1-darwin-arm64.tar.gz',
+        sha256: '17e09bd109bfb0d99b5bf9b0b75575e8f797ff30cb13be17988b2709b09d1ee5'
+      },
+      'darwin-x64': {
+        name: 'cua-driver-rs-0.13.1-darwin-x86_64.tar.gz',
+        sha256: 'f5df0e5600a26a822de872dd8361fc820bd3fde611ab91c1ddc3ddaa2ede1933'
+      },
+      'windows-x64': {
+        name: 'cua-driver-rs-0.13.1-windows-x86_64-binary.zip',
+        sha256: '3d30f7cd62300d26f06e2f4136118b11b1bef22a59897d454e479d1f425be46a'
+      },
+      'windows-arm64': {
+        name: 'cua-driver-rs-0.13.1-windows-arm64-binary.zip',
+        sha256: '0e15330f9a4461faae64264e9e642c93fa1e5080177c874f0c9136688bde06fa'
+      },
+      'linux-x64': {
+        name: 'cua-driver-rs-0.13.1-linux-x86_64-binary.tar.gz',
+        sha256: '0676c727980a1a5ea792d715f576ec12e7c15099493a01af2a74ea64b036303f'
+      }
+    })
     for (const asset of Object.values(metadata.assets) as Array<{ sha256: string }>) {
       expect(asset.sha256).toMatch(/^[a-f0-9]{64}$/)
     }
@@ -1987,7 +2000,16 @@ describe('PluginService', () => {
     expect(combined).toContain('launch_app')
     expect(combined).toContain('get_window_state')
     expect(combined).toContain('check_permissions')
-    expect(combined).toContain('set_agent_cursor_style')
+    expect(combined).toContain('set_agent_cursor_theme')
+    expect(combined).toContain('browser_type({ replace: true, text: "" })')
+    expect(combined).toContain('## CUA structured refusal')
+    expect(combined).toContain('refusal.code')
+    expect(combined).toContain('generation_mismatch')
+    expect(combined).toContain('single-session object')
+    expect(combined).toContain('do not pass appearance fields')
+    expect(combined).toContain('read-only `get_text` or `query_dom`')
+    expect(combined).toMatch(/Omit\s+`cursor_theme` during normal session setup/)
+    expect(combined).toContain('`cua.default` is the bundled, verified theme')
     expect(combined).toContain('DeepChat Computer Use.app')
     expect(combined).toContain('win32/x64')
     expect(combined).toContain('linux/x64')
@@ -1999,6 +2021,9 @@ describe('PluginService', () => {
     expect(combined).toContain('zoom({ pid, window_id')
     expect(combined).toContain('Repeated zoom calls are a failure signal')
     expect(combined).toContain('Do not ask the user to install CUA manually')
+    expect(combined).not.toContain('kill_app')
+    expect(combined).not.toContain('undeclared session arguments')
+    expect(combined).not.toContain('call the native driver directly')
     expect(combined).not.toContain('Bash')
     expect(combined).not.toContain('cua-driver <tool')
     expect(combined).not.toContain('open -n -g -a')

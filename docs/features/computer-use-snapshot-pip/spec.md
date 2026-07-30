@@ -7,7 +7,7 @@ Implemented on branch `codex/computer-use-snapshot-pip` on 2026-07-28.
 Format, i18n, lint, typecheck, focused main/renderer coverage, and the complete renderer suite pass.
 The complete main suite has one unrelated provider-metadata expectation failure in
 `test/main/provider/modelConfig.test.ts`; the same test fails in isolation and neither it nor its
-implementation is changed by this feature. Packaged native-overlay and Canvas-fallback QA,
+implementation is changed by this feature. Packaged native-overlay and native-unavailable QA,
 cross-platform interaction checks, and the 150 ms p95 result-to-visible measurement remain open and
 are tracked in `tasks.md`.
 
@@ -58,7 +58,7 @@ The snapshot PiP is feasible without changing CUA.
 | Can the existing PiP surface be reused? | NativeKit accepts PNG/JPEG data URLs and supports repeated toolbar reconfiguration. | Share one native owner and switch explicit Browser/Computer profiles. |
 | Can a result be tied to the correct Agent run? | The Agent runtime has a stable `runId`, but the MCP branch currently drops it. | Forward internal execution metadata through the MCP service path. |
 | Can stale pixels be isolated? | ToolManager knows the resolved plugin source, original tool, prepared target arguments, and tool-call identity. | Observe at that boundary and validate run, target, claim, and epoch before display. |
-| Does every platform have a native overlay? | No; the existing NativeKit matrix has Windows arm64, native Wayland, and load-failure gaps. | Preserve a small renderer Canvas fallback. |
+| Does every platform have a native overlay? | No; the existing NativeKit matrix has Windows arm64, native Wayland, and load-failure gaps. | Disable Computer Use PiP without changing CUA execution. |
 
 The main engineering risk is not screenshot performance. It is ownership: NativeKit is
 process-global, while Browser and Computer Use have different controls and lifecycles. A shared
@@ -136,8 +136,8 @@ The existing `common.close` translation is sufficient. This feature adds no user
 - Update the PiP after each later valid snapshot for the same active target.
 - Keep the last valid image visible between snapshots without showing stale images from another
   run, session, or target.
-- Prefer the existing NativeKit overlay on supported runtimes and preserve the renderer Canvas
-  fallback elsewhere.
+- Use the existing NativeKit overlay on supported runtimes and expose no Computer Use PiP when the
+  native capability is unavailable.
 - Share one process-global native overlay safely between Browser and Computer Use.
 - Preserve Browser PiP's existing **Open in panel** plus **Close** controls.
 - Give Computer Use exactly one **Close** control and ignore native activation.
@@ -190,7 +190,7 @@ The existing `common.close` translation is sufficient. This feature adds no user
 - NativeKit provides one process-global overlay manager. Starting a second independent adapter
   would replace global toolbar configuration.
 - `AgentBrowserPiP.vue`, mounted by `ChatTabView.vue`, coordinates Browser preview eligibility and
-  renders the Canvas fallback.
+  opens the existing Browser side panel when native PiP is unavailable.
 - The Agent runtime already passes `io.requestId` as `ToolCallOptions.runId`.
 - `ToolService` forwards `runId` to built-in Agent tools but currently drops it on the MCP path
   before `McpService.callTool`.
@@ -212,9 +212,9 @@ The existing `common.close` translation is sufficient. This feature adds no user
   polling.
 - Added an `epoch` to Computer Use surface and frame events so a later target in the same run cannot
   accept an in-flight frame from the prior target.
-- The shared coordinator permanently falls back to Canvas after a NativeKit load, startup, toolbar,
-  host-attach, or frame-push failure for the current process. It does not repeatedly retry a failed
-  native path during Agent work.
+- The shared coordinator permanently disables native PiP after a NativeKit load, startup, toolbar,
+  or host-attach failure for the current process. A frame-push failure retains the previous native
+  presentation and retries on the next valid snapshot.
 - An eligible successful official CUA `click` schedules one non-blocking private
   `get_window_state({ pid, window_id })` call. The private response is routed only to the preview
   observer and is never published as an MCP result or returned to the Agent.
@@ -322,9 +322,9 @@ ToolService -> McpService -> ToolManager
           +------+------------------+
           |                         |
           v                         v
-  NativeKit overlay          renderer Canvas fallback
-  main-process image         typed bounded frame event
-  Computer toolbar: Close    Computer toolbar: Close
+  NativeKit overlay          native unavailable
+  main-process image         no Computer Use PiP
+  Computer toolbar: Close    CUA execution unchanged
 ```
 
 ### Shared Native Overlay Ownership
@@ -336,14 +336,14 @@ Extract the process-global concerns currently inside `AgentBrowserNativeOverlay`
 The shared owner is responsible for:
 
 - one NativeKit `start()` / `stop()` lifecycle;
-- capability detection and Canvas fallback selection;
+- on-demand capability detection and process-stable disablement;
 - one attached host and one visible presentation;
 - toolbar profile switching before a source is presented;
 - display, host move/resize, focus, show/hide, minimize/restore, and close listeners;
 - one eligible source claim and monotonic claim sequence per host/session;
 - shared run-scoped dismissal;
 - prepaint-before-show ordering;
-- NativeKit latency instrumentation and failure fallback.
+- NativeKit latency instrumentation and failure disablement.
 
 Source profiles remain explicit:
 
@@ -449,10 +449,10 @@ The presenter:
 - keeps at most one transform in flight per active target;
 - drops queued intermediate work and retains only the latest pending result;
 - revalidates session, run, target, tool call, claim, and epoch before presentation;
-- sends a data URL directly to NativeKit or a typed byte event only to the Canvas fallback;
+- sends a data URL directly to NativeKit when the native capability is available;
 - owns stop, suspend, resume, dismiss, and shutdown cleanup.
 
-### Renderer Coordination and Fallback
+### Renderer Coordination
 
 Add a focused `AgentComputerUsePiP.vue` beside `AgentBrowserPiP.vue` in `ChatTabView.vue`.
 
@@ -463,9 +463,8 @@ On the native path it is a headless lifecycle controller:
 - call typed mode routes only when derived state changes;
 - render no image DOM and receive no frame bytes.
 
-On the fallback path it renders a small Canvas card with exactly one **Close** button. It retains
-the previous Canvas pixels until a fully decoded new frame is ready and revokes all object URLs and
-image resources on replacement/unmount.
+When NativeKit is unavailable, it receives `none`, subscribes to no frame bytes, and renders no PiP
+DOM.
 
 Keep the Computer Use component separate from `AgentBrowserPiP.vue`. Extract shared renderer logic
 only if implementation reveals stable duplication; the source rules and controls are intentionally
@@ -507,7 +506,7 @@ type DismissComputerUsePreviewOutput = {
 authoritative for actual visibility. `suspended` retains the current valid frame while hiding it.
 `stopped` removes presenter state for that session.
 
-### Fallback Event
+### Renderer Frame Event
 
 ```ts
 type ComputerUsePreviewFrame = {
@@ -522,8 +521,8 @@ type ComputerUsePreviewFrame = {
 }
 ```
 
-Publish `computerUse.preview.frame` only when the selected surface is `renderer-canvas`. The native
-path must not send image bytes to the renderer.
+The typed `computerUse.preview.frame` contract remains bounded, but native capability failure does
+not select `renderer-canvas` or publish image bytes to the renderer.
 
 ## Image Pipeline
 
@@ -569,16 +568,17 @@ The feature follows the existing NativeKit support matrix:
 | --- | --- |
 | macOS arm64/x64 | Native overlay |
 | Windows x64 | Native overlay |
-| Windows arm64 | Renderer Canvas fallback |
+| Windows arm64 | No Computer Use PiP |
 | Linux x64/arm64 under X11 or supported XWayland | Native overlay |
-| Linux native Wayland | Renderer Canvas fallback |
-| Missing/corrupt addon or native startup failure | Renderer Canvas fallback |
+| Linux native Wayland | No Computer Use PiP |
+| Missing/corrupt addon or native startup failure | No Computer Use PiP |
 
 No platform capture permission is added because both Agent-requested and private snapshots use the
 existing Computer Use tool. Existing CUA permission behavior is unchanged.
 
-If NativeKit fails after initialization, hide/remove the native presentation and publish the
-retained valid current frame to Canvas fallback without interrupting the Agent.
+If toolbar configuration or host attachment fails after initialization, hide/remove the native
+presentation, disable preview state, and continue the Agent without interruption. A frame-push
+failure retains the previous presentation and retries without interrupting the Agent.
 
 ## Performance Budget
 
@@ -607,7 +607,7 @@ These are acceptance budgets, not claims that every CUA action produces a snapsh
 | Oversized image | Reject frame and record a rate-limited metadata-only warning |
 | Stale/out-of-order result | Drop by claim, epoch, run, target, and tool-call validation |
 | Target changes | Hide/remove old presentation; wait for first valid new-target frame |
-| Native overlay unavailable | Use Canvas fallback |
+| Native overlay unavailable | Show no Computer Use PiP; continue CUA normally |
 | Host loses focus | Hide while retaining current valid frame |
 | Session/run stops | Remove presentation and release frame state |
 | Presenter shutdown | Unsubscribe listeners, remove image, detach host, stop shared owner once |
@@ -619,13 +619,13 @@ Preview failures never change the MCP tool result or Agent execution outcome.
 ### User Behavior
 
 - A successful current-run `get_window_state` image produces one read-only latest-snapshot PiP when
-  the active DeepChat chat is foreground and working.
+  the active DeepChat chat is foreground, working, and NativeKit is available.
 - The PiP is never blank and appears only after its first valid frame.
 - Later valid snapshots for the same target replace the visible image.
 - An eligible successful `click` schedules a private PiP-only snapshot and may refresh the visible
   image without adding screenshot content to the Agent response.
 - The Computer Use PiP contains exactly one **Close** button.
-- Dragging is native on supported platforms and renderer-local on fallback platforms.
+- Dragging is native on supported platforms; unavailable platforms show no Computer Use PiP.
 - Close suppresses only the current run and never changes the Agent or target application.
 - A later run may show a new PiP after its first valid snapshot.
 - Host blur/hide/minimize and route/session switch hide the PiP without leaking another session's
@@ -656,11 +656,11 @@ Preview failures never change the MCP tool result or Agent execution outcome.
   responses.
 - Image pipeline tests cover PNG/JPEG, malformed base64, unsupported MIME, dimension/input/output
   limits, aspect ratio, no upscale, and latest-wins scheduling.
-- Renderer tests cover native headless mode, Canvas fallback frame retention, close, focus,
-  unmount cleanup, and session switching.
+- Renderer tests cover native headless mode, unavailable no-surface behavior, close, focus, unmount
+  cleanup, and session switching.
 - Browser regression tests cover toolbar profile switching, activation, dismissal, capture refresh,
   and panel handoff.
-- Packaged QA covers the existing NativeKit native/fallback platform matrix.
+- Packaged QA covers one NativeKit runtime and one native-unavailable runtime.
 
 ## Rollout
 
@@ -669,5 +669,5 @@ change. The gate must disable only the Computer Use preview observer/presenter; 
 CUA tool execution or Browser PiP.
 
 Do not call the feature complete until Browser regression coverage and at least one native plus one
-Canvas fallback packaged run pass. Update this status and the linked Browser NativeKit architecture
-document after implementation.
+native-unavailable packaged run pass. Update this status and the linked Browser NativeKit
+architecture document after implementation.
