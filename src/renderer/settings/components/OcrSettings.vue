@@ -155,12 +155,6 @@
                 {{ t('settings.ocr.clearCache') }}
               </Button>
             </div>
-            <InlineOperationFeedback
-              v-if="!clearDialogOpen"
-              class="px-4 pb-4"
-              :snapshot="cacheFeedback"
-            />
-
             <Collapsible v-model:open="diagnosticsOpen" class="border-t">
               <CollapsibleTrigger as-child>
                 <Button
@@ -268,7 +262,9 @@
             {{ t('settings.ocr.clearCacheDescription') }}
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <InlineOperationFeedback :snapshot="cacheFeedback" />
+        <p v-if="cacheClearFailed" role="alert" class="text-sm text-destructive">
+          {{ t('settings.ocr.clearCacheFailed') }}
+        </p>
         <AlertDialogFooter>
           <AlertDialogCancel :disabled="cacheClearInFlight">
             {{ t('common.cancel') }}
@@ -326,6 +322,7 @@ import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import SettingsSectionCard from './control-center/SettingsSectionCard.vue'
 import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 
 type OcrBackend = 'auto' | 'cpu'
@@ -336,9 +333,6 @@ const ocrClient = createOcrClient()
 const settingsFeedbackController = createRendererSurfaceFeedbackController('settings')
 const { snapshot: settingsFeedback } = useSurfaceFeedback(settingsFeedbackController)
 const settingsOperationId = `settings.ocr.configuration:${nanoid(8)}`
-const cacheFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: cacheFeedback } = useSurfaceFeedback(cacheFeedbackController)
-const cacheOperationId = `settings.ocr.clearCache:${nanoid(8)}`
 
 const automaticExtractionEnabled = ref(true)
 const backend = ref<OcrBackend>('auto')
@@ -346,7 +340,8 @@ const status = ref<OcrRuntimeStatus | null>(null)
 const settingsReady = ref(false)
 const settingsOperationPending = computed(() => settingsFeedback.value.status === 'pending')
 const statusLoading = ref(false)
-const cacheClearInFlight = computed(() => cacheFeedback.value.status === 'pending')
+const cacheClearInFlight = ref(false)
+const cacheClearFailed = ref(false)
 const clearDialogOpen = ref(false)
 const advancedOpen = ref(false)
 const diagnosticsOpen = ref(false)
@@ -519,12 +514,14 @@ async function refreshStatus(): Promise<void> {
 
 async function clearCache(): Promise<void> {
   if (!canClearCache.value) return
-  cacheFeedbackController.begin(cacheOperationId, t('common.loading'))
+  cacheClearFailed.value = false
+  cacheClearInFlight.value = true
   try {
     const result = await ocrClient.clearCache()
     if (status.value) status.value = { ...status.value, cache: result.cache }
     clearDialogOpen.value = false
-    cacheFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.ocr.cacheCleared',
       title: t('settings.ocr.cacheCleared'),
       description: t('settings.ocr.cacheClearedDescription')
@@ -533,16 +530,16 @@ async function clearCache(): Promise<void> {
     console.error('[OcrSettings] Failed to clear cache', {
       name: error instanceof Error ? error.name : 'UnknownError'
     })
-    cacheFeedbackController.fail({
-      code: 'settings.ocr.clearCacheFailed',
-      title: t('settings.ocr.clearCacheFailed')
-    })
+    cacheClearFailed.value = true
+  } finally {
+    cacheClearInFlight.value = false
   }
 }
 
 function handleClearDialogOpenChange(open: boolean): void {
   if (cacheClearInFlight.value) return
   clearDialogOpen.value = open
+  if (!open) cacheClearFailed.value = false
 }
 
 function formatEngineStage(stage: 'detection' | 'recognition'): string {

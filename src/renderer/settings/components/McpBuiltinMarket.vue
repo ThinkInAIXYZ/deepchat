@@ -219,9 +219,6 @@ const mcpClient = createMcpClient()
 const apiKeyFeedbackController = createRendererSurfaceFeedbackController('settings')
 const { snapshot: apiKeyFeedback } = useSurfaceFeedback(apiKeyFeedbackController)
 const apiKeyOperationId = `settings.mcpMarket.apiKey.save:${nanoid(8)}`
-const installFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: installFeedback } = useSurfaceFeedback(installFeedbackController)
-const installOperationId = `settings.mcpMarket.install:${nanoid(8)}`
 
 type MarketItem = {
   uuid: string
@@ -254,7 +251,7 @@ const apiKeyLoading = ref(false)
 const apiKeyLoadError = ref<string | null>(null)
 const apiKeyRequirementError = ref<string | null>(null)
 const savingApiKey = computed(() => apiKeyFeedback.value.status === 'pending')
-const installInProgress = computed(() => installFeedback.value.status === 'pending')
+const installInProgress = computed(() => installingServerKeys.value.size > 0)
 const marketMutationInProgress = computed(() => savingApiKey.value || installInProgress.value)
 
 const loadApiKey = async () => {
@@ -373,7 +370,6 @@ const install = async (item: MarketItem) => {
       inputElement?.focus()
       return
     }
-    installFeedbackController.begin(installOperationId, t('common.loading'))
     const nextErrors = { ...installErrors.value }
     delete nextErrors[item.server_key]
     installErrors.value = nextErrors
@@ -382,19 +378,11 @@ const install = async (item: MarketItem) => {
     const ok = await mcpClient.installMcpRouterServer(item.server_key)
     if (ok) {
       installedServers.value = new Set([...installedServers.value, item.server_key])
-      installFeedbackController.succeed({
-        code: 'settings.mcpMarket.server.installed',
-        title: t('mcp.market.installSuccess')
-      })
     } else {
       installErrors.value = {
         ...installErrors.value,
         [item.server_key]: t('mcp.market.installFailed')
       }
-      installFeedbackController.fail({
-        code: 'settings.mcpMarket.server.installFailed',
-        title: t('mcp.market.installFailed')
-      })
     }
   } catch (error) {
     console.error('[McpBuiltinMarket] Failed to install server:', item.server_key, error)
@@ -402,10 +390,6 @@ const install = async (item: MarketItem) => {
       ...installErrors.value,
       [item.server_key]: t('mcp.market.installFailed')
     }
-    installFeedbackController.fail({
-      code: 'settings.mcpMarket.server.installFailed',
-      title: t('mcp.market.installFailed')
-    })
   } finally {
     const nextInstalling = new Set(installingServerKeys.value)
     nextInstalling.delete(item.server_key)

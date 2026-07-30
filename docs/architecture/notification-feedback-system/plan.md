@@ -113,6 +113,24 @@ there is a durable initiating control or editable surface with a reserved feedba
 Maintenance, refresh, cache, and detection actions use a local pending affordance and terminal
 transient feedback unless the concrete layout gives the result a meaningful inline home.
 
+The completed Surface Lease audit uses these source-level decisions:
+
+| Decision | Integrations |
+| --- | --- |
+| Retain editable-surface feedback | Agent, notification hook, provider rate-limit, privacy, MCP policy/API-key, Nowledge, knowledge provider, prompt, OCR configuration, cloud configuration |
+| Retain page/dialog feedback | ACP, Cron load/CRUD, environment management, Skills management/import/install, data import/security/repair/reset, Remote channel configuration |
+| Retain dedicated-section feedback | update channel/check, Debug guidance/splash, MCP registry configuration |
+| Move to transient | provider model refresh; data backup and provider database refresh; sandbox and OCR cache cleanup completion; Cron manual run and restart failure |
+| Delete redundant feedback | MCP market install, whose card already owns pending, installed, and per-item error state |
+
+The MCP registry source controls remain inline: URL validation, custom-source persistence, current
+source state, and re-detection fallback share one durable advanced-settings surface. They are not a
+detached maintenance result despite containing a detection step.
+
+Destructive cleanup failures remain inside their still-open confirmation dialog so retry context
+cannot be lost to transient arbitration. Successful completion closes the dialog and uses transient
+confirmation.
+
 Migrate callers to the new API and remove `use-toast.ts`. Do not create a compatibility re-export.
 Keep stores presentation-free and preserve typed outcomes so components decide the surface.
 

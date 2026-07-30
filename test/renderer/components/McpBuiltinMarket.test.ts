@@ -209,10 +209,7 @@ describe('McpBuiltinMarket', () => {
       code: 'settings.mcpMarket.apiKey.saved',
       title: 'common.saved'
     })
-    expect(feedbackControllers[1].succeed).toHaveBeenCalledWith({
-      code: 'settings.mcpMarket.server.installed',
-      title: 'mcp.market.installSuccess'
-    })
+    expect(feedbackControllers).toHaveLength(1)
     expect(wrapper.text()).toContain('mcp.market.installed')
   })
 
@@ -375,9 +372,6 @@ describe('McpBuiltinMarket', () => {
 
     expect(wrapper.get('[role="alert"]').text()).toContain('mcp.market.installFailed')
     expect(wrapper.text()).not.toContain('mcp.market.installed')
-    expect(feedbackControllers[1].fail).toHaveBeenCalledWith({
-      code: 'settings.mcpMarket.server.installFailed',
-      title: 'mcp.market.installFailed'
-    })
+    expect(feedbackControllers).toHaveLength(1)
   })
 })

@@ -163,6 +163,7 @@ type SetupOptions = Readonly<{
   remove?: CronJobsClient['remove']
   toggle?: CronJobsClient['toggle']
   runNow?: CronJobsClient['runNow']
+  restartScheduler?: CronJobsClient['restartScheduler']
 }>
 
 const jobFromInput = (input: CronJobsUpsertInput): CronJob => ({
@@ -215,7 +216,7 @@ async function setup(options: SetupOptions = {}) {
     listRuns: vi.fn(async () => []),
     listDeliveries: vi.fn(async () => []),
     getSchedulerStatus: vi.fn(async () => cloneStatus()),
-    restartScheduler: vi.fn(async () => cloneStatus()),
+    restartScheduler: vi.fn(options.restartScheduler ?? (async () => cloneStatus())),
     previewSchedule: vi.fn(async () => ({ runs: [2_000, 3_000], error: null }))
   }
   const configClient = {
@@ -226,6 +227,7 @@ async function setup(options: SetupOptions = {}) {
     getChannelStatus: vi.fn(),
     getChannelBindings: vi.fn()
   }
+  const notifyRenderer = vi.fn(() => true)
 
   vi.doMock('@api/CronJobsClient', () => ({
     createCronJobsClient: () => cronClient
@@ -235,6 +237,9 @@ async function setup(options: SetupOptions = {}) {
   }))
   vi.doMock('@api/RemoteControlClient', () => ({
     createRemoteControlClient: () => remoteControlClient
+  }))
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -316,7 +321,7 @@ async function setup(options: SetupOptions = {}) {
   const { settingsLeaveGuard } =
     await import('../../../src/renderer/settings/services/settingsLeaveGuard')
 
-  return { wrapper, cronClient, settingsLeaveGuard }
+  return { wrapper, cronClient, notifyRenderer, settingsLeaveGuard }
 }
 
 describe('CronJobsSettings', () => {
@@ -436,7 +441,7 @@ describe('CronJobsSettings', () => {
   })
 
   it('reports a resolved failed run as an error instead of success', async () => {
-    const { wrapper } = await setup({
+    const { wrapper, notifyRenderer } = await setup({
       runNow: async () => ({
         job: cloneJob(),
         run: {
@@ -451,10 +456,49 @@ describe('CronJobsSettings', () => {
     await wrapper.get('button[title="Run now"]').trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('Operation failed')
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.cronJobs.runFailed',
+      title: 'Operation failed'
+    })
     expect(wrapper.text()).not.toContain('Task finished')
     expect(wrapper.text()).not.toContain('provider secret')
+  })
+
+  it('reports a completed manual run without adding inline feedback', async () => {
+    const { wrapper, notifyRenderer } = await setup()
+
+    await wrapper.get('button[title="Run now"]').trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.cronJobs.runCompleted',
+      title: 'Task finished',
+      description: 'Morning report'
+    })
+    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
+  })
+
+  it('reports scheduler restart failures as transient feedback', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper, notifyRenderer } = await setup({
+      restartScheduler: async () => {
+        throw new Error('scheduler socket unavailable')
+      }
+    })
+    const restartButton = wrapper.findAll('button').find((button) => button.text() === 'Restart')
+    if (!restartButton) throw new Error('Restart button not found')
+
+    await restartButton.trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.cronJobs.restartFailed',
+      title: 'Operation failed'
+    })
+    expect(wrapper.text()).not.toContain('scheduler socket unavailable')
+    consoleError.mockRestore()
   })
 })

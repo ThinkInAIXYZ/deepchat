@@ -199,11 +199,6 @@
       <p v-if="shouldRefreshProviderDbFirst" class="text-xs leading-5 text-muted-foreground">
         {{ t('settings.provider.refreshModelsWithMetadataHint') }}
       </p>
-      <InlineOperationFeedback
-        :snapshot="refreshFeedback"
-        :retry-label="t('common.retry')"
-        @retry="refreshModels"
-      />
       <div v-if="!provider.custom" class="text-xs text-muted-foreground">
         {{ t('settings.provider.howToGet') }}: {{ t('settings.provider.getKeyTip') }}
         <a :href="providerApiKeyUrl" target="_blank" class="text-primary">{{ provider.name }}</a>
@@ -227,7 +222,6 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
-import { nanoid } from 'nanoid'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
 import OpenAICodexOAuth from './OpenAICodexOAuth.vue'
 import GrokOAuth from './GrokOAuth.vue'
@@ -235,9 +229,7 @@ import { createProviderClient } from '@api/ProviderClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/types/provider'
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 interface ProviderWebsites {
   official: string
@@ -250,9 +242,6 @@ interface ProviderWebsites {
 const { t } = useI18n()
 const providerClient = createProviderClient()
 const modelCheckStore = useModelCheckStore()
-const refreshFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: refreshFeedback } = useSurfaceFeedback(refreshFeedbackController)
-const refreshOperationId = `settings.provider.refreshModels:${nanoid(8)}`
 
 const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
   'openai',
@@ -283,7 +272,7 @@ const emit = defineEmits<{
 const apiKey = ref(props.provider.apiKey || '')
 const apiHost = ref(props.provider.baseUrl || '')
 const keyStatus = ref<KeyStatus | null>(null)
-const isRefreshing = computed(() => refreshFeedback.value.status === 'pending')
+const isRefreshing = ref(false)
 const showApiKey = ref(false)
 const baseUrlUnlocked = ref(false)
 const defaultBaseUrl = computed(() => props.providerWebsites?.defaultBaseUrl?.trim() || '')
@@ -414,10 +403,11 @@ const refreshModels = async () => {
 
   const providerId = props.provider.id
   const refreshesMetadata = shouldRefreshProviderDbFirst.value
-  refreshFeedbackController.begin(refreshOperationId, t('settings.provider.refreshingModels'))
+  isRefreshing.value = true
   try {
     await providerClient.refreshModels(providerId)
-    refreshFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.provider.modelsRefreshed',
       title: t('settings.provider.toast.refreshModelsSuccessTitle'),
       description: t(
@@ -435,11 +425,14 @@ const refreshModels = async () => {
         ? 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'
         : 'settings.provider.toast.refreshModelsFailedDescription'
     )
-    refreshFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.provider.modelRefreshFailed',
       title: t('settings.provider.toast.refreshModelsFailedTitle'),
       description: fallbackDescription
     })
+  } finally {
+    isRefreshing.value = false
   }
 }
 

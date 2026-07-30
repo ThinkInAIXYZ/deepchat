@@ -16,16 +16,17 @@
       <Button
         variant="outline"
         size="sm"
-        :disabled="isLoading || pageOperationPending || hasDirtyJobs"
+        :disabled="isLoading || pageOperationPending || runtimeActionPending || hasDirtyJobs"
         @click="restartScheduler"
       >
-        <Icon icon="lucide:rotate-cw" class="mr-1 h-4 w-4" />
+        <Spinner v-if="restartingScheduler" class="mr-1 h-4 w-4" />
+        <Icon v-else icon="lucide:rotate-cw" class="mr-1 h-4 w-4" />
         {{ t('settings.cronJobs.actions.restart') }}
       </Button>
       <Button
         data-testid="cron-jobs-add"
         size="sm"
-        :disabled="isLoading || pageOperationPending || hasDirtyJobs"
+        :disabled="isLoading || pageOperationPending || runtimeActionPending || hasDirtyJobs"
         @click="addJob"
       >
         <Icon icon="lucide:plus" class="mr-1 h-4 w-4" />
@@ -483,6 +484,7 @@ import { Textarea } from '@shadcn/components/ui/textarea'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import { createConfigClient } from '@api/ConfigClient'
 import { createCronJobsClient } from '@api/CronJobsClient'
@@ -515,9 +517,7 @@ const operationIds = Object.freeze({
   save: `settings.cronJobs.save:${operationInstanceId}`,
   add: `settings.cronJobs.add:${operationInstanceId}`,
   toggle: `settings.cronJobs.toggle:${operationInstanceId}`,
-  delete: `settings.cronJobs.delete:${operationInstanceId}`,
-  run: `settings.cronJobs.run:${operationInstanceId}`,
-  restart: `settings.cronJobs.restart:${operationInstanceId}`
+  delete: `settings.cronJobs.delete:${operationInstanceId}`
 })
 const persistentOperationIds = new Set<string>([
   operationIds.save,
@@ -532,6 +532,7 @@ const schedulerStatus = ref<CronJobsSchedulerStatus | null>(null)
 const loadAttempted = ref(false)
 const hasLoaded = ref(false)
 const runningId = ref<string | null>(null)
+const restartingScheduler = ref(false)
 const previewRunsByJobId = ref<Record<string, number[]>>({})
 const previewErrorsByJobId = ref<Record<string, string | null>>({})
 const previewLoadingByJobId = ref<Record<string, boolean>>({})
@@ -618,8 +619,11 @@ const deleteDialogOpen = computed({
   }
 })
 const hasDirtyJobs = computed(() => dirtyJobIds.value.size > 0)
+const runtimeActionPending = computed(() => runningId.value !== null || restartingScheduler.value)
 const jobInteractionDisabled = (jobId: string): boolean =>
-  pageOperationPending.value || (hasDirtyJobs.value && !dirtyJobIds.value.has(jobId))
+  pageOperationPending.value ||
+  runtimeActionPending.value ||
+  (hasDirtyJobs.value && !dirtyJobIds.value.has(jobId))
 const enabledJobCount = computed(() => jobs.value.filter((job) => job.enabled).length)
 const enabledAgents = computed(() =>
   agents.value
@@ -1392,9 +1396,6 @@ const runJobNow = async (id: string) => {
   if (dirtyJobIds.value.has(id) && !(await commitJob(id))) {
     return
   }
-  if (!beginPageOperation(operationIds.run, t('settings.cronJobs.actions.runNow'))) {
-    return
-  }
   runsRequestGenerations.set(id, ++requestGenerationSequence)
   runningId.value = id
   try {
@@ -1409,19 +1410,26 @@ const runJobNow = async (id: string) => {
     void refreshRunDeliveries(response.run.id)
     setSchedulerStatus(response.schedulerStatus)
     if (response.run.status !== 'completed') {
-      pageFeedbackController.fail({
+      notifyRenderer({
+        kind: 'error',
         code: 'settings.cronJobs.runFailed',
         title: t('common.error.operationFailed')
       })
       return
     }
-    pageFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.cronJobs.runCompleted',
       title: t('settings.cronJobs.runNowSuccess'),
       description: response.job.name
     })
   } catch (error) {
-    failPageOperation('Failed to run job', 'settings.cronJobs.runFailed', error)
+    logFailure('Failed to run job', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.cronJobs.runFailed',
+      title: t('common.error.operationFailed')
+    })
   } finally {
     if (runningId.value === id) {
       runningId.value = null
@@ -1430,21 +1438,21 @@ const runJobNow = async (id: string) => {
 }
 
 const restartScheduler = async () => {
-  if (hasDirtyJobs.value) {
+  if (hasDirtyJobs.value || runtimeActionPending.value || pageOperationPending.value) {
     return
   }
-  if (!beginPageOperation(operationIds.restart, t('settings.cronJobs.actions.restart'))) {
-    return
-  }
+  restartingScheduler.value = true
   try {
     setSchedulerStatus(await client.restartScheduler())
-    pageFeedbackController.succeed({
-      code: 'settings.cronJobs.restarted',
-      title: t('common.saved')
-    })
-    pageFeedbackController.clearSettled()
   } catch (error) {
-    failPageOperation('Failed to restart scheduler', 'settings.cronJobs.restartFailed', error)
+    logFailure('Failed to restart scheduler', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.cronJobs.restartFailed',
+      title: t('common.error.operationFailed')
+    })
+  } finally {
+    restartingScheduler.value = false
   }
 }
 

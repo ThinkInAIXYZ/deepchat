@@ -66,8 +66,8 @@
 - [x] Migrate retained transient, actionable, and progress intents.
 - [x] Keep stores UI-agnostic and return truthful typed outcomes.
 - [x] Delete `use-toast.ts` without a compatibility entry point.
-- [ ] Re-audit every Surface Lease against a durable inline source.
-- [ ] Move unanchored maintenance, refresh, cache, and detection results to transient feedback.
+- [x] Re-audit every Surface Lease against a durable inline source.
+- [x] Move unanchored maintenance, refresh, cache, and detection results to transient feedback.
 - [ ] Restore complete error objects in local diagnostics without exposing them in UI copy.
 
 ## Validation and delivery

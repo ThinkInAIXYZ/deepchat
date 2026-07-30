@@ -150,6 +150,7 @@ const setup = async (
       providersCount: 1
     })
   }
+  const notifyRenderer = vi.fn(() => true)
 
   vi.doMock('@/stores/sync', () => ({
     useSyncStore: () => syncStore
@@ -173,6 +174,9 @@ const setup = async (
   }))
   vi.doMock('@api/DeviceClient', () => ({
     createDeviceClient: () => deviceClient
+  }))
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -293,7 +297,8 @@ const setup = async (
     uiSettingsStore,
     databaseSecurityClient,
     deviceClient,
-    configClient
+    configClient,
+    notifyRenderer
   }
 }
 
@@ -681,8 +686,8 @@ describe('DataSettings', () => {
     expect(wrapper.text()).not.toContain('settings.data.databaseRepair.notCheckedYet')
   })
 
-  it('calls refreshProviderDb, shows loading state, then confirms the update inline', async () => {
-    const { wrapper, configClient } = await setup()
+  it('calls refreshProviderDb, shows loading state, then reports a transient result', async () => {
+    const { wrapper, configClient, notifyRenderer } = await setup()
 
     let resolveRefresh:
       | ((value: { status: string; lastUpdated: number; providersCount: number }) => void)
@@ -708,13 +713,16 @@ describe('DataSettings', () => {
     await flushPromises()
 
     expect(configClient.refreshProviderDb).toHaveBeenCalledWith(true)
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('success')
-    expect(feedback.text()).toContain('settings.data.modelConfigUpdate.updatedTitle')
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.data.modelConfig.updated',
+      title: 'settings.data.modelConfigUpdate.updatedTitle',
+      description: 'settings.data.modelConfigUpdate.updatedDescription'
+    })
   })
 
-  it('shows an inline up-to-date result when upstream metadata has not changed', async () => {
-    const { wrapper, configClient } = await setup()
+  it('reports a transient up-to-date result when upstream metadata has not changed', async () => {
+    const { wrapper, configClient, notifyRenderer } = await setup()
 
     configClient.refreshProviderDb.mockResolvedValueOnce({
       status: 'not-modified',
@@ -725,13 +733,16 @@ describe('DataSettings', () => {
     await findRefreshButton(wrapper).trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('success')
-    expect(feedback.text()).toContain('settings.data.modelConfigUpdate.upToDateTitle')
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.data.modelConfig.upToDate',
+      title: 'settings.data.modelConfigUpdate.upToDateTitle',
+      description: 'settings.data.modelConfigUpdate.upToDateDescription'
+    })
   })
 
-  it('keeps provider metadata refresh failures inline', async () => {
-    const { wrapper, configClient } = await setup()
+  it('reports provider metadata refresh failures as transient feedback', async () => {
+    const { wrapper, configClient, notifyRenderer } = await setup()
 
     configClient.refreshProviderDb.mockResolvedValueOnce({
       status: 'error',
@@ -743,10 +754,13 @@ describe('DataSettings', () => {
     await findRefreshButton(wrapper).trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('settings.data.modelConfigUpdate.failedTitle')
-    expect(feedback.text()).not.toContain('network down')
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.data.modelConfig.updateFailed',
+      title: 'settings.data.modelConfigUpdate.failedTitle',
+      description: 'settings.data.modelConfigUpdate.failedDescription'
+    })
+    expect(wrapper.text()).not.toContain('network down')
   })
 
   it('runs schema repair and keeps the healthy result in the section', async () => {
@@ -832,19 +846,22 @@ describe('DataSettings', () => {
   })
 
   it('clears YoBrowser sandbox data through BrowserClient', async () => {
-    const { wrapper, browserClient } = await setup()
+    const { wrapper, browserClient, notifyRenderer } = await setup()
 
     await findClearSandboxConfirmButton(wrapper).trigger('click')
     await flushPromises()
 
     expect(browserClient.clearSandboxData).toHaveBeenCalledTimes(1)
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('success')
-    expect(feedback.text()).toContain('settings.data.yoBrowser.clearedTitle')
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.data.sandbox.cleared',
+      title: 'settings.data.yoBrowser.clearedTitle',
+      description: 'settings.data.yoBrowser.clearedDescription'
+    })
   })
 
   it('keeps the sandbox confirmation open when clearing fails', async () => {
-    const { wrapper, browserClient } = await setup()
+    const { wrapper, browserClient, notifyRenderer } = await setup()
     browserClient.clearSandboxData.mockRejectedValueOnce(
       new Error('Failed to delete /private/sandbox/session')
     )
@@ -857,9 +874,10 @@ describe('DataSettings', () => {
     await findClearSandboxConfirmButton(wrapper).trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('settings.data.yoBrowser.clearFailedTitle')
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.data.yoBrowser.clearFailedTitle'
+    )
+    expect(notifyRenderer).not.toHaveBeenCalled()
     expect(wrapper.text()).not.toContain('/private/sandbox/session')
     expect(sandboxState.isClearSandboxDialogOpen).toBe(true)
   })
@@ -955,17 +973,37 @@ describe('DataSettings', () => {
     expect(wrapper.text()).not.toContain('IPC token leaked')
   })
 
-  it('surfaces backup failures next to the backup action', async () => {
-    const { wrapper, syncStore } = await setup()
+  it('reports backup failures as transient feedback', async () => {
+    const { wrapper, syncStore, notifyRenderer } = await setup()
     syncStore.startBackup.mockRejectedValueOnce(new Error('Backup path /private/sync failed'))
 
     await findBackupButton(wrapper).trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('Operation failed')
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.data.sync.backupFailed',
+      title: 'Operation failed'
+    })
     expect(wrapper.text()).not.toContain('/private/sync')
+  })
+
+  it('reports completed backups as transient feedback', async () => {
+    const { wrapper, syncStore, notifyRenderer } = await setup()
+    syncStore.startBackup.mockResolvedValueOnce({
+      fileName: 'deepchat-20260730.db',
+      createdAt: 1_785_369_600_000,
+      size: 4_096
+    })
+
+    await findBackupButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.data.sync.backupSucceeded',
+      title: 'settings.data.toast.backupSuccessTitle'
+    })
   })
 
   it('offers an inline retry when initial sync settings loading fails', async () => {

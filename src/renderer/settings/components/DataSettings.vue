@@ -837,7 +837,6 @@
                   </a>
                   {{ t('settings.data.modelConfigUpdate.descriptionSuffix') }}
                 </p>
-                <InlineOperationFeedback :snapshot="modelConfigFeedback" />
               </div>
             </div>
             <Button
@@ -1000,10 +999,6 @@
                 <p class="text-xs text-muted-foreground">
                   {{ t('settings.data.yoBrowser.description') }}
                 </p>
-                <InlineOperationFeedback
-                  v-if="!isClearSandboxDialogOpen"
-                  :snapshot="sandboxFeedback"
-                />
               </div>
             </div>
             <div class="flex w-full shrink-0 flex-col gap-2 lg:w-56">
@@ -1037,7 +1032,9 @@
                       {{ t('settings.data.yoBrowser.confirmDescription') }}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
-                  <InlineOperationFeedback :snapshot="sandboxFeedback" />
+                  <p v-if="sandboxClearFailed" role="alert" class="text-sm text-destructive">
+                    {{ t('settings.data.yoBrowser.clearFailedTitle') }}
+                  </p>
                   <AlertDialogFooter>
                     <AlertDialogCancel
                       :disabled="isClearingSandbox"
@@ -1148,6 +1145,7 @@ import {
 } from '@/lib/cloudSyncForm'
 import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import PrivacySettingsSection from './common/PrivacySettingsSection.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
@@ -1203,17 +1201,13 @@ const syncOperation = useDataOperationFeedback('sync')
 const cloudOperation = useDataOperationFeedback('cloud')
 const databaseSecurityOperation = useDataOperationFeedback('databaseSecurity')
 const repairOperation = useDataOperationFeedback('repair')
-const modelConfigOperation = useDataOperationFeedback('modelConfig')
 const resetOperation = useDataOperationFeedback('reset')
-const sandboxOperation = useDataOperationFeedback('sandbox')
 
 const syncFeedback = syncOperation.snapshot
 const cloudFeedback = cloudOperation.snapshot
 const databaseSecurityFeedback = databaseSecurityOperation.snapshot
 const repairFeedback = repairOperation.snapshot
-const modelConfigFeedback = modelConfigOperation.snapshot
 const resetFeedback = resetOperation.snapshot
-const sandboxFeedback = sandboxOperation.snapshot
 
 const isImportDialogOpen = ref(false)
 const isProviderImportDialogOpen = ref(false)
@@ -1226,6 +1220,7 @@ const resetType = ref<'chat' | 'knowledge' | 'config' | 'all'>('chat')
 const isResetting = ref(false)
 const isUpdatingModelConfig = ref(false)
 const isClearingSandbox = ref(false)
+const sandboxClearFailed = ref(false)
 const isClearSandboxDialogOpen = ref(false)
 const isRepairing = ref(false)
 const lastRepairReport = ref<DatabaseRepairReport | null>(null)
@@ -2011,9 +2006,7 @@ const dataOperationBusy = computed(
       cloudFeedback.value,
       databaseSecurityFeedback.value,
       repairFeedback.value,
-      modelConfigFeedback.value,
-      resetFeedback.value,
-      sandboxFeedback.value
+      resetFeedback.value
     ].some((feedback) => feedback.status === 'pending')
 )
 const databaseSecurityDraftDirty = computed(
@@ -2029,6 +2022,10 @@ watch([databaseCurrentPassword, databaseNewPassword, databaseConfirmPassword], (
   if (databaseSecurityFeedback.value.status === 'error') {
     databaseSecurityOperation.controller.clearSettled()
   }
+})
+
+watch(isClearSandboxDialogOpen, (open) => {
+  if (!open) sandboxClearFailed.value = false
 })
 watch(
   cloudForm,
@@ -2155,17 +2152,18 @@ const formatBackupLabel = (fileName: string, createdAt: number, size: number) =>
 
 const handleBackup = async () => {
   if (!syncStore.syncEnabled || isSyncInteractionDisabled.value) return
-  beginSyncOperation(t('settings.data.backingUp'))
   try {
     const backupInfo = await syncStore.startBackup()
     if (!backupInfo) {
-      syncOperation.controller.fail({
+      notifyRenderer({
+        kind: 'error',
         code: 'settings.data.sync.backupFailed',
         title: t('common.error.operationFailed')
       })
       return
     }
-    syncOperation.controller.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.data.sync.backupSucceeded',
       title: t('settings.data.toast.backupSuccessTitle')
     })
@@ -2173,7 +2171,8 @@ const handleBackup = async () => {
     console.error('[DataSettings] Backup failed', {
       name: error instanceof Error ? error.name : 'UnknownError'
     })
-    syncOperation.controller.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.data.sync.backupFailed',
       title: t('common.error.operationFailed')
     })
@@ -2184,10 +2183,6 @@ const handleRefreshProviderDb = async () => {
   if (isUpdatingModelConfig.value) return
 
   isUpdatingModelConfig.value = true
-  modelConfigOperation.controller.begin(
-    modelConfigOperation.operationId,
-    t('settings.data.modelConfigUpdate.updating')
-  )
   try {
     const result = await configClient.refreshProviderDb(true)
 
@@ -2195,7 +2190,8 @@ const handleRefreshProviderDb = async () => {
       console.error('[DataSettings] Failed to refresh provider DB', {
         status: result?.status ?? 'missing'
       })
-      modelConfigOperation.controller.fail({
+      notifyRenderer({
+        kind: 'error',
         code: 'settings.data.modelConfig.updateFailed',
         title: t('settings.data.modelConfigUpdate.failedTitle'),
         description: t('settings.data.modelConfigUpdate.failedDescription')
@@ -2204,7 +2200,8 @@ const handleRefreshProviderDb = async () => {
     }
 
     const isUpToDate = result.status === 'not-modified' || result.status === 'skipped'
-    modelConfigOperation.controller.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: isUpToDate ? 'settings.data.modelConfig.upToDate' : 'settings.data.modelConfig.updated',
       title: t(
         isUpToDate
@@ -2221,7 +2218,8 @@ const handleRefreshProviderDb = async () => {
     console.error('[DataSettings] Failed to refresh provider DB', {
       name: error instanceof Error ? error.name : 'UnknownError'
     })
-    modelConfigOperation.controller.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.data.modelConfig.updateFailed',
       title: t('settings.data.modelConfigUpdate.failedTitle'),
       description: t('settings.data.modelConfigUpdate.failedDescription')
@@ -2333,14 +2331,12 @@ const handleReset = async () => {
 const handleClearSandboxData = async () => {
   if (isClearingSandbox.value) return
 
+  sandboxClearFailed.value = false
   isClearingSandbox.value = true
-  sandboxOperation.controller.begin(
-    sandboxOperation.operationId,
-    t('settings.data.yoBrowser.clearing')
-  )
   try {
     await browserClient.clearSandboxData()
-    sandboxOperation.controller.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.data.sandbox.cleared',
       title: t('settings.data.yoBrowser.clearedTitle'),
       description: t('settings.data.yoBrowser.clearedDescription')
@@ -2350,11 +2346,7 @@ const handleClearSandboxData = async () => {
     console.error('[DataSettings] Failed to clear YoBrowser sandbox data', {
       name: error instanceof Error ? error.name : 'UnknownError'
     })
-    sandboxOperation.controller.fail({
-      code: 'settings.data.sandbox.clearFailed',
-      title: t('settings.data.yoBrowser.clearFailedTitle'),
-      description: t('settings.data.yoBrowser.clearFailedDescription')
-    })
+    sandboxClearFailed.value = true
   } finally {
     isClearingSandbox.value = false
   }

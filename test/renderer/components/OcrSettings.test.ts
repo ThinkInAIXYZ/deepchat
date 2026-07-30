@@ -53,9 +53,13 @@ async function setup(status: OcrRuntimeStatus | Error = AVAILABLE_STATUS, settin
   }
   const resumePolling = vi.fn()
   const useIntervalFn = vi.fn(() => ({ resume: resumePolling, pause: vi.fn() }))
+  const notifyRenderer = vi.fn(() => true)
 
   vi.doMock('@api/SettingsClient', () => ({ createSettingsClient: () => settingsClient }))
   vi.doMock('@api/OcrClient', () => ({ createOcrClient: () => ocrClient }))
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
+  }))
   vi.doMock('@vueuse/core', async (importOriginal) => {
     const original = await importOriginal<typeof import('@vueuse/core')>()
     return {
@@ -133,7 +137,7 @@ async function setup(status: OcrRuntimeStatus | Error = AVAILABLE_STATUS, settin
   })
   await flushPromises()
 
-  return { wrapper, settingsClient, ocrClient, resumePolling, useIntervalFn }
+  return { wrapper, settingsClient, ocrClient, notifyRenderer, resumePolling, useIntervalFn }
 }
 
 async function openAdvanced(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
@@ -245,7 +249,7 @@ describe('OcrSettings', () => {
   })
 
   it('clears only the derived cache after confirmation', async () => {
-    const { wrapper, ocrClient } = await setup({
+    const { wrapper, ocrClient, notifyRenderer } = await setup({
       ...AVAILABLE_STATUS,
       cache: {
         mode: 'persistent',
@@ -261,14 +265,17 @@ describe('OcrSettings', () => {
     await flushPromises()
 
     expect(ocrClient.clearCache).toHaveBeenCalledOnce()
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('success')
-    expect(feedback.text()).toContain('settings.ocr.cacheCleared')
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.ocr.cacheCleared',
+      title: 'settings.ocr.cacheCleared',
+      description: 'settings.ocr.cacheClearedDescription'
+    })
     expect(wrapper.text()).toContain('settings.ocr.cacheEntries')
   })
 
   it('keeps the cache confirmation open when clearing fails', async () => {
-    const { wrapper, ocrClient } = await setup({
+    const { wrapper, ocrClient, notifyRenderer } = await setup({
       ...AVAILABLE_STATUS,
       cache: {
         mode: 'persistent',
@@ -286,9 +293,8 @@ describe('OcrSettings', () => {
     await flushPromises()
 
     expect(wrapper.get('[data-testid="ocr-clear-cache-confirm"]').exists()).toBe(true)
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('settings.ocr.clearCacheFailed')
+    expect(wrapper.get('[role="alert"]').text()).toContain('settings.ocr.clearCacheFailed')
+    expect(notifyRenderer).not.toHaveBeenCalled()
     expect(wrapper.text()).not.toContain('secret cache path')
     consoleError.mockRestore()
   })
