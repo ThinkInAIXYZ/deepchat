@@ -3202,6 +3202,7 @@
     "available": "Доступные плагины",
     "add": "Добавить",
     "manage": "Manage",
+    "builtinCapability": "Встроенная функция",
     "emptySearch": "Нет доступных плагинов.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

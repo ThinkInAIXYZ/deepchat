@@ -4,9 +4,10 @@ Status: implemented and maintained.
 
 ## Product surface
 
-`/plugins` is the primary extension hub. It exposes official plugin detail routes plus the existing MCP,
-Skills and Remote management surfaces. ACP availability is shown as a boundary state rather than pretending
-ACP is an installable Plugin.
+`/plugins` is the primary extension hub. It exposes official plugin detail routes, built-in OCR
+management, and the existing MCP, Skills and Remote management surfaces. Built-in capabilities
+route to their owning modules and do not adopt plugin installation or enablement semantics. ACP
+availability is shown as a boundary state rather than pretending ACP is an installable Plugin.
 
 The hub must preserve direct navigation, back/refresh behavior, loading/empty/error states and platform
 availability. Plugin-specific settings render in a Desktop-owned settings window; Plugin code does not create
@@ -33,9 +34,11 @@ launch. Persistent installation records cannot make a missing or untrusted packa
 
 ## Renderer contract
 
-Renderer routes use typed Plugin clients. Official detail pages display install/enable/runtime/MCP/settings
-state and surface action errors without exposing filesystem secrets. Virtual cards for MCP, Skills and Remote
-route to their real owners instead of duplicating configuration inside Plugin state.
+Renderer routes use typed clients. Official detail pages display install/enable/runtime/MCP/settings
+state and surface action errors without exposing filesystem secrets. Virtual cards and pages for
+built-in OCR, MCP, Skills and Remote route to their real owners instead of duplicating
+configuration inside Plugin state. Built-in OCR stays first in the catalog and remains visible when
+its runtime is unavailable.
 
 ## Validation
 

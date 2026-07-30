@@ -3202,6 +3202,7 @@
     "available": "Tilgængelige plugins",
     "add": "Tilføj",
     "manage": "Manage",
+    "builtinCapability": "Indbygget funktion",
     "emptySearch": "Ingen tilgængelige plugins.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

@@ -3202,6 +3202,7 @@
     "available": "利用可能なプラグイン",
     "add": "追加",
     "manage": "Manage",
+    "builtinCapability": "組み込み機能",
     "emptySearch": "利用可能なプラグインはありません。",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

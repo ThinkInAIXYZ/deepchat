@@ -3193,6 +3193,7 @@
     "available": "Dostępne wtyczki",
     "add": "Dodaj",
     "manage": "Manage",
+    "builtinCapability": "Wbudowana funkcja",
     "emptySearch": "Brak dostępnych wtyczek.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

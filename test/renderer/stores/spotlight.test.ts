@@ -247,6 +247,26 @@ describe('spotlightStore new-chat action', () => {
     })
   })
 
+  it('keeps OCR searchable after moving its management page to the plugins hub', async () => {
+    const { store, router } = await setupStore()
+
+    store.setOpen(true)
+    store.setQuery('文字识别')
+    await flushPromises()
+
+    const ocrAction = store.results.value.find((item) => item.id === 'action:open-ocr')
+    expect(ocrAction).toEqual(
+      expect.objectContaining({
+        actionId: 'open-ocr',
+        titleKey: 'routes.settings-ocr'
+      })
+    )
+
+    await store.executeItem(ocrAction)
+
+    expect(router.push).toHaveBeenCalledWith({ name: 'plugins-builtin-ocr' })
+  })
+
   it('reruns an active query when provider matches change', async () => {
     const { store, providerStore } = await setupStore()
 

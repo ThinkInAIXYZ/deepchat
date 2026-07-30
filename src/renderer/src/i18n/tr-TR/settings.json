@@ -3193,6 +3193,7 @@
     "available": "Kullanılabilir eklentiler",
     "add": "Ekle",
     "manage": "Manage",
+    "builtinCapability": "Yerleşik özellik",
     "emptySearch": "Kullanılabilir eklenti yok.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

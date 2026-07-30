@@ -3193,6 +3193,7 @@
     "available": "Plugin yang tersedia",
     "add": "Tambah",
     "manage": "Manage",
+    "builtinCapability": "Kemampuan bawaan",
     "emptySearch": "Tidak ada plugin yang tersedia.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

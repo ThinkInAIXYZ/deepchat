@@ -126,7 +126,12 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 
 ## Settings And UX
 
-Add Tools -> File processing -> OCR with:
+Expose OCR as a built-in capability in the main-window Plugins Hub. Keep the legacy
+`settings-ocr` route registered for direct navigation and persisted settings activity, but hide it
+from the Settings sidebar. The Plugins Hub entry remains visible when the runtime is unavailable so
+users can inspect the reason.
+
+The OCR management page provides:
 
 - automatic OCR for non-vision models, enabled by default;
 - Auto/CPU execution backend;

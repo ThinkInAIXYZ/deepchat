@@ -3202,6 +3202,7 @@
     "available": "可用插件",
     "add": "新增",
     "manage": "管理",
+    "builtinCapability": "內建能力",
     "emptySearch": "沒有可用插件。",
     "pluginNotFound": "找不到插件。",
     "actionResult": "操作結果",

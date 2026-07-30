@@ -3193,6 +3193,7 @@
     "available": "Plugin khả dụng",
     "add": "Thêm",
     "manage": "Manage",
+    "builtinCapability": "Tính năng tích hợp",
     "emptySearch": "Không có plugin khả dụng.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

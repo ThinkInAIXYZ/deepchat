@@ -3202,6 +3202,7 @@
     "available": "사용 가능한 플러그인",
     "add": "추가",
     "manage": "Manage",
+    "builtinCapability": "내장 기능",
     "emptySearch": "사용 가능한 플러그인이 없습니다.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import skillsSource from '../../../src/renderer/src/pages/plugins/SkillsPluginsPage.vue?raw'
 import mcpSource from '../../../src/renderer/src/pages/plugins/McpPluginsPage.vue?raw'
+import ocrSource from '../../../src/renderer/src/pages/plugins/OcrPluginsPage.vue?raw'
 
 describe('plugins page wrappers', () => {
   it('renders the original skills settings view in agent scope', () => {
@@ -11,5 +12,12 @@ describe('plugins page wrappers', () => {
   it('renders the original MCP settings view in global scope', () => {
     expect(mcpSource).toContain('<McpSettings />')
     expect(mcpSource).toContain('settings/components/McpSettings.vue')
+  })
+
+  it('renders the original OCR settings view with bounded flex layout', () => {
+    expect(ocrSource).toContain('<OcrSettings />')
+    expect(ocrSource).toContain('settings/components/OcrSettings.vue')
+    expect(ocrSource).toContain('flex h-full min-h-0 w-full flex-col')
+    expect(ocrSource).toContain('min-h-0 flex-1')
   })
 })

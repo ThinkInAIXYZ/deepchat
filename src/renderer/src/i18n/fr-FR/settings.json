@@ -3202,6 +3202,7 @@
     "available": "Plugins disponibles",
     "add": "Ajouter",
     "manage": "Manage",
+    "builtinCapability": "Fonctionnalité intégrée",
     "emptySearch": "Aucun plugin disponible.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

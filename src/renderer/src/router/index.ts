@@ -52,6 +52,15 @@ const router = createRouter({
           }
         },
         {
+          path: 'builtin/ocr',
+          name: 'plugins-builtin-ocr',
+          component: () => import('@/pages/plugins/OcrPluginsPage.vue'),
+          meta: {
+            titleKey: 'routes.settings-ocr',
+            icon: 'lucide:scan-text'
+          }
+        },
+        {
           path: 'remote',
           redirect: { name: 'plugins' }
         },

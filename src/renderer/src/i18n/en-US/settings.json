@@ -2954,6 +2954,7 @@
     "available": "Available plugins",
     "add": "Add",
     "manage": "Manage",
+    "builtinCapability": "Built-in capability",
     "emptySearch": "No available plugins.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

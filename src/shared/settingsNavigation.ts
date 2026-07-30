@@ -179,7 +179,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     icon: 'lucide:scan-text',
     position: 5.1,
     groupKey: 'tools',
-    keywords: ['ocr', 'image text', 'file processing', '文字识别', '图片文字', '文件处理']
+    keywords: ['ocr', 'image text', 'file processing', '文字识别', '图片文字', '文件处理'],
+    hiddenInSidebar: true
   },
   {
     routeName: 'settings-remote',

@@ -2953,6 +2953,7 @@
     "available": "可用插件",
     "add": "添加",
     "manage": "管理",
+    "builtinCapability": "内置能力",
     "emptySearch": "没有可用插件。",
     "pluginNotFound": "未找到插件。",
     "actionResult": "操作结果",

@@ -3193,6 +3193,7 @@
     "available": "Verfügbare Plugins",
     "add": "Hinzufügen",
     "manage": "Manage",
+    "builtinCapability": "Integrierte Funktion",
     "emptySearch": "Keine verfügbaren Plugins.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",
