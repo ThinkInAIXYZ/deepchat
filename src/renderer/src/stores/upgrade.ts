@@ -389,7 +389,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     const sessionStore = useSessionStore()
     const streamStore = useStreamStateStore()
 
-    taskCompletionStopWatch = watch(
+    const stopWatch = watch(
       () => [
         streamStore.isStreaming,
         sessionStore.sessions.filter((s) => s.status === 'working').length
@@ -399,9 +399,16 @@ export const useUpgradeStore = defineStore('upgrade', () => {
           clearTaskCompletionWatch()
           action()
         }
-      },
-      { immediate: true }
+      }
     )
+
+    if (!hasRunningTasks()) {
+      stopWatch()
+      action()
+      return
+    }
+
+    taskCompletionStopWatch = stopWatch
   }
 
   const setupUpdateListener = () => {

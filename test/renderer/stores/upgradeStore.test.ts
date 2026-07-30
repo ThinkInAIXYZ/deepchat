@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick, reactive } from 'vue'
+
+const taskState = vi.hoisted(() => ({
+  sessionStore: null as { sessions: Array<{ status: string }> } | null,
+  streamStore: null as { isStreaming: boolean } | null
+}))
 
 const upgradeEventHandlers = vi.hoisted(() => ({
   statusChanged: undefined as ((payload: Record<string, unknown>) => void) | undefined,
@@ -69,6 +75,14 @@ vi.mock('@api/DeviceClient', () => ({
   }))
 }))
 
+vi.mock('@/stores/ui/session', () => ({
+  useSessionStore: () => taskState.sessionStore
+}))
+
+vi.mock('@/stores/ui/stream', () => ({
+  useStreamStateStore: () => taskState.streamStore
+}))
+
 import { useUpgradeStore } from '@/stores/upgrade'
 
 const createUpdateInfo = () => ({
@@ -83,6 +97,8 @@ const createUpdateInfo = () => ({
 describe('useUpgradeStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    taskState.sessionStore = null
+    taskState.streamStore = null
     vi.clearAllMocks()
     upgradeEventHandlers.statusChanged = undefined
     upgradeEventHandlers.progress = undefined
@@ -95,6 +111,43 @@ describe('useUpgradeStore', () => {
       error: null,
       updateInfo: null
     })
+  })
+
+  it('runs a deferred update once when all tasks complete', async () => {
+    taskState.sessionStore = reactive({
+      sessions: [{ status: 'working' }]
+    })
+    taskState.streamStore = reactive({
+      isStreaming: true
+    })
+    const store = useUpgradeStore()
+    const updateAction = vi.fn()
+
+    store.checkRunningTasksAndUpdate(updateAction)
+    store.scheduleUpdateAfterTasks()
+
+    taskState.streamStore.isStreaming = false
+    taskState.sessionStore.sessions[0].status = 'completed'
+    await nextTick()
+
+    expect(updateAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs a deferred update once when tasks finish during watcher setup', () => {
+    taskState.sessionStore = reactive({
+      sessions: []
+    })
+    taskState.streamStore = reactive({
+      isStreaming: true
+    })
+    const store = useUpgradeStore()
+    const updateAction = vi.fn()
+
+    store.checkRunningTasksAndUpdate(updateAction)
+    taskState.streamStore.isStreaming = false
+    store.scheduleUpdateAfterTasks()
+
+    expect(updateAction).toHaveBeenCalledTimes(1)
   })
 
   it('keeps manual checks in available state until install is clicked', async () => {
