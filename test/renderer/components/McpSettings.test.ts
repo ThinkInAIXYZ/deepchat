@@ -66,7 +66,7 @@ const setup = async (
         version: Number(feedbackSnapshot.value.version) + 1
       }
     }),
-    clear: vi.fn(() => {
+    clearSettled: vi.fn(() => {
       feedbackSnapshot.value = {
         status: 'idle',
         version: Number(feedbackSnapshot.value.version) + 1

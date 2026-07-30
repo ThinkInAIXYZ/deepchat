@@ -489,7 +489,7 @@ watch(targetAgentId, () => {
     agentPolicyFeedback.value.status === 'success' ||
     agentPolicyFeedback.value.status === 'error'
   ) {
-    agentPolicyFeedbackController.clear()
+    agentPolicyFeedbackController.clearSettled()
   }
   void loadAgentPolicy()
 })
@@ -601,7 +601,7 @@ const handleToggleAgentServer = async (serverName: string, enabled: boolean) => 
         code: 'settings.agentMcpPolicy.saved',
         title: t('settings.mcp.saveSuccess')
       })
-      agentPolicyFeedbackController.clear()
+      agentPolicyFeedbackController.clearSettled()
       return
     }
 
@@ -632,7 +632,7 @@ const handleToggleAgentServer = async (serverName: string, enabled: boolean) => 
       description: t('common.error.requestFailed')
     })
     if (targetAgentId.value !== requestedAgentId) {
-      agentPolicyFeedbackController.clear()
+      agentPolicyFeedbackController.clearSettled()
     }
   } finally {
     agentToggleServerName.value = null

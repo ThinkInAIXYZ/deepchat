@@ -73,7 +73,7 @@ async function setup(options: { setRejects?: boolean } = {}) {
         version: 2
       }
     }),
-    clear: vi.fn(() => {
+    clearSettled: vi.fn(() => {
       feedbackSnapshot.value = { status: 'idle', version: 3 }
     })
   }

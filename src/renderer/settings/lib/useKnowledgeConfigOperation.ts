@@ -77,7 +77,7 @@ export function useKnowledgeConfigOperation() {
       title: t('common.saved')
     })
     retryOperation = null
-    controller.clear()
+    controller.clearSettled()
     source.value = null
     return true
   }
@@ -93,7 +93,7 @@ export function useKnowledgeConfigOperation() {
     retryOperation = null
     source.value = null
     if (snapshot.value.status !== 'idle') {
-      controller.clear()
+      controller.clearSettled()
     }
   }
 

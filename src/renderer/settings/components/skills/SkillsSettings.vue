@@ -439,7 +439,7 @@ const cancelPageReadOperation = () => {
   const snapshot = pageFeedbackController.getSnapshot()
   if (snapshot.status === 'pending' && pageOperationKind.value === 'read') {
     pageOperationGeneration += 1
-    pageFeedbackController.cancel()
+    pageFeedbackController.cancelPending()
     pageFeedbackContextVersion.value = null
     pageOperationKind.value = null
   }
@@ -793,7 +793,7 @@ const openSkillDetail = async (skill: UnifiedSkillItem) => {
       code: 'settings.skills.detailLoaded',
       title: skill.name
     })
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
     detailDialogOpen.value = true
   } catch (cause) {
     if (!isCurrentPageOperation(operationGeneration) || requestId !== detailRequestId.value) return

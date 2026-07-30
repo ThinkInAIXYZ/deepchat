@@ -230,7 +230,7 @@ const persistRateLimit = async (draft: RateLimitDraft): Promise<boolean> => {
     })
     retryDraft.value = null
     if (props.provider.id !== draft.providerId) {
-      feedbackController.clear()
+      feedbackController.clearSettled()
       return false
     }
     rateLimitEnabled.value = draft.enabled
@@ -249,7 +249,7 @@ const persistRateLimit = async (draft: RateLimitDraft): Promise<boolean> => {
       title: t('common.error.operationFailed')
     })
     if (props.provider.id !== draft.providerId) {
-      feedbackController.clear()
+      feedbackController.clearSettled()
       retryDraft.value = null
       return false
     }
@@ -355,7 +355,7 @@ const discardDraft = () => {
   intervalValue.value = committedInterval.value
   showConfirmDialog.value = false
   retryDraft.value = null
-  if (feedback.value.status === 'error') feedbackController.clear()
+  if (feedback.value.status === 'error') feedbackController.clearSettled()
 }
 
 const leaveGuardLease = settingsLeaveGuard.register({
@@ -401,7 +401,7 @@ watch(
       feedback.value.status !== 'pending' &&
       feedback.value.status !== 'idle'
     ) {
-      feedbackController.clear()
+      feedbackController.clearSettled()
     }
     void loadStatus()
     startStatusPolling()

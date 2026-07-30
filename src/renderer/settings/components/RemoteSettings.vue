@@ -3197,7 +3197,7 @@ const createSaveCoordinator = <Settings>(
         actionController.getSnapshot().status !== 'idle' &&
         actionController.getSnapshot().status !== 'pending'
       ) {
-        actionController.clear()
+        actionController.clearSettled()
       }
       channelSaveFeedback[channel].controller.begin(
         channelSaveOperationIds[channel],
@@ -3213,7 +3213,7 @@ const createSaveCoordinator = <Settings>(
         description: channelTitle(channel)
       })
       if (!isCurrentDraftPersisted) {
-        controller.clear()
+        controller.clearSettled()
       }
       if (!remoteSettingsUnmounted) {
         void refreshAfterChannelSave(channel)
@@ -3298,7 +3298,7 @@ const completeObservedChannelAction = (
     description: channelTitle(channel)
   })
   if (!remoteSettingsUnmounted && (surfaceTransitionVisible || activeChannel.value === channel)) {
-    controller.clear()
+    controller.clearSettled()
   }
 }
 
@@ -3987,7 +3987,7 @@ const generatePairCodeAndOpenDialog = async (channel: PairableRemoteChannel) => 
     if (remoteSettingsUnmounted) {
       await clearChannelPairCodeCompat(channel).catch(() => undefined)
       const controller = channelActionFeedback[channel].controller
-      if (controller.getSnapshot().status === 'pending') controller.cancel()
+      if (controller.getSnapshot().status === 'pending') controller.cancelPending()
       return
     }
 
@@ -4370,9 +4370,9 @@ const discardChannelDrafts = () => {
   }
   for (const channel of REMOTE_CHANNELS) {
     const saveController = channelSaveFeedback[channel].controller
-    if (saveController.getSnapshot().status !== 'idle') saveController.clear()
+    if (saveController.getSnapshot().status !== 'idle') saveController.clearSettled()
     const actionController = channelActionFeedback[channel].controller
-    if (actionController.getSnapshot().status !== 'idle') actionController.clear()
+    if (actionController.getSnapshot().status !== 'idle') actionController.clearSettled()
   }
 }
 

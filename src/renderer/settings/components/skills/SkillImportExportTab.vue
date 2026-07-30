@@ -576,7 +576,7 @@ const isCurrentOperation = (generation: number) =>
 const clearSettledOperation = () => {
   const snapshot = operationController.getSnapshot()
   if (snapshot.status === 'success' || snapshot.status === 'error') {
-    operationController.clear()
+    operationController.clearSettled()
     retryKind.value = null
   }
 }

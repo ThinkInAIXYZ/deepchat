@@ -140,7 +140,7 @@ const resetDialog = () => {
 const dismissSettledExecutionFeedback = () => {
   const snapshot = executionController.getSnapshot()
   if (snapshot.status === 'success' || snapshot.status === 'error') {
-    executionController.clear()
+    executionController.clearSettled()
   }
   if (snapshot.status !== 'pending') {
     feedbackContextVersion.value = null

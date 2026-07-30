@@ -1036,7 +1036,7 @@ const completePageOperation = (code: string, showConfirmation = false) => {
     title: t('common.saved')
   })
   if (!showConfirmation) {
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
     pageOperation.value = null
   }
 }
@@ -1234,7 +1234,7 @@ const clearPageFeedbackForAgent = (agentId: string) => {
     return
   }
   if (pageFeedback.value.status === 'success' || pageFeedback.value.status === 'error') {
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   }
   pageOperation.value = null
 }
@@ -1253,7 +1253,7 @@ const retryPageOperation = async () => {
       if (agent) {
         await toggleRegistryAgent(agent, operation.enabled)
       } else {
-        pageFeedbackController.clear()
+        pageFeedbackController.clearSettled()
       }
       return
     }
@@ -1262,7 +1262,7 @@ const retryPageOperation = async () => {
       if (agent) {
         await toggleManualAgent(agent, operation.enabled)
       } else {
-        pageFeedbackController.clear()
+        pageFeedbackController.clearSettled()
       }
       return
     }
@@ -1271,7 +1271,7 @@ const retryPageOperation = async () => {
       if (agent) {
         await saveEnvOverride(agent, operation.env)
       } else {
-        pageFeedbackController.clear()
+        pageFeedbackController.clearSettled()
       }
       return
     }
@@ -1280,7 +1280,7 @@ const retryPageOperation = async () => {
       if (agent) {
         await repairRegistryAgent(agent)
       } else {
-        pageFeedbackController.clear()
+        pageFeedbackController.clearSettled()
       }
       return
     }
@@ -1292,7 +1292,7 @@ const retryPageOperation = async () => {
       if (agent) {
         await installRegistryAgent(agent)
       } else {
-        pageFeedbackController.clear()
+        pageFeedbackController.clearSettled()
       }
       return
     }
@@ -1305,7 +1305,7 @@ const retryPageOperation = async () => {
       if (pendingDeleteAgent.value?.id === operation.agentId) {
         transferDialogOpen.value = true
       } else {
-        pageFeedbackController.clear()
+        pageFeedbackController.clearSettled()
       }
   }
 }
@@ -1319,7 +1319,7 @@ const handleRegistryDialogOpenChange = (open: boolean) => {
       pageOperation.value?.kind === 'registry-install') &&
     pageFeedback.value.status === 'error'
   ) {
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   }
 }
 
@@ -1337,7 +1337,7 @@ const clearManualDialogError = (clearOperation = true) => {
     pageFeedback.value.status !== 'pending' &&
     pageFeedback.value.status !== 'idle'
   ) {
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   }
 }
 
@@ -1450,7 +1450,7 @@ const openAgentTransferDialog = async (agent: PendingDeleteAgent) => {
     pageFeedback.value.status !== 'pending' &&
     pageFeedback.value.status !== 'idle'
   ) {
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   }
   pendingDeleteAgent.value = agent
   transferDialogOpen.value = true
@@ -1496,7 +1496,7 @@ const handleTransferDialogOpenChange = (open: boolean) => {
   transferImpact.value = null
   pendingDeleteAgent.value = null
   if (pageOperation.value?.kind === 'delete-agent' && pageFeedback.value.status === 'error') {
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   }
 }
 
@@ -1664,7 +1664,7 @@ const discardAcpDrafts = () => {
     pageFeedback.value.status !== 'pending' &&
     pageFeedback.value.status !== 'idle'
   ) {
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   }
 }
 

@@ -146,7 +146,7 @@ const completeWithoutConfirmation = (
   title: string
 ) => {
   controller.succeed({ code, title })
-  controller.clear()
+  controller.clearSettled()
 }
 
 type GuidanceActionOptions = Readonly<{

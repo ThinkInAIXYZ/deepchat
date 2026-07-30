@@ -310,7 +310,7 @@ const updateCurrentPromptContent = (value: string | number) => {
   currentSystemPrompt.value.content = String(value)
   const feedback = getFeedback()
   if (feedback.status === 'error' && feedback.operationId === operationIds.save) {
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
   }
 }
 
@@ -330,7 +330,7 @@ const handleSystemPromptChange = async (promptId: AcceptableValue) => {
       code: 'settings.systemPrompts.changed',
       title: t('promptSetting.systemPromptChanged')
     })
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
   } catch (error) {
     failOperation(
       'change',
@@ -407,7 +407,7 @@ const requestDeleteSystemPrompt = (promptId: string) => {
     return
   }
   if (getFeedback().status !== 'idle') {
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
   }
   pendingDeleteSystemPromptId.value = promptId
 }
@@ -418,7 +418,7 @@ const handleDeleteDialogOpenChange = (open: boolean) => {
   }
   pendingDeleteSystemPromptId.value = null
   if (getFeedback().status !== 'idle') {
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
   }
 }
 
@@ -434,7 +434,7 @@ const deleteSystemPrompt = async () => {
       code: 'settings.systemPrompts.deleted',
       title: t('promptSetting.systemPromptDeleted')
     })
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
     pendingDeleteSystemPromptId.value = null
   } catch (error) {
     failOperation(
@@ -456,7 +456,7 @@ const openCreatePrompt = () => {
     return
   }
   if (getFeedback().status !== 'idle') {
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
   }
   editingSystemPrompt.value = null
   systemPromptEditorOpen.value = true
@@ -470,7 +470,7 @@ const handleEditorOpenChange = (open: boolean) => {
   if (!open) {
     editingSystemPrompt.value = null
     if (getFeedback().status !== 'idle') {
-      props.feedbackController.clear()
+      props.feedbackController.clearSettled()
     }
   }
 }
@@ -551,7 +551,7 @@ const restoreCurrentPrompt = () => {
   }
   const feedback = getFeedback()
   if (feedback.status === 'error' && feedback.operationId === operationIds.save) {
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
   }
 }
 

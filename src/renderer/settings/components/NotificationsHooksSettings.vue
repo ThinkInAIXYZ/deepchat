@@ -500,7 +500,7 @@ const loadConfig = async () => {
       code: 'settings.notificationsHooks.loaded',
       title: t('common.saved')
     })
-    configFeedbackController.clear()
+    configFeedbackController.clearSettled()
   } catch (error) {
     console.error('[NotificationsHooksSettings] Failed to load configuration', {
       name: error instanceof Error ? error.name : 'UnknownError'
@@ -519,7 +519,7 @@ const cloneConfig = (value: HooksNotificationsSettings): HooksNotificationsSetti
 const markDraftChanged = () => {
   draftRevision.value += 1
   if (configFeedback.value.status === 'success' || configFeedback.value.status === 'error') {
-    configFeedbackController.clear()
+    configFeedbackController.clearSettled()
   }
 }
 
@@ -545,7 +545,7 @@ const flushSaveQueue = async (): Promise<boolean> => {
       title: t('common.saved')
     })
     if (persistedRevision.value < draftRevision.value) {
-      configFeedbackController.clear()
+      configFeedbackController.clearSettled()
     }
     return true
   } catch (error) {
@@ -697,7 +697,7 @@ const discardDraft = () => {
   draftRevision.value = persistedRevision.value
   requestedSaveRevision = persistedRevision.value
   if (configFeedback.value.status === 'error') {
-    configFeedbackController.clear()
+    configFeedbackController.clearSettled()
   }
 }
 

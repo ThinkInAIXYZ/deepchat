@@ -200,7 +200,7 @@ const isCurrentOperation = (generation: number) =>
 const clearSettledOperation = () => {
   const snapshot = operationController.getSnapshot()
   if (snapshot.status === 'success' || snapshot.status === 'error') {
-    operationController.clear()
+    operationController.clearSettled()
   }
 }
 
@@ -290,7 +290,7 @@ const openAgentSkillDetail = async (skill: AgentSkillItem) => {
       code: 'settings.skills.agentDetailLoaded',
       title: skill.name
     })
-    operationController.clear()
+    operationController.clearSettled()
     detailDialogOpen.value = true
   } catch (cause) {
     if (
@@ -383,7 +383,7 @@ const stopLeaveRiskSync = watch(
 onBeforeUnmount(() => {
   if (operationKind === 'read' && operationController.getSnapshot().status === 'pending') {
     operationGeneration += 1
-    operationController.cancel()
+    operationController.cancelPending()
   }
   stopLeaveRiskSync()
   leaveGuardLease.release()

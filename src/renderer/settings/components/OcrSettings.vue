@@ -449,7 +449,7 @@ async function loadSettings(): Promise<void> {
       code: 'settings.ocr.loaded',
       title: t('common.saved')
     })
-    settingsFeedbackController.clear()
+    settingsFeedbackController.clearSettled()
   } catch (error) {
     settingsReady.value = false
     console.error('[OcrSettings] Failed to load settings', {

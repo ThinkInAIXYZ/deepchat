@@ -129,7 +129,7 @@ describe('McpBuiltinMarket', () => {
             version: Number(snapshot.value.version) + 1
           }
         }),
-        clear: vi.fn(() => {
+        clearSettled: vi.fn(() => {
           snapshot.value = {
             status: 'idle',
             version: Number(snapshot.value.version) + 1

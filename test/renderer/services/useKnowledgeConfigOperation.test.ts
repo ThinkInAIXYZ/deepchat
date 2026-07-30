@@ -26,7 +26,7 @@ async function setup() {
         version: 2
       }
     }),
-    clear: vi.fn(() => {
+    clearSettled: vi.fn(() => {
       snapshot.value = { status: 'idle', version: 3 }
     })
   }
@@ -91,7 +91,7 @@ describe('useKnowledgeConfigOperation', () => {
       code: 'settings.knowledgeBase.test.save.succeeded',
       title: 'common.saved'
     })
-    expect(controller.clear).toHaveBeenCalledTimes(1)
+    expect(controller.clearSettled).toHaveBeenCalledTimes(1)
     expect(operation.source.value).toBeNull()
     wrapper.unmount()
   })

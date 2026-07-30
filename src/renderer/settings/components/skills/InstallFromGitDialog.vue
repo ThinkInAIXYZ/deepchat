@@ -210,7 +210,7 @@ const logFailure = (message: string, cause: unknown) => {
 const dismissSettledInstallFeedback = () => {
   const snapshot = installController.getSnapshot()
   if (snapshot.status === 'success' || snapshot.status === 'error') {
-    installController.clear()
+    installController.clearSettled()
   }
   if (snapshot.status !== 'pending') {
     feedbackContextVersion.value = null
@@ -348,7 +348,7 @@ const install = async () => {
       description: t('settings.skills.git.successMessage', { count: installed, failed })
     })
     if (surfaceCurrent) {
-      installController.clear()
+      installController.clearSettled()
       feedbackContextVersion.value = null
       feedbackAgentId.value = undefined
       emit('update:open', false)

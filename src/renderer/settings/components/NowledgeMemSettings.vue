@@ -434,7 +434,7 @@ const discardDraft = () => {
   Object.assign(config, persistedConfig.value)
   retryKind.value = null
   if (operationFeedback.value.status !== 'pending' && operationFeedback.value.status !== 'idle') {
-    feedbackController.clear()
+    feedbackController.clearSettled()
   }
 }
 
@@ -460,7 +460,7 @@ const stopStaleFeedbackSync = watch(
       return
     }
     retryKind.value = null
-    feedbackController.clear()
+    feedbackController.clearSettled()
   },
   { flush: 'sync' }
 )

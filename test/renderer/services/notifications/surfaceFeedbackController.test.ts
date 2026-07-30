@@ -67,6 +67,7 @@ const createHarness = () => {
     controller,
     manager,
     operationEvents,
+    operations,
     presentations,
     time,
     visibility
@@ -105,24 +106,82 @@ describe('SurfaceFeedbackController', () => {
     const { controller } = createHarness()
     controller.acquireLease()
     succeed(controller)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    expect(() => controller.begin('', 'Saving')).toThrow('Operation ID must not be empty')
+    expect(controller.begin('', 'Saving')).toBe(false)
     expect(controller.getSnapshot()).toMatchObject({
       status: 'success',
       title: 'Saved'
     })
+    expect(consoleError).toHaveBeenCalledWith(
+      '[SurfaceFeedbackController] begin failed',
+      expect.any(TypeError)
+    )
   })
 
   it('requires pending work to be explicitly cancelled instead of silently clearing it', () => {
     const { controller, operationEvents } = createHarness()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     controller.begin('settings.agent.save', 'Saving')
 
-    expect(() => controller.clear()).toThrow('must be cancelled or settled')
+    expect(controller.clearSettled()).toBe(false)
     expect(controller.getSnapshot().status).toBe('pending')
 
-    controller.cancel()
+    expect(controller.cancelPending()).toBe(true)
     expect(controller.getSnapshot().status).toBe('idle')
     expect(operationEvents.at(-1)).toBe('settled:cancelled')
+    expect(consoleError).toHaveBeenCalledWith(
+      '[SurfaceFeedbackController] clear settled feedback failed',
+      expect.any(Error)
+    )
+  })
+
+  it('closes an operation when terminal display data is invalid', () => {
+    const { controller, operations } = createHarness()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    controller.begin('settings.agent.save', 'Saving')
+
+    expect(
+      controller.fail({
+        code: 'not a semantic code',
+        title: ''
+      })
+    ).toBe(false)
+
+    expect(controller.getSnapshot().status).toBe('idle')
+    expect(operations.get('settings.agent.save')).toBeUndefined()
+    expect(consoleError).toHaveBeenCalledWith(
+      '[SurfaceFeedbackController] settle error failed',
+      expect.any(TypeError)
+    )
+  })
+
+  it('diagnoses duplicate and late transitions without replacing the active operation', () => {
+    const { controller, operations } = createHarness()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    expect(controller.begin('settings.agent.save', 'Saving')).toBe(true)
+
+    expect(controller.begin('settings.agent.other', 'Saving another')).toBe(false)
+    expect(operations.get('settings.agent.save')).toMatchObject({ status: 'running' })
+    expect(operations.get('settings.agent.other')).toBeUndefined()
+
+    expect(
+      controller.fail({
+        code: 'settings.agent.saveFailed',
+        title: 'Save failed'
+      })
+    ).toBe(true)
+    expect(
+      controller.fail({
+        code: 'settings.agent.saveFailed',
+        title: 'Save failed again'
+      })
+    ).toBe(false)
+    expect(controller.getSnapshot()).toMatchObject({
+      status: 'error',
+      title: 'Save failed'
+    })
+    expect(consoleError).toHaveBeenCalledTimes(2)
   })
 
   it('pauses inline success time while the document is hidden', () => {
@@ -143,18 +202,34 @@ describe('SurfaceFeedbackController', () => {
     expect(controller.getSnapshot().status).toBe('idle')
   })
 
-  it('cancels a generation-stale handoff when inline availability returns', () => {
+  it('does not replay observed inline success after its lease becomes inactive', () => {
     const { controller, presentations, time } = createHarness()
     const lease = controller.acquireLease()
     succeed(controller)
 
+    time.advanceBy(500)
     lease.setActive(false)
-    time.advanceBy(199)
-    lease.setActive(true)
-    time.advanceBy(1)
+    time.advanceBy(200)
 
     expect(presentations).toHaveLength(0)
-    expect(controller.getSnapshot().status).toBe('success')
+    expect(controller.getSnapshot().status).toBe('idle')
+  })
+
+  it('does not replay observed inline errors after their lease becomes inactive', () => {
+    const { controller, presentations, time } = createHarness()
+    const lease = controller.acquireLease()
+    controller.begin('settings.agent.save', 'Saving')
+    controller.fail({
+      code: 'settings.agent.saveFailed',
+      title: 'Save failed'
+    })
+
+    time.advanceBy(10_000)
+    lease.setActive(false)
+    time.advanceBy(200)
+
+    expect(presentations).toHaveLength(0)
+    expect(controller.getSnapshot().status).toBe('error')
   })
 
   it('rechecks inline availability after notification creation starts', () => {
@@ -188,16 +263,16 @@ describe('SurfaceFeedbackController', () => {
     expect(controller.getSnapshot().status).toBe('error')
   })
 
-  it('hands terminal feedback off once and lets inline reclaim it', () => {
+  it('hands off an unobserved result once and does not replay it after inline reclaim', () => {
     const { controller, presentations, time } = createHarness()
     const lease = controller.acquireLease()
     controller.begin('settings.agent.save', 'Saving')
+    lease.setActive(false)
     controller.fail({
       code: 'settings.agent.saveFailed',
       title: 'Save failed'
     })
 
-    lease.setActive(false)
     time.advanceBy(200)
     expect(presentations).toHaveLength(1)
 
@@ -207,7 +282,7 @@ describe('SurfaceFeedbackController', () => {
 
     lease.setActive(false)
     time.advanceBy(200)
-    expect(presentations).toHaveLength(2)
+    expect(presentations).toHaveLength(1)
   })
 
   it('clears handed-off success only after Sonner closes it', () => {
@@ -236,14 +311,15 @@ describe('SurfaceFeedbackController', () => {
 
     time.advanceBy(60_000)
     expect(presentations).toHaveLength(1)
-    controller.clear()
+    expect(controller.clearSettled()).toBe(true)
     expect(controller.getSnapshot().status).toBe('idle')
   })
 
   it('waits until every mounted lease is inactive before handing off', () => {
-    const { controller, presentations, time } = createHarness()
+    const { controller, presentations, time, visibility } = createHarness()
     const primary = controller.acquireLease()
     const secondary = controller.acquireLease()
+    visibility.setVisible(false)
     controller.begin('settings.agent.save', 'Saving')
     controller.fail({
       code: 'settings.agent.saveFailed',

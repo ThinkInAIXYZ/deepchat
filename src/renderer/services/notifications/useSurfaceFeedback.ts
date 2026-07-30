@@ -34,7 +34,7 @@ export const useSurfaceFeedback = (
   })
   onBeforeUnmount(() => {
     stop()
-    lease.release()
+    controller.dispose()
   })
 
   return Object.freeze({

@@ -148,7 +148,7 @@ async function setup(options: SetupOptions = {}) {
         version: feedbackSnapshot.value.version + 1
       }
     }),
-    clear: vi.fn(() => {
+    clearSettled: vi.fn(() => {
       feedbackSnapshot.value = {
         status: 'idle',
         version: feedbackSnapshot.value.version + 1

@@ -1300,7 +1300,7 @@ const isDirty = computed(
 )
 const clearSettledSaveFeedback = () => {
   if (saveFeedback.value.status === 'success' || saveFeedback.value.status === 'error') {
-    saveFeedbackController.clear()
+    saveFeedbackController.clearSettled()
   }
   feedbackSourceSignature.value = null
 }

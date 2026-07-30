@@ -299,7 +299,7 @@ const saveApiKey = async () => {
 const handleApiKeyInputUpdate = () => {
   apiKeyRequirementError.value = null
   if (apiKeyFeedback.value.status === 'success' || apiKeyFeedback.value.status === 'error') {
-    apiKeyFeedbackController.clear()
+    apiKeyFeedbackController.clearSettled()
   }
 }
 

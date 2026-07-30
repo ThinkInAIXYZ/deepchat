@@ -1453,7 +1453,7 @@ const handleSelectSyncFolder = async () => {
   try {
     const selected = await syncStore.selectSyncFolder()
     if (!selected) {
-      syncOperation.controller.cancel()
+      syncOperation.controller.cancelPending()
       return
     }
     syncOperation.controller.succeed({
@@ -1480,7 +1480,7 @@ const handleOpenSyncFolder = async () => {
       code: 'settings.data.sync.folderOpened',
       title: t('settings.data.openSyncFolder')
     })
-    syncOperation.controller.clear()
+    syncOperation.controller.clearSettled()
   } catch (error) {
     console.error('[DataSettings] Failed to open sync folder', {
       name: error instanceof Error ? error.name : 'UnknownError'
@@ -1604,7 +1604,7 @@ const handleSaveCloud = async () => {
   cloudOperation.controller.begin(cloudOperation.operationId, t('common.saving'))
   try {
     if (!(await persistCloudConfig())) {
-      cloudOperation.controller.cancel()
+      cloudOperation.controller.cancelPending()
       return
     }
     cloudOperation.controller.succeed({
@@ -1630,7 +1630,7 @@ const handleSaveAndTestCloud = async () => {
   )
   try {
     if (!(await persistCloudConfig())) {
-      cloudOperation.controller.cancel()
+      cloudOperation.controller.cancelPending()
       return
     }
     const result = await syncStore.testCloud()
@@ -1695,7 +1695,7 @@ const handlePullFromCloud = async () => {
         code: 'settings.data.cloud.pullFailed',
         title: t('settings.data.importErrorTitle')
       })
-      cloudOperation.controller.clear()
+      cloudOperation.controller.clearSettled()
       return
     }
     cloudOperation.controller.succeed({
@@ -1965,7 +1965,7 @@ const runSchemaRepair = async () => {
       code: 'settings.data.databaseRepair.completed',
       title: repairSummaryText.value
     })
-    repairOperation.controller.clear()
+    repairOperation.controller.clearSettled()
   } catch (error) {
     console.error('[DataSettings] Failed to repair database schema', {
       name: error instanceof Error ? error.name : 'UnknownError'
@@ -2027,14 +2027,14 @@ const dataDraftDirty = computed(() => cloudFormDirty.value || databaseSecurityDr
 
 watch([databaseCurrentPassword, databaseNewPassword, databaseConfirmPassword], () => {
   if (databaseSecurityFeedback.value.status === 'error') {
-    databaseSecurityOperation.controller.clear()
+    databaseSecurityOperation.controller.clearSettled()
   }
 })
 watch(
   cloudForm,
   () => {
     if (!applyingCloudConfig && cloudFeedback.value.status === 'error') {
-      cloudOperation.controller.clear()
+      cloudOperation.controller.clearSettled()
     }
   },
   { deep: true, flush: 'sync' }
@@ -2076,7 +2076,7 @@ const initializeSyncSettings = async () => {
       code: 'settings.data.sync.initialized',
       title: t('settings.data.syncFolder')
     })
-    syncOperation.controller.clear()
+    syncOperation.controller.clearSettled()
   } catch (error) {
     syncInitializationFailed.value = true
     console.error('[DataSettings] Failed to initialize sync settings', {
@@ -2254,7 +2254,7 @@ const handleImport = async () => {
       importMode.value as 'increment' | 'overwrite'
     )
     if (!result) {
-      syncOperation.controller.cancel()
+      syncOperation.controller.cancelPending()
       return
     }
     if (result.success) {
@@ -2270,7 +2270,7 @@ const handleImport = async () => {
         code: 'settings.data.sync.importFailed',
         title: t('settings.data.importErrorTitle')
       })
-      syncOperation.controller.clear()
+      syncOperation.controller.clearSettled()
     }
     closeImportDialog()
   } catch (error) {
@@ -2314,7 +2314,7 @@ const handleReset = async () => {
       code: 'settings.data.reset.completed',
       title: t('settings.data.resetData')
     })
-    resetOperation.controller.clear()
+    resetOperation.controller.clearSettled()
     isResetDialogOpen.value = false
     resetType.value = 'chat'
   } catch (error) {

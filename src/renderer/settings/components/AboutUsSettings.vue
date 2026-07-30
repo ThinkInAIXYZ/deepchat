@@ -316,7 +316,7 @@ const loadUpdateChannel = async () => {
       code: 'settings.about.updateChannelLoaded',
       title: t('common.saved')
     })
-    updateChannelFeedbackController.clear()
+    updateChannelFeedbackController.clearSettled()
   } catch (error) {
     updateChannelReady.value = false
     console.error('[AboutUsSettings] Failed to load update channel', {
@@ -363,7 +363,7 @@ const handlePrimaryAction = async () => {
         code: 'settings.about.updateAvailable',
         title: t('update.versionAvailable', { version: formattedUpdateVersion.value })
       })
-      updateCheckFeedbackController.clear()
+      updateCheckFeedbackController.clearSettled()
     }
   } catch (error) {
     console.error('[AboutUsSettings] Failed to check for updates', {

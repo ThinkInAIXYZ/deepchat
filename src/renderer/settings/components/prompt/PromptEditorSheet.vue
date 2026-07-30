@@ -432,9 +432,9 @@ const resetAttachmentFeedback = () => {
   attachmentGeneration += 1
   const feedback = attachmentFeedbackController.getSnapshot()
   if (feedback.status === 'pending') {
-    attachmentFeedbackController.cancel()
+    attachmentFeedbackController.cancelPending()
   } else if (feedback.status !== 'idle') {
-    attachmentFeedbackController.clear()
+    attachmentFeedbackController.clearSettled()
   }
 }
 

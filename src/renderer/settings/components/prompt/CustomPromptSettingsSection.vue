@@ -270,7 +270,7 @@ const deleteDialogOpen = computed({
     }
     pendingDeletePromptId.value = null
     if (getFeedback().status !== 'idle') {
-      props.feedbackController.clear()
+      props.feedbackController.clearSettled()
     }
   }
 })
@@ -365,7 +365,7 @@ const togglePromptEnabled = async (index: number) => {
       code: newEnabled ? 'settings.prompts.enabled' : 'settings.prompts.disabled',
       title: newEnabled ? t('promptSetting.enableSuccess') : t('promptSetting.disableSuccess')
     })
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
   } catch (error) {
     failOperation('toggle', 'settings.prompts.toggleFailed', t('promptSetting.toggleFailed'), error)
   }
@@ -380,7 +380,7 @@ const requestDeletePrompt = (promptId: string) => {
     return
   }
   if (getFeedback().status !== 'idle') {
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
   }
   pendingDeletePromptId.value = promptId
 }
@@ -396,7 +396,7 @@ const deletePrompt = async () => {
       code: 'settings.prompts.deleted',
       title: t('promptSetting.deleteSuccess')
     })
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
     pendingDeletePromptId.value = null
   } catch (error) {
     failOperation('delete', 'settings.prompts.deleteFailed', t('promptSetting.deleteFailed'), error)
@@ -408,7 +408,7 @@ const openCreateDialog = () => {
     return
   }
   if (getFeedback().status !== 'idle') {
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
   }
   editingPrompt.value = null
   editorOpen.value = true
@@ -432,7 +432,7 @@ const editPrompt = (index: number) => {
     return
   }
   if (getFeedback().status !== 'idle') {
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
   }
   const prompt = prompts.value[index]
   editingPrompt.value = toPromptForm(prompt)
@@ -447,7 +447,7 @@ const handleEditorOpenChange = (open: boolean) => {
   if (!open) {
     editingPrompt.value = null
     if (getFeedback().status !== 'idle') {
-      props.feedbackController.clear()
+      props.feedbackController.clearSettled()
     }
   }
 }
@@ -481,7 +481,7 @@ const handleEditorSubmit = async (prompt: PromptForm) => {
       code: prompt.id ? 'settings.prompts.updated' : 'settings.prompts.added',
       title: t('common.saved')
     })
-    props.feedbackController.clear()
+    props.feedbackController.clearSettled()
     editorOpen.value = false
     editingPrompt.value = null
   } catch (error) {
@@ -694,7 +694,7 @@ const importPrompts = () => {
       if (disposed) return
       const feedback = getFeedback()
       if (feedback.status === 'pending' && feedback.operationId === operationIds.import) {
-        props.feedbackController.cancel()
+        props.feedbackController.cancelPending()
       }
     }
 
@@ -733,7 +733,7 @@ onBeforeUnmount(() => {
   activeImportReader?.abort()
   const feedback = getFeedback()
   if (feedback.status === 'pending' && feedback.operationId === operationIds.import) {
-    props.feedbackController.cancel()
+    props.feedbackController.cancelPending()
   }
   emit('feedback-surface', false)
   emit('ready-change', false)

@@ -37,11 +37,11 @@
 - [x] Derive Agent dirty state from canonical editable data.
 - [x] Guard route and window close for dirty or in-flight Agent data.
 - [x] Test handoff races, reclamation, hidden-document timing, and close behavior.
-- [ ] Prevent observed inline results from replaying as Toast.
-- [ ] Dispose component-owned controllers and active operations on unmount.
-- [ ] Make framework-facing feedback transitions non-throwing and diagnostic.
-- [ ] Give settled clearing and pending cancellation unambiguous names.
-- [ ] Make the controlled leave dialog dispatch one explicit decision per user action.
+- [x] Prevent observed inline results from replaying as Toast.
+- [x] Dispose component-owned controllers and active operations on unmount.
+- [x] Make framework-facing feedback transitions non-throwing and diagnostic.
+- [x] Give settled clearing and pending cancellation unambiguous names.
+- [x] Make the controlled leave dialog dispatch one explicit decision per user action.
 - [ ] Keep persisted Agent success independent from fallible local projection.
 
 ## Main Router and semantic producers
@@ -80,6 +80,6 @@
 - [x] Complete a severity-ordered review before every commit and fix all findings.
 - [x] Commit locally with Conventional Commits.
 - [x] Do not push.
-- [ ] Add real-dialog discard, observed-result non-replay, and unmount-disposal seam tests.
+- [x] Add real-dialog discard, observed-result non-replay, and unmount-disposal seam tests.
 - [ ] Add real-router coverage for settings navigation blocking.
 - [ ] Re-run focused and full validation after the corrective audit.

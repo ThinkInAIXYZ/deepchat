@@ -164,7 +164,7 @@ const createFeedbackHarness = (): FeedbackHarness => {
         version: snapshot.version + 1
       })
     },
-    clear: () => {
+    clearSettled: () => {
       transition({ status: 'idle', version: snapshot.version + 1 })
     }
   } as SurfaceFeedbackController

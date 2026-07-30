@@ -256,7 +256,7 @@ const logFailure = (message: string, error: unknown) => {
 const dismissSettledInstallFeedback = () => {
   const snapshot = installController.getSnapshot()
   if (snapshot.status === 'success' || snapshot.status === 'error') {
-    installController.clear()
+    installController.clearSettled()
   }
   if (snapshot.status !== 'pending') {
     feedbackContextVersion.value = null
@@ -495,7 +495,7 @@ const handleInstallResult = (
       description: t('settings.skills.install.successMessage', { name: result.skillName })
     })
     if (surfaceCurrent) {
-      installController.clear()
+      installController.clearSettled()
       feedbackContextVersion.value = null
       feedbackAgentId.value = undefined
       installUrl.value = ''
@@ -512,7 +512,7 @@ const handleInstallResult = (
       })
       return
     }
-    installController.cancel()
+    installController.cancelPending()
     conflictSkillName.value = result.existingSkillName || result.skillName || ''
     pendingInstallAction.value = retryWithOverwrite
     conflictDialogOpen.value = true

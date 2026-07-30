@@ -94,7 +94,8 @@ export class SurfaceFeedbackController {
   private successRemainingMs = 0
   private stopVisibilitySubscription?: () => void
   private toastHandle?: ManagedNotificationHandle
-  private handoffDelivered = false
+  private terminalObservedInline = false
+  private terminalPresentedAsToast = false
   private disposed = false
 
   constructor(dependencies: SurfaceFeedbackControllerDependencies) {
@@ -128,94 +129,140 @@ export class SurfaceFeedbackController {
 
     return Object.freeze({
       setActive: (nextActive: boolean) => {
-        if (released || this.leases.get(leaseId) === nextActive) return
+        if (released || this.disposed || this.leases.get(leaseId) === nextActive) return
         this.leases.set(leaseId, nextActive)
         this.onLeaseChanged()
       },
       release: () => {
         if (released) return
         released = true
+        if (this.disposed) return
         this.leases.delete(leaseId)
         this.onLeaseChanged()
       }
     })
   }
 
-  begin(operationId: string, label: string): void {
-    this.ensureUsable()
+  begin(operationId: string, label: string): boolean {
+    if (this.disposed) return false
     if (this.snapshot.status === 'pending') {
-      throw new Error(`Operation "${this.snapshot.operationId}" is already pending`)
+      this.reportIntegrationError(
+        'begin',
+        new Error(`Operation "${this.snapshot.operationId}" is already pending`)
+      )
+      return false
     }
 
-    const normalizedLabel = label.trim()
-    if (!normalizedLabel) throw new TypeError('Pending feedback label must not be empty')
-
-    const operation = this.operations.create(operationId, this.operationOwner)
+    let normalizedOperationId: string | undefined
+    let normalizedLabel: string
     try {
+      normalizedLabel = label.trim()
+      if (!normalizedLabel) throw new TypeError('Pending feedback label must not be empty')
+
+      const operation = this.operations.create(operationId, this.operationOwner)
+      normalizedOperationId = operation.id
       this.operations.start(operation.id)
     } catch (error) {
-      this.operations.cancel(operation.id)
-      throw error
+      if (normalizedOperationId) this.cancelOperation(normalizedOperationId, 'begin rollback')
+      this.reportIntegrationError('begin', error)
+      return false
     }
 
     this.resetPresentation('programmatic')
     this.feedbackGeneration += 1
     this.setSnapshot({
       status: 'pending',
-      operationId: operation.id,
+      operationId: normalizedOperationId,
       label: normalizedLabel
     })
+    return true
   }
 
-  succeed(result: SurfaceFeedbackResult): void {
-    this.settle('success', result)
+  succeed(result: SurfaceFeedbackResult): boolean {
+    return this.settle('success', result)
   }
 
-  fail(result: SurfaceFeedbackResult): void {
-    this.settle('error', result)
+  fail(result: SurfaceFeedbackResult): boolean {
+    return this.settle('error', result)
   }
 
-  clear(): void {
-    this.ensureUsable()
+  clearSettled(): boolean {
+    if (this.disposed || this.snapshot.status === 'idle') return false
     if (this.snapshot.status === 'pending') {
-      throw new Error('Pending feedback must be cancelled or settled before it can be cleared')
+      this.reportIntegrationError(
+        'clear settled feedback',
+        new Error('Pending feedback must be cancelled or settled before it can be cleared')
+      )
+      return false
     }
     this.transitionToIdle('programmatic')
+    return true
   }
 
-  cancel(): void {
-    this.ensureUsable()
+  cancelPending(): boolean {
+    if (this.disposed) return false
     if (this.snapshot.status !== 'pending') {
-      throw new Error(`Cannot cancel feedback from "${this.snapshot.status}"`)
+      this.reportIntegrationError(
+        'cancel pending feedback',
+        new Error(`Cannot cancel feedback from "${this.snapshot.status}"`)
+      )
+      return false
     }
-    this.operations.cancel(this.snapshot.operationId)
+    const cancelled = this.cancelOperation(this.snapshot.operationId, 'cancel pending feedback')
     this.transitionToIdle('programmatic')
+    return cancelled
   }
 
   dispose(): void {
     if (this.disposed) return
-    if (this.snapshot.status === 'pending') {
-      this.cancel()
-    } else {
-      this.transitionToIdle('programmatic')
-    }
     this.disposed = true
+    if (this.snapshot.status === 'pending') {
+      this.cancelOperation(this.snapshot.operationId, 'dispose')
+    }
+    this.feedbackGeneration += 1
+    this.resetPresentation('programmatic')
+    if (this.snapshot.status !== 'idle') {
+      this.snapshot = Object.freeze({
+        status: 'idle',
+        version: this.snapshot.version + 1
+      })
+    }
     this.leases.clear()
     this.listeners.clear()
   }
 
-  private settle(status: 'success' | 'error', result: SurfaceFeedbackResult): void {
-    this.ensureUsable()
+  private settle(status: 'success' | 'error', result: SurfaceFeedbackResult): boolean {
+    if (this.disposed) return false
     if (this.snapshot.status !== 'pending') {
-      throw new Error(`Cannot settle feedback from "${this.snapshot.status}"`)
+      this.reportIntegrationError(
+        `settle ${status}`,
+        new Error(`Cannot settle feedback from "${this.snapshot.status}"`)
+      )
+      return false
     }
 
     const operationId = this.snapshot.operationId
-    const normalized = this.normalizeResult(result)
-    if (status === 'success') {
-      this.operations.succeed(operationId)
-    } else {
-      this.operations.fail(operationId, normalized.code)
+    let normalized: SurfaceFeedbackResult
+    try {
+      normalized = this.normalizeResult(result)
+    } catch (error) {
+      this.reportIntegrationError(`settle ${status}`, error)
+      this.settleInvalidResult(operationId, status)
+      this.transitionToIdle('programmatic')
+      return false
+    }
+
+    try {
+      if (status === 'success') {
+        this.operations.succeed(operationId)
+      } else {
+        this.operations.fail(operationId, normalized.code)
+      }
+    } catch (error) {
+      this.reportIntegrationError(`settle ${status}`, error)
+      this.cancelOperation(operationId, `settle ${status} rollback`)
+      this.transitionToIdle('programmatic')
+      return false
     }
 
     this.resetPresentation('programmatic')
@@ -226,6 +273,7 @@ export class SurfaceFeedbackController {
       operationId,
       ...normalized
     })
+    return true
   }
 
   private normalizeResult(result: SurfaceFeedbackResult): SurfaceFeedbackResult {
@@ -245,7 +293,7 @@ export class SurfaceFeedbackController {
       ...next,
       version: this.snapshot.version + 1
     }) as SurfaceFeedbackSnapshot
-    this.reconcilePresentation()
+    this.reconcilePresentationSafely()
     this.emit()
   }
 
@@ -263,15 +311,26 @@ export class SurfaceFeedbackController {
 
   private onLeaseChanged(): void {
     this.leaseRevision += 1
-    this.reconcilePresentation()
+    this.reconcilePresentationSafely()
   }
 
   private reconcilePresentation(): void {
     this.cancelHandoff()
     if (this.hasActiveLease()) {
+      const visible = this.visibility.isVisible()
+      if (visible && (this.snapshot.status === 'success' || this.snapshot.status === 'error')) {
+        this.terminalObservedInline = true
+      }
       this.reclaimToast()
       if (this.snapshot.status === 'success') {
-        this.startInlineSuccessBudget()
+        if (visible) {
+          this.startInlineSuccessBudget()
+        } else {
+          this.pauseInlineSuccessBudget()
+          this.trackVisibility()
+        }
+      } else if (this.snapshot.status === 'error' && !this.terminalObservedInline) {
+        this.trackVisibility()
       } else {
         this.stopVisibilityTracking()
       }
@@ -280,10 +339,15 @@ export class SurfaceFeedbackController {
 
     this.pauseInlineSuccessBudget()
     this.stopVisibilityTracking()
+    if (this.snapshot.status === 'success' && this.terminalObservedInline) {
+      this.transitionToIdle('programmatic')
+      return
+    }
     if (
       (this.snapshot.status === 'success' || this.snapshot.status === 'error') &&
+      !this.terminalObservedInline &&
       !this.toastHandle &&
-      !this.handoffDelivered
+      !this.terminalPresentedAsToast
     ) {
       this.scheduleHandoff()
     }
@@ -299,8 +363,9 @@ export class SurfaceFeedbackController {
         feedbackGeneration !== this.feedbackGeneration ||
         leaseRevision !== this.leaseRevision ||
         this.hasActiveLease() ||
+        this.terminalObservedInline ||
         this.toastHandle ||
-        this.handoffDelivered ||
+        this.terminalPresentedAsToast ||
         (this.snapshot.status !== 'success' && this.snapshot.status !== 'error')
       ) {
         return
@@ -313,7 +378,7 @@ export class SurfaceFeedbackController {
     snapshot: Extract<SurfaceFeedbackSnapshot, { status: 'success' | 'error' }>,
     feedbackGeneration: number
   ): void {
-    this.handoffDelivered = true
+    this.terminalPresentedAsToast = true
     let synchronousEvent: NotificationLifecycleEvent | undefined
     let presenting = true
     let handle: ManagedNotificationHandle
@@ -337,8 +402,8 @@ export class SurfaceFeedbackController {
       )
     } catch (error) {
       presenting = false
-      this.handoffDelivered = false
-      console.error('[SurfaceFeedbackController] notification handoff failed', error)
+      this.terminalPresentedAsToast = false
+      this.reportIntegrationError('notification handoff', error)
       return
     }
     presenting = false
@@ -348,7 +413,12 @@ export class SurfaceFeedbackController {
       return
     }
     if (this.disposed || feedbackGeneration !== this.feedbackGeneration || this.hasActiveLease()) {
-      handle.dismiss('surface-reclaimed')
+      this.terminalPresentedAsToast = false
+      this.dismissToast(
+        handle,
+        this.hasActiveLease() ? 'surface-reclaimed' : 'programmatic',
+        'stale notification handoff'
+      )
       return
     }
     this.toastHandle = handle
@@ -358,10 +428,10 @@ export class SurfaceFeedbackController {
     if (feedbackGeneration !== this.feedbackGeneration) return
     this.toastHandle = undefined
     if (event.reason === 'surface-reclaimed') {
-      this.handoffDelivered = false
+      this.terminalPresentedAsToast = false
       return
     }
-    this.handoffDelivered = true
+    this.terminalPresentedAsToast = true
     if (this.snapshot.status === 'success') {
       this.transitionToIdle('programmatic')
     }
@@ -372,8 +442,8 @@ export class SurfaceFeedbackController {
     if (!toastHandle) return
 
     this.toastHandle = undefined
-    this.handoffDelivered = false
-    toastHandle.dismiss('surface-reclaimed')
+    this.terminalPresentedAsToast = false
+    this.dismissToast(toastHandle, 'surface-reclaimed', 'surface reclaim')
   }
 
   private startInlineSuccessBudget(): void {
@@ -414,12 +484,21 @@ export class SurfaceFeedbackController {
   }
 
   private pauseInlineSuccessBudget(): void {
-    if (!this.successTask) return
-    this.successTask.cancel()
+    const successTask = this.successTask
+    if (!successTask) return
     this.successTask = undefined
+    try {
+      successTask.cancel()
+    } catch (error) {
+      this.reportIntegrationError('inline success timer cancellation', error)
+    }
     if (this.successTaskStartedAt !== undefined) {
-      const elapsed = Math.max(0, this.clock.now() - this.successTaskStartedAt)
-      this.successRemainingMs = Math.max(0, this.successRemainingMs - elapsed)
+      try {
+        const elapsed = Math.max(0, this.clock.now() - this.successTaskStartedAt)
+        this.successRemainingMs = Math.max(0, this.successRemainingMs - elapsed)
+      } catch (error) {
+        this.reportIntegrationError('inline success timer pause', error)
+      }
     }
     this.successTaskStartedAt = undefined
   }
@@ -427,17 +506,19 @@ export class SurfaceFeedbackController {
   private trackVisibility(): void {
     if (this.stopVisibilitySubscription) return
     this.stopVisibilitySubscription = this.visibility.subscribe(() => {
-      if (this.visibility.isVisible()) {
-        this.startInlineSuccessBudget()
-      } else {
-        this.pauseInlineSuccessBudget()
-      }
+      this.reconcilePresentationSafely()
     })
   }
 
   private stopVisibilityTracking(): void {
-    this.stopVisibilitySubscription?.()
+    const stop = this.stopVisibilitySubscription
     this.stopVisibilitySubscription = undefined
+    if (!stop) return
+    try {
+      stop()
+    } catch (error) {
+      this.reportIntegrationError('visibility subscription cleanup', error)
+    }
   }
 
   private resetPresentation(reason: NotificationProgrammaticCloseReason): void {
@@ -446,14 +527,21 @@ export class SurfaceFeedbackController {
     this.stopVisibilityTracking()
     const toastHandle = this.toastHandle
     this.toastHandle = undefined
-    this.handoffDelivered = false
+    this.terminalObservedInline = false
+    this.terminalPresentedAsToast = false
     this.successRemainingMs = 0
-    toastHandle?.dismiss(reason)
+    if (toastHandle) this.dismissToast(toastHandle, reason, 'presentation reset')
   }
 
   private cancelHandoff(): void {
-    this.handoffTask?.cancel()
+    const handoffTask = this.handoffTask
     this.handoffTask = undefined
+    if (!handoffTask) return
+    try {
+      handoffTask.cancel()
+    } catch (error) {
+      this.reportIntegrationError('handoff cancellation', error)
+    }
   }
 
   private hasActiveLease(): boolean {
@@ -461,6 +549,49 @@ export class SurfaceFeedbackController {
       if (active) return true
     }
     return false
+  }
+
+  private reconcilePresentationSafely(): void {
+    try {
+      this.reconcilePresentation()
+    } catch (error) {
+      this.reportIntegrationError('presentation reconciliation', error)
+    }
+  }
+
+  private settleInvalidResult(operationId: string, status: 'success' | 'error'): void {
+    try {
+      if (status === 'success') {
+        this.operations.succeed(operationId)
+      } else {
+        this.operations.fail(operationId, 'notification.surface.invalidResult')
+      }
+    } catch (error) {
+      this.reportIntegrationError(`settle invalid ${status}`, error)
+      this.cancelOperation(operationId, `settle invalid ${status} rollback`)
+    }
+  }
+
+  private cancelOperation(operationId: string, boundary: string): boolean {
+    try {
+      this.operations.cancel(operationId)
+      return true
+    } catch (error) {
+      this.reportIntegrationError(boundary, error)
+      return false
+    }
+  }
+
+  private dismissToast(
+    handle: ManagedNotificationHandle,
+    reason: NotificationProgrammaticCloseReason,
+    boundary: string
+  ): void {
+    try {
+      handle.dismiss(reason)
+    } catch (error) {
+      this.reportIntegrationError(boundary, error)
+    }
   }
 
   private emit(): void {
@@ -475,5 +606,9 @@ export class SurfaceFeedbackController {
 
   private ensureUsable(): void {
     if (this.disposed) throw new Error('SurfaceFeedbackController is disposed')
+  }
+
+  private reportIntegrationError(boundary: string, error: unknown): void {
+    console.error(`[SurfaceFeedbackController] ${boundary} failed`, error)
   }
 }

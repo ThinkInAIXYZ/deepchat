@@ -312,7 +312,7 @@ const confirmDialogOpen = computed({
       }
       pendingAction.value = null
       if (confirmationFeedback.value.status !== 'idle') {
-        confirmationFeedbackController.clear()
+        confirmationFeedbackController.clearSettled()
       }
     }
   }
@@ -468,7 +468,7 @@ const requestEnvironmentAction = (
     return
   }
   if (confirmationFeedback.value.status !== 'idle') {
-    confirmationFeedbackController.clear()
+    confirmationFeedbackController.clearSettled()
   }
   pendingAction.value = { type, environment }
 }
@@ -504,7 +504,7 @@ const confirmEnvironmentAction = async () => {
       code: `settings.environments.${action.type}`,
       title: t('common.saved')
     })
-    confirmationFeedbackController.clear()
+    confirmationFeedbackController.clearSettled()
     pendingAction.value = null
   } catch (error) {
     console.error('[EnvironmentsSettings] Failed to apply confirmed action', {
@@ -544,7 +544,7 @@ const runPageOperation = async ({
   try {
     await action()
     pageFeedbackController.succeed({ code, title: pendingLabel })
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
     return true
   } catch (error) {
     console.error('[EnvironmentsSettings] Operation failed', {

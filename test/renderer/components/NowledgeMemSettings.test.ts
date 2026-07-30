@@ -114,7 +114,7 @@ describe('NowledgeMemSettings', () => {
           version: 2
         }
       }),
-      clear: vi.fn(() => {
+      clearSettled: vi.fn(() => {
         feedbackSnapshot.value = { status: 'idle', version: 3 }
       })
     }
@@ -295,7 +295,7 @@ describe('NowledgeMemSettings', () => {
 
     await wrapper.get('#baseUrl').setValue('http://edited-after-test.local')
 
-    expect(feedbackController.clear).toHaveBeenCalledTimes(1)
+    expect(feedbackController.clearSettled).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 })

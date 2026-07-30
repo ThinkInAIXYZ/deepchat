@@ -613,7 +613,7 @@ const deleteDialogOpen = computed({
     }
     pendingDeleteJobId.value = null
     if (pageFeedback.value.status !== 'idle') {
-      pageFeedbackController.clear()
+      pageFeedbackController.clearSettled()
     }
   }
 })
@@ -780,7 +780,7 @@ const markJobDirty = (jobId: string) => {
   setDirty(jobId, true)
   retryRequest.value = null
   if (pageFeedback.value.status === 'success' || pageFeedback.value.status === 'error') {
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   }
 }
 
@@ -918,7 +918,7 @@ const loadJobs = async () => {
       code: 'settings.cronJobs.loaded',
       title: t('common.saved')
     })
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   } catch (error) {
     failPageOperation(
       'Failed to load jobs',
@@ -1290,7 +1290,7 @@ const addJob = async () => {
       code: 'settings.cronJobs.added',
       title: t('common.saved')
     })
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   } catch (error) {
     failPageOperation('Failed to add job', 'settings.cronJobs.addFailed', error)
   }
@@ -1314,7 +1314,7 @@ const toggleJob = async (id: string, enabled: boolean) => {
       code: 'settings.cronJobs.toggled',
       title: t('common.saved')
     })
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   } catch (error) {
     failPageOperation('Failed to toggle job', 'settings.cronJobs.toggleFailed', error)
   }
@@ -1325,7 +1325,7 @@ const requestDeleteJob = (id: string) => {
     return
   }
   if (pageFeedback.value.status !== 'idle') {
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   }
   pendingDeleteJobId.value = id
 }
@@ -1378,7 +1378,7 @@ const confirmDeleteJob = async () => {
       code: 'settings.cronJobs.deleted',
       title: t('common.saved')
     })
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
     pendingDeleteJobId.value = null
   } catch (error) {
     failPageOperation('Failed to delete job', 'settings.cronJobs.deleteFailed', error)
@@ -1442,7 +1442,7 @@ const restartScheduler = async () => {
       code: 'settings.cronJobs.restarted',
       title: t('common.saved')
     })
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   } catch (error) {
     failPageOperation('Failed to restart scheduler', 'settings.cronJobs.restartFailed', error)
   }
@@ -1478,7 +1478,7 @@ const discardDirtyJobs = () => {
   dirtyJobIds.value = new Set()
   retryRequest.value = null
   if (pageFeedback.value.status === 'error') {
-    pageFeedbackController.clear()
+    pageFeedbackController.clearSettled()
   }
   for (const id of dirtyIds) {
     const restored = persistedJobs.get(id)
