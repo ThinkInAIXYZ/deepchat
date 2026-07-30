@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 const refetch = vi.hoisted(() => vi.fn())
 
+vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 vi.mock('@/composables/useIpcQuery', () => ({
   useIpcQuery: () => ({
     data: computed(() => []),
