@@ -24,15 +24,6 @@ local listener.
   credential domains.
 - Typed routes/events and the server card expose secret-free authentication state and explicit
   start/complete/logout actions.
-- On 2026-07-03, `https://mcp.linear.app/mcp` returned `401` with
-  `WWW-Authenticate: Bearer ... resource_metadata="https://mcp.linear.app/.well-known/oauth-protected-resource/mcp"`.
-- Linear protected resource metadata returned:
-  - `resource: "https://mcp.linear.app/mcp"`
-  - `authorization_servers: ["https://mcp.linear.app"]`
-  - `scopes_supported: ["read", "write"]`
-- Linear authorization server metadata returned `authorization_endpoint`, `token_endpoint`,
-  `registration_endpoint`, `code_challenge_methods_supported: ["S256"]`, and
-  `client_id_metadata_document_supported: true`.
 
 ## External References
 

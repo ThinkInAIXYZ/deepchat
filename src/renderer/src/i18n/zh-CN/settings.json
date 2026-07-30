@@ -294,6 +294,7 @@
       "searchPlaceholder": "搜索记忆",
       "noSearchResults": "没有匹配的记忆。",
       "addMemory": "添加记忆",
+      "loadMore": "加载更多",
       "addContentPlaceholder": "想让该助手记住的内容…",
       "addCategoryLabel": "记忆分类",
       "addCategoryNone": "不指定分类",
@@ -1757,7 +1758,7 @@
       "authorizationMode": "授权模式",
       "authorizationInteractive": "交互式 OAuth",
       "authorizationNone": "不使用 OAuth",
-      "authorizationClientCredentials": "客户端凭据",
+      "authorizationClientCredentials": "客户端凭据（草案）",
       "authorizationPrivateKeyJwt": "私钥 JWT",
       "authorizationEnterprise": "企业跨应用访问",
       "authorizationHelp": {
@@ -1861,22 +1862,22 @@
       "redetectFailed": "重新检测失败",
       "redetectFailedDesc": "无法重新检测最优源，将使用默认配置"
     },
-    "managedServerReadOnly": "DeepChat托管服务",
-    "managedServerReadOnlyDesc": "请在对应插件设置中管理启用和权限",
+    "managedServerReadOnly": "DeepChat 托管服务",
+    "managedServerReadOnlyDesc": "请在对应插件设置中管理启用状态和权限。",
     "center": {
-      "title": "MCP Center",
-      "running": "Running",
-      "builtIn": "Built-in",
-      "custom": "Custom",
-      "searchPlaceholder": "搜索 MCP servers...",
-      "noResults": "没有匹配的 MCP server",
-      "command": "Command / URL",
+      "title": "MCP 中心",
+      "running": "运行中",
+      "builtIn": "内置",
+      "custom": "自定义",
+      "searchPlaceholder": "搜索 MCP 服务器...",
+      "noResults": "没有匹配的 MCP 服务器",
+      "command": "命令 / URL",
       "filters": {
-        "all": "All",
-        "running": "Running",
-        "stopped": "Stopped",
-        "builtIn": "Built-in",
-        "custom": "Custom"
+        "all": "全部",
+        "running": "运行中",
+        "stopped": "已停止",
+        "builtIn": "内置",
+        "custom": "自定义"
       }
     },
     "authRequired": "需要认证",

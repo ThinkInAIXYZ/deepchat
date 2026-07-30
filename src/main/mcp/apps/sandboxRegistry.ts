@@ -356,9 +356,16 @@ export class McpAppSandboxRegistry {
     if (!pending || pending.webContentsId !== context.webContentsId) {
       return false
     }
-    const instance = this.instances.get(pending.instanceId)
-    if (approved && instance && hasDeclaredPermission(instance.permissions, pending.kind)) {
-      instance.browserPermissionGrants.add(pending.kind)
+    if (approved) {
+      const instance = this.getForProtocol(pending.instanceId)
+      if (!instance) {
+        pending.resolve(false)
+        this.deletePendingConsent(requestId)
+        return false
+      }
+      if (hasDeclaredPermission(instance.permissions, pending.kind)) {
+        instance.browserPermissionGrants.add(pending.kind)
+      }
     }
     pending.resolve(approved)
     this.deletePendingConsent(requestId)
@@ -386,7 +393,8 @@ export class McpAppSandboxRegistry {
             : undefined
         callback(
           permission === 'media' &&
-            mediaTypes?.includes('audio') === true &&
+            mediaTypes?.length === 1 &&
+            mediaTypes[0] === 'audio' &&
             details.isMainFrame &&
             this.isFirstPartyAudioOwner(owner.id) &&
             isFirstPartyRendererUrl(requestingUrl) &&

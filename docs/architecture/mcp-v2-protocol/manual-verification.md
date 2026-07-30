@@ -359,7 +359,7 @@ Server: `L-STREAM`.
 5. Confirm one successful terminal result with
    `{ "completed": 3, "total": 3, "cancelled": false }`.
 
-DeepChat does not add a Logging UI in this migration. Record progress only when the packaged host
+DeepChat does not expose a Logging UI. Record progress only when the packaged host
 actually exposes it; lack of a progress visualization is not a failure for this case.
 
 ## MCP Apps Cases
@@ -387,7 +387,7 @@ args:
 5. Exercise theme, locale, resize, host context, and every display mode DeepChat advertises.
 6. Move inline to fullscreen to renderer PiP and back; confirm the same DOM/bridge instance and App
    state survive.
-7. Exercise App requests for link opening, user message creation, model-context update, logging, and
+7. Exercise App requests for link opening, user message creation, model-context update, and
    a server tool call. Confirm every sensitive action uses host-owned preview/consent.
 8. Confirm capabilities DeepChat does not implement, including file operations, are not advertised
    and fail without native side effects.

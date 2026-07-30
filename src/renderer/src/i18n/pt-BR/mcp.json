@@ -302,49 +302,49 @@
     "sessionActive": "Sessão ativa - a solicitação será aprovada automaticamente"
   },
   "elicitation": {
-    "title": "MCP input request",
-    "accept": "Submit",
-    "decline": "Decline",
-    "noFields": "This request has no form fields.",
-    "openLink": "Open secure link",
-    "selectValue": "Select a value",
+    "title": "Solicitação de entrada MCP",
+    "accept": "Enviar",
+    "decline": "Recusar",
+    "noFields": "Esta solicitação não tem campos de formulário.",
+    "openLink": "Abrir link seguro",
+    "selectValue": "Selecionar um valor",
     "error": {
-      "required": "This field is required.",
-      "number": "Enter a valid number.",
-      "integer": "Enter a whole number.",
-      "boolean": "Choose a valid true or false value.",
-      "range": "The value is outside the allowed range.",
-      "selection": "Choose a valid option.",
-      "length": "The text length is outside the allowed range.",
-      "format": "Enter a value in the requested format."
+      "required": "Este campo é obrigatório.",
+      "number": "Insira um número válido.",
+      "integer": "Insira um número inteiro.",
+      "boolean": "Escolha um valor true ou false válido.",
+      "range": "O valor está fora do intervalo permitido.",
+      "selection": "Escolha uma opção válida.",
+      "length": "O tamanho do texto está fora do intervalo permitido.",
+      "format": "Insira um valor no formato solicitado."
     }
   },
   "apps": {
     "title": "MCP App",
-    "interactiveContent": "Interactive content from an MCP server",
-    "loadError": "Unable to load this MCP App.",
-    "retry": "Retry",
-    "fullscreen": "Open fullscreen",
-    "pictureInPicture": "Open picture in picture",
-    "returnInline": "Return inline",
-    "securityDetails": "Security details",
-    "allowedOrigins": "Declared network origins",
-    "requestedPermissions": "Requested device permissions",
-    "noneDeclared": "None declared",
-    "advisoryDomain": "Advisory domain",
-    "toolAccessSuspended": "Tool access is suspended after a denied request.",
-    "retryAccess": "Retry access",
+    "interactiveContent": "Conteúdo interativo de um servidor MCP",
+    "loadError": "Não foi possível carregar este MCP App.",
+    "retry": "Tentar novamente",
+    "fullscreen": "Abrir em tela cheia",
+    "pictureInPicture": "Abrir em picture-in-picture",
+    "returnInline": "Voltar à exibição embutida",
+    "securityDetails": "Detalhes de segurança",
+    "allowedOrigins": "Origens de rede declaradas",
+    "requestedPermissions": "Permissões de dispositivo solicitadas",
+    "noneDeclared": "Nenhuma declarada",
+    "advisoryDomain": "Domínio informativo",
+    "toolAccessSuspended": "O acesso às ferramentas foi suspenso após uma solicitação negada.",
+    "retryAccess": "Tentar acessar novamente",
     "permissions": {
-      "camera": "Camera",
-      "microphone": "Microphone",
-      "geolocation": "Location",
-      "clipboardWrite": "Clipboard write"
+      "camera": "Câmera",
+      "microphone": "Microfone",
+      "geolocation": "Localização",
+      "clipboardWrite": "Gravação na área de transferência"
     },
     "consent": {
-      "title": "MCP App request",
-      "description": "Review this action requested by interactive MCP content.",
-      "allowOnce": "Allow once",
-      "deny": "Deny"
+      "title": "Solicitação do MCP App",
+      "description": "Revise esta ação solicitada pelo conteúdo interativo do MCP.",
+      "allowOnce": "Permitir uma vez",
+      "deny": "Negar"
     }
   }
 }

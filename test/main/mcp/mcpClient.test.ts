@@ -534,6 +534,44 @@ describe('McpClient Runtime Command Processing Tests', () => {
   })
 
   describe('Unsupported MCP capabilities', () => {
+    it('does not call list methods for capabilities the server did not advertise', async () => {
+      const sdkClient = {
+        connect: vi.fn().mockResolvedValue(undefined),
+        callTool: vi.fn(),
+        listTools: vi.fn(),
+        listPrompts: vi.fn(),
+        getPrompt: vi.fn(),
+        listResources: vi.fn(),
+        listResourceTemplates: vi.fn(),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern'),
+        getServerCapabilities: vi.fn(() => ({}))
+      }
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const client = createMcpClient('minimal-server', {
+        type: 'stdio',
+        command: 'minimal-server',
+        args: []
+      })
+
+      await expect(client.listTools()).resolves.toEqual([])
+      await expect(client.listToolsPage()).resolves.toEqual({ tools: [] })
+      await expect(client.listPrompts()).resolves.toEqual([])
+      await expect(client.listPromptsPage()).resolves.toEqual({ prompts: [] })
+      await expect(client.listResources()).resolves.toEqual([])
+      await expect(client.listResourcesPage()).resolves.toEqual({ resources: [] })
+      await expect(client.listResourceTemplatesPage()).resolves.toEqual({
+        resourceTemplates: []
+      })
+
+      expect(sdkClient.listTools).not.toHaveBeenCalled()
+      expect(sdkClient.listPrompts).not.toHaveBeenCalled()
+      expect(sdkClient.listResources).not.toHaveBeenCalled()
+      expect(sdkClient.listResourceTemplates).not.toHaveBeenCalled()
+    })
+
     it('waits for background startup completion before foreground listTools calls', async () => {
       vi.useFakeTimers()
       let resolveConnect: () => void = () => undefined

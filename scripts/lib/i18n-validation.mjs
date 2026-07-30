@@ -169,6 +169,19 @@ export function validateLocaleMessageContracts(i18nRoot, baselineLocale = 'en-US
   for (const locale of locales) {
     const messages = readLocaleMessages(i18nRoot, locale)
 
+    if (locale !== baselineLocale) {
+      for (const key of baselineMessages.keys()) {
+        if (!messages.has(key)) {
+          issues.push({ kind: 'missing-message', locale, key })
+        }
+      }
+      for (const key of messages.keys()) {
+        if (!baselineMessages.has(key)) {
+          issues.push({ kind: 'extra-message', locale, key })
+        }
+      }
+    }
+
     for (const [key, message] of messages) {
       const actual = parseMessageContract(message)
 
@@ -225,6 +238,10 @@ export function formatI18nValidationIssue(issue) {
       return `${issue.locale}: ${issue.namespace}.json is imported but not exported`
     case 'missing-baseline-locale':
       return `baseline locale ${issue.locale} does not exist`
+    case 'missing-message':
+      return `${issue.locale}: ${issue.key} is missing`
+    case 'extra-message':
+      return `${issue.locale}: ${issue.key} does not exist in the baseline locale`
     case 'invalid-literal-interpolation':
       return `${issue.locale}: ${issue.key} uses double quotes in a literal interpolation`
     case 'message-contract-mismatch':

@@ -1760,7 +1760,7 @@
       "authorizationMode": "Authorization mode",
       "authorizationInteractive": "Interactive OAuth",
       "authorizationNone": "No OAuth",
-      "authorizationClientCredentials": "Client credentials",
+      "authorizationClientCredentials": "Client credentials (Draft)",
       "authorizationPrivateKeyJwt": "Private key JWT",
       "authorizationEnterprise": "Enterprise cross-app access",
       "authorizationHelp": {

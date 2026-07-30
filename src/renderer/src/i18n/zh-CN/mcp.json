@@ -246,7 +246,7 @@
   "market": {
     "browseBuiltin": "浏览内置 MCP 市场",
     "builtinTitle": "MCP 市场",
-    "poweredBy": "Powered by MCPRouter",
+    "poweredBy": "由 MCPRouter 提供支持",
     "keyGuide": "获取密钥",
     "keyHelpText": "请先到",
     "keyHelpEnd": "申请 API Key 后填写到上方输入框",

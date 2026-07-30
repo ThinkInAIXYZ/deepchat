@@ -302,49 +302,49 @@
     "acpServersSelected": "{count} MCP'er valgt"
   },
   "elicitation": {
-    "title": "MCP input request",
-    "accept": "Submit",
-    "decline": "Decline",
-    "noFields": "This request has no form fields.",
-    "openLink": "Open secure link",
-    "selectValue": "Select a value",
+    "title": "MCP-inputanmodning",
+    "accept": "Send",
+    "decline": "Afvis",
+    "noFields": "Denne anmodning har ingen formularfelter.",
+    "openLink": "Åbn sikkert link",
+    "selectValue": "Vælg en værdi",
     "error": {
-      "required": "This field is required.",
-      "number": "Enter a valid number.",
-      "integer": "Enter a whole number.",
-      "boolean": "Choose a valid true or false value.",
-      "range": "The value is outside the allowed range.",
-      "selection": "Choose a valid option.",
-      "length": "The text length is outside the allowed range.",
-      "format": "Enter a value in the requested format."
+      "required": "Dette felt er påkrævet.",
+      "number": "Indtast et gyldigt tal.",
+      "integer": "Indtast et helt tal.",
+      "boolean": "Vælg enten sand eller falsk.",
+      "range": "Værdien er uden for det tilladte interval.",
+      "selection": "Vælg en gyldig mulighed.",
+      "length": "Tekstens længde er uden for det tilladte interval.",
+      "format": "Indtast en værdi i det ønskede format."
     }
   },
   "apps": {
-    "title": "MCP App",
-    "interactiveContent": "Interactive content from an MCP server",
-    "loadError": "Unable to load this MCP App.",
-    "retry": "Retry",
-    "fullscreen": "Open fullscreen",
-    "pictureInPicture": "Open picture in picture",
-    "returnInline": "Return inline",
-    "securityDetails": "Security details",
-    "allowedOrigins": "Declared network origins",
-    "requestedPermissions": "Requested device permissions",
-    "noneDeclared": "None declared",
-    "advisoryDomain": "Advisory domain",
-    "toolAccessSuspended": "Tool access is suspended after a denied request.",
-    "retryAccess": "Retry access",
+    "title": "MCP-app",
+    "interactiveContent": "Interaktivt indhold fra en MCP-server",
+    "loadError": "Denne MCP-app kunne ikke indlæses.",
+    "retry": "Prøv igen",
+    "fullscreen": "Åbn i fuld skærm",
+    "pictureInPicture": "Åbn billede-i-billede",
+    "returnInline": "Vend tilbage til integreret visning",
+    "securityDetails": "Sikkerhedsoplysninger",
+    "allowedOrigins": "Angivne netværksoprindelser",
+    "requestedPermissions": "Anmodede enhedstilladelser",
+    "noneDeclared": "Ingen angivet",
+    "advisoryDomain": "Vejledende domæne",
+    "toolAccessSuspended": "Værktøjsadgang er suspenderet efter en afvist anmodning.",
+    "retryAccess": "Prøv adgang igen",
     "permissions": {
-      "camera": "Camera",
-      "microphone": "Microphone",
-      "geolocation": "Location",
-      "clipboardWrite": "Clipboard write"
+      "camera": "Kamera",
+      "microphone": "Mikrofon",
+      "geolocation": "Placering",
+      "clipboardWrite": "Skriv til udklipsholder"
     },
     "consent": {
-      "title": "MCP App request",
-      "description": "Review this action requested by interactive MCP content.",
-      "allowOnce": "Allow once",
-      "deny": "Deny"
+      "title": "Anmodning fra MCP-app",
+      "description": "Gennemgå denne handling, som det interaktive MCP-indhold anmoder om.",
+      "allowOnce": "Tillad én gang",
+      "deny": "Afvis"
     }
   }
 }

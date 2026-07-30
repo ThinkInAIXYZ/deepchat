@@ -151,14 +151,14 @@ const normalizeRemoteMcpUrl = (raw: unknown): URL => {
 
 export type McpConnectResult = 'connected' | 'soft-timeout-released' | 'stopped'
 
-export class McpStartupSoftTimeoutError extends Error {
+class McpStartupSoftTimeoutError extends Error {
   constructor(serverName: string) {
     super(`Connection to MCP server ${serverName} reached startup soft timeout`)
     this.name = 'McpStartupSoftTimeoutError'
   }
 }
 
-export class McpConnectionHardTimeoutError extends Error {
+class McpConnectionHardTimeoutError extends Error {
   constructor(serverName: string) {
     super(`Connection to MCP server ${serverName} timed out`)
     this.name = 'McpConnectionHardTimeoutError'
@@ -614,7 +614,6 @@ export class McpClient {
           env.PIP_INDEX_URL = this.uvRegistry
         }
 
-        // console.log('mcp env', command, env, args)
         this.transport = new StdioClientTransport({
           command,
           args,
@@ -1447,6 +1446,15 @@ export class McpClient {
     }
   }
 
+  private serverDoesNotAdvertise(capability: 'tools' | 'prompts' | 'resources'): boolean {
+    const getCapabilities = this.client?.getServerCapabilities
+    if (typeof getCapabilities !== 'function') {
+      return false
+    }
+    const capabilities = getCapabilities.call(this.client)
+    return capabilities !== undefined && capabilities[capability] === undefined
+  }
+
   async listTools(options?: { signal?: AbortSignal }): Promise<Tool[]> {
     options?.signal?.throwIfAborted()
 
@@ -1456,6 +1464,9 @@ export class McpClient {
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
+      }
+      if (this.serverDoesNotAdvertise('tools')) {
+        return []
       }
 
       const response = options?.signal
@@ -1489,6 +1500,9 @@ export class McpClient {
     if (!this.client) {
       throw new Error(`MCP client ${this.serverName} not initialized`)
     }
+    if (this.serverDoesNotAdvertise('tools')) {
+      return { tools: [] }
+    }
     const result = signal
       ? await this.client.listTools(cursor ? { cursor } : undefined, { signal })
       : await this.client.listTools(cursor ? { cursor } : undefined)
@@ -1507,6 +1521,9 @@ export class McpClient {
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
+      }
+      if (this.serverDoesNotAdvertise('prompts')) {
+        return []
       }
 
       const response = await this.client.listPrompts()
@@ -1543,6 +1560,9 @@ export class McpClient {
     signal?.throwIfAborted()
     if (!this.client) {
       throw new Error(`MCP client ${this.serverName} not initialized`)
+    }
+    if (this.serverDoesNotAdvertise('prompts')) {
+      return { prompts: [] }
     }
     const result = signal
       ? await this.client.listPrompts(cursor ? { cursor } : undefined, { signal })
@@ -1592,6 +1612,9 @@ export class McpClient {
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
       }
+      if (this.serverDoesNotAdvertise('resources')) {
+        return []
+      }
 
       const response = await this.client.listResources()
       this.assertControlResult(response, 'resource list')
@@ -1623,6 +1646,9 @@ export class McpClient {
     if (!this.client) {
       throw new Error(`MCP client ${this.serverName} not initialized`)
     }
+    if (this.serverDoesNotAdvertise('resources')) {
+      return { resources: [] }
+    }
     const result = signal
       ? await this.client.listResources(cursor ? { cursor } : undefined, { signal })
       : await this.client.listResources(cursor ? { cursor } : undefined)
@@ -1639,6 +1665,9 @@ export class McpClient {
     signal?.throwIfAborted()
     if (!this.client) {
       throw new Error(`MCP client ${this.serverName} not initialized`)
+    }
+    if (this.serverDoesNotAdvertise('resources')) {
+      return { resourceTemplates: [] }
     }
     const result = signal
       ? await this.client.listResourceTemplates(cursor ? { cursor } : undefined, { signal })

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Dialog,
@@ -15,9 +14,6 @@ import { useMcpAppConsentStore } from '@/stores/mcpAppConsent'
 
 const store = useMcpAppConsentStore()
 const { t } = useI18n()
-const kindLabel = computed(() =>
-  store.request ? t(`mcp.apps.consent.kind.${store.request.kind}`) : ''
-)
 
 const onDialogToggle = (open: boolean) => {
   if (!open) {
@@ -32,12 +28,7 @@ const onDialogToggle = (open: boolean) => {
       <DialogHeader>
         <DialogTitle>{{ t('mcp.apps.consent.title') }}</DialogTitle>
         <DialogDescription>
-          {{
-            t('mcp.apps.consent.description', {
-              server: store.request?.serverName,
-              action: kindLabel
-            })
-          }}
+          {{ t('mcp.apps.consent.description') }}
         </DialogDescription>
       </DialogHeader>
 

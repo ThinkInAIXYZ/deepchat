@@ -2408,6 +2408,7 @@ declare module 'vue-i18n' {
         searchPlaceholder: string
         noSearchResults: string
         addMemory: string
+        loadMore: string
         addContentPlaceholder: string
         addCategoryLabel: string
         addCategoryNone: string

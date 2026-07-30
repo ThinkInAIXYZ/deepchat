@@ -1,7 +1,7 @@
 # MCP Authorization Extensions
 
-Status: implemented and repository-validated on branch `codex/mcp-v2-ecosystem`; controlled
-external authorization interoperability remains pending.
+Status: implemented and repository-validated; controlled external authorization interoperability
+remains pending.
 
 ## User Need
 

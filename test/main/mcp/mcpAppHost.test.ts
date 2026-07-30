@@ -158,7 +158,7 @@ describe('MCP App host', () => {
     expect(prepared).toMatchObject({
       instanceId: 'instance-id',
       sandboxUrl: 'mcp-app://instance-id/sandbox.html',
-      sandbox: 'allow-scripts allow-same-origin allow-forms'
+      sandbox: 'allow-scripts allow-same-origin'
     })
   })
 

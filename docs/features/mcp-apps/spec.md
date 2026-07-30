@@ -1,7 +1,7 @@
 # MCP Apps Host Support
 
-Status: implemented and repository-validated on branch `codex/mcp-v2-ecosystem`; external manual
-interoperability and packaged sandbox verification remain pending.
+Status: implemented and repository-validated; external manual interoperability and packaged
+sandbox verification remain pending.
 
 ## User Need
 
@@ -116,7 +116,6 @@ Support:
 
 - `tools/call`;
 - `resources/read`;
-- `notifications/message` as redacted diagnostics;
 - `ping`;
 - `ui/open-link`;
 - `ui/message`;
@@ -228,11 +227,10 @@ Every app-origin request is untrusted:
 | `ui/message` | Show a host-owned preview/confirmation, then add one user message through the normal conversation path |
 | `ui/update-model-context` | Validate and bound content; show a host-owned preview; use only a user-approved content hash on a future turn |
 | `ui/request-display-mode` | Intersect app and host capabilities and return the actual mode |
-| `notifications/message` | Redact, rate-limit, and write only to MCP diagnostics |
 
-MCP-specific `autoApprove` is not restored. The source-aware main-process broker in
-`docs/architecture/remove-mcp-permission-system/` must land before app-origin tool calls are
-enabled. An App call may occur outside an active model turn, so main derives its conversation,
+MCP-specific `autoApprove` is not restored. App-origin tool calls use the source-aware main-process
+broker defined by `docs/architecture/remove-mcp-permission-system/`. An App call may occur outside
+an active model turn, so main derives its conversation,
 immutable server identity, tool, and arguments hash from the sandbox descriptor and passes source
 `mcp-app` to the broker. The App cannot provide or reuse approval identity.
 
@@ -423,7 +421,6 @@ origins and declared sensitive permissions before the user interacts with the vi
   model-context update.
 - 64 live App instances process-wide and 32 per renderer WebContents.
 - 64 pending host consent or permission requests, each with a 2-minute timeout.
-- App diagnostic messages are limited to 20 per minute per mounted view and omit structured data.
 - No raw HTML, result payload, model context, or user message in routine logs.
 
 ## Non-Goals
@@ -432,6 +429,7 @@ origins and declared sensitive permissions before the user interacts with the vi
 - No trust based solely on server name, description, or HTML hash.
 - No direct access to preload, Electron IPC, filesystem, shell, cookies, or conversation stores.
 - No custom Apps protocol or fork of the SDK.
+- No App logging capability until a bounded redacted diagnostics sink exists.
 - No persistence of executable App content.
 - No cross-server app tool calls.
 - No background App that remains alive after its tool block/window is gone.

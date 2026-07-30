@@ -38,6 +38,7 @@ describe('ToolPermissionBroker', () => {
     }
     const request = broker.evaluateModel(base)
     expect(request).not.toBeNull()
+    expect(request?.description).toBe('components.messageBlockPermissionRequest.description.write')
     expect(broker.approve(request!.requestId, base.conversationId)).toBe(true)
 
     expect(

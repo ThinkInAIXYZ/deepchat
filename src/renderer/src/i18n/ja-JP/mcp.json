@@ -246,7 +246,7 @@
   "market": {
     "browseBuiltin": "内蔵MCPマーケットを閲覧",
     "builtinTitle": "MCP市場",
-    "poweredBy": "Powered by MCPRouter",
+    "poweredBy": "MCPRouter により提供",
     "keyGuide": "APIキーを取得",
     "keyHelpText": "まず",
     "keyHelpEnd": "でAPIキーを申請し、上記の入力ボックスに入力してください",
@@ -302,49 +302,49 @@
     "sessionActive": "セッションがアクティブです - リクエストは自動的に承認されます"
   },
   "elicitation": {
-    "title": "MCP input request",
-    "accept": "Submit",
-    "decline": "Decline",
-    "noFields": "This request has no form fields.",
-    "openLink": "Open secure link",
-    "selectValue": "Select a value",
+    "title": "MCP 入力リクエスト",
+    "accept": "送信",
+    "decline": "拒否",
+    "noFields": "このリクエストにはフォーム項目がありません。",
+    "openLink": "安全なリンクを開く",
+    "selectValue": "値を選択",
     "error": {
-      "required": "This field is required.",
-      "number": "Enter a valid number.",
-      "integer": "Enter a whole number.",
-      "boolean": "Choose a valid true or false value.",
-      "range": "The value is outside the allowed range.",
-      "selection": "Choose a valid option.",
-      "length": "The text length is outside the allowed range.",
-      "format": "Enter a value in the requested format."
+      "required": "この項目は必須です。",
+      "number": "有効な数値を入力してください。",
+      "integer": "整数を入力してください。",
+      "boolean": "有効な true または false を選択してください。",
+      "range": "値が許容範囲外です。",
+      "selection": "有効な選択肢を選んでください。",
+      "length": "テキストの長さが許容範囲外です。",
+      "format": "指定された形式で値を入力してください。"
     }
   },
   "apps": {
     "title": "MCP App",
-    "interactiveContent": "Interactive content from an MCP server",
-    "loadError": "Unable to load this MCP App.",
-    "retry": "Retry",
-    "fullscreen": "Open fullscreen",
-    "pictureInPicture": "Open picture in picture",
-    "returnInline": "Return inline",
-    "securityDetails": "Security details",
-    "allowedOrigins": "Declared network origins",
-    "requestedPermissions": "Requested device permissions",
-    "noneDeclared": "None declared",
-    "advisoryDomain": "Advisory domain",
-    "toolAccessSuspended": "Tool access is suspended after a denied request.",
-    "retryAccess": "Retry access",
+    "interactiveContent": "MCP サーバーからのインタラクティブコンテンツ",
+    "loadError": "この MCP App を読み込めません。",
+    "retry": "再試行",
+    "fullscreen": "全画面で開く",
+    "pictureInPicture": "ピクチャ・イン・ピクチャで開く",
+    "returnInline": "インライン表示に戻す",
+    "securityDetails": "セキュリティ情報",
+    "allowedOrigins": "宣言されたネットワークオリジン",
+    "requestedPermissions": "要求されたデバイス権限",
+    "noneDeclared": "宣言なし",
+    "advisoryDomain": "参考ドメイン",
+    "toolAccessSuspended": "リクエストが拒否されたため、ツールへのアクセスは停止されています。",
+    "retryAccess": "アクセスを再試行",
     "permissions": {
-      "camera": "Camera",
-      "microphone": "Microphone",
-      "geolocation": "Location",
-      "clipboardWrite": "Clipboard write"
+      "camera": "カメラ",
+      "microphone": "マイク",
+      "geolocation": "位置情報",
+      "clipboardWrite": "クリップボードへの書き込み"
     },
     "consent": {
-      "title": "MCP App request",
-      "description": "Review this action requested by interactive MCP content.",
-      "allowOnce": "Allow once",
-      "deny": "Deny"
+      "title": "MCP App からのリクエスト",
+      "description": "インタラクティブな MCP コンテンツが要求した操作を確認してください。",
+      "allowOnce": "1 回だけ許可",
+      "deny": "拒否"
     }
   }
 }

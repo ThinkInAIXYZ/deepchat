@@ -13,7 +13,10 @@ const descriptor: McpAppDescriptor = {
   resourceMimeType: 'text/html;profile=mcp-app'
 }
 
-const createInstance = (registry: McpAppSandboxRegistry) =>
+const createInstance = (
+  registry: McpAppSandboxRegistry,
+  validateLive: () => boolean = () => true
+) =>
   registry.create({
     context: { webContentsId: 7, windowId: 11 },
     conversationId: 'conversation-id',
@@ -23,7 +26,7 @@ const createInstance = (registry: McpAppSandboxRegistry) =>
     toolInput: {},
     html: '<main>App</main>',
     permissions: { camera: {} },
-    validateLive: () => true
+    validateLive
   })
 
 describe('MCP App sandbox registry', () => {
@@ -48,6 +51,34 @@ describe('MCP App sandbox registry', () => {
 
     registry.revokeByServer(descriptor.serverId)
 
+    expect(registry.getForProtocol(instance.instanceId)).toBeNull()
+  })
+
+  it('rejects browser permission approval after the live App binding is lost', async () => {
+    const registry = new McpAppSandboxRegistry()
+    let isLive = true
+    const instance = createInstance(registry, () => isLive)
+    let consentRequestId = ''
+    registry.setConsentPublisher((_windowId, payload) => {
+      consentRequestId = payload.request.requestId
+    })
+
+    const decision = registry.requestConsent(instance, {
+      kind: 'camera',
+      title: 'camera',
+      detail: descriptor.toolName
+    })
+    await vi.waitFor(() => expect(consentRequestId).not.toBe(''))
+    isLive = false
+
+    expect(
+      registry.submitConsent(consentRequestId, true, {
+        webContentsId: 7,
+        windowId: 11
+      })
+    ).toBe(false)
+    await expect(decision).resolves.toBe(false)
+    expect(instance.browserPermissionGrants).not.toContain('camera')
     expect(registry.getForProtocol(instance.instanceId)).toBeNull()
   })
 
@@ -89,6 +120,21 @@ describe('MCP App sandbox registry', () => {
       }
     )
     expect(firstPartyDecision).toHaveBeenCalledWith(true)
+
+    for (const mediaTypes of [['video'], ['audio', 'video']]) {
+      const firstPartyCameraDecision = vi.fn()
+      permissionRequestHandler!(
+        { id: 1, getURL: () => 'file:///deepchat/index.html' },
+        'media',
+        firstPartyCameraDecision,
+        {
+          requestingUrl: 'file:///deepchat/index.html',
+          mediaTypes,
+          isMainFrame: true
+        }
+      )
+      expect(firstPartyCameraDecision).toHaveBeenCalledWith(false)
+    }
 
     const arbitraryFileDecision = vi.fn()
     permissionRequestHandler!(

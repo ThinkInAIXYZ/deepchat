@@ -4,7 +4,7 @@ import { createMcpClient } from '@api/McpClient'
 import { createBrowserClient } from '@api/BrowserClient'
 import type { McpElicitationDecision, McpElicitationRequestPayload } from '@shared/types/mcp'
 
-export type McpElicitationField = {
+type McpElicitationField = {
   name: string
   title: string
   description?: string
@@ -25,6 +25,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 const MAX_PENDING_ELICITATION_REQUESTS = 32
+
+const createFieldMap = <T>(): Record<string, T> => Object.create(null) as Record<string, T>
 
 const finiteNumber = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined
@@ -88,8 +90,8 @@ export const useMcpElicitationStore = defineStore('mcpElicitation', () => {
   const mcpClient = createMcpClient()
   const browserClient = createBrowserClient()
   const request = ref<McpElicitationRequestPayload | null>(null)
-  const values = ref<Record<string, unknown>>({})
-  const errors = ref<Record<string, string>>({})
+  const values = ref<Record<string, unknown>>(createFieldMap())
+  const errors = ref<Record<string, string>>(createFieldMap())
   const isOpen = ref(false)
   const isSubmitting = ref(false)
   const queuedRequests = ref<McpElicitationRequestPayload[]>([])
@@ -155,20 +157,22 @@ export const useMcpElicitationStore = defineStore('mcpElicitation', () => {
 
   const clearCurrentRequest = () => {
     request.value = null
-    values.value = {}
-    errors.value = {}
+    values.value = createFieldMap()
+    errors.value = createFieldMap()
     isOpen.value = false
     isSubmitting.value = false
   }
 
   const open = (next: McpElicitationRequestPayload) => {
     request.value = next
-    values.value = Object.fromEntries(
-      fields.value
-        .filter((field) => field.defaultValue !== undefined)
-        .map((field) => [field.name, field.defaultValue])
-    )
-    errors.value = {}
+    const defaults = createFieldMap<unknown>()
+    for (const field of fields.value) {
+      if (field.defaultValue !== undefined) {
+        defaults[field.name] = field.defaultValue
+      }
+    }
+    values.value = defaults
+    errors.value = createFieldMap()
     isOpen.value = true
     isSubmitting.value = false
   }
@@ -212,17 +216,19 @@ export const useMcpElicitationStore = defineStore('mcpElicitation', () => {
   }
 
   const setValue = (name: string, value: unknown) => {
-    values.value = { ...values.value, [name]: value }
+    const nextValues = Object.assign(createFieldMap<unknown>(), values.value)
+    nextValues[name] = value
+    values.value = nextValues
     if (errors.value[name]) {
-      const next = { ...errors.value }
+      const next = Object.assign(createFieldMap<string>(), errors.value)
       delete next[name]
       errors.value = next
     }
   }
 
   const validate = (): Record<string, unknown> | null => {
-    const nextErrors: Record<string, string> = {}
-    const content: Record<string, unknown> = {}
+    const nextErrors = createFieldMap<string>()
+    const content = createFieldMap<unknown>()
     for (const field of fields.value) {
       const value = values.value[field.name]
       const missing =

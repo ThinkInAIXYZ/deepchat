@@ -31,26 +31,19 @@ describe('MCP result projection', () => {
       ui: { resourceUri: 'https://example.com/app.html' },
       'ui/resourceUri': 'ui://legacy/index.html'
     })
+    const persisted = createPersistedMcpToolResult({
+      tool,
+      config,
+      serverName: 'fixture',
+      result: { content: [{ type: 'text', text: 'ordinary result' }] }
+    })
 
     expect(getToolUiResourceUri(tool)).toBeUndefined()
-    expect(
-      createPersistedMcpToolResult({
-        tool,
-        config,
-        serverName: 'fixture',
-        result: { content: [{ type: 'text', text: 'ordinary result' }] }
-      })
-    ).toMatchObject({
+    expect(persisted).toMatchObject({
       content: [{ type: 'text', text: 'ordinary result' }]
     })
-    expect(
-      createPersistedMcpToolResult({
-        tool,
-        config,
-        serverName: 'fixture',
-        result: { content: [{ type: 'text', text: 'ordinary result' }] }
-      })?.app
-    ).toBeUndefined()
+    expect(persisted?.app).toBeUndefined()
+    expect(persisted?.truncated).toBeUndefined()
   })
 
   it('does not elevate an explicitly malformed visibility declaration', () => {
@@ -102,5 +95,22 @@ describe('MCP result projection', () => {
     })
 
     expect(persisted?.structuredContent).toEqual(['north', 42, true])
+  })
+
+  it('preserves __proto__ as inert structured data', () => {
+    const persisted = createPersistedMcpToolResult({
+      tool: createTool(),
+      config,
+      serverName: 'fixture',
+      result: {
+        content: [],
+        structuredContent: JSON.parse('{"__proto__":{"polluted":true},"safe":1}')
+      }
+    })
+    const structuredContent = persisted?.structuredContent as Record<string, unknown>
+
+    expect(Object.prototype.hasOwnProperty.call(structuredContent, '__proto__')).toBe(true)
+    expect(structuredContent['__proto__']).toEqual({ polluted: true })
+    expect(Object.prototype).not.toHaveProperty('polluted')
   })
 })

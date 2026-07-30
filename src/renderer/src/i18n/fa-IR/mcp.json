@@ -302,49 +302,49 @@
     "visionWarning": "مدل انتخاب شده از ورودی بصری پشتیبانی نمی کند.\nلطفاً قبل از ادامه، یک مدل با قابلیت بصری انتخاب کنید."
   },
   "elicitation": {
-    "title": "MCP input request",
-    "accept": "Submit",
-    "decline": "Decline",
-    "noFields": "This request has no form fields.",
-    "openLink": "Open secure link",
-    "selectValue": "Select a value",
+    "title": "درخواست ورودی MCP",
+    "accept": "ارسال",
+    "decline": "رد کردن",
+    "noFields": "این درخواست هیچ فیلدی برای تکمیل ندارد.",
+    "openLink": "باز کردن پیوند امن",
+    "selectValue": "یک مقدار انتخاب کنید",
     "error": {
-      "required": "This field is required.",
-      "number": "Enter a valid number.",
-      "integer": "Enter a whole number.",
-      "boolean": "Choose a valid true or false value.",
-      "range": "The value is outside the allowed range.",
-      "selection": "Choose a valid option.",
-      "length": "The text length is outside the allowed range.",
-      "format": "Enter a value in the requested format."
+      "required": "این فیلد الزامی است.",
+      "number": "یک عدد معتبر وارد کنید.",
+      "integer": "یک عدد صحیح وارد کنید.",
+      "boolean": "یکی از مقادیر درست یا نادرست را انتخاب کنید.",
+      "range": "مقدار خارج از محدودهٔ مجاز است.",
+      "selection": "یک گزینهٔ معتبر انتخاب کنید.",
+      "length": "طول متن خارج از محدودهٔ مجاز است.",
+      "format": "مقداری با قالب خواسته‌شده وارد کنید."
     }
   },
   "apps": {
-    "title": "MCP App",
-    "interactiveContent": "Interactive content from an MCP server",
-    "loadError": "Unable to load this MCP App.",
-    "retry": "Retry",
-    "fullscreen": "Open fullscreen",
-    "pictureInPicture": "Open picture in picture",
-    "returnInline": "Return inline",
-    "securityDetails": "Security details",
-    "allowedOrigins": "Declared network origins",
-    "requestedPermissions": "Requested device permissions",
-    "noneDeclared": "None declared",
-    "advisoryDomain": "Advisory domain",
-    "toolAccessSuspended": "Tool access is suspended after a denied request.",
-    "retryAccess": "Retry access",
+    "title": "برنامهٔ MCP",
+    "interactiveContent": "محتوای تعاملی از یک سرور MCP",
+    "loadError": "بارگذاری این برنامهٔ MCP ممکن نیست.",
+    "retry": "تلاش مجدد",
+    "fullscreen": "باز کردن در تمام‌صفحه",
+    "pictureInPicture": "باز کردن تصویر در تصویر",
+    "returnInline": "بازگشت به نمایش درون‌خطی",
+    "securityDetails": "جزئیات امنیتی",
+    "allowedOrigins": "مبدأهای شبکهٔ اعلام‌شده",
+    "requestedPermissions": "مجوزهای درخواستی دستگاه",
+    "noneDeclared": "موردی اعلام نشده",
+    "advisoryDomain": "دامنهٔ پیشنهادی",
+    "toolAccessSuspended": "دسترسی به ابزار پس از رد درخواست معلق شده است.",
+    "retryAccess": "تلاش دوباره برای دسترسی",
     "permissions": {
-      "camera": "Camera",
-      "microphone": "Microphone",
-      "geolocation": "Location",
-      "clipboardWrite": "Clipboard write"
+      "camera": "دوربین",
+      "microphone": "میکروفون",
+      "geolocation": "مکان",
+      "clipboardWrite": "نوشتن در کلیپ‌بورد"
     },
     "consent": {
-      "title": "MCP App request",
-      "description": "Review this action requested by interactive MCP content.",
-      "allowOnce": "Allow once",
-      "deny": "Deny"
+      "title": "درخواست برنامهٔ MCP",
+      "description": "این اقدام درخواستیِ محتوای تعاملی MCP را بررسی کنید.",
+      "allowOnce": "فقط این بار اجازه بده",
+      "deny": "رد کردن"
     }
   }
 }

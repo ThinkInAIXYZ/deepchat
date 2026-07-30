@@ -60,8 +60,6 @@ const toolAccessSuspended = ref(false)
 const detailsExpanded = ref(false)
 const viewportRevision = ref(0)
 let resizeFrame: number | null = null
-let logWindowStartedAt = 0
-let logCount = 0
 let hostVersion = 'unknown'
 let prepareRevision = 0
 let disposed = false
@@ -217,7 +215,6 @@ const connectBridge = async () => {
       openLinks: {},
       serverTools: {},
       serverResources: {},
-      logging: {},
       updateModelContext: { text: {}, resource: {}, resourceLink: {}, structuredContent: {} },
       message: { text: {} },
       sandbox: {
@@ -325,17 +322,6 @@ const connectBridge = async () => {
     status.value = 'released'
     void release()
   }
-  nextBridge.onloggingmessage = ({ level, logger, data }) => {
-    const now = Date.now()
-    if (now - logWindowStartedAt > 60_000) {
-      logWindowStartedAt = now
-      logCount = 0
-    }
-    if (logCount++ < 20) {
-      console.debug('[MCP App]', level, logger ?? '', typeof data === 'string' ? data : '[data]')
-    }
-  }
-
   await nextBridge.connect(new PostMessageTransport(frameWindow, frameWindow))
 }
 

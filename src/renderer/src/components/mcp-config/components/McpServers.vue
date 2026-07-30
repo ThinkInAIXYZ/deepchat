@@ -218,11 +218,12 @@ const handleAddServer = async (
       try {
         await saveSubmittedCredential(serverName, credential)
       } catch (error) {
+        console.error('[McpServers] Failed to save server credential:', serverName, error)
         notifyRenderer({
           kind: 'error',
           code: 'settings.mcp.serverForm.credentialSaveError',
           title: t('settings.mcp.serverForm.credentialSaveError'),
-          description: error instanceof Error ? error.message : String(error)
+          description: t('settings.mcp.serverForm.credentialSaveError')
         })
       }
       if (dialogGeneration !== addServerDialogGeneration || !isAddServerDialogOpen.value) {

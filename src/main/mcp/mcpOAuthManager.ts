@@ -55,7 +55,7 @@ const OAUTH_AUTH_ERROR_PATTERNS = [
 ]
 
 export const AUTH_EXTENSION_CLIENT_CREDENTIALS = 'io.modelcontextprotocol/oauth-client-credentials'
-export const AUTH_EXTENSION_ENTERPRISE = 'io.modelcontextprotocol/enterprise-managed-authorization'
+const AUTH_EXTENSION_ENTERPRISE = 'io.modelcontextprotocol/enterprise-managed-authorization'
 export const MCP_CLIENT_CREDENTIALS_DRAFT_REVISION = 'fb374c7db2b34f18ca9183882e0beecdf661892b'
 
 function createState(): string {
@@ -145,7 +145,7 @@ const requireServerBinding = (config: Partial<MCPServerConfig>): McpCredentialBi
   }
 }
 
-export const createMcpCredentialKey = (
+const createMcpCredentialKey = (
   credentialClass:
     | 'interactive_oauth'
     | 'client_secret'

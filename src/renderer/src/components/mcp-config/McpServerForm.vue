@@ -197,7 +197,6 @@ const parseJsonConfig = (): void => {
     const fallbackType: MCPServerTypeOption = baseUrl.value ? 'http' : 'stdio'
     type.value =
       incomingType && VALID_MCP_TYPES.includes(incomingType) ? incomingType : fallbackType
-    console.log('type', type.value, baseUrl.value)
     // 根据类型填充参数
     if (isBuildInFileSystem.value) {
       foldersList.value = incomingArgs
@@ -721,9 +720,7 @@ watch(
   (newConfig) => {
     // Check if we are in edit mode and have a new valid config, but avoid overwriting if defaultJsonConfig was also provided and parsed
     if (newConfig && props.editMode && !props.defaultJsonConfig) {
-      console.log('Applying initialConfig in edit mode:', newConfig)
       // Reset fields based on initialConfig
-      // name.value = props.serverName || ''; // Name is usually passed separately and kept disabled
       command.value = newConfig.command || 'npx'
       const incomingArgs = Array.isArray(newConfig.args) ? newConfig.args : []
       env.value = JSON.stringify(newConfig.env || {}, null, 2)
@@ -1138,7 +1135,7 @@ HTTP-Referer=deepchatai.cn`
         <!-- 文件夹选择 (特殊处理 buildInFileSystem) -->
         <div v-if="showFolderSelector" class="space-y-2">
           <Label class="text-xs text-muted-foreground">
-            {{ t('settings.mcp.serverForm.folders') || '可访问的文件夹' }}
+            {{ t('settings.mcp.serverForm.folders') }}
           </Label>
           <div class="space-y-2">
             <!-- 文件夹列表 -->
@@ -1168,7 +1165,7 @@ HTTP-Referer=deepchatai.cn`
               @click="addFolder"
             >
               <Icon icon="lucide:folder-plus" class="h-4 w-4" />
-              {{ t('settings.mcp.serverForm.addFolder') || '添加文件夹' }}
+              {{ t('settings.mcp.serverForm.addFolder') }}
             </Button>
             <p v-if="folderSelectionError" role="alert" class="text-xs text-destructive">
               {{ folderSelectionError }}
@@ -1179,7 +1176,7 @@ HTTP-Referer=deepchatai.cn`
               v-if="foldersList.length === 0"
               class="text-xs text-muted-foreground text-center py-4"
             >
-              {{ t('settings.mcp.serverForm.noFoldersSelected') || '未选择任何文件夹' }}
+              {{ t('settings.mcp.serverForm.noFoldersSelected') }}
             </div>
           </div>
         </div>
@@ -1190,7 +1187,7 @@ HTTP-Referer=deepchatai.cn`
               {{ t('settings.mcp.serverForm.args') }}
             </Label>
             <Button type="button" variant="ghost" size="sm" @click="addArgsRow">
-              {{ t('settings.mcp.serverForm.addArg') || '添加参数' }}
+              {{ t('settings.mcp.serverForm.addArg') }}
             </Button>
           </div>
           <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -1198,7 +1195,7 @@ HTTP-Referer=deepchatai.cn`
               <Input
                 v-model="row.value"
                 class="col-span-11"
-                :placeholder="t('settings.mcp.serverForm.argPlaceholder') || '输入参数值'"
+                :placeholder="t('settings.mcp.serverForm.argPlaceholder')"
               />
               <Button
                 type="button"
@@ -1263,15 +1260,12 @@ HTTP-Referer=deepchatai.cn`
         <!-- NPM Registry 自定义设置 (仅在命令为 npx 或 node 时显示) -->
         <div v-if="showNpmRegistryInput" class="space-y-2">
           <Label class="text-xs text-muted-foreground" for="npm-registry">
-            {{ t('settings.mcp.serverForm.npmRegistry') || '自定义npm Registry' }}
+            {{ t('settings.mcp.serverForm.npmRegistry') }}
           </Label>
           <Input
             id="npm-registry"
             v-model="npmRegistry"
-            :placeholder="
-              t('settings.mcp.serverForm.npmRegistryPlaceholder') ||
-              '设置自定义 npm registry，留空系统会自动选择最快的'
-            "
+            :placeholder="t('settings.mcp.serverForm.npmRegistryPlaceholder')"
           />
         </div>
         <!-- Custom Headers，仅在类型为SSE或HTTP时显示 -->
@@ -1314,7 +1308,7 @@ HTTP-Referer=deepchatai.cn`
             v-if="!customHeadersFocused && customHeaders.trim()"
             class="text-xs text-muted-foreground"
           >
-            {{ t('settings.mcp.serverForm.clickToEdit') || '点击编辑以查看完整内容' }}
+            {{ t('settings.mcp.serverForm.clickToEdit') }}
           </p>
         </div>
       </div>

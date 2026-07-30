@@ -1,15 +1,31 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 const discoverOAuthServerInfoMock = vi.hoisted(() => vi.fn())
+const authMock = vi.hoisted(() => vi.fn())
+const clientCredentialsProviderMock = vi.hoisted(() => vi.fn())
+const privateKeyJwtProviderMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@modelcontextprotocol/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@modelcontextprotocol/client')>()),
-  discoverOAuthServerInfo: discoverOAuthServerInfoMock
+  auth: authMock,
+  discoverOAuthServerInfo: discoverOAuthServerInfoMock,
+  ClientCredentialsProvider: class {
+    constructor(options: unknown) {
+      clientCredentialsProviderMock(options, this)
+    }
+  },
+  PrivateKeyJwtProvider: class {
+    constructor(options: unknown) {
+      privateKeyJwtProviderMock(options, this)
+    }
+  }
 }))
 
 import { McpOAuthManager } from '@/mcp/mcpOAuthManager'
+import { McpEnterpriseIdentityManager } from '@/mcp/enterpriseIdentityManager'
 import type { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
+import type { McpSettings } from '@/mcp/settings'
 
 const createStore = (entry: unknown): McpOAuthCredentialStore =>
   ({
@@ -19,7 +35,11 @@ const createStore = (entry: unknown): McpOAuthCredentialStore =>
     findInteractiveCredential: vi.fn(() => null),
     saveEntry: vi.fn(),
     clearEntry: vi.fn(),
-    clearEntryScope: vi.fn()
+    clearEntryScope: vi.fn(),
+    loadClientSecret: vi.fn(() => null),
+    loadPrivateKey: vi.fn(() => null),
+    loadEnterpriseResourceSecret: vi.fn(() => null),
+    getCredentialRecordStatus: vi.fn(() => ({ configured: false }))
   }) as unknown as McpOAuthCredentialStore
 
 const serverIdentity = {
@@ -31,6 +51,10 @@ const serverIdentity = {
 describe('McpOAuthManager', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('keeps authenticated credentials ahead of stale non-pending errors', async () => {
@@ -250,5 +274,227 @@ describe('McpOAuthManager', () => {
       })
     )
     expect(store.clearEntry).toHaveBeenCalledWith('old-key')
+  })
+
+  it('binds client credentials to the configured issuer, resource, and server', async () => {
+    const endpoint = 'https://mcp.example/mcp'
+    const issuer = 'https://auth.example/'
+    const binding = {
+      ...serverIdentity,
+      endpoint,
+      authorizationServerIssuer: issuer,
+      protectedResourceUrl: endpoint,
+      clientId: 'machine-client'
+    }
+    const config = {
+      type: 'http' as const,
+      baseUrl: endpoint,
+      authorization: {
+        mode: 'client_credentials' as const,
+        authorizationServerIssuer: issuer,
+        protectedResourceUrl: endpoint,
+        clientId: 'machine-client',
+        scopes: ['read']
+      },
+      ...serverIdentity
+    }
+    const store = createStore(null)
+    vi.mocked(store.loadClientSecret).mockReturnValue({
+      secret: 'client-secret',
+      binding,
+      updatedAt: 1
+    })
+    vi.mocked(store.getCredentialRecordStatus).mockReturnValue({
+      configured: true,
+      updatedAt: 1
+    })
+    discoverOAuthServerInfoMock.mockResolvedValue({
+      authorizationServerUrl: issuer,
+      authorizationServerMetadata: {
+        issuer,
+        token_endpoint_auth_methods_supported: ['client_secret_basic']
+      },
+      resourceMetadata: { resource: endpoint }
+    })
+    authMock.mockResolvedValue('AUTHORIZED')
+    const manager = new McpOAuthManager(store, publishDeepchatEventMock)
+
+    const provider = await manager.createRuntimeProvider('example', config)
+
+    expect(clientCredentialsProviderMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: 'machine-client',
+        clientSecret: 'client-secret',
+        expectedIssuer: issuer,
+        scope: 'read'
+      }),
+      provider
+    )
+    expect(authMock).toHaveBeenCalledWith(provider, {
+      serverUrl: endpoint,
+      scope: 'read'
+    })
+    const validateResourceURL = (
+      provider as unknown as {
+        validateResourceURL: (serverUrl: URL, resourceUrl?: URL) => Promise<URL>
+      }
+    ).validateResourceURL
+    await expect(
+      validateResourceURL(new URL('https://other.example/mcp'), new URL(endpoint))
+    ).rejects.toThrow('configured server')
+    await expect(
+      validateResourceURL(new URL(endpoint), new URL('https://other.example/resource'))
+    ).rejects.toThrow('protected resource')
+    await expect(validateResourceURL(new URL(endpoint), new URL(endpoint))).resolves.toEqual(
+      new URL(endpoint)
+    )
+  })
+
+  it('fails closed before selecting a private-key provider with incompatible discovery', async () => {
+    const endpoint = 'https://mcp.example/mcp'
+    const issuer = 'https://auth.example/'
+    const binding = {
+      ...serverIdentity,
+      endpoint,
+      authorizationServerIssuer: issuer,
+      protectedResourceUrl: endpoint,
+      clientId: 'machine-client'
+    }
+    const config = {
+      type: 'http' as const,
+      baseUrl: endpoint,
+      authorization: {
+        mode: 'private_key_jwt' as const,
+        authorizationServerIssuer: issuer,
+        protectedResourceUrl: endpoint,
+        clientId: 'machine-client'
+      },
+      ...serverIdentity
+    }
+    const store = createStore(null)
+    vi.mocked(store.loadPrivateKey).mockReturnValue({
+      privateKey: 'private-key',
+      algorithm: 'RS256',
+      fingerprint: 'fingerprint',
+      binding,
+      updatedAt: 1
+    })
+    vi.mocked(store.getCredentialRecordStatus).mockReturnValue({
+      configured: true,
+      updatedAt: 1,
+      fingerprint: 'fingerprint'
+    })
+    const discovery = {
+      authorizationServerUrl: issuer,
+      authorizationServerMetadata: {
+        issuer,
+        token_endpoint_auth_methods_supported: ['client_secret_basic']
+      },
+      resourceMetadata: { resource: endpoint }
+    }
+    discoverOAuthServerInfoMock.mockResolvedValue(discovery)
+    authMock.mockResolvedValue('AUTHORIZED')
+    const manager = new McpOAuthManager(store, publishDeepchatEventMock)
+
+    await expect(manager.createRuntimeProvider('example', config)).rejects.toThrow(
+      'does not support private_key_jwt'
+    )
+    expect(privateKeyJwtProviderMock).not.toHaveBeenCalled()
+    expect(authMock).not.toHaveBeenCalled()
+
+    discoverOAuthServerInfoMock.mockResolvedValue({
+      ...discovery,
+      authorizationServerMetadata: {
+        issuer,
+        token_endpoint_auth_methods_supported: ['private_key_jwt']
+      }
+    })
+    const provider = await manager.createRuntimeProvider('example', config)
+
+    expect(privateKeyJwtProviderMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: 'machine-client',
+        privateKey: 'private-key',
+        algorithm: 'RS256',
+        expectedIssuer: issuer
+      }),
+      provider
+    )
+  })
+
+  it('requires ID-JAG discovery before binding cross-app access credentials', async () => {
+    const endpoint = 'https://mcp.example/mcp'
+    const issuer = 'https://auth.example/'
+    const binding = {
+      ...serverIdentity,
+      endpoint,
+      authorizationServerIssuer: issuer,
+      protectedResourceUrl: endpoint,
+      clientId: 'target-client'
+    }
+    const config = {
+      type: 'http' as const,
+      baseUrl: endpoint,
+      authorization: {
+        mode: 'cross_app_access' as const,
+        authorizationServerIssuer: issuer,
+        protectedResourceUrl: endpoint,
+        clientId: 'target-client',
+        identityProfileId: 'work'
+      },
+      ...serverIdentity
+    }
+    const store = createStore(null)
+    vi.mocked(store.loadEnterpriseResourceSecret).mockReturnValue({
+      secret: 'target-secret',
+      binding,
+      updatedAt: 1
+    })
+    vi.mocked(store.getCredentialRecordStatus).mockReturnValue({
+      configured: true,
+      updatedAt: 1
+    })
+    const discovery = {
+      authorizationServerUrl: issuer,
+      authorizationServerMetadata: {
+        issuer,
+        token_endpoint_auth_methods_supported: ['client_secret_basic']
+      },
+      resourceMetadata: { resource: endpoint }
+    }
+    discoverOAuthServerInfoMock.mockResolvedValue(discovery)
+    authMock.mockResolvedValue('AUTHORIZED')
+    const createCrossAppProvider = vi
+      .spyOn(McpEnterpriseIdentityManager.prototype, 'createCrossAppProvider')
+      .mockResolvedValue(
+        {} as Awaited<ReturnType<McpEnterpriseIdentityManager['createCrossAppProvider']>>
+      )
+    const manager = new McpOAuthManager(
+      store,
+      publishDeepchatEventMock,
+      undefined,
+      {} as McpSettings
+    )
+
+    await expect(manager.createRuntimeProvider('example', config)).rejects.toThrow(
+      'does not support the ID-JAG grant profile'
+    )
+    expect(createCrossAppProvider).not.toHaveBeenCalled()
+    expect(store.loadEnterpriseResourceSecret).not.toHaveBeenCalled()
+
+    discoverOAuthServerInfoMock.mockResolvedValue({
+      ...discovery,
+      authorizationServerMetadata: {
+        ...discovery.authorizationServerMetadata,
+        authorization_grant_profiles_supported: ['urn:ietf:params:oauth:grant-profile:id-jag']
+      }
+    })
+    const provider = await manager.createRuntimeProvider('example', config)
+
+    expect(createCrossAppProvider).toHaveBeenCalledWith(config, 'target-secret', issuer)
+    expect(authMock).toHaveBeenCalledWith(provider, {
+      serverUrl: endpoint,
+      scope: undefined
+    })
   })
 })

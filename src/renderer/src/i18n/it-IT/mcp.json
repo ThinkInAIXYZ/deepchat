@@ -57,7 +57,7 @@
     "typeStdio": "Input/output standard",
     "typeSse": "Server-Sent Events",
     "typeInMemory": "In memoria",
-    "baseUrl": "Base URL",
+    "baseUrl": "URL di base",
     "baseUrlPlaceholder": "Inserisci Base URL del server (es.: http://localhost:3000)",
     "command": "Comando",
     "commandPlaceholder": "Inserisci comando",
@@ -246,7 +246,7 @@
   "market": {
     "browseBuiltin": "Sfoglia mercato MCP integrato",
     "builtinTitle": "Mercato MCP",
-    "poweredBy": "Powered by MCPRouter",
+    "poweredBy": "Fornito da MCPRouter",
     "keyGuide": "Ottieni chiave",
     "keyHelpText": "Vai prima su",
     "keyHelpEnd": "per richiedere una API Key, poi inseriscila nel campo sopra",
@@ -302,49 +302,49 @@
     "sessionActive": "Sessione attiva - la richiesta verrà approvata automaticamente"
   },
   "elicitation": {
-    "title": "MCP input request",
-    "accept": "Submit",
-    "decline": "Decline",
-    "noFields": "This request has no form fields.",
-    "openLink": "Open secure link",
-    "selectValue": "Select a value",
+    "title": "Richiesta di input MCP",
+    "accept": "Invia",
+    "decline": "Rifiuta",
+    "noFields": "Questa richiesta non contiene campi del modulo.",
+    "openLink": "Apri link sicuro",
+    "selectValue": "Seleziona un valore",
     "error": {
-      "required": "This field is required.",
-      "number": "Enter a valid number.",
-      "integer": "Enter a whole number.",
-      "boolean": "Choose a valid true or false value.",
-      "range": "The value is outside the allowed range.",
-      "selection": "Choose a valid option.",
-      "length": "The text length is outside the allowed range.",
-      "format": "Enter a value in the requested format."
+      "required": "Questo campo è obbligatorio.",
+      "number": "Inserisci un numero valido.",
+      "integer": "Inserisci un numero intero.",
+      "boolean": "Seleziona vero o falso.",
+      "range": "Il valore è fuori dall’intervallo consentito.",
+      "selection": "Seleziona un’opzione valida.",
+      "length": "La lunghezza del testo è fuori dall’intervallo consentito.",
+      "format": "Inserisci un valore nel formato richiesto."
     }
   },
   "apps": {
-    "title": "MCP App",
-    "interactiveContent": "Interactive content from an MCP server",
-    "loadError": "Unable to load this MCP App.",
-    "retry": "Retry",
-    "fullscreen": "Open fullscreen",
-    "pictureInPicture": "Open picture in picture",
-    "returnInline": "Return inline",
-    "securityDetails": "Security details",
-    "allowedOrigins": "Declared network origins",
-    "requestedPermissions": "Requested device permissions",
-    "noneDeclared": "None declared",
-    "advisoryDomain": "Advisory domain",
-    "toolAccessSuspended": "Tool access is suspended after a denied request.",
-    "retryAccess": "Retry access",
+    "title": "App MCP",
+    "interactiveContent": "Contenuto interattivo da un server MCP",
+    "loadError": "Impossibile caricare questa app MCP.",
+    "retry": "Riprova",
+    "fullscreen": "Apri a schermo intero",
+    "pictureInPicture": "Apri in modalità Picture-in-Picture",
+    "returnInline": "Torna alla vista incorporata",
+    "securityDetails": "Dettagli di sicurezza",
+    "allowedOrigins": "Origini di rete dichiarate",
+    "requestedPermissions": "Autorizzazioni dispositivo richieste",
+    "noneDeclared": "Nessuna dichiarata",
+    "advisoryDomain": "Dominio indicativo",
+    "toolAccessSuspended": "L’accesso agli strumenti è sospeso dopo una richiesta rifiutata.",
+    "retryAccess": "Riprova l’accesso",
     "permissions": {
-      "camera": "Camera",
-      "microphone": "Microphone",
-      "geolocation": "Location",
-      "clipboardWrite": "Clipboard write"
+      "camera": "Fotocamera",
+      "microphone": "Microfono",
+      "geolocation": "Posizione",
+      "clipboardWrite": "Scrittura negli appunti"
     },
     "consent": {
-      "title": "MCP App request",
-      "description": "Review this action requested by interactive MCP content.",
-      "allowOnce": "Allow once",
-      "deny": "Deny"
+      "title": "Richiesta dell’app MCP",
+      "description": "Esamina questa azione richiesta dal contenuto interattivo MCP.",
+      "allowOnce": "Consenti una volta",
+      "deny": "Nega"
     }
   }
 }

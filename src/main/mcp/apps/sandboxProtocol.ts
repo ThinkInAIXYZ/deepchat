@@ -4,10 +4,8 @@ import { MCP_APP_SCHEME, type McpAppSandboxRegistry } from './sandboxRegistry'
 
 let schemeRegistered = false
 
-const quoteCspSource = (source: string): string => source
-
 const joinSources = (...groups: Array<string[] | undefined>): string =>
-  Array.from(new Set(groups.flatMap((group) => group ?? []).map(quoteCspSource))).join(' ')
+  Array.from(new Set(groups.flatMap((group) => group ?? []))).join(' ')
 
 export const buildMcpAppContentSecurityPolicy = (csp?: McpAppCsp): string => {
   const resources = csp?.resourceDomains ?? []

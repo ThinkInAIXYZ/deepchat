@@ -1,6 +1,6 @@
 # DeepChat 文档索引
 
-本文档反映 `2026-07-16` 的当前代码。历史实施过程、已完成 issue 和一次性 SDD 通过 Git
+本文档反映 `2026-07-30` 的当前代码。历史实施过程、已完成 issue 和一次性 SDD 通过 Git
 历史查询，不再长期留在 `docs/`。
 
 ## 当前必读
@@ -9,7 +9,6 @@
 | --- | --- |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | main 进程模块、所有权、生命周期和依赖方向 |
 | [FLOWS.md](./FLOWS.md) | 启动、Session、Agent、Tool、Remote、Scheduler、Sync 和退出流程 |
-| [design-system.md](./design-system.md) | 当前产品、界面与视觉设计风格基线 |
 | [architecture/agent-system.md](./architecture/agent-system.md) | DeepChat / ACP backend、Run、权限和 Subagent 合同 |
 | [architecture/session-management.md](./architecture/session-management.md) | Session 数据、binding、恢复、删除和 transfer |
 | [architecture/tool-system.md](./architecture/tool-system.md) | Tool、MCP、Skill、Plugin 和权限边界 |
@@ -23,15 +22,18 @@
 
 ## 进行中的目标
 
-只有尚未完成或仍需外部验证的工作保留 `plan.md` / `tasks.md`。
+未完成的实施保留 `plan.md` / `tasks.md`；仅剩外部验证的目标只保留精简的 `tasks.md`。
 
 | 文档 | 状态 |
 | --- | --- |
 | [features/acp-v1-reliability/](./features/acp-v1-reliability/) | ACP capability、auth、session lifecycle 与 diagnostics 待实施 |
 | [features/cua-cross-platform-computer-use/](./features/cua-cross-platform-computer-use/) | 已实现主体，等待 CI platform matrix 验证 |
 | [features/mcp-oauth-authentication/](./features/mcp-oauth-authentication/) | 已实现主体，等待真实 OAuth smoke |
+| [architecture/mcp-v2-protocol/](./architecture/mcp-v2-protocol/) | v2 与 legacy wire 已落地，等待外部互操作验证及兼容窗口结束 |
+| [features/mcp-apps/](./features/mcp-apps/) | MCP Apps host 已落地，等待 packaged sandbox 与外部 App 验证 |
+| [features/mcp-authorization-extensions/](./features/mcp-authorization-extensions/) | 授权扩展已落地，等待受控 OAuth 与安全存储验证 |
+| [features/mcp-tasks/](./features/mcp-tasks/) | Tasks 被上游公开 v2 adapter 阻塞，未实现、未宣称支持 |
 | [architecture/chat-scroll-ownership/](./architecture/chat-scroll-ownership/) | chat viewport ownership、windowing 与真实 Chromium 验证进行中 |
-| [architecture/remove-mcp-permission-system/](./architecture/remove-mcp-permission-system/) | MCP permission removal 尚未实施 |
 | [architecture/memory-quality-gates-and-observability/](./architecture/memory-quality-gates-and-observability/) | retrieval artifact upload 待完成 |
 | [architecture/memory-vector-store-v2/](./architecture/memory-vector-store-v2/) | v2 已落地，保留 migration window 后的 VSS removal follow-up |
 | [issues/chat-history-search-scroll-coordinates/](./issues/chat-history-search-scroll-coordinates/) | 等待 Electron/macOS 物理滚动验证 |
@@ -44,6 +46,7 @@
 - [DeepChat Skills Management](./features/deepchat-skills-management/spec.md)
 - [Plugins Hub](./features/plugins-hub/spec.md)
 - [Complete Directory Management](./features/complete-directory-management/spec.md)
+- [MCP Permission Ownership](./architecture/remove-mcp-permission-system/spec.md)
 
 ## 机器读取基线
 

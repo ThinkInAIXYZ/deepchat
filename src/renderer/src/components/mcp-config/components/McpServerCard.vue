@@ -148,7 +148,6 @@ const fullDescription = computed(() => {
 })
 
 const canEdit = computed(() => !props.isManaged)
-const hasMenuActions = computed(() => true)
 
 // 检查文本是否溢出
 const checkTextOverflow = async () => {
@@ -190,7 +189,7 @@ watch(watchDescription, () => {
         </div>
 
         <!-- 操作菜单 -->
-        <DropdownMenu v-if="hasMenuActions">
+        <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button
               variant="ghost"

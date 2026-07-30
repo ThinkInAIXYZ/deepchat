@@ -297,7 +297,7 @@ export class ToolPermissionBroker {
       toolName: pending.toolName,
       serverName: pending.serverName,
       permissionType: pending.permissionType,
-      description: `Allow ${pending.toolName} to run on ${pending.serverName}?`,
+      description: `components.messageBlockPermissionRequest.description.${pending.permissionType}`,
       rememberable: false,
       source: pending.source,
       serverId: pending.serverId,

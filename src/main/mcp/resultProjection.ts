@@ -53,7 +53,7 @@ const cloneBoundedJson = (value: unknown, state: BoundedCloneState, depth = 0): 
     return undefined
   }
 
-  const output: Record<string, unknown> = {}
+  const output = Object.create(null) as Record<string, unknown>
   for (const [key, item] of Object.entries(value)) {
     state.keys += 1
     if (state.keys > MAX_PERSISTED_MCP_KEYS) {
@@ -135,7 +135,7 @@ export const getToolVisibility = (tool: Tool): Array<'model' | 'app'> => {
   return Array.from(new Set(visibility))
 }
 
-export const createMcpAppDescriptor = (
+const createMcpAppDescriptor = (
   tool: Tool,
   config: MCPServerConfig,
   serverName: string
@@ -170,9 +170,15 @@ export const createPersistedMcpToolResult = (input: {
   const contentState: BoundedCloneState = { keys: 0, truncated: false }
   const contentResult = cloneContentForPersistence(result.content ?? [], contentState)
   const structuredState: BoundedCloneState = { keys: 0, truncated: false }
-  const structuredContent = cloneBoundedJson(result.structuredContent, structuredState)
+  const structuredContent =
+    result.structuredContent === undefined
+      ? undefined
+      : cloneBoundedJson(result.structuredContent, structuredState)
   const metaState: BoundedCloneState = { keys: 0, truncated: false }
-  const meta = cloneBoundedJson(result._meta, metaState) as Record<string, unknown> | undefined
+  const meta =
+    result._meta === undefined
+      ? undefined
+      : (cloneBoundedJson(result._meta, metaState) as Record<string, unknown> | undefined)
 
   const app = createMcpAppDescriptor(tool, config, serverName)
   const durable: PersistedMcpToolResult = {

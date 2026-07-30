@@ -1,29 +1,17 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { McpAppDescriptor } from '@shared/types/mcp'
-import { describe, expect, it } from 'vitest'
+import { expect, it } from 'vitest'
+import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 
-const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const tableModule = sqliteModule
-  ? await import('@/session/data/tables/deepchatAssistantBlocks')
-  : null
+const tableModule = Database ? await import('@/session/data/tables/deepchatAssistantBlocks') : null
 
-const Database = sqliteModule?.default
 const DeepChatAssistantBlocksTable = tableModule?.DeepChatAssistantBlocksTable
 const DatabaseCtor = Database!
 const DeepChatAssistantBlocksTableCtor = DeepChatAssistantBlocksTable!
-
-let sqliteAvailable = false
-if (Database) {
-  try {
-    const smokeDb = new Database(':memory:')
-    smokeDb.close()
-    sqliteAvailable = true
-  } catch {
-    sqliteAvailable = false
-  }
-}
-
-const describeIfSqlite = sqliteAvailable ? describe : describe.skip
+const describeIfSqlite = nativeSqliteDescribeIf(
+  Boolean(DeepChatAssistantBlocksTable),
+  'DeepChatAssistantBlocksTable native module is unavailable'
+)
 
 describeIfSqlite('DeepChatAssistantBlocksTable MCP App source binding', () => {
   const descriptor: McpAppDescriptor = {

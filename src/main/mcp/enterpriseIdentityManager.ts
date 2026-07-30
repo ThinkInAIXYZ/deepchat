@@ -161,6 +161,35 @@ const optionalBoundedString = (
   return value
 }
 
+const readIdentityTokenResponse = async (response: Response, label: string) => {
+  const tokens = await readBoundedJson<{
+    id_token?: string
+    access_token?: string
+    refresh_token?: string
+    expires_in?: number
+    scope?: string
+  }>(response, label)
+  return {
+    idToken: optionalBoundedString(
+      tokens.id_token,
+      MAX_ID_TOKEN_BYTES,
+      'Enterprise identity ID token'
+    ),
+    accessToken: optionalBoundedString(
+      tokens.access_token,
+      MAX_OAUTH_TOKEN_BYTES,
+      'Enterprise identity access token'
+    ),
+    refreshToken: optionalBoundedString(
+      tokens.refresh_token,
+      MAX_OAUTH_TOKEN_BYTES,
+      'Enterprise identity refresh token'
+    ),
+    scope: optionalBoundedString(tokens.scope, MAX_OAUTH_SCOPE_BYTES, 'Enterprise identity scope'),
+    expiresInSeconds: resolveExpiresInSeconds(tokens.expires_in)
+  }
+}
+
 const sameProfileBinding = (
   left: McpEnterpriseIdentityProfile,
   right: McpEnterpriseIdentityProfile
@@ -642,51 +671,30 @@ export class McpEnterpriseIdentityManager {
     if (!response.ok) {
       throw new Error(`Enterprise identity token exchange failed (${response.status})`)
     }
-    const tokens = await readBoundedJson<{
-      id_token?: string
-      access_token?: string
-      refresh_token?: string
-      expires_in?: number
-      scope?: string
-    }>(response, 'Enterprise identity token response')
-    const idToken = optionalBoundedString(
-      tokens.id_token,
-      MAX_ID_TOKEN_BYTES,
-      'Enterprise identity ID token'
-    )
-    if (!idToken) {
+    const tokens = await readIdentityTokenResponse(response, 'Enterprise identity token response')
+    if (!tokens.idToken) {
       throw new Error('Enterprise identity response did not include an ID token')
     }
-    const accessToken = optionalBoundedString(
-      tokens.access_token,
-      MAX_OAUTH_TOKEN_BYTES,
-      'Enterprise identity access token'
+    const payload = await this.verifyIdToken(
+      tokens.idToken,
+      flow.profile,
+      flow.metadata,
+      flow.nonce
     )
-    const refreshToken = optionalBoundedString(
-      tokens.refresh_token,
-      MAX_OAUTH_TOKEN_BYTES,
-      'Enterprise identity refresh token'
-    )
-    const scope = optionalBoundedString(
-      tokens.scope,
-      MAX_OAUTH_SCOPE_BYTES,
-      'Enterprise identity scope'
-    )
-    const payload = await this.verifyIdToken(idToken, flow.profile, flow.metadata, flow.nonce)
     return {
       profileId: flow.profile.id,
       issuer: flow.profile.issuer,
       clientId: flow.profile.clientId,
       subject: payload.sub!,
       subjectLabel: payload.email || payload.preferred_username || payload.name || payload.sub,
-      idToken,
-      accessToken,
-      refreshToken,
+      idToken: tokens.idToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       expiresAt: Math.min(
         (payload.exp || Math.floor(Date.now() / 1000) + 300) * 1000,
-        Date.now() + resolveExpiresInSeconds(tokens.expires_in) * 1000
+        Date.now() + tokens.expiresInSeconds * 1000
       ),
-      scope
+      scope: tokens.scope
     }
   }
 
@@ -757,36 +765,8 @@ export class McpEnterpriseIdentityManager {
     if (!response.ok) {
       throw new Error(`Enterprise identity refresh failed (${response.status})`)
     }
-    const tokens = await readBoundedJson<{
-      id_token?: string
-      access_token?: string
-      refresh_token?: string
-      expires_in?: number
-      scope?: string
-    }>(response, 'Enterprise identity refresh response')
-    const idToken = optionalBoundedString(
-      tokens.id_token,
-      MAX_ID_TOKEN_BYTES,
-      'Enterprise identity ID token'
-    )
-    if (!idToken) {
-      throw new Error('Enterprise identity refresh did not include an ID token')
-    }
-    const accessToken = optionalBoundedString(
-      tokens.access_token,
-      MAX_OAUTH_TOKEN_BYTES,
-      'Enterprise identity access token'
-    )
-    const refreshToken = optionalBoundedString(
-      tokens.refresh_token,
-      MAX_OAUTH_TOKEN_BYTES,
-      'Enterprise identity refresh token'
-    )
-    const scope = optionalBoundedString(
-      tokens.scope,
-      MAX_OAUTH_SCOPE_BYTES,
-      'Enterprise identity scope'
-    )
+    const tokens = await readIdentityTokenResponse(response, 'Enterprise identity refresh response')
+    const idToken = tokens.idToken || current.idToken
     const payload = await this.verifyIdToken(idToken, profile, metadata)
     if (payload.sub !== current.subject) {
       throw new Error('Enterprise identity subject changed during refresh')
@@ -794,13 +774,13 @@ export class McpEnterpriseIdentityManager {
     return this.store.saveEnterpriseIdentity(profileKey('enterprise_identity', profile), {
       ...current,
       idToken,
-      accessToken: accessToken || current.accessToken,
-      refreshToken: refreshToken || current.refreshToken,
+      accessToken: tokens.accessToken || current.accessToken,
+      refreshToken: tokens.refreshToken || current.refreshToken,
       expiresAt: Math.min(
         (payload.exp || Math.floor(Date.now() / 1000) + 300) * 1000,
-        Date.now() + resolveExpiresInSeconds(tokens.expires_in) * 1000
+        Date.now() + tokens.expiresInSeconds * 1000
       ),
-      scope: scope || current.scope
+      scope: tokens.scope || current.scope
     })
   }
 

@@ -49,10 +49,6 @@ const serializedBytes = (value: unknown): number => {
   }
 }
 
-const requireBoundedJson = (value: unknown, maxBytes: number, label: string): void => {
-  assertBoundedMcpJson(value, label, maxBytes)
-}
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
@@ -229,7 +225,7 @@ export class McpAppHost implements McpAppHostPort {
     },
     context: McpAppRouteContext
   ): Promise<McpAppPreparedView> {
-    requireBoundedJson(input.toolInput, MAX_APP_ACTION_BYTES, 'MCP App tool input')
+    assertBoundedMcpJson(input.toolInput, 'MCP App tool input', MAX_APP_ACTION_BYTES)
     if (!this.deps.validateSource(input)) {
       throw new Error('The MCP App source no longer matches the saved tool result')
     }
@@ -279,7 +275,7 @@ export class McpAppHost implements McpAppHostPort {
       instanceId: instance.instanceId,
       sandboxUrl: `${MCP_APP_SCHEME}://${instance.instanceId}/sandbox.html`,
       html: instance.html,
-      sandbox: 'allow-scripts allow-same-origin allow-forms',
+      sandbox: 'allow-scripts allow-same-origin',
       tool,
       csp: instance.csp,
       permissions: instance.permissions,
@@ -300,7 +296,7 @@ export class McpAppHost implements McpAppHostPort {
     args: Record<string, unknown>,
     context: McpAppRouteContext
   ): Promise<McpAppCallToolResult> {
-    requireBoundedJson(args, MAX_APP_ACTION_BYTES, 'MCP App tool arguments')
+    assertBoundedMcpJson(args, 'MCP App tool arguments', MAX_APP_ACTION_BYTES)
     const instance = this.assertLiveInstance(instanceId, context)
     if (instance.toolAccessSuspended) {
       return {
@@ -421,7 +417,7 @@ export class McpAppHost implements McpAppHostPort {
       ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
       ...(result._meta ? { _meta: result._meta } : {})
     }
-    requireBoundedJson(output, MAX_APP_ACTION_BYTES, 'MCP App tool list')
+    assertBoundedMcpJson(output, 'MCP App tool list', MAX_APP_ACTION_BYTES)
     return output
   }
 
@@ -434,7 +430,7 @@ export class McpAppHost implements McpAppHostPort {
     const bound = await this.resolveBoundServer(instance.descriptor)
     const contents = await bound.client.readResourceContents(uri)
     await this.assertBoundServerCurrent(instance.descriptor, bound)
-    requireBoundedJson(contents, MAX_APP_ACTION_BYTES, 'MCP App resource result')
+    assertBoundedMcpJson(contents, 'MCP App resource result', MAX_APP_ACTION_BYTES)
     return { contents }
   }
 
@@ -462,7 +458,7 @@ export class McpAppHost implements McpAppHostPort {
       ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
       ...(result._meta ? { _meta: result._meta } : {})
     }
-    requireBoundedJson(output, MAX_APP_ACTION_BYTES, 'MCP App resource list')
+    assertBoundedMcpJson(output, 'MCP App resource list', MAX_APP_ACTION_BYTES)
     return output
   }
 
@@ -489,7 +485,7 @@ export class McpAppHost implements McpAppHostPort {
       ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
       ...(result._meta ? { _meta: result._meta } : {})
     }
-    requireBoundedJson(output, MAX_APP_ACTION_BYTES, 'MCP App resource template list')
+    assertBoundedMcpJson(output, 'MCP App resource template list', MAX_APP_ACTION_BYTES)
     return output
   }
 
@@ -522,7 +518,7 @@ export class McpAppHost implements McpAppHostPort {
       ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
       ...(result._meta ? { _meta: result._meta } : {})
     }
-    requireBoundedJson(output, MAX_APP_ACTION_BYTES, 'MCP App prompt list')
+    assertBoundedMcpJson(output, 'MCP App prompt list', MAX_APP_ACTION_BYTES)
     return output
   }
 
@@ -577,7 +573,7 @@ export class McpAppHost implements McpAppHostPort {
   ): Promise<{ approved: boolean; approvedHash?: string }> {
     const instance = this.assertLiveInstance(instanceId, context)
     await this.assertDescriptorCurrent(instance.descriptor)
-    requireBoundedJson(input, MAX_APP_CONTEXT_BYTES, 'MCP App model context')
+    assertBoundedMcpJson(input, 'MCP App model context', MAX_APP_CONTEXT_BYTES)
     const approvedHash = createHash('sha256')
       .update(JSON.stringify(input) ?? 'null')
       .digest('hex')

@@ -119,7 +119,6 @@
     "@jxa/run": "^1.4.0",
     "@larksuiteoapi/node-sdk": "^1.64.0",
     "@modelcontextprotocol/client": "2.0.0",
-    "@modelcontextprotocol/core": "2.0.0",
     "@modelcontextprotocol/ext-apps": "1.7.5",
     "@modelcontextprotocol/sdk": "1.30.0",
     "@modelcontextprotocol/server": "2.0.0",

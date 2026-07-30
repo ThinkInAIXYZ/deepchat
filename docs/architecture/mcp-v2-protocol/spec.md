@@ -1,19 +1,18 @@
 # MCP v2 Dual-Era Protocol Architecture
 
-Status: implemented and repository-validated on branch `codex/mcp-v2-ecosystem`; external manual
-interoperability verification remains pending.
+Status: implemented and repository-validated; external manual interoperability verification
+remains pending.
 
 ## Decision
 
-DeepChat will migrate its host-owned MCP runtime to the MCP TypeScript SDK v2 and support both the
+DeepChat runs its host-owned MCP runtime on the MCP TypeScript SDK v2 and supports both the
 MCP 2026-07-28 stateless wire and the legacy wire. External `stdio` and Streamable HTTP servers use
 SDK negotiation with modern-first probing and legacy fallback. DeepChat-owned in-memory servers
 remain explicitly legacy-wire because the v2 SDK does not provide a modern in-memory serving
 transport.
 
-The migration must preserve observable behavior before modern negotiation is enabled. The official
-codemod changes source and package boundaries; it is not evidence that transport, auth, schema,
-cache, result, or error semantics are correct.
+Legacy compatibility must preserve the same transport, auth, schema, cache, result, and error
+semantics as modern negotiation.
 
 ## Standard Baseline
 
@@ -22,14 +21,12 @@ The implementation targets:
 - MCP core specification `2026-07-28`;
 - `@modelcontextprotocol/client@2.0.0`;
 - `@modelcontextprotocol/server@2.0.0`;
-- `@modelcontextprotocol/core@2.0.0`;
-- `@modelcontextprotocol/codemod@2.0.0`;
+- `@modelcontextprotocol/core@2.0.0`, provided transitively by the split client/server packages;
 - Zod `>=4.2`, already satisfied by DeepChat;
 - `@modelcontextprotocol/sdk@1.30.0`, required as a peer by the MCP Apps SDK and isolated to the
   Apps boundary.
 
-Versions are pinned during the migration. A later dependency refresh is a separate change with its
-own compatibility review.
+Versions remain pinned. A dependency refresh requires a separate compatibility review.
 
 Authoritative references:
 
@@ -47,8 +44,7 @@ Authoritative references:
 
 - `src/main/mcp/mcpClient.ts` uses the v2 split client package. External stdio and Streamable HTTP
   use SDK `auto` negotiation; SSE and DeepChat in-memory pairs use explicit legacy mode.
-- The official v1-to-v2 codemod was run from the repository root. DeepChat-owned main MCP code is
-  guarded from importing the monolithic v1 SDK.
+- DeepChat-owned main MCP code is guarded from importing the monolithic v1 SDK.
 - Tool input/output schemas, annotations, icons, `_meta`, arbitrary JSON `structuredContent`, and
   raw bounded results survive discovery, execution, and assistant-block persistence.
 - SDK response caching, discovery, list-change subscriptions, multi-round input, cancellation,
@@ -143,9 +139,9 @@ interface McpServerIdentity {
 - A remote binding is finalized after protected-resource and authorization-server discovery.
   Pending OAuth state may exist under the provisional binding only for the active flow; it is
   atomically moved to the finalized host configuration before it becomes reusable.
-- Persisted App, Task, and credential records carry `serverId`, `configGeneration`, and
-  `bindingHash`. A mismatch makes an App descriptor inert, pauses a Task, and invalidates a
-  credential; it never silently rebinds.
+- Persisted App descriptors and credentials carry `serverId`, `configGeneration`, and
+  `bindingHash`. A mismatch makes an App descriptor inert and invalidates a credential; it never
+  silently rebinds.
 
 Migration assigns IDs transactionally without changing display names or connection behavior.
 Server rename preserves identity. Re-pointing or an identity-bearing auth change increments the
@@ -304,7 +300,7 @@ details surface shows declared origins; packaged malicious fixtures prove blocke
 | --- | --- | --- | --- |
 | DeepChat host | External Streamable HTTP | `auto` | Probe modern, fall back only on a valid legacy signal |
 | DeepChat host | External stdio | `auto` | Probe using the SDK disposable sibling process, then connect |
-| DeepChat host | Existing HTTP+SSE config | legacy | Keep edit/runtime compatibility; do not offer SSE for new configs |
+| DeepChat host | HTTP+SSE | legacy | Keep selectable for existing and new configs with a compatibility warning |
 | DeepChat host | Built-in/in-memory pair | legacy | Create both transport halves from the same v2 package |
 | ACP agent | Agent-declared transport | agent-owned | Do not migrate, probe, wrap, or reinterpret |
 
@@ -315,7 +311,7 @@ a child process running.
 ## Package Boundary
 
 DeepChat-owned core code imports only the v2 split packages. No project-owned file under
-`src/main/mcp` or shared core MCP types may import the monolithic v1 SDK after the codemod.
+`src/main/mcp` or shared core MCP types may import the monolithic v1 SDK.
 
 `@modelcontextprotocol/ext-apps@1.7.5` currently requires the v1 SDK as a peer. Keep
 `@modelcontextprotocol/sdk@1.30.0` installed only for that dependency boundary. The Apps host uses
@@ -339,7 +335,7 @@ McpClient (v2 SDK boundary)
 McpService / ToolManager
   owns catalog projection, execution context, result normalization
         |
-        +--> session persistence: durable result/task/app descriptors
+        +--> session persistence: durable result/app descriptors
         |
         +--> typed routes/events: renderer presentation and user interaction
 ```
@@ -351,7 +347,6 @@ transport negotiation or create parallel clients.
 
 - Run the host-owned MCP client on the official v2 split SDK packages.
 - Preserve legacy server compatibility while supporting the modern stateless wire.
-- Use the official codemod and retain a reviewable migration boundary.
 - Preserve complete MCP schemas, metadata, content, and structured results.
 - Replace manual protocol caches and session recovery with v2 SDK behavior.
 - Keep current tools, prompts, resources, sampling, OAuth, built-in servers, and plugin-owned
@@ -380,7 +375,7 @@ The ecosystem rollout is split into independently verifiable goals:
 1. This architecture migrates the core and enables dual-era transport.
 2. `docs/architecture/remove-mcp-permission-system/` establishes one permission owner.
 3. `docs/features/mcp-apps/` adds sandboxed interactive UI.
-4. `docs/features/mcp-tasks/` adds durable asynchronous work.
+4. `docs/features/mcp-tasks/` records the blocked upstream Tasks gate.
 5. `docs/features/mcp-authorization-extensions/` adds hardened interactive, machine, and
    enterprise authorization.
 
@@ -388,20 +383,18 @@ Upstream readiness is not uniform:
 
 | Surface | Upstream status on 2026-07-29 | DeepChat gate |
 | --- | --- | --- |
-| MCP 2026-07-28 core + TypeScript SDK v2 | Stable | Codemod, legacy parity, then `auto` negotiation |
+| MCP 2026-07-28 core + TypeScript SDK v2 | Stable | Legacy parity and modern-first `auto` negotiation |
 | MCP Apps 2026-01-26 | Stable; host implementation remains DeepChat-owned | Double-iframe security and full lifecycle |
 | Enterprise-Managed Authorization | Stable | Enterprise OIDC profile and metadata discovery |
 | OAuth Client Credentials | Draft in ext-auth; public v2 providers exist | Explicit user-selected draft profile |
 | MCP Tasks | Experimental; no package; v2 SDK currently blocks modern task dispatch | No advertisement until an upstream public adapter exists |
 
-Core parity is required before Apps, Tasks, or new Auth providers are enabled. The permission
-system removal is required before Apps may invoke a tool, so Apps cannot resurrect a second MCP
-approval layer.
+Core parity and permission-system removal are complete. Apps use the shared permission broker and
+cannot resurrect a second MCP approval layer. Tasks remain unadvertised until their separate
+upstream gate opens.
 
 ## Acceptance Criteria
 
-- The official codemod runs from the repository root, leaves no unresolved
-  `@mcp-codemod-error` marker, and is followed by manual review.
 - No DeepChat-owned MCP core module imports the v1 SDK.
 - Existing legacy stdio, Streamable HTTP, SSE, and in-memory fixtures retain their current
   observable behavior.
@@ -422,6 +415,6 @@ approval layer.
 - The packaged Diagnostics panel identifies `modern` or `legacy` for host-owned servers, negotiated
   extensions, probe outcome, cache/subscription state, and redacted auth state through a typed
   route; ACP's separate diagnostics identify agent-owned connections.
-- Existing SSE configurations run and can be edited, while new server creation directs users to
-  Streamable HTTP.
+- SSE remains selectable for existing and new configurations with a compatibility badge and a
+  recommendation to use Streamable HTTP.
 - Format, i18n validation, lint, typecheck, focused MCP tests, and packaged Electron smokes pass.

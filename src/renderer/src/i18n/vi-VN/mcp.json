@@ -302,49 +302,49 @@
     "pullDownToLoad": "Tiếp tục kéo xuống để tải thêm"
   },
   "elicitation": {
-    "title": "MCP input request",
-    "accept": "Submit",
-    "decline": "Decline",
-    "noFields": "This request has no form fields.",
-    "openLink": "Open secure link",
-    "selectValue": "Select a value",
+    "title": "Yêu cầu nhập liệu MCP",
+    "accept": "Gửi",
+    "decline": "Từ chối",
+    "noFields": "Yêu cầu này không có trường biểu mẫu.",
+    "openLink": "Mở liên kết bảo mật",
+    "selectValue": "Chọn một giá trị",
     "error": {
-      "required": "This field is required.",
-      "number": "Enter a valid number.",
-      "integer": "Enter a whole number.",
-      "boolean": "Choose a valid true or false value.",
-      "range": "The value is outside the allowed range.",
-      "selection": "Choose a valid option.",
-      "length": "The text length is outside the allowed range.",
-      "format": "Enter a value in the requested format."
+      "required": "Trường này là bắt buộc.",
+      "number": "Nhập một số hợp lệ.",
+      "integer": "Nhập một số nguyên.",
+      "boolean": "Chọn giá trị true hoặc false hợp lệ.",
+      "range": "Giá trị nằm ngoài phạm vi cho phép.",
+      "selection": "Chọn một tùy chọn hợp lệ.",
+      "length": "Độ dài văn bản nằm ngoài phạm vi cho phép.",
+      "format": "Nhập giá trị theo định dạng được yêu cầu."
     }
   },
   "apps": {
     "title": "MCP App",
-    "interactiveContent": "Interactive content from an MCP server",
-    "loadError": "Unable to load this MCP App.",
-    "retry": "Retry",
-    "fullscreen": "Open fullscreen",
-    "pictureInPicture": "Open picture in picture",
-    "returnInline": "Return inline",
-    "securityDetails": "Security details",
-    "allowedOrigins": "Declared network origins",
-    "requestedPermissions": "Requested device permissions",
-    "noneDeclared": "None declared",
-    "advisoryDomain": "Advisory domain",
-    "toolAccessSuspended": "Tool access is suspended after a denied request.",
-    "retryAccess": "Retry access",
+    "interactiveContent": "Nội dung tương tác từ máy chủ MCP",
+    "loadError": "Không thể tải MCP App này.",
+    "retry": "Thử lại",
+    "fullscreen": "Mở toàn màn hình",
+    "pictureInPicture": "Mở chế độ hình trong hình",
+    "returnInline": "Trở về chế độ nội tuyến",
+    "securityDetails": "Chi tiết bảo mật",
+    "allowedOrigins": "Nguồn mạng đã khai báo",
+    "requestedPermissions": "Quyền thiết bị được yêu cầu",
+    "noneDeclared": "Chưa khai báo",
+    "advisoryDomain": "Miền tham khảo",
+    "toolAccessSuspended": "Quyền truy cập công cụ bị tạm ngưng sau khi yêu cầu bị từ chối.",
+    "retryAccess": "Thử truy cập lại",
     "permissions": {
-      "camera": "Camera",
-      "microphone": "Microphone",
-      "geolocation": "Location",
-      "clipboardWrite": "Clipboard write"
+      "camera": "Máy ảnh",
+      "microphone": "Micrô",
+      "geolocation": "Vị trí",
+      "clipboardWrite": "Ghi vào bảng nhớ tạm"
     },
     "consent": {
-      "title": "MCP App request",
-      "description": "Review this action requested by interactive MCP content.",
-      "allowOnce": "Allow once",
-      "deny": "Deny"
+      "title": "Yêu cầu từ MCP App",
+      "description": "Xem lại hành động do nội dung MCP tương tác yêu cầu.",
+      "allowOnce": "Cho phép một lần",
+      "deny": "Từ chối"
     }
   }
 }

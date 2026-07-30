@@ -1,6 +1,6 @@
 # Remove MCP Permission System
 
-Status: implemented and repository-validated on branch `codex/mcp-v2-ecosystem`.
+Status: implemented and repository-validated.
 
 ## User Need
 

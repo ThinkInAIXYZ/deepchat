@@ -248,7 +248,7 @@
     "apiKeyRequiredDesc": "Пожалуйста, заполните клавишу McProuter API сначала перед установкой",
     "apiKeyRequiredTitle": "Требует ключа API",
     "browseBuiltin": "Просмотрите встроенный рынок MCP",
-    "builtinTitle": "MCP Market",
+    "builtinTitle": "Рынок MCP",
     "empty": "Пока нет услуг",
     "install": "Установить",
     "installFailed": "Установка не удалась",
@@ -302,49 +302,49 @@
     "sessionActive": "Сессия активна – запрос будет одобрен автоматически"
   },
   "elicitation": {
-    "title": "MCP input request",
-    "accept": "Submit",
-    "decline": "Decline",
-    "noFields": "This request has no form fields.",
-    "openLink": "Open secure link",
-    "selectValue": "Select a value",
+    "title": "Запрос ввода MCP",
+    "accept": "Отправить",
+    "decline": "Отклонить",
+    "noFields": "В этом запросе нет полей формы.",
+    "openLink": "Открыть защищённую ссылку",
+    "selectValue": "Выберите значение",
     "error": {
-      "required": "This field is required.",
-      "number": "Enter a valid number.",
-      "integer": "Enter a whole number.",
-      "boolean": "Choose a valid true or false value.",
-      "range": "The value is outside the allowed range.",
-      "selection": "Choose a valid option.",
-      "length": "The text length is outside the allowed range.",
-      "format": "Enter a value in the requested format."
+      "required": "Обязательное поле.",
+      "number": "Введите допустимое число.",
+      "integer": "Введите целое число.",
+      "boolean": "Выберите допустимое значение true или false.",
+      "range": "Значение находится вне допустимого диапазона.",
+      "selection": "Выберите допустимый вариант.",
+      "length": "Длина текста находится вне допустимого диапазона.",
+      "format": "Введите значение в требуемом формате."
     }
   },
   "apps": {
     "title": "MCP App",
-    "interactiveContent": "Interactive content from an MCP server",
-    "loadError": "Unable to load this MCP App.",
-    "retry": "Retry",
-    "fullscreen": "Open fullscreen",
-    "pictureInPicture": "Open picture in picture",
-    "returnInline": "Return inline",
-    "securityDetails": "Security details",
-    "allowedOrigins": "Declared network origins",
-    "requestedPermissions": "Requested device permissions",
-    "noneDeclared": "None declared",
-    "advisoryDomain": "Advisory domain",
-    "toolAccessSuspended": "Tool access is suspended after a denied request.",
-    "retryAccess": "Retry access",
+    "interactiveContent": "Интерактивное содержимое с сервера MCP",
+    "loadError": "Не удалось загрузить это приложение MCP.",
+    "retry": "Повторить",
+    "fullscreen": "Открыть на весь экран",
+    "pictureInPicture": "Открыть в режиме «картинка в картинке»",
+    "returnInline": "Вернуться во встроенный режим",
+    "securityDetails": "Сведения о безопасности",
+    "allowedOrigins": "Заявленные сетевые источники",
+    "requestedPermissions": "Запрошенные разрешения устройства",
+    "noneDeclared": "Не заявлены",
+    "advisoryDomain": "Информационный домен",
+    "toolAccessSuspended": "Доступ к инструментам приостановлен после отклонения запроса.",
+    "retryAccess": "Повторить доступ",
     "permissions": {
-      "camera": "Camera",
-      "microphone": "Microphone",
-      "geolocation": "Location",
-      "clipboardWrite": "Clipboard write"
+      "camera": "Камера",
+      "microphone": "Микрофон",
+      "geolocation": "Местоположение",
+      "clipboardWrite": "Запись в буфер обмена"
     },
     "consent": {
-      "title": "MCP App request",
-      "description": "Review this action requested by interactive MCP content.",
-      "allowOnce": "Allow once",
-      "deny": "Deny"
+      "title": "Запрос приложения MCP",
+      "description": "Проверьте действие, запрошенное интерактивным содержимым MCP.",
+      "allowOnce": "Разрешить один раз",
+      "deny": "Отклонить"
     }
   }
 }
