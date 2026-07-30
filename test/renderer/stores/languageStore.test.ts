@@ -129,6 +129,20 @@ describe('language store', () => {
     expect(languageMocks.removeListener).toHaveBeenCalledOnce()
   })
 
+  it('preserves system mode when the requested language is empty', async () => {
+    languageMocks.getLanguageState.mockResolvedValue({
+      requestedLanguage: '',
+      locale: 'fr-FR',
+      direction: 'auto'
+    })
+
+    const { i18n, store } = mountLanguageStore()
+    await flushPromises()
+
+    expect(i18n.global.locale.value).toBe('fr-FR')
+    expect(store.language).toBe('system')
+  })
+
   it('keeps the newest language event when an older load finishes later', async () => {
     const { i18n } = mountLanguageStore()
     await flushPromises()

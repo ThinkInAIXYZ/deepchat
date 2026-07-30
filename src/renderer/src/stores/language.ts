@@ -28,7 +28,7 @@ export const useLanguageStore = defineStore('language', () => {
 
       setLocaleMessage(resolvedLocale, messages)
       locale.value = resolvedLocale
-      language.value = resolveRequestedLocale(state.requestedLanguage)
+      language.value = resolveRequestedLocale(state.requestedLanguage || 'system')
       dir.value =
         state.direction === 'rtl' || resolveDocumentDirection(resolvedLocale) === 'rtl'
           ? 'rtl'
