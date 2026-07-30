@@ -293,6 +293,27 @@ describe('spotlightStore new-chat action', () => {
     expect(router.push).not.toHaveBeenCalled()
   })
 
+  it('prefers the selected agentType when routing OCR for ACP compatibility', async () => {
+    const { store, router, settingsClient } = await setupStore({
+      selectedAgent: {
+        type: 'deepchat',
+        agentType: 'acp'
+      }
+    })
+
+    store.setOpen(true)
+    store.setQuery('ocr')
+    await flushPromises()
+
+    const ocrAction = store.results.value.find((item) => item.id === 'action:open-ocr')
+    await store.executeItem(ocrAction)
+
+    expect(settingsClient.openSettings).toHaveBeenCalledWith({
+      routeName: 'settings-ocr'
+    })
+    expect(router.push).not.toHaveBeenCalled()
+  })
+
   it('reruns an active query when provider matches change', async () => {
     const { store, providerStore } = await setupStore()
 
