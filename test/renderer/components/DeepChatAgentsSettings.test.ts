@@ -381,6 +381,63 @@ describe('DeepChatAgentsSettings', () => {
     consoleError.mockRestore()
   })
 
+  it('keeps persistence success when the returned agent cannot be projected', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: '',
+      avatar: null,
+      config: {}
+    }
+    const persistedAgent = {
+      ...existingAgent,
+      name: 'Persisted name',
+      config: {
+        disabledAgentTools: 42
+      }
+    }
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper, configService } = await mountSettings({
+      agents: [existingAgent],
+      configService: {
+        updateDeepChatAgent: vi.fn().mockResolvedValue(persistedAgent)
+      }
+    })
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Persisted name')
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledOnce()
+    expect(consoleError).toHaveBeenCalledWith(
+      '[DeepChatAgents] Failed to project saved agent',
+      expect.any(TypeError)
+    )
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
+      'settings.deepchatAgents.saveFeedback.saved'
+    )
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).not.toContain(
+      'settings.deepchatAgents.saveFeedback.saveFailed'
+    )
+    expect(wrapper.get('[data-testid="deepchat-agent-save-button"]').attributes('disabled')).toBe(
+      ''
+    )
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Unsaved follow-up')
+    const resetButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.reset'))
+    await resetButton!.trigger('click')
+
+    expect(
+      (wrapper.get('[data-testid="deepchat-agent-name-input"]').element as HTMLInputElement).value
+    ).toBe('Persisted name')
+    consoleError.mockRestore()
+  })
+
   it('persists clearing an existing description instead of treating it as an omitted update', async () => {
     const existingAgent = {
       id: 'deepchat',

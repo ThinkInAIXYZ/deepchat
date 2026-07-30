@@ -1548,29 +1548,52 @@ const loadAgents = async (preferredId?: string | null) => {
   selectedAgentId.value = nextId
   assignForm(fromAgent(deepchatAgents.value.find((agent) => agent.id === nextId) ?? null))
 }
-const applySavedAgent = (savedAgent: Agent) => {
+const upsertSavedAgent = (savedAgent: Agent) => {
   const existingIndex = allAgents.value.findIndex((agent) => agent.id === savedAgent.id)
   allAgents.value =
     existingIndex === -1
       ? [...allAgents.value, savedAgent]
       : allAgents.value.map((agent, index) => (index === existingIndex ? savedAgent : agent))
+}
+const applySavedAgent = (savedAgent: Agent) => {
+  const savedForm = fromAgent(savedAgent)
+  upsertSavedAgent(savedAgent)
   selectedAgentId.value = savedAgent.id
-  assignForm(fromAgent(savedAgent))
+  assignForm(savedForm)
+}
+const applyPersistedFormFallback = (savedAgent: Agent, submittedForm: FormState) => {
+  const persistedForm = cloneForm(submittedForm)
+  persistedForm.id = savedAgent.id
+  persistedForm.protected = Boolean(savedAgent.protected)
+  const persistedInput = buildCanonicalAgentInput(submittedForm)
+  const fallbackAgent: Agent = {
+    ...savedAgent,
+    ...persistedInput,
+    id: savedAgent.id,
+    type: 'deepchat',
+    config: {
+      ...savedAgent.config,
+      ...persistedInput.config
+    }
+  }
+  upsertSavedAgent(fallbackAgent)
+  selectedAgentId.value = savedAgent.id
+  assignForm(persistedForm)
+}
+const activateDraft = () => {
+  clearSettledSaveFeedback()
+  selectedAgentId.value = DRAFT_AGENT_ID
+  assignForm(emptyForm())
 }
 const activateAgent = (agentId: string) => {
   if (agentId === DRAFT_AGENT_ID) {
-    selectedAgentId.value = DRAFT_AGENT_ID
+    activateDraft()
     return
   }
 
   clearSettledSaveFeedback()
   selectedAgentId.value = agentId
   assignForm(fromAgent(deepchatAgents.value.find((agent) => agent.id === agentId) ?? null))
-}
-const activateDraft = () => {
-  clearSettledSaveFeedback()
-  selectedAgentId.value = DRAFT_AGENT_ID
-  assignForm(emptyForm())
 }
 const selectAgent = async (agentId: string) => {
   if (saving.value || selectedAgentId.value === agentId) return
@@ -1600,10 +1623,10 @@ const saveAgent = async () => {
   const submittedForm = cloneForm(form)
   const submittedSignature = serializeCanonicalForm(submittedForm)
   saveFeedbackController.begin(saveOperationId, t('settings.deepchatAgents.saveFeedback.saving'))
+  let savedAgent: Agent
   try {
     const canonicalInput = buildCanonicalAgentInput(submittedForm)
     const { config, ...basePayload } = canonicalInput
-    let savedAgent: Agent
     if (submittedForm.id) {
       const configPatch = buildUpdateConfigPatch(submittedForm)
       const payload: UpdateDeepChatAgentInput = {
@@ -1622,13 +1645,6 @@ const saveAgent = async () => {
       }
       savedAgent = await configClient.createDeepChatAgent(payload)
     }
-
-    applySavedAgent(savedAgent)
-    feedbackSourceSignature.value = currentFormSignature.value
-    saveFeedbackController.succeed({
-      code: SAVE_SUCCESS_CODE,
-      title: t('settings.deepchatAgents.saveFeedback.saved')
-    })
   } catch (error) {
     console.error('[DeepChatAgents] Save failed', error)
     feedbackSourceSignature.value = submittedSignature
@@ -1636,7 +1652,24 @@ const saveAgent = async () => {
       code: SAVE_FAILURE_CODE,
       title: t('settings.deepchatAgents.saveFeedback.saveFailed')
     })
+    return
   }
+
+  try {
+    applySavedAgent(savedAgent)
+  } catch (error) {
+    console.error('[DeepChatAgents] Failed to project saved agent', error)
+    try {
+      applyPersistedFormFallback(savedAgent, submittedForm)
+    } catch (fallbackError) {
+      console.error('[DeepChatAgents] Failed to apply persisted form fallback', fallbackError)
+    }
+  }
+  feedbackSourceSignature.value = currentFormSignature.value
+  saveFeedbackController.succeed({
+    code: SAVE_SUCCESS_CODE,
+    title: t('settings.deepchatAgents.saveFeedback.saved')
+  })
 }
 const removeAgent = async () => {
   if (!form.id || form.protected) return

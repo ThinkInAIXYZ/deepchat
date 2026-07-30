@@ -42,7 +42,7 @@
 - [x] Make framework-facing feedback transitions non-throwing and diagnostic.
 - [x] Give settled clearing and pending cancellation unambiguous names.
 - [x] Make the controlled leave dialog dispatch one explicit decision per user action.
-- [ ] Keep persisted Agent success independent from fallible local projection.
+- [x] Keep persisted Agent success independent from fallible local projection.
 
 ## Main Router and semantic producers
 
