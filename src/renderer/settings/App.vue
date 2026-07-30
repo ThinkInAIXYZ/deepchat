@@ -127,6 +127,7 @@ import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import SettingsLeaveGuardDialog from './components/SettingsLeaveGuardDialog.vue'
 import { settingsLeaveGuard } from './services/settingsLeaveGuard'
+import { installSettingsRouteLeaveGuard } from './services/settingsRouteLeaveGuard'
 import { nanoid } from 'nanoid'
 import {
   getSettingsNavigationGroups,
@@ -183,7 +184,7 @@ const { isMacOS, isWinMacOS } = useDeviceVersion()
 const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
-const removeSettingsRouteGuard = router.beforeEach(() => settingsLeaveGuard.requestLeave())
+const removeSettingsRouteGuard = installSettingsRouteLeaveGuard(router, settingsLeaveGuard)
 const title = useTitle()
 const pendingProviderImportPreview = computed(() => providerDeeplinkImportStore.preview)
 const pendingProviderImportToken = computed(() => providerDeeplinkImportStore.previewToken)
