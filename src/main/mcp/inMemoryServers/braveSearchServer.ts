@@ -1,8 +1,7 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { Server, Transport } from '@modelcontextprotocol/server'
+import type { CallToolResult, ContentBlock } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import axios from 'axios'
 
 // Schema definitions
@@ -130,7 +129,11 @@ export class BraveSearchServer {
   }
 
   // 执行Web搜索
-  private async performWebSearch(query: string, count: number = 10, offset: number = 0) {
+  private async performWebSearch(
+    query: string,
+    count: number = 10,
+    offset: number = 0
+  ): Promise<CallToolResult['content']> {
     this.checkRateLimit()
 
     try {
@@ -156,7 +159,7 @@ export class BraveSearchServer {
         url: result.url || ''
       }))
 
-      return results.map((r, index) => {
+      return results.map((r, index): ContentBlock => {
         // 构建blob内容
         const blobContent = {
           title: r.title,
@@ -181,7 +184,10 @@ export class BraveSearchServer {
   }
 
   // 执行本地搜索
-  private async performLocalSearch(query: string, count: number = 5) {
+  private async performLocalSearch(
+    query: string,
+    count: number = 5
+  ): Promise<CallToolResult['content']> {
     this.checkRateLimit()
 
     try {
@@ -218,7 +224,7 @@ export class BraveSearchServer {
       ])
 
       // 格式化结果为MCP资源格式
-      return poisData.results.map((poi, index) => {
+      return poisData.results.map((poi, index): ContentBlock => {
         const address =
           [
             poi.address?.streetAddress ?? '',
@@ -303,7 +309,7 @@ export class BraveSearchServer {
   // 设置请求处理器
   private setupRequestHandlers(): void {
     // 设置工具列表处理器
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async () => {
       return {
         tools: [
           {
@@ -343,7 +349,7 @@ export class BraveSearchServer {
     })
 
     // 设置工具调用处理器
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request): Promise<CallToolResult> => {
       try {
         const { name, arguments: args } = request.params
 
@@ -358,7 +364,7 @@ export class BraveSearchServer {
             const results = await this.performWebSearch(query, count, offset)
 
             // 添加搜索摘要
-            const summary = {
+            const summary: ContentBlock = {
               type: 'text',
               text: `为您找到关于"${query}"的${results.length}个结果`
             }
@@ -378,9 +384,11 @@ export class BraveSearchServer {
             const results = await this.performLocalSearch(query, count)
 
             // 判断是本地搜索结果还是回退到了Web搜索结果
+            const firstResult = results[0]
             const isLocalResults =
-              results.length > 0 && results[0].resource?.uri.startsWith('brave-local://')
-            const summary = {
+              firstResult?.type === 'resource' &&
+              firstResult.resource.uri.startsWith('brave-local://')
+            const summary: ContentBlock = {
               type: 'text',
               text: isLocalResults
                 ? `为您找到关于"${query}"的${results.length}个本地结果`

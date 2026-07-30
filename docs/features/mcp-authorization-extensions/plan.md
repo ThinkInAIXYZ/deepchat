@@ -1,5 +1,8 @@
 # MCP Authorization Extensions Implementation Plan
 
+Status: implemented and repository-validated; controlled external authorization interoperability
+is tracked in `tasks.md` and the ecosystem runbook.
+
 ## Dependency Order
 
 1. Complete the MCP v2 legacy-wire parity checkpoint.
@@ -145,7 +148,7 @@ interface EnterpriseIdentityProfile {
   issuer: string
   idpClientId: string
   scopes: string[]
-  clientAuthentication: 'none' | 'client-secret'
+  clientAuthentication: 'none' | 'client_secret'
 }
 ```
 

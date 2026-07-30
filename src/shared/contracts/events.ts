@@ -54,7 +54,12 @@ import {
   configThemeChangedEvent
 } from './events/config.events'
 import {
+  mcpAppConsentRequestEvent,
   mcpConfigChangedEvent,
+  mcpElicitationCancelledEvent,
+  mcpElicitationDecisionEvent,
+  mcpElicitationRequestEvent,
+  mcpEnterpriseAuthChangedEvent,
   mcpSamplingCancelledEvent,
   mcpSamplingDecisionEvent,
   mcpSamplingRequestEvent,
@@ -247,10 +252,15 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [mcpConfigChangedEvent.name]: mcpConfigChangedEvent,
   [mcpServerStatusChangedEvent.name]: mcpServerStatusChangedEvent,
   [mcpServerAuthChangedEvent.name]: mcpServerAuthChangedEvent,
+  [mcpEnterpriseAuthChangedEvent.name]: mcpEnterpriseAuthChangedEvent,
   [mcpToolCallResultEvent.name]: mcpToolCallResultEvent,
   [mcpSamplingRequestEvent.name]: mcpSamplingRequestEvent,
   [mcpSamplingDecisionEvent.name]: mcpSamplingDecisionEvent,
   [mcpSamplingCancelledEvent.name]: mcpSamplingCancelledEvent,
+  [mcpElicitationRequestEvent.name]: mcpElicitationRequestEvent,
+  [mcpElicitationDecisionEvent.name]: mcpElicitationDecisionEvent,
+  [mcpElicitationCancelledEvent.name]: mcpElicitationCancelledEvent,
+  [mcpAppConsentRequestEvent.name]: mcpAppConsentRequestEvent,
   [syncBackupStartedEvent.name]: syncBackupStartedEvent,
   [syncBackupCompletedEvent.name]: syncBackupCompletedEvent,
   [syncBackupErrorEvent.name]: syncBackupErrorEvent,

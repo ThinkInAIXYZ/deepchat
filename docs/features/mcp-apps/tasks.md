@@ -1,95 +1,99 @@
 # MCP Apps Host Tasks
 
-## Prerequisites
-
-- [ ] Complete MCP v2 legacy-wire parity.
-- [ ] Preserve raw tool definitions and raw/bounded results.
-- [ ] Complete the source-aware `ToolPermissionBroker` migration.
+Status: implementation and repository validation complete; human and packaged sandbox
+interoperability validation remain pending.
 
 ## Discovery And Persistence
 
-- [ ] Preserve nested and deprecated App resource metadata.
-- [ ] Preserve and enforce tool model/app visibility.
-- [ ] Add bounded `McpAppDescriptor` persistence in tool block `extra_json`.
-- [ ] Bind descriptors to immutable server ID, config generation, and connection binding hash.
-- [ ] Keep HTML, tokens, grants, logs, and bridge state out of persistence.
+- [x] Advertise `io.modelcontextprotocol/ui` with
+      `text/html;profile=mcp-app` from the v2 client.
+- [x] Preserve nested `_meta.ui.resourceUri`, deprecated `_meta["ui/resourceUri"]`, visibility, and
+      complete raw tool definitions.
+- [x] Enforce model/app visibility at model listing, App listing, and App call time.
+- [x] Persist a bounded non-executable result/App descriptor in assistant-block `extra_json`.
+- [x] Bind descriptors to immutable server ID, generation, and binding hash.
+- [x] Keep HTML, opaque tokens, grants, logs, bridge requests, and display state out of persistence.
+- [x] Persist only exact user-approved App model context and payload hash.
 
 ## Main Sandbox And Resource Service
 
-- [ ] Register the secure standard `mcp-app` scheme before Electron ready.
-- [ ] Add opaque instance token creation, WebContents binding, expiry, and revocation.
-- [ ] Add `ui://` resource validation, decoding, MIME checks, and 2 MiB limit.
-- [ ] Normalize CSP domains, requested permissions, domain, and border metadata.
-- [ ] Serve a fixed trusted sandbox proxy with a response-header CSP including
-      `form-action 'none'`.
-- [ ] Add a bounded SDK-aware ephemeral resource cache.
+- [x] Register a secure standard `mcp-app` scheme before Electron ready.
+- [x] Add cryptographic instance hostnames, WebContents/window binding, expiry, revocation, and
+      process/per-renderer caps.
+- [x] Validate `ui://`, exact matching resource content, stable MIME, UTF-8/base64 HTML, and 2 MiB
+      decoded size.
+- [x] Traverse bounded resource pages for fallback `_meta.ui` and use the v2 SDK cache/invalidation
+      path.
+- [x] Normalize CSP origins, requested permissions, advisory domain, and border preference.
+- [x] Serve a fixed double-iframe proxy with response-header CSP, deny-by-default network policy,
+      `form-action 'none'`, permissions policy, message/source bounds, and no-store semantics.
 
-## Contracts
+## Typed Boundary
 
-- [ ] Add exact typed prepare/release/tool/resource/link/message/context/permission routes.
-- [ ] Add a sender-bound host Retry route that clears only the matching main-owned tool-channel
-      suspension.
-- [ ] Use bounded structural route schemas and bind every route to `RouteContext` sender identity.
-- [ ] Extend preload registration and renderer `McpClient`.
-- [ ] Prove route results contain no auth headers, filesystem paths, or raw server config.
+- [x] Add exact prepare/release/tool/list/read/link/message/context/retry/consent routes.
+- [x] Bind every route to main-derived `RouteContext` sender identity.
+- [x] Apply bounded structural schemas at every changed route.
+- [x] Extend preload registration and renderer `McpClient` without exposing a generic IPC or secret
+      API.
+- [x] Keep route results free of auth headers, endpoints, commands, environment, and raw server
+      config.
 
 ## Renderer Host
 
-- [ ] Add `McpAppView.vue` under the existing tool result component.
-- [ ] Add component-local `AppBridge(null, ...)` lifecycle.
-- [ ] Add source/origin/token/message validation.
-- [ ] Send initialize, input, result/cancel, context, and teardown in order.
-- [ ] Add loading, fallback, offline, retry, origin, and security states.
-- [ ] Add bounded/coalesced size handling.
+- [x] Mount `McpAppView.vue` under the persisted tool result.
+- [x] Use component-local `AppBridge(null, ...)` and the official postMessage transport.
+- [x] Send sandbox-ready, initialize, complete input/result, context, display, size, and bounded
+      teardown in protocol order.
+- [x] Add loading, inert/error, retry, source label, and effective security details.
+- [x] Clamp and animation-frame-coalesce inline size changes.
+- [x] Implement inline, fullscreen, and renderer-floating PiP with DOM-preserving `Teleport`.
+- [x] Permit one non-inline App per renderer window.
 
-## Host Actions
+## Host Actions And Permission
 
-- [ ] Resolve app tool calls only from the main-side immutable server binding.
-- [ ] Reject generation/binding mismatch without display-name fallback.
-- [ ] Enforce app visibility and route consent through `ToolPermissionBroker` with source
-      `mcp-app`.
-- [ ] Prove tool consent works outside an active model turn and cannot be reused after argument
-      changes.
-- [ ] Suspend an App instance's tool channel in main after denial and require host-owned Retry
-      before the next broker evaluation, without storing an approval or permission cache.
-- [ ] Route bounded same-server resource reads.
-- [ ] Add confirmed normalized HTTP(S) external links.
-- [ ] Add confirmed user-role conversation messages.
-- [ ] Add bounded last-write-wins model context with exact-payload user approval.
-- [ ] Add redacted/rate-limited App diagnostics.
+- [x] Resolve every App action from the main-owned descriptor and exact live server binding.
+- [x] Reject generation/binding/source mismatch without display-name fallback.
+- [x] Recheck bindings after awaited reads/consent and revoke every live instance on server
+      disable, removal, reconfiguration, plugin unregister, or OAuth binding finalization.
+- [x] Route App-visible same-server tool calls through the source-aware `ToolPermissionBroker`.
+- [x] Suspend an instance's tool channel after denial and require host Retry without retaining an
+      approval.
+- [x] Route bounded same-server tool/resource/list operations.
+- [x] Require host confirmation for normalized HTTP(S) links and App-authored conversation
+      messages.
+- [x] Require host confirmation and exact persistence for model-context updates.
+- [x] Rate-limit App diagnostic messages and omit their structured payload.
 
-## Display And Permissions
+## Browser Permission And Lifecycle
 
-- [ ] Implement inline display.
-- [ ] Implement fullscreen and renderer-floating pip with DOM-preserving Teleport.
-- [ ] Allow only one non-inline App per window.
-- [ ] Add camera, microphone, geolocation, and clipboard-write consent.
-- [ ] Enforce Electron permission request/check callbacks by App origin/token/grant.
-- [ ] Preserve and regression-test the first-party audio recorder microphone path.
-- [ ] Revoke grants on teardown and token expiry.
-- [ ] Add accessible focus, keyboard, labels, and reduced-motion behavior.
+- [x] Support declared camera, microphone, geolocation, and clipboard-write only.
+- [x] Enforce Electron permission request/check callbacks by opaque App origin, WebContents, media
+      type, declaration, and per-instance grant.
+- [x] Preserve the explicit first-party audio-recorder microphone branch.
+- [x] Revoke instances, grants, pending consent, and HTML on teardown, expiry, or renderer
+      destruction.
+- [x] Add localized host consent, security, display, retry, and error copy.
+- [x] Keep Escape-to-inline and accessible host labels/expanded-state controls.
 
 ## Package Boundary
 
-- [ ] Add `@modelcontextprotocol/ext-apps@1.7.5` and exact peer
-      `@modelcontextprotocol/sdk@1.30.0`.
-- [ ] Restrict v1 SDK imports to the ext-apps compatibility boundary.
-- [ ] Prove no v1 protocol object crosses into v2 MCP core.
-- [ ] Add dependency/peer drift validation.
+- [x] Pin `@modelcontextprotocol/ext-apps@1.7.5` and its exact
+      `@modelcontextprotocol/sdk@1.30.0` peer.
+- [x] Keep AppBridge/v1 types in the renderer Apps boundary; pass only validated plain JSON to the
+      v2 main runtime.
+- [x] Prevent v1 SDK imports from DeepChat-owned main MCP code.
+- [x] Advertise no unsupported optional sampling, download, App-provided-tool, or list-change
+      capability.
 
 ## Verification
 
-- [ ] Run format, i18n validation, lint, typecheck, and focused Apps suites.
-- [ ] Run stable lifecycle and visibility fixtures.
-- [ ] Run parent/preload/storage/navigation/network/message spoofing attack fixtures.
-- [ ] Prove form submissions to self, declared, and undeclared origins cannot send or navigate.
-- [ ] Run oversized resource/message and pending-request exhaustion fixtures.
-- [ ] Run virtualized unmount/remount and persisted reload fixtures.
-- [ ] Prove a denied polling App is suspended without repeated dialogs and Retry re-enters the
-      broker without retained approval.
-- [ ] Run packaged Electron CSP/origin/permission smokes.
-- [ ] Execute the pinned Debug, Budget Allocator, and System Monitor cases in the ecosystem manual
-      verification runbook.
-- [ ] Run a DeepChat-owned modern App fixture because published Apps examples use the legacy SDK.
+- [x] Run the repository final validation matrix recorded in the MCP v2 architecture tasks.
+- [x] Run focused result projection, source binding, sandbox policy/registry, App host, routes, and
+      permission-broker suites.
+- [ ] Run parent/preload/storage/navigation/network/form/message-spoofing attack fixtures in a
+      packaged Electron build.
+- [ ] Run oversized message/resource, consent exhaustion, unmount/remount, and persisted reload
+      cases.
+- [ ] Execute the pinned Debug, Budget Allocator, System Monitor, Map, and DeepChat-owned modern App
+      cases in `manual-verification.md`.
 - [ ] Archive redacted per-platform Apps evidence using the runbook template.
-- [ ] Advertise `io.modelcontextprotocol/ui` only after all required host behavior passes.

@@ -1,51 +1,48 @@
 # MCP OAuth Authentication Tasks
 
-Status: implementation complete, manual external OAuth smoke pending.
+Status: implementation and repository validation complete; external browser interoperability
+remains pending.
 
-- [x] Inspect current DeepChat MCP and OAuth code paths.
-- [x] Verify Linear MCP current OAuth challenge and metadata shape.
-- [x] Review MCP spec, Codex docs, OpenCode docs, and installed MCP SDK auth APIs.
-- [x] Write SDD spec, plan, and implementation tasks.
-- [x] Add OpenAI Codex external-browser OAuth and shared callback page requirements.
-- [x] Add a shared loopback callback helper for listener lifecycle, completion HTML, and
-      pasted URL parsing.
-- [x] Add shared MCP OAuth status types, route contracts, and event contract.
-- [x] Add OpenAI Codex pasted callback URL route contract.
-- [x] Add `McpOAuthCredentialStore` using `safeStorage` with `0600` file fallback.
-- [x] Add `McpOAuthProvider` implementing the SDK `OAuthClientProvider`.
-- [x] Add `McpOAuthManager` for discovery, status, loopback callback, SDK auth, logout, and event publish.
-- [x] Wire `ServerManager`/`McpClient` so startup detects OAuth requirement without opening a browser.
-- [x] Wire `McpService` routes: get status, start auth, complete from callback URL, logout auth.
-- [x] Move OpenAI Codex OAuth from embedded BrowserWindow to external browser + loopback callback.
-- [x] Add OpenAI Codex pasted callback URL fallback while auth is pending.
-- [x] Wire renderer `McpClient` API and Pinia MCP store auth-status merge.
-- [x] Wire renderer `OAuthClient` API for Codex callback URL completion.
-- [x] Add authenticate action and authenticated/error states to `McpServerCard`.
-- [x] Add pending Codex paste fallback UI to `OpenAICodexOAuth`.
-- [x] Add i18n strings for auth states and actions.
-- [x] Add focused main tests for Codex external-browser and pasted callback URL flow.
-- [ ] Execute the pinned local and Linear read-only OAuth cases in the ecosystem manual verification
-      runbook.
-- [ ] Manual smoke OpenAI Codex sign-in with Google through external browser.
-- [x] Cover unavailable-listener paste fallback in the focused loopback fixture; do not require a
-      packaged manual smoke without reviewed fault injection.
-- [x] Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint`.
-- [x] Run typecheck and focused Codex auth tests.
+## Core Interactive Flow
 
-## MCP 2026-07-28 Conformance
+- [x] Use the v2 client authorization APIs.
+- [x] Discover protected-resource and authorization-server metadata.
+- [x] Prefer Client ID Metadata Documents and retain issuer-bound Dynamic Client Registration as
+      the legacy fallback.
+- [x] Declare DeepChat as a native application.
+- [x] Use external-browser authorization code + PKCE with a bounded loopback callback.
+- [x] Support a pasted callback URL only for the exact pending loopback flow.
+- [x] Validate state, callback path/host/method, and all four authorization-response `iss` cases
+      before processing code or error fields.
+- [x] Bind registration and tokens to immutable server identity, generation, binding, endpoint,
+      protected resource, issuer, and client ID.
+- [x] Finalize discovered authorization metadata in the host server binding and reject stale
+      credentials against live discovery before runtime reuse.
+- [x] Preserve static `Authorization` header precedence.
+- [x] Keep deprecated SSE on the explicit legacy path.
 
-The checked file-fallback task above records the shipped implementation. The following tasks replace
-that behavior rather than treating it as acceptable final storage.
+## Secret Storage
 
-- [ ] Move MCP OAuth types and providers to the v2 client SDK.
-- [ ] Prefer Client ID Metadata Documents and keep DCR as an issuer-scoped legacy fallback.
-- [ ] Declare DeepChat as a native application in client metadata.
-- [ ] Implement all four authorization-response `iss` cases with simple exact string comparison,
-      no normalization, and validation before code/error processing or display.
-- [ ] Bind stored credentials to immutable server ID/generation/binding, server endpoint, protected
-      resource, and issuer.
-- [ ] Replace the plaintext `0600` fallback with memory-only credentials when `safeStorage` is
-      unavailable.
-- [ ] Treat Linux safeStorage `basic_text` as unavailable for persistent secrets.
-- [ ] Add tests proving secrets never enter config, renderer state, logs, or plaintext files.
-- [ ] Keep deprecated SSE OAuth unchanged and target new authorization behavior to Streamable HTTP.
+- [x] Store persistent credentials only in a versioned Electron `safeStorage` envelope.
+- [x] Use memory-only credentials when encryption is unavailable.
+- [x] Treat Linux `safeStorage` `basic_text` as non-persistent.
+- [x] Remove a legacy plaintext envelope after bounded import instead of retaining a plaintext
+      fallback.
+- [x] Keep tokens, codes, verifiers, secrets, and keys out of MCP config, renderer state, sync,
+      events, and routine logs.
+- [x] Remove all credentials bound to a deleted or identity-mutated server.
+
+## Integration
+
+- [x] Wire startup authorization detection without opening a browser automatically.
+- [x] Add typed status/start/complete/logout routes and secret-free events.
+- [x] Merge authorization status into the MCP server list and card.
+- [x] Add external-browser and pasted-callback UI with localized accessible copy.
+- [x] Share the bounded loopback callback helper with enterprise identity authorization.
+
+## Verification
+
+- [x] Run the repository final validation matrix recorded in the MCP v2 architecture tasks.
+- [ ] Execute the pinned local interactive OAuth and Linear read-only cases in
+      `docs/architecture/mcp-v2-protocol/manual-verification.md`.
+- [ ] Execute a packaged external-browser smoke on each supported platform.

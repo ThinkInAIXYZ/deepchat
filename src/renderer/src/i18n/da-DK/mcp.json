@@ -202,10 +202,6 @@
     "args": "parameter",
     "argsPlaceholder": "Én parameter pr. linje",
     "argsRequired": "Parameter kan ikke være tom",
-    "autoApprove": "Automatisk godkendelse",
-    "autoApproveHelp": "Vælg den type handling, der skal autoriseres automatisk, så den kan udføres uden brugerbekræftelse.",
-    "autoApproveRead": "læse",
-    "autoApproveWrite": "skriv ind",
     "baseUrl": "Basis-URL",
     "baseUrlPlaceholder": "Indtast serverens basis-URL (f.eks.: http://localhost:3000)",
     "cancel": "Annuller",
@@ -245,8 +241,7 @@
     "typePlaceholder": "Vælg servertype",
     "typeSse": "Server-sent events",
     "typeStdio": "Standard input og output",
-    "update": "Opdatering",
-    "autoApproveAll": "alle"
+    "update": "Opdatering"
   },
   "serverList": "Serverliste",
   "setAsDefault": "Indstil som standardserver",
@@ -305,5 +300,51 @@
     "acpManagedHint": "MCP-værktøjer administreres af \"ACP Agent\"",
     "acpServersNone": "Agenten er ikke konfigureret med MCP",
     "acpServersSelected": "{count} MCP'er valgt"
+  },
+  "elicitation": {
+    "title": "MCP input request",
+    "accept": "Submit",
+    "decline": "Decline",
+    "noFields": "This request has no form fields.",
+    "openLink": "Open secure link",
+    "selectValue": "Select a value",
+    "error": {
+      "required": "This field is required.",
+      "number": "Enter a valid number.",
+      "integer": "Enter a whole number.",
+      "boolean": "Choose a valid true or false value.",
+      "range": "The value is outside the allowed range.",
+      "selection": "Choose a valid option.",
+      "length": "The text length is outside the allowed range.",
+      "format": "Enter a value in the requested format."
+    }
+  },
+  "apps": {
+    "title": "MCP App",
+    "interactiveContent": "Interactive content from an MCP server",
+    "loadError": "Unable to load this MCP App.",
+    "retry": "Retry",
+    "fullscreen": "Open fullscreen",
+    "pictureInPicture": "Open picture in picture",
+    "returnInline": "Return inline",
+    "securityDetails": "Security details",
+    "allowedOrigins": "Declared network origins",
+    "requestedPermissions": "Requested device permissions",
+    "noneDeclared": "None declared",
+    "advisoryDomain": "Advisory domain",
+    "toolAccessSuspended": "Tool access is suspended after a denied request.",
+    "retryAccess": "Retry access",
+    "permissions": {
+      "camera": "Camera",
+      "microphone": "Microphone",
+      "geolocation": "Location",
+      "clipboardWrite": "Clipboard write"
+    },
+    "consent": {
+      "title": "MCP App request",
+      "description": "Review this action requested by interactive MCP content.",
+      "allowOnce": "Allow once",
+      "deny": "Deny"
+    }
   }
 }

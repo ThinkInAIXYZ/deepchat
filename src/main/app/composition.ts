@@ -67,6 +67,7 @@ import { RendererPerformanceLogService } from './rendererPerformanceLogService'
 import type { PrivacySettings } from './privacy'
 import type { ProxySettings } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
+import type { McpAppSandboxRegistry } from '@/mcp/apps/sandboxRegistry'
 import type { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
 import { ToolService } from '../tool'
 import { createToolRoutes } from '../tool/routes'
@@ -96,7 +97,8 @@ import { createAppRoutes } from './routes'
 import {
   CommandPermissionService,
   FilePermissionService,
-  SettingsPermissionService
+  SettingsPermissionService,
+  ToolPermissionBroker
 } from '../tool/permission'
 import type { AgentToolDependencies } from '../tool/runtimePorts'
 
@@ -226,6 +228,7 @@ export async function createMainProcessControl(dependencies: {
   privacySettings: PrivacySettings
   proxySettings: ProxySettings
   mcpSettings: McpSettings
+  mcpAppSandboxRegistry: McpAppSandboxRegistry
   acpCatalogSettings: AcpCatalogSettings
   database: MainDatabase
   settingsDatabase: SettingsDatabase
@@ -291,6 +294,7 @@ export async function createMainProcessControl(dependencies: {
   let commandPermissionService: CommandPermissionService
   let filePermissionService: FilePermissionService
   let settingsPermissionService: SettingsPermissionService
+  let toolPermissionBroker: ToolPermissionBroker
   let legacyChatImportService: LegacyChatImportService
   let usageStatsService: UsageStatsService
   let appSessionService: AppSessionService
@@ -326,6 +330,13 @@ export async function createMainProcessControl(dependencies: {
       createDeepchatEventEnvelope(name, payload)
     )
   }
+  dependencies.mcpAppSandboxRegistry.setConsentPublisher((windowId, payload) => {
+    windowPresenter.sendToWindow(
+      windowId,
+      DEEPCHAT_EVENT_CHANNEL,
+      createDeepchatEventEnvelope('mcp.app.consent.request', payload)
+    )
+  })
   const unsubscribeStartupWorkload = startupWorkloadCoordinator.subscribe((payload) => {
     publishDeepchatEvent('startup.workload.changed', payload)
   })
@@ -534,6 +545,7 @@ export async function createMainProcessControl(dependencies: {
   commandPermissionService = commandPermissionHandler
   filePermissionService = new FilePermissionService()
   settingsPermissionService = new SettingsPermissionService()
+  toolPermissionBroker = new ToolPermissionBroker()
   deviceService = new DeviceService()
   const loggingService = new LoggingService(
     dependencies.settingsStore,
@@ -669,7 +681,33 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent,
     (data) => deviceService.cacheImage(data),
     pluginRuntimeSupervisor,
-    computerUsePreviewPresenter
+    computerUsePreviewPresenter,
+    {
+      registry: dependencies.mcpAppSandboxRegistry,
+      permissionBroker: toolPermissionBroker,
+      getPermissionMode: async (conversationId) =>
+        sessionData.settings.get(conversationId)?.permission_mode ?? 'default',
+      validateSource: (input) => {
+        const message = sessionData.database.deepchatMessagesTable.get(input.messageId)
+        return Boolean(
+          message?.session_id === input.conversationId &&
+          sessionData.database.deepchatAssistantBlocksTable.matchesMcpAppSource(
+            input.messageId,
+            input.blockId,
+            input.descriptor,
+            input.toolInput
+          )
+        )
+      },
+      persistModelContext: (messageId, blockId, descriptor, toolInput, context) =>
+        sessionData.database.deepchatAssistantBlocksTable.updateMcpAppModelContext(
+          messageId,
+          blockId,
+          descriptor,
+          toolInput,
+          context
+        )
+    }
   )
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
@@ -897,6 +935,7 @@ export async function createMainProcessControl(dependencies: {
     skillSettings,
     desktopSettings,
     commandPermissionHandler,
+    permissionBroker: toolPermissionBroker,
     agentTools: agentToolDependencies
   })
 
@@ -935,16 +974,19 @@ export async function createMainProcessControl(dependencies: {
       commandPermissionService.clearConversation(sessionId)
       filePermissionService.clearConversation(sessionId)
       settingsPermissionService.clearConversation(sessionId)
-      mcpService.clearSessionPermissions(sessionId)
+      toolPermissionBroker.cancelConversation(sessionId)
     },
     cloneSessionPermissions: (sourceSessionId, targetSessionId) => {
-      // MCP temporary approvals are intentionally never inherited.
-      mcpService.clearSessionPermissions(targetSessionId)
+      // Tool approvals are one-time and intentionally never inherited.
+      toolPermissionBroker.cancelConversation(targetSessionId)
       commandPermissionService.cloneConversation(sourceSessionId, targetSessionId)
       filePermissionService.cloneConversation(sourceSessionId, targetSessionId)
       settingsPermissionService.cloneConversation(sourceSessionId, targetSessionId)
     },
     approvePermission: async (sessionId, permission) => {
+      if (permission.requestId && toolPermissionBroker.approve(permission.requestId, sessionId)) {
+        return
+      }
       const permissionType = permission.permissionType
       const serverName = permission.serverName || ''
       const toolName = permission.toolName || ''
@@ -975,12 +1017,10 @@ export async function createMainProcessControl(dependencies: {
         return
       }
 
-      if (
-        serverName &&
-        (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
-      ) {
-        await mcpService.grantPermission(serverName, permissionType, false, sessionId, toolName)
-      }
+      // MCP execution uses the one-time request handled above.
+    },
+    denyPermission: async (sessionId, requestId) => {
+      toolPermissionBroker.deny(requestId, sessionId)
     }
   }
   // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
@@ -1160,6 +1200,9 @@ export async function createMainProcessControl(dependencies: {
     deeplinkService.processStartupUrl()
   )
   ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter)
+  dependencies.mcpAppSandboxRegistry.setFirstPartyAudioOwnerValidator((webContentsId) =>
+    (windowPresenter as WindowPresenter).isFirstPartyAudioOwner(webContentsId)
+  )
   floatingButtonPresenter = new FloatingButtonPresenter(
     agentSettings,
     desktopSettings,
@@ -1633,6 +1676,7 @@ export async function createMainProcessControl(dependencies: {
       })
     }
     await runDestroyStep('pluginService.shutdown', () => pluginService.shutdown())
+    await runDestroyStep('mcpApps.clear', () => dependencies.mcpAppSandboxRegistry.clear())
     await runDestroyStep('mcpService.shutdown', () => mcpService.shutdown())
     await runDestroyStep('computerUsePreviewPresenter.shutdown', () =>
       computerUsePreviewPresenter.shutdown()
@@ -1738,6 +1782,14 @@ export async function createMainProcessControl(dependencies: {
     })
     const mcpRoutes = createMcpRoutes({
       mcpService,
+      mcpAppHost: (() => {
+        if (!mcpService.appHost) {
+          throw new Error('MCP Apps host is not configured')
+        }
+        return mcpService.appHost
+      })(),
+      isSettingsWindow: (windowId) =>
+        windowId != null && windowPresenter.getSettingsWindowId() === windowId,
       recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const remoteRoutes = createRemoteRoutes(remoteService)
@@ -2301,6 +2353,8 @@ export async function createMainProcessControl(dependencies: {
       commandPermissionService.clearAll()
       filePermissionService.clearAll()
       settingsPermissionService.clearAll()
+      toolPermissionBroker.clear()
+      dependencies.mcpAppSandboxRegistry.clear()
     },
     confirmShutdown: async () => await knowledgeService.confirmShutdown(),
     cancelShutdown: () => windowPresenter.setApplicationQuitting(false),

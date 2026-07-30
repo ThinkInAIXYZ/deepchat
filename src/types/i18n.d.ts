@@ -161,6 +161,68 @@ declare module 'vue-i18n' {
       audioInputUnsupportedTitle: string
       audioInputUnsupportedDescription: string
     }
+    attachments: {
+      chooseRepresentation: string
+      representation: string
+      auto: string
+      sendImage: string
+      useOcrText: string
+      useEmbeddedText: string
+      preparing: string
+      actionRequiredTitle: string
+      actionRequiredDescription: string
+      attachmentNumber: string
+      moreIssues: string
+      genericUnavailable: string
+      keepDraft: string
+      switchVisionModel: string
+      retry: string
+      sendWithoutImageContent: string
+      inspectOcrText: string
+      ocrBadge: string
+      embeddedTextBadge: string
+      ocrPartialBadge: string
+      ocrLimitedBadge: string
+      imageBadge: string
+      unavailableBadge: string
+      ocrPreviewTitle: string
+      ocrPreviewDescription: string
+      ocrPageCoverage: string
+      ocrPageCoveragePartial: string
+      ocrTextTruncated: string
+      reasons: {
+        automatic_ocr_disabled: string
+        document_limit_exceeded: string
+        document_too_large: string
+        image_dimensions_exceeded: string
+        image_limit_exceeded: string
+        image_payload_unavailable: string
+        image_too_large: string
+        ocr_cancelled: string
+        ocr_empty: string
+        ocr_failed: string
+        ocr_queue_full: string
+        ocr_resource_limited: string
+        ocr_runtime_unavailable: string
+        invalid_attachment_snapshot: string
+        turn_ocr_budget_exhausted: string
+        pdf_text_unavailable: string
+        requested_image_requires_vision: string
+        turn_image_bytes_exceeded: string
+        user_skipped_attachment_content: string
+        user_skipped_image_content: string
+        unsupported_image_format: string
+      }
+      pending: {
+        blockedCount: string
+        blocked: string
+        retry: string
+        sendWithoutImageContent: string
+        blockedDescription: string
+        blockedReasonMore: string
+        resolveFailed: string
+      }
+    }
     skillDraft: {
       confirmationTitle: string
       confirmationQuestion: string
@@ -1022,6 +1084,7 @@ declare module 'vue-i18n' {
         queryRecall: string
         overhead: string
         unused: string
+        overheadSummary: string
         countOnly: string
         unavailable: string
         noSelectedDetails: string
@@ -1143,6 +1206,7 @@ declare module 'vue-i18n' {
         }
         directiveTopicLabel: string
         directiveTopicPlaceholder: string
+        directiveTopicTooBroad: string
         directiveContentLabel: string
         directiveInstructionPlaceholder: string
         directiveSuppressPlaceholder: string
@@ -1150,6 +1214,8 @@ declare module 'vue-i18n' {
         directiveSuppressHint: string
         directiveLength: string
         directiveCreateAction: string
+        directiveCapacityTitle: string
+        directiveCapacityDescription: string
         directiveListTitle: string
         directiveListDescription: string
         directiveEmptyTitle: string
@@ -1560,11 +1626,6 @@ declare module 'vue-i18n' {
       iconPlaceholder: string
       icons: string
       iconsPlaceholder: string
-      autoApprove: string
-      autoApproveAll: string
-      autoApproveRead: string
-      autoApproveWrite: string
-      autoApproveHelp: string
       submit: string
       add: string
       update: string
@@ -1783,6 +1844,52 @@ declare module 'vue-i18n' {
       reviewRequest: string
       sessionActive: string
     }
+    elicitation: {
+      title: string
+      accept: string
+      decline: string
+      noFields: string
+      openLink: string
+      selectValue: string
+      error: {
+        required: string
+        number: string
+        integer: string
+        boolean: string
+        range: string
+        selection: string
+        length: string
+        format: string
+      }
+    }
+    apps: {
+      title: string
+      interactiveContent: string
+      loadError: string
+      retry: string
+      fullscreen: string
+      pictureInPicture: string
+      returnInline: string
+      securityDetails: string
+      allowedOrigins: string
+      requestedPermissions: string
+      noneDeclared: string
+      advisoryDomain: string
+      toolAccessSuspended: string
+      retryAccess: string
+      permissions: {
+        camera: string
+        microphone: string
+        geolocation: string
+        clipboardWrite: string
+      }
+      consent: {
+        title: string
+        description: string
+        allowOnce: string
+        deny: string
+      }
+    }
     type: {
       custom: string
       official: string
@@ -1936,6 +2043,9 @@ declare module 'vue-i18n' {
       enable: string
       disable: string
       openSettings: string
+      testRuntime: string
+      retryRuntime: string
+      quarantineDescription: string
       runtime: string
       runtimeState: string
       version: string
@@ -1949,18 +2059,20 @@ declare module 'vue-i18n' {
         missing: string
         installed: string
         running: string
+        readyOnDemand: string
+        quarantined: string
         error: string
       }
     }
     welcome: string
     settings: string
     'settings-common': string
+    'settings-ocr': string
     'settings-provider': string
     'settings-mcp': string
     'settings-deepchat-agents': string
     'settings-database': string
     'settings-about': string
-    'settings-debug': string
     'settings-shortcut': string
     'settings-display': string
     'settings-knowledge-base': string
@@ -1976,6 +2088,7 @@ declare module 'vue-i18n' {
     'settings-plugins': string
     'settings-overview': string
     'settings-memory': string
+    'settings-debug': string
     common: {
       title: string
       resetData: string
@@ -2059,6 +2172,77 @@ declare module 'vue-i18n' {
       defaultModel: {
         title: string
         chatModel: string
+      }
+    }
+    ocr: {
+      description: string
+      autoExtract: string
+      autoExtractDescription: string
+      advancedTitle: string
+      advancedDescription: string
+      backend: string
+      backendDescription: string
+      backendAuto: string
+      backendCpu: string
+      diagnosticsTitle: string
+      diagnosticsDescription: string
+      refresh: string
+      loading: string
+      statusUnavailable: string
+      availability: string
+      available: string
+      unavailable: string
+      process: string
+      version: string
+      notStarted: string
+      nodeNotStarted: string
+      queuedRequests: string
+      strategy: string
+      nodeVersion: string
+      detectionBackend: string
+      recognitionBackend: string
+      cacheTitle: string
+      cacheMode: string
+      cacheEntries: string
+      cacheUsage: string
+      cacheNotStarted: string
+      cacheProtected: string
+      clearCache: string
+      clearCacheTitle: string
+      clearCacheDescription: string
+      clearCacheConfirm: string
+      cacheCleared: string
+      cacheClearedDescription: string
+      loadFailed: string
+      updateFailed: string
+      statusLoadFailed: string
+      clearCacheFailed: string
+      unavailableReasons: {
+        asset_identity_mismatch: string
+        assets_missing: string
+        runtime_manifest_invalid: string
+        service_closed: string
+        unsupported_platform: string
+      }
+      processStates: {
+        idle: string
+        starting: string
+        ready: string
+        busy: string
+        stopping: string
+        closed: string
+      }
+      strategies: {
+        'bounded-960': string
+        'tiled-v1': string
+      }
+      cacheModes: {
+        persistent: string
+        memory: string
+      }
+      cacheFallbackReasons: {
+        database_error: string
+        safe_storage_unavailable: string
       }
     }
     deepchatAgents: {
@@ -2994,11 +3178,6 @@ declare module 'vue-i18n' {
         iconPlaceholder: string
         icons: string
         iconsPlaceholder: string
-        autoApprove: string
-        autoApproveAll: string
-        autoApproveRead: string
-        autoApproveWrite: string
-        autoApproveHelp: string
         submit: string
         add: string
         update: string
@@ -3032,6 +3211,40 @@ declare module 'vue-i18n' {
         e2bApiKeyPlaceholder: string
         e2bApiKeyHelp: string
         e2bApiKeyRequired: string
+        sseMigrationHint: string
+        authorizationMode: string
+        authorizationInteractive: string
+        authorizationNone: string
+        authorizationClientCredentials: string
+        authorizationPrivateKeyJwt: string
+        authorizationEnterprise: string
+        authorizationHelp: {
+          none: string
+          interactive: string
+          client_credentials: string
+          private_key_jwt: string
+          cross_app_access: string
+        }
+        authorizationHeaderOverride: string
+        protectedResourceUrl: string
+        protectedResourceUrlPlaceholder: string
+        authorizationServerIssuer: string
+        authorizationServerIssuerPlaceholder: string
+        clientMetadataUrl: string
+        authorizationClientId: string
+        authorizationScopes: string
+        authorizationScopesPlaceholder: string
+        keyAlgorithm: string
+        identityProfile: string
+        identityProfilePlaceholder: string
+        privateKey: string
+        clientSecret: string
+        removeCredential: string
+        credentialConfiguredPlaceholder: string
+        credentialConfigured: string
+        credentialMemoryOnly: string
+        credentialRemoveError: string
+        credentialSaveError: string
       }
       deleteServer: string
       editServer: string
@@ -3133,6 +3346,52 @@ declare module 'vue-i18n' {
       completeAuthentication: string
       saveSuccess: string
       saveFailed: string
+      enterpriseProfiles: {
+        title: string
+        description: string
+        label: string
+        issuer: string
+        clientId: string
+        scopes: string
+        clientAuthentication: string
+        publicClient: string
+        confidentialClient: string
+        clientSecret: string
+        clientSecretMissing: string
+        authenticated: string
+        signIn: string
+        signOut: string
+        callbackUrl: string
+        empty: string
+        loadError: string
+        saveError: string
+        authError: string
+        removeError: string
+        removeTitle: string
+        removeDescription: string
+        status: {
+          signed_out: string
+          authenticating: string
+          authenticated: string
+          error: string
+        }
+      }
+      diagnostics: {
+        title: string
+        serverId: string
+        owner: string
+        transport: string
+        connectionState: string
+        era: string
+        serverImplementation: string
+        probe: string
+        extensions: string
+        clientExtensions: string
+        cache: string
+        subscriptions: string
+        auth: string
+        copy: string
+      }
     }
     cronJobs: {
       title: string
@@ -3803,6 +4062,25 @@ declare module 'vue-i18n' {
         backupCreated: string
         backupImported: string
         databaseRepaired: string
+      }
+    }
+    debug: {
+      description: string
+      unavailableTitle: string
+      unavailableDescription: string
+      splash: {
+        title: string
+        description: string
+        loading: string
+        systemUnlock: string
+        unlock: string
+        failed: string
+        previewHint: string
+      }
+      guidance: {
+        title: string
+        description: string
+        failed: string
       }
     }
     success: string

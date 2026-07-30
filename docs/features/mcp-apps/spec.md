@@ -1,6 +1,7 @@
 # MCP Apps Host Support
 
-Status: planned on 2026-07-29.
+Status: implemented and repository-validated on branch `codex/mcp-v2-ecosystem`; external manual
+interoperability and packaged sandbox verification remain pending.
 
 ## User Need
 
@@ -29,29 +30,21 @@ The SDK repository explicitly provides `AppBridge` and a basic host example, not
 turnkey production host. DeepChat owns its Electron sandbox, permission, persistence, and
 conversation integration.
 
-## Current Evidence
+## Implemented State
 
-- `src/main/mcp/index.ts` discards tool `_meta` while projecting tools. This currently loses
-  `_meta.ui.resourceUri`, `_meta.ui.visibility`, and the deprecated flat
-  `_meta["ui/resourceUri"]`.
-- `src/main/mcp/toolManager.ts` can return structured content, but assistant message persistence
-  drops most raw MCP result data.
-- `src/renderer/src/components/message/MessageBlockToolCall.vue` is the current tool result
-  presentation owner and the correct insertion point for an MCP App child component.
-- Existing HTML/React artifact renderers use direct `srcdoc`; one also allows
-  `allow-same-origin`. They were not designed for untrusted server-provided Apps and must not be
-  reused.
-- The main `BrowserWindow` uses `contextIsolation: true` and `nodeIntegration: false`, but its
-  renderer sandbox is disabled for the app preload. MCP Apps therefore require an independent
-  nested origin boundary.
-- Existing typed routes/events and external-link handling can be extended without exposing a
-  generic Electron API.
-- Existing server lookup is display-name based. App descriptors require the immutable
-  `serverId`/generation/binding introduced by the core migration.
-- Message virtualization may unmount old tool blocks. App teardown and rehydration must be
-  intentional.
-- The first-party audio recorder requests microphone access in the default renderer session. An Apps
-  permission handler must preserve its tested first-party path instead of overwriting session policy.
+- Raw nested and deprecated App metadata, visibility, schemas, and bounded tool results are
+  preserved through the v2 client and assistant-block `extra_json`.
+- `MessageBlockToolCall.vue` mounts `McpAppView.vue` only from a persisted, non-executable
+  descriptor whose immutable server binding still matches.
+- A secure `mcp-app` custom origin serves a fixed double-iframe proxy. Server HTML never enters the
+  DeepChat renderer DOM or renderer origin.
+- Typed, sender-bound routes mediate same-server tools/resources, links, conversation messages,
+  model-context updates, display, consent, retry, and teardown.
+- The source-aware main-process `ToolPermissionBroker` owns both model- and App-origin tool
+  permission decisions; MCP server `autoApprove` no longer exists.
+- Camera, microphone, geolocation, and clipboard-write remain deny-by-default and are scoped to one
+  live App instance. The explicit first-party audio-recorder microphone branch remains intact.
+- Inline, fullscreen, and renderer-floating PiP preserve one AppBridge/iframe instance.
 
 ## Supported Protocol Surface
 
@@ -98,9 +91,10 @@ content item with:
 - normalized `_meta.ui.csp`, `_meta.ui.permissions`, `_meta.ui.domain`, and
   `_meta.ui.prefersBorder`.
 
-Never persist the executable HTML in conversation data. Cache it in a bounded, process-local
-resource cache using the SDK TTL and invalidation signals. A conversation reload refetches the
-resource. If the server is unavailable, show the existing text/structured result and a retry action.
+Never persist the executable HTML in conversation data. Each view preparation reads through the
+bound v2 client, whose SDK cache honors response TTL and invalidation. HTML remains only on the
+ephemeral sandbox instance. A conversation reload refetches or revalidates the resource. If the
+server is unavailable, keep the existing text/structured result and expose the host retry state.
 
 ### App/Host Lifecycle
 
@@ -111,7 +105,7 @@ Implement the stable lifecycle in order:
 3. view sends `ui/initialize`;
 4. host returns its capabilities, info, and context;
 5. view sends `ui/notifications/initialized`;
-6. host sends complete tool input, then tool result or cancellation;
+6. host sends the persisted complete tool input, then the completed tool result;
 7. host sends context/theme/size updates as needed;
 8. host requests `ui/resource-teardown` before unmount and waits for a bounded response.
 
@@ -128,10 +122,8 @@ Support:
 - `ui/message`;
 - `ui/update-model-context`;
 - `ui/request-display-mode`;
-- `ui/notifications/tool-input-partial`;
 - `ui/notifications/tool-input`;
 - `ui/notifications/tool-result`;
-- `ui/notifications/tool-cancelled`;
 - `ui/notifications/size-changed`;
 - `ui/notifications/host-context-changed`;
 - `ui/resource-teardown`.
@@ -139,9 +131,10 @@ Support:
 Unknown valid methods receive a method-not-found response. Malformed, oversized, spoofed, or
 out-of-order messages are rejected without forwarding.
 
-Partial tool input is optional in the stable protocol. DeepChat emits it only when the existing
-streaming argument parser can produce a bounded object; otherwise it emits zero partial
-notifications and still sends the required complete input exactly once.
+DeepChat mounts an App from a completed, persisted tool block. It therefore emits no partial-input
+or cancellation notification and sends complete input plus the completed result exactly once.
+Optional App sampling, downloads, App-provided tools, and list-change advertisements are not
+declared by this host.
 
 ## Electron Sandbox Architecture
 
@@ -229,7 +222,7 @@ Every app-origin request is untrusted:
 
 | Request | Host behavior |
 | --- | --- |
-| `tools/call` | Bind to the originating server, verify app visibility, then enter the source-aware `ToolPermissionBroker` and normal tool execution path |
+| `tools/call` | Bind to the originating server, verify live definition/app visibility/plugin policy, enter the source-aware `ToolPermissionBroker`, then call that exact bound MCP client |
 | `resources/read` | Bind to the originating server and enforce URI/size/content limits |
 | `ui/open-link` | Allow only normalized HTTP(S); show a host-owned confirmation before `shell.openExternal` |
 | `ui/message` | Show a host-owned preview/confirmation, then add one user message through the normal conversation path |
@@ -289,25 +282,32 @@ unless the available viewport is smaller.
 
 ## Persistence And Rehydration
 
-Persist a non-executable descriptor in the tool block `extra_json`:
+Persist a non-executable result envelope in the tool block `extra_json`:
 
 ```ts
 interface McpAppDescriptor {
-  version: 1
+  schemaVersion: 1
   serverId: string
-  serverGeneration: number
+  configGeneration: number
   bindingHash: string
   serverName: string
   toolName: string
   resourceUri: string
-  toolInput: Record<string, unknown>
-  toolResult: {
-    content?: unknown
-    structuredContent?: unknown
-    meta?: Record<string, unknown>
-  }
+  resourceMimeType: 'text/html;profile=mcp-app'
+}
+
+interface PersistedMcpToolResult {
+  schemaVersion: 1
+  serverId: string
+  configGeneration: number
+  bindingHash: string
+  toolName: string
+  content?: MCPContentItem[]
+  structuredContent?: unknown
+  meta?: Record<string, unknown>
+  app?: McpAppDescriptor
   modelContext?: {
-    content?: unknown
+    content?: MCPContentItem[]
     structuredContent?: Record<string, unknown>
     approvedHash?: string
   }
@@ -318,6 +318,11 @@ interface McpAppDescriptor {
 an exact generation and binding-hash match. A rename may refresh the label; a re-pointed, removed,
 or mismatched server leaves the descriptor inert and preserves the text/structured result. No App
 action may select a server from renderer- or iframe-supplied identity.
+
+Every host action rechecks the binding after asynchronous server reads or user consent and
+immediately before dispatch. Disabling, removing, reconfiguring, plugin-unregistering, or
+OAuth-finalizing a server revokes all of its live App instances and resolves pending consent as
+denied.
 
 Apply explicit byte and nesting limits before persistence. Do not persist HTML, sandbox tokens,
 permission grants, bridge request IDs, logs, or temporary display mode.
@@ -331,7 +336,7 @@ When a virtualized message unmounts:
 1. request teardown;
 2. reject pending bridge calls;
 3. revoke permissions and token;
-4. release cached resource references.
+4. revoke the ephemeral instance and its HTML.
 
 When it remounts:
 
@@ -396,8 +401,8 @@ After:
 
 The host supplies a visible boundary unless the resource explicitly prefers no border and the
 surrounding tool block still communicates origin. The server identity and interactive-content
-status remain visible in fullscreen and pip. A details surface lists every granted external
-resource, connection, and frame origin before the user interacts with the view.
+status remain visible in fullscreen and pip. A details surface lists the effective normalized CSP
+origins and declared sensitive permissions before the user interacts with the view.
 
 ## Accessibility
 
@@ -407,20 +412,19 @@ resource, connection, and frame origin before the user interacts with the view.
 - Escape returns fullscreen/pip to inline before closing any parent dialog.
 - Host permission/confirmation dialogs trap and restore focus.
 - Size updates do not move focus or cause unbounded layout shift.
-- Reduced-motion preference is included in host styles.
 - DeepChat cannot repair inaccessible third-party HTML, but it must not remove browser accessibility
   APIs from the sandbox.
 
 ## Resource Limits
 
 - 2 MiB decoded HTML per resource.
-- 1 MiB serialized JSON-RPC message.
-- 32 pending bridge requests per App.
-- 10-second host request timeout unless tool cancellation owns a longer operation.
-- Bounded diagnostics: method, server, tool, outcome, duration, and policy hash only.
+- 20 MiB serialized proxy JSON-RPC message.
+- 2 MiB per App action/list/resource payload, 8 MiB per App tool result, and 256 KiB per
+  model-context update.
+- 64 live App instances process-wide and 32 per renderer WebContents.
+- 64 pending host consent or permission requests, each with a 2-minute timeout.
+- App diagnostic messages are limited to 20 per minute per mounted view and omit structured data.
 - No raw HTML, result payload, model context, or user message in routine logs.
-
-Repeated limit violations tear down the App instance and leave the text tool result available.
 
 ## Non-Goals
 
@@ -449,7 +453,7 @@ Repeated limit violations tear down the App instance and leave the text tool res
 - Denying one App-origin tool call suspends that instance's tool channel until host-owned retry,
   preventing automatic polling from reopening permission dialogs without creating a grant/cache.
 - Link, message, and sensitive browser capabilities require host-owned consent.
-- Initialize, input, result/cancel, context, display, size, and teardown ordering matches the stable
+- Initialize, completed input/result, context, display, size, and teardown ordering matches the stable
   protocol.
 - Inline/fullscreen/pip transitions retain one bridge and return the actual granted mode.
 - Virtualized unmount tears down; remount refetches and replays input/result once.

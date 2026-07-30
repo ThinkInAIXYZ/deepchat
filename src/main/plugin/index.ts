@@ -69,6 +69,7 @@ type PluginServiceDeps = {
   mcpSettings: McpSettings
   mcpService: Pick<McpServicePort, 'isReady' | 'isServerRunning' | 'getServerLastError'> & {
     checkPluginRuntimePermissions(serverName: string): Promise<unknown>
+    revokeMcpAppsByServer?(serverId: string): void
   }
   runtimeSupervisor: Pick<
     PluginRuntimeSupervisor,
@@ -498,6 +499,9 @@ export class PluginService implements PluginServicePort {
     const servers = await this.mcpSettings.getMcpServers()
     for (const [serverName, serverConfig] of Object.entries(servers)) {
       if (this.isServerOwnedByPlugin(serverConfig, pluginId)) {
+        if (serverConfig.serverId) {
+          this.mcpService.revokeMcpAppsByServer?.(serverConfig.serverId)
+        }
         await this.mcpSettings.removeMcpServer(serverName)
       }
     }
@@ -581,7 +585,6 @@ export class PluginService implements PluginServicePort {
         },
         descriptions: server.displayName,
         icons: 'plugin',
-        autoApprove: server.autoApprove,
         enabled: false,
         disable: false,
         source: 'plugin',
@@ -620,6 +623,9 @@ export class PluginService implements PluginServicePort {
       )
 
       if (existing) {
+        if (existing.serverId) {
+          this.mcpService.revokeMcpAppsByServer?.(existing.serverId)
+        }
         await this.mcpSettings.updateMcpServer(serverName, config)
       } else {
         await this.mcpSettings.addMcpServer(serverName, config)
@@ -1210,10 +1216,22 @@ export class PluginService implements PluginServicePort {
 
   private async loadOfficialPlugins(): Promise<void> {
     this.officialPlugins.clear()
-    const plugins = [
-      ...this.resolveOfficialPluginPackages(),
-      ...this.resolveOfficialPluginDirectories()
-    ]
+    const packages = this.resolveOfficialPluginPackages()
+    const directories = this.resolveOfficialPluginDirectories()
+    const installRoot = path.resolve(this.getPluginInstallRoot())
+    const installedDirectories = directories.filter((plugin) => {
+      const relativePath = path.relative(installRoot, path.resolve(plugin.root))
+      return (
+        relativePath === '' ||
+        (relativePath !== '..' &&
+          !relativePath.startsWith(`..${path.sep}`) &&
+          !path.isAbsolute(relativePath))
+      )
+    })
+    const sourceDirectories = directories.filter((plugin) => !installedDirectories.includes(plugin))
+    const plugins = this.isPackaged
+      ? [...packages, ...installedDirectories]
+      : [...sourceDirectories, ...packages, ...installedDirectories]
     const usablePluginIds = new Set<string>()
 
     for (const plugin of plugins) {

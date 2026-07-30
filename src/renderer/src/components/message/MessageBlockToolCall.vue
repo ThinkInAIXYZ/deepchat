@@ -201,13 +201,23 @@
         </div>
       </div>
     </div>
+
+    <McpAppView
+      v-if="mcpAppDescriptor && mcpAppResult && appConversationId && appMessageId && appBlockId"
+      :descriptor="mcpAppDescriptor"
+      :result="mcpAppResult"
+      :conversation-id="appConversationId"
+      :message-id="appMessageId"
+      :block-id="appBlockId"
+      :tool-input="appToolInput"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
 import { useThemeStore } from '@/stores/theme'
@@ -216,6 +226,8 @@ import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { createDeviceClient } from '@api/DeviceClient'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
+
+const McpAppView = defineAsyncComponent(() => import('@/components/mcp/McpAppView.vue'))
 
 const { t } = useI18n()
 
@@ -326,6 +338,12 @@ const parsedParams = computed(() => {
 const parsedParamsRecord = computed(() =>
   isRecord(parsedParams.value.value) ? parsedParams.value.value : null
 )
+const mcpAppResult = computed(() => props.block.tool_call?.mcpResult)
+const mcpAppDescriptor = computed(() => mcpAppResult.value?.app)
+const appConversationId = computed(() => props.threadId?.trim() ?? '')
+const appMessageId = computed(() => props.messageId?.trim() ?? '')
+const appBlockId = computed(() => props.block.id?.trim() || props.block.tool_call?.id?.trim() || '')
+const appToolInput = computed<Record<string, unknown>>(() => parsedParamsRecord.value ?? {})
 
 const rawToolName = computed(() => props.block.tool_call?.name?.trim().toLowerCase() ?? '')
 const isSubagentOrchestrator = computed(() => rawToolName.value === 'subagent_orchestrator')

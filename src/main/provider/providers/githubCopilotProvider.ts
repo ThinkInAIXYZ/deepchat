@@ -15,6 +15,7 @@ import {
   SUMMARY_TITLES_PROMPT,
   type ProviderGenerateTextOptions
 } from '../baseProvider'
+import { normalizeToolInputSchema } from '../aiSdk/toolMapper'
 import type { ProviderLocalePort } from '../ports'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
@@ -460,6 +461,14 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     try {
       const token = await this.getCopilotToken(signal)
       const formattedMessages = this.formatMessages(messages)
+      const providerTools = tools.map((tool) => ({
+        type: tool.type,
+        function: {
+          name: tool.function.name,
+          description: tool.function.description,
+          parameters: normalizeToolInputSchema(tool.raw?.inputSchema ?? tool.function.parameters)
+        }
+      }))
 
       const requestBody = {
         intent: true,
@@ -469,7 +478,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         stream: true,
         temperature: temperature ?? 0.7,
         max_tokens: _maxTokens || 4096,
-        ...(tools && tools.length > 0 && { tools })
+        ...(providerTools.length > 0 && { tools: providerTools })
       }
 
       const headers: Record<string, string> = {

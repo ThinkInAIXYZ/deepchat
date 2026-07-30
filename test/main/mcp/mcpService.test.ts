@@ -17,7 +17,6 @@ const serverManagerMocks = vi.hoisted(() => ({
 const toolManagerMocks = vi.hoisted(() => ({
   getAllToolDefinitions: vi.fn().mockResolvedValue([]),
   getRunningClients: vi.fn().mockResolvedValue([]),
-  clearSessionPermissions: vi.fn(),
   invalidateRegistry: vi.fn()
 }))
 
@@ -43,7 +42,6 @@ vi.mock('../../../src/main/mcp/toolManager', () => ({
   ToolManager: vi.fn().mockImplementation(() => ({
     getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
     getRunningClients: toolManagerMocks.getRunningClients,
-    clearSessionPermissions: toolManagerMocks.clearSessionPermissions,
     invalidateRegistry: toolManagerMocks.invalidateRegistry
   }))
 }))
@@ -54,7 +52,13 @@ vi.mock('../../../src/main/mcp/mcprouterManager', () => ({
 
 import { McpService } from '../../../src/main/mcp'
 
-const createMcpService = (providerSettings: any, onRegistryChanged = vi.fn()) =>
+const createMcpService = (
+  providerSettings: any,
+  onRegistryChanged = vi.fn(),
+  mcpApps?: {
+    registry: { revokeByServer(serverId: string): void }
+  }
+) =>
   new McpService(
     providerSettings,
     providerSettings,
@@ -65,7 +69,19 @@ const createMcpService = (providerSettings: any, onRegistryChanged = vi.fn()) =>
     vi.fn() as never,
     {} as never,
     onRegistryChanged,
-    publishDeepchatEventMock
+    publishDeepchatEventMock,
+    undefined,
+    undefined,
+    undefined,
+    mcpApps
+      ? ({
+          registry: mcpApps.registry,
+          permissionBroker: {},
+          getPermissionMode: vi.fn(),
+          validateSource: vi.fn(),
+          persistModelContext: vi.fn()
+        } as never)
+      : undefined
   )
 
 describe('McpService#setMcpServerEnabled', () => {
@@ -150,17 +166,6 @@ describe('McpService#setMcpServerEnabled', () => {
     )
   })
 
-  it('clears MCP temporary approvals for a session', () => {
-    const presenter = createMcpService(createProviderSettings(true))
-    ;(presenter as any).toolManager = {
-      clearSessionPermissions: toolManagerMocks.clearSessionPermissions
-    }
-
-    presenter.clearSessionPermissions('session-1')
-
-    expect(toolManagerMocks.clearSessionPermissions).toHaveBeenCalledExactlyOnceWith('session-1')
-  })
-
   it('stops a server immediately after disabling it when MCP is active', async () => {
     const providerSettings = createProviderSettings(true)
     const presenter = createMcpService(providerSettings)
@@ -172,6 +177,25 @@ describe('McpService#setMcpServerEnabled', () => {
     expect(providerSettings.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', false)
     expect(stopSpy).toHaveBeenCalledWith('demo-server')
     expect(startSpy).not.toHaveBeenCalled()
+  })
+
+  it('revokes bound MCP Apps before disabling their server', async () => {
+    const providerSettings = createProviderSettings(true, false, {
+      'demo-server': {
+        enabled: true,
+        serverId: '11111111-1111-4111-8111-111111111111'
+      }
+    })
+    const registry = { revokeByServer: vi.fn() }
+    const presenter = createMcpService(providerSettings, vi.fn(), { registry })
+    vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
+
+    await presenter.setMcpServerEnabled('demo-server', false)
+
+    expect(registry.revokeByServer).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111')
+    expect(registry.revokeByServer.mock.invocationCallOrder[0]).toBeLessThan(
+      providerSettings.setMcpServerEnabled.mock.invocationCallOrder[0]
+    )
   })
 
   it('only persists config when MCP is globally disabled', async () => {

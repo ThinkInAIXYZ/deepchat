@@ -21,6 +21,8 @@ import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from '@/components/ui/MessageDialog.vue'
 import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
+import McpElicitationDialog from '@/components/mcp/McpElicitationDialog.vue'
+import McpAppConsentDialog from '@/components/mcp/McpAppConsentDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
 import { ensureIconsLoaded } from '@/lib/iconLoader'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
@@ -634,6 +636,8 @@ onBeforeUnmount(() => {
     <!-- Global message dialog -->
     <MessageDialog />
     <McpSamplingDialog />
+    <McpElicitationDialog />
+    <McpAppConsentDialog />
     <!-- Global Toast notifications -->
     <Toaster :theme="toasterTheme" />
     <SelectedTextContextMenu />

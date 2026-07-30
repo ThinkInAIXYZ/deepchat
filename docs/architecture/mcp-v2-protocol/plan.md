@@ -1,5 +1,8 @@
 # MCP v2 Dual-Era Protocol Migration Plan
 
+Status: implemented and repository-validated; external manual interoperability is tracked in
+`tasks.md` and `manual-verification.md`.
+
 ## Delivery Rule
 
 Each phase ends with a green, reviewable checkpoint. Do not enable modern negotiation in the same

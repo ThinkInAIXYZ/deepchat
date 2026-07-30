@@ -556,7 +556,47 @@ export const AssistantMessageBlockSchema = z.object({
       imagePreviews: z.array(ToolCallImagePreviewSchema).optional(),
       server_name: z.string().optional(),
       server_icons: z.string().optional(),
-      server_description: z.string().optional()
+      server_description: z.string().optional(),
+      mcpResult: z
+        .object({
+          schemaVersion: z.literal(1),
+          serverId: z.string().min(1).max(256),
+          configGeneration: z.number().int().positive(),
+          bindingHash: z.string().min(1).max(256),
+          toolName: z.string().min(1).max(256),
+          isError: z.boolean().optional(),
+          content: z.array(JsonValueSchema).max(512).optional(),
+          structuredContent: JsonValueSchema.optional(),
+          meta: z.record(z.string(), JsonValueSchema).optional(),
+          app: z
+            .object({
+              schemaVersion: z.literal(1),
+              serverId: z.string().min(1).max(256),
+              configGeneration: z.number().int().positive(),
+              bindingHash: z.string().min(1).max(256),
+              serverName: z.string().min(1).max(256),
+              toolName: z.string().min(1).max(256),
+              resourceUri: z.string().startsWith('ui://').max(4096),
+              resourceMimeType: z.literal('text/html;profile=mcp-app')
+            })
+            .optional(),
+          modelContext: z
+            .object({
+              content: z.array(JsonValueSchema).max(128).optional(),
+              structuredContent: z.record(z.string(), JsonValueSchema).optional(),
+              approvedHash: z.string().length(64).optional()
+            })
+            .optional(),
+          truncated: z
+            .object({
+              content: z.boolean().optional(),
+              structuredContent: z.boolean().optional(),
+              meta: z.boolean().optional(),
+              binaryContentOmitted: z.boolean().optional()
+            })
+            .optional()
+        })
+        .optional()
     })
     .optional(),
   extra: z.record(z.string(), JsonValueSchema).optional(),

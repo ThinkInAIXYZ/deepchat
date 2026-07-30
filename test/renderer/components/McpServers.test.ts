@@ -156,6 +156,7 @@ const setup = async (options: SetupOptions = {}) => {
         McpToolPanel: true,
         McpPromptPanel: true,
         McpResourceViewer: true,
+        McpEnterpriseProfiles: true,
         Icon: true
       }
     }

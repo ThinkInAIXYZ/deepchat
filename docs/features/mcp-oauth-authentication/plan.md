@@ -1,5 +1,8 @@
 # MCP And Codex OAuth Loopback Authentication Plan
 
+Status: implemented and repository-validated; external browser interoperability is tracked in
+`tasks.md` and the ecosystem runbook.
+
 ## Design Stance
 
 Do not build a general OAuth platform. The useful shared piece is only loopback callback handling:

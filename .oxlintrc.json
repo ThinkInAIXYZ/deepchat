@@ -22,6 +22,28 @@
       "rules": {
         "no-console": ["error", { "allow": ["warn", "error", "info", "debug", "trace"] }]
       }
+    },
+    {
+      "files": ["src/main/mcp/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@modelcontextprotocol/sdk",
+                "message": "Main-process MCP code must use the v2 split packages."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@modelcontextprotocol/sdk/*"],
+                "message": "Main-process MCP code must use the v2 split packages."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

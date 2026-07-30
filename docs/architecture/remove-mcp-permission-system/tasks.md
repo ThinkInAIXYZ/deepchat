@@ -1,25 +1,34 @@
-# Tasks
+# MCP Permission Ownership Tasks
 
-- [ ] Add one main-process `ToolPermissionBroker` with evaluate/request/resume/deny/cancel/timeout
+Status: implementation and repository validation complete.
+
+## Broker
+
+- [x] Add one main-process `ToolPermissionBroker` with evaluate/request/resume/deny/cancel/timeout
       behavior.
-- [ ] Bind broker requests to opaque request ID, conversation, immutable server ID, tool,
-      canonical bounded arguments, arguments hash, and `model`/`mcp-app` source.
-- [ ] Route both model and MCP App calls through the broker, including App calls outside an active
-      model turn.
-- [ ] Validate permission responses against sender context and resolve each request at most once.
-- [ ] Cancel pending requests on abort, timeout, renderer destruction, conversation deletion, and
-      App teardown.
-- [ ] Remove MCP runtime permission checks from `ToolManager`.
-- [ ] Remove MCP session permission cache/update paths.
-- [ ] Remove the legacy `mcpService.grantPermission` composition path.
-- [ ] Strip `autoApprove` from built-in/default MCP configs.
-- [ ] Normalize persisted MCP server configs to remove historical `autoApprove`.
-- [ ] Drop `autoApprove` from deeplink, marketplace, ModelScope, sync import, and plugin MCP mapping.
-- [ ] Remove MCP server form auto-approve controls and related local state.
-- [ ] Remove unused MCP auto-approve i18n keys after code references are gone.
-- [ ] Remove `autoApprove` from shared MCP config types or confine it to legacy input normalization.
-- [ ] Update tests and fixtures that still include `autoApprove`.
-- [ ] Prove App-origin calls cannot choose another conversation/server/tool, reuse a stale request,
-      or reuse approval after arguments change.
-- [ ] Keep broker decisions ephemeral and add no App or server permission cache.
-- [ ] Validate with format, i18n, lint, typecheck, and focused MCP/tool permission tests.
+- [x] Bind requests to an opaque request ID, conversation, immutable server ID/generation/binding,
+      tool, canonical bounded arguments/hash, permission type, and `model`/`mcp-app` source.
+- [x] Route model and MCP App calls through the same broker, including App calls outside a model
+      turn.
+- [x] Validate permission responses against request/conversation context and settle once.
+- [x] Cancel pending decisions on abort, timeout, renderer destruction, conversation deletion, App
+      teardown, and process shutdown.
+- [x] Keep decisions ephemeral with no App/server approval cache.
+
+## Legacy MCP Permission Removal
+
+- [x] Remove permission evaluation and session approval storage from `ToolManager`.
+- [x] Remove the legacy `mcpService.grantPermission` composition and route path.
+- [x] Strip historical `autoApprove` from persisted MCP settings during normalization.
+- [x] Ignore legacy `autoApprove` from deeplink, marketplace, ModelScope, sync, and plugin inputs.
+- [x] Remove `autoApprove` from built-in and bundled-plugin MCP definitions.
+- [x] Remove the MCP server form controls, local state, shared config field, and server-form i18n
+      keys.
+- [x] Update active fixtures while retaining explicit legacy-normalization and legacy-plugin
+      compatibility cases.
+
+## Verification
+
+- [x] Run the repository final validation matrix recorded in the MCP v2 architecture tasks.
+- [x] Prove App-origin calls cannot select another conversation/server/tool, reuse a stale request,
+      or reuse approval after argument changes in the focused broker/App suites.

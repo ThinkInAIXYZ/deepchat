@@ -1,104 +1,124 @@
 # MCP v2 Dual-Era Protocol Migration Tasks
 
-## Baseline
+Status: implementation and repository validation complete; human interoperability remains
+pending.
 
-- [ ] Record exact MCP package and runtime versions.
-- [ ] Add observable legacy stdio, HTTP, SSE, in-memory, OAuth, sampling, and list-change fixtures.
-- [ ] Add structured content, metadata, arbitrary schema, and image-result persistence fixtures.
-- [ ] Record startup timeout and child-process cleanup behavior.
+## Packages And Codemod
 
-## Official Codemod
+- [x] Pin `@modelcontextprotocol/client`, `server`, and `core` to `2.0.0`.
+- [x] Pin `@modelcontextprotocol/ext-apps@1.7.5` and keep
+      `@modelcontextprotocol/sdk@1.30.0` only for its renderer compatibility boundary.
+- [x] Run `pnpm dlx @modelcontextprotocol/codemod@2.0.0 v1-to-v2 .` from the repository root.
+- [x] Resolve every codemod diagnostic and review the affected MCP ownership boundaries.
+- [x] Prevent DeepChat-owned main MCP code from importing the monolithic v1 SDK.
 
-- [ ] Run `pnpm dlx @modelcontextprotocol/codemod@2.0.0 v1-to-v2 .` from the repository root.
-- [ ] Review every codemod change and resolve all `@mcp-codemod-error` diagnostics.
-- [ ] Add pinned v2 client, server, and core packages.
-- [ ] Keep `@modelcontextprotocol/sdk@1.30.0` only for the
-      `@modelcontextprotocol/ext-apps@1.7.5` peer boundary.
-- [ ] Add an import restriction preventing v1 SDK imports from DeepChat-owned MCP core code.
-- [ ] Format and typecheck the codemod checkpoint.
+## Dual-Era Runtime
 
-## Legacy-Wire Parity
+- [x] Port the host-owned MCP client and in-memory servers to v2 split packages.
+- [x] Use modern-first SDK `auto` negotiation for external stdio and Streamable HTTP.
+- [x] Keep SSE and DeepChat in-memory pairs on explicit legacy wire.
+- [x] Keep ACP-agent-owned MCP outside the host migration.
+- [x] Use an 8-second probe below the 45-second soft and 5-minute hard startup limits.
+- [x] Preserve bounded stdio buffering, stderr handling, transport closure, and process-tree cleanup.
+- [x] Ensure authentication and HTTP server failures are not interpreted as legacy evidence.
+- [x] Remove host-owned modern session IDs, resumability, ping recovery, and manual protocol cache.
 
-- [ ] Port `McpClient` transports and public types to v2.
-- [ ] Port sampling and add typed form/URL elicitation handlers.
-- [ ] Return empty roots and let the SDK drive bounded multi-round retries.
-- [ ] Round-trip opaque `requestState` without interpreting, persisting, or logging it.
-- [ ] Port cancellation behavior.
-- [ ] Port protocol, SDK, HTTP, and unknown-tool error mapping.
-- [ ] Preserve DeepChat lifecycle status and startup timeout behavior.
-- [ ] Enforce the v2 stdio buffer bound and process cleanup.
-- [ ] Keep in-memory transport explicitly legacy and sourced from one package instance.
-- [ ] Pass all baseline tests before enabling modern negotiation.
+## Protocol Behavior
 
-## Stable Server Identity
+- [x] Register v2 sampling, form/URL elicitation, truthful empty roots, SDK cancellation, and
+      bounded 10-round `input_required` continuation.
+- [x] Preserve opaque `requestState` inside SDK dispatch.
+- [x] Use SDK response TTL/scope cache, discovery, list-change invalidation, and subscription state.
+- [x] Map protocol, SDK, HTTP, cancellation, user rejection, and unknown-tool failures without
+      converting errors into success.
+- [x] Preserve legacy tools, prompts, resources, sampling, OAuth, SSE, and in-memory behavior.
 
-- [ ] Assign an immutable local `serverId` and initial `configGeneration` to every existing, new,
-      and imported server.
-- [ ] Compute a non-secret binding hash from canonical transport and discovered auth identity.
-- [ ] Preserve identity across rename and increment generation on every identity-bearing config
-      change.
-- [ ] Make App, Task, and credential records reject or pause on generation/binding mismatch.
-- [ ] Prove imports never bind an existing server by mutable display name.
+## Identity, Schemas, And Results
 
-## Lossless Data
+- [x] Assign immutable `serverId`, `configGeneration`, and non-secret `bindingHash` to every
+      configured server.
+- [x] Preserve identity across rename and invalidate extension/credential state on identity-bearing
+      configuration changes.
+- [x] Carry the authorized immutable tool target through final dispatch and cancel on mapping,
+      client, generation, or binding drift.
+- [x] Preserve arbitrary JSON Schema 2020-12 tool schemas, annotations, icons, `_meta`, and
+      `x-mcp-header` data until the final provider projection.
+- [x] Bound schema bytes/depth/keys/composition and reject unsupported dialects or unresolved
+      external references without network dereferencing.
+- [x] Preserve raw content, arbitrary JSON `structuredContent`, result `_meta`, and App descriptors
+      in bounded assistant-block `extra_json`.
+- [x] Keep model-visible text and binary persistence projections bounded.
+- [x] Replace permissive changed-route validation with bounded structural schemas.
 
-- [ ] Preserve raw JSON Schema 2020-12 tool input/output schemas and metadata.
-- [ ] Validate declared schema dialects, reject unresolved external `$ref` without network access,
-      and bound composition expansion.
-- [ ] Limit schema reduction to provider adapters and keep the raw definition immutable.
-- [ ] Pass the raw tool definition into tool execution.
-- [ ] Preserve result content, structured content, `_meta`, and extension descriptors.
-- [ ] Add bounded result metadata to assistant block `extra_json`.
-- [ ] Keep binary payloads in existing attachment/image storage and record truncation.
-- [ ] Replace no-op MCP route validation at changed boundaries with structural and bounded JSON
-      validation.
+## Diagnostics And Configuration
 
-## Stateless Core
+- [x] Add typed redacted diagnostics for ownership, transport, lifecycle, era, protocol/server
+      version, probe outcome, server/client extensions, cache, subscriptions, and auth.
+- [x] Add the localized server-card diagnostics dialog with refresh and redacted JSON copy.
+- [x] Remove SSE from new-server choices while preserving existing/imported SSE configs and a
+      migration hint.
+- [x] Keep the temporary `forceLegacyWire` compatibility diagnostic out of new-server UI.
 
-- [ ] Replace manual protocol caches with the v2 SDK response cache.
-- [ ] Honor `ttlMs` and `cacheScope`.
-- [ ] Adopt SDK discovery and list-change subscription behavior.
-- [ ] Remove modern-path session IDs, initialize lifecycle, resumability, ping, and session-error
-      string matching.
-- [ ] Do not add new deprecated Roots or Logging support.
+## Tasks Gate
 
-## Dual-Era Negotiation
+- [x] Re-check the official Tasks repository, schema, package availability, and v2 client public
+      dispatch API at the pinned revisions.
+- [x] Record that the v2 client exports Task schemas but exposes no public result/dispatch API for
+      `resultType: "task"` or reserved `tasks/*` methods.
+- [x] Stop with no Tasks code, schema vendoring, setting, persistence, UI, or advertisement.
+- [x] Keep `MV-TASK-01` explicitly blocked until an official public adapter exists.
 
-- [ ] Enable modern-first `auto` negotiation for external Streamable HTTP.
-- [ ] Enable modern-first `auto` negotiation for external stdio.
-- [ ] Use an 8-second probe timeout below the existing soft startup timeout.
-- [ ] Prove failed stdio probes leave no child process.
-- [ ] Prove auth and `5xx` failures do not trigger legacy fallback.
-- [ ] Keep SSE and in-memory connections on explicit legacy paths.
-- [ ] Keep ACP-agent-owned MCP connections outside the migration.
+## Final Repository Validation
 
-## Diagnostics And SSE
+- [x] Run Oxfmt and regenerate i18n types.
+- [x] Run i18n validation, lint, and typecheck.
+- [x] Run focused MCP client, identity, schema, result persistence, Apps, OAuth, routes, session,
+      and permission-broker suites.
+- [x] Run the relevant broader main/renderer suites and production build.
+- [x] Run `git diff --check` and confirm no codemod marker or forbidden core v1 import.
+- [x] Record the exact commands and results below.
 
-- [ ] Expose redacted owner, transport, era, version, extensions, probe, cache, and subscription
-      diagnostics.
-- [ ] Add a typed read-only `mcp.getServerDiagnostics` route and server-card Diagnostics panel.
-- [ ] Refresh from main on demand, invalidate through existing status events, and copy only the
-      redacted diagnostics object.
-- [ ] Add localized keyboard/screen-reader labels for Diagnostics, Refresh, and Copy actions.
-- [ ] Prove packaged diagnostics contain no endpoint, command, environment, header, token, secret,
-      raw server error, or protocol payload.
-- [ ] Remove SSE from new-server defaults.
-- [ ] Preserve existing and imported SSE configurations.
-- [ ] Add a localized SSE migration hint without automatic endpoint rewriting.
+### Validation Record
 
-## Extension Gate
+Recorded on 2026-07-29:
 
-- [ ] Keep Tasks unadvertised until an upstream public v2 adapter can handle modern task results,
-      `tasks/*`, and task notifications without bypassing SDK dispatch.
+- `pnpm run format && pnpm run i18n:types && pnpm run i18n && pnpm run lint && pnpm run typecheck`
+  — PASS.
+- Focused MCP/Apps/OAuth/routes/session/broker matrix — PASS:
 
-## Verification
+  ```bash
+  pnpm exec vitest run \
+    test/main/mcp \
+    test/main/provider/auth/oauthLoopbackCallback.test.ts \
+    test/main/routes/dispatcher.test.ts \
+    test/main/session/data/tables/deepchatAssistantBlocks.test.ts \
+    test/main/tool/toolPermissionBroker.test.ts \
+    test/main/tool/toolService.test.ts \
+    test/main/agent/acp/runtime/acpMcpPassthrough.test.ts \
+    test/renderer/components/McpBuiltinMarket.test.ts \
+    test/renderer/components/McpIndicator.test.ts \
+    test/renderer/components/McpServerCard.test.ts \
+    test/renderer/components/McpServerForm.test.ts \
+    test/renderer/components/McpServers.test.ts \
+    test/renderer/components/McpSettings.test.ts \
+    test/renderer/components/McpToolPanel.test.ts \
+    test/renderer/components/ModelScopeMcpSync.test.ts \
+    test/renderer/components/message/MessageBlockToolCall.test.ts \
+    test/renderer/stores/mcpSampling.test.ts \
+    test/renderer/stores/mcpStore.test.ts
+  ```
 
-- [ ] Run format, i18n validation, lint, typecheck, and focused MCP suites.
-- [ ] Run modern/legacy stdio and HTTP integration fixtures.
-- [ ] Run OAuth, sampling, multi-round input, cancellation, cache, and subscription fixtures.
-- [ ] Run persisted-result reload tests.
-- [ ] Execute the required core cases in `manual-verification.md` against exact pinned local
-      servers.
-- [ ] Run same-day public modern and OAuth/legacy smokes without adding public endpoints to CI.
+- `pnpm exec vitest run --reporter=dot --silent=passed-only` — PASS: 682 test files passed,
+  21 skipped; 7,275 tests passed, 280 skipped.
+- `pnpm run build` — PASS, including node/web typecheck and the production Electron Vite build.
+- `git diff --check` — PASS.
+- Codemod/core-boundary scans — PASS: no executable `@mcp-codemod-error` marker and no
+  `@modelcontextprotocol/sdk` import under `src/main/mcp`.
+
+## Human Interoperability
+
+- [ ] Execute the required core, Apps, and authorization cases in `manual-verification.md`.
+- [ ] Run same-day public modern and OAuth/legacy read-only smokes without adding public endpoints
+      to CI.
 - [ ] Archive redacted per-platform evidence using the runbook template.
-- [ ] Remove the temporary force-legacy diagnostic toggle after one release compatibility window.
+- [ ] Remove `forceLegacyWire` after one documented compatibility window.

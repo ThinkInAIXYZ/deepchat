@@ -3,13 +3,25 @@ import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
 import type { Prompt } from '@shared/types/prompt'
 import {
-  TOOL_EXECUTION,
+  type McpElicitationDecision,
+  type McpElicitationRequestPayload,
+  type McpAppDescriptor,
   type McpClient,
+  type McpCredentialBinding,
+  type McpCredentialInput,
+  type McpCredentialKind,
+  type McpCredentialStatus,
+  type McpEnterpriseIdentityProfile,
+  type McpEnterpriseIdentityStatus,
+  type McpExpectedToolTarget,
   type McpSamplingDecision,
   type McpSamplingRequestPayload,
   type MCPServerConfig,
   type McpServerAuthStatus,
+  type McpServerDiagnostics,
   type McpServicePort,
+  type McpAppHostPort,
+  type MCPContentItem,
   type MCPToolCall,
   type MCPToolDefinition,
   type MCPToolResponse,
@@ -22,7 +34,11 @@ import { ServerManager } from './serverManager'
 import type { McpClient as RuntimeMcpClient } from './mcpClient'
 import { ToolManager, type ComputerUsePreviewObserver } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
-import { McpOAuthManager } from './mcpOAuthManager'
+import {
+  AUTH_EXTENSION_CLIENT_CREDENTIALS,
+  MCP_CLIENT_CREDENTIALS_DRAFT_REVISION,
+  McpOAuthManager
+} from './mcpOAuthManager'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
@@ -33,6 +49,11 @@ import type { AgentSettingsPort } from '@/agent/settings'
 import { PluginRuntimeSupervisor } from '@/plugin/runtimeSupervisor'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { McpSettings } from './settings'
+import type { PermissionMode } from '@shared/types/agent-interface'
+import type { ToolPermissionBroker } from '@/tool/permission'
+import type { McpAppSandboxRegistry } from './apps/sandboxRegistry'
+import { McpAppHost } from './apps/appHost'
+import { hasMcpIdentityBearingChange } from './serverIdentity'
 
 type McpToolAccessContext = {
   enabledTools?: string[]
@@ -43,6 +64,7 @@ type McpToolAccessContext = {
 
 const MCP_SHUTDOWN_SERVER_TIMEOUT_MS = 10_000
 const MCP_SHUTDOWN_CONCURRENCY = 4
+const MCP_MAX_PENDING_INTERACTIONS = 64
 
 const normalizeStringList = (items?: string[]): string[] | undefined => {
   if (!Array.isArray(items)) {
@@ -66,6 +88,7 @@ const normalizeToolAccessContext = (
 }
 
 export class McpService implements McpServicePort {
+  public readonly appHost: McpAppHostPort | null
   private serverManager: ServerManager
   private toolManager: ToolManager
   private mcpOAuthManager: McpOAuthManager
@@ -81,9 +104,14 @@ export class McpService implements McpServicePort {
   private readonly onRegistryChanged: () => void
   private shutdownPromise: Promise<void> | null = null
   private readonly pluginRuntimeSupervisor: PluginRuntimeSupervisor
+  private readonly mcpAppSandboxRegistry?: McpAppSandboxRegistry
   private pendingSamplingRequests = new Map<
     string,
     { resolve: (decision: McpSamplingDecision) => void; reject: (error: Error) => void }
+  >()
+  private pendingElicitationRequests = new Map<
+    string,
+    { resolve: (decision: McpElicitationDecision) => void; reject: (error: Error) => void }
   >()
 
   private emitServerStarted(serverName: string): void {
@@ -138,7 +166,30 @@ export class McpService implements McpServicePort {
     private readonly publishEvent: DeepchatEventPublisher,
     cacheImage?: (data: string) => Promise<string>,
     pluginRuntimeSupervisor?: PluginRuntimeSupervisor,
-    computerUsePreviewObserver?: ComputerUsePreviewObserver
+    computerUsePreviewObserver?: ComputerUsePreviewObserver,
+    mcpApps?: {
+      registry: McpAppSandboxRegistry
+      permissionBroker: ToolPermissionBroker
+      getPermissionMode(conversationId: string): Promise<PermissionMode>
+      validateSource(input: {
+        descriptor: McpAppDescriptor
+        conversationId: string
+        messageId: string
+        blockId: string
+        toolInput: Record<string, unknown>
+      }): boolean
+      persistModelContext(
+        messageId: string,
+        blockId: string,
+        descriptor: McpAppDescriptor,
+        toolInput: Record<string, unknown>,
+        context: {
+          content?: MCPContentItem[]
+          structuredContent?: Record<string, unknown>
+          approvedHash: string
+        }
+      ): boolean
+    }
   ) {
     logger.info('Initializing MCP service')
 
@@ -150,8 +201,16 @@ export class McpService implements McpServicePort {
     this.cacheImage = cacheImage
     this.onRegistryChanged = onRegistryChanged
     this.pluginRuntimeSupervisor = pluginRuntimeSupervisor ?? new PluginRuntimeSupervisor()
-    this.mcpOAuthManager = new McpOAuthManager(undefined, this.publishEvent, (serverName) =>
-      this.restartServerAfterAuthentication(serverName)
+    this.mcpAppSandboxRegistry = mcpApps?.registry
+    this.mcpOAuthManager = new McpOAuthManager(
+      undefined,
+      this.publishEvent,
+      (serverName) => this.restartServerAfterAuthentication(serverName),
+      this.mcpSettings,
+      (serverId) => {
+        this.revokeMcpAppsByServer(serverId)
+        this.handleRegistryChanged()
+      }
     )
     this.serverManager = new ServerManager(
       this.locale,
@@ -160,6 +219,7 @@ export class McpService implements McpServicePort {
       inMemoryServerFactory,
       {
         sampling: this,
+        elicitation: this,
         completion: providerRuntime,
         config: this.providerSettings
       },
@@ -184,6 +244,24 @@ export class McpService implements McpServicePort {
       },
       computerUsePreviewObserver
     )
+    this.appHost = mcpApps
+      ? new McpAppHost({
+          settings: this.mcpSettings,
+          serverManager: this.serverManager,
+          permissionBroker: mcpApps.permissionBroker,
+          registry: mcpApps.registry,
+          ensureServerRunning: async (serverName) => {
+            if (this.pluginRuntimeSupervisor.ownsServer(serverName)) {
+              await this.pluginRuntimeSupervisor.ensureRunning(serverName, 'external')
+              return
+            }
+            await this.serverManager.startServer(serverName, { waitForConnection: true })
+          },
+          getPermissionMode: mcpApps.getPermissionMode,
+          validateSource: mcpApps.validateSource,
+          persistModelContext: mcpApps.persistModelContext
+        })
+      : null
     this.pluginRuntimeSupervisor.attachProcessPort({
       isReady: () => this.isReady(),
       isRunning: (serverName) => this.serverManager.isServerRunning(serverName),
@@ -206,6 +284,10 @@ export class McpService implements McpServicePort {
 
   handleConfigChanged(): void {
     this.handleRegistryChanged()
+  }
+
+  revokeMcpAppsByServer(serverId: string): void {
+    this.mcpAppSandboxRegistry?.revokeByServer(serverId)
   }
 
   private handleRegistryChanged(): void {
@@ -323,6 +405,13 @@ export class McpService implements McpServicePort {
   }
 
   private async shutdownRunningClients(): Promise<void> {
+    for (const requestId of this.pendingSamplingRequests.keys()) {
+      await this.cancelSamplingRequest(requestId, 'MCP service is shutting down')
+    }
+    for (const requestId of this.pendingElicitationRequests.keys()) {
+      await this.cancelElicitationRequest(requestId, 'MCP service is shutting down')
+    }
+
     try {
       await this.pluginRuntimeSupervisor.shutdown()
     } catch (error) {
@@ -530,7 +619,14 @@ export class McpService implements McpServicePort {
 
     // Batch update Authorization for all servers
     for (const update of updates) {
+      const previous = servers[update.name]
+      if (previous?.serverId) {
+        this.revokeMcpAppsByServer(previous.serverId)
+      }
       await this.mcpSettings.updateMcpServer(update.name, update.config)
+      if (previous?.serverId) {
+        this.mcpOAuthManager.clearServerCredentials(previous.serverId)
+      }
     }
 
     logger.info(`Updated Authorization for ${updates.length} mcprouter servers`)
@@ -570,37 +666,12 @@ export class McpService implements McpServicePort {
     const clients = (await this.toolManager.getRunningClients()).filter(
       (client) => enabled || this.pluginRuntimeSupervisor.isServerAvailable(client.serverName)
     )
+    const toolDefinitions = await this.toolManager.getAllToolDefinitions()
     const clientsList: McpClient[] = []
     for (const client of clients) {
-      const results: MCPToolDefinition[] = []
-      const tools = await client.listTools()
-      for (const tool of tools) {
-        const properties = tool.inputSchema.properties || {}
-        const toolProperties = { ...properties }
-        for (const key in toolProperties) {
-          if (!toolProperties[key].description) {
-            toolProperties[key].description = 'Params of ' + key
-          }
-        }
-        results.push({
-          execution: TOOL_EXECUTION.write,
-          type: 'function',
-          function: {
-            name: tool.name,
-            description: tool.description,
-            parameters: {
-              type: 'object',
-              properties: toolProperties,
-              required: Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required : []
-            }
-          },
-          server: {
-            name: client.serverName,
-            icons: client.serverConfig['icons'] as string,
-            description: client.serverConfig['description'] as string
-          }
-        })
-      }
+      const results = toolDefinitions.filter(
+        (definition) => definition.server.name === client.serverName
+      )
 
       // Create client basic info object
       const clientObj: McpClient = {
@@ -670,6 +741,9 @@ export class McpService implements McpServicePort {
       )
     }
 
+    if (!enabled && serverConfig?.serverId) {
+      this.revokeMcpAppsByServer(serverConfig.serverId)
+    }
     await this.mcpSettings.setMcpServerEnabled(serverName, enabled)
     if (
       !this.isPluginOwnedServerConfig(serverConfig) &&
@@ -723,7 +797,22 @@ export class McpService implements McpServicePort {
       )
     }
     const wasRunning = this.serverManager.isServerRunning(serverName)
+    const previousConfig = servers[serverName]
+    if (
+      previousConfig?.serverId &&
+      (config.enabled === false ||
+        hasMcpIdentityBearingChange(previousConfig, { ...previousConfig, ...config }))
+    ) {
+      this.revokeMcpAppsByServer(previousConfig.serverId)
+    }
     await this.mcpSettings.updateMcpServer(serverName, config)
+    const updatedConfig = (await this.mcpSettings.getMcpServers())[serverName]
+    if (
+      previousConfig?.serverId &&
+      updatedConfig?.configGeneration !== previousConfig.configGeneration
+    ) {
+      this.mcpOAuthManager.clearServerCredentials(previousConfig.serverId)
+    }
 
     // If server was previously running, restart it to apply new configuration
     if (wasRunning) {
@@ -749,12 +838,19 @@ export class McpService implements McpServicePort {
     ) {
       throw new Error(`Plugin-owned MCP server "${serverName}" must be removed by its plugin`)
     }
+    const serverId = currentServers[serverName]?.serverId
+    if (serverId) {
+      this.revokeMcpAppsByServer(serverId)
+    }
     // If server is running, stop it first
     if (await this.isServerRunning(serverName)) {
       await this.stopServer(serverName)
     }
     const servers = await this.mcpSettings.getMcpServers()
-    this.mcpOAuthManager.logout(serverName, servers[serverName])
+    const persistedServerId = servers[serverName]?.serverId
+    if (persistedServerId) {
+      this.mcpOAuthManager.clearServerCredentials(persistedServerId)
+    }
     await this.mcpSettings.removeMcpServer(serverName)
   }
 
@@ -824,35 +920,193 @@ export class McpService implements McpServicePort {
     return this.serverManager.getServerLastError(serverName)
   }
 
-  async getMcpServerAuthStatus(serverName: string): Promise<McpServerAuthStatus> {
-    const servers = await this.mcpSettings.getMcpServers()
-    return this.mcpOAuthManager.getStatus(serverName, servers[serverName])
+  async getMcpServerAuthStatus(serverId: string): Promise<McpServerAuthStatus> {
+    const { name, config } = await this.requireServerById(serverId)
+    return this.mcpOAuthManager.getStatus(name, config)
   }
 
-  async startMcpServerAuth(serverName: string): Promise<McpServerAuthStatus> {
-    const servers = await this.mcpSettings.getMcpServers()
-    const serverConfig = servers[serverName]
-    if (!serverConfig) {
-      throw new Error(`MCP server ${serverName} not found`)
-    }
-    return this.mcpOAuthManager.startAuth(serverName, serverConfig)
+  async startMcpServerAuth(serverId: string): Promise<McpServerAuthStatus> {
+    const { name, config } = await this.requireServerById(serverId)
+    return this.mcpOAuthManager.startAuth(name, config)
   }
 
   async completeMcpServerAuthFromCallbackUrl(
-    serverName: string,
+    serverId: string,
     callbackUrl: string
   ): Promise<McpServerAuthStatus> {
-    const servers = await this.mcpSettings.getMcpServers()
-    const serverConfig = servers[serverName]
-    if (!serverConfig) {
-      throw new Error(`MCP server ${serverName} not found`)
-    }
-    return this.mcpOAuthManager.completeAuthFromCallbackUrl(serverName, serverConfig, callbackUrl)
+    const { name, config } = await this.requireServerById(serverId)
+    return this.mcpOAuthManager.completeAuthFromCallbackUrl(name, config, callbackUrl)
   }
 
-  async logoutMcpServerAuth(serverName: string): Promise<McpServerAuthStatus> {
+  async logoutMcpServerAuth(serverId: string): Promise<McpServerAuthStatus> {
+    const { name, config } = await this.requireServerById(serverId)
+    return this.mcpOAuthManager.logout(name, config)
+  }
+
+  async getMcpCredentialStatus(serverId: string): Promise<McpCredentialStatus[]> {
+    const { config } = await this.requireServerById(serverId)
+    return this.mcpOAuthManager.getCredentialStatuses(config)
+  }
+
+  async setMcpCredential(
+    binding: McpCredentialBinding,
+    credential: McpCredentialInput
+  ): Promise<McpCredentialStatus> {
+    const { name, config } = await this.requireCurrentCredentialBinding(binding)
+    const expectedKind: McpCredentialKind =
+      config.authorization?.mode === 'private_key_jwt'
+        ? 'private_key'
+        : config.authorization?.mode === 'cross_app_access'
+          ? 'enterprise_resource_secret'
+          : 'client_secret'
+    if (credential.kind !== expectedKind) {
+      throw new Error('MCP credential type does not match the selected authorization mode')
+    }
+    if (
+      credential.kind === 'private_key' &&
+      config.authorization?.keyAlgorithm !== credential.algorithm
+    ) {
+      throw new Error('MCP private key algorithm does not match the server configuration')
+    }
+    const status = this.mcpOAuthManager.setCredential(binding, credential)
+    await this.restartServerAfterAuthentication(name)
+    return status
+  }
+
+  async removeMcpCredential(
+    binding: McpCredentialBinding,
+    kind: McpCredentialKind
+  ): Promise<McpCredentialStatus> {
+    const { name } = await this.requireCurrentCredentialBinding(binding)
+    const status = this.mcpOAuthManager.removeCredential(binding, kind)
+    if (this.serverManager.isServerRunning(name)) {
+      await this.stopServer(name)
+    }
+    return status
+  }
+
+  listMcpEnterpriseProfiles(): Promise<McpEnterpriseIdentityProfile[]> {
+    return Promise.resolve(this.mcpOAuthManager.listEnterpriseProfiles())
+  }
+
+  saveMcpEnterpriseProfile(
+    profile: McpEnterpriseIdentityProfile
+  ): Promise<McpEnterpriseIdentityProfile> {
+    return Promise.resolve(this.mcpOAuthManager.saveEnterpriseProfile(profile))
+  }
+
+  async removeMcpEnterpriseProfile(profileId: string): Promise<void> {
     const servers = await this.mcpSettings.getMcpServers()
-    return this.mcpOAuthManager.logout(serverName, servers[serverName])
+    for (const [serverName, config] of Object.entries(servers)) {
+      if (config.authorization?.identityProfileId !== profileId) {
+        continue
+      }
+      if (config.serverId) {
+        this.mcpOAuthManager.clearServerCredentials(config.serverId)
+      }
+      await this.updateMcpServer(serverName, {
+        authorization: { mode: 'interactive' }
+      })
+    }
+    this.mcpOAuthManager.removeEnterpriseProfile(profileId)
+  }
+
+  setMcpEnterpriseProfileClientSecret(
+    profileId: string,
+    secret: string
+  ): Promise<McpEnterpriseIdentityStatus> {
+    return Promise.resolve(this.mcpOAuthManager.setEnterpriseProfileClientSecret(profileId, secret))
+  }
+
+  getMcpEnterpriseProfileStatus(profileId: string): Promise<McpEnterpriseIdentityStatus> {
+    return Promise.resolve(this.mcpOAuthManager.getEnterpriseProfileStatus(profileId))
+  }
+
+  startMcpEnterpriseProfileAuth(profileId: string): Promise<McpEnterpriseIdentityStatus> {
+    return this.mcpOAuthManager.startEnterpriseProfileAuth(profileId)
+  }
+
+  completeMcpEnterpriseProfileAuthFromCallbackUrl(
+    profileId: string,
+    callbackUrl: string
+  ): Promise<McpEnterpriseIdentityStatus> {
+    return this.mcpOAuthManager.completeEnterpriseProfileAuthFromCallbackUrl(profileId, callbackUrl)
+  }
+
+  logoutMcpEnterpriseProfile(profileId: string): Promise<McpEnterpriseIdentityStatus> {
+    return Promise.resolve(this.mcpOAuthManager.logoutEnterpriseProfile(profileId))
+  }
+
+  private async requireServerById(
+    serverId: string
+  ): Promise<{ name: string; config: MCPServerConfig }> {
+    const servers = await this.mcpSettings.getMcpServers()
+    const match = Object.entries(servers).find(([, config]) => config.serverId === serverId)
+    if (!match) {
+      throw new Error('MCP server identity was not found')
+    }
+    return { name: match[0], config: match[1] }
+  }
+
+  private async requireCurrentCredentialBinding(
+    binding: McpCredentialBinding
+  ): Promise<{ name: string; config: MCPServerConfig }> {
+    const match = await this.requireServerById(binding.serverId)
+    const config = match.config
+    if (
+      config.configGeneration !== binding.configGeneration ||
+      config.bindingHash !== binding.bindingHash ||
+      config.baseUrl !== binding.endpoint ||
+      config.authorization?.protectedResourceUrl !== binding.protectedResourceUrl ||
+      config.authorization?.authorizationServerIssuer !== binding.authorizationServerIssuer ||
+      config.authorization?.clientId !== binding.clientId
+    ) {
+      throw new Error('MCP credential binding is stale')
+    }
+    return match
+  }
+
+  async getServerDiagnostics(serverId: string): Promise<McpServerDiagnostics> {
+    const { name: serverName, config } = await this.requireServerById(serverId)
+    const auth = this.mcpOAuthManager.getStatus(serverName, config)
+    const client = this.serverManager.getClient(serverName)
+    if (client) {
+      return client.getDiagnostics(auth)
+    }
+
+    let authorizationExtensions: string[] = []
+    try {
+      authorizationExtensions = this.mcpOAuthManager.getUsableAuthorizationExtensions(config)
+    } catch {
+      authorizationExtensions = []
+    }
+    return {
+      serverId,
+      serverName,
+      owner: config.ownerPluginId ? 'plugin' : 'deepchat',
+      transport: config.type,
+      connectionState: 'stopped',
+      era: 'unknown',
+      probe: { outcome: 'not-run' },
+      extensions: [],
+      clientExtensions: [
+        { id: 'io.modelcontextprotocol/ui' },
+        ...authorizationExtensions.map((id) => ({
+          id,
+          ...(id === AUTH_EXTENSION_CLIENT_CREDENTIALS
+            ? { revision: MCP_CLIENT_CREDENTIALS_DRAFT_REVISION }
+            : {})
+        }))
+      ],
+      cacheState: 'unknown',
+      subscriptions: [],
+      auth: {
+        state: auth.state,
+        persistent: auth.persistent,
+        mode: auth.mode
+      },
+      updatedAt: Date.now()
+    }
   }
 
   async getAllToolDefinitions(
@@ -955,6 +1209,7 @@ export class McpService implements McpServicePort {
       agentId?: string
       enabledServerIds?: string[]
       runId?: string
+      expectedTarget?: McpExpectedToolTarget
     }
   ): Promise<{ content: string; rawData: MCPToolResponse }> {
     const toolCallResult = await this.toolManager.callTool(request, options)
@@ -1021,40 +1276,11 @@ export class McpService implements McpServicePort {
     return await this.toolManager.checkPluginRuntimePermissions(serverName)
   }
 
-  /**
-   * Pre-check tool permissions without executing the tool
-   * Delegates to ToolManager for the actual permission check
-   */
-  async preCheckToolPermission(
-    request: MCPToolCall,
-    options?: {
-      signal?: AbortSignal
-      agentId?: string
-      enabledServerIds?: string[]
-    }
-  ): Promise<{
-    needsPermission: true
-    toolName: string
-    serverName: string
-    permissionType: 'read' | 'write' | 'all' | 'command'
-    description: string
-    command?: string
-    commandSignature?: string
-    commandInfo?: {
-      command: string
-      riskLevel: 'low' | 'medium' | 'high' | 'critical'
-      suggestion: string
-      signature?: string
-      baseCommand?: string
-    }
-  } | null> {
-    return await this.toolManager.preCheckToolPermission(request, options)
-  }
-
   async handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision> {
     if (!request || !request.requestId) {
       throw new Error('Invalid sampling request: missing requestId')
     }
+    this.assertInteractionCapacity(request.requestId, 'sampling')
 
     return new Promise<McpSamplingDecision>((resolve, reject) => {
       try {
@@ -1110,6 +1336,83 @@ export class McpService implements McpServicePort {
       reason: reason ?? 'cancelled',
       version: Date.now()
     })
+  }
+
+  async handleElicitationRequest(
+    request: McpElicitationRequestPayload
+  ): Promise<McpElicitationDecision> {
+    if (!request?.requestId) {
+      throw new Error('Invalid elicitation request: missing requestId')
+    }
+    this.assertInteractionCapacity(request.requestId, 'elicitation')
+
+    return new Promise<McpElicitationDecision>((resolve, reject) => {
+      this.pendingElicitationRequests.set(request.requestId, { resolve, reject })
+      try {
+        this.publishEvent('mcp.elicitation.request', {
+          request,
+          version: Date.now()
+        })
+      } catch (error) {
+        this.pendingElicitationRequests.delete(request.requestId)
+        reject(error instanceof Error ? error : new Error(String(error)))
+      }
+    })
+  }
+
+  async submitElicitationDecision(decision: McpElicitationDecision): Promise<void> {
+    if (!decision?.requestId) {
+      throw new Error('Invalid elicitation decision: missing requestId')
+    }
+
+    const pending = this.pendingElicitationRequests.get(decision.requestId)
+    if (!pending) {
+      console.warn(
+        `[MCP] Elicitation request ${decision.requestId} not found when submitting decision`
+      )
+      return
+    }
+
+    this.pendingElicitationRequests.delete(decision.requestId)
+    pending.resolve(decision)
+    this.publishEvent('mcp.elicitation.decision', {
+      decision,
+      version: Date.now()
+    })
+  }
+
+  async cancelElicitationRequest(requestId: string, reason?: string): Promise<void> {
+    if (!requestId) {
+      return
+    }
+
+    const pending = this.pendingElicitationRequests.get(requestId)
+    if (!pending) {
+      return
+    }
+
+    this.pendingElicitationRequests.delete(requestId)
+    pending.reject(new Error(reason ?? 'Elicitation request cancelled'))
+    this.publishEvent('mcp.elicitation.cancelled', {
+      requestId,
+      reason: reason ?? 'cancelled',
+      version: Date.now()
+    })
+  }
+
+  private assertInteractionCapacity(requestId: string, kind: 'sampling' | 'elicitation'): void {
+    if (
+      this.pendingSamplingRequests.has(requestId) ||
+      this.pendingElicitationRequests.has(requestId)
+    ) {
+      throw new Error(`Duplicate MCP interaction request: ${requestId}`)
+    }
+    if (
+      this.pendingSamplingRequests.size + this.pendingElicitationRequests.size >=
+      MCP_MAX_PENDING_INTERACTIONS
+    ) {
+      throw new Error(`Too many pending MCP ${kind} requests`)
+    }
   }
 
   // Get MCP enabled status
@@ -1213,37 +1516,6 @@ export class McpService implements McpServicePort {
 
     // Pass client information and resource URI to toolManager
     return this.toolManager.readResourceByClient(resource.client.name, resource.uri)
-  }
-
-  async grantPermission(
-    serverName: string,
-    permissionType: 'read' | 'write' | 'all',
-    remember: boolean = false,
-    conversationId?: string,
-    toolName?: string
-  ): Promise<void> {
-    try {
-      logger.info(
-        `[MCP] Granting ${permissionType} permission for server: ${serverName}, remember: ${remember}, conversationId: ${conversationId}`
-      )
-      await this.toolManager.grantPermission(
-        serverName,
-        permissionType,
-        remember,
-        conversationId,
-        toolName
-      )
-      logger.info(
-        `[MCP] Successfully granted ${permissionType} permission for server: ${serverName}`
-      )
-    } catch (error) {
-      console.error(`[MCP] Failed to grant permission for server ${serverName}:`, error)
-      throw error
-    }
-  }
-
-  clearSessionPermissions(conversationId: string): void {
-    this.toolManager.clearSessionPermissions(conversationId)
   }
 
   async getNpmRegistryStatus(): Promise<{

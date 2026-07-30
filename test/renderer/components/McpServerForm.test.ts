@@ -47,7 +47,7 @@ const checkboxStub = defineComponent({
 })
 
 describe('McpServerForm', () => {
-  it('renders editable auto approve checkboxes and submits selected permissions', async () => {
+  it('does not expose or submit the removed MCP auto-approve policy', async () => {
     vi.resetModules()
 
     vi.doMock('@api/DeviceClient', () => ({
@@ -96,8 +96,7 @@ describe('McpServerForm', () => {
           env: {},
           descriptions: 'Test server',
           icons: 'folder',
-          enabled: true,
-          autoApprove: []
+          enabled: true
         }
       },
       global: {
@@ -118,16 +117,11 @@ describe('McpServerForm', () => {
     })
 
     const checkboxes = wrapper.findAll('[data-testid="checkbox"]')
-    expect(checkboxes).toHaveLength(3)
-
-    await checkboxes[1].trigger('click')
-    await checkboxes[2].trigger('click')
+    expect(checkboxes).toHaveLength(0)
     await wrapper.find('form').trigger('submit')
 
     const submitEvent = wrapper.emitted('submit')?.[0]
     expect(submitEvent?.[0]).toBe('test-server')
-    expect(submitEvent?.[1]).toMatchObject({
-      autoApprove: ['read', 'write']
-    })
+    expect(submitEvent?.[1]).not.toHaveProperty('autoApprove')
   })
 })

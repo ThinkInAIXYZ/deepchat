@@ -78,11 +78,6 @@
     "iconPlaceholder": "Symbol eingeben",
     "icons": "Symbole",
     "iconsPlaceholder": "Symbol eingeben",
-    "autoApprove": "Automatisch autorisieren",
-    "autoApproveAll": "Alle",
-    "autoApproveRead": "Lesen",
-    "autoApproveWrite": "Schreiben",
-    "autoApproveHelp": "Wählen Sie die Vorgangstypen aus, die ohne Benutzerbestätigung automatisch autorisiert werden",
     "submit": "Absenden",
     "add": "Hinzufügen",
     "update": "Aktualisieren",
@@ -305,5 +300,51 @@
     "autoApproveIn": "Automatische Freigabe mit {model} in {seconds} Sekunden",
     "reviewRequest": "Details ansehen",
     "sessionActive": "Sitzung aktiv - Anfrage wird automatisch genehmigt"
+  },
+  "elicitation": {
+    "title": "MCP input request",
+    "accept": "Submit",
+    "decline": "Decline",
+    "noFields": "This request has no form fields.",
+    "openLink": "Open secure link",
+    "selectValue": "Select a value",
+    "error": {
+      "required": "This field is required.",
+      "number": "Enter a valid number.",
+      "integer": "Enter a whole number.",
+      "boolean": "Choose a valid true or false value.",
+      "range": "The value is outside the allowed range.",
+      "selection": "Choose a valid option.",
+      "length": "The text length is outside the allowed range.",
+      "format": "Enter a value in the requested format."
+    }
+  },
+  "apps": {
+    "title": "MCP App",
+    "interactiveContent": "Interactive content from an MCP server",
+    "loadError": "Unable to load this MCP App.",
+    "retry": "Retry",
+    "fullscreen": "Open fullscreen",
+    "pictureInPicture": "Open picture in picture",
+    "returnInline": "Return inline",
+    "securityDetails": "Security details",
+    "allowedOrigins": "Declared network origins",
+    "requestedPermissions": "Requested device permissions",
+    "noneDeclared": "None declared",
+    "advisoryDomain": "Advisory domain",
+    "toolAccessSuspended": "Tool access is suspended after a denied request.",
+    "retryAccess": "Retry access",
+    "permissions": {
+      "camera": "Camera",
+      "microphone": "Microphone",
+      "geolocation": "Location",
+      "clipboardWrite": "Clipboard write"
+    },
+    "consent": {
+      "title": "MCP App request",
+      "description": "Review this action requested by interactive MCP content.",
+      "allowOnce": "Allow once",
+      "deny": "Deny"
+    }
   }
 }

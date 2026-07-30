@@ -3,14 +3,7 @@ import { jsonSchema, tool, type ToolSet } from 'ai'
 
 type JsonSchema = Record<string, unknown>
 const UNSAFE_TOOL_NAMES = new Set(['__proto__', 'constructor', 'prototype'])
-const ROOT_SCHEMA_KEYS_TO_DROP = new Set([
-  'anyOf',
-  'oneOf',
-  'allOf',
-  '$schema',
-  '$defs',
-  'definitions'
-])
+const ROOT_SCHEMA_KEYS_TO_DROP = new Set(['anyOf', 'oneOf', 'allOf', '$schema'])
 
 function isObjectSchema(value: unknown): value is JsonSchema {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -137,6 +130,29 @@ function mergeRootAndVariantProperties(
   return Object.keys(merged).length > 0 ? merged : undefined
 }
 
+function mergeDefinitionMaps(
+  rootDefinitions: unknown,
+  variants: JsonSchema[],
+  key: '$defs' | 'definitions'
+): Record<string, unknown> | undefined {
+  const merged: Record<string, unknown> = Object.create(null)
+  const definitionMaps = [
+    isObjectSchema(rootDefinitions) ? rootDefinitions : undefined,
+    ...variants.map((variant) => (isObjectSchema(variant[key]) ? variant[key] : undefined))
+  ].filter((value): value is Record<string, unknown> => Boolean(value))
+
+  for (const definitionMap of definitionMaps) {
+    for (const [name, definition] of Object.entries(definitionMap)) {
+      if (UNSAFE_TOOL_NAMES.has(name)) {
+        continue
+      }
+      merged[name] = name in merged ? mergePropertySchemas(merged[name], definition) : definition
+    }
+  }
+
+  return Object.keys(merged).length > 0 ? merged : undefined
+}
+
 function normalizeSchemaNode(node: unknown): unknown {
   if (Array.isArray(node)) {
     return node.map((item) => normalizeSchemaNode(item))
@@ -181,11 +197,15 @@ export function normalizeToolInputSchema(schema: Record<string, unknown>): Recor
     const branchRequired =
       branchKey === 'allOf' ? unionRequiredKeys(variants) : intersectRequiredKeys(variants)
     const required = mergeRequiredKeys(collectRequiredKeys(normalized), branchRequired)
+    const definitions = mergeDefinitionMaps(normalized.definitions, variants, 'definitions')
+    const defs = mergeDefinitionMaps(normalized.$defs, variants, '$defs')
 
     return {
       ...sanitizedRest,
       type: 'object',
       properties: mergeRootAndVariantProperties(normalized.properties, variants) ?? {},
+      ...(definitions ? { definitions } : {}),
+      ...(defs ? { $defs: defs } : {}),
       ...(required ? { required } : {}),
       ...(variants.every((variant) => variant.additionalProperties === false)
         ? { additionalProperties: false }
@@ -206,6 +226,8 @@ export function normalizeToolInputSchema(schema: Record<string, unknown>): Recor
     return {
       type: 'object',
       properties: isObjectSchema(normalized.properties) ? normalized.properties : {},
+      ...(isObjectSchema(normalized.definitions) ? { definitions: normalized.definitions } : {}),
+      ...(isObjectSchema(normalized.$defs) ? { $defs: normalized.$defs } : {}),
       ...(required?.length ? { required } : {}),
       ...(additionalProperties !== undefined ? { additionalProperties } : {})
     }
@@ -224,7 +246,11 @@ export function mcpToolsToAISDKTools(tools: MCPToolDefinition[]): ToolSet {
 
       acc[name] = tool({
         description: toolDef.function.description,
-        inputSchema: jsonSchema(normalizeToolInputSchema(toolDef.function.parameters as JsonSchema))
+        inputSchema: jsonSchema(
+          normalizeToolInputSchema(
+            (toolDef.raw?.inputSchema ?? toolDef.function.parameters) as JsonSchema
+          )
+        )
       })
 
       return acc

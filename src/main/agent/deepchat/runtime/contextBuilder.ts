@@ -40,6 +40,41 @@ const KNOWN_ERROR_REASON_TEXT: Record<string, string> = {
   'common.error.noModelResponse': 'Model did not return any content, it may have timed out'
 }
 
+export function formatApprovedMcpAppModelContext(block: AssistantMessageBlock): string {
+  const modelContext = block.tool_call?.mcpResult?.modelContext
+  if (!modelContext?.approvedHash) {
+    return ''
+  }
+  const sections: string[] = []
+  for (const item of modelContext.content ?? []) {
+    switch (item.type) {
+      case 'text':
+        sections.push(item.text)
+        break
+      case 'resource':
+        sections.push(
+          'text' in item.resource && item.resource.text
+            ? item.resource.text
+            : `[Resource: ${item.resource.uri}]`
+        )
+        break
+      case 'resource_link':
+        sections.push(`[Resource: ${item.name}] ${item.uri}`)
+        break
+      case 'image':
+        sections.push(`[Image: ${item.mimeType}]`)
+        break
+      case 'audio':
+        sections.push(`[Audio: ${item.mimeType}]`)
+        break
+    }
+  }
+  if (modelContext.structuredContent) {
+    sections.push(JSON.stringify(modelContext.structuredContent))
+  }
+  return sections.filter(Boolean).join('\n\n')
+}
+
 export type ContextBuildOptions = {
   summaryCursorOrderSeq?: number
   historyRecords?: ChatMessageRecord[]
@@ -990,10 +1025,17 @@ export function recordToChatMessages(
 
   const result: ChatMessage[] = [assistantMessage]
   for (const block of toolCallBlocks) {
+    const approvedAppContext = formatApprovedMcpAppModelContext(block)
+    const toolContent = [
+      block.tool_call!.response || '',
+      approvedAppContext ? `[MCP App approved context]\n${approvedAppContext}` : ''
+    ]
+      .filter(Boolean)
+      .join('\n\n')
     result.push({
       role: 'tool',
       tool_call_id: block.tool_call!.id,
-      content: block.tool_call!.response || ''
+      content: toolContent
     })
   }
   if (errorSummary) {

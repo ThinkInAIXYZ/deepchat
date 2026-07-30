@@ -4,7 +4,7 @@ import {
   type AgentPlanDisplayItem,
   type AgentPlanTerminalReason
 } from '@shared/types/agent-plan'
-import type { ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { PersistedMcpToolResult, ToolCallImagePreview } from '@shared/types/core/mcp'
 
 export type DisplayMessageUsage = {
   context_usage: number
@@ -167,6 +167,7 @@ export type DisplayAssistantMessageBlock = {
     server_name?: string
     server_icons?: string
     server_description?: string
+    mcpResult?: PersistedMcpToolResult
   }
   action_type?:
     | 'tool_call_permission'

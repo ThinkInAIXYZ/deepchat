@@ -1,12 +1,15 @@
 # Remove MCP Permission System
 
+Status: implemented and repository-validated on branch `codex/mcp-v2-ecosystem`.
+
 ## User Need
 
 DeepChat should have one permission owner for tool execution: the agent/session permission system.
 MCP should provide transports, tool discovery, tool execution, authentication, and server selection,
 but it should not maintain a second permission layer.
 
-Today MCP stores and checks per-server `autoApprove` permissions. That creates duplicated policy:
+The removed design stored and checked per-server `autoApprove` permissions. That created duplicated
+policy:
 
 - agent/session permission mode decides whether a tool action needs review;
 - MCP `autoApprove` can independently bypass or request permission;
@@ -17,11 +20,10 @@ Today MCP stores and checks per-server `autoApprove` permissions. That creates d
 Remove MCP-specific permission handling so MCP does no extra approval, denial, or auto-approval
 processing. After upgrade, historical MCP permission settings are cleared or ignored.
 
-This removal requires one main-process, source-aware `ToolPermissionBroker`. The current
-`SessionPermissionPort` exposes approval mutation but not a complete evaluate/request/wait/cancel
-flow, and current MCP composition still calls `mcpService.grantPermission`. Simply deleting
-`ToolManager` checks would leave MCP App calls, which may happen outside an active model turn,
-without an executable consent boundary.
+The implementation uses one main-process, source-aware `ToolPermissionBroker`.
+`SessionPermissionPort` delegates MCP decisions into that broker, and MCP composition contains no
+`mcpService.grantPermission` path. MCP App calls can occur outside an active model turn, so they
+enter the same broker with an App-bound request instead of relying on `ToolManager`.
 
 The broker is the only entry point for host-owned tool consent. It receives immutable execution
 context:

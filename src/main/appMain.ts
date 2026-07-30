@@ -3,6 +3,7 @@ import { app, dialog } from 'electron'
 import { StartupWorkloadCoordinator } from './app/startupWorkloadCoordinator'
 import log from 'electron-log'
 import { registerWorkspacePreviewSchemes } from './workspace/workspacePreviewProtocol'
+import { registerMcpAppScheme } from './mcp/apps/sandboxProtocol'
 import {
   findDeepLinkArg,
   findStartupDeepLink,
@@ -39,6 +40,7 @@ export function startApp(): void {
   }
 
   registerWorkspacePreviewSchemes()
+  registerMcpAppScheme()
 
   let mainProcess: MainProcessControl | undefined
   let allowQuit = false

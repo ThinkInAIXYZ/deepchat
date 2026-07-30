@@ -1550,6 +1550,8 @@ function createRuntime() {
   })
   const mcpRoutes = createMcpRoutes({
     mcpService,
+    mcpAppHost: {} as any,
+    isSettingsWindow: () => true,
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
   const remoteRoutes = createRemoteRoutes(remoteService)

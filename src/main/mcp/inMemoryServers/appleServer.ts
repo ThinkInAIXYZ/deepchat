@@ -1,8 +1,7 @@
 import logger from '@shared/logger'
+import { Server, Transport } from '@modelcontextprotocol/server'
+
 // https://github.com/supermemoryai/apple-mcp
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { z } from 'zod'
 import { runAppleScript } from 'run-applescript'
@@ -1205,7 +1204,7 @@ export class AppleServer {
 
   private setupRequestHandlers(): void {
     // 注册工具列表处理器
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    this.server.setRequestHandler('tools/list', async () => ({
       tools: [
         {
           name: 'calendar',
@@ -1279,7 +1278,7 @@ export class AppleServer {
     }))
 
     // 注册工具调用处理器
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request) => {
       const { name, arguments: args } = request.params
 
       try {

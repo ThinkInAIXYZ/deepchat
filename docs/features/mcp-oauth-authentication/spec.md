@@ -1,32 +1,29 @@
 # MCP And Codex OAuth Loopback Authentication
 
+Status: implemented and repository-validated; external browser interoperability remains pending.
+
 ## User Need
 
-DeepChat can add Streamable HTTP MCP servers today, but OAuth-protected servers fail during
-startup and only surface as connection errors. A user who adds a server such as
-`https://mcp.linear.app/mcp` needs a visible authentication action on the MCP server card, then a
-browser authorization flow, then a local callback page that says:
+OAuth-protected Streamable HTTP servers expose a visible authentication action on the MCP server
+card, a system-browser authorization flow, and a local callback page that says:
 
 `Authentication complete. You can return to DeepChat. If DeepChat does not update, copy the full URL from your browser and paste it into DeepChat.`
 
-OpenAI Codex sign-in currently uses an embedded Electron browser window. That breaks for providers
-such as Google login that reject or degrade embedded browser auth. Codex sign-in should use the same
-external-browser + loopback-callback pattern, with a fallback that lets the user paste the full
-callback URL back into DeepChat for parsing if the browser could not reach the local listener.
+OpenAI Codex sign-in uses the same external-browser + loopback-callback pattern, with a fallback
+that lets the user paste the full callback URL back into DeepChat if the browser could not reach the
+local listener.
 
-## Current Evidence
+## Implemented Evidence
 
-- DeepChat already creates `StreamableHTTPClientTransport` in
-  `src/main/mcp/mcpClient.ts`, but its current `SimpleOAuthProvider` only wraps
-  an existing `Authorization: Bearer ...` header.
-- DeepChat already has reusable local auth pieces:
-  - PKCE/state helpers in `src/main/provider/auth/openaiCodex/pkce.ts`.
-  - Safe token persistence pattern in `src/main/provider/auth/openaiCodex/credentialStore.ts`.
-  - Existing OpenAI Codex OAuth status/routes/events in `src/main/provider/auth/openaiCodex/`,
-    `src/shared/contracts/routes/oauth.routes.ts`, and
-    `src/shared/contracts/events/oauth.events.ts`.
-  - Loopback callback validation and completion HTML pattern in
-    `src/main/remote/index.ts`.
+- `McpClient` creates the v2 Streamable HTTP transport with the selected runtime authorization
+  provider; a configured static `Authorization` header retains precedence.
+- `McpOAuthManager`, `McpOAuthProvider`, and `McpOAuthCredentialStore` own v2 discovery, native
+  client metadata, PKCE/state, issuer validation, callback lifecycle, refresh, exact server
+  binding, encrypted persistence, and memory-only fallback.
+- MCP and OpenAI Codex share the bounded loopback callback helper while retaining separate
+  credential domains.
+- Typed routes/events and the server card expose secret-free authentication state and explicit
+  start/complete/logout actions.
 - On 2026-07-03, `https://mcp.linear.app/mcp` returned `401` with
   `WWW-Authenticate: Bearer ... resource_metadata="https://mcp.linear.app/.well-known/oauth-protected-resource/mcp"`.
 - Linear protected resource metadata returned:
@@ -49,10 +46,8 @@ callback URL back into DeepChat for parsing if the browser could not reach the l
   https://linear.app/integrations/codex-mcp
 - OpenCode MCP OAuth docs:
   https://opencode.ai/docs/mcp-servers/
-- MCP TypeScript SDK OAuth client interfaces:
-  `node_modules/@modelcontextprotocol/sdk/dist/esm/client/auth.d.ts`
-- MCP TypeScript SDK Streamable HTTP auth behavior:
-  `node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.d.ts`
+- MCP TypeScript SDK v2 client:
+  https://github.com/modelcontextprotocol/typescript-sdk
 
 ## Goals
 
@@ -114,6 +109,9 @@ callback URL back into DeepChat for parsing if the browser could not reach the l
 - Credentials are bound to immutable local server ID/config generation/binding hash, protected
   resource, authorization issuer, and server endpoint. A credential discovered for one binding or
   issuer is never offered to another.
+- Protected-resource/authorization-server discovery is written back to the host-owned server
+  configuration before a credential becomes reusable. Runtime reuse performs live discovery and
+  rejects or clears a record whose issuer/resource no longer matches.
 - Client metadata identifies DeepChat as a native application. Client ID Metadata Documents are
   preferred; Dynamic Client Registration remains a legacy fallback only when the authorization
   server requires it.

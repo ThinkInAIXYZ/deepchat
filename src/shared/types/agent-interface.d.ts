@@ -1,7 +1,7 @@
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db'
 import type { ImageGenerationOptions } from '../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../videoGenerationSettings'
-import type { ToolCallImagePreview } from './core/mcp'
+import type { PersistedMcpToolResult, ToolCallImagePreview } from './core/mcp'
 import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './agent-plan'
 import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
 import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from './tape-replay'
@@ -293,6 +293,7 @@ export interface ToolCallBlockData {
   server_name?: string
   server_icons?: string
   server_description?: string
+  mcpResult?: PersistedMcpToolResult
 }
 
 export interface QuestionOption {

@@ -1,6 +1,9 @@
 # Plan
 
-## Current Owners
+Status: implemented and repository-validated; this document maps the ownership and migration
+boundaries.
+
+## Removed Owners
 
 - MCP runtime permission checks: `src/main/mcp/toolManager.ts`
 - MCP server config defaults and normalization: `src/main/mcp/settings.ts`
@@ -10,9 +13,8 @@
 - Plugin MCP manifest mapping: `src/main/plugin/index.ts`
 - MCP server form UI: `src/renderer/src/components/mcp-config/McpServerForm.vue`
 - Public MCP config type: `src/shared/types/mcp.ts`
-- Agent/session permission port: currently provides approval mutation but no complete asynchronous
-  permission request lifecycle.
-- Main composition: still resolves MCP permission UI through `mcpService.grantPermission`.
+- Agent/session approval mutation without a complete asynchronous request lifecycle.
+- Main composition through `mcpService.grantPermission`.
 - Existing tests: MCP form, config import, tool manager, plugin service, deeplink service, sync import.
 
 ## Target Behavior

@@ -1,6 +1,7 @@
 # MCP v2 Ecosystem Manual Verification
 
-Status: planned manual runbook. Research snapshot: 2026-07-29.
+Status: ready for human execution; no external case has been claimed as run. Research snapshot:
+2026-07-29.
 
 ## Purpose
 
@@ -119,7 +120,7 @@ Use a unique port per concurrently running story. The examples below assume `310
 | `L-MRTR` | SDK `mrtr` | Modern; stdio and HTTP | Multi-round form and URL input, opaque signed `requestState` |
 | `L-CACHE` | SDK `caching` | Modern; stdio and HTTP | TTL, scope, refresh, and server-side counters |
 | `L-SUB` | SDK `subscriptions` | Modern; stdio and HTTP | `subscriptions/listen` and list-change updates |
-| `L-STREAM` | SDK `streaming` | Dual; stdio and HTTP | Progress, logs, cancellation, final structured result |
+| `L-STREAM` | SDK `streaming` | Dual; stdio and HTTP | Cancellation and final structured result; progress is observed only if exposed by the host |
 | `L-OAUTH` | SDK `oauth` | Dual; HTTP | External-browser authorization code + PKCE |
 | `L-M2M` | SDK `oauth-client-credentials` | Dual; HTTP | `client_credentials` without a browser |
 | `L-BEARER` | SDK `bearer-auth` | Dual; HTTP | Observable unauthenticated `401` classification |
@@ -346,18 +347,20 @@ Server: `L-SUB`.
 5. Call `flip_tools` again and confirm `farewell` disappears without reconnecting.
 6. Repeat once after a DeepChat restart to ensure only one active subscription exists.
 
-### `MV-STREAM-01`: Progress, Cancellation, And Finalization
+### `MV-STREAM-01`: Cancellation And Finalization
 
 Server: `L-STREAM`.
 
 1. Call `countdown` with `{ "n": 20, "delayMs": 250 }`.
-2. Confirm progress advances and request-tied log messages appear only in redacted diagnostics.
-3. Cancel before completion.
-4. Confirm exactly one terminal result is shown and its structured content has
-   `cancelled: true`, `total: 20`, and `completed < 20`.
-5. Run `{ "n": 3, "delayMs": 50 }` without cancellation.
-6. Confirm one successful terminal result with
+2. Cancel before completion.
+3. Confirm the original SDK request stops, exactly one terminal cancelled/error presentation is
+   shown, and no second tool call or stale pending block appears.
+4. Run `{ "n": 3, "delayMs": 50 }` without cancellation.
+5. Confirm one successful terminal result with
    `{ "completed": 3, "total": 3, "cancelled": false }`.
+
+DeepChat does not add a Logging UI in this migration. Record progress only when the packaged host
+actually exposes it; lack of a progress visualization is not a failure for this case.
 
 ## MCP Apps Cases
 
@@ -378,7 +381,9 @@ args:
    lifecycle event.
 3. Exercise text, image, audio, resource, resource-link, mixed, multiple-block,
    `structuredContent`, `_meta`, delayed, and `isError` result variants.
-4. Enter a large input gradually and confirm partial input updates are bounded and coalesced.
+4. Use the largest valid completed input offered by the example and confirm it is delivered exactly
+   once after initialization. DeepChat does not advertise partial-input delivery for persisted
+   completed tool blocks.
 5. Exercise theme, locale, resize, host context, and every display mode DeepChat advertises.
 6. Move inline to fullscreen to renderer PiP and back; confirm the same DOM/bridge instance and App
    state survive.
@@ -501,7 +506,8 @@ scopes: mcp:tools mcp:read
 1. Connect and confirm no browser opens.
 2. Call `whoami` and confirm client ID `demo-m2m-client` and scope `mcp:tools`.
 3. Replace the secret with an incorrect value.
-4. Confirm a structured `credentials-invalid` state and no legacy-wire fallback.
+4. Confirm a structured authorization error with secret-free credential status and no legacy-wire
+   fallback.
 5. Restore the secret and confirm a new token is acquired and the tool succeeds.
 6. Restart DeepChat and confirm no secret appears in config, renderer state, diagnostics, or logs.
 
@@ -593,8 +599,12 @@ The public deployment is broad coverage, not a pinned release gate.
 4. Change the same server record's command/arguments to `A-DEBUG`.
 5. Confirm generation/binding changes, the old App descriptor stays inert, and no old credential,
    permission grant, cache entry, or result is transferred.
-6. Restore the original `A-BUDGET` configuration as a new server record with the same display name.
-7. Confirm display-name collision does not rebind the old descriptor.
+6. Repeat with an App tool consent request open; re-point or disable the server before approving
+   and confirm the request is denied/revoked and neither the old nor new server receives the call.
+7. Repeat with a model-originated tool permission request open; re-point the server before approval
+   and confirm final dispatch cancels because the authorized immutable target changed.
+8. Restore the original `A-BUDGET` configuration as a new server record with the same display name.
+9. Confirm display-name collision does not rebind the old descriptor.
 
 ### `MV-NEGATIVE-01`: Failure Classification
 
@@ -655,7 +665,7 @@ or claim MCP Tasks support.
 Run all pinned local core cases on macOS, Windows, and Linux packaged builds. For Apps:
 
 - run `MV-APP-01`, `MV-APP-02`, `MV-APP-03`, and `MV-SECURITY-01` on every supported platform;
-- run display mode, focus, keyboard, reduced-motion, theme, permission, CSP, and preload checks in
+- run display mode, focus, keyboard, theme, permission, CSP, and preload checks in
   the packaged Electron runtime;
 - verify Windows stdio command invocation and child cleanup without wrapping the command in an
   unreviewed shell;

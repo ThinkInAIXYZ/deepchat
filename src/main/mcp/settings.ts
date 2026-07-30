@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import type { MCPServerConfig } from '@shared/types/mcp'
+import type { MCPServerConfig, McpEnterpriseIdentityProfile } from '@shared/types/mcp'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import ElectronStore from 'electron-store'
 // app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
@@ -9,6 +9,11 @@ import { isBuiltinKnowledgeSupported } from '../knowledge/support'
 import type { StoreLike } from '../config/storeLike'
 import type { McpDatabase } from './data/database'
 import { McpDbStore } from './settingsDbStore'
+import {
+  computeMcpBindingHash,
+  normalizeMcpServerIdentity,
+  sanitizeMcpAuthorizationConfig
+} from './serverIdentity'
 
 // NPM Registry cache interface
 export interface INpmRegistryCache {
@@ -27,6 +32,7 @@ interface IMcpSettings {
   customNpmRegistry?: string // User custom NPM registry
   autoDetectNpmRegistry?: boolean // Whether to enable auto detection
   removedBuiltInServers?: string[] // Track built-in servers removed by user
+  enterpriseIdentityProfiles?: McpEnterpriseIdentityProfile[]
   [key: string]: unknown // Allow arbitrary keys
 }
 export type MCPServerType = 'stdio' | 'sse' | 'inmemory' | 'http'
@@ -70,7 +76,6 @@ const PLATFORM_SPECIFIC_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>
           args: [],
           descriptions: 'DeepChat内置Apple系统集成服务 (仅macOS)',
           icons: '🍎',
-          autoApprove: ['all'],
           type: 'inmemory' as MCPServerType,
           command: 'deepchat/apple-server',
           env: {},
@@ -86,7 +91,6 @@ const PLATFORM_SPECIFIC_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>
         //   args: [],
         //   descriptions: 'DeepChat built-in Windows system integration service (Windows only)',
         //   icons: '🪟',
-        //   autoApprove: ['all'],
         //   type: 'inmemory' as MCPServerType,
         //   command: 'deepchat-inmemory/windows-server',
         //   env: {},
@@ -102,7 +106,6 @@ const PLATFORM_SPECIFIC_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>
         //   args: [],
         //   descriptions: 'DeepChat built-in Linux system integration service (Linux only)',
         //   icons: '🐧',
-        //   autoApprove: ['all'],
         //   type: 'inmemory' as MCPServerType,
         //   command: 'deepchat-inmemory/linux-server',
         //   env: {},
@@ -119,7 +122,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     args: [],
     descriptions: 'DeepChat内置 artifacts mcp服务',
     icons: '🎨',
-    autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'artifacts',
     env: {},
@@ -129,7 +131,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     args: [],
     descriptions: 'DeepChat内置博查搜索服务',
     icons: '🔍',
-    autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'bochaSearch',
     env: {
@@ -141,7 +142,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     args: [],
     descriptions: 'DeepChat内置Brave搜索服务',
     icons: '🦁',
-    autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'braveSearch',
     env: {
@@ -153,7 +153,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     args: [],
     descriptions: 'DeepChat内置Dify知识库检索服务',
     icons: '📚',
-    autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'difyKnowledge',
     env: {
@@ -172,7 +171,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     args: [],
     descriptions: 'DeepChat内置RAGFlow知识库检索服务',
     icons: '📚',
-    autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'ragflowKnowledge',
     env: {
@@ -191,7 +189,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     args: [],
     descriptions: 'DeepChat内置FastGPT知识库检索服务',
     icons: '📚',
-    autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'fastGptKnowledge',
     env: {
@@ -210,7 +207,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     args: [],
     descriptions: 'DeepChat内置知识库检索服务',
     icons: '📚',
-    autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'builtinKnowledge',
     env: {},
@@ -221,7 +217,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     descriptions:
       'DeepChat内置深度研究服务，使用博查搜索(注意该服务需要较长的上下文模型，请勿在短上下文的模型中使用)',
     icons: '🔬',
-    autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'deepchat-inmemory/deep-research-server',
     env: {
@@ -233,7 +228,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     args: [],
     descriptions: 'DeepChat内置自动模板提示词服务',
     icons: '📜',
-    autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'deepchat-inmemory/auto-prompting-server',
     env: {},
@@ -243,7 +237,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     args: [],
     descriptions: 'DeepChat built-in conversation history search service',
     icons: '🔍',
-    autoApprove: ['all'],
     type: 'inmemory' as MCPServerType,
     command: 'deepchat-inmemory/conversation-search-server',
     env: {},
@@ -266,7 +259,6 @@ const DEFAULT_MCP_SERVERS = {
       env: {},
       descriptions: 'Nowledge Mem MCP',
       icons: '🧠',
-      autoApprove: ['all'],
       disable: true,
       type: 'http' as MCPServerType,
       baseUrl: 'http://localhost:14242/mcp',
@@ -363,8 +355,29 @@ export class McpSettings {
     legacyKeysPresent: boolean,
     defaultEnabledServers: Set<string>
   ): MCPServerConfig {
+    const cloned = this.cloneServerConfig(config) as MCPServerConfig & {
+      autoApprove?: unknown
+    }
+    delete cloned.autoApprove
+    cloned.authorization = sanitizeMcpAuthorizationConfig(cloned.authorization)
+
+    const computedBindingHash = computeMcpBindingHash(cloned)
+    const configuredGeneration =
+      typeof cloned.configGeneration === 'number' && cloned.configGeneration > 0
+        ? Math.floor(cloned.configGeneration)
+        : 1
+    const generation =
+      cloned.bindingHash && cloned.bindingHash !== computedBindingHash
+        ? configuredGeneration + 1
+        : configuredGeneration
+
     return {
-      ...this.cloneServerConfig(config),
+      ...cloned,
+      ...normalizeMcpServerIdentity({
+        ...cloned,
+        configGeneration: generation,
+        bindingHash: computedBindingHash
+      }),
       enabled:
         typeof config.enabled === 'boolean'
           ? config.enabled
@@ -449,6 +462,27 @@ export class McpSettings {
     return JSON.parse(JSON.stringify(config)) as MCPServerConfig
   }
 
+  private ensureUniqueServerIdentities(
+    servers: Record<string, MCPServerConfig>
+  ): Record<string, MCPServerConfig> {
+    const seen = new Set<string>()
+    return Object.fromEntries(
+      Object.entries(servers).map(([serverName, config]) => {
+        if (config.serverId && !seen.has(config.serverId)) {
+          seen.add(config.serverId)
+          return [serverName, config]
+        }
+
+        const identity = normalizeMcpServerIdentity({
+          ...config,
+          serverId: undefined
+        })
+        seen.add(identity.serverId)
+        return [serverName, { ...config, ...identity }]
+      })
+    )
+  }
+
   migrateBuiltinKnowledgeConfigsFromEnv(
     existingConfigs: BuiltinKnowledgeConfig[]
   ): BuiltinKnowledgeConfig[] {
@@ -522,17 +556,19 @@ export class McpSettings {
     const defaultEnabledServers = new Set(this.getDefaultEnabledServerNames())
 
     // 检查并补充缺少的inmemory服务
-    const updatedServers = Object.fromEntries(
-      Object.entries(storedServers).map(([name, config]) => [
-        name,
-        this.normalizeServerConfig(
+    const updatedServers = this.ensureUniqueServerIdentities(
+      Object.fromEntries(
+        Object.entries(storedServers).map(([name, config]) => [
           name,
-          config,
-          legacyEnabledServers,
-          legacyKeysPresent,
-          defaultEnabledServers
-        )
-      ])
+          this.normalizeServerConfig(
+            name,
+            config,
+            legacyEnabledServers,
+            legacyKeysPresent,
+            defaultEnabledServers
+          )
+        ])
+      )
     )
     const removedBuiltInServers = new Set(this.getRemovedBuiltInServers())
     let hasChanges =
@@ -549,10 +585,16 @@ export class McpSettings {
       }
       if (!updatedServers[serverName]) {
         logger.info(`Adding missing built-in MCP service: ${serverName}`)
-        updatedServers[serverName] = {
-          ...this.cloneServerConfig(serverConfig as MCPServerConfig),
-          enabled: defaultEnabledServers.has(serverName)
-        }
+        updatedServers[serverName] = this.normalizeServerConfig(
+          serverName,
+          {
+            ...this.cloneServerConfig(serverConfig as MCPServerConfig),
+            enabled: defaultEnabledServers.has(serverName)
+          },
+          new Set(),
+          false,
+          defaultEnabledServers
+        )
         hasChanges = true
       }
     }
@@ -607,7 +649,8 @@ export class McpSettings {
       hasChanges ||
       Object.keys(updatedServers).length !== Object.keys(storedServers).length ||
       Object.entries(updatedServers).some(
-        ([serverName, config]) => storedServers[serverName]?.enabled !== config.enabled
+        ([serverName, config]) =>
+          JSON.stringify(storedServers[serverName]) !== JSON.stringify(config)
       )
     ) {
       this.mcpStore.set('mcpServers', updatedServers)
@@ -620,7 +663,16 @@ export class McpSettings {
 
   // 设置MCP服务器配置
   async setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void> {
-    this.mcpStore.set('mcpServers', servers)
+    const defaultEnabledServers = new Set(this.getDefaultEnabledServerNames())
+    const normalized = this.ensureUniqueServerIdentities(
+      Object.fromEntries(
+        Object.entries(servers).map(([serverName, config]) => [
+          serverName,
+          this.normalizeServerConfig(serverName, config, new Set(), false, defaultEnabledServers)
+        ])
+      )
+    )
+    this.mcpStore.set('mcpServers', normalized)
   }
 
   async getEnabledMcpServers(): Promise<string[]> {
@@ -653,12 +705,31 @@ export class McpSettings {
     return Promise.resolve(this.mcpStore.get('mcpEnabled') ?? DEFAULT_MCP_SERVERS.mcpEnabled)
   }
 
+  getEnterpriseIdentityProfiles(): McpEnterpriseIdentityProfile[] {
+    const profiles = this.mcpStore.get<McpEnterpriseIdentityProfile[]>(
+      'enterpriseIdentityProfiles',
+      []
+    )
+    return Array.isArray(profiles) ? profiles.map((profile) => ({ ...profile })) : []
+  }
+
+  setEnterpriseIdentityProfiles(profiles: McpEnterpriseIdentityProfile[]): void {
+    this.mcpStore.set(
+      'enterpriseIdentityProfiles',
+      profiles.map((profile) => ({ ...profile, scopes: [...profile.scopes] }))
+    )
+  }
+
   // 添加MCP服务器
   async addMcpServer(name: string, config: MCPServerConfig): Promise<boolean> {
     const mcpServers = await this.getMcpServers()
+    const hostOwnedConfig = this.cloneServerConfig(config)
+    delete hostOwnedConfig.serverId
+    delete hostOwnedConfig.configGeneration
+    delete hostOwnedConfig.bindingHash
     mcpServers[name] = this.normalizeServerConfig(
       name,
-      config,
+      hostOwnedConfig,
       new Set<string>(),
       false,
       new Set(this.getDefaultEnabledServerNames())
@@ -766,9 +837,18 @@ export class McpSettings {
     if (!mcpServers[name]) {
       throw new Error(`MCP server ${name} not found`)
     }
+    const current = mcpServers[name]
+    const merged = {
+      ...current,
+      ...config,
+      serverId: current.serverId
+    }
+    const legacyConfig = merged as MCPServerConfig & { autoApprove?: unknown }
+    delete legacyConfig.autoApprove
+    legacyConfig.authorization = sanitizeMcpAuthorizationConfig(legacyConfig.authorization)
     mcpServers[name] = {
-      ...mcpServers[name],
-      ...config
+      ...legacyConfig,
+      ...normalizeMcpServerIdentity(legacyConfig, current)
     }
     await this.setMcpServers(mcpServers)
   }

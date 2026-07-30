@@ -1,6 +1,7 @@
 # MCP v2 Dual-Era Protocol Architecture
 
-Status: planned on 2026-07-29.
+Status: implemented and repository-validated on branch `codex/mcp-v2-ecosystem`; external manual
+interoperability verification remains pending.
 
 ## Decision
 
@@ -42,30 +43,23 @@ Authoritative references:
 - https://ts.sdk.modelcontextprotocol.io/v2/migration/upgrade-to-v2
 - https://ts.sdk.modelcontextprotocol.io/v2/migration/support-2026-07-28
 
-## Current Evidence
+## Implemented State
 
-The current runtime is a stateful v1 client:
-
-- `src/main/mcp/mcpClient.ts` imports the monolithic
-  `@modelcontextprotocol/sdk`, owns `initialize`-era handlers, manual list caches, session recovery,
-  sampling, and transport restarts.
-- `src/main/mcp/index.ts` flattens tool input schemas into `properties` and `required`. This loses
-  arbitrary JSON Schema 2020-12 structure, `$ref`, composition keywords, tool `_meta`, and
-  `x-mcp-header` annotations.
-- `src/main/mcp/toolManager.ts` preserves `structuredContent` while a call is in flight, but the
-  assistant block persistence path stores only the formatted response, image previews, and server
-  display metadata.
-- `src/main/session/data/tables/deepchatAssistantBlocks.ts` has an extensible `extra_json` column,
-  so raw MCP result metadata can be added without a new SQL column.
-- `src/shared/contracts/routes/mcp.routes.ts`,
-  `src/shared/contracts/events/mcp.events.ts`, the preload bridge, and
-  `src/renderer/api/McpClient.ts` already form the typed renderer/main boundary.
-- The current HTTP recovery path infers session failure from error strings. Modern MCP has no
-  `Mcp-Session-Id`, session lifecycle, or SSE resumability.
-- Configured servers are keyed by mutable display name. That is insufficient for persisted Apps,
-  Tasks, and credentials because a name can be renamed or re-pointed.
-- ACP agents receive MCP configuration through ACP and own those MCP connections. They are outside
-  the host-owned runtime migrated here.
+- `src/main/mcp/mcpClient.ts` uses the v2 split client package. External stdio and Streamable HTTP
+  use SDK `auto` negotiation; SSE and DeepChat in-memory pairs use explicit legacy mode.
+- The official v1-to-v2 codemod was run from the repository root. DeepChat-owned main MCP code is
+  guarded from importing the monolithic v1 SDK.
+- Tool input/output schemas, annotations, icons, `_meta`, arbitrary JSON `structuredContent`, and
+  raw bounded results survive discovery, execution, and assistant-block persistence.
+- SDK response caching, discovery, list-change subscriptions, multi-round input, cancellation,
+  sampling, elicitation, and truthful empty roots replace host-owned modern session/cache logic.
+- Every configured server receives an immutable `serverId`, `configGeneration`, and non-secret
+  `bindingHash`. Persisted Apps and credentials require an exact binding.
+- Typed diagnostics expose redacted negotiation, implementation, extension, cache, subscription,
+  ownership, and authorization state.
+- ACP agents continue to own their declared MCP connections and remain outside this runtime.
+- The upstream Tasks gate is blocked; DeepChat advertises no Tasks extension and contains no
+  private transport bypass.
 
 ## Core Changes DeepChat Must Support
 
@@ -146,8 +140,9 @@ interface McpServerIdentity {
 - `bindingHash` is a SHA-256 digest of canonical non-secret identity material: transport kind,
   normalized endpoint or command identity, protected resource, and authorization issuer. It never
   contains credentials, environment values, headers, or tokens.
-- A remote binding is finalized after protected-resource and authorization-server discovery. Until
-  then, state that requires a resumable remote identity is not created.
+- A remote binding is finalized after protected-resource and authorization-server discovery.
+  Pending OAuth state may exist under the provisional binding only for the active flow; it is
+  atomically moved to the finalized host configuration before it becomes reusable.
 - Persisted App, Task, and credential records carry `serverId`, `configGeneration`, and
   `bindingHash`. A mismatch makes an App descriptor inert, pauses a Task, and invalidates a
   credential; it never silently rebinds.
@@ -155,6 +150,11 @@ interface McpServerIdentity {
 Migration assigns IDs transactionally without changing display names or connection behavior.
 Server rename preserves identity. Re-pointing or an identity-bearing auth change increments the
 generation and creates a new binding. Imported records never choose an existing server by name.
+
+Model tool authorization also carries the resolved final name, original MCP name, server ID,
+generation, and binding hash through dispatch. Main rechecks that immutable target and the active
+client after every awaited preparation step; a collision or reconfiguration cancels the call
+instead of executing whichever target currently owns the model-visible name.
 
 ### Schemas, Metadata, And Headers
 
@@ -236,19 +236,20 @@ type McpSubscriptionDiagnostic =
 interface McpServerDiagnostics {
   serverId: string
   serverName: string
-  owner: 'host'
-  transport: 'stdio' | 'streamable-http' | 'sse' | 'in-memory'
+  owner: 'deepchat' | 'plugin'
+  transport: 'stdio' | 'http' | 'sse' | 'inmemory'
   connectionState: 'stopped' | 'starting' | 'running' | 'error'
   era: 'modern' | 'legacy' | 'unknown'
   protocolVersion?: string
-  probe?: {
-    durationMs?: number
+  serverImplementation?: { name: string; version: string }
+  probe: {
     outcome: 'modern' | 'legacy-fallback' | 'failed' | 'not-run'
     reasonCode?: McpProbeReasonCode
   }
   extensions: string[]
-  cacheState: 'active' | 'disabled' | 'unsupported' | 'unknown'
-  subscriptions: McpSubscriptionDiagnostic[]
+  clientExtensions: Array<{ id: string; revision?: string }>
+  cacheState: 'active' | 'unknown'
+  subscriptions: Array<McpSubscriptionDiagnostic | 'modern-listen'>
   auth: {
     state:
       | 'unsupported'
@@ -256,10 +257,9 @@ interface McpServerDiagnostics {
       | 'required'
       | 'authenticating'
       | 'authenticated'
-      | 'credentials-invalid'
       | 'error'
-      | 'unknown'
     persistent?: boolean
+    mode?: McpAuthorizationMode
   }
   updatedAt: number
 }
@@ -282,10 +282,10 @@ diagnostics copies the same redacted object.
 +--------------------------------------------------+
 | MCP Diagnostics                         [Refresh] |
 | Server       Local tools                         |
-| Owner        host                                |
+| Owner        deepchat                            |
 | Transport    stdio                               |
 | Era          modern · 2026-07-28                 |
-| Probe        modern · 34 ms                      |
+| Probe        modern                              |
 | Extensions   io.modelcontextprotocol/ui          |
 | Cache        active                              |
 | Subscriptions tools/list_changed                 |

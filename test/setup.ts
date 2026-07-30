@@ -181,9 +181,28 @@ vi.mock('electron', () => ({
     removeAllListeners: vi.fn(),
     send: vi.fn()
   },
+  protocol: {
+    registerSchemesAsPrivileged: vi.fn(),
+    handle: vi.fn()
+  },
+  session: {
+    defaultSession: {
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn()
+    }
+  },
   shell: {
     openExternal: vi.fn(),
     openPath: vi.fn()
+  },
+  webContents: {
+    fromId: vi.fn(() => null)
+  },
+  safeStorage: {
+    isEncryptionAvailable: vi.fn(() => false),
+    getSelectedStorageBackend: vi.fn(() => 'keychain'),
+    encryptString: vi.fn((value: string) => Buffer.from(value, 'utf-8')),
+    decryptString: vi.fn((value: Buffer) => value.toString('utf-8'))
   }
 }))
 
@@ -222,6 +241,7 @@ vi.mock('fs', () => {
     mkdirSync: vi.fn(),
     mkdtempSync: vi.fn(),
     rmSync: vi.fn(),
+    unlinkSync: vi.fn(),
     readdirSync: vi.fn(),
     renameSync: vi.fn(),
     constants: {

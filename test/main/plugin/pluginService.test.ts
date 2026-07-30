@@ -184,7 +184,6 @@ const createBundledFixture = async (
         transport: 'stdio',
         command: '${runtime.fixture-runtime.command}',
         args: ['mcp'],
-        autoApprove: [],
         ...(startMode === 'onDemand'
           ? {
               startMode,
@@ -971,7 +970,6 @@ describe('PluginService', () => {
           transport: 'stdio',
           command: '${runtime.cua-driver.command}',
           args: ['mcp', '--embedded'],
-          autoApprove: [],
           startMode: 'onDemand',
           surfaces: ['tools'],
           toolCatalog: catalogRelativePath,
@@ -2045,11 +2043,11 @@ describe('PluginService', () => {
     expect(manifest.mcpServers).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'feishu-tools',
-          autoApprove: []
+          id: 'feishu-tools'
         })
       ])
     )
+    expect(manifest.mcpServers[0]).not.toHaveProperty('autoApprove')
   })
 
   it('declares a Feishu plugin skill for MCP tool routing', async () => {

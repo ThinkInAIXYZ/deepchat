@@ -1,12 +1,13 @@
 # MCP Authorization Extensions
 
-Status: planned on 2026-07-29.
+Status: implemented and repository-validated on branch `codex/mcp-v2-ecosystem`; controlled
+external authorization interoperability remains pending.
 
 ## User Need
 
-DeepChat currently supports a static bearer header and interactive OAuth for remote MCP servers.
-That does not cover unattended service credentials or an enterprise identity provider that centrally
-authorizes access to multiple MCP servers.
+Remote MCP authorization must cover static bearer compatibility, interactive OAuth, unattended
+service credentials, and an enterprise identity provider that centrally authorizes access to
+multiple MCP servers.
 
 DeepChat will support three explicit authorization profiles for Streamable HTTP:
 
@@ -40,39 +41,39 @@ client provides
 `ClientCredentialsProvider`, `PrivateKeyJwtProvider`, and `CrossAppAccessProvider`; DeepChat should
 compose those providers rather than reproduce token exchange code.
 
-## Current Evidence
+## Implemented State
 
-- `McpOAuthManager` owns interactive discovery, PKCE, callback state, and token persistence.
-- `McpOAuthProvider` currently uses the v1 SDK interface.
-- The callback parser reads OAuth errors before binding the response to its issuer.
-- Credentials are keyed without authorization issuer and may fall back to plaintext JSON with file
-  mode `0600`.
-- `MCPServerConfig.customHeaders.Authorization` supplies a static bearer token and currently takes
-  precedence over interactive OAuth.
-- DeepChat has no enterprise identity profile or client-credentials provider.
-- Typed MCP routes/events already keep ordinary OAuth secrets out of the renderer.
-
-The existing interactive flow is hardened in
-`docs/features/mcp-oauth-authentication/`; this feature adds the two extension profiles and one
-coherent selection model.
+- `McpOAuthManager` and `McpOAuthProvider` use the v2 client APIs for protected-resource and
+  authorization-server discovery, PKCE, callbacks, refresh, and runtime providers.
+- Callback issuer handling uses the official SDK validator before code or error processing.
+- Interactive registration/tokens and machine/enterprise credentials are discriminated and bound
+  to immutable server generation, binding, endpoint, protected resource, issuer, and client ID.
+- Secure persistence uses a versioned `safeStorage` envelope. Unavailable encryption and Linux
+  `basic_text` are memory-only; legacy plaintext envelopes are removed after bounded migration.
+- Explicit client-secret, private-key JWT, and cross-app-access modes compose the v2 SDK providers.
+- Enterprise OIDC profiles keep IdP credentials separate from each target MCP authorization-server
+  client credential.
+- Typed routes and renderer forms expose only non-secret configuration, status, fingerprints, and
+  write-only secret/key operations.
 
 ## Authorization Modes
 
 ```ts
 type McpAuthorizationMode =
-  | 'auto'
+  | 'none'
   | 'interactive'
-  | 'client-secret'
-  | 'private-key-jwt'
-  | 'enterprise-oidc'
+  | 'client_credentials'
+  | 'private_key_jwt'
+  | 'cross_app_access'
 
 interface McpAuthorizationConfig {
   mode: McpAuthorizationMode
+  protectedResourceUrl?: string
+  authorizationServerIssuer?: string
+  clientMetadataUrl?: string
   clientId?: string
-  issuer?: string
   scopes?: string[]
-  enterpriseProfileId?: string
-  enterpriseResourceClientId?: string
+  identityProfileId?: string
   keyAlgorithm?: 'RS256' | 'ES256'
 }
 ```
@@ -87,8 +88,7 @@ assertion.
 2. An explicitly selected extension mode is used only after its local configuration is complete and
    authorization metadata permits it.
 3. `interactive` always uses the core authorization-code flow.
-4. `auto` uses stored interactive credentials, then discovers the server's supported authorization
-   path. It never silently chooses machine credentials or an enterprise identity.
+4. `none` disables managed authorization. It does not inspect or select another credential class.
 5. A mode mismatch stops with a structured configuration error. It does not fall through to a
    different credential class.
 
@@ -154,7 +154,7 @@ used to obtain a fresh token before expiry. Do not persist short-lived access to
 requires it for a concrete restart contract.
 
 `invalid_client`, issuer changes, scope errors, and key/secret rotation move the server to a
-structured `credentials-invalid` state. No browser opens.
+structured authorization error with a separate secret-free credential status. No browser opens.
 
 Because Client Credentials remains draft, its explicit mode label includes **Draft** and records the
 pinned ext-auth commit in diagnostics. Explicit selection is its user opt-in; no second global flag
@@ -250,16 +250,16 @@ After:
 +------------------------------------------------------+
 | MCP Server                                           |
 | URL         [https://example.com/mcp              ]  |
-| Authorization [Automatic                         v]  |
+| Authorization [Interactive OAuth                 v]  |
 |                                                      |
-| Automatic: interactive OAuth when required           |
+| Uses authorization code + PKCE when required         |
 |                                                      |
 | Advanced headers [collapsed]                         |
 |                                   [Cancel] [Save]    |
 +------------------------------------------------------+
 
 +------------------------------------------------------+
-| Authorization [Private key JWT · Draft           v]  |
+| Authorization [Private key JWT                   v]  |
 | Client ID     [deepchat-prod                       ]  |
 | Issuer        [https://id.example.com             ]  |
 | Scopes        [mcp.read mcp.write                 ]  |
@@ -271,7 +271,7 @@ After:
 +------------------------------------------------------+
 
 +------------------------------------------------------+
-| Authorization [Enterprise OIDC                   v]  |
+| Authorization [Enterprise managed                v]  |
 | Organization  [Acme Identity                     v]  |
 | Status        Signed in as employee@acme.example     |
 |               [Sign out]                             |
