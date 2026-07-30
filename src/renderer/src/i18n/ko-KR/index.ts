@@ -16,6 +16,7 @@ import components from './components.json'
 import about from './about.json'
 import contextMenu from './contextMenu.json'
 import promptSetting from './promptSetting.json'
+import traceDialog from './traceDialog.json'
 import plan from './plan.json'
 
 // 单独的顶层键
@@ -51,6 +52,7 @@ export default {
   about,
   contextMenu,
   promptSetting,
+  traceDialog,
   plan,
   ...others
 }

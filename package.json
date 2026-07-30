@@ -93,8 +93,9 @@
     "smoke:duckdb:vss": "node scripts/smoke-duckdb-vss.js",
     "smoke:light-ocr": "node scripts/smoke-light-ocr.js",
     "smoke:opendal:native": "node scripts/smoke-opendal-native.js",
-    "i18n": "i18n-check -s zh-CN -f i18next --locales src/renderer/src/i18n",
-    "i18n:en": "i18n-check -s en-US -f i18next --locales src/renderer/src/i18n",
+    "i18n": "pnpm run i18n:validate && i18n-check -s zh-CN -f i18next --locales src/renderer/src/i18n",
+    "i18n:en": "pnpm run i18n:validate && i18n-check -s en-US -f i18next --locales src/renderer/src/i18n",
+    "i18n:validate": "node scripts/validate-i18n.mjs",
     "i18n:types": "node scripts/generate-i18n-types.js",
     "cleanRuntime": "rm -rf runtime/uv runtime/node",
     "update-shadcn": "node scripts/update-shadcn.js"
