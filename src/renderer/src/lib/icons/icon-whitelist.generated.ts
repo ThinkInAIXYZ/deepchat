@@ -202,6 +202,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'save',
     'scale',
     'scaling',
+    'scan-eye',
     'scan-line',
     'scan-search',
     'scan-text',
