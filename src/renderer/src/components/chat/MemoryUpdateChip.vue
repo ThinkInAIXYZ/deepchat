@@ -134,7 +134,6 @@ import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Textarea } from '@shadcn/components/ui/textarea'
-import { useToast } from '@/components/use-toast'
 import { useMemoryActivityStore, type MemoryActivityItem } from '@/stores/ui/memoryActivity'
 
 const props = withDefaults(
@@ -147,7 +146,6 @@ const props = withDefaults(
 )
 const memoryActivity = useMemoryActivityStore()
 const { t } = useI18n()
-const { toast } = useToast()
 const open = ref(false)
 const popoverOpen = computed({
   get: () => props.visible && open.value,
@@ -210,21 +208,17 @@ function handleClearChip(): void {
 async function handleUndo(memoryId: string): Promise<void> {
   if (!props.visible) return
   const item = findDisplayItem(memoryId)
-  const ok = canMutateItem(item) ? await memoryActivity.undoCreated(memoryId) : false
-  toast({
-    title: ok ? t('chat.memory.toast.undoSuccess') : t('chat.memory.toast.undoFailed'),
-    variant: ok ? 'default' : 'destructive'
-  })
+  if (canMutateItem(item)) {
+    await memoryActivity.undoCreated(memoryId)
+  }
 }
 
 async function handleForget(memoryId: string): Promise<void> {
   if (!props.visible) return
   const item = findDisplayItem(memoryId)
-  const ok = canMutateItem(item) ? await memoryActivity.forget(memoryId) : false
-  toast({
-    title: ok ? t('chat.memory.toast.forgetSuccess') : t('chat.memory.toast.forgetFailed'),
-    variant: ok ? 'default' : 'destructive'
-  })
+  if (canMutateItem(item)) {
+    await memoryActivity.forget(memoryId)
+  }
 }
 
 async function handleAmend(memoryId: string): Promise<void> {
@@ -238,12 +232,6 @@ async function handleAmend(memoryId: string): Promise<void> {
   if (result) {
     cancelEditing()
   }
-  toast({
-    title: result
-      ? t(`chat.memory.toast.add.${result.action}`)
-      : t('chat.memory.toast.amendFailed'),
-    variant: result ? 'default' : 'destructive'
-  })
 }
 
 function memoryErrorKey(error: string): string {

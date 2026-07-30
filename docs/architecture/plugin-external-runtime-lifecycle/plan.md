@@ -3,7 +3,7 @@
 ## Status
 
 Lifecycle and model-facing CUA compatibility implementation are complete with automated validation.
-The v0.13.1 native cross-platform release gates remain pending.
+The v0.14.1 native cross-platform release gates remain pending.
 
 ## 1. Freeze the contracts
 
@@ -126,6 +126,21 @@ The v0.13.1 native cross-platform release gates remain pending.
   without parsing or synthesizing tokens.
 - Leave normal `start_session.cursor_theme` unset and avoid adding a parameter-policy shim to the
   adapter.
+
+## 12. Upgrade the closed CUA contract to 0.14.1
+
+- Pin `cua-driver-rs-v0.14.1`, its release commit, assets, and SHA-256 values without expanding the
+  supported target matrix.
+- Keep the embedded daemon/proxy protocol contract and 49-tool catalog closed unless native
+  generation proves an intentional upstream change.
+- Preserve raw browser-chrome capture coverage and project only the exact reviewed recovery shape
+  into model-visible content using fixed, bounded identifiers.
+- Document that the signal is a window-scope limitation rather than evidence that a browser prompt
+  exists, and require verified ineffectiveness before desktop escalation.
+- Accept the bundled v2 action-only cursor theme contract while treating separately installed v2
+  themes and retired v1 rejection as native release gates.
+- Keep the optional GNOME Wayland helper outside DeepChat packaging and validate both fresh and
+  manually installed helper states separately.
 
 ## Compatibility and rollback
 

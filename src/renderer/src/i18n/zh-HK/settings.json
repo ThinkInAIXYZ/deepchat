@@ -29,12 +29,12 @@
     "customProxyUrlPlaceholder": "例如: http://127.0.0.1:7890",
     "invalidProxyUrl": "無效的代理地址，請輸入有效的 http/https URL",
     "addCustomSearchEngine": "添加自訂搜尋引擎",
-    "addCustomSearchEngineDesc": "添加一個新的搜尋引擎，需要提供名稱和搜尋URL。URL中必須包含{\"{\"}query{\"}\"}作為查詢佔位符。",
+    "addCustomSearchEngineDesc": "添加一個新的搜尋引擎，需要提供名稱和搜尋URL。URL中必須包含{'{'}query{'}'}作為查詢佔位符。",
     "searchEngineName": "搜尋引擎名稱",
     "searchEngineNamePlaceholder": "請輸入搜尋引擎名稱",
     "searchEngineUrl": "搜尋URL",
-    "searchEngineUrlPlaceholder": "如: https://a.com/search?q={\"{\"}query{\"}\"}",
-    "searchEngineUrlError": "URL必須包含{\"{\"}query{\"}\"}作為查詢占位符",
+    "searchEngineUrlPlaceholder": "如: https://a.com/search?q={'{'}query{'}'}",
+    "searchEngineUrlError": "URL必須包含{'{'}query{'}'}作為查詢占位符",
     "deleteCustomSearchEngine": "刪除自定義搜索引擎",
     "deleteCustomSearchEngineDesc": "確定要刪除自定義搜索引擎 \"{name}\" 嗎？此操作無法撤銷。",
     "testSearchEngine": "測試搜索引擎",
@@ -455,7 +455,7 @@
   "dashboard": {
     "badge": "使用看板",
     "title": "使用看板",
-    "description": "統計 token 消耗、緩存命中與估算價格。token 和費用資料基於公開資訊估算，部分供應商或較早訊息資料可能缺失，僅供參考。",
+    "description": "統計 token 消耗與快取命中。",
     "actions": {
       "refresh": "刷新"
     },
@@ -471,8 +471,8 @@
     },
     "empty": {
       "title": "暫無統計資料",
-      "description": "有使用數據後，這裡會顯示 token 消耗、緩存命中和估算價格。",
-      "historyNote": "token 和費用資料基於公開資訊估算，部分供應商或較早訊息資料可能缺失，僅供參考。"
+      "description": "有使用資料後，這裡會顯示 token 消耗與快取命中。",
+      "historyNote": "部分供應商或較早訊息的使用資料可能缺失，僅供參考。"
     },
     "summary": {
       "totalTokens": "總 Token",
@@ -485,10 +485,6 @@
       "cachedTokensUncachedLabel": "未命中",
       "cacheHitRate": "緩存命中率",
       "cacheHitRateDescription": "緩存 prompt token 佔總輸入 token 的比例。",
-      "estimatedCost": "估算價格",
-      "estimatedCostDescription": "按目前 provider 價格或 AIHubMix 回退價格估算的美元成本。",
-      "estimatedCostTrendLabel": "最近 30 天趨勢",
-      "estimatedCostTrendEmpty": "最近 30 天還沒有成本記錄。",
       "recordingStartedAt": "統計開始時間",
       "recordingStartedAtDescription": "目前看板中最早一條 usage 記錄的時間。",
       "withDeepChatDaysLabel": "陪伴天數",
@@ -518,9 +514,9 @@
     },
     "breakdown": {
       "providerTitle": "供應商排行",
-      "providerDescription": "先按估算價格排序，再按總 token 排序。",
+      "providerDescription": "按總 token 排序。",
       "modelTitle": "模型排行",
-      "modelDescription": "按估算價格和總 token 排序的前 10 個模型。",
+      "modelDescription": "按總 token 排序的前 10 個模型。",
       "messages": "{count} 條消息",
       "empty": "暫時還沒有可展示的明細資料。"
     },
@@ -1296,7 +1292,15 @@
       "seconds": "秒",
       "testConnection": "測試連接",
       "timeout": "超時",
-      "title": "Nowledge Mem 導出配置"
+      "title": "Nowledge Mem 導出配置",
+      "configLoadFailed": "無法載入配置",
+      "configSaved": "配置已保存",
+      "configSaveFailed": "無法保存配置",
+      "configReset": "配置已重置",
+      "configResetFailed": "無法重置配置",
+      "connectionSucceeded": "連接成功",
+      "connectionFailed": "無法使用目前配置建立連接",
+      "invalidBaseUrl": "請輸入不含帳號或查詢參數的 HTTP(S) 地址"
     }
   },
   "mcp": {
@@ -1332,6 +1336,7 @@
       "name": "伺服器名稱",
       "namePlaceholder": "輸入伺服器名稱",
       "nameRequired": "伺服器名稱不能為空",
+      "nameDuplicate": "已存在同名伺服器，請使用其他名稱。",
       "type": "伺服器類型",
       "typePlaceholder": "選擇伺服器類型",
       "typeStdio": "標準輸入輸出(Stdio)",
@@ -1637,7 +1642,7 @@
       "error": "錯誤",
       "invalidAgent": "Agent 不存在或已停用，請重新選擇 Agent。"
     },
-    "runNowSuccess": "定時任務已觸發"
+    "runNowSuccess": "定時任務已完成"
   },
   "about": {
     "title": "關於我們",
@@ -2544,10 +2549,10 @@
       "generatePairCode": "產生",
       "clearPairCode": "清除",
       "pairCodeExpiresAt": "到期時間：{time}",
-      "pairDialogTitle": "Telegram 配對",
-      "pairDialogDescription": "生成配對碼後，請到 Telegram 機器人內完成配對。",
+      "pairDialogTitle": "{channel} 配對",
+      "pairDialogDescription": "生成配對碼後，請到 {channel} 機器人內完成配對。",
       "pairDialogInstruction": "到對應的機器人送出這條指令：",
-      "bindingsDialogTitle": "已綁定會話",
+      "bindingsDialogTitle": "{channel} 已綁定會話",
       "bindingsDialogDescription": "逐條移除遠端入口與 DeepChat 會話的綁定關係。",
       "bindingsEmpty": "目前還沒有已綁定的會話。",
       "pairingSuccessTitle": "配對成功",
@@ -2714,7 +2719,21 @@
       "safe_storage_unavailable": "系統安全金鑰儲存不可用，持久化快取已停用。"
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "變更尚未儲存",
+    "dirtyDescription": "現在離開並放棄這些變更嗎？",
+    "busyTitle": "正在儲存",
+    "busyDescription": "請等待儲存完成後再離開。",
+    "stay": "繼續編輯",
+    "discard": "放棄變更"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "正在儲存…",
+      "saved": "已儲存",
+      "saveFailed": "儲存失敗，變更仍保留",
+      "retry": "重試"
+    },
     "title": "DeepChat 智能體",
     "description": "管理 DeepChat 智能體，以及它們為新會話帶入的預設值。",
     "builtIn": "內建",

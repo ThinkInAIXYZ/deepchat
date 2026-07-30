@@ -17,6 +17,7 @@
     "src/renderer/splash/assets/**/*",
     "src/preload/*.d.ts",
     "src/renderer/api/**/*",
+    "src/renderer/services/**/*",
     "src/shared/**/*",
     "src/shadcn/**/*",
     "src/renderer/settings/**/*",
@@ -35,6 +36,12 @@
       ],
       "@api/*": [
         "./src/renderer/api/*"
+      ],
+      "@renderer-notifications": [
+        "./src/renderer/services/notifications/index.ts"
+      ],
+      "@renderer-notifications/*": [
+        "./src/renderer/services/notifications/*"
       ],
       "@shared/*": [
         "./src/shared/*"

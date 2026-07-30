@@ -1,7 +1,7 @@
 import { ref, type Ref } from 'vue'
 import type { MessageFile } from '@shared/types/agent-interface'
 import { createFileClient } from '@api/FileClient'
-import { useToast } from '@/components/use-toast'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { calculateImageTokens, getClipboardImageInfo, imageFileToBase64 } from '@/lib/image'
 import { approximateTokenSize } from 'tokenx'
 
@@ -22,7 +22,6 @@ export function useChatInputFiles(
   t: (key: string, params?: any) => string
 ) {
   const fileClient = createFileClient()
-  const { toast } = useToast()
   const selectedFiles = ref<MessageFile[]>([])
 
   const getDisplayFileName = (file: File): string => {
@@ -44,13 +43,14 @@ export function useChatInputFiles(
       return
     }
 
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.attachment.processingFailed',
       title: t('chat.input.fileUploadFailed'),
       description: t('chat.input.fileUploadFailedDesc', {
         count: fileNames.length,
         names: formatFailedFileNames(fileNames)
-      }),
-      variant: 'destructive'
+      })
     })
   }
 
@@ -241,19 +241,15 @@ export function useChatInputFiles(
     }
 
     if (addedCount > 0) {
-      toast({
-        title: t('chat.input.promptFilesAdded'),
-        description: t('chat.input.promptFilesAddedDesc', { count: addedCount }),
-        variant: 'default'
-      })
       emitFiles()
     }
 
     if (errorCount > 0) {
-      toast({
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.promptAttachment.addFailed',
         title: t('chat.input.promptFilesError'),
-        description: t('chat.input.promptFilesErrorDesc', { count: errorCount }),
-        variant: 'destructive'
+        description: t('chat.input.promptFilesErrorDesc', { count: errorCount })
       })
     }
   }

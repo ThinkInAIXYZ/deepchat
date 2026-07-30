@@ -44,4 +44,31 @@ describeIfSqlite('McpSettingsTable', () => {
 
     db.close()
   })
+
+  it('atomically updates the Router key and server snapshot', () => {
+    const db = new DatabaseCtor(':memory:')
+    const table = new McpSettingsTableCtor(db)
+    table.createTable()
+    const originalServer = {
+      command: 'node',
+      args: ['server.js'],
+      env: {},
+      type: 'stdio',
+      enabled: true
+    } as MCPServerConfig
+    table.setRouterApiKeyAndServers('old-key', { original: originalServer })
+
+    expect(() =>
+      table.setRouterApiKeyAndServers('new-key', {
+        invalid: {
+          ...originalServer,
+          env: { unsupported: 1n }
+        } as unknown as MCPServerConfig
+      })
+    ).toThrow()
+
+    expect(table.getMcpSetting('mcprouterApiKey')).toBe('old-key')
+    expect(table.listMcpServers()).toEqual({ original: originalServer })
+    db.close()
+  })
 })

@@ -240,7 +240,7 @@ import {
 } from '@shadcn/components/ui/context-menu'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'
-import { useToast } from '@/components/use-toast'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useMemoryActivityStore } from '@/stores/ui/memoryActivity'
 const props = defineProps<{
   message: DisplayAssistantMessage
@@ -257,7 +257,6 @@ const themeStore = useThemeStore()
 const deviceClient = createDeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
-const { toast } = useToast()
 const memoryActivity = useMemoryActivityStore()
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus']
@@ -571,11 +570,12 @@ const handleSelectionRemember = async () => {
     return
   }
   const result = await memoryActivity.rememberSelection(text)
-  toast({
+  notifyRenderer({
+    kind: result ? 'success' : 'error',
+    code: result ? 'chat.memory.remembered' : 'chat.memory.rememberFailed',
     title: result
       ? t(`chat.memory.toast.add.${result.action}`)
-      : t('chat.memory.toast.rememberFailed'),
-    variant: result ? 'default' : 'destructive'
+      : t('chat.memory.toast.rememberFailed')
   })
 }
 

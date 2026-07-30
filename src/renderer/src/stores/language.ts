@@ -6,10 +6,11 @@ import { createConfigClient } from '@api/ConfigClient'
 import { resolveDocumentDirection } from '@/foundation/appearance/documentAppearance'
 import { loadLocaleMessages, resolveSupportedLocale } from '@/i18n'
 import type { RendererLanguageState } from '@/i18n/bootstrap'
+import { resolveRequestedLocale, type RequestedLocale } from '@shared/locales'
 
 export const useLanguageStore = defineStore('language', () => {
   const { locale, setLocaleMessage } = useI18n({ useScope: 'global' })
-  const language = shallowRef<string>('system')
+  const language = shallowRef<RequestedLocale>('system')
   const configClient = createConfigClient()
   const initialLocale = resolveSupportedLocale(locale.value)
   const dir = shallowRef<'auto' | 'rtl' | 'ltr'>(resolveDocumentDirection(initialLocale))
@@ -27,7 +28,7 @@ export const useLanguageStore = defineStore('language', () => {
 
       setLocaleMessage(resolvedLocale, messages)
       locale.value = resolvedLocale
-      language.value = state.requestedLanguage || 'system'
+      language.value = resolveRequestedLocale(state.requestedLanguage || 'system')
       dir.value =
         state.direction === 'rtl' || resolveDocumentDirection(resolvedLocale) === 'rtl'
           ? 'rtl'

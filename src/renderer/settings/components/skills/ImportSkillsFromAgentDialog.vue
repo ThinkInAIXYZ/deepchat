@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { nanoid } from 'nanoid'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
@@ -22,6 +23,9 @@ import {
 } from '@shadcn/components/ui/empty'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
 import { Spinner } from '@shadcn/components/ui/spinner'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import { createSkillClient } from '@api/SkillClient'
 import type {
   AgentSkillImportConflictStrategy,
@@ -30,6 +34,7 @@ import type {
   AgentSkillImportSource,
   AgentSkillImportSourceInfo
 } from '@shared/types/agentSkillImport'
+import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const props = defineProps<{
   open: boolean
@@ -39,11 +44,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
-  completed: [targetAgentId: string]
 }>()
 
 const { t } = useI18n()
 const skillClient = createSkillClient()
+const executionController = createRendererSurfaceFeedbackController('settings')
+const { snapshot: executionFeedback, setActive: setExecutionFeedbackActive } =
+  useSurfaceFeedback(executionController)
+const executionOperationId = `settings.skills.agentImport:${nanoid(8)}`
 
 const sources = ref<AgentSkillImportSourceInfo[]>([])
 const selectedSourceKey = ref('')
@@ -52,15 +60,17 @@ const selectedSkillNames = ref<Set<string>>(new Set())
 const strategies = ref<Record<string, AgentSkillImportConflictStrategy>>({})
 const loadingSources = ref(false)
 const loadingPreview = ref(false)
-const executing = ref(false)
-const sourceError = ref('')
-const previewError = ref('')
-const executeError = ref('')
+const sourceError = ref(false)
+const previewError = ref(false)
 const result = ref<AgentSkillImportResult | null>(null)
 
 let sourceRequestId = 0
 let previewRequestId = 0
 let executeRequestId = 0
+let executionGeneration = 0
+const surfaceContextVersion = ref(0)
+const feedbackContextVersion = ref<number | null>(null)
+const feedbackTargetAgentId = ref('')
 
 const selectedSource = computed(
   () => sources.value.find((source) => source.id === selectedSourceKey.value) ?? null
@@ -69,6 +79,7 @@ const actionableItems = computed(() =>
   previewItems.value.filter((item) => item.status !== 'unavailable')
 )
 const selectedCount = computed(() => selectedSkillNames.value.size)
+const executing = computed(() => executionFeedback.value.status === 'pending')
 const canExecute = computed(
   () =>
     Boolean(selectedSource.value) &&
@@ -78,9 +89,23 @@ const canExecute = computed(
     !executing.value
 )
 const failedCount = computed(() => result.value?.failed.length ?? 0)
+const feedbackBelongsToSurface = computed(
+  () =>
+    feedbackContextVersion.value === surfaceContextVersion.value &&
+    feedbackTargetAgentId.value === props.targetAgentId.trim()
+)
+const visibleExecutionFeedback = computed(() => {
+  const snapshot = executionFeedback.value
+  if (snapshot.status === 'pending' || feedbackBelongsToSurface.value) return snapshot
+  return { status: 'idle' as const, version: snapshot.version }
+})
+const executionFeedbackSurfaceActive = computed(
+  () => props.open && (executionFeedback.value.status === 'idle' || feedbackBelongsToSurface.value)
+)
 
-const errorMessage = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause)
+const logFailure = (message: string, cause: unknown) => {
+  console.error(message, cause)
+}
 
 const toImportSource = (source: AgentSkillImportSource): AgentSkillImportSource =>
   source.kind === 'internal'
@@ -95,27 +120,36 @@ const resetPreview = () => {
   previewItems.value = []
   selectedSkillNames.value = new Set()
   strategies.value = {}
-  previewError.value = ''
-  executeError.value = ''
+  previewError.value = false
   result.value = null
 }
 
 const resetDialog = () => {
   sourceRequestId += 1
-  executeRequestId += 1
+  if (!executing.value) executeRequestId += 1
   sources.value = []
   selectedSourceKey.value = ''
   loadingSources.value = false
   loadingPreview.value = false
-  executing.value = false
-  sourceError.value = ''
+  sourceError.value = false
   resetPreview()
+}
+
+const dismissSettledExecutionFeedback = () => {
+  const snapshot = executionController.getSnapshot()
+  if (snapshot.status === 'success' || snapshot.status === 'error') {
+    executionController.clearSettled()
+  }
+  if (snapshot.status !== 'pending') {
+    feedbackContextVersion.value = null
+    feedbackTargetAgentId.value = ''
+  }
 }
 
 const loadSources = async (targetAgentId: string) => {
   const requestId = ++sourceRequestId
   loadingSources.value = true
-  sourceError.value = ''
+  sourceError.value = false
   try {
     const nextSources = await skillClient.listAgentImportSources(targetAgentId)
     if (requestId !== sourceRequestId || !isCurrentTarget(targetAgentId)) return
@@ -124,7 +158,8 @@ const loadSources = async (targetAgentId: string) => {
     selectedSourceKey.value = nextSources.find((source) => source.available)?.id ?? ''
   } catch (cause) {
     if (requestId !== sourceRequestId || !isCurrentTarget(targetAgentId)) return
-    sourceError.value = errorMessage(cause)
+    sourceError.value = true
+    logFailure('[ImportSkillsFromAgentDialog] Failed to load import sources', cause)
   } finally {
     if (requestId === sourceRequestId && isCurrentTarget(targetAgentId)) {
       loadingSources.value = false
@@ -144,8 +179,7 @@ const loadPreview = async () => {
   const importSource = toImportSource(source.source)
   const requestId = ++previewRequestId
   loadingPreview.value = true
-  previewError.value = ''
-  executeError.value = ''
+  previewError.value = false
   result.value = null
   previewItems.value = []
   selectedSkillNames.value = new Set()
@@ -177,7 +211,8 @@ const loadPreview = async () => {
     ) {
       return
     }
-    previewError.value = errorMessage(cause)
+    previewError.value = true
+    logFailure('[ImportSkillsFromAgentDialog] Failed to preview Agent skills', cause)
   } finally {
     if (
       requestId === previewRequestId &&
@@ -236,8 +271,10 @@ const executeImport = async () => {
   if (items.length === 0) return
 
   const requestId = ++executeRequestId
-  executing.value = true
-  executeError.value = ''
+  const generation = ++executionGeneration
+  feedbackContextVersion.value = surfaceContextVersion.value
+  feedbackTargetAgentId.value = targetAgentId
+  executionController.begin(executionOperationId, t('settings.skills.agentImport.importing'))
   try {
     const nextResult = await skillClient.executeAgentImport({
       targetAgentId,
@@ -245,28 +282,52 @@ const executeImport = async () => {
       items
     })
     if (
+      generation !== executionGeneration ||
       requestId !== executeRequestId ||
-      !isCurrentTarget(targetAgentId) ||
-      selectedSourceKey.value !== requestedSourceKey
+      executionController.getSnapshot().status !== 'pending'
     ) {
       return
     }
 
-    result.value = nextResult
-    if (nextResult.imported.length > 0) emit('completed', targetAgentId)
+    const surfaceCurrent =
+      feedbackBelongsToSurface.value &&
+      isCurrentTarget(targetAgentId) &&
+      selectedSourceKey.value === requestedSourceKey
+    const resultSummary = t('settings.skills.agentImport.resultSummary', {
+      imported: nextResult.imported.length,
+      skipped: nextResult.skipped.length,
+      failed: nextResult.failed.length
+    })
+    if (!nextResult.success || nextResult.failed.length > 0) {
+      executionController.fail({
+        code: 'settings.skills.agentImportIncomplete',
+        title: t('settings.skills.agentImport.resultPartial'),
+        description: resultSummary
+      })
+    } else {
+      executionController.succeed({
+        code: 'settings.skills.agentImported',
+        title: t('settings.skills.agentImport.resultSuccess'),
+        description: resultSummary
+      })
+    }
+    if (surfaceCurrent) {
+      result.value = nextResult
+    }
   } catch (cause) {
     if (
+      generation !== executionGeneration ||
       requestId !== executeRequestId ||
-      !isCurrentTarget(targetAgentId) ||
-      selectedSourceKey.value !== requestedSourceKey
+      executionController.getSnapshot().status !== 'pending'
     ) {
       return
     }
-    executeError.value = errorMessage(cause)
-  } finally {
-    if (requestId === executeRequestId) {
-      executing.value = false
-    }
+    logFailure('[ImportSkillsFromAgentDialog] Failed to import Agent skills', cause)
+    executionController.fail({
+      code: 'settings.skills.agentImportFailed',
+      title: t('settings.skills.agentImport.executeError'),
+      description: t('common.error.requestFailed')
+    })
   }
 }
 
@@ -276,17 +337,21 @@ const retrySources = () => {
 }
 
 const requestClose = () => {
-  if (!executing.value) emit('update:open', false)
+  if (executing.value) return
+  dismissSettledExecutionFeedback()
+  emit('update:open', false)
 }
 
 const handleOpenChange = (open: boolean) => {
   if (!open && executing.value) return
+  if (!open) dismissSettledExecutionFeedback()
   emit('update:open', open)
 }
 
 watch(
   () => (props.open ? props.targetAgentId.trim() : ''),
-  (targetAgentId) => {
+  (targetAgentId, previousTargetAgentId) => {
+    if (previousTargetAgentId !== undefined) surfaceContextVersion.value += 1
     resetDialog()
     if (targetAgentId) void loadSources(targetAgentId)
   },
@@ -296,6 +361,32 @@ watch(
 watch(selectedSourceKey, (key) => {
   if (!key) return
   void loadPreview()
+})
+
+const stopSurfaceLeaseSync = watch(
+  executionFeedbackSurfaceActive,
+  (active) => {
+    setExecutionFeedbackActive(active)
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: `settings.skills.agentImport:${nanoid(8)}`,
+  onDiscard: () => undefined
+})
+const stopLeaveRiskSync = watch(
+  executing,
+  (pending) => {
+    leaveGuardLease.setRisk(pending ? 'busy' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  stopSurfaceLeaseSync()
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
 })
 </script>
 
@@ -369,7 +460,7 @@ watch(selectedSourceKey, (key) => {
             >
               <div class="font-medium">{{ failure.skillName }}</div>
               <div class="mt-0.5 text-muted-foreground">
-                {{ failure.reason }}
+                {{ t('settings.skills.agentImport.executeError') }}
               </div>
             </div>
           </div>
@@ -398,7 +489,9 @@ watch(selectedSourceKey, (key) => {
               <div class="text-sm font-medium text-destructive">
                 {{ t('settings.skills.agentImport.sourceError') }}
               </div>
-              <p class="mt-1 break-words text-xs text-muted-foreground">{{ sourceError }}</p>
+              <p class="mt-1 text-xs text-muted-foreground">
+                {{ t('common.error.requestFailed') }}
+              </p>
               <Button class="mt-3" variant="outline" size="sm" @click="retrySources">
                 <Icon icon="lucide:refresh-cw" class="size-4" />
                 {{ t('common.retry') }}
@@ -505,7 +598,9 @@ watch(selectedSourceKey, (key) => {
               <div class="text-sm font-medium text-destructive">
                 {{ t('settings.skills.agentImport.previewError') }}
               </div>
-              <p class="mt-1 break-words text-xs text-muted-foreground">{{ previewError }}</p>
+              <p class="mt-1 text-xs text-muted-foreground">
+                {{ t('common.error.requestFailed') }}
+              </p>
               <Button class="mt-3" variant="outline" size="sm" @click="loadPreview">
                 <Icon icon="lucide:refresh-cw" class="size-4" />
                 {{ t('common.retry') }}
@@ -559,10 +654,6 @@ watch(selectedSourceKey, (key) => {
                     >
                       {{ item.description }}
                     </p>
-                    <p v-if="item.warning" class="mt-1 text-xs text-amber-600">
-                      {{ item.warning }}
-                    </p>
-
                     <div
                       v-if="item.status === 'conflict' && selectedSkillNames.has(item.name)"
                       class="mt-3 space-y-2"
@@ -602,12 +693,10 @@ watch(selectedSourceKey, (key) => {
             </div>
           </section>
 
-          <div v-if="executeError" role="alert" class="rounded-md border px-3 py-3">
-            <div class="text-sm font-medium text-destructive">
-              {{ t('settings.skills.agentImport.executeError') }}
-            </div>
-            <p class="mt-1 break-words text-xs text-muted-foreground">{{ executeError }}</p>
-          </div>
+          <InlineOperationFeedback
+            v-if="visibleExecutionFeedback.status === 'error'"
+            :snapshot="visibleExecutionFeedback"
+          />
         </template>
       </div>
 

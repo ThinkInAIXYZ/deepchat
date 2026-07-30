@@ -63,15 +63,18 @@ const stubs = {
   AlertDialogTitle: passthrough('AlertDialogTitle'),
   AlertDialogTrigger: passthrough('AlertDialogTrigger'),
   MemoryLifecyclePanel: passthrough('MemoryLifecyclePanel'),
+  Spinner: passthrough('Spinner'),
   Icon: passthrough('Icon')
 }
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((next) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
     resolve = next
+    reject = fail
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 function memory(overrides: Partial<MemoryItem> = {}): MemoryItem {
@@ -113,10 +116,7 @@ async function setup(
   for (const span of options.sourceSpans ?? []) {
     memoryClient.getSourceSpan.mockReturnValueOnce(span)
   }
-  const toast = vi.fn()
-
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
-  vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({ t: (key: string) => key, locale: 'en-US' })
   }))
@@ -135,10 +135,11 @@ async function setup(
     global: { stubs }
   })
   await flushPromises()
-  return { wrapper, memoryClient, toast }
+  return { wrapper, memoryClient }
 }
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
@@ -179,8 +180,29 @@ describe('MemoryInlinePanel', () => {
     wrapper.unmount()
   })
 
-  it('shows a toast and keeps the panel open when the edit is refused as a noop', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
+  it('keeps save progress visible and locks the editor until persistence settles', async () => {
+    const pending = deferred<{ action: 'updated'; memoryId: string }>()
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.update.mockReturnValueOnce(pending.promise)
+
+    await wrapper.find('textarea').setValue('user likes valkey')
+    const saveButton = wrapper.findAll('button').find((button) => button.text() === 'common.save')!
+    await saveButton.trigger('click')
+    await flushPromises()
+
+    expect(saveButton.text()).toContain('common.saving')
+    expect(saveButton.attributes('disabled')).toBeDefined()
+    expect(wrapper.get('textarea').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button[aria-label="common.close"]').attributes('disabled')).toBeDefined()
+
+    pending.resolve({ action: 'updated', memoryId: 'm1' })
+    await flushPromises()
+
+    expect(wrapper.emitted('saved')).toBeDefined()
+  })
+
+  it('shows inline feedback and keeps the panel open when an edit is refused', async () => {
+    const { wrapper, memoryClient } = await setup()
     memoryClient.update.mockResolvedValueOnce({ action: 'noop', reason: 'conflict' })
 
     await wrapper.find('textarea').setValue('user likes valkey')
@@ -189,7 +211,9 @@ describe('MemoryInlinePanel', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({ title: 'settings.memory.redesign.editRejected' })
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('warning')
+    expect(feedback.text()).toContain('settings.memory.redesign.editRejected')
     expect(wrapper.emitted('close')).toBeUndefined()
     expect(wrapper.emitted('saved')).toBeUndefined()
     wrapper.unmount()
@@ -219,7 +243,7 @@ describe('MemoryInlinePanel', () => {
   )
 
   it('surfaces create outcomes without silently closing duplicates or conflicts', async () => {
-    const { wrapper, memoryClient, toast } = await setup({ item: null, mode: 'create' })
+    const { wrapper, memoryClient } = await setup({ item: null, mode: 'create' })
     memoryClient.add.mockResolvedValueOnce({ action: 'noop', reason: 'duplicate' })
 
     await wrapper.find('textarea').setValue('remember this')
@@ -229,9 +253,9 @@ describe('MemoryInlinePanel', () => {
     await addButton!.trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.deepchatAgents.memoryManager.addDuplicate'
-    })
+    const duplicateFeedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(duplicateFeedback.attributes('data-tone')).toBe('info')
+    expect(duplicateFeedback.text()).toContain('settings.deepchatAgents.memoryManager.addDuplicate')
     expect(wrapper.emitted('saved')).toBeUndefined()
 
     const challenged = memory({ id: 'challenger', content: 'challenged memory' })
@@ -240,9 +264,12 @@ describe('MemoryInlinePanel', () => {
     await addButton!.trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.deepchatAgents.memoryManager.addConflict'
-    })
+    expect(wrapper.emitted('feedback')?.[0]).toEqual([
+      {
+        tone: 'warning',
+        title: 'settings.deepchatAgents.memoryManager.addConflict'
+      }
+    ])
     expect(wrapper.emitted('saved')?.[0]).toEqual([challenged])
     wrapper.unmount()
   })
@@ -298,21 +325,26 @@ describe('MemoryInlinePanel', () => {
     ['archive', 'settings.memory.redesign.archive'],
     ['restore', 'settings.deepchatAgents.memoryManager.restore'],
     ['remove', 'settings.deepchatAgents.memoryManager.deletePermanent']
-  ] as const)('shows a toast when the footer %s action returns false', async (action, label) => {
-    const { wrapper, memoryClient, toast } = await setup({
-      item: action === 'restore' ? memory({ status: 'archived' }) : memory()
-    })
-    memoryClient[action].mockResolvedValueOnce(false)
+  ] as const)(
+    'shows inline feedback when the footer %s action returns false',
+    async (action, label) => {
+      const { wrapper, memoryClient } = await setup({
+        item: action === 'restore' ? memory({ status: 'archived' }) : memory()
+      })
+      memoryClient[action].mockResolvedValueOnce(false)
 
-    const button = wrapper.findAll('button').find((candidate) => candidate.text().includes(label))
-    await button!.trigger('click')
-    await flushPromises()
+      const button = wrapper.findAll('button').find((candidate) => candidate.text().includes(label))
+      await button!.trigger('click')
+      await flushPromises()
 
-    expect(toast).toHaveBeenCalled()
-    expect(wrapper.emitted('changed')).toBeUndefined()
-    expect(wrapper.emitted('close')).toBeUndefined()
-    wrapper.unmount()
-  })
+      expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
+        'error'
+      )
+      expect(wrapper.emitted('changed')).toBeUndefined()
+      expect(wrapper.emitted('close')).toBeUndefined()
+      wrapper.unmount()
+    }
+  )
 
   it('drops stale source responses after switching to another memory', async () => {
     const sourceA = deferred<MemorySourceSpan>()
@@ -342,6 +374,29 @@ describe('MemoryInlinePanel', () => {
 
     expect(wrapper.text()).toContain('current source text')
     wrapper.unmount()
+  })
+
+  it('keeps source failures local and does not render backend exception text', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const source = deferred<MemorySourceSpan>()
+    const { wrapper } = await setup({
+      item: memory({ sourceSession: 'session-a' }),
+      sourceSpans: [source.promise]
+    })
+
+    wrapper.findAllComponents({ name: 'Collapsible' })[0].vm.$emit('update:open', true)
+    await flushPromises()
+    source.reject(new Error('secret source failure'))
+    await flushPromises()
+
+    const sourceAlert = wrapper.get('[data-testid="memory-source-scroll"] [role="alert"]')
+    expect(sourceAlert.text()).toContain('settings.deepchatAgents.memoryManager.actionFailed')
+    expect(sourceAlert.text()).not.toContain('secret source failure')
+    expect(consoleError).toHaveBeenCalledWith(
+      '[MemoryInlinePanel] Failed to load source span',
+      expect.any(Error)
+    )
+    consoleError.mockRestore()
   })
 
   it('keeps source and lifecycle details bounded inside the inline panel', async () => {

@@ -221,7 +221,6 @@ export function sanitizeAggregateJson(json) {
         knowledge: typeof m.knowledge === 'string' ? m.knowledge : undefined,
         release_date: typeof m.release_date === 'string' ? m.release_date : undefined,
         last_updated: typeof m.last_updated === 'string' ? m.last_updated : undefined,
-        cost: typeof m.cost === 'object' ? m.cost : undefined,
         type: modelType
       })
     }

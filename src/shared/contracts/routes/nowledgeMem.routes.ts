@@ -38,7 +38,11 @@ export const nowledgeMemUpdateConfigRoute = defineRouteContract({
 
 export const nowledgeMemTestConnectionRoute = defineRouteContract({
   name: 'nowledgeMem.testConnection',
-  input: z.object({}).default({}),
+  input: z
+    .object({
+      config: NowledgeMemConfigSchema.optional()
+    })
+    .default({}),
   output: z.object({
     result: NowledgeMemConnectionResultSchema
   })

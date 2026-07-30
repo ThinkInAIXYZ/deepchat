@@ -155,9 +155,15 @@ const getDefaultDeepchatInvokeResult = (
         version: 0
       }
     case 'config.getDefaultSystemPrompt':
-    case 'config.resetDefaultSystemPrompt':
     case 'config.clearDefaultSystemPrompt':
       return {
+        defaultPromptId: 'empty',
+        prompt: '',
+        version: 0
+      }
+    case 'config.resetDefaultSystemPrompt':
+      return {
+        prompts: [],
         defaultPromptId: 'empty',
         prompt: '',
         version: 0

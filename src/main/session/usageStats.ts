@@ -5,7 +5,6 @@ import type {
   UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
 
-import type { ProviderModel } from '@shared/types/model-db'
 import { providerDbLoader } from '@/provider/providerDbLoader'
 
 export const DASHBOARD_STATS_BACKFILL_KEY = 'dashboardStatsBackfillV1'
@@ -24,7 +23,6 @@ export interface UsageStatsRecordInput {
   totalTokens: number
   cachedInputTokens: number
   cacheWriteInputTokens: number
-  estimatedCostUsd: number | null
   source: UsageStatsSource
   createdAt: number
   updatedAt: number
@@ -37,7 +35,6 @@ export interface UsageCalendarBucket {
   outputTokens: number
   totalTokens: number
   cachedInputTokens: number
-  estimatedCostUsd: number | null
 }
 
 function toFiniteNumber(value: unknown): number | undefined {
@@ -58,26 +55,6 @@ function normalizeTextId(value: unknown): string | undefined {
   }
   const normalized = value.trim()
   return normalized.length > 0 ? normalized : undefined
-}
-
-function getCostNumber(model: ProviderModel | undefined, key: string): number | undefined {
-  const raw = model?.cost?.[key]
-  if (typeof raw === 'number' && Number.isFinite(raw)) {
-    return raw
-  }
-  if (typeof raw === 'string') {
-    const parsed = Number(raw)
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
-  }
-  return undefined
-}
-
-function resolvePricedModel(providerId: string, modelId: string): ProviderModel | undefined {
-  return (
-    providerDbLoader.getModel(providerId, modelId) ?? providerDbLoader.getModel('aihubmix', modelId)
-  )
 }
 
 function getPercentile(sorted: number[], percentile: number): number {
@@ -199,38 +176,6 @@ export function resolveUsageModelId(
   return normalizeTextId(metadata.model) ?? normalizeTextId(fallbackModelId) ?? null
 }
 
-export function estimateUsageCostUsd(params: {
-  providerId: string
-  modelId: string
-  inputTokens: number
-  outputTokens: number
-  cachedInputTokens: number
-  cacheWriteInputTokens: number
-}): number | null {
-  const model = resolvePricedModel(params.providerId, params.modelId)
-  const inputRate = getCostNumber(model, 'input')
-  const outputRate = getCostNumber(model, 'output')
-
-  if (inputRate === undefined || outputRate === undefined) {
-    return null
-  }
-
-  const cacheReadRate = getCostNumber(model, 'cache_read')
-  const cacheWriteRate = getCostNumber(model, 'cache_write')
-  const uncachedInput = Math.max(
-    params.inputTokens - params.cachedInputTokens - params.cacheWriteInputTokens,
-    0
-  )
-
-  return (
-    (uncachedInput * inputRate +
-      params.outputTokens * outputRate +
-      params.cachedInputTokens * (cacheReadRate ?? inputRate) +
-      params.cacheWriteInputTokens * (cacheWriteRate ?? inputRate)) /
-    1_000_000
-  )
-}
-
 export function buildUsageStatsRecord(params: {
   messageId: string
   sessionId: string
@@ -264,14 +209,6 @@ export function buildUsageStatsRecord(params: {
     totalTokens: usage.totalTokens,
     cachedInputTokens: usage.cachedInputTokens,
     cacheWriteInputTokens: usage.cacheWriteInputTokens,
-    estimatedCostUsd: estimateUsageCostUsd({
-      providerId,
-      modelId,
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-      cachedInputTokens: usage.cachedInputTokens,
-      cacheWriteInputTokens: usage.cacheWriteInputTokens
-    }),
     source: params.source,
     createdAt: params.createdAt,
     updatedAt: params.updatedAt
@@ -323,7 +260,6 @@ export function buildUsageDashboardCalendar(
       outputTokens: bucket?.outputTokens ?? 0,
       totalTokens: bucket?.totalTokens ?? 0,
       cachedInputTokens: bucket?.cachedInputTokens ?? 0,
-      estimatedCostUsd: bucket?.estimatedCostUsd ?? null,
       level: 0
     })
   }

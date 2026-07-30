@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { modelMessageSchema } from 'ai'
+import { generateText, modelMessageSchema } from 'ai'
+import { MockLanguageModelV4 } from 'ai/test'
 import { mapMessagesToModelMessages } from '@/provider/aiSdk/messageMapper'
 
 function convertToOpenAICompatibleChatMessagesForTest(messages: any[]) {
@@ -38,15 +39,27 @@ describe('AI SDK message mapper', () => {
     value = true
   }
 
-  it('skips malformed non-text user content parts instead of throwing', () => {
+  it('maps images to canonical file parts and skips malformed user content', () => {
     const result = mapMessagesToModelMessages(
       [
         {
           role: 'user',
           content: [
             { type: 'text', text: 'hello' },
-            { type: 'image_url', image_url: { url: 'https://example.com/a.png' } },
+            {
+              type: 'image_url',
+              image_url: { url: 'https://example.com/a.png' }
+            },
+            {
+              type: 'image_url',
+              image_url: { url: 'data:image/webp;base64,UklGRg==' }
+            },
+            {
+              type: 'image_url',
+              image_url: { url: 'https://example.com/a.png?format=webp' }
+            },
             { type: 'image_url' },
+            null,
             { type: 'unknown', value: 'ignored' }
           ] as any
         }
@@ -63,13 +76,90 @@ describe('AI SDK message mapper', () => {
         content: [
           { type: 'text', text: 'hello' },
           {
-            type: 'image',
-            image: new URL('https://example.com/a.png'),
+            type: 'file',
+            data: new URL('https://example.com/a.png'),
             mediaType: 'image/png'
+          },
+          {
+            type: 'file',
+            data: 'data:image/webp;base64,UklGRg==',
+            mediaType: 'image/webp'
+          },
+          {
+            type: 'file',
+            data: new URL('https://example.com/a.png?format=webp'),
+            mediaType: 'image'
           }
         ]
       }
     ])
+    expect(result.every((message) => modelMessageSchema.safeParse(message).success)).toBe(true)
+  })
+
+  it('passes mapped image files through AI SDK without deprecation warnings', async () => {
+    const messages = mapMessagesToModelMessages(
+      [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: 'data:image/png;base64,QUJD' }
+            }
+          ]
+        }
+      ],
+      {
+        tools: [],
+        supportsNativeTools: true
+      }
+    )
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => ({
+        content: [{ type: 'text', text: 'ok' }],
+        finishReason: { unified: 'stop', raw: undefined },
+        usage: {
+          inputTokens: {
+            total: 1,
+            noCache: 1,
+            cacheRead: undefined,
+            cacheWrite: undefined
+          },
+          outputTokens: {
+            total: 1,
+            text: 1,
+            reasoning: undefined
+          }
+        },
+        warnings: []
+      })
+    })
+    const previousWarningLogger = globalThis.AI_SDK_LOG_WARNINGS
+    const loggedWarnings: unknown[] = []
+    globalThis.AI_SDK_LOG_WARNINGS = ({ warnings }) => loggedWarnings.push(...warnings)
+
+    try {
+      await generateText({ model, messages })
+    } finally {
+      globalThis.AI_SDK_LOG_WARNINGS = previousWarningLogger
+    }
+
+    expect(loggedWarnings).not.toContainEqual(
+      expect.objectContaining({
+        type: 'deprecated',
+        setting: '"image" content part'
+      })
+    )
+    expect(model.doGenerateCalls[0]?.prompt[0]).toMatchObject({
+      role: 'user',
+      content: [
+        {
+          type: 'file',
+          data: { type: 'data', data: 'QUJD' },
+          mediaType: 'image/png'
+        }
+      ]
+    })
   })
 
   it('maps input_audio parts to AI SDK file parts for supported audio media types', () => {

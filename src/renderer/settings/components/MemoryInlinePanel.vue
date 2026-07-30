@@ -50,10 +50,19 @@
             }}
           </p>
         </div>
-        <Button variant="ghost" size="icon" class="h-7 w-7 shrink-0" @click="requestClose">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-7 w-7 shrink-0"
+          :disabled="busy"
+          :aria-label="t('common.close')"
+          @click="requestClose"
+        >
           <Icon icon="lucide:x" class="h-3.5 w-3.5" />
         </Button>
       </header>
+
+      <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
 
       <template v-if="mode === 'view'">
         <div class="space-y-1.5">
@@ -178,6 +187,16 @@
             <div v-if="sourceLoading" class="py-4 text-center text-xs text-muted-foreground">
               {{ t('common.loading') }}
             </div>
+            <div
+              v-else-if="sourceError"
+              role="alert"
+              class="flex items-center justify-between gap-3 py-3 text-xs text-destructive"
+            >
+              <span>{{ sourceError }}</span>
+              <Button variant="outline" size="sm" class="h-7 text-xs" @click="retrySource">
+                {{ t('settings.memory.redesign.refresh') }}
+              </Button>
+            </div>
             <div v-else-if="!sourceSpan" class="py-4 text-center text-xs text-muted-foreground">
               {{ t('settings.deepchatAgents.memoryManager.sourceDialogEmpty') }}
             </div>
@@ -225,18 +244,28 @@
             variant="outline"
             size="sm"
             class="h-8 text-xs"
+            :disabled="busy"
             @click="restore"
           >
-            <Icon icon="lucide:archive-restore" class="mr-1.5 h-3.5 w-3.5" />
+            <Spinner v-if="pendingMutation === 'restore'" class="mr-1.5 size-3.5" />
+            <Icon v-else icon="lucide:archive-restore" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('settings.deepchatAgents.memoryManager.restore') }}
           </Button>
-          <Button v-else variant="outline" size="sm" class="h-8 text-xs" @click="archive">
-            <Icon icon="lucide:archive" class="mr-1.5 h-3.5 w-3.5" />
+          <Button
+            v-else
+            variant="outline"
+            size="sm"
+            class="h-8 text-xs"
+            :disabled="busy"
+            @click="archive"
+          >
+            <Spinner v-if="pendingMutation === 'archive'" class="mr-1.5 size-3.5" />
+            <Icon v-else icon="lucide:archive" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('settings.memory.redesign.archive') }}
           </Button>
           <AlertDialog v-model:open="deleteDialogOpen">
             <AlertDialogTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive">
+              <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive" :disabled="busy">
                 <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
               </Button>
             </AlertDialogTrigger>
@@ -253,8 +282,10 @@
                 <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
                 <AlertDialogAction
                   class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  :disabled="busy"
                   @click="remove"
                 >
+                  <Spinner v-if="pendingMutation === 'remove'" class="mr-1.5 size-3.5" />
                   {{ t('settings.deepchatAgents.memoryManager.deletePermanent') }}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -268,23 +299,37 @@
             variant="outline"
             size="sm"
             class="h-8 text-xs"
+            :disabled="busy"
             data-testid="memory-inline-edit"
             @click="$emit('edit')"
           >
             <Icon icon="lucide:pencil" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('common.edit') }}
           </Button>
-          <Button variant="ghost" size="sm" class="h-8 text-xs" @click="requestClose">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-8 text-xs"
+            :disabled="busy"
+            @click="requestClose"
+          >
             {{ mode === 'view' ? t('common.close') : t('common.cancel') }}
           </Button>
           <Button
             v-if="mode !== 'view'"
             size="sm"
             class="h-8 text-xs"
-            :disabled="!canSave || saving"
+            :disabled="!canSave || busy"
             @click="save"
           >
-            {{ mode === 'create' ? t('settings.memory.redesign.addMemory') : t('common.save') }}
+            <Spinner v-if="saving" class="mr-1.5 size-3.5" />
+            {{
+              saving
+                ? t('common.saving')
+                : mode === 'create'
+                  ? t('settings.memory.redesign.addMemory')
+                  : t('common.save')
+            }}
           </Button>
         </div>
       </footer>
@@ -320,8 +365,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Textarea } from '@shadcn/components/ui/textarea'
-import { useToast } from '@/components/use-toast'
 import { createMemoryClient } from '@api/MemoryClient'
 import { AGENT_MEMORY_CATEGORIES, type AgentMemoryCategory } from '@shared/types/agent-memory'
 import type {
@@ -331,14 +376,18 @@ import type {
   MemorySourceSpan,
   MemoryUpdateResult
 } from '@shared/contracts/routes'
+import {
+  useMemoryInlineFeedback,
+  type MemoryInlineFeedbackState
+} from '../lib/useMemoryInlineFeedback'
 import MemoryLifecyclePanel from './MemoryLifecyclePanel.vue'
+import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
 import {
   ADD_CATEGORY_NONE,
   IMPORTANCE_VALUES,
   categoryLabelKey,
   importanceChoice,
   importanceDots,
-  notifyMemoryActionFailed,
   sourceLabelKey,
   type MemoryImportanceChoice,
   shortDate
@@ -356,19 +405,25 @@ const emit = defineEmits<{
   edit: []
   changed: []
   saved: [memory?: MemoryItem]
+  feedback: [feedback: MemoryInlineFeedbackState]
+  busy: [value: boolean]
   dirty: [value: boolean]
   'discard-pending': []
   'cancel-pending': []
 }>()
 
 const { t, locale } = useI18n()
-const { toast } = useToast()
 const memoryClient = createMemoryClient()
+const panelFeedback = useMemoryInlineFeedback('MemoryInlinePanel')
+const feedback = panelFeedback.feedback
+const clearFeedback = panelFeedback.clear
 
 const saving = ref(false)
+const pendingMutation = ref<'archive' | 'restore' | 'remove' | null>(null)
 const sourceOpen = ref(false)
 const sourceLoading = ref(false)
 const sourceSpan = ref<MemorySourceSpan>(null)
+const sourceError = ref<string | null>(null)
 const lifecycleOpen = ref(false)
 const lifecycleLoading = ref(false)
 const lifecycleError = ref<string | null>(null)
@@ -392,8 +447,9 @@ const canEditMemory = computed(
     props.memory?.conflictState !== 'challenged' &&
     (props.memory?.kind === 'episodic' || props.memory?.kind === 'semantic')
 )
+const busy = computed(() => saving.value || pendingMutation.value !== null)
 const editable = computed(
-  () => props.mode === 'create' || (props.mode === 'edit' && canEditMemory.value)
+  () => !busy.value && (props.mode === 'create' || (props.mode === 'edit' && canEditMemory.value))
 )
 const dirty = computed(() => {
   if (props.mode === 'view') return false
@@ -426,15 +482,13 @@ function seed(): void {
   sourceOpen.value = false
   sourceLoading.value = false
   sourceSpan.value = null
+  sourceError.value = null
   lifecycleOpen.value = false
   lifecycleLoading.value = false
   lifecycle.value = null
   lifecycleError.value = null
   deleteDialogOpen.value = false
-}
-
-function notifyFailed(error?: unknown): void {
-  notifyMemoryActionFailed(toast, t, error)
+  clearFeedback()
 }
 
 function setImportance(value: unknown): void {
@@ -445,7 +499,10 @@ function setImportance(value: unknown): void {
 
 function notifyAddOutcome(result: MemoryAddResult): void {
   if (result.action === 'challenged') {
-    toast({ title: t('settings.deepchatAgents.memoryManager.addConflict') })
+    emit('feedback', {
+      tone: 'warning',
+      title: t('settings.deepchatAgents.memoryManager.addConflict')
+    })
     return
   }
   if (result.action === 'noop') {
@@ -453,109 +510,153 @@ function notifyAddOutcome(result: MemoryAddResult): void {
       result.reason === 'duplicate'
         ? 'settings.deepchatAgents.memoryManager.addDuplicate'
         : 'settings.deepchatAgents.memoryManager.addSkipped'
-    toast({ title: t(key) })
+    panelFeedback.show('info', t(key))
   }
 }
 
 function notifyUpdateOutcome(result: MemoryUpdateResult): void {
   if (result.action === 'noop') {
-    toast({ title: t('settings.memory.redesign.editRejected') })
+    panelFeedback.show('warning', t('settings.memory.redesign.editRejected'))
   }
 }
 
-async function selectResultMemory(memoryId: string | undefined): Promise<MemoryItem | undefined> {
+async function selectResultMemory(
+  agentId: string,
+  memoryId: string | undefined
+): Promise<MemoryItem | undefined> {
   if (!memoryId) return undefined
-  const [next] = await memoryClient.getByIds(props.agentId, [memoryId])
-  return next
+  try {
+    const [next] = await memoryClient.getByIds(agentId, [memoryId])
+    return next
+  } catch (error) {
+    console.error('[MemoryInlinePanel] Failed to refresh saved memory', error)
+    return undefined
+  }
+}
+
+function isCurrentOperation(agentId: string, memoryId: string | null, mode: typeof props.mode) {
+  return props.agentId === agentId && (props.memory?.id ?? null) === memoryId && props.mode === mode
 }
 
 async function save(): Promise<void> {
   if (!canSave.value || saving.value) return
+  const agentId = props.agentId
+  const memoryId = props.memory?.id ?? null
+  const mode = props.mode
+  clearFeedback()
   saving.value = true
   try {
     const category = form.category === ADD_CATEGORY_NONE ? null : form.category
-    if (props.mode === 'create') {
-      const result = await memoryClient.add(props.agentId, {
+    if (mode === 'create') {
+      const result = await memoryClient.add(agentId, {
         content: form.content.trim(),
         category: category ?? undefined,
         importance: IMPORTANCE_VALUES[form.importance]
       })
+      if (!isCurrentOperation(agentId, memoryId, mode)) return
       notifyAddOutcome(result)
+      if (result.action === 'noop') return
       emit('changed')
-      if (result.action !== 'noop') {
-        const next = await selectResultMemory(result.memoryId)
-        emit('saved', next)
-      }
+      const next = await selectResultMemory(agentId, result.memoryId)
+      if (!isCurrentOperation(agentId, memoryId, mode)) return
+      emit('saved', next)
       return
     }
-    if (!props.memory) return
+    const memory = props.memory
+    if (!memory) return
     const patch: { content: string; category: AgentMemoryCategory | null; importance?: number } = {
       content: form.content.trim(),
       category
     }
     if (importanceTouched.value) patch.importance = IMPORTANCE_VALUES[form.importance]
-    const result = await memoryClient.update(props.agentId, props.memory.id, patch)
+    const result = await memoryClient.update(agentId, memory.id, patch)
+    if (!isCurrentOperation(agentId, memoryId, mode)) return
     notifyUpdateOutcome(result)
     if (result.action === 'noop') return
     const next =
-      result.memoryId && result.memoryId !== props.memory.id
-        ? await selectResultMemory(result.memoryId)
+      result.memoryId && result.memoryId !== memory.id
+        ? await selectResultMemory(agentId, result.memoryId)
         : {
-            ...props.memory,
+            ...memory,
             content: patch.content,
             category: patch.category,
-            importance: patch.importance ?? props.memory.importance
+            importance: patch.importance ?? memory.importance
           }
+    if (!isCurrentOperation(agentId, memoryId, mode)) return
     emit('changed')
     emit('saved', next)
   } catch (error) {
-    notifyFailed(error)
+    if (isCurrentOperation(agentId, memoryId, mode)) panelFeedback.fail(error)
   } finally {
     saving.value = false
   }
 }
 
 async function archive(): Promise<void> {
-  if (!props.memory) return
+  const memory = props.memory
+  if (!memory || busy.value) return
+  const agentId = props.agentId
+  clearFeedback()
+  pendingMutation.value = 'archive'
   try {
-    const ok = await memoryClient.archive(props.agentId, props.memory.id)
+    const ok = await memoryClient.archive(agentId, memory.id)
+    if (props.agentId !== agentId || props.memory?.id !== memory.id) return
     if (!ok) {
-      notifyFailed()
+      panelFeedback.fail()
       return
     }
     emit('changed')
     emit('close')
   } catch (error) {
-    notifyFailed(error)
+    if (props.agentId === agentId && props.memory?.id === memory.id) panelFeedback.fail(error)
+  } finally {
+    pendingMutation.value = null
   }
 }
 
 async function restore(): Promise<void> {
-  if (!props.memory) return
+  const memory = props.memory
+  if (!memory || busy.value) return
+  const agentId = props.agentId
+  clearFeedback()
+  pendingMutation.value = 'restore'
   try {
-    const ok = await memoryClient.restore(props.agentId, props.memory.id)
+    const ok = await memoryClient.restore(agentId, memory.id)
+    if (props.agentId !== agentId || props.memory?.id !== memory.id) return
     if (!ok) {
-      notifyFailed()
+      panelFeedback.fail()
       return
     }
     emit('changed')
   } catch (error) {
-    notifyFailed(error)
+    if (props.agentId === agentId && props.memory?.id === memory.id) panelFeedback.fail(error)
+  } finally {
+    pendingMutation.value = null
   }
 }
 
 async function remove(): Promise<void> {
-  if (!props.memory) return
+  const memory = props.memory
+  if (!memory || busy.value) return
+  const agentId = props.agentId
+  clearFeedback()
+  pendingMutation.value = 'remove'
   try {
-    const ok = await memoryClient.remove(props.agentId, props.memory.id)
+    const ok = await memoryClient.remove(agentId, memory.id)
+    if (props.agentId !== agentId || props.memory?.id !== memory.id) return
     if (!ok) {
-      notifyFailed()
+      panelFeedback.fail()
       return
     }
     emit('changed')
     emit('close')
   } catch (error) {
-    notifyFailed(error)
+    if (props.agentId === agentId && props.memory?.id === memory.id) panelFeedback.fail(error)
+  } finally {
+    pendingMutation.value = null
+    if (props.agentId === agentId && props.memory?.id === memory.id) {
+      deleteDialogOpen.value = false
+    }
   }
 }
 
@@ -565,6 +666,7 @@ async function loadSource(): Promise<void> {
   const memoryId = props.memory.id
   const requestId = ++sourceRequestId
   sourceLoading.value = true
+  sourceError.value = null
   try {
     const next = await memoryClient.getSourceSpan(agentId, memoryId)
     if (
@@ -580,7 +682,8 @@ async function loadSource(): Promise<void> {
       props.agentId === agentId &&
       props.memory?.id === memoryId
     ) {
-      notifyFailed(error)
+      console.error('[MemoryInlinePanel] Failed to load source span', error)
+      sourceError.value = t('settings.deepchatAgents.memoryManager.actionFailed')
     }
   } finally {
     if (
@@ -591,6 +694,11 @@ async function loadSource(): Promise<void> {
       sourceLoading.value = false
     }
   }
+}
+
+function retrySource(): void {
+  sourceError.value = null
+  void loadSource()
 }
 
 async function loadLifecycle(): Promise<void> {
@@ -615,7 +723,8 @@ async function loadLifecycle(): Promise<void> {
       props.agentId === agentId &&
       props.memory?.id === memoryId
     ) {
-      lifecycleError.value = error instanceof Error ? error.message : String(error)
+      console.error('[MemoryInlinePanel] Failed to load lifecycle', error)
+      lifecycleError.value = t('settings.deepchatAgents.memoryManager.actionFailed')
     }
   } finally {
     if (
@@ -641,11 +750,12 @@ function handleKeydown(event: KeyboardEvent): void {
 }
 
 watch(
-  () => [props.memory?.id, props.mode],
+  () => [props.agentId, props.memory?.id, props.mode],
   () => seed(),
   { immediate: true }
 )
-watch(dirty, (value) => emit('dirty', value), { immediate: true })
+watch(busy, (value) => emit('busy', value), { immediate: true, flush: 'sync' })
+watch(dirty, (value) => emit('dirty', value), { immediate: true, flush: 'sync' })
 watch(sourceOpen, () => void loadSource())
 watch(lifecycleOpen, () => void loadLifecycle())
 </script>

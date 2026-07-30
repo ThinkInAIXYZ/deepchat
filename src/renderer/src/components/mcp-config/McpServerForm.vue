@@ -24,15 +24,14 @@ import type {
   McpEnterpriseIdentityProfile
 } from '@shared/types/mcp'
 import { EmojiPicker } from '@/components/emoji-picker'
-import { useToast } from '@/components/use-toast'
 import { Icon } from '@iconify/vue'
 import { X } from '@lucide/vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createMcpClient } from '@api/McpClient'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
-const { toast } = useToast()
 const deviceClient = createDeviceClient()
 const mcpClient = createMcpClient()
 const props = defineProps<{
@@ -40,10 +39,15 @@ const props = defineProps<{
   initialConfig?: MCPServerConfig
   editMode?: boolean
   defaultJsonConfig?: string
+  submitting?: boolean
+  nameError?: string
+  submissionError?: string
 }>()
 
 const emit = defineEmits<{
   submit: [serverName: string, config: MCPServerConfig, credential?: McpCredentialInput]
+  'input-change': []
+  'name-change': []
 }>()
 
 // 表单状态
@@ -82,6 +86,10 @@ const privateKey = ref('')
 const credentialStatuses = ref<McpCredentialStatus[]>([])
 const enterpriseProfiles = ref<McpEnterpriseIdentityProfile[]>([])
 const isAuthorizationMetadataLoading = ref(false)
+
+watch(name, () => {
+  emit('name-change')
+})
 
 // 判断是否是inmemory类型
 const isInMemoryType = computed(() => type.value === 'inmemory')
@@ -139,6 +147,8 @@ const getLocalizedDesc = computed(() => {
 // 简单表单状态
 const currentStep = ref(props.editMode ? 'detailed' : 'simple')
 const jsonConfig = ref('')
+const jsonConfigError = ref<string | null>(null)
+const folderSelectionError = ref<string | null>(null)
 
 // 当type变更时处理baseUrl的显示逻辑
 const showBaseUrl = computed(() => isRemoteType.value)
@@ -159,6 +169,7 @@ const showNpmRegistryInput = computed(() => {
 
 // JSON配置解析
 const parseJsonConfig = (): void => {
+  jsonConfigError.value = null
   try {
     const parsedConfig = JSON.parse(jsonConfig.value)
     if (!parsedConfig.mcpServers || typeof parsedConfig.mcpServers !== 'object') {
@@ -216,18 +227,9 @@ const parseJsonConfig = (): void => {
 
     // 切换到详细表单
     currentStep.value = 'detailed'
-
-    toast({
-      title: t('settings.mcp.serverForm.parseSuccess'),
-      description: t('settings.mcp.serverForm.configImported')
-    })
   } catch (error) {
     console.error('解析JSON配置失败:', error)
-    toast({
-      title: t('settings.mcp.serverForm.parseError'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    jsonConfigError.value = t('settings.mcp.serverForm.parseError')
   }
 }
 
@@ -368,6 +370,7 @@ const foldersList = ref<string[]>([])
 
 // 添加文件夹选择方法
 const addFolder = async (): Promise<void> => {
+  folderSelectionError.value = null
   try {
     const result = await deviceClient.selectDirectory()
 
@@ -379,11 +382,7 @@ const addFolder = async (): Promise<void> => {
     }
   } catch (error) {
     console.error('选择文件夹失败:', error)
-    toast({
-      title: t('settings.mcp.serverForm.selectFolderError'),
-      description: String(error),
-      variant: 'destructive'
-    })
+    folderSelectionError.value = t('settings.mcp.serverForm.selectFolderError')
   }
 }
 
@@ -474,10 +473,11 @@ const removeStoredCredential = async (): Promise<void> => {
       status
     ]
   } catch (error) {
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.mcp.serverForm.credentialRemoveError',
       title: t('settings.mcp.serverForm.credentialRemoveError'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+      description: error instanceof Error ? error.message : String(error)
     })
   }
 }
@@ -485,6 +485,34 @@ const removeStoredCredential = async (): Promise<void> => {
 onMounted(() => {
   void loadAuthorizationMetadata()
 })
+
+watch(
+  [
+    name,
+    command,
+    args,
+    env,
+    descriptions,
+    icons,
+    type,
+    baseUrl,
+    customHeaders,
+    npmRegistry,
+    authorizationMode,
+    protectedResourceUrl,
+    authorizationServerIssuer,
+    clientMetadataUrl,
+    authorizationClientId,
+    authorizationScopes,
+    identityProfileId,
+    keyAlgorithm,
+    credentialSecret,
+    privateKey
+  ],
+  () => {
+    emit('input-change')
+  }
+)
 
 // 提交表单
 const handleSubmit = (): void => {
@@ -507,30 +535,15 @@ const handleSubmit = (): void => {
     if ((type.value === 'stdio' || isInMemoryType.value) && env.value.trim()) {
       parsedEnv = JSON.parse(env.value)
     }
-  } catch (error) {
-    toast({
-      title: t('settings.mcp.serverForm.jsonParseError'),
-      description: String(error),
-      variant: 'destructive'
-    })
-    // 阻止提交或根据需要处理错误
+  } catch {
     return
   }
 
   // 解析 customHeaders
-  let parsedCustomHeaders = {}
-  try {
-    if (isRemoteType.value && customHeaders.value.trim()) {
-      parsedCustomHeaders = parseKeyValueHeaders(customHeaders.value)
-    }
-  } catch (error) {
-    toast({
-      title: t('settings.mcp.serverForm.parseError'),
-      description: t('settings.mcp.serverForm.customHeadersParseError') + ': ' + String(error),
-      variant: 'destructive'
-    })
-    return
-  }
+  const parsedCustomHeaders =
+    isRemoteType.value && customHeaders.value.trim()
+      ? parseKeyValueHeaders(customHeaders.value)
+      : {}
 
   if (isRemoteType.value) {
     // SSE 或 HTTP 类型的服务器
@@ -638,6 +651,10 @@ watch(
   },
   { immediate: true }
 )
+
+watch(jsonConfig, () => {
+  jsonConfigError.value = null
+})
 
 // 遮蔽敏感内容的函数
 const maskSensitiveValue = (value: string): string => {
@@ -790,7 +807,22 @@ HTTP-Referer=deepchatai.cn`
           <Label class="text-xs text-muted-foreground" for="json-config">
             {{ t('settings.mcp.serverForm.jsonConfig') }}
           </Label>
-          <Textarea id="json-config" v-model="jsonConfig" rows="10" :placeholder="placeholder" />
+          <Textarea
+            id="json-config"
+            v-model="jsonConfig"
+            rows="10"
+            :placeholder="placeholder"
+            :aria-invalid="Boolean(jsonConfigError)"
+            :aria-describedby="jsonConfigError ? 'json-config-error' : undefined"
+          />
+          <p
+            v-if="jsonConfigError"
+            id="json-config-error"
+            role="alert"
+            class="text-xs text-destructive"
+          >
+            {{ jsonConfigError }}
+          </p>
         </div>
       </div>
     </ScrollArea>
@@ -806,7 +838,13 @@ HTTP-Referer=deepchatai.cn`
   </form>
 
   <!-- 详细表单 -->
-  <form v-else class="space-y-2 h-full flex flex-col" @submit.prevent="handleSubmit">
+  <form
+    v-else
+    class="space-y-2 h-full flex flex-col"
+    :inert="submitting || undefined"
+    :aria-busy="submitting"
+    @submit.prevent="handleSubmit"
+  >
     <ScrollArea class="h-0 grow">
       <div class="space-y-2 px-4 pb-4">
         <!-- 服务器名称 -->
@@ -834,6 +872,9 @@ HTTP-Referer=deepchatai.cn`
             required
           />
         </div>
+        <p v-if="nameError" role="alert" class="text-xs text-destructive">
+          {{ nameError }}
+        </p>
 
         <!-- 图标 -->
         <div class="space-y-2">
@@ -1129,6 +1170,9 @@ HTTP-Referer=deepchatai.cn`
               <Icon icon="lucide:folder-plus" class="h-4 w-4" />
               {{ t('settings.mcp.serverForm.addFolder') || '添加文件夹' }}
             </Button>
+            <p v-if="folderSelectionError" role="alert" class="text-xs text-destructive">
+              {{ folderSelectionError }}
+            </p>
 
             <!-- 空状态提示 -->
             <div
@@ -1182,7 +1226,12 @@ HTTP-Referer=deepchatai.cn`
             rows="5"
             :placeholder="t('settings.mcp.serverForm.envPlaceholder')"
             :class="{ 'border-red-500': !isEnvValid }"
+            :aria-invalid="!isEnvValid"
+            :aria-describedby="!isEnvValid ? 'server-env-error' : undefined"
           />
+          <p v-if="!isEnvValid" id="server-env-error" role="alert" class="text-xs text-destructive">
+            {{ t('settings.mcp.serverForm.envInvalid') }}
+          </p>
         </div>
 
         <!-- 描述 -->
@@ -1272,8 +1321,17 @@ HTTP-Referer=deepchatai.cn`
     </ScrollArea>
 
     <!-- 提交按钮 -->
-    <div class="flex justify-end pt-2 border-t px-4">
-      <Button type="submit" size="sm" :disabled="!isFormValid">
+    <div class="flex items-center justify-between gap-3 pt-2 border-t px-4">
+      <p v-if="submissionError" role="alert" class="min-w-0 text-xs text-destructive">
+        {{ submissionError }}
+      </p>
+      <Button type="submit" size="sm" class="ml-auto" :disabled="!isFormValid || submitting">
+        <Icon
+          v-if="submitting"
+          icon="lucide:loader-circle"
+          class="mr-1.5 size-3.5 animate-spin"
+          aria-hidden="true"
+        />
         {{ t('settings.mcp.serverForm.submit') }}
       </Button>
     </div>

@@ -19,6 +19,8 @@ const createMessages = (label: string): RendererLocaleMessages => ({
 describe('renderer locale loading', () => {
   it('normalizes supported locales and language aliases', () => {
     expect(resolveSupportedLocale('zh_TW')).toBe('zh-TW')
+    expect(resolveSupportedLocale('zh-Hant-HK')).toBe('zh-HK')
+    expect(resolveSupportedLocale('fr-CA')).toBe('fr-FR')
     expect(resolveSupportedLocale('PT')).toBe('pt-BR')
     expect(resolveSupportedLocale('unknown')).toBe(FALLBACK_LOCALE)
     expect(resolveSupportedLocale(undefined)).toBe(FALLBACK_LOCALE)
@@ -30,6 +32,27 @@ describe('renderer locale loading', () => {
 
     expect(secondLoad).toBe(firstLoad)
     expect(await firstLoad).toHaveProperty('common')
+  })
+
+  it('renders literal search placeholders and named confirmation parameters', async () => {
+    const messages = await loadLocaleMessages('en-US')
+    const { i18n } = await createRendererI18n({
+      getLanguageState: async () => ({
+        requestedLanguage: 'en-US',
+        locale: 'en-US',
+        direction: 'auto'
+      }),
+      loadMessages: async () => messages
+    })
+
+    expect(i18n.global.t('settings.common.searchEngineUrlPlaceholder')).toBe(
+      'Ex: https://a.com/search?q={query}'
+    )
+    expect(
+      i18n.global.t('settings.provider.dialog.disableAllModels.content', {
+        name: 'Example'
+      })
+    ).toBe('Are you sure you want to disable all models for "Example"?')
   })
 
   it('loads only the resolved locale and fallback before creating i18n', async () => {

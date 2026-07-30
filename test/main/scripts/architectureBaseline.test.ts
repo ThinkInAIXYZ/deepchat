@@ -53,6 +53,11 @@ describe('architecture baseline generator', () => {
       expect(second.status, second.stderr).toBe(0)
       expect(await snapshotOutput(outputDir)).toEqual(firstSnapshot)
       expect(await readFile(CANONICAL_AGENT_BASELINE, 'utf8')).toBe(canonicalBefore)
+      expect(firstSnapshot['dependency-report.md']).toContain('## renderer-shared')
+      expect(firstSnapshot['dependency-report.md']).toContain(
+        'notifications/notificationManager.ts'
+      )
+      expect(firstSnapshot['zero-inbound-candidates.md']).toContain('## renderer-shared')
 
       const baseline = JSON.parse(
         firstSnapshot['agent-system-layered-runtime-baseline.json']

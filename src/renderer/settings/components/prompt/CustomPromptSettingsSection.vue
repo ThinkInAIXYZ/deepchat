@@ -6,20 +6,42 @@
         <Label class="text-base font-medium">{{ t('promptSetting.customPrompts') }}</Label>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="default" size="sm" @click="openCreateDialog">
+        <Button
+          variant="default"
+          size="sm"
+          :disabled="interactionBlocked || !loaded"
+          @click="openCreateDialog"
+        >
           <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
           {{ t('promptSetting.addCustomPrompt') }}
         </Button>
       </div>
     </div>
 
-    <div v-if="prompts.length === 0" class="text-center text-muted-foreground py-12">
+    <div
+      v-if="loadFailed"
+      role="alert"
+      class="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+    >
+      <span>{{ t('common.error.requestFailed') }}</span>
+      <Button
+        variant="link"
+        size="sm"
+        class="h-auto p-0 text-xs"
+        :disabled="interactionBlocked"
+        @click="loadPrompts"
+      >
+        {{ t('common.retry') }}
+      </Button>
+    </div>
+
+    <div v-if="!loadFailed && prompts.length === 0" class="text-center text-muted-foreground py-12">
       <Icon icon="lucide:book-open-text" class="w-12 h-12 mx-auto mb-4 opacity-50" />
       <p class="text-lg font-medium">{{ t('promptSetting.noPrompt') }}</p>
       <p class="text-sm mt-1">{{ t('promptSetting.noPromptDesc') }}</p>
     </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div v-else-if="!loadFailed" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <div
         v-for="(prompt, index) in prompts"
         :key="prompt.id"
@@ -38,7 +60,9 @@
                 <span class="text-xs px-2 py-0.5 bg-muted rounded-md text-muted-foreground">
                   {{ getSourceLabel(prompt.source) }}
                 </span>
-                <span
+                <button
+                  type="button"
+                  :disabled="interactionBlocked"
                   :class="[
                     'text-xs px-2 py-0.5 rounded-md transition-colors',
                     prompt.enabled
@@ -53,7 +77,7 @@
                   @click="togglePromptEnabled(index)"
                 >
                   {{ prompt.enabled ? t('promptSetting.active') : t('promptSetting.inactive') }}
-                </span>
+                </button>
               </div>
             </div>
           </div>
@@ -63,40 +87,23 @@
               variant="ghost"
               size="icon"
               class="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+              :disabled="interactionBlocked"
               :title="t('common.edit')"
               @click="editPrompt(index)"
             >
               <Icon icon="lucide:pencil" class="w-3.5 h-3.5" />
             </Button>
 
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  :title="t('common.delete')"
-                >
-                  <Icon icon="lucide:trash-2" class="w-3.5 h-3.5" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{{
-                    t('promptSetting.confirmDelete', { name: prompt.name })
-                  }}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {{ t('promptSetting.confirmDeleteDescription') }}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                  <AlertDialogAction @click="deletePrompt(index)">
-                    {{ t('common.confirm') }}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              :disabled="interactionBlocked"
+              :title="t('common.delete')"
+              @click="requestDeletePrompt(prompt.id)"
+            >
+              <Icon icon="lucide:trash-2" class="w-3.5 h-3.5" />
+            </Button>
           </div>
         </div>
 
@@ -145,35 +152,61 @@
     <PromptEditorSheet
       :open="editorOpen"
       :prompt="editingPrompt"
+      :pending="operationPending"
+      :feedback="feedback"
       @update:open="handleEditorOpenChange"
       @submit="handleEditorSubmit"
     />
+
+    <Dialog v-model:open="deleteDialogOpen">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {{ t('promptSetting.confirmDelete', { name: pendingDeletePrompt?.name ?? '' }) }}
+          </DialogTitle>
+          <DialogDescription>
+            {{ t('promptSetting.confirmDeleteDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+        <InlineOperationFeedback :snapshot="feedback" />
+        <DialogFooter>
+          <Button variant="outline" :disabled="operationPending" @click="deleteDialogOpen = false">
+            {{ t('common.cancel') }}
+          </Button>
+          <Button variant="destructive" :disabled="operationPending" @click="deletePrompt">
+            {{ t('common.confirm') }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nanoid } from 'nanoid'
+import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@shadcn/components/ui/dialog'
 import { Label } from '@shadcn/components/ui/label'
-import { useToast } from '@/components/use-toast'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import type {
+  SurfaceFeedbackController,
+  SurfaceFeedbackSnapshot
+} from '@renderer-notifications/surfaceFeedbackController'
 import { usePromptsStore } from '@/stores/prompts'
-import { toRaw } from 'vue'
 import PromptEditorSheet from './PromptEditorSheet.vue'
 import type { Prompt } from '@shared/types/prompt'
 import type { FileItem } from '@shared/types/file'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from '@shadcn/components/ui/alert-dialog'
+import { PromptSchema } from '@shared/contracts/domainSchemas'
 import { downloadBlob } from '@/lib/download'
 
 interface PromptParameter {
@@ -192,21 +225,119 @@ interface PromptForm extends PromptItem {
   source: 'local' | 'imported' | 'builtin'
 }
 
+const props = defineProps<{
+  feedbackController: SurfaceFeedbackController
+  feedback: SurfaceFeedbackSnapshot
+  blocked: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'feedback-surface', value: boolean): void
+  (e: 'ready-change', value: boolean): void
+}>()
+
 const { t } = useI18n()
-const { toast } = useToast()
 const promptsStore = usePromptsStore()
+const operationScope = nanoid(8)
+const operationIds = Object.freeze({
+  toggle: `settings.prompts.toggle:${operationScope}`,
+  delete: `settings.prompts.delete:${operationScope}`,
+  save: `settings.prompts.save:${operationScope}`,
+  import: `settings.prompts.import:${operationScope}`,
+  export: `settings.prompts.export:${operationScope}`
+})
+const MAX_PROMPT_IMPORT_BYTES = 5 * 1024 * 1024
+const MAX_PROMPT_IMPORT_COUNT = 1_000
 
 const prompts = ref<PromptItem[]>([])
 const expandedPrompts = ref<Set<string>>(new Set())
 const editorOpen = ref(false)
 const editingPrompt = ref<PromptForm | null>(null)
+const loadFailed = ref(false)
+const loaded = ref(false)
+const pendingDeletePromptId = ref<string | null>(null)
+const operationPending = computed(() => props.feedback.status === 'pending')
+const interactionBlocked = computed(() => operationPending.value || props.blocked)
+const getFeedback = () => props.feedbackController.getSnapshot()
+const pendingDeletePrompt = computed(
+  () => prompts.value.find((prompt) => prompt.id === pendingDeletePromptId.value) ?? null
+)
+const deleteDialogOpen = computed({
+  get: () => pendingDeletePromptId.value !== null,
+  set: (open: boolean) => {
+    if (open || getFeedback().status === 'pending') {
+      return
+    }
+    pendingDeletePromptId.value = null
+    if (getFeedback().status !== 'idle') {
+      props.feedbackController.clearSettled()
+    }
+  }
+})
+const contextualFeedbackSurface = computed(() => editorOpen.value || deleteDialogOpen.value)
+let activeImportReader: FileReader | undefined
+let disposed = false
+let loadGeneration = 0
 
 const getContent = (prompt: PromptItem) => prompt.content ?? ''
 
-const loadPrompts = async () => {
-  await promptsStore.loadPrompts()
-  prompts.value = promptsStore.prompts.map((prompt) => ({ ...prompt }))
-  // The main window receives the typed config.customPrompts.changed event.
+const applyPrompts = (items: PromptItem[]) => {
+  prompts.value = items.map((prompt) => ({
+    ...prompt,
+    parameters: prompt.parameters?.map((parameter) => ({ ...parameter })),
+    files: prompt.files?.map((file) => ({ ...file })),
+    messages: prompt.messages?.map((message) => ({
+      ...message,
+      content: { ...message.content }
+    }))
+  }))
+}
+
+const logFailure = (operation: string, error: unknown) => {
+  console.error(
+    '[CustomPromptSettingsSection] Operation failed',
+    {
+      operation
+    },
+    error
+  )
+}
+
+const beginOperation = (operationId: string, label: string): boolean => {
+  if (props.blocked || getFeedback().status === 'pending') {
+    return false
+  }
+  props.feedbackController.begin(operationId, label)
+  return true
+}
+
+const failOperation = (operation: string, code: string, title: string, error: unknown) => {
+  logFailure(operation, error)
+  props.feedbackController.fail({ code, title })
+}
+
+const loadPrompts = async (): Promise<boolean> => {
+  const generation = ++loadGeneration
+  try {
+    const canonicalPrompts = await promptsStore.loadPrompts()
+    if (disposed || generation !== loadGeneration) {
+      return false
+    }
+    applyPrompts(canonicalPrompts)
+    loadFailed.value = false
+    loaded.value = true
+    emit('ready-change', true)
+    return true
+  } catch (error) {
+    if (disposed || generation !== loadGeneration) {
+      return false
+    }
+    logFailure('load', error)
+    loadFailed.value = true
+    loaded.value = false
+    emit('ready-change', false)
+    return false
+  }
 }
 
 const isExpanded = (id: string) => expandedPrompts.value.has(id)
@@ -221,47 +352,67 @@ const toggleShowMore = (id: string) => {
 
 const togglePromptEnabled = async (index: number) => {
   const prompt = prompts.value[index]
+  if (!prompt || !beginOperation(operationIds.toggle, t('common.saving'))) {
+    return
+  }
   const newEnabled = !(prompt.enabled ?? true)
-  prompts.value[index] = { ...prompt, enabled: newEnabled }
 
   try {
-    await promptsStore.updatePrompt(prompt.id, {
-      enabled: newEnabled,
-      updatedAt: Date.now()
+    applyPrompts(
+      await promptsStore.updatePrompt(prompt.id, {
+        enabled: newEnabled,
+        updatedAt: Date.now()
+      })
+    )
+    props.feedbackController.succeed({
+      code: newEnabled ? 'settings.prompts.enabled' : 'settings.prompts.disabled',
+      title: newEnabled ? t('promptSetting.enableSuccess') : t('promptSetting.disableSuccess')
     })
-    toast({
-      title: newEnabled ? t('promptSetting.enableSuccess') : t('promptSetting.disableSuccess'),
-      variant: 'default'
-    })
+    props.feedbackController.clearSettled()
   } catch (error) {
-    console.error('Failed to toggle prompt:', error)
-    await loadPrompts()
-    toast({
-      title: t('promptSetting.toggleFailed'),
-      variant: 'destructive'
-    })
+    failOperation('toggle', 'settings.prompts.toggleFailed', t('promptSetting.toggleFailed'), error)
   }
 }
 
-const deletePrompt = async (index: number) => {
-  const prompt = prompts.value[index]
+const requestDeletePrompt = (promptId: string) => {
+  if (
+    props.blocked ||
+    getFeedback().status === 'pending' ||
+    !prompts.value.some((prompt) => prompt.id === promptId)
+  ) {
+    return
+  }
+  if (getFeedback().status !== 'idle') {
+    props.feedbackController.clearSettled()
+  }
+  pendingDeletePromptId.value = promptId
+}
+
+const deletePrompt = async () => {
+  const prompt = pendingDeletePrompt.value
+  if (!prompt || !beginOperation(operationIds.delete, t('common.saving'))) {
+    return
+  }
   try {
-    await promptsStore.deletePrompt(prompt.id)
-    await loadPrompts()
-    toast({
-      title: t('promptSetting.deleteSuccess'),
-      variant: 'default'
+    applyPrompts(await promptsStore.deletePrompt(prompt.id))
+    props.feedbackController.succeed({
+      code: 'settings.prompts.deleted',
+      title: t('promptSetting.deleteSuccess')
     })
+    props.feedbackController.clearSettled()
+    pendingDeletePromptId.value = null
   } catch (error) {
-    console.error('Failed to delete prompt:', error)
-    toast({
-      title: t('promptSetting.deleteFailed'),
-      variant: 'destructive'
-    })
+    failOperation('delete', 'settings.prompts.deleteFailed', t('promptSetting.deleteFailed'), error)
   }
 }
 
 const openCreateDialog = () => {
+  if (!loaded.value || props.blocked || getFeedback().status === 'pending') {
+    return
+  }
+  if (getFeedback().status !== 'idle') {
+    props.feedbackController.clearSettled()
+  }
   editingPrompt.value = null
   editorOpen.value = true
 }
@@ -280,45 +431,64 @@ const toPromptForm = (prompt: PromptItem): PromptForm => ({
 })
 
 const editPrompt = (index: number) => {
+  if (props.blocked || getFeedback().status === 'pending') {
+    return
+  }
+  if (getFeedback().status !== 'idle') {
+    props.feedbackController.clearSettled()
+  }
   const prompt = prompts.value[index]
   editingPrompt.value = toPromptForm(prompt)
   editorOpen.value = true
 }
 
 const handleEditorOpenChange = (open: boolean) => {
+  if (!open && getFeedback().status === 'pending') {
+    return
+  }
   editorOpen.value = open
   if (!open) {
     editingPrompt.value = null
+    if (getFeedback().status !== 'idle') {
+      props.feedbackController.clearSettled()
+    }
   }
 }
 
 const handleEditorSubmit = async (prompt: PromptForm) => {
+  if (!beginOperation(operationIds.save, t('common.saving'))) {
+    return
+  }
   const timestamp = Date.now()
 
   try {
     if (!prompt.id) {
       const newPrompt = {
         ...prompt,
-        id: timestamp.toString(),
+        id: `${timestamp}-${nanoid(8)}`,
         enabled: prompt.enabled ?? true,
         source: 'local' as const,
         createdAt: timestamp,
         updatedAt: timestamp
       }
-      await promptsStore.addPrompt(toRaw(newPrompt))
+      applyPrompts(await promptsStore.addPrompt(toRaw(newPrompt)))
     } else {
       const updatedPrompt = {
         ...prompt,
         updatedAt: timestamp
       }
-      await promptsStore.updatePrompt(prompt.id, toRaw(updatedPrompt))
+      applyPrompts(await promptsStore.updatePrompt(prompt.id, toRaw(updatedPrompt)))
     }
 
-    await loadPrompts()
+    props.feedbackController.succeed({
+      code: prompt.id ? 'settings.prompts.updated' : 'settings.prompts.added',
+      title: t('common.saved')
+    })
+    props.feedbackController.clearSettled()
     editorOpen.value = false
     editingPrompt.value = null
   } catch (error) {
-    console.error('Failed to save prompt:', error)
+    failOperation('save', 'settings.prompts.saveFailed', t('common.error.operationFailed'), error)
   }
 }
 
@@ -347,36 +517,13 @@ const getSourceLabel = (source?: string) => {
   }
 }
 
-const safeClone = (obj: unknown): unknown => {
-  if (obj === null || typeof obj !== 'object') {
-    return obj
-  }
-
-  if (obj instanceof Date) {
-    return new Date(obj.getTime())
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map((item) => safeClone(item))
-  }
-
-  const cloned: Record<string, unknown> = {}
-  for (const key in obj as Record<string, unknown>) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      const value = (obj as Record<string, unknown>)[key]
-      if (
-        typeof value !== 'function' &&
-        typeof value !== 'symbol' &&
-        typeof value !== 'undefined'
-      ) {
-        cloned[key] = safeClone(value)
-      }
-    }
-  }
-  return cloned
-}
-
 const exportPrompts = () => {
+  if (!loaded.value) {
+    return
+  }
+  if (!beginOperation(operationIds.export, t('promptSetting.export'))) {
+    return
+  }
   try {
     const data = JSON.stringify(
       prompts.value.map((prompt) => toRaw(prompt)),
@@ -385,103 +532,186 @@ const exportPrompts = () => {
     )
     const blob = new Blob([data], { type: 'application/json' })
     downloadBlob(blob, 'prompts.json')
-    toast({
-      title: t('promptSetting.exportSuccess'),
-      variant: 'default'
+    props.feedbackController.succeed({
+      code: 'settings.prompts.exported',
+      title: t('promptSetting.exportSuccess')
     })
   } catch (error) {
-    console.error('Failed to export prompts:', error)
-    toast({
-      title: t('promptSetting.exportFailed'),
-      variant: 'destructive'
-    })
+    failOperation('export', 'settings.prompts.exportFailed', t('promptSetting.exportFailed'), error)
+  }
+}
+
+const normalizeImportedPrompt = (value: unknown, timestamp: number): PromptItem => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('Imported prompt must be an object')
+  }
+  const input = value as Record<string, unknown>
+  const importedId =
+    typeof input.id === 'string' && input.id.trim() ? input.id.trim() : `${timestamp}-${nanoid(8)}`
+  const importedName =
+    typeof input.name === 'string' && input.name.trim() ? input.name.trim() : undefined
+  const parsed = PromptSchema.safeParse({
+    id: importedId,
+    name: importedName,
+    description: typeof input.description === 'string' ? input.description : '',
+    content: input.content,
+    parameters: input.parameters,
+    files: input.files,
+    messages: input.messages,
+    enabled: typeof input.enabled === 'boolean' ? input.enabled : true,
+    source: 'imported',
+    createdAt: Number.isInteger(input.createdAt) ? input.createdAt : timestamp,
+    updatedAt: timestamp
+  })
+  if (!parsed.success) {
+    throw new TypeError('Imported prompt does not match the prompt contract')
+  }
+
+  const prompt = parsed.data
+  return {
+    id: prompt.id,
+    name: prompt.name,
+    description: prompt.description,
+    ...(prompt.content !== undefined ? { content: prompt.content } : {}),
+    ...(prompt.parameters
+      ? {
+          parameters: prompt.parameters.map((item) => ({
+            name: item.name,
+            description: item.description ?? '',
+            required: item.required
+          }))
+        }
+      : {}),
+    ...(prompt.files
+      ? {
+          files: prompt.files.map((item) => ({
+            id: item.id,
+            name: item.name,
+            type: item.type,
+            size: Number.isFinite(item.size) && (item.size ?? 0) >= 0 ? (item.size ?? 0) : 0,
+            // Imported paths are untrusted and must never become deferred local-file reads.
+            path: '',
+            ...(item.description !== undefined ? { description: item.description } : {}),
+            ...(item.content !== undefined ? { content: item.content } : {}),
+            createdAt: item.createdAt ?? timestamp
+          }))
+        }
+      : {}),
+    ...(prompt.messages
+      ? {
+          messages: prompt.messages.map((item) => ({
+            ...item,
+            content: { ...item.content }
+          }))
+        }
+      : {}),
+    enabled: prompt.enabled ?? true,
+    source: prompt.source ?? 'imported',
+    createdAt: prompt.createdAt ?? timestamp,
+    updatedAt: timestamp
   }
 }
 
 const importPrompts = () => {
+  if (!loaded.value || interactionBlocked.value) {
+    return
+  }
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = '.json'
   input.onchange = async (event) => {
     const file = (event.target as HTMLInputElement).files?.[0]
     if (!file) return
+    if (!beginOperation(operationIds.import, t('promptSetting.import'))) {
+      return
+    }
+    if (file.size > MAX_PROMPT_IMPORT_BYTES) {
+      props.feedbackController.fail({
+        code: 'settings.prompts.importTooLarge',
+        title: t('promptSetting.importFailed')
+      })
+      return
+    }
 
     const reader = new FileReader()
+    activeImportReader = reader
     reader.onload = async (e) => {
+      activeImportReader = undefined
+      if (disposed) return
       try {
         const content = e.target?.result as string
-        const importedPrompts = JSON.parse(content)
+        const importedPrompts: unknown = JSON.parse(content)
 
-        if (!Array.isArray(importedPrompts)) {
-          throw new Error('Invalid format: not an array')
+        if (!Array.isArray(importedPrompts) || importedPrompts.length > MAX_PROMPT_IMPORT_COUNT) {
+          throw new TypeError('Imported prompt payload must be a bounded array')
         }
 
-        const currentPrompts = [...prompts.value]
-        const currentMap = new Map(currentPrompts.map((prompt) => [prompt.id, prompt]))
+        const currentPrompts = prompts.value.map((prompt) => ({ ...prompt }))
+        const indexById = new Map(currentPrompts.map((prompt, index) => [prompt.id, index]))
         let updatedCount = 0
         let addedCount = 0
 
-        for (const importedPrompt of importedPrompts) {
-          const timestamp = Date.now()
-
-          if (!importedPrompt.id) {
-            importedPrompt.id = `${timestamp}${Math.random().toString(36).slice(2, 11)}`
-          }
-
-          if (!importedPrompt.source) {
-            importedPrompt.source = 'imported'
-          }
-
-          if (importedPrompt.enabled === undefined) {
-            importedPrompt.enabled = true
-          }
-
-          if (!importedPrompt.createdAt) {
-            importedPrompt.createdAt = timestamp
-          }
-
-          importedPrompt.updatedAt = timestamp
-
-          if (currentMap.has(importedPrompt.id)) {
-            const idx = currentPrompts.findIndex((prompt) => prompt.id === importedPrompt.id)
-            if (idx !== -1) {
-              currentPrompts[idx] = importedPrompt
-              updatedCount++
-            }
+        for (const value of importedPrompts) {
+          const importedPrompt = normalizeImportedPrompt(value, Date.now())
+          const existingIndex = indexById.get(importedPrompt.id)
+          if (existingIndex !== undefined) {
+            currentPrompts[existingIndex] = importedPrompt
+            updatedCount += 1
           } else {
+            indexById.set(importedPrompt.id, currentPrompts.length)
             currentPrompts.push(importedPrompt)
-            addedCount++
+            addedCount += 1
           }
         }
 
-        const rawPrompts = currentPrompts.map((prompt) => safeClone(toRaw(prompt)) as PromptItem)
-        await promptsStore.savePrompts(rawPrompts as PromptItem[])
-        await loadPrompts()
-
-        toast({
+        const savedPrompts = await promptsStore.savePrompts(currentPrompts)
+        if (disposed) return
+        applyPrompts(savedPrompts)
+        props.feedbackController.succeed({
+          code: 'settings.prompts.imported',
           title: t('promptSetting.importSuccess'),
-          description: t('promptSetting.importStats', { added: addedCount, updated: updatedCount }),
-          variant: 'default'
+          description: t('promptSetting.importStats', { added: addedCount, updated: updatedCount })
         })
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        toast({
-          title: t('promptSetting.importFailed'),
-          description: `错误: ${errorMessage}`,
-          variant: 'destructive'
-        })
+        failOperation(
+          'import',
+          'settings.prompts.importFailed',
+          t('promptSetting.importFailed'),
+          error
+        )
       }
     }
 
     reader.onerror = () => {
-      toast({
-        title: t('promptSetting.importFailed'),
-        description: '文件读取失败',
-        variant: 'destructive'
-      })
+      activeImportReader = undefined
+      if (disposed) return
+      failOperation(
+        'import-read',
+        'settings.prompts.importFailed',
+        t('promptSetting.importFailed'),
+        reader.error
+      )
+    }
+    reader.onabort = () => {
+      activeImportReader = undefined
+      if (disposed) return
+      const feedback = getFeedback()
+      if (feedback.status === 'pending' && feedback.operationId === operationIds.import) {
+        props.feedbackController.cancelPending()
+      }
     }
 
-    reader.readAsText(file)
+    try {
+      reader.readAsText(file)
+    } catch (error) {
+      activeImportReader = undefined
+      failOperation(
+        'import-read',
+        'settings.prompts.importFailed',
+        t('promptSetting.importFailed'),
+        error
+      )
+    }
   }
 
   input.click()
@@ -489,6 +719,27 @@ const importPrompts = () => {
 
 onMounted(async () => {
   await loadPrompts()
+})
+
+const stopFeedbackSurfaceSync = watch(
+  contextualFeedbackSurface,
+  (active) => {
+    emit('feedback-surface', active)
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  disposed = true
+  loadGeneration += 1
+  stopFeedbackSurfaceSync()
+  activeImportReader?.abort()
+  const feedback = getFeedback()
+  if (feedback.status === 'pending' && feedback.operationId === operationIds.import) {
+    props.feedbackController.cancelPending()
+  }
+  emit('feedback-surface', false)
+  emit('ready-change', false)
 })
 
 defineExpose({

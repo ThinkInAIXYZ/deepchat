@@ -1,3 +1,5 @@
+import { getLocaleDirection } from '@shared/locales'
+
 export type ResolvedTheme = 'dark' | 'light'
 export type DocumentDirection = 'auto' | 'ltr' | 'rtl'
 
@@ -11,10 +13,9 @@ type ApplyDocumentAppearanceOptions = {
 }
 
 const FONT_SIZE_CLASSES = ['text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
-const RTL_LANGUAGES = new Set(['fa-IR', 'he-IL'])
 
 export const resolveDocumentDirection = (language: string): DocumentDirection =>
-  RTL_LANGUAGES.has(language) ? 'rtl' : 'auto'
+  getLocaleDirection(language)
 
 const getDocumentTargets = (): [HTMLElement, HTMLElement] | null => {
   if (typeof document === 'undefined' || !document.body) {

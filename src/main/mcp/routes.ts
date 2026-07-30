@@ -52,7 +52,6 @@ import {
   mcpRouterListInstalledServerIdsRoute,
   mcpRouterListServersRoute,
   mcpRouterSetApiKeyRoute,
-  mcpRouterUpdateServersAuthRoute,
   mcpSetAutoDetectNpmRegistryRoute,
   mcpSetCustomNpmRegistryRoute,
   mcpSetEnabledRoute,
@@ -180,15 +179,15 @@ export function createMcpRoutes(deps: {
       mcpAddServerRoute.name,
       async (rawInput) => {
         const input = mcpAddServerRoute.input.parse(rawInput)
-        const success = await mcpService.addMcpServer(input.serverName, input.config)
-        if (success) {
+        const result = await mcpService.addMcpServer(input.serverName, input.config)
+        if (result.status === 'added') {
           serverActivity(
             'created',
             input.serverName,
             'settings.controlCenter.activity.mcpServerCreated'
           )
         }
-        return mcpAddServerRoute.output.parse({ success })
+        return mcpAddServerRoute.output.parse({ result })
       }
     ],
     [
@@ -751,14 +750,6 @@ export function createMcpRoutes(deps: {
         return mcpRouterListInstalledServerIdsRoute.output.parse({
           installedSourceIds: await mcpService.listInstalledServerIds(input.source, input.sourceIds)
         })
-      }
-    ],
-    [
-      mcpRouterUpdateServersAuthRoute.name,
-      async (rawInput) => {
-        const input = mcpRouterUpdateServersAuthRoute.input.parse(rawInput)
-        await mcpService.updateMcpRouterServersAuth(input.apiKey)
-        return mcpRouterUpdateServersAuthRoute.output.parse({ updated: true })
       }
     ]
   ])

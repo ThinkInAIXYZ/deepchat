@@ -328,7 +328,7 @@ import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOve
 import MemoryTurnDialog from '@/components/chat/MemoryTurnDialog.vue'
 import MemoryUpdateChip from '@/components/chat/MemoryUpdateChip.vue'
 import TraceDialog from '@/components/trace/TraceDialog.vue'
-import { useToast } from '@/components/use-toast'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { createChatClient } from '../../../api/ChatClient'
 import { createModelClient } from '@api/ModelClient'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -399,7 +399,6 @@ const chatClient = createChatClient()
 const modelClient = createModelClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
-const { toast } = useToast()
 const isSessionViewCommitted = computed(
   () =>
     messageStore.currentSessionId === props.sessionId &&
@@ -1144,7 +1143,7 @@ const {
   chatInputRef,
   getActiveModelSelection,
   modelClient,
-  toast,
+  notify: notifyRenderer,
   t
 })
 
@@ -1198,7 +1197,7 @@ const {
   loadMessagesForSession,
   applyRestoredSessionSummary,
   openModelPicker: openAttachmentModelPicker,
-  toast,
+  notify: notifyRenderer,
   t
 })
 switchComposerSessionDraft = switchComposerSession
@@ -1247,7 +1246,7 @@ const {
   currentRestoreRequestId,
   canWriteSessionView,
   openModelPicker: openAttachmentModelPicker,
-  toast,
+  notify: notifyRenderer,
   t
 })
 clearMessageActionsForSessionChange = clearForSessionChange
@@ -1267,7 +1266,7 @@ const {
     Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
   pendingInputStore,
   beginPlanTurn,
-  toast,
+  notify: notifyRenderer,
   t
 })
 
@@ -1315,10 +1314,11 @@ async function onStop() {
   } catch (error) {
     console.error('[ChatPage] cancel generation failed:', error)
     if (props.sessionId === sessionId) {
-      toast({
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.generation.cancelFailed',
         title: t('chat.input.stop'),
-        description: t('common.error.requestFailed'),
-        variant: 'destructive'
+        description: t('common.error.requestFailed')
       })
     }
   } finally {

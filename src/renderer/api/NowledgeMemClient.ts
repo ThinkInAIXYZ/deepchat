@@ -19,8 +19,11 @@ export function createNowledgeMemClient(bridge: DeepchatBridge = getDeepchatBrid
     return result.config
   }
 
-  async function testConnection(): Promise<NowledgeMemConnectionResult> {
-    const result = await bridge.invoke(nowledgeMemTestConnectionRoute.name, {})
+  async function testConnection(config?: NowledgeMemConfig): Promise<NowledgeMemConnectionResult> {
+    const result = await bridge.invoke(
+      nowledgeMemTestConnectionRoute.name,
+      config ? { config } : {}
+    )
     return result.result
   }
 

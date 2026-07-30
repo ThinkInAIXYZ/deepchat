@@ -58,13 +58,13 @@ const createLinuxFixture = async () => {
   const catalogPath = path.join(runtimeRoot, 'tool-catalog.json')
   await writeFile(binaryPath, 'verified-driver')
   await chmod(binaryPath, 0o755)
-  await writeFile(catalogPath, '{"version":"0.13.1","tools":[]}\n')
+  await writeFile(catalogPath, '{"version":"0.14.1","tools":[]}\n')
   await writeFile(path.join(runtimeRoot, 'integrity.json'), '{}\n')
   const descriptor = parseCuaRuntimeIntegrityDescriptor({
     schemaVersion: 1,
     pluginId: 'com.deepchat.plugins.cua',
     runtimeId: 'cua-driver',
-    runtimeVersion: '0.13.1',
+    runtimeVersion: '0.14.1',
     target: 'linux/x64',
     runtimeRoot: 'runtime/linux/x64',
     binaryPath: 'cua-driver',
@@ -88,7 +88,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
       schemaVersion: 1,
       pluginId: 'com.deepchat.plugins.cua',
       runtimeId: 'cua-driver',
-      runtimeVersion: '0.13.1',
+      runtimeVersion: '0.14.1',
       target: 'linux/x64',
       runtimeRoot: 'runtime/linux/x64',
       binaryPath: 'cua-driver',
@@ -121,7 +121,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
       binaryPath: fixture.binaryPath,
       platform: 'linux',
       arch: 'x64',
-      runtimeVersion: '0.13.1',
+      runtimeVersion: '0.14.1',
       descriptor: fixture.descriptor
     })
 
@@ -129,7 +129,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
     const second = await verifier.verify()
 
     await expect(verifier.verifyCatalog(fixture.catalogPath)).resolves.toBe(
-      '{"version":"0.13.1","tools":[]}\n'
+      '{"version":"0.14.1","tools":[]}\n'
     )
     expect(first).toEqual(second)
     expect(first).toMatchObject({
@@ -152,7 +152,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
       binaryPath: fixture.binaryPath,
       platform: 'linux',
       arch: 'x64',
-      runtimeVersion: '0.13.1',
+      runtimeVersion: '0.14.1',
       descriptor
     })
 
@@ -168,7 +168,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
       binaryPath: modified.binaryPath,
       platform: 'linux',
       arch: 'x64',
-      runtimeVersion: '0.13.1',
+      runtimeVersion: '0.14.1',
       descriptor: modified.descriptor
     })
     await writeFile(modified.binaryPath, 'replaced-driver')
@@ -186,7 +186,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
       binaryPath: linked.binaryPath,
       platform: 'linux',
       arch: 'x64',
-      runtimeVersion: '0.13.1',
+      runtimeVersion: '0.14.1',
       descriptor: linked.descriptor
     })
     await expect(linkedVerifier.verify()).rejects.toThrow(/rejects symbolic links/)
@@ -200,7 +200,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
       binaryPath: path.join(linkedRoot.runtimeRoot, 'cua-driver'),
       platform: 'linux',
       arch: 'x64',
-      runtimeVersion: '0.13.1',
+      runtimeVersion: '0.14.1',
       descriptor: linkedRoot.descriptor
     })
     await expect(linkedRootVerifier.verify()).rejects.toThrow(/directory must not be linked/)
@@ -214,7 +214,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
       binaryPath: unexpected.binaryPath,
       platform: 'linux',
       arch: 'x64',
-      runtimeVersion: '0.13.1',
+      runtimeVersion: '0.14.1',
       descriptor: unexpected.descriptor
     })
     await expect(unexpectedVerifier.verify()).rejects.toThrow(/file set mismatch/)
@@ -240,14 +240,14 @@ describe('CuaRuntimeIntegrityVerifier', () => {
     await writeFile(externalBinary, 'signed-driver')
     await chmod(externalBinary, 0o755)
     await writeFile(infoPlist, '<plist/>')
-    await writeFile(catalogPath, '{"version":"0.13.1","tools":[]}\n')
+    await writeFile(catalogPath, '{"version":"0.14.1","tools":[]}\n')
     await writeFile(path.join(runtimeRoot, 'integrity.json'), '{}\n')
 
     const descriptor = parseCuaRuntimeIntegrityDescriptor({
       schemaVersion: 1,
       pluginId: 'com.deepchat.plugins.cua',
       runtimeId: 'cua-driver',
-      runtimeVersion: '0.13.1',
+      runtimeVersion: '0.14.1',
       target: 'darwin/arm64',
       runtimeRoot: 'runtime/darwin/arm64',
       binaryPath: 'DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
@@ -279,7 +279,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
         externalBinaryPath: externalBinary,
         platform: 'darwin',
         arch: 'arm64',
-        runtimeVersion: '0.13.1',
+        runtimeVersion: '0.14.1',
         descriptor
       },
       { verifyMacSignature }
@@ -316,7 +316,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
 </dict></plist>
 `
       )
-      await writeFile(catalogPath, '{"version":"0.13.1","tools":[]}\n')
+      await writeFile(catalogPath, '{"version":"0.14.1","tools":[]}\n')
       await execFileAsync(
         '/usr/bin/codesign',
         [
@@ -340,7 +340,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
         schemaVersion: 1,
         pluginId: 'com.deepchat.plugins.cua',
         runtimeId: 'cua-driver',
-        runtimeVersion: '0.13.1',
+        runtimeVersion: '0.14.1',
         target: `darwin/${process.arch}`,
         runtimeRoot: `runtime/darwin/${process.arch}`,
         binaryPath: 'DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
@@ -364,7 +364,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
         binaryPath: helperBinary,
         platform: 'darwin',
         arch: process.arch,
-        runtimeVersion: '0.13.1',
+        runtimeVersion: '0.14.1',
         descriptor
       })
 

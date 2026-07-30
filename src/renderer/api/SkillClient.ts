@@ -1,5 +1,9 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { skillsCatalogChangedEvent, skillsSessionChangedEvent } from '@shared/contracts/events'
+import {
+  skillsCatalogChangedEvent,
+  skillsSessionChangedEvent,
+  type DeepchatEventPayload
+} from '@shared/contracts/events'
 import {
   skillsGetActiveRoute,
   skillsGetDirectoryRoute,
@@ -250,21 +254,7 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
   }
 
   function onCatalogChanged(
-    listener: (payload: {
-      reason:
-        | 'discovered'
-        | 'installed'
-        | 'uninstalled'
-        | 'metadata-updated'
-        | 'disabled-updated'
-        | 'management-state-updated'
-        | 'git-installed'
-        | 'sync-directory-updated'
-      name?: string
-      disabled?: boolean
-      agentIds?: string[]
-      version: number
-    }) => void
+    listener: (payload: DeepchatEventPayload<typeof skillsCatalogChangedEvent.name>) => void
   ) {
     return bridge.on(skillsCatalogChangedEvent.name, listener)
   }

@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Beispiel: http://127.0.0.1:7890",
     "invalidProxyUrl": "Ungültige Proxy-Adresse. Bitte eine gültige http/https URL eingeben",
     "addCustomSearchEngine": "Benutzerdefinierte Suchmaschine hinzufügen",
-    "addCustomSearchEngineDesc": "Fügen Sie eine neue Suchmaschine hinzu. Name und Such-URL sind erforderlich. Die URL muss {query} als Platzhalter für die Suchanfrage enthalten.",
+    "addCustomSearchEngineDesc": "Fügen Sie eine neue Suchmaschine hinzu. Name und Such-URL sind erforderlich. Die URL muss {'{'}query{'}'} als Platzhalter für die Suchanfrage enthalten.",
     "searchEngineName": "Name der Suchmaschine",
     "searchEngineNamePlaceholder": "Name der Suchmaschine eingeben",
     "searchEngineUrl": "Such-URL",
@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Der persistente Cache ist nicht verfügbar, weil keine sichere Schlüsselspeicherung verfügbar ist."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Nicht gespeicherte Änderungen",
+    "dirtyDescription": "Jetzt verlassen und Änderungen verwerfen?",
+    "busyTitle": "Speichern läuft",
+    "busyDescription": "Warten Sie vor dem Verlassen, bis das Speichern abgeschlossen ist.",
+    "stay": "Weiter bearbeiten",
+    "discard": "Änderungen verwerfen"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Wird gespeichert…",
+      "saved": "Gespeichert",
+      "saveFailed": "Speichern fehlgeschlagen. Änderungen bleiben erhalten.",
+      "retry": "Erneut versuchen"
+    },
     "title": "DeepChat Agents",
     "description": "DeepChat Agent und ihre Standardwerte für neue Sitzungen verwalten.",
     "builtIn": "Integriert",
@@ -786,7 +800,7 @@
   "dashboard": {
     "badge": "Nutzungsübersicht",
     "title": "Nutzungsübersicht",
-    "description": "Statistiken zu token-Verbrauch, Cache-Treffern und geschätzten Kosten. token- und Kostendaten basieren auf öffentlich verfügbaren Informationen; bei manchen Anbietern oder älteren Nachrichten können Daten fehlen und dienen nur als Referenz.",
+    "description": "Tokenverbrauch und Cache-Treffer verfolgen.",
     "actions": {
       "refresh": "Aktualisieren"
     },
@@ -802,8 +816,8 @@
     },
     "empty": {
       "title": "Noch keine Statistikdaten",
-      "description": "Sobald Nutzungsdaten vorhanden sind, werden hier token-Verbrauch, Cache-Treffer und geschätzte Kosten angezeigt.",
-      "historyNote": "token- und Kostendaten basieren auf öffentlich verfügbaren Informationen; bei manchen Anbietern oder älteren Nachrichten können Daten fehlen und dienen nur als Referenz."
+      "description": "Tokenverbrauch und Cache-Treffer werden hier angezeigt, sobald Nutzungsdaten verfügbar sind.",
+      "historyNote": "Nutzungsdaten einiger Anbieter oder früherer Nachrichten können unvollständig sein."
     },
     "summary": {
       "totalTokens": "Token gesamt",
@@ -816,10 +830,6 @@
       "cachedTokensUncachedLabel": "Nicht getroffen",
       "cacheHitRate": "Cache-Trefferrate",
       "cacheHitRateDescription": "Anteil der gecachten prompt-token an den gesamten Eingabe-token.",
-      "estimatedCost": "Geschätzte Kosten",
-      "estimatedCostDescription": "Geschätzte USD-Kosten anhand aktueller provider-Preise oder AIHubMix-Fallbackpreise.",
-      "estimatedCostTrendLabel": "Trend der letzten 30 Tage",
-      "estimatedCostTrendEmpty": "In den letzten 30 Tagen wurden noch keine Kosten erfasst.",
       "recordingStartedAt": "Statistik seit",
       "recordingStartedAtDescription": "Zeitpunkt des frühesten usage-Eintrags in der aktuellen Übersicht.",
       "withDeepChatDaysLabel": "Tage gemeinsam",
@@ -849,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "Anbieter-Ranking",
-      "providerDescription": "Zuerst nach geschätzten Kosten, danach nach gesamten token sortiert.",
+      "providerDescription": "Nach Gesamtzahl der Tokens sortiert.",
       "modelTitle": "Modell-Ranking",
-      "modelDescription": "Top 10 Modelle nach geschätzten Kosten und gesamten token.",
+      "modelDescription": "Top 10 Modelle nach Gesamtzahl der Tokens.",
       "messages": "{count} Nachrichten",
       "empty": "Noch keine Detaildaten zum Anzeigen."
     },
@@ -1627,7 +1637,15 @@
       "seconds": "Sekunden",
       "testConnection": "Verbindung testen",
       "timeout": "Timeout",
-      "title": "Nowledge Mem Exportkonfiguration"
+      "title": "Nowledge Mem Exportkonfiguration",
+      "configLoadFailed": "Konfiguration konnte nicht geladen werden",
+      "configSaved": "Konfiguration gespeichert",
+      "configSaveFailed": "Konfiguration konnte nicht gespeichert werden",
+      "configReset": "Konfiguration zurückgesetzt",
+      "configResetFailed": "Konfiguration konnte nicht zurückgesetzt werden",
+      "connectionSucceeded": "Verbindung erfolgreich",
+      "connectionFailed": "Mit der aktuellen Konfiguration konnte keine Verbindung hergestellt werden",
+      "invalidBaseUrl": "Geben Sie eine HTTP- oder HTTPS-Adresse ohne Anmeldedaten oder Abfrageparameter ein"
     }
   },
   "mcp": {
@@ -1673,6 +1691,7 @@
       "name": "Servername",
       "namePlaceholder": "Servernamen eingeben",
       "nameRequired": "Servername darf nicht leer sein",
+      "nameDuplicate": "Ein Server mit diesem Namen ist bereits vorhanden.",
       "type": "Servertyp",
       "typePlaceholder": "Servertyp auswählen",
       "typeStdio": "Standard-Ein-/Ausgabe (Stdio)",
@@ -3119,7 +3138,7 @@
       "error": "Fehler",
       "invalidAgent": "Agent fehlt oder ist deaktiviert. Wählen Sie einen anderen Agent."
     },
-    "runNowSuccess": "Geplante Aufgabe gestartet"
+    "runNowSuccess": "Geplante Aufgabe abgeschlossen"
   },
   "memory": {
     "description": "Prüfen, konfigurieren und verwalten Sie, woran sich jeder Agent sitzungsübergreifend erinnert. Das Gedächtnis ist auf einzelne Agenten beschränkt.",

@@ -29,6 +29,7 @@
               </span>
               <Switch
                 :model-value="!deepchatDisabled"
+                :disabled="saving"
                 :aria-label="
                   deepchatDisabled
                     ? t('settings.skills.detail.enable')
@@ -51,39 +52,52 @@
           data-testid="skill-detail-actions"
           class="flex shrink-0 items-center gap-2"
         >
-          <Button v-if="mutable" variant="outline" size="sm" @click="toggleEditing">
+          <Button
+            v-if="mutable"
+            variant="outline"
+            size="sm"
+            :disabled="saving"
+            @click="toggleEditing"
+          >
             <Icon :icon="editing ? 'lucide:eye' : 'lucide:pencil'" class="mr-1 h-4 w-4" />
             {{ editing ? t('settings.skills.detail.preview') : t('settings.skills.detail.edit') }}
           </Button>
-          <AlertDialog v-if="mutable">
+          <AlertDialog
+            v-if="mutable"
+            :open="deleteConfirmOpen"
+            @update:open="handleDeleteConfirmOpenChange"
+          >
             <AlertDialogTrigger as-child>
-              <Button variant="destructive" size="sm">
+              <Button variant="destructive" size="sm" :disabled="saving">
                 <Icon icon="lucide:trash-2" class="mr-1 h-4 w-4" />
                 {{ t('settings.skills.detail.delete') }}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{{
-                  t('settings.skills.detail.confirmDeleteTitle')
-                }}</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {{ t('settings.skills.detail.confirmDeleteTitle') }}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   {{ t('settings.skills.detail.confirmDeleteDescription', { name }) }}
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              <InlineOperationFeedback :snapshot="feedback" />
               <AlertDialogFooter>
-                <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                <AlertDialogAction
-                  class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  @click="emit('delete')"
-                >
+                <Button variant="outline" :disabled="saving" @click="deleteConfirmOpen = false">
+                  {{ t('common.cancel') }}
+                </Button>
+                <Button variant="destructive" :disabled="saving" @click="handleDelete">
+                  <Spinner v-if="saving" data-icon="inline-start" />
                   {{ t('common.delete') }}
-                </AlertDialogAction>
+                </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>
       </div>
+
+      <InlineOperationFeedback v-if="!deleteConfirmOpen" class="min-h-5" :snapshot="feedback" />
 
       <div v-if="editing" class="min-h-0 flex-1 overflow-auto rounded-md border p-4">
         <div class="space-y-4">
@@ -98,13 +112,20 @@
           <div class="space-y-1.5">
             <Label for="skill-detail-description">
               {{ t('settings.skills.edit.description') }}
+              <span aria-hidden="true" class="text-destructive">*</span>
             </Label>
             <Textarea
               id="skill-detail-description"
               v-model="editDescription"
+              :disabled="saving"
+              :aria-invalid="descriptionMissing"
+              aria-required="true"
               :placeholder="t('settings.skills.edit.descriptionPlaceholder')"
               class="h-20 resize-none"
             />
+            <p v-if="descriptionMissing" class="text-xs text-destructive">
+              {{ t('components.promptParamsDialog.required') }}
+            </p>
           </div>
 
           <div class="space-y-1.5">
@@ -112,6 +133,7 @@
             <Input
               id="skill-detail-tools"
               v-model="editAllowedTools"
+              :disabled="saving"
               :placeholder="t('settings.skills.edit.allowedToolsPlaceholder')"
             />
             <p class="text-xs text-muted-foreground">
@@ -124,6 +146,7 @@
             <Textarea
               id="skill-detail-content"
               v-model="editContent"
+              :disabled="saving"
               :placeholder="t('settings.skills.edit.placeholder')"
               class="min-h-72 resize-y font-mono text-xs"
             />
@@ -147,18 +170,36 @@
         <Button variant="outline" :disabled="saving" @click="cancelEditing">
           {{ t('common.cancel') }}
         </Button>
-        <Button :disabled="saving" @click="handleSave">
+        <Button :disabled="saving || descriptionMissing" @click="handleSave">
           <Spinner v-if="saving" data-icon="inline-start" />
           {{ t('common.save') }}
         </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
+
+  <AlertDialog :open="discardConfirmOpen" @update:open="discardConfirmOpen = $event">
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>{{ t('settings.leaveGuard.dirtyTitle') }}</AlertDialogTitle>
+        <AlertDialogDescription>
+          {{ t('settings.leaveGuard.dirtyDescription') }}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>{{ t('settings.leaveGuard.stay') }}</AlertDialogCancel>
+        <AlertDialogAction @click="discardAndClose">
+          {{ t('settings.leaveGuard.discard') }}
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { nanoid } from 'nanoid'
 import * as yaml from 'yaml'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -187,6 +228,9 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import type { SurfaceFeedbackSnapshot } from '@renderer-notifications/surfaceFeedbackController'
+import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const props = withDefaults(
   defineProps<{
@@ -198,6 +242,7 @@ const props = withDefaults(
     mutable?: boolean
     deepchatDisabled?: boolean
     saving?: boolean
+    feedback?: SurfaceFeedbackSnapshot
   }>(),
   {
     description: '',
@@ -205,7 +250,8 @@ const props = withDefaults(
     markdown: '',
     mutable: false,
     deepchatDisabled: false,
-    saving: false
+    saving: false,
+    feedback: () => ({ status: 'idle', version: 0 })
   }
 )
 
@@ -219,15 +265,31 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const editing = ref(false)
+const draftActive = ref(false)
 const editDescription = ref('')
 const editAllowedTools = ref('')
 const editContent = ref('')
+const baselineDraftSignature = ref('')
+const deleteConfirmOpen = ref(false)
+const discardConfirmOpen = ref(false)
 
 const initial = computed(() => props.name.trim().charAt(0).toUpperCase() || '?')
-const parsedSkill = computed(() => parseSkillContent(props.markdown))
+const parsedSkill = computed(() =>
+  parseSkillContent(draftActive.value ? buildSkillContent() : props.markdown)
+)
 const displayMarkdown = computed(() => parsedSkill.value.body.trim())
 const headerDescription = computed(() =>
-  editing.value ? editDescription.value : props.description
+  draftActive.value ? editDescription.value : props.description
+)
+const currentDraftSignature = computed(() =>
+  JSON.stringify([editDescription.value, editAllowedTools.value, editContent.value])
+)
+const draftDirty = computed(
+  () =>
+    props.open && draftActive.value && currentDraftSignature.value !== baselineDraftSignature.value
+)
+const descriptionMissing = computed(
+  () => props.open && editing.value && editDescription.value.trim().length === 0
 )
 
 const parseSkillContent = (content: string) => {
@@ -261,10 +323,13 @@ const hydrateEditor = () => {
       ? allowedTools
       : ''
   editContent.value = body
+  baselineDraftSignature.value = currentDraftSignature.value
 }
 
 const buildSkillContent = () => {
+  const originalFrontmatter = parseSkillContent(props.markdown).frontmatter
   const frontmatterData: Record<string, unknown> = {
+    ...originalFrontmatter,
     name: props.name,
     description: editDescription.value
   }
@@ -275,6 +340,8 @@ const buildSkillContent = () => {
     .filter(Boolean)
   if (tools.length) {
     frontmatterData.allowedTools = tools
+  } else {
+    delete frontmatterData.allowedTools
   }
 
   const yamlContent = yaml.stringify(frontmatterData, {
@@ -287,44 +354,98 @@ const buildSkillContent = () => {
 }
 
 const toggleEditing = () => {
+  if (props.saving) return
   if (editing.value) {
     editing.value = false
     return
   }
 
-  hydrateEditor()
+  if (!draftActive.value) {
+    hydrateEditor()
+    draftActive.value = true
+  }
   editing.value = true
 }
 
-const cancelEditing = () => {
+const resetDraft = () => {
   hydrateEditor()
+  draftActive.value = false
   editing.value = false
+  deleteConfirmOpen.value = false
+  discardConfirmOpen.value = false
+}
+
+const cancelEditing = () => {
+  if (props.saving) return
+  resetDraft()
 }
 
 const handleOpenChange = (value: boolean) => {
-  if (!value) {
-    editing.value = false
+  if (!value && props.saving) return
+  if (!value && draftDirty.value) {
+    discardConfirmOpen.value = true
+    return
   }
+  if (!value) resetDraft()
   emit('update:open', value)
 }
 
+const discardAndClose = () => {
+  if (props.saving) return
+  resetDraft()
+  emit('update:open', false)
+}
+
 const handleSave = () => {
+  if (props.saving || descriptionMissing.value) return
   emit('save', buildSkillContent())
 }
 
 const handleEnabledChange = (value: boolean | string) => {
+  if (props.saving) return
   const enabled = typeof value === 'string' ? value === 'true' : Boolean(value)
   emit('toggle-disabled', !enabled)
+}
+
+const handleDeleteConfirmOpenChange = (open: boolean) => {
+  if (!open && props.saving) return
+  deleteConfirmOpen.value = open
+}
+
+const handleDelete = () => {
+  if (!props.saving) emit('delete')
+}
+
+const requestClose = () => {
+  if (props.saving) return
+  resetDraft()
+  emit('update:open', false)
 }
 
 watch(
   () => [props.open, props.name, props.markdown],
   () => {
     if (props.open) {
-      editing.value = false
-      hydrateEditor()
+      resetDraft()
     }
   },
   { immediate: true }
 )
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: `settings.skills.detail:${nanoid(8)}`,
+  onDiscard: requestClose
+})
+const stopLeaveRiskSync = watch(
+  [draftDirty, () => props.saving],
+  ([dirty, saving]) => {
+    leaveGuardLease.setRisk(saving ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
+})
 </script>

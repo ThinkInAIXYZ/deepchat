@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "اعلان‌ها",
+    "actionFailed": "عملیات ناموفق بود. دوباره تلاش کنید.",
+    "entities": "{count} مورد تحت تأثیر",
+    "occurrences": "{count} بار رخ داده",
+    "pending": "{count} مورد دیگر در انتظار",
+    "mcpConnectionFailed": {
+      "title": "اتصال به {serverName} ممکن نشد",
+      "description": "تنظیمات سرور را بررسی و دوباره تلاش کنید."
+    },
+    "mcpToolListFailed": {
+      "title": "ابزارهای {serverName} بارگیری نشد",
+      "description": "سرور متصل است، اما ابزارهای آن در دسترس نیستند."
+    },
+    "providerDeeplinkFailed": {
+      "title": "تنظیمات ارائه‌دهنده باز نشد",
+      "reasons": {
+        "unsupported-version": "این نسخهٔ پیوند پشتیبانی نمی‌شود.",
+        "invalid-payload": "این پیوند ارائه‌دهنده نامعتبر است.",
+        "provider-not-found": "ارائه‌دهندهٔ پیوندشده پیدا نشد.",
+        "unsupported-provider": "این ارائه‌دهنده پشتیبانی نمی‌شود.",
+        "settings-unavailable": "تنظیمات ارائه‌دهنده باز نشد."
+      }
+    }
+  },
   "enabled": "روشن",
   "disabled": "خاموش",
   "loading": "در حال بارگذاری...",

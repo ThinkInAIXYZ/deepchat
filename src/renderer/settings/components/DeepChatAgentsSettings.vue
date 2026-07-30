@@ -8,7 +8,12 @@
             {{ t('settings.deepchatAgents.description') }}
           </div>
         </div>
-        <Button data-testid="deepchat-agent-add-button" size="sm" @click="startCreate">
+        <Button
+          data-testid="deepchat-agent-add-button"
+          size="sm"
+          :disabled="saving"
+          @click="startCreate"
+        >
           {{ t('common.add') }}
         </Button>
       </div>
@@ -18,6 +23,7 @@
           v-for="agent in sidebarAgents"
           :key="agent.id"
           :data-testid="`deepchat-agent-row-${agent.id}`"
+          :disabled="saving"
           class="w-full rounded-2xl border p-4 text-left transition-colors"
           :class="
             selectedAgentId === agent.id
@@ -58,13 +64,15 @@
       </div>
     </aside>
 
-    <main class="min-w-0 flex-1 overflow-y-auto">
+    <main class="agent-editor-main min-w-0 flex-1 overflow-y-auto">
       <div
         data-testid="deepchat-agents-sticky-header"
         class="sticky top-0 z-20 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85"
       >
-        <div class="mx-auto flex w-full max-w-5xl items-start justify-between gap-4 px-6 py-4">
-          <div class="flex items-center gap-4">
+        <div
+          class="agent-header-layout mx-auto flex w-full max-w-5xl flex-col items-stretch justify-between gap-3 px-6 py-4"
+        >
+          <div class="flex min-w-0 items-center gap-4">
             <div
               class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-muted/40"
             >
@@ -74,7 +82,7 @@
                 fallback-class-name="rounded-xl"
               />
             </div>
-            <div>
+            <div class="min-w-0">
               <div class="text-xl font-semibold">
                 {{
                   form.id
@@ -82,13 +90,20 @@
                     : t('settings.deepchatAgents.createTitle')
                 }}
               </div>
-              <div class="text-sm text-muted-foreground">
+              <div class="truncate text-sm text-muted-foreground">
                 {{ form.name.trim() || t('settings.deepchatAgents.unnamed') }}
               </div>
             </div>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div
+            class="agent-header-actions flex w-full min-w-0 flex-wrap items-center justify-end gap-2"
+          >
+            <InlineOperationFeedback
+              :snapshot="saveFeedback"
+              :retry-label="t('settings.deepchatAgents.saveFeedback.retry')"
+              @retry="saveAgent"
+            />
             <Button variant="outline" :disabled="saving" @click="resetEditor">
               {{ t('common.reset') }}
             </Button>
@@ -103,19 +118,23 @@
             </Button>
             <Button
               data-testid="deepchat-agent-save-button"
-              :disabled="saving || !form.name.trim()"
+              :disabled="saving || !isDirty || !form.name.trim()"
+              :aria-busy="saving"
               @click="saveAgent"
             >
-              {{ saving ? t('common.saving') : t('common.save') }}
+              <Spinner v-if="saving" class="mr-1 size-4" />
+              {{ t('common.save') }}
             </Button>
           </div>
         </div>
-        <div v-if="saveError" class="mx-auto w-full max-w-5xl px-6 pb-3">
-          <p class="text-xs text-destructive">{{ saveError }}</p>
-        </div>
       </div>
 
-      <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
+      <div
+        data-testid="deepchat-agent-editor-content"
+        class="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6"
+        :inert="saving"
+        :aria-busy="saving"
+      >
         <section class="grid gap-4 rounded-2xl border border-border p-5 md:grid-cols-2">
           <label class="space-y-2">
             <div class="text-sm font-medium">{{ t('settings.deepchatAgents.name') }}</div>
@@ -681,11 +700,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { nanoid } from 'nanoid'
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -699,7 +720,10 @@ import { Switch } from '@shadcn/components/ui/switch'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { useRouter } from 'vue-router'
-import { useToast } from '@/components/use-toast'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
@@ -732,6 +756,7 @@ import {
   createDefaultDeepChatSubagentSlots,
   normalizeDeepChatSubagentSlots
 } from '@shared/lib/deepchatSubagents'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 type ModelKey = 'chatModel' | 'assistantModel' | 'visionModel' | 'imageGenerationModel'
 type AvatarKind = 'default' | 'lucide' | 'monogram'
@@ -792,6 +817,9 @@ const AUTO_COMPACTION_TRIGGER_THRESHOLD_MAX = 95
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT = 2
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MIN = 1
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX = 10
+const SAVE_OPERATION_ID = 'settings.deepchatAgent.save'
+const SAVE_SUCCESS_CODE = 'settings.deepchatAgent.saved'
+const SAVE_FAILURE_CODE = 'settings.deepchatAgent.saveFailed'
 const CONFIG_DIFF_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
   'defaultModelPreset',
   'assistantModel',
@@ -817,7 +845,6 @@ const GROUP_ORDER = [
   'yobrowser'
 ]
 const { t } = useI18n()
-const { toast } = useToast()
 const router = useRouter()
 const configClient = createConfigClient()
 const projectClient = createProjectClient()
@@ -825,12 +852,14 @@ const toolClient = createToolClient()
 const modelStore = useModelStore()
 const uiSettingsStore = useUiSettingsStore()
 const subagentSlotLimit = DEEPCHAT_SUBAGENT_SLOT_LIMIT
+const saveFeedbackController = createRendererSurfaceFeedbackController('settings')
+const { snapshot: saveFeedback } = useSurfaceFeedback(saveFeedbackController)
+const saveOperationId = `${SAVE_OPERATION_ID}:${nanoid(8)}`
 
 const allAgents = ref<Agent[]>([])
 const tools = ref<MCPToolDefinition[]>([])
 const recentProjects = ref<Project[]>([])
-const saving = ref(false)
-const saveError = ref<string | null>(null)
+const saving = computed(() => saveFeedback.value.status === 'pending')
 const deleting = ref(false)
 const selectedAgentId = ref<string | null>(null)
 const chatOpen = ref(false)
@@ -847,6 +876,8 @@ const transferDialogError = ref<string | null>(null)
 const transferImpact = ref<AgentTransferImpact | null>(null)
 const pendingDeleteAgent = ref<{ id: string; name: string } | null>(null)
 const originalForm = ref<FormState | null>(null)
+const originalFormSignature = ref<string | null>(null)
+const feedbackSourceSignature = ref<string | null>(null)
 
 const form = reactive<FormState>({
   id: null,
@@ -1133,6 +1164,7 @@ const cloneForm = (state: FormState): FormState => JSON.parse(JSON.stringify(sta
 const assignForm = (next: FormState) => {
   Object.assign(form, next)
   originalForm.value = cloneForm(next)
+  originalFormSignature.value = serializeCanonicalForm(next)
 }
 const normalizePath = (value: string | null | undefined) => {
   const normalized = value?.trim()
@@ -1187,7 +1219,7 @@ const buildEditableConfig = (state: FormState): DeepChatAgentConfig => {
     permissionMode: state.permissionMode,
     subagentEnabled: state.subagentEnabled,
     subagents: normalizeDeepChatSubagentSlots(state.subagents),
-    disabledAgentTools: [...state.disabledAgentTools],
+    disabledAgentTools: [...state.disabledAgentTools].sort(),
     autoCompactionEnabled: state.autoCompactionEnabled,
     autoCompactionTriggerThreshold: normalizeAutoCompactionTriggerThreshold(
       state.autoCompactionTriggerThreshold
@@ -1210,13 +1242,13 @@ const setConfigValue = <K extends keyof DeepChatAgentConfig>(
 ) => {
   patch[key] = value
 }
-const buildUpdateConfigPatch = (): DeepChatAgentConfig | undefined => {
+const buildUpdateConfigPatch = (state: FormState = form): DeepChatAgentConfig | undefined => {
   const baselineForm = originalForm.value
   if (!baselineForm) {
-    return buildEditableConfig(form)
+    return buildEditableConfig(state)
   }
 
-  const current = buildEditableConfig(form)
+  const current = buildEditableConfig(state)
   const baseline = buildEditableConfig(baselineForm)
   const patch: DeepChatAgentConfig = {}
 
@@ -1233,24 +1265,55 @@ const createAgentSlotId = () =>
   `slot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 const numText = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) ? String(value) : ''
-const buildAvatar = (): AgentAvatarValue | null => {
-  if (form.avatarKind === 'lucide' && form.lucideIcon.trim()) {
+const buildAvatar = (state: FormState = form): AgentAvatarValue | null => {
+  if (state.avatarKind === 'lucide' && state.lucideIcon.trim()) {
     return {
       kind: 'lucide',
-      icon: form.lucideIcon.trim(),
-      lightColor: form.lightColor || null,
-      darkColor: form.darkColor || null
+      icon: state.lucideIcon.trim(),
+      lightColor: state.lightColor || null,
+      darkColor: state.darkColor || null
     }
   }
-  if (form.avatarKind === 'monogram' && form.monogramText.trim()) {
+  if (state.avatarKind === 'monogram' && state.monogramText.trim()) {
     return {
       kind: 'monogram',
-      text: form.monogramText.trim(),
-      backgroundColor: form.monogramBackgroundColor || null
+      text: state.monogramText.trim(),
+      backgroundColor: state.monogramBackgroundColor || null
     }
   }
   return null
 }
+const buildCanonicalAgentInput = (state: FormState) => ({
+  name: state.name.trim(),
+  enabled: state.enabled,
+  description: state.description.trim(),
+  avatar: buildAvatar(state),
+  config: buildEditableConfig(state)
+})
+const serializeCanonicalForm = (state: FormState): string =>
+  JSON.stringify(buildCanonicalAgentInput(state))
+const currentFormSignature = computed(() => serializeCanonicalForm(form))
+const isDirty = computed(
+  () =>
+    originalFormSignature.value !== null &&
+    currentFormSignature.value !== originalFormSignature.value
+)
+const clearSettledSaveFeedback = () => {
+  if (saveFeedback.value.status === 'success' || saveFeedback.value.status === 'error') {
+    saveFeedbackController.clearSettled()
+  }
+  feedbackSourceSignature.value = null
+}
+
+watch(currentFormSignature, (signature) => {
+  if (
+    feedbackSourceSignature.value &&
+    signature !== feedbackSourceSignature.value &&
+    (saveFeedback.value.status === 'success' || saveFeedback.value.status === 'error')
+  ) {
+    clearSettledSaveFeedback()
+  }
+})
 const fromAgent = (agent?: Agent | null): FormState => {
   if (!agent) return emptyForm()
   const config = agent.config ?? {}
@@ -1485,61 +1548,128 @@ const loadAgents = async (preferredId?: string | null) => {
   selectedAgentId.value = nextId
   assignForm(fromAgent(deepchatAgents.value.find((agent) => agent.id === nextId) ?? null))
 }
-const selectAgent = (agentId: string) => {
-  if (agentId === DRAFT_AGENT_ID) {
-    selectedAgentId.value = DRAFT_AGENT_ID
-    return
-  }
-
-  selectedAgentId.value = agentId
-  assignForm(fromAgent(deepchatAgents.value.find((agent) => agent.id === agentId) ?? null))
+const upsertSavedAgent = (savedAgent: Agent) => {
+  const existingIndex = allAgents.value.findIndex((agent) => agent.id === savedAgent.id)
+  allAgents.value =
+    existingIndex === -1
+      ? [...allAgents.value, savedAgent]
+      : allAgents.value.map((agent, index) => (index === existingIndex ? savedAgent : agent))
 }
-const startCreate = () => {
+const applySavedAgent = (savedAgent: Agent) => {
+  const savedForm = fromAgent(savedAgent)
+  upsertSavedAgent(savedAgent)
+  selectedAgentId.value = savedAgent.id
+  assignForm(savedForm)
+}
+const applyPersistedFormFallback = (savedAgent: Agent, submittedForm: FormState) => {
+  const persistedForm = cloneForm(submittedForm)
+  persistedForm.id = savedAgent.id
+  persistedForm.protected = Boolean(savedAgent.protected)
+  const persistedInput = buildCanonicalAgentInput(submittedForm)
+  const fallbackAgent: Agent = {
+    ...savedAgent,
+    ...persistedInput,
+    id: savedAgent.id,
+    type: 'deepchat',
+    config: {
+      ...savedAgent.config,
+      ...persistedInput.config
+    }
+  }
+  upsertSavedAgent(fallbackAgent)
+  selectedAgentId.value = savedAgent.id
+  assignForm(persistedForm)
+}
+const activateDraft = () => {
+  clearSettledSaveFeedback()
   selectedAgentId.value = DRAFT_AGENT_ID
   assignForm(emptyForm())
 }
-const resetEditor = () => {
-  const agentId = selectedAgentId.value
-  if (!agentId || agentId === DRAFT_AGENT_ID) {
-    startCreate()
+const activateAgent = (agentId: string) => {
+  if (agentId === DRAFT_AGENT_ID) {
+    activateDraft()
     return
   }
 
-  selectAgent(agentId)
+  clearSettledSaveFeedback()
+  selectedAgentId.value = agentId
+  assignForm(fromAgent(deepchatAgents.value.find((agent) => agent.id === agentId) ?? null))
+}
+const selectAgent = async (agentId: string) => {
+  if (saving.value || selectedAgentId.value === agentId) return
+  if (await settingsLeaveGuard.requestLeave()) {
+    activateAgent(agentId)
+  }
+}
+const startCreate = async () => {
+  if (saving.value || selectedAgentId.value === DRAFT_AGENT_ID) return
+  if (await settingsLeaveGuard.requestLeave()) {
+    activateDraft()
+  }
+}
+const resetEditor = () => {
+  if (saving.value) return
+  const agentId = selectedAgentId.value
+  if (!agentId || agentId === DRAFT_AGENT_ID) {
+    activateDraft()
+    return
+  }
+
+  activateAgent(agentId)
 }
 const saveAgent = async () => {
-  if (!form.name.trim()) return
-  saving.value = true
-  saveError.value = null
+  if (saving.value || !isDirty.value || !form.name.trim()) return
+
+  const submittedForm = cloneForm(form)
+  const submittedSignature = serializeCanonicalForm(submittedForm)
+  saveFeedbackController.begin(saveOperationId, t('settings.deepchatAgents.saveFeedback.saving'))
+  let savedAgent: Agent
   try {
-    const basePayload = {
-      name: form.name.trim(),
-      enabled: form.enabled,
-      description: form.description.trim() || undefined,
-      avatar: buildAvatar()
-    }
-    if (form.id) {
-      const configPatch = buildUpdateConfigPatch()
+    const canonicalInput = buildCanonicalAgentInput(submittedForm)
+    const { config, ...basePayload } = canonicalInput
+    if (submittedForm.id) {
+      const configPatch = buildUpdateConfigPatch(submittedForm)
       const payload: UpdateDeepChatAgentInput = {
         ...basePayload,
         ...(configPatch ? { config: configPatch } : {})
       }
-      const updated = await configClient.updateDeepChatAgent(form.id, payload)
-      await loadAgents(updated?.id ?? form.id)
+      const updated = await configClient.updateDeepChatAgent(submittedForm.id, payload)
+      if (!updated) {
+        throw new Error(`Agent "${submittedForm.id}" no longer exists`)
+      }
+      savedAgent = updated
     } else {
       const payload: CreateDeepChatAgentInput = {
         ...basePayload,
-        config: buildEditableConfig(form)
+        config
       }
-      const created = await configClient.createDeepChatAgent(payload)
-      await loadAgents(created.id)
+      savedAgent = await configClient.createDeepChatAgent(payload)
     }
   } catch (error) {
-    console.error('[DeepChatAgents] save failed:', error)
-    saveError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    saving.value = false
+    console.error('[DeepChatAgents] Save failed', error)
+    feedbackSourceSignature.value = submittedSignature
+    saveFeedbackController.fail({
+      code: SAVE_FAILURE_CODE,
+      title: t('settings.deepchatAgents.saveFeedback.saveFailed')
+    })
+    return
   }
+
+  try {
+    applySavedAgent(savedAgent)
+  } catch (error) {
+    console.error('[DeepChatAgents] Failed to project saved agent', error)
+    try {
+      applyPersistedFormFallback(savedAgent, submittedForm)
+    } catch (fallbackError) {
+      console.error('[DeepChatAgents] Failed to apply persisted form fallback', fallbackError)
+    }
+  }
+  feedbackSourceSignature.value = currentFormSignature.value
+  saveFeedbackController.succeed({
+    code: SAVE_SUCCESS_CODE,
+    title: t('settings.deepchatAgents.saveFeedback.saved')
+  })
 }
 const removeAgent = async () => {
   if (!form.id || form.protected) return
@@ -1557,7 +1687,8 @@ const removeAgent = async () => {
     transferImpact.value = impact
     allAgents.value = list
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
+    console.error('[DeepChatAgents] Failed to load transfer impact', error)
+    transferDialogError.value = t('common.error.operationFailed')
   } finally {
     transferDialogLoading.value = false
   }
@@ -1566,16 +1697,27 @@ const removeAgent = async () => {
 const finishDeleteAgent = async (agentId: string) => {
   const result = await configClient.deleteDeepChatAgent(agentId)
   if (!result.removed) {
-    throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
+    transferDialogError.value = t('dialog.agentTransfer.agentDeleteBlocked')
+    return
   }
-  if (result.cleanupPendingRestart) {
-    toast({
-      title: t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
-    })
-  }
-  await loadAgents('deepchat')
+  allAgents.value = allAgents.value.filter((agent) => agent.id !== agentId)
+  const nextAgent =
+    deepchatAgents.value.find((agent) => agent.id === 'deepchat') ?? deepchatAgents.value[0] ?? null
+  selectedAgentId.value = nextAgent?.id ?? null
+  assignForm(fromAgent(nextAgent))
   transferDialogOpen.value = false
   pendingDeleteAgent.value = null
+  if (result.cleanupPendingRestart) {
+    try {
+      notifyRenderer({
+        kind: 'info',
+        code: 'settings.deepchatAgent.cleanupPendingRestart',
+        title: t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
+      })
+    } catch (error) {
+      console.error('[DeepChatAgents] Failed to present cleanup notice', error)
+    }
+  }
 }
 
 const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => {
@@ -1589,7 +1731,8 @@ const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => 
     await sessionClient.moveAgentSessions(agent.id, payload.targetAgentId)
     await finishDeleteAgent(agent.id)
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
+    console.error('[DeepChatAgents] Failed to move sessions before deletion', error)
+    transferDialogError.value = t('common.error.operationFailed')
   } finally {
     deleting.value = false
     transferDialogBusy.value = false
@@ -1607,14 +1750,50 @@ const handleDeleteAgentWithSessions = async () => {
     await sessionClient.deleteAgentSessions(agent.id)
     await finishDeleteAgent(agent.id)
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
+    console.error('[DeepChatAgents] Failed to delete agent sessions', error)
+    transferDialogError.value = t('common.error.operationFailed')
   } finally {
     deleting.value = false
     transferDialogBusy.value = false
   }
 }
 
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'deepchat-agent-editor',
+  onDiscard: resetEditor
+})
+const stopLeaveRiskSync = watch(
+  [isDirty, saving],
+  ([dirty, busy]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
+})
+
 onMounted(async () => {
   await Promise.all([loadTools(), loadRecentProjects(), loadAgents('deepchat')])
 })
 </script>
+
+<style scoped>
+.agent-editor-main {
+  container-type: inline-size;
+}
+
+@container (min-width: 720px) {
+  .agent-header-layout {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .agent-header-actions {
+    width: auto;
+  }
+}
+</style>

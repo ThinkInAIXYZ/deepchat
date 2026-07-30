@@ -9,6 +9,7 @@ import { defineComponent, h, inject, provide, reactive, ref, watch, type Ref } f
 import { flushPromises, mount } from '@vue/test-utils'
 
 type SetupOptions = {
+  failInitialLoad?: boolean
   settings?: {
     botToken: string
     remoteEnabled: boolean
@@ -669,6 +670,11 @@ const setup = async (options: SetupOptions = {}) => {
     }),
     restartWeixinIlinkAccount: vi.fn(async () => undefined)
   }
+  if (options.failInitialLoad) {
+    remoteControlPresenter.listRemoteChannels.mockRejectedValueOnce(
+      new Error('remote settings secret diagnostics')
+    )
+  }
 
   const sessionClient = {
     getAgents: vi.fn(async () => [
@@ -683,7 +689,6 @@ const setup = async (options: SetupOptions = {}) => {
     selectDirectory: vi.fn(async () => options.selectedDirectory ?? null)
   }
 
-  const toast = vi.fn()
   const openExternal = vi.fn(async () => undefined)
   const tabsContextKey = Symbol('remote-settings-tabs')
   const tabsComponents = {
@@ -793,11 +798,6 @@ const setup = async (options: SetupOptions = {}) => {
     createProjectClient: () => ({
       listRecent: projectPresenter.getRecentProjects,
       selectDirectory: projectPresenter.selectDirectory
-    })
-  }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast
     })
   }))
   vi.doMock('@api/runtime', () => ({
@@ -925,12 +925,26 @@ const setup = async (options: SetupOptions = {}) => {
     remoteControlPresenter,
     sessionClient,
     projectPresenter,
-    toast,
     tabsComponents
   }
 }
 
 describe('RemoteSettings', () => {
+  it('keeps initial load failures inline and retries without exposing diagnostics', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper, remoteControlPresenter } = await setup({ failInitialLoad: true })
+
+    expect(wrapper.text()).toContain('common.error.requestFailed')
+    expect(wrapper.text()).not.toContain('remote settings secret diagnostics')
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(remoteControlPresenter.listRemoteChannels).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="remote-channel-toggle-telegram"]').exists()).toBe(true)
+    consoleError.mockRestore()
+  })
+
   it('hides remote details when telegram remote is disabled', async () => {
     const { wrapper } = await setup({
       settings: {
@@ -998,6 +1012,9 @@ describe('RemoteSettings', () => {
       expect.objectContaining({
         remoteEnabled: true
       })
+    )
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
+      'common.saved'
     )
     expect(wrapper.find('[data-testid="remote-bindings-button"]').exists()).toBe(true)
   })
@@ -1083,6 +1100,148 @@ describe('RemoteSettings', () => {
     expect(qqbotState.settings.remoteEnabled).toBe(true)
     expect(discordState.settings.remoteEnabled).toBe(true)
     expect(weixinIlinkState.settings.remoteEnabled).toBe(true)
+  })
+
+  it('does not let an older save response overwrite a newer draft', async () => {
+    const { wrapper, remoteState, remoteControlPresenter } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        defaultAgentId: 'deepchat'
+      }
+    })
+    let resolveFirst: (value: Record<string, unknown>) => void = () => undefined
+    let resolveSecond: (value: Record<string, unknown>) => void = () => undefined
+    remoteControlPresenter.saveChannelSettings
+      .mockImplementationOnce(
+        async () =>
+          await new Promise<Record<string, unknown>>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockImplementationOnce(
+        async () =>
+          await new Promise<Record<string, unknown>>((resolve) => {
+            resolveSecond = resolve
+          })
+      )
+
+    const tokenInput = wrapper.get(
+      'input[placeholder="settings.remote.telegram.botTokenPlaceholder"]'
+    )
+    await tokenInput.setValue('first-token')
+    await tokenInput.trigger('blur')
+    await Promise.resolve()
+    await tokenInput.setValue('second-token')
+    await tokenInput.trigger('blur')
+
+    resolveFirst({
+      ...remoteState.settings,
+      botToken: 'normalized-first-token',
+      defaultWorkdir: '/normalized-workspace'
+    })
+    await flushPromises()
+
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenNthCalledWith(
+      2,
+      'telegram',
+      expect.objectContaining({
+        botToken: 'second-token',
+        defaultWorkdir: '/normalized-workspace'
+      })
+    )
+    expect((tokenInput.element as HTMLInputElement).value).toBe('second-token')
+
+    resolveSecond({
+      ...remoteState.settings,
+      botToken: 'second-token'
+    })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
+      'common.saved'
+    )
+  })
+
+  it('preserves an unsubmitted edit when the active save resolves', async () => {
+    const { wrapper, remoteState, remoteControlPresenter } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        defaultAgentId: 'deepchat'
+      }
+    })
+    let resolveSave: (value: Record<string, unknown>) => void = () => undefined
+    remoteControlPresenter.saveChannelSettings.mockImplementationOnce(
+      async () =>
+        await new Promise<Record<string, unknown>>((resolve) => {
+          resolveSave = resolve
+        })
+    )
+
+    const tokenInput = wrapper.get(
+      'input[placeholder="settings.remote.telegram.botTokenPlaceholder"]'
+    )
+    await tokenInput.setValue('submitted-token')
+    await tokenInput.trigger('blur')
+    await Promise.resolve()
+    await tokenInput.setValue('editing-token')
+
+    resolveSave({
+      ...remoteState.settings,
+      botToken: 'normalized-submitted-token'
+    })
+    await flushPromises()
+
+    expect((tokenInput.element as HTMLInputElement).value).toBe('editing-token')
+    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+
+    await tokenInput.trigger('blur')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
+      'common.saved'
+    )
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+  })
+
+  it('guards a failed save as dirty and restores the persisted draft on discard', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper, remoteControlPresenter } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        defaultAgentId: 'deepchat'
+      }
+    })
+    remoteControlPresenter.saveChannelSettings.mockRejectedValueOnce(
+      new Error('save secret diagnostics')
+    )
+
+    const tokenInput = wrapper.get(
+      'input[placeholder="settings.remote.telegram.botTokenPlaceholder"]'
+    )
+    await tokenInput.setValue('unsaved-token')
+    await tokenInput.trigger('blur')
+    await flushPromises()
+
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
+      'common.error.operationFailed'
+    )
+    expect(wrapper.text()).not.toContain('save secret diagnostics')
+
+    const leaveRequest = settingsLeaveGuard.requestLeave()
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await expect(leaveRequest).resolves.toBe(true)
+    await flushPromises()
+
+    expect((tokenInput.element as HTMLInputElement).value).toBe('telegram-token')
+    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
+    consoleError.mockRestore()
   })
 
   it('shows enabled ACP agents in the default agent options', async () => {
@@ -1209,7 +1368,7 @@ describe('RemoteSettings', () => {
   })
 
   it('starts the official feishu web install flow and refreshes credentials', async () => {
-    const { wrapper, remoteControlPresenter, tabsComponents, toast, openExternal } = await setup({
+    const { wrapper, remoteControlPresenter, tabsComponents, openExternal } = await setup({
       feishuChannelSettingsOverride: {
         remoteEnabled: true
       }
@@ -1237,11 +1396,6 @@ describe('RemoteSettings', () => {
       timeoutMs: 300000
     })
     expect(wrapper.text()).toContain('settings.remote.feishu.installSuccess')
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'settings.remote.feishu.installSuccessTitle'
-      })
-    )
   })
 
   it('shows an in-app QR install dialog without opening the browser', async () => {
@@ -1376,7 +1530,7 @@ describe('RemoteSettings', () => {
   })
 
   it('starts the feishu scan auth flow and refreshes paired principals', async () => {
-    const { wrapper, remoteControlPresenter, tabsComponents, toast } = await setup({
+    const { wrapper, remoteControlPresenter, tabsComponents } = await setup({
       feishuChannelSettingsOverride: {
         appId: 'cli_scan',
         appSecret: 'secret',
@@ -1407,11 +1561,6 @@ describe('RemoteSettings', () => {
       timeoutMs: 300000
     })
     expect(wrapper.text()).toContain('settings.remote.feishu.authSuccess')
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'settings.remote.feishu.authSuccessTitle'
-      })
-    )
   })
 
   it('shows a discord tab with bot token and pairing controls, without webhook fields', async () => {
@@ -1437,7 +1586,7 @@ describe('RemoteSettings', () => {
   })
 
   it('loads telegram settings without legacy hook fields', async () => {
-    const { wrapper, toast } = await setup({
+    const { wrapper } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
@@ -1446,13 +1595,13 @@ describe('RemoteSettings', () => {
       }
     })
 
-    expect(toast).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="remote-default-agent-select"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="remote-allowed-user-ids-input"]').exists()).toBe(false)
   })
 
   it('normalizes legacy feishu settings without paired user ids', async () => {
-    const { wrapper, toast } = await setup({
+    const { wrapper } = await setup({
       feishuChannelSettingsOverride: {
         remoteEnabled: true,
         pairedUserOpenIds: undefined
@@ -1462,7 +1611,7 @@ describe('RemoteSettings', () => {
     await wrapper.find('[data-testid="remote-tab-feishu"]').trigger('click')
     await flushPromises()
 
-    expect(toast).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="feishu-bindings-button"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="remote-feishu-paired-user-open-ids-input"]').exists()).toBe(
       false
@@ -1526,7 +1675,7 @@ describe('RemoteSettings', () => {
   })
 
   it('opens the pair dialog and closes it after pairing succeeds', async () => {
-    const { wrapper, remoteState, remoteControlPresenter, toast } = await setup({
+    const { wrapper, remoteState, remoteControlPresenter } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
@@ -1538,6 +1687,7 @@ describe('RemoteSettings', () => {
     await wrapper.find('[data-testid="remote-pair-button"]').trigger('click')
     await flushPromises()
 
+    expect(remoteControlPresenter.saveChannelSettings).not.toHaveBeenCalled()
     expect(remoteControlPresenter.createChannelPairCode).toHaveBeenCalledWith('telegram')
     expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('/pair 654321')
@@ -1552,11 +1702,6 @@ describe('RemoteSettings', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(false)
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'settings.remote.remoteControl.pairingSuccessTitle'
-      })
-    )
 
     await wrapper.find('[data-testid="remote-bindings-button"]').trigger('click')
     await flushPromises()
@@ -1564,8 +1709,83 @@ describe('RemoteSettings', () => {
     expect(wrapper.find('[data-testid="remote-principal-456"]').exists()).toBe(true)
   })
 
+  it('does not let a stale pairing poll close a newer dialog', async () => {
+    const { wrapper, remoteControlPresenter } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        defaultAgentId: 'deepchat'
+      }
+    })
+
+    await wrapper.get('[data-testid="remote-pair-button"]').trigger('click')
+    await flushPromises()
+
+    let resolveStalePoll: (value: Record<string, unknown>) => void = () => undefined
+    remoteControlPresenter.getChannelPairingSnapshot.mockImplementationOnce(
+      async () =>
+        await new Promise<Record<string, unknown>>((resolve) => {
+          resolveStalePoll = resolve
+        })
+    )
+    vi.advanceTimersByTime(2_000)
+    await Promise.resolve()
+
+    await wrapper.get('[data-testid="remote-pair-dialog"] button').trigger('click')
+    await flushPromises()
+
+    remoteControlPresenter.createChannelPairCode.mockResolvedValueOnce({
+      code: '222222',
+      expiresAt: 987654321
+    })
+    await wrapper.get('[data-testid="remote-pair-button"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('/pair 222222')
+
+    resolveStalePoll({
+      pairCode: null,
+      pairCodeExpiresAt: null,
+      allowedUserIds: [123]
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('/pair 222222')
+  })
+
+  it('keeps the pairing dialog open when cancellation fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper, remoteControlPresenter } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        defaultAgentId: 'deepchat'
+      }
+    })
+
+    await wrapper.get('[data-testid="remote-pair-button"]').trigger('click')
+    await flushPromises()
+    remoteControlPresenter.clearChannelPairCode.mockRejectedValueOnce(
+      new Error('pair code secret diagnostics')
+    )
+
+    await wrapper.get('[data-testid="remote-pair-dialog"] button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="remote-pair-dialog"] [role="alert"]').text()).toContain(
+      'common.error.operationFailed'
+    )
+    expect(wrapper.text()).not.toContain('pair code secret diagnostics')
+
+    await wrapper.get('[data-testid="remote-pair-dialog"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(false)
+    consoleError.mockRestore()
+  })
+
   it('does not open the pair dialog when saving telegram settings fails', async () => {
-    const { wrapper, remoteControlPresenter, toast } = await setup({
+    const { wrapper, remoteControlPresenter } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
@@ -1575,17 +1795,19 @@ describe('RemoteSettings', () => {
     })
 
     remoteControlPresenter.saveChannelSettings.mockRejectedValueOnce(new Error('save failed'))
+    await wrapper
+      .get('input[placeholder="settings.remote.telegram.botTokenPlaceholder"]')
+      .setValue('changed-token')
 
     await wrapper.find('[data-testid="remote-pair-button"]').trigger('click')
     await flushPromises()
 
     expect(remoteControlPresenter.createChannelPairCode).not.toHaveBeenCalled()
     expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(false)
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: 'save failed'
-      })
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
+      'common.error.operationFailed'
     )
+    expect(wrapper.text()).not.toContain('save failed')
   })
 
   it('lists only enabled agents in the default agent selector area', async () => {
@@ -1647,8 +1869,76 @@ describe('RemoteSettings', () => {
     expect(wrapper.find('[data-testid="remote-bindings-empty"]').exists()).toBe(true)
   })
 
+  it('allows a pending bindings read to be dismissed safely', async () => {
+    const { wrapper, remoteControlPresenter } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        defaultAgentId: 'deepchat'
+      }
+    })
+    let resolveBindings: (value: unknown[]) => void = () => undefined
+    remoteControlPresenter.getChannelBindings.mockImplementationOnce(
+      async () =>
+        await new Promise<unknown[]>((resolve) => {
+          resolveBindings = resolve
+        })
+    )
+
+    await wrapper.get('[data-testid="remote-bindings-button"]').trigger('click')
+    await Promise.resolve()
+    expect(wrapper.find('[data-testid="remote-bindings-dialog"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="remote-bindings-dialog"] button').trigger('click')
+    expect(wrapper.find('[data-testid="remote-bindings-dialog"]').exists()).toBe(false)
+
+    resolveBindings([])
+    await flushPromises()
+    expect(wrapper.find('[data-testid="remote-bindings-dialog"]').exists()).toBe(false)
+  })
+
+  it('keeps binding mutation failures in the dialog with truthful local state', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper, remoteControlPresenter } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        defaultAgentId: 'deepchat'
+      },
+      bindings: [
+        {
+          endpointKey: 'telegram:100:0',
+          sessionId: 'session-1',
+          chatId: 100,
+          messageThreadId: 0,
+          updatedAt: 1
+        }
+      ]
+    })
+
+    await wrapper.get('[data-testid="remote-bindings-button"]').trigger('click')
+    await flushPromises()
+    remoteControlPresenter.removeChannelBinding.mockRejectedValueOnce(
+      new Error('binding secret diagnostics')
+    )
+
+    await wrapper.get('[data-testid="remote-binding-telegram:100:0"] button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="remote-bindings-dialog"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="remote-binding-telegram:100:0"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="remote-bindings-dialog"] [role="alert"]').text()).toContain(
+      'common.error.operationFailed'
+    )
+    expect(wrapper.get('[data-testid="remote-bindings-dialog"]').text()).not.toContain(
+      'common.retry'
+    )
+    expect(wrapper.text()).not.toContain('binding secret diagnostics')
+    consoleError.mockRestore()
+  })
+
   it('does not open bindings when saving feishu settings fails', async () => {
-    const { wrapper, remoteControlPresenter, toast, tabsComponents } = await setup({
+    const { wrapper, remoteControlPresenter, tabsComponents } = await setup({
       feishuChannelSettingsOverride: {
         remoteEnabled: true
       }
@@ -1670,16 +1960,18 @@ describe('RemoteSettings', () => {
 
       return {}
     })
+    await wrapper
+      .get('input[placeholder="settings.remote.feishu.appIdPlaceholder"]')
+      .setValue('changed-app-id')
 
     await wrapper.find('[data-testid="feishu-bindings-button"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.find('[data-testid="remote-bindings-dialog"]').exists()).toBe(false)
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: 'feishu save failed'
-      })
+    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
+      'common.error.operationFailed'
     )
+    expect(wrapper.text()).not.toContain('feishu save failed')
   })
 
   it('renders the alias-equivalent agent label when binding holds a legacy ACP agent id', async () => {

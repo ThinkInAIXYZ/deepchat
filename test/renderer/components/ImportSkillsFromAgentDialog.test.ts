@@ -166,7 +166,6 @@ describe('ImportSkillsFromAgentDialog', () => {
     })
     await flushPromises()
 
-    expect(wrapper.emitted('completed')).toEqual([['target-agent']])
     expect(wrapper.text()).toContain(
       'settings.skills.agentImport.resultSummary:{"imported":1,"skipped":1,"failed":0}'
     )
@@ -272,5 +271,19 @@ describe('ImportSkillsFromAgentDialog', () => {
       source: { kind: 'external', toolId: 'codex' },
       items: [{ skillName: 'skill-a', strategy: 'overwrite' }]
     })
+  })
+
+  it('keeps execution diagnostics out of user-facing feedback', async () => {
+    mocks.executeAgentImport.mockRejectedValue(new Error('secret filesystem path'))
+    const wrapper = await mountDialog()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="agent-import-execute"]').trigger('click')
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="inline-operation-feedback"]').attributes('aria-label')
+    ).toContain('common.error.requestFailed')
+    expect(wrapper.text()).not.toContain('secret filesystem path')
   })
 })

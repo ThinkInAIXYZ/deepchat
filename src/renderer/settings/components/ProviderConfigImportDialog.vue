@@ -1,5 +1,5 @@
 <template>
-  <Dialog v-model:open="isOpen">
+  <Dialog :open="isOpen" @update:open="handleOpenChange">
     <DialogContent
       class="flex h-[88vh] max-h-[88vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
     >
@@ -103,8 +103,8 @@
                   <p class="mt-0.5 truncate text-xs text-muted-foreground">
                     {{ source.configPath }}
                   </p>
-                  <p v-if="source.message" class="mt-0.5 text-xs text-destructive">
-                    {{ source.message }}
+                  <p v-if="source.status === 'error'" class="mt-0.5 text-xs text-destructive">
+                    {{ t('settings.data.providerImport.scanFailedTitle') }}
                   </p>
                 </div>
                 <Checkbox
@@ -377,9 +377,6 @@
                   {{ result.sourceName }} ->
                   {{ result.targetProviderName || result.targetProviderId }}
                 </p>
-                <p v-if="result.message" class="mt-1 text-xs text-muted-foreground">
-                  {{ result.message }}
-                </p>
               </div>
               <div class="text-xs text-muted-foreground">
                 {{ t('settings.data.providerImport.modelsImported', { count: result.modelCount }) }}
@@ -422,7 +419,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import {
@@ -458,6 +455,7 @@ import type {
   ProviderImportSourceId,
   ProviderImportSourceScan
 } from '@shared/providerImport'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 type WizardStep = 'scan' | 'providers' | 'applying' | 'done'
 
@@ -479,6 +477,10 @@ const currentSourceIndex = ref(0)
 const selectedSources = ref<Set<ProviderImportSourceId>>(new Set())
 const selectedProvidersBySource = ref<Record<string, string[]>>({})
 const selectedProviderApiTypes = ref<Record<string, ProviderImportCustomApiType>>({})
+const importLeaveGuardLease = settingsLeaveGuard.register({
+  id: 'settings-provider-import',
+  onDiscard: () => undefined
+})
 
 const customApiTypeOptions = computed(() =>
   PROVIDER_IMPORT_CUSTOM_API_TYPES.map((value) => ({
@@ -623,6 +625,22 @@ watch(isOpen, (open) => {
     void initialize()
   }
 })
+watch(
+  step,
+  (currentStep) => {
+    importLeaveGuardLease.setRisk(currentStep === 'applying' ? 'busy' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  importLeaveGuardLease.release()
+})
+
+const handleOpenChange = (open: boolean) => {
+  if (!open && step.value === 'applying') return
+  isOpen.value = open
+}
 
 const initialize = async () => {
   step.value = 'scan'
@@ -663,7 +681,8 @@ const runScan = async () => {
     }, {})
   } catch (error) {
     scanResult.value = null
-    scanError.value = error instanceof Error ? error.message : String(error)
+    scanError.value = t('common.error.operationFailed')
+    console.error('[ProviderConfigImportDialog] Provider scan failed', error)
   } finally {
     isScanning.value = false
   }
@@ -764,7 +783,8 @@ const goNextProviderStep = async () => {
     step.value = 'done'
     emit('import-complete', result)
   } catch (error) {
-    applyError.value = error instanceof Error ? error.message : String(error)
+    applyError.value = t('common.error.operationFailed')
+    console.error('[ProviderConfigImportDialog] Provider import failed', error)
     step.value = 'providers'
   }
 }

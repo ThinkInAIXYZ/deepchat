@@ -10,6 +10,8 @@ Use these checks after enabling the CUA plugin:
   for a selected `window_id`; `include_screenshot: false` returns the cheap tree-only path.
 - `get_desktop_state` returns a full-display snapshot where desktop-scope capture is supported.
 - `start_session` keeps `capture_scope: auto` window-only until an explicit `escalate_session`.
+- A Chromium window snapshot projects browser-chrome coverage without claiming that a prompt is
+  present; only a verified ineffective window action follows the declared desktop recovery path.
 - `click` or `set_value` works with a non-empty token from the latest same-window snapshot.
 - An empty optional token does not override a valid element index or pixel coordinate.
 - Each projected `stale_element_token`, `generation_mismatch`, or `invalid_element_token`
@@ -21,6 +23,8 @@ Use these checks after enabling the CUA plugin:
   snapshot confirms the empty value.
 - Cursor state/mutation calls require the declared `session`; motion calls contain no appearance
   fields, and the verified bundled theme id is `cua.default`.
+- The bundled cursor theme uses the v2 action-only profile; a separately installed retired v1
+  theme fails clearly instead of silently losing session-badge context.
 - A normal `start_session` omits `cursor_theme`; an explicit appearance request goes through
   `set_agent_cursor_theme`.
 - App exit uses a cooperative close path and verifies that the process/window exited.

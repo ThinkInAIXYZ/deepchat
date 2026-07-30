@@ -49,6 +49,13 @@ import { SyncSettings } from '../sync/settings'
 import { DeeplinkService } from '../deeplink'
 import { createDeeplinkActions } from '../deeplink/actions'
 import { NotificationService } from '../desktop/notification'
+import {
+  AggregatedWindowNotificationDiagnostics,
+  ElectronWindowNotificationTargets,
+  WindowNotificationRouter,
+  createNotificationRoutes,
+  type SemanticNotificationPublisher
+} from '../notifications'
 import { DesktopSettings } from '../desktop/settings'
 import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
@@ -196,6 +203,11 @@ import {
 import { activateAppOnMac } from '@/lib/activateApp'
 import { SessionRuntimeEvents } from '@/session/runtimeEvents'
 import { createMemoryProviderBindings } from './memoryProviderBindings'
+import {
+  EpisodeRegistry,
+  TimeoutNotificationScheduler,
+  systemNotificationClock
+} from '@shared/notifications'
 
 type ApplicationDatabaseMaintenancePort = SyncImportDatabasePort &
   DatabaseSecurityMigrationDatabasePort
@@ -207,7 +219,6 @@ export interface MainProcessControl {
   confirmShutdown(): Promise<boolean>
   cancelShutdown(): void
   hasMainWindows(): boolean
-  notifyUnhandledError(error: Error): void
   stop(): Promise<void>
 }
 
@@ -324,6 +335,47 @@ export async function createMainProcessControl(dependencies: {
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
   )
+  const semanticNotificationScheduler = new TimeoutNotificationScheduler()
+  const semanticNotificationEpisodes = new EpisodeRegistry(
+    systemNotificationClock,
+    semanticNotificationScheduler
+  )
+  let handleSemanticRendererUnavailable = (_webContentsId: number): void => undefined
+  const semanticNotificationTargets = new ElectronWindowNotificationTargets(
+    windowPresenter,
+    () => tabPresenter,
+    (webContentsId) => handleSemanticRendererUnavailable(webContentsId)
+  )
+  const semanticNotificationDiagnostics = new AggregatedWindowNotificationDiagnostics({
+    scheduler: semanticNotificationScheduler,
+    write: (event) => logger.warn('[NotificationRouter] delivery diagnostic', event)
+  })
+  const semanticNotificationRouter = new WindowNotificationRouter({
+    clock: systemNotificationClock,
+    scheduler: semanticNotificationScheduler,
+    episodes: semanticNotificationEpisodes,
+    targets: semanticNotificationTargets,
+    diagnostics: semanticNotificationDiagnostics
+  })
+  handleSemanticRendererUnavailable = (webContentsId) => {
+    void semanticNotificationRouter
+      .availabilityChanged({ unavailableWebContentsIds: [webContentsId] })
+      .catch((error) => {
+        logger.warn('[NotificationRouter] renderer invalidation failed', error)
+      })
+  }
+  const semanticNotifications: SemanticNotificationPublisher = {
+    occur: (intent) => {
+      void semanticNotificationRouter.occur(intent).catch((error) => {
+        logger.warn('[NotificationRouter] occurrence failed', error)
+      })
+    },
+    recover: (intent) => {
+      void semanticNotificationRouter.recover(intent).catch((error) => {
+        logger.warn('[NotificationRouter] recovery failed', error)
+      })
+    }
+  }
   const publishDeepchatEvent = (name: DeepchatEventName, payload: unknown): void => {
     windowPresenter.sendToAllWindows(
       DEEPCHAT_EVENT_CHANNEL,
@@ -663,7 +715,6 @@ export async function createMainProcessControl(dependencies: {
     providerSettings,
     agentSettings,
     promptSettings,
-    desktopSettings,
     dependencies.mcpSettings,
     dependencies.privacySettings,
     createInMemoryServerFactory({
@@ -678,6 +729,7 @@ export async function createMainProcessControl(dependencies: {
     }),
     providerRuntime,
     () => deepChatAgentHarness.refreshToolRegistry(),
+    semanticNotifications,
     publishDeepchatEvent,
     (data) => deviceService.cacheImage(data),
     pluginRuntimeSupervisor,
@@ -713,7 +765,7 @@ export async function createMainProcessControl(dependencies: {
     window: windowPresenter,
     config: providerSettings,
     mcp: mcpService,
-    publishEvent: publishDeepchatEvent
+    notifications: semanticNotifications
   })
   deeplinkService = new DeeplinkService(
     deeplinkActions.desktop,
@@ -1678,6 +1730,18 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('pluginService.shutdown', () => pluginService.shutdown())
     await runDestroyStep('mcpApps.clear', () => dependencies.mcpAppSandboxRegistry.clear())
     await runDestroyStep('mcpService.shutdown', () => mcpService.shutdown())
+    await runDestroyStep('semanticNotificationRouter.dispose', () =>
+      semanticNotificationRouter.dispose()
+    )
+    await runDestroyStep('semanticNotificationTargets.dispose', () =>
+      semanticNotificationTargets.dispose()
+    )
+    await runDestroyStep('semanticNotificationEpisodes.dispose', () =>
+      semanticNotificationEpisodes.dispose()
+    )
+    await runDestroyStep('semanticNotificationDiagnostics.dispose', () =>
+      semanticNotificationDiagnostics.dispose()
+    )
     await runDestroyStep('computerUsePreviewPresenter.shutdown', () =>
       computerUsePreviewPresenter.shutdown()
     )
@@ -1913,6 +1977,17 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const hookRoutes = createHookRoutes({ service: hookService })
+    const notificationRoutes = createNotificationRoutes({
+      rendererReady: async (webContentsId) => {
+        const ready = await semanticNotificationTargets.markRendererReady(webContentsId)
+        if (ready) {
+          await semanticNotificationRouter.availabilityChanged()
+        }
+        return ready
+      },
+      acknowledgePresentation: (episodeId, webContentsId) =>
+        semanticNotificationRouter.acknowledgePresentation(episodeId, { webContentsId })
+    })
     const appSettingsRoutes = createAppSettingsRoutes({
       settings: dependencies.settingsStore,
       agentDefaults,
@@ -2005,6 +2080,7 @@ export async function createMainProcessControl(dependencies: {
         syncRoutes,
         platformRoutes,
         hookRoutes,
+        notificationRoutes,
         appSettingsRoutes,
         appRoutes
       ],
@@ -2042,6 +2118,9 @@ export async function createMainProcessControl(dependencies: {
       if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') return
       shortcutPresenter.registerShortcuts()
       upgradeService.handleAppFocus()
+      void semanticNotificationRouter.availabilityChanged().catch((error) => {
+        logger.warn('[NotificationRouter] focus reconciliation failed', error)
+      })
     })
 
     app.on('browser-window-blur', () => {
@@ -2359,14 +2438,6 @@ export async function createMainProcessControl(dependencies: {
     confirmShutdown: async () => await knowledgeService.confirmShutdown(),
     cancelShutdown: () => windowPresenter.setApplicationQuitting(false),
     hasMainWindows: () => windowPresenter.getAllWindows().length > 0,
-    notifyUnhandledError: (error) => {
-      publishDeepchatEvent('notification.error', {
-        id: Date.now().toString(),
-        title: 'Network Error',
-        message: error.message || 'Unknown error',
-        type: 'error'
-      })
-    },
     stop
   }
 

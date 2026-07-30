@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "83ed779287c1101a8054da0eeab7754f0cd42445",
+  "headCommit": "597489d00ef7be5ef03a64435fdddb9fdb068f85",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -104,6 +104,7 @@
     "src/main/agent/deepchat/runtime/process.ts",
     "src/main/agent/deepchat/runtime/promptAssemblyService.ts",
     "src/main/agent/deepchat/runtime/providerInputCapabilities.ts",
+    "src/main/agent/deepchat/runtime/providerModelRuntimeFacts.ts",
     "src/main/agent/deepchat/runtime/providerPermissionCoordinator.ts",
     "src/main/agent/deepchat/runtime/providerPermissionResolution.ts",
     "src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts",
@@ -399,6 +400,7 @@
       "src/shared/contracts/events/app-runtime.events.ts",
       "src/shared/contracts/events/browser.events.ts",
       "src/shared/contracts/events/chat.events.ts",
+      "src/shared/contracts/events/computerUse.events.ts",
       "src/shared/contracts/events/config.events.ts",
       "src/shared/contracts/events/context-menu.events.ts",
       "src/shared/contracts/events/dialog.events.ts",
@@ -423,6 +425,7 @@
       "src/shared/contracts/routes/acp-terminal.routes.ts",
       "src/shared/contracts/routes/browser.routes.ts",
       "src/shared/contracts/routes/chat.routes.ts",
+      "src/shared/contracts/routes/computerUse.routes.ts",
       "src/shared/contracts/routes/config.routes.ts",
       "src/shared/contracts/routes/cronJobs.routes.ts",
       "src/shared/contracts/routes/database-security.routes.ts",
@@ -434,6 +437,7 @@
       "src/shared/contracts/routes/mcp.routes.ts",
       "src/shared/contracts/routes/memory.routes.ts",
       "src/shared/contracts/routes/models.routes.ts",
+      "src/shared/contracts/routes/notification.routes.ts",
       "src/shared/contracts/routes/nowledgeMem.routes.ts",
       "src/shared/contracts/routes/oauth.routes.ts",
       "src/shared/contracts/routes/ocr.routes.ts",
@@ -457,7 +461,7 @@
       "src/shared/contracts/routes/window.routes.ts",
       "src/shared/contracts/routes/workspace.routes.ts"
     ],
-    "sha256": "5dd0869842f278298fd4a071e99b81fe824c387aa6a5ec25ea7af5e6dea9f87b"
+    "sha256": "d4cbc09dc35e8e25840b246b4b7592f100eec93596e899ed47c0da1b80939314"
   },
   "storage": {
     "sqlite": {
@@ -467,7 +471,7 @@
         "src/main/data/schemaTypes.ts"
       ],
       "tableIdentifiers": [],
-      "sha256": "7259151a85e31fffe128d7f70339645b2bca8ed339a2ded955fbf0dcf827e016"
+      "sha256": "7284e5cd799f01d802d8050ae120f31ddc2e7968f6f74ba75bcba721ac9befb9"
     },
     "memoryDuckDbSidecar": {
       "files": [
@@ -487,7 +491,7 @@
       "src/main/app/mainProcess.ts",
       "src/main/appMain.ts"
     ],
-    "sha256": "506b8f26ee2565752f44677d6b9aabc92a3446d780302146133f2597301e836f"
+    "sha256": "01ee45ddd95623675712ce9fef6921484c261ca1e0be99022feee2c40124f84f"
   },
   "dependencyMetrics": {
     "loopFiles": [

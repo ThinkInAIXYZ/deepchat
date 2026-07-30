@@ -132,6 +132,16 @@ export class PromptSettings {
   }
 
   async resetToDefaultPrompt(): Promise<void> {
+    const prompts = await this.getSystemPrompts()
+    const defaultPromptIndex = prompts.findIndex((prompt) => prompt.id === 'default')
+    if (defaultPromptIndex !== -1) {
+      prompts[defaultPromptIndex] = {
+        ...prompts[defaultPromptIndex],
+        content: DEFAULT_SYSTEM_PROMPT,
+        updatedAt: Date.now()
+      }
+      this.settings.set('systemPrompts', prompts)
+    }
     this.settings.set('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
     await this.publishSystemPromptState()
   }

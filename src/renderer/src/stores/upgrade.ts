@@ -1,7 +1,9 @@
 import { createDeviceClient } from '@api/DeviceClient'
 import { createUpgradeClient } from '@api/UpgradeClient'
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useSessionStore } from '@/stores/ui/session'
+import { useStreamStateStore } from '@/stores/ui/stream'
 
 type PresenterUpdateStatus =
   | 'checking'
@@ -331,6 +333,84 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     )
   }
 
+  // --- Task-running check & update confirmation dialog ---
+  const showTaskRunningDialog = ref(false)
+  const pendingUpdateAction = ref<(() => void) | null>(null)
+  let taskCompletionStopWatch: (() => void) | null = null
+
+  const hasRunningTasks = (): boolean => {
+    try {
+      const sessionStore = useSessionStore()
+      const streamStore = useStreamStateStore()
+
+      if (streamStore.isStreaming) return true
+      return sessionStore.sessions.some((s) => s.status === 'working')
+    } catch {
+      return false
+    }
+  }
+
+  const clearTaskCompletionWatch = () => {
+    if (taskCompletionStopWatch !== null) {
+      taskCompletionStopWatch()
+      taskCompletionStopWatch = null
+    }
+  }
+
+  const checkRunningTasksAndUpdate = (updateAction: () => void) => {
+    if (hasRunningTasks()) {
+      pendingUpdateAction.value = updateAction
+      showTaskRunningDialog.value = true
+    } else {
+      updateAction()
+    }
+  }
+
+  const cancelUpdate = () => {
+    showTaskRunningDialog.value = false
+    pendingUpdateAction.value = null
+  }
+
+  const confirmUpdateNow = () => {
+    showTaskRunningDialog.value = false
+    const action = pendingUpdateAction.value
+    pendingUpdateAction.value = null
+    if (action) action()
+  }
+
+  const scheduleUpdateAfterTasks = () => {
+    showTaskRunningDialog.value = false
+    const action = pendingUpdateAction.value
+    pendingUpdateAction.value = null
+    if (!action) return
+
+    clearTaskCompletionWatch()
+
+    const sessionStore = useSessionStore()
+    const streamStore = useStreamStateStore()
+
+    const stopWatch = watch(
+      () => [
+        streamStore.isStreaming,
+        sessionStore.sessions.filter((s) => s.status === 'working').length
+      ],
+      ([streaming, workingCount]) => {
+        if (!streaming && workingCount === 0) {
+          clearTaskCompletionWatch()
+          action()
+        }
+      }
+    )
+
+    if (!hasRunningTasks()) {
+      stopWatch()
+      action()
+      return
+    }
+
+    taskCompletionStopWatch = stopWatch
+  }
+
   const setupUpdateListener = () => {
     if (listenersReady.value) {
       return
@@ -365,11 +445,16 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     shouldShowUpdateNotes,
     shouldShowTopbarInstallButton,
     showManualDownloadOptions,
+    showTaskRunningDialog,
     refreshStatus: syncFromPresenterStatus,
     checkUpdate,
     startUpdate,
     mockDownloadedUpdate,
     clearMockUpdate,
-    handleUpdate
+    handleUpdate,
+    checkRunningTasksAndUpdate,
+    cancelUpdate,
+    confirmUpdateNow,
+    scheduleUpdateAfterTasks
   }
 })

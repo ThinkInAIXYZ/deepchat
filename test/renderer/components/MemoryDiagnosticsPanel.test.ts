@@ -116,7 +116,6 @@ async function setup(
     reindex: vi.fn().mockResolvedValue({ started: true }),
     clear: vi.fn().mockResolvedValue({ removed: 0, cleanupPendingRestart: false })
   }
-  const toast = vi.fn()
   const t = vi.fn((key: string, params?: Record<string, string | number>) => {
     const message = options.messages?.[key] ?? key
     if (!params) return message
@@ -127,7 +126,6 @@ async function setup(
   const te = vi.fn((key: string) => Object.hasOwn(options.messages ?? {}, key))
 
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
-  vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({ t, te, locale: { value: 'en-US' } })
   }))
@@ -141,7 +139,7 @@ async function setup(
     global: { stubs }
   })
   await flushPromises()
-  return { wrapper, memoryClient, toast, t, te }
+  return { wrapper, memoryClient, t, te }
 }
 
 function reindexButton(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
@@ -304,11 +302,16 @@ describe('MemoryDiagnosticsPanel', () => {
     const message =
       'Vector index rebuild did not finish: {reason}. Memory content was not lost; keyword recall is currently active.'
     const { wrapper, memoryClient } = await setup(failedReindexStatus, {
-      messages: { 'settings.memory.redesign.reindexIncomplete': message }
+      messages: {
+        'settings.memory.redesign.reindexIncomplete': message,
+        'settings.memory.redesign.reindexInternalReason':
+          'The local embedding pipeline could not complete the rebuild.'
+      }
     })
 
     const banner = wrapper.get('[data-testid="reindex-failure-banner"]')
-    expect(banner.text()).toContain('embedding service unavailable')
+    expect(banner.text()).not.toContain('embedding service unavailable')
+    expect(banner.text()).toContain('The local embedding pipeline could not complete the rebuild.')
     expect(banner.text()).toContain('Memory content was not lost')
     expect(banner.text()).toContain('keyword recall is currently active')
 
@@ -466,32 +469,34 @@ describe('MemoryDiagnosticsPanel', () => {
     wrapper.unmount()
   })
 
-  it('shows a failure toast when clearing all memories fails', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
+  it('shows inline failure feedback when clearing all memories fails', async () => {
+    const { wrapper, memoryClient } = await setup()
     memoryClient.clear.mockRejectedValueOnce(new Error('clear failed'))
 
     await clearAllActionButton(wrapper).trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalled()
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('error')
+    expect(feedback.text()).toContain('settings.deepchatAgents.memoryManager.actionFailed')
     wrapper.unmount()
   })
 
   it('shows a restart cleanup notice for quarantined vector files', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
+    const { wrapper, memoryClient } = await setup()
     memoryClient.clear.mockResolvedValueOnce({ removed: 3, cleanupPendingRestart: true })
 
     await clearAllActionButton(wrapper).trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.deepchatAgents.memoryManager.cleanupPendingRestart'
-    })
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('warning')
+    expect(feedback.text()).toContain('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
     wrapper.unmount()
   })
 
   it('drops a stale clear-all response after the agent changes', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
+    const { wrapper, memoryClient } = await setup()
     const pending = deferred<{ removed: number; cleanupPendingRestart: boolean }>()
     memoryClient.clear.mockReturnValueOnce(pending.promise)
 
@@ -508,7 +513,7 @@ describe('MemoryDiagnosticsPanel', () => {
     await flushPromises()
 
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(healthCallsAfterAgentSwitch)
-    expect(toast).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="memory-inline-feedback"]').exists()).toBe(false)
     wrapper.unmount()
   })
 })

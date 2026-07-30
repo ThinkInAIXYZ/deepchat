@@ -47,6 +47,12 @@
         <CloseIcon class="h-3! w-3!" />
       </Button>
     </div>
+    <UpdateTaskCheckDialog
+      :open="upgrade.showTaskRunningDialog ?? false"
+      @cancel="upgrade.cancelUpdate()"
+      @update-now="upgrade.confirmUpdateNow()"
+      @update-after-tasks="upgrade.scheduleUpdateAfterTasks()"
+    />
   </div>
 </template>
 
@@ -63,6 +69,7 @@ import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useRoute } from 'vue-router'
+import UpdateTaskCheckDialog from '@/components/ui/UpdateTaskCheckDialog.vue'
 
 const langStore = useLanguageStore()
 const windowClient = createWindowClient()
@@ -92,7 +99,9 @@ const closeWindow = () => {
 }
 
 const handleInstallUpdate = async () => {
-  await upgrade.handleUpdate('auto')
+  upgrade.checkRunningTasksAndUpdate(() => {
+    void upgrade.handleUpdate('auto')
+  })
 }
 
 onMounted(() => {

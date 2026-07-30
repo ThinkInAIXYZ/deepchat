@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Contohnya: http://127.0.0.1:7890",
     "invalidProxyUrl": "Alamat proksi tidak sah, sila masukkan http/https URL yang sah",
     "addCustomSearchEngine": "Tambah enjin carian tersuai",
-    "addCustomSearchEngineDesc": "Untuk menambah enjin carian baharu, anda perlu memberikan nama dan carian URL. URL mesti mengandungi {query} sebagai pemegang tempat pertanyaan.",
+    "addCustomSearchEngineDesc": "Untuk menambah enjin carian baharu, anda perlu memberikan nama dan carian URL. URL mesti mengandungi {'{'}query{'}'} sebagai pemegang tempat pertanyaan.",
     "searchEngineName": "Nama enjin carian",
     "searchEngineNamePlaceholder": "Sila masukkan nama enjin carian",
     "searchEngineUrl": "Cari URL",
@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Cache berterusan tidak tersedia kerana storan kunci selamat tidak tersedia."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Perubahan belum disimpan",
+    "dirtyDescription": "Keluar dan buang perubahan?",
+    "busyTitle": "Sedang menyimpan",
+    "busyDescription": "Tunggu sehingga simpanan selesai sebelum keluar.",
+    "stay": "Teruskan mengedit",
+    "discard": "Buang perubahan"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Menyimpan…",
+      "saved": "Disimpan",
+      "saveFailed": "Tidak dapat menyimpan. Perubahan dikekalkan.",
+      "retry": "Cuba lagi"
+    },
     "title": "DeepChat Agents",
     "description": "Urus DeepChat Agent dan lalai sesi baharu mereka.",
     "builtIn": "terbina dalam",
@@ -786,7 +800,7 @@
   "dashboard": {
     "badge": "Gunakan Kanban",
     "title": "Gunakan Kanban",
-    "description": "Statistik tentang penggunaan token, capaian cache dan anggaran harga. token dan data kos dianggarkan berdasarkan maklumat awam. Sesetengah pembekal atau data berita terdahulu mungkin hilang dan hanya untuk rujukan.",
+    "description": "Jejaki penggunaan token dan capaian cache.",
     "actions": {
       "refresh": "segarkan semula"
     },
@@ -802,8 +816,8 @@
     },
     "empty": {
       "title": "Tiada statistik lagi",
-      "description": "Setelah data penggunaan tersedia, penggunaan token, capaian cache dan anggaran harga ditunjukkan di sini.",
-      "historyNote": "token dan data kos dianggarkan berdasarkan maklumat awam. Sesetengah pembekal atau data berita terdahulu mungkin hilang dan hanya untuk rujukan."
+      "description": "Penggunaan token dan capaian cache akan dipaparkan di sini apabila data penggunaan tersedia.",
+      "historyNote": "Data penggunaan daripada sesetengah penyedia atau mesej terdahulu mungkin tidak lengkap."
     },
     "summary": {
       "totalTokens": "Jumlah Token",
@@ -816,10 +830,6 @@
       "cachedTokensUncachedLabel": "rindu",
       "cacheHitRate": "Kadar hit cache",
       "cacheHitRateDescription": "Nisbah prompt token cache kepada jumlah input token.",
-      "estimatedCost": "anggaran harga",
-      "estimatedCostDescription": "Anggaran kos dolar pada harga semasa provider atau harga sandaran AIHubMix.",
-      "estimatedCostTrendLabel": "Trend dalam 30 hari yang lalu",
-      "estimatedCostTrendEmpty": "Tiada kos direkodkan dalam tempoh 30 hari yang lalu.",
       "recordingStartedAt": "Masa mula statistik",
       "recordingStartedAtDescription": "Masa rekod usage terawal dalam papan kanban semasa.",
       "withDeepChatDaysLabel": "Bilangan hari persahabatan",
@@ -849,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "Kedudukan pembekal",
-      "providerDescription": "Isih mengikut anggaran harga dahulu, kemudian jumlah token.",
+      "providerDescription": "Disusun mengikut jumlah token.",
       "modelTitle": "Kedudukan model",
-      "modelDescription": "10 model teratas diisih mengikut anggaran harga dan jumlah token.",
+      "modelDescription": "10 model teratas mengikut jumlah token.",
       "messages": "Mesej {count}",
       "empty": "Tiada data terperinci untuk dipaparkan lagi."
     },
@@ -1627,7 +1637,15 @@
       "seconds": "Kedua",
       "testConnection": "sambungan ujian",
       "timeout": "masa tamat",
-      "title": "Konfigurasi eksport Nowledge Mem"
+      "title": "Konfigurasi eksport Nowledge Mem",
+      "configLoadFailed": "Konfigurasi tidak dapat dimuat",
+      "configSaved": "Konfigurasi disimpan",
+      "configSaveFailed": "Konfigurasi tidak dapat disimpan",
+      "configReset": "Konfigurasi ditetapkan semula",
+      "configResetFailed": "Konfigurasi tidak dapat ditetapkan semula",
+      "connectionSucceeded": "Sambungan berjaya",
+      "connectionFailed": "Tidak dapat menyambung dengan konfigurasi semasa",
+      "invalidBaseUrl": "Masukkan alamat HTTP atau HTTPS tanpa kelayakan atau parameter pertanyaan"
     }
   },
   "mcp": {
@@ -1673,6 +1691,7 @@
       "name": "Nama pelayan",
       "namePlaceholder": "Masukkan nama pelayan",
       "nameRequired": "Nama pelayan tidak boleh kosong",
+      "nameDuplicate": "Pelayan dengan nama ini sudah wujud.",
       "type": "Jenis pelayan",
       "typePlaceholder": "Pilih jenis pelayan",
       "typeStdio": "Input dan output standard (Stdio)",
@@ -3119,7 +3138,7 @@
       "error": "Ralat",
       "invalidAgent": "Ejen tiada atau dilumpuhkan. Pilih ejen lain."
     },
-    "runNowSuccess": "Tugasan berjadual dimulakan"
+    "runNowSuccess": "Tugasan berjadual selesai"
   },
   "memory": {
     "description": "Semak, konfigur dan urus apa yang diingati oleh setiap ejen merentas sesi. Memori berasingan bagi setiap ejen.",

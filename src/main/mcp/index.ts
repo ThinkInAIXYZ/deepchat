@@ -17,6 +17,7 @@ import {
   type McpSamplingDecision,
   type McpSamplingRequestPayload,
   type MCPServerConfig,
+  type McpAddServerResult,
   type McpServerAuthStatus,
   type McpServerDiagnostics,
   type McpServicePort,
@@ -39,15 +40,14 @@ import {
   MCP_CLIENT_CREDENTIALS_DRAFT_REVISION,
   McpOAuthManager
 } from './mcpOAuthManager'
-import { getErrorMessageLabels } from '@shared/i18n'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PromptSettings } from '@/agent/promptSettings'
-import type { DesktopSettings } from '@/desktop/settings'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { PluginRuntimeSupervisor } from '@/plugin/runtimeSupervisor'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { SemanticNotificationPublisher } from '@/notifications'
 import { McpSettings } from './settings'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ToolPermissionBroker } from '@/tool/permission'
@@ -94,7 +94,6 @@ export class McpService implements McpServicePort {
   private mcpOAuthManager: McpOAuthManager
   private providerSettings: Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>
   private readonly promptSettings: Pick<PromptSettings, 'getCustomPrompts'>
-  private readonly locale: Pick<DesktopSettings, 'getLanguage'>
   private readonly mcpSettings: McpSettings
   private readonly privacy: PrivacySettingsPort
   private isInitialized: boolean = false
@@ -103,6 +102,7 @@ export class McpService implements McpServicePort {
   private cacheImage?: (data: string) => Promise<string>
   private readonly onRegistryChanged: () => void
   private shutdownPromise: Promise<void> | null = null
+  private addMcpServerTail: Promise<void> = Promise.resolve()
   private readonly pluginRuntimeSupervisor: PluginRuntimeSupervisor
   private readonly mcpAppSandboxRegistry?: McpAppSandboxRegistry
   private pendingSamplingRequests = new Map<
@@ -157,12 +157,12 @@ export class McpService implements McpServicePort {
     providerSettings: Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>,
     agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>,
     promptSettings: Pick<PromptSettings, 'getCustomPrompts'>,
-    locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
     privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
     providerRuntime: Pick<ProviderRuntimePort, 'generateCompletionStandalone'>,
     onRegistryChanged: () => void,
+    semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
     cacheImage?: (data: string) => Promise<string>,
     pluginRuntimeSupervisor?: PluginRuntimeSupervisor,
@@ -195,7 +195,6 @@ export class McpService implements McpServicePort {
 
     this.providerSettings = providerSettings
     this.promptSettings = promptSettings
-    this.locale = locale
     this.mcpSettings = mcpSettings
     this.privacy = privacy
     this.cacheImage = cacheImage
@@ -213,7 +212,6 @@ export class McpService implements McpServicePort {
       }
     )
     this.serverManager = new ServerManager(
-      this.locale,
       this.mcpSettings,
       this.privacy,
       inMemoryServerFactory,
@@ -224,14 +222,15 @@ export class McpService implements McpServicePort {
         config: this.providerSettings
       },
       () => this.handleRegistryChanged(),
+      semanticNotifications,
       this.publishEvent,
       this.mcpOAuthManager
     )
     this.toolManager = new ToolManager(
       agentSettings,
-      this.locale,
       this.mcpSettings,
       this.serverManager,
+      semanticNotifications,
       this.publishEvent,
       {
         ownsServer: (serverName) => this.pluginRuntimeSupervisor.ownsServer(serverName),
@@ -573,7 +572,8 @@ export class McpService implements McpServicePort {
   }
 
   async setMcpRouterApiKey(key: string): Promise<void> {
-    this.mcpSettings.setRouterApiKey(key)
+    const normalizedApiKey = key.trim()
+    await this.synchronizeMcpRouterServersAuth(normalizedApiKey)
   }
 
   async isServerInstalled(source: string, sourceId: string): Promise<boolean> {
@@ -600,36 +600,65 @@ export class McpService implements McpServicePort {
     return [...installedIds]
   }
 
-  async updateMcpRouterServersAuth(apiKey: string): Promise<void> {
+  private async synchronizeMcpRouterServersAuth(normalizedApiKey: string): Promise<void> {
+    const currentApiKey = this.mcpSettings.getRouterApiKey()
     const servers = await this.mcpSettings.getMcpServers()
-    const updates: Array<{ name: string; config: Partial<MCPServerConfig> }> = []
+    let updatedServerCount = 0
+    const invalidatedServerIds = new Set<string>()
 
     for (const [serverName, config] of Object.entries(servers)) {
-      if (config.source === 'mcprouter' && config.customHeaders) {
-        const updatedHeaders = {
-          ...config.customHeaders,
-          Authorization: `Bearer ${apiKey}`
-        }
-        updates.push({
-          name: serverName,
-          config: { customHeaders: updatedHeaders }
-        })
+      if (config.source !== 'mcprouter') {
+        continue
       }
+
+      const updatedHeaders = { ...config.customHeaders }
+      const authorizationHeaderNames = Object.keys(updatedHeaders).filter(
+        (name) => name.toLowerCase() === 'authorization'
+      )
+      const expectedAuthorization = normalizedApiKey ? `Bearer ${normalizedApiKey}` : undefined
+      const alreadySynchronized = expectedAuthorization
+        ? authorizationHeaderNames.length === 1 &&
+          authorizationHeaderNames[0] === 'Authorization' &&
+          updatedHeaders.Authorization === expectedAuthorization
+        : authorizationHeaderNames.length === 0
+
+      if (alreadySynchronized) {
+        continue
+      }
+
+      for (const name of authorizationHeaderNames) {
+        delete updatedHeaders[name]
+      }
+      if (expectedAuthorization) {
+        updatedHeaders.Authorization = expectedAuthorization
+      }
+
+      servers[serverName] = {
+        ...config,
+        customHeaders: updatedHeaders
+      }
+      if (config.serverId) {
+        invalidatedServerIds.add(config.serverId)
+      }
+      updatedServerCount += 1
     }
 
-    // Batch update Authorization for all servers
-    for (const update of updates) {
-      const previous = servers[update.name]
-      if (previous?.serverId) {
-        this.revokeMcpAppsByServer(previous.serverId)
-      }
-      await this.mcpSettings.updateMcpServer(update.name, update.config)
-      if (previous?.serverId) {
-        this.mcpOAuthManager.clearServerCredentials(previous.serverId)
-      }
+    if (currentApiKey === normalizedApiKey && updatedServerCount === 0) {
+      return
     }
 
-    logger.info(`Updated Authorization for ${updates.length} mcprouter servers`)
+    for (const serverId of invalidatedServerIds) {
+      this.revokeMcpAppsByServer(serverId)
+    }
+
+    this.mcpSettings.setRouterApiKeyAndServers(
+      normalizedApiKey,
+      updatedServerCount > 0 ? servers : undefined
+    )
+    for (const serverId of invalidatedServerIds) {
+      this.mcpOAuthManager.clearServerCredentials(serverId)
+    }
+    logger.info(`Synchronized Authorization for ${updatedServerCount} mcprouter servers`)
   }
 
   private scheduleBackgroundRegistryUpdate(): void {
@@ -761,28 +790,28 @@ export class McpService implements McpServicePort {
   }
 
   // Add MCP server
-  async addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean> {
+  async addMcpServer(serverName: string, config: MCPServerConfig): Promise<McpAddServerResult> {
+    const result = this.addMcpServerTail.then(() => this.addMcpServerOnce(serverName, config))
+    this.addMcpServerTail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
+
+  private async addMcpServerOnce(
+    serverName: string,
+    config: MCPServerConfig
+  ): Promise<McpAddServerResult> {
     if (this.pluginRuntimeSupervisor.ownsServer(serverName)) {
       throw new Error(`MCP server "${serverName}" is owned by an enabled plugin`)
     }
     const existingServers = await this.getMcpServers()
     if (existingServers[serverName]) {
-      console.error(`[MCP] Failed to add server: Server name "${serverName}" already exists.`)
-      // Get current language and send notification
-      const locale = this.locale.getLanguage() || 'zh-CN'
-      const errorMessages = getErrorMessageLabels(locale)
-      this.publishEvent('notification.error', {
-        title: errorMessages.addMcpServerErrorTitle || 'Failed to add server',
-        message:
-          errorMessages.addMcpServerDuplicateMessage?.replace('{serverName}', serverName) ||
-          `Server name "${serverName}" already exists. Please choose a different name.`,
-        id: `mcp-error-add-server-${serverName}-${Date.now()}`,
-        type: 'error'
-      })
-      return false
+      return { status: 'duplicate' }
     }
     await this.mcpSettings.addMcpServer(serverName, config)
-    return true
+    return { status: 'added' }
   }
 
   // Update MCP server configuration

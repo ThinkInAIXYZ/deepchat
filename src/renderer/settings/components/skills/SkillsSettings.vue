@@ -20,7 +20,7 @@
       </div>
       <DropdownMenu v-if="!isAgentScope || isDeepChatTarget">
         <DropdownMenuTrigger as-child>
-          <Button size="sm">
+          <Button size="sm" :disabled="pageOperationPending">
             <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
             {{ t('settings.skills.addSkill') }}
           </Button>
@@ -49,6 +49,11 @@
 
     <div ref="guideRootRef">
       <Separator class="my-4" />
+      <InlineOperationFeedback
+        v-if="!detailDialogOpen"
+        class="mb-3"
+        :snapshot="visiblePageFeedback"
+      />
 
       <Tabs v-model="activeTab" class="w-full">
         <TabsList v-if="!isAgentScope" class="grid w-full max-w-xl grid-cols-3">
@@ -71,9 +76,25 @@
               <p class="text-xs text-muted-foreground">
                 {{ t('settings.skills.draftSuggestions.description') }}
               </p>
+              <div
+                v-if="draftSuggestionsLoadFailed"
+                class="flex items-center gap-2 text-xs text-destructive"
+              >
+                <span>{{ t('common.error.requestFailed') }}</span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  class="h-auto px-0 text-xs"
+                  :disabled="draftSuggestionsLoading || pageOperationPending"
+                  @click="loadDraftSuggestions"
+                >
+                  {{ t('common.retry') }}
+                </Button>
+              </div>
             </div>
             <Switch
               :model-value="draftSuggestionsEnabled"
+              :disabled="!draftSuggestionsLoaded || pageOperationPending"
               @update:model-value="handleDraftSuggestionsToggle"
             />
           </div>
@@ -93,15 +114,15 @@
             </div>
           </div>
 
-          <Empty v-else-if="scopedSkillsError" class="border-0 py-8">
+          <Empty v-else-if="pageLoadFailed" class="border-0 py-8">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <Icon icon="lucide:circle-alert" />
               </EmptyMedia>
               <EmptyTitle>{{ t('settings.skills.agents.loadFailed') }}</EmptyTitle>
-              <EmptyDescription class="break-words">{{ scopedSkillsError }}</EmptyDescription>
+              <EmptyDescription>{{ t('common.error.requestFailed') }}</EmptyDescription>
             </EmptyHeader>
-            <Button variant="outline" size="sm" @click="loadSkills">
+            <Button variant="outline" size="sm" @click="reloadPageData">
               <Icon icon="lucide:refresh-cw" class="size-4" />
               {{ t('common.retry') }}
             </Button>
@@ -132,6 +153,7 @@
               :skill="skill"
               :extension="displayedSkillExtensions[skill.name]"
               :scripts="displayedSkillScripts[skill.name] || []"
+              :disabled="pageOperationPending"
               @toggle-disabled="toggleSkillDisabled(skill, $event)"
               @view="openSkillDetail(skill)"
             />
@@ -143,7 +165,7 @@
         </TabsContent>
 
         <TabsContent v-if="!isAgentScope" value="syncDirectory" class="mt-4">
-          <SkillImportExportTab :skills="skills" @completed="handleSyncCompleted" />
+          <SkillImportExportTab :skills="skills" />
         </TabsContent>
       </Tabs>
     </div>
@@ -152,20 +174,17 @@
     <SkillInstallDialog
       v-model:open="installDialogOpen"
       :agent-id="isAgentScope ? targetAgentId : undefined"
-      @installed="handleInstalled"
     />
 
     <InstallFromGitDialog
       v-model:open="gitDialogOpen"
       :agent-id="isAgentScope ? targetAgentId : undefined"
-      @installed="handleInstalled"
     />
 
     <ImportSkillsFromAgentDialog
       v-model:open="agentImportOpen"
       :target-agent-id="targetAgentId"
       :target-agent-name="targetAgent?.name"
-      @completed="handleAgentImportCompleted"
     />
 
     <SkillDetailDialog
@@ -176,7 +195,8 @@
       :markdown="skillDetail?.markdown"
       :mutable="selectedDetailSkill?.mutable ?? false"
       :deepchat-disabled="selectedDetailSkill?.deepchatDisabled ?? false"
-      :saving="detailSaving"
+      :saving="pageOperationPending"
+      :feedback="visiblePageFeedback"
       @save="handleDetailSave"
       @toggle-disabled="handleDetailToggleDisabled"
       @delete="handleDetailDelete"
@@ -211,6 +231,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Icon } from '@iconify/vue'
+import { nanoid } from 'nanoid'
 import { Separator } from '@shadcn/components/ui/separator'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Button } from '@shadcn/components/ui/button'
@@ -231,15 +252,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
-import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
 import { createConfigClient } from '@api/ConfigClient'
 import { createSkillClient } from '@api/SkillClient'
 import { createWindowClient } from '@api/WindowClient'
+import { skillsCatalogChangedEvent, type DeepchatEventPayload } from '@shared/contracts/events'
 import type { Agent } from '@shared/types/agent-interface'
-import type { SkillExtensionConfig, SkillScriptDescriptor } from '@shared/types/skill'
+import type {
+  SkillExtensionConfig,
+  SkillMetadata,
+  SkillScriptDescriptor
+} from '@shared/types/skill'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 import type { SkillDetail } from '@shared/types/skillSync'
 
@@ -253,7 +278,11 @@ import SkillDetailDialog from './SkillDetailDialog.vue'
 import SettingsPageShell from '../control-center/SettingsPageShell.vue'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import { continueGuidedOnboardingFromSettings } from '../../lib/guidedOnboardingSettings'
+import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const props = withDefaults(
   defineProps<{
@@ -265,7 +294,6 @@ const props = withDefaults(
 )
 
 const { t } = useI18n()
-const { toast } = useToast()
 const skillsStore = useSkillsStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
@@ -276,21 +304,42 @@ const guideRootRef = ref<HTMLElement | null>(null)
 const skillsSyncRef = ref<HTMLElement | null>(null)
 const skillsGuide = useGuidedOnboardingStep('skills')
 const showSkillsGuide = computed(() => skillsGuide.showGuide.value && Boolean(skillsSyncRef.value))
+const pageFeedbackController = createRendererSurfaceFeedbackController('settings')
+const { snapshot: pageFeedback, setActive: setPageFeedbackActive } =
+  useSurfaceFeedback(pageFeedbackController)
+const pageOperationId = `settings.skills.operation:${nanoid(8)}`
+let pageOperationGeneration = 0
+const pageSurfaceContextVersion = ref(0)
+const pageFeedbackContextVersion = ref<number | null>(null)
+const pageOperationKind = ref<'read' | 'mutation' | null>(null)
+type SkillCatalogChangedPayload = DeepchatEventPayload<typeof skillsCatalogChangedEvent.name>
 
-const { skills: globalSkills, skillExtensions, skillScripts, loading } = storeToRefs(skillsStore)
+const {
+  skills: globalSkills,
+  skillExtensions,
+  skillScripts,
+  loading,
+  error: globalSkillsError
+} = storeToRefs(skillsStore)
 const scopedSkills = ref<UnifiedSkillItem[]>([])
 const scopedSkillExtensions = ref<Record<string, SkillExtensionConfig>>({})
 const scopedSkillScripts = ref<Record<string, SkillScriptDescriptor[]>>({})
 const scopedSkillsLoading = ref(false)
-const scopedSkillsError = ref('')
+const scopedSkillsError = ref(false)
+const scopedExtensionRequestSequence = new Map<string, number>()
 
 // Search
 const activeTab = ref('library')
 const searchQuery = ref('')
 const draftSuggestionsEnabled = ref(false)
+const draftSuggestionsLoaded = ref(false)
+const draftSuggestionsLoadFailed = ref(false)
+const draftSuggestionsLoading = ref(false)
+let draftSuggestionsRequestId = 0
 const isAgentScope = computed(() => props.scope === 'agent')
 const targetAgent = ref<Agent | null>(null)
 const agentPolicyLoading = ref(false)
+const agentPolicyError = ref(false)
 const agentPolicyRequestId = ref(0)
 const scopedSkillsRequestId = ref(0)
 
@@ -307,6 +356,9 @@ const targetAgentId = computed(() => {
 
   return 'deepchat'
 })
+const surfaceScopeKey = computed(() =>
+  isAgentScope.value ? `agent:${targetAgentId.value}` : 'global'
+)
 const isDeepChatTarget = computed(() =>
   Boolean(targetAgent.value && targetAgent.value.type === 'deepchat')
 )
@@ -319,6 +371,23 @@ const displayedSkillScripts = computed(() =>
 )
 const skillsLoading = computed(() =>
   isAgentScope.value ? scopedSkillsLoading.value : loading.value
+)
+const pageOperationPending = computed(() => pageFeedback.value.status === 'pending')
+const pageFeedbackBelongsToSurface = computed(
+  () => pageFeedbackContextVersion.value === pageSurfaceContextVersion.value
+)
+const visiblePageFeedback = computed(() => {
+  const snapshot = pageFeedback.value
+  if (snapshot.status === 'pending' || pageFeedbackBelongsToSurface.value) return snapshot
+  return { status: 'idle' as const, version: snapshot.version }
+})
+const pageFeedbackSurfaceActive = computed(
+  () => pageFeedback.value.status === 'idle' || pageFeedbackBelongsToSurface.value
+)
+const pageLoadFailed = computed(
+  () =>
+    agentPolicyError.value ||
+    (isAgentScope.value ? scopedSkillsError.value : Boolean(globalSkillsError.value))
 )
 const agentScopedSkills = computed<UnifiedSkillItem[]>(() => skills.value)
 const filteredSkills = computed(() => {
@@ -338,11 +407,54 @@ const agentImportOpen = ref(false)
 const detailDialogOpen = ref(false)
 const skillDetail = ref<SkillDetail | null>(null)
 const selectedDetailSkill = ref<UnifiedSkillItem | null>(null)
-const detailSaving = ref(false)
 const detailRequestId = ref(0)
 const detailMutationRequestId = ref(0)
 
 const router = useRouter()
+
+const logFailure = (message: string, error: unknown, context: Record<string, unknown> = {}) => {
+  console.error(
+    message,
+    {
+      ...context
+    },
+    error
+  )
+}
+
+const beginPageOperation = (
+  label: string,
+  kind: Exclude<typeof pageOperationKind.value, null> = 'mutation'
+): number | null => {
+  if (pageFeedbackController.getSnapshot().status === 'pending') return null
+  const generation = ++pageOperationGeneration
+  pageFeedbackContextVersion.value = pageSurfaceContextVersion.value
+  pageOperationKind.value = kind
+  pageFeedbackController.begin(pageOperationId, label)
+  return generation
+}
+
+const isCurrentPageOperation = (generation: number) =>
+  generation === pageOperationGeneration &&
+  pageFeedbackController.getSnapshot().status === 'pending'
+
+const cancelPageReadOperation = () => {
+  const snapshot = pageFeedbackController.getSnapshot()
+  if (snapshot.status === 'pending' && pageOperationKind.value === 'read') {
+    pageOperationGeneration += 1
+    pageFeedbackController.cancelPending()
+    pageFeedbackContextVersion.value = null
+    pageOperationKind.value = null
+  }
+}
+
+const closeSkillDetail = () => {
+  detailRequestId.value += 1
+  detailMutationRequestId.value += 1
+  detailDialogOpen.value = false
+  skillDetail.value = null
+  selectedDetailSkill.value = null
+}
 
 const handleSkillsGuidePrimary = async () => {
   if (skillsGuide.currentStepId.value !== 'skills') {
@@ -392,49 +504,49 @@ const handleSkillsGuideExpert = async () => {
 // Event handling
 const eventCleanup = ref<(() => void) | null>(null)
 
-onMounted(async () => {
-  const enabled = await configClient.getSkillDraftSuggestionsEnabled()
-  draftSuggestionsEnabled.value = enabled ?? false
-  await Promise.all([loadSkills(), loadAgentPolicy()])
+onMounted(() => {
   setupEventListeners()
+  void Promise.all([loadDraftSuggestions(), loadSkills(), loadAgentPolicy()])
 })
 
 onUnmounted(() => {
+  cancelPageReadOperation()
   if (eventCleanup.value) {
     eventCleanup.value()
   }
+  stopPageFeedbackSurfaceSync()
+  leaveGuardLease.release()
 })
 
-const patchScopedSkillDisabled = (name: string, disabled: boolean) => {
-  const targetSkill = scopedSkills.value.find((s) => s.name === name)
-  if (targetSkill) {
-    targetSkill.disabled = disabled
-    targetSkill.deepchatDisabled = disabled
-  }
-}
-
 const setupEventListeners = () => {
-  const handleSkillEvent = (payload: {
-    reason?: string
-    name?: string
-    disabled?: boolean
-    agentIds?: string[]
-  }) => {
+  const handleSkillEvent = (payload: SkillCatalogChangedPayload) => {
     // The Pinia store owns the built-in catalog refresh. This page only owns
     // the separately loaded Agent-scoped catalog.
     if (!isAgentScope.value) return
+    if (payload.reason === 'sync-directory-updated') return
     const affectedAgentId = targetAgentId.value
     if (payload.agentIds?.length && !payload.agentIds.includes(affectedAgentId)) {
       return
     }
-    // A disable/enable toggle only flips one flag; patch it in place so the
-    // list does not flash the loading skeleton.
+    if (
+      payload.reason === 'metadata-updated' &&
+      payload.skill &&
+      applyScopedSkillMetadata(payload.skill)
+    ) {
+      if (payload.extensionChanged) {
+        void refreshScopedSkillExtension(payload.skill.name, affectedAgentId)
+      }
+      return
+    }
     if (
       payload.reason === 'disabled-updated' &&
       payload.name &&
-      typeof payload.disabled === 'boolean'
+      payload.disabled !== undefined &&
+      applyScopedSkillDisabled(payload.name, payload.disabled)
     ) {
-      patchScopedSkillDisabled(payload.name, payload.disabled)
+      return
+    }
+    if (payload.reason === 'uninstalled' && payload.name && removeScopedSkill(payload.name)) {
       return
     }
     void loadSkills()
@@ -443,7 +555,83 @@ const setupEventListeners = () => {
   eventCleanup.value = skillClient.onCatalogChanged(handleSkillEvent)
 }
 
-watch(targetAgentId, () => {
+const applyScopedSkillMetadata = (metadata: SkillMetadata): boolean => {
+  if (!scopedSkills.value.some((skill) => skill.name === metadata.name)) return false
+  scopedSkills.value = scopedSkills.value.map((skill) =>
+    skill.name === metadata.name
+      ? {
+          ...skill,
+          description: metadata.description,
+          path: metadata.path,
+          skillRoot: metadata.skillRoot,
+          category: metadata.category,
+          platforms: metadata.platforms,
+          metadata: metadata.metadata,
+          allowedTools: metadata.allowedTools,
+          ownerPluginId: metadata.ownerPluginId
+        }
+      : skill
+  )
+  return true
+}
+
+const applyScopedSkillDisabled = (name: string, disabled: boolean): boolean => {
+  if (!scopedSkills.value.some((skill) => skill.name === name)) return false
+  scopedSkills.value = scopedSkills.value.map((skill) =>
+    skill.name === name ? { ...skill, disabled, deepchatDisabled: disabled } : skill
+  )
+  return true
+}
+
+const applyScopedSkillExtension = (name: string, extension: SkillExtensionConfig): boolean => {
+  if (!scopedSkills.value.some((skill) => skill.name === name)) return false
+  scopedSkillExtensions.value = {
+    ...scopedSkillExtensions.value,
+    [name]: extension
+  }
+  return true
+}
+
+const refreshScopedSkillExtension = async (name: string, agentId: string) => {
+  const key = `${agentId}\u0000${name}`
+  const requestSequence = (scopedExtensionRequestSequence.get(key) ?? 0) + 1
+  scopedExtensionRequestSequence.set(key, requestSequence)
+  try {
+    const extension = await skillClient.getSkillExtension(name, agentId)
+    if (
+      scopedExtensionRequestSequence.get(key) !== requestSequence ||
+      agentId !== targetAgentId.value
+    ) {
+      return
+    }
+    applyScopedSkillExtension(name, extension)
+  } catch (error) {
+    if (scopedExtensionRequestSequence.get(key) !== requestSequence) return
+    logFailure('[SkillsSettings] Failed to refresh skill runtime config', error, {
+      agentId,
+      skillName: name
+    })
+  }
+}
+
+const removeScopedSkill = (name: string): boolean => {
+  const containsSkill = scopedSkills.value.some((skill) => skill.name === name)
+  if (!containsSkill && (scopedSkillsLoading.value || scopedSkillsError.value)) return false
+  if (containsSkill) {
+    scopedSkills.value = scopedSkills.value.filter((skill) => skill.name !== name)
+  }
+  const nextExtensions = { ...scopedSkillExtensions.value }
+  const nextScripts = { ...scopedSkillScripts.value }
+  delete nextExtensions[name]
+  delete nextScripts[name]
+  scopedSkillExtensions.value = nextExtensions
+  scopedSkillScripts.value = nextScripts
+  return true
+}
+
+watch(surfaceScopeKey, () => {
+  pageSurfaceContextVersion.value += 1
+  cancelPageReadOperation()
   detailRequestId.value += 1
   detailMutationRequestId.value += 1
   targetAgent.value = null
@@ -453,7 +641,6 @@ watch(targetAgentId, () => {
   detailDialogOpen.value = false
   skillDetail.value = null
   selectedDetailSkill.value = null
-  detailSaving.value = false
   void Promise.all([loadAgentPolicy(), loadSkills()])
 })
 
@@ -478,7 +665,7 @@ const loadSkills = async () => {
   scopedSkills.value = []
   scopedSkillExtensions.value = {}
   scopedSkillScripts.value = {}
-  scopedSkillsError.value = ''
+  scopedSkillsError.value = false
   scopedSkillsLoading.value = true
   try {
     const nextSkills = await skillClient.getUnifiedSkillCatalog(agentId)
@@ -491,7 +678,9 @@ const loadSkills = async () => {
           ])
           return [skill.name, extension ?? createDefaultExtension(), scripts ?? []] as const
         } catch (error) {
-          console.error(`[SkillsSettings] Failed to load runtime data for ${skill.name}:`, error)
+          logFailure('[SkillsSettings] Failed to load runtime data', error, {
+            skillName: skill.name
+          })
           return [skill.name, createDefaultExtension(), [] as SkillScriptDescriptor[]] as const
         }
       })
@@ -507,7 +696,8 @@ const loadSkills = async () => {
     )
   } catch (error) {
     if (requestId !== scopedSkillsRequestId.value || agentId !== targetAgentId.value) return
-    scopedSkillsError.value = error instanceof Error ? error.message : String(error)
+    scopedSkillsError.value = true
+    logFailure('[SkillsSettings] Failed to load Agent skill catalog', error, { agentId })
   } finally {
     if (requestId === scopedSkillsRequestId.value && agentId === targetAgentId.value) {
       scopedSkillsLoading.value = false
@@ -519,12 +709,14 @@ const loadAgentPolicy = async () => {
   if (!isAgentScope.value) {
     agentPolicyRequestId.value += 1
     targetAgent.value = null
+    agentPolicyError.value = false
     agentPolicyLoading.value = false
     return
   }
 
   const requestId = ++agentPolicyRequestId.value
   const requestedAgentId = targetAgentId.value
+  agentPolicyError.value = false
   agentPolicyLoading.value = true
   try {
     const agents = await configClient.listAgents({
@@ -538,6 +730,7 @@ const loadAgentPolicy = async () => {
     const agent = agents[0] ?? null
     if (!agent) {
       targetAgent.value = null
+      agentPolicyError.value = true
       return
     }
 
@@ -548,10 +741,9 @@ const loadAgentPolicy = async () => {
     }
 
     targetAgent.value = null
-    toast({
-      title: t('settings.pluginsHub.agentScopeUnsupported'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+    agentPolicyError.value = true
+    logFailure('[SkillsSettings] Failed to load Agent policy', error, {
+      agentId: requestedAgentId
     })
   } finally {
     if (requestId === agentPolicyRequestId.value) {
@@ -562,48 +754,26 @@ const loadAgentPolicy = async () => {
 
 const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean) => {
   if (!targetAgent.value || !isDeepChatTarget.value) {
-    toast({
-      title: t('settings.pluginsHub.agentScopeUnsupported'),
-      variant: 'destructive'
-    })
-    return false
+    throw new Error('The selected Agent does not support DeepChat skill policy updates')
   }
 
   const requestedAgentId = targetAgent.value.id
-  const previousDisabled =
-    scopedSkills.value.find((s) => s.name === skill.name)?.deepchatDisabled ?? false
-  // Optimistic update; the catalog-changed event confirms it without a reload.
-  patchScopedSkillDisabled(skill.name, disabled)
-  try {
-    await skillClient.setSkillDisabled(skill.name, disabled, requestedAgentId)
-    if (requestedAgentId !== targetAgentId.value) return false
-    toast({
-      title: disabled ? t('settings.skills.disable.success') : t('settings.skills.enable.success'),
-      description: disabled
-        ? t('settings.skills.disable.successMessage', { name: skill.name })
-        : t('settings.skills.enable.successMessage', { name: skill.name })
-    })
-    return true
-  } catch (error) {
-    if (requestedAgentId !== targetAgentId.value) return false
-    patchScopedSkillDisabled(skill.name, previousDisabled)
-    toast({
-      title: disabled ? t('settings.skills.disable.failed') : t('settings.skills.enable.failed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
-    return false
-  }
+  await skillClient.setSkillDisabled(skill.name, disabled, requestedAgentId)
+  if (requestedAgentId !== targetAgentId.value) return false
+  applyScopedSkillDisabled(skill.name, disabled)
+  return true
 }
 
 const openSkillDetail = async (skill: UnifiedSkillItem) => {
+  const operationGeneration = beginPageOperation(t('common.loading'), 'read')
+  if (operationGeneration === null) return
   const requestId = ++detailRequestId.value
   detailMutationRequestId.value += 1
-  detailSaving.value = false
   const agentId = isAgentScope.value ? targetAgentId.value : undefined
   try {
     const markdown = await skillClient.readSkillFile(skill.name, agentId)
     if (
+      !isCurrentPageOperation(operationGeneration) ||
       requestId !== detailRequestId.value ||
       (isAgentScope.value && agentId !== targetAgentId.value)
     ) {
@@ -620,36 +790,47 @@ const openSkillDetail = async (skill: UnifiedSkillItem) => {
       markdown,
       mutable: skill.mutable
     }
+    pageFeedbackController.succeed({
+      code: 'settings.skills.detailLoaded',
+      title: skill.name
+    })
+    pageFeedbackController.clearSettled()
     detailDialogOpen.value = true
   } catch (cause) {
-    if (requestId !== detailRequestId.value) return
-    toast({
+    if (!isCurrentPageOperation(operationGeneration) || requestId !== detailRequestId.value) return
+    logFailure('[SkillsSettings] Failed to load skill detail', cause, { skillName: skill.name })
+    pageFeedbackController.fail({
+      code: 'settings.skills.detailLoadFailed',
       title: t('settings.skills.detail.failed'),
-      description: cause instanceof Error ? cause.message : String(cause),
-      variant: 'destructive'
+      description: t('common.error.requestFailed')
     })
   }
 }
 
 const toggleSkillDisabled = async (skill: UnifiedSkillItem, disabled: boolean) => {
-  if (isAgentScope.value) {
-    return await updateAgentSkillPolicy(skill, disabled)
-  }
+  const operationGeneration = beginPageOperation(t('common.saving'))
+  if (operationGeneration === null) return false
 
   try {
-    await skillsStore.setSkillDisabled(skill.name, disabled)
-    toast({
+    const updated = isAgentScope.value
+      ? await updateAgentSkillPolicy(skill, disabled)
+      : await skillsStore.setSkillDisabled(skill.name, disabled)
+    if (!isCurrentPageOperation(operationGeneration)) return false
+    pageFeedbackController.succeed({
+      code: disabled ? 'settings.skills.disabled' : 'settings.skills.enabled',
       title: disabled ? t('settings.skills.disable.success') : t('settings.skills.enable.success'),
       description: disabled
         ? t('settings.skills.disable.successMessage', { name: skill.name })
         : t('settings.skills.enable.successMessage', { name: skill.name })
     })
-    return true
-  } catch (e) {
-    toast({
+    return updated !== false
+  } catch (error) {
+    if (!isCurrentPageOperation(operationGeneration)) return false
+    logFailure('[SkillsSettings] Failed to update skill state', error, { skillName: skill.name })
+    pageFeedbackController.fail({
+      code: disabled ? 'settings.skills.disableFailed' : 'settings.skills.enableFailed',
       title: disabled ? t('settings.skills.disable.failed') : t('settings.skills.enable.failed'),
-      description: e instanceof Error ? e.message : String(e),
-      variant: 'destructive'
+      description: t('common.error.requestFailed')
     })
     return false
   }
@@ -668,72 +849,64 @@ const createDefaultExtension = (): SkillExtensionConfig => ({
 const handleDetailSave = async (content: string) => {
   const skill = selectedDetailSkill.value
   if (!skill) return
+  const operationGeneration = beginPageOperation(t('common.saving'))
+  if (operationGeneration === null) return
   if (isAgentScope.value && (!targetAgent.value || !isDeepChatTarget.value)) {
-    toast({ title: t('settings.pluginsHub.agentScopeUnsupported'), variant: 'destructive' })
+    pageFeedbackController.fail({
+      code: 'settings.skills.unsupportedAgent',
+      title: t('settings.pluginsHub.agentScopeUnsupported')
+    })
     return
   }
 
   const requestId = ++detailMutationRequestId.value
+  const operationContextVersion = pageSurfaceContextVersion.value
   const agentId = isAgentScope.value ? targetAgentId.value : undefined
-  const isCurrentRequest = () =>
+  const isCurrentSurface = () =>
+    operationContextVersion === pageSurfaceContextVersion.value &&
     requestId === detailMutationRequestId.value &&
     selectedDetailSkill.value?.name === skill.name &&
     (!isAgentScope.value || agentId === targetAgentId.value)
-  detailSaving.value = true
   try {
     const result = isAgentScope.value
-      ? await skillClient.saveSkillWithExtension(
-          skill.name,
-          content,
-          displayedSkillExtensions.value[skill.name] ?? createDefaultExtension(),
-          agentId
-        )
-      : await skillsStore.saveSkillWithExtension(
-          skill.name,
-          content,
-          skillExtensions.value[skill.name] ?? createDefaultExtension()
-        )
-    if (!isCurrentRequest()) return
+      ? await skillClient.updateSkillFile(skill.name, content, agentId)
+      : await skillsStore.updateSkillFile(skill.name, content)
+    if (!isCurrentPageOperation(operationGeneration)) return
 
     if (!result.success) {
-      toast({
+      console.error('[SkillsSettings] Skill save was rejected', {
+        skillName: skill.name,
+        errorCode: result.errorCode ?? 'UnknownError'
+      })
+      pageFeedbackController.fail({
+        code: 'settings.skills.saveFailed',
         title: t('settings.skills.edit.failed'),
-        description: result.error,
-        variant: 'destructive'
+        description: t('common.error.requestFailed')
       })
       return
     }
 
-    toast({
+    pageFeedbackController.succeed({
+      code: 'settings.skills.saved',
       title: t('settings.skills.edit.success')
     })
-    detailDialogOpen.value = false
-    skillDetail.value = null
-    selectedDetailSkill.value = null
+    if (isCurrentSurface()) closeSkillDetail()
   } catch (cause) {
-    if (!isCurrentRequest()) return
-    toast({
+    if (!isCurrentPageOperation(operationGeneration)) return
+    logFailure('[SkillsSettings] Failed to save skill', cause, { skillName: skill.name })
+    pageFeedbackController.fail({
+      code: 'settings.skills.saveFailed',
       title: t('settings.skills.edit.failed'),
-      description: cause instanceof Error ? cause.message : String(cause),
-      variant: 'destructive'
+      description: t('common.error.requestFailed')
     })
-  } finally {
-    if (requestId === detailMutationRequestId.value) detailSaving.value = false
   }
 }
 
 const handleDetailToggleDisabled = async (disabled: boolean) => {
   const skill = selectedDetailSkill.value
   if (!skill) return
-  const requestId = ++detailMutationRequestId.value
-  const agentId = isAgentScope.value ? targetAgentId.value : undefined
   const success = await toggleSkillDisabled(skill, disabled)
-  if (
-    success &&
-    requestId === detailMutationRequestId.value &&
-    selectedDetailSkill.value?.name === skill.name &&
-    (!isAgentScope.value || agentId === targetAgentId.value)
-  ) {
+  if (success && selectedDetailSkill.value?.name === skill.name) {
     selectedDetailSkill.value = {
       ...selectedDetailSkill.value,
       deepchatDisabled: disabled
@@ -744,14 +917,21 @@ const handleDetailToggleDisabled = async (disabled: boolean) => {
 const handleDetailDelete = async () => {
   const skill = selectedDetailSkill.value
   if (!skill) return
+  const operationGeneration = beginPageOperation(t('settings.skills.detail.delete'))
+  if (operationGeneration === null) return
   if (isAgentScope.value && (!targetAgent.value || !isDeepChatTarget.value)) {
-    toast({ title: t('settings.pluginsHub.agentScopeUnsupported'), variant: 'destructive' })
+    pageFeedbackController.fail({
+      code: 'settings.skills.unsupportedAgent',
+      title: t('settings.pluginsHub.agentScopeUnsupported')
+    })
     return
   }
 
   const requestId = ++detailMutationRequestId.value
+  const operationContextVersion = pageSurfaceContextVersion.value
   const agentId = isAgentScope.value ? targetAgentId.value : undefined
-  const isCurrentRequest = () =>
+  const isCurrentSurface = () =>
+    operationContextVersion === pageSurfaceContextVersion.value &&
     requestId === detailMutationRequestId.value &&
     selectedDetailSkill.value?.name === skill.name &&
     (!isAgentScope.value || agentId === targetAgentId.value)
@@ -760,50 +940,106 @@ const handleDetailDelete = async () => {
     const result = isAgentScope.value
       ? await skillClient.uninstallSkill(skill.name, agentId)
       : await skillsStore.uninstallSkill(skill.name)
-    if (!isCurrentRequest()) return
+    if (!isCurrentPageOperation(operationGeneration)) return
 
     if (!result.success) {
-      toast({
+      console.error('[SkillsSettings] Skill deletion was rejected', {
+        skillName: skill.name,
+        errorCode: result.errorCode ?? 'UnknownError'
+      })
+      pageFeedbackController.fail({
+        code: 'settings.skills.deleteFailed',
         title: t('settings.skills.delete.failed'),
-        description: result.error,
-        variant: 'destructive'
+        description: t('common.error.requestFailed')
       })
       return
     }
 
-    toast({
+    pageFeedbackController.succeed({
+      code: 'settings.skills.deleted',
       title: t('settings.skills.delete.success'),
       description: t('settings.skills.delete.successMessage', { name: skill.name })
     })
-    detailDialogOpen.value = false
-    skillDetail.value = null
-    selectedDetailSkill.value = null
+    if (isAgentScope.value && isCurrentSurface()) {
+      removeScopedSkill(skill.name)
+    }
+    if (isCurrentSurface()) closeSkillDetail()
   } catch (cause) {
-    if (!isCurrentRequest()) return
-    toast({
+    if (!isCurrentPageOperation(operationGeneration)) return
+    logFailure('[SkillsSettings] Failed to delete skill', cause, { skillName: skill.name })
+    pageFeedbackController.fail({
+      code: 'settings.skills.deleteFailed',
       title: t('settings.skills.delete.failed'),
-      description: cause instanceof Error ? cause.message : String(cause),
-      variant: 'destructive'
+      description: t('common.error.requestFailed')
     })
   }
 }
 
-const handleInstalled = () => {
-  void loadSkills()
+const loadDraftSuggestions = async () => {
+  const requestId = ++draftSuggestionsRequestId
+  draftSuggestionsLoading.value = true
+  draftSuggestionsLoadFailed.value = false
+  try {
+    const enabled = await configClient.getSkillDraftSuggestionsEnabled()
+    if (requestId !== draftSuggestionsRequestId) return
+    draftSuggestionsEnabled.value = enabled ?? false
+    draftSuggestionsLoaded.value = true
+  } catch (error) {
+    if (requestId !== draftSuggestionsRequestId) return
+    draftSuggestionsLoaded.value = false
+    draftSuggestionsLoadFailed.value = true
+    logFailure('[SkillsSettings] Failed to load draft suggestion preference', error)
+  } finally {
+    if (requestId === draftSuggestionsRequestId) {
+      draftSuggestionsLoading.value = false
+    }
+  }
+}
+
+const reloadPageData = async () => {
+  await Promise.all([loadSkills(), loadAgentPolicy()])
 }
 
 const handleDraftSuggestionsToggle = async (nextValue: boolean | string) => {
   const normalized = typeof nextValue === 'string' ? nextValue === 'true' : Boolean(nextValue)
-  draftSuggestionsEnabled.value = normalized
-  await configClient.setSkillDraftSuggestionsEnabled(normalized)
+  const operationGeneration = beginPageOperation(t('common.saving'))
+  if (operationGeneration === null) return
+  try {
+    await configClient.setSkillDraftSuggestionsEnabled(normalized)
+    if (!isCurrentPageOperation(operationGeneration)) return
+    draftSuggestionsEnabled.value = normalized
+    draftSuggestionsLoaded.value = true
+    draftSuggestionsLoadFailed.value = false
+    pageFeedbackController.succeed({
+      code: 'settings.skills.draftSuggestionsSaved',
+      title: t('common.saved')
+    })
+  } catch (error) {
+    if (!isCurrentPageOperation(operationGeneration)) return
+    logFailure('[SkillsSettings] Failed to save draft suggestion preference', error)
+    pageFeedbackController.fail({
+      code: 'settings.skills.draftSuggestionsSaveFailed',
+      title: t('common.error.operationFailed')
+    })
+  }
 }
 
-const handleSyncCompleted = () => {
-  void loadSkills()
-}
-
-const handleAgentImportCompleted = (completedTargetAgentId: string) => {
-  if (completedTargetAgentId !== targetAgentId.value) return
-  void loadSkills()
-}
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: `settings.skills.operation:${nanoid(8)}`,
+  onDiscard: () => undefined
+})
+const stopPageFeedbackSurfaceSync = watch(
+  pageFeedbackSurfaceActive,
+  (active) => {
+    setPageFeedbackActive(active)
+  },
+  { immediate: true, flush: 'sync' }
+)
+watch(
+  pageOperationPending,
+  (pending) => {
+    leaveGuardLease.setRisk(pending ? 'busy' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
 </script>

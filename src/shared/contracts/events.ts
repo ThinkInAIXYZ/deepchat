@@ -75,7 +75,7 @@ import {
   modelsStatusChangedEvent,
   modelBatchStatusChangedEvent
 } from './events/models.events'
-import { databaseRepairSuggestedEvent, notificationErrorEvent } from './events/notification.events'
+import { semanticNotificationEvent } from './events/notification.events'
 import {
   oauthOpenAICodexStatusChangedEvent,
   oauthXaiGrokStatusChangedEvent
@@ -181,8 +181,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [settingsNavigateRequestedEvent.name]: settingsNavigateRequestedEvent,
   [settingsProviderInstallRequestedEvent.name]: settingsProviderInstallRequestedEvent,
   [settingsCheckForUpdatesRequestedEvent.name]: settingsCheckForUpdatesRequestedEvent,
-  [notificationErrorEvent.name]: notificationErrorEvent,
-  [databaseRepairSuggestedEvent.name]: databaseRepairSuggestedEvent,
+  [semanticNotificationEvent.name]: semanticNotificationEvent,
   [acpTerminalStartedEvent.name]: acpTerminalStartedEvent,
   [acpTerminalOutputEvent.name]: acpTerminalOutputEvent,
   [acpTerminalExitedEvent.name]: acpTerminalExitedEvent,

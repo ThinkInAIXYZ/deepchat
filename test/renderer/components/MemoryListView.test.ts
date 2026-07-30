@@ -38,7 +38,17 @@ const AlertDialogStub = defineComponent({
 const MemoryInlinePanelStub = defineComponent({
   name: 'MemoryInlinePanel',
   props: ['memory', 'mode', 'discardPrompt'],
-  emits: ['close', 'edit', 'changed', 'saved', 'dirty', 'discard-pending', 'cancel-pending'],
+  emits: [
+    'close',
+    'edit',
+    'changed',
+    'saved',
+    'feedback',
+    'busy',
+    'dirty',
+    'discard-pending',
+    'cancel-pending'
+  ],
   template:
     '<div data-testid="inline-panel" :data-mode="mode" :data-memory-id="memory?.id ?? \'\'" />'
 })
@@ -123,10 +133,7 @@ async function setup(
     restore: vi.fn().mockResolvedValue(true),
     remove: vi.fn().mockResolvedValue(true)
   }
-  const toast = vi.fn()
-
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
-  vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({ t: (key: string) => key, locale: { value: 'en-US' } })
   }))
@@ -144,7 +151,7 @@ async function setup(
     global: { stubs }
   })
   await flushPromises()
-  return { wrapper, memoryClient, toast }
+  return { wrapper, memoryClient }
 }
 
 afterEach(() => {
@@ -197,7 +204,8 @@ describe('MemoryListView', () => {
     await vi.advanceTimersByTimeAsync(200)
     await flushPromises()
 
-    expect(wrapper.text()).toContain('search unavailable')
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.searchFailed')
+    expect(wrapper.text()).not.toContain('search unavailable')
     expect(wrapper.text()).not.toContain('user likes redis')
 
     await wrapper.find('input[type="search"]').setValue('')
@@ -262,7 +270,7 @@ describe('MemoryListView', () => {
   })
 
   it('ignores stale list failures after switching agents', async () => {
-    const { wrapper, memoryClient, toast } = await setup({ rows: [memory()] })
+    const { wrapper, memoryClient } = await setup({ rows: [memory()] })
     const staleLoad = deferred<{ items: MemoryItem[]; nextCursor: string | null }>()
     memoryClient.page.mockReturnValueOnce(staleLoad.promise)
 
@@ -281,7 +289,7 @@ describe('MemoryListView', () => {
     staleLoad.reject(new Error('stale failure'))
     await flushPromises()
 
-    expect(toast).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="memory-inline-feedback"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('other fact')
   })
 
@@ -400,6 +408,45 @@ describe('MemoryListView', () => {
     )
   })
 
+  it('pins and locks the active panel while its operation is busy', async () => {
+    vi.useFakeTimers()
+    const { wrapper } = await setup({
+      rows: [
+        memory({ id: 'm1', content: 'first memory' }),
+        memory({ id: 'm2', content: 'second memory' })
+      ],
+      searchRows: [
+        {
+          ...memory({ id: 'm2', content: 'second memory' }),
+          score: 1,
+          sources: { fts: true }
+        }
+      ]
+    })
+
+    await wrapper.findAll('[role="button"]')[0].trigger('click')
+    const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
+    panel.vm.$emit('busy', true)
+    await flushPromises()
+
+    await wrapper.find('input[type="search"]').setValue('second')
+    await vi.advanceTimersByTimeAsync(200)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('first memory')
+    const secondRow = wrapper
+      .findAll('[role="button"]')
+      .find((row) => row.text().includes('second memory'))
+    expect(secondRow?.attributes('aria-disabled')).toBe('true')
+    await secondRow!.trigger('click')
+    expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m1')
+
+    const addButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.memory.redesign.addMemory'))
+    expect(addButton?.attributes('disabled')).toBeDefined()
+  })
+
   it('opens rows as read-only details and row edit as an edit panel', async () => {
     const { wrapper } = await setup()
 
@@ -446,6 +493,34 @@ describe('MemoryListView', () => {
     expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(false)
   })
 
+  it('registers dirty and busy editor state with the settings leave guard', async () => {
+    const { wrapper } = await setup({ rows: [memory()] })
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    await wrapper.find('[role="button"]').trigger('click')
+    await flushPromises()
+    const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
+
+    panel.vm.$emit('dirty', true)
+    await flushPromises()
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+
+    panel.vm.$emit('busy', true)
+    await flushPromises()
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('busy')
+
+    panel.vm.$emit('busy', false)
+    const leave = settingsLeaveGuard.requestLeave()
+    await flushPromises()
+    expect(settingsLeaveGuard.getSnapshot()).toMatchObject({ risk: 'dirty', promptOpen: true })
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await expect(leave).resolves.toBe(true)
+    await flushPromises()
+    expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(false)
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+    wrapper.unmount()
+  })
+
   it('uses a direct permanent-delete row action without opening the inline panel', async () => {
     const { wrapper, memoryClient } = await setup()
 
@@ -480,8 +555,8 @@ describe('MemoryListView', () => {
     expect(wrapper.text()).not.toContain('user likes redis')
   })
 
-  it('shows a failure toast and keeps the row when permanent delete returns false', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
+  it('shows inline failure feedback and keeps the row when permanent delete returns false', async () => {
+    const { wrapper, memoryClient } = await setup()
     memoryClient.remove.mockResolvedValueOnce(false)
 
     await wrapper.find('[data-testid="memory-row-delete"]').trigger('click')
@@ -495,7 +570,9 @@ describe('MemoryListView', () => {
     await flushPromises()
 
     expect(memoryClient.remove).toHaveBeenCalledWith('deepchat', 'm1')
-    expect(toast).toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
+      'error'
+    )
     expect(wrapper.text()).toContain('user likes redis')
   })
 
@@ -534,7 +611,7 @@ describe('MemoryListView', () => {
   })
 
   it('updates the local list when archive succeeds and reports false archive results', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
+    const { wrapper, memoryClient } = await setup()
 
     await wrapper.find('[data-testid="memory-row-archive"]').trigger('click')
     await flushPromises()
@@ -553,7 +630,9 @@ describe('MemoryListView', () => {
     await wrapper.find('[data-testid="memory-row-archive"]').trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
+      'error'
+    )
     expect(wrapper.text()).toContain('visible fact')
   })
 
@@ -580,7 +659,7 @@ describe('MemoryListView', () => {
 
   it('updates the local archived row when restore succeeds and reports false restore results', async () => {
     const archived = memory({ status: 'archived' })
-    const { wrapper, memoryClient, toast } = await setup({ rows: [archived] })
+    const { wrapper, memoryClient } = await setup({ rows: [archived] })
 
     await wrapper.find('input[type="checkbox"]').setChecked(true)
     await flushPromises()
@@ -599,7 +678,9 @@ describe('MemoryListView', () => {
     await wrapper.find('[data-testid="memory-row-restore"]').trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
+      'error'
+    )
     expect(wrapper.find('[data-testid="memory-row-restore"]').exists()).toBe(true)
   })
 
@@ -706,6 +787,33 @@ describe('MemoryListView', () => {
 
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m2')
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+  })
+
+  it('keeps child feedback visible across panel handoff and refreshes unknown saved rows', async () => {
+    const saved = memory({ id: 'created', content: 'newly saved memory' })
+    const { wrapper, memoryClient } = await setup({ rows: [] })
+    const addButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.memory.redesign.addMemory'))!
+    await addButton.trigger('click')
+    await flushPromises()
+
+    const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
+    panel.vm.$emit('feedback', {
+      tone: 'warning',
+      title: 'settings.deepchatAgents.memoryManager.addConflict'
+    })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
+      'warning'
+    )
+
+    memoryClient.page.mockResolvedValueOnce({ items: [saved], nextCursor: null })
+    panel.vm.$emit('saved')
+    await flushPromises()
+
+    expect(memoryClient.page).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('newly saved memory')
   })
 
   it('shows archived local substring matches in their own group while search is active', async () => {

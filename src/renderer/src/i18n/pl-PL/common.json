@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Powiadomienia",
+    "actionFailed": "Działanie nie powiodło się. Spróbuj ponownie.",
+    "entities": "Dotyczy: {count}",
+    "occurrences": "Wystąpienia: {count}",
+    "pending": "Jeszcze {count} oczekuje",
+    "mcpConnectionFailed": {
+      "title": "Nie udało się połączyć z {serverName}",
+      "description": "Sprawdź ustawienia serwera i spróbuj ponownie."
+    },
+    "mcpToolListFailed": {
+      "title": "Nie udało się wczytać narzędzi z {serverName}",
+      "description": "Serwer jest połączony, ale jego narzędzia są niedostępne."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Nie udało się otworzyć konfiguracji dostawcy",
+      "reasons": {
+        "unsupported-version": "Ta wersja łącza nie jest obsługiwana.",
+        "invalid-payload": "To łącze dostawcy jest nieprawidłowe.",
+        "provider-not-found": "Nie znaleziono dostawcy z łącza.",
+        "unsupported-provider": "Ten dostawca nie jest obsługiwany.",
+        "settings-unavailable": "Nie udało się otworzyć ustawień dostawcy."
+      }
+    }
+  },
   "enabled": "Włączone",
   "disabled": "Niepełnosprawny",
   "loading": "Ładowanie...",

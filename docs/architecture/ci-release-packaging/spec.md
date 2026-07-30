@@ -119,6 +119,8 @@ assembly fails closed against an explicit six-target contract.
 - Windows EXE, Linux AppImage and tarball, and macOS ZIP and DMG enforce upper and lower delta bounds.
 - `package-regression.yml` supports reusable, manual, and scheduled execution, always covers all six
   targets, and uploads reports rather than complete unsigned installers.
+- A scheduled failure opens or updates one package-regression issue; the next fully successful
+  scheduled run closes it.
 - Scheduled and manually dispatched package regression remain independent from pull-request checks.
 
 ### AC-7 — Pull-Request Package Gate

@@ -31,7 +31,7 @@
     "integrityDescriptor": "runtime/${target.platform}/${arch}/integrity.json",
     "adapterContract": {
       "hostBundleId": "com.wefonk.deepchat",
-      "driverVersion": "0.13.1",
+      "driverVersion": "0.14.1",
       "contractVersion": "0.2.0",
       "toolsListSchemaVersion": "1",
       "capabilityVersion": "1",
@@ -47,7 +47,7 @@
       "mode": "user-confirmed",
       "provider": "trycua",
       "strategy": "bundled-plugin-helper",
-      "minVersion": "0.13.1",
+      "minVersion": "0.14.1",
       "guideUrl": "https://cua.ai/docs/cua-driver/guide/getting-started/installation"
     }
   },

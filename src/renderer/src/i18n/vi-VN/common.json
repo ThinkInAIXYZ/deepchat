@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Thông báo",
+    "actionFailed": "Thao tác thất bại. Hãy thử lại.",
+    "entities": "{count} mục bị ảnh hưởng",
+    "occurrences": "Xảy ra {count} lần",
+    "pending": "Còn {count} mục đang chờ",
+    "mcpConnectionFailed": {
+      "title": "Không thể kết nối với {serverName}",
+      "description": "Hãy kiểm tra cài đặt máy chủ rồi thử lại."
+    },
+    "mcpToolListFailed": {
+      "title": "Không thể tải công cụ từ {serverName}",
+      "description": "Máy chủ đã kết nối nhưng các công cụ không khả dụng."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Không thể mở thiết lập nhà cung cấp",
+      "reasons": {
+        "unsupported-version": "Phiên bản liên kết này không được hỗ trợ.",
+        "invalid-payload": "Liên kết nhà cung cấp này không hợp lệ.",
+        "provider-not-found": "Không tìm thấy nhà cung cấp trong liên kết.",
+        "unsupported-provider": "Nhà cung cấp này không được hỗ trợ.",
+        "settings-unavailable": "Không thể mở cài đặt nhà cung cấp."
+      }
+    }
+  },
   "enabled": "Đã bật",
   "disabled": "Đã tắt",
   "loading": "Đang tải...",

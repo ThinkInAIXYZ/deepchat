@@ -29,12 +29,12 @@
     "customProxyUrlPlaceholder": "نمونه: http://127.0.0.1:7890",
     "invalidProxyUrl": "نشانی پراکسی نادرست است، لطفاً نشانی http/https معتبر وارد کنید",
     "addCustomSearchEngine": "افزودن موتور جستجوی دلخواه",
-    "addCustomSearchEngineDesc": "با فراهم کردن نام و نشانی جستجو، موتور جستجوی دلخواه بیافزایید. نشانی باید دارای {query} به‌عنوان جایگاه پرسش باشد.",
+    "addCustomSearchEngineDesc": "با فراهم کردن نام و نشانی جستجو، موتور جستجوی دلخواه بیافزایید. نشانی باید دارای {'{'}query{'}'} به‌عنوان جایگاه پرسش باشد.",
     "searchEngineName": "نام موتور جستجو",
     "searchEngineNamePlaceholder": "نام موتور جستجو را وارد کنید",
     "searchEngineUrl": "نشانی جستجو",
-    "searchEngineUrlPlaceholder": "مثال: https://a.com/search?q={query}",
-    "searchEngineUrlError": "نشانی باید دارای {query} به‌عنوان جایگاه پرسش باشد",
+    "searchEngineUrlPlaceholder": "مثال: https://a.com/search?q={'{'}query{'}'}",
+    "searchEngineUrlError": "نشانی باید دارای {'{'}query{'}'} به‌عنوان جایگاه پرسش باشد",
     "deleteCustomSearchEngine": "پاک کردن موتور جستجوی دلخواه",
     "deleteCustomSearchEngineDesc": "آیا مطمئن هستید که می‌خواهید موتور جستجوی دلخواه \"{name}\" را پاک کنید؟ این کنش بازگشت‌پذیر نیست.",
     "testSearchEngine": "آزمایش موتور جستجو",
@@ -455,7 +455,7 @@
   "dashboard": {
     "badge": "داشبورد مصرف",
     "title": "داشبورد مصرف",
-    "description": "مصرف توکن، نرخ اصابت کش و هزینهٔ تخمینی را نمایش می‌دهد. داده‌های توکن و هزینه بر پایهٔ اطلاعات عمومی برآورد می‌شوند و ممکن است برخی ارائه‌دهندگان یا پیام‌های قدیمی‌تر دادهٔ کاملی نداشته باشند؛ این ارقام فقط برای مرجع هستند.",
+    "description": "مصرف توکن و برخوردهای کش را دنبال کنید.",
     "actions": {
       "refresh": "به‌روزرسانی"
     },
@@ -471,8 +471,8 @@
     },
     "empty": {
       "title": "هنوز آماری از مصرف وجود ندارد",
-      "description": "وقتی داده‌های مصرف در دسترس باشند، مصرف توکن، نرخ اصابت کش و هزینهٔ تخمینی در اینجا نمایش داده می‌شود.",
-      "historyNote": "داده‌های توکن و هزینه بر پایهٔ اطلاعات عمومی برآورد می‌شوند. ممکن است برخی ارائه‌دهندگان یا پیام‌های قدیمی‌تر دادهٔ کاملی نداشته باشند؛ این ارقام فقط برای مرجع هستند."
+      "description": "پس از در دسترس بودن داده‌های استفاده، مصرف توکن و برخوردهای کش در اینجا نمایش داده می‌شوند.",
+      "historyNote": "داده‌های استفاده برای برخی ارائه‌دهندگان یا پیام‌های پیشین ممکن است ناقص باشند."
     },
     "summary": {
       "totalTokens": "مجموع توکن‌ها",
@@ -485,10 +485,6 @@
       "cachedTokensUncachedLabel": "بدون کش",
       "cacheHitRate": "نرخ اصابت کش",
       "cacheHitRateDescription": "نسبت توکن‌های کش‌شدهٔ پرامپت به کل توکن‌های ورودی.",
-      "estimatedCost": "هزینهٔ تخمینی",
-      "estimatedCostDescription": "برآورد به دلار آمریکا بر اساس قیمت‌گذاری ارائه‌دهنده یا قیمت جایگزین AIHubMix.",
-      "estimatedCostTrendLabel": "روند ۳۰ روز گذشته",
-      "estimatedCostTrendEmpty": "در ۳۰ روز گذشته هیچ هزینه‌ای ثبت نشده است.",
       "recordingStartedAt": "شروع ثبت",
       "recordingStartedAtDescription": "قدیمی‌ترین رکورد مصرفی که اکنون در این داشبورد نگه‌داری می‌شود.",
       "withDeepChatDaysLabel": "روزهای همراهی",
@@ -518,9 +514,9 @@
     },
     "breakdown": {
       "providerTitle": "رتبه‌بندی ارائه‌دهنده‌ها",
-      "providerDescription": "ابتدا بر اساس هزینهٔ تخمینی و سپس بر اساس مجموع توکن‌ها مرتب شده است.",
+      "providerDescription": "بر اساس مجموع توکن‌ها رتبه‌بندی شده است.",
       "modelTitle": "رتبه‌بندی مدل‌ها",
-      "modelDescription": "۱۰ مدل برتر بر اساس هزینهٔ تخمینی و سپس مجموع توکن‌ها.",
+      "modelDescription": "۱۰ مدل برتر بر اساس مجموع توکن‌ها.",
       "messages": "{count} پیام",
       "empty": "هنوز داده‌ای برای نمایش جزئیات وجود ندارد."
     },
@@ -943,7 +939,7 @@
       },
       "disableAllModels": {
         "title": "پذیرش خاموش کردن همه مدل‌ها",
-        "content": "آیا مطمئن هستید که می‌خواهید همه مدل‌ها را خاموش کنید؟",
+        "content": "آیا مطمئن هستید که می‌خواهید همه مدل‌های «{name}» را غیرفعال کنید؟",
         "confirm": "خاموش کردن همه"
       },
       "configModels": {
@@ -1115,9 +1111,9 @@
         "convertingServers": "تبدیل پیکربندی سرور ...",
         "description": "همگام سازی یک سرور MCP از ModelScope به تنظیمات محلی به شما امکان می دهد تا به سرعت ابزارهای MCP متداول را اضافه کنید. کلیه خدمات به طور پیش فرض غیرفعال می شوند و پس از وارد کردن می توانند به صورت دستی فعال شوند.",
         "errorDetails": "جزئیات خطا",
-        "errors": "خطا {تعداد}",
+        "errors": "{count} خطا",
         "fetchingServers": "دریافت لیست سرورهای MCP ...",
-        "imported": "{تعداد خدمات وارد شده است",
+        "imported": "{count} سرویس وارد شد",
         "importingServers": "وارد کردن پیکربندی سرور ...",
         "invalidServerData": "داده های سرور نامعتبر",
         "noApiKey": "لطفاً ابتدا کلید API Modelcope را پیکربندی کنید",
@@ -1127,7 +1123,7 @@
         "pageNumberPlaceholder": "لطفا شماره صفحه را وارد کنید",
         "pageSize": "مقدار در هر صفحه",
         "serverAlreadyExists": "سرور در حال حاضر وجود دارد ، واردات را پرش کنید",
-        "skipped": "خدمات SKIP {COUNT",
+        "skipped": "{count} سرویس رد شد",
         "sync": "همگام سازی را شروع کنید",
         "syncComplete": "اتمام همزمان",
         "syncing": "هماهنگ سازی ...",
@@ -1296,7 +1292,15 @@
       "seconds": "ثانیه",
       "testConnection": "آزمایش اتصال",
       "timeout": "زمان گذشته",
-      "title": "پیکربندی صادرات Nowledge Mem"
+      "title": "پیکربندی صادرات Nowledge Mem",
+      "configLoadFailed": "پیکربندی بارگیری نشد",
+      "configSaved": "پیکربندی ذخیره شد",
+      "configSaveFailed": "پیکربندی ذخیره نشد",
+      "configReset": "پیکربندی بازنشانی شد",
+      "configResetFailed": "پیکربندی بازنشانی نشد",
+      "connectionSucceeded": "اتصال با موفقیت برقرار شد",
+      "connectionFailed": "با پیکربندی فعلی اتصال برقرار نشد",
+      "invalidBaseUrl": "یک نشانی HTTP یا HTTPS بدون اطلاعات ورود یا پارامترهای پرس‌وجو وارد کنید"
     }
   },
   "mcp": {
@@ -1343,6 +1347,7 @@
       "name": "نام کارساز",
       "namePlaceholder": "نام کارساز را وارد کنید",
       "nameRequired": "نام کارساز لازم است",
+      "nameDuplicate": "کارسازی با این نام از قبل وجود دارد.",
       "type": "نوع کارساز",
       "typePlaceholder": "نوع کارساز را انتخاب کنید",
       "typeStdio": "ورودی و خروجی استاندارد (Stdio)",
@@ -1637,7 +1642,7 @@
       "error": "خطا",
       "invalidAgent": "عامل موجود نیست یا غیرفعال است. عامل دیگری انتخاب کنید."
     },
-    "runNowSuccess": "وظیفه زمان‌بندی‌شده شروع شد"
+    "runNowSuccess": "وظیفه زمان‌بندی‌شده تکمیل شد"
   },
   "about": {
     "title": "درباره ما",
@@ -2544,12 +2549,12 @@
       "generatePairCode": "ایجاد",
       "clearPairCode": "پاک کردن",
       "pairCodeExpiresAt": "انقضا در {time}",
-      "pairDialogTitle": "جفت‌سازی تلگرام",
-      "pairDialogDescription": "یک کد جفت‌سازی بسازید و جفت‌سازی را در گفت‌وگوی ربات تلگرام کامل کنید.",
+      "pairDialogTitle": "جفت‌سازی {channel}",
+      "pairDialogDescription": "یک کد جفت‌سازی بسازید و جفت‌سازی را در گفت‌وگوی ربات {channel} کامل کنید.",
       "pairDialogInstruction": "این دستور را برای ربات مربوطه بفرستید:",
-      "bindingsDialogTitle": "نشست‌های متصل",
-      "bindingsDialogDescription": "اتصال‌های نشست تلگرام را یکی‌یکی حذف کنید.",
-      "bindingsEmpty": "هنوز اتصال تلگرامی وجود ندارد.",
+      "bindingsDialogTitle": "نشست‌های متصل {channel}",
+      "bindingsDialogDescription": "اتصال‌های نشست راه دور را یکی‌یکی حذف کنید.",
+      "bindingsEmpty": "هنوز اتصالی وجود ندارد.",
       "pairingSuccessTitle": "جفت‌سازی کامل شد",
       "pairingSuccessDescription": "فهرست شناسه‌های کاربری مجاز تازه‌سازی شد.",
       "clearBindings": "پاک کردن اتصال‌ها",
@@ -2714,7 +2719,21 @@
       "safe_storage_unavailable": "حافظهٔ نهان پایدار در دسترس نیست، زیرا ذخیره‌سازی امن کلید فراهم نیست."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "تغییرات ذخیره‌نشده",
+    "dirtyDescription": "خارج شوید و تغییرات را کنار بگذارید؟",
+    "busyTitle": "ذخیره در حال انجام است",
+    "busyDescription": "پیش از خروج منتظر پایان ذخیره بمانید.",
+    "stay": "ادامه ویرایش",
+    "discard": "کنار گذاشتن تغییرات"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "در حال ذخیره…",
+      "saved": "ذخیره شد",
+      "saveFailed": "ذخیره نشد. تغییرات حفظ شدند.",
+      "retry": "تلاش دوباره"
+    },
     "title": "ایجنت‌های DeepChat",
     "description": "ایجنت‌های DeepChat و پیش‌فرض‌هایی را که برای نشست‌های جدید اعمال می‌کنند مدیریت کنید.",
     "builtIn": "داخلی",

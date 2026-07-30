@@ -143,6 +143,7 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
 
   async function runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
     const result = await bridge.invoke(providersRunAcpDebugActionRoute.name, {
+      requestId: request.requestId,
       agentId: request.agentId,
       action: request.action,
       payload: request.payload,

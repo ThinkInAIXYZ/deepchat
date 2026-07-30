@@ -6,6 +6,7 @@
 @plugin "tailwindcss-animate";
 
 @source '../**/*.{vue,ts,tsx,js,jsx}';
+@source '../../services/**/*.{vue,ts,tsx,js,jsx}';
 @source '../../browser/**/*.{vue,ts,tsx,js,jsx}';
 @source '../../../shadcn/components/**/*.{vue,ts,tsx,js,jsx}';
 @source '../../../../node_modules/markstream-vue/dist/tailwind.js';
@@ -148,6 +149,18 @@
     --usage-low: 142 71% 45%;
     --usage-mid: 48 96% 53%;
     --usage-high: 0 72% 51%;
+    --dc-notification-success-bg: hsl(142 48% 96%);
+    --dc-notification-success-text: hsl(142 48% 28%);
+    --dc-notification-success-border: hsl(142 32% 82%);
+    --dc-notification-info-bg: hsl(210 58% 96%);
+    --dc-notification-info-text: hsl(210 52% 30%);
+    --dc-notification-info-border: hsl(210 36% 82%);
+    --dc-notification-warning-bg: hsl(42 72% 95%);
+    --dc-notification-warning-text: hsl(38 58% 28%);
+    --dc-notification-warning-border: hsl(42 42% 78%);
+    --dc-notification-error-bg: hsl(0 58% 96%);
+    --dc-notification-error-text: hsl(0 48% 34%);
+    --dc-notification-error-border: hsl(0 36% 82%);
     /* new Theme */
     /* light */
     /* color */
@@ -230,6 +243,18 @@
     --usage-low: 142 40% 60%;
     --usage-mid: 48 80% 60%;
     --usage-high: 0 70% 65%;
+    --dc-notification-success-bg: hsl(142 22% 13%);
+    --dc-notification-success-text: hsl(142 38% 72%);
+    --dc-notification-success-border: hsl(142 24% 27%);
+    --dc-notification-info-bg: hsl(210 24% 14%);
+    --dc-notification-info-text: hsl(210 42% 74%);
+    --dc-notification-info-border: hsl(210 27% 29%);
+    --dc-notification-warning-bg: hsl(42 24% 13%);
+    --dc-notification-warning-text: hsl(42 48% 72%);
+    --dc-notification-warning-border: hsl(42 26% 28%);
+    --dc-notification-error-bg: hsl(0 24% 14%);
+    --dc-notification-error-text: hsl(0 44% 75%);
+    --dc-notification-error-border: hsl(0 28% 30%);
 
     /* dark */
     /* color */
@@ -289,6 +314,18 @@
       --usage-low: 142 40% 60%;
       --usage-mid: 48 80% 60%;
       --usage-high: 0 70% 65%;
+      --dc-notification-success-bg: hsl(142 22% 13%);
+      --dc-notification-success-text: hsl(142 38% 72%);
+      --dc-notification-success-border: hsl(142 24% 27%);
+      --dc-notification-info-bg: hsl(210 24% 14%);
+      --dc-notification-info-text: hsl(210 42% 74%);
+      --dc-notification-info-border: hsl(210 27% 29%);
+      --dc-notification-warning-bg: hsl(42 24% 13%);
+      --dc-notification-warning-text: hsl(42 48% 72%);
+      --dc-notification-warning-border: hsl(42 26% 28%);
+      --dc-notification-error-bg: hsl(0 24% 14%);
+      --dc-notification-error-text: hsl(0 44% 75%);
+      --dc-notification-error-border: hsl(0 28% 30%);
       --color-zinc-50: var(--zinc-50);
       --color-zinc-100: var(--zinc-100);
       --color-zinc-200: var(--zinc-200);

@@ -30,6 +30,7 @@ import {
   type ComposerSessionDraft,
   type ComposerSubmissionSnapshot
 } from '../model/composerDraftState'
+import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
 
 type MessageStore = ReturnType<typeof useMessageStore>
 type SessionStore = ReturnType<typeof useSessionStore>
@@ -94,12 +95,6 @@ type ActiveSubmissionPreparation = {
   mainDispatched: boolean
 }
 
-type ToastFn = (options: {
-  title: string
-  description?: string
-  variant?: 'destructive'
-}) => unknown
-
 type UseComposerSubmitOptions = {
   sessionId: () => string
   /** Session-view write gate; both values captured before every await chain. */
@@ -127,7 +122,7 @@ type UseComposerSubmitOptions = {
   loadMessagesForSession: (sessionId: string, count?: number) => Promise<unknown>
   applyRestoredSessionSummary: (session: unknown) => void
   openModelPicker: () => void
-  toast: ToastFn
+  notify: RendererNotificationNotifier
   t: (key: string, params?: Record<string, unknown>) => string
 }
 
@@ -152,7 +147,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     isSessionViewPreparing,
     isAcpWorkdirMissing,
     isGenerating,
-    toast,
+    notify,
     t
   } = options
 
@@ -256,7 +251,9 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.name ??
       selection.modelId
 
-    toast({
+    notify({
+      kind: 'warning',
+      code: 'chat.audio.unsupported',
       title: t('chat.input.audioInputUnsupportedTitle'),
       description: t('chat.input.audioInputUnsupportedDescription', {
         count: rejectedAudioFiles.length,
@@ -704,10 +701,11 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
             : '[ChatPage] steer message failed:',
           error
         )
-        toast({
+        notify({
+          kind: 'error',
+          code: 'chat.attachment.uploadFailed',
           title: t('chat.input.fileUploadFailed'),
-          description: error instanceof Error ? error.message : String(error),
-          variant: 'destructive'
+          description: error instanceof Error ? error.message : String(error)
         })
       }
       return false
@@ -748,17 +746,20 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       }
       options.applyRestoredSessionSummary(restoredSession)
       if (!result.compacted) {
-        toast({
+        notify({
+          kind: 'info',
+          code: 'chat.compaction.unchanged',
           title: t('chat.compaction.noopTitle'),
           description: t('chat.compaction.noopDescription')
         })
       }
     } catch (error) {
       console.error('[ChatPage] manual compaction failed:', error)
-      toast({
+      notify({
+        kind: 'error',
+        code: 'chat.compaction.failed',
         title: t('chat.compaction.failedTitle'),
-        description: error instanceof Error ? error.message : String(error),
-        variant: 'destructive'
+        description: error instanceof Error ? error.message : String(error)
       })
     }
     return true

@@ -28,9 +28,9 @@ export function createExporterRoutes(exporter: IConversationExporter): DeepchatR
     [
       nowledgeMemTestConnectionRoute.name,
       async (rawInput) => {
-        nowledgeMemTestConnectionRoute.input.parse(rawInput)
+        const input = nowledgeMemTestConnectionRoute.input.parse(rawInput)
         return nowledgeMemTestConnectionRoute.output.parse({
-          result: await exporter.testNowledgeMemConnection()
+          result: await exporter.testNowledgeMemConnection(input.config)
         })
       }
     ]

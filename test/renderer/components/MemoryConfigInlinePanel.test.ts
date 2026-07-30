@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { DeepChatAgentConfig } from '../../../src/shared/types/agent-interface'
@@ -21,6 +21,14 @@ const SwitchStub = defineComponent({
     '<button v-bind="$attrs" type="button" :data-model-value="String(modelValue)" @click="$emit(\'update:modelValue\', !modelValue)" />'
 })
 
+const InputStub = defineComponent({
+  name: 'Input',
+  props: { modelValue: { type: String, default: '' } },
+  emits: ['update:modelValue', 'blur'],
+  template:
+    '<input v-bind="$attrs" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" @blur="$emit(\'blur\', $event)" />'
+})
+
 const ModelSelectStub = defineComponent({
   name: 'ModelSelect',
   emits: ['update:model'],
@@ -36,19 +44,22 @@ const stubs = {
   PopoverContent: passthrough('PopoverContent'),
   PopoverTrigger: passthrough('PopoverTrigger'),
   Button: ButtonStub,
-  Input: passthrough('Input'),
+  Input: InputStub,
   Switch: SwitchStub,
   ModelIcon: passthrough('ModelIcon'),
   ModelSelect: ModelSelectStub,
+  Spinner: passthrough('Spinner'),
   Icon: passthrough('Icon')
 }
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((next) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
     resolve = next
+    reject = fail
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 async function setup(config: DeepChatAgentConfig = {}, resolved: DeepChatAgentConfig = {}) {
@@ -69,10 +80,7 @@ async function setup(config: DeepChatAgentConfig = {}, resolved: DeepChatAgentCo
     }),
     updateDeepChatAgent
   }
-  const toast = vi.fn()
-
   vi.doMock('@api/ConfigClient', () => ({ createConfigClient: () => configClient }))
-  vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => ({
       allProviderModels: [],
@@ -90,8 +98,12 @@ async function setup(config: DeepChatAgentConfig = {}, resolved: DeepChatAgentCo
     global: { stubs }
   })
   await flushPromises()
-  return { wrapper, updateDeepChatAgent, configClient, toast }
+  return { wrapper, updateDeepChatAgent, configClient }
 }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('MemoryConfigInlinePanel', () => {
   it('does not render the inline panel while closed', async () => {
@@ -110,6 +122,94 @@ describe('MemoryConfigInlinePanel', () => {
     await wrapper.find('[data-testid="settings-memory-config-close"]').trigger('click')
 
     expect(wrapper.emitted('update:open')).toEqual([[false]])
+  })
+
+  it('registers an unsubmitted numeric draft with the global leave guard', async () => {
+    const { wrapper } = await setup()
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    const budgetInput = wrapper.find('input')
+
+    await budgetInput.setValue('2048')
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+
+    const leave = settingsLeaveGuard.requestLeave()
+    await flushPromises()
+    expect(settingsLeaveGuard.getSnapshot()).toMatchObject({
+      risk: 'dirty',
+      promptOpen: true
+    })
+
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await expect(leave).resolves.toBe(true)
+    await flushPromises()
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+    expect((budgetInput.element as HTMLInputElement).value).toBe('')
+    wrapper.unmount()
+  })
+
+  it('settles an unsubmitted draft before closing the local config surface', async () => {
+    const { wrapper, updateDeepChatAgent } = await setup()
+    const budgetInput = wrapper.find('input')
+    await budgetInput.setValue('2048')
+
+    await wrapper.find('[data-testid="settings-memory-config-close"]').trigger('click')
+    await flushPromises()
+
+    expect(updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
+      config: { memoryInjectionTokenBudget: 2048 }
+    })
+    expect(wrapper.emitted('update:open')).toEqual([[false]])
+    wrapper.unmount()
+  })
+
+  it('keeps save progress visible and prevents closing until persistence settles', async () => {
+    const pending = deferred<{ id: string }>()
+    const { wrapper, updateDeepChatAgent } = await setup()
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    updateDeepChatAgent.mockReturnValueOnce(pending.promise)
+
+    await wrapper.find('[data-testid="model-select"]').trigger('click')
+    await flushPromises()
+
+    const close = wrapper.get('[data-testid="settings-memory-config-close"]')
+    expect(wrapper.text()).toContain('common.saving')
+    expect(close.attributes('disabled')).toBeDefined()
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('busy')
+
+    pending.resolve({ id: 'deepchat' })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('common.saving')
+    expect(close.attributes('disabled')).toBeUndefined()
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+    wrapper.unmount()
+  })
+
+  it('shows a sanitized inline error and restores the field after persistence fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper, updateDeepChatAgent, configClient } = await setup()
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    updateDeepChatAgent.mockRejectedValueOnce(new Error('secret backend detail'))
+    configClient.listAgents.mockRejectedValueOnce(new Error('resync unavailable'))
+
+    await wrapper.find('[data-testid="model-select"]').trigger('click')
+    await flushPromises()
+
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('error')
+    expect(feedback.text()).toContain('settings.memory.redesign.configSaveFailed')
+    expect(feedback.text()).not.toContain('secret backend detail')
+    expect(wrapper.findAll('button').some((button) => button.text() === 'common.clear')).toBe(false)
+    expect(consoleError).toHaveBeenCalledWith(
+      '[MemoryConfigInlinePanel] Failed to save config',
+      expect.any(Error)
+    )
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+    wrapper.unmount()
+    consoleError.mockRestore()
   })
 
   it('keeps the original override snapshot current while the panel stays open', async () => {
@@ -145,10 +245,7 @@ describe('MemoryConfigInlinePanel', () => {
     })
     const updateDeepChatAgent = vi.fn().mockResolvedValue({ id: 'agent-b' })
     const configClient = { listAgents, resolveDeepChatAgentConfig, updateDeepChatAgent }
-    const toast = vi.fn()
-
     vi.doMock('@api/ConfigClient', () => ({ createConfigClient: () => configClient }))
-    vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => ({
         allProviderModels: [],
@@ -205,11 +302,8 @@ describe('MemoryConfigInlinePanel', () => {
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({ memoryEnabled: true }),
       updateDeepChatAgent
     }
-    const toast = vi.fn()
-
     vi.resetModules()
     vi.doMock('@api/ConfigClient', () => ({ createConfigClient: () => configClient }))
-    vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => ({
         allProviderModels: [],
@@ -273,11 +367,8 @@ describe('MemoryConfigInlinePanel', () => {
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({ memoryEnabled: true }),
       updateDeepChatAgent
     }
-    const toast = vi.fn()
-
     vi.resetModules()
     vi.doMock('@api/ConfigClient', () => ({ createConfigClient: () => configClient }))
-    vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => ({
         allProviderModels: [],

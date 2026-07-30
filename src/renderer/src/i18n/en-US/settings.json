@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Example: http://127.0.0.1:7890",
     "invalidProxyUrl": "Invalid proxy URL, please enter valid http/https URL",
     "addCustomSearchEngine": "Add Custom Search Engine",
-    "addCustomSearchEngineDesc": "Add a new search engine by providing a name and search URL. The URL must include {query} as the query placeholder.",
+    "addCustomSearchEngineDesc": "Add a new search engine by providing a name and search URL. The URL must include {'{'}query{'}'} as the query placeholder.",
     "searchEngineName": "Search Engine Name",
     "searchEngineNamePlaceholder": "Enter search engine name",
     "searchEngineUrl": "Search URL",
@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Persistent cache is unavailable because secure key storage is not available."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Unsaved changes",
+    "dirtyDescription": "Leave now and discard your changes?",
+    "busyTitle": "Save in progress",
+    "busyDescription": "Wait for saving to finish before leaving.",
+    "stay": "Keep editing",
+    "discard": "Discard changes"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Saving…",
+      "saved": "Saved",
+      "saveFailed": "Could not save. Changes kept.",
+      "retry": "Retry"
+    },
     "title": "DeepChat Agents",
     "description": "Manage DeepChat agents and the defaults they seed into new sessions.",
     "builtIn": "Built-in",
@@ -406,7 +420,8 @@
           "persona": "persona",
           "working": "working memory"
         }
-      }
+      },
+      "loadMore": "Load more"
     },
     "compactionThreshold": "Trigger threshold",
     "compactionRetainPairs": "Retain recent pairs",
@@ -787,7 +802,7 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "Track token usage, cache hits, and estimated cost. Token and cost figures are estimated from public information, and some providers or earlier messages may be incomplete, so treat these figures as reference only.",
+    "description": "Track token usage and cache hits.",
     "actions": {
       "refresh": "Refresh"
     },
@@ -803,8 +818,8 @@
     },
     "empty": {
       "title": "No usage stats yet",
-      "description": "Token usage, cache hits, and estimated cost will appear here once usage data is available.",
-      "historyNote": "Token and cost figures are estimated from public information. Some providers or earlier messages may be incomplete, so treat these figures as reference only."
+      "description": "Token usage and cache hits will appear here once usage data is available.",
+      "historyNote": "Some providers or earlier messages may have incomplete usage data."
     },
     "summary": {
       "totalTokens": "Total tokens",
@@ -817,10 +832,6 @@
       "cachedTokensUncachedLabel": "Uncached",
       "cacheHitRate": "Cache hit rate",
       "cacheHitRateDescription": "Cached prompt tokens divided by total input tokens.",
-      "estimatedCost": "Estimated cost",
-      "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
-      "estimatedCostTrendLabel": "Trend over the last 30 days",
-      "estimatedCostTrendEmpty": "No cost recorded in the last 30 days.",
       "recordingStartedAt": "Recording started",
       "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
       "withDeepChatDaysLabel": "Days together",
@@ -850,9 +861,9 @@
     },
     "breakdown": {
       "providerTitle": "Top providers",
-      "providerDescription": "Ranked by estimated cost, then by total tokens.",
+      "providerDescription": "Ranked by total tokens.",
       "modelTitle": "Top models",
-      "modelDescription": "Top 10 models by estimated cost, then by total tokens.",
+      "modelDescription": "Top 10 models by total tokens.",
       "messages": "{count} messages",
       "empty": "No breakdown data yet."
     },
@@ -1243,7 +1254,7 @@
       },
       "disableAllModels": {
         "title": "Confirm Disable All Models",
-        "content": "Are you sure you want to disable all models?",
+        "content": "Are you sure you want to disable all models for \"{name}\"?",
         "confirm": "Disable All"
       },
       "configModels": {
@@ -1617,7 +1628,15 @@
       "timeout": "Timeout",
       "saveConfig": "Save",
       "resetConfig": "Reset",
-      "seconds": "seconds"
+      "seconds": "seconds",
+      "configLoadFailed": "Could not load the configuration",
+      "configSaved": "Configuration saved",
+      "configSaveFailed": "Could not save the configuration",
+      "configReset": "Configuration reset",
+      "configResetFailed": "Could not reset the configuration",
+      "connectionSucceeded": "Connection successful",
+      "connectionFailed": "Could not connect with the current configuration",
+      "invalidBaseUrl": "Enter an HTTP or HTTPS address without credentials or query parameters"
     },
     "deleteFile": {
       "title": "Delete file confirmation",
@@ -1675,6 +1694,7 @@
       "name": "Server Name",
       "namePlaceholder": "Enter server name",
       "nameRequired": "Server name is required",
+      "nameDuplicate": "A server with this name already exists.",
       "type": "Server Type",
       "typePlaceholder": "Select server type",
       "typeStdio": "Standard input and output (Stdio)",
@@ -1969,7 +1989,7 @@
       "error": "Error",
       "invalidAgent": "Agent is missing or disabled. Choose another agent."
     },
-    "runNowSuccess": "Scheduled task started"
+    "runNowSuccess": "Scheduled task completed"
   },
   "about": {
     "title": "About Us",

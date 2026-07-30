@@ -8,13 +8,12 @@ import {
 } from './mcpClient'
 import axios from 'axios'
 import { proxyConfig } from '@/platform/proxy'
-import { getErrorMessageLabels } from '@shared/i18n'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { SemanticNotificationPublisher } from '@/notifications'
 import type { McpOAuthManager } from './mcpOAuthManager'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { McpSettings } from './settings'
-import type { DesktopSettings } from '@/desktop/settings'
 
 const NPM_REGISTRY_LIST = [
   'https://registry.npmmirror.com/',
@@ -33,19 +32,17 @@ export class ServerManager {
   private readonly clientRuntime: McpClientRuntime
   private readonly onRegistryChanged: () => void
   private readonly privacy: PrivacySettingsPort
-  private readonly locale: Pick<DesktopSettings, 'getLanguage'>
 
   constructor(
-    locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
     privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
     clientRuntime: McpClientRuntime,
     onRegistryChanged: () => void,
+    private readonly semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
     mcpOAuthManager?: McpOAuthManager
   ) {
-    this.locale = locale
     this.mcpSettings = mcpSettings
     this.privacy = privacy
     this.inMemoryServerFactory = inMemoryServerFactory
@@ -258,6 +255,7 @@ export class ServerManager {
     const existingClient = this.clients.get(name)
     if (existingClient?.isServerRunning()) {
       console.info(`MCP server ${name} is already running`)
+      this.recoverConnectionNotification(name)
       return 'connected'
     }
 
@@ -324,6 +322,7 @@ export class ServerManager {
       )
       if (connectResult === 'connected') {
         this.clearServerLastError(name)
+        this.recoverConnectionNotification(name)
       }
       return connectResult
     } catch (error) {
@@ -346,8 +345,7 @@ export class ServerManager {
         this.mcpOAuthManager?.handleConnectionError(name, serverConfig, error) ?? false
 
       if (!authHandled && !this.isPluginOwnedServerConfig(serverConfig)) {
-        // Send global error notification only for normal MCP servers.
-        this.sendMcpConnectionError(name, error)
+        this.notifyConnectionFailure(name)
       }
 
       throw error
@@ -375,6 +373,7 @@ export class ServerManager {
     connectionCompletion
       .then(() => {
         this.clearServerLastError(name)
+        this.recoverConnectionNotification(name)
         options.onBackgroundConnected?.()
         this.onRegistryChanged()
       })
@@ -393,42 +392,32 @@ export class ServerManager {
           this.mcpOAuthManager?.handleConnectionError(name, serverConfig, error) ?? false
 
         if (!authHandled && !this.isPluginOwnedServerConfig(serverConfig)) {
-          this.sendMcpConnectionError(name, error)
+          this.notifyConnectionFailure(name)
         }
 
         this.onRegistryChanged()
       })
   }
 
-  // Handle and send MCP connection error notification
-  private sendMcpConnectionError(serverName: string, error: unknown): void {
-    // Import required modules
+  private notifyConnectionFailure(serverName: string): void {
+    this.semanticNotifications.occur({
+      code: 'mcp.connectionFailed',
+      serverName
+    })
+  }
 
-    try {
-      // Get current language
-      const locale = this.locale.getLanguage() || 'zh-CN'
-      const errorMessages = getErrorMessageLabels(locale)
-
-      // Format error information
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-      const formattedMessage = `${serverName}: ${errorMsg}`
-
-      // Send global error notification
-      this.publishEvent('notification.error', {
-        title: errorMessages.mcpConnectionErrorTitle,
-        message: formattedMessage,
-        id: `mcp-error-${serverName}-${Date.now()}`, // Add timestamp and server name to ensure unique ID for each error
-        type: 'error'
-      })
-    } catch (notifyError) {
-      console.error('Failed to send MCP error notification:', notifyError)
-    }
+  private recoverConnectionNotification(serverName: string): void {
+    this.semanticNotifications.recover({
+      code: 'mcp.connectionFailed',
+      serverName
+    })
   }
 
   async stopServer(name: string): Promise<void> {
     const client = this.clients.get(name)
 
     if (!client) {
+      this.recoverConnectionNotification(name)
       return
     }
 
@@ -439,6 +428,7 @@ export class ServerManager {
       // Remove from client list
       this.clients.delete(name)
       this.clearServerLastError(name)
+      this.recoverConnectionNotification(name)
 
       console.info(`MCP server ${name} has been stopped`)
       this.onRegistryChanged()

@@ -29,7 +29,7 @@
     "customProxyUrlPlaceholder": "Eksempel: http://127.0.0.1:7890",
     "invalidProxyUrl": "Ugyldig proxy-URL, indtast en gyldig http/https-adresse",
     "addCustomSearchEngine": "Tilføj brugerdefineret søgemaskine",
-    "addCustomSearchEngineDesc": "Tilføj en ny søgemaskine ved at angive navn og søge-URL. URL'en skal indeholde {query} som søgepladsholder.",
+    "addCustomSearchEngineDesc": "Tilføj en ny søgemaskine ved at angive navn og søge-URL. URL'en skal indeholde {'{'}query{'}'} som søgepladsholder.",
     "searchEngineName": "Søgemaskinens navn",
     "searchEngineNamePlaceholder": "Indtast navnet på søgemaskinen",
     "searchEngineUrl": "Søge-URL",
@@ -388,7 +388,7 @@
   "dashboard": {
     "badge": "Brugsoverblik",
     "title": "Brugsoverblik",
-    "description": "Vis tokenforbrug, cachetræf og estimerede omkostninger. Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger, og nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende.",
+    "description": "Følg tokenforbrug og cache-træffere.",
     "actions": {
       "refresh": "Opdater"
     },
@@ -404,8 +404,8 @@
     },
     "empty": {
       "title": "Ingen brugsstatistik endnu",
-      "description": "Når der findes brugsdata, vises tokenforbrug, cachetræf og estimerede omkostninger her.",
-      "historyNote": "Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger. Nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende."
+      "description": "Tokenforbrug og cache-træffere vises her, når brugsdata er tilgængelige.",
+      "historyNote": "Brugsdata fra nogle udbydere eller tidligere beskeder kan være ufuldstændige."
     },
     "summary": {
       "totalTokens": "Samlede tokens",
@@ -418,10 +418,6 @@
       "cachedTokensUncachedLabel": "Ikke cachelagret",
       "cacheHitRate": "Cachetræfrate",
       "cacheHitRateDescription": "Cachelagrede prompt-tokens divideret med alle inputtokens.",
-      "estimatedCost": "Estimeret pris",
-      "estimatedCostDescription": "Anslået pris i USD ud fra udbyderens priser eller AIHubMix som reserve.",
-      "estimatedCostTrendLabel": "Udvikling de seneste 30 dage",
-      "estimatedCostTrendEmpty": "Ingen registreret omkostning de seneste 30 dage.",
       "recordingStartedAt": "Første registrering",
       "recordingStartedAtDescription": "Den tidligste brugsregistrering, der aktuelt findes i denne oversigt.",
       "withDeepChatDaysLabel": "Dage sammen",
@@ -451,9 +447,9 @@
     },
     "breakdown": {
       "providerTitle": "Udbyderrangliste",
-      "providerDescription": "Sorteret først efter estimeret pris og derefter efter samlede tokens.",
+      "providerDescription": "Rangeret efter samlet antal tokens.",
       "modelTitle": "Modelrangliste",
-      "modelDescription": "Top 10 modeller efter estimeret pris og derefter samlede tokens.",
+      "modelDescription": "Top 10 modeller efter samlet antal tokens.",
       "messages": "{count} beskeder",
       "empty": "Der er endnu ingen fordelingsdata."
     },
@@ -864,7 +860,7 @@
       },
       "disableAllModels": {
         "title": "Bekræft deaktivering af alle modeller",
-        "content": "Er du sikker på, at du vil deaktivere alle modeller?",
+        "content": "Er du sikker på, at du vil deaktivere alle modeller for \"{name}\"?",
         "confirm": "Deaktiver alle"
       },
       "configModels": {
@@ -1218,7 +1214,15 @@
       "timeout": "Timeout",
       "saveConfig": "Gem",
       "resetConfig": "Nulstil",
-      "seconds": "sekunder"
+      "seconds": "sekunder",
+      "configLoadFailed": "Konfigurationen kunne ikke indlæses",
+      "configSaved": "Konfigurationen er gemt",
+      "configSaveFailed": "Konfigurationen kunne ikke gemmes",
+      "configReset": "Konfigurationen er nulstillet",
+      "configResetFailed": "Konfigurationen kunne ikke nulstilles",
+      "connectionSucceeded": "Forbindelsen lykkedes",
+      "connectionFailed": "Der kunne ikke oprettes forbindelse med den aktuelle konfiguration",
+      "invalidBaseUrl": "Angiv en HTTP- eller HTTPS-adresse uden loginoplysninger eller forespørgselsparametre"
     },
     "deleteFile": {
       "title": "Bekræft sletning af fil",
@@ -1276,6 +1280,7 @@
       "name": "Servernavn",
       "namePlaceholder": "Indtast servernavn",
       "nameRequired": "Servernavn er påkrævet",
+      "nameDuplicate": "Der findes allerede en server med dette navn.",
       "type": "Servertype",
       "typePlaceholder": "Vælg servertype",
       "typeStdio": "Standard input/output (Stdio)",
@@ -1570,7 +1575,7 @@
       "error": "Fejl",
       "invalidAgent": "Agent mangler eller er deaktiveret. Vælg en anden agent."
     },
-    "runNowSuccess": "Planlagt opgave startet"
+    "runNowSuccess": "Planlagt opgave fuldført"
   },
   "about": {
     "title": "Om os",
@@ -2544,12 +2549,12 @@
       "generatePairCode": "Generer",
       "clearPairCode": "Ryd",
       "pairCodeExpiresAt": "Udløber {time}",
-      "pairDialogTitle": "Telegram-parring",
-      "pairDialogDescription": "Generer en parringskode, og fuldfør parringen i din Telegram-botchat.",
+      "pairDialogTitle": "{channel}-parring",
+      "pairDialogDescription": "Generer en parringskode, og fuldfør parringen i din {channel}-botchat.",
       "pairDialogInstruction": "Send denne kommando til den tilsvarende bot:",
-      "bindingsDialogTitle": "Bundne sessioner",
-      "bindingsDialogDescription": "Fjern Telegram-sessionbindinger én ad gangen.",
-      "bindingsEmpty": "Ingen Telegram-bindinger endnu.",
+      "bindingsDialogTitle": "Bundne {channel}-sessioner",
+      "bindingsDialogDescription": "Fjern eksterne sessionsbindinger én ad gangen.",
+      "bindingsEmpty": "Ingen bindinger endnu.",
       "pairingSuccessTitle": "Parring fuldført",
       "pairingSuccessDescription": "Listen over tilladte bruger-id'er er blevet opdateret.",
       "clearBindings": "Ryd bindinger",
@@ -2714,7 +2719,21 @@
       "safe_storage_unavailable": "Den vedvarende cache er utilgængelig, fordi sikker nøglelagring ikke er tilgængelig."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Ikke-gemte ændringer",
+    "dirtyDescription": "Forlad siden og kassér ændringerne?",
+    "busyTitle": "Gemmer",
+    "busyDescription": "Vent på, at lagringen bliver færdig, før du forlader siden.",
+    "stay": "Fortsæt redigering",
+    "discard": "Kassér ændringer"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Gemmer…",
+      "saved": "Gemt",
+      "saveFailed": "Kunne ikke gemme. Ændringerne er bevaret.",
+      "retry": "Prøv igen"
+    },
     "title": "DeepChat-agenter",
     "description": "Administrer DeepChat-agenter og de standardværdier, de bruger i nye sessioner.",
     "builtIn": "Indbygget",

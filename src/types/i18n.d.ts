@@ -1276,6 +1276,31 @@ declare module 'vue-i18n' {
         }
       }
     }
+    notifications: {
+      label: string
+      actionFailed: string
+      entities: string
+      occurrences: string
+      pending: string
+      mcpConnectionFailed: {
+        title: string
+        description: string
+      }
+      mcpToolListFailed: {
+        title: string
+        description: string
+      }
+      providerDeeplinkFailed: {
+        title: string
+        reasons: {
+          'unsupported-version': string
+          'invalid-payload': string
+          'provider-not-found': string
+          'unsupported-provider': string
+          'settings-unavailable': string
+        }
+      }
+    }
     loading: string
     copied: string
     paste: string
@@ -2245,7 +2270,21 @@ declare module 'vue-i18n' {
         safe_storage_unavailable: string
       }
     }
+    leaveGuard: {
+      dirtyTitle: string
+      dirtyDescription: string
+      busyTitle: string
+      busyDescription: string
+      stay: string
+      discard: string
+    }
     deepchatAgents: {
+      saveFeedback: {
+        saving: string
+        saved: string
+        saveFailed: string
+        retry: string
+      }
       title: string
       description: string
       builtIn: string
@@ -2905,10 +2944,6 @@ declare module 'vue-i18n' {
         cachedTokensUncachedLabel: string
         cacheHitRate: string
         cacheHitRateDescription: string
-        estimatedCost: string
-        estimatedCostDescription: string
-        estimatedCostTrendLabel: string
-        estimatedCostTrendEmpty: string
         recordingStartedAt: string
         recordingStartedAtDescription: string
         withDeepChatDaysLabel: string
@@ -3106,6 +3141,14 @@ declare module 'vue-i18n' {
         testConnection: string
         timeout: string
         title: string
+        configLoadFailed: string
+        configSaved: string
+        configSaveFailed: string
+        configReset: string
+        configResetFailed: string
+        connectionSucceeded: string
+        connectionFailed: string
+        invalidBaseUrl: string
       }
     }
     mcp: {
@@ -3151,6 +3194,7 @@ declare module 'vue-i18n' {
         name: string
         namePlaceholder: string
         nameRequired: string
+        nameDuplicate: string
         type: string
         typePlaceholder: string
         typeStdio: string
@@ -3211,6 +3255,7 @@ declare module 'vue-i18n' {
         e2bApiKeyPlaceholder: string
         e2bApiKeyHelp: string
         e2bApiKeyRequired: string
+        sseCompatibilityBadge: string
         sseMigrationHint: string
         authorizationMode: string
         authorizationInteractive: string
@@ -4196,6 +4241,10 @@ declare module 'vue-i18n' {
     restarting: string
     alreadyUpToDate: string
     alreadyUpToDateDesc: string
+    taskRunningTitle: string
+    taskRunningDescription: string
+    updateNow: string
+    updateAfterTasksComplete: string
     steps: {
       welcome: {
         title: string

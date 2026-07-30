@@ -24,10 +24,9 @@ import {
 } from '@shadcn/components/ui/select'
 import type { McpEnterpriseIdentityProfile, McpEnterpriseIdentityStatus } from '@shared/types/mcp'
 import { createMcpClient } from '@api/McpClient'
-import { useToast } from '@/components/use-toast'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 const { t } = useI18n()
-const { toast } = useToast()
 const mcpClient = createMcpClient()
 
 const isOpen = ref(false)
@@ -63,10 +62,11 @@ const loadProfiles = async (): Promise<void> => {
     )
     statuses.value = Object.fromEntries(entries)
   } catch (error) {
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.mcp.enterpriseProfiles.loadError',
       title: t('settings.mcp.enterpriseProfiles.loadError'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+      description: error instanceof Error ? error.message : String(error)
     })
   } finally {
     isLoading.value = false
@@ -112,10 +112,11 @@ const saveProfile = async (): Promise<void> => {
     clientSecret.value = ''
     await loadProfiles()
   } catch (error) {
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.mcp.enterpriseProfiles.saveError',
       title: t('settings.mcp.enterpriseProfiles.saveError'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+      description: error instanceof Error ? error.message : String(error)
     })
   } finally {
     isSaving.value = false
@@ -131,10 +132,11 @@ const startAuth = async (profileId: string): Promise<void> => {
       callbackUrl.value = ''
     }
   } catch (error) {
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.mcp.enterpriseProfiles.authError',
       title: t('settings.mcp.enterpriseProfiles.authError'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+      description: error instanceof Error ? error.message : String(error)
     })
   }
 }
@@ -152,10 +154,11 @@ const completeAuth = async (): Promise<void> => {
       callbackUrl.value = ''
     }
   } catch (error) {
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.mcp.enterpriseProfiles.authError',
       title: t('settings.mcp.enterpriseProfiles.authError'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+      description: error instanceof Error ? error.message : String(error)
     })
   }
 }
@@ -172,10 +175,11 @@ const removeProfile = async (): Promise<void> => {
     pendingRemove.value = null
     await loadProfiles()
   } catch (error) {
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.mcp.enterpriseProfiles.removeError',
       title: t('settings.mcp.enterpriseProfiles.removeError'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+      description: error instanceof Error ? error.message : String(error)
     })
   }
 }

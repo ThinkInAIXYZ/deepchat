@@ -328,6 +328,7 @@ import { ButtonGroup } from '@shadcn/components/ui/button-group'
 import { Switch } from '@shadcn/components/ui/switch'
 import FontSettingsSection from './display/FontSettingsSection.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
+import { LOCALE_DISPLAY_NAMES, SUPPORTED_LOCALES, type RequestedLocale } from '@shared/locales'
 
 const languageStore = useLanguageStore()
 const uiSettingsStore = useUiSettingsStore()
@@ -337,29 +338,10 @@ const { t } = useI18n()
 const { themeMode } = storeToRefs(themeStore)
 
 // --- Language Settings ---
-const selectedLanguage = ref('system')
+const selectedLanguage = ref<RequestedLocale>('system')
 const languageOptions = [
   { value: 'system', label: t('common.languageSystem') || 'System' },
-  { value: 'zh-CN', label: '简体中文' },
-  { value: 'en-US', label: 'English (US)' },
-  { value: 'zh-TW', label: '繁體中文（台灣）' },
-  { value: 'zh-HK', label: '繁體中文（香港）' },
-  { value: 'ko-KR', label: '한국어' },
-  { value: 'ru-RU', label: 'Русский' },
-  { value: 'ja-JP', label: '日本語' },
-  { value: 'fr-FR', label: 'Français' },
-  { value: 'fa-IR', label: 'فارسی (ایران)' },
-  { value: 'pt-BR', label: 'Português (Brasil)' },
-  { value: 'da-DK', label: 'Dansk' },
-  { value: 'he-IL', label: 'עברית (ישראל)' },
-  { value: 'es-ES', label: 'Español (España)' },
-  { value: 'de-DE', label: 'Deutsch (Deutschland)' },
-  { value: 'tr-TR', label: 'Türkçe' },
-  { value: 'id-ID', label: 'Bahasa Indonesia' },
-  { value: 'ms-MY', label: 'Bahasa Melayu' },
-  { value: 'it-IT', label: 'Italiano' },
-  { value: 'pl-PL', label: 'Polski' },
-  { value: 'vi-VN', label: 'Tiếng Việt' }
+  ...SUPPORTED_LOCALES.map((value) => ({ value, label: LOCALE_DISPLAY_NAMES[value] }))
 ]
 
 watch(selectedLanguage, async (newValue) => {

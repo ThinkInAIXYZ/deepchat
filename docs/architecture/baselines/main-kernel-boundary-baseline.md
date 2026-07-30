@@ -1,6 +1,6 @@
 # Main Kernel Boundary Baseline
 
-Generated on 2026-07-26.
+Generated on 2026-07-29.
 Current phase: P5.
 
 ## Metric Snapshot
@@ -18,7 +18,7 @@ Current phase: P5.
 | `renderer.quarantine.windowApi.count` | 0 |
 | `renderer.quarantine.sourceFile.count` | 0 |
 | `hotpath.directEdge.count` | 2 |
-| `runtime.rawTimer.count` | 206 |
+| `runtime.rawTimer.count` | 209 |
 | `migrated.rawChannel.count` | 0 |
 | `bridge.active.count` | 0 |
 | `bridge.expired.count` | 0 |
@@ -80,9 +80,9 @@ Current phase: P5.
 
 ## Raw Timers
 
-- Total count: 206
+- Total count: 209
 
-- `src/main/ocr/lightOcrProcessHost.ts`: 6
+- `src/main/ocr/lightOcrProcessHost.ts`: 10
 - `src/main/provider/auth/githubCopilotDeviceFlow.ts`: 6
 - `src/main/desktop/browser/BrowserTab.ts`: 5
 - `src/main/provider/aiSdk/runtime.ts`: 5

@@ -17,6 +17,71 @@ const createDeferred = <T>() => {
   return { promise, resolve, reject }
 }
 
+describe('AgentSettings ACP availability', () => {
+  it('restores the previous state when disabling cannot stop active runtimes', async () => {
+    const runtimeError = new Error('runtime busy')
+    const setGlobalEnabled = vi.fn().mockReturnValue(true)
+    const setAcpProviderEnabled = vi.fn()
+    const clearAcpProviderModels = vi.fn()
+    const clearAcpProviderModelStatus = vi.fn()
+    const notifyAcpAgentsChanged = vi.fn(() => {
+      throw new Error('window closed')
+    })
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      acpCatalog: {
+        getGlobalEnabled: vi.fn(() => true),
+        setGlobalEnabled
+      },
+      getAcpAgents: vi.fn().mockResolvedValue([{ id: 'codex-acp' }]),
+      provider: {
+        refreshAcpProviderAgents: vi.fn().mockRejectedValue(runtimeError),
+        setAcpProviderEnabled,
+        clearAcpProviderModels,
+        clearAcpProviderModelStatus
+      },
+      notifyAcpAgentsChanged
+    }) as AgentSettings
+
+    await expect(settings.setAcpEnabled(false)).rejects.toBe(runtimeError)
+
+    expect(setGlobalEnabled).toHaveBeenNthCalledWith(1, false)
+    expect(setGlobalEnabled).toHaveBeenNthCalledWith(2, true)
+    expect(setAcpProviderEnabled).toHaveBeenCalledWith(true)
+    expect(clearAcpProviderModels).not.toHaveBeenCalled()
+    expect(clearAcpProviderModelStatus).toHaveBeenCalledTimes(1)
+    expect(notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not report cache or event delivery failures as an availability failure', async () => {
+    const clearAcpProviderModels = vi.fn(() => {
+      throw new Error('model cache busy')
+    })
+    const clearAcpProviderModelStatus = vi.fn(() => {
+      throw new Error('status cache busy')
+    })
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      acpCatalog: {
+        getGlobalEnabled: vi.fn(() => true),
+        setGlobalEnabled: vi.fn(() => true)
+      },
+      getAcpAgents: vi.fn().mockResolvedValue([]),
+      provider: {
+        refreshAcpProviderAgents: vi.fn(),
+        setAcpProviderEnabled: vi.fn(),
+        clearAcpProviderModels,
+        clearAcpProviderModelStatus
+      },
+      notifyAcpAgentsChanged: vi.fn(() => {
+        throw new Error('window closed')
+      })
+    }) as AgentSettings
+
+    await expect(settings.setAcpEnabled(false)).resolves.toBeUndefined()
+    expect(clearAcpProviderModels).toHaveBeenCalledTimes(1)
+    expect(clearAcpProviderModelStatus).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('AgentSettings ACP registry uninstall', () => {
   it('blocks registry uninstall before removing files when sessions remain', async () => {
     const uninstallRegistryAgent = vi.fn().mockResolvedValue(undefined)
@@ -670,6 +735,7 @@ describe('AgentSettings ACP notifications', () => {
     const refreshAcpProviderAgents = vi.fn(async () => sequence.push('runtime-refresh'))
     const settings = Object.assign(Object.create(AgentSettings.prototype), {
       acpCatalog: {
+        getGlobalEnabled: vi.fn(() => true),
         setGlobalEnabled: vi.fn(() => {
           sequence.push('catalog-disable')
           return true

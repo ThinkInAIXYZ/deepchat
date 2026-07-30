@@ -29,7 +29,7 @@
     "customProxyUrlPlaceholder": "Exemplo: http://127.0.0.1:7890",
     "invalidProxyUrl": "URL de proxy inválida, insira uma URL http/https válida",
     "addCustomSearchEngine": "Adicionar Mecanismo de Busca Personalizado",
-    "addCustomSearchEngineDesc": "Adicione um novo mecanismo de busca fornecendo um nome e a URL de busca. A URL deve incluir {query} como placeholder da consulta.",
+    "addCustomSearchEngineDesc": "Adicione um novo mecanismo de busca fornecendo um nome e a URL de busca. A URL deve incluir {'{'}query{'}'} como placeholder da consulta.",
     "searchEngineName": "Nome do Mecanismo de Busca",
     "searchEngineNamePlaceholder": "Digite o nome do mecanismo de busca",
     "searchEngineUrl": "URL de Busca",
@@ -455,7 +455,7 @@
   "dashboard": {
     "badge": "Painel de uso",
     "title": "Painel de uso",
-    "description": "Mostra o consumo de tokens, os acertos de cache e o custo estimado. Os dados de tokens e custo são estimados com base em informações públicas, e alguns provedores ou mensagens mais antigas podem estar incompletos, então use esses números apenas como referência.",
+    "description": "Acompanhe o uso de tokens e os acertos de cache.",
     "actions": {
       "refresh": "Atualizar"
     },
@@ -471,8 +471,8 @@
     },
     "empty": {
       "title": "Ainda não há estatísticas de uso",
-      "description": "O consumo de tokens, os acertos de cache e o custo estimado aparecerão aqui assim que houver dados de uso.",
-      "historyNote": "Os dados de tokens e custo são estimados com base em informações públicas. Alguns provedores ou mensagens mais antigas podem estar incompletos, então use esses números apenas como referência."
+      "description": "O uso de tokens e os acertos de cache aparecerão aqui quando houver dados de uso disponíveis.",
+      "historyNote": "Os dados de uso de alguns provedores ou mensagens anteriores podem estar incompletos."
     },
     "summary": {
       "totalTokens": "Total de tokens",
@@ -485,10 +485,6 @@
       "cachedTokensUncachedLabel": "Sem cache",
       "cacheHitRate": "Taxa de acerto do cache",
       "cacheHitRateDescription": "Tokens de prompt em cache divididos pelo total de tokens de entrada.",
-      "estimatedCost": "Custo estimado",
-      "estimatedCostDescription": "Estimado em USD com base no preço do provedor ou no preço de fallback da AIHubMix.",
-      "estimatedCostTrendLabel": "Tendência dos últimos 30 dias",
-      "estimatedCostTrendEmpty": "Nenhum custo registrado nos últimos 30 dias.",
       "recordingStartedAt": "Início do registro",
       "recordingStartedAtDescription": "O registro de uso mais antigo atualmente armazenado neste painel.",
       "withDeepChatDaysLabel": "Dias juntos",
@@ -518,9 +514,9 @@
     },
     "breakdown": {
       "providerTitle": "Ranking por provedor",
-      "providerDescription": "Ordenado primeiro por custo estimado e depois por total de tokens.",
+      "providerDescription": "Classificados pelo total de tokens.",
       "modelTitle": "Ranking por modelo",
-      "modelDescription": "Top 10 modelos por custo estimado e depois por total de tokens.",
+      "modelDescription": "Os 10 melhores modelos pelo total de tokens.",
       "messages": "{count} mensagens",
       "empty": "Ainda não há dados detalhados para exibir."
     },
@@ -943,7 +939,7 @@
       },
       "disableAllModels": {
         "title": "Confirmar Desativação de Todos os Modelos",
-        "content": "Tem certeza de que deseja desativar todos os modelos?",
+        "content": "Tem certeza de que deseja desativar todos os modelos de \"{name}\"?",
         "confirm": "Desativar Todos"
       },
       "configModels": {
@@ -1296,7 +1292,15 @@
       "seconds": "segundo",
       "testConnection": "Testar conexão",
       "timeout": "tempo esgotado",
-      "title": "Configuração de exportação do Nowledge Mem"
+      "title": "Configuração de exportação do Nowledge Mem",
+      "configLoadFailed": "Não foi possível carregar a configuração",
+      "configSaved": "Configuração salva",
+      "configSaveFailed": "Não foi possível salvar a configuração",
+      "configReset": "Configuração redefinida",
+      "configResetFailed": "Não foi possível redefinir a configuração",
+      "connectionSucceeded": "Conexão bem-sucedida",
+      "connectionFailed": "Não foi possível conectar com a configuração atual",
+      "invalidBaseUrl": "Insira um endereço HTTP ou HTTPS sem credenciais ou parâmetros de consulta"
     }
   },
   "mcp": {
@@ -1343,6 +1347,7 @@
       "name": "Nome do Servidor",
       "namePlaceholder": "Digite o nome do servidor",
       "nameRequired": "O nome do servidor é obrigatório",
+      "nameDuplicate": "Já existe um servidor com esse nome.",
       "type": "Tipo de Servidor",
       "typePlaceholder": "Selecionar tipo de servidor",
       "typeStdio": "Entrada e saída padrão (Stdio)",
@@ -1637,7 +1642,7 @@
       "error": "Erro",
       "invalidAgent": "O agente está ausente ou desabilitado. Escolha outro agente."
     },
-    "runNowSuccess": "Tarefa agendada iniciada"
+    "runNowSuccess": "Tarefa agendada concluída"
   },
   "about": {
     "title": "Sobre Nós",
@@ -2544,12 +2549,12 @@
       "generatePairCode": "Gerar",
       "clearPairCode": "Limpar",
       "pairCodeExpiresAt": "Expira em {time}",
-      "pairDialogTitle": "Pareamento do Telegram",
-      "pairDialogDescription": "Gere um código de pareamento e conclua o pareamento no chat com o bot do Telegram.",
+      "pairDialogTitle": "Pareamento do {channel}",
+      "pairDialogDescription": "Gere um código de pareamento e conclua o pareamento no chat com o bot do {channel}.",
       "pairDialogInstruction": "Envie este comando para o bot correspondente:",
-      "bindingsDialogTitle": "Sessões vinculadas",
-      "bindingsDialogDescription": "Remova os vínculos de sessão do Telegram um por um.",
-      "bindingsEmpty": "Ainda não há vínculos do Telegram.",
+      "bindingsDialogTitle": "Sessões vinculadas do {channel}",
+      "bindingsDialogDescription": "Remova os vínculos de sessão remota um por um.",
+      "bindingsEmpty": "Ainda não há vínculos.",
       "pairingSuccessTitle": "Pareamento concluído",
       "pairingSuccessDescription": "A lista de IDs de usuário permitidos foi atualizada.",
       "clearBindings": "Limpar vínculos",
@@ -2714,7 +2719,21 @@
       "safe_storage_unavailable": "O cache persistente está indisponível porque o armazenamento seguro de chaves não está disponível."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Alterações não salvas",
+    "dirtyDescription": "Sair e descartar as alterações?",
+    "busyTitle": "Salvamento em andamento",
+    "busyDescription": "Aguarde o salvamento terminar antes de sair.",
+    "stay": "Continuar editando",
+    "discard": "Descartar alterações"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Salvando…",
+      "saved": "Salvo",
+      "saveFailed": "Não foi possível salvar. As alterações foram mantidas.",
+      "retry": "Tentar novamente"
+    },
     "title": "Agentes do DeepChat",
     "description": "Gerencie os agentes do DeepChat e os padrões que eles aplicam às novas sessões.",
     "builtIn": "Integrado",

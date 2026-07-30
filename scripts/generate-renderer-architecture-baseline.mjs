@@ -37,6 +37,21 @@ const apps = [
   }
 ]
 
+const sharedServices = [
+  {
+    id: 'notifications',
+    root: 'src/renderer/services/notifications'
+  }
+]
+
+const appSourceRoots = [
+  'src/renderer/src',
+  'src/renderer/browser-overlay',
+  'src/renderer/floating',
+  'src/renderer/splash',
+  'src/renderer/settings'
+]
+
 const exists = async (relativePath) => {
   try {
     await fs.access(path.join(ROOT, relativePath))
@@ -60,7 +75,7 @@ const walk = async (relativePath) => {
 }
 
 const isSourceFile = (file) => /\.(?:ts|tsx|vue|js|jsx)$/.test(file)
-const importPattern = /(?:from\s+|import\s*\()(['"])([^'"]+)\1/g
+const importPattern = /(?:from\s+|import\s*\(\s*|import\s+)(['"])([^'"]+)\1/g
 
 const collectSettingsToChatImports = async () => {
   const files = (await walk('src/renderer/settings')).filter(isSourceFile)
@@ -81,11 +96,44 @@ const collectSettingsToChatImports = async () => {
   )
 }
 
+const collectSharedServiceToAppImports = async () => {
+  if (!(await exists('src/renderer/services'))) return []
+
+  const files = (await walk('src/renderer/services')).filter(isSourceFile)
+  const imports = []
+
+  for (const file of files) {
+    const source = await fs.readFile(path.join(ROOT, file), 'utf8')
+    for (const match of source.matchAll(importPattern)) {
+      const specifier = match[2]
+      let target
+      if (specifier.startsWith('@/')) {
+        target = path.join('src/renderer/src', specifier.slice(2))
+      } else if (specifier.startsWith('.')) {
+        target = path.normalize(path.join(path.dirname(file), specifier))
+      }
+
+      if (
+        target &&
+        appSourceRoots.some((root) => target === root || target.startsWith(`${root}/`))
+      ) {
+        imports.push({ file, specifier, target })
+      }
+    }
+  }
+
+  return imports.sort((left, right) =>
+    `${left.file}:${left.specifier}`.localeCompare(`${right.file}:${right.specifier}`)
+  )
+}
+
 const main = async () => {
-  const [settingsToChatImports, legacyBrowserDirectoryExists] = await Promise.all([
-    collectSettingsToChatImports(),
-    exists('src/renderer/browser')
-  ])
+  const [settingsToChatImports, sharedServiceToAppImports, legacyBrowserDirectoryExists] =
+    await Promise.all([
+      collectSettingsToChatImports(),
+      collectSharedServiceToAppImports(),
+      exists('src/renderer/browser')
+    ])
   const appStatus = await Promise.all(
     apps.map(async (app) => ({
       ...app,
@@ -93,10 +141,19 @@ const main = async () => {
       entryExists: await exists(app.entry)
     }))
   )
+  const sharedServiceStatus = await Promise.all(
+    sharedServices.map(async (service) => ({
+      ...service,
+      rootExists: await exists(service.root)
+    }))
+  )
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     apps: appStatus,
+    sharedServices: sharedServiceStatus,
+    sharedServiceToAppImports,
+    sharedServiceToAppImportCount: sharedServiceToAppImports.length,
     browser: {
       legacyDirectoryExists: legacyBrowserDirectoryExists,
       activeOverlayDirectory: 'src/renderer/browser-overlay'

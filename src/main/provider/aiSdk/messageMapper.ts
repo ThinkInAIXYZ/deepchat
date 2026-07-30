@@ -1,6 +1,6 @@
-import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { ChatMessage, ChatMessageContent } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/mcp'
-import { generateId, type ModelMessage } from 'ai'
+import { generateId, type FilePart, type ModelMessage, type TextPart } from 'ai'
 import { applyLegacyFunctionCallPrompt } from './middlewares/legacyFunctionCallMiddleware'
 import {
   buildFunctionCallRecordContent,
@@ -16,16 +16,9 @@ type PendingToolCall = {
   args?: string
 }
 
-type AssistantProviderOptions = Record<string, Record<string, unknown>>
-type UserAudioContentPart = {
-  type: 'input_audio'
-  input_audio: {
-    data: string
-    media_type: string
-    filename?: string
-  }
-  provider_options?: Record<string, unknown>
-}
+type AiSdkProviderOptions = NonNullable<ModelMessage['providerOptions']>
+type MappedUserContentPart = TextPart | FilePart
+type UserAudioContentPart = Extract<ChatMessageContent, { type: 'input_audio' }>
 
 const OPENAI_AUDIO_MEDIA_TYPES = new Set(['audio/wav', 'audio/mp3', 'audio/mpeg'])
 const OPENAI_COMPATIBLE_AUDIO_FALLBACK_MEDIA_TYPE = 'audio/mpeg'
@@ -41,34 +34,20 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function sanitizeProviderOptions(
   providerOptions: Record<string, unknown> | undefined
-): AssistantProviderOptions | undefined {
+): AiSdkProviderOptions | undefined {
   if (!isPlainObject(providerOptions)) {
     return undefined
   }
 
-  const sanitized = Object.fromEntries(
-    Object.entries(providerOptions).filter((entry): entry is [string, Record<string, unknown>] =>
-      isPlainObject(entry[1])
-    )
+  const sanitizedEntries = Object.entries(providerOptions).filter(
+    (entry): entry is [string, AiSdkProviderOptions[string]] => isPlainObject(entry[1])
   )
 
-  return Object.keys(sanitized).length > 0 ? sanitized : undefined
+  return sanitizedEntries.length > 0 ? Object.fromEntries(sanitizedEntries) : undefined
 }
 
 function hasOwnReasoningContent(message: ChatMessage): boolean {
   return Object.prototype.hasOwnProperty.call(message, 'reasoning_content')
-}
-
-function resolveBinaryData(value: string): string | URL {
-  if (value.startsWith('data:')) {
-    return value
-  }
-
-  try {
-    return new URL(value)
-  } catch {
-    return value
-  }
 }
 
 function resolveImageMediaType(value: string): string | undefined {
@@ -84,6 +63,33 @@ function resolveImageMediaType(value: string): string | undefined {
   if (normalized.endsWith('.gif')) return 'image/gif'
 
   return undefined
+}
+
+function resolveImageFileData(value: string): FilePart['data'] {
+  if (value.startsWith('data:')) {
+    return value
+  }
+
+  try {
+    return new URL(value)
+  } catch {
+    return value
+  }
+}
+
+function mapImageUserContentPart(
+  part: Extract<ChatMessageContent, { type: 'image_url' }>
+): FilePart | null {
+  const imageUrl = part.image_url?.url
+  if (typeof imageUrl !== 'string' || !imageUrl) {
+    return null
+  }
+
+  return {
+    type: 'file',
+    data: resolveImageFileData(imageUrl),
+    mediaType: resolveImageMediaType(imageUrl) ?? 'image'
+  }
 }
 
 function normalizeAudioMediaType(value: string | undefined): string | undefined {
@@ -113,7 +119,7 @@ function buildAudioProviderOptions(
   part: UserAudioContentPart,
   options: MapMessagesToModelMessagesOptions,
   mediaType: string
-): AssistantProviderOptions | undefined {
+): AiSdkProviderOptions | undefined {
   if (!options.preferOpenAICompatibleAudioDataUrl) {
     return sanitizeProviderOptions(part.provider_options)
   }
@@ -137,13 +143,7 @@ function buildAudioProviderOptions(
 function mapAudioUserContentPart(
   part: UserAudioContentPart,
   options: MapMessagesToModelMessagesOptions
-): {
-  type: 'file'
-  data: string
-  mediaType: string
-  filename?: string
-  providerOptions?: AssistantProviderOptions
-} | null {
+): FilePart | null {
   const actualMediaType = normalizeAudioMediaType(part.input_audio.media_type)
   if (!actualMediaType?.startsWith('audio/') || !part.input_audio.data) {
     return null
@@ -171,7 +171,7 @@ function mapAudioUserContentPart(
 function mapUserContent(
   content: ChatMessage['content'],
   options: MapMessagesToModelMessagesOptions
-): any[] {
+): MappedUserContentPart[] {
   if (typeof content === 'string' || content == null) {
     return [
       {
@@ -181,51 +181,46 @@ function mapUserContent(
     ]
   }
 
-  return content
-    .map((part) => {
-      if (part.type === 'text') {
-        return {
-          type: 'text',
-          text: part.text
+  const mappedContent: MappedUserContentPart[] = []
+  for (const part of content) {
+    if (typeof part !== 'object' || part === null) {
+      continue
+    }
+
+    switch (part.type) {
+      case 'text': {
+        if (typeof part.text === 'string') {
+          mappedContent.push({
+            type: 'text',
+            text: part.text
+          })
         }
+        continue
       }
-
-      if (
-        part.type === 'image_url' &&
-        part.image_url &&
-        typeof part.image_url.url === 'string' &&
-        part.image_url.url
-      ) {
-        const imageUrl = part.image_url.url
-        const mediaType = resolveImageMediaType(imageUrl)
-
-        return {
-          type: 'image',
-          image: resolveBinaryData(imageUrl),
-          ...(mediaType ? { mediaType } : {})
+      case 'image_url': {
+        const mappedImage = mapImageUserContentPart(part)
+        if (mappedImage) {
+          mappedContent.push(mappedImage)
         }
+        continue
       }
-
-      if (part.type === 'input_audio') {
-        return mapAudioUserContentPart(part, options)
+      case 'input_audio': {
+        if (part.input_audio) {
+          const mappedAudio = mapAudioUserContentPart(part, options)
+          if (mappedAudio) {
+            mappedContent.push(mappedAudio)
+          }
+        }
+        continue
       }
+      default: {
+        const exhaustiveCheck: never = part
+        void exhaustiveCheck
+      }
+    }
+  }
 
-      return null
-    })
-    .filter(
-      (
-        part
-      ): part is
-        | { type: 'text'; text: string }
-        | { type: 'image'; image: string | URL; mediaType?: string }
-        | {
-            type: 'file'
-            data: string
-            mediaType: string
-            filename?: string
-            providerOptions?: AssistantProviderOptions
-          } => part !== null
-    )
+  return mappedContent
 }
 
 function mapAssistantTextAndReasoning(message: ChatMessage): any[] {
@@ -284,7 +279,7 @@ export interface MapMessagesToModelMessagesOptions {
 function buildAssistantProviderOptions(
   message: ChatMessage,
   options: MapMessagesToModelMessagesOptions
-): AssistantProviderOptions | undefined {
+): AiSdkProviderOptions | undefined {
   if (!options.preserveOpenAICompatibleReasoningContent || !hasOwnReasoningContent(message)) {
     return undefined
   }
@@ -353,7 +348,7 @@ export function mapMessagesToModelMessages(
       acc.push({
         role: 'user',
         content: mapUserContent(message.content, options)
-      } as ModelMessage)
+      })
       return acc
     }
 

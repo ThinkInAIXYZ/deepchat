@@ -128,7 +128,6 @@ export const ModelSchema = z.object({
   knowledge: z.string().optional(),
   release_date: z.string().optional(),
   last_updated: z.string().optional(),
-  cost: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
   type: z
     .enum(['chat', 'embedding', 'rerank', 'imageGeneration', 'videoGeneration', 'tts'])
     .optional()
@@ -375,15 +374,6 @@ function getStringArray(obj: Record<string, unknown>, key: string): string[] | u
   const arr = v.filter((x) => typeof x === 'string') as string[]
   return arr.length ? arr : []
 }
-function getStringNumberRecord(obj: unknown): Record<string, string | number> | undefined {
-  if (!isRecord(obj)) return undefined
-  const out: Record<string, string | number> = {}
-  for (const [k, v] of Object.entries(obj)) {
-    if (typeof v === 'string' || typeof v === 'number') out[k] = v
-  }
-  return Object.keys(out).length ? out : undefined
-}
-
 type ModelTypeValue =
   | 'chat'
   | 'embedding'
@@ -683,7 +673,6 @@ export function sanitizeAggregate(input: unknown): ProviderAggregate | null {
         knowledge: getString(rm, 'knowledge'),
         release_date: getString(rm, 'release_date'),
         last_updated: getString(rm, 'last_updated'),
-        cost: getStringNumberRecord(rm['cost']),
         type: getModelTypeValue(rm['type'])
       }
 

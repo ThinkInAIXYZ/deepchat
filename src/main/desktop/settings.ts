@@ -4,6 +4,13 @@ import type { ShortcutKeySetting } from '@shared/types/desktop'
 import { defaultShortcutKey } from './shortcutKeySettings'
 import { app, nativeTheme } from 'electron'
 import type { FloatingButtonBounds } from '@shared/types/floating-widget'
+import {
+  getLocaleDirection,
+  resolveRequestedLocale,
+  resolveSupportedLocale,
+  type RequestedLocale,
+  type SupportedLocale
+} from '@shared/locales'
 
 export class DesktopSettings {
   constructor(
@@ -15,49 +22,23 @@ export class DesktopSettings {
     private readonly publishEvent: DeepchatEventPublisher
   ) {}
 
-  getRequestedLanguage(): string {
-    return this.settings.get<string>('language') || 'system'
+  getRequestedLanguage(): RequestedLocale {
+    return resolveRequestedLocale(this.settings.get<string>('language') || 'system')
   }
 
-  getLanguage(): string {
+  getLanguage(): SupportedLocale {
     const language = this.getRequestedLanguage()
-    if (language !== 'system') return language
-
-    const systemLanguage = app.getLocale()
-    const supportedLanguages = [
-      'zh-CN',
-      'zh-TW',
-      'en-US',
-      'zh-HK',
-      'ko-KR',
-      'ru-RU',
-      'ja-JP',
-      'fr-FR',
-      'fa-IR',
-      'pt-BR',
-      'da-DK',
-      'he-IL',
-      'es-ES',
-      'de-DE',
-      'tr-TR',
-      'id-ID',
-      'ms-MY',
-      'it-IT',
-      'pl-PL',
-      'vi-VN'
-    ]
-    if (supportedLanguages.includes(systemLanguage)) return systemLanguage
-
-    const languageCode = systemLanguage.split('-')[0]
-    return supportedLanguages.find((item) => item.startsWith(languageCode)) || 'en-US'
+    return resolveSupportedLocale(language === 'system' ? app.getLocale() : language)
   }
 
   setLanguage(language: string): void {
-    this.settings.set('language', language)
+    const requestedLanguage = resolveRequestedLocale(language)
+    this.settings.set('language', requestedLanguage)
+    const locale = this.getLanguage()
     this.publishEvent('config.language.changed', {
-      requestedLanguage: language,
-      locale: this.getLanguage(),
-      direction: ['fa-IR', 'he-IL'].includes(this.getLanguage()) ? 'rtl' : 'auto',
+      requestedLanguage,
+      locale,
+      direction: getLocaleDirection(locale),
       version: Date.now()
     })
     this.effects.refreshLanguage()

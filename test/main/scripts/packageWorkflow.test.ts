@@ -1,14 +1,19 @@
+import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+const { spawnSync } =
+  await vi.importActual<typeof import('node:child_process')>('node:child_process')
 
 interface WorkflowStep {
   name?: string
   uses?: string
   if?: string
   run?: string
+  shell?: string
+  env?: Record<string, string>
   with?: Record<string, unknown>
 }
 
@@ -48,7 +53,23 @@ interface BuildWorkflow {
   jobs: Record<string, BuildWorkflowJob>
 }
 
-interface RegressionWorkflow extends BuildWorkflow {
+type PackageJobName = 'package-windows' | 'package-linux' | 'package-macos'
+
+interface RegressionStatusJob {
+  name: string
+  if: string
+  concurrency: {
+    group: string
+    queue: string
+  }
+  needs: PackageJobName[]
+  'runs-on': string
+  'timeout-minutes': number
+  permissions: Record<string, string>
+  steps: WorkflowStep[]
+}
+
+interface RegressionWorkflow {
   on: {
     workflow_call: {
       inputs: Record<string, { required: boolean; type: string }>
@@ -56,6 +77,10 @@ interface RegressionWorkflow extends BuildWorkflow {
     }
     workflow_dispatch: Record<string, never>
     schedule: Array<{ cron: string }>
+  }
+  permissions: Record<string, string>
+  jobs: Record<PackageJobName, BuildWorkflowJob> & {
+    'scheduled-status': RegressionStatusJob
   }
 }
 
@@ -125,6 +150,16 @@ const getStep = (workflow: ReusableWorkflow, name: string) => {
   if (!step) throw new Error(`Missing workflow step: ${name}`)
   return step
 }
+
+const runBashStep = (script: string, env: NodeJS.ProcessEnv) =>
+  spawnSync('bash', ['-e', '-o', 'pipefail', '-c', script], {
+    cwd: path.resolve('.'),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      ...env
+    }
+  })
 
 describe('native package reusable workflows', () => {
   it('owns the fixed runner mapping and a shared immutable input contract', () => {
@@ -249,6 +284,130 @@ describe('native package reusable workflows', () => {
     )
     expect(source).not.toContain('signed:')
   })
+
+  it('rejects Apple credentials for verification and requires them for distribution', () => {
+    const workflow = readWorkflow<ReusableWorkflow>(reusableWorkflows.macos.name)
+    const script = getStep(workflow, 'Validate package request and signing inputs').run!
+    const credentialNames = [
+      'CSC_LINK',
+      'CSC_KEY_PASSWORD',
+      'DEEPCHAT_APPLE_NOTARY_USERNAME',
+      'DEEPCHAT_APPLE_NOTARY_TEAM_ID',
+      'DEEPCHAT_APPLE_NOTARY_PASSWORD'
+    ]
+    const emptyCredentials = Object.fromEntries(
+      credentialNames.map((name) => [name, ''])
+    )
+    const runValidation = (
+      purpose: 'distribution' | 'verification',
+      credentials: Record<string, string>
+    ) =>
+      runBashStep(script, {
+        SOURCE_SHA: 'a'.repeat(40),
+        TARGET_PLATFORM: 'darwin',
+        TARGET_ARCH: 'x64',
+        PACKAGE_PURPOSE: purpose,
+        ...emptyCredentials,
+        ...credentials
+      })
+
+    expect(runValidation('verification', {}).status).toBe(0)
+
+    const unexpectedCredentials = Object.fromEntries(
+      credentialNames.map((name) => [name, `unexpected-${name}`])
+    )
+    const verification = runValidation('verification', unexpectedCredentials)
+    expect(verification.status).toBe(1)
+    expect(verification.stderr).toContain(
+      `macOS verification must not receive Apple credentials: ${credentialNames.join(' ')}`
+    )
+
+    const distribution = runValidation('distribution', unexpectedCredentials)
+    expect(distribution.status).toBe(0)
+
+    const missingDistributionCredential = runValidation('distribution', {
+      ...unexpectedCredentials,
+      CSC_KEY_PASSWORD: ''
+    })
+    expect(missingDistributionCredential.status).toBe(1)
+    expect(missingDistributionCredential.stderr).toContain(
+      'Missing required macOS distribution secrets: CSC_KEY_PASSWORD'
+    )
+  })
+
+  it('removes Apple credentials from the verification package process', () => {
+    const workflow = readWorkflow<ReusableWorkflow>(reusableWorkflows.macos.name)
+    const script = getStep(workflow, 'Build and package macOS').run!
+    const temporaryDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'deepchat-package-workflow-')
+    )
+    const fakeBinDirectory = path.join(temporaryDirectory, 'bin')
+    const fakePnpmPath = path.join(fakeBinDirectory, 'pnpm')
+    const credentialNames = [
+      'CSC_LINK',
+      'CSC_KEY_PASSWORD',
+      'DEEPCHAT_APPLE_NOTARY_USERNAME',
+      'DEEPCHAT_APPLE_NOTARY_TEAM_ID',
+      'DEEPCHAT_APPLE_NOTARY_PASSWORD'
+    ]
+    fs.mkdirSync(fakeBinDirectory)
+    fs.writeFileSync(
+      fakePnpmPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == 'exec' && "\${2:-}" == 'electron-builder' ]]; then
+  {
+    for name in ${credentialNames.join(' ')} CSC_IDENTITY_AUTO_DISCOVERY; do
+      if [[ -n "\${!name+x}" ]]; then
+        printf '%s=set:%s\\n' "\${name}" "\${!name}"
+      else
+        printf '%s=unset\\n' "\${name}"
+      fi
+    done
+  } > "\${CAPTURE_PATH}"
+fi
+`
+    )
+    fs.chmodSync(fakePnpmPath, 0o755)
+
+    const baseEnvironment = {
+      PATH: `${fakeBinDirectory}${path.delimiter}${process.env.PATH ?? ''}`,
+      TARGET_ARCH: 'x64',
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+      ...Object.fromEntries(credentialNames.map((name) => [name, `secret-${name}`]))
+    }
+
+    try {
+      const verificationCapture = path.join(temporaryDirectory, 'verification.txt')
+      const verification = runBashStep(script, {
+        ...baseEnvironment,
+        PACKAGE_PURPOSE: 'verification',
+        CAPTURE_PATH: verificationCapture
+      })
+      expect(verification.status, verification.stderr).toBe(0)
+      const verificationEnvironment = fs.readFileSync(verificationCapture, 'utf8')
+      for (const name of credentialNames) {
+        expect(verificationEnvironment).toContain(`${name}=unset`)
+      }
+      expect(verificationEnvironment).toContain(
+        'CSC_IDENTITY_AUTO_DISCOVERY=set:false'
+      )
+
+      const distributionCapture = path.join(temporaryDirectory, 'distribution.txt')
+      const distribution = runBashStep(script, {
+        ...baseEnvironment,
+        PACKAGE_PURPOSE: 'distribution',
+        CAPTURE_PATH: distributionCapture
+      })
+      expect(distribution.status, distribution.stderr).toBe(0)
+      const distributionEnvironment = fs.readFileSync(distributionCapture, 'utf8')
+      for (const name of credentialNames) {
+        expect(distributionEnvironment).toContain(`${name}=set:secret-${name}`)
+      }
+    } finally {
+      fs.rmSync(temporaryDirectory, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('Build Application caller', () => {
@@ -304,6 +463,11 @@ describe('Build Application caller', () => {
 describe('Package Regression caller', () => {
   const workflow = readWorkflow<RegressionWorkflow>('package-regression.yml')
   const source = readWorkflowSource('package-regression.yml')
+  const packageJobNames: PackageJobName[] = [
+    'package-windows',
+    'package-linux',
+    'package-macos'
+  ]
 
   it('supports reusable, manual, and daily six-target verification', () => {
     expect(workflow.on.workflow_call.inputs).toMatchObject({
@@ -313,23 +477,23 @@ describe('Package Regression caller', () => {
     expect(workflow.on.schedule).toEqual([{ cron: '37 18 * * *' }])
     expect(workflow.permissions).toEqual({ contents: 'read' })
     expect(Object.keys(workflow.jobs)).toEqual([
-      'package-windows',
-      'package-linux',
-      'package-macos'
+      ...packageJobNames,
+      'scheduled-status'
     ])
 
-    const expectedUses = {
+    const expectedUses: Record<PackageJobName, string> = {
       'package-windows': './.github/workflows/_package-windows.yml',
       'package-linux': './.github/workflows/_package-linux.yml',
       'package-macos': './.github/workflows/_package-macos.yml'
     }
-    for (const [name, job] of Object.entries(workflow.jobs)) {
+    for (const name of packageJobNames) {
+      const job = workflow.jobs[name]
       expect(job.permissions).toEqual({ contents: 'read' })
       expect(job.strategy).toEqual({
         'fail-fast': false,
         matrix: { arch: ['x64', 'arm64'] }
       })
-      expect(job.uses).toBe(expectedUses[name as keyof typeof expectedUses])
+      expect(job.uses).toBe(expectedUses[name])
       expect(job.with).toEqual({
         'source-sha': '${{ inputs.source-sha || github.sha }}',
         arch: '${{ matrix.arch }}',
@@ -338,6 +502,34 @@ describe('Package Regression caller', () => {
       })
       expect(Object.keys(job.secrets!)).toEqual(Object.keys(commonSecrets))
     }
+
+    const scheduledStatus = workflow.jobs['scheduled-status']
+    expect(scheduledStatus).toMatchObject({
+      name: 'scheduled-regression-status',
+      if: "${{ always() && github.event_name == 'schedule' }}",
+      needs: packageJobNames,
+      'runs-on': 'ubuntu-24.04',
+      'timeout-minutes': 5,
+      permissions: {
+        contents: 'read',
+        issues: 'write'
+      }
+    })
+    expect(scheduledStatus.concurrency).toEqual({
+      group: 'scheduled-package-regression-issue',
+      queue: 'max'
+    })
+    expect(scheduledStatus.steps).toHaveLength(1)
+    expect(scheduledStatus.steps[0]).toMatchObject({
+      name: 'Update scheduled package regression issue',
+      shell: 'bash',
+      env: {
+        GH_TOKEN: '${{ github.token }}',
+        WINDOWS_RESULT: '${{ needs.package-windows.result }}',
+        LINUX_RESULT: '${{ needs.package-linux.result }}',
+        MACOS_RESULT: '${{ needs.package-macos.result }}'
+      }
+    })
   })
 
   it('cannot receive or forward Apple signing credentials', () => {
@@ -345,6 +537,112 @@ describe('Package Regression caller', () => {
     expect(source).not.toContain('DEEPCHAT_CSC')
     expect(source).not.toContain('DEEPCHAT_APPLE')
     expect(source).not.toContain('secrets: inherit')
+  })
+
+  it('creates one scheduled failure issue, updates it, and closes it on recovery', () => {
+    const statusStep = workflow.jobs['scheduled-status'].steps[0]
+    const script = statusStep.run!
+    const issueTitle = statusStep.env?.ISSUE_TITLE
+    if (!issueTitle) throw new Error('Missing scheduled regression issue title')
+    const temporaryDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'deepchat-regression-status-')
+    )
+    const fakeBinDirectory = path.join(temporaryDirectory, 'bin')
+    const fakeGhPath = path.join(fakeBinDirectory, 'gh')
+    fs.mkdirSync(fakeBinDirectory)
+    fs.writeFileSync(
+      fakeGhPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+printf 'ARG:%s\\n' "\${@}" >> "\${GH_CALLS_PATH}"
+if [[ "\${1:-}" == 'issue' && "\${2:-}" == 'list' ]]; then
+  printf '%s' "\${FAKE_OPEN_ISSUES:-}"
+  exit 0
+fi
+previous=''
+for argument in "\${@}"; do
+  if [[ "\${previous}" == '--body-file' ]]; then
+    printf '%s\\n' 'BODY:' >> "\${GH_CALLS_PATH}"
+    while IFS= read -r line || [[ -n "\${line}" ]]; do
+      printf '%s\\n' "\${line}" >> "\${GH_CALLS_PATH}"
+    done < "\${argument}"
+  fi
+  previous="\${argument}"
+done
+`
+    )
+    fs.chmodSync(fakeGhPath, 0o755)
+
+    const runStatus = (
+      results: {
+        windows: string
+        linux: string
+        macos: string
+      },
+      openIssues: string
+    ) => {
+      const callsPath = path.join(temporaryDirectory, 'gh-calls.txt')
+      fs.writeFileSync(callsPath, '')
+      const result = runBashStep(script, {
+        PATH: `${fakeBinDirectory}${path.delimiter}${process.env.PATH ?? ''}`,
+        GH_TOKEN: 'test-token',
+        GH_CALLS_PATH: callsPath,
+        FAKE_OPEN_ISSUES: openIssues,
+        GITHUB_REPOSITORY: 'ThinkInAIXYZ/deepchat',
+        GITHUB_RUN_NUMBER: '123',
+        GITHUB_SHA: 'b'.repeat(40),
+        ISSUE_TITLE: issueTitle,
+        RUNNER_TEMP: temporaryDirectory,
+        RUN_URL: 'https://github.com/ThinkInAIXYZ/deepchat/actions/runs/123',
+        WINDOWS_RESULT: results.windows,
+        LINUX_RESULT: results.linux,
+        MACOS_RESULT: results.macos
+      })
+      return {
+        result,
+        calls: fs.readFileSync(callsPath, 'utf8')
+      }
+    }
+
+    try {
+      const firstFailure = runStatus(
+        { windows: 'failure', linux: 'success', macos: 'success' },
+        ''
+      )
+      expect(firstFailure.result.status, firstFailure.result.stderr).toBe(0)
+      expect(firstFailure.calls).toContain('ARG:issue\nARG:list\n')
+      expect(firstFailure.calls).toContain('ARG:--state\nARG:open\n')
+      expect(firstFailure.calls).toContain(
+        `ARG:--search\nARG:"${issueTitle}" in:title\n`
+      )
+      expect(firstFailure.calls).toContain('ARG:--json\nARG:number,title\n')
+      expect(firstFailure.calls).toContain(
+        'ARG:--jq\nARG:.[] | select(.title == env.ISSUE_TITLE) | .number\n'
+      )
+      expect(firstFailure.calls).toContain('ARG:issue\nARG:create\n')
+      expect(firstFailure.calls).toContain('Windows: `failure`')
+      expect(firstFailure.calls).toContain(
+        'https://github.com/ThinkInAIXYZ/deepchat/actions/runs/123'
+      )
+
+      const repeatedFailure = runStatus(
+        { windows: 'success', linux: 'success', macos: 'failure' },
+        '42'
+      )
+      expect(repeatedFailure.result.status, repeatedFailure.result.stderr).toBe(0)
+      expect(repeatedFailure.calls).toContain('ARG:issue\nARG:comment\nARG:42\n')
+      expect(repeatedFailure.calls).not.toContain('ARG:issue\nARG:create\n')
+
+      const recovery = runStatus(
+        { windows: 'success', linux: 'success', macos: 'success' },
+        '42'
+      )
+      expect(recovery.result.status, recovery.result.stderr).toBe(0)
+      expect(recovery.calls).toContain('ARG:issue\nARG:close\nARG:42\n')
+      expect(recovery.calls).toContain('ARG:--reason\nARG:completed\n')
+    } finally {
+      fs.rmSync(temporaryDirectory, { recursive: true, force: true })
+    }
   })
 })
 

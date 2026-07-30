@@ -19,6 +19,7 @@ import {
   SkillMetadata,
   SkillContent,
   SkillInstallResult,
+  SkillCatalogPublicationMode,
   SkillFolderNode,
   SkillInstallOptions,
   SkillImportProvenance,
@@ -147,6 +148,8 @@ const BUILTIN_SKILL_ROOT_EXCLUDED_DIRS = new Set(['.agent-scopes'])
 const AGENT_SKILL_MIGRATION_MARKER = '.deepchat-skill-migration.json'
 const AGENT_SKILL_MIGRATION_STAGING_PREFIX = '.migration-'
 const SKILL_INSTALL_STAGING_PREFIX = '.install-'
+const SKILL_SYNC_EXPORT_STAGING_PREFIX = '.export-'
+const SKILL_SYNC_EXPORT_BACKUP_PREFIX = '.export-backup-'
 const DRAFT_INJECTION_PATTERNS = [
   /ignore\s+previous\s+instructions/i,
   /disregard\s+all\s+prior/i,
@@ -177,6 +180,15 @@ interface ScopedSkillCatalog {
   contentCache: Map<string, SkillContent>
   discoveryPromise: Promise<SkillMetadata[]> | null
   discovered: boolean
+}
+
+interface SkillDirectoryInstallContext {
+  options?: SkillInstallOptions
+  sourceType?: SkillSourceType
+  sourcePatch?: Partial<SkillSource>
+  targetName?: string
+  agentId?: string
+  publishCatalogEvent?: boolean
 }
 
 function createDefaultSkillExtensionConfig(): SkillExtensionConfig {
@@ -1002,11 +1014,16 @@ export class SkillService implements SkillServicePort {
       const { data } = matter(content)
 
       // Validate required fields
-      if (!data.name || !data.description) {
+      if (
+        typeof data.name !== 'string' ||
+        typeof data.description !== 'string' ||
+        !data.name ||
+        !data.description.trim()
+      ) {
         console.warn(`[SkillService] Skill ${dirName} missing required frontmatter fields`)
         return null
       }
-      if (typeof data.name !== 'string' || !this.isSafeSkillName(data.name)) {
+      if (!this.isSafeSkillName(data.name)) {
         logger.warn('[SkillService] Skill manifest contains an unsafe Skill name.', {
           skillPath,
           name: data.name
@@ -1023,7 +1040,7 @@ export class SkillService implements SkillServicePort {
 
       return {
         name: data.name || dirName,
-        description: data.description || '',
+        description: data.description.trim(),
         path: confinedSkillPath,
         skillRoot,
         category: this.deriveSkillCategory(skillRoot, catalogRoot),
@@ -1904,14 +1921,11 @@ export class SkillService implements SkillServicePort {
         error: 'No DeepChat Agent context available for draft installation'
       }
     }
-    const result = await this.installFromDirectory(
-      draftPath,
-      { overwrite: false },
-      'created',
-      {},
-      undefined,
+    const result = await this.installFromDirectory(draftPath, {
+      options: { overwrite: false },
+      sourceType: 'created',
       agentId
-    )
+    })
     if (!result.success) {
       return {
         success: false,
@@ -2027,7 +2041,10 @@ export class SkillService implements SkillServicePort {
         continue
       }
 
-      const result = await this.installFromDirectory(skillDir, { overwrite: false }, 'builtin')
+      const result = await this.installFromDirectory(skillDir, {
+        options: { overwrite: false },
+        sourceType: 'builtin'
+      })
       if (!result.success && result.error?.includes('already exists')) {
         continue
       }
@@ -2096,21 +2113,20 @@ export class SkillService implements SkillServicePort {
     options?: SkillInstallOptions
   ): Promise<SkillInstallResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
-    return await this.installFromDirectory(
-      folderPath,
+    return await this.installFromDirectory(folderPath, {
       options,
-      'folder-install',
-      {},
-      options?.targetName,
-      normalizedAgentId
-    )
+      sourceType: 'folder-install',
+      targetName: options?.targetName,
+      agentId: normalizedAgentId
+    })
   }
 
   async installImportedSkillForAgent(
     agentId: string,
     folderPath: string,
     provenance: SkillImportProvenance,
-    options?: SkillInstallOptions
+    options?: SkillInstallOptions,
+    catalogPublication: SkillCatalogPublicationMode = 'immediate'
   ): Promise<SkillInstallResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const importedFrom = provenance.importedFrom.trim()
@@ -2121,18 +2137,18 @@ export class SkillService implements SkillServicePort {
     if (sourceAgentId) {
       assertSafeSkillAgentId(sourceAgentId)
     }
-    return await this.installFromDirectory(
-      folderPath,
+    return await this.installFromDirectory(folderPath, {
       options,
-      'imported',
-      {
+      sourceType: 'imported',
+      sourcePatch: {
         importedFrom,
         importedAt: new Date().toISOString(),
         ...(sourceAgentId ? { agentId: sourceAgentId } : {})
       },
-      options?.targetName,
-      normalizedAgentId
-    )
+      targetName: options?.targetName,
+      agentId: normalizedAgentId,
+      publishCatalogEvent: catalogPublication === 'immediate'
+    })
   }
 
   /**
@@ -2162,14 +2178,11 @@ export class SkillService implements SkillServicePort {
       if (!skillDir) {
         return { success: false, error: 'SKILL.md not found in zip archive' }
       }
-      return await this.installFromDirectory(
-        skillDir,
+      return await this.installFromDirectory(skillDir, {
         options,
-        'zip-install',
-        {},
-        undefined,
-        normalizedAgentId
-      )
+        sourceType: 'zip-install',
+        agentId: normalizedAgentId
+      })
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMsg, errorCode: 'io_error' }
@@ -2279,6 +2292,7 @@ export class SkillService implements SkillServicePort {
         if (!item.valid) {
           results.push({
             success: false,
+            sourceSkillName: item.name,
             skillName: item.name,
             error: item.error ?? 'Invalid skill',
             errorCode: 'invalid_skill'
@@ -2290,6 +2304,7 @@ export class SkillService implements SkillServicePort {
         if (targetConflict && strategy === 'skip') {
           results.push({
             success: false,
+            sourceSkillName: item.name,
             skillName: item.name,
             existingSkillName: item.name,
             error: `Skill "${item.name}" already exists`,
@@ -2306,19 +2321,19 @@ export class SkillService implements SkillServicePort {
           targetConflict && strategy === 'rename'
             ? this.createUniqueSkillName(item.name, normalizedAgentId)
             : item.name
-        const result = await this.installFromDirectory(
-          sourceDir,
-          { overwrite: targetConflict && strategy === 'overwrite' },
-          'git-install',
-          {
+        const result = await this.installFromDirectory(sourceDir, {
+          options: { overwrite: targetConflict && strategy === 'overwrite' },
+          sourceType: 'git-install',
+          sourcePatch: {
             repoUrl,
             repoFormat: scan.repoFormat,
             installedAt: new Date().toISOString()
           },
           targetName,
-          normalizedAgentId
-        )
-        results.push(result)
+          agentId: normalizedAgentId,
+          publishCatalogEvent: false
+        })
+        results.push({ ...result, sourceSkillName: item.name })
       }
 
       if (results.some((result) => result.success)) {
@@ -2346,7 +2361,12 @@ export class SkillService implements SkillServicePort {
   async setSkillsSyncDirectory(input: {
     skillsDirectory: string
   }): Promise<SkillSyncDirectoryConfig> {
-    const skillsDirectory = path.resolve(input.skillsDirectory.trim())
+    const requestedDirectory = input.skillsDirectory.trim()
+    if (!requestedDirectory) {
+      throw new Error('Skills sync directory must not be empty')
+    }
+    const skillsDirectory = path.resolve(requestedDirectory)
+    this.assertSyncDirectoryIsolated(skillsDirectory)
     const config: SkillSyncDirectoryConfig = {
       skillsDirectory,
       layout: 'multi-skill-repo',
@@ -2420,8 +2440,7 @@ export class SkillService implements SkillServicePort {
       }
 
       try {
-        fs.rmSync(item.targetPath, { recursive: true, force: true })
-        this.copyDirectory(item.sourcePath, item.targetPath)
+        this.replaceSyncDirectorySkill(item.sourcePath, item.targetPath)
         exported += 1
       } catch (error) {
         failed.push({
@@ -2432,7 +2451,9 @@ export class SkillService implements SkillServicePort {
     }
 
     if (exported > 0) {
-      this.updateSyncDirectoryConfig({ lastExportAt: new Date().toISOString() })
+      this.tryUpdateSyncDirectoryActivity('export', {
+        lastExportAt: new Date().toISOString()
+      })
     }
 
     return {
@@ -2453,6 +2474,12 @@ export class SkillService implements SkillServicePort {
 
     for (const entry of fs.readdirSync(skillsRoot, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue
+      if (
+        entry.name.startsWith(SKILL_SYNC_EXPORT_STAGING_PREFIX) ||
+        entry.name.startsWith(SKILL_SYNC_EXPORT_BACKUP_PREFIX)
+      ) {
+        continue
+      }
       const sourcePath = path.join(skillsRoot, entry.name)
       const targetPath = path.join(this.skillsDir, entry.name)
       items.push(this.createImportPreviewItem(sourcePath, targetPath))
@@ -2492,16 +2519,16 @@ export class SkillService implements SkillServicePort {
         (item.state === 'conflict' || item.state === 'modified') && strategy === 'rename'
           ? this.createUniqueSkillName(item.name)
           : item.name
-      const result = await this.installFromDirectory(
-        item.sourcePath,
-        { overwrite: strategy === 'overwrite' },
-        'imported',
-        {
+      const result = await this.installFromDirectory(item.sourcePath, {
+        options: { overwrite: strategy === 'overwrite' },
+        sourceType: 'imported',
+        sourcePatch: {
           importedFrom: item.sourcePath,
           importedAt: new Date().toISOString()
         },
-        targetName
-      )
+        targetName,
+        publishCatalogEvent: false
+      })
       if (result.success) {
         imported += 1
       } else {
@@ -2513,7 +2540,14 @@ export class SkillService implements SkillServicePort {
     }
 
     if (imported > 0) {
-      this.updateSyncDirectoryConfig({ lastImportAt: new Date().toISOString() })
+      this.tryUpdateSyncDirectoryActivity('import', {
+        lastImportAt: new Date().toISOString()
+      })
+      this.publishEvent('skills.catalog.changed', {
+        reason: 'sync-imported',
+        agentIds: [BUILTIN_SKILL_AGENT_ID],
+        version: Date.now()
+      })
     }
 
     return {
@@ -2666,12 +2700,16 @@ export class SkillService implements SkillServicePort {
 
   private async installFromDirectory(
     folderPath: string,
-    options?: SkillInstallOptions,
-    sourceType: SkillSourceType = 'folder-install',
-    sourcePatch: Partial<SkillSource> = {},
-    targetName?: string,
-    agentId: string = BUILTIN_SKILL_AGENT_ID
+    context: SkillDirectoryInstallContext = {}
   ): Promise<SkillInstallResult> {
+    const {
+      options,
+      sourceType = 'folder-install',
+      sourcePatch = {},
+      targetName,
+      agentId = BUILTIN_SKILL_AGENT_ID,
+      publishCatalogEvent = true
+    } = context
     let targetPath = this.skillsDir
     let skillNameForFailure = targetName?.trim() || path.basename(folderPath)
     let finishAgentOperation: (() => void) | undefined
@@ -2856,41 +2894,55 @@ export class SkillService implements SkillServicePort {
           normalizedAgentId
         )
 
-        this.publishEvent('skills.catalog.changed', {
-          reason: 'installed',
-          name: finalSkillName,
-          agentIds: [normalizedAgentId],
-          version: Date.now()
-        })
+        if (publishCatalogEvent) {
+          this.publishEvent('skills.catalog.changed', {
+            reason: 'installed',
+            name: finalSkillName,
+            agentIds: [normalizedAgentId],
+            version: Date.now()
+          })
+        }
 
         return { success: true, skillName: finalSkillName, targetPath: resolvedTarget }
       } catch (error) {
-        let rollbackError: unknown
+        const rollbackErrors: unknown[] = []
         try {
           if (fs.existsSync(stagingDir)) {
             fs.rmSync(stagingDir, { recursive: true, force: true })
           }
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError)
+        }
+        try {
           if (committedNewTarget && fs.existsSync(resolvedTarget)) {
             fs.rmSync(resolvedTarget, { recursive: true, force: true })
           }
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError)
+        }
+        try {
           if (backupDir) {
             fs.renameSync(backupDir, resolvedTarget)
           }
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError)
+        }
+        try {
           if (managementStateTouched) this.saveManagementState(previousState)
-          if (cachesTouched) {
-            if (hadPreviousMetadata && previousMetadata) {
-              metadataCache.set(finalSkillName, previousMetadata)
-            } else {
-              metadataCache.delete(finalSkillName)
-            }
-            if (hadPreviousContent && previousContent) {
-              contentCache.set(finalSkillName, previousContent)
-            } else {
-              contentCache.delete(finalSkillName)
-            }
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError)
+        }
+        if (cachesTouched) {
+          if (hadPreviousMetadata && previousMetadata) {
+            metadataCache.set(finalSkillName, previousMetadata)
+          } else {
+            metadataCache.delete(finalSkillName)
           }
-        } catch (caughtRollbackError) {
-          rollbackError = caughtRollbackError
+          if (hadPreviousContent && previousContent !== undefined) {
+            contentCache.set(finalSkillName, previousContent)
+          } else {
+            contentCache.delete(finalSkillName)
+          }
         }
 
         const failure = this.createTargetOperationFailure(
@@ -2899,8 +2951,13 @@ export class SkillService implements SkillServicePort {
           'replace',
           error
         )
-        if (rollbackError) {
-          failure.error = `${failure.error} (rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)})`
+        if (rollbackErrors.length > 0) {
+          const rollbackMessage = rollbackErrors
+            .map((rollbackError) =>
+              rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+            )
+            .join('; ')
+          failure.error = `${failure.error} (rollback failed: ${rollbackMessage})`
         }
         return failure
       }
@@ -3209,7 +3266,48 @@ export class SkillService implements SkillServicePort {
     if (!config) {
       throw new Error('Skills sync directory is not configured')
     }
+    this.assertSyncDirectoryIsolated(config.skillsDirectory)
     return config
+  }
+
+  private assertSyncDirectoryIsolated(syncDirectory: string): void {
+    const syncSkillsDirectory = path.join(syncDirectory, 'skills')
+    const managedSkillsDirectory = path.resolve(this.skillsDir)
+    const physicalSyncSkillsDirectory = this.resolveDirectoryCandidate(syncSkillsDirectory)
+    const physicalManagedSkillsDirectory = this.resolveDirectoryCandidate(managedSkillsDirectory)
+    if (
+      this.directoriesOverlap(syncSkillsDirectory, managedSkillsDirectory) ||
+      this.directoriesOverlap(physicalSyncSkillsDirectory, physicalManagedSkillsDirectory)
+    ) {
+      throw new Error('Skills sync layout must not overlap the managed Skills directory')
+    }
+  }
+
+  private resolveDirectoryCandidate(directory: string): string {
+    let existingAncestor = path.resolve(directory)
+    const missingSegments: string[] = []
+    while (!fs.existsSync(existingAncestor)) {
+      const parent = path.dirname(existingAncestor)
+      if (parent === existingAncestor) break
+      missingSegments.unshift(path.basename(existingAncestor))
+      existingAncestor = parent
+    }
+    const physicalAncestor = fs.existsSync(existingAncestor)
+      ? fs.realpathSync(existingAncestor)
+      : existingAncestor
+    return path.resolve(physicalAncestor, ...missingSegments)
+  }
+
+  private directoriesOverlap(left: string, right: string): boolean {
+    const normalizedLeft = path.resolve(left)
+    const normalizedRight = path.resolve(right)
+    const leftToRight = path.relative(normalizedLeft, normalizedRight)
+    const rightToLeft = path.relative(normalizedRight, normalizedLeft)
+    return (
+      leftToRight === '' ||
+      (!leftToRight.startsWith('..') && !path.isAbsolute(leftToRight)) ||
+      (!rightToLeft.startsWith('..') && !path.isAbsolute(rightToLeft))
+    )
   }
 
   private updateSyncDirectoryConfig(patch: Partial<SkillSyncDirectoryConfig>): void {
@@ -3226,6 +3324,92 @@ export class SkillService implements SkillServicePort {
       reason: 'sync-directory-updated',
       version: Date.now()
     })
+  }
+
+  private tryUpdateSyncDirectoryActivity(
+    operation: 'export' | 'import',
+    patch:
+      | Pick<SkillSyncDirectoryConfig, 'lastExportAt'>
+      | Pick<SkillSyncDirectoryConfig, 'lastImportAt'>
+  ): void {
+    try {
+      this.updateSyncDirectoryConfig(patch)
+    } catch (error) {
+      logger.warn('[SkillService] Failed to persist sync directory activity timestamp.', {
+        operation,
+        error
+      })
+    }
+  }
+
+  private replaceSyncDirectorySkill(sourcePath: string, targetPath: string): void {
+    const parentDirectory = path.dirname(targetPath)
+    const targetName = path.basename(targetPath)
+    const operationId = randomUUID()
+    const stagingPath = path.join(
+      parentDirectory,
+      `${SKILL_SYNC_EXPORT_STAGING_PREFIX}${targetName}-${operationId}`
+    )
+    const backupPath = path.join(
+      parentDirectory,
+      `${SKILL_SYNC_EXPORT_BACKUP_PREFIX}${targetName}-${operationId}`
+    )
+    let targetBackedUp = false
+    let stagingCommitted = false
+
+    try {
+      this.copyDirectory(sourcePath, stagingPath)
+      if (fs.existsSync(targetPath)) {
+        fs.renameSync(targetPath, backupPath)
+        targetBackedUp = true
+      }
+      fs.renameSync(stagingPath, targetPath)
+      stagingCommitted = true
+    } catch (error) {
+      const rollbackErrors: unknown[] = []
+      try {
+        if (fs.existsSync(stagingPath)) {
+          fs.rmSync(stagingPath, { recursive: true, force: true })
+        }
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError)
+      }
+      try {
+        if (stagingCommitted && fs.existsSync(targetPath)) {
+          fs.rmSync(targetPath, { recursive: true, force: true })
+        }
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError)
+      }
+      try {
+        if (targetBackedUp) {
+          fs.renameSync(backupPath, targetPath)
+        }
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError)
+      }
+
+      if (rollbackErrors.length > 0) {
+        const rollbackMessage = rollbackErrors
+          .map((rollbackError) =>
+            rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+          )
+          .join('; ')
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        throw new Error(`${errorMessage} (rollback failed: ${rollbackMessage})`)
+      }
+      throw error
+    }
+
+    if (!targetBackedUp) return
+    try {
+      fs.rmSync(backupPath, { recursive: true, force: true })
+    } catch (error) {
+      logger.warn('[SkillService] Failed to remove completed Skill export backup.', {
+        targetName,
+        error
+      })
+    }
   }
 
   private ensureSyncDirectoryReadme(syncDirectory: string): void {
@@ -3527,21 +3711,76 @@ export class SkillService implements SkillServicePort {
         }
       }
 
-      fs.writeFileSync(confinedSkillPath, content, 'utf-8')
+      const previousSkillContent = fs.readFileSync(confinedSkillPath, 'utf-8')
+      const hadPreviousContent = contentCache.has(name)
+      const previousContent = contentCache.get(name)
+      let manifestWriteStarted = false
+      let cachesTouched = false
 
-      // Invalidate caches
-      contentCache.delete(name)
-      const newMetadata = await this.parseSkillMetadata(
-        confinedSkillPath,
-        name,
-        undefined,
-        this.getAgentSkillsRoot(normalizedAgentId)
-      )
-      if (newMetadata) {
+      try {
+        manifestWriteStarted = true
+        fs.writeFileSync(confinedSkillPath, content, 'utf-8')
+
+        const newMetadata = await this.parseSkillMetadata(
+          confinedSkillPath,
+          name,
+          undefined,
+          this.getAgentSkillsRoot(normalizedAgentId)
+        )
+        if (!newMetadata || newMetadata.name !== name) {
+          throw new Error(`Saved Skill failed validation: ${name}`)
+        }
+        this.assertAgentScopeActive(normalizedAgentId)
+
+        cachesTouched = true
         metadataCache.set(name, newMetadata)
-      }
+        contentCache.delete(name)
+        this.publishEvent('skills.catalog.changed', {
+          reason: 'metadata-updated',
+          name: newMetadata.name,
+          skill: newMetadata,
+          agentIds: [normalizedAgentId],
+          version: Date.now()
+        })
 
-      return { success: true, skillName: name }
+        return { success: true, skillName: name }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        let rollbackError: unknown
+
+        if (manifestWriteStarted) {
+          try {
+            fs.writeFileSync(confinedSkillPath, previousSkillContent, 'utf-8')
+          } catch (error) {
+            rollbackError = error
+          }
+        }
+        if (cachesTouched) {
+          metadataCache.set(name, metadata)
+          if (hadPreviousContent && previousContent !== undefined) {
+            contentCache.set(name, previousContent)
+          } else {
+            contentCache.delete(name)
+          }
+        }
+        if (rollbackError) {
+          metadataCache.delete(name)
+          contentCache.delete(name)
+          const rollbackMessage =
+            rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+          logger.warn('[SkillService] Failed to rollback Skill manifest update', {
+            name,
+            error,
+            rollbackError
+          })
+          return {
+            success: false,
+            error: `${errorMsg} (rollback failed: ${rollbackMessage})`
+          }
+        }
+
+        return { success: false, error: errorMsg }
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMsg }
@@ -3591,9 +3830,27 @@ export class SkillService implements SkillServicePort {
       const previousSkillContent = fs.readFileSync(confinedSkillPath, 'utf-8')
       const previousState = this.getStoredManagementState()
       const sanitized = sanitizeSkillExtensionConfig(config)
+      const hadPreviousContent = contentCache.has(name)
+      const previousContent = contentCache.get(name)
+      let manifestWriteStarted = false
+      let managementStateTouched = false
+      let cachesTouched = false
 
       try {
+        manifestWriteStarted = true
         fs.writeFileSync(confinedSkillPath, content, 'utf-8')
+        const newMetadata = await this.parseSkillMetadata(
+          confinedSkillPath,
+          name,
+          undefined,
+          this.getAgentSkillsRoot(normalizedAgentId)
+        )
+        if (!newMetadata || newMetadata.name !== name) {
+          throw new Error(`Saved Skill failed validation: ${name}`)
+        }
+        this.assertAgentScopeActive(normalizedAgentId)
+
+        managementStateTouched = true
         this.updateSkillManagementItem(
           name,
           (item) => ({
@@ -3604,32 +3861,58 @@ export class SkillService implements SkillServicePort {
           normalizedAgentId
         )
 
-        contentCache.delete(name)
-        const newMetadata = await this.parseSkillMetadata(
-          confinedSkillPath,
-          name,
-          undefined,
-          this.getAgentSkillsRoot(normalizedAgentId)
-        )
         this.assertAgentScopeActive(normalizedAgentId)
-        if (newMetadata) {
-          metadataCache.set(name, newMetadata)
-        }
+        cachesTouched = true
+        metadataCache.set(name, newMetadata)
+        contentCache.delete(name)
+        this.publishEvent('skills.catalog.changed', {
+          reason: 'metadata-updated',
+          name: newMetadata.name,
+          skill: newMetadata,
+          extensionChanged: true,
+          agentIds: [normalizedAgentId],
+          version: Date.now()
+        })
 
         return { success: true, skillName: name }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
+        const rollbackErrors: unknown[] = []
 
-        try {
-          fs.writeFileSync(confinedSkillPath, previousSkillContent, 'utf-8')
-          this.saveManagementState(previousState)
-        } catch (rollbackError) {
-          const rollbackMessage =
-            rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+        if (manifestWriteStarted) {
+          try {
+            fs.writeFileSync(confinedSkillPath, previousSkillContent, 'utf-8')
+          } catch (rollbackError) {
+            rollbackErrors.push(rollbackError)
+          }
+        }
+        if (managementStateTouched) {
+          try {
+            this.saveManagementState(previousState)
+          } catch (rollbackError) {
+            rollbackErrors.push(rollbackError)
+          }
+        }
+        if (cachesTouched) {
+          metadataCache.set(name, metadata)
+          if (hadPreviousContent && previousContent !== undefined) {
+            contentCache.set(name, previousContent)
+          } else {
+            contentCache.delete(name)
+          }
+        }
+        if (rollbackErrors.length > 0) {
+          metadataCache.delete(name)
+          contentCache.delete(name)
+          const rollbackMessage = rollbackErrors
+            .map((rollbackError) =>
+              rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+            )
+            .join('; ')
           logger.warn('[SkillService] Failed to rollback combined skill save', {
             name,
             error,
-            rollbackError
+            rollbackErrors
           })
           return {
             success: false,
@@ -3637,7 +3920,6 @@ export class SkillService implements SkillServicePort {
           }
         }
 
-        contentCache.delete(name)
         return { success: false, error: errorMsg }
       }
     } finally {

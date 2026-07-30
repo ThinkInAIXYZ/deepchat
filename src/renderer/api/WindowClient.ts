@@ -1,8 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   type DeepchatEventPayload,
-  databaseRepairSuggestedEvent,
-  notificationErrorEvent,
   settingsCheckForUpdatesRequestedEvent,
   settingsNavigateRequestedEvent,
   settingsProviderInstallRequestedEvent,
@@ -160,18 +158,6 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
     return bridge.on(settingsCheckForUpdatesRequestedEvent.name, listener)
   }
 
-  function onNotificationError(
-    listener: (payload: DeepchatEventPayload<typeof notificationErrorEvent.name>) => void
-  ) {
-    return bridge.on(notificationErrorEvent.name, listener)
-  }
-
-  function onDatabaseRepairSuggested(
-    listener: (payload: DeepchatEventPayload<typeof databaseRepairSuggestedEvent.name>) => void
-  ) {
-    return bridge.on(databaseRepairSuggestedEvent.name, listener)
-  }
-
   return {
     getCurrentState,
     minimizeCurrent,
@@ -189,9 +175,7 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
     onCurrentStateChanged,
     onSettingsNavigate,
     onSettingsProviderInstall,
-    onSettingsCheckForUpdates,
-    onNotificationError,
-    onDatabaseRepairSuggested
+    onSettingsCheckForUpdates
   }
 }
 

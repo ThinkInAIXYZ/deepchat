@@ -29,7 +29,7 @@
     "customProxyUrlPlaceholder": "Exemple : http://127.0.0.1:7890",
     "invalidProxyUrl": "URL de proxy invalide, veuillez entrer une URL http/https valide",
     "addCustomSearchEngine": "Ajouter un moteur de recherche personnalisé",
-    "addCustomSearchEngineDesc": "Ajoutez un nouveau moteur de recherche en fournissant un nom et une URL de recherche. L'URL doit inclure {query} comme espace réservé pour la requête.",
+    "addCustomSearchEngineDesc": "Ajoutez un nouveau moteur de recherche en fournissant un nom et une URL de recherche. L'URL doit inclure {'{'}query{'}'} comme espace réservé pour la requête.",
     "searchEngineName": "Nom du moteur de recherche",
     "searchEngineNamePlaceholder": "Entrez le nom du moteur de recherche",
     "searchEngineUrl": "URL de recherche",
@@ -455,7 +455,7 @@
   "dashboard": {
     "badge": "Tableau de bord d'utilisation",
     "title": "Tableau de bord d'utilisation",
-    "description": "Affiche la consommation de tokens, les accès au cache et le coût estimé. Les données de tokens et de coût sont estimées à partir d’informations publiques ; certains fournisseurs ou messages plus anciens peuvent être incomplets, donc ces chiffres sont fournis à titre indicatif.",
+    "description": "Suivez l’utilisation des jetons et les accès au cache.",
     "actions": {
       "refresh": "Actualiser"
     },
@@ -471,8 +471,8 @@
     },
     "empty": {
       "title": "Pas encore de statistiques d'utilisation",
-      "description": "La consommation de tokens, les accès au cache et le coût estimé apparaîtront ici dès que des données d’utilisation seront disponibles.",
-      "historyNote": "Les données de tokens et de coût sont estimées à partir d’informations publiques. Certains fournisseurs ou messages plus anciens peuvent être incomplets, donc ces chiffres sont fournis à titre indicatif."
+      "description": "L’utilisation des jetons et les accès au cache apparaîtront ici dès que des données d’utilisation seront disponibles.",
+      "historyNote": "Les données d’utilisation de certains fournisseurs ou des messages antérieurs peuvent être incomplètes."
     },
     "summary": {
       "totalTokens": "Total des tokens",
@@ -485,10 +485,6 @@
       "cachedTokensUncachedLabel": "Sans cache",
       "cacheHitRate": "Taux de cache",
       "cacheHitRateDescription": "Tokens de prompt en cache divisés par le total des tokens d'entrée.",
-      "estimatedCost": "Coût estimé",
-      "estimatedCostDescription": "Estimation en USD à partir des tarifs du fournisseur ou du tarif de secours AIHubMix.",
-      "estimatedCostTrendLabel": "Tendance sur les 30 derniers jours",
-      "estimatedCostTrendEmpty": "Aucun coût enregistré sur les 30 derniers jours.",
       "recordingStartedAt": "Début de l'enregistrement",
       "recordingStartedAtDescription": "Le plus ancien enregistrement d'utilisation actuellement stocké dans ce tableau de bord.",
       "withDeepChatDaysLabel": "Jours ensemble",
@@ -518,9 +514,9 @@
     },
     "breakdown": {
       "providerTitle": "Classement des fournisseurs",
-      "providerDescription": "Triés d’abord par coût estimé, puis par nombre total de tokens.",
+      "providerDescription": "Classés par nombre total de jetons.",
       "modelTitle": "Classement des modèles",
-      "modelDescription": "Top 10 des modèles par coût estimé, puis par nombre total de tokens.",
+      "modelDescription": "Les 10 meilleurs modèles par nombre total de jetons.",
       "messages": "{count} messages",
       "empty": "Aucune donnée de répartition à afficher pour le moment."
     },
@@ -943,7 +939,7 @@
       },
       "disableAllModels": {
         "title": "Confirmer la désactivation de tous les modèles",
-        "content": "Êtes-vous sûr de vouloir désactiver tous les modèles ?",
+        "content": "Êtes-vous sûr de vouloir désactiver tous les modèles de « {name} » ?",
         "confirm": "Désactiver tout"
       },
       "configModels": {
@@ -1117,7 +1113,7 @@
         "errorDetails": "Détails d'erreur",
         "errors": "Erreur {count}",
         "fetchingServers": "Obtenir la liste des serveurs MCP ...",
-        "imported": "{comte} Les services ont été importés",
+        "imported": "{count} services ont été importés",
         "importingServers": "Configuration d'importation de serveur ...",
         "invalidServerData": "Données de serveur non valides",
         "noApiKey": "Veuillez d'abord configurer la clé de l'API Modelcope",
@@ -1296,7 +1292,15 @@
       "seconds": "seconde",
       "testConnection": "Tester la connexion",
       "timeout": "dépassement de délai",
-      "title": "Configuration d'exportation Nowledge Mem"
+      "title": "Configuration d'exportation Nowledge Mem",
+      "configLoadFailed": "Impossible de charger la configuration",
+      "configSaved": "Configuration enregistrée",
+      "configSaveFailed": "Impossible d’enregistrer la configuration",
+      "configReset": "Configuration réinitialisée",
+      "configResetFailed": "Impossible de réinitialiser la configuration",
+      "connectionSucceeded": "Connexion réussie",
+      "connectionFailed": "Impossible de se connecter avec la configuration actuelle",
+      "invalidBaseUrl": "Saisissez une adresse HTTP ou HTTPS sans identifiants ni paramètres de requête"
     }
   },
   "mcp": {
@@ -1332,6 +1336,7 @@
       "name": "Nom du serveur",
       "namePlaceholder": "Entrer le nom du serveur",
       "nameRequired": "Le nom du serveur est requis",
+      "nameDuplicate": "Un serveur portant ce nom existe déjà.",
       "type": "Type de serveur",
       "typePlaceholder": "Sélectionner le type de serveur",
       "typeStdio": "Entrée et sortie standard (Stdio)",
@@ -1435,7 +1440,7 @@
     "confirmDelete": {
       "cancel": "Annuler",
       "confirm": "supprimer",
-      "description": "Êtes-vous sûr de vouloir supprimer le serveur {nom}? Cette opération ne peut pas être annulée.",
+      "description": "Êtes-vous sûr de vouloir supprimer le serveur {name}? Cette opération ne peut pas être annulée.",
       "title": "Confirmer la suppression"
     },
     "confirmRemoveServer": "Êtes-vous sûr de vouloir supprimer le serveur {name} ? Cette action ne peut pas être annulée.",
@@ -1637,7 +1642,7 @@
       "error": "Erreur",
       "invalidAgent": "L'agent est manquant ou désactivé. Choisissez un autre agent."
     },
-    "runNowSuccess": "Tâche planifiée démarrée"
+    "runNowSuccess": "Tâche planifiée terminée"
   },
   "about": {
     "checkUpdate": "Vérifier les mises à jour",
@@ -2544,12 +2549,12 @@
       "generatePairCode": "Générer",
       "clearPairCode": "Effacer",
       "pairCodeExpiresAt": "Expire à {time}",
-      "pairDialogTitle": "Association Telegram",
-      "pairDialogDescription": "Générez un code d’association puis terminez l’association dans la conversation avec votre bot Telegram.",
+      "pairDialogTitle": "Association {channel}",
+      "pairDialogDescription": "Générez un code d’association puis terminez l’association dans la conversation avec votre bot {channel}.",
       "pairDialogInstruction": "Envoyez cette commande au bot correspondant :",
-      "bindingsDialogTitle": "Sessions liées",
-      "bindingsDialogDescription": "Supprimez les liaisons de session Telegram une par une.",
-      "bindingsEmpty": "Aucune liaison Telegram pour le moment.",
+      "bindingsDialogTitle": "Sessions {channel} liées",
+      "bindingsDialogDescription": "Supprimez les liaisons de session distante une par une.",
+      "bindingsEmpty": "Aucune liaison pour le moment.",
       "pairingSuccessTitle": "Association terminée",
       "pairingSuccessDescription": "La liste des IDs utilisateur autorisés a été actualisée.",
       "clearBindings": "Effacer les liaisons",
@@ -2714,7 +2719,21 @@
       "safe_storage_unavailable": "Le cache persistant est indisponible, car aucun stockage sécurisé des clés n’est disponible."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Modifications non enregistrées",
+    "dirtyDescription": "Quitter et abandonner vos modifications ?",
+    "busyTitle": "Enregistrement en cours",
+    "busyDescription": "Attendez la fin de l’enregistrement avant de quitter.",
+    "stay": "Continuer",
+    "discard": "Abandonner"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Enregistrement…",
+      "saved": "Enregistré",
+      "saveFailed": "Échec de l’enregistrement. Modifications conservées.",
+      "retry": "Réessayer"
+    },
     "title": "Agents DeepChat",
     "description": "Gérez les agents DeepChat et les valeurs par défaut qu'ils injectent dans les nouvelles sessions.",
     "builtIn": "Intégré",

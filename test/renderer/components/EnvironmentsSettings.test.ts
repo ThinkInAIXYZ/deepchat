@@ -54,12 +54,14 @@ const draggableStub = defineComponent({
 })
 
 const dialogStub = defineComponent({
+  name: 'Dialog',
   props: {
     open: {
       type: Boolean,
       default: false
     }
   },
+  emits: ['update:open'],
   template: '<div v-if="open"><slot /></div>'
 })
 
@@ -173,6 +175,14 @@ const createTranslator = () => (key: string, params?: Record<string, unknown>) =
       return 'Restore failed'
     case 'settings.environments.errors.removeTitle':
       return 'Remove failed'
+    case 'common.loading':
+      return 'Loading...'
+    case 'common.saving':
+      return 'Saving'
+    case 'common.saved':
+      return 'Saved'
+    case 'common.error.operationFailed':
+      return 'Operation failed'
     case 'common.cancel':
       return 'Cancel'
     default:
@@ -188,7 +198,6 @@ async function setup(overrides?: {
 }) {
   vi.resetModules()
 
-  const toast = vi.fn()
   const projectStore = reactive({
     defaultProjectPath:
       overrides && 'defaultProjectPath' in overrides
@@ -240,9 +249,6 @@ async function setup(overrides?: {
   vi.doMock('@api/ProjectClient', () => ({
     createProjectClient: () => projectClient
   }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({ toast })
-  }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       t: createTranslator(),
@@ -289,8 +295,7 @@ async function setup(overrides?: {
   return {
     wrapper,
     projectStore,
-    projectClient,
-    toast
+    projectClient
   }
 }
 
@@ -467,7 +472,7 @@ describe('EnvironmentsSettings', () => {
     ])
   })
 
-  it('shows a toast when reordered environments fail to persist', async () => {
+  it('keeps reorder failures inline without exposing exception messages', async () => {
     const appEnvironment = {
       path: '/work/app',
       name: 'app',
@@ -492,10 +497,13 @@ describe('EnvironmentsSettings', () => {
       archivedAt: null,
       removedAt: null
     }
-    const { wrapper, projectStore, toast } = await setup({
+    const { wrapper, projectStore } = await setup({
       environments: [appEnvironment, betaEnvironment]
     })
-    projectStore.reorderEnvironments.mockRejectedValueOnce(new Error('reorder failed'))
+    projectStore.reorderEnvironments.mockRejectedValueOnce(
+      new Error('/private/projects/order.json')
+    )
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     await wrapper
       .findAll('button')
@@ -503,11 +511,11 @@ describe('EnvironmentsSettings', () => {
       .trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'Reorder failed',
-      description: 'reorder failed',
-      variant: 'destructive'
-    })
+    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
+    expect(feedback.attributes('data-status')).toBe('error')
+    expect(feedback.text()).toContain('Reorder failed')
+    expect(wrapper.text()).not.toContain('/private/projects/order.json')
+    consoleError.mockRestore()
   })
 
   it('archives an active environment after confirmation', async () => {
@@ -525,6 +533,58 @@ describe('EnvironmentsSettings', () => {
     await flushPromises()
 
     expect(projectStore.archiveEnvironment).toHaveBeenCalledWith('/work/app')
+  })
+
+  it('keeps confirmation open when an archive fails', async () => {
+    const { wrapper, projectStore } = await setup()
+    projectStore.archiveEnvironment.mockRejectedValueOnce(new Error('/private/project.db'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const archiveMenuItem = wrapper.findAll('button').find((button) => button.text() === 'Archive')
+
+    await archiveMenuItem!.trigger('click')
+    await flushPromises()
+    const archiveButtons = wrapper.findAll('button').filter((button) => button.text() === 'Archive')
+    await archiveButtons[archiveButtons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(projectStore.archiveEnvironment).toHaveBeenCalledWith('/work/app')
+    expect(wrapper.text()).toContain('Archive app?')
+    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
+    expect(feedback.attributes('data-status')).toBe('error')
+    expect(feedback.text()).toContain('Archive failed')
+    expect(wrapper.text()).not.toContain('/private/project.db')
+    consoleError.mockRestore()
+  })
+
+  it('prevents dismissal while a confirmed action is still running', async () => {
+    let resolveArchive!: () => void
+    const { wrapper, projectStore } = await setup()
+    projectStore.archiveEnvironment.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveArchive = resolve
+      })
+    )
+    const archiveMenuItem = wrapper.findAll('button').find((button) => button.text() === 'Archive')
+
+    await archiveMenuItem!.trigger('click')
+    await flushPromises()
+    const archiveButtons = wrapper.findAll('button').filter((button) => button.text() === 'Archive')
+    await archiveButtons[archiveButtons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(
+      wrapper
+        .findAll('button')
+        .find((button) => button.text() === 'Cancel')
+        ?.attributes('disabled')
+    ).toBeDefined()
+    wrapper.getComponent(dialogStub).vm.$emit('update:open', false)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Archive app?')
+
+    resolveArchive()
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Archive app?')
   })
 
   it('restores archived environments from the archived tab', async () => {

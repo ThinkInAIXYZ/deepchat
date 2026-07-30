@@ -36,7 +36,13 @@ const loadTree = async () => {
   try {
     nodes.value = await skillsStore.getSkillFolderTree(props.skillName)
   } catch (error) {
-    console.error('Failed to load folder tree:', error)
+    console.error(
+      '[SkillFolderTree] Failed to load folder tree',
+      {
+        skillName: props.skillName
+      },
+      error
+    )
     nodes.value = []
   } finally {
     loading.value = false

@@ -69,6 +69,10 @@ screen asks for it.
 - `auto` starts window-only. Keep it there while an exact window target exists.
 - `window` is strict window-only operation.
 - `desktop` is an explicit choice for visible full-desktop input.
+- A `## CUA browser chrome coverage` block means a Chromium window snapshot cannot rule out
+  browser-owned chrome such as a permission bubble. It does not mean that a prompt is present.
+  Follow its recovery branch only after a window action was verified ineffective: escalate the
+  current session, inspect desktop state, act in desktop scope only if needed, then verify again.
 - In an `auto` session, call `escalate_session` only after the window accessibility, pixel, browser,
   and foreground-delivery paths were attempted and verified. The transition is one-way for that
   live session; do not infer it from a transport session id or a failed action.
@@ -134,7 +138,9 @@ motion tool.
 
 Use `set_agent_cursor_theme({ session, theme_id, ... })` only when the user explicitly asks to
 change appearance. `cua.default` is the bundled, verified theme. Do not guess a custom theme id;
-use one only when the user supplies an exact installed id.
+use one only when the user supplies an exact installed id. Custom themes must use the current v2
+action-only profile; retired v1 themes with modifier artwork are not compatible. Delivery and
+target context are rendered by the session badge rather than by theme modifier assets.
 
 ## Recording
 

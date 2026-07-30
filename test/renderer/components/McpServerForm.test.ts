@@ -65,10 +65,8 @@ const loadMcpServerForm = async () => {
       t: (key: string) => key
     })
   }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast: vi.fn()
-    })
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer: vi.fn()
   }))
   vi.doMock('@/components/emoji-picker', () => ({
     EmojiPicker: defineComponent({
@@ -107,7 +105,7 @@ const globalStubs = {
 }
 
 describe('McpServerForm', () => {
-  it('does not expose or submit the removed MCP auto-approve policy', async () => {
+  it('omits auto-approve policy and renders submission feedback', async () => {
     const McpServerForm = await loadMcpServerForm()
     const wrapper = mount(McpServerForm, {
       props: {
@@ -135,6 +133,16 @@ describe('McpServerForm', () => {
     const submitEvent = wrapper.emitted('submit')?.[0]
     expect(submitEvent?.[0]).toBe('test-server')
     expect(submitEvent?.[1]).not.toHaveProperty('autoApprove')
+
+    await wrapper.setProps({
+      submitting: true,
+      submissionError: 'A server with this name already exists.'
+    })
+
+    expect(wrapper.get('[role="alert"]').text()).toBe('A server with this name already exists.')
+    expect(wrapper.get('form').attributes('inert')).toBeDefined()
+    expect(wrapper.get('form').attributes('aria-busy')).toBe('true')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
   })
 
   it('keeps SSE available as a compatibility transport when adding a server', async () => {
@@ -154,5 +162,37 @@ describe('McpServerForm', () => {
     const sseOption = wrapper.find('[value="sse"]')
     expect(sseOption.exists()).toBe(true)
     expect(sseOption.text()).toContain('settings.mcp.serverForm.sseCompatibilityBadge')
+  })
+
+  it('keeps invalid JSON feedback beside the configuration input', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const McpServerForm = await loadMcpServerForm()
+    const wrapper = mount(McpServerForm, {
+      global: {
+        stubs: globalStubs
+      }
+    })
+
+    await wrapper.get('#json-config').setValue('{')
+    await wrapper.findAll('button').at(-1)!.trigger('click')
+
+    expect(wrapper.get('#json-config-error').text()).toBe('settings.mcp.serverForm.parseError')
+    expect(wrapper.get('#json-config').attributes('aria-invalid')).toBe('true')
+
+    await wrapper.get('#json-config').setValue(
+      JSON.stringify({
+        mcpServers: {
+          filesystem: {
+            command: 'node',
+            args: ['server.js']
+          }
+        }
+      })
+    )
+    await wrapper.findAll('button').at(-1)!.trigger('click')
+
+    expect(wrapper.find('#json-config-error').exists()).toBe(false)
+    expect(wrapper.find('#server-name').exists()).toBe(true)
+    consoleError.mockRestore()
   })
 })

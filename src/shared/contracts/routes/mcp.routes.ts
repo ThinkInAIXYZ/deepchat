@@ -12,6 +12,7 @@ import type {
   McpAppServerResourceListResult,
   McpAppServerResourceTemplateListResult,
   McpAppServerToolListResult,
+  McpAddServerResult,
   McpClient,
   McpCredentialBinding,
   McpCredentialInput,
@@ -318,6 +319,10 @@ const McpAppServerPromptSchema = z.object({
   icons: z.array(McpAppServerIconSchema).max(32).optional(),
   _meta: z.record(z.string().max(256), JsonValueSchema).optional()
 })
+const McpAddServerResultSchema: z.ZodType<McpAddServerResult> = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('added') }).strict(),
+  z.object({ status: z.literal('duplicate') }).strict()
+])
 export const McpServerAuthStatusSchema: z.ZodType<McpServerAuthStatus> = z.object({
   serverName: z.string().min(1).max(256),
   serverId: z.string().min(1).max(256).optional(),
@@ -544,7 +549,7 @@ export const mcpAddServerRoute = defineRouteContract({
     config: MCPServerConfigSchema
   }),
   output: z.object({
-    success: z.boolean()
+    result: McpAddServerResultSchema
   })
 })
 
@@ -1125,16 +1130,6 @@ export const mcpRouterListInstalledServerIdsRoute = defineRouteContract({
   }),
   output: z.object({
     installedSourceIds: z.array(z.string())
-  })
-})
-
-export const mcpRouterUpdateServersAuthRoute = defineRouteContract({
-  name: 'mcp.router.updateServersAuth',
-  input: z.object({
-    apiKey: z.string()
-  }),
-  output: z.object({
-    updated: z.literal(true)
   })
 })
 

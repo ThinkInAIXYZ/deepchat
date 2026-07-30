@@ -16,5 +16,9 @@
   "autoUpdate": "Pembaruan otomatis",
   "restarting": "Memulai ulang",
   "alreadyUpToDate": "Sudah versi terbaru",
-  "alreadyUpToDateDesc": "DeepChat Anda saat ini adalah versi terbaru dan tidak perlu diperbarui."
+  "alreadyUpToDateDesc": "DeepChat Anda saat ini adalah versi terbaru dan tidak perlu diperbarui.",
+  "taskRunningTitle": "Tugas Sedang Berjalan",
+  "taskRunningDescription": "Ada tugas yang sedang berjalan. Bagaimana Anda ingin melanjutkan pembaruan?",
+  "updateNow": "Perbarui Sekarang",
+  "updateAfterTasksComplete": "Perbarui Setelah Tugas Selesai"
 }

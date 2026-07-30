@@ -14,6 +14,17 @@ const passthroughStub = (name: string) =>
     template: '<div><slot /></div>'
   })
 
+const selectStub = defineComponent({
+  name: 'Select',
+  props: {
+    modelValue: { type: String, default: '' },
+    disabled: { type: Boolean, default: false }
+  },
+  emits: ['update:modelValue'],
+  template:
+    '<div data-testid="update-channel-select" :data-value="modelValue" :data-disabled="String(disabled)"><slot /></div>'
+})
+
 const route = {
   name: 'settings-about'
 }
@@ -28,7 +39,6 @@ const deviceClientMock = vi.hoisted(() => ({
 const browserClientMock = vi.hoisted(() => ({
   openExternal: vi.fn()
 }))
-const toastMock = vi.hoisted(() => vi.fn())
 const windowClientMock = vi.hoisted(() => ({
   startGuidedOnboarding: vi.fn(),
   onSettingsCheckForUpdates: vi.fn().mockImplementation((listener: () => void) => {
@@ -87,12 +97,6 @@ vi.mock('@/stores/theme', () => ({
   })
 }))
 
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({
-    toast: toastMock
-  })
-}))
-
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: { version?: string; title?: string; count?: number }) => {
@@ -131,10 +135,20 @@ vi.mock('vue-router', () => ({
 describe('AboutUsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    configClientMock.getUpdateChannel.mockReset()
+    configClientMock.setUpdateChannel.mockReset()
+    deviceClientMock.getAppVersion.mockReset()
+    browserClientMock.openExternal.mockReset()
+    upgradeStoreMock.refreshStatus.mockReset()
+    upgradeStoreMock.checkUpdate.mockReset()
+    upgradeStoreMock.handleUpdate.mockReset()
     configClientMock.getUpdateChannel.mockResolvedValue('stable')
     configClientMock.setUpdateChannel.mockResolvedValue('stable')
     deviceClientMock.getAppVersion.mockResolvedValue('1.0.0-beta.3')
     browserClientMock.openExternal.mockResolvedValue(undefined)
+    upgradeStoreMock.refreshStatus.mockResolvedValue('error')
+    upgradeStoreMock.checkUpdate.mockResolvedValue('error')
+    upgradeStoreMock.handleUpdate.mockResolvedValue(undefined)
     Object.assign(upgradeStoreMock, {
       shouldShowUpdateNotes: true,
       updateInfo: {
@@ -179,7 +193,7 @@ describe('AboutUsSettings', () => {
           DialogFooter: passthroughStub('DialogFooter'),
           DialogHeader: passthroughStub('DialogHeader'),
           DialogTitle: passthroughStub('DialogTitle'),
-          Select: passthroughStub('Select'),
+          Select: selectStub,
           SelectContent: passthroughStub('SelectContent'),
           SelectItem: passthroughStub('SelectItem'),
           SelectTrigger: passthroughStub('SelectTrigger'),
@@ -225,7 +239,7 @@ describe('AboutUsSettings', () => {
           DialogFooter: passthroughStub('DialogFooter'),
           DialogHeader: passthroughStub('DialogHeader'),
           DialogTitle: passthroughStub('DialogTitle'),
-          Select: passthroughStub('Select'),
+          Select: selectStub,
           SelectContent: passthroughStub('SelectContent'),
           SelectItem: passthroughStub('SelectItem'),
           SelectTrigger: passthroughStub('SelectTrigger'),
@@ -269,7 +283,7 @@ describe('AboutUsSettings', () => {
           DialogFooter: passthroughStub('DialogFooter'),
           DialogHeader: passthroughStub('DialogHeader'),
           DialogTitle: passthroughStub('DialogTitle'),
-          Select: passthroughStub('Select'),
+          Select: selectStub,
           SelectContent: passthroughStub('SelectContent'),
           SelectItem: passthroughStub('SelectItem'),
           SelectTrigger: passthroughStub('SelectTrigger'),
@@ -294,6 +308,95 @@ describe('AboutUsSettings', () => {
     wrapper.unmount()
   })
 
+  it('shows an inline confirmation when no update is available', async () => {
+    upgradeStoreMock.showManualDownloadOptions = false
+    upgradeStoreMock.updateError = null
+    upgradeStoreMock.updateState = 'idle'
+    upgradeStoreMock.checkUpdate.mockResolvedValueOnce('not-available')
+
+    const { default: AboutUsSettings } =
+      await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
+
+    const wrapper = mount(AboutUsSettings, {
+      global: {
+        stubs: {
+          Button: buttonStub,
+          Icon: true,
+          Dialog: passthroughStub('Dialog'),
+          DialogContent: passthroughStub('DialogContent'),
+          DialogDescription: passthroughStub('DialogDescription'),
+          DialogFooter: passthroughStub('DialogFooter'),
+          DialogHeader: passthroughStub('DialogHeader'),
+          DialogTitle: passthroughStub('DialogTitle'),
+          Select: selectStub,
+          SelectContent: passthroughStub('SelectContent'),
+          SelectItem: passthroughStub('SelectItem'),
+          SelectTrigger: passthroughStub('SelectTrigger'),
+          SelectValue: passthroughStub('SelectValue'),
+          NodeRenderer: passthroughStub('NodeRenderer')
+        }
+      }
+    })
+
+    await flushPromises()
+    const checkButton = wrapper.findAll('button').find((button) => button.text() === '检查更新')
+    expect(checkButton).toBeTruthy()
+
+    await checkButton!.trigger('click')
+    await flushPromises()
+
+    expect(upgradeStoreMock.checkUpdate).toHaveBeenCalledWith(false)
+    const feedback = wrapper
+      .findAll('[data-testid="inline-operation-feedback"]')
+      .find((item) => item.attributes('data-status') === 'success')
+    expect(feedback?.text()).toContain('update.alreadyUpToDate')
+
+    wrapper.unmount()
+  })
+
+  it('keeps the committed update channel when persistence fails', async () => {
+    configClientMock.setUpdateChannel.mockRejectedValueOnce(new Error('disk unavailable'))
+
+    const { default: AboutUsSettings } =
+      await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
+
+    const wrapper = mount(AboutUsSettings, {
+      global: {
+        stubs: {
+          Button: buttonStub,
+          Icon: true,
+          Dialog: passthroughStub('Dialog'),
+          DialogContent: passthroughStub('DialogContent'),
+          DialogDescription: passthroughStub('DialogDescription'),
+          DialogFooter: passthroughStub('DialogFooter'),
+          DialogHeader: passthroughStub('DialogHeader'),
+          DialogTitle: passthroughStub('DialogTitle'),
+          Select: selectStub,
+          SelectContent: passthroughStub('SelectContent'),
+          SelectItem: passthroughStub('SelectItem'),
+          SelectTrigger: passthroughStub('SelectTrigger'),
+          SelectValue: passthroughStub('SelectValue'),
+          NodeRenderer: passthroughStub('NodeRenderer')
+        }
+      }
+    })
+
+    await flushPromises()
+    const select = wrapper.getComponent(selectStub)
+    select.vm.$emit('update:modelValue', 'beta')
+    await flushPromises()
+
+    expect(configClientMock.setUpdateChannel).toHaveBeenCalledWith('beta')
+    expect(select.props('modelValue')).toBe('stable')
+    const feedback = wrapper
+      .findAll('[data-testid="inline-operation-feedback"]')
+      .find((item) => item.attributes('data-status') === 'error')
+    expect(feedback?.text()).toContain('common.error.operationFailed')
+    expect(wrapper.text()).not.toContain('disk unavailable')
+
+    wrapper.unmount()
+  })
+
   it('does not render debug mock controls or create their clients', async () => {
     const { default: AboutUsSettings } =
       await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
@@ -309,7 +412,7 @@ describe('AboutUsSettings', () => {
           DialogFooter: passthroughStub('DialogFooter'),
           DialogHeader: passthroughStub('DialogHeader'),
           DialogTitle: passthroughStub('DialogTitle'),
-          Select: passthroughStub('Select'),
+          Select: selectStub,
           SelectContent: passthroughStub('SelectContent'),
           SelectItem: passthroughStub('SelectItem'),
           SelectTrigger: passthroughStub('SelectTrigger'),

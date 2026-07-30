@@ -1,25 +1,6 @@
-export type ChatLanguage =
-  | 'system'
-  | 'zh-CN'
-  | 'en-US'
-  | 'zh-TW'
-  | 'zh-HK'
-  | 'ko-KR'
-  | 'ru-RU'
-  | 'ja-JP'
-  | 'fr-FR'
-  | 'fa-IR'
-  | 'pt-BR'
-  | 'da-DK'
-  | 'he-IL'
-  | 'es-ES'
-  | 'de-DE'
-  | 'tr-TR'
-  | 'id-ID'
-  | 'ms-MY'
-  | 'it-IT'
-  | 'pl-PL'
-  | 'vi-VN'
+import type { RequestedLocale } from '../locales'
+
+export type ChatLanguage = RequestedLocale
 
 export type ChatTheme = 'dark' | 'light' | 'system'
 

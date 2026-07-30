@@ -226,10 +226,10 @@ import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
 import OpenAICodexOAuth from './OpenAICodexOAuth.vue'
 import GrokOAuth from './GrokOAuth.vue'
 import { createProviderClient } from '@api/ProviderClient'
-import { useToast } from '@/components/use-toast'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/types/provider'
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 interface ProviderWebsites {
   official: string
@@ -242,7 +242,6 @@ interface ProviderWebsites {
 const { t } = useI18n()
 const providerClient = createProviderClient()
 const modelCheckStore = useModelCheckStore()
-const { toast } = useToast()
 
 const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
   'openai',
@@ -381,34 +380,6 @@ const openModelCheckDialog = () => {
   modelCheckStore.openDialog(props.provider.id)
 }
 
-const extractRefreshErrorMessage = (error: unknown): string | null => {
-  const rawMessage = error instanceof Error ? error.message : String(error)
-  const normalizedMessage = rawMessage.trim()
-
-  if (!normalizedMessage) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(normalizedMessage) as {
-      error?: { message?: string }
-      message?: string
-    }
-
-    if (typeof parsed.error?.message === 'string' && parsed.error.message.trim()) {
-      return parsed.error.message.trim()
-    }
-
-    if (typeof parsed.message === 'string' && parsed.message.trim()) {
-      return parsed.message.trim()
-    }
-  } catch {
-    // ignore JSON parse errors and fall back to the original message
-  }
-
-  return normalizedMessage
-}
-
 const getKeyStatus = async () => {
   if (
     ['ppio', 'openrouter', 'siliconcloud', 'silicon', 'deepseek', '302ai', 'cherryin'].includes(
@@ -419,7 +390,7 @@ const getKeyStatus = async () => {
     try {
       keyStatus.value = await providerClient.getKeyStatus(props.provider.id)
     } catch (error) {
-      console.error('Failed to get key status:', error)
+      console.error('[ProviderApiConfig] Failed to load key status', error)
       keyStatus.value = null
     }
   }
@@ -428,31 +399,33 @@ const getKeyStatus = async () => {
 const refreshModels = async () => {
   if (isRefreshing.value) return
 
+  const providerId = props.provider.id
+  const refreshesMetadata = shouldRefreshProviderDbFirst.value
   isRefreshing.value = true
   try {
-    await providerClient.refreshModels(props.provider.id)
-    toast({
+    await providerClient.refreshModels(providerId)
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.provider.modelsRefreshed',
       title: t('settings.provider.toast.refreshModelsSuccessTitle'),
       description: t(
-        shouldRefreshProviderDbFirst.value
+        refreshesMetadata
           ? 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata'
           : 'settings.provider.toast.refreshModelsSuccessDescription'
-      ),
-      duration: 4000
+      )
     })
   } catch (error) {
-    console.error('Failed to refresh models:', error)
+    console.error('[ProviderApiConfig] Failed to refresh models', error)
     const fallbackDescription = t(
-      shouldRefreshProviderDbFirst.value
+      refreshesMetadata
         ? 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'
         : 'settings.provider.toast.refreshModelsFailedDescription'
     )
-    const errorMessage = extractRefreshErrorMessage(error)
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.provider.modelRefreshFailed',
       title: t('settings.provider.toast.refreshModelsFailedTitle'),
-      description: errorMessage ? `${fallbackDescription}: ${errorMessage}` : fallbackDescription,
-      variant: 'destructive',
-      duration: 4000
+      description: fallbackDescription
     })
   } finally {
     isRefreshing.value = false

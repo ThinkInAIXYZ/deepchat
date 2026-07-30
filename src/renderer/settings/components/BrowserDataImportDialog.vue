@@ -1,5 +1,5 @@
 <template>
-  <Dialog v-model:open="open">
+  <Dialog :open="open" @update:open="handleOpenChange">
     <DialogTrigger as-child>
       <Button data-testid="yobrowser-import-button" variant="outline" class="w-full lg:w-56">
         <Icon icon="lucide:import" class="size-4 text-muted-foreground" />
@@ -108,7 +108,7 @@
       </div>
 
       <DialogFooter>
-        <Button variant="outline" :disabled="busy" @click="open = false">
+        <Button variant="outline" :disabled="busy" @click="handleOpenChange(false)">
           {{ result ? t('dialog.ok') : t('dialog.cancel') }}
         </Button>
         <Button
@@ -129,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
@@ -157,12 +157,14 @@ import type {
   BrowserImportPreview,
   BrowserImportScanResult
 } from '@shared/types/browser'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const { t } = useI18n()
 const browserClient = createBrowserClient()
 const open = ref(false)
 const loading = ref(false)
 const busy = ref(false)
+const isApplying = ref(false)
 const scanResult = ref<BrowserImportScanResult | null>(null)
 const selectedProfileId = ref('')
 const preview = ref<BrowserImportPreview | null>(null)
@@ -171,6 +173,10 @@ const errorKey = ref('')
 const profiles = computed(
   () => scanResult.value?.profiles.filter((profile) => profile.supported) ?? []
 )
+const importLeaveGuardLease = settingsLeaveGuard.register({
+  id: 'settings-browser-data-import',
+  onDiscard: () => undefined
+})
 
 const resolveErrorKey = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
@@ -196,6 +202,11 @@ const reset = () => {
   errorKey.value = ''
 }
 
+const handleOpenChange = (isOpen: boolean) => {
+  if (!isOpen && isApplying.value) return
+  open.value = isOpen
+}
+
 const scan = async () => {
   loading.value = true
   errorKey.value = ''
@@ -204,6 +215,7 @@ const scan = async () => {
     selectedProfileId.value = profiles.value[0]?.id ?? ''
   } catch (error) {
     errorKey.value = resolveErrorKey(error)
+    console.error('[BrowserDataImportDialog] Browser import scan failed', error)
   } finally {
     loading.value = false
   }
@@ -217,6 +229,7 @@ const createPreview = async () => {
     preview.value = await browserClient.previewImport(selectedProfileId.value)
   } catch (error) {
     errorKey.value = resolveErrorKey(error)
+    console.error('[BrowserDataImportDialog] Browser import preview failed', error)
   } finally {
     busy.value = false
   }
@@ -225,13 +238,16 @@ const createPreview = async () => {
 const applyImport = async () => {
   if (!preview.value) return
   busy.value = true
+  isApplying.value = true
   errorKey.value = ''
   try {
     result.value = await browserClient.applyImport(preview.value.token)
   } catch (error) {
     preview.value = null
     errorKey.value = resolveErrorKey(error)
+    console.error('[BrowserDataImportDialog] Browser data import failed', error)
   } finally {
+    isApplying.value = false
     busy.value = false
   }
 }
@@ -246,5 +262,17 @@ watch(open, (isOpen) => {
 watch(selectedProfileId, () => {
   preview.value = null
   errorKey.value = ''
+})
+
+watch(
+  isApplying,
+  (applying) => {
+    importLeaveGuardLease.setRisk(applying ? 'busy' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  importLeaveGuardLease.release()
 })
 </script>

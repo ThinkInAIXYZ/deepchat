@@ -7,6 +7,10 @@ import * as toolPolicyStore from '@/plugin/toolPolicyStore'
 
 const TOOL_POLICY_PLUGIN_ID = 'com.deepchat.plugins.permission-test'
 const { registerPluginToolPolicy, unregisterPluginToolPolicies } = toolPolicyStore
+const semanticNotifications = {
+  occur: vi.fn(),
+  recover: vi.fn()
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -69,8 +73,7 @@ describe('ToolManager', () => {
         [serverName]: {}
       }),
       getAcpAgents: vi.fn().mockResolvedValue([]),
-      getAgentMcpSelections: vi.fn().mockResolvedValue([]),
-      getLanguage: vi.fn().mockReturnValue('en-US')
+      getAgentMcpSelections: vi.fn().mockResolvedValue([])
     }
   }
 
@@ -114,9 +117,9 @@ describe('ToolManager', () => {
   ) {
     return new ToolManager(
       providerSettings as never,
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
       providerSettings as never,
       serverManager as never,
+      semanticNotifications,
       vi.fn(),
       {
         ownsServer: (serverName) => Object.hasOwn(pluginOwners, serverName),
@@ -593,7 +596,7 @@ describe('ToolManager', () => {
             serverName,
             displayName: 'CUA Driver',
             toolCatalog: {
-              version: '0.13.1',
+              version: '0.14.1',
               tools: [
                 {
                   name: 'check_permissions',
@@ -868,7 +871,7 @@ describe('ToolManager', () => {
     expect(client.callTool).not.toHaveBeenCalled()
   })
 
-  it('records plugin tool-list failures without showing a global toast', async () => {
+  it('records plugin tool-list failures without publishing a semantic occurrence', async () => {
     const client = createClient('plugin-server', [], {
       source: 'plugin',
       ownerPluginId: 'com.deepchat.fixture'
@@ -887,6 +890,30 @@ describe('ToolManager', () => {
       'plugin-server',
       'tool list failed'
     )
+    expect(semanticNotifications.occur).not.toHaveBeenCalled()
+  })
+
+  it('publishes and recovers semantic tool-list episodes for regular servers', async () => {
+    const client = createClient('regular-server')
+    const providerSettings = createProviderSettings('regular-server')
+    const serverManager = createServerManager([client])
+    const manager = createToolManager(providerSettings as never, serverManager as never)
+    client.listTools.mockRejectedValueOnce(new Error('tool list failed'))
+
+    await expect(manager.getAllToolDefinitions()).resolves.toEqual([])
+
+    expect(semanticNotifications.occur).toHaveBeenCalledWith({
+      code: 'mcp.toolListFailed',
+      serverName: 'regular-server'
+    })
+
+    manager.invalidateRegistry()
+    await expect(manager.getAllToolDefinitions()).resolves.toHaveLength(1)
+
+    expect(semanticNotifications.recover).toHaveBeenCalledWith({
+      code: 'mcp.toolListFailed',
+      serverName: 'regular-server'
+    })
   })
 
   it('skips ACP access checks when provider hint is non-ACP', async () => {
@@ -1308,7 +1335,7 @@ describe('ToolManager', () => {
     )
   })
 
-  it('preserves raw CUA structured content and appends compact element handles', async () => {
+  it('preserves raw CUA structured content and appends reviewed projections', async () => {
     const client = createClient(
       'cua-driver',
       [
@@ -1339,7 +1366,22 @@ describe('ToolManager', () => {
           role: 'AXButton',
           label: 'Clear'
         }
-      ]
+      ],
+      capture_coverage: {
+        browser_chrome: {
+          status: 'not_observable_in_window_scope'
+        },
+        recovery: {
+          when: 'verified_window_action_ineffective',
+          escalate: {
+            tool: 'escalate_session',
+            reason: 'foreground_ineffective'
+          },
+          inspect: 'get_desktop_state',
+          act_scope: 'desktop',
+          verify: 'get_desktop_state'
+        }
+      }
     }
     client.callTool.mockResolvedValue({
       content: [{ type: 'text', text: 'window tree' }],
@@ -1369,6 +1411,10 @@ describe('ToolManager', () => {
       {
         type: 'text',
         text: expect.stringContaining('2="00000002"')
+      },
+      {
+        type: 'text',
+        text: expect.stringContaining('## CUA browser chrome coverage')
       }
     ])
   })
@@ -1578,9 +1624,9 @@ describe('ToolManager', () => {
     const providerSettings = createProviderSettings('cua-driver')
     const manager = new ToolManager(
       providerSettings as never,
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
       providerSettings as never,
       createServerManager([client]) as never,
+      semanticNotifications,
       publishEvent,
       {
         ownsServer: (serverName) => serverName === 'cua-driver',

@@ -16,5 +16,9 @@
   "topbarButton": "Mettre à jour",
   "restarting": "Redémarrage",
   "alreadyUpToDate": "Déjà à jour",
-  "alreadyUpToDateDesc": "Votre DeepChat est déjà à jour avec la dernière version, aucune mise à jour n'est nécessaire."
+  "alreadyUpToDateDesc": "Votre DeepChat est déjà à jour avec la dernière version, aucune mise à jour n'est nécessaire.",
+  "taskRunningTitle": "Tâche en cours",
+  "taskRunningDescription": "Des tâches sont en cours d'exécution. Comment souhaitez-vous procéder à la mise à jour ?",
+  "updateNow": "Mettre à jour",
+  "updateAfterTasksComplete": "Mettre à jour après les tâches"
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  buildDatabaseRepairSuggestedPayload,
+  buildDatabaseRepairSuggestedIntent,
   classifySchemaError
 } from '../../../src/main/data/schemaErrorClassifier'
 
@@ -23,14 +23,13 @@ describe('schemaErrorClassifier', () => {
     })
   })
 
-  it('builds a repair suggestion payload for repairable schema errors', () => {
+  it('builds a semantic repair suggestion for repairable schema errors', () => {
     expect(
-      buildDatabaseRepairSuggestedPayload(
+      buildDatabaseRepairSuggestedIntent(
         new Error('table deepchat_sessions has 14 columns but 16 values were supplied')
       )
     ).toEqual({
-      title: 'settings.data.databaseRepair.toastSuggestedTitle',
-      message: 'settings.data.databaseRepair.toastSuggestedDescription',
+      code: 'databaseSecurity.repairSuggested',
       reason: 'column-count-mismatch',
       dedupeKey: 'column-count-mismatch:deepchat_sessions'
     })

@@ -28,7 +28,7 @@ vi.mock('node:fs', async () => {
 
 const contract: CuaEmbeddedRuntimeContract = {
   hostBundleId: 'com.wefonk.deepchat',
-  driverVersion: '0.13.1',
+  driverVersion: '0.14.1',
   contractVersion: '0.2.0',
   toolsListSchemaVersion: '1',
   capabilityVersion: '1',
@@ -40,7 +40,7 @@ const cuaEnvironment = {
 }
 
 const metadata = (pid: number): CuaDaemonMetadata => ({
-  driver_version: '0.13.1',
+  driver_version: '0.14.1',
   contract_version: '0.2.0',
   tools_list_schema_version: '1',
   capability_version: '1',

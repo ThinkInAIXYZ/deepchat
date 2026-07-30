@@ -41,7 +41,7 @@
     "customProxyUrlPlaceholder": "Przykład: http://127.0.0.1:7890",
     "invalidProxyUrl": "Nieprawidłowy serwer proxy URL, proszę wprowadzić prawidłowy http/https URL",
     "addCustomSearchEngine": "Dodaj niestandardową wyszukiwarkę",
-    "addCustomSearchEngineDesc": "Dodaj nową wyszukiwarkę podając nazwę i wyszukaj URL. URL musi zawierać {query} jako symbol zastępczy zapytania.",
+    "addCustomSearchEngineDesc": "Dodaj nową wyszukiwarkę podając nazwę i wyszukaj URL. URL musi zawierać {'{'}query{'}'} jako symbol zastępczy zapytania.",
     "searchEngineName": "Nazwa wyszukiwarki",
     "searchEngineNamePlaceholder": "Wpisz nazwę wyszukiwarki",
     "searchEngineUrl": "Wyszukaj URL",
@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Trwała pamięć podręczna jest niedostępna, ponieważ bezpieczny magazyn kluczy nie jest dostępny."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Niezapisane zmiany",
+    "dirtyDescription": "Opuścić stronę i odrzucić zmiany?",
+    "busyTitle": "Zapisywanie w toku",
+    "busyDescription": "Poczekaj na zakończenie zapisywania.",
+    "stay": "Kontynuuj edycję",
+    "discard": "Odrzuć zmiany"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Zapisywanie…",
+      "saved": "Zapisano",
+      "saveFailed": "Nie udało się zapisać. Zmiany zachowano.",
+      "retry": "Spróbuj ponownie"
+    },
     "title": "DeepChat Agent",
     "description": "Zarządzaj agentami DeepChat i ustawieniami domyślnymi, które wprowadzają do nowych sesji.",
     "builtIn": "Wbudowany",
@@ -786,7 +800,7 @@
   "dashboard": {
     "badge": "Panel użytkowania",
     "title": "Panel użytkowania",
-    "description": "Śledź wykorzystanie token, trafienia do pamięci podręcznej i szacowany koszt. Dane Token i koszty są szacowane na podstawie informacji publicznych, a niektórzy dostawcy lub wcześniejsze wiadomości mogą być niekompletne, dlatego należy traktować te liczby wyłącznie jako odniesienie.",
+    "description": "Śledź użycie tokenów i trafienia pamięci podręcznej.",
     "actions": {
       "refresh": "Odśwież"
     },
@@ -802,8 +816,8 @@
     },
     "empty": {
       "title": "Nie ma jeszcze statystyk użytkowania",
-      "description": "Użycie Token, trafienia do pamięci podręcznej i szacowany koszt pojawią się tutaj, gdy dostępne będą dane o użytkowaniu.",
-      "historyNote": "Dane Token i koszty są szacowane na podstawie informacji publicznych. Niektórzy dostawcy lub wcześniejsze wiadomości mogą być niekompletne, więc traktuj te liczby wyłącznie jako odniesienie."
+      "description": "Użycie tokenów i trafienia pamięci podręcznej pojawią się tutaj, gdy dane użycia będą dostępne.",
+      "historyNote": "Dane użycia od niektórych dostawców lub wcześniejszych wiadomości mogą być niepełne."
     },
     "summary": {
       "totalTokens": "Razem tokens",
@@ -816,10 +830,6 @@
       "cachedTokensUncachedLabel": "Nieumieszczone w pamięci podręcznej",
       "cacheHitRate": "Współczynnik trafień w pamięci podręcznej",
       "cacheHitRateDescription": "Buforowane prompt tokens podzielone przez całkowite dane wejściowe tokens.",
-      "estimatedCost": "Szacowany koszt",
-      "estimatedCostDescription": "Oszacowane w USD na podstawie cen dostawcy lub cen zastępczych AIHubMix.",
-      "estimatedCostTrendLabel": "Trend z ostatnich 30 dni",
-      "estimatedCostTrendEmpty": "W ciągu ostatnich 30 dni nie zarejestrowano żadnych kosztów.",
       "recordingStartedAt": "Rozpoczęło się nagrywanie",
       "recordingStartedAtDescription": "Najwcześniejszy zapis użycia aktualnie przechowywany w tym panelu kontrolnym.",
       "withDeepChatDaysLabel": "Dni razem",
@@ -849,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "Najlepsi dostawcy",
-      "providerDescription": "Uszeregowane według szacunkowego kosztu, a następnie według całkowitego tokens.",
+      "providerDescription": "Uszeregowane według łącznej liczby tokenów.",
       "modelTitle": "Najlepsze modele",
-      "modelDescription": "10 najlepszych modeli według szacunkowego kosztu, a następnie łącznie tokens.",
+      "modelDescription": "10 najlepszych modeli według łącznej liczby tokenów.",
       "messages": "Komunikaty {count}",
       "empty": "Nie ma jeszcze danych dotyczących podziału."
     },
@@ -1242,7 +1252,7 @@
       },
       "disableAllModels": {
         "title": "Potwierdź wyłączenie wszystkich modeli",
-        "content": "Czy na pewno chcesz wyłączyć wszystkie modele?",
+        "content": "Czy na pewno chcesz wyłączyć wszystkie modele dostawcy „{name}”?",
         "confirm": "Wyłącz wszystko"
       },
       "configModels": {
@@ -1616,7 +1626,15 @@
       "timeout": "Limit czasu",
       "saveConfig": "Zapisz",
       "resetConfig": "Zresetuj",
-      "seconds": "sekundy"
+      "seconds": "sekundy",
+      "configLoadFailed": "Nie udało się wczytać konfiguracji",
+      "configSaved": "Konfiguracja została zapisana",
+      "configSaveFailed": "Nie udało się zapisać konfiguracji",
+      "configReset": "Konfiguracja została zresetowana",
+      "configResetFailed": "Nie udało się zresetować konfiguracji",
+      "connectionSucceeded": "Połączenie powiodło się",
+      "connectionFailed": "Nie udało się połączyć przy użyciu bieżącej konfiguracji",
+      "invalidBaseUrl": "Wprowadź adres HTTP lub HTTPS bez danych logowania i parametrów zapytania"
     },
     "deleteFile": {
       "title": "Potwierdzenie usunięcia pliku",
@@ -1674,6 +1692,7 @@
       "name": "Nazwa serwera",
       "namePlaceholder": "Wprowadź nazwę serwera",
       "nameRequired": "Nazwa serwera jest wymagana",
+      "nameDuplicate": "Serwer o tej nazwie już istnieje.",
       "type": "Typ serwera",
       "typePlaceholder": "Wybierz typ serwera",
       "typeStdio": "Standardowe wejście i wyjście (Stdio)",
@@ -3119,7 +3138,7 @@
       "error": "Błąd",
       "invalidAgent": "Agent jest niedostępny lub wyłączony. Wybierz innego agenta."
     },
-    "runNowSuccess": "Zaplanowane zadanie uruchomione"
+    "runNowSuccess": "Zaplanowane zadanie zakończone"
   },
   "memory": {
     "description": "Przeglądaj, konfiguruj i zarządzaj tym, co każdy agent zapamiętuje między sesjami. Pamięć jest odrębna dla każdego agenta.",

@@ -20,6 +20,7 @@
           v-if="ctrlBtn === 'paused'"
           variant="outline"
           size="sm"
+          :disabled="pageActionPending"
           @click="toggleStatus(true)"
           :title="t('settings.knowledgeBase.resumeAllPausedTasks')"
         >
@@ -29,20 +30,24 @@
           v-if="ctrlBtn === 'processing'"
           variant="outline"
           size="sm"
+          :disabled="pageActionPending"
           @click="toggleStatus(false)"
           :title="t('settings.knowledgeBase.pauseAllRunningTasks')"
         >
           <Icon icon="lucide:pause" class="w-4 h-4 text-yellow-500" />
         </Button>
-        <Button variant="outline" size="sm" @click="openSearchDialog">
+        <Button variant="outline" size="sm" :disabled="uploading" @click="openSearchDialog">
           <Icon icon="lucide:search" class="w-4 h-4" />
         </Button>
-        <Button variant="outline" size="sm" @click="onReturn">
+        <Button variant="outline" size="sm" :disabled="uploading" @click="onReturn">
           <Icon icon="lucide:corner-down-left" class="w-4 h-4" />
           {{ t('settings.knowledgeBase.return') }}
         </Button>
       </div>
     </div>
+    <p v-if="pageError" role="alert" class="text-xs text-destructive">
+      {{ pageError }}
+    </p>
     <!-- 文件上传 -->
     <div class="bg-card border border-border rounded-lg px-4 pb-2">
       <div class="text-sm p-2">
@@ -54,7 +59,10 @@
         </span>
       </div>
       <div class="flex flex-col gap-2 text-balance">
-        <label for="upload">
+        <label
+          for="upload"
+          :class="{ 'pointer-events-none opacity-60': uploading || !surfaceReady }"
+        >
           <div
             @dragover.prevent
             @drop.prevent="handleDrop"
@@ -86,12 +94,38 @@
           multiple
           type="file"
           id="upload"
+          :disabled="uploading || !surfaceReady"
           @change="handleChange"
           :accept="acceptExts.map((ext) => '.' + ext).join(',')"
         />
+        <div
+          v-if="uploading"
+          role="status"
+          class="flex min-h-5 items-center gap-1.5 text-xs text-muted-foreground"
+        >
+          <Spinner class="size-3.5" />
+          <span>{{ t('common.loading') }}</span>
+        </div>
+        <div
+          v-if="uploadFailures.length > 0"
+          role="alert"
+          class="space-y-1 text-xs text-destructive"
+        >
+          <p>{{ t('settings.knowledgeBase.uploadError') }} ({{ uploadFailures.length }})</p>
+          <p
+            v-for="failure in uploadFailures.slice(0, 3)"
+            :key="failure.id"
+            class="truncate"
+            :title="`${failure.name}: ${failure.reason}`"
+          >
+            {{ failure.name }}: {{ failure.reason }}
+          </p>
+        </div>
         <div v-for="file in fileList" :key="file.id">
           <KnowledgeFileItem
             :file="file"
+            :progress="fileProgressById.get(file.id)"
+            :disabled="pendingFileActions.has(file.id)"
             @delete="deleteFile(file.id)"
             @reAdd="reAddFile(file)"
           ></KnowledgeFileItem>
@@ -108,7 +142,9 @@
           <div class="flex w-full items-center gap-1 relative">
             <Input
               v-model="searchKey"
+              :disabled="loading"
               :placeholder="t('settings.knowledgeBase.searchKnowledgePlaceholder')"
+              @update:model-value="searchError = null"
             />
             <Button
               size="sm"
@@ -119,10 +155,13 @@
             >
               <Icon icon="lucide:x" class="w-4 h-4 text-muted-foreground" />
             </Button>
-            <Button @click="handleSearch">
+            <Button :disabled="loading || !searchKey.trim()" @click="handleSearch">
               <Icon icon="lucide:search" class="w-4 h-4" />
             </Button>
           </div>
+          <p v-if="searchError" role="alert" class="text-xs text-destructive">
+            {{ searchError }}
+          </p>
           <ScrollArea class="max-h-[calc(100vh-200px)]">
             <div class="relative min-h-[180px]">
               <div v-if="loading" class="absolute flex h-full w-full items-center justify-center">
@@ -188,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -201,14 +240,17 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
-import { toast } from '@/components/use-toast'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Input } from '@shadcn/components/ui/input'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createFileClient } from '@api/FileClient'
 import { createKnowledgeClient } from '@api/KnowledgeClient'
 import KnowledgeFileItem from './KnowledgeFileItem.vue'
-import type { BuiltinKnowledgeConfig, KnowledgeFileMessage } from '@shared/types/knowledge'
+import type {
+  BuiltinKnowledgeConfig,
+  KnowledgeFileMessage,
+  QueryResult
+} from '@shared/types/knowledge'
 
 const props = defineProps<{
   builtinKnowledgeDetail: BuiltinKnowledgeConfig
@@ -235,12 +277,24 @@ const ctrlBtn = computed(() => {
 const { t } = useI18n()
 // 文件列表
 const fileList = ref<KnowledgeFileMessage[]>([])
+const pageError = ref<string | null>(null)
+const pageActionPending = ref(false)
+const uploading = ref(false)
+const uploadFailures = ref<Array<{ id: number; name: string; reason: string }>>([])
+const pendingFileActions = ref(new Set<string>())
+const fileProgressById = reactive(
+  new Map<string, { completed: number; error: number; total: number }>()
+)
+const surfaceReady = ref(false)
+let uploadFailureSequence = 0
 // 允许的文件扩展名 - 动态加载
-const acceptExts = ref<string[]>([])
+const defaultSupported = ['txt', 'md', 'markdown', 'docx', 'pptx', 'pdf']
+const acceptExts = ref<string[]>([...defaultSupported])
 const deviceClient = createDeviceClient()
 const fileClient = createFileClient()
 const knowledgeClient = createKnowledgeClient()
 let stopFileUpdated: (() => void) | null = null
+let stopFileProgress: (() => void) | null = null
 // 弹窗状态
 const isSearchDialogOpen = ref(false)
 
@@ -251,6 +305,7 @@ const openSearchDialog = () => {
   searchResult.value = []
   copyId.value = ''
   loading.value = false
+  searchError.value = null
 }
 
 // 返回知识库页面
@@ -260,27 +315,23 @@ const onReturn = () => {
 
 const loading = ref<boolean>(false)
 const searchKey = ref('')
-const searchResult = ref<any>([])
+const searchResult = ref<QueryResult[]>([])
 const copyId = ref<string>('')
+const searchError = ref<string | null>(null)
 
 // 查询知识库
 const handleSearch = async () => {
-  if (!searchKey.value) return
+  const query = searchKey.value.trim()
+  if (!query || loading.value) return
   copyId.value = ''
+  searchError.value = null
   loading.value = true
   try {
-    const res = await knowledgeClient.similarityQuery(
-      props.builtinKnowledgeDetail.id,
-      searchKey.value
-    )
+    const res = await knowledgeClient.similarityQuery(props.builtinKnowledgeDetail.id, query)
     searchResult.value = res || []
   } catch (error) {
-    console.error('[KnowledgeFile] Search failed:', error)
-    toast({
-      title: t('settings.knowledgeBase.searchError'),
-      variant: 'destructive',
-      duration: 3000
-    })
+    console.error('[KnowledgeFile] Search failed', error)
+    searchError.value = t('settings.knowledgeBase.searchError')
     searchResult.value = []
   } finally {
     loading.value = false
@@ -295,21 +346,20 @@ const handleCopy = (content: string, id: string) => {
 
 const clearSearchKey = () => {
   searchKey.value = ''
+  searchError.value = null
 }
-
-const defaultSupported = ['txt', 'md', 'markdown', 'docx', 'pptx', 'pdf']
 
 // 加载支持的文件扩展名
 const loadSupportedExtensions = async () => {
   try {
-    console.log('[KnowledgeFile] Loading supported extensions from backend')
     const extensions = await knowledgeClient.getSupportedFileExtensions()
     // 保证 defaultSupported 排在最前，且不重复
-    const uniqueExts = extensions.filter((ext) => !defaultSupported.includes(ext))
+    const uniqueExts = Array.from(
+      new Set(extensions.filter((ext) => !defaultSupported.includes(ext)))
+    )
     acceptExts.value = [...defaultSupported, ...uniqueExts]
-    console.log(`[KnowledgeFile] Loaded ${extensions.length} supported extensions:`, extensions)
   } catch (error) {
-    console.error('[KnowledgeFile] Failed to load supported extensions:', error)
+    console.error('[KnowledgeFile] Failed to load supported extensions', error)
     // 使用回退扩展名列表
     acceptExts.value = [...defaultSupported]
   }
@@ -317,85 +367,102 @@ const loadSupportedExtensions = async () => {
 
 // 文件点击上传
 const handleChange = async (event: Event) => {
-  const files = (event.target as HTMLInputElement).files
-  if (files && files.length > 0) {
-    await handleFileUpload(Array.from(files))
+  const input = event.target as HTMLInputElement
+  const files = input.files
+  try {
+    if (files && files.length > 0) {
+      await handleFileUpload(Array.from(files))
+    }
+  } finally {
+    input.value = ''
   }
 }
 
 // 加载文件列表
 const loadList = async () => {
-  fileList.value = (await knowledgeClient.listFiles(props.builtinKnowledgeDetail.id)) || []
+  try {
+    fileList.value = (await knowledgeClient.listFiles(props.builtinKnowledgeDetail.id)) || []
+    fileProgressById.clear()
+    pageError.value = null
+  } catch (error) {
+    console.error('[KnowledgeFile] Failed to load files', error)
+    pageError.value = t('common.error.requestFailed')
+  }
 }
 
 const toggleStatus = async (run: boolean) => {
-  if (run) {
-    await knowledgeClient.resumeAllPausedTasks(props.builtinKnowledgeDetail.id)
-  } else {
-    await knowledgeClient.pauseAllRunningTasks(props.builtinKnowledgeDetail.id)
+  if (pageActionPending.value) return
+  pageActionPending.value = true
+  pageError.value = null
+  try {
+    const changed = run
+      ? await knowledgeClient.resumeAllPausedTasks(props.builtinKnowledgeDetail.id)
+      : await knowledgeClient.pauseAllRunningTasks(props.builtinKnowledgeDetail.id)
+    if (!changed) {
+      pageError.value = t('common.error.operationFailed')
+      return
+    }
+    await loadList()
+  } catch (error) {
+    console.error('[KnowledgeFile] Failed to change task status', error)
+    pageError.value = t('common.error.operationFailed')
+  } finally {
+    pageActionPending.value = false
   }
-  loadList()
 }
 
 // 处理文件上传的通用方法
 const handleFileUpload = async (files: File[]) => {
-  for (const file of files) {
-    try {
-      console.log(`[KnowledgeFile] Processing file: ${file.name}`)
-      const path = fileClient.getPathForFile(file)
+  if (!surfaceReady.value || uploading.value || files.length === 0) return
+  uploading.value = true
+  uploadFailures.value = []
 
-      // 使用后端验证而不是前端扩展名检查
-      const validationResult = await knowledgeClient.validateFile(path)
+  const addFailure = (file: File, reason?: string) => {
+    uploadFailures.value.push({
+      id: ++uploadFailureSequence,
+      name: file.name,
+      reason: reason || t('settings.knowledgeBase.uploadError')
+    })
+  }
 
-      if (!validationResult.isSupported) {
-        console.warn(
-          `[KnowledgeFile] File validation failed for ${file.name}:`,
-          validationResult.error
-        )
-        toast({
-          title: `"${file.name}" ${t('settings.knowledgeBase.uploadError')}`,
-          description: validationResult.error,
-          variant: 'destructive',
-          duration: 3000
-        })
-        continue
-      }
+  try {
+    for (const file of files) {
+      try {
+        const path = fileClient.getPathForFile(file)
+        const validationResult = await knowledgeClient.validateFile(path)
 
-      console.log(
-        `[KnowledgeFile] File validation successful for ${file.name}, proceeding with upload`
-      )
-
-      // 如果验证通过，继续上传文件
-      const result = await knowledgeClient.addFile(props.builtinKnowledgeDetail.id, path)
-      if (result.error) {
-        toast({
-          title: `${file.name} ${t('settings.knowledgeBase.uploadError')}`,
-          description: result.error,
-          variant: 'destructive',
-          duration: 3000
-        })
-        continue
-      }
-      if (result.data) {
-        // 判断是否存在相同id的文件，存在则跳过
-        const incoming = result.data
-        const existingFile = fileList.value.find((f) => f.id === incoming.id)
-        if (existingFile == null) {
-          fileList.value.unshift(incoming)
-          console.log(`[KnowledgeFile] Successfully added file: ${file.name}`)
-        } else {
-          console.log(`[KnowledgeFile] File already exists, skipping: ${file.name}`)
+        if (!validationResult.isSupported) {
+          addFailure(
+            file,
+            t('settings.knowledgeBase.fileSupport', {
+              accept: acceptExts.value.slice(0, 5).join(', '),
+              count: acceptExts.value.length
+            })
+          )
+          continue
         }
+
+        const result = await knowledgeClient.addFile(props.builtinKnowledgeDetail.id, path)
+        if (result.error) {
+          addFailure(file)
+          continue
+        }
+        if (result.data) {
+          const incoming = result.data
+          const existingFile = fileList.value.find((candidate) => candidate.id === incoming.id)
+          if (!existingFile) {
+            fileList.value.unshift(incoming)
+          }
+        } else {
+          addFailure(file)
+        }
+      } catch (error) {
+        console.error('[KnowledgeFile] Failed to add file', error)
+        addFailure(file)
       }
-    } catch (error) {
-      console.error(`[KnowledgeFile] Error processing file ${file.name}:`, error)
-      toast({
-        title: `${file.name} ${t('settings.knowledgeBase.uploadError')}`,
-        description: (error as Error).message,
-        variant: 'destructive',
-        duration: 3000
-      })
     }
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -408,35 +475,63 @@ const handleDrop = async (e: DragEvent) => {
 
 // 刪除文件
 const deleteFile = async (fileId: string) => {
-  await knowledgeClient.deleteFile(props.builtinKnowledgeDetail.id, fileId)
-  toast({
-    title: t('settings.knowledgeBase.deleteSuccess'),
-    variant: 'default',
-    duration: 3000
-  })
-  loadList()
+  if (pendingFileActions.value.has(fileId)) return
+  pendingFileActions.value.add(fileId)
+  pageError.value = null
+  try {
+    const deleted = await knowledgeClient.deleteFile(props.builtinKnowledgeDetail.id, fileId)
+    if (!deleted) {
+      pageError.value = t('common.error.operationFailed')
+      return
+    }
+    fileList.value = fileList.value.filter((file) => file.id !== fileId)
+    fileProgressById.delete(fileId)
+  } catch (error) {
+    console.error('[KnowledgeFile] Failed to delete file', error)
+    pageError.value = t('common.error.operationFailed')
+  } finally {
+    pendingFileActions.value.delete(fileId)
+  }
 }
 
 // 重新上传文件
 const reAddFile = async (file: KnowledgeFileMessage) => {
-  const result = await knowledgeClient.reAddFile(props.builtinKnowledgeDetail.id, file.id)
-  file.status = 'processing' // 设置状态为加载中
-  if (result.error) {
-    toast({
-      title: `${file.name} ${t('settings.knowledgeBase.uploadError')}`,
-      description: result.error,
-      variant: 'destructive',
-      duration: 3000
-    })
+  if (pendingFileActions.value.has(file.id)) return
+  pendingFileActions.value.add(file.id)
+  fileProgressById.delete(file.id)
+  try {
+    const result = await knowledgeClient.reAddFile(props.builtinKnowledgeDetail.id, file.id)
+    if (result.error) {
+      file.status = 'error'
+      file.metadata = {
+        ...file.metadata,
+        errorReason: t('settings.knowledgeBase.uploadError')
+      }
+      return
+    }
+    if (result.data) {
+      Object.assign(file, result.data)
+    } else {
+      file.status = 'error'
+      file.metadata = {
+        ...file.metadata,
+        errorReason: t('settings.knowledgeBase.uploadError')
+      }
+    }
+  } catch (error) {
+    console.error('[KnowledgeFile] Failed to re-add file', error)
+    file.status = 'error'
+    file.metadata = {
+      ...file.metadata,
+      errorReason: t('settings.knowledgeBase.uploadError')
+    }
+  } finally {
+    pendingFileActions.value.delete(file.id)
   }
 }
 
 // 初始化文件列表和支持的扩展名
-onMounted(async () => {
-  // 并行加载文件列表和支持的扩展名
-  await Promise.all([loadList(), loadSupportedExtensions()])
-
-  // 监听知识库文件更新事件
+onMounted(() => {
   stopFileUpdated = knowledgeClient.onFileUpdated((data) => {
     const file = fileList.value.find((file) => file.id === data.id)
     if (!file) {
@@ -444,10 +539,26 @@ onMounted(async () => {
     }
     // 合并所有属性
     Object.assign(file, data)
+    if (data.status !== 'processing') {
+      fileProgressById.delete(data.id)
+    }
+  })
+  stopFileProgress = knowledgeClient.onFileProgress((data) => {
+    fileProgressById.set(data.fileId, {
+      completed: data.completed,
+      error: data.error,
+      total: data.total
+    })
+  })
+  void Promise.all([loadList(), loadSupportedExtensions()]).finally(() => {
+    surfaceReady.value = true
   })
 })
 onBeforeUnmount(() => {
   stopFileUpdated?.()
   stopFileUpdated = null
+  stopFileProgress?.()
+  stopFileProgress = null
+  fileProgressById.clear()
 })
 </script>

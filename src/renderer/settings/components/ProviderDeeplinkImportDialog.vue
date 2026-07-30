@@ -48,8 +48,21 @@
         </div>
       </div>
 
+      <p
+        v-if="error"
+        role="alert"
+        class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+      >
+        {{ error }}
+      </p>
+
       <DialogFooter>
-        <Button type="button" variant="outline" @click="emit('update:open', false)">
+        <Button
+          type="button"
+          variant="outline"
+          :disabled="submitting"
+          @click="emit('update:open', false)"
+        >
           {{ t('dialog.cancel') }}
         </Button>
         <Button type="button" :disabled="confirmDisabled || submitting" @click="emit('confirm')">
@@ -88,10 +101,12 @@ withDefaults(
     preview: ProviderInstallPreview | null
     confirmDisabled?: boolean
     submitting?: boolean
+    error?: string | null
   }>(),
   {
     confirmDisabled: false,
-    submitting: false
+    submitting: false,
+    error: null
   }
 )
 

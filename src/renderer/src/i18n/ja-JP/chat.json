@@ -23,7 +23,7 @@
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "モード",
     "acpModeTooltip": "現在のモード：{mode}",
-    "agentWorkspaceCurrent": "現在の作業ディレクトリ: {パス}",
+    "agentWorkspaceCurrent": "現在の作業ディレクトリ: {path}",
     "workspaceUnavailableTooltip": "ディレクトリが存在しないかアクセスできません: {path}",
     "agentWorkspaceSelect": "作業ディレクトリを選択",
     "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
@@ -153,7 +153,7 @@
   "mode": {
     "acpAgent": "ACPエージェント",
     "agent": "エージェント",
-    "current": "現在のモード: {モード}"
+    "current": "現在のモード: {mode}"
   },
   "topbar": {
     "share": "共有",

@@ -2,7 +2,7 @@
 
 ## Status
 
-Lifecycle and model-facing CUA 0.13.1 compatibility implementation are complete with automated
+Lifecycle and model-facing CUA 0.14.1 compatibility implementation are complete with automated
 validation. Native Windows/Linux behavior, release-signed macOS behavior, and preinstalled custom
 cursor themes remain release-gated.
 
@@ -37,7 +37,7 @@ plugin-owned external processes.
    state.
 3. Start CUA only when one of its tools is invoked, while keeping its tool catalog visible before
    process startup.
-4. Upgrade the bundled driver to pinned upstream release `cua-driver-rs-v0.13.1` and adapt to its
+4. Upgrade the bundled driver to pinned upstream release `cua-driver-rs-v0.14.1` and adapt to its
    embedded daemon/proxy contract.
 5. Fail closed on stale crash evidence, runtime integrity failures, incomplete packaged catalogs,
    and unsupported launch contracts.
@@ -227,7 +227,7 @@ Runtime manifests may select a closed host adapter. CUA uses `cua-embedded-v1`; 
 continue to use the direct stdio path. Adapter-specific state does not leak into the generic MCP
 configuration persisted in SQLite.
 
-## CUA 0.13.1 adapter
+## CUA 0.14.1 adapter
 
 The CUA adapter starts two related processes:
 
@@ -240,7 +240,7 @@ The CUA adapter starts two related processes:
 The daemon stdin remains open for parent-liveness. Startup completes only after a newline-delimited
 metadata response validates:
 
-- driver version `0.13.1`;
+- driver version `0.14.1`;
 - contract version `0.2.0`;
 - tools-list schema version `1`;
 - capability version `1`;
@@ -264,7 +264,15 @@ For any CUA result carrying `structuredContent.refusal.code`, DeepChat appends a
 single-line code projection to model-visible `content` while preserving the raw structured value.
 The human-readable refusal message is already present in MCP text content and is not duplicated.
 
-CUA 0.13.1 declares `element_token` as an optional unconstrained string but rejects an empty string
+For Chromium-family `get_window_state` results, CUA 0.14.1 may also declare that browser-owned
+chrome is not observable in window scope. DeepChat projects this recovery contract only when every
+known field matches the reviewed upstream shape. The projection contains fixed identifiers rather
+than runtime-provided prose, does not claim that a prompt is present, and recommends desktop
+escalation only after a window action was verified ineffective. Unknown or partial coverage
+contracts remain available in raw `structuredContent` but are not promoted into model-visible
+instructions.
+
+CUA 0.14.1 declares `element_token` as an optional unconstrained string but rejects an empty string
 at runtime and gives any present token precedence over a valid index. Immediately before dispatch,
 the closed CUA adapter therefore removes only an empty or whitespace-only `element_token` from these
 seven tools:
@@ -288,7 +296,7 @@ the projected `refusal.code` is `stale_element_token`, `generation_mismatch`, or
 with the new token. It must not reuse a stale token or silently fall back to an older snapshot's
 index.
 
-### CUA 0.13.1 tool-contract changes
+### CUA 0.14.1 tool-contract changes
 
 The static catalog, closed policy, skill, and tests track these reviewed changes together:
 
@@ -299,9 +307,16 @@ The static catalog, closed policy, skill, and tests track these reviewed changes
 - `browser_type` accepts `replace`; an empty replacement clears the editable field;
 - normal `start_session` calls omit optional `cursor_theme`, while an explicit user theme request
   uses the reviewed `set_agent_cursor_theme` action;
-- `kill_app` is denied because the 0.13.1 public `launch_app` and `kill_app` schemas omit
+- `kill_app` is denied because the 0.14.1 public `launch_app` and `kill_app` schemas omit
   `session`, preventing standard-mode ownership proof. DeepChat does not rely on the proxy's
   current acceptance of undeclared fields.
+- cursor themes use source schema `cua.cursor-theme/2`, profile `cua-driver-actions-v2`, semantics
+  version 2, and compiled artifact magic `CUATHEM3`; retired v1 themes are rejected rather than
+  silently dropping modifier context;
+- delivery and target context move from custom-theme modifier assets into host-rendered session
+  badges, while DeepChat continues to treat cursor appearance as optional user-requested state;
+- Chromium window snapshots may expose the bounded browser-chrome capture-coverage recovery
+  contract described above.
 
 The `kill_app` mitigation is version-specific. A direct native smoke test must use a disposable
 fixture process rather than the DeepChat product path, because the closed policy blocks the call
@@ -398,14 +413,19 @@ security task and do not block CUA remediation.
 | Linux x64 | Bundle executable | Checksum/file-set gate and executable mode |
 | Linux arm64 | DeepChat still builds/releases; CUA remains unbundled until validated | Unsupported CUA target |
 
-The upstream UIA worker is not part of the 0.13.1 release contract. DeepChat continues to package
+The upstream UIA worker is not part of the 0.14.1 release contract. DeepChat continues to package
 only `cua-driver.exe` on Windows and removes the obsolete worker opt-in environment variable.
 
 The macOS `cua-cursor-theme` executable is an authoring utility, not part of the embedded runtime.
 Staging removes it and immediately requires `Contents/MacOS` to contain only the regular
 `deepchat-cua-driver` file before signing and integrity descriptor generation. The bundled
-`cua.default` theme is binary-tested; loading a separately preinstalled custom theme remains a
-native release gate even though the upstream loader supports it.
+`cua.default` v2 theme is binary-tested. Loading a separately preinstalled v2 custom theme and
+confirming the explicit failure of a retired v1 theme remain native release gates.
+
+The upstream GNOME Wayland helper is also outside DeepChat's package and lifecycle contract.
+DeepChat does not install or upgrade it. Users with an older manually installed helper may need to
+update it before v0.14.1 cursor context or overlay behavior can be accepted; fresh and pre-existing
+helper states remain part of the Linux Wayland native gate.
 
 `--no-permissions-gate` skips only the upstream macOS TCC first-launch UI. It does not disable
 DeepChat's per-tool approval or the driver's `--permission-mode standard` authorization. DeepChat
@@ -425,8 +445,8 @@ Automated gates:
 - exact CUA tool catalog/policy parity tests;
 - explicit local `kill_app === deny` coverage;
 - seven-tool empty-token normalization and zero-coordinate preservation tests;
-- raw MCP `structuredContent`, compact CUA token/refusal projections, and stale-token guidance
-  tests;
+- raw MCP `structuredContent`, compact CUA token/refusal/capture-coverage projections, and
+  stale-token guidance tests;
 - explicit CUA screenshot visual-grounding and no-vision fallback tests;
 - macOS signing and entitlement contract tests.
 
@@ -499,3 +519,24 @@ CUA 0.13.1 upgrade verification completed on 2026-07-29:
 The direct-driver ownership smoke, Windows/Linux native catalogs and runtime behavior,
 release-signed/notarized macOS behavior, and preinstalled custom-theme loading remain native
 release gates.
+
+CUA 0.14.1 upgrade verification completed on 2026-07-30:
+
+- all five pinned supported-target release assets matched their upstream SHA-256 values; static
+  protocol, catalog, signing, entitlement, and native-library audits found no host-contract drift;
+- `pnpm run plugin:bundle -- --name cua --platform darwin --arch arm64`,
+  `pnpm run plugin:validate -- --name cua --platform darwin --arch arm64`, and
+  `pnpm run plugin:verify -- --name cua --platform darwin --arch arm64 --plugin-root
+  build/bundled-plugins` passed with a development-signed artifact;
+- the generated macOS arm64 catalog reports driver 0.14.1 and 49 tools, the packaged runtime
+  excludes `cua-cursor-theme`, and strict code-signature verification passed;
+- 178 focused CUA, plugin, MCP, package, integrity, and renderer tests passed;
+- `pnpm run test:main`: 467 files and 5591 tests passed; 20 files and 279 tests were
+  conditionally skipped;
+- `pnpm run test:renderer`: 207 files and 1653 tests passed;
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`, and
+  `pnpm run build` passed.
+
+Windows/Linux native catalogs and behavior, macOS x64 and release-signed/notarized behavior,
+direct-driver ownership, separately installed v2 themes, explicit retired-v1 rejection, and GNOME
+Wayland helper states remain native release gates.

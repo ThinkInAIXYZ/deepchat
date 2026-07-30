@@ -13,7 +13,6 @@ export interface DeepChatUsageStatsRow {
   total_tokens: number
   cached_input_tokens: number
   cache_write_input_tokens: number
-  estimated_cost_usd: number | null
   source: 'backfill' | 'live'
   created_at: number
   updated_at: number
@@ -26,8 +25,6 @@ type AggregateRow = {
   output_tokens: number | null
   total_tokens: number | null
   cached_input_tokens: number | null
-  estimated_cost_usd: number | null
-  priced_messages: number
 }
 
 export interface DeepChatUsageStatsSummary {
@@ -37,7 +34,6 @@ export interface DeepChatUsageStatsSummary {
   outputTokens: number
   totalTokens: number
   cachedInputTokens: number
-  estimatedCostUsd: number | null
 }
 
 export interface DeepChatUsageStatsMostActiveDay {
@@ -52,7 +48,6 @@ export interface DeepChatUsageStatsCalendarRow {
   outputTokens: number
   totalTokens: number
   cachedInputTokens: number
-  estimatedCostUsd: number | null
 }
 
 export interface DeepChatUsageStatsBreakdownRow {
@@ -62,7 +57,6 @@ export interface DeepChatUsageStatsBreakdownRow {
   outputTokens: number
   totalTokens: number
   cachedInputTokens: number
-  estimatedCostUsd: number | null
 }
 
 function normalizeAggregate(row: AggregateRow | undefined): DeepChatUsageStatsSummary {
@@ -72,8 +66,7 @@ function normalizeAggregate(row: AggregateRow | undefined): DeepChatUsageStatsSu
     inputTokens: row?.input_tokens ?? 0,
     outputTokens: row?.output_tokens ?? 0,
     totalTokens: row?.total_tokens ?? 0,
-    cachedInputTokens: row?.cached_input_tokens ?? 0,
-    estimatedCostUsd: row && row.priced_messages > 0 ? (row.estimated_cost_usd ?? 0) : null
+    cachedInputTokens: row?.cached_input_tokens ?? 0
   }
 }
 
@@ -95,7 +88,6 @@ export class DeepChatUsageStatsTable extends BaseTable {
         total_tokens INTEGER NOT NULL DEFAULT 0,
         cached_input_tokens INTEGER NOT NULL DEFAULT 0,
         cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
-        estimated_cost_usd REAL,
         source TEXT NOT NULL DEFAULT 'live',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
@@ -113,11 +105,65 @@ export class DeepChatUsageStatsTable extends BaseTable {
     if (version === 22) {
       return `ALTER TABLE deepchat_usage_stats ADD COLUMN cache_write_input_tokens INTEGER NOT NULL DEFAULT 0;`
     }
+    if (version === 32) {
+      return `
+        CREATE TABLE deepchat_usage_stats_v32 (
+          message_id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          usage_date TEXT NOT NULL,
+          provider_id TEXT NOT NULL,
+          model_id TEXT NOT NULL,
+          input_tokens INTEGER NOT NULL DEFAULT 0,
+          output_tokens INTEGER NOT NULL DEFAULT 0,
+          total_tokens INTEGER NOT NULL DEFAULT 0,
+          cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+          cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
+          source TEXT NOT NULL DEFAULT 'live',
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        INSERT INTO deepchat_usage_stats_v32 (
+          message_id,
+          session_id,
+          usage_date,
+          provider_id,
+          model_id,
+          input_tokens,
+          output_tokens,
+          total_tokens,
+          cached_input_tokens,
+          cache_write_input_tokens,
+          source,
+          created_at,
+          updated_at
+        )
+        SELECT
+          message_id,
+          session_id,
+          usage_date,
+          provider_id,
+          model_id,
+          input_tokens,
+          output_tokens,
+          total_tokens,
+          cached_input_tokens,
+          cache_write_input_tokens,
+          source,
+          created_at,
+          updated_at
+        FROM deepchat_usage_stats;
+        DROP TABLE deepchat_usage_stats;
+        ALTER TABLE deepchat_usage_stats_v32 RENAME TO deepchat_usage_stats;
+        CREATE INDEX idx_deepchat_usage_stats_date ON deepchat_usage_stats(usage_date);
+        CREATE INDEX idx_deepchat_usage_stats_provider_date ON deepchat_usage_stats(provider_id, usage_date);
+        CREATE INDEX idx_deepchat_usage_stats_model_date ON deepchat_usage_stats(model_id, usage_date);
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 22
+    return 32
   }
 
   upsert(row: UsageStatsRecordInput): void {
@@ -134,11 +180,10 @@ export class DeepChatUsageStatsTable extends BaseTable {
           total_tokens,
           cached_input_tokens,
           cache_write_input_tokens,
-          estimated_cost_usd,
           source,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(message_id) DO UPDATE SET
           session_id = excluded.session_id,
           usage_date = excluded.usage_date,
@@ -149,7 +194,6 @@ export class DeepChatUsageStatsTable extends BaseTable {
           total_tokens = excluded.total_tokens,
           cached_input_tokens = excluded.cached_input_tokens,
           cache_write_input_tokens = excluded.cache_write_input_tokens,
-          estimated_cost_usd = excluded.estimated_cost_usd,
           source = excluded.source,
           created_at = excluded.created_at,
           updated_at = excluded.updated_at`
@@ -165,7 +209,6 @@ export class DeepChatUsageStatsTable extends BaseTable {
         row.totalTokens,
         row.cachedInputTokens,
         row.cacheWriteInputTokens,
-        row.estimatedCostUsd,
         row.source,
         row.createdAt,
         row.updatedAt
@@ -205,9 +248,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
           SUM(input_tokens) AS input_tokens,
           SUM(output_tokens) AS output_tokens,
           SUM(total_tokens) AS total_tokens,
-          SUM(cached_input_tokens) AS cached_input_tokens,
-          SUM(COALESCE(estimated_cost_usd, 0)) AS estimated_cost_usd,
-          COUNT(estimated_cost_usd) AS priced_messages
+          SUM(cached_input_tokens) AS cached_input_tokens
         FROM deepchat_usage_stats`
       )
       .get() as AggregateRow | undefined
@@ -243,9 +284,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
           SUM(input_tokens) AS input_tokens,
           SUM(output_tokens) AS output_tokens,
           SUM(total_tokens) AS total_tokens,
-          SUM(cached_input_tokens) AS cached_input_tokens,
-          SUM(COALESCE(estimated_cost_usd, 0)) AS estimated_cost_usd,
-          COUNT(estimated_cost_usd) AS priced_messages
+          SUM(cached_input_tokens) AS cached_input_tokens
         FROM deepchat_usage_stats
         WHERE usage_date >= ?
         GROUP BY usage_date
@@ -259,8 +298,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
       inputTokens: row.input_tokens ?? 0,
       outputTokens: row.output_tokens ?? 0,
       totalTokens: row.total_tokens ?? 0,
-      cachedInputTokens: row.cached_input_tokens ?? 0,
-      estimatedCostUsd: row.priced_messages > 0 ? (row.estimated_cost_usd ?? 0) : null
+      cachedInputTokens: row.cached_input_tokens ?? 0
     }))
   }
 
@@ -273,9 +311,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
           SUM(input_tokens) AS input_tokens,
           SUM(output_tokens) AS output_tokens,
           SUM(total_tokens) AS total_tokens,
-          SUM(cached_input_tokens) AS cached_input_tokens,
-          SUM(COALESCE(estimated_cost_usd, 0)) AS estimated_cost_usd,
-          COUNT(estimated_cost_usd) AS priced_messages
+          SUM(cached_input_tokens) AS cached_input_tokens
         FROM deepchat_usage_stats
         GROUP BY provider_id`
       )
@@ -287,8 +323,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
       inputTokens: row.input_tokens ?? 0,
       outputTokens: row.output_tokens ?? 0,
       totalTokens: row.total_tokens ?? 0,
-      cachedInputTokens: row.cached_input_tokens ?? 0,
-      estimatedCostUsd: row.priced_messages > 0 ? (row.estimated_cost_usd ?? 0) : null
+      cachedInputTokens: row.cached_input_tokens ?? 0
     }))
   }
 
@@ -301,15 +336,10 @@ export class DeepChatUsageStatsTable extends BaseTable {
           SUM(input_tokens) AS input_tokens,
           SUM(output_tokens) AS output_tokens,
           SUM(total_tokens) AS total_tokens,
-          SUM(cached_input_tokens) AS cached_input_tokens,
-          SUM(COALESCE(estimated_cost_usd, 0)) AS estimated_cost_usd,
-          COUNT(estimated_cost_usd) AS priced_messages
+          SUM(cached_input_tokens) AS cached_input_tokens
         FROM deepchat_usage_stats
         GROUP BY model_id
-        ORDER BY
-          CASE WHEN COUNT(estimated_cost_usd) > 0 THEN SUM(COALESCE(estimated_cost_usd, 0)) ELSE -1 END DESC,
-          SUM(total_tokens) DESC,
-          model_id ASC
+        ORDER BY SUM(total_tokens) DESC, model_id ASC
         LIMIT ?`
       )
       .all(limit) as Array<AggregateRow & { id: string }>
@@ -320,8 +350,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
       inputTokens: row.input_tokens ?? 0,
       outputTokens: row.output_tokens ?? 0,
       totalTokens: row.total_tokens ?? 0,
-      cachedInputTokens: row.cached_input_tokens ?? 0,
-      estimatedCostUsd: row.priced_messages > 0 ? (row.estimated_cost_usd ?? 0) : null
+      cachedInputTokens: row.cached_input_tokens ?? 0
     }))
   }
 }

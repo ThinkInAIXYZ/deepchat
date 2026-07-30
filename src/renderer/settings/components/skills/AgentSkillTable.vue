@@ -33,7 +33,13 @@
             </Badge>
           </TableCell>
           <TableCell>
-            <Button variant="ghost" size="sm" class="h-7 px-2" @click="emit('view-detail', skill)">
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-7 px-2"
+              :disabled="disabled"
+              @click="emit('view-detail', skill)"
+            >
               <Icon icon="lucide:eye" class="mr-1 h-3.5 w-3.5" />
               {{ t('settings.skills.agents.actions.view') }}
             </Button>
@@ -44,6 +50,7 @@
               variant="outline"
               size="sm"
               class="h-7"
+              :disabled="disabled"
               :title="actionTitle(skill.action)"
               @click="emit('action', skill)"
             >
@@ -80,6 +87,7 @@ import type {
 
 const props = defineProps<{
   agent: InstalledSkillAgentDetail
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{

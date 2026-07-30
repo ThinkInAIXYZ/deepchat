@@ -116,6 +116,49 @@ export function buildCuaRefusalProjection(structuredContent: unknown): string | 
   return `## CUA structured refusal\nrefusal.code=${JSON.stringify(code)}`
 }
 
+export function buildCuaBrowserChromeCoverageProjection(
+  toolName: string,
+  structuredContent: unknown
+): string | undefined {
+  if (toolName !== 'get_window_state' || !isRecord(structuredContent)) {
+    return undefined
+  }
+
+  const captureCoverage = structuredContent.capture_coverage
+  if (!isRecord(captureCoverage)) {
+    return undefined
+  }
+
+  const browserChrome = captureCoverage.browser_chrome
+  const recovery = captureCoverage.recovery
+  if (!isRecord(browserChrome) || !isRecord(recovery) || !isRecord(recovery.escalate)) {
+    return undefined
+  }
+
+  if (
+    browserChrome.status !== 'not_observable_in_window_scope' ||
+    recovery.when !== 'verified_window_action_ineffective' ||
+    recovery.escalate.tool !== 'escalate_session' ||
+    recovery.escalate.reason !== 'foreground_ineffective' ||
+    recovery.inspect !== 'get_desktop_state' ||
+    recovery.act_scope !== 'desktop' ||
+    recovery.verify !== 'get_desktop_state'
+  ) {
+    return undefined
+  }
+
+  return [
+    '## CUA browser chrome coverage',
+    'browser_chrome.status="not_observable_in_window_scope"',
+    'recovery.when="verified_window_action_ineffective"',
+    'recovery.escalate.tool="escalate_session"',
+    'recovery.escalate.reason="foreground_ineffective"',
+    'recovery.inspect="get_desktop_state"',
+    'recovery.act_scope="desktop"',
+    'recovery.verify="get_desktop_state"'
+  ].join('\n')
+}
+
 export function appendCuaStructuredProjection(
   content: string | MCPContentItem[],
   projection: string | undefined
@@ -138,8 +181,12 @@ export function appendCuaResultProjections(
     content,
     buildCuaWindowStateProjection(toolName, structuredContent)
   )
-  return appendCuaStructuredProjection(
+  const withCaptureCoverage = appendCuaStructuredProjection(
     withWindowState,
+    buildCuaBrowserChromeCoverageProjection(toolName, structuredContent)
+  )
+  return appendCuaStructuredProjection(
+    withCaptureCoverage,
     buildCuaRefusalProjection(structuredContent)
   )
 }

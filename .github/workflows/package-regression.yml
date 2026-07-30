@@ -83,3 +83,75 @@ jobs:
       DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
       DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
       DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+
+  scheduled-status:
+    name: scheduled-regression-status
+    if: ${{ always() && github.event_name == 'schedule' }}
+    concurrency:
+      group: scheduled-package-regression-issue
+      queue: max
+    needs:
+      - package-windows
+      - package-linux
+      - package-macos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Update scheduled package regression issue
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: '[CI] Scheduled package regression is failing'
+          WINDOWS_RESULT: ${{ needs.package-windows.result }}
+          LINUX_RESULT: ${{ needs.package-linux.result }}
+          MACOS_RESULT: ${{ needs.package-macos.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          open_issue_numbers="$(
+            gh issue list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --state open \
+              --search "\"${ISSUE_TITLE}\" in:title" \
+              --limit 100 \
+              --json number,title \
+              --jq '.[] | select(.title == env.ISSUE_TITLE) | .number'
+          )"
+          issue_number="${open_issue_numbers%%$'\n'*}"
+
+          if [[ "${WINDOWS_RESULT}" == 'success' &&
+                "${LINUX_RESULT}" == 'success' &&
+                "${MACOS_RESULT}" == 'success' ]]; then
+            if [[ -n "${issue_number}" ]]; then
+              gh issue close "${issue_number}" \
+                --repo "${GITHUB_REPOSITORY}" \
+                --reason completed \
+                --comment "Recovered in [run #${GITHUB_RUN_NUMBER}](${RUN_URL})."
+            fi
+            exit 0
+          fi
+
+          body_path="${RUNNER_TEMP}/package-regression-status.md"
+          {
+            printf 'The scheduled package regression did not complete successfully.\n\n'
+            printf -- '- Run: [#%s](%s)\n' "${GITHUB_RUN_NUMBER}" "${RUN_URL}"
+            printf -- '- Commit: `%s`\n' "${GITHUB_SHA}"
+            printf -- '- Windows: `%s`\n' "${WINDOWS_RESULT}"
+            printf -- '- Linux: `%s`\n' "${LINUX_RESULT}"
+            printf -- '- macOS: `%s`\n' "${MACOS_RESULT}"
+          } > "${body_path}"
+
+          if [[ -n "${issue_number}" ]]; then
+            gh issue comment "${issue_number}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --body-file "${body_path}"
+          else
+            gh issue create \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${ISSUE_TITLE}" \
+              --body-file "${body_path}"
+          fi

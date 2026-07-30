@@ -5,15 +5,10 @@ import type {
   AttachmentFallbackPolicy,
   AttachmentPreparationSummary
 } from '@shared/types/agent-interface'
+import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
 
 type MessageStore = ReturnType<typeof useMessageStore>
 type SessionStore = ReturnType<typeof useSessionStore>
-
-type ToastFn = (options: {
-  title: string
-  description?: string
-  variant?: 'destructive'
-}) => unknown
 
 type SessionClientLike = {
   retryMessage: (
@@ -46,7 +41,7 @@ type UseMessageActionsOptions = {
   currentRestoreRequestId: () => number
   canWriteSessionView: (sessionId: string, requestId: number) => boolean
   openModelPicker: () => void
-  toast: ToastFn
+  notify: RendererNotificationNotifier
   t: (key: string) => string
 }
 
@@ -194,10 +189,11 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     } catch (error) {
       console.error('[ChatPage] delete message failed:', error)
       if (options.canWriteSessionView(sessionId, requestId)) {
-        options.toast({
+        options.notify({
+          kind: 'error',
+          code: 'chat.message.deleteFailed',
           title: options.t('dialog.deleteMessage.title'),
-          description: options.t('common.error.requestFailed'),
-          variant: 'destructive'
+          description: options.t('common.error.requestFailed')
         })
       }
     }

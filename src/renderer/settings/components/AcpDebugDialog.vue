@@ -51,6 +51,22 @@
         </div>
       </header>
 
+      <div
+        v-if="debugFeedback"
+        role="alert"
+        class="flex min-h-9 shrink-0 items-center gap-2 border-b border-destructive/25 bg-destructive/5 px-6 py-2 text-xs text-destructive"
+      >
+        <Icon icon="lucide:circle-alert" class="size-3.5 shrink-0" />
+        <span class="shrink-0 font-medium">{{ debugFeedback.title }}</span>
+        <span
+          v-if="debugFeedback.description"
+          class="min-w-0 truncate text-destructive/80"
+          :title="debugFeedback.description"
+        >
+          {{ debugFeedback.description }}
+        </span>
+      </div>
+
       <div class="grid h-full min-h-0 flex-1 overflow-hidden lg:grid-cols-[260px_1fr]">
         <aside class="h-full min-h-0 space-y-2 overflow-y-auto border-r p-3">
           <Button
@@ -64,7 +80,7 @@
                 ? 'border-primary bg-primary/5'
                 : 'border-border hover:border-primary/60'
             "
-            :disabled="!processReady && method.value !== 'initialize'"
+            :disabled="loading || (!processReady && method.value !== 'initialize')"
             @click="selectMethod(method.value)"
           >
             <span class="text-sm font-medium leading-tight">{{ method.label }}</span>
@@ -80,6 +96,8 @@
               v-model="customMethod"
               :placeholder="t('settings.acp.debug.customMethodPlaceholder')"
               spellcheck="false"
+              :aria-invalid="debugFeedback?.source === 'method' || undefined"
+              @update:model-value="clearDebugFeedback"
             />
           </div>
 
@@ -150,7 +168,13 @@
                 <span class="truncate max-w-[240px]" :title="workdirPath || undefined">
                   {{ workdirLabel }}
                 </span>
-                <Button size="icon" variant="ghost" class="h-9 w-9" @click="handleSelectWorkdir">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  class="h-9 w-9"
+                  :disabled="loading"
+                  @click="handleSelectWorkdir"
+                >
                   <Icon icon="lucide:folder-open" class="h-4 w-4" />
                 </Button>
                 <Button
@@ -158,14 +182,27 @@
                   size="sm"
                   variant="ghost"
                   class="h-8"
+                  :disabled="loading"
                   @click="clearWorkdir"
                 >
                   {{ t('common.clear') }}
                 </Button>
-                <Button size="sm" variant="ghost" class="h-8 px-2" @click="formatPayload">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  class="h-8 px-2"
+                  :disabled="loading"
+                  @click="formatPayload"
+                >
                   {{ t('settings.acp.debug.format') }}
                 </Button>
-                <Button size="sm" variant="ghost" class="h-8 px-2" @click="resetPayload">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  class="h-8 px-2"
+                  :disabled="loading"
+                  @click="resetPayload"
+                >
                   {{ t('settings.acp.debug.resetTemplate') }}
                 </Button>
                 <Button
@@ -208,7 +245,6 @@ import type { AcpDebugRequest } from '@shared/types/acp'
 import { getRuntimeWebContentsId } from '@api/runtime'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createProviderClient } from '@api/ProviderClient'
-import { useToast } from '@/components/use-toast'
 import { nanoid } from 'nanoid'
 import { useMonaco } from 'stream-monaco'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -224,7 +260,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { toast } = useToast()
 const deviceClient = createDeviceClient()
 const providerClient = createProviderClient()
 const uiSettingsStore = useUiSettingsStore()
@@ -238,10 +273,19 @@ const events = ref<AcpDebugEventEntry[]>([])
 const seenIds = new Set<string>()
 const webContentsId = ref<number | null>(null)
 const debugSessionId = ref(createDebugSessionId())
+const debugRequestId = ref(createDebugRequestId())
 const processReady = ref(false)
 const payloadEditor = ref<HTMLElement | null>(null)
+type DebugFeedbackSource = 'payload' | 'method' | 'lifecycle' | 'request' | 'workdir' | 'editor'
+type DebugFeedback = Readonly<{
+  source: DebugFeedbackSource
+  title: string
+  description?: string
+}>
+const debugFeedback = ref<DebugFeedback | null>(null)
 let editorCreated = false
 let stopDebugEvents: (() => void) | null = null
+let dialogGeneration = 0
 const workdirLabel = computed(() =>
   workdirPath.value ? workdirPath.value : t('settings.acp.debug.workdirPlaceholder')
 )
@@ -261,6 +305,31 @@ const { createEditor, updateCode, getEditorView, cleanupEditor } = useMonaco({
 function createDebugSessionId() {
   return `debug-${nanoid(6)}`
 }
+
+function createDebugRequestId() {
+  return `debug-run-${nanoid(8)}`
+}
+
+const errorDescription = (error: unknown) =>
+  error instanceof Error ? error.message : String(error)
+
+const setDebugFeedback = (source: DebugFeedbackSource, title: string, description?: string) => {
+  const normalizedDescription = description?.trim()
+  debugFeedback.value = {
+    source,
+    title,
+    ...(normalizedDescription && normalizedDescription !== title
+      ? { description: normalizedDescription }
+      : {})
+  }
+}
+
+const clearDebugFeedback = () => {
+  debugFeedback.value = null
+}
+
+const isCurrentDialogGeneration = (generation: number) =>
+  props.open && generation === dialogGeneration
 
 const methodOptions = computed(() => [
   {
@@ -358,17 +427,14 @@ const stringify = (payload: unknown) => {
 
 const formatPayload = () => {
   if (!payloadText.value.trim()) return
+  clearDebugFeedback()
   try {
     payloadText.value = JSON.stringify(JSON.parse(payloadText.value), null, 2)
     if (editorCreated) {
       updateCode(payloadText.value, 'json')
     }
   } catch (error) {
-    toast({
-      title: t('settings.acp.debug.parseError'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    setDebugFeedback('payload', t('settings.acp.debug.parseError'), errorDescription(error))
   }
 }
 
@@ -428,6 +494,7 @@ const templateForMethod = (method: AcpDebugRequest['action']) => {
 }
 
 const resetPayload = () => {
+  clearDebugFeedback()
   const content = JSON.stringify(templateForMethod(selectedMethod.value), null, 2)
   payloadText.value = content
   if (editorCreated) {
@@ -436,12 +503,11 @@ const resetPayload = () => {
 }
 
 const applyWorkdirToPayload = (
-  payload: Record<string, unknown> | undefined
+  payload: Record<string, unknown> | undefined,
+  method: AcpDebugRequest['action'] = selectedMethod.value
 ): Record<string, unknown> | undefined => {
   if (
-    !['newSession', 'loadSession', 'sessionList', 'sessionResume', 'sessionFork'].includes(
-      selectedMethod.value
-    )
+    !['newSession', 'loadSession', 'sessionList', 'sessionResume', 'sessionFork'].includes(method)
   ) {
     return payload
   }
@@ -478,6 +544,8 @@ const syncWorkdirIntoPayload = () => {
 }
 
 const selectMethod = (method: AcpDebugRequest['action']) => {
+  if (loading.value) return
+  clearDebugFeedback()
   selectedMethod.value = method
   if (!requiresCustomMethod.value) {
     customMethod.value = ''
@@ -512,11 +580,13 @@ const formatTime = (timestamp: number) => {
 
 const handleDebugEvent = (payload: unknown) => {
   const parsed = payload as {
+    requestId?: string
     webContentsId?: number
     agentId?: string
     event?: AcpDebugEventEntry
   }
-  if (!parsed?.event || parsed.agentId !== props.agentId) return
+  if (!props.open || !parsed?.event || parsed.agentId !== props.agentId) return
+  if (parsed.requestId !== debugRequestId.value) return
   if (parsed.webContentsId && parsed.webContentsId !== webContentsId.value) return
   appendEvents([parsed.event])
 }
@@ -530,34 +600,30 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 const handleSend = async () => {
+  if (loading.value) return
+  clearDebugFeedback()
   let parsedPayload: Record<string, unknown> | undefined
   try {
     parsedPayload = parsePayload()
   } catch (error) {
-    toast({
-      title: t('settings.acp.debug.parseError'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    setDebugFeedback('payload', t('settings.acp.debug.parseError'), errorDescription(error))
     return
   }
 
   if (requiresCustomMethod.value && !customMethod.value.trim()) {
-    toast({
-      title: t('settings.acp.debug.customMethodRequired'),
-      variant: 'destructive'
-    })
+    setDebugFeedback('method', t('settings.acp.debug.customMethodRequired'))
     return
   }
 
   if (!processReady.value && selectedMethod.value !== 'initialize') {
-    toast({
-      title: t('settings.acp.debug.needInitialize'),
-      variant: 'destructive'
-    })
+    setDebugFeedback('lifecycle', t('settings.acp.debug.needInitialize'))
     return
   }
 
+  const generation = dialogGeneration
+  const action = selectedMethod.value
+  const methodName = requiresCustomMethod.value ? customMethod.value.trim() : undefined
+  const workdir = workdirPath.value || undefined
   const payloadSessionId =
     isPlainObject(parsedPayload) &&
     typeof parsedPayload.sessionId === 'string' &&
@@ -568,18 +634,20 @@ const handleSend = async () => {
     ? debugSessionId.value.trim() || undefined
     : undefined
   const sessionId = payloadSessionId ?? fallbackSessionId
-  const payloadToSend = applyWorkdirToPayload(parsedPayload)
+  const payloadToSend = applyWorkdirToPayload(parsedPayload, action)
 
   loading.value = true
   try {
     const result = await providerClient.runAcpDebugAction({
+      requestId: debugRequestId.value,
       agentId: props.agentId,
-      action: selectedMethod.value,
+      action,
       payload: payloadToSend,
       sessionId,
-      workdir: workdirPath.value || undefined,
-      methodName: requiresCustomMethod.value ? customMethod.value.trim() : undefined
+      workdir,
+      methodName
     })
+    if (!isCurrentDialogGeneration(generation)) return
 
     if (result?.events?.length) {
       appendEvents(result.events)
@@ -589,35 +657,41 @@ const handleSend = async () => {
     }
     if (result?.status === 'ok') {
       processReady.value = true
+      clearDebugFeedback()
     }
-    if (result && result.status === 'error' && result.error) {
-      toast({
-        title: result.error,
-        variant: 'destructive'
-      })
+    if (result?.status === 'error') {
+      if (action === 'initialize') {
+        processReady.value = false
+      }
+      setDebugFeedback('request', t('settings.acp.debug.requestFailed'), result.error || undefined)
     }
   } catch (error) {
-    toast({
-      title: t('settings.acp.debug.requestFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    if (!isCurrentDialogGeneration(generation)) return
+    setDebugFeedback('request', t('settings.acp.debug.requestFailed'), errorDescription(error))
   } finally {
-    loading.value = false
+    if (isCurrentDialogGeneration(generation)) {
+      loading.value = false
+    }
   }
 }
 
 const runHealthCheck = async () => {
+  if (loading.value) return
+  clearDebugFeedback()
+  const generation = dialogGeneration
+  const workdir = workdirPath.value || undefined
   clearEvents()
   debugSessionId.value = ''
   loading.value = true
   try {
     const initializeResult = await providerClient.runAcpDebugAction({
+      requestId: debugRequestId.value,
       agentId: props.agentId,
       action: 'initialize',
       payload: templateForMethod('initialize'),
-      workdir: workdirPath.value || undefined
+      workdir
     })
+    if (!isCurrentDialogGeneration(generation)) return
     appendEvents(initializeResult.events ?? [])
 
     if (initializeResult.status === 'error') {
@@ -627,11 +701,13 @@ const runHealthCheck = async () => {
     processReady.value = true
 
     const newSessionResult = await providerClient.runAcpDebugAction({
+      requestId: debugRequestId.value,
       agentId: props.agentId,
       action: 'newSession',
-      payload: applyWorkdirToPayload(templateForMethod('newSession')),
-      workdir: workdirPath.value || undefined
+      payload: applyWorkdirToPayload(templateForMethod('newSession'), 'newSession'),
+      workdir
     })
+    if (!isCurrentDialogGeneration(generation)) return
     appendEvents(newSessionResult.events ?? [])
 
     if (newSessionResult.status === 'error') {
@@ -641,40 +717,58 @@ const runHealthCheck = async () => {
     const newSessionId = newSessionResult.sessionId
 
     const cancelResult = await providerClient.runAcpDebugAction({
+      requestId: debugRequestId.value,
       agentId: props.agentId,
       action: 'cancel',
       payload: templateForMethod('cancel'),
       sessionId: newSessionId,
-      workdir: workdirPath.value || undefined
+      workdir
     })
+    if (!isCurrentDialogGeneration(generation)) return
     appendEvents(cancelResult.events ?? [])
 
-    if (newSessionId && cancelResult.status !== 'ok') {
-      debugSessionId.value = newSessionId
+    if (cancelResult.status === 'error') {
+      if (newSessionId) {
+        debugSessionId.value = newSessionId
+      }
+      throw new Error(cancelResult.error || t('settings.acp.debug.requestFailed'))
     }
 
     selectedMethod.value = 'newSession'
     resetPayload()
   } catch (error) {
+    if (!isCurrentDialogGeneration(generation)) return
     processReady.value = false
-    toast({
-      title: t('settings.acp.debug.healthCheckFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    setDebugFeedback(
+      'lifecycle',
+      t('settings.acp.debug.healthCheckFailed'),
+      errorDescription(error)
+    )
   } finally {
-    loading.value = false
+    if (isCurrentDialogGeneration(generation)) {
+      loading.value = false
+    }
   }
 }
 
 const handleSelectWorkdir = async () => {
-  const result = await deviceClient.selectDirectory()
-  if (result?.canceled || !result.filePaths?.length) return
-  workdirPath.value = result.filePaths[0]
-  syncWorkdirIntoPayload()
+  const generation = dialogGeneration
+  clearDebugFeedback()
+  try {
+    const result = await deviceClient.selectDirectory()
+    if (!isCurrentDialogGeneration(generation)) return
+    if (result?.canceled || !result.filePaths?.length) return
+    workdirPath.value = result.filePaths[0]
+    syncWorkdirIntoPayload()
+  } catch (error) {
+    if (!isCurrentDialogGeneration(generation)) return
+    console.error('[AcpDebugDialog] Failed to select a working directory:', error)
+    setDebugFeedback('workdir', t('common.error.operationFailed'))
+  }
 }
 
 const clearWorkdir = () => {
+  clearDebugFeedback()
   workdirPath.value = ''
   syncWorkdirIntoPayload()
 }
@@ -686,6 +780,7 @@ const ensureEditor = async () => {
   if (editor) {
     editor.onDidChangeModelContent(() => {
       payloadText.value = editor.getValue()
+      clearDebugFeedback()
     })
   }
   editorCreated = true
@@ -700,19 +795,31 @@ const disposeEditor = () => {
 watch(
   () => props.open,
   async (open) => {
+    const generation = ++dialogGeneration
     if (open) {
       clearEvents()
+      clearDebugFeedback()
       processReady.value = false
       selectedMethod.value = 'newSession'
       customMethod.value = ''
       debugSessionId.value = createDebugSessionId()
-      await nextTick()
-      await ensureEditor()
-      resetPayload()
+      debugRequestId.value = createDebugRequestId()
+      try {
+        await nextTick()
+        if (!isCurrentDialogGeneration(generation)) return
+        await ensureEditor()
+        if (!isCurrentDialogGeneration(generation)) return
+        resetPayload()
+      } catch (error) {
+        if (!isCurrentDialogGeneration(generation)) return
+        console.error('[AcpDebugDialog] Failed to initialize payload editor:', error)
+        setDebugFeedback('editor', t('common.error.operationFailed'))
+      }
       return
     }
     disposeEditor()
     clearEvents()
+    clearDebugFeedback()
     processReady.value = false
     loading.value = false
   }
@@ -726,14 +833,26 @@ onMounted(async () => {
   }
 
   if (props.open) {
-    await nextTick()
-    await ensureEditor()
-    resetPayload()
+    const generation = dialogGeneration
+    try {
+      await nextTick()
+      if (!isCurrentDialogGeneration(generation)) return
+      await ensureEditor()
+      if (!isCurrentDialogGeneration(generation)) {
+        disposeEditor()
+        return
+      }
+      resetPayload()
+    } catch (error) {
+      console.error('[AcpDebugDialog] Failed to initialize payload editor:', error)
+      setDebugFeedback('editor', t('common.error.operationFailed'))
+    }
   }
   stopDebugEvents = providerClient.onAcpDebugEvent(handleDebugEvent)
 })
 
 onBeforeUnmount(() => {
+  dialogGeneration += 1
   disposeEditor()
   stopDebugEvents?.()
   stopDebugEvents = null

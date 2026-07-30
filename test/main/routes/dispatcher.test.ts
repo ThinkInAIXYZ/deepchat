@@ -591,6 +591,7 @@ function createRuntime() {
     server_url: 'https://mcp.context7.com/mcp'
   }
   const mcpService = {
+    addMcpServer: vi.fn().mockResolvedValue({ status: 'added' }),
     getNpmRegistryStatus: vi.fn().mockResolvedValue({
       currentRegistry: 'https://registry.npmjs.org/',
       isFromCache: false,
@@ -605,8 +606,7 @@ function createRuntime() {
     getMcpRouterApiKey: vi.fn().mockResolvedValue('router-key'),
     setMcpRouterApiKey: vi.fn().mockResolvedValue(undefined),
     isServerInstalled: vi.fn().mockResolvedValue(false),
-    listInstalledServerIds: vi.fn().mockResolvedValue(['context7']),
-    updateMcpRouterServersAuth: vi.fn().mockResolvedValue(undefined)
+    listInstalledServerIds: vi.fn().mockResolvedValue(['context7'])
   } as unknown as McpServicePort
   const remoteService = {
     listRemoteChannels: vi.fn().mockResolvedValue([
@@ -1429,7 +1429,6 @@ function createRuntime() {
         totalTokens: 30,
         cachedInputTokens: 0,
         cacheHitRate: 0,
-        estimatedCostUsd: null,
         mostActiveDay: { date: '2026-06-11', messageCount: 1 }
       },
       calendar: [],
@@ -3491,7 +3490,13 @@ describe('dispatchDeepchatRoute', () => {
     const testResult = await dispatchDeepchatRoute(
       runtime,
       'nowledgeMem.testConnection',
-      {},
+      {
+        config: {
+          baseUrl: 'http://draft.local',
+          apiKey: 'draft-secret',
+          timeout: 12000
+        }
+      },
       context
     )
 
@@ -3501,7 +3506,11 @@ describe('dispatchDeepchatRoute', () => {
       apiKey: 'secret',
       timeout: 45000
     })
-    expect(exporter.testNowledgeMemConnection).toHaveBeenCalledTimes(1)
+    expect(exporter.testNowledgeMemConnection).toHaveBeenCalledWith({
+      baseUrl: 'http://draft.local',
+      apiKey: 'draft-secret',
+      timeout: 12000
+    })
     expect(getResult).toEqual({
       config: {
         baseUrl: 'http://127.0.0.1:14242',
@@ -3619,14 +3628,6 @@ describe('dispatchDeepchatRoute', () => {
       },
       context
     )
-    const authResult = await dispatchDeepchatRoute(
-      runtime,
-      'mcp.router.updateServersAuth',
-      {
-        apiKey: 'new-router-key'
-      },
-      context
-    )
     const installedResult = await dispatchDeepchatRoute(
       runtime,
       'mcp.router.isServerInstalled',
@@ -3657,7 +3658,6 @@ describe('dispatchDeepchatRoute', () => {
     expect(mcpService.listMcpRouterServers).toHaveBeenCalledWith(1, 20)
     expect(mcpService.getMcpRouterApiKey).toHaveBeenCalledTimes(1)
     expect(mcpService.setMcpRouterApiKey).toHaveBeenCalledWith('new-router-key')
-    expect(mcpService.updateMcpRouterServersAuth).toHaveBeenCalledWith('new-router-key')
     expect(mcpService.isServerInstalled).toHaveBeenCalledWith('mcprouter', 'context7')
     expect(mcpService.listInstalledServerIds).toHaveBeenCalledWith('mcprouter', [
       'context7',
@@ -3674,10 +3674,41 @@ describe('dispatchDeepchatRoute', () => {
     })
     expect(keyResult).toEqual({ key: 'router-key' })
     expect(saveResult).toEqual({ saved: true })
-    expect(authResult).toEqual({ updated: true })
     expect(installedResult).toEqual({ installed: false })
     expect(installedIdsResult).toEqual({ installedSourceIds: ['context7'] })
     expect(installResult).toEqual({ installed: true })
+  })
+
+  it('returns typed MCP add results and records only persisted additions', async () => {
+    const { runtime, mcpService, sqlitePresenter } = createRuntime()
+    const context = { webContentsId: 42, windowId: 7 }
+    const config = {
+      type: 'stdio',
+      command: 'node',
+      args: [],
+      env: {},
+      descriptions: '',
+      icons: '',
+      enabled: false
+    } as const
+
+    const added = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.addServer',
+      { serverName: 'new-server', config },
+      context
+    )
+    vi.mocked(mcpService.addMcpServer).mockResolvedValueOnce({ status: 'duplicate' })
+    const duplicate = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.addServer',
+      { serverName: 'new-server', config },
+      context
+    )
+
+    expect(added).toEqual({ result: { status: 'added' } })
+    expect(duplicate).toEqual({ result: { status: 'duplicate' } })
+    expect(sqlitePresenter.recordSettingsActivity).toHaveBeenCalledOnce()
   })
 
   it('dispatches NPM registry routes through McpService', async () => {
@@ -4797,6 +4828,7 @@ describe('dispatchDeepchatRoute', () => {
       runtime,
       'providers.runAcpDebugAction',
       {
+        requestId: 'debug-request-1',
         agentId: 'codex-acp',
         action: 'initialize',
         payload: {}
@@ -4849,6 +4881,7 @@ describe('dispatchDeepchatRoute', () => {
       page_size: 50
     })
     expect(acpProviderAdminPort.runAcpDebugAction).toHaveBeenCalledWith({
+      requestId: 'debug-request-1',
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {},
