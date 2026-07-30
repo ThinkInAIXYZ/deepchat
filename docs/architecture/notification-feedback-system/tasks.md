@@ -37,6 +37,12 @@
 - [x] Derive Agent dirty state from canonical editable data.
 - [x] Guard route and window close for dirty or in-flight Agent data.
 - [x] Test handoff races, reclamation, hidden-document timing, and close behavior.
+- [ ] Prevent observed inline results from replaying as Toast.
+- [ ] Dispose component-owned controllers and active operations on unmount.
+- [ ] Make framework-facing feedback transitions non-throwing and diagnostic.
+- [ ] Give settled clearing and pending cancellation unambiguous names.
+- [ ] Make the controlled leave dialog dispatch one explicit decision per user action.
+- [ ] Keep persisted Agent success independent from fallible local projection.
 
 ## Main Router and semantic producers
 
@@ -60,6 +66,9 @@
 - [x] Migrate retained transient, actionable, and progress intents.
 - [x] Keep stores UI-agnostic and return truthful typed outcomes.
 - [x] Delete `use-toast.ts` without a compatibility entry point.
+- [ ] Re-audit every Surface Lease against a durable inline source.
+- [ ] Move unanchored maintenance, refresh, cache, and detection results to transient feedback.
+- [ ] Restore complete error objects in local diagnostics without exposing them in UI copy.
 
 ## Validation and delivery
 
@@ -71,3 +80,6 @@
 - [x] Complete a severity-ordered review before every commit and fix all findings.
 - [x] Commit locally with Conventional Commits.
 - [x] Do not push.
+- [ ] Add real-dialog discard, observed-result non-replay, and unmount-disposal seam tests.
+- [ ] Add real-router coverage for settings navigation blocking.
+- [ ] Re-run focused and full validation after the corrective audit.

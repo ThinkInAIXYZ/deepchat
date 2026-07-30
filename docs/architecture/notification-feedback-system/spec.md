@@ -114,6 +114,10 @@ created -> running -> succeeded | failed | cancelled
 Operation process ownership is fixed when the operation is created:
 
 - renderer-owned operations are bounded by that renderer's lifetime;
+- a component-owned feedback controller is disposed when its owning component unmounts; disposal
+  cancels an active renderer operation, scheduled presentation work, and subscriptions;
+- asynchronous completion after disposal is an expected lifecycle race and is ignored rather than
+  surfaced as an unhandled error;
 - data-sensitive renderer operations prevent route or window close until safe or explicitly
   discarded;
 - operations intended to outlive a renderer are main-owned from the beginning and use Router;
@@ -219,6 +223,11 @@ from display duration; they close from action, dismissal, recovery, or explicit 
 
 A Feedback Record has one logical result and at most one active presentation.
 
+Surface Lease is reserved for feedback bound to an initiating control or editable surface that the
+user is expected to keep watching. A one-shot maintenance, refresh, detection, or cache action
+whose result is not anchored to a durable inline source uses local pending affordance plus terminal
+transient feedback. Operation lifecycle and Surface Lease are independent responsibilities.
+
 The owning view registers a Surface Lease. Inline availability is:
 
 ```text
@@ -240,6 +249,16 @@ Reactivation cancels scheduled handoff. A newly created Lease immediately checks
 If Toast already exists, inline reclaims the same record and dismisses Toast with
 `surface-reclaimed`; it does not create a second message.
 
+Terminal feedback records whether it has been observed inline:
+
+- settlement while at least one Lease is active and the document is visible marks the result
+  observed;
+- becoming visible with an active Lease marks an existing terminal result observed;
+- only an unobserved terminal result may hand off to Toast;
+- leaving after observing inline success or error never replays the same result as Toast;
+- a result that settles after its Lease becomes inactive remains unobserved and hands off;
+- observation is presentation metadata, not a second business result.
+
 Losing inline availability changes only the presentation surface. It never changes ordinary error
 into actionable. Actionability comes from the operation result.
 
@@ -253,6 +272,28 @@ Inline success confirmation:
 - errors remain until retry, edit, navigation with explicit discard, or success.
 
 Dirty and in-flight data risk is handled by route and window-close guards, not Toast.
+
+The settings leave guard is the sole owner of its controlled confirmation dialog. Dialog buttons
+must issue explicit `cancelLeave` or `discardAndLeave` decisions and must not also use close
+primitives that mutate `open`. Escape and outside-dismiss paths explicitly cancel the pending leave
+request. A persisted operation result and its local UI projection are separate boundaries: failure
+to refresh or project locally after confirmed persistence must not report the persistence itself as
+failed.
+
+The framework-facing Surface Feedback Controller is a resilience boundary around the strict
+Operation Registry:
+
+- `begin`, terminal settlement, settled-result clearing, and pending cancellation report whether
+  the requested transition was accepted;
+- lifecycle races, duplicate transitions, invalid display data, and registry integration failures
+  are diagnosed with the complete error object and do not throw into business code;
+- invalid terminal display data still closes or cancels the underlying operation so it cannot leak;
+- `clearSettled`, `cancelPending`, and `dispose` have distinct names and state ownership;
+- one `useSurfaceFeedback` binding owns one controller lifetime.
+
+User-facing copy never contains arbitrary exception text. Local developer diagnostics retain the
+complete error object, including message, stack, and cause. Privacy-safe structured diagnostics are
+required only when data leaves the local logging boundary.
 
 ### Sonner Adapter
 

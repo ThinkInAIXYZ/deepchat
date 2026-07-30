@@ -48,15 +48,21 @@ Create a composable/controller that:
 
 - owns one operation Feedback Record;
 - registers mounted and active Lease state;
+- records whether terminal feedback was actually observable while inline;
 - uses generation-safe scheduled handoff;
 - rechecks the Lease immediately before Toast presentation;
+- hands off only terminal feedback that was never observed inline;
 - lets returning inline UI reclaim and dismiss Toast;
 - pauses inline success fade while the document is hidden;
 - keeps error state until retry, edit, discard, or success.
+- disposes component-owned controllers and cancels their active Operation records on unmount;
+- treats late completions and invalid transition requests as diagnosed no-ops instead of throwing
+  through the business operation.
 
 Adopt it first in Agent settings. Derive dirty state from a canonical normalized editable payload,
 not from a second manually synchronized flag. Add route-leave and settings-window-close behavior for
-dirty or in-flight data.
+dirty or in-flight data. Keep the leave guard as the only owner of the controlled confirmation
+dialog, and verify the real dialog action ordering rather than only calling the guard in isolation.
 
 ## 4. Add the main-process Window Notification Router
 
@@ -102,8 +108,17 @@ Classify each current Toast call:
 - progress because a main- or renderer-owned operation continues;
 - delete because the UI already expresses the result or the message is redundant.
 
+Apply the same classification to every Surface Lease integration. Retain inline feedback only when
+there is a durable initiating control or editable surface with a reserved feedback location.
+Maintenance, refresh, cache, and detection actions use a local pending affordance and terminal
+transient feedback unless the concrete layout gives the result a meaningful inline home.
+
 Migrate callers to the new API and remove `use-toast.ts`. Do not create a compatibility re-export.
 Keep stores presentation-free and preserve typed outcomes so components decide the surface.
+
+Keep raw exceptions out of user copy but pass complete error objects to local diagnostics. Treat a
+successful persistence response as the persistence truth before applying fallible local projection
+or reload work.
 
 Prioritize high-risk false-success paths:
 
@@ -122,7 +137,9 @@ Run focused tests after each layer:
 - Adapter tests proving one presentation and no same-ID update;
 - stable-height and stack-offset component tests;
 - Surface Lease race and document-hidden timing tests;
+- observed-inline non-replay and component-unmount disposal tests;
 - Agent settings save/dirty/leave tests;
+- a real controlled leave-dialog action test and a real-router navigation guard test;
 - MCP occurrence/recovery and single-target tests;
 - provider deeplink semantic localization tests;
 - migrated component regression tests.
