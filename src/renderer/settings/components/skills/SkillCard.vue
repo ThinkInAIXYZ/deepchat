@@ -1,11 +1,13 @@
 <template>
   <div
     class="border rounded-md px-3 py-3 bg-card hover:bg-accent/50 transition-colors grid h-full grid-cols-[auto_minmax(0,1fr)] gap-3 cursor-pointer sm:grid-cols-[auto_minmax(0,1fr)_auto]"
+    :class="{ 'pointer-events-none opacity-60': disabled }"
     role="button"
-    tabindex="0"
-    @click="$emit('view')"
-    @keydown.enter.prevent="$emit('view')"
-    @keydown.space.prevent="$emit('view')"
+    :tabindex="disabled ? -1 : 0"
+    :aria-disabled="disabled"
+    @click="handleView"
+    @keydown.enter.prevent="handleView"
+    @keydown.space.prevent="handleView"
   >
     <div class="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-primary">
       <Icon icon="lucide:wand-sparkles" class="w-4 h-4" />
@@ -48,6 +50,7 @@
       <Switch
         class="shrink-0 sm:mt-1"
         :model-value="!skill.deepchatDisabled"
+        :disabled="disabled"
         :aria-label="
           skill.deepchatDisabled
             ? t('settings.skills.card.enable')
@@ -76,6 +79,7 @@ const props = defineProps<{
   skill: UnifiedSkillItem
   extension?: SkillExtensionConfig
   scripts?: SkillScriptDescriptor[]
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -89,8 +93,13 @@ const envCount = computed(() => Object.keys(props.extension?.env ?? {}).length)
 const scriptsList = computed(() => props.scripts ?? [])
 
 const handleEnabledChange = (value: boolean | string) => {
+  if (props.disabled) return
   const enabled = typeof value === 'string' ? value === 'true' : Boolean(value)
   emit('toggle-disabled', !enabled)
+}
+
+const handleView = () => {
+  if (!props.disabled) emit('view')
 }
 
 const runtimeLabel = (value: SkillRuntimePreference | undefined) => {

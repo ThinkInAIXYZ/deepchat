@@ -50,7 +50,7 @@ export const useSyncStore = defineStore('sync', () => {
     try {
       await backupsQuery.refetch()
     } catch (error) {
-      console.error('刷新备份列表失败:', error)
+      console.error('[SyncStore] Failed to refresh backups', error)
     }
   }
 
@@ -70,8 +70,8 @@ export const useSyncStore = defineStore('sync', () => {
       }
       return backupInfo
     } catch (error) {
-      console.error('backup failed:', error)
-      return null
+      console.error('[SyncStore] Backup failed', error)
+      throw error
     } finally {
       isBackingUp.value = false
     }
@@ -107,7 +107,7 @@ export const useSyncStore = defineStore('sync', () => {
       importResult.value = result.success ? null : result
       return result
     } catch (error) {
-      console.error('import failed:', error)
+      console.error('[SyncStore] Import failed', error)
       importResult.value = {
         success: false,
         message: 'sync.error.importFailed'
@@ -123,7 +123,8 @@ export const useSyncStore = defineStore('sync', () => {
     try {
       cloudConfig.value = await syncClient.getCloudConfig()
     } catch (error) {
-      console.error('load cloud config failed:', error)
+      console.error('[SyncStore] Failed to load cloud config', error)
+      throw error
     }
     return cloudConfig.value
   }
@@ -175,17 +176,20 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const initialize = async () => {
-    syncEnabled.value = await configClient.getSyncEnabled()
-    syncFolderPath.value = await configClient.getSyncFolderPath()
+    try {
+      syncEnabled.value = await configClient.getSyncEnabled()
+      syncFolderPath.value = await configClient.getSyncFolderPath()
 
-    const status = await syncClient.getBackupStatus()
-    lastSyncTime.value = status.lastBackupTime
-    isBackingUp.value = status.isBackingUp
+      const status = await syncClient.getBackupStatus()
+      lastSyncTime.value = status.lastBackupTime
+      isBackingUp.value = status.isBackingUp
 
-    await refreshBackups()
-    await loadCloudConfig()
-    setupSyncEventListeners()
-    setupSyncSettingsListener()
+      await refreshBackups()
+      await loadCloudConfig()
+    } finally {
+      setupSyncEventListeners()
+      setupSyncSettingsListener()
+    }
   }
 
   const setupSyncEventListeners = () => {
@@ -222,21 +226,24 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const setSyncEnabled = async (enabled: boolean) => {
-    syncEnabled.value = enabled
     await configClient.setSyncEnabled(enabled)
+    syncEnabled.value = enabled
   }
 
   const setSyncFolderPath = async (path: string) => {
-    syncFolderPath.value = path
     await configClient.setSyncFolderPath(path)
+    syncFolderPath.value = path
     await refreshBackups()
   }
 
-  const selectSyncFolder = async () => {
+  const selectSyncFolder = async (): Promise<string | null> => {
     const result = await deviceClient.selectDirectory()
     if (result && !result.canceled && result.filePaths.length > 0) {
-      await setSyncFolderPath(result.filePaths[0])
+      const path = result.filePaths[0]
+      await setSyncFolderPath(path)
+      return path
     }
+    return null
   }
 
   const openSyncFolder = async () => {

@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "通知",
+    "actionFailed": "操作失敗，請重試",
+    "entities": "影響 {count} 項",
+    "occurrences": "已發生 {count} 次",
+    "pending": "還有 {count} 項待處理",
+    "mcpConnectionFailed": {
+      "title": "無法連接至 {serverName}",
+      "description": "請檢查伺服器設定後再試。"
+    },
+    "mcpToolListFailed": {
+      "title": "無法載入 {serverName} 的工具",
+      "description": "伺服器已連接，但工具暫時無法使用。"
+    },
+    "providerDeeplinkFailed": {
+      "title": "無法開啟服務商設定",
+      "reasons": {
+        "unsupported-version": "不支援此連結版本。",
+        "invalid-payload": "此服務商連結無效。",
+        "provider-not-found": "找不到連結中的服務商。",
+        "unsupported-provider": "暫不支援此服務商。",
+        "settings-unavailable": "無法開啟服務商設定。"
+      }
+    }
+  },
   "enabled": "已啟用",
   "disabled": "已禁用",
   "loading": "加載中...",

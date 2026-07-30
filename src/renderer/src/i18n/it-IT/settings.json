@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "La cache persistente non è disponibile perché non è disponibile l’archiviazione sicura delle chiavi."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Modifiche non salvate",
+    "dirtyDescription": "Uscire e scartare le modifiche?",
+    "busyTitle": "Salvataggio in corso",
+    "busyDescription": "Attendi il completamento del salvataggio prima di uscire.",
+    "stay": "Continua a modificare",
+    "discard": "Scarta modifiche"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Salvataggio…",
+      "saved": "Salvato",
+      "saveFailed": "Salvataggio non riuscito. Le modifiche sono state mantenute.",
+      "retry": "Riprova"
+    },
     "title": "DeepChat Agents",
     "description": "Gestisci DeepChat Agent e i valori predefiniti per le nuove sessioni.",
     "builtIn": "Integrato",
@@ -1627,7 +1641,15 @@
       "seconds": "secondi",
       "testConnection": "Testa connessione",
       "timeout": "Timeout",
-      "title": "Configurazione esportazione Nowledge Mem"
+      "title": "Configurazione esportazione Nowledge Mem",
+      "configLoadFailed": "Impossibile caricare la configurazione",
+      "configSaved": "Configurazione salvata",
+      "configSaveFailed": "Impossibile salvare la configurazione",
+      "configReset": "Configurazione reimpostata",
+      "configResetFailed": "Impossibile reimpostare la configurazione",
+      "connectionSucceeded": "Connessione riuscita",
+      "connectionFailed": "Impossibile connettersi con la configurazione corrente",
+      "invalidBaseUrl": "Inserisci un indirizzo HTTP o HTTPS senza credenziali o parametri di query"
     }
   },
   "mcp": {
@@ -1673,6 +1695,7 @@
       "name": "Nome server",
       "namePlaceholder": "Inserisci nome server",
       "nameRequired": "Il nome server non può essere vuoto",
+      "nameDuplicate": "Esiste già un server con questo nome.",
       "type": "Tipo server",
       "typePlaceholder": "Seleziona tipo server",
       "typeStdio": "Input/output standard (Stdio)",
@@ -2997,7 +3020,7 @@
       "error": "Errore",
       "invalidAgent": "Agent mancante o disattivato. Scegli un altro Agent."
     },
-    "runNowSuccess": "Attività pianificata avviata"
+    "runNowSuccess": "Attività pianificata completata"
   },
   "memory": {
     "description": "Esamina, configura e gestisci ciò che ogni agente ricorda tra le sessioni. La memoria è separata per ogni agente.",

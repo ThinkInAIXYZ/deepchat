@@ -4,16 +4,22 @@
       <div v-if="isLoading" class="text-sm text-muted-foreground">
         {{ t('common.loading') }}
       </div>
-      <div v-else-if="!config" class="text-sm text-muted-foreground">
-        {{ t('common.error.requestFailed') }}
+      <div v-else-if="!config">
+        <InlineOperationFeedback
+          :snapshot="configFeedback"
+          :retry-label="t('common.retry')"
+          @retry="loadConfig"
+        />
       </div>
       <template v-else>
         <div class="space-y-1">
           <div class="flex items-center gap-2">
             <div class="text-base font-medium">{{ t('settings.notificationsHooks.title') }}</div>
-            <span v-if="isSaving" class="text-xs text-muted-foreground">
-              {{ t('common.saving') }}
-            </span>
+            <InlineOperationFeedback
+              :snapshot="configFeedback"
+              :retry-label="t('common.retry')"
+              @retry="persistConfig"
+            />
           </div>
           <div class="text-sm text-muted-foreground">
             {{ t('settings.notificationsHooks.commands.description') }}
@@ -179,6 +185,7 @@
                         <span>{{ hook.enabled ? t('common.enabled') : t('common.disabled') }}</span>
                         <Switch
                           :model-value="hook.enabled"
+                          :disabled="isHookTesting(hook.id)"
                           @update:model-value="
                             (value) => updateHookEnabled(hook.id, value === true)
                           "
@@ -213,6 +220,7 @@
                         variant="ghost"
                         size="sm"
                         class="text-destructive"
+                        :disabled="isHookTesting(hook.id)"
                         @click="removeHook(hook.id)"
                       >
                         <Icon icon="lucide:trash-2" class="mr-1 h-4 w-4" />
@@ -227,8 +235,12 @@
                         {{ t('settings.notificationsHooks.commands.name') }}
                       </Label>
                       <Input
-                        v-model="hook.name"
+                        :model-value="hook.name"
+                        :disabled="isHookTesting(hook.id)"
                         :placeholder="t('settings.notificationsHooks.commands.namePlaceholder')"
+                        @update:model-value="
+                          (value) => updateHookField(hook.id, 'name', String(value))
+                        "
                         @blur="persistConfig"
                       />
                     </div>
@@ -238,8 +250,12 @@
                         {{ t('settings.notificationsHooks.commands.commandLabel') }}
                       </Label>
                       <Input
-                        v-model="hook.command"
+                        :model-value="hook.command"
+                        :disabled="isHookTesting(hook.id)"
                         :placeholder="t('settings.notificationsHooks.commands.commandPlaceholder')"
+                        @update:model-value="
+                          (value) => updateHookField(hook.id, 'command', String(value))
+                        "
                         @blur="persistConfig"
                       />
                     </div>
@@ -257,6 +273,7 @@
                       >
                         <Checkbox
                           :checked="hook.events.includes(eventName)"
+                          :disabled="isHookTesting(hook.id)"
                           @update:checked="
                             (value) => updateHookEvent(hook.id, eventName, value === true)
                           "
@@ -330,7 +347,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nanoid } from 'nanoid'
+import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -345,8 +363,11 @@ import { Label } from '@shadcn/components/ui/label'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import { useToast } from '@/components/use-toast'
 import { createConfigClient } from '@api/ConfigClient'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 import type {
   HookCommandItem,
   HookEventName,
@@ -370,16 +391,33 @@ type HookDocField =
   | 'toolCallId'
 
 const { t } = useI18n()
-const { toast } = useToast()
 const configClient = createConfigClient()
+const configFeedbackController = createRendererSurfaceFeedbackController('settings')
+const { snapshot: configFeedback } = useSurfaceFeedback(configFeedbackController)
+const operationIds = Object.freeze({
+  load: `settings.notificationsHooks.load:${nanoid(8)}`,
+  save: `settings.notificationsHooks.save:${nanoid(8)}`
+})
 
 const config = ref<HooksNotificationsSettings | null>(null)
-const isLoading = ref(false)
-const isSaving = ref(false)
 const guideOpen = ref(false)
 const testing = ref<Record<string, boolean>>({})
 const testResults = ref<Record<string, HookTestResult | null>>({})
-let pendingSave = false
+const isLoading = computed(
+  () =>
+    configFeedback.value.status === 'pending' &&
+    configFeedback.value.operationId === operationIds.load
+)
+const isSaving = computed(
+  () =>
+    configFeedback.value.status === 'pending' &&
+    configFeedback.value.operationId === operationIds.save
+)
+const draftRevision = ref(0)
+const persistedRevision = ref(0)
+let requestedSaveRevision = 0
+let saveLoopPromise: Promise<boolean> | undefined
+let persistedConfig: HooksNotificationsSettings | null = null
 
 const eventNames = HOOK_EVENT_NAMES
 const stdinPreview = `{
@@ -446,50 +484,95 @@ function fallbackHookName(index: number): string {
 }
 
 const loadConfig = async () => {
-  isLoading.value = true
+  if (isLoading.value || isSaving.value) {
+    return
+  }
+
+  configFeedbackController.begin(operationIds.load, t('common.loading'))
   try {
-    config.value = await configClient.getHooksNotificationsConfig()
-  } catch (error) {
-    console.error('Failed to load hooks config:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+    const loaded = await configClient.getHooksNotificationsConfig()
+    persistedConfig = cloneConfig(loaded)
+    config.value = cloneConfig(loaded)
+    draftRevision.value = 0
+    persistedRevision.value = 0
+    requestedSaveRevision = 0
+    configFeedbackController.succeed({
+      code: 'settings.notificationsHooks.loaded',
+      title: t('common.saved')
     })
-  } finally {
-    isLoading.value = false
+    configFeedbackController.clearSettled()
+  } catch (error) {
+    console.error('[NotificationsHooksSettings] Failed to load configuration', error)
+    configFeedbackController.fail({
+      code: 'settings.notificationsHooks.loadFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed')
+    })
   }
 }
 
-const persistConfig = async () => {
-  if (!config.value) {
-    return
+const cloneConfig = (value: HooksNotificationsSettings): HooksNotificationsSettings =>
+  structuredClone(toRaw(value))
+
+const markDraftChanged = () => {
+  draftRevision.value += 1
+  if (configFeedback.value.status === 'success' || configFeedback.value.status === 'error') {
+    configFeedbackController.clearSettled()
   }
-  if (isSaving.value) {
-    pendingSave = true
-    return
+}
+
+const flushSaveQueue = async (): Promise<boolean> => {
+  configFeedbackController.begin(operationIds.save, t('common.saving'))
+  try {
+    while (persistedRevision.value < requestedSaveRevision) {
+      if (!config.value) {
+        throw new Error('Hooks notification configuration is unavailable')
+      }
+
+      const attemptRevision = draftRevision.value
+      requestedSaveRevision = Math.max(requestedSaveRevision, attemptRevision)
+      const updated = await configClient.setHooksNotificationsConfig(cloneConfig(config.value))
+      persistedConfig = cloneConfig(updated)
+      persistedRevision.value = attemptRevision
+      if (draftRevision.value === attemptRevision) {
+        config.value = cloneConfig(updated)
+      }
+    }
+    configFeedbackController.succeed({
+      code: 'settings.notificationsHooks.saved',
+      title: t('common.saved')
+    })
+    if (persistedRevision.value < draftRevision.value) {
+      configFeedbackController.clearSettled()
+    }
+    return true
+  } catch (error) {
+    console.error('[NotificationsHooksSettings] Failed to save configuration', error)
+    configFeedbackController.fail({
+      code: 'settings.notificationsHooks.saveFailed',
+      title: t('common.error.operationFailed')
+    })
+    return false
+  }
+}
+
+const persistConfig = async (): Promise<boolean> => {
+  if (!config.value) {
+    return false
   }
 
-  isSaving.value = true
-  try {
-    const updated = await configClient.setHooksNotificationsConfig(config.value)
-    if (updated) {
-      config.value = updated
-    }
-  } catch (error) {
-    console.error('Failed to save hooks config:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
-  } finally {
-    isSaving.value = false
-    if (pendingSave) {
-      pendingSave = false
-      void persistConfig()
-    }
+  const targetRevision = draftRevision.value
+  requestedSaveRevision = Math.max(requestedSaveRevision, targetRevision)
+  if (persistedRevision.value >= targetRevision) {
+    return true
   }
+  if (!saveLoopPromise) {
+    saveLoopPromise = flushSaveQueue().finally(() => {
+      saveLoopPromise = undefined
+    })
+  }
+  const succeeded = await saveLoopPromise
+  return succeeded && persistedRevision.value >= targetRevision
 }
 
 const addHook = () => {
@@ -497,6 +580,7 @@ const addHook = () => {
     return
   }
   config.value.hooks.push(createHookDraft(config.value.hooks.length))
+  markDraftChanged()
   void persistConfig()
 }
 
@@ -507,15 +591,26 @@ const removeHook = (hookId: string) => {
   config.value.hooks = config.value.hooks.filter((hook) => hook.id !== hookId)
   delete testing.value[hookId]
   delete testResults.value[hookId]
+  markDraftChanged()
   void persistConfig()
+}
+
+const updateHookField = (hookId: string, field: 'name' | 'command', value: string) => {
+  const hook = config.value?.hooks.find((item) => item.id === hookId)
+  if (!hook || hook[field] === value) {
+    return
+  }
+  hook[field] = value
+  markDraftChanged()
 }
 
 const updateHookEnabled = (hookId: string, enabled: boolean) => {
   const hook = config.value?.hooks.find((item) => item.id === hookId)
-  if (!hook) {
+  if (!hook || hook.enabled === enabled) {
     return
   }
   hook.enabled = enabled
+  markDraftChanged()
   void persistConfig()
 }
 
@@ -531,7 +626,15 @@ const updateHookEvent = (hookId: string, eventName: HookEventName, checked: bool
   } else {
     events.delete(eventName)
   }
-  hook.events = Array.from(events)
+  const nextEvents = Array.from(events)
+  if (
+    nextEvents.length === hook.events.length &&
+    nextEvents.every((event, index) => event === hook.events[index])
+  ) {
+    return
+  }
+  hook.events = nextEvents
+  markDraftChanged()
   void persistConfig()
 }
 
@@ -550,19 +653,22 @@ const runHookTest = async (hookId: string) => {
   }
 
   try {
-    await persistConfig()
+    if (!(await persistConfig())) {
+      return
+    }
     const result = await configClient.testHookCommand(hookId)
     testResults.value = {
       ...testResults.value,
       [hookId]: result
     }
   } catch (error) {
+    console.error('[NotificationsHooksSettings] Failed to test hook', error)
     testResults.value = {
       ...testResults.value,
       [hookId]: {
         success: false,
         durationMs: 0,
-        error: error instanceof Error ? error.message : String(error)
+        error: t('common.error.operationFailed')
       }
     }
   } finally {
@@ -574,6 +680,32 @@ const runHookTest = async (hookId: string) => {
 }
 
 const isHookTesting = (hookId: string) => testing.value[hookId] === true
+
+const draftDirty = computed(() => draftRevision.value > persistedRevision.value)
+
+const discardDraft = () => {
+  if (!persistedConfig) {
+    return
+  }
+  config.value = cloneConfig(persistedConfig)
+  draftRevision.value = persistedRevision.value
+  requestedSaveRevision = persistedRevision.value
+  if (configFeedback.value.status === 'error') {
+    configFeedbackController.clearSettled()
+  }
+}
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: operationIds.save,
+  onDiscard: discardDraft
+})
+const stopLeaveRiskSync = watch(
+  [isSaving, draftDirty],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
 
 const eventLabel = (eventName: HookEventName) =>
   t(`settings.notificationsHooks.events.${eventName}`)
@@ -589,5 +721,10 @@ const formatPreview = (value?: string) => {
 
 onMounted(() => {
   void loadConfig()
+})
+
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
 })
 </script>

@@ -1296,7 +1296,15 @@
       "seconds": "초",
       "testConnection": "연결 테스트",
       "timeout": "초과 시간",
-      "title": "Nowledge Mem 내보내기 설정"
+      "title": "Nowledge Mem 내보내기 설정",
+      "configLoadFailed": "구성을 불러올 수 없습니다",
+      "configSaved": "구성이 저장되었습니다",
+      "configSaveFailed": "구성을 저장할 수 없습니다",
+      "configReset": "구성이 재설정되었습니다",
+      "configResetFailed": "구성을 재설정할 수 없습니다",
+      "connectionSucceeded": "연결에 성공했습니다",
+      "connectionFailed": "현재 구성으로 연결할 수 없습니다",
+      "invalidBaseUrl": "자격 증명이나 쿼리 매개변수가 없는 HTTP 또는 HTTPS 주소를 입력하세요"
     }
   },
   "mcp": {
@@ -1332,6 +1340,7 @@
       "name": "서버 이름",
       "namePlaceholder": "서버 이름 입력",
       "nameRequired": "서버 이름이 필요합니다",
+      "nameDuplicate": "같은 이름의 서버가 이미 있습니다.",
       "type": "서버 유형",
       "typePlaceholder": "서버 유형 선택",
       "typeStdio": "표준 입력 및 출력 (STDIO)",
@@ -1561,7 +1570,7 @@
       "error": "오류",
       "invalidAgent": "에이전트가 없거나 비활성화되었습니다. 다른 에이전트를 선택하세요."
     },
-    "runNowSuccess": "예약 작업이 시작되었습니다"
+    "runNowSuccess": "예약 작업이 완료되었습니다"
   },
   "about": {
     "title": "우리에 대해",
@@ -2638,7 +2647,21 @@
       "safe_storage_unavailable": "안전한 키 저장소를 사용할 수 없어 영구 캐시를 사용할 수 없습니다."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "저장하지 않은 변경 사항",
+    "dirtyDescription": "변경 사항을 버리고 나가시겠습니까?",
+    "busyTitle": "저장 중",
+    "busyDescription": "저장이 끝난 후 나가세요.",
+    "stay": "계속 편집",
+    "discard": "변경 사항 버리기"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "저장 중…",
+      "saved": "저장됨",
+      "saveFailed": "저장하지 못했습니다. 변경 사항은 유지됩니다.",
+      "retry": "다시 시도"
+    },
     "title": "DeepChat 에이전트",
     "description": "DeepChat 에이전트와 새 세션에 적용할 기본값을 관리합니다.",
     "builtIn": "내장",

@@ -73,7 +73,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
   const beginPlanTurn = vi.fn()
   const schedulePostSubmitScrollToBottom = vi.fn()
   const openModelPicker = vi.fn()
-  const toast = vi.fn()
+  const notify = vi.fn()
   const scope = effectScope()
   let actions!: ReturnType<typeof useComposerSubmit>
 
@@ -104,7 +104,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
       loadMessagesForSession: vi.fn().mockResolvedValue({}),
       applyRestoredSessionSummary: vi.fn(),
       openModelPicker,
-      toast,
+      notify,
       t: (key) => key
     })
   })
@@ -131,7 +131,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     beginPlanTurn,
     schedulePostSubmitScrollToBottom,
     openModelPicker,
-    toast,
+    notify,
     stop: () => scope.stop()
   }
 }
@@ -254,7 +254,7 @@ describe('useComposerSubmit attachment preflight', () => {
 
     expect(harness.actions.message.value).toBe('keep this draft')
     expect(harness.actions.attachedFiles.value).toEqual([imageFile()])
-    expect(harness.toast).not.toHaveBeenCalled()
+    expect(harness.notify).not.toHaveBeenCalled()
     expect(harness.actions.isPreparingAttachments.value).toBe(false)
     harness.stop()
   })
@@ -284,7 +284,7 @@ describe('useComposerSubmit attachment preflight', () => {
 
     expect(harness.actions.message.value).toBe('read this PDF')
     expect(harness.actions.attachedFiles.value).toEqual([pdfFile()])
-    expect(harness.toast).not.toHaveBeenCalled()
+    expect(harness.notify).not.toHaveBeenCalled()
     expect(harness.actions.isPreparingAttachments.value).toBe(false)
     harness.stop()
   })
@@ -353,7 +353,7 @@ describe('useComposerSubmit attachment preflight', () => {
     harness.stop()
   })
 
-  it('shows a destructive localized toast for non-cancellation failures', async () => {
+  it('reports a semantic attachment error for non-cancellation failures', async () => {
     const harness = createHarness()
     harness.chatClient.sendMessage.mockRejectedValueOnce(new Error('OCR runtime unavailable'))
     harness.actions.message.value = 'read this'
@@ -361,10 +361,11 @@ describe('useComposerSubmit attachment preflight', () => {
 
     await harness.actions.onSubmit()
 
-    expect(harness.toast).toHaveBeenCalledWith({
+    expect(harness.notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.attachment.uploadFailed',
       title: 'chat.input.fileUploadFailed',
-      description: 'OCR runtime unavailable',
-      variant: 'destructive'
+      description: 'OCR runtime unavailable'
     })
     expect(harness.actions.message.value).toBe('read this')
     expect(harness.actions.attachedFiles.value).toEqual([imageFile()])
@@ -384,10 +385,11 @@ describe('useComposerSubmit attachment preflight', () => {
     deferred.reject(new Error('OCR runtime unavailable'))
     await submit
 
-    expect(harness.toast).toHaveBeenCalledWith({
+    expect(harness.notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.attachment.uploadFailed',
       title: 'chat.input.fileUploadFailed',
-      description: 'OCR runtime unavailable',
-      variant: 'destructive'
+      description: 'OCR runtime unavailable'
     })
     expect(harness.actions.message.value).toBe('keep this draft')
     expect(harness.actions.attachedFiles.value).toEqual([imageFile()])
@@ -737,10 +739,11 @@ describe('useComposerSubmit attachment preflight', () => {
 
     expect(harness.beginPlanTurn).not.toHaveBeenCalled()
     expect(harness.actions.message.value).toBe('keep this draft')
-    expect(harness.toast).toHaveBeenCalledWith({
+    expect(harness.notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.attachment.uploadFailed',
       title: 'chat.input.fileUploadFailed',
-      description: 'boom',
-      variant: 'destructive'
+      description: 'boom'
     })
     harness.stop()
   })

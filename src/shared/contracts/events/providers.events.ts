@@ -54,6 +54,7 @@ export const providersRateLimitRequestExecutedEvent = defineEventContract({
 export const providersAcpDebugEvent = defineEventContract({
   name: 'providers.acp.debug.event',
   payload: z.object({
+    requestId: z.string().min(1).max(128),
     webContentsId: z.number().int().optional(),
     agentId: z.string().min(1),
     event: AcpDebugEventEntrySchema,

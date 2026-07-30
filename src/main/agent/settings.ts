@@ -241,20 +241,45 @@ export class AgentSettings implements AgentSettingsPort {
   }
 
   async setAcpEnabled(enabled: boolean): Promise<void> {
+    const previousEnabled = this.acpCatalog.getGlobalEnabled()
+    if (previousEnabled === enabled) return
+
     const enabledAgentIds = enabled ? [] : (await this.getAcpAgents()).map((agent) => agent.id)
     const changed = this.acpCatalog.setGlobalEnabled(enabled)
     if (!changed) return
 
-    if (!enabled && enabledAgentIds.length > 0) {
-      await this.provider.refreshAcpProviderAgents(enabledAgentIds)
+    try {
+      if (!enabled && enabledAgentIds.length > 0) {
+        await this.provider.refreshAcpProviderAgents(enabledAgentIds)
+      }
+      this.provider.setAcpProviderEnabled(enabled)
+    } catch (error) {
+      try {
+        this.acpCatalog.setGlobalEnabled(previousEnabled)
+        this.provider.setAcpProviderEnabled(previousEnabled)
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [error, rollbackError],
+          'Failed to change ACP availability and restore its previous state'
+        )
+      }
+      this.tryClearAcpProviderDerivedState(!previousEnabled)
+      try {
+        this.notifyAcpAgentsChanged()
+      } catch (notificationError) {
+        console.warn('[ACP] Failed to publish restored ACP availability:', notificationError)
+      }
+      throw error
     }
-    this.provider.setAcpProviderEnabled(enabled)
 
     if (!enabled) {
-      this.provider.clearAcpProviderModels()
-      this.provider.clearAcpProviderModelStatus()
+      this.tryClearAcpProviderDerivedState(true)
     }
-    this.notifyAcpAgentsChanged()
+    try {
+      this.notifyAcpAgentsChanged()
+    } catch (error) {
+      console.warn('[ACP] Failed to publish ACP availability change:', error)
+    }
   }
 
   async listAcpRegistryAgents(): Promise<AcpRegistryAgent[]> {
@@ -880,6 +905,21 @@ export class AgentSettings implements AgentSettingsPort {
     void this.provider.refreshAcpProviderAgents(agentIds).catch((error) => {
       console.warn('[ACP] Failed to refresh agent processes after config change:', error)
     })
+  }
+
+  private tryClearAcpProviderDerivedState(clearModels: boolean): void {
+    if (clearModels) {
+      try {
+        this.provider.clearAcpProviderModels()
+      } catch (error) {
+        console.warn('[ACP] Failed to clear ACP models:', error)
+      }
+    }
+    try {
+      this.provider.clearAcpProviderModelStatus()
+    } catch (error) {
+      console.warn('[ACP] Failed to clear ACP model status:', error)
+    }
   }
 
   private notifyAcpAgentsChanged(agentIds?: string[]): void {

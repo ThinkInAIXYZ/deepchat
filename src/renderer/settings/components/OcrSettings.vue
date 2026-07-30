@@ -14,14 +14,14 @@
           data-testid="ocr-auto-extract-switch"
           :aria-label="t('settings.ocr.autoExtract')"
           :model-value="automaticExtractionEnabled"
-          :disabled="settingsLoading || !settingsReady || settingInFlight"
+          :disabled="!settingsReady || settingsOperationPending"
           @update:model-value="updateAutomaticExtraction"
         />
       </template>
 
       <div class="space-y-4">
         <Alert
-          v-if="statusStale || (!status && statusErrorNotified)"
+          v-if="statusStale || (!status && statusHasError)"
           variant="destructive"
           data-testid="ocr-status-stale"
         >
@@ -57,6 +57,13 @@
           {{ t('settings.ocr.loading') }}
         </div>
 
+        <InlineOperationFeedback
+          v-if="settingsFeedback.status !== 'pending' || !statusLoading"
+          :snapshot="settingsFeedback"
+          :retry-label="settingsReady ? undefined : t('common.retry')"
+          @retry="loadSettings"
+        />
+
         <Collapsible v-model:open="advancedOpen" class="rounded-lg border bg-muted/10">
           <CollapsibleTrigger as-child>
             <Button
@@ -89,7 +96,7 @@
               </div>
               <Select
                 :model-value="backend"
-                :disabled="settingsLoading || !settingsReady || settingInFlight"
+                :disabled="!settingsReady || settingsOperationPending"
                 @update:model-value="updateBackend"
               >
                 <SelectTrigger
@@ -148,7 +155,6 @@
                 {{ t('settings.ocr.clearCache') }}
               </Button>
             </div>
-
             <Collapsible v-model:open="diagnosticsOpen" class="border-t">
               <CollapsibleTrigger as-child>
                 <Button
@@ -248,7 +254,7 @@
       </div>
     </SettingsSectionCard>
 
-    <AlertDialog :open="clearDialogOpen" @update:open="clearDialogOpen = $event">
+    <AlertDialog :open="clearDialogOpen" @update:open="handleClearDialogOpenChange">
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{{ t('settings.ocr.clearCacheTitle') }}</AlertDialogTitle>
@@ -256,6 +262,9 @@
             {{ t('settings.ocr.clearCacheDescription') }}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        <p v-if="cacheClearFailed" role="alert" class="text-sm text-destructive">
+          {{ t('settings.ocr.clearCacheFailed') }}
+        </p>
         <AlertDialogFooter>
           <AlertDialogCancel :disabled="cacheClearInFlight">
             {{ t('common.cancel') }}
@@ -263,7 +272,7 @@
           <AlertDialogAction
             data-testid="ocr-clear-cache-confirm"
             :disabled="cacheClearInFlight"
-            @click="clearCache"
+            @click.prevent="clearCache"
           >
             {{ t('settings.ocr.clearCacheConfirm') }}
           </AlertDialogAction>
@@ -274,12 +283,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
+import { nanoid } from 'nanoid'
 import type { AcceptableValue } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
-import { toast } from 'vue-sonner'
 import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
 import { createOcrClient } from '@api/OcrClient'
 import { createSettingsClient } from '@api/SettingsClient'
@@ -311,26 +320,33 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import { Switch } from '@shadcn/components/ui/switch'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import SettingsSectionCard from './control-center/SettingsSectionCard.vue'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 
 type OcrBackend = 'auto' | 'cpu'
 
 const { t, locale } = useI18n()
 const settingsClient = createSettingsClient()
 const ocrClient = createOcrClient()
+const settingsFeedbackController = createRendererSurfaceFeedbackController('settings')
+const { snapshot: settingsFeedback } = useSurfaceFeedback(settingsFeedbackController)
+const settingsOperationId = `settings.ocr.configuration:${nanoid(8)}`
 
 const automaticExtractionEnabled = ref(true)
 const backend = ref<OcrBackend>('auto')
 const status = ref<OcrRuntimeStatus | null>(null)
-const settingsLoading = ref(true)
 const settingsReady = ref(false)
-const settingInFlight = ref(false)
+const settingsOperationPending = computed(() => settingsFeedback.value.status === 'pending')
 const statusLoading = ref(false)
 const cacheClearInFlight = ref(false)
+const cacheClearFailed = ref(false)
 const clearDialogOpen = ref(false)
 const advancedOpen = ref(false)
 const diagnosticsOpen = ref(false)
-const statusErrorNotified = ref(false)
-const statusStale = ref(false)
+const statusHasError = ref(false)
+const statusStale = computed(() => statusHasError.value && status.value !== null)
 
 const availabilityLabel = computed(() =>
   status.value?.availability.status === 'available'
@@ -394,18 +410,28 @@ const canClearCache = computed(() => {
   )
 })
 
-const { resume: resumePolling } = useIntervalFn(refreshStatus, 5_000, {
+const { pause: pausePolling, resume: resumePolling } = useIntervalFn(refreshStatus, 5_000, {
   immediate: false,
   immediateCallback: false
 })
+let disposed = false
 
-onMounted(async () => {
-  await Promise.all([loadSettings(), refreshStatus()])
-  resumePolling()
+onMounted(() => {
+  void loadSettings()
+  void refreshStatus().finally(() => {
+    if (!disposed) resumePolling()
+  })
+})
+
+onBeforeUnmount(() => {
+  disposed = true
+  pausePolling()
 })
 
 async function loadSettings(): Promise<void> {
-  settingsLoading.value = true
+  if (settingsOperationPending.value) return
+
+  settingsFeedbackController.begin(settingsOperationId, t('common.loading'))
   try {
     const values = await settingsClient.getSnapshot([
       'ocrAutoExtractForNonVisionModels',
@@ -414,40 +440,56 @@ async function loadSettings(): Promise<void> {
     automaticExtractionEnabled.value = values.ocrAutoExtractForNonVisionModels ?? true
     backend.value = values.ocrBackend ?? 'auto'
     settingsReady.value = true
-  } catch {
-    showFailure('settings.ocr.loadFailed')
-  } finally {
-    settingsLoading.value = false
+    settingsFeedbackController.succeed({
+      code: 'settings.ocr.loaded',
+      title: t('common.saved')
+    })
+    settingsFeedbackController.clearSettled()
+  } catch (error) {
+    settingsReady.value = false
+    console.error('[OcrSettings] Failed to load settings', error)
+    settingsFeedbackController.fail({
+      code: 'settings.ocr.loadFailed',
+      title: t('settings.ocr.loadFailed')
+    })
   }
 }
 
 async function updateAutomaticExtraction(value: boolean): Promise<void> {
-  if (settingInFlight.value) return
-  const previous = automaticExtractionEnabled.value
-  automaticExtractionEnabled.value = value
-  settingInFlight.value = true
+  if (settingsOperationPending.value) return
+  settingsFeedbackController.begin(settingsOperationId, t('common.saving'))
   try {
-    await settingsClient.update([{ key: 'ocrAutoExtractForNonVisionModels', value }])
-  } catch {
-    automaticExtractionEnabled.value = previous
-    showFailure('settings.ocr.updateFailed')
-  } finally {
-    settingInFlight.value = false
+    const result = await settingsClient.update([{ key: 'ocrAutoExtractForNonVisionModels', value }])
+    automaticExtractionEnabled.value = result.values.ocrAutoExtractForNonVisionModels ?? value
+    settingsFeedbackController.succeed({
+      code: 'settings.ocr.autoExtractUpdated',
+      title: t('common.saved')
+    })
+  } catch (error) {
+    console.error('[OcrSettings] Failed to update automatic extraction', error)
+    settingsFeedbackController.fail({
+      code: 'settings.ocr.updateFailed',
+      title: t('settings.ocr.updateFailed')
+    })
   }
 }
 
 async function updateBackend(value: AcceptableValue): Promise<void> {
-  if (settingInFlight.value || (value !== 'auto' && value !== 'cpu')) return
-  const previous = backend.value
-  backend.value = value
-  settingInFlight.value = true
+  if (settingsOperationPending.value || (value !== 'auto' && value !== 'cpu')) return
+  settingsFeedbackController.begin(settingsOperationId, t('common.saving'))
   try {
-    await settingsClient.update([{ key: 'ocrBackend', value }])
-  } catch {
-    backend.value = previous
-    showFailure('settings.ocr.updateFailed')
-  } finally {
-    settingInFlight.value = false
+    const result = await settingsClient.update([{ key: 'ocrBackend', value }])
+    backend.value = result.values.ocrBackend ?? value
+    settingsFeedbackController.succeed({
+      code: 'settings.ocr.backendUpdated',
+      title: t('common.saved')
+    })
+  } catch (error) {
+    console.error('[OcrSettings] Failed to update backend', error)
+    settingsFeedbackController.fail({
+      code: 'settings.ocr.updateFailed',
+      title: t('settings.ocr.updateFailed')
+    })
   }
 }
 
@@ -456,14 +498,9 @@ async function refreshStatus(): Promise<void> {
   statusLoading.value = true
   try {
     status.value = await ocrClient.getRuntimeStatus()
-    statusErrorNotified.value = false
-    statusStale.value = false
+    statusHasError.value = false
   } catch {
-    statusStale.value = status.value !== null
-    if (!statusErrorNotified.value) {
-      statusErrorNotified.value = true
-      showFailure('settings.ocr.statusLoadFailed')
-    }
+    statusHasError.value = true
   } finally {
     statusLoading.value = false
   }
@@ -471,19 +508,30 @@ async function refreshStatus(): Promise<void> {
 
 async function clearCache(): Promise<void> {
   if (!canClearCache.value) return
+  cacheClearFailed.value = false
   cacheClearInFlight.value = true
   try {
     const result = await ocrClient.clearCache()
     if (status.value) status.value = { ...status.value, cache: result.cache }
     clearDialogOpen.value = false
-    toast(t('settings.ocr.cacheCleared'), {
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.ocr.cacheCleared',
+      title: t('settings.ocr.cacheCleared'),
       description: t('settings.ocr.cacheClearedDescription')
     })
-  } catch {
-    showFailure('settings.ocr.clearCacheFailed')
+  } catch (error) {
+    console.error('[OcrSettings] Failed to clear cache', error)
+    cacheClearFailed.value = true
   } finally {
     cacheClearInFlight.value = false
   }
+}
+
+function handleClearDialogOpenChange(open: boolean): void {
+  if (cacheClearInFlight.value) return
+  clearDialogOpen.value = open
+  if (!open) cacheClearFailed.value = false
 }
 
 function formatEngineStage(stage: 'detection' | 'recognition'): string {
@@ -506,11 +554,5 @@ function formatBytes(value: number): string {
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat(locale.value).format(value)
-}
-
-function showFailure(descriptionKey: string): void {
-  toast.error(t('common.error.operationFailed'), {
-    description: t(descriptionKey)
-  })
 }
 </script>

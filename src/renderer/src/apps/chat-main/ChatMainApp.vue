@@ -3,6 +3,7 @@ import { onMounted, ref, watch, onBeforeUnmount, computed, provide } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { createConfigClient } from '@api/ConfigClient'
+import { createNotificationClient } from '@api/NotificationClient'
 import { createOnboardingClient } from '@api/OnboardingClient'
 import SelectedTextContextMenu from '@/components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from '@/stores/artifact'
@@ -10,8 +11,9 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
-import { Toaster } from '@shadcn/components/ui/sonner'
-import { useToast } from '@/components/use-toast'
+import NotificationHost from '@renderer-notifications/NotificationHost.vue'
+import { rendererNotificationManager } from '@renderer-notifications/rendererNotificationRuntime'
+import { SemanticNotificationController } from '@renderer-notifications/semanticNotificationController'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
@@ -23,7 +25,6 @@ import MessageDialog from '@/components/ui/MessageDialog.vue'
 import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
 import { ensureIconsLoaded } from '@/lib/iconLoader'
-import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 import { useFontManager } from '@/composables/useFontManager'
 import { applyDocumentAppearance } from '@/foundation/appearance/documentAppearance'
 import AppBar from '@/components/AppBar.vue'
@@ -42,7 +43,6 @@ import {
   type GuidedOnboardingResumeTrigger
 } from '@/lib/onboardingResume'
 import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
-import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchema'
 import { createWindowClient } from '@api/WindowClient'
 import {
   RENDERER_PERFORMANCE_REPORTER,
@@ -56,6 +56,7 @@ provide(RENDERER_PERFORMANCE_REPORTER, performanceReporter)
 
 const route = useRoute()
 const configClient = createConfigClient()
+const notificationClient = createNotificationClient()
 const onboardingClient = createOnboardingClient()
 const windowClient = createWindowClient()
 const artifactStore = useArtifactStore()
@@ -66,7 +67,6 @@ const pageRouterStore = usePageRouterStore()
 const sidepanelStore = useSidepanelStore()
 const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
-const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
 setupFontListener()
@@ -86,14 +86,18 @@ const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const { t, locale } = useI18n()
+const semanticNotificationController = new SemanticNotificationController({
+  notifications: rendererNotificationManager,
+  translate: (key, params) => t(key, params ?? {}),
+  acknowledgePresentation: (episodeId) => notificationClient.acknowledgePresentation(episodeId),
+  openSettings: async (navigation) => {
+    await configClient.openSettings(navigation)
+  }
+})
+let cleanupSemanticNotifications: (() => void) | undefined
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
-// Error notification queue and currently displayed error
-const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
-const currentErrorId = ref<string | null>(null)
-let errorDisplayTimer: number | null = null
-
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 
 watch(
@@ -126,80 +130,6 @@ watch(
   },
   { immediate: true }
 )
-
-// Handle error notifications
-const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
-  // Check if error with same ID already exists in queue to prevent duplicates
-  const existingErrorIndex = errorQueue.value.findIndex((e) => e.id === error.id)
-
-  if (existingErrorIndex === -1) {
-    // If there's currently an error being displayed, add new error to queue
-    if (currentErrorId.value) {
-      if (errorQueue.value.length > 5) {
-        errorQueue.value.shift()
-      }
-      errorQueue.value.push(error)
-    } else {
-      // Otherwise display this error directly
-      displayError(error)
-    }
-  }
-}
-
-// Display specified error
-const displayError = (error: { id: string; title: string; message: string; type: string }) => {
-  // Update currently displayed error ID
-  currentErrorId.value = error.id
-
-  // Show error notification
-  const { dismiss } = toast({
-    title: error.title,
-    description: error.message,
-    variant: 'destructive',
-    onOpenChange: (open) => {
-      if (!open) {
-        // Also show the next error when the current toast closes.
-        handleErrorClosed(error.id)
-      }
-    }
-  })
-
-  // Set timer to automatically close current error after 3 seconds
-  if (errorDisplayTimer) {
-    clearTimeout(errorDisplayTimer)
-  }
-
-  errorDisplayTimer = window.setTimeout(() => {
-    // Dismissal invokes onOpenChange(false). Call the handler as a fallback for
-    // environments where it does not, while its ID guard prevents double advancement.
-    dismiss()
-    handleErrorClosed(error.id)
-  }, 3000)
-}
-
-// Handle logic after an error toast closes
-const handleErrorClosed = (errorId: string) => {
-  if (currentErrorId.value !== errorId) {
-    return
-  }
-
-  // Clear current error ID
-  currentErrorId.value = null
-
-  // Display next error in queue (if any)
-  if (errorQueue.value.length > 0) {
-    const nextError = errorQueue.value.shift()
-    if (nextError) {
-      displayError(nextError)
-    }
-  } else {
-    // Queue is empty, clear timer
-    if (errorDisplayTimer) {
-      clearTimeout(errorDisplayTimer)
-      errorDisplayTimer = null
-    }
-  }
-}
 
 const router = useRouter()
 const activeTab = ref('chat')
@@ -366,29 +296,6 @@ const handleStartDeeplink = (_event: unknown, payload?: Omit<StartDeeplinkPayloa
   void activatePendingStartDeeplink()
 }
 
-const handleDatabaseRepairSuggested = (payload: unknown) => {
-  const repairPayload = payload as DatabaseRepairSuggestedPayload | undefined
-  if (!repairPayload) {
-    return
-  }
-
-  toast({
-    title: t(repairPayload.title),
-    description: t(repairPayload.message, {
-      reason: t(`settings.data.databaseRepair.reasons.${repairPayload.reason}`)
-    }),
-    action: {
-      label: t('settings.data.databaseRepair.toastAction'),
-      onClick: () => {
-        void configClient.openSettings({
-          routeName: 'settings-database',
-          section: 'database-repair'
-        })
-      }
-    }
-  })
-}
-
 const handleStartGuidedOnboardingDev = async () => {
   if (!import.meta.env.DEV) {
     return
@@ -473,8 +380,6 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
   },
   handleStartGuidedOnboardingDev,
   handleWindowFocused: () => handleResumeGuidedOnboarding('window-focus'),
-  showErrorToast,
-  handleDatabaseRepairSuggested,
   handleZoomIn,
   handleZoomOut,
   handleZoomResume,
@@ -539,6 +444,19 @@ watch(
 
 onMounted(() => {
   performanceReporter.recordStartup('shell-mounted')
+  cleanupSemanticNotifications = notificationClient.onSemanticNotification((delivery) => {
+    semanticNotificationController.handle(delivery)
+  })
+  void notificationClient
+    .notifyRendererReady()
+    .then((ready) => {
+      if (!ready) {
+        console.warn('[Notification] Main renderer was not accepted as a delivery target')
+      }
+    })
+    .catch((error) => {
+      console.error('[Notification] Failed to register main renderer', error)
+    })
 
   // Ensure icons are loaded (load asynchronously, can happen in parallel with store init)
   void ensureIconsLoaded()
@@ -596,15 +514,12 @@ onMounted(() => {
   )
 })
 
-// Clear timers and event listeners before component unmounts
 onBeforeUnmount(() => {
-  if (errorDisplayTimer) {
-    clearTimeout(errorDisplayTimer)
-    errorDisplayTimer = null
-  }
-
   cleanupAppIpcRuntime()
   cleanupMcpDeeplink()
+  cleanupSemanticNotifications?.()
+  cleanupSemanticNotifications = undefined
+  semanticNotificationController.dispose()
   performanceReporter.dispose()
 })
 </script>
@@ -634,8 +549,7 @@ onBeforeUnmount(() => {
     <!-- Global message dialog -->
     <MessageDialog />
     <McpSamplingDialog />
-    <!-- Global Toast notifications -->
-    <Toaster :theme="toasterTheme" />
+    <NotificationHost surface="main" :theme="toasterTheme" :dir="langStore.dir" />
     <SelectedTextContextMenu />
     <TranslatePopup />
     <SpotlightOverlay />

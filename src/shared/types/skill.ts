@@ -85,10 +85,14 @@ export interface SkillInstallResult {
   success: boolean
   error?: string
   errorCode?: 'conflict' | 'invalid_skill' | 'not_found' | 'io_error' | 'target_locked'
+  /** Original selected name when a bulk import may rename the installed Skill. */
+  sourceSkillName?: string
   skillName?: string
   existingSkillName?: string
   targetPath?: string
 }
+
+export type SkillCatalogPublicationMode = 'immediate' | 'deferred'
 
 /**
  * Skill installation options
@@ -321,7 +325,8 @@ export interface SkillServicePort {
     agentId: string,
     folderPath: string,
     provenance: SkillImportProvenance,
-    options?: SkillInstallOptions
+    options?: SkillInstallOptions,
+    catalogPublication?: SkillCatalogPublicationMode
   ): Promise<SkillInstallResult>
   installFromZip(zipPath: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
   installFromZipForAgent(

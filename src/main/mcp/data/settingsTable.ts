@@ -77,10 +77,16 @@ export class McpSettingsTable extends BaseTable {
 
   replaceMcpServers(servers: Record<string, MCPServerConfig>): void {
     this.db.transaction(() => {
-      this.db.exec('DELETE FROM mcp_servers')
-      Object.entries(servers).forEach(([name, config], index) => {
-        this.upsertMcpServer(name, config, index)
-      })
+      this.replaceMcpServersInCurrentTransaction(servers)
+    })()
+  }
+
+  setRouterApiKeyAndServers(apiKey: string, servers?: Record<string, MCPServerConfig>): void {
+    this.db.transaction(() => {
+      this.setMcpSetting('mcprouterApiKey', apiKey)
+      if (servers) {
+        this.replaceMcpServersInCurrentTransaction(servers)
+      }
     })()
   }
 
@@ -133,5 +139,12 @@ export class McpSettingsTable extends BaseTable {
            updated_at = excluded.updated_at`
       )
       .run(name, stringifyJson(config), sortOrder, existing?.created_at ?? timestamp, timestamp)
+  }
+
+  private replaceMcpServersInCurrentTransaction(servers: Record<string, MCPServerConfig>): void {
+    this.db.exec('DELETE FROM mcp_servers')
+    Object.entries(servers).forEach(([name, config], index) => {
+      this.upsertMcpServer(name, config, index)
+    })
   }
 }

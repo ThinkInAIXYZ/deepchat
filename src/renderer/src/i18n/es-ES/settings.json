@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "La caché persistente no está disponible porque no hay almacenamiento seguro de claves."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Cambios sin guardar",
+    "dirtyDescription": "¿Salir y descartar los cambios?",
+    "busyTitle": "Guardado en curso",
+    "busyDescription": "Espera a que termine el guardado antes de salir.",
+    "stay": "Seguir editando",
+    "discard": "Descartar cambios"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Guardando…",
+      "saved": "Guardado",
+      "saveFailed": "No se pudo guardar. Los cambios se conservan.",
+      "retry": "Reintentar"
+    },
     "title": "DeepChat Agents",
     "description": "Gestiona DeepChat Agents y los valores predeterminados que aplican a las sesiones nuevas.",
     "builtIn": "Integrado",
@@ -1627,7 +1641,15 @@
       "seconds": "segundos",
       "testConnection": "Conexión de prueba",
       "timeout": "Tiempo de espera",
-      "title": "Nowledge Mem Exportar"
+      "title": "Nowledge Mem Exportar",
+      "configLoadFailed": "No se pudo cargar la configuración",
+      "configSaved": "Configuración guardada",
+      "configSaveFailed": "No se pudo guardar la configuración",
+      "configReset": "Configuración restablecida",
+      "configResetFailed": "No se pudo restablecer la configuración",
+      "connectionSucceeded": "Conexión correcta",
+      "connectionFailed": "No se pudo conectar con la configuración actual",
+      "invalidBaseUrl": "Introduce una dirección HTTP o HTTPS sin credenciales ni parámetros de consulta"
     }
   },
   "mcp": {
@@ -1673,6 +1695,7 @@
       "name": "Nombre del servidor",
       "namePlaceholder": "Introduzca el nombre del servidor",
       "nameRequired": "El nombre del servidor es obligatorio.",
+      "nameDuplicate": "Ya existe un servidor con este nombre.",
       "type": "Tipo de servidor",
       "typePlaceholder": "Seleccione el tipo de servidor",
       "typeStdio": "Entrada y salida estándar (Stdio)",
@@ -2997,7 +3020,7 @@
       "error": "Error",
       "invalidAgent": "El agente no existe o está deshabilitado. Elige otro agente."
     },
-    "runNowSuccess": "Tarea programada iniciada"
+    "runNowSuccess": "Tarea programada completada"
   },
   "memory": {
     "description": "Revisa, configura y gestiona lo que cada agente recuerda entre sesiones. La memoria es independiente para cada agente.",

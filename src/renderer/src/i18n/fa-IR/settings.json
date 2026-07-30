@@ -1296,7 +1296,15 @@
       "seconds": "ثانیه",
       "testConnection": "آزمایش اتصال",
       "timeout": "زمان گذشته",
-      "title": "پیکربندی صادرات Nowledge Mem"
+      "title": "پیکربندی صادرات Nowledge Mem",
+      "configLoadFailed": "پیکربندی بارگیری نشد",
+      "configSaved": "پیکربندی ذخیره شد",
+      "configSaveFailed": "پیکربندی ذخیره نشد",
+      "configReset": "پیکربندی بازنشانی شد",
+      "configResetFailed": "پیکربندی بازنشانی نشد",
+      "connectionSucceeded": "اتصال با موفقیت برقرار شد",
+      "connectionFailed": "با پیکربندی فعلی اتصال برقرار نشد",
+      "invalidBaseUrl": "یک نشانی HTTP یا HTTPS بدون اطلاعات ورود یا پارامترهای پرس‌وجو وارد کنید"
     }
   },
   "mcp": {
@@ -1343,6 +1351,7 @@
       "name": "نام کارساز",
       "namePlaceholder": "نام کارساز را وارد کنید",
       "nameRequired": "نام کارساز لازم است",
+      "nameDuplicate": "کارسازی با این نام از قبل وجود دارد.",
       "type": "نوع کارساز",
       "typePlaceholder": "نوع کارساز را انتخاب کنید",
       "typeStdio": "ورودی و خروجی استاندارد (Stdio)",
@@ -1561,7 +1570,7 @@
       "error": "خطا",
       "invalidAgent": "عامل موجود نیست یا غیرفعال است. عامل دیگری انتخاب کنید."
     },
-    "runNowSuccess": "وظیفه زمان‌بندی‌شده شروع شد"
+    "runNowSuccess": "وظیفه زمان‌بندی‌شده تکمیل شد"
   },
   "about": {
     "title": "درباره ما",
@@ -2638,7 +2647,21 @@
       "safe_storage_unavailable": "حافظهٔ نهان پایدار در دسترس نیست، زیرا ذخیره‌سازی امن کلید فراهم نیست."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "تغییرات ذخیره‌نشده",
+    "dirtyDescription": "خارج شوید و تغییرات را کنار بگذارید؟",
+    "busyTitle": "ذخیره در حال انجام است",
+    "busyDescription": "پیش از خروج منتظر پایان ذخیره بمانید.",
+    "stay": "ادامه ویرایش",
+    "discard": "کنار گذاشتن تغییرات"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "در حال ذخیره…",
+      "saved": "ذخیره شد",
+      "saveFailed": "ذخیره نشد. تغییرات حفظ شدند.",
+      "retry": "تلاش دوباره"
+    },
     "title": "ایجنت‌های DeepChat",
     "description": "ایجنت‌های DeepChat و پیش‌فرض‌هایی را که برای نشست‌های جدید اعمال می‌کنند مدیریت کنید.",
     "builtIn": "داخلی",

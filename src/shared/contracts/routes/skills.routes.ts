@@ -169,7 +169,7 @@ export const skillsGetSyncConfigRoute = defineRouteContract({
 export const skillsSetSyncDirectoryRoute = defineRouteContract({
   name: 'skills.setSyncDirectory',
   input: z.object({
-    skillsDirectory: z.string().min(1)
+    skillsDirectory: z.string().trim().min(1)
   }),
   output: z.object({
     config: z.custom<SkillSyncDirectoryConfig>()

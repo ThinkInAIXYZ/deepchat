@@ -51,7 +51,11 @@
       <div class="mt-4 flex items-center gap-4">
         <label class="text-sm font-medium">{{ t('about.updateChannel') }}:</label>
         <div class="min-w-32 max-w-48">
-          <Select v-model="updateChannel" @update:model-value="setUpdateChannel">
+          <Select
+            :model-value="updateChannel"
+            :disabled="!updateChannelReady || updateChannelSaving"
+            @update:model-value="setUpdateChannel"
+          >
             <SelectTrigger>
               <SelectValue :placeholder="t('about.updateChannel')" />
             </SelectTrigger>
@@ -66,6 +70,11 @@
           </Select>
         </div>
       </div>
+      <InlineOperationFeedback
+        :snapshot="updateChannelFeedback"
+        :retry-label="updateChannelReady ? undefined : t('common.retry')"
+        @retry="loadUpdateChannel"
+      />
 
       <div
         v-if="upgrade.shouldShowUpdateNotes"
@@ -93,9 +102,6 @@
       >
         <p class="text-center text-xs text-muted-foreground">
           {{ t('update.autoUpdateFailed') }}
-        </p>
-        <p v-if="upgrade.updateError" class="text-center text-xs text-muted-foreground/80">
-          {{ upgrade.updateError }}
         </p>
       </div>
 
@@ -140,7 +146,12 @@
           variant="outline"
           size="sm"
           class="mb-2 text-xs"
-          :disabled="upgrade.isChecking || upgrade.isDownloading || upgrade.isRestarting"
+          :disabled="
+            upgrade.isChecking ||
+            upgrade.isDownloading ||
+            upgrade.isRestarting ||
+            updateCheckFeedback.status === 'pending'
+          "
           @click="handlePrimaryAction"
         >
           <Spinner
@@ -169,6 +180,11 @@
           </span>
         </Button>
       </div>
+      <InlineOperationFeedback
+        :snapshot="updateCheckFeedback"
+        :retry-label="t('common.retry')"
+        @retry="handlePrimaryAction"
+      />
     </div>
   </SettingsPageShell>
 
@@ -219,16 +235,18 @@ import {
 } from '@shadcn/components/ui/select'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import NodeRenderer from 'markstream-vue'
+import { nanoid } from 'nanoid'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useLanguageStore } from '@/stores/language'
 import type { AcceptableValue } from 'reka-ui'
 import { useThemeStore } from '@/stores/theme'
-import { useToast } from '@/components/use-toast'
 import { useRoute } from 'vue-router'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 
 const { t } = useI18n()
-const { toast } = useToast()
 const themeStore = useThemeStore()
 const languageStore = useLanguageStore()
 const route = useRoute()
@@ -239,8 +257,16 @@ const windowClient = createWindowClient()
 const appVersion = ref('')
 const upgrade = useUpgradeStore()
 const updateChannel = ref('stable')
+const updateChannelReady = ref(false)
 const isDisclaimerOpen = ref(false)
 let cleanupCheckForUpdates: (() => void) | null = null
+const updateChannelFeedbackController = createRendererSurfaceFeedbackController('settings')
+const { snapshot: updateChannelFeedback } = useSurfaceFeedback(updateChannelFeedbackController)
+const updateChannelOperationId = `settings.about.updateChannel:${nanoid(8)}`
+const updateCheckFeedbackController = createRendererSurfaceFeedbackController('settings')
+const { snapshot: updateCheckFeedback } = useSurfaceFeedback(updateCheckFeedbackController)
+const updateCheckOperationId = `settings.about.checkUpdate:${nanoid(8)}`
+const updateChannelSaving = computed(() => updateChannelFeedback.value.status === 'pending')
 
 const formattedUpdateVersion = computed(() => {
   const version = upgrade.updateInfo?.version ?? ''
@@ -252,34 +278,60 @@ const openDisclaimerDialog = () => {
   isDisclaimerOpen.value = true
 }
 
-const showUpToDateToast = () => {
-  toast({
-    title: t('update.alreadyUpToDate'),
-    description: t('update.alreadyUpToDateDesc')
-  })
-}
-
-const showUpdateErrorToast = (message: string) => {
-  toast({
-    title: t('common.error.operationFailed'),
-    description: message,
-    variant: 'destructive'
-  })
-}
-
 const setUpdateChannel = async (channel: AcceptableValue) => {
-  if (channel !== 'stable' && channel !== 'beta') {
+  if (
+    (channel !== 'stable' && channel !== 'beta') ||
+    updateChannelSaving.value ||
+    channel === updateChannel.value
+  ) {
     return
   }
+
+  updateChannelFeedbackController.begin(updateChannelOperationId, t('common.saving'))
   try {
-    await configClient.setUpdateChannel(channel)
+    updateChannel.value = await configClient.setUpdateChannel(channel)
+    updateChannelFeedbackController.succeed({
+      code: 'settings.about.updateChannelSaved',
+      title: t('common.saved')
+    })
   } catch (error) {
-    console.error('updateChannelSetError:', error)
+    console.error('[AboutUsSettings] Failed to update channel', error)
+    updateChannelFeedbackController.fail({
+      code: 'settings.about.updateChannelSaveFailed',
+      title: t('common.error.operationFailed')
+    })
+  }
+}
+
+const loadUpdateChannel = async () => {
+  if (updateChannelSaving.value) return
+
+  updateChannelFeedbackController.begin(updateChannelOperationId, t('common.loading'))
+  try {
+    updateChannel.value = await configClient.getUpdateChannel()
+    updateChannelReady.value = true
+    updateChannelFeedbackController.succeed({
+      code: 'settings.about.updateChannelLoaded',
+      title: t('common.saved')
+    })
+    updateChannelFeedbackController.clearSettled()
+  } catch (error) {
+    updateChannelReady.value = false
+    console.error('[AboutUsSettings] Failed to load update channel', error)
+    updateChannelFeedbackController.fail({
+      code: 'settings.about.updateChannelLoadFailed',
+      title: t('common.error.operationFailed')
+    })
   }
 }
 
 const handlePrimaryAction = async () => {
-  if (upgrade.isChecking || upgrade.isDownloading || upgrade.isRestarting) {
+  if (
+    upgrade.isChecking ||
+    upgrade.isDownloading ||
+    upgrade.isRestarting ||
+    updateCheckFeedback.value.status === 'pending'
+  ) {
     return
   }
 
@@ -288,11 +340,33 @@ const handlePrimaryAction = async () => {
     return
   }
 
-  const status = await upgrade.checkUpdate(false)
-  if (status === 'not-available') {
-    showUpToDateToast()
-  } else if (status === 'error' && upgrade.updateError) {
-    showUpdateErrorToast(upgrade.updateError)
+  updateCheckFeedbackController.begin(updateCheckOperationId, t('settings.about.checking'))
+  try {
+    const status = await upgrade.checkUpdate(false)
+    if (status === 'not-available') {
+      updateCheckFeedbackController.succeed({
+        code: 'settings.about.alreadyUpToDate',
+        title: t('update.alreadyUpToDate'),
+        description: t('update.alreadyUpToDateDesc')
+      })
+    } else if (status === 'error') {
+      updateCheckFeedbackController.fail({
+        code: 'settings.about.updateCheckFailed',
+        title: t('common.error.operationFailed')
+      })
+    } else {
+      updateCheckFeedbackController.succeed({
+        code: 'settings.about.updateAvailable',
+        title: t('update.versionAvailable', { version: formattedUpdateVersion.value })
+      })
+      updateCheckFeedbackController.clearSettled()
+    }
+  } catch (error) {
+    console.error('[AboutUsSettings] Failed to check for updates', error)
+    updateCheckFeedbackController.fail({
+      code: 'settings.about.updateCheckFailed',
+      title: t('common.error.operationFailed')
+    })
   }
 }
 
@@ -313,7 +387,11 @@ const handleExternalCheckUpdate = async () => {
 }
 
 const syncUpdateStatus = async () => {
-  await upgrade.refreshStatus()
+  try {
+    await upgrade.refreshStatus()
+  } catch (error) {
+    console.error('[AboutUsSettings] Failed to synchronize update status', error)
+  }
 }
 
 const openExternalLink = (url: string) => {
@@ -322,13 +400,21 @@ const openExternalLink = (url: string) => {
   })
 }
 
-onMounted(async () => {
+const loadAppVersion = async () => {
+  try {
+    appVersion.value = await deviceClient.getAppVersion()
+  } catch (error) {
+    console.error('[AboutUsSettings] Failed to load app version', error)
+  }
+}
+
+onMounted(() => {
   cleanupCheckForUpdates = windowClient.onSettingsCheckForUpdates(() => {
     void handleExternalCheckUpdate()
   })
-  appVersion.value = await deviceClient.getAppVersion()
-  updateChannel.value = await configClient.getUpdateChannel()
-  await syncUpdateStatus()
+  void loadAppVersion()
+  void loadUpdateChannel()
+  void syncUpdateStatus()
 })
 
 watch(

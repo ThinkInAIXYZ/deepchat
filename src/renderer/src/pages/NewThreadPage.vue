@@ -180,7 +180,7 @@ import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
-import { useToast } from '@/components/use-toast'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
@@ -226,7 +226,6 @@ const modelClient = createModelClient()
 const sessionClient = createSessionClient()
 const chatClient = createChatClient()
 const { t } = useI18n()
-const { toast } = useToast()
 const switchAgentGuide = useGuidedOnboardingStep('switch-agent')
 const switchModelGuide = useGuidedOnboardingStep('switch-model')
 const firstChatGuide = useGuidedOnboardingStep('first-chat')
@@ -285,18 +284,20 @@ const handleVoiceInputError = (code: string) => {
   }
 
   if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'audio-capture') {
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.voice.permissionDenied',
       title: t('chat.input.voiceRecognitionPermissionDeniedTitle'),
-      description: t('chat.input.voiceRecognitionPermissionDeniedDescription'),
-      variant: 'destructive'
+      description: t('chat.input.voiceRecognitionPermissionDeniedDescription')
     })
     return
   }
 
-  toast({
+  notifyRenderer({
+    kind: 'error',
+    code: 'chat.voice.recognitionFailed',
     title: t('chat.input.voiceRecognitionErrorTitle'),
-    description: t('chat.input.voiceRecognitionErrorDescription'),
-    variant: 'destructive'
+    description: t('chat.input.voiceRecognitionErrorDescription')
   })
 }
 
@@ -320,10 +321,11 @@ const voiceInput = useSpeechRecognition({
     )
   },
   onUnsupported: () => {
-    toast({
+    notifyRenderer({
+      kind: 'warning',
+      code: 'chat.voice.unsupported',
       title: t('chat.input.voiceRecognitionUnsupportedTitle'),
-      description: t('chat.input.voiceRecognitionUnsupportedDescription'),
-      variant: 'destructive'
+      description: t('chat.input.voiceRecognitionUnsupportedDescription')
     })
   },
   onError: handleVoiceInputError
@@ -852,10 +854,11 @@ async function onSubmit() {
   } catch (e) {
     if (!(submission.cancelled && isAbortError(e))) {
       console.error('[NewThreadPage] submit failed:', e)
-      toast({
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.attachment.uploadFailed',
         title: t('chat.input.fileUploadFailed'),
-        description: e instanceof Error ? e.message : String(e),
-        variant: 'destructive'
+        description: e instanceof Error ? e.message : String(e)
       })
     }
   } finally {
@@ -890,10 +893,11 @@ async function onCommandSubmit(command: string) {
   } catch (e) {
     if (!(submission.cancelled && isAbortError(e))) {
       console.error('[NewThreadPage] submit failed:', e)
-      toast({
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.attachment.uploadFailed',
         title: t('chat.input.fileUploadFailed'),
-        description: e instanceof Error ? e.message : String(e),
-        variant: 'destructive'
+        description: e instanceof Error ? e.message : String(e)
       })
     }
   } finally {
@@ -1156,7 +1160,9 @@ function notifyUnsupportedAudioAttachments(
     modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.name ??
     selection.modelId
 
-  toast({
+  notifyRenderer({
+    kind: 'warning',
+    code: 'chat.audio.unsupported',
     title: t('chat.input.audioInputUnsupportedTitle'),
     description: t('chat.input.audioInputUnsupportedDescription', {
       count: rejectedAudioFiles.length,

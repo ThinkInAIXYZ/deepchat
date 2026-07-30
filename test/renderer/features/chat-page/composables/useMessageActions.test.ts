@@ -25,7 +25,7 @@ function createHarness() {
       id === sessionId.value && requestId === restoreRequestId.value
   )
   const openModelPicker = vi.fn()
-  const toast = vi.fn()
+  const notify = vi.fn()
   const t = vi.fn((key: string) => key)
   const scope = effectScope()
   let actions!: ReturnType<typeof useMessageActions>
@@ -45,7 +45,7 @@ function createHarness() {
       currentRestoreRequestId: () => restoreRequestId.value,
       canWriteSessionView,
       openModelPicker,
-      toast,
+      notify,
       t
     })
   })
@@ -65,7 +65,7 @@ function createHarness() {
     restoreRequestId,
     canWriteSessionView,
     openModelPicker,
-    toast,
+    notify,
     t,
     stop: () => scope.stop()
   }
@@ -229,7 +229,7 @@ describe('useMessageActions', () => {
     harness.stop()
   })
 
-  it('shows a destructive error toast when deletion fails', async () => {
+  it('reports a semantic error when deletion fails', async () => {
     const harness = createHarness()
     const error = new Error('delete failed')
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -239,10 +239,11 @@ describe('useMessageActions', () => {
     await harness.actions.confirmMessageDelete()
 
     expect(consoleError).toHaveBeenCalledWith('[ChatPage] delete message failed:', error)
-    expect(harness.toast).toHaveBeenCalledWith({
+    expect(harness.notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.message.deleteFailed',
       title: 'dialog.deleteMessage.title',
-      description: 'common.error.requestFailed',
-      variant: 'destructive'
+      description: 'common.error.requestFailed'
     })
     consoleError.mockRestore()
     harness.stop()

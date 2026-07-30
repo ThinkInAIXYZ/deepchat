@@ -963,7 +963,8 @@ describe('SkillService', () => {
         'skills.catalog.changed',
         expect.objectContaining({
           reason: 'disabled-updated',
-          name: 'test-skill'
+          name: 'test-skill',
+          disabled: true
         })
       )
 
@@ -1881,6 +1882,32 @@ describe('SkillService', () => {
       })
     })
 
+    it('rejects a blank sync directory before resolving it against the process directory', async () => {
+      ;(fs.mkdirSync as Mock).mockClear()
+      await expect(skillService.setSkillsSyncDirectory({ skillsDirectory: '   ' })).rejects.toThrow(
+        'Skills sync directory must not be empty'
+      )
+
+      expect(fs.mkdirSync).not.toHaveBeenCalled()
+    })
+
+    it('rejects a sync directory that overlaps the managed Skills directory', async () => {
+      ;(fs.mkdirSync as Mock).mockClear()
+      await expect(
+        skillService.setSkillsSyncDirectory({ skillsDirectory: DEFAULT_SKILLS_DIR })
+      ).rejects.toThrow('Skills sync layout must not overlap the managed Skills directory')
+
+      expect(fs.mkdirSync).not.toHaveBeenCalled()
+    })
+
+    it('allows a sync root whose skills payload is a sibling of the managed directory', async () => {
+      await expect(
+        skillService.setSkillsSyncDirectory({ skillsDirectory: '/mock/home' })
+      ).resolves.toMatchObject({ skillsDirectory: '/mock/home' })
+
+      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/home/skills', { recursive: true })
+    })
+
     it('scans the guizang-ppt-skill root SKILL.md Git repo shape', async () => {
       ;(fs.existsSync as Mock).mockImplementation((target: string) => {
         if (target.endsWith('/SKILL.md')) return true
@@ -1951,6 +1978,7 @@ describe('SkillService', () => {
       expect(results).toEqual([
         expect.objectContaining({
           success: true,
+          sourceSkillName: 'guizang-ppt-skill',
           skillName: 'guizang-ppt-skill-1',
           targetPath: `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill-1`
         })
@@ -1983,6 +2011,11 @@ describe('SkillService', () => {
         agentIds: ['deepchat'],
         version: expect.any(Number)
       })
+      expect(
+        publishDeepchatEventMock.mock.calls.filter(
+          ([eventName]) => eventName === 'skills.catalog.changed'
+        )
+      ).toHaveLength(1)
     })
 
     it('scans multi-skill Git repositories under skills/<name>/SKILL.md', async () => {
@@ -2068,11 +2101,17 @@ describe('SkillService', () => {
         skillNames: ['guizang-ppt-skill']
       })
       const importPreview = await skillService.previewSyncDirectoryImport()
+      const exportStagingPath =
+        `${syncDir}/skills/.export-guizang-ppt-skill-` + '12345678-1234-1234-1234-123456789abc'
 
       expect(exportResult).toMatchObject({ success: true, exported: 1 })
       expect(fs.copyFileSync).toHaveBeenCalledWith(
         `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill/SKILL.md`,
-        `${syncDir}/skills/guizang-ppt-skill/SKILL.md`
+        `${exportStagingPath}/SKILL.md`
+      )
+      expect(fs.renameSync).toHaveBeenCalledWith(
+        exportStagingPath,
+        `${syncDir}/skills/guizang-ppt-skill`
       )
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         `${syncDir}/README.md`,
@@ -2086,6 +2125,62 @@ describe('SkillService', () => {
           sourcePath: `${syncDir}/skills/guizang-ppt-skill`
         })
       ])
+    })
+
+    it('restores the previous sync export when the staged commit fails', async () => {
+      const syncDir = '/mock/sync'
+      const sourcePath = `${DEFAULT_SKILLS_DIR}/atomic-skill`
+      const targetPath = `${syncDir}/skills/atomic-skill`
+      const stagingPath =
+        `${syncDir}/skills/.export-atomic-skill-` + '12345678-1234-1234-1234-123456789abc'
+      const backupPath =
+        `${syncDir}/skills/.export-backup-atomic-skill-` + '12345678-1234-1234-1234-123456789abc'
+      await skillService.setSkillsSyncDirectory({ skillsDirectory: syncDir })
+      vi.spyOn(skillService, 'getUnifiedSkillCatalog').mockResolvedValue([
+        {
+          agentId: 'deepchat',
+          name: 'atomic-skill',
+          description: 'Atomic export',
+          path: `${sourcePath}/SKILL.md`,
+          skillRoot: sourcePath,
+          canonicalPath: sourcePath,
+          sourceType: 'created',
+          disabled: false,
+          deepchatDisabled: false,
+          agentLinks: {},
+          mutable: true
+        }
+      ])
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === `${sourcePath}/SKILL.md`) return true
+        if (target === targetPath || target === stagingPath) return true
+        return false
+      })
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) =>
+        target === sourcePath ? [createFileEntry('SKILL.md')] : []
+      )
+      ;(fs.renameSync as Mock).mockImplementation((source: string, target: string) => {
+        if (source === stagingPath && target === targetPath) {
+          throw new Error('commit failed')
+        }
+      })
+
+      const result = await skillService.executeSyncDirectoryExport({
+        skillNames: ['atomic-skill']
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        exported: 0,
+        failed: [{ skillName: 'atomic-skill', reason: 'commit failed' }]
+      })
+      expect(fs.renameSync).toHaveBeenNthCalledWith(1, targetPath, backupPath)
+      expect(fs.renameSync).toHaveBeenNthCalledWith(2, stagingPath, targetPath)
+      expect(fs.renameSync).toHaveBeenNthCalledWith(3, backupPath, targetPath)
+      expect(fs.rmSync).not.toHaveBeenCalledWith(targetPath, {
+        recursive: true,
+        force: true
+      })
     })
 
     it('defaults sync directory import conflicts to overwrite', async () => {
@@ -2113,14 +2208,64 @@ describe('SkillService', () => {
       expect(result).toMatchObject({ success: true, imported: 1 })
       expect(installSpy).toHaveBeenCalledWith(
         `${syncDir}/skills/conflict-skill`,
-        { overwrite: true },
-        'imported',
         expect.objectContaining({
-          importedFrom: `${syncDir}/skills/conflict-skill`,
-          importedAt: expect.any(String)
-        }),
-        'conflict-skill'
+          options: { overwrite: true },
+          sourceType: 'imported',
+          sourcePatch: expect.objectContaining({
+            importedFrom: `${syncDir}/skills/conflict-skill`,
+            importedAt: expect.any(String)
+          }),
+          targetName: 'conflict-skill',
+          publishCatalogEvent: false
+        })
       )
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith('skills.catalog.changed', {
+        reason: 'sync-imported',
+        agentIds: ['deepchat'],
+        version: expect.any(Number)
+      })
+    })
+
+    it('keeps a completed sync import successful when only its activity timestamp fails', async () => {
+      const syncDir = '/mock/sync'
+      await skillService.setSkillsSyncDirectory({ skillsDirectory: syncDir })
+      vi.spyOn(skillService, 'previewSyncDirectoryImport').mockResolvedValue({
+        skillsDirectory: syncDir,
+        items: [
+          {
+            name: 'new-skill',
+            state: 'new',
+            sourcePath: `${syncDir}/skills/new-skill`,
+            targetPath: `${DEFAULT_SKILLS_DIR}/new-skill`
+          }
+        ]
+      })
+      vi.spyOn(skillService as any, 'installFromDirectory').mockResolvedValue({
+        success: true,
+        skillName: 'new-skill'
+      })
+      ;(mockProviderSettings.setManagementState as Mock).mockImplementation(() => {
+        throw new Error('timestamp write failed')
+      })
+      publishDeepchatEventMock.mockClear()
+
+      const result = await skillService.executeSyncDirectoryImport({
+        skillNames: ['new-skill']
+      })
+
+      expect(result).toMatchObject({ success: true, imported: 1, failed: [] })
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillService] Failed to persist sync directory activity timestamp.',
+        expect.objectContaining({
+          operation: 'import',
+          error: expect.objectContaining({ message: 'timestamp write failed' })
+        })
+      )
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith('skills.catalog.changed', {
+        reason: 'sync-imported',
+        agentIds: ['deepchat'],
+        version: expect.any(Number)
+      })
     })
   })
 
@@ -2301,11 +2446,46 @@ describe('SkillService', () => {
 
     it('should successfully update skill file', async () => {
       ;(fs.writeFileSync as Mock).mockReturnValue(undefined)
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillService.updateSkillFile('test-skill', 'new content')
 
       expect(result.success).toBe(true)
       expect(fs.writeFileSync).toHaveBeenCalled()
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'metadata-updated',
+          name: 'test-skill',
+          agentIds: ['deepchat']
+        })
+      )
+    })
+
+    it('rolls back an updated manifest that no longer parses as the same Skill', async () => {
+      ;(skillService as any).contentCache.set('test-skill', {
+        name: 'test-skill',
+        content: 'cached old content'
+      })
+      ;(skillService as any).parseSkillMetadata = vi.fn().mockResolvedValue(null)
+      publishDeepchatEventMock.mockClear()
+
+      const result = await skillService.updateSkillFile('test-skill', 'invalid content')
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('failed validation')
+      })
+      expect(fs.writeFileSync).toHaveBeenLastCalledWith(
+        expect.stringContaining('/test-skill/SKILL.md'),
+        'test',
+        'utf-8'
+      )
+      expect((skillService as any).contentCache.get('test-skill')).toEqual({
+        name: 'test-skill',
+        content: 'cached old content'
+      })
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
     })
   })
 
@@ -2333,6 +2513,7 @@ describe('SkillService', () => {
         runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
         scriptOverrides: {}
       }
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillService.saveSkillWithExtension(
         'test-skill',
@@ -2348,6 +2529,15 @@ describe('SkillService', () => {
       )
       const state = configSettings.get('skills.managementState') as any
       expect(state.agents.deepchat.skills['test-skill'].extension).toEqual(extension)
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'metadata-updated',
+          name: 'test-skill',
+          extensionChanged: true,
+          agentIds: ['deepchat']
+        })
+      )
     })
 
     it('rolls back skill content when management state save fails', async () => {
@@ -2377,6 +2567,43 @@ describe('SkillService', () => {
       expect(
         (configSettings.get('skills.managementState') as any).agents.deepchat.skills['test-skill']
       ).toBeUndefined()
+    })
+
+    it('does not persist extension state when the updated manifest is invalid', async () => {
+      const extension = {
+        version: 1 as const,
+        env: { API_KEY: 'secret' },
+        runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+        scriptOverrides: {}
+      }
+      ;(skillService as any).contentCache.set('test-skill', {
+        name: 'test-skill',
+        content: 'cached old content'
+      })
+      ;(skillService as any).parseSkillMetadata = vi.fn().mockResolvedValue(null)
+      publishDeepchatEventMock.mockClear()
+
+      const result = await skillService.saveSkillWithExtension(
+        'test-skill',
+        'invalid content',
+        extension
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('failed validation')
+      })
+      expect(fs.writeFileSync).toHaveBeenLastCalledWith(
+        expect.stringContaining('/test-skill/SKILL.md'),
+        'old skill content',
+        'utf-8'
+      )
+      expect(configSettings.get('skills.managementState')).toBeUndefined()
+      expect((skillService as any).contentCache.get('test-skill')).toEqual({
+        name: 'test-skill',
+        content: 'cached old content'
+      })
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
     })
   })
 

@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import logger from '@shared/logger'
 import type { Agent } from '@shared/types/agent-interface'
 import type { SkillInstallOptions } from '@shared/types/skill'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
@@ -21,6 +22,12 @@ vi.mock('fs', async () => {
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => electronState.tempPath)
+  }
+}))
+
+vi.mock('@shared/logger', () => ({
+  default: {
+    warn: vi.fn()
   }
 }))
 
@@ -179,10 +186,12 @@ describe('AgentSkillImportService', () => {
         _agentId: string,
         folderPath: string,
         provenance: { importedFrom: string; sourceAgentId?: string },
-        options?: SkillInstallOptions
+        options?: SkillInstallOptions,
+        catalogPublication?: 'immediate' | 'deferred'
       ) => {
         expect(provenance).toEqual({ importedFrom: 'external:codex/external-skill' })
         expect(options).toEqual({ overwrite: false, targetName: 'external-skill' })
+        expect(catalogPublication).toBe('deferred')
         await expect(
           readFile(path.join(folderPath, 'references/nested/guide.md'), 'utf-8')
         ).resolves.toBe('# Guide')
@@ -337,6 +346,43 @@ describe('AgentSkillImportService', () => {
       skipped: [],
       failed: [{ skillName: 'second-skill', reason: 'disk full' }]
     })
+    expect(installImportedSkillForAgent).toHaveBeenCalledTimes(2)
+    expect(installImportedSkillForAgent.mock.calls[0]?.[4]).toBe('deferred')
+    expect(installImportedSkillForAgent.mock.calls[1]?.[4]).toBe('deferred')
+    expect(refreshAgentCatalog).toHaveBeenCalledOnce()
     expect(refreshAgentCatalog).toHaveBeenCalledWith('target')
+  })
+
+  it('keeps completed imports successful when only the catalog refresh fails', async () => {
+    const skillRoot = path.join(sourceRoot, 'installed-skill')
+    await mkdir(skillRoot)
+    await writeFile(
+      path.join(skillRoot, 'SKILL.md'),
+      '---\nname: installed-skill\ndescription: Installed\n---\n',
+      'utf-8'
+    )
+    catalogs.set('source', [createCatalogItem('installed-skill', skillRoot)])
+    refreshAgentCatalog.mockRejectedValueOnce(new Error('catalog unavailable'))
+
+    const result = await service.execute({
+      targetAgentId: 'target',
+      source: { kind: 'internal', agentId: 'source' },
+      items: [{ skillName: 'installed-skill', strategy: 'skip' }]
+    })
+
+    expect(result).toEqual({
+      success: true,
+      imported: ['installed-skill'],
+      skipped: [],
+      failed: []
+    })
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[AgentSkillImportService] Failed to refresh imported Skill catalog.',
+      expect.objectContaining({
+        targetAgentId: 'target',
+        importedCount: 1,
+        error: expect.objectContaining({ message: 'catalog unavailable' })
+      })
+    )
   })
 })

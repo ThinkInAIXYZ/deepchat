@@ -15,6 +15,7 @@ beforeEach(() => {
   global.URL.revokeObjectURL = vi.fn()
   vi.spyOn(document.body, 'appendChild')
   vi.spyOn(document.body, 'removeChild')
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
 })
 
 const mkArtifact = (type: string, content: string, title = 'artifact') =>
@@ -29,10 +30,12 @@ describe('useArtifactExport', () => {
   })
 
   it('throws for invalid svg content', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const api = useArtifactExport(vi.fn())
     await expect(api.exportSVG(mkArtifact('image/svg+xml', 'NOT_SVG', 'bad'))).rejects.toThrow(
       'Invalid SVG content'
     )
+    consoleError.mockRestore()
   })
 
   it('exports code and copies content', async () => {
@@ -45,6 +48,17 @@ describe('useArtifactExport', () => {
     Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(void 0) } })
     await api.copyContent(mkArtifact('application/vnd.ant.code', 'hello world'))
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('hello world')
+  })
+
+  it('propagates download failures after releasing the object URL', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementationOnce(() => {
+      throw new Error('download blocked')
+    })
+    const api = useArtifactExport(vi.fn())
+
+    expect(() => api.exportCode(mkArtifact('text/markdown', '# hello'))).toThrow('download blocked')
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob://x')
+    click.mockRestore()
   })
 
   it('copyAsImage delegates to captureAndCopy with proper config', async () => {

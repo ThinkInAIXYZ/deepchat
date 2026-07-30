@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Notificaciones",
+    "actionFailed": "La acción falló. Inténtalo de nuevo.",
+    "entities": "{count} afectados",
+    "occurrences": "{count} ocurrencias",
+    "pending": "{count} más en espera",
+    "mcpConnectionFailed": {
+      "title": "No se pudo conectar con {serverName}",
+      "description": "Revisa la configuración del servidor e inténtalo de nuevo."
+    },
+    "mcpToolListFailed": {
+      "title": "No se pudieron cargar las herramientas de {serverName}",
+      "description": "El servidor está conectado, pero sus herramientas no están disponibles."
+    },
+    "providerDeeplinkFailed": {
+      "title": "No se pudo abrir la configuración del proveedor",
+      "reasons": {
+        "unsupported-version": "Esta versión del enlace no es compatible.",
+        "invalid-payload": "Este enlace de proveedor no es válido.",
+        "provider-not-found": "No se encontró el proveedor enlazado.",
+        "unsupported-provider": "Este proveedor no es compatible.",
+        "settings-unavailable": "No se pudo abrir la configuración del proveedor."
+      }
+    }
+  },
   "loading": "Cargando...",
   "copy": "Copiar",
   "copied": "Copiado",

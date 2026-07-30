@@ -3,6 +3,7 @@ import {
   useSpeechRecognition,
   type SpeechRecognitionErrorCode
 } from '@/components/chat/composables/useSpeechRecognition'
+import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
 
 type ModelSelection = {
   providerId: string
@@ -30,17 +31,11 @@ type ModelClientLike = {
   ) => () => void
 }
 
-type ToastFn = (options: {
-  title: string
-  description?: string
-  variant?: 'destructive'
-}) => unknown
-
 type UseVoiceInputOptions = {
   chatInputRef: Ref<ChatInputHandle | null>
   getActiveModelSelection: () => ModelSelection | null
   modelClient: ModelClientLike
-  toast: ToastFn
+  notify: RendererNotificationNotifier
   t: (key: string) => string
 }
 
@@ -59,18 +54,20 @@ export function useVoiceInput(options: UseVoiceInputOptions) {
     }
 
     if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'audio-capture') {
-      options.toast({
+      options.notify({
+        kind: 'error',
+        code: 'chat.voice.permissionDenied',
         title: options.t('chat.input.voiceRecognitionPermissionDeniedTitle'),
-        description: options.t('chat.input.voiceRecognitionPermissionDeniedDescription'),
-        variant: 'destructive'
+        description: options.t('chat.input.voiceRecognitionPermissionDeniedDescription')
       })
       return
     }
 
-    options.toast({
+    options.notify({
+      kind: 'error',
+      code: 'chat.voice.recognitionFailed',
       title: options.t('chat.input.voiceRecognitionErrorTitle'),
-      description: options.t('chat.input.voiceRecognitionErrorDescription'),
-      variant: 'destructive'
+      description: options.t('chat.input.voiceRecognitionErrorDescription')
     })
   }
 
@@ -93,10 +90,11 @@ export function useVoiceInput(options: UseVoiceInputOptions) {
       )
     },
     onUnsupported: () => {
-      options.toast({
+      options.notify({
+        kind: 'warning',
+        code: 'chat.voice.unsupported',
         title: options.t('chat.input.voiceRecognitionUnsupportedTitle'),
-        description: options.t('chat.input.voiceRecognitionUnsupportedDescription'),
-        variant: 'destructive'
+        description: options.t('chat.input.voiceRecognitionUnsupportedDescription')
       })
     },
     onError: handleVoiceInputError

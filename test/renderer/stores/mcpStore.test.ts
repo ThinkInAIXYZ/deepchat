@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const setMcpServerEnabledMutate = vi.hoisted(() => vi.fn())
+const addMcpServerMutate = vi.hoisted(() => vi.fn())
+const updateMcpServerMutate = vi.hoisted(() => vi.fn())
+const removeMcpServerMutate = vi.hoisted(() => vi.fn())
+const configRefetch = vi.hoisted(() => vi.fn())
 
 const mcpClientMock = vi.hoisted(() => ({
   getMcpServers: vi.fn().mockResolvedValue({}),
@@ -53,11 +57,19 @@ vi.mock('../../../src/renderer/api/ConfigClient', () => ({
 }))
 
 vi.mock('@/composables/useIpcMutation', () => ({
-  useIpcMutation: (options: { mutation?: (...args: any[]) => unknown }) => ({
-    mutateAsync: options.mutation?.toString().includes('setMcpServerEnabled')
+  useIpcMutation: (options: { mutation?: (...args: any[]) => unknown }) => {
+    const source = options.mutation?.toString() ?? ''
+    const mutateAsync = source.includes('setMcpServerEnabled')
       ? setMcpServerEnabledMutate
-      : vi.fn().mockResolvedValue(undefined)
-  })
+      : source.includes('addMcpServer')
+        ? addMcpServerMutate
+        : source.includes('updateMcpServer')
+          ? updateMcpServerMutate
+          : source.includes('removeMcpServer')
+            ? removeMcpServerMutate
+            : vi.fn().mockResolvedValue(undefined)
+    return { mutateAsync }
+  }
 }))
 
 vi.mock('@/composables/useIpcQuery', () => ({
@@ -65,7 +77,10 @@ vi.mock('@/composables/useIpcQuery', () => ({
 }))
 
 vi.mock('@pinia/colada', () => ({
-  useQuery: () => createQueryState()
+  useQuery: () => ({
+    ...createQueryState(),
+    refetch: configRefetch
+  })
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -83,10 +98,15 @@ const setupStore = async () => {
   return useMcpStore()
 }
 
-describe('useMcpStore toggleServer rollback', () => {
-  beforeEach(async () => {
+describe('useMcpStore', () => {
+  beforeEach(() => {
     vi.clearAllMocks()
     setMcpServerEnabledMutate.mockReset()
+    addMcpServerMutate.mockReset()
+    updateMcpServerMutate.mockReset()
+    removeMcpServerMutate.mockReset()
+    configRefetch.mockReset()
+    configRefetch.mockResolvedValue({ status: 'success', data: undefined })
     mcpClientMock.startServer.mockClear()
     mcpClientMock.stopServer.mockClear()
     mcpClientMock.getServerAuthStatus.mockReset()
@@ -299,5 +319,43 @@ describe('useMcpStore toggleServer rollback', () => {
     }
 
     expect(store.serverList.map((server) => server.name)).toEqual(['linear', 'memory', 'tavily'])
+  })
+
+  it('keeps server mutation results truthful when follow-up refreshes fail', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = await setupStore()
+    const serverConfig = {
+      command: 'demo-command',
+      args: [],
+      env: {},
+      descriptions: 'Demo server',
+      icons: 'D',
+      autoApprove: [],
+      disable: false,
+      type: 'stdio' as const,
+      enabled: false
+    }
+    store.config = {
+      mcpServers: {
+        demo: serverConfig
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+    addMcpServerMutate.mockResolvedValueOnce({ status: 'added' })
+    updateMcpServerMutate.mockResolvedValueOnce(undefined)
+    removeMcpServerMutate.mockResolvedValueOnce(undefined)
+    configRefetch.mockRejectedValue(new Error('refresh failed'))
+
+    await expect(store.addServer('added', serverConfig)).resolves.toEqual({ status: 'added' })
+    await expect(store.updateServer('demo', { descriptions: 'Updated' })).resolves.toBe(true)
+    await expect(store.removeServer('demo')).resolves.toBe(true)
+    await vi.waitFor(() => {
+      expect(consoleWarn).toHaveBeenCalled()
+    })
+
+    expect(store.config.mcpServers.added).toEqual(serverConfig)
+    expect(store.config.mcpServers.demo).toBeUndefined()
+    consoleWarn.mockRestore()
   })
 })

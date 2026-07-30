@@ -116,6 +116,8 @@
       </div>
     </div>
 
+    <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
+
     <div class="flex items-center justify-between gap-3">
       <div>
         <h2 class="text-sm font-semibold">
@@ -130,7 +132,7 @@
           }}
         </p>
       </div>
-      <Button variant="ghost" size="sm" class="h-8 text-xs" :disabled="loading" @click="load">
+      <Button variant="ghost" size="sm" class="h-8 text-xs" :disabled="loading" @click="refresh">
         <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
         {{ t('settings.memory.redesign.refresh') }}
       </Button>
@@ -251,7 +253,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import {
@@ -284,7 +286,6 @@ import {
 } from '@shadcn/components/ui/select'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Textarea } from '@shadcn/components/ui/textarea'
-import { useToast } from '@/components/use-toast'
 import { createMemoryClient } from '@api/MemoryClient'
 import {
   AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT,
@@ -297,11 +298,10 @@ import {
 import type { MemoryDirectiveCreateInput, MemoryDirectiveItem } from '@shared/contracts/routes'
 import { isMemoryDirectiveTopicSpecificEnough } from '@shared/lib/memoryDirectiveTopic'
 import { unicodeCodePointLength } from '@shared/lib/unicodeText'
-import {
-  notifyMemoryActionFailed,
-  notifyMemoryDirectiveCommandRejected,
-  shortDate
-} from './memoryRedesignUtils'
+import { shortDate } from './memoryRedesignUtils'
+import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
+import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const props = defineProps<{
   agentId: string
@@ -310,8 +310,10 @@ const props = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const { toast } = useToast()
 const memoryClient = createMemoryClient()
+const panelFeedback = useMemoryInlineFeedback('MemoryDirectivesPanel')
+const feedback = panelFeedback.feedback
+const clearFeedback = panelFeedback.clear
 
 const loading = ref(false)
 const creating = ref(false)
@@ -355,6 +357,7 @@ const canCreate = computed(
         topicLength.value <= AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS &&
         !topicTooBroad.value))
 )
+const formDirty = computed(() => Boolean(form.content.trim() || form.topic.trim()))
 
 const activeCount = computed(
   () => directives.value.filter((directive) => directive.status === 'active').length
@@ -382,10 +385,6 @@ function statusVariant(status: AgentMemoryDirectiveStatus): 'default' | 'seconda
   if (status === 'active') return 'default'
   if (status === 'draft') return 'secondary'
   return 'outline'
-}
-
-function notifyFailed(error?: unknown): void {
-  notifyMemoryActionFailed(toast, t, error)
 }
 
 function resetForm(): void {
@@ -435,10 +434,15 @@ async function load(): Promise<void> {
     ]
   } catch (error) {
     if (current !== requestId || props.agentId !== agentId) return
-    notifyFailed(error)
+    panelFeedback.fail(error)
   } finally {
     if (current === requestId && props.agentId === agentId) loading.value = false
   }
+}
+
+function refresh(): void {
+  clearFeedback()
+  void load()
 }
 
 async function create(): Promise<void> {
@@ -451,13 +455,14 @@ async function create(): Promise<void> {
       ? { kind: 'suppress_topic', content, topic }
       : { kind: 'instruction', content }
   directiveRevision += 1
+  clearFeedback()
   creating.value = true
   let shouldReload = false
   try {
     const result = await memoryClient.createDirective(agentId, input)
     if (props.agentId !== agentId) return
     if (result.action === 'rejected') {
-      notifyMemoryDirectiveCommandRejected(toast, t, result.reason)
+      panelFeedback.rejectDirective(result.reason)
       return
     }
     upsertDirective(result.directive)
@@ -465,7 +470,7 @@ async function create(): Promise<void> {
   } catch (error) {
     if (props.agentId === agentId) {
       shouldReload = true
-      notifyFailed(error)
+      panelFeedback.fail(error)
     }
   } finally {
     if (props.agentId === agentId) {
@@ -480,8 +485,10 @@ async function transition(
   directiveId: string,
   status: Extract<AgentMemoryDirectiveStatus, 'active' | 'rejected'>
 ): Promise<void> {
+  if (pendingIds.value.has(directiveId)) return
   const agentId = props.agentId
   directiveRevision += 1
+  clearFeedback()
   setPending(directiveId, true)
   let shouldReload = false
   try {
@@ -490,7 +497,7 @@ async function transition(
       const result = await memoryClient.approveDirective(agentId, directiveId)
       if (props.agentId !== agentId) return
       if (result.action === 'rejected') {
-        notifyMemoryDirectiveCommandRejected(toast, t, result.reason)
+        panelFeedback.rejectDirective(result.reason)
         return
       }
       updated = result.directive
@@ -498,7 +505,7 @@ async function transition(
       updated = await memoryClient.rejectDirective(agentId, directiveId)
       if (props.agentId !== agentId) return
       if (!updated) {
-        notifyFailed()
+        panelFeedback.fail()
         return
       }
     }
@@ -506,7 +513,7 @@ async function transition(
   } catch (error) {
     if (props.agentId === agentId) {
       shouldReload = true
-      notifyFailed(error)
+      panelFeedback.fail(error)
     }
   } finally {
     if (props.agentId === agentId) {
@@ -518,22 +525,24 @@ async function transition(
 }
 
 async function remove(directiveId: string): Promise<void> {
+  if (pendingIds.value.has(directiveId)) return
   const agentId = props.agentId
   directiveRevision += 1
+  clearFeedback()
   setPending(directiveId, true)
   let shouldReload = false
   try {
     const removed = await memoryClient.deleteDirective(agentId, directiveId)
     if (props.agentId !== agentId) return
     if (!removed) {
-      notifyFailed()
+      panelFeedback.fail()
       return
     }
     directives.value = directives.value.filter((directive) => directive.id !== directiveId)
   } catch (error) {
     if (props.agentId === agentId) {
       shouldReload = true
-      notifyFailed(error)
+      panelFeedback.fail(error)
     }
   } finally {
     if (props.agentId === agentId) {
@@ -547,6 +556,7 @@ async function remove(directiveId: string): Promise<void> {
 watch(
   () => props.agentId,
   () => {
+    clearFeedback()
     requestId += 1
     directiveRevision += 1
     loading.value = false
@@ -563,4 +573,21 @@ watch(
   () => props.refreshToken,
   () => void load()
 )
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'memory-directive-draft',
+  onDiscard: resetForm
+})
+const stopLeaveRiskSync = watch(
+  [creating, formDirty],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
+})
 </script>

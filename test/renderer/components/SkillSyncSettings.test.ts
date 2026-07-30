@@ -194,9 +194,6 @@ describe('skill sync settings components', () => {
     vi.doMock('@api/SkillSyncClient', () => ({
       createSkillSyncClient: () => skillSyncClient
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
-    }))
     vi.doMock('@/stores/skillsStore', () => ({
       useSkillsStore: () => ({ loadSkills })
     }))
@@ -304,9 +301,6 @@ describe('skill sync settings components', () => {
     vi.doMock('@api/SkillSyncClient', () => ({
       createSkillSyncClient: () => skillSyncClient
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
-    }))
     vi.doMock('@/stores/skillsStore', () => ({
       useSkillsStore: () => ({ loadSkills: vi.fn() })
     }))
@@ -411,13 +405,9 @@ describe('skill sync settings components', () => {
       scanAgents: vi.fn().mockResolvedValueOnce([agent]).mockResolvedValueOnce([afterAgent]),
       getAgentDetail: vi.fn().mockResolvedValueOnce(beforeDetail).mockResolvedValueOnce(afterDetail)
     }
-    const toast = vi.fn()
     const loadSkills = vi.fn().mockResolvedValue(undefined)
     vi.doMock('@api/SkillSyncClient', () => ({
       createSkillSyncClient: () => skillSyncClient
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast })
     }))
     vi.doMock('@/stores/skillsStore', () => ({
       useSkillsStore: () => ({ loadSkills })
@@ -465,7 +455,6 @@ describe('skill sync settings components', () => {
     expect(adoptButton).toBeUndefined()
     expect(skillSyncClient.scanAgents).toHaveBeenCalledOnce()
     expect(loadSkills).not.toHaveBeenCalled()
-    expect(toast).not.toHaveBeenCalled()
   })
 
   it('renders skill detail markdown without frontmatter', async () => {
@@ -554,7 +543,7 @@ describe('skill sync settings components', () => {
         description: 'Write tests',
         sourcePath: '/skills/write-tests/SKILL.md',
         markdown:
-          '---\nname: write-tests\ndescription: Write tests\nallowedTools:\n  - Read\n---\n# Write tests',
+          '---\nname: write-tests\ndescription: Write tests\nallowedTools:\n  - Read\nplatforms:\n  - darwin\nmetadata:\n  category: qa\n---\n# Write tests',
         mutable: true
       },
       global: {
@@ -621,7 +610,24 @@ describe('skill sync settings components', () => {
     expect(savedContent).toContain('description: \"Updated description\"')
     expect(savedContent).toContain('- \"Read\"')
     expect(savedContent).toContain('- \"Bash\"')
+    expect(savedContent).toContain('- \"darwin\"')
+    expect(savedContent).toContain('category: \"qa\"')
     expect(savedContent).toContain('# Updated instructions')
+
+    await textareas[0].setValue('   ')
+    expect(saveButton?.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('components.promptParamsDialog.required')
+
+    wrapper.findComponent({ name: 'Dialog' }).vm.$emit('update:open', false)
+    await flushPromises()
+    expect(wrapper.emitted('update:open')).toBeUndefined()
+    expect(wrapper.text()).toContain('settings.leaveGuard.dirtyTitle')
+
+    const discardButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.leaveGuard.discard'))
+    await discardButton?.trigger('click')
+    expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
   })
 
   it('opens detail from the skill card body without bubbling the status toggle', async () => {
@@ -688,12 +694,8 @@ describe('skill sync settings components', () => {
       }),
       installFromGit: vi.fn().mockResolvedValue([{ success: true, skillName: 'guizang-ppt-skill' }])
     }
-    const toast = vi.fn()
     vi.doMock('@api/SkillClient', () => ({
       createSkillClient: () => skillClient
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast })
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -749,7 +751,91 @@ describe('skill sync settings components', () => {
       skillNames: ['guizang-ppt-skill'],
       strategy: 'rename'
     })
-    expect(wrapper.emitted('installed')).toBeTruthy()
+    expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
+  })
+
+  it('keeps a partially failed Git install open with inline feedback', async () => {
+    vi.resetModules()
+
+    const skillClient = {
+      scanGitSkillRepo: vi.fn().mockResolvedValue({
+        repoUrl: 'https://example.com/skills.git',
+        repoFormat: 'multi-skill',
+        skills: [
+          {
+            name: 'installed-skill',
+            description: 'Installed',
+            relativePath: 'installed/SKILL.md',
+            conflict: true,
+            valid: true
+          },
+          {
+            name: 'failed-skill',
+            description: 'Failed',
+            relativePath: 'failed/SKILL.md',
+            conflict: false,
+            valid: true
+          }
+        ]
+      }),
+      installFromGit: vi.fn().mockResolvedValue([
+        {
+          success: true,
+          sourceSkillName: 'installed-skill',
+          skillName: 'installed-skill-1'
+        },
+        {
+          success: false,
+          skillName: 'failed-skill',
+          error: '/private/source/failed-skill could not be copied'
+        }
+      ])
+    }
+    vi.doMock('@api/SkillClient', () => ({
+      createSkillClient: () => skillClient
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string, params?: Record<string, unknown>) =>
+          params ? `${key}:${JSON.stringify(params)}` : key
+      })
+    }))
+
+    const InstallFromGitDialog = (
+      await import('../../../src/renderer/settings/components/skills/InstallFromGitDialog.vue')
+    ).default
+    const wrapper = mount(InstallFromGitDialog, {
+      props: { open: true },
+      global: {
+        stubs: {
+          Icon: true,
+          Badge: passthrough('Badge'),
+          Button: buttonStub,
+          Checkbox: checkboxStub,
+          Dialog: passthrough('Dialog'),
+          DialogContent: passthrough('DialogContent'),
+          DialogDescription: passthrough('DialogDescription'),
+          DialogFooter: passthrough('DialogFooter'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          Input: inputStub,
+          RadioGroup: passthrough('RadioGroup'),
+          RadioGroupItem: true
+        }
+      }
+    })
+
+    const findButton = (key: string) =>
+      wrapper.findAll('button').find((button) => button.text().includes(key))
+    await findButton('settings.skills.git.scan')?.trigger('click')
+    await flushPromises()
+    await findButton('settings.skills.git.install')?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('update:open')).toBeUndefined()
+    expect(Array.from((wrapper.vm as any).selectedNames)).toEqual(['failed-skill'])
+    expect(wrapper.get('[data-status="error"]').text()).toContain('settings.skills.git.failed')
+    expect(wrapper.text()).not.toContain('/private/source')
   })
 
   it('exports selected sync directory skills and refreshes imports on tab switch', async () => {
@@ -775,7 +861,7 @@ describe('skill sync settings components', () => {
       }),
       executeSyncDirectoryExport: vi.fn().mockResolvedValue({
         success: true,
-        exported: 1,
+        exported: 2,
         skipped: 0,
         failed: []
       }),
@@ -829,9 +915,6 @@ describe('skill sync settings components', () => {
       createDeviceClient: () => ({
         selectDirectory: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] })
       })
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -938,6 +1021,22 @@ describe('skill sync settings components', () => {
     })
     expect((wrapper.vm as any).exportConfirmOpen).toBe(false)
 
+    skillClient.executeSyncDirectoryExport.mockResolvedValueOnce({
+      success: false,
+      exported: 1,
+      skipped: 0,
+      failed: [{ skillName: 'disabled-skill', reason: '/private/sync is read-only' }]
+    })
+    ;(wrapper.vm as any).exportConfirmOpen = true
+    await (wrapper.vm as any).executeExport()
+    await flushPromises()
+    expect((wrapper.vm as any).exportConfirmOpen).toBe(true)
+    expect(wrapper.get('[data-status="error"]').text()).toContain(
+      'settings.skills.sync.exportPartial'
+    )
+    expect((wrapper.vm as any).retryExportNames).toEqual(['disabled-skill'])
+    expect(wrapper.text()).not.toContain('/private/sync')
+
     ;(wrapper.vm as any).activeTab = 'import'
     await flushPromises()
     expect(skillClient.previewSyncDirectoryImport).toHaveBeenCalledTimes(1)
@@ -969,7 +1068,18 @@ describe('skill sync settings components', () => {
       skillNames: ['guizang-ppt-skill', 'conflict-skill'],
       strategy: 'overwrite'
     })
-    expect(wrapper.emitted('completed')).toBeTruthy()
+
+    skillClient.executeSyncDirectoryImport.mockResolvedValueOnce({
+      success: false,
+      imported: 1,
+      skipped: 0,
+      failed: [{ skillName: 'conflict-skill', reason: '/private/import failed' }]
+    })
+    ;(wrapper.vm as any).selectVisibleImport()
+    await (wrapper.vm as any).executeImport()
+    await flushPromises()
+    expect(Array.from((wrapper.vm as any).selectedImportNames)).toEqual(['conflict-skill'])
+    expect(wrapper.text()).not.toContain('/private/import')
   })
 
   it('blocks overlapping sync directory picker flows', async () => {
@@ -1008,9 +1118,6 @@ describe('skill sync settings components', () => {
     }))
     vi.doMock('@api/ProjectClient', () => ({
       createProjectClient: () => projectClient
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -1061,7 +1168,7 @@ describe('skill sync settings components', () => {
     expect(skillClient.setSkillsSyncDirectory).toHaveBeenCalledWith('/sync')
   })
 
-  it('toasts sync directory preview failures without opening export confirmation', async () => {
+  it('keeps sync directory preview failures in the active surface', async () => {
     vi.resetModules()
 
     const skillClient = {
@@ -1076,7 +1183,6 @@ describe('skill sync settings components', () => {
       previewSyncDirectoryImport: vi.fn().mockRejectedValue(new Error('import preview failed')),
       executeSyncDirectoryImport: vi.fn()
     }
-    const toast = vi.fn()
     vi.doMock('@api/SkillClient', () => ({
       createSkillClient: () => skillClient
     }))
@@ -1089,9 +1195,6 @@ describe('skill sync settings components', () => {
       createProjectClient: () => ({
         pathExists: vi.fn().mockResolvedValue(true)
       })
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast })
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -1149,19 +1252,17 @@ describe('skill sync settings components', () => {
 
     expect((wrapper.vm as any).exportConfirmOpen).toBe(false)
     expect((wrapper.vm as any).previewing).toBe(false)
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'settings.skills.sync.previewError',
-        variant: 'destructive'
-      })
-    )
+    expect((wrapper.vm as any).previewError).toBe(true)
+    expect(wrapper.text()).toContain('settings.skills.sync.previewError')
+    expect(wrapper.text()).not.toContain('export preview failed')
 
     await (wrapper.vm as any).previewImport()
     await flushPromises()
 
     expect((wrapper.vm as any).importPreview).toBeNull()
     expect((wrapper.vm as any).previewing).toBe(false)
-    expect(toast).toHaveBeenCalledTimes(2)
+    expect((wrapper.vm as any).previewError).toBe(true)
+    expect(wrapper.text()).not.toContain('import preview failed')
   })
 
   it('hides sync directory operations until a valid directory is selected', async () => {
@@ -1199,9 +1300,6 @@ describe('skill sync settings components', () => {
     }))
     vi.doMock('@api/ProjectClient', () => ({
       createProjectClient: () => projectClient
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({

@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
+import logger from '@shared/logger'
 import type { Agent } from '@shared/types/agent-interface'
 import type {
   AgentSkillImportPreview,
@@ -177,7 +178,8 @@ export class AgentSkillImportService {
                 sourceAgentId: input.source.agentId
               }
             : { importedFrom: `external:${input.source.toolId}/${skillName}` },
-          options
+          options,
+          'deferred'
         )
         if (!installed.success || !installed.skillName) {
           throw new Error(installed.error || 'Skill installation failed.')
@@ -198,7 +200,15 @@ export class AgentSkillImportService {
     }
 
     if (result.imported.length > 0) {
-      await this.dependencies.skills.refreshAgentCatalog(input.targetAgentId)
+      try {
+        await this.dependencies.skills.refreshAgentCatalog(input.targetAgentId)
+      } catch (error) {
+        logger.warn('[AgentSkillImportService] Failed to refresh imported Skill catalog.', {
+          targetAgentId: input.targetAgentId,
+          importedCount: result.imported.length,
+          error
+        })
+      }
     }
     result.success = result.failed.length === 0
     return result

@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Benachrichtigungen",
+    "actionFailed": "Aktion fehlgeschlagen. Erneut versuchen.",
+    "entities": "{count} betroffen",
+    "occurrences": "{count} Vorkommnisse",
+    "pending": "{count} weitere warten",
+    "mcpConnectionFailed": {
+      "title": "Verbindung mit {serverName} fehlgeschlagen",
+      "description": "Prüfen Sie die Servereinstellungen und versuchen Sie es erneut."
+    },
+    "mcpToolListFailed": {
+      "title": "Tools von {serverName} konnten nicht geladen werden",
+      "description": "Der Server ist verbunden, aber seine Tools sind nicht verfügbar."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Anbietereinrichtung konnte nicht geöffnet werden",
+      "reasons": {
+        "unsupported-version": "Diese Linkversion wird nicht unterstützt.",
+        "invalid-payload": "Dieser Anbieterlink ist ungültig.",
+        "provider-not-found": "Der verknüpfte Anbieter wurde nicht gefunden.",
+        "unsupported-provider": "Dieser Anbieter wird nicht unterstützt.",
+        "settings-unavailable": "Die Anbietereinstellungen konnten nicht geöffnet werden."
+      }
+    }
+  },
   "loading": "Wird geladen...",
   "copy": "Kopieren",
   "copied": "Kopiert",

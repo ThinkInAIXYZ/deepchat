@@ -1296,7 +1296,15 @@
       "seconds": "秒",
       "testConnection": "測試連接",
       "timeout": "超時",
-      "title": "Nowledge Mem 導出配置"
+      "title": "Nowledge Mem 導出配置",
+      "configLoadFailed": "無法載入設定",
+      "configSaved": "設定已儲存",
+      "configSaveFailed": "無法儲存設定",
+      "configReset": "設定已重設",
+      "configResetFailed": "無法重設設定",
+      "connectionSucceeded": "連線成功",
+      "connectionFailed": "無法使用目前設定建立連線",
+      "invalidBaseUrl": "請輸入不含帳號或查詢參數的 HTTP(S) 位址"
     }
   },
   "mcp": {
@@ -1332,6 +1340,7 @@
       "name": "伺服器名稱",
       "namePlaceholder": "輸入伺服器名稱",
       "nameRequired": "伺服器名稱不能為空",
+      "nameDuplicate": "已有同名伺服器，請使用其他名稱。",
       "type": "伺服器類型",
       "typePlaceholder": "選擇伺服器類型",
       "typeStdio": "標準輸入輸出(Stdio)",
@@ -1561,7 +1570,7 @@
       "error": "錯誤",
       "invalidAgent": "Agent 不存在或已停用，請重新選擇 Agent。"
     },
-    "runNowSuccess": "排程任務已觸發"
+    "runNowSuccess": "排程任務已完成"
   },
   "about": {
     "title": "關於我們",
@@ -2638,7 +2647,21 @@
       "safe_storage_unavailable": "系統安全金鑰儲存不可用，持久化快取已停用。"
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "變更尚未儲存",
+    "dirtyDescription": "現在離開並放棄這些變更嗎？",
+    "busyTitle": "正在儲存",
+    "busyDescription": "請等待儲存完成後再離開。",
+    "stay": "繼續編輯",
+    "discard": "放棄變更"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "正在儲存…",
+      "saved": "已儲存",
+      "saveFailed": "儲存失敗，變更仍保留",
+      "retry": "重試"
+    },
     "title": "DeepChat 智能體",
     "description": "管理 DeepChat 智能體，以及它們為新會話帶入的預設值。",
     "builtIn": "內建",

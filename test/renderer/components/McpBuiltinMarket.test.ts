@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, shallowRef, type ShallowRef } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const buttonStub = defineComponent({
@@ -58,6 +58,7 @@ const findButtonByText = (wrapper: ReturnType<typeof mount>, text: string) => {
 
 describe('McpBuiltinMarket', () => {
   async function setup(options?: {
+    getMcpRouterApiKey?: ReturnType<typeof vi.fn>
     listMcpRouterServers?: ReturnType<typeof vi.fn>
     listInstalledServerIds?: ReturnType<typeof vi.fn>
     installMcpRouterServer?: ReturnType<typeof vi.fn>
@@ -66,9 +67,8 @@ describe('McpBuiltinMarket', () => {
     vi.resetModules()
 
     const mcpClient = {
-      getMcpRouterApiKey: vi.fn().mockResolvedValue('router-key'),
+      getMcpRouterApiKey: options?.getMcpRouterApiKey ?? vi.fn().mockResolvedValue('router-key'),
       setMcpRouterApiKey: vi.fn().mockResolvedValue(undefined),
-      updateMcpRouterServersAuth: vi.fn().mockResolvedValue(undefined),
       isServerInstalled: vi.fn().mockResolvedValue(false),
       listInstalledServerIds: options?.listInstalledServerIds ?? vi.fn().mockResolvedValue([]),
       listMcpRouterServers:
@@ -92,13 +92,66 @@ describe('McpBuiltinMarket', () => {
         }),
       installMcpRouterServer: options?.installMcpRouterServer ?? vi.fn().mockResolvedValue(true)
     }
-    const toast = vi.fn()
+    const feedbackBindings = new Map<object, ShallowRef<Record<string, unknown>>>()
+    const feedbackControllers: Array<{
+      begin: ReturnType<typeof vi.fn>
+      succeed: ReturnType<typeof vi.fn>
+      fail: ReturnType<typeof vi.fn>
+      clear: ReturnType<typeof vi.fn>
+    }> = []
+    const createFeedbackController = () => {
+      const snapshot = shallowRef<Record<string, unknown>>({
+        status: 'idle',
+        version: 0
+      })
+      const controller = {
+        begin: vi.fn((operationId: string, label: string) => {
+          snapshot.value = {
+            status: 'pending',
+            operationId,
+            label,
+            version: Number(snapshot.value.version) + 1
+          }
+        }),
+        succeed: vi.fn((result: Record<string, unknown>) => {
+          snapshot.value = {
+            status: 'success',
+            operationId: snapshot.value.operationId,
+            ...result,
+            version: Number(snapshot.value.version) + 1
+          }
+        }),
+        fail: vi.fn((result: Record<string, unknown>) => {
+          snapshot.value = {
+            status: 'error',
+            operationId: snapshot.value.operationId,
+            ...result,
+            version: Number(snapshot.value.version) + 1
+          }
+        }),
+        clearSettled: vi.fn(() => {
+          snapshot.value = {
+            status: 'idle',
+            version: Number(snapshot.value.version) + 1
+          }
+        })
+      }
+      feedbackBindings.set(controller, snapshot)
+      feedbackControllers.push(controller)
+      return controller
+    }
 
     vi.doMock('@api/McpClient', () => ({
       createMcpClient: () => mcpClient
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast })
+    vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
+      createRendererSurfaceFeedbackController: createFeedbackController
+    }))
+    vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
+      useSurfaceFeedback: (controller: object) => ({
+        snapshot: feedbackBindings.get(controller),
+        setActive: vi.fn()
+      })
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -129,12 +182,12 @@ describe('McpBuiltinMarket', () => {
     return {
       wrapper,
       mcpClient,
-      toast
+      feedbackControllers
     }
   }
 
   it('loads, saves, and installs through McpClient', async () => {
-    const { wrapper, mcpClient, toast } = await setup()
+    const { wrapper, mcpClient, feedbackControllers } = await setup()
 
     expect(mcpClient.getMcpRouterApiKey).toHaveBeenCalledTimes(1)
     expect(mcpClient.listMcpRouterServers).toHaveBeenCalledWith(1, 20)
@@ -150,11 +203,28 @@ describe('McpBuiltinMarket', () => {
     await flushPromises()
 
     expect(mcpClient.setMcpRouterApiKey).toHaveBeenNthCalledWith(1, 'new-router-key')
-    expect(mcpClient.updateMcpRouterServersAuth).toHaveBeenCalledWith('new-router-key')
     expect(mcpClient.setMcpRouterApiKey).toHaveBeenNthCalledWith(2, 'new-router-key')
     expect(mcpClient.installMcpRouterServer).toHaveBeenCalledWith('context7')
-    expect(toast).toHaveBeenCalledWith({ title: 'common.saved' })
-    expect(toast).toHaveBeenCalledWith({ title: 'mcp.market.installSuccess' })
+    expect(feedbackControllers[0].succeed).toHaveBeenCalledWith({
+      code: 'settings.mcpMarket.apiKey.saved',
+      title: 'common.saved'
+    })
+    expect(feedbackControllers).toHaveLength(1)
+    expect(wrapper.text()).toContain('mcp.market.installed')
+  })
+
+  it('synchronizes installed router authorization when the API key is cleared', async () => {
+    const { wrapper, mcpClient, feedbackControllers } = await setup()
+
+    await wrapper.get('input').setValue('   ')
+    await findButtonByText(wrapper, 'common.save').trigger('click')
+    await flushPromises()
+
+    expect(mcpClient.setMcpRouterApiKey).toHaveBeenCalledWith('')
+    expect(feedbackControllers[0].succeed).toHaveBeenCalledWith({
+      code: 'settings.mcpMarket.apiKey.saved',
+      title: 'common.saved'
+    })
   })
 
   it('checks installation status only for items from the newly loaded page', async () => {
@@ -229,6 +299,8 @@ describe('McpBuiltinMarket', () => {
 
     expect(installMcpRouterServer).toHaveBeenCalledTimes(1)
     expect(installButton.attributes('disabled')).toBeDefined()
+    expect(wrapper.get('input').attributes('disabled')).toBeDefined()
+    expect(findButtonByText(wrapper, 'common.save').attributes('disabled')).toBeDefined()
 
     resolveInstall?.(true)
     await flushPromises()
@@ -236,6 +308,7 @@ describe('McpBuiltinMarket', () => {
   })
 
   it('shows an explicit retry action after a page load failure', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const listMcpRouterServers = vi
       .fn()
       .mockRejectedValueOnce(new Error('offline'))
@@ -243,10 +316,62 @@ describe('McpBuiltinMarket', () => {
     const { wrapper } = await setup({ listMcpRouterServers })
 
     expect(wrapper.text()).toContain('common.error.operationFailed')
-    await findButtonByText(wrapper, 'mcp.market.loadMore').trigger('click')
+    await findButtonByText(wrapper, 'common.retry').trigger('click')
     await flushPromises()
 
     expect(listMcpRouterServers).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('mcp.market.empty')
+    consoleError.mockRestore()
+  })
+
+  it('does not expose install actions until installed-state loading succeeds', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const listInstalledServerIds = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('config unavailable'))
+      .mockResolvedValueOnce([])
+    const { wrapper } = await setup({ listInstalledServerIds })
+
+    expect(wrapper.text()).toContain('common.error.operationFailed')
+    expect(wrapper.text()).not.toContain('Context7')
+
+    await findButtonByText(wrapper, 'common.retry').trigger('click')
+    await flushPromises()
+
+    expect(listInstalledServerIds).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('Context7')
+    consoleError.mockRestore()
+  })
+
+  it('does not expose an empty writable API key after loading fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const getMcpRouterApiKey = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('keychain unavailable'))
+      .mockResolvedValueOnce('router-key')
+    const { wrapper } = await setup({ getMcpRouterApiKey })
+
+    expect(wrapper.text()).toContain('common.error.requestFailed')
+    expect(wrapper.get('input').attributes('disabled')).toBeDefined()
+    await findButtonByText(wrapper, 'common.retry').trigger('click')
+    await flushPromises()
+
+    expect(getMcpRouterApiKey).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('common.error.requestFailed')
+    expect(wrapper.get('input').element).toMatchObject({ value: 'router-key' })
+    consoleError.mockRestore()
+  })
+
+  it('keeps install failures on the affected market card', async () => {
+    const { wrapper, feedbackControllers } = await setup({
+      installMcpRouterServer: vi.fn().mockResolvedValue(false)
+    })
+
+    await findButtonByText(wrapper, 'mcp.market.install').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('mcp.market.installFailed')
+    expect(wrapper.text()).not.toContain('mcp.market.installed')
+    expect(feedbackControllers).toHaveLength(1)
   })
 })

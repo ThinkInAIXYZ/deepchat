@@ -232,25 +232,35 @@ const PHASE_ORDER = new Map([
   ['P5', 5]
 ])
 
-const ANALYSIS_TARGETS = [
-  {
-    label: 'main',
-    root: path.join(ROOT, 'src/main')
-  },
-  {
-    label: 'renderer-main',
-    root: path.join(ROOT, 'src/renderer/src')
-  },
-  {
-    label: 'renderer-settings',
-    root: path.join(ROOT, 'src/renderer/settings')
-  }
-]
-
 const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
 const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
 const RENDERER_SETTINGS_ROOT = path.join(ROOT, 'src/renderer/settings')
-const RENDERER_BUSINESS_ROOTS = [RENDERER_SOURCE_ROOT, RENDERER_SETTINGS_ROOT]
+const RENDERER_SHARED_ROOT = path.join(ROOT, 'src/renderer/services')
+
+const ANALYSIS_TARGETS = [
+  {
+    label: 'main',
+    root: MAIN_SOURCE_ROOT
+  },
+  {
+    label: 'renderer-main',
+    root: RENDERER_SOURCE_ROOT
+  },
+  {
+    label: 'renderer-settings',
+    root: RENDERER_SETTINGS_ROOT
+  },
+  {
+    label: 'renderer-shared',
+    root: RENDERER_SHARED_ROOT
+  }
+]
+
+const RENDERER_BUSINESS_ROOTS = [
+  RENDERER_SOURCE_ROOT,
+  RENDERER_SETTINGS_ROOT,
+  RENDERER_SHARED_ROOT
+]
 const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
 const RENDERER_QUARANTINE_ROOTS = []
 const RENDERER_QUARANTINE_EXIT_MAX_FILES = 0

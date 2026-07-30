@@ -19,8 +19,7 @@ const mocks = vi.hoisted(() => ({
   deviceClient: {
     selectDirectory: vi.fn(),
     selectFiles: vi.fn()
-  },
-  toast: vi.fn()
+  }
 }))
 
 vi.mock('@api/SkillClient', () => ({
@@ -33,10 +32,6 @@ vi.mock('@api/DeviceClient', () => ({
 
 vi.mock('@api/FileClient', () => ({
   createFileClient: () => ({ getPathForFile: vi.fn() })
-}))
-
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({ toast: mocks.toast })
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -129,7 +124,32 @@ describe('Agent-scoped Skill install dialogs', () => {
     expect(mocks.skillClient.installFromFolder).not.toHaveBeenCalled()
   })
 
-  it('drops stale Git scan and install results after the target Agent changes', async () => {
+  it('settles an install after its dialog target changes without mutating the new target', async () => {
+    const install = deferred<{ success: boolean; skillName: string }>()
+    mocks.deviceClient.selectDirectory.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/skills/source']
+    })
+    mocks.skillClient.installFromFolder.mockReturnValue(install.promise)
+    const wrapper = mount(SkillInstallDialog, {
+      props: { open: true, agentId: 'agent-a' },
+      global: globalOptions()
+    })
+
+    await wrapper.get('.border-dashed').trigger('click')
+    await flushPromises()
+    expect((wrapper.vm as any).installing).toBe(true)
+
+    await wrapper.setProps({ agentId: 'agent-b' })
+    install.resolve({ success: true, skillName: 'source' })
+    await flushPromises()
+
+    expect((wrapper.vm as any).installing).toBe(false)
+    expect((wrapper.vm as any).installFeedback.status).toBe('success')
+    expect(wrapper.emitted('update:open')).toBeUndefined()
+  })
+
+  it('ignores stale Git scans and settles installs after the target Agent changes', async () => {
     const staleScan = deferred<{
       repoUrl: string
       repoFormat: 'single-skill'
@@ -203,8 +223,8 @@ describe('Agent-scoped Skill install dialogs', () => {
       },
       'agent-b'
     )
-    expect(wrapper.emitted('installed')).toBeUndefined()
-    expect(mocks.toast).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).installing).toBe(false)
+    expect((wrapper.vm as any).installFeedback.status).toBe('success')
   })
 
   it('clears a scanned Git preview when the repository URL changes', async () => {
@@ -282,5 +302,48 @@ describe('Agent-scoped Skill install dialogs', () => {
 
     expect(wrapper.text()).not.toContain('stale-skill')
     expect(findButton('settings.skills.git.install')?.attributes('disabled')).toBeDefined()
+  })
+
+  it('settles the conflict attempt before starting an overwrite install', async () => {
+    mocks.deviceClient.selectDirectory.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/skills/source']
+    })
+    mocks.skillClient.installFromFolder
+      .mockResolvedValueOnce({
+        success: false,
+        errorCode: 'conflict',
+        existingSkillName: 'source'
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        skillName: 'source'
+      })
+    const wrapper = mount(SkillInstallDialog, {
+      props: { open: true, agentId: 'agent-a' },
+      global: globalOptions()
+    })
+
+    await wrapper.get('.border-dashed').trigger('click')
+    await flushPromises()
+    const overwriteButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.skills.conflict.overwrite'))
+    await overwriteButton?.trigger('click')
+    await flushPromises()
+
+    expect(mocks.skillClient.installFromFolder).toHaveBeenNthCalledWith(
+      1,
+      '/skills/source',
+      { overwrite: false },
+      'agent-a'
+    )
+    expect(mocks.skillClient.installFromFolder).toHaveBeenNthCalledWith(
+      2,
+      '/skills/source',
+      { overwrite: true },
+      'agent-a'
+    )
+    expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
   })
 })

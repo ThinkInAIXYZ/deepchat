@@ -257,7 +257,7 @@ const setup = async (options: SetupOptions = {}) => {
       }
     })
   }
-  const toast = vi.fn()
+  const notify = vi.fn()
   const chatInputInsertWorkspaceReference = vi.fn().mockReturnValue(true)
   const chatInputTriggerAttach = vi.fn()
   const chatInputGetPendingSkillsSnapshot = vi.fn((): string[] => [])
@@ -303,8 +303,8 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
   }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({ toast })
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer: notify
   }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
@@ -636,7 +636,7 @@ const setup = async (options: SetupOptions = {}) => {
     chatRespondToolInteraction,
     sessionClient,
     sessionStore,
-    toast,
+    notify,
     messageStore,
     pendingInputStore,
     agentPlanStore,
@@ -1776,7 +1776,7 @@ describe('ChatPage', () => {
   })
 
   it('shows a no-op notice when manual compaction has no eligible history', async () => {
-    const { wrapper, sessionClient, toast, messageStore } = await setup({
+    const { wrapper, sessionClient, notify, messageStore } = await setup({
       activeSessionPatch: {
         providerId: 'openai',
         modelId: 'gpt-4'
@@ -1795,7 +1795,9 @@ describe('ChatPage', () => {
     input.vm.$emit('command-submit', '/compact')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
+    expect(notify).toHaveBeenCalledWith({
+      kind: 'info',
+      code: 'chat.compaction.unchanged',
       title: 'chat.compaction.noopTitle',
       description: 'chat.compaction.noopDescription'
     })
@@ -2640,7 +2642,7 @@ describe('ChatPage', () => {
   })
 
   it('keeps the active plan when queued steer fails', async () => {
-    const { wrapper, pendingInputStore, agentPlanStore, toast } = await setup({
+    const { wrapper, pendingInputStore, agentPlanStore, notify } = await setup({
       isStreaming: true,
       pendingInputStorePatch: {
         items: [
@@ -2667,9 +2669,10 @@ describe('ChatPage', () => {
 
     expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
     expect(agentPlanStore.beginTurn).not.toHaveBeenCalled()
-    expect(toast).toHaveBeenCalledWith({
-      title: 'chat.pendingInput.steerFailed',
-      variant: 'destructive'
+    expect(notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.pendingInput.steerFailed',
+      title: 'chat.pendingInput.steerFailed'
     })
   })
 
@@ -2887,31 +2890,33 @@ describe('ChatPage', () => {
   })
 
   it('reports stop responses that did not cancel generation', async () => {
-    const { wrapper, chatClient, agentPlanStore, toast } = await setup({ isStreaming: true })
+    const { wrapper, chatClient, agentPlanStore, notify } = await setup({ isStreaming: true })
     chatClient.stopStream.mockResolvedValueOnce({ stopped: false })
 
     wrapper.findComponent({ name: 'ChatInputToolbar' }).vm.$emit('stop')
     await flushPromises()
 
     expect(agentPlanStore.freezeActive).not.toHaveBeenCalled()
-    expect(toast).toHaveBeenCalledWith({
+    expect(notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.generation.cancelFailed',
       title: 'chat.input.stop',
-      description: 'common.error.requestFailed',
-      variant: 'destructive'
+      description: 'common.error.requestFailed'
     })
   })
 
   it('reports rejected stop requests', async () => {
-    const { wrapper, chatClient, toast } = await setup({ isStreaming: true })
+    const { wrapper, chatClient, notify } = await setup({ isStreaming: true })
     chatClient.stopStream.mockRejectedValueOnce(new Error('boom'))
 
     wrapper.findComponent({ name: 'ChatInputToolbar' }).vm.$emit('stop')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
+    expect(notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.generation.cancelFailed',
       title: 'chat.input.stop',
-      description: 'common.error.requestFailed',
-      variant: 'destructive'
+      description: 'common.error.requestFailed'
     })
   })
 

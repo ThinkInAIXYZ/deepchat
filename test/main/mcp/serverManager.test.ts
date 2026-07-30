@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+const semanticNotificationsMock = vi.hoisted(() => ({
+  occur: vi.fn(),
+  recover: vi.fn()
+}))
 
 const clientMocks = vi.hoisted(() => ({
   connect: vi.fn(),
@@ -39,7 +43,7 @@ vi.mock('@/mcp/mcpClient', () => ({
 import { ServerManager } from '@/mcp/serverManager'
 import { McpClient, McpConnectionCancelledError } from '@/mcp/mcpClient'
 
-describe('ServerManager plugin MCP errors', () => {
+describe('ServerManager notifications and plugin isolation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clientMocks.connect.mockResolvedValue('connected')
@@ -65,12 +69,23 @@ describe('ServerManager plugin MCP errors', () => {
   function createProviderSettings(servers: Record<string, any>) {
     return {
       getMcpServers: vi.fn().mockResolvedValue(servers),
-      getLanguage: vi.fn().mockReturnValue('en-US'),
       getEffectiveNpmRegistry: vi.fn().mockReturnValue(null)
     }
   }
 
-  it('suppresses global connection toasts for plugin-owned MCP servers', async () => {
+  function createManager(providerSettings: ReturnType<typeof createProviderSettings>) {
+    return new ServerManager(
+      providerSettings as never,
+      { isEnabled: () => false },
+      vi.fn() as never,
+      {} as never,
+      vi.fn(),
+      semanticNotificationsMock,
+      publishDeepchatEventMock
+    )
+  }
+
+  it('suppresses semantic connection occurrences for plugin-owned MCP servers', async () => {
     const providerSettings = createProviderSettings({
       plugin: {
         command: 'plugin-command',
@@ -81,24 +96,17 @@ describe('ServerManager plugin MCP errors', () => {
         ownerPluginId: 'com.deepchat.fixture'
       }
     })
-    const manager = new ServerManager(
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
-      providerSettings as never,
-      { isEnabled: () => false },
-      vi.fn() as never,
-      {} as never,
-      vi.fn(),
-      publishDeepchatEventMock
-    )
+    const manager = createManager(providerSettings)
     clientMocks.connect.mockRejectedValueOnce(new Error('connect failed'))
 
     await expect(manager.startServer('plugin')).rejects.toThrow('connect failed')
 
     expect(manager.getServerLastError('plugin')).toBe('connect failed')
+    expect(semanticNotificationsMock.occur).not.toHaveBeenCalled()
     expect(publishDeepchatEventMock).not.toHaveBeenCalled()
   })
 
-  it('keeps global connection toasts for normal MCP servers', async () => {
+  it('publishes a semantic connection occurrence for normal MCP servers', async () => {
     const providerSettings = createProviderSettings({
       regular: {
         command: 'regular-command',
@@ -107,24 +115,20 @@ describe('ServerManager plugin MCP errors', () => {
         type: 'stdio'
       }
     })
-    const manager = new ServerManager(
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
-      providerSettings as never,
-      { isEnabled: () => false },
-      vi.fn() as never,
-      {} as never,
-      vi.fn(),
-      publishDeepchatEventMock
-    )
+    const manager = createManager(providerSettings)
     clientMocks.connect.mockRejectedValueOnce(new Error('connect failed'))
 
     await expect(manager.startServer('regular')).rejects.toThrow('connect failed')
 
     expect(manager.getServerLastError('regular')).toBe('connect failed')
-    expect(publishDeepchatEventMock).toHaveBeenCalledTimes(1)
+    expect(semanticNotificationsMock.occur).toHaveBeenCalledWith({
+      code: 'mcp.connectionFailed',
+      serverName: 'regular'
+    })
+    expect(publishDeepchatEventMock).not.toHaveBeenCalled()
   })
 
-  it('does not publish global errors when a background startup is cancelled', async () => {
+  it('recovers the connection episode after a successful start', async () => {
     const providerSettings = createProviderSettings({
       regular: {
         command: 'regular-command',
@@ -133,15 +137,55 @@ describe('ServerManager plugin MCP errors', () => {
         type: 'stdio'
       }
     })
-    const manager = new ServerManager(
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
-      providerSettings as never,
-      { isEnabled: () => false },
-      vi.fn() as never,
-      {} as never,
-      vi.fn(),
-      publishDeepchatEventMock
-    )
+    const manager = createManager(providerSettings)
+
+    await expect(manager.startServer('regular')).resolves.toBe('connected')
+
+    expect(semanticNotificationsMock.recover).toHaveBeenCalledWith({
+      code: 'mcp.connectionFailed',
+      serverName: 'regular'
+    })
+  })
+
+  it('recovers the connection episode only after a successful stop', async () => {
+    const providerSettings = createProviderSettings({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
+    const manager = createManager(providerSettings)
+    await manager.startServer('regular')
+    semanticNotificationsMock.recover.mockClear()
+
+    await manager.stopServer('regular')
+
+    expect(semanticNotificationsMock.recover).toHaveBeenCalledWith({
+      code: 'mcp.connectionFailed',
+      serverName: 'regular'
+    })
+
+    await manager.startServer('regular')
+    semanticNotificationsMock.recover.mockClear()
+    clientMocks.disconnect.mockRejectedValueOnce(new Error('disconnect failed'))
+
+    await expect(manager.stopServer('regular')).rejects.toThrow('disconnect failed')
+
+    expect(semanticNotificationsMock.recover).not.toHaveBeenCalled()
+  })
+
+  it('does not publish a connection occurrence when background startup is cancelled', async () => {
+    const providerSettings = createProviderSettings({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
+    const manager = createManager(providerSettings)
     let rejectConnection: (error: Error) => void = () => {}
     const connectionCompletion = new Promise<void>((_resolve, reject) => {
       rejectConnection = reject
@@ -159,6 +203,8 @@ describe('ServerManager plugin MCP errors', () => {
 
     expect(clientMocks.getConnectionCompletion).toHaveBeenCalledOnce()
     expect(manager.getServerLastError('regular')).toBeUndefined()
+    expect(semanticNotificationsMock.occur).not.toHaveBeenCalled()
+    expect(semanticNotificationsMock.recover).not.toHaveBeenCalled()
     expect(publishDeepchatEventMock).not.toHaveBeenCalled()
   })
 
@@ -171,15 +217,7 @@ describe('ServerManager plugin MCP errors', () => {
         type: 'stdio'
       }
     })
-    const manager = new ServerManager(
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
-      providerSettings as never,
-      { isEnabled: () => false },
-      vi.fn() as never,
-      {} as never,
-      vi.fn(),
-      publishDeepchatEventMock
-    )
+    const manager = createManager(providerSettings)
     let resolveConnection = () => {}
     const connectionCompletion = new Promise<void>((resolve) => {
       resolveConnection = resolve
@@ -200,6 +238,10 @@ describe('ServerManager plugin MCP errors', () => {
     await Promise.resolve()
 
     expect(onBackgroundConnected).toHaveBeenCalledOnce()
+    expect(semanticNotificationsMock.recover).toHaveBeenCalledWith({
+      code: 'mcp.connectionFailed',
+      serverName: 'regular'
+    })
   })
 
   it('propagates supervised startup waiting into the client connection', async () => {
@@ -212,15 +254,7 @@ describe('ServerManager plugin MCP errors', () => {
         ownerPluginId: 'com.deepchat.fixture'
       }
     })
-    const manager = new ServerManager(
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
-      providerSettings as never,
-      { isEnabled: () => false },
-      vi.fn() as never,
-      {} as never,
-      vi.fn(),
-      publishDeepchatEventMock
-    )
+    const manager = createManager(providerSettings)
 
     await expect(manager.startServer('plugin', { waitForConnection: true })).resolves.toBe(
       'connected'
@@ -243,15 +277,7 @@ describe('ServerManager plugin MCP errors', () => {
         ownerPluginId: 'com.deepchat.fixture'
       }
     })
-    const manager = new ServerManager(
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
-      providerSettings as never,
-      { isEnabled: () => false },
-      vi.fn() as never,
-      {} as never,
-      vi.fn(),
-      publishDeepchatEventMock
-    )
+    const manager = createManager(providerSettings)
     await manager.startServer('plugin')
     clientMocks.isServerRunning.mockReturnValue(false)
     clientMocks.isActive.mockReturnValue(false)

@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Persistent cache is unavailable because secure key storage is not available."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Unsaved changes",
+    "dirtyDescription": "Leave now and discard your changes?",
+    "busyTitle": "Save in progress",
+    "busyDescription": "Wait for saving to finish before leaving.",
+    "stay": "Keep editing",
+    "discard": "Discard changes"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Saving…",
+      "saved": "Saved",
+      "saveFailed": "Could not save. Changes kept.",
+      "retry": "Retry"
+    },
     "title": "DeepChat Agents",
     "description": "Manage DeepChat agents and the defaults they seed into new sessions.",
     "builtIn": "Built-in",
@@ -1617,7 +1631,15 @@
       "timeout": "Timeout",
       "saveConfig": "Save",
       "resetConfig": "Reset",
-      "seconds": "seconds"
+      "seconds": "seconds",
+      "configLoadFailed": "Could not load the configuration",
+      "configSaved": "Configuration saved",
+      "configSaveFailed": "Could not save the configuration",
+      "configReset": "Configuration reset",
+      "configResetFailed": "Could not reset the configuration",
+      "connectionSucceeded": "Connection successful",
+      "connectionFailed": "Could not connect with the current configuration",
+      "invalidBaseUrl": "Enter an HTTP or HTTPS address without credentials or query parameters"
     },
     "deleteFile": {
       "title": "Delete file confirmation",
@@ -1675,6 +1697,7 @@
       "name": "Server Name",
       "namePlaceholder": "Enter server name",
       "nameRequired": "Server name is required",
+      "nameDuplicate": "A server with this name already exists.",
       "type": "Server Type",
       "typePlaceholder": "Select server type",
       "typeStdio": "Standard input and output (Stdio)",
@@ -1893,7 +1916,7 @@
       "error": "Error",
       "invalidAgent": "Agent is missing or disabled. Choose another agent."
     },
-    "runNowSuccess": "Scheduled task started"
+    "runNowSuccess": "Scheduled task completed"
   },
   "about": {
     "title": "About Us",

@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Pemberitahuan",
+    "actionFailed": "Tindakan gagal. Cuba lagi.",
+    "entities": "{count} terjejas",
+    "occurrences": "{count} kejadian",
+    "pending": "{count} lagi menunggu",
+    "mcpConnectionFailed": {
+      "title": "Tidak dapat menyambung ke {serverName}",
+      "description": "Semak tetapan pelayan dan cuba lagi."
+    },
+    "mcpToolListFailed": {
+      "title": "Tidak dapat memuatkan alat daripada {serverName}",
+      "description": "Pelayan telah disambungkan, tetapi alatnya tidak tersedia."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Tidak dapat membuka persediaan penyedia",
+      "reasons": {
+        "unsupported-version": "Versi pautan ini tidak disokong.",
+        "invalid-payload": "Pautan penyedia ini tidak sah.",
+        "provider-not-found": "Penyedia yang dipautkan tidak ditemukan.",
+        "unsupported-provider": "Penyedia ini tidak disokong.",
+        "settings-unavailable": "Tetapan penyedia tidak dapat dibuka."
+      }
+    }
+  },
   "loading": "memuatkan...",
   "copy": "salinan",
   "copied": "disalin",

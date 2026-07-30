@@ -1285,7 +1285,15 @@
       "timeout": "פסק זמן (Timeout)",
       "saveConfig": "שמור",
       "resetConfig": "אפס",
-      "seconds": "שניות"
+      "seconds": "שניות",
+      "configLoadFailed": "לא ניתן לטעון את התצורה",
+      "configSaved": "התצורה נשמרה",
+      "configSaveFailed": "לא ניתן לשמור את התצורה",
+      "configReset": "התצורה אופסה",
+      "configResetFailed": "לא ניתן לאפס את התצורה",
+      "connectionSucceeded": "החיבור הצליח",
+      "connectionFailed": "לא ניתן להתחבר עם התצורה הנוכחית",
+      "invalidBaseUrl": "הזן כתובת HTTP או HTTPS ללא פרטי התחברות או פרמטרים של שאילתה"
     },
     "deleteFile": {
       "title": "אישור מחיקת קובץ",
@@ -1343,6 +1351,7 @@
       "name": "שם השרת",
       "namePlaceholder": "הזן את שם השרת",
       "nameRequired": "שם השרת נדרש",
+      "nameDuplicate": "שרת בשם הזה כבר קיים.",
       "type": "סוג שרת",
       "typePlaceholder": "בחר סוג שרת",
       "typeStdio": "קלט ופלט סטנדרטי (Stdio)",
@@ -1561,7 +1570,7 @@
       "error": "שגיאה",
       "invalidAgent": "הסוכן חסר או מושבת. בחר סוכן אחר."
     },
-    "runNowSuccess": "המשימה המתוזמנת הופעלה"
+    "runNowSuccess": "המשימה המתוזמנת הושלמה"
   },
   "about": {
     "title": "אודותינו",
@@ -2638,7 +2647,21 @@
       "safe_storage_unavailable": "המטמון המתמשך אינו זמין משום שאין אחסון מאובטח למפתחות."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "שינויים שלא נשמרו",
+    "dirtyDescription": "לצאת ולבטל את השינויים?",
+    "busyTitle": "השמירה מתבצעת",
+    "busyDescription": "יש להמתין לסיום השמירה לפני היציאה.",
+    "stay": "להמשיך לערוך",
+    "discard": "לבטל שינויים"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "שומר…",
+      "saved": "נשמר",
+      "saveFailed": "השמירה נכשלה. השינויים לא אבדו.",
+      "retry": "נסה שוב"
+    },
     "title": "סוכני DeepChat",
     "description": "נהלו את סוכני DeepChat ואת הברירות שהם מחילים על שיחות חדשות.",
     "builtIn": "מובנה",

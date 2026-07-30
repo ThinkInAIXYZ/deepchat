@@ -10,8 +10,9 @@ const passthrough = (name: string) =>
 
 const buttonStub = defineComponent({
   name: 'Button',
+  props: { disabled: { type: Boolean, default: false } },
   emits: ['click'],
-  template: '<button @click="$emit(\'click\')"><slot /></button>'
+  template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
 })
 
 describe('KnowledgeFile', () => {
@@ -41,13 +42,21 @@ describe('KnowledgeFile', () => {
           metadata: { size: number; totalChunks: number; errorReason?: string }
         }) => void)
       | null = null
+    let fileProgressListener:
+      | ((progress: { fileId: string; completed: number; error: number; total: number }) => void)
+      | null = null
     const stopFileUpdated = vi.fn()
+    const stopFileProgress = vi.fn()
     const knowledgeClient = {
       listFiles: vi.fn().mockResolvedValue([file]),
       getSupportedFileExtensions: vi.fn().mockResolvedValue(['md', 'txt', 'pdf', 'docx']),
       onFileUpdated: vi.fn((listener) => {
         fileUpdatedListener = listener
         return stopFileUpdated
+      }),
+      onFileProgress: vi.fn((listener) => {
+        fileProgressListener = listener
+        return stopFileProgress
       }),
       similarityQuery: vi.fn().mockResolvedValue([]),
       validateFile: vi.fn().mockResolvedValue({ isSupported: true }),
@@ -72,9 +81,6 @@ describe('KnowledgeFile', () => {
     }))
     vi.doMock('@api/FileClient', () => ({
       createFileClient: () => fileClient
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      toast: vi.fn()
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -125,7 +131,9 @@ describe('KnowledgeFile', () => {
       wrapper,
       knowledgeClient,
       fileUpdatedListener: () => fileUpdatedListener,
-      stopFileUpdated
+      fileProgressListener: () => fileProgressListener,
+      stopFileUpdated,
+      stopFileProgress
     }
   }
 
@@ -141,10 +149,29 @@ describe('KnowledgeFile', () => {
   })
 
   it('applies typed file update events and unsubscribes on unmount', async () => {
-    const { wrapper, fileUpdatedListener, stopFileUpdated } = await setup()
+    const {
+      wrapper,
+      fileUpdatedListener,
+      fileProgressListener,
+      stopFileUpdated,
+      stopFileProgress
+    } = await setup()
     const listener = fileUpdatedListener()
+    const progressListener = fileProgressListener()
 
     expect(listener).toBeTruthy()
+    expect(progressListener).toBeTruthy()
+    progressListener?.({
+      fileId: 'file-1',
+      completed: 2,
+      error: 1,
+      total: 4
+    })
+    expect((wrapper.vm as any).fileProgressById.get('file-1')).toEqual({
+      completed: 2,
+      error: 1,
+      total: 4
+    })
     listener?.({
       id: 'file-1',
       name: 'guide.md',
@@ -159,7 +186,70 @@ describe('KnowledgeFile', () => {
     })
 
     expect((wrapper.vm as any).fileList[0].status).toBe('completed')
+    expect((wrapper.vm as any).fileProgressById.has('file-1')).toBe(false)
     wrapper.unmount()
     expect(stopFileUpdated).toHaveBeenCalledTimes(1)
+    expect(stopFileProgress).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a search failure inside the search surface', async () => {
+    const { wrapper, knowledgeClient } = await setup()
+    const vm = wrapper.vm as any
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    knowledgeClient.similarityQuery.mockRejectedValueOnce(new Error('query failed'))
+    vm.searchKey = 'missing document'
+
+    await vm.handleSearch()
+
+    expect(vm.searchError).toBe('settings.knowledgeBase.searchError')
+    expect(vm.searchResult).toEqual([])
+    expect(vm.loading).toBe(false)
+    consoleError.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('summarizes rejected uploads without starting unsupported files', async () => {
+    const { wrapper, knowledgeClient } = await setup()
+    const vm = wrapper.vm as any
+    knowledgeClient.validateFile.mockResolvedValueOnce({
+      isSupported: false,
+      error: 'Unsupported file type'
+    })
+
+    await vm.handleFileUpload([new File(['content'], 'notes.exe')])
+
+    expect(knowledgeClient.addFile).not.toHaveBeenCalled()
+    expect(vm.uploadFailures).toEqual([
+      expect.objectContaining({
+        name: 'notes.exe',
+        reason: 'settings.knowledgeBase.fileSupport'
+      })
+    ])
+    expect(vm.uploading).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps a failed re-add visible on the file row', async () => {
+    const { wrapper, knowledgeClient } = await setup()
+    const vm = wrapper.vm as any
+    knowledgeClient.reAddFile.mockResolvedValueOnce({ error: 'Embedding failed' })
+
+    await vm.reAddFile(vm.fileList[0])
+
+    expect(vm.fileList[0].status).toBe('error')
+    expect(vm.fileList[0].metadata.errorReason).toBe('settings.knowledgeBase.uploadError')
+    wrapper.unmount()
+  })
+
+  it('does not remove a file locally when deletion is rejected', async () => {
+    const { wrapper, knowledgeClient } = await setup()
+    const vm = wrapper.vm as any
+    knowledgeClient.deleteFile.mockResolvedValueOnce(false)
+
+    await vm.deleteFile('file-1')
+
+    expect(vm.fileList).toHaveLength(1)
+    expect(vm.pageError).toBe('common.error.operationFailed')
+    wrapper.unmount()
   })
 })

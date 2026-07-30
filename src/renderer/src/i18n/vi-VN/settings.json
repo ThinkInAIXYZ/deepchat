@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Bộ nhớ đệm lâu dài không khả dụng vì không có kho khóa an toàn."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Thay đổi chưa lưu",
+    "dirtyDescription": "Rời đi và bỏ các thay đổi?",
+    "busyTitle": "Đang lưu",
+    "busyDescription": "Hãy chờ lưu xong trước khi rời đi.",
+    "stay": "Tiếp tục chỉnh sửa",
+    "discard": "Bỏ thay đổi"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Đang lưu…",
+      "saved": "Đã lưu",
+      "saveFailed": "Không thể lưu. Các thay đổi vẫn được giữ.",
+      "retry": "Thử lại"
+    },
     "title": "DeepChat Agent",
     "description": "Quản lý các tác nhân DeepChat và các giá trị mặc định mà chúng đưa vào các phiên mới.",
     "builtIn": "Tích hợp sẵn",
@@ -1616,7 +1630,15 @@
       "timeout": "Hết giờ",
       "saveConfig": "Lưu",
       "resetConfig": "Đặt lại",
-      "seconds": "giây"
+      "seconds": "giây",
+      "configLoadFailed": "Không thể tải cấu hình",
+      "configSaved": "Đã lưu cấu hình",
+      "configSaveFailed": "Không thể lưu cấu hình",
+      "configReset": "Đã đặt lại cấu hình",
+      "configResetFailed": "Không thể đặt lại cấu hình",
+      "connectionSucceeded": "Kết nối thành công",
+      "connectionFailed": "Không thể kết nối bằng cấu hình hiện tại",
+      "invalidBaseUrl": "Nhập địa chỉ HTTP hoặc HTTPS không chứa thông tin đăng nhập hay tham số truy vấn"
     },
     "deleteFile": {
       "title": "Xóa xác nhận tập tin",
@@ -1674,6 +1696,7 @@
       "name": "Tên máy chủ",
       "namePlaceholder": "Nhập tên máy chủ",
       "nameRequired": "Tên máy chủ là bắt buộc",
+      "nameDuplicate": "Đã tồn tại máy chủ có tên này.",
       "type": "Loại máy chủ",
       "typePlaceholder": "Chọn loại máy chủ",
       "typeStdio": "Đầu vào và đầu ra tiêu chuẩn (Stdio)",
@@ -2997,7 +3020,7 @@
       "error": "Lỗi",
       "invalidAgent": "Agent bị thiếu hoặc đã tắt. Hãy chọn agent khác."
     },
-    "runNowSuccess": "Tác vụ đã lên lịch đã bắt đầu"
+    "runNowSuccess": "Tác vụ đã lên lịch đã hoàn tất"
   },
   "memory": {
     "description": "Xem lại, cấu hình và quản lý những gì mỗi tác nhân ghi nhớ qua các phiên. Bộ nhớ được tách riêng theo từng tác nhân.",

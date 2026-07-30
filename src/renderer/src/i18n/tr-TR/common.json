@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Bildirimler",
+    "actionFailed": "İşlem başarısız oldu. Tekrar deneyin.",
+    "entities": "{count} etkilendi",
+    "occurrences": "{count} kez oluştu",
+    "pending": "{count} tane daha bekliyor",
+    "mcpConnectionFailed": {
+      "title": "{serverName} sunucusuna bağlanılamadı",
+      "description": "Sunucu ayarlarını kontrol edip tekrar deneyin."
+    },
+    "mcpToolListFailed": {
+      "title": "{serverName} araçları yüklenemedi",
+      "description": "Sunucu bağlı, ancak araçları kullanılamıyor."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Sağlayıcı kurulumu açılamadı",
+      "reasons": {
+        "unsupported-version": "Bu bağlantı sürümü desteklenmiyor.",
+        "invalid-payload": "Bu sağlayıcı bağlantısı geçersiz.",
+        "provider-not-found": "Bağlantıdaki sağlayıcı bulunamadı.",
+        "unsupported-provider": "Bu sağlayıcı desteklenmiyor.",
+        "settings-unavailable": "Sağlayıcı ayarları açılamadı."
+      }
+    }
+  },
   "loading": "Yükleniyor...",
   "copy": "Kopyala",
   "copied": "Kopyalandı",

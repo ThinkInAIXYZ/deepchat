@@ -1218,7 +1218,15 @@
       "timeout": "Timeout",
       "saveConfig": "Gem",
       "resetConfig": "Nulstil",
-      "seconds": "sekunder"
+      "seconds": "sekunder",
+      "configLoadFailed": "Konfigurationen kunne ikke indlæses",
+      "configSaved": "Konfigurationen er gemt",
+      "configSaveFailed": "Konfigurationen kunne ikke gemmes",
+      "configReset": "Konfigurationen er nulstillet",
+      "configResetFailed": "Konfigurationen kunne ikke nulstilles",
+      "connectionSucceeded": "Forbindelsen lykkedes",
+      "connectionFailed": "Der kunne ikke oprettes forbindelse med den aktuelle konfiguration",
+      "invalidBaseUrl": "Angiv en HTTP- eller HTTPS-adresse uden loginoplysninger eller forespørgselsparametre"
     },
     "deleteFile": {
       "title": "Bekræft sletning af fil",
@@ -1276,6 +1284,7 @@
       "name": "Servernavn",
       "namePlaceholder": "Indtast servernavn",
       "nameRequired": "Servernavn er påkrævet",
+      "nameDuplicate": "Der findes allerede en server med dette navn.",
       "type": "Servertype",
       "typePlaceholder": "Vælg servertype",
       "typeStdio": "Standard input/output (Stdio)",
@@ -1494,7 +1503,7 @@
       "error": "Fejl",
       "invalidAgent": "Agent mangler eller er deaktiveret. Vælg en anden agent."
     },
-    "runNowSuccess": "Planlagt opgave startet"
+    "runNowSuccess": "Planlagt opgave fuldført"
   },
   "about": {
     "title": "Om os",
@@ -2638,7 +2647,21 @@
       "safe_storage_unavailable": "Den vedvarende cache er utilgængelig, fordi sikker nøglelagring ikke er tilgængelig."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Ikke-gemte ændringer",
+    "dirtyDescription": "Forlad siden og kassér ændringerne?",
+    "busyTitle": "Gemmer",
+    "busyDescription": "Vent på, at lagringen bliver færdig, før du forlader siden.",
+    "stay": "Fortsæt redigering",
+    "discard": "Kassér ændringer"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Gemmer…",
+      "saved": "Gemt",
+      "saveFailed": "Kunne ikke gemme. Ændringerne er bevaret.",
+      "retry": "Prøv igen"
+    },
     "title": "DeepChat-agenter",
     "description": "Administrer DeepChat-agenter og de standardværdier, de bruger i nye sessioner.",
     "builtIn": "Indbygget",

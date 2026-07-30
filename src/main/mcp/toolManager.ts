@@ -14,12 +14,11 @@ import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { isDeepStrictEqual } from 'node:util'
-import { getErrorMessageLabels } from '@shared/i18n'
 import { getExplicitlyDeniedPluginTools, resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { SemanticNotificationPublisher } from '@/notifications'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { McpSettings } from './settings'
-import type { DesktopSettings } from '@/desktop/settings'
 import { CUA_PLUGIN_ID } from '@shared/types/plugin'
 import { appendCuaResultProjections, normalizeCuaToolArguments } from '@/plugin/cuaToolAdapter'
 import type {
@@ -126,7 +125,6 @@ const normalizeToolAccessContext = (
 export class ToolManager {
   private readonly agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>
   private readonly mcpSettings: McpSettings
-  private readonly locale: Pick<DesktopSettings, 'getLanguage'>
   private serverManager: ServerManager
   private cachedToolDefinitions: MCPToolDefinition[] | null = null
   private toolNameToTargetMap: Map<string, ToolTarget> | null = null
@@ -139,15 +137,14 @@ export class ToolManager {
 
   constructor(
     agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>,
-    locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
     serverManager: ServerManager,
+    private readonly semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
     private readonly pluginOwnership: PluginMcpOwnershipPort = NO_PLUGIN_OWNERSHIP,
     private readonly computerUsePreviewObserver?: ComputerUsePreviewObserver
   ) {
     this.agentSettings = agentSettings
-    this.locale = locale
     this.mcpSettings = mcpSettings
     this.serverManager = serverManager
   }
@@ -371,6 +368,9 @@ export class ToolManager {
       try {
         const tools = await awaitWithAbort(client.listTools({ signal }), signal)
         this.serverManager.clearServerLastError(client.serverName)
+        if (!this.isPluginOwnedClient(client)) {
+          this.recoverToolListNotification(client.serverName)
+        }
         if (!tools) {
           continue
         }
@@ -419,18 +419,16 @@ export class ToolManager {
       return
     }
 
-    const locale = this.locale.getLanguage() || 'zh-CN'
-    const errorMessages = getErrorMessageLabels(locale)
-    const formattedMessage =
-      errorMessages.getMcpToolListErrorMessage
-        ?.replace('{serverName}', serverName)
-        .replace('{errorMessage}', errorMessage) ||
-      `Failed to get tool list from server '${serverName}': ${errorMessage}`
-    this.publishEvent('notification.error', {
-      title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
-      message: formattedMessage,
-      id: `mcp-error-tools-${serverName}-${Date.now()}`,
-      type: 'error'
+    this.semanticNotifications.occur({
+      code: 'mcp.toolListFailed',
+      serverName
+    })
+  }
+
+  private recoverToolListNotification(serverName: string): void {
+    this.semanticNotifications.recover({
+      code: 'mcp.toolListFailed',
+      serverName
     })
   }
 

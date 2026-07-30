@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Cache berterusan tidak tersedia kerana storan kunci selamat tidak tersedia."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Perubahan belum disimpan",
+    "dirtyDescription": "Keluar dan buang perubahan?",
+    "busyTitle": "Sedang menyimpan",
+    "busyDescription": "Tunggu sehingga simpanan selesai sebelum keluar.",
+    "stay": "Teruskan mengedit",
+    "discard": "Buang perubahan"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Menyimpan…",
+      "saved": "Disimpan",
+      "saveFailed": "Tidak dapat menyimpan. Perubahan dikekalkan.",
+      "retry": "Cuba lagi"
+    },
     "title": "DeepChat Agents",
     "description": "Urus DeepChat Agent dan lalai sesi baharu mereka.",
     "builtIn": "terbina dalam",
@@ -1627,7 +1641,15 @@
       "seconds": "Kedua",
       "testConnection": "sambungan ujian",
       "timeout": "masa tamat",
-      "title": "Konfigurasi eksport Nowledge Mem"
+      "title": "Konfigurasi eksport Nowledge Mem",
+      "configLoadFailed": "Konfigurasi tidak dapat dimuat",
+      "configSaved": "Konfigurasi disimpan",
+      "configSaveFailed": "Konfigurasi tidak dapat disimpan",
+      "configReset": "Konfigurasi ditetapkan semula",
+      "configResetFailed": "Konfigurasi tidak dapat ditetapkan semula",
+      "connectionSucceeded": "Sambungan berjaya",
+      "connectionFailed": "Tidak dapat menyambung dengan konfigurasi semasa",
+      "invalidBaseUrl": "Masukkan alamat HTTP atau HTTPS tanpa kelayakan atau parameter pertanyaan"
     }
   },
   "mcp": {
@@ -1673,6 +1695,7 @@
       "name": "Nama pelayan",
       "namePlaceholder": "Masukkan nama pelayan",
       "nameRequired": "Nama pelayan tidak boleh kosong",
+      "nameDuplicate": "Pelayan dengan nama ini sudah wujud.",
       "type": "Jenis pelayan",
       "typePlaceholder": "Pilih jenis pelayan",
       "typeStdio": "Input dan output standard (Stdio)",
@@ -2997,7 +3020,7 @@
       "error": "Ralat",
       "invalidAgent": "Ejen tiada atau dilumpuhkan. Pilih ejen lain."
     },
-    "runNowSuccess": "Tugasan berjadual dimulakan"
+    "runNowSuccess": "Tugasan berjadual selesai"
   },
   "memory": {
     "description": "Semak, konfigur dan urus apa yang diingati oleh setiap ejen merentas sesi. Memori berasingan bagi setiap ejen.",

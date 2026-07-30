@@ -1060,6 +1060,15 @@ describe('RemoteService', () => {
 
   it('saves discord remote settings without touching unrelated config', async () => {
     const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
+      discord: {
+        botToken: 'old-token',
+        enabled: true,
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
+        pairedChannelIds: ['1234567890']
+      }
+    })
 
     const presenter = createRemoteService(providerSettings)
 
@@ -1068,7 +1077,7 @@ describe('RemoteService', () => {
       remoteEnabled: false,
       defaultAgentId: 'deepchat',
       defaultWorkdir: 'C:/workspaces/discord',
-      pairedChannelIds: ['1234567890']
+      pairedChannelIds: []
     })
 
     expect(saved).toEqual({
@@ -1086,6 +1095,41 @@ describe('RemoteService', () => {
           enabled: false,
           defaultWorkdir: 'C:/workspaces/discord',
           pairedChannelIds: ['1234567890']
+        })
+      })
+    )
+  })
+
+  it('preserves paired QQ users when saving stale settings input', async () => {
+    const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
+      qqbot: {
+        appId: 'app-old',
+        clientSecret: 'secret',
+        enabled: true,
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
+        pairedUserIds: ['user-paired']
+      }
+    })
+
+    const presenter = createRemoteService(providerSettings)
+    const saved = await presenter.saveQQBotSettings({
+      appId: 'app-new',
+      clientSecret: 'secret',
+      remoteEnabled: false,
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
+      pairedUserIds: []
+    })
+
+    expect(saved.pairedUserIds).toEqual(['user-paired'])
+    expect(providerSettings.set).toHaveBeenCalledWith(
+      'remoteControl',
+      expect.objectContaining({
+        qqbot: expect.objectContaining({
+          appId: 'app-new',
+          pairedUserIds: ['user-paired']
         })
       })
     )
@@ -1234,6 +1278,93 @@ describe('RemoteService', () => {
 
     startLoginSpy.mockRestore()
     waitLoginSpy.mockRestore()
+  })
+
+  it('preserves server-owned wechat accounts when saving stale settings input', async () => {
+    const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
+      weixinIlink: {
+        enabled: true,
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
+        accounts: [
+          {
+            accountId: 'account-existing',
+            ownerUserId: 'owner-existing',
+            baseUrl: 'https://ilinkai.weixin.qq.com',
+            botToken: 'secret-token',
+            enabled: true,
+            syncCursor: 'cursor-1',
+            bindings: {
+              'weixin-ilink:dm:owner-existing': {
+                sessionId: 'session-1',
+                updatedAt: 1
+              }
+            }
+          },
+          {
+            accountId: 'account-concurrent',
+            ownerUserId: 'owner-concurrent',
+            baseUrl: 'https://ilinkai.weixin.qq.com',
+            botToken: 'secret-token-2',
+            enabled: true
+          }
+        ]
+      }
+    })
+
+    const presenter = createRemoteService(providerSettings)
+    const saved = await presenter.saveWeixinIlinkSettings({
+      remoteEnabled: true,
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: '/workspace',
+      accounts: [
+        {
+          accountId: 'account-existing',
+          ownerUserId: 'stale-owner',
+          baseUrl: 'https://stale.invalid',
+          enabled: false
+        }
+      ]
+    })
+
+    expect(saved.accounts).toEqual(
+      expect.arrayContaining([
+        {
+          accountId: 'account-existing',
+          ownerUserId: 'owner-existing',
+          baseUrl: 'https://ilinkai.weixin.qq.com',
+          enabled: false
+        },
+        {
+          accountId: 'account-concurrent',
+          ownerUserId: 'owner-concurrent',
+          baseUrl: 'https://ilinkai.weixin.qq.com',
+          enabled: true
+        }
+      ])
+    )
+    expect(saved.accounts).toHaveLength(2)
+    expect(providerSettings.set).toHaveBeenCalledWith(
+      'remoteControl',
+      expect.objectContaining({
+        weixinIlink: expect.objectContaining({
+          accounts: expect.arrayContaining([
+            expect.objectContaining({
+              accountId: 'account-existing',
+              botToken: 'secret-token',
+              enabled: false,
+              syncCursor: 'cursor-1'
+            }),
+            expect.objectContaining({
+              accountId: 'account-concurrent',
+              botToken: 'secret-token-2',
+              enabled: true
+            })
+          ])
+        })
+      })
+    )
   })
 
   it('deduplicates concurrent wechat ilink login waits for the same session', async () => {

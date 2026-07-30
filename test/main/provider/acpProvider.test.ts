@@ -252,6 +252,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
 
     const result = await provider.runDebugAction({
+      requestId: 'debug-request-1',
       agentId: 'agent1',
       action: 'initialize',
       workdir: '/tmp'
@@ -277,6 +278,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
     await expect(
       provider.runDebugAction({
+        requestId: 'debug-request-2',
         agentId: 'agent1',
         action: 'initialize',
         workdir: '/tmp'
@@ -329,6 +331,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
 
     const result = await provider.runDebugAction({
+      requestId: 'debug-request-3',
       agentId: 'agent1',
       action: 'newSession',
       webContentsId: 42,
@@ -346,6 +349,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     expect(publishDeepchatEventMock).toHaveBeenCalledWith(
       'providers.acp.debug.event',
       expect.objectContaining({
+        requestId: 'debug-request-3',
         webContentsId: 42,
         agentId: 'agent1',
         event: expect.objectContaining({
@@ -392,6 +396,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
 
     const result = await provider.runDebugAction({
+      requestId: 'debug-request-4',
       agentId: 'agent1',
       action: 'initialize',
       workdir: '/tmp/debug-workdir'
@@ -444,6 +449,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
 
     const result = await provider.runDebugAction({
+      requestId: 'debug-request-5',
       agentId: 'agent1',
       action: 'sessionList',
       payload: { cwd: '/tmp/debug-workdir', sync: true }
@@ -512,6 +518,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
 
     const result = await provider.runDebugAction({
+      requestId: 'debug-request-6',
       agentId: 'agent1',
       action: 'sessionList',
       workdir: '/tmp/missing-from-dialog',
@@ -574,6 +581,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
 
     const result = await provider.runDebugAction({
+      requestId: 'debug-request-7',
       agentId: 'agent1',
       action: 'sessionList',
       workdir: '/tmp/stale-workdir',
@@ -625,6 +633,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
 
     const result = await provider.runDebugAction({
+      requestId: 'debug-request-8',
       agentId: 'agent1',
       action: 'sessionFork',
       sessionId: 'source-session',
@@ -679,6 +688,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
 
     const result = await provider.runDebugAction({
+      requestId: 'debug-request-9',
       agentId: 'agent1',
       action: 'newSession',
       workdir: '/tmp/debug-workdir'

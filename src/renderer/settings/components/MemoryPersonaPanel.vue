@@ -11,6 +11,8 @@
       }}
     </div>
 
+    <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
+
     <div v-if="loading" class="py-12 text-center text-sm text-muted-foreground">
       {{ t('common.loading') }}
     </div>
@@ -47,6 +49,7 @@
                 variant="ghost"
                 size="sm"
                 class="h-8 text-xs"
+                :disabled="pendingIds.has(version.id)"
                 @click="setAnchor(version.id, !version.isAnchor)"
               >
                 <Icon
@@ -61,7 +64,12 @@
               </Button>
               <AlertDialog v-if="!isActive(version)">
                 <AlertDialogTrigger as-child>
-                  <Button variant="ghost" size="sm" class="h-8 text-xs">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-8 text-xs"
+                    :disabled="pendingIds.has(version.id)"
+                  >
                     <Icon icon="lucide:rotate-ccw" class="mr-1.5 h-3.5 w-3.5" />
                     {{ t('settings.deepchatAgents.memoryManager.rollback') }}
                   </Button>
@@ -112,10 +120,11 @@ import {
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { useToast } from '@/components/use-toast'
 import { createMemoryClient } from '@api/MemoryClient'
 import type { MemoryItem } from '@shared/contracts/routes'
-import { formatRelativeTime, notifyMemoryActionFailed } from './memoryRedesignUtils'
+import { formatRelativeTime } from './memoryRedesignUtils'
+import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
+import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
 
 const props = defineProps<{
   agentId: string
@@ -124,11 +133,14 @@ const props = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const { toast } = useToast()
 const memoryClient = createMemoryClient()
+const panelFeedback = useMemoryInlineFeedback('MemoryPersonaPanel')
+const feedback = panelFeedback.feedback
+const clearFeedback = panelFeedback.clear
 
 const loading = ref(false)
 const versions = ref<MemoryItem[]>([])
+const pendingIds = ref<ReadonlySet<string>>(new Set())
 let requestId = 0
 
 const activeId = computed<string | null>(() => {
@@ -150,8 +162,11 @@ function isActive(version: MemoryItem): boolean {
   return version.id === activeId.value
 }
 
-function notifyFailed(error?: unknown): void {
-  notifyMemoryActionFailed(toast, t, error)
+function setPending(versionId: string, pending: boolean): void {
+  const next = new Set(pendingIds.value)
+  if (pending) next.add(versionId)
+  else next.delete(versionId)
+  pendingIds.value = next
 }
 
 async function load(): Promise<void> {
@@ -165,29 +180,49 @@ async function load(): Promise<void> {
     versions.value = next
   } catch (error) {
     if (current !== requestId || props.agentId !== agentId) return
-    notifyFailed(error)
+    panelFeedback.fail(error)
   } finally {
     if (current === requestId && props.agentId === agentId) loading.value = false
   }
 }
 
 async function rollback(versionId: string): Promise<void> {
+  if (pendingIds.value.has(versionId)) return
+  const agentId = props.agentId
+  clearFeedback()
+  setPending(versionId, true)
   try {
     // Main broadcasts memory.updated for this mutation, which bumps
     // refreshToken and reloads this panel; no need to also reload locally.
-    await memoryClient.rollbackPersona(props.agentId, versionId)
+    await memoryClient.rollbackPersona(agentId, versionId)
   } catch (error) {
-    notifyFailed(error)
+    if (props.agentId === agentId) panelFeedback.fail(error)
+  } finally {
+    if (props.agentId === agentId) setPending(versionId, false)
   }
 }
 
 async function setAnchor(versionId: string, anchored: boolean): Promise<void> {
+  if (pendingIds.value.has(versionId)) return
+  const agentId = props.agentId
+  clearFeedback()
+  setPending(versionId, true)
   try {
-    await memoryClient.setPersonaAnchor(props.agentId, versionId, anchored)
+    await memoryClient.setPersonaAnchor(agentId, versionId, anchored)
   } catch (error) {
-    notifyFailed(error)
+    if (props.agentId === agentId) panelFeedback.fail(error)
+  } finally {
+    if (props.agentId === agentId) setPending(versionId, false)
   }
 }
+
+watch(
+  () => props.agentId,
+  () => {
+    clearFeedback()
+    pendingIds.value = new Set()
+  }
+)
 
 watch(
   () => [props.agentId, props.refreshToken],

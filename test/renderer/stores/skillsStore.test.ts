@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import type { DeepchatEventPayload } from '@shared/contracts/events'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
+
+type SkillCatalogChangedPayload = DeepchatEventPayload<'skills.catalog.changed'>
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
@@ -61,12 +64,16 @@ describe('skillsStore catalog events', () => {
     expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(2)
   })
 
-  it('uses the catalog event as the single refresh after disabling a skill', async () => {
-    let catalogListener: ((payload: { agentIds?: string[] }) => void) | undefined
+  it('applies disabled events without rescanning the catalog', async () => {
+    let catalogListener: ((payload: SkillCatalogChangedPayload) => void) | undefined
     const skillClient = {
       setSkillDisabled: vi.fn().mockResolvedValue(undefined),
-      getUnifiedSkillCatalog: vi.fn().mockResolvedValue([]),
-      onCatalogChanged: vi.fn((listener: (payload: { agentIds?: string[] }) => void) => {
+      getUnifiedSkillCatalog: vi
+        .fn()
+        .mockResolvedValue([createSkill('skill-a', 'Skill A description')]),
+      getSkillExtension: vi.fn().mockResolvedValue(null),
+      listSkillScripts: vi.fn().mockResolvedValue([]),
+      onCatalogChanged: vi.fn((listener: (payload: SkillCatalogChangedPayload) => void) => {
         catalogListener = listener
         return () => undefined
       })
@@ -77,14 +84,201 @@ describe('skillsStore catalog events', () => {
 
     const { useSkillsStore } = await import('@/stores/skillsStore')
     const store = useSkillsStore()
+    await store.loadSkills()
+    skillClient.getUnifiedSkillCatalog.mockClear()
     await store.setSkillDisabled('skill-a', true)
 
     expect(skillClient.setSkillDisabled).toHaveBeenCalledWith('skill-a', true)
+    expect(store.skills[0]?.disabled).toBe(true)
+    expect(store.skills[0]?.deepchatDisabled).toBe(true)
     expect(skillClient.getUnifiedSkillCatalog).not.toHaveBeenCalled()
 
-    catalogListener?.({ agentIds: ['deepchat'] })
+    catalogListener?.({
+      reason: 'disabled-updated',
+      name: 'skill-a',
+      disabled: true,
+      agentIds: ['deepchat'],
+      version: 1
+    })
     await Promise.resolve()
-    expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(1)
+    expect(store.skills[0]?.disabled).toBe(true)
+    expect(store.skills[0]?.deepchatDisabled).toBe(true)
+    expect(skillClient.getUnifiedSkillCatalog).not.toHaveBeenCalled()
+  })
+
+  it('applies metadata events without rescanning the catalog', async () => {
+    let catalogListener: ((payload: SkillCatalogChangedPayload) => void) | undefined
+    const skillClient = {
+      getUnifiedSkillCatalog: vi
+        .fn()
+        .mockResolvedValue([createSkill('skill-a', 'Old description')]),
+      getSkillExtension: vi.fn().mockResolvedValue(null),
+      listSkillScripts: vi.fn().mockResolvedValue([]),
+      onCatalogChanged: vi.fn((listener: (payload: SkillCatalogChangedPayload) => void) => {
+        catalogListener = listener
+        return () => undefined
+      })
+    }
+    vi.doMock('@api/SkillClient', () => ({
+      createSkillClient: () => skillClient
+    }))
+
+    const { useSkillsStore } = await import('@/stores/skillsStore')
+    const store = useSkillsStore()
+    await store.loadSkills()
+    skillClient.getUnifiedSkillCatalog.mockClear()
+    const extension = {
+      version: 1 as const,
+      env: { API_KEY: 'configured' },
+      runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+      scriptOverrides: {}
+    }
+    skillClient.getSkillExtension.mockResolvedValueOnce(extension)
+
+    catalogListener?.({
+      reason: 'metadata-updated',
+      agentIds: ['deepchat'],
+      skill: {
+        name: 'skill-a',
+        description: 'Updated description',
+        path: '/skills/skill-a/SKILL.md',
+        skillRoot: '/skills/skill-a',
+        platforms: ['darwin']
+      },
+      extensionChanged: true,
+      version: 1
+    })
+
+    await vi.waitFor(() => expect(store.skillExtensions['skill-a']).toEqual(extension))
+    expect(store.skills[0]).toMatchObject({
+      description: 'Updated description',
+      platforms: ['darwin']
+    })
+    expect(skillClient.getUnifiedSkillCatalog).not.toHaveBeenCalled()
+
+    catalogListener?.({ reason: 'sync-directory-updated', version: 2 })
+    expect(skillClient.getUnifiedSkillCatalog).not.toHaveBeenCalled()
+  })
+
+  it('preserves cached runtime config when a targeted refresh fails', async () => {
+    let catalogListener: ((payload: SkillCatalogChangedPayload) => void) | undefined
+    const existingExtension = {
+      version: 1 as const,
+      env: { API_KEY: 'configured' },
+      runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+      scriptOverrides: {}
+    }
+    const skillClient = {
+      getUnifiedSkillCatalog: vi
+        .fn()
+        .mockResolvedValue([createSkill('skill-a', 'Old description')]),
+      getSkillExtension: vi.fn().mockResolvedValue(existingExtension),
+      listSkillScripts: vi.fn().mockResolvedValue([]),
+      onCatalogChanged: vi.fn((listener: (payload: SkillCatalogChangedPayload) => void) => {
+        catalogListener = listener
+        return () => undefined
+      })
+    }
+    vi.doMock('@api/SkillClient', () => ({
+      createSkillClient: () => skillClient
+    }))
+
+    const { useSkillsStore } = await import('@/stores/skillsStore')
+    const store = useSkillsStore()
+    await store.loadSkills()
+    skillClient.getSkillExtension.mockRejectedValueOnce(new Error('runtime unavailable'))
+
+    catalogListener?.({
+      reason: 'metadata-updated',
+      agentIds: ['deepchat'],
+      skill: {
+        name: 'skill-a',
+        description: 'Updated description',
+        path: '/skills/skill-a/SKILL.md',
+        skillRoot: '/skills/skill-a'
+      },
+      extensionChanged: true,
+      version: 1
+    })
+
+    await vi.waitFor(() => expect(skillClient.getSkillExtension).toHaveBeenCalledTimes(2))
+    expect(store.skillExtensions['skill-a']).toEqual(existingExtension)
+  })
+
+  it('preserves cached runtime config when a catalog refresh fails to reload it', async () => {
+    const existingExtension = {
+      version: 1 as const,
+      env: { API_KEY: 'configured' },
+      runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+      scriptOverrides: {}
+    }
+    const existingScripts = [
+      {
+        name: 'run.py',
+        relativePath: 'scripts/run.py',
+        absolutePath: '/skills/skill-a/scripts/run.py',
+        runtime: 'python' as const,
+        enabled: true
+      }
+    ]
+    const skillClient = {
+      getUnifiedSkillCatalog: vi
+        .fn()
+        .mockResolvedValue([createSkill('skill-a', 'Skill A description')]),
+      getSkillExtension: vi
+        .fn()
+        .mockResolvedValueOnce(existingExtension)
+        .mockRejectedValueOnce(new Error('runtime unavailable')),
+      listSkillScripts: vi
+        .fn()
+        .mockResolvedValueOnce(existingScripts)
+        .mockRejectedValueOnce(new Error('runtime unavailable')),
+      onCatalogChanged: vi.fn(() => () => undefined)
+    }
+    vi.doMock('@api/SkillClient', () => ({
+      createSkillClient: () => skillClient
+    }))
+
+    const { useSkillsStore } = await import('@/stores/skillsStore')
+    const store = useSkillsStore()
+    await store.loadSkills()
+    await store.loadSkills()
+
+    expect(store.skillExtensions['skill-a']).toEqual(existingExtension)
+    expect(store.skillScripts['skill-a']).toEqual(existingScripts)
+  })
+
+  it('removes uninstalled skills without rescanning a loaded catalog', async () => {
+    let catalogListener: ((payload: SkillCatalogChangedPayload) => void) | undefined
+    const skillClient = {
+      getUnifiedSkillCatalog: vi
+        .fn()
+        .mockResolvedValue([createSkill('skill-a', 'Skill A description')]),
+      getSkillExtension: vi.fn().mockResolvedValue(null),
+      listSkillScripts: vi.fn().mockResolvedValue([]),
+      onCatalogChanged: vi.fn((listener: (payload: SkillCatalogChangedPayload) => void) => {
+        catalogListener = listener
+        return () => undefined
+      })
+    }
+    vi.doMock('@api/SkillClient', () => ({
+      createSkillClient: () => skillClient
+    }))
+
+    const { useSkillsStore } = await import('@/stores/skillsStore')
+    const store = useSkillsStore()
+    await store.loadSkills()
+    skillClient.getUnifiedSkillCatalog.mockClear()
+
+    catalogListener?.({
+      reason: 'uninstalled',
+      name: 'skill-a',
+      agentIds: ['deepchat'],
+      version: 1
+    })
+
+    expect(store.skills).toEqual([])
+    expect(skillClient.getUnifiedSkillCatalog).not.toHaveBeenCalled()
   })
 
   it('keeps concurrent Agent catalogs isolated when the earlier request resolves last', async () => {

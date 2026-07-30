@@ -1296,7 +1296,15 @@
       "seconds": "秒",
       "testConnection": "接続をテストする",
       "timeout": "タイムアウト",
-      "title": "Nowledge Mem エクスポート設定"
+      "title": "Nowledge Mem エクスポート設定",
+      "configLoadFailed": "設定を読み込めませんでした",
+      "configSaved": "設定を保存しました",
+      "configSaveFailed": "設定を保存できませんでした",
+      "configReset": "設定をリセットしました",
+      "configResetFailed": "設定をリセットできませんでした",
+      "connectionSucceeded": "接続に成功しました",
+      "connectionFailed": "現在の設定では接続できませんでした",
+      "invalidBaseUrl": "認証情報やクエリパラメーターを含まない HTTP または HTTPS アドレスを入力してください"
     }
   },
   "mcp": {
@@ -1332,6 +1340,7 @@
       "name": "サーバー名",
       "namePlaceholder": "サーバー名を入力",
       "nameRequired": "サーバー名は必須です",
+      "nameDuplicate": "同じ名前のサーバーがすでに存在します。",
       "type": "サーバータイプ",
       "typePlaceholder": "サーバータイプを選択",
       "typeStdio": "標準入力と出力（STDIO）",
@@ -1561,7 +1570,7 @@
       "error": "エラー",
       "invalidAgent": "エージェントが見つからないか無効です。別のエージェントを選択してください。"
     },
-    "runNowSuccess": "スケジュール済みタスクを開始しました"
+    "runNowSuccess": "スケジュール済みタスクが完了しました"
   },
   "about": {
     "title": "私たちについて",
@@ -2638,7 +2647,21 @@
       "safe_storage_unavailable": "安全な鍵ストレージを利用できないため、永続キャッシュを利用できません。"
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "未保存の変更",
+    "dirtyDescription": "変更を破棄して移動しますか？",
+    "busyTitle": "保存中",
+    "busyDescription": "保存が完了してから移動してください。",
+    "stay": "編集を続ける",
+    "discard": "変更を破棄"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "保存中…",
+      "saved": "保存しました",
+      "saveFailed": "保存できませんでした。変更は保持されています。",
+      "retry": "再試行"
+    },
     "title": "DeepChatエージェント",
     "description": "DeepChatエージェントと、新しいセッションに適用する既定値を管理します。",
     "builtIn": "内蔵",

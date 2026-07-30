@@ -140,7 +140,6 @@ describe('main kernel contracts', () => {
         'mcp.router.listInstalledServerIds',
         'mcp.router.listServers',
         'mcp.router.setApiKey',
-        'mcp.router.updateServersAuth',
         'mcp.submitSamplingDecision',
         'mcp.updateServer',
         'nowledgeMem.getConfig',
@@ -521,6 +520,22 @@ describe('main kernel contracts', () => {
         timeout: 30000
       }
     })
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['nowledgeMem.testConnection'].input.parse({
+        config: {
+          baseUrl: 'http://draft.local',
+          apiKey: 'draft-secret',
+          timeout: 12000
+        }
+      })
+    ).toEqual({
+      config: {
+        baseUrl: 'http://draft.local',
+        apiKey: 'draft-secret',
+        timeout: 12000
+      }
+    })
+    expect(DEEPCHAT_ROUTE_CATALOG['nowledgeMem.testConnection'].input.parse({})).toEqual({})
     expect(
       DEEPCHAT_ROUTE_CATALOG['nowledgeMem.testConnection'].output.parse({
         result: {
@@ -1518,11 +1533,13 @@ describe('main kernel contracts', () => {
 
     expect(
       DEEPCHAT_ROUTE_CATALOG['providers.runAcpDebugAction'].input.parse({
+        requestId: 'debug-request-1',
         agentId: 'codex-acp',
         action: 'initialize',
         payload: {}
       })
     ).toEqual({
+      requestId: 'debug-request-1',
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {}
@@ -1811,7 +1828,6 @@ describe('main kernel contracts', () => {
         'config.systemPrompts.changed',
         'config.systemTheme.changed',
         'config.theme.changed',
-        'databaseSecurity.repairSuggested',
         'dialog.requested',
         'knowledge.file.progress',
         'knowledge.file.updated',
@@ -1826,7 +1842,7 @@ describe('main kernel contracts', () => {
         'models.changed',
         'models.config.changed',
         'models.status.changed',
-        'notification.error',
+        'notification.semantic',
         'oauth.openaiCodex.statusChanged',
         'providers.acp.debug.event',
         'providers.changed',
@@ -1874,6 +1890,8 @@ describe('main kernel contracts', () => {
       ])
     )
     expect(new Set(eventKeys).size).toBe(eventKeys.length)
+    expect(eventKeys).not.toContain('notification.error')
+    expect(eventKeys).not.toContain('databaseSecurity.repairSuggested')
   })
 
   it('requires upgrade release dates to be normalized before event publication', () => {

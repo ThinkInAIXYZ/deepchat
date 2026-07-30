@@ -1,6 +1,6 @@
 {
   "program": "main-kernel-refactor",
-  "generatedOn": "2026-07-26",
+  "generatedOn": "2026-07-29",
   "currentPhase": "P5",
   "metrics": {
     "renderer.usePresenter.count": 0,
@@ -14,7 +14,7 @@
     "renderer.quarantine.windowApi.count": 0,
     "renderer.quarantine.sourceFile.count": 0,
     "hotpath.directEdge.count": 2,
-    "runtime.rawTimer.count": 206,
+    "runtime.rawTimer.count": 209,
     "migrated.rawChannel.count": 0,
     "bridge.active.count": 0,
     "bridge.expired.count": 0

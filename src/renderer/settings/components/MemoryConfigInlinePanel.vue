@@ -13,19 +13,38 @@
           {{ t('settings.memory.redesign.configDescription') }}
         </p>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        class="h-8 w-8 shrink-0"
-        :aria-label="t('common.close')"
-        data-testid="settings-memory-config-close"
-        @click="$emit('update:open', false)"
-      >
-        <Icon icon="lucide:x" class="h-4 w-4" />
-      </Button>
+      <div class="flex shrink-0 items-center gap-2">
+        <span v-if="saving" class="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Spinner class="size-3.5" />
+          {{ t('common.saving') }}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8"
+          :disabled="saving || closing"
+          :aria-label="t('common.close')"
+          data-testid="settings-memory-config-close"
+          @click="requestClose"
+        >
+          <Icon icon="lucide:x" class="h-4 w-4" />
+        </Button>
+      </div>
     </header>
 
-    <div class="max-h-[62vh] overflow-y-auto p-4">
+    <div
+      class="max-h-[62vh] overflow-y-auto p-4"
+      :class="closing ? 'pointer-events-none opacity-70' : ''"
+      :aria-busy="closing"
+      :inert="closing"
+    >
+      <MemoryInlineFeedback
+        v-if="feedback"
+        class="mb-4"
+        :feedback="feedback"
+        @clear="clearPanelFeedback"
+      />
+
       <div v-if="loading" class="py-10 text-center text-sm text-muted-foreground">
         {{ t('common.loading') }}
       </div>
@@ -277,7 +296,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -288,10 +307,10 @@ import {
 } from '@shadcn/components/ui/collapsible'
 import { Input } from '@shadcn/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Switch } from '@shadcn/components/ui/switch'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
-import { useToast } from '@/components/use-toast'
 import { useModelStore } from '@/stores/modelStore'
 import { createConfigClient } from '@api/ConfigClient'
 import { ModelType } from '@shared/model'
@@ -299,6 +318,9 @@ import type {
   DeepChatAgentConfig,
   DeepChatAgentModelSelection
 } from '@shared/types/agent-interface'
+import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
+import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const DEFAULTS = {
   topK: 6,
@@ -326,14 +348,22 @@ type RetrievalFormConfig = {
 }
 
 const props = defineProps<{ open: boolean; agentId: string }>()
-const emit = defineEmits<{ 'update:open': [value: boolean]; saved: [] }>()
+const emit = defineEmits<{
+  'update:open': [value: boolean]
+  'pending-change': [pending: boolean]
+  saved: []
+}>()
 
 const { t } = useI18n()
-const { toast } = useToast()
 const configClient = createConfigClient()
 const modelStore = useModelStore()
+const panelFeedback = useMemoryInlineFeedback('MemoryConfigInlinePanel')
+const feedback = panelFeedback.feedback
+const clearFeedback = panelFeedback.clear
 
 const loading = ref(false)
+const closing = ref(false)
+const failedKeys = ref<ReadonlySet<string>>(new Set())
 const embeddingOpen = ref(false)
 const extractionOpen = ref(false)
 const advancedOpen = ref(false)
@@ -342,7 +372,11 @@ const resolvedConfig = ref<DeepChatAgentConfig | null>(null)
 const requestVersions = new Map<string, number>()
 // Serializes writes per config key so a clear can never overtake its preceding set on the wire.
 const submitChains = new Map<string, Promise<void>>()
+const pendingCounts = ref<ReadonlyMap<string, number>>(new Map())
 let loadRequestId = 0
+
+const saving = computed(() => (pendingCounts.value.get(props.agentId) ?? 0) > 0)
+const hasSaveFailure = computed(() => failedKeys.value.size > 0)
 
 const form = reactive({
   memoryEnabled: false,
@@ -406,6 +440,26 @@ const resolvedBudget = computed(
 
 function scopedKey(agentId: string, key: string): string {
   return `${agentId}:${key}`
+}
+
+function adjustPending(agentId: string, delta: 1 | -1): void {
+  const next = new Map(pendingCounts.value)
+  const count = Math.max(0, (next.get(agentId) ?? 0) + delta)
+  if (count > 0) next.set(agentId, count)
+  else next.delete(agentId)
+  pendingCounts.value = next
+}
+
+function setKeyFailed(key: string, failed: boolean): void {
+  const next = new Set(failedKeys.value)
+  if (failed) next.add(key)
+  else next.delete(key)
+  failedKeys.value = next
+}
+
+function clearPanelFeedback(): void {
+  failedKeys.value = new Set()
+  clearFeedback()
 }
 
 function nextVersion(agentId: string, key: string): number {
@@ -505,6 +559,17 @@ function committedRetrieval(): RetrievalFormConfig | null {
   }
 }
 
+const draftDirty = computed(() => {
+  if (!props.open || loading.value) return false
+  const rawBudget = form.injectionBudget.trim()
+  const budget = rawBudget
+    ? clampInt(rawBudget, DEFAULTS.budget, LIMITS.budget.min, LIMITS.budget.max)
+    : null
+  if (budget !== (originalConfig.value.memoryInjectionTokenBudget ?? null)) return true
+  const retrieval = form.overrideRetrieval ? buildRetrieval() : null
+  return !retrievalEqual(retrieval, committedRetrieval())
+})
+
 function applyOverride<K extends keyof DeepChatAgentConfig>(
   patch: DeepChatAgentConfig,
   key: K,
@@ -561,6 +626,7 @@ async function load(): Promise<void> {
   if (!props.agentId || !props.open) return
   const agentId = props.agentId
   const current = ++loadRequestId
+  clearPanelFeedback()
   loading.value = true
   try {
     const { config, resolved } = await fetchAgentConfig(agentId)
@@ -568,11 +634,8 @@ async function load(): Promise<void> {
     applyLoadedConfig(config, resolved)
   } catch (error) {
     if (current !== loadRequestId || props.agentId !== agentId || !props.open) return
-    toast({
-      variant: 'destructive',
-      title: t('settings.memory.redesign.configLoadFailed'),
-      description: error instanceof Error ? error.message : String(error)
-    })
+    console.error('[MemoryConfigInlinePanel] Failed to load config', error)
+    panelFeedback.show('error', t('settings.memory.redesign.configLoadFailed'))
   } finally {
     if (current === loadRequestId) loading.value = false
   }
@@ -616,13 +679,21 @@ function resetField(key: string, config: DeepChatAgentConfig, resolved: DeepChat
   }
 }
 
-async function resetFieldFromServer(agentId: string, key: string, version: number): Promise<void> {
+async function resetFieldFromServer(
+  agentId: string,
+  key: string,
+  version: number,
+  fallbackConfig: DeepChatAgentConfig,
+  fallbackResolved: DeepChatAgentConfig
+): Promise<void> {
   try {
     const { config, resolved } = await fetchAgentConfig(agentId)
     if (!isLatest(agentId, key, version) || props.agentId !== agentId || !props.open) return
     resetField(key, config, resolved)
-  } catch {
-    // Resync fetch failed too; the field keeps its optimistic value until the next load or submit.
+  } catch (error) {
+    console.error('[MemoryConfigInlinePanel] Failed to resync config field', error)
+    if (!isLatest(agentId, key, version) || props.agentId !== agentId || !props.open) return
+    resetField(key, fallbackConfig, fallbackResolved)
   }
 }
 
@@ -632,6 +703,8 @@ async function runSubmit(
   version: number,
   patch: DeepChatAgentConfig
 ): Promise<void> {
+  const fallbackConfig = originalConfig.value
+  const fallbackResolved = resolvedConfig.value ?? fallbackConfig
   // Merge optimistically before the request settles so a same-key clear issued while this set is
   // still in flight sees the pending value and produces an explicit null patch instead of a no-op.
   if (props.agentId === agentId && props.open) {
@@ -640,15 +713,14 @@ async function runSubmit(
   try {
     await configClient.updateDeepChatAgent(agentId, { config: patch })
     if (!isLatest(agentId, key, version) || props.agentId !== agentId || !props.open) return
+    setKeyFailed(key, false)
     emit('saved')
   } catch (error) {
     if (!isLatest(agentId, key, version) || props.agentId !== agentId || !props.open) return
-    toast({
-      variant: 'destructive',
-      title: t('settings.memory.redesign.configSaveFailed'),
-      description: error instanceof Error ? error.message : String(error)
-    })
-    await resetFieldFromServer(agentId, key, version)
+    setKeyFailed(key, true)
+    console.error('[MemoryConfigInlinePanel] Failed to save config', error)
+    panelFeedback.show('error', t('settings.memory.redesign.configSaveFailed'))
+    await resetFieldFromServer(agentId, key, version, fallbackConfig, fallbackResolved)
   }
 }
 
@@ -657,12 +729,23 @@ function submitPatch(key: string, patch: DeepChatAgentConfig): Promise<void> {
   const chainKey = scopedKey(agentId, key)
   const version = nextVersion(agentId, key)
   const previous = submitChains.get(chainKey) ?? Promise.resolve()
+  const retryingFailedKey = failedKeys.value.has(key)
+  setKeyFailed(key, false)
+  if (retryingFailedKey || failedKeys.value.size === 0) clearFeedback()
+  adjustPending(agentId, 1)
   const chained = previous.then(
     () => runSubmit(agentId, key, version, patch),
     () => runSubmit(agentId, key, version, patch)
   )
-  submitChains.set(chainKey, chained)
-  return chained
+  const tracked = chained.finally(() => {
+    adjustPending(agentId, -1)
+    if (submitChains.get(chainKey) === tracked) {
+      submitChains.delete(chainKey)
+      requestVersions.delete(chainKey)
+    }
+  })
+  submitChains.set(chainKey, tracked)
+  return tracked
 }
 
 function submitBoolean(key: 'memoryEnabled' | 'personaEvolutionEnabled', value: boolean): void {
@@ -716,5 +799,65 @@ function submitRetrieval(): void {
   void submitPatch('memoryRetrieval', patch)
 }
 
+function discardDraft(): void {
+  applyLoadedConfig(originalConfig.value, resolvedConfig.value ?? originalConfig.value)
+  clearPanelFeedback()
+}
+
+async function requestClose(): Promise<void> {
+  if (closing.value) return
+  const mustSettleDraft = saving.value || draftDirty.value
+  if (!mustSettleDraft) {
+    clearPanelFeedback()
+    emit('update:open', false)
+    return
+  }
+
+  const agentId = props.agentId
+  closing.value = true
+  try {
+    await waitForAgentSubmissions(agentId)
+    if (props.agentId !== agentId || !props.open) return
+    if (draftDirty.value) {
+      submitBudget()
+      submitRetrieval()
+      await waitForAgentSubmissions(agentId)
+    }
+    if (props.agentId === agentId && props.open && feedback.value?.tone !== 'error') {
+      emit('update:open', false)
+    }
+  } finally {
+    closing.value = false
+  }
+}
+
+async function waitForAgentSubmissions(agentId: string): Promise<void> {
+  const prefix = `${agentId}:`
+  const pending = Array.from(submitChains.entries())
+    .filter(([key]) => key.startsWith(prefix))
+    .map(([, promise]) => promise)
+  await Promise.all(pending)
+}
+
+defineExpose({ requestClose })
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'memory-config',
+  onDiscard: discardDraft
+})
+const stopLeaveRiskSync = watch(
+  [saving, draftDirty, hasSaveFailure],
+  ([busy, dirty, failed]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty || failed ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
 watch(() => [props.open, props.agentId], load, { immediate: true })
+watch(saving, (pending) => emit('pending-change', pending), { immediate: true })
+
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
+})
 </script>

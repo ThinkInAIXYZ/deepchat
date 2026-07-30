@@ -11,14 +11,8 @@ const memoryActivity = vi.hoisted(() => ({
   forget: vi.fn()
 }))
 
-const toast = vi.hoisted(() => vi.fn())
-
 vi.mock('@/stores/ui/memoryActivity', () => ({
   useMemoryActivityStore: () => memoryActivity
-}))
-
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({ toast })
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -151,7 +145,6 @@ describe('MemoryTurnDialog', () => {
     memoryActivity.readOnly = false
     memoryActivity.closeTurnPanel.mockClear()
     memoryActivity.forget.mockReset()
-    toast.mockClear()
   })
 
   it('shows an explicit error state instead of the empty state', () => {
@@ -226,17 +219,25 @@ describe('MemoryTurnDialog', () => {
     expect(memoryActivity.forget).not.toHaveBeenCalled()
   })
 
-  it('allows forget mutations when the dialog is writable', async () => {
+  it('uses the visible archived state as successful forget feedback', async () => {
     memoryActivity.forget.mockResolvedValue(true)
     const wrapper = mount(MemoryTurnDialog)
 
     await wrapper.find('button[aria-label="chat.memory.actions.forget"]').trigger('click')
+    await flushPromises()
 
     expect(memoryActivity.forget).toHaveBeenCalledWith('m1')
-    expect(toast).toHaveBeenCalledWith({
-      title: 'chat.memory.toast.forgetSuccess',
-      variant: 'default'
-    })
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('keeps forget failures inline with the affected memory', async () => {
+    memoryActivity.forget.mockResolvedValue(false)
+    const wrapper = mount(MemoryTurnDialog)
+
+    await wrapper.find('button[aria-label="chat.memory.actions.forget"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toBe('chat.memory.toast.forgetFailed')
   })
 
   it('prevents duplicate forget mutations while a memory is busy', async () => {
@@ -254,9 +255,6 @@ describe('MemoryTurnDialog', () => {
     pending.resolve(true)
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'chat.memory.toast.forgetSuccess',
-      variant: 'default'
-    })
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 })

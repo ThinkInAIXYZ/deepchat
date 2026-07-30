@@ -188,6 +188,8 @@ export interface MCPResourceContent {
   }
 }
 
+export type McpAddServerResult = Readonly<{ status: 'added' }> | Readonly<{ status: 'duplicate' }>
+
 export interface McpServicePort {
   initialize(): Promise<void>
   shutdown(): Promise<void>
@@ -196,7 +198,7 @@ export interface McpServicePort {
   getMcpClients(): Promise<McpClient[]>
   getEnabledMcpServers(): Promise<string[]>
   setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void>
-  addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean>
+  addMcpServer(serverName: string, config: MCPServerConfig): Promise<McpAddServerResult>
   removeMcpServer(serverName: string): Promise<void>
   updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
   isServerRunning(serverName: string): Promise<boolean>
@@ -313,5 +315,4 @@ export interface McpServicePort {
   setMcpRouterApiKey(key: string): Promise<void>
   isServerInstalled(source: string, sourceId: string): Promise<boolean>
   listInstalledServerIds(source: string, sourceIds: string[]): Promise<string[]>
-  updateMcpRouterServersAuth(apiKey: string): Promise<void>
 }

@@ -1,13 +1,8 @@
 import type { ComputedRef } from 'vue'
 import type { usePendingInputStore } from '@/stores/ui/pendingInput'
+import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
 
 type PendingInputStore = ReturnType<typeof usePendingInputStore>
-
-type ToastFn = (options: {
-  title: string
-  description?: string
-  variant?: 'destructive'
-}) => unknown
 
 type UsePendingInputActionsOptions = {
   sessionId: () => string
@@ -17,7 +12,7 @@ type UsePendingInputActionsOptions = {
   hasBlockingInteraction: () => boolean
   pendingInputStore: PendingInputStore
   beginPlanTurn: (sessionId: string) => void
-  toast: ToastFn
+  notify: RendererNotificationNotifier
   t: (key: string) => string
 }
 
@@ -69,9 +64,10 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
       options.beginPlanTurn(sessionId)
     } catch (error) {
       console.error('[ChatPage] steer queued input failed:', error)
-      options.toast({
-        title: options.t('chat.pendingInput.steerFailed'),
-        variant: 'destructive'
+      options.notify({
+        kind: 'error',
+        code: 'chat.pendingInput.steerFailed',
+        title: options.t('chat.pendingInput.steerFailed')
       })
     }
   }
@@ -94,9 +90,10 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
       )
     } catch (error) {
       console.error('[ChatPage] resolve blocked input failed:', error)
-      options.toast({
-        title: options.t('chat.attachments.pending.resolveFailed'),
-        variant: 'destructive'
+      options.notify({
+        kind: 'error',
+        code: 'chat.pendingInput.resolveFailed',
+        title: options.t('chat.attachments.pending.resolveFailed')
       })
     }
   }

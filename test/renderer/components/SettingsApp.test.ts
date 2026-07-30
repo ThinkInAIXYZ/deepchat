@@ -3,6 +3,13 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { SETTINGS_EVENTS } from '@/events'
 
+vi.mock('../../../src/renderer/settings/components/SettingsLeaveGuardDialog.vue', () => ({
+  default: defineComponent({
+    name: 'SettingsLeaveGuardDialog',
+    template: '<div />'
+  })
+}))
+
 const windowClientListenerImpls = vi.hoisted(() => ({
   onSettingsNavigate: (listener: (payload: unknown) => void) => {
     const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
@@ -13,20 +20,6 @@ const windowClientListenerImpls = vi.hoisted(() => ({
     const wrapped = () => listener()
     window.electron?.ipcRenderer?.on('settings:provider-install', wrapped)
     return () => window.electron?.ipcRenderer?.removeListener('settings:provider-install', wrapped)
-  },
-  onNotificationError: (listener: (payload: unknown) => void) => {
-    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-    window.electron?.ipcRenderer?.on('notification:show-error', wrapped)
-    return () => window.electron?.ipcRenderer?.removeListener('notification:show-error', wrapped)
-  },
-  onDatabaseRepairSuggested: (listener: (payload: unknown) => void) => {
-    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-    window.electron?.ipcRenderer?.on('notification:database-repair-suggested', wrapped)
-    return () =>
-      window.electron?.ipcRenderer?.removeListener(
-        'notification:database-repair-suggested',
-        wrapped
-      )
   }
 }))
 
@@ -43,11 +36,7 @@ const windowClientMock = vi.hoisted(() => ({
   onSettingsNavigate: vi.fn().mockImplementation(windowClientListenerImpls.onSettingsNavigate),
   onSettingsProviderInstall: vi
     .fn()
-    .mockImplementation(windowClientListenerImpls.onSettingsProviderInstall),
-  onNotificationError: vi.fn().mockImplementation(windowClientListenerImpls.onNotificationError),
-  onDatabaseRepairSuggested: vi
-    .fn()
-    .mockImplementation(windowClientListenerImpls.onDatabaseRepairSuggested)
+    .mockImplementation(windowClientListenerImpls.onSettingsProviderInstall)
 }))
 
 const appRuntimeClientMock = vi.hoisted(() => ({
@@ -63,10 +52,12 @@ const configClientMock = vi.hoisted(() => ({
   getLanguage: vi.fn().mockResolvedValue('zh-CN')
 }))
 
+const deviceClientMock = vi.hoisted(() => ({
+  getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
+}))
+
 vi.mock('@api/DeviceClient', () => ({
-  createDeviceClient: () => ({
-    getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
-  })
+  createDeviceClient: () => deviceClientMock
 }))
 
 vi.mock('@api/ConfigClient', () => ({
@@ -85,18 +76,13 @@ vi.mock('@api/AppRuntimeClient', () => ({
 // hooks, stripping vi.fn() implementations. Rebuild the listener mocks before
 // each test or unmount-time cleanups come back as undefined.
 beforeEach(() => {
+  deviceClientMock.getDeviceInfo.mockReset().mockResolvedValue({ platform: 'darwin' })
   windowClientMock.onSettingsNavigate
     .mockReset()
     .mockImplementation(windowClientListenerImpls.onSettingsNavigate)
   windowClientMock.onSettingsProviderInstall
     .mockReset()
     .mockImplementation(windowClientListenerImpls.onSettingsProviderInstall)
-  windowClientMock.onNotificationError
-    .mockReset()
-    .mockImplementation(windowClientListenerImpls.onNotificationError)
-  windowClientMock.onDatabaseRepairSuggested
-    .mockReset()
-    .mockImplementation(windowClientListenerImpls.onDatabaseRepairSuggested)
 })
 
 afterEach(() => {
@@ -119,8 +105,9 @@ afterEach(() => {
 })
 
 describe('Settings App', () => {
-  it('notifies main when the settings router is ready', async () => {
+  it('initializes the settings window and guards dirty close attempts', async () => {
     vi.resetModules()
+    deviceClientMock.getDeviceInfo.mockResolvedValue({ platform: 'win32' })
 
     const push = vi.fn().mockResolvedValue(undefined)
     const isReady = vi.fn().mockResolvedValue(undefined)
@@ -146,6 +133,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -263,14 +251,8 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
-    mount(SettingsApp, {
+    const wrapper = mount(SettingsApp, {
       global: {
         stubs: {
           Button: true,
@@ -304,6 +286,46 @@ describe('Settings App', () => {
     expect(isReady).toHaveBeenCalledTimes(1)
     expect(initializeModelStore).toHaveBeenCalledTimes(1)
     expect(ipcSend).toHaveBeenCalledWith(SETTINGS_EVENTS.READY)
+
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    let leaveLease: ReturnType<typeof settingsLeaveGuard.register>
+    leaveLease = settingsLeaveGuard.register({
+      id: 'test-editor',
+      onDiscard: () => leaveLease.setRisk('clean')
+    })
+    leaveLease.setRisk('dirty')
+
+    await wrapper.get('[aria-label="common.close"]').trigger('click')
+    await flushPromises()
+    expect(windowClientMock.closeSettings).not.toHaveBeenCalled()
+    expect(settingsLeaveGuard.getSnapshot()).toMatchObject({ promptOpen: true, risk: 'dirty' })
+
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await flushPromises()
+    expect(windowClientMock.closeSettings).toHaveBeenCalledOnce()
+
+    leaveLease.release()
+    windowClientMock.closeSettings.mockClear()
+    let nativeLeaveLease: ReturnType<typeof settingsLeaveGuard.register>
+    nativeLeaveLease = settingsLeaveGuard.register({
+      id: 'native-close-test-editor',
+      onDiscard: () => nativeLeaveLease.setRisk('clean')
+    })
+    nativeLeaveLease.setRisk('dirty')
+
+    const beforeUnload = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(beforeUnload)
+    expect(beforeUnload.defaultPrevented).toBe(true)
+    expect(beforeUnload.returnValue).toBe(false)
+    expect(windowClientMock.closeSettings).not.toHaveBeenCalled()
+
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await flushPromises()
+    expect(windowClientMock.closeSettings).toHaveBeenCalledOnce()
+
+    nativeLeaveLease.release()
+    wrapper.unmount()
   }, 15000)
 
   it('uses a resolved provider settings path in the sidebar', async () => {
@@ -333,6 +355,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -459,12 +482,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     const wrapper = mount(SettingsApp, {
       global: {
@@ -552,6 +569,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -673,12 +691,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
@@ -756,6 +768,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -877,12 +890,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
@@ -981,6 +988,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -1096,12 +1104,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
@@ -1200,6 +1202,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -1311,12 +1314,6 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
@@ -1386,6 +1383,7 @@ describe('Settings App', () => {
         isReady: vi.fn().mockResolvedValue(undefined),
         push: vi.fn().mockResolvedValue(undefined),
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => []),
         currentRoute
       }
@@ -1453,10 +1451,6 @@ describe('Settings App', () => {
       useI18n: () => ({ t: (key: string) => key, locale })
     }))
     vi.doMock('@iconify/vue', () => ({ Icon: { name: 'Icon', template: '<span />' } }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn(() => ({ dismiss: vi.fn() })) })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     const wrapper = mount(SettingsApp, {
       global: {

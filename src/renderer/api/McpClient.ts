@@ -37,7 +37,6 @@ import {
   mcpRouterListInstalledServerIdsRoute,
   mcpRouterListServersRoute,
   mcpRouterSetApiKeyRoute,
-  mcpRouterUpdateServersAuthRoute,
   mcpSetAutoDetectNpmRegistryRoute,
   mcpSetCustomNpmRegistryRoute,
   mcpSetEnabledRoute,
@@ -96,7 +95,7 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
 
   async function addMcpServer(serverName: string, config: MCPServerConfig) {
     const result = await bridge.invoke(mcpAddServerRoute.name, { serverName, config })
-    return result.success
+    return result.result
   }
 
   async function updateMcpServer(serverName: string, config: Partial<MCPServerConfig>) {
@@ -227,10 +226,6 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return result.installedSourceIds
   }
 
-  async function updateMcpRouterServersAuth(apiKey: string) {
-    await bridge.invoke(mcpRouterUpdateServersAuthRoute.name, { apiKey })
-  }
-
   function onServerStarted(listener: (payload: { serverName: string; version: number }) => void) {
     return bridge.on(mcpServerStartedEvent.name, listener)
   }
@@ -328,7 +323,6 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     setMcpRouterApiKey,
     isServerInstalled,
     listInstalledServerIds,
-    updateMcpRouterServersAuth,
     onServerStarted,
     onServerStopped,
     onConfigChanged,

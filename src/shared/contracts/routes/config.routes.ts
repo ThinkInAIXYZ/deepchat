@@ -640,6 +640,7 @@ export const configResetDefaultSystemPromptRoute = defineRouteContract({
   name: 'config.resetDefaultSystemPrompt',
   input: z.object({}).default({}),
   output: z.object({
+    prompts: z.array(SystemPromptSchema),
     prompt: z.string(),
     defaultPromptId: z.string()
   })

@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "通知",
+    "actionFailed": "操作失败，请重试",
+    "entities": "影响 {count} 项",
+    "occurrences": "已发生 {count} 次",
+    "pending": "还有 {count} 项待处理",
+    "mcpConnectionFailed": {
+      "title": "无法连接到 {serverName}",
+      "description": "请检查服务器设置后重试。"
+    },
+    "mcpToolListFailed": {
+      "title": "无法加载 {serverName} 的工具",
+      "description": "服务器已连接，但工具暂不可用。"
+    },
+    "providerDeeplinkFailed": {
+      "title": "无法打开服务商设置",
+      "reasons": {
+        "unsupported-version": "不支持此链接版本。",
+        "invalid-payload": "此服务商链接无效。",
+        "provider-not-found": "未找到链接中的服务商。",
+        "unsupported-provider": "暂不支持此服务商。",
+        "settings-unavailable": "无法打开服务商设置。"
+      }
+    }
+  },
   "loading": "加载中...",
   "copy": "复制",
   "copied": "已复制",

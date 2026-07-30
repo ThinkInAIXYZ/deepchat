@@ -28,8 +28,12 @@ vi.mock('electron-store', () => ({
       return this.data[key]
     }
 
-    set(key: string, value: any) {
-      this.data[key] = value
+    set(key: string | Record<string, any>, value?: any) {
+      if (typeof key === 'string') {
+        this.data[key] = value
+      } else {
+        Object.assign(this.data, key)
+      }
     }
 
     delete(key: string) {
@@ -98,6 +102,36 @@ describe('McpSettings', () => {
 
     expect(servers.Artifacts.enabled).toBe(false)
     expect(mcpStore.has('defaultServers')).toBe(false)
+  })
+
+  it('updates Router credentials through one fallback store write', async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    const servers = {
+      router: {
+        command: '',
+        args: [],
+        env: {},
+        type: 'http' as const,
+        enabled: true,
+        customHeaders: {
+          Authorization: 'Bearer router-key'
+        }
+      }
+    }
+
+    helper.setRouterApiKeyAndServers('router-key', servers)
+
+    expect(helper.getRouterApiKey()).toBe('router-key')
+    await expect(helper.getMcpServers()).resolves.toEqual(
+      expect.objectContaining({
+        router: expect.objectContaining({
+          customHeaders: {
+            Authorization: 'Bearer router-key'
+          }
+        })
+      })
+    )
   })
 
   it('does not recreate the Apple built-in server after the user removed it', async () => {

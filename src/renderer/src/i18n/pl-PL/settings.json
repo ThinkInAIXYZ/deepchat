@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Trwała pamięć podręczna jest niedostępna, ponieważ bezpieczny magazyn kluczy nie jest dostępny."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Niezapisane zmiany",
+    "dirtyDescription": "Opuścić stronę i odrzucić zmiany?",
+    "busyTitle": "Zapisywanie w toku",
+    "busyDescription": "Poczekaj na zakończenie zapisywania.",
+    "stay": "Kontynuuj edycję",
+    "discard": "Odrzuć zmiany"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Zapisywanie…",
+      "saved": "Zapisano",
+      "saveFailed": "Nie udało się zapisać. Zmiany zachowano.",
+      "retry": "Spróbuj ponownie"
+    },
     "title": "DeepChat Agent",
     "description": "Zarządzaj agentami DeepChat i ustawieniami domyślnymi, które wprowadzają do nowych sesji.",
     "builtIn": "Wbudowany",
@@ -1616,7 +1630,15 @@
       "timeout": "Limit czasu",
       "saveConfig": "Zapisz",
       "resetConfig": "Zresetuj",
-      "seconds": "sekundy"
+      "seconds": "sekundy",
+      "configLoadFailed": "Nie udało się wczytać konfiguracji",
+      "configSaved": "Konfiguracja została zapisana",
+      "configSaveFailed": "Nie udało się zapisać konfiguracji",
+      "configReset": "Konfiguracja została zresetowana",
+      "configResetFailed": "Nie udało się zresetować konfiguracji",
+      "connectionSucceeded": "Połączenie powiodło się",
+      "connectionFailed": "Nie udało się połączyć przy użyciu bieżącej konfiguracji",
+      "invalidBaseUrl": "Wprowadź adres HTTP lub HTTPS bez danych logowania i parametrów zapytania"
     },
     "deleteFile": {
       "title": "Potwierdzenie usunięcia pliku",
@@ -1674,6 +1696,7 @@
       "name": "Nazwa serwera",
       "namePlaceholder": "Wprowadź nazwę serwera",
       "nameRequired": "Nazwa serwera jest wymagana",
+      "nameDuplicate": "Serwer o tej nazwie już istnieje.",
       "type": "Typ serwera",
       "typePlaceholder": "Wybierz typ serwera",
       "typeStdio": "Standardowe wejście i wyjście (Stdio)",
@@ -2997,7 +3020,7 @@
       "error": "Błąd",
       "invalidAgent": "Agent jest niedostępny lub wyłączony. Wybierz innego agenta."
     },
-    "runNowSuccess": "Zaplanowane zadanie uruchomione"
+    "runNowSuccess": "Zaplanowane zadanie zakończone"
   },
   "memory": {
     "description": "Przeglądaj, konfiguruj i zarządzaj tym, co każdy agent zapamiętuje między sesjami. Pamięć jest odrębna dla każdego agenta.",

@@ -8,7 +8,12 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" size="sm" :disabled="loading" @click="loadAgents">
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="loading || operationPending"
+          @click="loadAgents"
+        >
           <Spinner v-if="loading" data-icon="inline-start" />
           <Icon v-else icon="lucide:refresh-cw" data-icon="inline-start" />
           {{ t('settings.skills.agents.refresh') }}
@@ -16,9 +21,11 @@
       </div>
     </div>
 
+    <InlineOperationFeedback :snapshot="operationFeedback" />
+
     <div v-if="error" class="rounded-md border border-destructive/30 px-3 py-2 text-sm">
       <div class="font-medium text-destructive">{{ t('settings.skills.agents.loadFailed') }}</div>
-      <div class="mt-1 text-xs text-muted-foreground">{{ error }}</div>
+      <div class="mt-1 text-xs text-muted-foreground">{{ t('common.error.requestFailed') }}</div>
     </div>
 
     <div v-if="loading && agents.length === 0" class="flex flex-col gap-2">
@@ -45,6 +52,7 @@
           variant="outline"
           class="h-12 min-w-48 justify-start gap-2"
           :class="{ 'border-primary bg-primary/5': agent.id === selectedAgentId }"
+          :disabled="operationPending"
           @click="selectAgent(agent.id)"
         >
           <Icon :icon="getSkillAgentIcon(agent.id)" class="h-5 w-5 shrink-0" />
@@ -103,6 +111,7 @@
         <AgentSkillTable
           v-else
           :agent="selectedAgent"
+          :disabled="operationPending"
           @action="handleAgentSkillAction"
           @view-detail="openAgentSkillDetail"
         />
@@ -120,16 +129,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { nanoid } from 'nanoid'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@shadcn/components/ui/empty'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import { useToast } from '@/components/use-toast'
-import { useSkillsStore } from '@/stores/skillsStore'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import { createSkillSyncClient } from '@api/SkillSyncClient'
 import type {
   AgentSkillItem,
@@ -140,15 +151,19 @@ import type {
 import AgentSkillTable from './AgentSkillTable.vue'
 import SkillDetailDialog from './SkillDetailDialog.vue'
 import { getSkillAgentIcon } from './toolIcon'
+import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const { t } = useI18n()
-const { toast } = useToast()
-const skillsStore = useSkillsStore()
 const skillSyncClient = createSkillSyncClient()
+const operationController = createRendererSurfaceFeedbackController('settings')
+const { snapshot: operationFeedback } = useSurfaceFeedback(operationController)
+const operationId = `settings.skills.agentLinks:${nanoid(8)}`
+let operationGeneration = 0
+let operationKind: 'read' | 'mutation' | null = null
 
 const loading = ref(false)
 const detailLoading = ref(false)
-const error = ref<string | null>(null)
+const error = ref(false)
 const agents = ref<InstalledSkillAgent[]>([])
 const selectedAgentId = ref<string | null>(null)
 const selectedAgentDetail = ref<InstalledSkillAgentDetail | null>(null)
@@ -156,40 +171,81 @@ const detailDialogOpen = ref(false)
 const skillDetail = ref<SkillDetail | null>(null)
 let agentDetailRequestId = 0
 let skillDetailRequestId = 0
+let agentsRequestId = 0
 
 const selectedAgent = computed(() => selectedAgentDetail.value)
+const operationPending = computed(() => operationFeedback.value.status === 'pending')
+
+const logFailure = (message: string, cause: unknown, context: Record<string, unknown> = {}) => {
+  console.error(
+    message,
+    {
+      ...context
+    },
+    cause
+  )
+}
+
+const beginOperation = (
+  label: string,
+  kind: Exclude<typeof operationKind, null> = 'mutation'
+): number | null => {
+  if (operationController.getSnapshot().status === 'pending') return null
+  const generation = ++operationGeneration
+  operationKind = kind
+  operationController.begin(operationId, label)
+  return generation
+}
+
+const isCurrentOperation = (generation: number) =>
+  generation === operationGeneration && operationController.getSnapshot().status === 'pending'
+
+const clearSettledOperation = () => {
+  const snapshot = operationController.getSnapshot()
+  if (snapshot.status === 'success' || snapshot.status === 'error') {
+    operationController.clearSettled()
+  }
+}
 
 const loadAgents = async () => {
+  clearSettledOperation()
+  const requestId = ++agentsRequestId
   loading.value = true
-  error.value = null
+  error.value = false
   try {
-    agents.value = await skillSyncClient.scanAgents()
+    const nextAgents = await skillSyncClient.scanAgents()
+    if (requestId !== agentsRequestId) return
+    agents.value = nextAgents
     const nextId =
       agents.value.find((agent) => agent.id === selectedAgentId.value)?.id ?? agents.value[0]?.id
     selectedAgentId.value = nextId ?? null
     if (nextId) {
+      if (selectedAgentDetail.value?.id !== nextId) selectedAgentDetail.value = null
       await loadAgentDetail(nextId)
     } else {
       selectedAgentDetail.value = null
     }
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    if (requestId !== agentsRequestId) return
+    error.value = true
+    logFailure('[SkillAgentsTab] Failed to scan Agents', cause)
   } finally {
-    loading.value = false
+    if (requestId === agentsRequestId) loading.value = false
   }
 }
 
 const loadAgentDetail = async (agentId: string) => {
   const requestId = ++agentDetailRequestId
   detailLoading.value = true
-  error.value = null
+  error.value = false
   try {
     const detail = await skillSyncClient.getAgentDetail(agentId)
     if (requestId !== agentDetailRequestId || selectedAgentId.value !== agentId) return
     selectedAgentDetail.value = detail
   } catch (cause) {
     if (requestId !== agentDetailRequestId || selectedAgentId.value !== agentId) return
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    error.value = true
+    logFailure('[SkillAgentsTab] Failed to load Agent detail', cause, { agentId })
   } finally {
     if (requestId === agentDetailRequestId && selectedAgentId.value === agentId) {
       detailLoading.value = false
@@ -198,10 +254,12 @@ const loadAgentDetail = async (agentId: string) => {
 }
 
 const selectAgent = async (agentId: string) => {
+  clearSettledOperation()
   skillDetailRequestId += 1
   detailDialogOpen.value = false
   skillDetail.value = null
   selectedAgentId.value = agentId
+  selectedAgentDetail.value = null
   await loadAgentDetail(agentId)
 }
 
@@ -218,50 +276,85 @@ const handleAgentSkillAction = async (skill: AgentSkillItem) => {
 const openAgentSkillDetail = async (skill: AgentSkillItem) => {
   const agentId = selectedAgentId.value
   if (!agentId || selectedAgent.value?.id !== agentId) return
+  const operation = beginOperation(t('common.loading'), 'read')
+  if (operation === null) return
   const requestId = ++skillDetailRequestId
   try {
     const detail = await skillSyncClient.getAgentSkillDetail(agentId, skill.name)
-    if (requestId !== skillDetailRequestId || selectedAgentId.value !== agentId) return
+    if (
+      !isCurrentOperation(operation) ||
+      requestId !== skillDetailRequestId ||
+      selectedAgentId.value !== agentId
+    ) {
+      return
+    }
     skillDetail.value = detail
+    operationController.succeed({
+      code: 'settings.skills.agentDetailLoaded',
+      title: skill.name
+    })
+    operationController.clearSettled()
     detailDialogOpen.value = true
   } catch (cause) {
-    if (requestId !== skillDetailRequestId || selectedAgentId.value !== agentId) return
-    toast({
+    if (
+      !isCurrentOperation(operation) ||
+      requestId !== skillDetailRequestId ||
+      selectedAgentId.value !== agentId
+    ) {
+      return
+    }
+    logFailure('[SkillAgentsTab] Failed to load Agent skill detail', cause, {
+      agentId,
+      skillName: skill.name
+    })
+    operationController.fail({
+      code: 'settings.skills.agentDetailLoadFailed',
       title: t('settings.skills.detail.failed'),
-      description: cause instanceof Error ? cause.message : String(cause),
-      variant: 'destructive'
+      description: t('common.error.requestFailed')
     })
   }
 }
 
 const handleLinkChanged = async () => {
-  await Promise.all([loadAgents(), skillsStore.loadSkills()])
+  await loadAgents()
 }
 
 const executeAgentLinkAction = async (skill: AgentSkillItem, action: 'repair' | 'remove') => {
   const agentId = selectedAgent.value?.id
   if (!agentId) return
+  const operation = beginOperation(t('common.saving'))
+  if (operation === null) return
 
   try {
     const result =
       action === 'repair'
         ? await skillSyncClient.repairAgentSkillLink({ agentId, skillName: skill.name })
         : await skillSyncClient.removeAgentSkillLink({ agentId, skillName: skill.name })
-    if (!result.success) {
-      throw new Error(result.error || t('settings.skills.agents.linkAction.failed'))
-    }
-    toast({
+    if (!isCurrentOperation(operation) || selectedAgent.value?.id !== agentId) return
+    if (!result.success) throw new Error('Agent link update was rejected')
+    await handleLinkChanged()
+    if (!isCurrentOperation(operation)) return
+    operationController.succeed({
+      code:
+        action === 'repair'
+          ? 'settings.skills.agentLinkRepaired'
+          : 'settings.skills.agentLinkRemoved',
       title: t(`settings.skills.agents.linkAction.${action}Success`),
       description: t('settings.skills.agents.linkAction.successDescription', {
         name: skill.name
       })
     })
-    await handleLinkChanged()
   } catch (cause) {
-    toast({
+    if (!isCurrentOperation(operation)) return
+    logFailure('[SkillAgentsTab] Failed to update Agent link', cause, {
+      action,
+      agentId,
+      skillName: skill.name
+    })
+    operationController.fail({
+      code: 'settings.skills.agentLinkUpdateFailed',
       title: t('settings.skills.agents.linkAction.failed'),
-      description: cause instanceof Error ? cause.message : String(cause),
-      variant: 'destructive'
+      description: t('common.error.requestFailed')
     })
   }
 }
@@ -277,4 +370,25 @@ const agentStatusClass = (status: InstalledSkillAgent['status']) => {
 }
 
 onMounted(loadAgents)
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: `settings.skills.agentLinks:${nanoid(8)}`,
+  onDiscard: () => undefined
+})
+const stopLeaveRiskSync = watch(
+  operationPending,
+  (pending) => {
+    leaveGuardLease.setRisk(pending ? 'busy' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  if (operationKind === 'read' && operationController.getSnapshot().status === 'pending') {
+    operationGeneration += 1
+    operationController.cancelPending()
+  }
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
+})
 </script>

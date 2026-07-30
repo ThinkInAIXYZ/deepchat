@@ -34,7 +34,7 @@ function createHarness() {
     resolveBlockedInput: vi.fn().mockResolvedValue(undefined)
   }
   const beginPlanTurn = vi.fn()
-  const toast = vi.fn()
+  const notify = vi.fn()
   const scope = effectScope()
   let actions!: ReturnType<typeof usePendingInputActions>
 
@@ -47,7 +47,7 @@ function createHarness() {
       hasBlockingInteraction: () => isBlocking.value,
       pendingInputStore: pendingInputStore as any,
       beginPlanTurn,
-      toast,
+      notify,
       t: (key) => key
     })
   })
@@ -61,7 +61,7 @@ function createHarness() {
     isBlocking,
     pendingInputStore,
     beginPlanTurn,
-    toast,
+    notify,
     stop: () => scope.stop()
   }
 }
@@ -151,9 +151,10 @@ describe('usePendingInputActions', () => {
     harness.pendingInputStore.steerPendingInput.mockRejectedValueOnce(error)
     await harness.actions.onPendingInputSteer('item-1')
 
-    expect(harness.toast).toHaveBeenCalledWith({
-      title: 'chat.pendingInput.steerFailed',
-      variant: 'destructive'
+    expect(harness.notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.pendingInput.steerFailed',
+      title: 'chat.pendingInput.steerFailed'
     })
     expect(harness.beginPlanTurn).toHaveBeenCalledTimes(1)
     consoleError.mockRestore()
@@ -181,9 +182,10 @@ describe('usePendingInputActions', () => {
     harness.pendingInputStore.resolveBlockedInput.mockRejectedValueOnce(error)
     await harness.actions.onPendingInputResolve({ itemId: 'blocked-1', action: 'retry' })
 
-    expect(harness.toast).toHaveBeenCalledWith({
-      title: 'chat.attachments.pending.resolveFailed',
-      variant: 'destructive'
+    expect(harness.notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.pendingInput.resolveFailed',
+      title: 'chat.attachments.pending.resolveFailed'
     })
     consoleError.mockRestore()
     harness.stop()

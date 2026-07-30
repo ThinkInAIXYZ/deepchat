@@ -80,10 +80,12 @@
         :preview="pendingProviderImportPreview"
         :confirm-disabled="providerImportConfirmDisabled"
         :submitting="isImportingProvider"
+        :error="providerImportError"
         @update:open="handleProviderImportDialogOpenChange"
         @confirm="confirmProviderImport"
       />
-      <Toaster :theme="toasterTheme" />
+      <SettingsLeaveGuardDialog />
+      <NotificationHost surface="settings" :theme="toasterTheme" :dir="languageStore.dir" />
     </div>
   </TooltipProvider>
 </template>
@@ -95,6 +97,7 @@ import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick, unref 
 import { useI18n } from 'vue-i18n'
 import { useEventListener, useTitle } from '@vueuse/core'
 import { createDeviceClient } from '@api/DeviceClient'
+import { createNotificationClient } from '@api/NotificationClient'
 import { createWindowClient } from '@api/WindowClient'
 import { getRuntimeArch, getRuntimePlatform } from '@api/runtime'
 import CloseIcon from './icons/CloseIcon.vue'
@@ -104,11 +107,11 @@ import { useModelCheckStore } from '../src/stores/modelCheck'
 import { Button } from '@shadcn/components/ui/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
-import { Toaster } from '@shadcn/components/ui/sonner'
+import NotificationHost from '@renderer-notifications/NotificationHost.vue'
+import { rendererNotificationManager } from '@renderer-notifications/rendererNotificationRuntime'
+import { SemanticNotificationController } from '@renderer-notifications/semanticNotificationController'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
-import 'vue-sonner/style.css'
-import { useToast } from '@/components/use-toast'
 import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
@@ -119,10 +122,12 @@ import { ensureIconsLoaded } from '../src/lib/iconLoader'
 import { useFontManager } from '../src/composables/useFontManager'
 import { applyDocumentAppearance } from '../src/foundation/appearance/documentAppearance'
 import { markStartupInteractive } from '../src/lib/startupDeferred'
-import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchema'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
+import SettingsLeaveGuardDialog from './components/SettingsLeaveGuardDialog.vue'
+import { settingsLeaveGuard } from './services/settingsLeaveGuard'
+import { installSettingsRouteLeaveGuard } from './services/settingsRouteLeaveGuard'
 import { nanoid } from 'nanoid'
 import {
   getSettingsNavigationGroups,
@@ -142,8 +147,8 @@ type SettingsWindowState = Window & {
 }
 
 const deviceClient = createDeviceClient()
+const notificationClient = createNotificationClient()
 const windowClient = createWindowClient()
-const settingsEventCleanups: Array<() => void> = []
 
 // Initialize stores
 const uiSettingsStore = useUiSettingsStore()
@@ -152,7 +157,6 @@ setupFontListener()
 
 const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
-const { toast } = useToast()
 const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
@@ -169,10 +173,8 @@ const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDe
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
 setupMcpDeeplink()
 
-const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
-const currentErrorId = ref<string | null>(null)
-const errorDisplayTimer = ref<number | null>(null)
 const isImportingProvider = ref(false)
+const providerImportError = ref<string | null>(null)
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
@@ -182,6 +184,7 @@ const { isMacOS, isWinMacOS } = useDeviceVersion()
 const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
+const removeSettingsRouteGuard = installSettingsRouteLeaveGuard(router, settingsLeaveGuard)
 const title = useTitle()
 const pendingProviderImportPreview = computed(() => providerDeeplinkImportStore.preview)
 const pendingProviderImportToken = computed(() => providerDeeplinkImportStore.previewToken)
@@ -263,20 +266,13 @@ const openDatabaseRepairSection = async () => {
   await publishSettingsSection(DATABASE_REPAIR_SECTION)
 }
 
-const showDatabaseRepairSuggestedToast = (payload: DatabaseRepairSuggestedPayload) => {
-  toast({
-    title: t(payload.title),
-    description: t(payload.message, {
-      reason: t(`settings.data.databaseRepair.reasons.${payload.reason}`)
-    }),
-    action: {
-      label: t('settings.data.databaseRepair.toastAction'),
-      onClick: () => {
-        void openDatabaseRepairSection()
-      }
-    }
-  })
-}
+const semanticNotificationController = new SemanticNotificationController({
+  notifications: rendererNotificationManager,
+  translate: (key, params) => t(key, params ?? {}),
+  acknowledgePresentation: (episodeId) => notificationClient.acknowledgePresentation(episodeId),
+  openSettings: () => openDatabaseRepairSection()
+})
+let cleanupSemanticNotifications: (() => void) | undefined
 
 const handleSettingsNavigate = async (payload?: SettingsNavigationPayload) => {
   const routeName = payload?.routeName
@@ -356,6 +352,7 @@ const applyProviderInstallPreview = async (preview: ProviderInstallPreview) => {
   }
 
   await nextTick()
+  providerImportError.value = null
   providerDeeplinkImportStore.openPreview(preview)
 }
 
@@ -386,11 +383,11 @@ const syncPendingProviderInstall = async () => {
       try {
         windowClient.requeuePendingSettingsProviderInstall(preview)
       } catch (requeueError) {
-        console.error('Failed to requeue pending provider install preview:', requeueError)
+        console.error('[SettingsApp] Failed to requeue provider install preview', requeueError)
       }
     }
 
-    console.error('Failed to sync pending provider install preview:', error)
+    console.error('[SettingsApp] Failed to sync provider install preview', error)
   } finally {
     isProcessingProviderPreview.value = false
   }
@@ -402,8 +399,47 @@ const handleProviderInstall = async () => {
 
 const handleProviderImportDialogOpenChange = (open: boolean) => {
   if (!open) {
+    providerImportError.value = null
     providerDeeplinkImportStore.clearPreview()
     releaseProviderPreviewProcessing()
+  }
+}
+
+const notifyProviderImportWarning = (code: string, title: string, description?: string) => {
+  try {
+    rendererNotificationManager.notify({
+      kind: 'warning',
+      code,
+      title,
+      description
+    })
+  } catch (error) {
+    console.error('[SettingsApp] Failed to present provider import warning', error)
+  }
+}
+
+const refreshImportedProviderModels = async (providerId: string) => {
+  try {
+    await modelStore.refreshProviderModels(providerId)
+  } catch (error) {
+    console.error('[SettingsApp] Imported provider model refresh failed', error)
+    notifyProviderImportWarning(
+      'settings.provider.importModelRefreshFailed',
+      t('settings.provider.toast.refreshModelsFailedTitle'),
+      t('settings.provider.toast.refreshModelsFailedDescription')
+    )
+  }
+}
+
+const navigateAfterProviderImport = async (providerId: string) => {
+  try {
+    await navigateToProviderSettings(providerId)
+  } catch (error) {
+    console.error('[SettingsApp] Imported provider navigation failed', error)
+    notifyProviderImportWarning(
+      'settings.provider.importNavigationFailed',
+      t('common.error.operationFailed')
+    )
   }
 }
 
@@ -414,11 +450,14 @@ const confirmProviderImport = async () => {
   }
 
   isImportingProvider.value = true
+  providerImportError.value = null
 
   try {
+    let importedProviderId: string
     if (preview.kind === 'builtin') {
       const targetProvider = providerStore.providers.find((provider) => provider.id === preview.id)
       if (!targetProvider) {
+        providerImportError.value = t('common.error.operationFailed')
         return
       }
 
@@ -427,8 +466,7 @@ const confirmProviderImport = async () => {
         await providerStore.updateProviderStatus(preview.id, true)
       }
 
-      await modelStore.refreshProviderModels(preview.id)
-      await navigateToProviderSettings(preview.id)
+      importedProviderId = preview.id
     } else {
       const providerId = nanoid()
       const newProvider: LLM_PROVIDER = {
@@ -442,19 +480,17 @@ const confirmProviderImport = async () => {
       }
 
       await providerStore.addCustomProvider(newProvider)
-      await modelStore.refreshProviderModels(providerId)
-      await navigateToProviderSettings(providerId)
+      importedProviderId = providerId
     }
 
+    await navigateAfterProviderImport(importedProviderId)
+    providerImportError.value = null
     providerDeeplinkImportStore.clearPreview()
     releaseProviderPreviewProcessing()
+    void refreshImportedProviderModels(importedProviderId)
   } catch (error) {
-    console.error('Failed to import provider from deeplink:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    console.error('[SettingsApp] Provider import failed', error)
+    providerImportError.value = t('common.error.operationFailed')
   } finally {
     isImportingProvider.value = false
   }
@@ -620,79 +656,30 @@ watch(
   { immediate: true }
 )
 
-const handleErrorClosed = () => {
-  currentErrorId.value = null
-
-  if (errorQueue.value.length > 0) {
-    const nextError = errorQueue.value.shift()
-    if (nextError) {
-      displayError(nextError)
-    }
-  } else if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
-  }
-}
-
-const displayError = (error: { id: string; title: string; message: string; type: string }) => {
-  currentErrorId.value = error.id
-
-  const { dismiss } = toast({
-    title: error.title,
-    description: error.message,
-    variant: 'destructive',
-    onOpenChange: (open) => {
-      if (!open) {
-        handleErrorClosed()
-      }
-    }
-  })
-
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-  }
-
-  errorDisplayTimer.value = window.setTimeout(() => {
-    dismiss()
-  }, 3000)
-}
-
-const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
-  const exists = errorQueue.value.findIndex((item) => item.id === error.id)
-  if (exists !== -1) {
-    return
-  }
-
-  if (currentErrorId.value) {
-    if (errorQueue.value.length > 5) {
-      errorQueue.value.shift()
-    }
-    errorQueue.value.push(error)
-    return
-  }
-
-  displayError(error)
-}
-
 const handleWindowFocus = () => {
   void syncPendingProviderInstall()
 }
 
 onMounted(async () => {
   startupWorkloadStore?.connect()
+  cleanupSemanticNotifications = notificationClient.onSemanticNotification((delivery) => {
+    semanticNotificationController.handle(delivery)
+  })
+  void notificationClient
+    .notifyRendererReady()
+    .then((ready) => {
+      if (!ready) {
+        console.warn('[Notification] Settings renderer was not accepted as a delivery target')
+      }
+    })
+    .catch((error) => {
+      console.error('[Notification] Failed to register settings renderer', error)
+    })
 
   // Listen for window maximize/unmaximize events
   deviceClient.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
-
-  const cleanupNotificationError = windowClient.onNotificationError((error) => {
-    showErrorToast(error)
-  })
-  const cleanupDatabaseRepairSuggested = windowClient.onDatabaseRepairSuggested((payload) => {
-    showDatabaseRepairSuggestedToast(payload as DatabaseRepairSuggestedPayload)
-  })
-  settingsEventCleanups.push(cleanupNotificationError, cleanupDatabaseRepairSuggested)
 
   const [settingsLoadResult, routerReadyResult] = await Promise.allSettled([
     uiSettingsStore.loadSettings(),
@@ -736,20 +723,48 @@ onMounted(async () => {
 // Same focus handler as before; VueUse manages lifecycle cleanup.
 useEventListener(window, 'focus', handleWindowFocus)
 
-const closeWindow = async () => {
-  await windowClient.closeSettings()
+const performWindowClose = async () => {
+  try {
+    await windowClient.closeSettings()
+  } catch (error) {
+    console.error('[Settings] Failed to close settings window:', error)
+  }
 }
 
-onBeforeUnmount(() => {
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
+const closeWindow = async () => {
+  if (await settingsLeaveGuard.requestLeave()) {
+    await performWindowClose()
   }
+}
 
+let nativeCloseRetryPending = false
+const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+  if (!settingsLeaveGuard.isBlocking()) return
+
+  event.preventDefault()
+  event.returnValue = false
+  if (nativeCloseRetryPending) return
+
+  nativeCloseRetryPending = true
+  void settingsLeaveGuard
+    .requestLeave()
+    .then((allowed) => {
+      if (allowed) void performWindowClose()
+    })
+    .finally(() => {
+      nativeCloseRetryPending = false
+    })
+}
+useEventListener(window, 'beforeunload', handleBeforeUnload)
+
+onBeforeUnmount(() => {
   cleanupSettingsNavigate()
   cleanupSettingsProviderInstall()
-  settingsEventCleanups.splice(0).forEach((cleanup) => cleanup())
+  removeSettingsRouteGuard()
   cleanupMcpDeeplink()
+  cleanupSemanticNotifications?.()
+  cleanupSemanticNotifications = undefined
+  semanticNotificationController.dispose()
 })
 </script>
 

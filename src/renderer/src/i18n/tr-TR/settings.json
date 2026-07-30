@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Güvenli anahtar depolama kullanılamadığı için kalıcı önbellek kullanılamıyor."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Kaydedilmemiş değişiklikler",
+    "dirtyDescription": "Çıkıp değişiklikleri atmak istiyor musunuz?",
+    "busyTitle": "Kaydetme sürüyor",
+    "busyDescription": "Çıkmadan önce kaydetmenin bitmesini bekleyin.",
+    "stay": "Düzenlemeye devam et",
+    "discard": "Değişiklikleri at"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Kaydediliyor…",
+      "saved": "Kaydedildi",
+      "saveFailed": "Kaydedilemedi. Değişiklikler korundu.",
+      "retry": "Yeniden dene"
+    },
     "title": "DeepChat Agent",
     "description": "DeepChat agents ve bunların yeni oturumlara ektiği varsayılanları yönetin.",
     "builtIn": "Yerleşik",
@@ -1627,7 +1641,15 @@
       "seconds": "saniye",
       "testConnection": "Bağlantıyı Test Et",
       "timeout": "Zaman aşımı",
-      "title": "Nowledge Bellek Dışa Aktarma"
+      "title": "Nowledge Bellek Dışa Aktarma",
+      "configLoadFailed": "Yapılandırma yüklenemedi",
+      "configSaved": "Yapılandırma kaydedildi",
+      "configSaveFailed": "Yapılandırma kaydedilemedi",
+      "configReset": "Yapılandırma sıfırlandı",
+      "configResetFailed": "Yapılandırma sıfırlanamadı",
+      "connectionSucceeded": "Bağlantı başarılı",
+      "connectionFailed": "Mevcut yapılandırmayla bağlantı kurulamadı",
+      "invalidBaseUrl": "Kimlik bilgileri veya sorgu parametreleri içermeyen bir HTTP ya da HTTPS adresi girin"
     }
   },
   "mcp": {
@@ -1673,6 +1695,7 @@
       "name": "Sunucu Adı",
       "namePlaceholder": "Sunucu adını girin",
       "nameRequired": "Sunucu adı gerekli",
+      "nameDuplicate": "Bu ada sahip bir sunucu zaten var.",
       "type": "Sunucu Türü",
       "typePlaceholder": "Sunucu türünü seçin",
       "typeStdio": "Standart giriş ve çıkış (Stdio)",
@@ -2997,7 +3020,7 @@
       "error": "Hata",
       "invalidAgent": "Ajan eksik veya devre dışı. Başka bir ajan seçin."
     },
-    "runNowSuccess": "Zamanlanmış görev başlatıldı"
+    "runNowSuccess": "Zamanlanmış görev tamamlandı"
   },
   "memory": {
     "description": "Her aracının oturumlar arasında neyi hatırladığını inceleyin, yapılandırın ve yönetin. Bellek her aracı için ayrıdır.",

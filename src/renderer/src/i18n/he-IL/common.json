@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "התראות",
+    "actionFailed": "הפעולה נכשלה. נסה שוב.",
+    "entities": "{count} מושפעים",
+    "occurrences": "{count} מופעים",
+    "pending": "{count} נוספים ממתינים",
+    "mcpConnectionFailed": {
+      "title": "לא ניתן להתחבר אל {serverName}",
+      "description": "בדוק את הגדרות השרת ונסה שוב."
+    },
+    "mcpToolListFailed": {
+      "title": "לא ניתן לטעון את הכלים של {serverName}",
+      "description": "השרת מחובר, אך הכלים שלו אינם זמינים."
+    },
+    "providerDeeplinkFailed": {
+      "title": "לא ניתן לפתוח את הגדרת הספק",
+      "reasons": {
+        "unsupported-version": "גרסת הקישור הזו אינה נתמכת.",
+        "invalid-payload": "קישור הספק הזה אינו תקין.",
+        "provider-not-found": "הספק המקושר לא נמצא.",
+        "unsupported-provider": "הספק הזה אינו נתמך.",
+        "settings-unavailable": "לא ניתן לפתוח את הגדרות הספק."
+      }
+    }
+  },
   "enabled": "מופעל",
   "disabled": "מושבת",
   "loading": "טוען...",

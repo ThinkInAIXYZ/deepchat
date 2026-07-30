@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "系统安全密钥存储不可用，持久化缓存已停用。"
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "修改尚未保存",
+    "dirtyDescription": "现在离开并放弃这些修改吗？",
+    "busyTitle": "正在保存",
+    "busyDescription": "请等待保存完成后再离开。",
+    "stay": "继续编辑",
+    "discard": "放弃修改"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "正在保存…",
+      "saved": "已保存",
+      "saveFailed": "保存失败，修改仍保留",
+      "retry": "重试"
+    },
     "title": "DeepChat Agents",
     "description": "管理 DeepChat Agent 以及它们的新会话默认值。",
     "builtIn": "内置",
@@ -1627,7 +1641,15 @@
       "seconds": "秒",
       "testConnection": "测试连接",
       "timeout": "超时",
-      "title": "Nowledge Mem 导出配置"
+      "title": "Nowledge Mem 导出配置",
+      "configLoadFailed": "无法加载配置",
+      "configSaved": "配置已保存",
+      "configSaveFailed": "无法保存配置",
+      "configReset": "配置已重置",
+      "configResetFailed": "无法重置配置",
+      "connectionSucceeded": "连接成功",
+      "connectionFailed": "无法使用当前配置建立连接",
+      "invalidBaseUrl": "请输入不含账号或查询参数的 HTTP(S) 地址"
     }
   },
   "mcp": {
@@ -1673,6 +1695,7 @@
       "name": "服务器名称",
       "namePlaceholder": "输入服务器名称",
       "nameRequired": "服务器名称不能为空",
+      "nameDuplicate": "已存在同名服务器，请换一个名称。",
       "type": "服务器类型",
       "typePlaceholder": "选择服务器类型",
       "typeStdio": "标准输入输出(Stdio)",
@@ -1892,7 +1915,7 @@
       "error": "错误",
       "invalidAgent": "Agent 不存在或已停用，请重新选择 Agent。"
     },
-    "runNowSuccess": "定时任务已触发"
+    "runNowSuccess": "定时任务已完成"
   },
   "about": {
     "title": "关于我们",

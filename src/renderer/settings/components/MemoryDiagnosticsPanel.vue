@@ -10,7 +10,13 @@
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" class="h-8 text-xs" :disabled="loading" @click="load">
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-8 text-xs"
+          :disabled="loading"
+          @click="refresh"
+        >
           <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
           {{ t('settings.memory.redesign.refresh') }}
         </Button>
@@ -24,6 +30,8 @@
         </Button>
       </div>
     </div>
+
+    <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
 
     <div
       v-if="showReindexFailure"
@@ -338,7 +346,6 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
-import { useToast } from '@/components/use-toast'
 import { createMemoryClient } from '@api/MemoryClient'
 import type {
   MemoryArchiveCandidateLifecyclePreview,
@@ -346,11 +353,9 @@ import type {
   MemoryHealthDto,
   MemoryStatusDto
 } from '@shared/contracts/routes'
-import {
-  auditSentenceKey,
-  formatRelativeTime,
-  notifyMemoryActionFailed
-} from './memoryRedesignUtils'
+import { auditSentenceKey, formatRelativeTime } from './memoryRedesignUtils'
+import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
+import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
 
 const props = defineProps<{
   agentId: string
@@ -359,8 +364,10 @@ const props = defineProps<{
 }>()
 
 const { t, te, locale } = useI18n()
-const { toast } = useToast()
 const memoryClient = createMemoryClient()
+const panelFeedback = useMemoryInlineFeedback('MemoryDiagnosticsPanel')
+const feedback = panelFeedback.feedback
+const clearFeedback = panelFeedback.clear
 
 const loading = ref(false)
 const reindexPending = ref(false)
@@ -384,7 +391,7 @@ const showReindexFailure = computed(
 const canRetryReindex = computed(() => props.status?.lastReindex?.lastError?.retryable === true)
 const reindexFailureReason = computed(() => {
   const error = props.status?.lastReindex?.lastError
-  if (!error?.code) return error?.message ?? t('settings.memory.redesign.reindexInternalReason')
+  if (!error?.code) return t('settings.memory.redesign.reindexInternalReason')
   if (error.code === 'pending-restart') {
     return t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
   }
@@ -464,10 +471,6 @@ const StatusPill = defineComponent({
   }
 })
 
-function notifyFailed(error?: unknown): void {
-  notifyMemoryActionFailed(toast, t, error)
-}
-
 function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 4)}…${id.slice(-6)}` : id
 }
@@ -498,15 +501,21 @@ async function load(): Promise<void> {
     auditEvents.value = nextEvents
   } catch (error) {
     if (current !== requestId || props.agentId !== agentId) return
-    notifyFailed(error)
+    panelFeedback.fail(error)
   } finally {
     if (current === requestId && props.agentId === agentId) loading.value = false
   }
 }
 
+function refresh(): void {
+  clearFeedback()
+  void load()
+}
+
 async function reindex(): Promise<void> {
   const agentId = props.agentId
   if (!agentId || reindexing.value) return
+  clearFeedback()
   reindexPending.value = true
   try {
     const result = await memoryClient.reindex(agentId)
@@ -520,7 +529,7 @@ async function reindex(): Promise<void> {
     await load()
   } catch (error) {
     if (props.agentId !== agentId) return
-    notifyFailed(error)
+    panelFeedback.fail(error)
     reindexPending.value = false
     pendingStartEpoch = null
   }
@@ -529,19 +538,21 @@ async function reindex(): Promise<void> {
 async function clearAll(): Promise<void> {
   const agentId = props.agentId
   if (!agentId || loading.value) return
+  clearFeedback()
   loading.value = true
   try {
     const result = await memoryClient.clear(agentId)
     if (props.agentId !== agentId) return
     if (result.cleanupPendingRestart) {
-      toast({
-        title: t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
-      })
+      panelFeedback.show(
+        'warning',
+        t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
+      )
     }
     await load()
   } catch (error) {
     if (props.agentId !== agentId) return
-    notifyFailed(error)
+    panelFeedback.fail(error)
   } finally {
     if (props.agentId === agentId) loading.value = false
   }
@@ -556,6 +567,7 @@ watch(
 watch(
   () => props.agentId,
   () => {
+    clearFeedback()
     reindexPending.value = false
     pendingStartEpoch = null
   }

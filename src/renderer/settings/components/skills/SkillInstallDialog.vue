@@ -10,15 +10,15 @@
 
       <Tabs v-model="activeTab" class="w-full">
         <TabsList class="grid w-full grid-cols-3">
-          <TabsTrigger value="folder">
+          <TabsTrigger value="folder" :disabled="installing">
             <Icon icon="lucide:folder" class="w-4 h-4 mr-1" />
             {{ t('settings.skills.install.tabFolder') }}
           </TabsTrigger>
-          <TabsTrigger value="zip">
+          <TabsTrigger value="zip" :disabled="installing">
             <Icon icon="lucide:file-archive" class="w-4 h-4 mr-1" />
             {{ t('settings.skills.install.tabZip') }}
           </TabsTrigger>
-          <TabsTrigger value="url">
+          <TabsTrigger value="url" :disabled="installing">
             <Icon icon="lucide:link" class="w-4 h-4 mr-1" />
             {{ t('settings.skills.install.tabUrl') }}
           </TabsTrigger>
@@ -28,9 +28,11 @@
           <div
             class="border-2 border-dashed rounded-lg p-8 text-center transition-colors"
             :class="
-              dragActive === 'folder'
-                ? 'border-primary bg-primary/5'
-                : 'hover:border-primary/50 cursor-pointer'
+              installing
+                ? 'cursor-not-allowed opacity-60'
+                : dragActive === 'folder'
+                  ? 'border-primary bg-primary/5'
+                  : 'hover:border-primary/50 cursor-pointer'
             "
             @click="selectFolder"
             @dragenter.prevent="onDragEnter('folder')"
@@ -60,9 +62,11 @@
           <div
             class="border-2 border-dashed rounded-lg p-8 text-center transition-colors"
             :class="
-              dragActive === 'zip'
-                ? 'border-primary bg-primary/5'
-                : 'hover:border-primary/50 cursor-pointer'
+              installing
+                ? 'cursor-not-allowed opacity-60'
+                : dragActive === 'zip'
+                  ? 'border-primary bg-primary/5'
+                  : 'hover:border-primary/50 cursor-pointer'
             "
             @click="selectZip"
             @dragenter.prevent="onDragEnter('zip')"
@@ -96,25 +100,34 @@
               {{ t('settings.skills.install.urlHint') }}
             </p>
           </div>
-          <Button class="w-full" :disabled="!installUrl || installing" @click="installFromUrl">
+          <Button
+            class="w-full"
+            :disabled="!installUrl.trim() || installing"
+            @click="installFromUrl"
+          >
             <Spinner v-if="installing" data-icon="inline-start" />
             {{ t('settings.skills.install.installButton') }}
           </Button>
         </TabsContent>
       </Tabs>
 
-      <!-- Progress indicator -->
-      <div v-if="installing" class="mt-4">
-        <div class="flex items-center gap-2 text-sm text-muted-foreground">
-          <Spinner class="size-4" />
-          <span>{{ t('settings.skills.install.installing') }}</span>
-        </div>
+      <div
+        v-if="validationError"
+        class="rounded-md border border-destructive/30 px-3 py-2 text-sm text-destructive"
+      >
+        {{ validationError }}
       </div>
+      <InlineOperationFeedback
+        v-if="
+          visibleInstallFeedback.status === 'success' || visibleInstallFeedback.status === 'error'
+        "
+        :snapshot="visibleInstallFeedback"
+      />
     </DialogContent>
   </Dialog>
 
   <!-- Conflict confirmation dialog -->
-  <AlertDialog v-model:open="conflictDialogOpen">
+  <AlertDialog :open="conflictDialogOpen" @update:open="handleConflictOpenChange">
     <AlertDialogContent>
       <AlertDialogHeader>
         <AlertDialogTitle>{{ t('settings.skills.conflict.title') }}</AlertDialogTitle>
@@ -135,9 +148,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { nanoid } from 'nanoid'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Spinner } from '@shadcn/components/ui/spinner'
@@ -159,12 +173,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@shadcn/components/ui/alert-dialog'
-import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
+import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import { createSkillClient } from '@api/SkillClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createFileClient } from '@api/FileClient'
 import type { SkillInstallResult } from '@shared/types/skill'
+import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const props = defineProps<{
   open: boolean
@@ -173,24 +190,30 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
-  installed: []
 }>()
 
 const { t } = useI18n()
-const { toast } = useToast()
 const skillsStore = useSkillsStore()
 const skillClient = createSkillClient()
 const deviceClient = createDeviceClient()
 const fileClient = createFileClient()
+const installController = createRendererSurfaceFeedbackController('settings')
+const { snapshot: installFeedback, setActive: setInstallFeedbackActive } =
+  useSurfaceFeedback(installController)
+const installOperationId = `settings.skills.install:${nanoid(8)}`
 
 const isOpen = computed({
   get: () => props.open,
-  set: (value) => emit('update:open', value)
+  set: (value) => {
+    if (!value && installing.value) return
+    if (!value) dismissSettledInstallFeedback()
+    emit('update:open', value)
+  }
 })
 
 const activeTab = ref('folder')
 const installUrl = ref('')
-const installing = ref(false)
+const validationError = ref('')
 
 // Drag and drop state: which zone is currently being dragged over
 const dragActive = ref<'folder' | 'zip' | null>(null)
@@ -199,34 +222,110 @@ const dragActive = ref<'folder' | 'zip' | null>(null)
 const conflictDialogOpen = ref(false)
 const conflictSkillName = ref('')
 const pendingInstallAction = ref<(() => Promise<void>) | null>(null)
-let contextVersion = 0
+const contextVersion = ref(0)
+const feedbackContextVersion = ref<number | null>(null)
+const feedbackAgentId = ref<string | undefined>()
 let pickerRequestId = 0
 let installRequestId = 0
+let installGeneration = 0
 
 const currentAgentId = () => props.agentId?.trim() || undefined
 const isCurrentContext = (version: number, agentId: string | undefined) =>
-  props.open && version === contextVersion && currentAgentId() === agentId
+  props.open && version === contextVersion.value && currentAgentId() === agentId
+const installing = computed(() => installFeedback.value.status === 'pending')
+const feedbackBelongsToSurface = computed(
+  () =>
+    feedbackContextVersion.value === contextVersion.value &&
+    feedbackAgentId.value === currentAgentId()
+)
+const visibleInstallFeedback = computed(() => {
+  const snapshot = installFeedback.value
+  if (snapshot.status === 'pending' || feedbackBelongsToSurface.value) return snapshot
+  return { status: 'idle' as const, version: snapshot.version }
+})
+const installFeedbackSurfaceActive = computed(
+  () => props.open && (installFeedback.value.status === 'idle' || feedbackBelongsToSurface.value)
+)
+
+const logFailure = (message: string, error: unknown) => {
+  console.error(message, error)
+}
+
+const dismissSettledInstallFeedback = () => {
+  const snapshot = installController.getSnapshot()
+  if (snapshot.status === 'success' || snapshot.status === 'error') {
+    installController.clearSettled()
+  }
+  if (snapshot.status !== 'pending') {
+    feedbackContextVersion.value = null
+    feedbackAgentId.value = undefined
+  }
+}
+
+const beginInstall = (agentId: string | undefined): number | null => {
+  if (installController.getSnapshot().status === 'pending') return null
+  const generation = ++installGeneration
+  feedbackContextVersion.value = contextVersion.value
+  feedbackAgentId.value = agentId
+  installController.begin(installOperationId, t('settings.skills.install.installing'))
+  return generation
+}
+
+const isCurrentInstall = (generation: number) =>
+  generation === installGeneration && installController.getSnapshot().status === 'pending'
+
+const showValidationError = (message: string) => {
+  const snapshot = installController.getSnapshot()
+  if (snapshot.status === 'success' || snapshot.status === 'error') {
+    dismissSettledInstallFeedback()
+  }
+  validationError.value = message
+}
 
 // Invalidate non-cancellable picker and IPC results when the destination changes or closes.
 watch([() => props.open, () => currentAgentId()], ([open, agentId], previous) => {
   const agentChanged = previous !== undefined && agentId !== previous[1]
   if (!open || agentChanged) {
-    contextVersion += 1
+    contextVersion.value += 1
     pickerRequestId += 1
-    installRequestId += 1
-    installing.value = false
     pendingInstallAction.value = null
     conflictDialogOpen.value = false
     conflictSkillName.value = ''
     dragActive.value = null
+    validationError.value = ''
   }
 })
 
 // Folder installation
+const executeInstall = async (
+  agentId: string | undefined,
+  request: () => Promise<SkillInstallResult>,
+  retryWithOverwrite: () => Promise<void>
+) => {
+  const version = contextVersion.value
+  if (!isCurrentContext(version, agentId)) return
+  const generation = beginInstall(agentId)
+  if (generation === null) return
+  const requestId = ++installRequestId
+  validationError.value = ''
+  try {
+    const result = await request()
+    if (!isCurrentInstall(generation) || requestId !== installRequestId) {
+      return
+    }
+    handleInstallResult(result, retryWithOverwrite, isCurrentContext(version, agentId))
+  } catch (error) {
+    if (!isCurrentInstall(generation) || requestId !== installRequestId) {
+      return
+    }
+    showError(error)
+  }
+}
+
 const selectFolder = async () => {
   if (installing.value) return
   const requestId = ++pickerRequestId
-  const version = contextVersion
+  const version = contextVersion.value
   const agentId = currentAgentId()
   try {
     const result = await deviceClient.selectDirectory()
@@ -235,7 +334,10 @@ const selectFolder = async () => {
       await tryInstallFromFolder(result.filePaths[0], false, agentId)
     }
   } catch (error) {
-    if (requestId === pickerRequestId && isCurrentContext(version, agentId)) showError(error)
+    if (requestId === pickerRequestId && isCurrentContext(version, agentId)) {
+      logFailure('[SkillInstallDialog] Failed to select a folder', error)
+      validationError.value = t('common.error.requestFailed')
+    }
   }
 }
 
@@ -244,30 +346,21 @@ const tryInstallFromFolder = async (
   overwrite = false,
   agentId: string | undefined = currentAgentId()
 ) => {
-  const version = contextVersion
-  if (!isCurrentContext(version, agentId)) return
-  const requestId = ++installRequestId
-  installing.value = true
-  try {
-    const result = agentId
-      ? await skillClient.installFromFolder(folderPath, { overwrite }, agentId)
-      : await skillsStore.installFromFolder(folderPath, { overwrite })
-    if (requestId !== installRequestId || !isCurrentContext(version, agentId)) return
-    handleInstallResult(result, () => tryInstallFromFolder(folderPath, true, agentId))
-  } catch (error) {
-    if (requestId === installRequestId && isCurrentContext(version, agentId)) showError(error)
-  } finally {
-    if (requestId === installRequestId && isCurrentContext(version, agentId)) {
-      installing.value = false
-    }
-  }
+  await executeInstall(
+    agentId,
+    () =>
+      agentId
+        ? skillClient.installFromFolder(folderPath, { overwrite }, agentId)
+        : skillsStore.installFromFolder(folderPath, { overwrite }),
+    () => tryInstallFromFolder(folderPath, true, agentId)
+  )
 }
 
 // ZIP installation
 const selectZip = async () => {
   if (installing.value) return
   const requestId = ++pickerRequestId
-  const version = contextVersion
+  const version = contextVersion.value
   const agentId = currentAgentId()
   try {
     const result = await deviceClient.selectFiles({
@@ -278,7 +371,10 @@ const selectZip = async () => {
       await tryInstallFromZip(result.filePaths[0], false, agentId)
     }
   } catch (error) {
-    if (requestId === pickerRequestId && isCurrentContext(version, agentId)) showError(error)
+    if (requestId === pickerRequestId && isCurrentContext(version, agentId)) {
+      logFailure('[SkillInstallDialog] Failed to select a ZIP archive', error)
+      validationError.value = t('common.error.requestFailed')
+    }
   }
 }
 
@@ -287,23 +383,14 @@ const tryInstallFromZip = async (
   overwrite = false,
   agentId: string | undefined = currentAgentId()
 ) => {
-  const version = contextVersion
-  if (!isCurrentContext(version, agentId)) return
-  const requestId = ++installRequestId
-  installing.value = true
-  try {
-    const result = agentId
-      ? await skillClient.installFromZip(zipPath, { overwrite }, agentId)
-      : await skillsStore.installFromZip(zipPath, { overwrite })
-    if (requestId !== installRequestId || !isCurrentContext(version, agentId)) return
-    handleInstallResult(result, () => tryInstallFromZip(zipPath, true, agentId))
-  } catch (error) {
-    if (requestId === installRequestId && isCurrentContext(version, agentId)) showError(error)
-  } finally {
-    if (requestId === installRequestId && isCurrentContext(version, agentId)) {
-      installing.value = false
-    }
-  }
+  await executeInstall(
+    agentId,
+    () =>
+      agentId
+        ? skillClient.installFromZip(zipPath, { overwrite }, agentId)
+        : skillsStore.installFromZip(zipPath, { overwrite }),
+    () => tryInstallFromZip(zipPath, true, agentId)
+  )
 }
 
 // Drag and drop handlers
@@ -354,11 +441,7 @@ const handleDrop = async (event: DragEvent) => {
 }
 
 const showDropError = () => {
-  toast({
-    title: t('settings.skills.install.failed'),
-    description: t('settings.skills.install.dragInvalid'),
-    variant: 'destructive'
-  })
+  showValidationError(t('settings.skills.install.dragInvalid'))
 }
 
 // URL validation helper
@@ -374,15 +457,12 @@ const isValidUrl = (url: string): boolean => {
 // URL installation
 const installFromUrl = async () => {
   if (!installUrl.value || installing.value) return
-  if (!isValidUrl(installUrl.value)) {
-    toast({
-      title: t('settings.skills.install.failed'),
-      description: 'Invalid URL format. Please enter a valid HTTP or HTTPS URL.',
-      variant: 'destructive'
-    })
+  const url = installUrl.value.trim()
+  if (!isValidUrl(url)) {
+    showValidationError(t('settings.skills.install.urlHint'))
     return
   }
-  await tryInstallFromUrl(installUrl.value, false, currentAgentId())
+  await tryInstallFromUrl(url, false, currentAgentId())
 }
 
 const tryInstallFromUrl = async (
@@ -390,50 +470,58 @@ const tryInstallFromUrl = async (
   overwrite = false,
   agentId: string | undefined = currentAgentId()
 ) => {
-  const version = contextVersion
-  if (!isCurrentContext(version, agentId)) return
-  const requestId = ++installRequestId
-  installing.value = true
-  try {
-    const result = agentId
-      ? await skillClient.installFromUrl(url, { overwrite }, agentId)
-      : await skillsStore.installFromUrl(url, { overwrite })
-    if (requestId !== installRequestId || !isCurrentContext(version, agentId)) return
-    handleInstallResult(result, () => tryInstallFromUrl(url, true, agentId))
-    if (result.success) {
-      installUrl.value = ''
-    }
-  } catch (error) {
-    if (requestId === installRequestId && isCurrentContext(version, agentId)) showError(error)
-  } finally {
-    if (requestId === installRequestId && isCurrentContext(version, agentId)) {
-      installing.value = false
-    }
-  }
+  await executeInstall(
+    agentId,
+    () =>
+      agentId
+        ? skillClient.installFromUrl(url, { overwrite }, agentId)
+        : skillsStore.installFromUrl(url, { overwrite }),
+    () => tryInstallFromUrl(url, true, agentId)
+  )
 }
 
 // Common result handling
 const handleInstallResult = (
   result: SkillInstallResult,
-  retryWithOverwrite: () => Promise<void>
+  retryWithOverwrite: () => Promise<void>,
+  surfaceCurrent: boolean
 ) => {
   if (result.success) {
-    toast({
+    installController.succeed({
+      code: 'settings.skills.installed',
       title: t('settings.skills.install.success'),
       description: t('settings.skills.install.successMessage', { name: result.skillName })
     })
-    emit('installed')
-    isOpen.value = false
+    if (surfaceCurrent) {
+      installController.clearSettled()
+      feedbackContextVersion.value = null
+      feedbackAgentId.value = undefined
+      installUrl.value = ''
+      isOpen.value = false
+    }
   } else if (result.errorCode === 'conflict') {
-    const skillName = result.existingSkillName || result.error?.match(/"([^"]+)"/)?.[1] || ''
-    conflictSkillName.value = skillName
+    if (!surfaceCurrent) {
+      installController.fail({
+        code: 'settings.skills.installConflict',
+        title: t('settings.skills.conflict.title'),
+        description: t('settings.skills.conflict.description', {
+          name: result.existingSkillName || result.skillName || ''
+        })
+      })
+      return
+    }
+    installController.cancelPending()
+    conflictSkillName.value = result.existingSkillName || result.skillName || ''
     pendingInstallAction.value = retryWithOverwrite
     conflictDialogOpen.value = true
   } else {
-    toast({
+    console.error('[SkillInstallDialog] Skill installation was rejected', {
+      errorCode: result.errorCode ?? 'UnknownError'
+    })
+    installController.fail({
+      code: 'settings.skills.installFailed',
       title: t('settings.skills.install.failed'),
-      description: result.error,
-      variant: 'destructive'
+      description: t('common.error.requestFailed')
     })
   }
 }
@@ -444,21 +532,67 @@ const handleConflictCancel = () => {
   conflictSkillName.value = ''
 }
 
-const handleConflictOverwrite = async () => {
-  conflictDialogOpen.value = false
-  if (pendingInstallAction.value) {
-    await pendingInstallAction.value()
-    pendingInstallAction.value = null
+const handleConflictOpenChange = (open: boolean) => {
+  if (open) {
+    conflictDialogOpen.value = true
+    return
   }
+  handleConflictCancel()
+}
+
+const handleConflictOverwrite = async () => {
+  const action = pendingInstallAction.value
+  pendingInstallAction.value = null
+  conflictDialogOpen.value = false
   conflictSkillName.value = ''
+  if (action) await action()
 }
 
 const showError = (error: unknown) => {
-  console.error('Install error:', error)
-  toast({
+  logFailure('[SkillInstallDialog] Skill installation failed', error)
+  if (installController.getSnapshot().status !== 'pending') {
+    validationError.value = t('common.error.requestFailed')
+    return
+  }
+  installController.fail({
+    code: 'settings.skills.installFailed',
     title: t('settings.skills.install.failed'),
-    description: String(error),
-    variant: 'destructive'
+    description: t('common.error.requestFailed')
   })
 }
+
+watch([activeTab, installUrl], () => {
+  if (installing.value) return
+  validationError.value = ''
+  const snapshot = installController.getSnapshot()
+  if (snapshot.status === 'success' || snapshot.status === 'error') {
+    dismissSettledInstallFeedback()
+  }
+})
+
+const stopSurfaceLeaseSync = watch(
+  installFeedbackSurfaceActive,
+  (active) => {
+    setInstallFeedbackActive(active)
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: `settings.skills.install:${nanoid(8)}`,
+  onDiscard: () => undefined
+})
+const stopLeaveRiskSync = watch(
+  installing,
+  (pending) => {
+    leaveGuardLease.setRisk(pending ? 'busy' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  stopSurfaceLeaseSync()
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
+})
 </script>

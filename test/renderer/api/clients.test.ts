@@ -661,6 +661,8 @@ describe('renderer api clients', () => {
                   storage: 'safeStorage'
                 }
               }
+            case 'mcp.addServer':
+              return { result: { status: 'duplicate' } }
             case 'mcp.router.listServers':
               return {
                 servers: [
@@ -689,8 +691,6 @@ describe('renderer api clients', () => {
               return { installed: false }
             case 'mcp.router.listInstalledServerIds':
               return { installedSourceIds: ['context7'] }
-            case 'mcp.router.updateServersAuth':
-              return { updated: true }
             case 'remoteControl.listChannels':
               return {
                 channels: [
@@ -2361,6 +2361,7 @@ describe('renderer api clients', () => {
       page_size: 50
     })
     await providerClient.runAcpDebugAction({
+      requestId: 'debug-request-1',
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {},
@@ -2380,6 +2381,7 @@ describe('renderer api clients', () => {
       }
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'providers.runAcpDebugAction', {
+      requestId: 'debug-request-1',
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {},
@@ -2554,7 +2556,12 @@ describe('renderer api clients', () => {
       apiKey: 'secret',
       timeout: 45000
     })
-    const testResult = await nowledgeMemClient.testConnection()
+    const testConfig = {
+      baseUrl: 'http://draft.local',
+      apiKey: 'draft-secret',
+      timeout: 12000
+    }
+    const testResult = await nowledgeMemClient.testConnection(testConfig)
 
     expect(testResult).toEqual({
       success: true,
@@ -2568,7 +2575,9 @@ describe('renderer api clients', () => {
         timeout: 45000
       }
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'nowledgeMem.testConnection', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'nowledgeMem.testConnection', {
+      config: testConfig
+    })
   })
 
   it('routes skill file reads through the shared registry name', async () => {
@@ -2696,7 +2705,6 @@ describe('renderer api clients', () => {
     const listResult = await mcpClient.listMcpRouterServers(1, 20)
     const key = await mcpClient.getMcpRouterApiKey()
     await mcpClient.setMcpRouterApiKey('new-router-key')
-    await mcpClient.updateMcpRouterServersAuth('new-router-key')
     const installed = await mcpClient.isServerInstalled('mcprouter', 'context7')
     const installedIds = await mcpClient.listInstalledServerIds('mcprouter', [
       'context7',
@@ -2722,19 +2730,31 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'mcp.router.setApiKey', {
       key: 'new-router-key'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'mcp.router.updateServersAuth', {
-      apiKey: 'new-router-key'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'mcp.router.isServerInstalled', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'mcp.router.isServerInstalled', {
       source: 'mcprouter',
       sourceId: 'context7'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'mcp.router.listInstalledServerIds', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'mcp.router.listInstalledServerIds', {
       source: 'mcprouter',
       sourceIds: ['context7', 'filesystem']
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'mcp.router.installServer', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'mcp.router.installServer', {
       serverKey: 'context7'
+    })
+  })
+
+  it('returns typed MCP add outcomes to the initiating renderer', async () => {
+    const bridge = createBridge()
+    const mcpClient = createMcpClient(bridge)
+    const config = { type: 'stdio', command: 'node' } as const
+
+    await expect(mcpClient.addMcpServer('duplicate-server', config)).resolves.toEqual({
+      status: 'duplicate'
+    })
+
+    expect(bridge.invoke).toHaveBeenCalledWith('mcp.addServer', {
+      serverName: 'duplicate-server',
+      config
     })
   })
 

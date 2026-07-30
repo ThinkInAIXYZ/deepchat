@@ -271,7 +271,6 @@ const mountApp = async (options?: {
   const modelStore = {
     initialize: vi.fn().mockResolvedValue(undefined)
   }
-  const toast = vi.fn(() => ({ dismiss: vi.fn() }))
   const ipcOn = vi.fn(() => vi.fn())
   const ipcRemoveAllListeners = vi.fn()
 
@@ -375,11 +374,6 @@ const mountApp = async (options?: {
   }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
-  }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast
-    })
   }))
   vi.doMock('@/stores/uiSettingsStore', () => ({
     useUiSettingsStore: () => ({

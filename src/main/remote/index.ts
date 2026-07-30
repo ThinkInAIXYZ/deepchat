@@ -951,7 +951,8 @@ export class RemoteService {
       enabled: normalized.remoteEnabled,
       defaultAgentId,
       defaultWorkdir: normalized.defaultWorkdir,
-      pairedUserIds: normalized.pairedUserIds,
+      // Pairing state may change while a renderer-owned settings save is in flight.
+      pairedUserIds: config.pairedUserIds,
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: config.pairing
     }))
@@ -1007,7 +1008,8 @@ export class RemoteService {
       enabled: normalized.remoteEnabled,
       defaultAgentId,
       defaultWorkdir: normalized.defaultWorkdir,
-      pairedChannelIds: normalized.pairedChannelIds,
+      // Pairing state may change while a renderer-owned settings save is in flight.
+      pairedChannelIds: config.pairedChannelIds,
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: config.pairing
     }))
@@ -1058,9 +1060,8 @@ export class RemoteService {
       normalized.defaultAgentId
     )
     await this.assertAcpDefaultWorkdir(defaultAgentId, normalized.defaultWorkdir)
-    const currentRemoteConfig = this.bindingStore.getWeixinIlinkConfig()
-    const currentAccountsById = new Map(
-      currentRemoteConfig.accounts.map((account) => [account.accountId, account] as const)
+    const requestedAccountsById = new Map(
+      normalized.accounts.map((account) => [account.accountId, account] as const)
     )
 
     this.bindingStore.updateWeixinIlinkConfig((config) => ({
@@ -1068,17 +1069,12 @@ export class RemoteService {
       enabled: normalized.remoteEnabled,
       defaultAgentId,
       defaultWorkdir: normalized.defaultWorkdir,
-      accounts: normalized.accounts.map((account) => {
-        const existing = currentAccountsById.get(account.accountId)
+      // Account membership and credentials are owned by login/remove operations.
+      accounts: config.accounts.map((account) => {
+        const requested = requestedAccountsById.get(account.accountId)
         return {
-          accountId: account.accountId,
-          ownerUserId: account.ownerUserId,
-          baseUrl: account.baseUrl,
-          botToken: existing?.botToken ?? '',
-          enabled: account.enabled,
-          syncCursor: existing?.syncCursor ?? '',
-          lastFatalError: existing?.lastFatalError ?? null,
-          bindings: existing?.bindings ?? {}
+          ...account,
+          enabled: requested?.enabled ?? account.enabled
         }
       })
     }))

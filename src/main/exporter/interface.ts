@@ -21,7 +21,7 @@ export interface IConversationExporter {
     errors?: string[]
   }>
 
-  testNowledgeMemConnection(): Promise<{
+  testNowledgeMemConnection(config?: NowledgeMemConfig): Promise<{
     success: boolean
     message?: string
     error?: string

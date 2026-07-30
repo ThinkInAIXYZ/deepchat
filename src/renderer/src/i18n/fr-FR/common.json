@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Notifications",
+    "actionFailed": "L’action a échoué. Réessayez.",
+    "entities": "{count} affectés",
+    "occurrences": "{count} occurrences",
+    "pending": "{count} autres en attente",
+    "mcpConnectionFailed": {
+      "title": "Connexion à {serverName} impossible",
+      "description": "Vérifiez les paramètres du serveur, puis réessayez."
+    },
+    "mcpToolListFailed": {
+      "title": "Impossible de charger les outils de {serverName}",
+      "description": "Le serveur est connecté, mais ses outils sont indisponibles."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Impossible d’ouvrir la configuration du fournisseur",
+      "reasons": {
+        "unsupported-version": "Cette version du lien n’est pas prise en charge.",
+        "invalid-payload": "Ce lien de fournisseur n’est pas valide.",
+        "provider-not-found": "Le fournisseur associé est introuvable.",
+        "unsupported-provider": "Ce fournisseur n’est pas pris en charge.",
+        "settings-unavailable": "Impossible d’ouvrir les paramètres du fournisseur."
+      }
+    }
+  },
   "enabled": "Activé",
   "disabled": "Désactivé",
   "loading": "Chargement...",

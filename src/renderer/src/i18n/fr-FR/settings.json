@@ -1296,7 +1296,15 @@
       "seconds": "seconde",
       "testConnection": "Tester la connexion",
       "timeout": "dépassement de délai",
-      "title": "Configuration d'exportation Nowledge Mem"
+      "title": "Configuration d'exportation Nowledge Mem",
+      "configLoadFailed": "Impossible de charger la configuration",
+      "configSaved": "Configuration enregistrée",
+      "configSaveFailed": "Impossible d’enregistrer la configuration",
+      "configReset": "Configuration réinitialisée",
+      "configResetFailed": "Impossible de réinitialiser la configuration",
+      "connectionSucceeded": "Connexion réussie",
+      "connectionFailed": "Impossible de se connecter avec la configuration actuelle",
+      "invalidBaseUrl": "Saisissez une adresse HTTP ou HTTPS sans identifiants ni paramètres de requête"
     }
   },
   "mcp": {
@@ -1332,6 +1340,7 @@
       "name": "Nom du serveur",
       "namePlaceholder": "Entrer le nom du serveur",
       "nameRequired": "Le nom du serveur est requis",
+      "nameDuplicate": "Un serveur portant ce nom existe déjà.",
       "type": "Type de serveur",
       "typePlaceholder": "Sélectionner le type de serveur",
       "typeStdio": "Entrée et sortie standard (Stdio)",
@@ -1561,7 +1570,7 @@
       "error": "Erreur",
       "invalidAgent": "L'agent est manquant ou désactivé. Choisissez un autre agent."
     },
-    "runNowSuccess": "Tâche planifiée démarrée"
+    "runNowSuccess": "Tâche planifiée terminée"
   },
   "about": {
     "checkUpdate": "Vérifier les mises à jour",
@@ -2638,7 +2647,21 @@
       "safe_storage_unavailable": "Le cache persistant est indisponible, car aucun stockage sécurisé des clés n’est disponible."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Modifications non enregistrées",
+    "dirtyDescription": "Quitter et abandonner vos modifications ?",
+    "busyTitle": "Enregistrement en cours",
+    "busyDescription": "Attendez la fin de l’enregistrement avant de quitter.",
+    "stay": "Continuer",
+    "discard": "Abandonner"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Enregistrement…",
+      "saved": "Enregistré",
+      "saveFailed": "Échec de l’enregistrement. Modifications conservées.",
+      "retry": "Réessayer"
+    },
     "title": "Agents DeepChat",
     "description": "Gérez les agents DeepChat et les valeurs par défaut qu'ils injectent dans les nouvelles sessions.",
     "builtIn": "Intégré",

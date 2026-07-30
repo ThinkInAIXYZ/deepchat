@@ -1296,7 +1296,15 @@
       "seconds": "segundo",
       "testConnection": "Testar conexão",
       "timeout": "tempo esgotado",
-      "title": "Configuração de exportação do Nowledge Mem"
+      "title": "Configuração de exportação do Nowledge Mem",
+      "configLoadFailed": "Não foi possível carregar a configuração",
+      "configSaved": "Configuração salva",
+      "configSaveFailed": "Não foi possível salvar a configuração",
+      "configReset": "Configuração redefinida",
+      "configResetFailed": "Não foi possível redefinir a configuração",
+      "connectionSucceeded": "Conexão bem-sucedida",
+      "connectionFailed": "Não foi possível conectar com a configuração atual",
+      "invalidBaseUrl": "Insira um endereço HTTP ou HTTPS sem credenciais ou parâmetros de consulta"
     }
   },
   "mcp": {
@@ -1343,6 +1351,7 @@
       "name": "Nome do Servidor",
       "namePlaceholder": "Digite o nome do servidor",
       "nameRequired": "O nome do servidor é obrigatório",
+      "nameDuplicate": "Já existe um servidor com esse nome.",
       "type": "Tipo de Servidor",
       "typePlaceholder": "Selecionar tipo de servidor",
       "typeStdio": "Entrada e saída padrão (Stdio)",
@@ -1561,7 +1570,7 @@
       "error": "Erro",
       "invalidAgent": "O agente está ausente ou desabilitado. Escolha outro agente."
     },
-    "runNowSuccess": "Tarefa agendada iniciada"
+    "runNowSuccess": "Tarefa agendada concluída"
   },
   "about": {
     "title": "Sobre Nós",
@@ -2638,7 +2647,21 @@
       "safe_storage_unavailable": "O cache persistente está indisponível porque o armazenamento seguro de chaves não está disponível."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Alterações não salvas",
+    "dirtyDescription": "Sair e descartar as alterações?",
+    "busyTitle": "Salvamento em andamento",
+    "busyDescription": "Aguarde o salvamento terminar antes de sair.",
+    "stay": "Continuar editando",
+    "discard": "Descartar alterações"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Salvando…",
+      "saved": "Salvo",
+      "saveFailed": "Não foi possível salvar. As alterações foram mantidas.",
+      "retry": "Tentar novamente"
+    },
     "title": "Agentes do DeepChat",
     "description": "Gerencie os agentes do DeepChat e os padrões que eles aplicam às novas sessões.",
     "builtIn": "Integrado",

@@ -1,6 +1,6 @@
 import { createFileClient } from '@api/FileClient'
 import { useI18n } from 'vue-i18n'
-import { useToast } from '@/components/use-toast'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 export type ImageActionSource = {
   source: string
@@ -10,7 +10,6 @@ export type ImageActionSource = {
 
 export function useImageActions() {
   const { t } = useI18n()
-  const { toast } = useToast()
   const fileClient = createFileClient()
 
   const saveImage = async (image: ImageActionSource) => {
@@ -20,15 +19,18 @@ export function useImageActions() {
         return
       }
 
-      toast({
+      notifyRenderer({
+        kind: 'success',
+        code: 'image.saved',
         title: t('image.saveSuccess'),
         description: result.path
       })
     } catch (error) {
       console.error('Failed to save image:', error)
-      toast({
-        title: t('image.saveFailed'),
-        variant: 'destructive'
+      notifyRenderer({
+        kind: 'error',
+        code: 'image.saveFailed',
+        title: t('image.saveFailed')
       })
     }
   }
@@ -40,16 +42,19 @@ export function useImageActions() {
         throw new Error('Image was not copied')
       }
 
-      toast({
+      notifyRenderer({
+        kind: 'success',
+        code: 'image.copied',
         title: t('common.copyImageSuccess'),
         description: t('common.copyImageSuccessDesc')
       })
     } catch (error) {
       console.error('Failed to copy image:', error)
-      toast({
+      notifyRenderer({
+        kind: 'error',
+        code: 'image.copyFailed',
         title: t('common.copyFailed'),
-        description: t('common.copyFailedDesc'),
-        variant: 'destructive'
+        description: t('common.copyFailedDesc')
       })
     }
   }

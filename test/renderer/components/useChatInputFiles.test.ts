@@ -3,8 +3,8 @@ import { ref } from 'vue'
 import type { MessageFile } from '@shared/types/agent-interface'
 import { useChatInputFiles } from '@/components/chat/composables/useChatInputFiles'
 
-const { toastMock, fileClient } = vi.hoisted(() => ({
-  toastMock: vi.fn(),
+const { notifyMock, fileClient } = vi.hoisted(() => ({
+  notifyMock: vi.fn(),
   fileClient: {
     getMimeType: vi.fn(),
     prepareFile: vi.fn(),
@@ -18,10 +18,8 @@ const { toastMock, fileClient } = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({
-    toast: toastMock
-  })
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: notifyMock
 }))
 
 vi.mock('@api/FileClient', () => ({
@@ -97,11 +95,11 @@ describe('useChatInputFiles', () => {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     )
     expect(emit).toHaveBeenCalledWith('file-upload', [messageFile])
-    expect(toastMock).not.toHaveBeenCalled()
+    expect(notifyMock).not.toHaveBeenCalled()
     expect(target.value).toBe('')
   })
 
-  it('shows a destructive toast when selected files fail processing', async () => {
+  it('reports a semantic error when selected files fail processing', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const emit = vi.fn()
     const target = { files: createFileList([new File(['bad'], 'broken.docx')]), value: 'x' }
@@ -115,10 +113,11 @@ describe('useChatInputFiles', () => {
     await files.handleFileSelect({ target } as unknown as Event)
 
     expect(emit).not.toHaveBeenCalled()
-    expect(toastMock).toHaveBeenCalledWith({
+    expect(notifyMock).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.attachment.processingFailed',
       title: 'Attachment failed',
-      description: 'Could not process 1 files: broken.docx',
-      variant: 'destructive'
+      description: 'Could not process 1 files: broken.docx'
     })
     expect(target.value).toBe('')
     consoleSpy.mockRestore()

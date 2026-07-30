@@ -4,6 +4,7 @@ import type {
   MCPToolCall,
   MCPToolDefinition,
   MCPToolResponse,
+  McpAddServerResult,
   McpClient,
   McpServerAuthStatus,
   McpSamplingDecision,
@@ -22,6 +23,10 @@ const ResourceSchema = z.custom<Resource>()
 const MCPToolCallSchema = z.custom<MCPToolCall>()
 const MCPToolResponseSchema = z.custom<MCPToolResponse>()
 const McpSamplingDecisionSchema = z.custom<McpSamplingDecision>()
+const McpAddServerResultSchema: z.ZodType<McpAddServerResult> = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('added') }).strict(),
+  z.object({ status: z.literal('duplicate') }).strict()
+])
 export const McpServerAuthStatusSchema: z.ZodType<McpServerAuthStatus> = z.object({
   serverName: z.string(),
   state: z.enum(['unsupported', 'none', 'required', 'authenticating', 'authenticated', 'error']),
@@ -119,7 +124,7 @@ export const mcpAddServerRoute = defineRouteContract({
     config: MCPServerConfigSchema
   }),
   output: z.object({
-    success: z.boolean()
+    result: McpAddServerResultSchema
   })
 })
 
@@ -380,16 +385,6 @@ export const mcpRouterListInstalledServerIdsRoute = defineRouteContract({
   }),
   output: z.object({
     installedSourceIds: z.array(z.string())
-  })
-})
-
-export const mcpRouterUpdateServersAuthRoute = defineRouteContract({
-  name: 'mcp.router.updateServersAuth',
-  input: z.object({
-    apiKey: z.string()
-  }),
-  output: z.object({
-    updated: z.literal(true)
   })
 })
 

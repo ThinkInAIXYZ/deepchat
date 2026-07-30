@@ -14,17 +14,25 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
+        <InlineOperationFeedback
+          v-if="knowledgeOperation.source.value === 'panel'"
+          :snapshot="knowledgeOperation.snapshot.value"
+          :retry-label="t('common.retry')"
+          @click.stop
+          @retry="knowledgeOperation.retry"
+        />
         <!-- MCP开关 -->
         <TooltipProvider>
           <Tooltip :delay-duration="200">
             <TooltipTrigger>
               <Switch
                 :model-value="isDifyMcpEnabled"
-                :disabled="!mcpStore.mcpEnabled"
+                :disabled="!mcpEnabled || operationPending"
+                @click.stop
                 @update:model-value="toggleDifyMcpServer"
               />
             </TooltipTrigger>
-            <TooltipContent v-if="!mcpStore.mcpEnabled">
+            <TooltipContent v-if="!mcpEnabled">
               <p>{{ t('settings.mcp.enableToAccess') }}</p>
             </TooltipContent>
           </Tooltip>
@@ -40,6 +48,9 @@
     <Collapsible v-model:open="isDifyConfigPanelOpen">
       <CollapsibleContent>
         <div class="p-4 border-t space-y-4">
+          <p v-if="loadError" role="alert" class="text-xs text-destructive">
+            {{ loadError }}
+          </p>
           <!-- 已添加的配置列表 -->
           <div v-if="difyConfigs.length > 0" class="space-y-3">
             <div
@@ -50,11 +61,13 @@
               <div class="absolute top-2 right-2 flex gap-2">
                 <Switch
                   :model-value="config.enabled === true"
+                  :disabled="operationPending"
                   size="sm"
                   @update:model-value="(value) => toggleConfigEnabled(index, value)"
                 />
                 <button
                   type="button"
+                  :disabled="operationPending"
                   class="text-muted-foreground hover:text-primary"
                   @click="editDifyConfig(index)"
                 >
@@ -62,6 +75,7 @@
                 </button>
                 <button
                   type="button"
+                  :disabled="operationPending"
                   class="text-muted-foreground hover:text-destructive"
                   @click="removeDifyConfig(index)"
                 >
@@ -95,6 +109,7 @@
           <div class="flex justify-center">
             <Button
               type="button"
+              :disabled="operationPending"
               size="sm"
               class="w-full flex items-center justify-center gap-2"
               variant="outline"
@@ -109,7 +124,7 @@
     </Collapsible>
 
     <!-- Dify配置对话框 -->
-    <Dialog v-model:open="isDifyConfigDialogOpen">
+    <Dialog :open="isDifyConfigDialogOpen" @update:open="handleDialogOpenChange">
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{{
@@ -129,6 +144,7 @@
             <Input
               id="edit-dify-description"
               v-model="editingDifyConfig.description"
+              :disabled="operationPending"
               :placeholder="t('settings.knowledgeBase.descriptionPlaceholder')"
             />
           </div>
@@ -140,6 +156,7 @@
             <Input
               id="edit-dify-api-key"
               v-model="editingDifyConfig.apiKey"
+              :disabled="operationPending"
               type="password"
               placeholder="Dify API Key"
             />
@@ -152,6 +169,7 @@
             <Input
               id="edit-dify-dataset-id"
               v-model="editingDifyConfig.datasetId"
+              :disabled="operationPending"
               placeholder="Dify Dataset ID"
             />
           </div>
@@ -163,15 +181,29 @@
             <Input
               id="edit-dify-endpoint"
               v-model="editingDifyConfig.endpoint"
+              :disabled="operationPending"
               placeholder="https://api.dify.ai/v1"
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="closeEditDifyConfigDialog">{{
-            t('common.cancel')
-          }}</Button>
-          <Button type="button" :disabled="!isEditingDifyConfigValid" @click="saveDifyConfig">
+          <InlineOperationFeedback
+            v-if="knowledgeOperation.source.value === 'dialog'"
+            :snapshot="knowledgeOperation.snapshot.value"
+            :retry-label="t('common.retry')"
+            @retry="knowledgeOperation.retry"
+          />
+          <Button
+            variant="outline"
+            :disabled="operationPending"
+            @click="closeEditDifyConfigDialog"
+            >{{ t('common.cancel') }}</Button
+          >
+          <Button
+            type="button"
+            :disabled="operationPending || !isEditingDifyConfigValid"
+            @click="saveDifyConfig"
+          >
             {{ isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig') }}
           </Button>
         </DialogFooter>
@@ -181,7 +213,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, toRaw, onUnmounted } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -197,20 +229,23 @@ import {
   DialogDescription
 } from '@shadcn/components/ui/dialog'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
-import { useMcpStore } from '@/stores/mcp'
-import { useToast } from '@/components/use-toast'
+import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
+import { useRoute } from 'vue-router'
+import { useExternalKnowledgeConfigs } from '../lib/useExternalKnowledgeConfigs'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 // 对话框状态
 const isDifyConfigDialogOpen = ref(false)
 
 // 打开添加配置对话框
 const openAddConfig = () => {
+  if (operationPending.value) return
   isEditing.value = false
   editingConfigIndex.value = -1
   editingDifyConfig.value = {
@@ -220,6 +255,7 @@ const openAddConfig = () => {
     endpoint: 'https://api.dify.ai/v1',
     enabled: true
   }
+  dialogInitialSignature.value = editingSignature.value
   isDifyConfigDialogOpen.value = true
 }
 
@@ -228,13 +264,10 @@ defineExpose({
 })
 
 const { t } = useI18n()
-const mcpStore = useMcpStore()
-const { toast } = useToast()
 
 // 对话框状态
 const isDifyConfigPanelOpen = ref(false)
 const isEditing = ref(false)
-import { useRoute } from 'vue-router'
 
 const route = useRoute()
 // Dify配置状态
@@ -246,7 +279,6 @@ interface DifyConfig {
   enabled?: boolean
 }
 
-const difyConfigs = ref<DifyConfig[]>([])
 const editingDifyConfig = ref<DifyConfig>({
   description: '',
   apiKey: '',
@@ -255,6 +287,38 @@ const editingDifyConfig = ref<DifyConfig>({
   enabled: true
 })
 const editingConfigIndex = ref<number>(-1)
+const dialogInitialSignature = ref('')
+const editingSignature = computed(() => JSON.stringify(editingDifyConfig.value))
+const dialogDirty = computed(
+  () => isDifyConfigDialogOpen.value && editingSignature.value !== dialogInitialSignature.value
+)
+
+const isDifyConfig = (value: unknown): value is DifyConfig => {
+  if (typeof value !== 'object' || value === null) return false
+  const config = value as Record<string, unknown>
+  return (
+    typeof config.description === 'string' &&
+    typeof config.apiKey === 'string' &&
+    typeof config.datasetId === 'string' &&
+    typeof config.endpoint === 'string' &&
+    (config.enabled === undefined || typeof config.enabled === 'boolean')
+  )
+}
+
+const cloneConfig = (config: DifyConfig): DifyConfig => ({ ...config })
+const knowledgeConfigs = useExternalKnowledgeConfigs({
+  serverName: 'difyKnowledge',
+  codePrefix: 'settings.knowledgeBase.dify',
+  diagnosticName: 'DifyKnowledge',
+  isConfig: isDifyConfig,
+  clone: cloneConfig
+})
+const difyConfigs = knowledgeConfigs.configs
+const loadError = knowledgeConfigs.loadError
+const knowledgeOperation = knowledgeConfigs.operation
+const operationPending = knowledgeConfigs.pending
+const isDifyMcpEnabled = knowledgeConfigs.serverEnabled
+const mcpEnabled = knowledgeConfigs.globalEnabled
 
 // 验证配置是否有效
 const isEditingDifyConfigValid = computed(() => {
@@ -267,15 +331,16 @@ const isEditingDifyConfigValid = computed(() => {
 
 // 打开编辑配置对话框
 const editDifyConfig = (index: number) => {
+  if (operationPending.value) return
   isEditing.value = true
   editingConfigIndex.value = index
   const config = difyConfigs.value[index]
   editingDifyConfig.value = { ...config }
+  dialogInitialSignature.value = editingSignature.value
   isDifyConfigDialogOpen.value = true
 }
 
-// 关闭配置对话框
-const closeEditDifyConfigDialog = () => {
+const resetDifyConfigDialog = () => {
   isDifyConfigDialogOpen.value = false
   editingConfigIndex.value = -1
   editingDifyConfig.value = {
@@ -285,99 +350,49 @@ const closeEditDifyConfigDialog = () => {
     endpoint: 'https://api.dify.ai/v1',
     enabled: true
   }
+  dialogInitialSignature.value = editingSignature.value
+}
+
+// 关闭配置对话框
+const closeEditDifyConfigDialog = () => {
+  if (operationPending.value) return
+  knowledgeOperation.clear()
+  resetDifyConfigDialog()
+}
+
+const handleDialogOpenChange = (open: boolean) => {
+  if (open) {
+    isDifyConfigDialogOpen.value = true
+  } else {
+    closeEditDifyConfigDialog()
+  }
 }
 
 // 保存配置
 const saveDifyConfig = async () => {
-  if (!isEditingDifyConfigValid.value) return
-
-  if (isEditing.value) {
-    // 更新配置
-    if (editingConfigIndex.value !== -1) {
-      difyConfigs.value[editingConfigIndex.value] = { ...editingDifyConfig.value }
-    }
-    toast({
-      title: t('settings.knowledgeBase.configUpdated'),
-      description: t('settings.knowledgeBase.configUpdatedDesc', {
-        name: t('settings.knowledgeBase.dify')
-      })
-    })
-  } else {
-    // 添加配置
-    difyConfigs.value.push({ ...editingDifyConfig.value })
-    toast({
-      title: t('settings.knowledgeBase.configAdded'),
-      description: t('settings.knowledgeBase.configAddedDesc', {
-        name: t('settings.knowledgeBase.dify')
-      })
-    })
+  if (operationPending.value || !isEditingDifyConfigValid.value) return
+  const config: DifyConfig = {
+    ...editingDifyConfig.value,
+    description: editingDifyConfig.value.description.trim(),
+    endpoint: editingDifyConfig.value.endpoint.trim()
   }
-
-  // 更新到MCP配置
-  await updateDifyConfigToMcp()
-
-  // 关闭对话框
-  closeEditDifyConfigDialog()
+  await knowledgeConfigs.save(
+    isEditing.value ? editingConfigIndex.value : null,
+    config,
+    resetDifyConfigDialog
+  )
 }
 
 // 移除Dify配置
 const removeDifyConfig = async (index: number) => {
-  difyConfigs.value.splice(index, 1)
-  await updateDifyConfigToMcp()
+  if (operationPending.value) return
+  await knowledgeConfigs.remove(index)
 }
 
 // 切换配置启用状态
 const toggleConfigEnabled = async (index: number, enabled: boolean) => {
-  difyConfigs.value[index].enabled = enabled
-  await updateDifyConfigToMcp()
-}
-
-// 更新Dify配置到MCP
-const updateDifyConfigToMcp = async () => {
-  try {
-    // 将配置转换为MCP需要的格式 - 转换为JSON字符串
-    const envJson = {
-      configs: toRaw(difyConfigs.value)
-    }
-    // 更新到MCP服务器
-    await mcpStore.updateServer('difyKnowledge', {
-      env: envJson
-    })
-
-    return true
-  } catch (error) {
-    console.error('更新Dify配置失败:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: String(error),
-      variant: 'destructive'
-    })
-    return false
-  }
-}
-
-// 从MCP加载Dify配置
-const loadDifyConfigFromMcp = async () => {
-  try {
-    // 获取difyKnowledge服务器配置
-    const serverConfig = mcpStore.config.mcpServers['difyKnowledge']
-    if (serverConfig && serverConfig.env) {
-      // 解析配置 - env可能是JSON字符串
-      try {
-        // 尝试解析JSON字符串
-        const envObj =
-          typeof serverConfig.env === 'string' ? JSON.parse(serverConfig.env) : serverConfig.env
-        // const envObj = serverConfig.env
-        if (envObj.configs && Array.isArray(envObj.configs)) {
-          difyConfigs.value = envObj.configs
-        }
-      } catch (parseError) {
-        console.error('解析Dify配置JSON失败:', parseError)
-      }
-    }
-  } catch (error) {
-    console.error('加载Dify配置失败:', error)
-  }
+  if (operationPending.value) return
+  await knowledgeConfigs.setEnabled(index, enabled)
 }
 
 // 切换Dify配置面板
@@ -385,26 +400,10 @@ const toggleDifyConfigPanel = () => {
   isDifyConfigPanelOpen.value = !isDifyConfigPanelOpen.value
 }
 
-// 计算Dify MCP服务器是否启用
-const isDifyMcpEnabled = computed(() => {
-  return mcpStore.serverStatuses['difyKnowledge'] || false
-})
-
 // 切换Dify MCP服务器状态
 const toggleDifyMcpServer = async (_value: boolean) => {
-  if (!mcpStore.mcpEnabled) return
-  await mcpStore.toggleServer('difyKnowledge')
+  await knowledgeConfigs.toggleServer()
 }
-
-// 监听MCP全局状态变化
-watch(
-  () => mcpStore.mcpEnabled,
-  async (enabled) => {
-    if (!enabled && isDifyMcpEnabled.value) {
-      await mcpStore.toggleServer('difyKnowledge')
-    }
-  }
-)
 
 // 监听URL查询参数，设置活动标签页
 watch(
@@ -417,23 +416,33 @@ watch(
   { immediate: true }
 )
 
-// 组件挂载时加载配置
-let unwatch: (() => void) | undefined
-onMounted(async () => {
-  unwatch = watch(
-    () => mcpStore.config.ready,
-    async (ready) => {
-      if (ready) {
-        unwatch?.() // only run once to avoid multiple calls
-        await loadDifyConfigFromMcp()
-      }
-    },
-    { immediate: true }
-  )
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'dify-knowledge-config',
+  onDiscard: closeEditDifyConfigDialog
 })
+const stopLeaveRiskSync = watch(
+  [operationPending, dialogDirty],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+const stopStaleFeedbackSync = watch(
+  editingSignature,
+  () => {
+    if (
+      knowledgeOperation.source.value === 'dialog' &&
+      knowledgeOperation.snapshot.value.status === 'error'
+    ) {
+      knowledgeOperation.clear()
+    }
+  },
+  { flush: 'sync' }
+)
 
-// cancel the watch to avoid memory leaks
-onUnmounted(() => {
-  unwatch?.()
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  stopStaleFeedbackSync()
+  leaveGuardLease.release()
 })
 </script>

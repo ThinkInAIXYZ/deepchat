@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Уведомления",
+    "actionFailed": "Не удалось выполнить действие. Повторите попытку.",
+    "entities": "Затронуто: {count}",
+    "occurrences": "Срабатываний: {count}",
+    "pending": "Ещё {count} в ожидании",
+    "mcpConnectionFailed": {
+      "title": "Не удалось подключиться к {serverName}",
+      "description": "Проверьте настройки сервера и повторите попытку."
+    },
+    "mcpToolListFailed": {
+      "title": "Не удалось загрузить инструменты {serverName}",
+      "description": "Сервер подключён, но его инструменты недоступны."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Не удалось открыть настройку провайдера",
+      "reasons": {
+        "unsupported-version": "Эта версия ссылки не поддерживается.",
+        "invalid-payload": "Недействительная ссылка на провайдера.",
+        "provider-not-found": "Провайдер из ссылки не найден.",
+        "unsupported-provider": "Этот провайдер не поддерживается.",
+        "settings-unavailable": "Не удалось открыть настройки провайдера."
+      }
+    }
+  },
   "enabled": "Включено",
   "disabled": "Выключено",
   "loading": "Загрузка...",

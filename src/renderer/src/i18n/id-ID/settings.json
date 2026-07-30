@@ -156,7 +156,21 @@
       "safe_storage_unavailable": "Cache persisten tidak tersedia karena penyimpanan kunci aman tidak tersedia."
     }
   },
+  "leaveGuard": {
+    "dirtyTitle": "Perubahan belum disimpan",
+    "dirtyDescription": "Keluar dan buang perubahan?",
+    "busyTitle": "Sedang menyimpan",
+    "busyDescription": "Tunggu hingga penyimpanan selesai sebelum keluar.",
+    "stay": "Lanjutkan mengedit",
+    "discard": "Buang perubahan"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Menyimpan…",
+      "saved": "Tersimpan",
+      "saveFailed": "Tidak dapat menyimpan. Perubahan tetap dipertahankan.",
+      "retry": "Coba lagi"
+    },
     "title": "DeepChat Agents",
     "description": "Kelola DeepChat Agent dan default sesi barunya.",
     "builtIn": "Bawaan",
@@ -1627,7 +1641,15 @@
       "seconds": "detik",
       "testConnection": "koneksi uji",
       "timeout": "batas waktu",
-      "title": "Konfigurasi ekspor Nowledge Mem"
+      "title": "Konfigurasi ekspor Nowledge Mem",
+      "configLoadFailed": "Konfigurasi tidak dapat dimuat",
+      "configSaved": "Konfigurasi disimpan",
+      "configSaveFailed": "Konfigurasi tidak dapat disimpan",
+      "configReset": "Konfigurasi diatur ulang",
+      "configResetFailed": "Konfigurasi tidak dapat diatur ulang",
+      "connectionSucceeded": "Koneksi berhasil",
+      "connectionFailed": "Tidak dapat terhubung dengan konfigurasi saat ini",
+      "invalidBaseUrl": "Masukkan alamat HTTP atau HTTPS tanpa kredensial atau parameter kueri"
     }
   },
   "mcp": {
@@ -1673,6 +1695,7 @@
       "name": "Nama server",
       "namePlaceholder": "Masukkan nama server",
       "nameRequired": "Nama server tidak boleh kosong",
+      "nameDuplicate": "Server dengan nama ini sudah ada.",
       "type": "Jenis server",
       "typePlaceholder": "Pilih jenis server",
       "typeStdio": "Input dan output standar (Stdio)",
@@ -2997,7 +3020,7 @@
       "error": "Error",
       "invalidAgent": "Agen tidak tersedia atau dinonaktifkan. Pilih agen lain."
     },
-    "runNowSuccess": "Tugas terjadwal dimulai"
+    "runNowSuccess": "Tugas terjadwal selesai"
   },
   "memory": {
     "description": "Tinjau, konfigurasi, dan kelola apa yang diingat setiap agen di seluruh sesi. Memori terpisah per agen.",

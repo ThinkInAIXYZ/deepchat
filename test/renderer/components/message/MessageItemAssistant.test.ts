@@ -12,6 +12,7 @@ const memoryActivity = vi.hoisted(() => ({
   openTurnMemories: vi.fn(),
   rememberSelection: vi.fn()
 }))
+const notifyRenderer = vi.hoisted(() => vi.fn())
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -23,8 +24,8 @@ vi.mock('@/stores/ui/memoryActivity', () => ({
   useMemoryActivityStore: () => memoryActivity
 }))
 
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() })
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer
 }))
 
 vi.mock('@api/DeviceClient', () => ({
@@ -188,6 +189,7 @@ describe('MessageItemAssistant', () => {
     memoryActivity.enabled = false
     memoryActivity.openTurnMemories.mockClear()
     memoryActivity.rememberSelection.mockClear()
+    notifyRenderer.mockClear()
   })
 
   const global = {

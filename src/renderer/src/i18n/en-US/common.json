@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Notifications",
+    "actionFailed": "Action failed. Try again.",
+    "entities": "{count} affected",
+    "occurrences": "{count} occurrences",
+    "pending": "{count} more waiting",
+    "mcpConnectionFailed": {
+      "title": "Couldn’t connect to {serverName}",
+      "description": "Check the server settings and try again."
+    },
+    "mcpToolListFailed": {
+      "title": "Couldn’t load tools from {serverName}",
+      "description": "The server is connected, but its tools are unavailable."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Couldn’t open provider setup",
+      "reasons": {
+        "unsupported-version": "This link version isn’t supported.",
+        "invalid-payload": "This provider link is invalid.",
+        "provider-not-found": "The linked provider couldn’t be found.",
+        "unsupported-provider": "This provider isn’t supported.",
+        "settings-unavailable": "Provider settings couldn’t be opened."
+      }
+    }
+  },
   "enabled": "Enabled",
   "disabled": "Disabled",
   "loading": "Loading...",

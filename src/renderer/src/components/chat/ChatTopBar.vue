@@ -182,34 +182,52 @@
     </div>
   </div>
 
-  <Dialog v-model:open="clearDialogOpen">
+  <Dialog :open="clearDialogOpen" @update:open="handleClearDialogOpenChange">
     <DialogContent>
       <DialogHeader>
         <DialogTitle>{{ t('dialog.cleanMessages.title') }}</DialogTitle>
         <DialogDescription>{{ t('dialog.cleanMessages.description') }}</DialogDescription>
       </DialogHeader>
+      <p v-if="clearDialogError" role="alert" class="text-sm text-destructive">
+        {{ clearDialogError }}
+      </p>
       <DialogFooter>
-        <Button variant="outline" @click="clearDialogOpen = false">{{ t('dialog.cancel') }}</Button>
-        <Button variant="destructive" @click="handleClearConfirm">{{
-          t('dialog.cleanMessages.confirm')
-        }}</Button>
+        <Button variant="outline" :disabled="clearDialogBusy" @click="clearDialogOpen = false">
+          {{ t('dialog.cancel') }}
+        </Button>
+        <Button variant="destructive" :disabled="clearDialogBusy" @click="handleClearConfirm">
+          <Icon
+            v-if="clearDialogBusy"
+            icon="lucide:loader-circle"
+            class="mr-1.5 size-4 animate-spin motion-reduce:animate-none"
+          />
+          {{ t('dialog.cleanMessages.confirm') }}
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 
-  <Dialog v-model:open="deleteDialogOpen">
+  <Dialog :open="deleteDialogOpen" @update:open="handleDeleteDialogOpenChange">
     <DialogContent>
       <DialogHeader>
         <DialogTitle>{{ t('dialog.delete.title') }}</DialogTitle>
         <DialogDescription>{{ t('dialog.delete.description') }}</DialogDescription>
       </DialogHeader>
+      <p v-if="deleteDialogError" role="alert" class="text-sm text-destructive">
+        {{ deleteDialogError }}
+      </p>
       <DialogFooter>
-        <Button variant="outline" @click="deleteDialogOpen = false">{{
-          t('dialog.cancel')
-        }}</Button>
-        <Button variant="destructive" @click="handleDeleteConfirm">{{
-          t('dialog.delete.confirm')
-        }}</Button>
+        <Button variant="outline" :disabled="deleteDialogBusy" @click="deleteDialogOpen = false">
+          {{ t('dialog.cancel') }}
+        </Button>
+        <Button variant="destructive" :disabled="deleteDialogBusy" @click="handleDeleteConfirm">
+          <Icon
+            v-if="deleteDialogBusy"
+            icon="lucide:loader-circle"
+            class="mr-1.5 size-4 animate-spin motion-reduce:animate-none"
+          />
+          {{ t('dialog.delete.confirm') }}
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -252,7 +270,7 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
-import { useToast } from '@/components/use-toast'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 defineOptions({
   inheritAttrs: false
@@ -271,11 +289,14 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const sidepanelStore = useSidepanelStore()
 const sidebarStore = useSidebarStore()
-const { toast } = useToast()
 
 const isRenaming = ref(false)
 const clearDialogOpen = ref(false)
+const clearDialogBusy = ref(false)
+const clearDialogError = ref<string | null>(null)
 const deleteDialogOpen = ref(false)
+const deleteDialogBusy = ref(false)
+const deleteDialogError = ref<string | null>(null)
 const moveDialogOpen = ref(false)
 const moveDialogBusy = ref(false)
 const moveDialogError = ref<string | null>(null)
@@ -371,6 +392,7 @@ const openClearDialog = () => {
   if (isReadOnly.value) {
     return
   }
+  clearDialogError.value = null
   clearDialogOpen.value = true
 }
 
@@ -378,6 +400,7 @@ const openDeleteDialog = () => {
   if (isReadOnly.value) {
     return
   }
+  deleteDialogError.value = null
   deleteDialogOpen.value = true
 }
 
@@ -400,6 +423,12 @@ const handleTogglePin = async () => {
     await sessionStore.toggleSessionPinned(props.sessionId, !isPinned.value)
   } catch (error) {
     console.error('Failed to toggle pin status:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.session.pinFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed')
+    })
   }
 }
 
@@ -424,6 +453,12 @@ const handleRenameConfirm = async () => {
     isRenaming.value = false
   } catch (error) {
     console.error(t('common.error.renameChatFailed'), error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.session.renameFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.renameChatFailed')
+    })
   }
 }
 
@@ -444,29 +479,49 @@ watch(
 )
 
 const handleClearConfirm = async () => {
-  if (isReadOnly.value) {
+  if (isReadOnly.value || clearDialogBusy.value) {
     return
   }
+  clearDialogBusy.value = true
+  clearDialogError.value = null
   try {
     await sessionStore.clearSessionMessages(props.sessionId)
+    clearDialogOpen.value = false
   } catch (error) {
     console.error(t('common.error.cleanMessagesFailed'), error)
+    clearDialogError.value = t('common.error.requestFailed')
+  } finally {
+    clearDialogBusy.value = false
   }
-
-  clearDialogOpen.value = false
 }
 
 const handleDeleteConfirm = async () => {
-  if (isReadOnly.value) {
+  if (isReadOnly.value || deleteDialogBusy.value) {
     return
   }
+  deleteDialogBusy.value = true
+  deleteDialogError.value = null
   try {
     await sessionStore.deleteSession(props.sessionId)
+    deleteDialogOpen.value = false
   } catch (error) {
     console.error(t('common.error.deleteChatFailed'), error)
+    deleteDialogError.value = t('common.error.requestFailed')
+  } finally {
+    deleteDialogBusy.value = false
   }
+}
 
-  deleteDialogOpen.value = false
+const handleClearDialogOpenChange = (open: boolean) => {
+  if (!open && clearDialogBusy.value) return
+  clearDialogOpen.value = open
+  if (open) clearDialogError.value = null
+}
+
+const handleDeleteDialogOpenChange = (open: boolean) => {
+  if (!open && deleteDialogBusy.value) return
+  deleteDialogOpen.value = open
+  if (open) deleteDialogError.value = null
 }
 
 const handleMoveConfirm = async (payload: { targetAgentId: string }) => {
@@ -490,19 +545,21 @@ const handleExport = async (format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
     await sessionStore.exportSession(props.sessionId, format)
 
     const isNowledgeMem = format === 'nowledge-mem'
-    toast({
+    notifyRenderer({
+      kind: 'success',
+      code: 'chat.session.exported',
       title: isNowledgeMem ? t('thread.export.nowledgeMemSuccess') : t('thread.export.success'),
       description: isNowledgeMem
         ? t('thread.export.nowledgeMemSuccessDesc')
-        : t('thread.export.successDesc'),
-      variant: 'default'
+        : t('thread.export.successDesc')
     })
   } catch (error) {
     console.error('Export failed:', error)
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.session.exportFailed',
       title: t('thread.export.failed'),
-      description: t('thread.export.failedDesc'),
-      variant: 'destructive'
+      description: t('thread.export.failedDesc')
     })
   }
 }

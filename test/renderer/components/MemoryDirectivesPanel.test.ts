@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { MemoryDirectiveItem } from '../../../src/shared/contracts/routes'
+import type {
+  MemoryDirectiveCommandResult,
+  MemoryDirectiveItem
+} from '../../../src/shared/contracts/routes'
 import {
   AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT,
   AGENT_MEMORY_DIRECTIVE_CONTENT_MAX_CHARS,
@@ -79,9 +82,7 @@ async function setup(initial: MemoryDirectiveItem[] = []) {
     rejectDirective: vi.fn(),
     deleteDirective: vi.fn()
   }
-  const toast = vi.fn()
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
-  vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       locale: ref('en-US'),
@@ -98,7 +99,7 @@ async function setup(initial: MemoryDirectiveItem[] = []) {
     global: { stubs }
   })
   await flushPromises()
-  return { wrapper, memoryClient, toast }
+  return { wrapper, memoryClient }
 }
 
 function buttonContaining(wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], text: string) {
@@ -280,6 +281,30 @@ describe('MemoryDirectivesPanel', () => {
     )
   })
 
+  it('registers a directive draft and its create request with the leave guard', async () => {
+    const pending = deferred<MemoryDirectiveCommandResult>()
+    const created = directive('created', 'active', { content: 'Keep answers concise.' })
+    const { wrapper, memoryClient } = await setup()
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    memoryClient.createDirective.mockReturnValueOnce(pending.promise)
+
+    wrapper
+      .findComponent({ name: 'Textarea' })
+      .vm.$emit('update:modelValue', 'Keep answers concise.')
+    await flushPromises()
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+
+    await wrapper.find('[data-testid="memory-directive-create"]').trigger('click')
+    await flushPromises()
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('busy')
+
+    pending.resolve({ action: 'applied', directive: created })
+    await flushPromises()
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+    wrapper.unmount()
+  })
+
   it('approves drafts and deletes directives without waiting for a reload', async () => {
     const draft = directive('draft', 'draft')
     const active = { ...draft, status: 'active' as const, updatedAt: 2 }
@@ -323,7 +348,7 @@ describe('MemoryDirectivesPanel', () => {
 
   it('explains active-capacity rejection for create and approval', async () => {
     const draft = directive('draft', 'draft')
-    const { wrapper, memoryClient, toast } = await setup([draft])
+    const { wrapper, memoryClient } = await setup([draft])
     memoryClient.createDirective.mockResolvedValue({
       action: 'rejected',
       directive: null,
@@ -349,11 +374,11 @@ describe('MemoryDirectivesPanel', () => {
     expect(wrapper.find('[data-testid="memory-directive-draft"]').text()).toContain(
       'settings.memory.redesign.directiveStatus.draft'
     )
-    expect(toast).toHaveBeenCalledTimes(2)
-    expect(toast).toHaveBeenLastCalledWith({
-      variant: 'destructive',
-      title: 'settings.memory.redesign.directiveCapacityTitle',
-      description: expect.stringContaining(String(AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT))
-    })
+    expect(memoryClient.createDirective).toHaveBeenCalledOnce()
+    expect(memoryClient.approveDirective).toHaveBeenCalledOnce()
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('error')
+    expect(feedback.text()).toContain('settings.memory.redesign.directiveCapacityTitle')
+    expect(feedback.text()).toContain(String(AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT))
   })
 })
