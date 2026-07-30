@@ -58,6 +58,10 @@ type PackageJobName = 'package-windows' | 'package-linux' | 'package-macos'
 interface RegressionStatusJob {
   name: string
   if: string
+  concurrency: {
+    group: string
+    queue: string
+  }
   needs: PackageJobName[]
   'runs-on': string
   'timeout-minutes': number
@@ -510,6 +514,10 @@ describe('Package Regression caller', () => {
         contents: 'read',
         issues: 'write'
       }
+    })
+    expect(scheduledStatus.concurrency).toEqual({
+      group: 'scheduled-package-regression-issue',
+      queue: 'max'
     })
     expect(scheduledStatus.steps).toHaveLength(1)
     expect(scheduledStatus.steps[0]).toMatchObject({

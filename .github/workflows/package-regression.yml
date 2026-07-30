@@ -87,6 +87,9 @@ jobs:
   scheduled-status:
     name: scheduled-regression-status
     if: ${{ always() && github.event_name == 'schedule' }}
+    concurrency:
+      group: scheduled-package-regression-issue
+      queue: max
     needs:
       - package-windows
       - package-linux
