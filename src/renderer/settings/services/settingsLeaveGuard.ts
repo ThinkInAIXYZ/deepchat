@@ -101,7 +101,7 @@ export class SettingsLeaveGuard {
     return promise
   }
 
-  stay(): void {
+  cancelLeave(): void {
     this.finishRequest(false)
   }
 

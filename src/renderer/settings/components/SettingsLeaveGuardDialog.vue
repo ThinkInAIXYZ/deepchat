@@ -1,6 +1,10 @@
 <template>
-  <AlertDialog :open="snapshot.promptOpen" @update:open="handleOpenChange">
-    <AlertDialogContent class="w-[calc(100vw-2rem)] max-w-md">
+  <AlertDialog :open="snapshot.promptOpen">
+    <AlertDialogContent
+      class="w-[calc(100vw-2rem)] max-w-md"
+      @escape-key-down="settingsLeaveGuard.cancelLeave()"
+      @pointer-down-outside="settingsLeaveGuard.cancelLeave()"
+    >
       <AlertDialogHeader>
         <AlertDialogTitle>
           {{
@@ -18,16 +22,24 @@
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <AlertDialogCancel @click="settingsLeaveGuard.stay()">
+        <Button
+          data-testid="settings-leave-guard-cancel"
+          type="button"
+          variant="outline"
+          class="mt-2 sm:mt-0"
+          @click="settingsLeaveGuard.cancelLeave()"
+        >
           {{ t('settings.leaveGuard.stay') }}
-        </AlertDialogCancel>
-        <AlertDialogAction
+        </Button>
+        <Button
           v-if="snapshot.risk === 'dirty'"
+          data-testid="settings-leave-guard-discard"
+          type="button"
           variant="destructive"
           @click="settingsLeaveGuard.discardAndLeave()"
         >
           {{ t('settings.leaveGuard.discard') }}
-        </AlertDialogAction>
+        </Button>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>
@@ -36,14 +48,13 @@
 <script setup lang="ts">
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
 } from '@shadcn/components/ui/alert-dialog'
+import { Button } from '@shadcn/components/ui/button'
 import { onBeforeUnmount, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
@@ -53,10 +64,6 @@ const snapshot = shallowRef(settingsLeaveGuard.getSnapshot())
 const stop = settingsLeaveGuard.subscribe((next) => {
   snapshot.value = next
 })
-
-const handleOpenChange = (open: boolean) => {
-  if (!open) settingsLeaveGuard.stay()
-}
 
 onBeforeUnmount(stop)
 </script>

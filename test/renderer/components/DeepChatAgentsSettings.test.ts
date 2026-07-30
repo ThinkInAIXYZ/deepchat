@@ -481,7 +481,7 @@ describe('DeepChatAgentsSettings', () => {
       (wrapper.get('[data-testid="deepchat-agent-name-input"]').element as HTMLInputElement).value
     ).toBe('Unsaved name')
 
-    settingsLeaveGuard.stay()
+    settingsLeaveGuard.cancelLeave()
     await flushPromises()
     expect(
       (wrapper.get('[data-testid="deepchat-agent-name-input"]').element as HTMLInputElement).value

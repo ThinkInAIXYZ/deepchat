@@ -60,7 +60,7 @@ describe('SettingsLeaveGuard', () => {
     lease.setRisk('dirty')
 
     const leave = guard.requestLeave()
-    guard.stay()
+    guard.cancelLeave()
 
     await expect(leave).resolves.toBe(false)
     expect(guard.getSnapshot()).toMatchObject({ risk: 'dirty', promptOpen: false })
@@ -81,7 +81,7 @@ describe('SettingsLeaveGuard', () => {
     const leave = guard.requestLeave()
     expect(guard.discardAndLeave()).toBe(false)
     expect(guard.getSnapshot()).toMatchObject({ risk: 'dirty', promptOpen: true })
-    guard.stay()
+    guard.cancelLeave()
 
     await expect(leave).resolves.toBe(false)
     consoleError.mockRestore()
