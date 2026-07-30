@@ -16,5 +16,9 @@
   "autoUpdate": "自动更新",
   "restarting": "正在重启",
   "alreadyUpToDate": "已经是最新版本了",
-  "alreadyUpToDateDesc": "您的 DeepChat 目前已经是最新版本，无需更新。"
+  "alreadyUpToDateDesc": "您的 DeepChat 目前已经是最新版本，无需更新。",
+  "taskRunningTitle": "有进行中的任务",
+  "taskRunningDescription": "当前有任务正在进行中，请选择更新方式：",
+  "updateNow": "立即更新",
+  "updateAfterTasksComplete": "任务完毕后更新"
 }

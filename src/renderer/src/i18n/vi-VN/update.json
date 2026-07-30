@@ -16,5 +16,9 @@
   "autoUpdate": "Tự động cập nhật",
   "restarting": "Khởi động lại",
   "alreadyUpToDate": "Đã cập nhật",
-  "alreadyUpToDateDesc": "DeepChat của bạn đã được cập nhật lên phiên bản mới nhất, không cần cập nhật."
+  "alreadyUpToDateDesc": "DeepChat của bạn đã được cập nhật lên phiên bản mới nhất, không cần cập nhật.",
+  "taskRunningTitle": "Tác vụ đang chạy",
+  "taskRunningDescription": "Có tác vụ đang chạy. Bạn muốn tiếp tục cập nhật như thế nào?",
+  "updateNow": "Cập nhật ngay",
+  "updateAfterTasksComplete": "Cập nhật sau khi hoàn tất"
 }

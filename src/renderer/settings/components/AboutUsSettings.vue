@@ -186,6 +186,13 @@
         @retry="handlePrimaryAction"
       />
     </div>
+
+    <UpdateTaskCheckDialog
+      :open="upgrade.showTaskRunningDialog ?? false"
+      @cancel="upgrade.cancelUpdate()"
+      @update-now="upgrade.confirmUpdateNow()"
+      @update-after-tasks="upgrade.scheduleUpdateAfterTasks()"
+    />
   </SettingsPageShell>
 
   <Dialog :open="isDisclaimerOpen" @update:open="isDisclaimerOpen = $event">
@@ -245,6 +252,7 @@ import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
 import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import UpdateTaskCheckDialog from '@/components/ui/UpdateTaskCheckDialog.vue'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
@@ -336,7 +344,9 @@ const handlePrimaryAction = async () => {
   }
 
   if (upgrade.updateState === 'available' || upgrade.isReadyToInstall) {
-    await upgrade.handleUpdate('auto')
+    upgrade.checkRunningTasksAndUpdate(() => {
+      void upgrade.handleUpdate('auto')
+    })
     return
   }
 

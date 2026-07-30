@@ -16,5 +16,9 @@
   "autoUpdate": "Otomatik Güncelleme",
   "restarting": "Yeniden başlatılıyor",
   "alreadyUpToDate": "Zaten Güncel",
-  "alreadyUpToDateDesc": "DeepChat cihazınız zaten en son sürüme güncellenmiştir, herhangi bir güncelleme gerekmez."
+  "alreadyUpToDateDesc": "DeepChat cihazınız zaten en son sürüme güncellenmiştir, herhangi bir güncelleme gerekmez.",
+  "taskRunningTitle": "Devam Eden Görev",
+  "taskRunningDescription": "Şu anda devam eden görevler var. Güncellemeye nasıl devam etmek istersiniz?",
+  "updateNow": "Şimdi Güncelle",
+  "updateAfterTasksComplete": "Görevler Bitince Güncelle"
 }
