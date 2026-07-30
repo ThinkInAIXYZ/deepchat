@@ -800,7 +800,7 @@
   "dashboard": {
     "badge": "Panel de uso",
     "title": "Panel de uso",
-    "description": "Realice un seguimiento del uso de token, los accesos a la caché y el costo estimado. Las cifras de tokens y costos se estiman a partir de información pública, y algunos mensajes providers o anteriores pueden estar incompletos, así que trate estas cifras solo como referencia.",
+    "description": "Sigue el uso de tokens y los aciertos de caché.",
     "actions": {
       "refresh": "Actualizar"
     },
@@ -816,8 +816,8 @@
     },
     "empty": {
       "title": "Aún no hay estadísticas de uso",
-      "description": "El uso de tokens, los aciertos de caché y el costo estimado aparecerán aquí una vez que los datos de uso estén disponibles.",
-      "historyNote": "Las cifras de tokens y costos se estiman a partir de información pública. Algunos mensajes providers o anteriores pueden estar incompletos, así que trate estas cifras sólo como referencia."
+      "description": "El uso de tokens y los aciertos de caché aparecerán aquí cuando haya datos de uso disponibles.",
+      "historyNote": "Los datos de uso de algunos proveedores o mensajes anteriores pueden estar incompletos."
     },
     "summary": {
       "totalTokens": "Total tokens",
@@ -830,10 +830,6 @@
       "cachedTokensUncachedLabel": "sin caché",
       "cacheHitRate": "Tasa de aciertos de caché",
       "cacheHitRateDescription": "token de prompt en caché divididos por el total de token de entrada.",
-      "estimatedCost": "Costo estimado",
-      "estimatedCostDescription": "Estimado en USD utilizando el precio provider o el precio alternativo de AIHubMix.",
-      "estimatedCostTrendLabel": "Tendencia de los últimos 30 días",
-      "estimatedCostTrendEmpty": "No se registró ningún costo en los últimos 30 días.",
       "recordingStartedAt": "Grabación iniciada",
       "recordingStartedAtDescription": "El registro de uso más antiguo almacenado actualmente en este panel.",
       "withDeepChatDaysLabel": "dias juntos",
@@ -863,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "Arriba providers",
-      "providerDescription": "Clasificados por costo estimado y luego por total tokens.",
+      "providerDescription": "Ordenados por el total de tokens.",
       "modelTitle": "Mejores modelos",
-      "modelDescription": "Los 10 modelos principales por costo estimado, luego por total tokens.",
+      "modelDescription": "Los 10 mejores modelos por el total de tokens.",
       "messages": "{count} mensajes",
       "empty": "Aún no hay datos desglosados."
     },

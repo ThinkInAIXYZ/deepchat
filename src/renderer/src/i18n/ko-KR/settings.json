@@ -455,7 +455,7 @@
   "dashboard": {
     "badge": "사용 대시보드",
     "title": "사용 대시보드",
-    "description": "토큰 사용량, 캐시 적중, 예상 비용을 보여줍니다. 토큰 및 비용 데이터는 공개 정보를 바탕으로 추정되며, 일부 제공업체나 이전 메시지 데이터가 누락될 수 있으므로 참고용으로만 활용해 주세요.",
+    "description": "토큰 사용량과 캐시 적중을 추적합니다.",
     "actions": {
       "refresh": "새로고침"
     },
@@ -471,8 +471,8 @@
     },
     "empty": {
       "title": "아직 사용 통계가 없어요",
-      "description": "사용 데이터가 생기면 토큰 사용량, 캐시 적중, 예상 비용이 여기에 표시됩니다.",
-      "historyNote": "토큰 및 비용 데이터는 공개 정보를 바탕으로 추정됩니다. 일부 제공업체나 이전 메시지 데이터가 누락될 수 있으므로 참고용으로만 활용해 주세요."
+      "description": "사용량 데이터를 사용할 수 있게 되면 토큰 사용량과 캐시 적중이 여기에 표시됩니다.",
+      "historyNote": "일부 제공업체 또는 이전 메시지의 사용량 데이터가 불완전할 수 있습니다."
     },
     "summary": {
       "totalTokens": "총 토큰",
@@ -485,10 +485,6 @@
       "cachedTokensUncachedLabel": "미캐시",
       "cacheHitRate": "캐시 적중률",
       "cacheHitRateDescription": "캐시된 프롬프트 토큰을 전체 입력 토큰으로 나눈 비율이에요.",
-      "estimatedCost": "예상 비용",
-      "estimatedCostDescription": "제공업체 가격 또는 AIHubMix 대체 가격을 기준으로 추정한 USD 비용이에요.",
-      "estimatedCostTrendLabel": "최근 30일 추이",
-      "estimatedCostTrendEmpty": "최근 30일 동안 기록된 비용이 없어요.",
       "recordingStartedAt": "기록 시작 시점",
       "recordingStartedAtDescription": "이 대시보드에 현재 저장된 가장 이른 사용 기록이에요.",
       "withDeepChatDaysLabel": "함께한 날",
@@ -518,9 +514,9 @@
     },
     "breakdown": {
       "providerTitle": "프로바이더별 순위",
-      "providerDescription": "예상 비용이 높은 순, 같으면 총 토큰 수 순으로 정렬해요.",
+      "providerDescription": "총 토큰 수를 기준으로 정렬됩니다.",
       "modelTitle": "모델별 순위",
-      "modelDescription": "예상 비용과 총 토큰 수 기준 상위 10개 모델이에요.",
+      "modelDescription": "총 토큰 수 기준 상위 10개 모델입니다.",
       "messages": "메시지 {count}개",
       "empty": "표시할 세부 통계가 아직 없어요."
     },

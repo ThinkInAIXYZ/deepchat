@@ -388,7 +388,7 @@
   "dashboard": {
     "badge": "Brugsoverblik",
     "title": "Brugsoverblik",
-    "description": "Vis tokenforbrug, cachetræf og estimerede omkostninger. Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger, og nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende.",
+    "description": "Følg tokenforbrug og cache-træffere.",
     "actions": {
       "refresh": "Opdater"
     },
@@ -404,8 +404,8 @@
     },
     "empty": {
       "title": "Ingen brugsstatistik endnu",
-      "description": "Når der findes brugsdata, vises tokenforbrug, cachetræf og estimerede omkostninger her.",
-      "historyNote": "Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger. Nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende."
+      "description": "Tokenforbrug og cache-træffere vises her, når brugsdata er tilgængelige.",
+      "historyNote": "Brugsdata fra nogle udbydere eller tidligere beskeder kan være ufuldstændige."
     },
     "summary": {
       "totalTokens": "Samlede tokens",
@@ -418,10 +418,6 @@
       "cachedTokensUncachedLabel": "Ikke cachelagret",
       "cacheHitRate": "Cachetræfrate",
       "cacheHitRateDescription": "Cachelagrede prompt-tokens divideret med alle inputtokens.",
-      "estimatedCost": "Estimeret pris",
-      "estimatedCostDescription": "Anslået pris i USD ud fra udbyderens priser eller AIHubMix som reserve.",
-      "estimatedCostTrendLabel": "Udvikling de seneste 30 dage",
-      "estimatedCostTrendEmpty": "Ingen registreret omkostning de seneste 30 dage.",
       "recordingStartedAt": "Første registrering",
       "recordingStartedAtDescription": "Den tidligste brugsregistrering, der aktuelt findes i denne oversigt.",
       "withDeepChatDaysLabel": "Dage sammen",
@@ -451,9 +447,9 @@
     },
     "breakdown": {
       "providerTitle": "Udbyderrangliste",
-      "providerDescription": "Sorteret først efter estimeret pris og derefter efter samlede tokens.",
+      "providerDescription": "Rangeret efter samlet antal tokens.",
       "modelTitle": "Modelrangliste",
-      "modelDescription": "Top 10 modeller efter estimeret pris og derefter samlede tokens.",
+      "modelDescription": "Top 10 modeller efter samlet antal tokens.",
       "messages": "{count} beskeder",
       "empty": "Der er endnu ingen fordelingsdata."
     },

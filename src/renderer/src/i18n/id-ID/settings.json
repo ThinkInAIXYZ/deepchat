@@ -800,7 +800,7 @@
   "dashboard": {
     "badge": "Gunakan Kanban",
     "title": "Gunakan Kanban",
-    "description": "Statistik konsumsi token, cache hits, dan perkiraan harga. token dan data biaya diperkirakan berdasarkan informasi publik. Beberapa pemasok atau data berita sebelumnya mungkin hilang dan hanya untuk referensi.",
+    "description": "Lacak penggunaan token dan hit cache.",
     "actions": {
       "refresh": "Segarkan"
     },
@@ -816,8 +816,8 @@
     },
     "empty": {
       "title": "Belum ada statistik",
-      "description": "Setelah data penggunaan tersedia, konsumsi token, cache hits, dan perkiraan harga ditampilkan di sini.",
-      "historyNote": "token dan data biaya diperkirakan berdasarkan informasi publik. Beberapa pemasok atau data berita sebelumnya mungkin hilang dan hanya untuk referensi."
+      "description": "Penggunaan token dan hit cache akan muncul di sini setelah data penggunaan tersedia.",
+      "historyNote": "Data penggunaan dari beberapa penyedia atau pesan sebelumnya mungkin tidak lengkap."
     },
     "summary": {
       "totalTokens": "Jumlahnya Token",
@@ -830,10 +830,6 @@
       "cachedTokensUncachedLabel": "rindu",
       "cacheHitRate": "Tingkat keberhasilan cache",
       "cacheHitRateDescription": "Cache prompt token sebagai proporsi total input token.",
-      "estimatedCost": "perkiraan harga",
-      "estimatedCostDescription": "Perkiraan biaya dalam USD dengan harga provider saat ini atau harga pengganti AIHubMix.",
-      "estimatedCostTrendLabel": "Tren dalam 30 hari terakhir",
-      "estimatedCostTrendEmpty": "Tidak ada biaya yang dicatat dalam 30 hari terakhir.",
       "recordingStartedAt": "Statistik waktu mulai",
       "recordingStartedAtDescription": "Waktu catatan penggunaan paling awal di dasbor saat ini.",
       "withDeepChatDaysLabel": "Jumlah hari persahabatan",
@@ -863,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "Peringkat penyedia",
-      "providerDescription": "Urutkan berdasarkan perkiraan harga terlebih dahulu, lalu total token.",
+      "providerDescription": "Diurutkan berdasarkan total token.",
       "modelTitle": "Peringkat model",
-      "modelDescription": "10 model teratas diurutkan berdasarkan perkiraan harga dan total token.",
+      "modelDescription": "10 model teratas berdasarkan total token.",
       "messages": "{count} pesan",
       "empty": "Belum ada data detail untuk ditampilkan."
     },

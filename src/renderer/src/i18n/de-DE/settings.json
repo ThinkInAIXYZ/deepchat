@@ -800,7 +800,7 @@
   "dashboard": {
     "badge": "Nutzungsübersicht",
     "title": "Nutzungsübersicht",
-    "description": "Statistiken zu token-Verbrauch, Cache-Treffern und geschätzten Kosten. token- und Kostendaten basieren auf öffentlich verfügbaren Informationen; bei manchen Anbietern oder älteren Nachrichten können Daten fehlen und dienen nur als Referenz.",
+    "description": "Tokenverbrauch und Cache-Treffer verfolgen.",
     "actions": {
       "refresh": "Aktualisieren"
     },
@@ -816,8 +816,8 @@
     },
     "empty": {
       "title": "Noch keine Statistikdaten",
-      "description": "Sobald Nutzungsdaten vorhanden sind, werden hier token-Verbrauch, Cache-Treffer und geschätzte Kosten angezeigt.",
-      "historyNote": "token- und Kostendaten basieren auf öffentlich verfügbaren Informationen; bei manchen Anbietern oder älteren Nachrichten können Daten fehlen und dienen nur als Referenz."
+      "description": "Tokenverbrauch und Cache-Treffer werden hier angezeigt, sobald Nutzungsdaten verfügbar sind.",
+      "historyNote": "Nutzungsdaten einiger Anbieter oder früherer Nachrichten können unvollständig sein."
     },
     "summary": {
       "totalTokens": "Token gesamt",
@@ -830,10 +830,6 @@
       "cachedTokensUncachedLabel": "Nicht getroffen",
       "cacheHitRate": "Cache-Trefferrate",
       "cacheHitRateDescription": "Anteil der gecachten prompt-token an den gesamten Eingabe-token.",
-      "estimatedCost": "Geschätzte Kosten",
-      "estimatedCostDescription": "Geschätzte USD-Kosten anhand aktueller provider-Preise oder AIHubMix-Fallbackpreise.",
-      "estimatedCostTrendLabel": "Trend der letzten 30 Tage",
-      "estimatedCostTrendEmpty": "In den letzten 30 Tagen wurden noch keine Kosten erfasst.",
       "recordingStartedAt": "Statistik seit",
       "recordingStartedAtDescription": "Zeitpunkt des frühesten usage-Eintrags in der aktuellen Übersicht.",
       "withDeepChatDaysLabel": "Tage gemeinsam",
@@ -863,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "Anbieter-Ranking",
-      "providerDescription": "Zuerst nach geschätzten Kosten, danach nach gesamten token sortiert.",
+      "providerDescription": "Nach Gesamtzahl der Tokens sortiert.",
       "modelTitle": "Modell-Ranking",
-      "modelDescription": "Top 10 Modelle nach geschätzten Kosten und gesamten token.",
+      "modelDescription": "Top 10 Modelle nach Gesamtzahl der Tokens.",
       "messages": "{count} Nachrichten",
       "empty": "Noch keine Detaildaten zum Anzeigen."
     },

@@ -80,7 +80,6 @@ type UsageStatsRow = {
   total_tokens: number
   cached_input_tokens: number
   cache_write_input_tokens: number
-  estimated_cost_usd: number | null
   source: 'backfill' | 'live'
   created_at: number
   updated_at: number
@@ -93,8 +92,6 @@ function aggregateUsageRows(rows: UsageStatsRow[]) {
   let outputTokens = 0
   let totalTokens = 0
   let cachedInputTokens = 0
-  let estimatedCostSum = 0
-  let pricedMessages = 0
 
   for (const row of rows) {
     messageCount += 1
@@ -103,10 +100,6 @@ function aggregateUsageRows(rows: UsageStatsRow[]) {
     outputTokens += row.output_tokens
     totalTokens += row.total_tokens
     cachedInputTokens += row.cached_input_tokens
-    if (typeof row.estimated_cost_usd === 'number') {
-      estimatedCostSum += row.estimated_cost_usd
-      pricedMessages += 1
-    }
   }
 
   return {
@@ -115,8 +108,7 @@ function aggregateUsageRows(rows: UsageStatsRow[]) {
     inputTokens,
     outputTokens,
     totalTokens,
-    cachedInputTokens,
-    estimatedCostUsd: pricedMessages > 0 ? estimatedCostSum : null
+    cachedInputTokens
   }
 }
 
@@ -252,7 +244,6 @@ function createMockSqlitePresenter() {
         total_tokens: input.totalTokens,
         cached_input_tokens: input.cachedInputTokens,
         cache_write_input_tokens: input.cacheWriteInputTokens,
-        estimated_cost_usd: input.estimatedCostUsd,
         source: input.source,
         created_at: input.createdAt,
         updated_at: input.updatedAt
@@ -303,7 +294,6 @@ function createMockSqlitePresenter() {
           outputTokens: number
           totalTokens: number
           cachedInputTokens: number
-          estimatedCostUsd: number | null
         }
       >()
 
@@ -318,8 +308,7 @@ function createMockSqlitePresenter() {
           inputTokens: 0,
           outputTokens: 0,
           totalTokens: 0,
-          cachedInputTokens: 0,
-          estimatedCostUsd: null
+          cachedInputTokens: 0
         }
 
         current.messageCount += 1
@@ -327,9 +316,6 @@ function createMockSqlitePresenter() {
         current.outputTokens += row.output_tokens
         current.totalTokens += row.total_tokens
         current.cachedInputTokens += row.cached_input_tokens
-        if (typeof row.estimated_cost_usd === 'number') {
-          current.estimatedCostUsd = (current.estimatedCostUsd ?? 0) + row.estimated_cost_usd
-        }
         buckets.set(row.usage_date, current)
       }
 
@@ -361,6 +347,9 @@ function createMockSqlitePresenter() {
           id,
           ...aggregateUsageRows(rows)
         }))
+        .sort(
+          (left, right) => right.totalTokens - left.totalTokens || left.id.localeCompare(right.id)
+        )
         .slice(0, limit)
     }
   }
@@ -648,7 +637,6 @@ describe('UsageStatsService', () => {
       totalTokens: 200,
       cachedInputTokens: 0,
       cacheWriteInputTokens: 0,
-      estimatedCostUsd: 0.01,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 3, 8, 0, 0),
       updatedAt: Date.UTC(2026, 2, 3, 8, 0, 1)
@@ -664,7 +652,6 @@ describe('UsageStatsService', () => {
       totalTokens: 100,
       cachedInputTokens: 0,
       cacheWriteInputTokens: 0,
-      estimatedCostUsd: 0.004,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 3, 8, 1, 0),
       updatedAt: Date.UTC(2026, 2, 3, 8, 1, 1)
@@ -680,7 +667,6 @@ describe('UsageStatsService', () => {
       totalTokens: 50,
       cachedInputTokens: 0,
       cacheWriteInputTokens: 0,
-      estimatedCostUsd: 0.002,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 4, 8, 0, 0),
       updatedAt: Date.UTC(2026, 2, 4, 8, 0, 1)
@@ -694,6 +680,49 @@ describe('UsageStatsService', () => {
       date: '2026-03-03',
       messageCount: 2
     })
+  })
+
+  it('sorts provider and model breakdowns by total tokens', async () => {
+    const { service, sqlitePresenter } = createService()
+
+    sqlitePresenter.deepchatUsageStatsTable.upsert({
+      messageId: 'message-1',
+      sessionId: 'session-1',
+      usageDate: '2026-03-03',
+      providerId: 'openai',
+      modelId: 'gpt-4o-mini',
+      inputTokens: 40,
+      outputTokens: 60,
+      totalTokens: 100,
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      source: 'live',
+      createdAt: Date.UTC(2026, 2, 3, 8, 0, 0),
+      updatedAt: Date.UTC(2026, 2, 3, 8, 0, 1)
+    })
+    sqlitePresenter.deepchatUsageStatsTable.upsert({
+      messageId: 'message-2',
+      sessionId: 'session-2',
+      usageDate: '2026-03-04',
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet',
+      inputTokens: 80,
+      outputTokens: 120,
+      totalTokens: 200,
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      source: 'live',
+      createdAt: Date.UTC(2026, 2, 4, 8, 0, 0),
+      updatedAt: Date.UTC(2026, 2, 4, 8, 0, 1)
+    })
+
+    const dashboard = await service.getDashboard()
+
+    expect(dashboard.providerBreakdown.map((item) => item.id)).toEqual(['anthropic', 'openai'])
+    expect(dashboard.modelBreakdown.map((item) => item.id)).toEqual([
+      'claude-sonnet',
+      'gpt-4o-mini'
+    ])
   })
 
   it('uses the earlier date when the most active day is tied on message count', async () => {
@@ -710,7 +739,6 @@ describe('UsageStatsService', () => {
       totalTokens: 20,
       cachedInputTokens: 0,
       cacheWriteInputTokens: 0,
-      estimatedCostUsd: null,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 5, 8, 0, 0),
       updatedAt: Date.UTC(2026, 2, 5, 8, 0, 1)
@@ -726,7 +754,6 @@ describe('UsageStatsService', () => {
       totalTokens: 20,
       cachedInputTokens: 0,
       cacheWriteInputTokens: 0,
-      estimatedCostUsd: null,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 5, 8, 1, 0),
       updatedAt: Date.UTC(2026, 2, 5, 8, 1, 1)
@@ -742,7 +769,6 @@ describe('UsageStatsService', () => {
       totalTokens: 20,
       cachedInputTokens: 0,
       cacheWriteInputTokens: 0,
-      estimatedCostUsd: null,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 6, 8, 0, 0),
       updatedAt: Date.UTC(2026, 2, 6, 8, 0, 1)
@@ -758,7 +784,6 @@ describe('UsageStatsService', () => {
       totalTokens: 20,
       cachedInputTokens: 0,
       cacheWriteInputTokens: 0,
-      estimatedCostUsd: null,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 6, 8, 1, 0),
       updatedAt: Date.UTC(2026, 2, 6, 8, 1, 1)

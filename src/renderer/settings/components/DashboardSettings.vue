@@ -473,7 +473,6 @@
                         <p :title="formatFullTokens(item.totalTokens)">
                           {{ formatTokens(item.totalTokens) }}
                         </p>
-                        <p>{{ formatCurrency(item.estimatedCostUsd) }}</p>
                       </div>
                     </div>
                   </div>
@@ -531,7 +530,6 @@
                         <p :title="formatFullTokens(item.totalTokens)">
                           {{ formatTokens(item.totalTokens) }}
                         </p>
-                        <p>{{ formatCurrency(item.estimatedCostUsd) }}</p>
                       </div>
                     </div>
                   </div>
@@ -583,7 +581,6 @@ type BreakdownChartRow = {
   secondaryLabel: string | null
   messageCount: number
   totalTokens: number
-  estimatedCostUsd: number | null
   barRatio: number
 }
 const { t, locale } = useI18n()
@@ -643,16 +640,6 @@ const localeFormatters = computed(() => {
     percent: new Intl.NumberFormat(activeLocale, {
       style: 'percent',
       maximumFractionDigits: 1
-    }),
-    currency: new Intl.NumberFormat(activeLocale, {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 2
-    }),
-    preciseCurrency: new Intl.NumberFormat(activeLocale, {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 4
     }),
     date: new Intl.DateTimeFormat(activeLocale, { dateStyle: 'medium' }),
     month: new Intl.DateTimeFormat(activeLocale, { month: 'short' }),
@@ -947,7 +934,6 @@ function buildBreakdownCard(
     secondaryLabel: secondaryLabel(item),
     messageCount: item.messageCount,
     totalTokens: item.totalTokens,
-    estimatedCostUsd: item.estimatedCostUsd,
     barRatio: item.totalTokens > 0 ? item.totalTokens / maxTokens : 0
   }))
 
@@ -989,16 +975,6 @@ function formatCount(value: number): string {
 
 function formatPercent(value: number): string {
   return localeFormatters.value.percent.format(value)
-}
-
-function formatCurrency(value: number | null): string {
-  if (value === null || Number.isNaN(value)) {
-    return t('settings.dashboard.unavailable')
-  }
-
-  const formatter =
-    value >= 1 ? localeFormatters.value.currency : localeFormatters.value.preciseCurrency
-  return formatter.format(value)
 }
 
 function tokenTrendLineColor(series: TokenUsageTrendKey): string {

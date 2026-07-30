@@ -1429,7 +1429,6 @@ function createRuntime() {
         totalTokens: 30,
         cachedInputTokens: 0,
         cacheHitRate: 0,
-        estimatedCostUsd: null,
         mostActiveDay: { date: '2026-06-11', messageCount: 1 }
       },
       calendar: [],

@@ -1080,7 +1080,7 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     presenter.close()
   })
 
-  it('migrates deepchat_usage_stats to include cache_write_input_tokens without losing rows', async () => {
+  it('removes estimated_cost_usd while preserving usage rows', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
 
@@ -1091,7 +1091,7 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
         version INTEGER PRIMARY KEY,
         applied_at INTEGER NOT NULL
       );
-      INSERT INTO schema_versions (version, applied_at) VALUES (21, ${Date.now()});
+      INSERT INTO schema_versions (version, applied_at) VALUES (31, ${Date.now()});
       CREATE TABLE IF NOT EXISTS deepchat_usage_stats (
         message_id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
@@ -1102,39 +1102,19 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
         output_tokens INTEGER NOT NULL DEFAULT 0,
         total_tokens INTEGER NOT NULL DEFAULT 0,
         cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
         estimated_cost_usd REAL,
         source TEXT NOT NULL DEFAULT 'live',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
       INSERT INTO deepchat_usage_stats (
-        message_id,
-        session_id,
-        usage_date,
-        provider_id,
-        model_id,
-        input_tokens,
-        output_tokens,
-        total_tokens,
-        cached_input_tokens,
-        estimated_cost_usd,
-        source,
-        created_at,
-        updated_at
+        message_id, session_id, usage_date, provider_id, model_id, input_tokens, output_tokens,
+        total_tokens, cached_input_tokens, cache_write_input_tokens, estimated_cost_usd, source,
+        created_at, updated_at
       ) VALUES (
-        'message-1',
-        'session-1',
-        '2026-03-10',
-        'openai',
-        'gpt-4o',
-        120,
-        30,
-        150,
-        20,
-        0.01,
-        'live',
-        1000,
-        2000
+        'message-1', 'session-1', '2026-03-10', 'openai', 'gpt-4o', 120, 30, 150, 20, 0, 0.01,
+        'live', 1000, 2000
       );
     `)
     bootstrapDb.close()
@@ -1143,40 +1123,37 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     presenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)
-    const usageColumns = checkDb.prepare('PRAGMA table_info(deepchat_usage_stats)').all() as Array<{
-      name: string
-    }>
-    const columnNames = new Set(usageColumns.map((column) => column.name))
+    const columnNames = new Set(
+      (
+        checkDb.prepare('PRAGMA table_info(deepchat_usage_stats)').all() as Array<{ name: string }>
+      ).map((column) => column.name)
+    )
+    const indexNames = new Set(
+      (
+        checkDb.prepare('PRAGMA index_list(deepchat_usage_stats)').all() as Array<{ name: string }>
+      ).map((index) => index.name)
+    )
     const row = checkDb
       .prepare(
-        `SELECT
-          message_id,
-          cached_input_tokens,
-          cache_write_input_tokens,
-          estimated_cost_usd
+        `SELECT message_id, cached_input_tokens, cache_write_input_tokens
          FROM deepchat_usage_stats
          WHERE message_id = ?`
       )
-      .get('message-1') as
-      | {
-          message_id: string
-          cached_input_tokens: number
-          cache_write_input_tokens: number
-          estimated_cost_usd: number | null
-        }
-      | undefined
+      .get('message-1')
     const versions = checkDb
       .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
       .all() as Array<{ version: number }>
 
-    expect(columnNames.has('cache_write_input_tokens')).toBe(true)
+    expect(columnNames.has('estimated_cost_usd')).toBe(false)
+    expect(indexNames.has('idx_deepchat_usage_stats_date')).toBe(true)
+    expect(indexNames.has('idx_deepchat_usage_stats_provider_date')).toBe(true)
+    expect(indexNames.has('idx_deepchat_usage_stats_model_date')).toBe(true)
     expect(row).toEqual({
       message_id: 'message-1',
       cached_input_tokens: 20,
-      cache_write_input_tokens: 0,
-      estimated_cost_usd: 0.01
+      cache_write_input_tokens: 0
     })
-    expect(versions.map((entry) => entry.version)).toContain(22)
+    expect(versions.map((entry) => entry.version)).toContain(32)
     checkDb.close()
   })
 

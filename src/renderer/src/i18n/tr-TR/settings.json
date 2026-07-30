@@ -800,7 +800,7 @@
   "dashboard": {
     "badge": "Kullanım Kontrol Paneli",
     "title": "Kullanım Kontrol Paneli",
-    "description": "token kullanımını, önbellek isabetlerini ve tahmini maliyeti izleyin. token ve maliyet rakamları kamuya açık bilgilere dayanılarak tahmin edilmiştir ve bazı sağlayıcılar veya daha önceki mesajlar eksik olabilir; dolayısıyla bu rakamları yalnızca referans olarak değerlendirin.",
+    "description": "Token kullanımını ve önbellek isabetlerini izleyin.",
     "actions": {
       "refresh": "Yenile"
     },
@@ -816,8 +816,8 @@
     },
     "empty": {
       "title": "Henüz kullanım istatistiği yok",
-      "description": "token kullanımı, önbellek isabetleri ve tahmini maliyet, kullanım verileri hazır olduğunda burada görünecektir.",
-      "historyNote": "token ve maliyet rakamları kamuya açık bilgilerden tahmin edilmektedir. Bazı sağlayıcılar veya daha önceki mesajlar eksik olabilir; dolayısıyla bu rakamları yalnızca referans olarak değerlendirin."
+      "description": "Kullanım verileri hazır olduğunda token kullanımı ve önbellek isabetleri burada görünür.",
+      "historyNote": "Bazı sağlayıcıların veya önceki mesajların kullanım verileri eksik olabilir."
     },
     "summary": {
       "totalTokens": "Toplam tokens",
@@ -830,10 +830,6 @@
       "cachedTokensUncachedLabel": "Önbelleğe alınmamış",
       "cacheHitRate": "Önbellek isabet oranı",
       "cacheHitRateDescription": "Önbelleğe alınan prompt tokens toplam giriş tokens'ye bölünür.",
-      "estimatedCost": "Tahmini maliyet",
-      "estimatedCostDescription": "Sağlayıcı fiyatlandırması veya AIHubMix geri dönüş fiyatlandırması kullanılarak ABD doları cinsinden tahmin edilir.",
-      "estimatedCostTrendLabel": "Son 30 gündeki trend",
-      "estimatedCostTrendEmpty": "Son 30 gün içinde hiçbir maliyet kaydedilmedi.",
       "recordingStartedAt": "Kayıt başladı",
       "recordingStartedAtDescription": "Şu anda bu kontrol panelinde saklanan en eski kullanım kaydı.",
       "withDeepChatDaysLabel": "Birlikte geçirdiğimiz günler",
@@ -863,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "En iyi sağlayıcılar",
-      "providerDescription": "Tahmini maliyete ve ardından toplam tokens'ye göre sıralanır.",
+      "providerDescription": "Toplam token sayısına göre sıralanır.",
       "modelTitle": "En iyi modeller",
-      "modelDescription": "Tahmini maliyete göre ilk 10 model, ardından toplam tokens.",
+      "modelDescription": "Toplam token sayısına göre en iyi 10 model.",
       "messages": "{count} mesajları",
       "empty": "Henüz arıza verisi yok."
     },

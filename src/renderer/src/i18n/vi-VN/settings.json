@@ -800,7 +800,7 @@
   "dashboard": {
     "badge": "Trang tổng quan sử dụng",
     "title": "Trang tổng quan sử dụng",
-    "description": "Theo dõi việc sử dụng token, số lần truy cập bộ đệm và chi phí ước tính. Token và số liệu chi phí được ước tính từ thông tin công khai và một số nhà cung cấp hoặc thông báo trước đó có thể không đầy đủ, vì vậy hãy coi những số liệu này chỉ mang tính chất tham khảo.",
+    "description": "Theo dõi việc sử dụng token và số lần truy cập bộ đệm.",
     "actions": {
       "refresh": "Làm mới"
     },
@@ -816,8 +816,8 @@
     },
     "empty": {
       "title": "Chưa có số liệu thống kê sử dụng",
-      "description": "Mức sử dụng Token, số lần truy cập bộ nhớ đệm và chi phí ước tính sẽ xuất hiện ở đây sau khi có dữ liệu sử dụng.",
-      "historyNote": "Token và số liệu chi phí được ước tính từ thông tin công khai. Một số nhà cung cấp hoặc tin nhắn trước đó có thể không đầy đủ, vì vậy hãy coi những số liệu này chỉ mang tính chất tham khảo."
+      "description": "Mức sử dụng token và số lần truy cập bộ đệm sẽ xuất hiện ở đây khi có dữ liệu sử dụng.",
+      "historyNote": "Dữ liệu sử dụng từ một số nhà cung cấp hoặc các tin nhắn trước đó có thể không đầy đủ."
     },
     "summary": {
       "totalTokens": "Tổng tokens",
@@ -830,10 +830,6 @@
       "cachedTokensUncachedLabel": "Không được lưu vào bộ nhớ đệm",
       "cacheHitRate": "Tỷ lệ truy cập bộ đệm",
       "cacheHitRateDescription": "prompt tokens được lưu vào bộ nhớ đệm chia cho tổng đầu vào tokens.",
-      "estimatedCost": "Chi phí ước tính",
-      "estimatedCostDescription": "Ước tính bằng USD sử dụng giá của nhà cung cấp hoặc giá dự phòng AIHubMix.",
-      "estimatedCostTrendLabel": "Xu hướng trong 30 ngày qua",
-      "estimatedCostTrendEmpty": "Không có chi phí nào được ghi lại trong 30 ngày qua.",
       "recordingStartedAt": "Đã bắt đầu ghi",
       "recordingStartedAtDescription": "Bản ghi sử dụng sớm nhất hiện được lưu trữ trong bảng thông tin này.",
       "withDeepChatDaysLabel": "Ngày bên nhau",
@@ -863,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "Nhà cung cấp hàng đầu",
-      "providerDescription": "Xếp hạng theo chi phí ước tính, sau đó theo tổng tokens.",
+      "providerDescription": "Xếp hạng theo tổng số token.",
       "modelTitle": "Người mẫu hàng đầu",
-      "modelDescription": "10 mẫu hàng đầu theo chi phí ước tính, sau đó là tổng tokens.",
+      "modelDescription": "10 mẫu hàng đầu theo tổng số token.",
       "messages": "Tin nhắn {count}",
       "empty": "Chưa có dữ liệu phân tích."
     },

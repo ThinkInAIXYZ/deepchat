@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { sanitizeAggregateJson } from '../../../scripts/fetch-provider-db.mjs'
 
 describe('fetch-provider-db', () => {
-  it('preserves media types and classifies pinned OpenAI speech model IDs', () => {
+  it('preserves media types, omits pricing, and classifies pinned OpenAI speech model IDs', () => {
     const sanitized = sanitizeAggregateJson({
       providers: {
         openai: {
           id: 'openai',
           models: [
-            { id: 'tts-1', type: undefined },
+            { id: 'tts-1', type: undefined, cost: { input: 1, output: 2 } },
             { id: 'tts-1-hd-1106' },
             { id: 'gpt-4o-mini-tts' },
             { id: 'openai/tts-1-hd' },
@@ -21,6 +21,7 @@ describe('fetch-provider-db', () => {
       }
     })
 
+    expect(sanitized?.providers.openai.models[0]).not.toHaveProperty('cost')
     expect(sanitized?.providers.openai.models).toEqual([
       expect.objectContaining({ id: 'tts-1', type: 'tts' }),
       expect.objectContaining({ id: 'tts-1-hd-1106', type: 'tts' }),

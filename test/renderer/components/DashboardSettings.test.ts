@@ -125,7 +125,6 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
       totalTokens: 1200,
       cachedInputTokens: 200,
       cacheHitRate: 0.25,
-      estimatedCostUsd: 0.0123,
       mostActiveDay: {
         date: '2026-03-09',
         messageCount: 2
@@ -138,7 +137,6 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
       outputTokens: index % 4 === 0 ? 20 : 0,
       totalTokens: index % 4 === 0 ? 60 : 0,
       cachedInputTokens: index % 8 === 0 ? 10 : 0,
-      estimatedCostUsd: index % 4 === 0 ? 0.0006 : null,
       level: index % 4 === 0 ? 3 : 0
     })),
     providerBreakdown: [
@@ -149,8 +147,7 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
         inputTokens: 800,
         outputTokens: 400,
         totalTokens: 1200,
-        cachedInputTokens: 200,
-        estimatedCostUsd: 0.0123
+        cachedInputTokens: 200
       }
     ],
     modelBreakdown: [
@@ -161,8 +158,7 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
         inputTokens: 800,
         outputTokens: 400,
         totalTokens: 1200,
-        cachedInputTokens: 200,
-        estimatedCostUsd: 0.0123
+        cachedInputTokens: 200
       }
     ],
     rtk: {
@@ -275,12 +271,6 @@ async function setup(
         if (key === 'settings.dashboard.summary.tokenUsage') {
           return 'Token usage'
         }
-        if (key === 'settings.dashboard.summary.estimatedCostTrendLabel') {
-          return 'Trend over the last 30 days'
-        }
-        if (key === 'settings.dashboard.summary.estimatedCostTrendEmpty') {
-          return 'No cost recorded in the last 30 days.'
-        }
         if (key === 'settings.dashboard.summary.nostalgiaLabel') {
           return 'Echoes'
         }
@@ -384,7 +374,6 @@ describe('DashboardSettings', () => {
           totalTokens: 0,
           cachedInputTokens: 0,
           cacheHitRate: 0,
-          estimatedCostUsd: null,
           mostActiveDay: {
             date: null,
             messageCount: 0
@@ -509,19 +498,18 @@ describe('DashboardSettings', () => {
         outputTokens: 20,
         totalTokens: 60,
         cachedInputTokens: 10,
-        estimatedCostUsd: 0.0006,
         level: 3 as const
       }
     })
 
     const { wrapper } = await setup(buildDashboard({ calendar }), { hideNostalgia: true })
 
-    expect(numberFormat).toHaveBeenCalledTimes(6)
+    expect(numberFormat).toHaveBeenCalledTimes(4)
     expect(dateTimeFormat).toHaveBeenCalledTimes(3)
 
     wrapper.vm.$forceUpdate()
     await nextTick()
-    expect(numberFormat).toHaveBeenCalledTimes(6)
+    expect(numberFormat).toHaveBeenCalledTimes(4)
     expect(dateTimeFormat).toHaveBeenCalledTimes(3)
   })
 
@@ -635,7 +623,6 @@ describe('DashboardSettings', () => {
             outputTokens: 20,
             totalTokens: 70,
             cachedInputTokens: 10,
-            estimatedCostUsd: 0.0012,
             level: 1
           },
           {
@@ -645,7 +632,6 @@ describe('DashboardSettings', () => {
             outputTokens: 5,
             totalTokens: 30,
             cachedInputTokens: 4,
-            estimatedCostUsd: 0.0007,
             level: 1
           }
         ]
@@ -676,7 +662,6 @@ describe('DashboardSettings', () => {
           totalTokens: 0,
           cachedInputTokens: 0,
           cacheHitRate: 0,
-          estimatedCostUsd: null,
           mostActiveDay: {
             date: null,
             messageCount: 0
@@ -702,7 +687,6 @@ describe('DashboardSettings', () => {
           totalTokens: 400,
           cachedInputTokens: 0,
           cacheHitRate: 0,
-          estimatedCostUsd: 0.0123,
           mostActiveDay: {
             date: '2026-03-10',
             messageCount: 1
@@ -726,7 +710,6 @@ describe('DashboardSettings', () => {
           outputTokens: 0,
           totalTokens: 0,
           cachedInputTokens: 0,
-          estimatedCostUsd: null,
           level: 0 as const
         }))
       })
@@ -762,7 +745,6 @@ describe('DashboardSettings', () => {
           totalTokens: 1200,
           cachedInputTokens: 200,
           cacheHitRate: 0.25,
-          estimatedCostUsd: 0.0123,
           mostActiveDay: {
             date: null,
             messageCount: 0

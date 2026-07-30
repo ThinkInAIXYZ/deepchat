@@ -2493,6 +2493,7 @@ declare module 'vue-i18n' {
             working: string
           }
         }
+        loadMore: string
       }
       compactionThreshold: string
       compactionRetainPairs: string
@@ -2903,10 +2904,6 @@ declare module 'vue-i18n' {
         cachedTokensUncachedLabel: string
         cacheHitRate: string
         cacheHitRateDescription: string
-        estimatedCost: string
-        estimatedCostDescription: string
-        estimatedCostTrendLabel: string
-        estimatedCostTrendEmpty: string
         recordingStartedAt: string
         recordingStartedAtDescription: string
         withDeepChatDaysLabel: string

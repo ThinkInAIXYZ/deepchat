@@ -441,7 +441,6 @@ export interface UsageDashboardSummary {
   totalTokens: number
   cachedInputTokens: number
   cacheHitRate: number
-  estimatedCostUsd: number | null
   mostActiveDay: {
     date: string | null
     messageCount: number
@@ -455,7 +454,6 @@ export interface UsageDashboardCalendarDay {
   outputTokens: number
   totalTokens: number
   cachedInputTokens: number
-  estimatedCostUsd: number | null
   level: 0 | 1 | 2 | 3 | 4
 }
 
@@ -467,7 +465,6 @@ export interface UsageDashboardBreakdownItem {
   outputTokens: number
   totalTokens: number
   cachedInputTokens: number
-  estimatedCostUsd: number | null
 }
 
 export type RtkHealthStatus = 'checking' | 'healthy' | 'unhealthy'

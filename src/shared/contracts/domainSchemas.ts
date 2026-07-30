@@ -310,7 +310,6 @@ export const UsageDashboardSummarySchema = z.object({
   totalTokens: z.number().nonnegative(),
   cachedInputTokens: z.number().nonnegative(),
   cacheHitRate: z.number(),
-  estimatedCostUsd: z.number().nullable(),
   mostActiveDay: z.object({
     date: z.string().nullable(),
     messageCount: z.number().int().nonnegative()
@@ -324,7 +323,6 @@ export const UsageDashboardCalendarDaySchema = z.object({
   outputTokens: z.number().nonnegative(),
   totalTokens: z.number().nonnegative(),
   cachedInputTokens: z.number().nonnegative(),
-  estimatedCostUsd: z.number().nullable(),
   level: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
 })
 
@@ -335,8 +333,7 @@ export const UsageDashboardBreakdownItemSchema = z.object({
   inputTokens: z.number().nonnegative(),
   outputTokens: z.number().nonnegative(),
   totalTokens: z.number().nonnegative(),
-  cachedInputTokens: z.number().nonnegative(),
-  estimatedCostUsd: z.number().nullable()
+  cachedInputTokens: z.number().nonnegative()
 })
 
 export const UsageDashboardRtkSummarySchema = z.object({

@@ -800,7 +800,7 @@
   "dashboard": {
     "badge": "Dashboard utilizzo",
     "title": "Dashboard utilizzo",
-    "description": "Statistiche su consumo token, hit cache e costo stimato. Token e costi sono stimati da informazioni pubbliche; per alcuni provider o messaggi precedenti i dati potrebbero essere incompleti, quindi sono solo indicativi.",
+    "description": "Tieni traccia dell’utilizzo dei token e dei cache hit.",
     "actions": {
       "refresh": "Aggiorna"
     },
@@ -816,8 +816,8 @@
     },
     "empty": {
       "title": "Nessuna statistica disponibile",
-      "description": "Quando saranno disponibili dati di utilizzo, qui vedrai consumo token, hit cache e costo stimato.",
-      "historyNote": "Token e costi sono stimati da informazioni pubbliche. Per alcuni provider o messaggi precedenti i dati potrebbero essere incompleti, quindi sono solo indicativi."
+      "description": "L’utilizzo dei token e i cache hit saranno visibili qui quando i dati di utilizzo saranno disponibili.",
+      "historyNote": "I dati di utilizzo di alcuni provider o dei messaggi precedenti potrebbero essere incompleti."
     },
     "summary": {
       "totalTokens": "Token totali",
@@ -830,10 +830,6 @@
       "cachedTokensUncachedLabel": "Non in cache",
       "cacheHitRate": "Tasso hit cache",
       "cacheHitRateDescription": "Quota di prompt token in cache sul totale dei token di input.",
-      "estimatedCost": "Costo stimato",
-      "estimatedCostDescription": "Costo stimato in USD usando i prezzi provider correnti o i prezzi fallback AIHubMix.",
-      "estimatedCostTrendLabel": "Trend ultimi 30 giorni",
-      "estimatedCostTrendEmpty": "Nessun costo registrato negli ultimi 30 giorni.",
       "recordingStartedAt": "Inizio registrazione statistiche",
       "recordingStartedAtDescription": "Ora del primo record usage presente nella dashboard corrente.",
       "withDeepChatDaysLabel": "Giorni insieme",
@@ -863,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "Classifica provider",
-      "providerDescription": "Ordinata prima per costo stimato, poi per token totali.",
+      "providerDescription": "Classificati per numero totale di token.",
       "modelTitle": "Classifica modelli",
-      "modelDescription": "I primi 10 modelli ordinati per costo stimato e token totali.",
+      "modelDescription": "I 10 migliori modelli per numero totale di token.",
       "messages": "{count} messaggi",
       "empty": "Nessun dettaglio disponibile per ora."
     },

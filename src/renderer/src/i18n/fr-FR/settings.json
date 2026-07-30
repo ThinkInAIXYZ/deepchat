@@ -455,7 +455,7 @@
   "dashboard": {
     "badge": "Tableau de bord d'utilisation",
     "title": "Tableau de bord d'utilisation",
-    "description": "Affiche la consommation de tokens, les accès au cache et le coût estimé. Les données de tokens et de coût sont estimées à partir d’informations publiques ; certains fournisseurs ou messages plus anciens peuvent être incomplets, donc ces chiffres sont fournis à titre indicatif.",
+    "description": "Suivez l’utilisation des jetons et les accès au cache.",
     "actions": {
       "refresh": "Actualiser"
     },
@@ -471,8 +471,8 @@
     },
     "empty": {
       "title": "Pas encore de statistiques d'utilisation",
-      "description": "La consommation de tokens, les accès au cache et le coût estimé apparaîtront ici dès que des données d’utilisation seront disponibles.",
-      "historyNote": "Les données de tokens et de coût sont estimées à partir d’informations publiques. Certains fournisseurs ou messages plus anciens peuvent être incomplets, donc ces chiffres sont fournis à titre indicatif."
+      "description": "L’utilisation des jetons et les accès au cache apparaîtront ici dès que des données d’utilisation seront disponibles.",
+      "historyNote": "Les données d’utilisation de certains fournisseurs ou des messages antérieurs peuvent être incomplètes."
     },
     "summary": {
       "totalTokens": "Total des tokens",
@@ -485,10 +485,6 @@
       "cachedTokensUncachedLabel": "Sans cache",
       "cacheHitRate": "Taux de cache",
       "cacheHitRateDescription": "Tokens de prompt en cache divisés par le total des tokens d'entrée.",
-      "estimatedCost": "Coût estimé",
-      "estimatedCostDescription": "Estimation en USD à partir des tarifs du fournisseur ou du tarif de secours AIHubMix.",
-      "estimatedCostTrendLabel": "Tendance sur les 30 derniers jours",
-      "estimatedCostTrendEmpty": "Aucun coût enregistré sur les 30 derniers jours.",
       "recordingStartedAt": "Début de l'enregistrement",
       "recordingStartedAtDescription": "Le plus ancien enregistrement d'utilisation actuellement stocké dans ce tableau de bord.",
       "withDeepChatDaysLabel": "Jours ensemble",
@@ -518,9 +514,9 @@
     },
     "breakdown": {
       "providerTitle": "Classement des fournisseurs",
-      "providerDescription": "Triés d’abord par coût estimé, puis par nombre total de tokens.",
+      "providerDescription": "Classés par nombre total de jetons.",
       "modelTitle": "Classement des modèles",
-      "modelDescription": "Top 10 des modèles par coût estimé, puis par nombre total de tokens.",
+      "modelDescription": "Les 10 meilleurs modèles par nombre total de jetons.",
       "messages": "{count} messages",
       "empty": "Aucune donnée de répartition à afficher pour le moment."
     },

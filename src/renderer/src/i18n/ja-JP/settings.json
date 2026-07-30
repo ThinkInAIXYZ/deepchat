@@ -455,7 +455,7 @@
   "dashboard": {
     "badge": "使用ダッシュボード",
     "title": "使用ダッシュボード",
-    "description": "token 消費、キャッシュヒット、推定コストを集計します。token と費用のデータは公開情報をもとに推定しており、一部のプロバイダーや過去のメッセージでは欠損する場合があるため、参考値としてご利用ください。",
+    "description": "トークン使用量とキャッシュヒットを追跡します。",
     "actions": {
       "refresh": "更新"
     },
@@ -471,8 +471,8 @@
     },
     "empty": {
       "title": "使用統計はまだありません",
-      "description": "使用データが利用可能になると、token 消費、キャッシュヒット、推定コストがここに表示されます。",
-      "historyNote": "token と費用のデータは公開情報をもとに推定しています。一部のプロバイダーや過去のメッセージでは欠損する場合があるため、参考値としてご利用ください。"
+      "description": "使用量データが利用可能になると、トークン使用量とキャッシュヒットがここに表示されます。",
+      "historyNote": "一部のプロバイダーまたは以前のメッセージの使用量データは不完全な場合があります。"
     },
     "summary": {
       "totalTokens": "総 token",
@@ -485,10 +485,6 @@
       "cachedTokensUncachedLabel": "未キャッシュ",
       "cacheHitRate": "キャッシュヒット率",
       "cacheHitRateDescription": "キャッシュされた prompt token を総入力 token で割った割合です。",
-      "estimatedCost": "推定コスト",
-      "estimatedCostDescription": "provider の価格、または AIHubMix の代替価格をもとに米ドルで推定したコストです。",
-      "estimatedCostTrendLabel": "直近30日間の推移",
-      "estimatedCostTrendEmpty": "直近30日間のコスト記録はありません。",
       "recordingStartedAt": "記録開始時点",
       "recordingStartedAtDescription": "このダッシュボードに現在保存されている最も古い使用記録です。",
       "withDeepChatDaysLabel": "一緒に過ごした日数",
@@ -518,9 +514,9 @@
     },
     "breakdown": {
       "providerTitle": "プロバイダー別ランキング",
-      "providerDescription": "推定コスト順で、同率の場合は総トークン数順です。",
+      "providerDescription": "合計トークン数で並べ替えています。",
       "modelTitle": "モデル別ランキング",
-      "modelDescription": "推定コスト順、同率時は総トークン数順の上位10モデルです。",
+      "modelDescription": "合計トークン数による上位10モデル。",
       "messages": "{count}件のメッセージ",
       "empty": "表示できる内訳データはまだありません。"
     },

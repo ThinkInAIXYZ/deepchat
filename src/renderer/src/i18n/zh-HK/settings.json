@@ -455,7 +455,7 @@
   "dashboard": {
     "badge": "使用看板",
     "title": "使用看板",
-    "description": "統計 token 消耗、緩存命中與估算價格。token 和費用資料基於公開資訊估算，部分供應商或較早訊息資料可能缺失，僅供參考。",
+    "description": "統計 token 消耗與快取命中。",
     "actions": {
       "refresh": "刷新"
     },
@@ -471,8 +471,8 @@
     },
     "empty": {
       "title": "暫無統計資料",
-      "description": "有使用數據後，這裡會顯示 token 消耗、緩存命中和估算價格。",
-      "historyNote": "token 和費用資料基於公開資訊估算，部分供應商或較早訊息資料可能缺失，僅供參考。"
+      "description": "有使用資料後，這裡會顯示 token 消耗與快取命中。",
+      "historyNote": "部分供應商或較早訊息的使用資料可能缺失，僅供參考。"
     },
     "summary": {
       "totalTokens": "總 Token",
@@ -485,10 +485,6 @@
       "cachedTokensUncachedLabel": "未命中",
       "cacheHitRate": "緩存命中率",
       "cacheHitRateDescription": "緩存 prompt token 佔總輸入 token 的比例。",
-      "estimatedCost": "估算價格",
-      "estimatedCostDescription": "按目前 provider 價格或 AIHubMix 回退價格估算的美元成本。",
-      "estimatedCostTrendLabel": "最近 30 天趨勢",
-      "estimatedCostTrendEmpty": "最近 30 天還沒有成本記錄。",
       "recordingStartedAt": "統計開始時間",
       "recordingStartedAtDescription": "目前看板中最早一條 usage 記錄的時間。",
       "withDeepChatDaysLabel": "陪伴天數",
@@ -518,9 +514,9 @@
     },
     "breakdown": {
       "providerTitle": "供應商排行",
-      "providerDescription": "先按估算價格排序，再按總 token 排序。",
+      "providerDescription": "按總 token 排序。",
       "modelTitle": "模型排行",
-      "modelDescription": "按估算價格和總 token 排序的前 10 個模型。",
+      "modelDescription": "按總 token 排序的前 10 個模型。",
       "messages": "{count} 條消息",
       "empty": "暫時還沒有可展示的明細資料。"
     },

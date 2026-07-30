@@ -74,8 +74,7 @@ export class UsageStatsService {
         inputTokens: row.inputTokens,
         outputTokens: row.outputTokens,
         totalTokens: row.totalTokens,
-        cachedInputTokens: row.cachedInputTokens,
-        estimatedCostUsd: row.estimatedCostUsd
+        cachedInputTokens: row.cachedInputTokens
       }))
     )
     const modelBreakdown = this.sortUsageBreakdown(
@@ -86,8 +85,7 @@ export class UsageStatsService {
         inputTokens: row.inputTokens,
         outputTokens: row.outputTokens,
         totalTokens: row.totalTokens,
-        cachedInputTokens: row.cachedInputTokens,
-        estimatedCostUsd: row.estimatedCostUsd
+        cachedInputTokens: row.cachedInputTokens
       }))
     )
 
@@ -102,7 +100,6 @@ export class UsageStatsService {
         totalTokens: summaryRow.totalTokens,
         cachedInputTokens: summaryRow.cachedInputTokens,
         cacheHitRate,
-        estimatedCostUsd: summaryRow.estimatedCostUsd,
         mostActiveDay
       },
       calendar,
@@ -260,13 +257,9 @@ export class UsageStatsService {
   }
 
   private sortUsageBreakdown(items: UsageDashboardBreakdownItem[]): UsageDashboardBreakdownItem[] {
-    return [...items].sort((left, right) => {
-      const leftCost = left.estimatedCostUsd ?? -1
-      const rightCost = right.estimatedCostUsd ?? -1
-      if (rightCost !== leftCost) return rightCost - leftCost
-      if (right.totalTokens !== left.totalTokens) return right.totalTokens - left.totalTokens
-      return left.label.localeCompare(right.label)
-    })
+    return [...items].sort(
+      (left, right) => right.totalTokens - left.totalTokens || left.label.localeCompare(right.label)
+    )
   }
 
   private toLocalDateKey(timestamp: number): string {

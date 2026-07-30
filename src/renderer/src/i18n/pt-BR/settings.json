@@ -455,7 +455,7 @@
   "dashboard": {
     "badge": "Painel de uso",
     "title": "Painel de uso",
-    "description": "Mostra o consumo de tokens, os acertos de cache e o custo estimado. Os dados de tokens e custo são estimados com base em informações públicas, e alguns provedores ou mensagens mais antigas podem estar incompletos, então use esses números apenas como referência.",
+    "description": "Acompanhe o uso de tokens e os acertos de cache.",
     "actions": {
       "refresh": "Atualizar"
     },
@@ -471,8 +471,8 @@
     },
     "empty": {
       "title": "Ainda não há estatísticas de uso",
-      "description": "O consumo de tokens, os acertos de cache e o custo estimado aparecerão aqui assim que houver dados de uso.",
-      "historyNote": "Os dados de tokens e custo são estimados com base em informações públicas. Alguns provedores ou mensagens mais antigas podem estar incompletos, então use esses números apenas como referência."
+      "description": "O uso de tokens e os acertos de cache aparecerão aqui quando houver dados de uso disponíveis.",
+      "historyNote": "Os dados de uso de alguns provedores ou mensagens anteriores podem estar incompletos."
     },
     "summary": {
       "totalTokens": "Total de tokens",
@@ -485,10 +485,6 @@
       "cachedTokensUncachedLabel": "Sem cache",
       "cacheHitRate": "Taxa de acerto do cache",
       "cacheHitRateDescription": "Tokens de prompt em cache divididos pelo total de tokens de entrada.",
-      "estimatedCost": "Custo estimado",
-      "estimatedCostDescription": "Estimado em USD com base no preço do provedor ou no preço de fallback da AIHubMix.",
-      "estimatedCostTrendLabel": "Tendência dos últimos 30 dias",
-      "estimatedCostTrendEmpty": "Nenhum custo registrado nos últimos 30 dias.",
       "recordingStartedAt": "Início do registro",
       "recordingStartedAtDescription": "O registro de uso mais antigo atualmente armazenado neste painel.",
       "withDeepChatDaysLabel": "Dias juntos",
@@ -518,9 +514,9 @@
     },
     "breakdown": {
       "providerTitle": "Ranking por provedor",
-      "providerDescription": "Ordenado primeiro por custo estimado e depois por total de tokens.",
+      "providerDescription": "Classificados pelo total de tokens.",
       "modelTitle": "Ranking por modelo",
-      "modelDescription": "Top 10 modelos por custo estimado e depois por total de tokens.",
+      "modelDescription": "Os 10 melhores modelos pelo total de tokens.",
       "messages": "{count} mensagens",
       "empty": "Ainda não há dados detalhados para exibir."
     },

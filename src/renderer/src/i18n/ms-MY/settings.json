@@ -800,7 +800,7 @@
   "dashboard": {
     "badge": "Gunakan Kanban",
     "title": "Gunakan Kanban",
-    "description": "Statistik tentang penggunaan token, capaian cache dan anggaran harga. token dan data kos dianggarkan berdasarkan maklumat awam. Sesetengah pembekal atau data berita terdahulu mungkin hilang dan hanya untuk rujukan.",
+    "description": "Jejaki penggunaan token dan capaian cache.",
     "actions": {
       "refresh": "segarkan semula"
     },
@@ -816,8 +816,8 @@
     },
     "empty": {
       "title": "Tiada statistik lagi",
-      "description": "Setelah data penggunaan tersedia, penggunaan token, capaian cache dan anggaran harga ditunjukkan di sini.",
-      "historyNote": "token dan data kos dianggarkan berdasarkan maklumat awam. Sesetengah pembekal atau data berita terdahulu mungkin hilang dan hanya untuk rujukan."
+      "description": "Penggunaan token dan capaian cache akan dipaparkan di sini apabila data penggunaan tersedia.",
+      "historyNote": "Data penggunaan daripada sesetengah penyedia atau mesej terdahulu mungkin tidak lengkap."
     },
     "summary": {
       "totalTokens": "Jumlah Token",
@@ -830,10 +830,6 @@
       "cachedTokensUncachedLabel": "rindu",
       "cacheHitRate": "Kadar hit cache",
       "cacheHitRateDescription": "Nisbah prompt token cache kepada jumlah input token.",
-      "estimatedCost": "anggaran harga",
-      "estimatedCostDescription": "Anggaran kos dolar pada harga semasa provider atau harga sandaran AIHubMix.",
-      "estimatedCostTrendLabel": "Trend dalam 30 hari yang lalu",
-      "estimatedCostTrendEmpty": "Tiada kos direkodkan dalam tempoh 30 hari yang lalu.",
       "recordingStartedAt": "Masa mula statistik",
       "recordingStartedAtDescription": "Masa rekod usage terawal dalam papan kanban semasa.",
       "withDeepChatDaysLabel": "Bilangan hari persahabatan",
@@ -863,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "Kedudukan pembekal",
-      "providerDescription": "Isih mengikut anggaran harga dahulu, kemudian jumlah token.",
+      "providerDescription": "Disusun mengikut jumlah token.",
       "modelTitle": "Kedudukan model",
-      "modelDescription": "10 model teratas diisih mengikut anggaran harga dan jumlah token.",
+      "modelDescription": "10 model teratas mengikut jumlah token.",
       "messages": "Mesej {count}",
       "empty": "Tiada data terperinci untuk dipaparkan lagi."
     },

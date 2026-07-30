@@ -800,7 +800,7 @@
   "dashboard": {
     "badge": "Panel użytkowania",
     "title": "Panel użytkowania",
-    "description": "Śledź wykorzystanie token, trafienia do pamięci podręcznej i szacowany koszt. Dane Token i koszty są szacowane na podstawie informacji publicznych, a niektórzy dostawcy lub wcześniejsze wiadomości mogą być niekompletne, dlatego należy traktować te liczby wyłącznie jako odniesienie.",
+    "description": "Śledź użycie tokenów i trafienia pamięci podręcznej.",
     "actions": {
       "refresh": "Odśwież"
     },
@@ -816,8 +816,8 @@
     },
     "empty": {
       "title": "Nie ma jeszcze statystyk użytkowania",
-      "description": "Użycie Token, trafienia do pamięci podręcznej i szacowany koszt pojawią się tutaj, gdy dostępne będą dane o użytkowaniu.",
-      "historyNote": "Dane Token i koszty są szacowane na podstawie informacji publicznych. Niektórzy dostawcy lub wcześniejsze wiadomości mogą być niekompletne, więc traktuj te liczby wyłącznie jako odniesienie."
+      "description": "Użycie tokenów i trafienia pamięci podręcznej pojawią się tutaj, gdy dane użycia będą dostępne.",
+      "historyNote": "Dane użycia od niektórych dostawców lub wcześniejszych wiadomości mogą być niepełne."
     },
     "summary": {
       "totalTokens": "Razem tokens",
@@ -830,10 +830,6 @@
       "cachedTokensUncachedLabel": "Nieumieszczone w pamięci podręcznej",
       "cacheHitRate": "Współczynnik trafień w pamięci podręcznej",
       "cacheHitRateDescription": "Buforowane prompt tokens podzielone przez całkowite dane wejściowe tokens.",
-      "estimatedCost": "Szacowany koszt",
-      "estimatedCostDescription": "Oszacowane w USD na podstawie cen dostawcy lub cen zastępczych AIHubMix.",
-      "estimatedCostTrendLabel": "Trend z ostatnich 30 dni",
-      "estimatedCostTrendEmpty": "W ciągu ostatnich 30 dni nie zarejestrowano żadnych kosztów.",
       "recordingStartedAt": "Rozpoczęło się nagrywanie",
       "recordingStartedAtDescription": "Najwcześniejszy zapis użycia aktualnie przechowywany w tym panelu kontrolnym.",
       "withDeepChatDaysLabel": "Dni razem",
@@ -863,9 +859,9 @@
     },
     "breakdown": {
       "providerTitle": "Najlepsi dostawcy",
-      "providerDescription": "Uszeregowane według szacunkowego kosztu, a następnie według całkowitego tokens.",
+      "providerDescription": "Uszeregowane według łącznej liczby tokenów.",
       "modelTitle": "Najlepsze modele",
-      "modelDescription": "10 najlepszych modeli według szacunkowego kosztu, a następnie łącznie tokens.",
+      "modelDescription": "10 najlepszych modeli według łącznej liczby tokenów.",
       "messages": "Komunikaty {count}",
       "empty": "Nie ma jeszcze danych dotyczących podziału."
     },
