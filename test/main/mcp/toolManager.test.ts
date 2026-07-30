@@ -658,7 +658,7 @@ describe('ToolManager', () => {
             serverName,
             displayName: 'CUA Driver',
             toolCatalog: {
-              version: '0.13.1',
+              version: '0.14.1',
               tools: [
                 {
                   name: 'check_permissions',
@@ -1358,7 +1358,7 @@ describe('ToolManager', () => {
     })
   })
 
-  it('preserves raw CUA structured content and appends compact element handles', async () => {
+  it('preserves raw CUA structured content and appends reviewed projections', async () => {
     const client = createClient(
       'cua-driver',
       [
@@ -1389,7 +1389,22 @@ describe('ToolManager', () => {
           role: 'AXButton',
           label: 'Clear'
         }
-      ]
+      ],
+      capture_coverage: {
+        browser_chrome: {
+          status: 'not_observable_in_window_scope'
+        },
+        recovery: {
+          when: 'verified_window_action_ineffective',
+          escalate: {
+            tool: 'escalate_session',
+            reason: 'foreground_ineffective'
+          },
+          inspect: 'get_desktop_state',
+          act_scope: 'desktop',
+          verify: 'get_desktop_state'
+        }
+      }
     }
     client.callTool.mockResolvedValue({
       content: [{ type: 'text', text: 'window tree' }],
@@ -1419,6 +1434,10 @@ describe('ToolManager', () => {
       {
         type: 'text',
         text: expect.stringContaining('2="00000002"')
+      },
+      {
+        type: 'text',
+        text: expect.stringContaining('## CUA browser chrome coverage')
       }
     ])
   })

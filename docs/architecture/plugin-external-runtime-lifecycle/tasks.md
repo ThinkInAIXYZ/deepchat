@@ -54,6 +54,18 @@
 - [ ] Run native driver ownership smoke with a disposable process on each supported platform.
 - [ ] Validate preinstalled custom cursor themes after sidecar removal.
 
+## CUA 0.14.1 contract upgrade
+
+- [x] Pin the 0.14.1 release commit, assets, checksums, and driver handshake version.
+- [x] Preserve the existing embedded protocol metadata and supported target matrix.
+- [x] Project only the exact, bounded browser-chrome capture-coverage recovery contract.
+- [x] Document session-badge ownership and the v2 action-only custom-theme migration boundary.
+- [x] Keep the optional GNOME Wayland helper outside DeepChat packaging and lifecycle ownership.
+- [ ] Regenerate the native catalog and verify the expected tool count on each supported platform.
+  - macOS arm64 generated 49 tools and passed bundle/verification locally on 2026-07-30.
+  - macOS x64, Windows, and Linux generation remain native-CI gates.
+- [ ] Validate bundled and preinstalled cursor-theme behavior on native targets.
+
 ## Model-facing CUA compatibility
 
 - [x] Normalize empty `element_token` for the seven affected CUA action tools without removing
@@ -62,6 +74,8 @@
       the model.
 - [x] Project bounded CUA `refusal.code` values into model-visible content while retaining the raw
       structured refusal.
+- [x] Project the exact browser-chrome capture-coverage contract without accepting arbitrary
+      runtime-provided recovery instructions.
 - [x] Pass stale-token errors through unchanged and document fresh-snapshot retry behavior in the
       packaged CUA skill.
 - [x] Analyze CUA screenshots only for explicit `include_screenshot: true` calls and append bounded
@@ -112,7 +126,8 @@
 - [ ] Linux x64 X11: reproduce the #2039 activation path with no desktop/session loss.
 - [ ] Linux x64 X11: record warm-daemon idle CPU, handle/file-descriptor count, and residual
       windows with and without a compositor.
-- [ ] Linux x64 Wayland: validate discovery, input, capture, restart, and known limitations.
+- [ ] Linux x64 Wayland: validate discovery, input, capture, restart, current and older manually
+      installed helper states, and known limitations.
 - [x] Confirm statically that DeepChat Linux application releases remain independent from optional
       CUA artifacts.
 
@@ -153,6 +168,19 @@ CUA 0.13.1 upgrade validation completed on 2026-07-29:
 - `pnpm run test:main`: 467 files and 5568 tests passed; 20 files and 279 tests were skipped;
 - `pnpm run test:renderer`: 207 files and 1653 tests passed;
 - formatting, i18n, lint, Node/Web type checks, and CUA manifest validation passed.
+
+CUA 0.14.1 upgrade validation completed on 2026-07-30:
+
+- all five pinned supported-target release assets matched their upstream SHA-256 values; static
+  protocol, catalog, signing, entitlement, and native-library audits found no host-contract drift;
+- macOS arm64 plugin bundle, validation, and verification passed with a development-signed
+  artifact; the generated catalog reported 49 tools for driver 0.14.1, the package excluded
+  `cua-cursor-theme`, and strict code-signature verification passed;
+- 178 focused CUA, plugin, MCP, package, integrity, and renderer tests passed;
+- `pnpm run test:main`: 467 files and 5591 tests passed; 20 files and 279 tests were skipped;
+- `pnpm run test:renderer`: 207 files and 1653 tests passed;
+- formatting, i18n, lint, Node/Web type checks, the production build, and CUA manifest validation
+  passed.
 
 Windows/Linux native catalogs and behavior, the version-gated direct-driver ownership smoke,
 release-signed/notarized macOS behavior, and preinstalled custom themes remain unchecked above.
