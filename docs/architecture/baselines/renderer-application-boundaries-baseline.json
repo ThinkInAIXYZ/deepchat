@@ -117,6 +117,10 @@
     },
     {
       "file": "src/renderer/settings/components/AboutUsSettings.vue",
+      "specifier": "@/components/ui/UpdateTaskCheckDialog.vue"
+    },
+    {
+      "file": "src/renderer/settings/components/AboutUsSettings.vue",
       "specifier": "@/stores/language"
     },
     {
@@ -568,5 +572,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 129
+  "settingsToChatAppImportCount": 130
 }
