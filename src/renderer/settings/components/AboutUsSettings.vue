@@ -295,9 +295,7 @@ const setUpdateChannel = async (channel: AcceptableValue) => {
       title: t('common.saved')
     })
   } catch (error) {
-    console.error('[AboutUsSettings] Failed to update channel', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[AboutUsSettings] Failed to update channel', error)
     updateChannelFeedbackController.fail({
       code: 'settings.about.updateChannelSaveFailed',
       title: t('common.error.operationFailed')
@@ -319,9 +317,7 @@ const loadUpdateChannel = async () => {
     updateChannelFeedbackController.clearSettled()
   } catch (error) {
     updateChannelReady.value = false
-    console.error('[AboutUsSettings] Failed to load update channel', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[AboutUsSettings] Failed to load update channel', error)
     updateChannelFeedbackController.fail({
       code: 'settings.about.updateChannelLoadFailed',
       title: t('common.error.operationFailed')
@@ -366,9 +362,7 @@ const handlePrimaryAction = async () => {
       updateCheckFeedbackController.clearSettled()
     }
   } catch (error) {
-    console.error('[AboutUsSettings] Failed to check for updates', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[AboutUsSettings] Failed to check for updates', error)
     updateCheckFeedbackController.fail({
       code: 'settings.about.updateCheckFailed',
       title: t('common.error.operationFailed')
@@ -396,9 +390,7 @@ const syncUpdateStatus = async () => {
   try {
     await upgrade.refreshStatus()
   } catch (error) {
-    console.error('[AboutUsSettings] Failed to synchronize update status', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[AboutUsSettings] Failed to synchronize update status', error)
   }
 }
 
@@ -412,9 +404,7 @@ const loadAppVersion = async () => {
   try {
     appVersion.value = await deviceClient.getAppVersion()
   } catch (error) {
-    console.error('[AboutUsSettings] Failed to load app version', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[AboutUsSettings] Failed to load app version', error)
   }
 }
 

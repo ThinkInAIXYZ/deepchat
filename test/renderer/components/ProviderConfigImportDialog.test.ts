@@ -173,9 +173,10 @@ describe('ProviderConfigImportDialog', () => {
     expect(wrapper.text()).toContain('common.error.operationFailed')
     expect(wrapper.text()).not.toContain('/private/config')
     expect(wrapper.text()).not.toContain('sk-secret')
-    expect(consoleError).toHaveBeenCalledWith('[ProviderConfigImportDialog] Provider scan failed', {
-      name: 'Error'
-    })
+    expect(consoleError).toHaveBeenCalledWith(
+      '[ProviderConfigImportDialog] Provider scan failed',
+      expect.any(Error)
+    )
 
     wrapper.unmount()
     consoleError.mockRestore()

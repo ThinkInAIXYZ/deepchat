@@ -410,13 +410,36 @@ const normalizeConfig = (value: NowledgeMemConfig): NowledgeMemConfig => ({
   timeout: value.timeout
 })
 
-const logOperationFailure = (operation: string, error: unknown) => {
-  const name = error instanceof Error ? error.name : 'UnknownError'
-  let message = error instanceof Error ? error.message : String(error)
-  if (config.apiKey) {
-    message = message.replaceAll(config.apiKey, '[redacted]')
+const redactDiagnosticText = (value: string) =>
+  config.apiKey ? value.replaceAll(config.apiKey, '[redacted]') : value
+
+const createRedactedDiagnosticError = (error: unknown, seen = new WeakSet<object>()): Error => {
+  if (!(error instanceof Error)) {
+    return new Error(redactDiagnosticText(String(error)))
   }
-  console.error(`[NowledgeMemSettings] ${operation} failed`, { name, message })
+  if (seen.has(error)) {
+    return new Error('[circular error cause]')
+  }
+
+  seen.add(error)
+  const diagnosticError = new Error(redactDiagnosticText(error.message))
+  diagnosticError.name = redactDiagnosticText(error.name)
+  if (error.stack) {
+    diagnosticError.stack = redactDiagnosticText(error.stack)
+  }
+  if (error.cause !== undefined) {
+    diagnosticError.cause =
+      error.cause instanceof Error
+        ? createRedactedDiagnosticError(error.cause, seen)
+        : typeof error.cause === 'string'
+          ? redactDiagnosticText(error.cause)
+          : '[redacted non-error cause]'
+  }
+  return diagnosticError
+}
+
+const logOperationFailure = (operation: string, error: unknown) => {
+  console.error(`[NowledgeMemSettings] ${operation} failed`, createRedactedDiagnosticError(error))
 }
 
 const retryOperation = () => {

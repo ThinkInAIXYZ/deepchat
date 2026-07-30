@@ -8,8 +8,6 @@ import { useIpcMutation } from '@/composables/useIpcMutation'
 import type { EntryKey, UseQueryReturn } from '@pinia/colada'
 import type { SyncBackupInfo, CloudSyncConfigView, CloudSyncConfigInput } from '@shared/types/sync'
 
-const errorName = (error: unknown): string => (error instanceof Error ? error.name : 'UnknownError')
-
 export const useSyncStore = defineStore('sync', () => {
   const syncEnabled = ref(false)
   const syncFolderPath = ref('')
@@ -52,7 +50,7 @@ export const useSyncStore = defineStore('sync', () => {
     try {
       await backupsQuery.refetch()
     } catch (error) {
-      console.error('[SyncStore] Failed to refresh backups', { name: errorName(error) })
+      console.error('[SyncStore] Failed to refresh backups', error)
     }
   }
 
@@ -72,7 +70,7 @@ export const useSyncStore = defineStore('sync', () => {
       }
       return backupInfo
     } catch (error) {
-      console.error('[SyncStore] Backup failed', { name: errorName(error) })
+      console.error('[SyncStore] Backup failed', error)
       throw error
     } finally {
       isBackingUp.value = false
@@ -109,7 +107,7 @@ export const useSyncStore = defineStore('sync', () => {
       importResult.value = result.success ? null : result
       return result
     } catch (error) {
-      console.error('[SyncStore] Import failed', { name: errorName(error) })
+      console.error('[SyncStore] Import failed', error)
       importResult.value = {
         success: false,
         message: 'sync.error.importFailed'
@@ -125,7 +123,7 @@ export const useSyncStore = defineStore('sync', () => {
     try {
       cloudConfig.value = await syncClient.getCloudConfig()
     } catch (error) {
-      console.error('[SyncStore] Failed to load cloud config', { name: errorName(error) })
+      console.error('[SyncStore] Failed to load cloud config', error)
       throw error
     }
     return cloudConfig.value

@@ -502,9 +502,7 @@ const loadConfig = async () => {
     })
     configFeedbackController.clearSettled()
   } catch (error) {
-    console.error('[NotificationsHooksSettings] Failed to load configuration', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[NotificationsHooksSettings] Failed to load configuration', error)
     configFeedbackController.fail({
       code: 'settings.notificationsHooks.loadFailed',
       title: t('common.error.operationFailed'),
@@ -549,9 +547,7 @@ const flushSaveQueue = async (): Promise<boolean> => {
     }
     return true
   } catch (error) {
-    console.error('[NotificationsHooksSettings] Failed to save configuration', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[NotificationsHooksSettings] Failed to save configuration', error)
     configFeedbackController.fail({
       code: 'settings.notificationsHooks.saveFailed',
       title: t('common.error.operationFailed')
@@ -666,9 +662,7 @@ const runHookTest = async (hookId: string) => {
       [hookId]: result
     }
   } catch (error) {
-    console.error('[NotificationsHooksSettings] Failed to test hook', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[NotificationsHooksSettings] Failed to test hook', error)
     testResults.value = {
       ...testResults.value,
       [hookId]: {

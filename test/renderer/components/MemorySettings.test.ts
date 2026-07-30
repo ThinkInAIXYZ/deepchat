@@ -183,7 +183,7 @@ describe('MemorySettings redesign shell', () => {
     expect(feedback.text()).toContain('settings.deepchatAgents.memoryManager.actionFailed')
     expect(feedback.text()).not.toContain('secret config failure')
     expect(statusSummary(wrapper).text()).toContain('settings.memory.redesign.statusDisabled')
-    expect(consoleError).toHaveBeenCalledWith('[MemorySettings] Action failed', { name: 'Error' })
+    expect(consoleError).toHaveBeenCalledWith('[MemorySettings] Action failed', expect.any(Error))
     consoleError.mockRestore()
   })
 

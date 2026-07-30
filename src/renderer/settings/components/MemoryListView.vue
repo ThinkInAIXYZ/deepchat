@@ -489,9 +489,7 @@ async function runSearch(agentId: string, query: string, requestId: number): Pro
     }
   } catch (error) {
     if (!isCurrentSearch(agentId, query, requestId)) return
-    console.error('[MemoryListView] Search failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[MemoryListView] Search failed', error)
     searchResults.value = []
     searchError.value = t('settings.deepchatAgents.memoryManager.searchFailed')
   }

@@ -806,10 +806,13 @@ const logFailure = (
   error: unknown,
   context: Readonly<Record<string, unknown>> = {}
 ) => {
-  console.error(`[CronJobsSettings] ${scope}`, {
-    ...context,
-    name: error instanceof Error ? error.name : 'UnknownError'
-  })
+  console.error(
+    `[CronJobsSettings] ${scope}`,
+    {
+      ...context
+    },
+    error
+  )
 }
 
 const failPageOperation = (scope: string, code: string, error: unknown, description?: string) => {

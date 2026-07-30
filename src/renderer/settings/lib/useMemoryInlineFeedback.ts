@@ -32,9 +32,7 @@ export function useMemoryInlineFeedback(scope: string) {
 
   const fail = (error?: unknown): void => {
     if (error !== undefined) {
-      console.error(`[${diagnosticScope}] Action failed`, {
-        name: error instanceof Error ? error.name : 'UnknownError'
-      })
+      console.error(`[${diagnosticScope}] Action failed`, error)
     }
     show('error', t('settings.deepchatAgents.memoryManager.actionFailed'))
   }

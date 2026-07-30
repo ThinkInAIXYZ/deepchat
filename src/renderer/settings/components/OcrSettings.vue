@@ -447,9 +447,7 @@ async function loadSettings(): Promise<void> {
     settingsFeedbackController.clearSettled()
   } catch (error) {
     settingsReady.value = false
-    console.error('[OcrSettings] Failed to load settings', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[OcrSettings] Failed to load settings', error)
     settingsFeedbackController.fail({
       code: 'settings.ocr.loadFailed',
       title: t('settings.ocr.loadFailed')
@@ -468,9 +466,7 @@ async function updateAutomaticExtraction(value: boolean): Promise<void> {
       title: t('common.saved')
     })
   } catch (error) {
-    console.error('[OcrSettings] Failed to update automatic extraction', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[OcrSettings] Failed to update automatic extraction', error)
     settingsFeedbackController.fail({
       code: 'settings.ocr.updateFailed',
       title: t('settings.ocr.updateFailed')
@@ -489,9 +485,7 @@ async function updateBackend(value: AcceptableValue): Promise<void> {
       title: t('common.saved')
     })
   } catch (error) {
-    console.error('[OcrSettings] Failed to update backend', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[OcrSettings] Failed to update backend', error)
     settingsFeedbackController.fail({
       code: 'settings.ocr.updateFailed',
       title: t('settings.ocr.updateFailed')
@@ -527,9 +521,7 @@ async function clearCache(): Promise<void> {
       description: t('settings.ocr.cacheClearedDescription')
     })
   } catch (error) {
-    console.error('[OcrSettings] Failed to clear cache', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[OcrSettings] Failed to clear cache', error)
     cacheClearFailed.value = true
   } finally {
     cacheClearInFlight.value = false

@@ -241,9 +241,7 @@ const persistRateLimit = async (draft: RateLimitDraft): Promise<boolean> => {
     void loadStatus()
     return true
   } catch (error) {
-    console.error('[ProviderRateLimitConfig] Failed to update config', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[ProviderRateLimitConfig] Failed to update config', error)
     feedbackController.fail({
       code: 'settings.providerRateLimit.updateFailed',
       title: t('common.error.operationFailed')
@@ -281,9 +279,7 @@ const loadStatus = async () => {
     }
   } catch (error) {
     if (requestId !== statusRequestId || props.provider.id !== providerId) return
-    console.error('[ProviderRateLimitConfig] Failed to load status', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[ProviderRateLimitConfig] Failed to load status', error)
   } finally {
     statusLoading = false
     if (!disposed && statusRefreshQueued) {

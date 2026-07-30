@@ -177,10 +177,13 @@ const selectedAgent = computed(() => selectedAgentDetail.value)
 const operationPending = computed(() => operationFeedback.value.status === 'pending')
 
 const logFailure = (message: string, cause: unknown, context: Record<string, unknown> = {}) => {
-  console.error(message, {
-    ...context,
-    name: cause instanceof Error ? cause.name : 'UnknownError'
-  })
+  console.error(
+    message,
+    {
+      ...context
+    },
+    cause
+  )
 }
 
 const beginOperation = (

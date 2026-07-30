@@ -188,10 +188,13 @@ const runGuidanceAction = async ({
       completeWithoutConfirmation(guidanceFeedbackController, code, pendingLabel)
     }
   } catch (error) {
-    console.error('[DebugSettings] Guidance action failed', {
-      code,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error(
+      '[DebugSettings] Guidance action failed',
+      {
+        code
+      },
+      error
+    )
     guidanceFeedbackController.fail({
       code: `${code}.failed`,
       title: failureTitle
@@ -259,9 +262,7 @@ const showSplashScenario = async (mode: SplashDebugMode) => {
       t(`settings.debug.splash.${mode}`)
     )
   } catch (error) {
-    console.error('[DebugSettings] Failed to show Splash preview', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DebugSettings] Failed to show Splash preview', error)
     splashFeedbackController.fail({
       code: 'settings.debug.splash.showFailed',
       title: t('settings.debug.guidance.failed')
@@ -291,9 +292,7 @@ const closeSplashScenario = async () => {
       t('common.close')
     )
   } catch (error) {
-    console.error('[DebugSettings] Failed to close Splash preview', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DebugSettings] Failed to close Splash preview', error)
     splashFeedbackController.fail({
       code: 'settings.debug.splash.closeFailed',
       title: t('settings.debug.guidance.failed')
@@ -323,9 +322,7 @@ const clearMockUpdate = () =>
 
 onMounted(() => {
   void upgrade.refreshStatus().catch((error) => {
-    console.error('[DebugSettings] Failed to refresh update status', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DebugSettings] Failed to refresh update status', error)
   })
 })
 </script>

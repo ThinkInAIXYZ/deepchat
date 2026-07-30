@@ -413,10 +413,13 @@ const detailMutationRequestId = ref(0)
 const router = useRouter()
 
 const logFailure = (message: string, error: unknown, context: Record<string, unknown> = {}) => {
-  console.error(message, {
-    ...context,
-    name: error instanceof Error ? error.name : 'UnknownError'
-  })
+  console.error(
+    message,
+    {
+      ...context
+    },
+    error
+  )
 }
 
 const beginPageOperation = (

@@ -245,10 +245,13 @@ const getFeedback = () => props.feedbackController.getSnapshot()
 const clonePrompt = (prompt: SystemPrompt): SystemPrompt => ({ ...prompt })
 
 const logFailure = (operation: string, error: unknown) => {
-  console.error('[SystemPromptSettingsSection] Operation failed', {
-    operation,
-    name: error instanceof Error ? error.name : 'UnknownError'
-  })
+  console.error(
+    '[SystemPromptSettingsSection] Operation failed',
+    {
+      operation
+    },
+    error
+  )
 }
 
 const beginOperation = (operationId: string, label: string): boolean => {

@@ -104,9 +104,7 @@ const executionFeedbackSurfaceActive = computed(
 )
 
 const logFailure = (message: string, cause: unknown) => {
-  console.error(message, {
-    name: cause instanceof Error ? cause.name : 'UnknownError'
-  })
+  console.error(message, cause)
 }
 
 const toImportSource = (source: AgentSkillImportSource): AgentSkillImportSource =>

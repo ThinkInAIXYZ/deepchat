@@ -413,9 +413,7 @@ async function reload(preferred?: string | null): Promise<void> {
       await Promise.all([loadResolved(), loadStatus()])
     }
   } catch (error) {
-    console.error('[MemorySettings] Failed to load agents', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[MemorySettings] Failed to load agents', error)
     agents.value = []
     resolvedSelected.value = null
     resolvedAgentId.value = ''

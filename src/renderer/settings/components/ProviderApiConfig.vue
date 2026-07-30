@@ -390,9 +390,7 @@ const getKeyStatus = async () => {
     try {
       keyStatus.value = await providerClient.getKeyStatus(props.provider.id)
     } catch (error) {
-      console.error('[ProviderApiConfig] Failed to load key status', {
-        name: error instanceof Error ? error.name : 'UnknownError'
-      })
+      console.error('[ProviderApiConfig] Failed to load key status', error)
       keyStatus.value = null
     }
   }
@@ -417,9 +415,7 @@ const refreshModels = async () => {
       )
     })
   } catch (error) {
-    console.error('[ProviderApiConfig] Failed to refresh models', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[ProviderApiConfig] Failed to refresh models', error)
     const fallbackDescription = t(
       refreshesMetadata
         ? 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'

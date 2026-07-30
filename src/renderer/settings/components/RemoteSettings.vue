@@ -2498,10 +2498,13 @@ const pickDefaultWorkdir = async (channel: RemoteChannel) => {
       void loadRecentProjects()
     }
   } catch (error) {
-    console.warn('[RemoteSettings] Failed to select default workdir', {
-      channel,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.warn(
+      '[RemoteSettings] Failed to select default workdir',
+      {
+        channel
+      },
+      error
+    )
     if (beginChannelAction(channel)) {
       failChannelAction(
         channel,
@@ -2939,9 +2942,7 @@ const refreshStatus = async (): Promise<boolean> => {
     weixinIlinkStatus.value = nextWeixinIlinkStatus
     return true
   } catch (error) {
-    console.warn('[RemoteSettings] Failed to refresh remote channel status', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.warn('[RemoteSettings] Failed to refresh remote channel status', error)
     return false
   }
 }
@@ -2961,10 +2962,13 @@ const refreshChannelStatus = async (channel: RemoteChannel): Promise<boolean> =>
     }
     return true
   } catch (error) {
-    console.warn('[RemoteSettings] Failed to refresh remote channel status', {
-      channel,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.warn(
+      '[RemoteSettings] Failed to refresh remote channel status',
+      {
+        channel
+      },
+      error
+    )
     return false
   }
 }
@@ -3042,9 +3046,7 @@ const loadState = async () => {
     )
   } catch (error) {
     if (requestId !== loadStateRequestId || remoteSettingsUnmounted) return
-    console.error('[RemoteSettings] Failed to load remote settings', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed to load remote settings', error)
   } finally {
     if (requestId === loadStateRequestId) {
       isLoading.value = false
@@ -3221,10 +3223,13 @@ const createSaveCoordinator = <Settings>(
     },
     onFailed: (error) => {
       saving[channel] = false
-      console.error('[RemoteSettings] Failed to save channel settings', {
-        channel,
-        name: error instanceof Error ? error.name : 'UnknownError'
-      })
+      console.error(
+        '[RemoteSettings] Failed to save channel settings',
+        {
+          channel
+        },
+        error
+      )
       channelSaveFeedback[channel].controller.fail({
         code: `settings.remote.${channelI18nKeyMap[channel]}.saveFailed`,
         ...resolveSaveFailure(channel, error)
@@ -3472,9 +3477,7 @@ const waitForFeishuInstallResult = async (requestId: number, sessionKey: string)
       return
     }
 
-    console.error('[RemoteSettings] Failed while waiting for Feishu install', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed while waiting for Feishu install', error)
     feishuInstallMessage.value = ''
     feishuInstallError.value = t('settings.remote.feishu.installFailed')
   } finally {
@@ -3548,9 +3551,7 @@ const startFeishuInstall = async (mode: 'web' | 'qr') => {
     if (remoteSettingsUnmounted) {
       return
     }
-    console.error('[RemoteSettings] Failed to start Feishu install', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed to start Feishu install', error)
     feishuInstallMessage.value = ''
     feishuInstallError.value = t('settings.remote.feishu.installFailed')
   } finally {
@@ -3597,9 +3598,7 @@ const openFeishuInstallQrUrl = async () => {
   try {
     await openExternalUrl(feishuInstallQrUrl.value)
   } catch (error) {
-    console.error('[RemoteSettings] Failed to open Feishu install URL', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed to open Feishu install URL', error)
     feishuInstallMessage.value = ''
     feishuInstallError.value = t('common.error.operationFailed')
   }
@@ -3641,9 +3640,7 @@ const waitForFeishuAuthResult = async (requestId: number, sessionKey: string) =>
       return
     }
 
-    console.error('[RemoteSettings] Failed while waiting for Feishu authorization', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed while waiting for Feishu authorization', error)
     feishuAuthMessage.value = ''
     feishuAuthError.value = t('settings.remote.feishu.authFailed')
   } finally {
@@ -3703,9 +3700,7 @@ const startFeishuScanAuth = async () => {
       return
     }
 
-    console.error('[RemoteSettings] Failed to start Feishu authorization', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed to start Feishu authorization', error)
     feishuAuthMessage.value = ''
     feishuAuthError.value = t('settings.remote.feishu.authFailed')
   } finally {
@@ -3770,9 +3765,7 @@ const waitForWeixinIlinkLoginResult = async (requestId: number, sessionKey: stri
       return
     }
 
-    console.error('[RemoteSettings] Failed while waiting for WeChat iLink login', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed while waiting for WeChat iLink login', error)
     weixinIlinkLoginMessage.value = ''
     weixinIlinkLoginError.value = t('settings.remote.weixinIlink.loginFailed')
   } finally {
@@ -3811,9 +3804,7 @@ const startWeixinIlinkLogin = async (force = false) => {
       return
     }
 
-    console.error('[RemoteSettings] Failed to start WeChat iLink login', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed to start WeChat iLink login', error)
     weixinIlinkLoginMessage.value = ''
     weixinIlinkLoginError.value = t('settings.remote.weixinIlink.loginFailed')
   } finally {
@@ -3875,9 +3866,7 @@ const removeWeixinIlinkAccount = async (accountId: string) => {
     )
     void refreshChannelStatus('weixin-ilink')
   } catch (error) {
-    console.error('[RemoteSettings] Failed to remove WeChat iLink account', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed to remove WeChat iLink account', error)
     failChannelAction('weixin-ilink', 'settings.remote.weixinIlink.accountRemoveFailed')
   } finally {
     weixinIlinkAccountActionId.value = null
@@ -3896,9 +3885,7 @@ const restartWeixinIlinkAccount = async (accountId: string) => {
       t('settings.remote.weixinIlink.restartAccount')
     )
   } catch (error) {
-    console.error('[RemoteSettings] Failed to restart WeChat iLink account', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed to restart WeChat iLink account', error)
     failChannelAction('weixin-ilink', 'settings.remote.weixinIlink.accountRestartFailed')
   } finally {
     weixinIlinkAccountActionId.value = null
@@ -3955,10 +3942,13 @@ const pollPairingSnapshot = async () => {
     closePairDialogState()
   } catch (error) {
     if (generation !== pairDialogGeneration) return
-    console.warn('[RemoteSettings] Failed to poll pairing snapshot', {
-      channel,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.warn(
+      '[RemoteSettings] Failed to poll pairing snapshot',
+      {
+        channel
+      },
+      error
+    )
   }
 }
 
@@ -4007,10 +3997,13 @@ const generatePairCodeAndOpenDialog = async (channel: PairableRemoteChannel) => 
       true
     )
   } catch (error) {
-    console.error('[RemoteSettings] Failed to create remote pairing code', {
-      channel,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error(
+      '[RemoteSettings] Failed to create remote pairing code',
+      {
+        channel
+      },
+      error
+    )
     const controller = channelActionFeedback[channel].controller
     if (controller.getSnapshot().status === 'pending') {
       failChannelAction(
@@ -4035,10 +4028,13 @@ const cancelPairDialog = async () => {
     await clearChannelPairCodeCompat(channel)
     closePairDialogState()
   } catch (error) {
-    console.error('[RemoteSettings] Failed to cancel remote pairing code', {
-      channel,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error(
+      '[RemoteSettings] Failed to cancel remote pairing code',
+      {
+        channel
+      },
+      error
+    )
     pairDialogError.value = t('common.error.operationFailed')
     startPairDialogPolling()
   } finally {
@@ -4073,10 +4069,13 @@ const loadBindingsDialogState = async (channel: RemoteChannel): Promise<boolean>
     if (requestId !== bindingsLoadRequestId || bindingsDialogChannel.value !== channel) {
       return false
     }
-    console.error('[RemoteSettings] Failed to load remote bindings', {
-      channel,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error(
+      '[RemoteSettings] Failed to load remote bindings',
+      {
+        channel
+      },
+      error
+    )
     bindingsDialogFailure.value = {
       source: 'load',
       message: t('common.error.requestFailed')
@@ -4130,10 +4129,13 @@ const removeBinding = async (endpointKey: string) => {
     bindings.value = bindings.value.filter((binding) => binding.endpointKey !== endpointKey)
     void refreshChannelStatus(channel)
   } catch (error) {
-    console.error('[RemoteSettings] Failed to remove remote binding', {
-      channel,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error(
+      '[RemoteSettings] Failed to remove remote binding',
+      {
+        channel
+      },
+      error
+    )
     bindingsDialogFailure.value = {
       source: 'mutation',
       message: t('common.error.operationFailed')
@@ -4156,10 +4158,13 @@ const removePrincipal = async (principalId: string) => {
     )
     void refreshChannelStatus(channel)
   } catch (error) {
-    console.error('[RemoteSettings] Failed to remove remote principal', {
-      channel,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error(
+      '[RemoteSettings] Failed to remove remote principal',
+      {
+        channel
+      },
+      error
+    )
     bindingsDialogFailure.value = {
       source: 'mutation',
       message: t('common.error.operationFailed')
@@ -4216,9 +4221,7 @@ const openFeishuExternalLink = async (
     await openExternalUrl(url)
     completeObservedChannelAction('feishu', successCode, title)
   } catch (error) {
-    console.error('[RemoteSettings] Failed to open Feishu external link', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed to open Feishu external link', error)
     failChannelAction('feishu', failureCode)
   }
 }
@@ -4260,9 +4263,7 @@ const openFeishuBotChat = async () => {
       t('settings.remote.feishu.openBotChat')
     )
   } catch (error) {
-    console.error('[RemoteSettings] Failed to open Feishu bot chat', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[RemoteSettings] Failed to open Feishu bot chat', error)
     failChannelAction('feishu', 'settings.remote.feishu.openBotChatFailed')
   }
 }

@@ -203,9 +203,10 @@ describe('MemoryConfigInlinePanel', () => {
     expect(feedback.text()).toContain('settings.memory.redesign.configSaveFailed')
     expect(feedback.text()).not.toContain('secret backend detail')
     expect(wrapper.findAll('button').some((button) => button.text() === 'common.clear')).toBe(false)
-    expect(consoleError).toHaveBeenCalledWith('[MemoryConfigInlinePanel] Failed to save config', {
-      name: 'Error'
-    })
+    expect(consoleError).toHaveBeenCalledWith(
+      '[MemoryConfigInlinePanel] Failed to save config',
+      expect.any(Error)
+    )
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
     wrapper.unmount()
     consoleError.mockRestore()

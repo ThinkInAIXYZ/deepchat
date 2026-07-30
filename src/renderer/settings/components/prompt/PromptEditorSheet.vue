@@ -578,9 +578,7 @@ const uploadFile = () => {
       if (generation !== attachmentGeneration || !props.open) {
         return
       }
-      console.error('[PromptEditorSheet] Failed to prepare attachments', {
-        name: error instanceof Error ? error.name : 'UnknownError'
-      })
+      console.error('[PromptEditorSheet] Failed to prepare attachments', error)
       attachmentFeedbackController.fail({
         code: 'settings.prompts.attachmentsFailed',
         title: t('promptSetting.uploadFailed')

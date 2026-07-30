@@ -529,9 +529,7 @@ async function selectResultMemory(
     const [next] = await memoryClient.getByIds(agentId, [memoryId])
     return next
   } catch (error) {
-    console.error('[MemoryInlinePanel] Failed to refresh saved memory', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[MemoryInlinePanel] Failed to refresh saved memory', error)
     return undefined
   }
 }
@@ -684,9 +682,7 @@ async function loadSource(): Promise<void> {
       props.agentId === agentId &&
       props.memory?.id === memoryId
     ) {
-      console.error('[MemoryInlinePanel] Failed to load source span', {
-        name: error instanceof Error ? error.name : 'UnknownError'
-      })
+      console.error('[MemoryInlinePanel] Failed to load source span', error)
       sourceError.value = t('settings.deepchatAgents.memoryManager.actionFailed')
     }
   } finally {
@@ -727,9 +723,7 @@ async function loadLifecycle(): Promise<void> {
       props.agentId === agentId &&
       props.memory?.id === memoryId
     ) {
-      console.error('[MemoryInlinePanel] Failed to load lifecycle', {
-        name: error instanceof Error ? error.name : 'UnknownError'
-      })
+      console.error('[MemoryInlinePanel] Failed to load lifecycle', error)
       lifecycleError.value = t('settings.deepchatAgents.memoryManager.actionFailed')
     }
   } finally {

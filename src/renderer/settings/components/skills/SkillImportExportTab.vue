@@ -553,9 +553,7 @@ const operationRetryLabel = computed(() => {
 })
 
 const logFailure = (message: string, error: unknown) => {
-  console.error(message, {
-    name: error instanceof Error ? error.name : 'UnknownError'
-  })
+  console.error(message, error)
 }
 
 const beginOperation = (

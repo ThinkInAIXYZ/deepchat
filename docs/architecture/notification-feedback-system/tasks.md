@@ -68,7 +68,7 @@
 - [x] Delete `use-toast.ts` without a compatibility entry point.
 - [x] Re-audit every Surface Lease against a durable inline source.
 - [x] Move unanchored maintenance, refresh, cache, and detection results to transient feedback.
-- [ ] Restore complete error objects in local diagnostics without exposing them in UI copy.
+- [x] Restore complete error objects in local diagnostics without exposing them in UI copy.
 
 ## Validation and delivery
 

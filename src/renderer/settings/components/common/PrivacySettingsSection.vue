@@ -82,9 +82,7 @@ const handlePrivacyModeChange = async (value: boolean) => {
       title: t('common.saved')
     })
   } catch (error) {
-    console.error('[PrivacySettingsSection] Failed to update privacy mode', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[PrivacySettingsSection] Failed to update privacy mode', error)
     privacyFeedbackController.fail({
       code: 'settings.privacy.updateFailed',
       title: t('common.error.operationFailed')

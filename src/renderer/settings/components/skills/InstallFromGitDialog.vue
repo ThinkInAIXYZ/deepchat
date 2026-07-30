@@ -202,9 +202,7 @@ const installFeedbackSurfaceActive = computed(
 )
 
 const logFailure = (message: string, cause: unknown) => {
-  console.error(message, {
-    name: cause instanceof Error ? cause.name : 'UnknownError'
-  })
+  console.error(message, cause)
 }
 
 const dismissSettledInstallFeedback = () => {

@@ -176,7 +176,7 @@ describe('BrowserDataImportDialog', () => {
     expect(wrapper.text()).not.toContain('/private/Chrome/Cookies')
     expect(consoleError).toHaveBeenCalledWith(
       '[BrowserDataImportDialog] Browser data import failed',
-      { name: 'Error' }
+      expect.any(Error)
     )
 
     wrapper.unmount()

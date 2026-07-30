@@ -41,18 +41,14 @@ export function useKnowledgeConfigOperation() {
     try {
       persisted = await operation.perform()
     } catch (error) {
-      console.error(`[KnowledgeConfigOperation] ${operation.code} failed`, {
-        name: error instanceof Error ? error.name : 'UnknownError'
-      })
+      console.error(`[KnowledgeConfigOperation] ${operation.code} failed`, error)
     }
     if (!persisted) {
       let failure: KnowledgeConfigOperationFailure | undefined
       try {
         failure = operation.failure?.()
       } catch (error) {
-        console.error(`[KnowledgeConfigOperation] ${operation.code} failure copy failed`, {
-          name: error instanceof Error ? error.name : 'UnknownError'
-        })
+        console.error(`[KnowledgeConfigOperation] ${operation.code} failure copy failed`, error)
       }
       failure ??= {
         title: t('common.error.operationFailed')
@@ -67,9 +63,7 @@ export function useKnowledgeConfigOperation() {
     try {
       operation.commit()
     } catch (error) {
-      console.error(`[KnowledgeConfigOperation] ${operation.code} local commit failed`, {
-        name: error instanceof Error ? error.name : 'UnknownError'
-      })
+      console.error(`[KnowledgeConfigOperation] ${operation.code} local commit failed`, error)
     }
 
     controller.succeed({

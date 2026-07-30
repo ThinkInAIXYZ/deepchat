@@ -100,6 +100,7 @@ describe('useKnowledgeConfigOperation', () => {
     const { wrapper, operation } = await setup()
     const perform = vi.fn().mockResolvedValue(true)
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const commitError = new Error('local render failure')
 
     await expect(
       operation.run({
@@ -108,7 +109,7 @@ describe('useKnowledgeConfigOperation', () => {
         label: 'common.saving',
         perform,
         commit: () => {
-          throw new Error('local render failure')
+          throw commitError
         }
       })
     ).resolves.toBe(true)
@@ -119,7 +120,7 @@ describe('useKnowledgeConfigOperation', () => {
     expect(perform).toHaveBeenCalledTimes(1)
     expect(consoleError).toHaveBeenCalledWith(
       '[KnowledgeConfigOperation] settings.knowledgeBase.test.save local commit failed',
-      { name: 'Error' }
+      commitError
     )
     wrapper.unmount()
     consoleError.mockRestore()

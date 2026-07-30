@@ -1030,9 +1030,7 @@ const loadBuiltinConfig = async () => {
     builtinConfigs.value = (await configClient.getKnowledgeConfigs()).map(cloneBuiltinConfig)
     panelError.value = null
   } catch (error) {
-    console.error('[BuiltinKnowledge] Failed to load configuration', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[BuiltinKnowledge] Failed to load configuration', error)
     panelError.value = { title: t('common.error.requestFailed') }
   }
 }
@@ -1042,9 +1040,7 @@ const loadSupportedLanguages = async () => {
     const languages = await knowledgeClient.getSupportedLanguages()
     supportedLanguages.value = languages
   } catch (error) {
-    console.error('[BuiltinKnowledge] Failed to load supported languages', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[BuiltinKnowledge] Failed to load supported languages', error)
   }
 }
 

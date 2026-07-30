@@ -382,15 +382,11 @@ const syncPendingProviderInstall = async () => {
       try {
         windowClient.requeuePendingSettingsProviderInstall(preview)
       } catch (requeueError) {
-        console.error('[SettingsApp] Failed to requeue provider install preview', {
-          name: requeueError instanceof Error ? requeueError.name : 'UnknownError'
-        })
+        console.error('[SettingsApp] Failed to requeue provider install preview', requeueError)
       }
     }
 
-    console.error('[SettingsApp] Failed to sync provider install preview', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[SettingsApp] Failed to sync provider install preview', error)
   } finally {
     isProcessingProviderPreview.value = false
   }
@@ -417,9 +413,7 @@ const notifyProviderImportWarning = (code: string, title: string, description?: 
       description
     })
   } catch (error) {
-    console.error('[SettingsApp] Failed to present provider import warning', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[SettingsApp] Failed to present provider import warning', error)
   }
 }
 
@@ -427,9 +421,7 @@ const refreshImportedProviderModels = async (providerId: string) => {
   try {
     await modelStore.refreshProviderModels(providerId)
   } catch (error) {
-    console.error('[SettingsApp] Imported provider model refresh failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[SettingsApp] Imported provider model refresh failed', error)
     notifyProviderImportWarning(
       'settings.provider.importModelRefreshFailed',
       t('settings.provider.toast.refreshModelsFailedTitle'),
@@ -442,9 +434,7 @@ const navigateAfterProviderImport = async (providerId: string) => {
   try {
     await navigateToProviderSettings(providerId)
   } catch (error) {
-    console.error('[SettingsApp] Imported provider navigation failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[SettingsApp] Imported provider navigation failed', error)
     notifyProviderImportWarning(
       'settings.provider.importNavigationFailed',
       t('common.error.operationFailed')
@@ -498,9 +488,7 @@ const confirmProviderImport = async () => {
     releaseProviderPreviewProcessing()
     void refreshImportedProviderModels(importedProviderId)
   } catch (error) {
-    console.error('[SettingsApp] Provider import failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[SettingsApp] Provider import failed', error)
     providerImportError.value = t('common.error.operationFailed')
   } finally {
     isImportingProvider.value = false

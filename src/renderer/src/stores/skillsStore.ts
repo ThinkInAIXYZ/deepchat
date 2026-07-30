@@ -141,10 +141,13 @@ export const useSkillsStore = defineStore('skills', () => {
       }
     } catch (e) {
       if (runtimeRequestSequence.get(name) !== requestSequence) return
-      console.error('[SkillsStore] Failed to load runtime config', {
-        skillName: name,
-        name: e instanceof Error ? e.name : 'UnknownError'
-      })
+      console.error(
+        '[SkillsStore] Failed to load runtime config',
+        {
+          skillName: name
+        },
+        e
+      )
       if (!(name in skillExtensions.value)) {
         skillExtensions.value = {
           ...skillExtensions.value,
@@ -184,10 +187,13 @@ export const useSkillsStore = defineStore('skills', () => {
           nextExtensions[skill.name] = extension ?? createDefaultSkillExtension()
           nextScripts[skill.name] = scripts ?? []
         } catch (e) {
-          console.error('[SkillsStore] Failed to load runtime data', {
-            skillName: skill.name,
-            name: e instanceof Error ? e.name : 'UnknownError'
-          })
+          console.error(
+            '[SkillsStore] Failed to load runtime data',
+            {
+              skillName: skill.name
+            },
+            e
+          )
           nextExtensions[skill.name] =
             skillExtensions.value[skill.name] ?? createDefaultSkillExtension()
           nextScripts[skill.name] = skillScripts.value[skill.name] ?? []
@@ -247,10 +253,13 @@ export const useSkillsStore = defineStore('skills', () => {
         ...catalogErrors.value,
         [normalizedAgentId]: true
       }
-      console.error('[SkillsStore] Failed to load skills', {
-        agentId: normalizedAgentId,
-        name: e instanceof Error ? e.name : 'UnknownError'
-      })
+      console.error(
+        '[SkillsStore] Failed to load skills',
+        {
+          agentId: normalizedAgentId
+        },
+        e
+      )
     } finally {
       if (catalogRequestSequence.get(normalizedAgentId) === requestSequence) {
         catalogLoading.value = { ...catalogLoading.value, [normalizedAgentId]: false }
@@ -284,9 +293,7 @@ export const useSkillsStore = defineStore('skills', () => {
     try {
       return await skillClient.installFromFolder(folderPath, options)
     } catch (e) {
-      console.error('[SkillsStore] Failed to install skill from folder', {
-        name: e instanceof Error ? e.name : 'UnknownError'
-      })
+      console.error('[SkillsStore] Failed to install skill from folder', e)
       return { success: false, errorCode: 'io_error' }
     }
   }
@@ -298,9 +305,7 @@ export const useSkillsStore = defineStore('skills', () => {
     try {
       return await skillClient.installFromZip(zipPath, options)
     } catch (e) {
-      console.error('[SkillsStore] Failed to install skill from ZIP', {
-        name: e instanceof Error ? e.name : 'UnknownError'
-      })
+      console.error('[SkillsStore] Failed to install skill from ZIP', e)
       return { success: false, errorCode: 'io_error' }
     }
   }
@@ -312,9 +317,7 @@ export const useSkillsStore = defineStore('skills', () => {
     try {
       return await skillClient.installFromUrl(url, options)
     } catch (e) {
-      console.error('[SkillsStore] Failed to install skill from URL', {
-        name: e instanceof Error ? e.name : 'UnknownError'
-      })
+      console.error('[SkillsStore] Failed to install skill from URL', e)
       return { success: false, errorCode: 'io_error' }
     }
   }
@@ -327,10 +330,13 @@ export const useSkillsStore = defineStore('skills', () => {
       }
       return result
     } catch (e) {
-      console.error('[SkillsStore] Failed to uninstall skill', {
-        skillName: name,
-        name: e instanceof Error ? e.name : 'UnknownError'
-      })
+      console.error(
+        '[SkillsStore] Failed to uninstall skill',
+        {
+          skillName: name
+        },
+        e
+      )
       return { success: false, errorCode: 'io_error' }
     }
   }
@@ -347,10 +353,13 @@ export const useSkillsStore = defineStore('skills', () => {
     try {
       return await skillClient.updateSkillFile(name, content)
     } catch (e) {
-      console.error('[SkillsStore] Failed to update skill file', {
-        skillName: name,
-        name: e instanceof Error ? e.name : 'UnknownError'
-      })
+      console.error(
+        '[SkillsStore] Failed to update skill file',
+        {
+          skillName: name
+        },
+        e
+      )
       return { success: false, errorCode: 'io_error' }
     }
   }

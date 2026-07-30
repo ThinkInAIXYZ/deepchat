@@ -294,10 +294,13 @@ const applyPrompts = (items: PromptItem[]) => {
 }
 
 const logFailure = (operation: string, error: unknown) => {
-  console.error('[CustomPromptSettingsSection] Operation failed', {
-    operation,
-    name: error instanceof Error ? error.name : 'UnknownError'
-  })
+  console.error(
+    '[CustomPromptSettingsSection] Operation failed',
+    {
+      operation
+    },
+    error
+  )
 }
 
 const beginOperation = (operationId: string, label: string): boolean => {

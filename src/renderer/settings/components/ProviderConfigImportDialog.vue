@@ -682,9 +682,7 @@ const runScan = async () => {
   } catch (error) {
     scanResult.value = null
     scanError.value = t('common.error.operationFailed')
-    console.error('[ProviderConfigImportDialog] Provider scan failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[ProviderConfigImportDialog] Provider scan failed', error)
   } finally {
     isScanning.value = false
   }
@@ -786,9 +784,7 @@ const goNextProviderStep = async () => {
     emit('import-complete', result)
   } catch (error) {
     applyError.value = t('common.error.operationFailed')
-    console.error('[ProviderConfigImportDialog] Provider import failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[ProviderConfigImportDialog] Provider import failed', error)
     step.value = 'providers'
   }
 }

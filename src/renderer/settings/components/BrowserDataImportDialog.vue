@@ -215,9 +215,7 @@ const scan = async () => {
     selectedProfileId.value = profiles.value[0]?.id ?? ''
   } catch (error) {
     errorKey.value = resolveErrorKey(error)
-    console.error('[BrowserDataImportDialog] Browser import scan failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[BrowserDataImportDialog] Browser import scan failed', error)
   } finally {
     loading.value = false
   }
@@ -231,9 +229,7 @@ const createPreview = async () => {
     preview.value = await browserClient.previewImport(selectedProfileId.value)
   } catch (error) {
     errorKey.value = resolveErrorKey(error)
-    console.error('[BrowserDataImportDialog] Browser import preview failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[BrowserDataImportDialog] Browser import preview failed', error)
   } finally {
     busy.value = false
   }
@@ -249,9 +245,7 @@ const applyImport = async () => {
   } catch (error) {
     preview.value = null
     errorKey.value = resolveErrorKey(error)
-    console.error('[BrowserDataImportDialog] Browser data import failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[BrowserDataImportDialog] Browser data import failed', error)
   } finally {
     isApplying.value = false
     busy.value = false

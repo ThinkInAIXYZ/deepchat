@@ -254,9 +254,10 @@ const syncSyntheticDefaultExists = async () => {
       syntheticDefaultExists.value = exists
     }
   } catch (error) {
-    console.warn('[EnvironmentsSettings] Failed to resolve synthetic default path existence:', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.warn(
+      '[EnvironmentsSettings] Failed to resolve synthetic default path existence:',
+      error
+    )
     if (defaultProjectPath.value === currentPath) {
       syntheticDefaultExists.value = true
     }
@@ -507,10 +508,13 @@ const confirmEnvironmentAction = async () => {
     confirmationFeedbackController.clearSettled()
     pendingAction.value = null
   } catch (error) {
-    console.error('[EnvironmentsSettings] Failed to apply confirmed action', {
-      operation: action.type,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error(
+      '[EnvironmentsSettings] Failed to apply confirmed action',
+      {
+        operation: action.type
+      },
+      error
+    )
     confirmationFeedbackController.fail({
       code: `settings.environments.${action.type}.failed`,
       title:
@@ -547,10 +551,13 @@ const runPageOperation = async ({
     pageFeedbackController.clearSettled()
     return true
   } catch (error) {
-    console.error('[EnvironmentsSettings] Operation failed', {
-      code,
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error(
+      '[EnvironmentsSettings] Operation failed',
+      {
+        code
+      },
+      error
+    )
     pageFeedbackController.fail({
       code: `${code}.failed`,
       title: failureTitle

@@ -123,9 +123,7 @@ export function useExternalKnowledgeConfigs<T extends ExternalKnowledgeConfig>(
       configs.value = parseKnowledgeConfigs(environment, options.isConfig).map(options.clone)
       loadError.value = null
     } catch (error) {
-      console.error(`[${options.diagnosticName}] Failed to load configuration`, {
-        name: error instanceof Error ? error.name : 'UnknownError'
-      })
+      console.error(`[${options.diagnosticName}] Failed to load configuration`, error)
       loadError.value = t('common.error.requestFailed')
     }
   }

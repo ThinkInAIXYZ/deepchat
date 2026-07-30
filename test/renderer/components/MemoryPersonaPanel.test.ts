@@ -132,8 +132,9 @@ describe('MemoryPersonaPanel', () => {
     expect(feedback.attributes('data-tone')).toBe('error')
     expect(feedback.text()).toContain('settings.deepchatAgents.memoryManager.actionFailed')
     expect(feedback.text()).not.toContain('secret persona failure')
-    expect(consoleError).toHaveBeenCalledWith('[MemoryPersonaPanel] Action failed', {
-      name: 'Error'
-    })
+    expect(consoleError).toHaveBeenCalledWith(
+      '[MemoryPersonaPanel] Action failed',
+      expect.any(Error)
+    )
   })
 })

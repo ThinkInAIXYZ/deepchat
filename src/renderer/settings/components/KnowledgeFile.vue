@@ -330,9 +330,7 @@ const handleSearch = async () => {
     const res = await knowledgeClient.similarityQuery(props.builtinKnowledgeDetail.id, query)
     searchResult.value = res || []
   } catch (error) {
-    console.error('[KnowledgeFile] Search failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[KnowledgeFile] Search failed', error)
     searchError.value = t('settings.knowledgeBase.searchError')
     searchResult.value = []
   } finally {
@@ -361,9 +359,7 @@ const loadSupportedExtensions = async () => {
     )
     acceptExts.value = [...defaultSupported, ...uniqueExts]
   } catch (error) {
-    console.error('[KnowledgeFile] Failed to load supported extensions', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[KnowledgeFile] Failed to load supported extensions', error)
     // 使用回退扩展名列表
     acceptExts.value = [...defaultSupported]
   }
@@ -389,9 +385,7 @@ const loadList = async () => {
     fileProgressById.clear()
     pageError.value = null
   } catch (error) {
-    console.error('[KnowledgeFile] Failed to load files', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[KnowledgeFile] Failed to load files', error)
     pageError.value = t('common.error.requestFailed')
   }
 }
@@ -410,9 +404,7 @@ const toggleStatus = async (run: boolean) => {
     }
     await loadList()
   } catch (error) {
-    console.error('[KnowledgeFile] Failed to change task status', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[KnowledgeFile] Failed to change task status', error)
     pageError.value = t('common.error.operationFailed')
   } finally {
     pageActionPending.value = false
@@ -465,9 +457,7 @@ const handleFileUpload = async (files: File[]) => {
           addFailure(file)
         }
       } catch (error) {
-        console.error('[KnowledgeFile] Failed to add file', {
-          name: error instanceof Error ? error.name : 'UnknownError'
-        })
+        console.error('[KnowledgeFile] Failed to add file', error)
         addFailure(file)
       }
     }
@@ -497,9 +487,7 @@ const deleteFile = async (fileId: string) => {
     fileList.value = fileList.value.filter((file) => file.id !== fileId)
     fileProgressById.delete(fileId)
   } catch (error) {
-    console.error('[KnowledgeFile] Failed to delete file', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[KnowledgeFile] Failed to delete file', error)
     pageError.value = t('common.error.operationFailed')
   } finally {
     pendingFileActions.value.delete(fileId)
@@ -531,9 +519,7 @@ const reAddFile = async (file: KnowledgeFileMessage) => {
       }
     }
   } catch (error) {
-    console.error('[KnowledgeFile] Failed to re-add file', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[KnowledgeFile] Failed to re-add file', error)
     file.status = 'error'
     file.metadata = {
       ...file.metadata,

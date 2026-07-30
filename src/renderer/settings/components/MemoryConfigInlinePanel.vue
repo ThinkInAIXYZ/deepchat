@@ -634,9 +634,7 @@ async function load(): Promise<void> {
     applyLoadedConfig(config, resolved)
   } catch (error) {
     if (current !== loadRequestId || props.agentId !== agentId || !props.open) return
-    console.error('[MemoryConfigInlinePanel] Failed to load config', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[MemoryConfigInlinePanel] Failed to load config', error)
     panelFeedback.show('error', t('settings.memory.redesign.configLoadFailed'))
   } finally {
     if (current === loadRequestId) loading.value = false
@@ -693,9 +691,7 @@ async function resetFieldFromServer(
     if (!isLatest(agentId, key, version) || props.agentId !== agentId || !props.open) return
     resetField(key, config, resolved)
   } catch (error) {
-    console.error('[MemoryConfigInlinePanel] Failed to resync config field', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[MemoryConfigInlinePanel] Failed to resync config field', error)
     if (!isLatest(agentId, key, version) || props.agentId !== agentId || !props.open) return
     resetField(key, fallbackConfig, fallbackResolved)
   }
@@ -722,9 +718,7 @@ async function runSubmit(
   } catch (error) {
     if (!isLatest(agentId, key, version) || props.agentId !== agentId || !props.open) return
     setKeyFailed(key, true)
-    console.error('[MemoryConfigInlinePanel] Failed to save config', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[MemoryConfigInlinePanel] Failed to save config', error)
     panelFeedback.show('error', t('settings.memory.redesign.configSaveFailed'))
     await resetFieldFromServer(agentId, key, version, fallbackConfig, fallbackResolved)
   }

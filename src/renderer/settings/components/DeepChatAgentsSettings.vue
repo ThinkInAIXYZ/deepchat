@@ -1630,9 +1630,7 @@ const saveAgent = async () => {
       title: t('settings.deepchatAgents.saveFeedback.saved')
     })
   } catch (error) {
-    console.error('[DeepChatAgents] Save failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DeepChatAgents] Save failed', error)
     feedbackSourceSignature.value = submittedSignature
     saveFeedbackController.fail({
       code: SAVE_FAILURE_CODE,
@@ -1656,9 +1654,7 @@ const removeAgent = async () => {
     transferImpact.value = impact
     allAgents.value = list
   } catch (error) {
-    console.error('[DeepChatAgents] Failed to load transfer impact', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DeepChatAgents] Failed to load transfer impact', error)
     transferDialogError.value = t('common.error.operationFailed')
   } finally {
     transferDialogLoading.value = false
@@ -1686,9 +1682,7 @@ const finishDeleteAgent = async (agentId: string) => {
         title: t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
       })
     } catch (error) {
-      console.error('[DeepChatAgents] Failed to present cleanup notice', {
-        name: error instanceof Error ? error.name : 'UnknownError'
-      })
+      console.error('[DeepChatAgents] Failed to present cleanup notice', error)
     }
   }
 }
@@ -1704,9 +1698,7 @@ const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => 
     await sessionClient.moveAgentSessions(agent.id, payload.targetAgentId)
     await finishDeleteAgent(agent.id)
   } catch (error) {
-    console.error('[DeepChatAgents] Failed to move sessions before deletion', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DeepChatAgents] Failed to move sessions before deletion', error)
     transferDialogError.value = t('common.error.operationFailed')
   } finally {
     deleting.value = false
@@ -1725,9 +1717,7 @@ const handleDeleteAgentWithSessions = async () => {
     await sessionClient.deleteAgentSessions(agent.id)
     await finishDeleteAgent(agent.id)
   } catch (error) {
-    console.error('[DeepChatAgents] Failed to delete agent sessions', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DeepChatAgents] Failed to delete agent sessions', error)
     transferDialogError.value = t('common.error.operationFailed')
   } finally {
     deleting.value = false

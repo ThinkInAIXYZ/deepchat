@@ -224,9 +224,10 @@ describe('NowledgeMemSettings', () => {
   it('keeps failed saves dirty and offers an inline retry', async () => {
     const { wrapper, nowledgeMemClient, feedbackController } = await setup()
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    nowledgeMemClient.updateConfig.mockRejectedValueOnce(
-      new Error('request rejected for loaded-key')
-    )
+    const apiError = new Error('request rejected for loaded-key', {
+      cause: new Error('token loaded-key rejected')
+    })
+    nowledgeMemClient.updateConfig.mockRejectedValueOnce(apiError)
 
     await wrapper.find('.cursor-default').trigger('click')
     await wrapper.get('#baseUrl').setValue('http://changed.local')
@@ -239,6 +240,19 @@ describe('NowledgeMemSettings', () => {
     })
     expect(wrapper.get('[data-testid="operation-feedback"]').text()).not.toContain('loaded-key')
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain('loaded-key')
+    const diagnosticError = consoleError.mock.calls.find(
+      ([message]) => message === '[NowledgeMemSettings] save configuration failed'
+    )?.[1]
+    expect(diagnosticError).toBeInstanceOf(Error)
+    expect(diagnosticError).toMatchObject({
+      name: 'Error',
+      message: 'request rejected for [redacted]',
+      cause: expect.objectContaining({
+        name: 'Error',
+        message: 'token [redacted] rejected'
+      })
+    })
+    expect((diagnosticError as Error).stack).not.toContain('loaded-key')
     expect(wrapper.get('[data-testid="nowledge-mem-save-button"]').attributes('disabled')).toBe(
       undefined
     )

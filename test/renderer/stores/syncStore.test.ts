@@ -135,7 +135,7 @@ describe('syncStore', () => {
 
     await expect(store.startBackup()).rejects.toThrow('native backup failed')
     expect(store.isBackingUp).toBe(false)
-    expect(consoleError).toHaveBeenCalledWith('[SyncStore] Backup failed', { name: 'Error' })
+    expect(consoleError).toHaveBeenCalledWith('[SyncStore] Backup failed', expect.any(Error))
 
     consoleError.mockRestore()
   })
@@ -155,7 +155,7 @@ describe('syncStore', () => {
       success: false,
       message: 'sync.error.importFailed'
     })
-    expect(consoleError).toHaveBeenCalledWith('[SyncStore] Import failed', { name: 'Error' })
+    expect(consoleError).toHaveBeenCalledWith('[SyncStore] Import failed', expect.any(Error))
 
     consoleError.mockRestore()
   })
@@ -171,9 +171,10 @@ describe('syncStore', () => {
       prefix: 'deepchat-backups',
       safeStorageAvailable: true
     })
-    expect(consoleError).toHaveBeenCalledWith('[SyncStore] Failed to load cloud config', {
-      name: 'Error'
-    })
+    expect(consoleError).toHaveBeenCalledWith(
+      '[SyncStore] Failed to load cloud config',
+      expect.any(Error)
+    )
 
     consoleError.mockRestore()
   })

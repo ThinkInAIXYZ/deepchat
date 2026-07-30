@@ -392,9 +392,10 @@ describe('MemoryInlinePanel', () => {
     const sourceAlert = wrapper.get('[data-testid="memory-source-scroll"] [role="alert"]')
     expect(sourceAlert.text()).toContain('settings.deepchatAgents.memoryManager.actionFailed')
     expect(sourceAlert.text()).not.toContain('secret source failure')
-    expect(consoleError).toHaveBeenCalledWith('[MemoryInlinePanel] Failed to load source span', {
-      name: 'Error'
-    })
+    expect(consoleError).toHaveBeenCalledWith(
+      '[MemoryInlinePanel] Failed to load source span',
+      expect.any(Error)
+    )
     consoleError.mockRestore()
   })
 

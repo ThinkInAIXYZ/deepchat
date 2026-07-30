@@ -1432,9 +1432,7 @@ const handleSyncEnabledChange = async (value: boolean) => {
       title: t('common.saved')
     })
   } catch (error) {
-    console.error('[DataSettings] Failed to update sync state', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to update sync state', error)
     syncOperation.controller.fail({
       code: 'settings.data.sync.updateFailed',
       title: t('common.error.operationFailed')
@@ -1456,9 +1454,7 @@ const handleSelectSyncFolder = async () => {
       title: t('common.saved')
     })
   } catch (error) {
-    console.error('[DataSettings] Failed to select sync folder', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to select sync folder', error)
     syncOperation.controller.fail({
       code: 'settings.data.sync.folderUpdateFailed',
       title: t('common.error.operationFailed')
@@ -1477,9 +1473,7 @@ const handleOpenSyncFolder = async () => {
     })
     syncOperation.controller.clearSettled()
   } catch (error) {
-    console.error('[DataSettings] Failed to open sync folder', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to open sync folder', error)
     syncOperation.controller.fail({
       code: 'settings.data.sync.folderOpenFailed',
       title: t('common.error.operationFailed')
@@ -1607,9 +1601,7 @@ const handleSaveCloud = async () => {
       title: t('settings.data.cloudSync.savedTitle')
     })
   } catch (error) {
-    console.error('[DataSettings] Failed to save cloud config', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to save cloud config', error)
     cloudOperation.controller.fail({
       code: 'settings.data.cloud.saveFailed',
       title: t('common.error.operationFailed')
@@ -1642,9 +1634,7 @@ const handleSaveAndTestCloud = async () => {
       title: t('settings.data.cloudSync.testSuccessTitle')
     })
   } catch (error) {
-    console.error('[DataSettings] Failed to save or test cloud config', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to save or test cloud config', error)
     cloudOperation.controller.fail({
       code: 'settings.data.cloud.testFailed',
       title: t('settings.data.cloudSync.testFailedTitle')
@@ -1670,9 +1660,7 @@ const handleUploadToCloud = async () => {
       title: t('settings.data.cloudSync.uploadSuccessTitle')
     })
   } catch (error) {
-    console.error('[DataSettings] Failed to upload cloud backup', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to upload cloud backup', error)
     cloudOperation.controller.fail({
       code: 'settings.data.cloud.uploadFailed',
       title: t('settings.data.cloudSync.uploadFailedTitle')
@@ -1699,9 +1687,7 @@ const handlePullFromCloud = async () => {
       description: cloudResultDescription(result.message)
     })
   } catch (error) {
-    console.error('[DataSettings] Failed to pull cloud backup', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to pull cloud backup', error)
     cloudOperation.controller.fail({
       code: 'settings.data.cloud.pullFailed',
       title: t('settings.data.importErrorTitle')
@@ -1746,9 +1732,7 @@ const refreshDatabaseSecurityStatus = async () => {
     databaseSecurityStatus.value = await databaseSecurityClient.getStatus()
     isDatabaseSecurityStatusLoaded.value = true
   } catch (error) {
-    console.error('[DataSettings] Failed to load database encryption status', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to load database encryption status', error)
     isDatabaseSecurityStatusLoaded.value = Boolean(databaseSecurityStatus.value)
     hasDatabaseSecurityStatusError.value = true
   }
@@ -1777,9 +1761,7 @@ const runDatabaseSecurityAction = async (
       title: t(successTitleKey)
     })
   } catch (error) {
-    console.error('[DataSettings] Database encryption action failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Database encryption action failed', error)
     databaseSecurityOperation.controller.fail({
       code: 'settings.data.databaseSecurity.updateFailed',
       title: t('settings.data.databaseEncryption.failedTitle'),
@@ -1921,9 +1903,7 @@ const completeProviderImportOnboardingSteps = async (result: ProviderImportApply
       await onboardingClient.setStepStatus({ stepId: 'provider-model', status: 'completed' })
     }
   } catch (error) {
-    console.error('[DataSettings] Failed to complete provider import onboarding steps', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to complete provider import onboarding steps', error)
   }
 }
 
@@ -1962,9 +1942,7 @@ const runSchemaRepair = async () => {
     })
     repairOperation.controller.clearSettled()
   } catch (error) {
-    console.error('[DataSettings] Failed to repair database schema', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to repair database schema', error)
     repairOperation.controller.fail({
       code: 'settings.data.databaseRepair.failed',
       title: t('settings.data.databaseRepair.toastFailedTitle'),
@@ -2076,9 +2054,7 @@ const initializeSyncSettings = async () => {
     syncOperation.controller.clearSettled()
   } catch (error) {
     syncInitializationFailed.value = true
-    console.error('[DataSettings] Failed to initialize sync settings', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to initialize sync settings', error)
     syncOperation.controller.fail({
       code: 'settings.data.sync.initializeFailed',
       title: t('common.error.operationFailed')
@@ -2168,9 +2144,7 @@ const handleBackup = async () => {
       title: t('settings.data.toast.backupSuccessTitle')
     })
   } catch (error) {
-    console.error('[DataSettings] Backup failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Backup failed', error)
     notifyRenderer({
       kind: 'error',
       code: 'settings.data.sync.backupFailed',
@@ -2215,9 +2189,7 @@ const handleRefreshProviderDb = async () => {
       )
     })
   } catch (error) {
-    console.error('[DataSettings] Failed to refresh provider DB', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to refresh provider DB', error)
     notifyRenderer({
       kind: 'error',
       code: 'settings.data.modelConfig.updateFailed',
@@ -2272,9 +2244,7 @@ const handleImport = async () => {
     }
     closeImportDialog()
   } catch (error) {
-    console.error('[DataSettings] Import failed', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Import failed', error)
     syncOperation.controller.fail({
       code: 'settings.data.sync.importFailed',
       title: t('settings.data.importErrorTitle')
@@ -2316,9 +2286,7 @@ const handleReset = async () => {
     isResetDialogOpen.value = false
     resetType.value = 'chat'
   } catch (error) {
-    console.error('[DataSettings] Failed to reset data', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to reset data', error)
     resetOperation.controller.fail({
       code: 'settings.data.reset.failed',
       title: t('common.error.operationFailed')
@@ -2343,9 +2311,7 @@ const handleClearSandboxData = async () => {
     })
     isClearSandboxDialogOpen.value = false
   } catch (error) {
-    console.error('[DataSettings] Failed to clear YoBrowser sandbox data', {
-      name: error instanceof Error ? error.name : 'UnknownError'
-    })
+    console.error('[DataSettings] Failed to clear YoBrowser sandbox data', error)
     sandboxClearFailed.value = true
   } finally {
     isClearingSandbox.value = false
