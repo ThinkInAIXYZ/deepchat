@@ -93,7 +93,8 @@ files, and disable redundant artifact compression.
 `package-regression.yml` supports `workflow_call`, `workflow_dispatch`, and a daily 18:37 UTC
 schedule. It invokes all six targets with `verification`, enforces installer size, and passes only the
 runtime token and existing non-signing build configuration. It is the full nightly/manual regression
-suite and is not nested inside the fast PR workflow.
+suite and is not nested inside the fast PR workflow. Scheduled failures share one open GitHub issue,
+which is updated on repeated failures and closed after recovery.
 
 `prcheck.yml` keeps only static, main, renderer, Native Memory, source-build, and aggregate jobs for
 PRs targeting `dev`. `pr-required` therefore reports as soon as fast code-quality checks complete.

@@ -89,13 +89,29 @@ jobs:
           DEEPCHAT_APPLE_NOTARY_PASSWORD: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
         run: |
           node --input-type=module -e "const contract = await import('./scripts/ci/package-contract.mjs'); contract.validateSourceSha(process.env.SOURCE_SHA); contract.validateArtifactPurpose(process.env.PACKAGE_PURPOSE); contract.getTargetDefinition(process.env.TARGET_PLATFORM, process.env.TARGET_ARCH);"
+          apple_credentials=(
+            CSC_LINK
+            CSC_KEY_PASSWORD
+            DEEPCHAT_APPLE_NOTARY_USERNAME
+            DEEPCHAT_APPLE_NOTARY_TEAM_ID
+            DEEPCHAT_APPLE_NOTARY_PASSWORD
+          )
           if [[ "${PACKAGE_PURPOSE}" == 'distribution' ]]; then
             missing=()
-            for name in CSC_LINK CSC_KEY_PASSWORD DEEPCHAT_APPLE_NOTARY_USERNAME DEEPCHAT_APPLE_NOTARY_TEAM_ID DEEPCHAT_APPLE_NOTARY_PASSWORD; do
+            for name in "${apple_credentials[@]}"; do
               [[ -n "${!name}" ]] || missing+=("${name}")
             done
             if (( ${#missing[@]} > 0 )); then
               printf 'Missing required macOS distribution secrets: %s\n' "${missing[*]}" >&2
+              exit 1
+            fi
+          else
+            unexpected=()
+            for name in "${apple_credentials[@]}"; do
+              [[ -z "${!name}" ]] || unexpected+=("${name}")
+            done
+            if (( ${#unexpected[@]} > 0 )); then
+              printf 'macOS verification must not receive Apple credentials: %s\n' "${unexpected[*]}" >&2
               exit 1
             fi
           fi
@@ -136,6 +152,11 @@ jobs:
 
       - name: Build and package macOS
         run: |
+          if [[ "${PACKAGE_PURPOSE}" == 'verification' ]]; then
+            unset CSC_LINK CSC_KEY_PASSWORD
+            unset DEEPCHAT_APPLE_NOTARY_USERNAME DEEPCHAT_APPLE_NOTARY_TEAM_ID
+            unset DEEPCHAT_APPLE_NOTARY_PASSWORD
+          fi
           pnpm run build
           pnpm run plugin:bundle -- --name cua --platform darwin --arch "${TARGET_ARCH}" --purpose "${PACKAGE_PURPOSE}"
           pnpm run plugin:bundle -- --name feishu --platform darwin --arch "${TARGET_ARCH}"
