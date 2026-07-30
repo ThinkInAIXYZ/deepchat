@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+const getLocaleMock = vi.hoisted(() => vi.fn(() => 'en-US'))
 
 vi.mock('electron', () => ({
   app: {
+    getLocale: getLocaleMock,
     getLoginItemSettings: vi.fn(() => ({ openAtLogin: false })),
     setLoginItemSettings: vi.fn()
   }
@@ -12,7 +14,10 @@ vi.mock('electron', () => ({
 import { DesktopSettings } from '@/desktop/settings'
 
 describe('DesktopSettings', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getLocaleMock.mockReturnValue('en-US')
+  })
 
   const effects = {
     refreshLanguage: vi.fn(),
@@ -57,6 +62,47 @@ describe('DesktopSettings', () => {
       changedKeys: ['copyWithCotEnabled'],
       version: expect.any(Number),
       values: { copyWithCotEnabled: false }
+    })
+  })
+
+  it('resolves system and explicit languages through the shared locale manifest', () => {
+    const settings = {
+      get: vi.fn(() => 'system'),
+      set: vi.fn()
+    }
+    getLocaleMock.mockReturnValue('zh-Hant-HK')
+    const desktopSettings = new DesktopSettings(
+      settings as never,
+      effects,
+      publishDeepchatEventMock
+    )
+
+    expect(desktopSettings.getLanguage()).toBe('zh-HK')
+
+    settings.get.mockReturnValue('fr-CA')
+    expect(desktopSettings.getRequestedLanguage()).toBe('fr-FR')
+    expect(desktopSettings.getLanguage()).toBe('fr-FR')
+  })
+
+  it('publishes a normalized locale and direction once when changing language', () => {
+    const settings = {
+      get: vi.fn(() => 'fa-IR'),
+      set: vi.fn()
+    }
+    const desktopSettings = new DesktopSettings(
+      settings as never,
+      effects,
+      publishDeepchatEventMock
+    )
+
+    desktopSettings.setLanguage('fa')
+
+    expect(settings.set).toHaveBeenCalledWith('language', 'fa-IR')
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('config.language.changed', {
+      requestedLanguage: 'fa-IR',
+      locale: 'fa-IR',
+      direction: 'rtl',
+      version: expect.any(Number)
     })
   })
 })

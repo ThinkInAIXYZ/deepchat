@@ -1,32 +1,16 @@
+import { FALLBACK_LOCALE, resolveSupportedLocale, type SupportedLocale } from './locales'
+
 // Translation key-value type interface
 export interface TranslationMap {
   [key: string]: string
 }
 
-// Define supported languages
-export const supportedLocales = [
-  'zh-CN',
-  'zh-TW',
-  'en-US',
-  'ja',
-  'ko',
-  'fr',
-  'es-ES',
-  'de-DE',
-  'tr-TR',
-  'id-ID',
-  'ms-MY',
-  'it-IT',
-  'pl-PL',
-  'vi-VN',
-  'de',
-  'es',
-  'pt-BR',
-  'da-DK'
-]
+type TranslationCollection = Partial<Record<SupportedLocale, TranslationMap>> & {
+  'en-US': TranslationMap
+}
 
 // Context menu translations
-export const contextMenuTranslations: Record<string, TranslationMap> = {
+export const contextMenuTranslations: TranslationCollection = {
   'zh-CN': {
     copy: '复制',
     paste: '粘贴',
@@ -126,7 +110,7 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     resetZoom: 'Actual Size',
     showHide: 'Show/Hide DeepChat'
   },
-  ja: {
+  'ja-JP': {
     copy: 'コピー',
     paste: '貼り付け',
     cut: '切り取り',
@@ -142,7 +126,7 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     askAI: 'AIに質問',
     newThreadFromSelection: '選択範囲から新規スレッド'
   },
-  ko: {
+  'ko-KR': {
     copy: '복사',
     paste: '붙여넣기',
     cut: '잘라내기',
@@ -158,7 +142,7 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     askAI: 'AI에게 질문',
     newThreadFromSelection: '선택 영역에서 새 스레드'
   },
-  fr: {
+  'fr-FR': {
     copy: 'Copier',
     paste: 'Coller',
     cut: 'Couper',
@@ -173,38 +157,6 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     translate: 'Traduire',
     askAI: "Demander à l'AI",
     newThreadFromSelection: 'Nouveau fil depuis la sélection'
-  },
-  de: {
-    copy: 'Kopieren',
-    paste: 'Einfügen',
-    cut: 'Ausschneiden',
-    selectAll: 'Alles auswählen',
-    undo: 'Rückgängig',
-    redo: 'Wiederholen',
-    saveImage: 'Bild speichern...',
-    copyImage: 'Bild kopieren',
-    open: 'Öffnen/Verstecken',
-    checkForUpdates: 'Nach Updates suchen',
-    quit: 'Beenden',
-    translate: 'Übersetzen',
-    askAI: 'KI fragen',
-    newThreadFromSelection: 'Neuer Thread aus Auswahl'
-  },
-  es: {
-    copy: 'Copiar',
-    paste: 'Pegar',
-    cut: 'Cortar',
-    selectAll: 'Seleccionar todo',
-    undo: 'Deshacer',
-    redo: 'Rehacer',
-    saveImage: 'Guardar imagen...',
-    copyImage: 'Copiar imagen',
-    open: 'Abrir/Esconder',
-    checkForUpdates: 'Comprobar actualizaciones',
-    quit: 'Salir',
-    translate: 'Traducir',
-    askAI: 'Preguntar a la AI',
-    newThreadFromSelection: 'Nuevo hilo desde selección'
   },
   'pt-BR': {
     copy: 'Copiar',
@@ -515,23 +467,16 @@ Object.assign(contextMenuTranslations, {
  */
 export function getBestMatchTranslation(
   locale: string,
-  translations: Record<string, TranslationMap>
+  translations: TranslationCollection
 ): TranslationMap {
-  // Default to English
-  let targetLocale = 'en-US'
+  const targetLocale = resolveSupportedLocale(locale)
+  const localeFallback = targetLocale === 'zh-HK' ? 'zh-TW' : undefined
 
-  // Find the best matching language
-  for (const supported of supportedLocales) {
-    if (
-      locale.startsWith(supported) ||
-      (supported.includes('-') && locale.startsWith(supported.split('-')[0]))
-    ) {
-      targetLocale = supported
-      break
-    }
+  return {
+    ...translations[FALLBACK_LOCALE],
+    ...(localeFallback ? translations[localeFallback] : undefined),
+    ...translations[targetLocale]
   }
-
-  return translations[targetLocale] || translations['en-US']
 }
 
 /**

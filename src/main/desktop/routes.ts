@@ -7,6 +7,7 @@ import type {
   IYoBrowserPresenter
 } from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
+import { getLocaleDirection } from '@shared/locales'
 import type { DesktopSettings } from './settings'
 import {
   browserAttachCurrentWindowRoute,
@@ -100,7 +101,7 @@ export function createDesktopRoutes(deps: {
     return {
       requestedLanguage: deps.settings.getRequestedLanguage(),
       locale,
-      direction: locale === 'fa-IR' || locale === 'he-IL' ? ('rtl' as const) : ('auto' as const)
+      direction: getLocaleDirection(locale)
     }
   }
   const readTheme = () => ({

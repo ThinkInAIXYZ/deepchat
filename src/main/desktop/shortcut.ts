@@ -19,27 +19,6 @@ import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
-const defaultMenuLabels: TranslationMap = {
-  file: 'File',
-  edit: 'Edit',
-  view: 'View',
-  window: 'Window',
-  settings: 'Settings...',
-  newConversation: 'New Conversation',
-  newWindow: 'New Window',
-  closeWindow: 'Close Window',
-  quickSearch: 'Quick Search',
-  toggleSidebar: 'Toggle Sidebar',
-  toggleWorkspace: 'Toggle Workspace',
-  cleanChatHistory: 'Clear Chat History',
-  deleteConversation: 'Delete Conversation',
-  zoomIn: 'Zoom In',
-  zoomOut: 'Zoom Out',
-  resetZoom: 'Actual Size',
-  quit: 'Quit',
-  showHide: 'Show/Hide DeepChat'
-}
-
 export class ShortcutPresenter implements IShortcutPresenter {
   private settings: Pick<DesktopSettings, 'getShortcutKeys' | 'getLanguage'>
   private windowPresenter: IWindowPresenter
@@ -77,12 +56,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
   private getLabels(): TranslationMap {
     const locale =
       this.settings.getLanguage() || app.getLocale?.() || app.getSystemLocale?.() || 'en-US'
-    const localizedLabels = getContextMenuLabels(locale)
-
-    return {
-      ...defaultMenuLabels,
-      ...localizedLabels
-    }
+    return getContextMenuLabels(locale)
   }
 
   private accelerator(shortcut: string | undefined): string | undefined {

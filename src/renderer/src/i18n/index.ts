@@ -1,33 +1,13 @@
 import type { LocaleMessageValue } from 'vue-i18n'
+import { resolveSupportedLocale, type SupportedLocale } from '@shared/locales'
 
 export { pluralRules } from './pluralRules'
-
-export const FALLBACK_LOCALE = 'en-US' as const
-
-export const SUPPORTED_LOCALES = [
-  'zh-CN',
-  'en-US',
-  'zh-HK',
-  'zh-TW',
-  'ja-JP',
-  'ko-KR',
-  'ru-RU',
-  'fr-FR',
-  'fa-IR',
-  'pt-BR',
-  'da-DK',
-  'he-IL',
-  'es-ES',
-  'de-DE',
-  'tr-TR',
-  'id-ID',
-  'ms-MY',
-  'it-IT',
-  'pl-PL',
-  'vi-VN'
-] as const
-
-export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
+export {
+  FALLBACK_LOCALE,
+  SUPPORTED_LOCALES,
+  resolveSupportedLocale,
+  type SupportedLocale
+} from '@shared/locales'
 export type RendererLocaleMessages = Record<string, LocaleMessageValue>
 
 type LocaleModule = { default: RendererLocaleMessages }
@@ -56,42 +36,7 @@ const localeLoaders: Record<SupportedLocale, LocaleLoader> = {
   'vi-VN': () => import('./vi-VN')
 }
 
-const localeAliases: Record<string, SupportedLocale> = {
-  zh: 'zh-CN',
-  en: 'en-US',
-  ja: 'ja-JP',
-  ko: 'ko-KR',
-  ru: 'ru-RU',
-  fr: 'fr-FR',
-  fa: 'fa-IR',
-  pt: 'pt-BR',
-  da: 'da-DK',
-  he: 'he-IL',
-  es: 'es-ES',
-  de: 'de-DE',
-  tr: 'tr-TR',
-  id: 'id-ID',
-  ms: 'ms-MY',
-  it: 'it-IT',
-  pl: 'pl-PL',
-  vi: 'vi-VN'
-}
-
-const supportedLocaleLookup = new Map(
-  SUPPORTED_LOCALES.map((locale) => [locale.toLowerCase(), locale])
-)
 const localeMessagePromises = new Map<SupportedLocale, Promise<RendererLocaleMessages>>()
-
-export function resolveSupportedLocale(locale: string | null | undefined): SupportedLocale {
-  if (!locale) return FALLBACK_LOCALE
-
-  const normalizedLocale = locale.replace('_', '-').toLowerCase()
-  return (
-    supportedLocaleLookup.get(normalizedLocale) ??
-    localeAliases[normalizedLocale] ??
-    FALLBACK_LOCALE
-  )
-}
 
 export function loadLocaleMessages(locale: string): Promise<RendererLocaleMessages> {
   const resolvedLocale = resolveSupportedLocale(locale)

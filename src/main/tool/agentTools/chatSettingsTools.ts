@@ -11,6 +11,7 @@ import type { SkillServicePort } from '@shared/types/skill'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import type { AgentDesktopToolPort, AgentDisplaySettingsPort } from '../runtimePorts'
 import type { SkillSettingsPort } from '@/skill/settings'
+import { REQUESTED_LOCALES } from '@shared/locales'
 
 export const CHAT_SETTINGS_SKILL_NAME = 'deepchat-settings'
 export const CHAT_SETTINGS_TOOL_NAMES = {
@@ -20,30 +21,6 @@ export const CHAT_SETTINGS_TOOL_NAMES = {
   setFontSize: 'deepchat_settings_set_font_size',
   open: 'deepchat_settings_open'
 } as const
-
-const SUPPORTED_LANGUAGES = [
-  'system',
-  'zh-CN',
-  'en-US',
-  'zh-TW',
-  'zh-HK',
-  'ko-KR',
-  'ru-RU',
-  'ja-JP',
-  'fr-FR',
-  'fa-IR',
-  'pt-BR',
-  'da-DK',
-  'he-IL',
-  'es-ES',
-  'de-DE',
-  'tr-TR',
-  'id-ID',
-  'ms-MY',
-  'it-IT',
-  'pl-PL',
-  'vi-VN'
-] as const satisfies readonly ChatLanguage[]
 
 const SUPPORTED_THEMES = ['dark', 'light', 'system'] as const
 
@@ -55,7 +32,7 @@ const toggleSchema = z.strictObject({
 })
 
 const languageSchema = z.strictObject({
-  language: z.enum(SUPPORTED_LANGUAGES).describe('DeepChat language/locale.')
+  language: z.enum(REQUESTED_LOCALES).describe('DeepChat language/locale.')
 })
 
 const themeSchema = z.strictObject({

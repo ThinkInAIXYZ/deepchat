@@ -19,6 +19,8 @@ const createMessages = (label: string): RendererLocaleMessages => ({
 describe('renderer locale loading', () => {
   it('normalizes supported locales and language aliases', () => {
     expect(resolveSupportedLocale('zh_TW')).toBe('zh-TW')
+    expect(resolveSupportedLocale('zh-Hant-HK')).toBe('zh-HK')
+    expect(resolveSupportedLocale('fr-CA')).toBe('fr-FR')
     expect(resolveSupportedLocale('PT')).toBe('pt-BR')
     expect(resolveSupportedLocale('unknown')).toBe(FALLBACK_LOCALE)
     expect(resolveSupportedLocale(undefined)).toBe(FALLBACK_LOCALE)
