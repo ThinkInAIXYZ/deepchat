@@ -540,7 +540,10 @@ describe('Package Regression caller', () => {
   })
 
   it('creates one scheduled failure issue, updates it, and closes it on recovery', () => {
-    const script = workflow.jobs['scheduled-status'].steps[0].run!
+    const statusStep = workflow.jobs['scheduled-status'].steps[0]
+    const script = statusStep.run!
+    const issueTitle = statusStep.env?.ISSUE_TITLE
+    if (!issueTitle) throw new Error('Missing scheduled regression issue title')
     const temporaryDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), 'deepchat-regression-status-')
     )
@@ -551,13 +554,11 @@ describe('Package Regression caller', () => {
       fakeGhPath,
       `#!/usr/bin/env bash
 set -euo pipefail
+printf 'ARG:%s\\n' "\${@}" >> "\${GH_CALLS_PATH}"
 if [[ "\${1:-}" == 'issue' && "\${2:-}" == 'list' ]]; then
   printf '%s' "\${FAKE_OPEN_ISSUES:-}"
   exit 0
 fi
-printf 'ARGS:' >> "\${GH_CALLS_PATH}"
-printf ' %q' "\${@}" >> "\${GH_CALLS_PATH}"
-printf '\\n' >> "\${GH_CALLS_PATH}"
 previous=''
 for argument in "\${@}"; do
   if [[ "\${previous}" == '--body-file' ]]; then
@@ -590,7 +591,7 @@ done
         GITHUB_REPOSITORY: 'ThinkInAIXYZ/deepchat',
         GITHUB_RUN_NUMBER: '123',
         GITHUB_SHA: 'b'.repeat(40),
-        ISSUE_TITLE: '[CI] Scheduled package regression is failing',
+        ISSUE_TITLE: issueTitle,
         RUNNER_TEMP: temporaryDirectory,
         RUN_URL: 'https://github.com/ThinkInAIXYZ/deepchat/actions/runs/123',
         WINDOWS_RESULT: results.windows,
@@ -609,7 +610,16 @@ done
         ''
       )
       expect(firstFailure.result.status, firstFailure.result.stderr).toBe(0)
-      expect(firstFailure.calls).toContain('ARGS: issue create')
+      expect(firstFailure.calls).toContain('ARG:issue\nARG:list\n')
+      expect(firstFailure.calls).toContain('ARG:--state\nARG:open\n')
+      expect(firstFailure.calls).toContain(
+        `ARG:--search\nARG:"${issueTitle}" in:title\n`
+      )
+      expect(firstFailure.calls).toContain('ARG:--json\nARG:number,title\n')
+      expect(firstFailure.calls).toContain(
+        'ARG:--jq\nARG:.[] | select(.title == env.ISSUE_TITLE) | .number\n'
+      )
+      expect(firstFailure.calls).toContain('ARG:issue\nARG:create\n')
       expect(firstFailure.calls).toContain('Windows: `failure`')
       expect(firstFailure.calls).toContain(
         'https://github.com/ThinkInAIXYZ/deepchat/actions/runs/123'
@@ -620,16 +630,16 @@ done
         '42'
       )
       expect(repeatedFailure.result.status, repeatedFailure.result.stderr).toBe(0)
-      expect(repeatedFailure.calls).toContain('ARGS: issue comment 42')
-      expect(repeatedFailure.calls).not.toContain('issue create')
+      expect(repeatedFailure.calls).toContain('ARG:issue\nARG:comment\nARG:42\n')
+      expect(repeatedFailure.calls).not.toContain('ARG:issue\nARG:create\n')
 
       const recovery = runStatus(
         { windows: 'success', linux: 'success', macos: 'success' },
         '42'
       )
       expect(recovery.result.status, recovery.result.stderr).toBe(0)
-      expect(recovery.calls).toContain('ARGS: issue close 42')
-      expect(recovery.calls).toContain('--reason completed')
+      expect(recovery.calls).toContain('ARG:issue\nARG:close\nARG:42\n')
+      expect(recovery.calls).toContain('ARG:--reason\nARG:completed\n')
     } finally {
       fs.rmSync(temporaryDirectory, { recursive: true, force: true })
     }
