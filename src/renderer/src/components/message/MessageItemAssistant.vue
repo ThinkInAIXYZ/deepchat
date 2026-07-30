@@ -79,6 +79,7 @@
                 :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
+                :render-mode="item.block.tool_call?.mcpResult?.app ? 'tool-only' : 'full'"
               />
               <MessageBlockQuestionRequest
                 v-else-if="

@@ -28,6 +28,7 @@ import { createMcpClient } from '@api/McpClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'
 import { useSessionStore } from '@/stores/ui/session'
+import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import {
   claimMcpAppNonInlineDisplay,
   releaseMcpAppNonInlineDisplay,
@@ -48,6 +49,7 @@ const mcpClient = createMcpClient()
 const deviceClient = createDeviceClient()
 const themeStore = useThemeStore()
 const sessionStore = useSessionStore()
+const sidepanelStore = useSidepanelStore()
 const iframe = ref<HTMLIFrameElement | null>(null)
 const prepared = shallowRef<Awaited<ReturnType<typeof mcpClient.prepareAppView>> | null>(null)
 const bridge = shallowRef<AppBridge | null>(null)
@@ -55,15 +57,24 @@ const status = ref<'loading' | 'ready' | 'error' | 'released'>('loading')
 const errorMessage = ref('')
 const displayMode = ref<McpAppDisplayMode>('inline')
 const supportedDisplayModes = ref<McpAppDisplayMode[]>(['inline'])
-const inlineHeight = ref(320)
 const toolAccessSuspended = ref(false)
 const detailsExpanded = ref(false)
 const viewportRevision = ref(0)
-let resizeFrame: number | null = null
 let hostVersion = 'unknown'
 let prepareRevision = 0
 let disposed = false
 
+const sidepanelOwnerId = `${props.conversationId}:${props.messageId}:${props.blockId}`
+const isSidepanelPreview = computed(
+  () =>
+    sidepanelStore.open &&
+    sidepanelStore.activeTab === 'mcp-app' &&
+    sidepanelStore.mcpAppPreviewOwnerId === sidepanelOwnerId
+)
+const teleportTarget = computed(() =>
+  displayMode.value === 'inline' && isSidepanelPreview.value ? '#mcp-app-sidepanel-outlet' : 'body'
+)
+const teleportDisabled = computed(() => displayMode.value === 'inline' && !isSidepanelPreview.value)
 const frameAllow = computed(() =>
   prepared.value ? buildAllowAttribute(prepared.value.permissions) : ''
 )
@@ -73,6 +84,9 @@ const frameClass = computed(() => {
   }
   if (displayMode.value === 'pip') {
     return 'fixed bottom-5 right-5 z-[80] flex h-[min(640px,75vh)] w-[min(520px,85vw)] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl'
+  }
+  if (isSidepanelPreview.value) {
+    return 'flex h-full min-h-0 w-full flex-col overflow-hidden bg-background'
   }
   return [
     'relative mt-3 flex w-full flex-col overflow-hidden bg-background',
@@ -107,6 +121,8 @@ const declaredCspOrigins = computed(() => {
 })
 const hostContext = computed<McpUiHostContext>(() => {
   void viewportRevision.value
+  const fallbackWidth = displayMode.value === 'inline' ? 800 : window.innerWidth
+  const fallbackHeight = displayMode.value === 'inline' ? 450 : window.innerHeight
   return {
     toolInfo: prepared.value ? { tool: prepared.value.tool as SdkTool } : undefined,
     theme: themeStore.isDark ? 'dark' : 'light',
@@ -121,13 +137,10 @@ const hostContext = computed<McpUiHostContext>(() => {
       hover: window.matchMedia('(hover: hover)').matches
     },
     safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
-    containerDimensions:
-      displayMode.value === 'inline'
-        ? {
-            maxWidth: Math.max(1, iframe.value?.clientWidth ?? 800),
-            maxHeight: Math.max(120, Math.min(800, window.innerHeight - 120))
-          }
-        : { maxWidth: window.innerWidth, maxHeight: window.innerHeight }
+    containerDimensions: {
+      maxWidth: Math.max(1, iframe.value?.clientWidth || fallbackWidth),
+      maxHeight: Math.max(1, iframe.value?.clientHeight || fallbackHeight)
+    }
   }
 })
 
@@ -169,19 +182,6 @@ const extractMessageText = (content: ContentBlock[]): string =>
     .map((block) => block.text)
     .join('\n\n')
     .trim()
-
-const handleSizeChange = (height?: number) => {
-  if (!Number.isFinite(height)) {
-    return
-  }
-  if (resizeFrame !== null) {
-    cancelAnimationFrame(resizeFrame)
-  }
-  resizeFrame = requestAnimationFrame(() => {
-    resizeFrame = null
-    inlineHeight.value = Math.max(120, Math.min(800, window.innerHeight - 120, Number(height)))
-  })
-}
 
 const release = async () => {
   const currentBridge = bridge.value
@@ -264,7 +264,6 @@ const connectBridge = async () => {
       errorMessage.value = error instanceof Error ? error.message : String(error)
     })
   }
-  nextBridge.onsizechange = ({ height }) => handleSizeChange(height)
   nextBridge.onrequestdisplaymode = async ({ mode }) => ({
     mode: setDisplayMode(mode as McpAppDisplayMode) as McpUiDisplayMode
   })
@@ -374,12 +373,25 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
+const openSidepanelPreview = () => {
+  setDisplayMode('inline')
+  sidepanelStore.openMcpAppPreview(sidepanelOwnerId)
+}
+
+const returnInline = () => {
+  if (displayMode.value !== 'inline') {
+    setDisplayMode('inline')
+    return
+  }
+  sidepanelStore.closeMcpAppPreview(sidepanelOwnerId)
+}
+
 watch(
   () => [
     themeStore.isDark,
     locale.value,
     displayMode.value,
-    inlineHeight.value,
+    isSidepanelPreview.value,
     viewportRevision.value
   ],
   () => bridge.value?.setHostContext(hostContext.value)
@@ -394,10 +406,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   disposed = true
   prepareRevision += 1
+  sidepanelStore.closeMcpAppPreview(sidepanelOwnerId)
   window.removeEventListener('keydown', handleKeydown)
-  if (resizeFrame !== null) {
-    cancelAnimationFrame(resizeFrame)
-  }
   void release()
 })
 </script>
@@ -417,8 +427,8 @@ onBeforeUnmount(() => {
     </Button>
   </div>
 
-  <Teleport v-else-if="prepared" to="body" :disabled="displayMode === 'inline'">
-    <section :class="frameClass" :aria-label="t('mcp.apps.title')">
+  <Teleport v-else-if="prepared" :to="teleportTarget" :disabled="teleportDisabled">
+    <section data-testid="mcp-app-surface" :class="frameClass" :aria-label="t('mcp.apps.title')">
       <header class="flex h-10 shrink-0 items-center justify-between border-b px-3">
         <div class="min-w-0">
           <span class="block truncate text-sm font-medium">{{ descriptor.serverName }}</span>
@@ -435,6 +445,16 @@ onBeforeUnmount(() => {
             @click="detailsExpanded = !detailsExpanded"
           >
             <Icon icon="lucide:shield-check" class="size-4" />
+          </Button>
+          <Button
+            v-if="displayMode === 'inline' && !isSidepanelPreview"
+            data-testid="mcp-app-open-sidepanel"
+            variant="ghost"
+            size="icon"
+            :aria-label="`${t('mcp.apps.title')} · ${t('common.preview')}`"
+            @click="openSidepanelPreview"
+          >
+            <Icon icon="lucide:panel-right-open" class="size-4" />
           </Button>
           <Button
             v-if="displayMode === 'inline' && supportedDisplayModes.includes('fullscreen')"
@@ -468,13 +488,17 @@ onBeforeUnmount(() => {
             <Icon icon="lucide:picture-in-picture-2" class="size-4" />
           </Button>
           <Button
-            v-if="displayMode !== 'inline'"
+            v-if="displayMode !== 'inline' || isSidepanelPreview"
+            data-testid="mcp-app-return-inline"
             variant="ghost"
             size="icon"
             :aria-label="t('mcp.apps.returnInline')"
-            @click="setDisplayMode('inline')"
+            @click="returnInline"
           >
-            <Icon icon="lucide:minimize-2" class="size-4" />
+            <Icon
+              :icon="isSidepanelPreview ? 'lucide:panel-right-close' : 'lucide:minimize-2'"
+              class="size-4"
+            />
           </Button>
         </div>
       </header>
@@ -501,8 +525,12 @@ onBeforeUnmount(() => {
         :src="prepared.sandboxUrl"
         :sandbox="prepared.sandbox"
         :allow="frameAllow"
-        class="w-full flex-1 bg-transparent"
-        :style="displayMode === 'inline' ? { height: `${inlineHeight}px` } : undefined"
+        class="block w-full bg-transparent"
+        :class="
+          displayMode === 'inline' && !isSidepanelPreview
+            ? 'aspect-video shrink-0'
+            : 'min-h-0 flex-1'
+        "
         :title="t('mcp.apps.title')"
         @load="connectBridge"
       />

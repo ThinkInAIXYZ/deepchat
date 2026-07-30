@@ -136,6 +136,23 @@ export const buildAssistantRenderItems = ({
   const items: AssistantRenderItem[] = []
   let activityBuffer: BufferedActivityBlock[] = []
 
+  const pushStandaloneBlock = (block: DisplayAssistantMessageBlock, index: number) => {
+    const key = buildBlockKey(block, messageId, index)
+    const hasMcpApp = block.type === 'tool_call' && Boolean(block.tool_call?.mcpResult?.app)
+    items.push({
+      kind: 'block',
+      key: hasMcpApp ? `${key}:tool` : key,
+      block
+    })
+    if (hasMcpApp) {
+      items.push({
+        kind: 'mcp-app',
+        key: `${key}:app`,
+        block
+      })
+    }
+  }
+
   const flushActivityBuffer = () => {
     if (activityBuffer.length === 0) {
       return
@@ -149,7 +166,7 @@ export const buildAssistantRenderItems = ({
       if (block.type === 'tool_call' && block.tool_call?.mcpResult?.app) {
         items.push({
           kind: 'mcp-app',
-          key: buildBlockKey(block, messageId, index),
+          key: `${buildBlockKey(block, messageId, index)}:app`,
           block
         })
       }
@@ -172,11 +189,7 @@ export const buildAssistantRenderItems = ({
     }
 
     flushActivityBuffer()
-    items.push({
-      kind: 'block',
-      key: buildBlockKey(block, messageId, index),
-      block
-    })
+    pushStandaloneBlock(block, index)
   })
 
   flushActivityBuffer()

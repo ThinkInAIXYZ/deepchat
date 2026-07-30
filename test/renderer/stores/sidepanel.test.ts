@@ -61,4 +61,23 @@ describe('sidepanel store', () => {
     expect(storageRef.value).toBe(310)
     expect(store.width).toBe(310)
   })
+
+  it('opens one MCP App preview and returns it inline when closed', async () => {
+    const { store } = await setupSidepanelStore(1200)
+
+    store.openMcpAppPreview('conversation:message:block')
+
+    expect(store.open).toBe(true)
+    expect(store.activeTab).toBe('mcp-app')
+    expect(store.mcpAppPreviewOwnerId).toBe('conversation:message:block')
+
+    store.closeMcpAppPreview('another-owner')
+    expect(store.activeTab).toBe('mcp-app')
+
+    store.closeMcpAppPreview('conversation:message:block')
+
+    expect(store.open).toBe(false)
+    expect(store.activeTab).toBe('workspace')
+    expect(store.mcpAppPreviewOwnerId).toBeNull()
+  })
 })

@@ -121,6 +121,7 @@ describe('messageActivityGroups', () => {
     })
     expect(items[1]).toMatchObject({
       kind: 'mcp-app',
+      key: 'm1:tc1:1:app',
       block: {
         type: 'tool_call',
         tool_call: {
@@ -128,6 +129,54 @@ describe('messageActivityGroups', () => {
         }
       }
     })
+  })
+
+  it('keeps the MCP App render key stable when live activity becomes grouped', () => {
+    const appBlock = createBlock('tool_call', {
+      tool_call: {
+        id: 'tc1',
+        name: 'render_chart',
+        mcpResult: {
+          schemaVersion: 1,
+          serverId: 'server-id',
+          configGeneration: 1,
+          bindingHash: 'binding-hash',
+          toolName: 'render_chart',
+          app: {
+            schemaVersion: 1,
+            serverId: 'server-id',
+            configGeneration: 1,
+            bindingHash: 'binding-hash',
+            serverName: 'charts',
+            toolName: 'render_chart',
+            resourceUri: 'ui://chart/index.html',
+            resourceMimeType: 'text/html;profile=mcp-app'
+          }
+        }
+      }
+    })
+
+    const liveItems = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: false,
+      blocks: [appBlock]
+    })
+    const settledItems = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: true,
+      blocks: [appBlock]
+    })
+
+    expect(liveItems.map((item) => [item.kind, item.key])).toEqual([
+      ['block', 'm1:tc1:0:tool'],
+      ['mcp-app', 'm1:tc1:0:app']
+    ])
+    expect(settledItems.map((item) => [item.kind, item.key])).toEqual([
+      ['activity-group', 'activity:m1:0:0'],
+      ['mcp-app', 'm1:tc1:0:app']
+    ])
   })
 
   it('ignores empty reasoning signature blocks when merging continuous activity', () => {
