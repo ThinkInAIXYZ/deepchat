@@ -95,13 +95,14 @@ args:
   - <sdk-checkout>
   - --filter
   - @mcp-examples/<story>
+  - run
   - server
 ```
 
 For HTTP, start the server in a terminal and use its printed `/mcp` endpoint:
 
 ```bash
-pnpm --dir <sdk-checkout> --filter @mcp-examples/<story> server -- --http --port <port>
+pnpm --dir <sdk-checkout> --filter @mcp-examples/<story> run server -- --http --port <port>
 ```
 
 Use a unique port per concurrently running story. The examples below assume `3101` and above.
@@ -197,7 +198,7 @@ Perform this once for every packaged build and platform:
 Server: `L-DUAL`.
 
 ```bash
-pnpm --dir <sdk-checkout> --filter @mcp-examples/dual-era server -- --http --port 3101
+pnpm --dir <sdk-checkout> --filter @mcp-examples/dual-era run server -- --http --port 3101
 ```
 
 1. Add `http://127.0.0.1:3101/mcp` as a Streamable HTTP server.
@@ -244,9 +245,8 @@ pnpm dlx @modelcontextprotocol/server-everything@2026.7.4 streamableHttp
 pnpm dlx @modelcontextprotocol/server-everything@2026.7.4 sse
 ```
 
-Create the SSE record through DeepChat's supported import path or carry it forward from a
-pre-migration test profile; the new-server form intentionally does not offer SSE. Preserve the
-printed URL byte-for-byte.
+Select the SSE compatibility transport in the new-server form or import an existing SSE record.
+Preserve the printed URL byte-for-byte.
 
 1. Run the stdio configuration, then Streamable HTTP, then HTTP+SSE as separate cases.
 2. Confirm diagnostics report legacy negotiation or the explicit legacy SSE path.
@@ -468,7 +468,7 @@ undeclared-origin denial gate remains the DeepChat-owned malicious fixture.
 Server: `L-OAUTH`.
 
 ```bash
-pnpm --dir <sdk-checkout> --filter @mcp-examples/oauth server
+pnpm --dir <sdk-checkout> --filter @mcp-examples/oauth run server
 ```
 
 1. Add `http://127.0.0.1:3000/mcp` without `OAUTH_DEMO_AUTO_CONSENT`.
@@ -491,7 +491,7 @@ the normal product flow binds the listener before opening the browser.
 Server: `L-M2M`.
 
 ```bash
-pnpm --dir <sdk-checkout> --filter @mcp-examples/oauth-client-credentials server -- --http --port 3000
+pnpm --dir <sdk-checkout> --filter @mcp-examples/oauth-client-credentials run server -- --http --port 3000
 ```
 
 Configure:
@@ -611,7 +611,7 @@ The public deployment is broad coverage, not a pinned release gate.
 Use pinned local or DeepChat-owned failure fixtures, not public outages.
 
 ```bash
-pnpm --dir <sdk-checkout> --filter @mcp-examples/bearer-auth server -- --http --port 3110
+pnpm --dir <sdk-checkout> --filter @mcp-examples/bearer-auth run server -- --http --port 3110
 ```
 
 1. Connect to a wrong local path and confirm a transport/configuration error, not legacy fallback.

@@ -55,7 +55,7 @@ pending.
 - [x] Add typed redacted diagnostics for ownership, transport, lifecycle, era, protocol/server
       version, probe outcome, server/client extensions, cache, subscriptions, and auth.
 - [x] Add the localized server-card diagnostics dialog with refresh and redacted JSON copy.
-- [x] Remove SSE from new-server choices while preserving existing/imported SSE configs and a
+- [x] Keep SSE available for compatibility configs with a localized compatibility badge and
       migration hint.
 - [x] Keep the temporary `forceLegacyWire` compatibility diagnostic out of new-server UI.
 
