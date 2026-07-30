@@ -1733,6 +1733,7 @@
       "e2bApiKeyPlaceholder": "Inserisci qui le tue E2B Api Keys, es. e2b_1111xx*****",
       "e2bApiKeyHelp": "Vai su e2b.dev per ottenere la tua ApiKey",
       "e2bApiKeyRequired": "Per attivare E2B è necessario inserire ApiKey",
+      "sseCompatibilityBadge": "Compatibilità",
       "sseMigrationHint": "SSE is legacy-only. Migrate this server to Streamable HTTP when available.",
       "authorizationMode": "Authorization mode",
       "authorizationInteractive": "Interactive OAuth",

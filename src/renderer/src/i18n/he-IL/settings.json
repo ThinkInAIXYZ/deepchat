@@ -1403,6 +1403,7 @@
       "e2bApiKeyPlaceholder": "הזן את מפתחות ה-API של E2B כאן, למשל e2b_1111xx*******",
       "e2bApiKeyHelp": "עבור ל-e2b.dev כדי לקבל את ה-ApiKey שלך",
       "e2bApiKeyRequired": "חובה להזין ApiKey כדי להפעיל את פונקציית E2B",
+      "sseCompatibilityBadge": "תאימות",
       "sseMigrationHint": "SSE is legacy-only. Migrate this server to Streamable HTTP when available.",
       "authorizationMode": "Authorization mode",
       "authorizationInteractive": "Interactive OAuth",

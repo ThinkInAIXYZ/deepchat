@@ -246,8 +246,8 @@ const handleRemoveServer = async (serverName: string) => {
 
 const confirmRemoveServer = async () => {
   const serverName = selectedServer.value
-  await mcpStore.removeServer(serverName)
   isRemoveConfirmDialogOpen.value = false
+  await mcpStore.removeServer(serverName)
 }
 
 const handleToggleServer = async (serverName: string) => {
@@ -801,7 +801,7 @@ defineExpose({
         <div class="flex justify-end gap-2">
           <Button variant="outline" :disabled="isDiagnosticsLoading" @click="refreshDiagnostics">
             <Icon icon="lucide:refresh-cw" class="size-4" />
-            {{ t('common.refresh') }}
+            {{ t('mcp.tools.refresh') }}
           </Button>
           <Button :disabled="!diagnostics" @click="copyDiagnostics">
             <Icon icon="lucide:copy" class="size-4" />

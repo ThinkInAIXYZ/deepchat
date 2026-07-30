@@ -1392,6 +1392,7 @@
       "e2bApiKeyHelp": "Allez sur e2b.dev pour obtenir votre apikey",
       "e2bApiKeyRequired": "Apikey doit être entré pour activer la fonction E2B",
       "clickToEdit": "Cliquez sur Modifier pour afficher le contenu complet",
+      "sseCompatibilityBadge": "Compatibilité",
       "sseMigrationHint": "SSE is legacy-only. Migrate this server to Streamable HTTP when available.",
       "authorizationMode": "Authorization mode",
       "authorizationInteractive": "Interactive OAuth",

@@ -8,6 +8,14 @@ const passthrough = (name: string) =>
     template: '<div><slot /></div>'
   })
 
+const dialogStub = defineComponent({
+  name: 'Dialog',
+  props: {
+    open: { type: Boolean, default: false }
+  },
+  template: '<div data-testid="dialog" :data-open="open"><slot /></div>'
+})
+
 const buttonStub = defineComponent({
   name: 'Button',
   emits: ['click'],
@@ -22,11 +30,12 @@ const serverCardStub = defineComponent({
       required: true
     }
   },
-  emits: ['toggle', 'authenticate'],
+  emits: ['toggle', 'authenticate', 'remove'],
   template: `
     <div>
       <button data-testid="server-card" @click="$emit('toggle')">{{ server.name }}:{{ server.enabled }}</button>
       <button data-testid="authenticate-server" @click="$emit('authenticate')">auth</button>
+      <button data-testid="remove-server" @click="$emit('remove')">remove</button>
     </div>
   `
 })
@@ -144,7 +153,7 @@ const setup = async (options: SetupOptions = {}) => {
       stubs: {
         Button: buttonStub,
         ScrollArea: passthrough('ScrollArea'),
-        Dialog: passthrough('Dialog'),
+        Dialog: dialogStub,
         DialogTrigger: passthrough('DialogTrigger'),
         DialogContent: passthrough('DialogContent'),
         DialogHeader: passthrough('DialogHeader'),
@@ -186,6 +195,13 @@ describe('McpServers', () => {
     const { wrapper } = await setup({ showFooterAddButton: false })
 
     expect(wrapper.text()).not.toContain('common.add')
+  })
+
+  it('uses a localized refresh label in MCP diagnostics', async () => {
+    const { wrapper } = await setup()
+
+    expect(wrapper.text()).toContain('mcp.tools.refresh')
+    expect(wrapper.text()).not.toContain('common.refresh')
   })
 
   it('only shows all, running, and stopped filters', async () => {
@@ -298,6 +314,35 @@ describe('McpServers', () => {
 
     expect(wrapper.text()).toContain('settings.mcp.noServersFound')
     expect(wrapper.findAll('[data-testid="server-card"]')).toHaveLength(0)
+  })
+
+  it('closes the removal dialog before a slow server shutdown finishes', async () => {
+    const { wrapper, mcpStore } = await setup({ withServers: true })
+    let resolveRemoval!: (value: boolean) => void
+    mcpStore.removeServer.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRemoval = resolve
+        })
+    )
+
+    await wrapper.find('[data-testid="remove-server"]').trigger('click')
+    const removeDialog = wrapper
+      .findAll('[data-testid="dialog"]')
+      .find((dialog) => dialog.text().includes('settings.mcp.removeServerDialog.title'))
+
+    expect(removeDialog?.attributes('data-open')).toBe('true')
+    const confirmButton = removeDialog
+      ?.findAll('[data-testid="action-button"]')
+      .find((button) => button.text().includes('common.confirm'))
+    expect(confirmButton).toBeDefined()
+    await confirmButton?.trigger('click')
+
+    expect(mcpStore.removeServer).toHaveBeenCalledWith('running-server')
+    expect(removeDialog?.attributes('data-open')).toBe('false')
+
+    resolveRemoval(true)
+    await flushPromises()
   })
 
   it('refreshes auth status when returning to the callback dialog', async () => {

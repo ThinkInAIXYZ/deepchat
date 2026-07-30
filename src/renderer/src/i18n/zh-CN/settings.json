@@ -1733,6 +1733,7 @@
       "e2bApiKeyPlaceholder": "这里输入你的E2B Api Keys，如 e2b_1111xx*****",
       "e2bApiKeyHelp": "前往 e2b.dev 获取你的 ApiKey",
       "e2bApiKeyRequired": "启用E2B功能必须要输入 ApiKey",
+      "sseCompatibilityBadge": "兼容模式",
       "sseMigrationHint": "SSE 仅保留旧版兼容。服务器支持后请迁移到 Streamable HTTP。",
       "authorizationMode": "授权模式",
       "authorizationInteractive": "交互式 OAuth",

@@ -1392,6 +1392,7 @@
       "e2bApiKeyPlaceholder": "e2b_1111xx *******など、E2B APIキーをこちらから入力してください。",
       "e2bApiKeyHelp": "e2b.devにアクセスして、アピケイを取得します",
       "e2bApiKeyRequired": "E2B関数を有効にするには、Apikeyを入力する必要があります",
+      "sseCompatibilityBadge": "互換モード",
       "sseMigrationHint": "SSE is legacy-only. Migrate this server to Streamable HTTP when available.",
       "authorizationMode": "Authorization mode",
       "authorizationInteractive": "Interactive OAuth",

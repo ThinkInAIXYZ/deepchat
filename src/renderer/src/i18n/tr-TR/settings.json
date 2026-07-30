@@ -1733,6 +1733,7 @@
       "e2bApiKeyPlaceholder": "E2B API Anahtarlarınızı buraya girin, örneğin e2b_1111xx*******",
       "e2bApiKeyHelp": "APIKey'inizi almak için e2b.dev'e gidin",
       "e2bApiKeyRequired": "E2B işlevini etkinleştirmek için APIKey girilmelidir",
+      "sseCompatibilityBadge": "Uyumluluk",
       "sseMigrationHint": "SSE is legacy-only. Migrate this server to Streamable HTTP when available.",
       "authorizationMode": "Authorization mode",
       "authorizationInteractive": "Interactive OAuth",

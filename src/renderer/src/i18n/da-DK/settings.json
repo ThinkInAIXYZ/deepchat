@@ -1336,6 +1336,7 @@
       "e2bApiKeyPlaceholder": "Indtast dine E2B-nøgler, fx e2b_1111xx*******",
       "e2bApiKeyHelp": "Besøg e2b.dev for at hente din nøgle",
       "e2bApiKeyRequired": "API-nøgle er påkrævet for at aktivere E2B",
+      "sseCompatibilityBadge": "Kompatibilitet",
       "sseMigrationHint": "SSE is legacy-only. Migrate this server to Streamable HTTP when available.",
       "authorizationMode": "Authorization mode",
       "authorizationInteractive": "Interactive OAuth",

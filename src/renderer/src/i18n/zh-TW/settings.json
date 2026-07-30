@@ -1392,6 +1392,7 @@
       "e2bApiKeyHelp": "前往 e2b.dev 獲取你的 ApiKey",
       "e2bApiKeyRequired": "啟用E2B功能必須要輸入 ApiKey",
       "clickToEdit": "點擊編輯以查看完整內容",
+      "sseCompatibilityBadge": "相容模式",
       "sseMigrationHint": "SSE 僅保留舊版相容。伺服器支援後請遷移至 Streamable HTTP。",
       "authorizationMode": "授權模式",
       "authorizationInteractive": "互動式 OAuth",

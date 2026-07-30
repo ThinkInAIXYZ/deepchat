@@ -1733,6 +1733,7 @@
       "e2bApiKeyPlaceholder": "Masukkan E2B Api Key Anda di sini, seperti e2b_1111xx*****",
       "e2bApiKeyHelp": "Buka e2b.dev untuk mendapatkan ApiKey Anda",
       "e2bApiKeyRequired": "ApiKey harus dimasukkan untuk mengaktifkan fungsi E2B",
+      "sseCompatibilityBadge": "Kompatibilitas",
       "sseMigrationHint": "SSE is legacy-only. Migrate this server to Streamable HTTP when available.",
       "authorizationMode": "Authorization mode",
       "authorizationInteractive": "Interactive OAuth",

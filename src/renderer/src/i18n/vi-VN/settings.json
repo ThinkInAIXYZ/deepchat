@@ -1734,6 +1734,7 @@
       "e2bApiKeyPlaceholder": "Nhập Khóa Api E2B của bạn tại đây, chẳng hạn như e2b_1111xx*******",
       "e2bApiKeyHelp": "Truy cập e2b.dev để lấy ApiKey của bạn",
       "e2bApiKeyRequired": "Phải nhập ApiKey để kích hoạt chức năng E2B",
+      "sseCompatibilityBadge": "Tương thích",
       "sseMigrationHint": "SSE is legacy-only. Migrate this server to Streamable HTTP when available.",
       "authorizationMode": "Authorization mode",
       "authorizationInteractive": "Interactive OAuth",

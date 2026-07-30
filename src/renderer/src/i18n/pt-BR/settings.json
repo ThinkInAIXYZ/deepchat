@@ -1403,6 +1403,7 @@
       "e2bApiKeyPlaceholder": "Insira suas Chaves da API E2B aqui, como e2b_1111xx*******",
       "e2bApiKeyHelp": "Vá para e2b.dev para obter sua Chave da API",
       "e2bApiKeyRequired": "A Chave da API deve ser inserida para habilitar a função E2B",
+      "sseCompatibilityBadge": "Compatibilidade",
       "sseMigrationHint": "SSE is legacy-only. Migrate this server to Streamable HTTP when available.",
       "authorizationMode": "Authorization mode",
       "authorizationInteractive": "Interactive OAuth",

@@ -13,6 +13,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { Badge } from '@shadcn/components/ui/badge'
 import type {
   MCPServerConfig,
   McpAuthorizationMode,
@@ -855,11 +856,14 @@ HTTP-Referer=deepchatai.cn`
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="stdio">{{ t('settings.mcp.serverForm.typeStdio') }}</SelectItem>
-              <SelectItem
-                v-if="type === 'sse' || (props.editMode && props.initialConfig?.type === 'sse')"
-                value="sse"
-              >
-                {{ t('settings.mcp.serverForm.typeSse') }}
+              <SelectItem value="sse">
+                <span>{{ t('settings.mcp.serverForm.typeSse') }}</span>
+                <Badge
+                  variant="outline"
+                  class="border-amber-500/50 px-1.5 py-0 text-[10px] font-normal text-amber-700 dark:text-amber-400"
+                >
+                  {{ t('settings.mcp.serverForm.sseCompatibilityBadge') }}
+                </Badge>
               </SelectItem>
               <SelectItem value="http">{{ t('settings.mcp.serverForm.typeHttp') }}</SelectItem>
               <SelectItem
