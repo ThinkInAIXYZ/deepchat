@@ -273,6 +273,21 @@ const DEFAULT_MCP_SERVERS = {
       customHeaders: {
         APP: 'DeepChat'
       }
+    },
+    'mcd-mcp': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        '麦当劳中国官方 MCP 服务。请前往 https://open.mcd.cn/mcp/doc 申请 MCP Token 后填入 Authorization 请求头。',
+      icons: '🍔',
+      autoApprove: [],
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://mcp.mcd.cn',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_MCP_TOKEN'
+      }
     }
   } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default
