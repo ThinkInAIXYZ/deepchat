@@ -500,15 +500,13 @@ export class AgentToolManager {
     }
 
     // 2.6. Durable workflows (regular DeepChat sessions with workflow policy enabled)
-    if (
-      isAgentMode &&
-      acceptsExposure('system-model') &&
-      this.workflowTool &&
-      context.conversationId
-    ) {
+    if (isAgentMode && this.workflowTool && (isConfigurableCatalog || context.conversationId)) {
       try {
-        if (await this.workflowTool.canUse(context.conversationId)) {
-          appendDefinitions([this.workflowTool.getToolDefinition()], 'system-model')
+        if (
+          isConfigurableCatalog ||
+          (context.conversationId && (await this.workflowTool.canUse(context.conversationId)))
+        ) {
+          appendDefinitions([this.workflowTool.getToolDefinition()], 'user-configurable')
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve workflow tool availability', { error })

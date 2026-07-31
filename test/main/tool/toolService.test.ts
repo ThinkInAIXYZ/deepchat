@@ -10,6 +10,7 @@ import { createAgentToolDependencies } from './agentTools/agentToolDependencies'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_NAME,
   assertAgentToolExposure,
   getAgentToolExposure
 } from '@shared/agentTools'
@@ -636,11 +637,95 @@ describe('ToolService', () => {
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.anchors)).toBe('diagnostic')
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.handoff)).toBe('runtime-only')
     expect(getAgentToolExposure(SUBAGENT_ORCHESTRATOR_TOOL_NAME)).toBe('system-model')
+    expect(getAgentToolExposure(WORKFLOW_AGENT_TOOL_NAME)).toBe('user-configurable')
     expect(getAgentToolExposure('read')).toBe('user-configurable')
     expect(getAgentToolExposure('__proto__')).toBe('user-configurable')
     expect(() => assertAgentToolExposure(TAPE_TOOL_NAMES.handoff, 'user-configurable')).toThrow(
       "Agent tool exposure mismatch for 'tape_handoff': expected 'user-configurable', registered 'runtime-only'."
     )
+  })
+
+  it('keeps a same-name MCP workflow tool instead of reserving it globally', async () => {
+    const toolService = new ToolService({
+      mcpService: {
+        getAllToolDefinitions: vi
+          .fn()
+          .mockResolvedValue([buildToolDefinition(WORKFLOW_AGENT_TOOL_NAME, 'workflow-mcp')])
+      } as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock({
+        workflow: { canUse: vi.fn().mockResolvedValue(true) }
+      })
+    })
+
+    const definitions = await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1',
+      disabledAgentTools: [WORKFLOW_AGENT_TOOL_NAME]
+    })
+
+    expect(
+      definitions.filter((definition) => definition.function.name === WORKFLOW_AGENT_TOOL_NAME)
+    ).toEqual([
+      expect.objectContaining({
+        source: 'mcp',
+        server: expect.objectContaining({ name: 'workflow-mcp' })
+      })
+    ])
+  })
+
+  it('lists workflow as configurable and honors its disabled state at runtime', async () => {
+    const canUse = vi.fn().mockResolvedValue(true)
+    const toolService = new ToolService({
+      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock({
+        workflow: { canUse }
+      })
+    })
+
+    const configurable = await toolService.getConfigurableAgentToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null
+    })
+    expect(configurable.map((definition) => definition.function.name)).toContain(
+      WORKFLOW_AGENT_TOOL_NAME
+    )
+    expect(canUse).not.toHaveBeenCalled()
+
+    const disabled = await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1',
+      disabledAgentTools: [WORKFLOW_AGENT_TOOL_NAME]
+    })
+    expect(disabled.map((definition) => definition.function.name)).not.toContain(
+      WORKFLOW_AGENT_TOOL_NAME
+    )
+
+    const enabled = await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1',
+      disabledAgentTools: []
+    })
+    expect(enabled.map((definition) => definition.function.name)).toContain(
+      WORKFLOW_AGENT_TOOL_NAME
+    )
+    expect(canUse).toHaveBeenCalledWith('conv-1')
   })
 
   it('reserves the Subagent orchestrator and ignores generic disabled-tool state', async () => {

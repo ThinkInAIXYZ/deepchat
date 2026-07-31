@@ -28,7 +28,6 @@ import {
   type WorkflowRunBudget,
   type WorkflowUsage
 } from '@shared/workflow/serviceContracts'
-import { canonicalizeWorkflowJson } from './domain/json'
 import { WorkflowLaunchApprovalRegistry } from './launchApproval'
 import { assertCurrentWorkflowRunScope, WorkflowCapabilityScopeChangedError } from './launchScope'
 import type { WorkflowRepository } from './repository'
@@ -785,12 +784,8 @@ export class WorkflowService {
     if (budgetError) {
       return { status: 'error', error: budgetError }
     }
-    const requestHash = canonicalizeWorkflowJson(request, {
-      maxBytes: 8 * 1024 * 1024
-    }).sha256
     if (
       latest &&
-      latest.inputHash === requestHash &&
       latest.invalidatedAt === null &&
       (latest.status === 'interrupted' || latest.status === 'cancelled') &&
       (latest.effectState === 'write' || latest.effectState === 'unknown')

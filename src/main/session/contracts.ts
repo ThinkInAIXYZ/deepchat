@@ -451,6 +451,7 @@ export interface SessionLifecycleStorePort {
     }
   ): AppSessionId
   get(sessionId: string): SessionRecord | null
+  getDisabledAgentTools(sessionId: string): string[]
   list(filters?: SessionListFilters): SessionRecord[]
   delete(sessionId: string): void
 }

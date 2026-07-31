@@ -17,7 +17,7 @@ import type {
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import { DEFAULT_DISABLED_AGENT_TOOLS, WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { SettingsStore } from '@/config/settingsStore'
@@ -31,7 +31,8 @@ import {
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 
-const UNIFIED_AGENTS_MIGRATION_VERSION = 3
+const INDEPENDENT_AGENT_CONFIG_MIGRATION_VERSION = 3
+const UNIFIED_AGENTS_MIGRATION_VERSION = 4
 const PENDING_AGENT_SKILL_CLEANUP_KEY = 'pendingAgentSkillCleanupIds'
 const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
 const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
@@ -202,7 +203,7 @@ export class AgentSettings implements AgentSettingsPort {
     this.initializeUnifiedAgents()
     const needsIndependentConfigMigration =
       (this.settings.get<number>('unifiedAgentsMigrationVersion') ?? 0) <
-      UNIFIED_AGENTS_MIGRATION_VERSION
+      INDEPENDENT_AGENT_CONFIG_MIGRATION_VERSION
     if (needsIndependentConfigMigration) {
       try {
         this.reconcileLegacyBuiltinAgentSelections()
@@ -217,6 +218,11 @@ export class AgentSettings implements AgentSettingsPort {
       } catch (error) {
         logger.warn('[AgentSettings] Failed to materialize independent Agent configs.', { error })
       }
+    }
+    try {
+      this.disableWorkflowToolByDefault()
+    } catch (error) {
+      logger.warn('[AgentSettings] Failed to apply the Workflow tool default.', { error })
     }
     this.provider.setAcpProviderEnabled(this.acpCatalog.getGlobalEnabled())
     const previousAgents = this.registry.listAgents()
@@ -769,6 +775,30 @@ export class AgentSettings implements AgentSettingsPort {
       autoCompactionRetainRecentPairs: builtinConfig.autoCompactionRetainRecentPairs ?? 2
     })
     if (!defaultModel) this.settings.delete('defaultModel')
+    this.settings.set('unifiedAgentsMigrationVersion', INDEPENDENT_AGENT_CONFIG_MIGRATION_VERSION)
+  }
+
+  private disableWorkflowToolByDefault(): void {
+    const migratedVersion = this.settings.get<number>('unifiedAgentsMigrationVersion') ?? 0
+    if (
+      migratedVersion < INDEPENDENT_AGENT_CONFIG_MIGRATION_VERSION ||
+      migratedVersion >= UNIFIED_AGENTS_MIGRATION_VERSION
+    ) {
+      return
+    }
+    for (const agent of this.repository.listAgents({ agentType: 'deepchat' })) {
+      const config = this.repository.getDeepChatAgentConfig(agent.id) ?? {}
+      const disabledAgentTools = Array.isArray(config.disabledAgentTools)
+        ? [...config.disabledAgentTools]
+        : []
+      if (!disabledAgentTools.includes(WORKFLOW_AGENT_TOOL_NAME)) {
+        this.repository.updateDeepChatAgent(agent.id, {
+          config: {
+            disabledAgentTools: [...disabledAgentTools, WORKFLOW_AGENT_TOOL_NAME]
+          }
+        })
+      }
+    }
     this.settings.set('unifiedAgentsMigrationVersion', UNIFIED_AGENTS_MIGRATION_VERSION)
   }
 

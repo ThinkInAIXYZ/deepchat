@@ -899,7 +899,7 @@ describeIfSqlite('WorkflowService', () => {
     resolveChild(repository.requireInvocation(activeInvocation.id))
   })
 
-  it('requires explicit confirmation before retrying interrupted write work', async () => {
+  it('requires explicit confirmation for interrupted write work even when input changes', async () => {
     const run = repository.createRun({
       id: 'write-run',
       parentSessionId: 'parent',
@@ -941,7 +941,10 @@ describeIfSqlite('WorkflowService', () => {
     firstHost.emit({
       type: 'INVOKE_AGENT',
       requestId: 'unsafe-replay',
-      request: request('root/agent/write')
+      request: {
+        ...request('root/agent/write'),
+        prompt: 'Changed prompt after the interrupted write'
+      }
     })
     await vi.waitFor(() => expect(firstHost.settlements).toHaveLength(1))
     expect(firstHost.settlements[0].outcome).toMatchObject({

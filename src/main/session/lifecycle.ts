@@ -433,12 +433,13 @@ export class SessionLifecycle implements SessionLifecyclePort {
     const sourceState = await sourceRuntime.snapshot()
     if (!sourceState) throw new Error(`Session state not found: ${sourceSessionId}`)
     const generationSettings = await sourceRuntime.getGenerationSettings()
+    const disabledAgentTools = this.dependencies.sessions.getDisabledAgentTools(sourceSessionId)
     const title = this.buildForkTitle(sourceSession.title, newTitle)
     const targetSessionId = this.dependencies.sessions.create(
       sourceSession.agentId,
       title,
       sourceSession.projectDir ?? null,
-      { isDraft: false }
+      { isDraft: false, disabledAgentTools }
     )
 
     try {

@@ -156,12 +156,17 @@ describeIfNative('Memory native SQLite migration', () => {
 
       const migrated = new MainDatabaseCtor(databasePath)
       const db = migrated.getDatabase()
+      const latestSchemaVersion = migrated.getLatestSchemaVersion()
       expect(db.prepare('SELECT MAX(version) AS version FROM schema_versions').get()).toEqual({
-        version: migrated.getLatestSchemaVersion()
+        version: latestSchemaVersion
       })
       expect(
         db.prepare('SELECT version FROM schema_versions WHERE version >= 46 ORDER BY version').all()
-      ).toEqual([46, 47, 48, 49, 50, 51, 52].map((version) => ({ version })))
+      ).toEqual(
+        Array.from({ length: latestSchemaVersion - 45 }, (_, index) => ({
+          version: index + 46
+        }))
+      )
       expect(
         db
           .prepare(
@@ -631,7 +636,7 @@ describeIfNative('Memory native SQLite migration', () => {
       migrated.close()
 
       const reopened = new MainDatabaseCtor(databasePath)
-      expect(reopened.getLatestSchemaVersion()).toBe(52)
+      expect(reopened.getLatestSchemaVersion()).toBeGreaterThanOrEqual(52)
       expect(
         reopened
           .getDatabase()

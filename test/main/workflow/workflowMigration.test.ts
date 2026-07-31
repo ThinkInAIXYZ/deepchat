@@ -10,12 +10,16 @@ const mainDatabaseModule = Database ? await import('@/data/mainDatabase').catch(
 const workflowRunsModule = Database
   ? await import('@/workflow/data/tables/workflowRuns').catch(() => null)
   : null
+const newSessionsModule = Database
+  ? await import('@/session/data/tables/newSessions').catch(() => null)
+  : null
 const MainDatabase = mainDatabaseModule?.MainDatabase
 const WORKFLOW_SCHEMA_VERSION = workflowRunsModule?.WORKFLOW_SCHEMA_VERSION
+const LATEST_SCHEMA_VERSION = newSessionsModule?.SESSION_WORKFLOW_TOOL_DEFAULT_SCHEMA_VERSION
 const DatabaseCtor = Database!
 const MainDatabaseCtor = MainDatabase!
 const describeIfSqlite = nativeSqliteDescribeIf(
-  Boolean(MainDatabase && WORKFLOW_SCHEMA_VERSION),
+  Boolean(MainDatabase && WORKFLOW_SCHEMA_VERSION && LATEST_SCHEMA_VERSION),
   'Workflow migration modules are unavailable'
 )
 
@@ -46,7 +50,7 @@ describeIfSqlite('workflow schema migration', () => {
     bootstrap.close()
 
     const database = new MainDatabaseCtor(databasePath)
-    expect(database.getLatestSchemaVersion()).toBe(WORKFLOW_SCHEMA_VERSION)
+    expect(database.getLatestSchemaVersion()).toBe(LATEST_SCHEMA_VERSION)
     database.close()
 
     const migrated = new DatabaseCtor(databasePath)
@@ -61,7 +65,7 @@ describeIfSqlite('workflow schema migration', () => {
       .all()
     expect(tables).toEqual([{ name: 'workflow_invocations' }, { name: 'workflow_runs' }])
     expect(migrated.prepare('SELECT MAX(version) AS version FROM schema_versions').get()).toEqual({
-      version: WORKFLOW_SCHEMA_VERSION
+      version: LATEST_SCHEMA_VERSION
     })
 
     const triggers = migrated
@@ -273,6 +277,172 @@ describeIfSqlite('workflow schema migration', () => {
         )
         .run()
     ).toThrow('timeout may only be armed at admission')
+    migrated.close()
+  })
+
+  it('disables workflow for existing sessions when upgrading v55', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workflow-tool-migration-'))
+    tempDirectories.push(directory)
+    const databasePath = path.join(directory, 'agent.db')
+    const current = new MainDatabaseCtor(databasePath)
+    current.close()
+
+    const bootstrap = new DatabaseCtor(databasePath)
+    bootstrap.exec(`
+      INSERT INTO new_sessions (
+        id,
+        agent_id,
+        title,
+        project_dir,
+        is_pinned,
+        is_draft,
+        active_skills,
+        disabled_agent_tools,
+        subagent_enabled,
+        session_kind,
+        parent_session_id,
+        subagent_meta_json,
+        created_at,
+        updated_at,
+        revision
+      ) VALUES
+        (
+          'session-existing-tools',
+          'deepchat',
+          'Existing tools',
+          NULL,
+          0,
+          0,
+          '[]',
+          '["stale-json"]',
+          0,
+          'regular',
+          NULL,
+          NULL,
+          100,
+          200,
+          3
+        ),
+        (
+          'session-already-disabled',
+          'deepchat',
+          'Already disabled',
+          NULL,
+          0,
+          0,
+          '[]',
+          '["workflow","cronjob"]',
+          0,
+          'regular',
+          NULL,
+          NULL,
+          300,
+          400,
+          5
+        ),
+        (
+          'session-fallback-json',
+          'deepchat',
+          'Fallback JSON',
+          NULL,
+          0,
+          0,
+          '[]',
+          '["custom-tool"]',
+          0,
+          'regular',
+          NULL,
+          NULL,
+          500,
+          600,
+          7
+        ),
+        (
+          'session-malformed-json',
+          'deepchat',
+          'Malformed JSON',
+          NULL,
+          0,
+          0,
+          '[]',
+          'not-json',
+          0,
+          'regular',
+          NULL,
+          NULL,
+          700,
+          800,
+          9
+        );
+
+      INSERT INTO new_session_disabled_agent_tools (session_id, ordinal, tool_name) VALUES
+        ('session-existing-tools', 0, 'cronjob'),
+        ('session-existing-tools', 1, 'custom-tool'),
+        ('session-already-disabled', 0, 'workflow'),
+        ('session-already-disabled', 1, 'cronjob');
+
+      DELETE FROM schema_versions;
+      INSERT INTO schema_versions (version, applied_at) VALUES (55, 100);
+    `)
+    bootstrap.close()
+
+    const database = new MainDatabaseCtor(databasePath)
+    database.close()
+
+    const migrated = new DatabaseCtor(databasePath)
+    const sessions = migrated
+      .prepare(
+        `SELECT id, disabled_agent_tools, updated_at, revision
+         FROM new_sessions
+         WHERE id LIKE 'session-%'
+         ORDER BY id`
+      )
+      .all()
+    expect(sessions).toEqual([
+      {
+        id: 'session-already-disabled',
+        disabled_agent_tools: '["workflow","cronjob"]',
+        updated_at: 400,
+        revision: 5
+      },
+      {
+        id: 'session-existing-tools',
+        disabled_agent_tools: '["cronjob","custom-tool","workflow"]',
+        updated_at: 200,
+        revision: 3
+      },
+      {
+        id: 'session-fallback-json',
+        disabled_agent_tools: '["custom-tool","workflow"]',
+        updated_at: 600,
+        revision: 7
+      },
+      {
+        id: 'session-malformed-json',
+        disabled_agent_tools: '["workflow"]',
+        updated_at: 800,
+        revision: 9
+      }
+    ])
+
+    const normalizedTools = migrated
+      .prepare(
+        `SELECT session_id, ordinal, tool_name
+         FROM new_session_disabled_agent_tools
+         WHERE session_id LIKE 'session-%'
+         ORDER BY session_id, ordinal`
+      )
+      .all()
+    expect(normalizedTools).toEqual([
+      { session_id: 'session-already-disabled', ordinal: 0, tool_name: 'workflow' },
+      { session_id: 'session-already-disabled', ordinal: 1, tool_name: 'cronjob' },
+      { session_id: 'session-existing-tools', ordinal: 0, tool_name: 'cronjob' },
+      { session_id: 'session-existing-tools', ordinal: 1, tool_name: 'custom-tool' },
+      { session_id: 'session-existing-tools', ordinal: 2, tool_name: 'workflow' },
+      { session_id: 'session-fallback-json', ordinal: 0, tool_name: 'custom-tool' },
+      { session_id: 'session-fallback-json', ordinal: 1, tool_name: 'workflow' },
+      { session_id: 'session-malformed-json', ordinal: 0, tool_name: 'workflow' }
+    ])
     migrated.close()
   })
 })

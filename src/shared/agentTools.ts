@@ -1,7 +1,10 @@
 export const CRON_JOB_AGENT_TOOL_NAME = 'cronjob'
 export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
 export const WORKFLOW_AGENT_TOOL_NAME = 'workflow'
-export const DEFAULT_DISABLED_AGENT_TOOLS = [CRON_JOB_AGENT_TOOL_NAME] as const
+export const DEFAULT_DISABLED_AGENT_TOOLS = [
+  CRON_JOB_AGENT_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_NAME
+] as const
 
 export const TAPE_TOOL_NAMES = Object.freeze({
   info: 'tape_info',
@@ -22,7 +25,7 @@ const AGENT_TOOL_EXPOSURE_BY_NAME: Readonly<Record<string, AgentToolExposure>> =
   [TAPE_TOOL_NAMES.anchors]: 'diagnostic',
   [TAPE_TOOL_NAMES.handoff]: 'runtime-only',
   [SUBAGENT_ORCHESTRATOR_TOOL_NAME]: 'system-model',
-  [WORKFLOW_AGENT_TOOL_NAME]: 'system-model'
+  [WORKFLOW_AGENT_TOOL_NAME]: 'user-configurable'
 })
 
 const TAPE_TOOL_NAME_SET = new Set<string>(Object.values(TAPE_TOOL_NAMES))

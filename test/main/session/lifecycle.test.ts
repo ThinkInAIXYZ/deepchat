@@ -113,6 +113,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
       }
     ),
     get: vi.fn((sessionId: string) => records.get(sessionId) ?? null),
+    getDisabledAgentTools: vi.fn((): string[] => []),
     list: vi.fn((filters?: { agentId?: string; projectDir?: string }) =>
       [...records.values()].filter((session) => {
         if (filters?.agentId && session.agentId !== filters.agentId) return false
@@ -811,6 +812,25 @@ describe('SessionLifecycle', () => {
       closeError
     )
     warn.mockRestore()
+  })
+
+  it('preserves disabled agent tools when forking a session', async () => {
+    const harness = createHarness([createRecord({ id: 'source', title: 'Source' })])
+    harness.getRuntime('source').snapshot.mockResolvedValue({
+      status: 'idle',
+      providerId: 'openai',
+      modelId: 'model-1',
+      permissionMode: 'default'
+    })
+    harness.sessions.getDisabledAgentTools.mockReturnValue(['cronjob', 'workflow'])
+
+    await harness.coordinator.forkSession('source', 'message-1')
+
+    expect(harness.sessions.getDisabledAgentTools).toHaveBeenCalledWith('source')
+    expect(harness.sessions.create).toHaveBeenCalledWith('deepchat', 'Source - Fork', '/repo', {
+      isDraft: false,
+      disabledAgentTools: ['cronjob', 'workflow']
+    })
   })
 
   it('delegates tree deletion and publishes the transaction result in order', async () => {

@@ -326,12 +326,25 @@ Runtime/recovery audit validation evidence (2026-07-31):
 - [ ] Keep workflow owner concurrency at four while preserving orchestrator five-way fan-out.
 - [ ] Hold one permit across sequential orchestrator chains and isolate parallel admission errors.
 - [ ] Start orchestrator overall timeout after first admission.
-- [ ] Make the model-facing workflow tool user-configurable and disabled by default.
-- [ ] Stop globally reserving the `workflow` MCP name.
-- [ ] Require write/unknown retry confirmation independently of a changed input hash.
+- [x] Make the model-facing workflow tool user-configurable and disabled by default.
+- [x] Stop globally reserving the `workflow` MCP name.
+- [x] Require write/unknown retry confirmation independently of a changed input hash.
 - [ ] Aggregate token usage without loading every invocation on each dispatch.
 - [ ] Remove avoidable per-block workflow invocation reads.
 - [ ] Add focused admission, exposure, retry, and performance-contract tests.
+
+Policy/retry validation evidence (2026-07-31):
+
+- schema version 56 adds `workflow` to the effective disabled-tool state of existing sessions while
+  preserving the runtime-authoritative normalized rows, other disabled tools, revisions, and
+  session ordering timestamps;
+- Agent config migration version 4 applies the same default to new sessions, and forks preserve
+  explicit per-session tool choices;
+- configurable/runtime catalogs, same-name MCP precedence, and changed-input effect confirmation
+  are covered by focused tests;
+- 161 Agent settings, session lifecycle, tool, migration, memory migration, and Workflow service
+  tests passed;
+- `pnpm run typecheck:node`.
 
 ### Projection And Authoring UX
 
