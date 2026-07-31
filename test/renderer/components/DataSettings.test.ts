@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -351,6 +351,10 @@ const findClearSandboxConfirmButton = (wrapper: ReturnType<typeof mount>) =>
 describe('DataSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
   })
 
   it('renders the consolidated sync and operations sections', async () => {
@@ -979,15 +983,16 @@ describe('DataSettings', () => {
 
     await findResetEntryButton(wrapper).trigger('click')
     await flushPromises()
-    document.querySelector<HTMLButtonElement>('[data-testid="danger-zone-reset-confirm"]')!.click()
-    await flushPromises()
-
-    const resetConfirm = document.querySelector('[data-testid="danger-zone-reset-confirm"]')
-    const resetContent = resetConfirm?.closest('[data-slot="alert-dialog-content"]')
-    expect(
-      document.querySelector<HTMLButtonElement>('[data-testid="danger-zone-reset-confirm"]')
-        ?.disabled
-    ).toBe(true)
+    const resetConfirm = wrapper
+      .findAllComponents({ name: 'AlertDialogAsyncAction' })
+      .find((candidate) => candidate.attributes('data-testid') === 'danger-zone-reset-confirm')
+    if (!resetConfirm) throw new Error('Reset confirmation button not found')
+    await resetConfirm.trigger('click')
+    const resetContent = resetConfirm.element.closest('[data-slot="alert-dialog-content"]')
+    await vi.waitFor(() => {
+      expect(deviceClient.resetDataByType).toHaveBeenCalledOnce()
+      expect(resetConfirm.attributes('disabled')).toBeDefined()
+    })
     resetContent
       ?.querySelector<HTMLElement>('[data-testid="danger-zone-reset-option-knowledge"]')
       ?.click()
@@ -1007,12 +1012,13 @@ describe('DataSettings', () => {
     expect(feedback?.textContent).toContain('Operation failed')
     expect(document.body.textContent).not.toContain('/private/deepchat.db')
     expect((wrapper.vm as unknown as { isResetDialogOpen: boolean }).isResetDialogOpen).toBe(true)
-    expect(document.querySelector('[data-testid="danger-zone-reset-confirm"]')).not.toBeNull()
+    expect(resetConfirm.element.isConnected).toBe(true)
 
-    document.querySelector<HTMLButtonElement>('[data-testid="danger-zone-reset-confirm"]')!.click()
-    await flushPromises()
+    await resetConfirm.trigger('click')
+    await vi.waitFor(() => {
+      expect(deviceClient.resetDataByType).toHaveBeenCalledTimes(2)
+    })
 
-    expect(deviceClient.resetDataByType).toHaveBeenCalledTimes(2)
     expect((wrapper.vm as unknown as { isResetDialogOpen: boolean }).isResetDialogOpen).toBe(false)
     consoleError.mockRestore()
     wrapper.unmount()
