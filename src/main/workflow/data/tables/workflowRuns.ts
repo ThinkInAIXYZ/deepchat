@@ -352,15 +352,16 @@ export class WorkflowRunsTable extends BaseTable {
       .all(limit) as WorkflowRunRow[]
   }
 
-  listQueued(limit = 100): WorkflowRunRow[] {
-    return this.db
+  listQueuedIds(limit = 100): string[] {
+    const rows = this.db
       .prepare(
-        `SELECT *
+        `SELECT run_id
          FROM workflow_runs
          WHERE status = 'queued'
          ORDER BY created_at ASC, run_id ASC
          LIMIT ?`
       )
-      .all(limit) as WorkflowRunRow[]
+      .all(limit) as Array<{ run_id: string }>
+    return rows.map((row) => row.run_id)
   }
 }

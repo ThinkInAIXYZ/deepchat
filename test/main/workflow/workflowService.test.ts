@@ -269,6 +269,20 @@ describeIfSqlite('WorkflowService', () => {
     return repository.requireRun(run.id)
   }
 
+  function createQueuedRun(id: string): WorkflowRun {
+    return repository.createRun({
+      id,
+      parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
+      scriptSource: 'return null',
+      input: null,
+      limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
+      allowedAgentIds: ['deepchat'],
+      now: now++
+    })
+  }
+
   function request(callPath = 'root/agent/work'): WorkflowGuestAgentRequest {
     return {
       callPath,
@@ -612,19 +626,78 @@ describeIfSqlite('WorkflowService', () => {
     })
   })
 
-  it('fails a persisted queued run when the bounded utility queue is full', async () => {
+  it('pumps a durable startup backlog without overflowing in-memory admission', async () => {
+    const admission = new WorkflowRunAdmission(1, 1)
+    const runs = Array.from({ length: 4 }, (_, index) => createQueuedRun(`startup-${index + 1}`))
+
+    createService(succeedingChildExecutor(), admission)
+    expect((await waitForHost()).startCommand?.runId).toBe(runs[0].id)
+    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 1 })
+    expect(runs.slice(1).map((run) => repository.requireRun(run.id).status)).toEqual([
+      'queued',
+      'queued',
+      'queued'
+    ])
+
+    for (let index = 0; index < runs.length; index += 1) {
+      const host = await waitForHost(index)
+      expect(host.startCommand?.runId).toBe(runs[index].id)
+      host.emit({ type: 'COMPLETE', value: null })
+      await waitForRun(runs[index].id, 'succeeded')
+    }
+
+    await vi.waitFor(() => expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 }))
+    expect(hosts).toHaveLength(runs.length)
+  })
+
+  it('isolates a malformed queued row while recovering later durable work', async () => {
+    const malformed = createQueuedRun('startup-malformed')
+    const healthy = createQueuedRun('startup-healthy')
+    db.exec('DROP TRIGGER trg_workflow_runs_immutable_snapshot')
+    db.prepare('UPDATE workflow_runs SET limits_json = ? WHERE run_id = ?').run('{}', malformed.id)
+
+    createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 0))
+    const host = await waitForHost()
+
+    expect(host.startCommand?.runId).toBe(healthy.id)
+    expect(repository.requireRun(healthy.id).status).toBe('running')
+    expect(
+      db.prepare('SELECT status FROM workflow_runs WHERE run_id = ?').get(malformed.id)
+    ).toEqual({ status: 'queued' })
+  })
+
+  it('keeps the service available when startup reconciliation fails', async () => {
+    const queued = createQueuedRun('startup-after-reconcile-failure')
+    vi.spyOn(repository, 'reconcileInterruptedRuns').mockImplementationOnce(() => {
+      throw new Error('reconciliation read failed')
+    })
+
+    createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 0))
+    const host = await waitForHost()
+
+    expect(host.startCommand?.runId).toBe(queued.id)
+    expect(repository.requireRun(queued.id).status).toBe('running')
+  })
+
+  it('keeps overflow durable until utility admission has capacity', async () => {
     const admission = new WorkflowRunAdmission(1, 0)
     const service = createService(succeedingChildExecutor(), admission)
-    await prepareAndLaunch(service, { input: { order: 1 } })
-    const rejected = await prepareAndLaunch(service, { input: { order: 2 } })
-    await waitForHost(0)
+    const first = await prepareAndLaunch(service, { input: { order: 1 } })
+    const deferred = await prepareAndLaunch(service, { input: { order: 2 } })
+    const firstHost = await waitForHost(0)
 
-    const failed = await waitForRun(rejected.id, 'failed')
-    expect(failed.error).toMatchObject({
-      code: 'WORKFLOW_RUN_QUEUE_UNAVAILABLE',
-      retriable: true
+    expect(repository.requireRun(deferred.id)).toMatchObject({
+      status: 'queued',
+      error: null
     })
     expect(hosts).toHaveLength(1)
+
+    firstHost.emit({ type: 'COMPLETE', value: null })
+    await waitForRun(first.id, 'succeeded')
+    const deferredHost = await waitForHost(1)
+
+    expect(deferredHost.startCommand?.runId).toBe(deferred.id)
+    expect(repository.requireRun(deferred.id).status).toBe('running')
   })
 
   it('atomically interrupts the run and active invocations when the utility exits', async () => {

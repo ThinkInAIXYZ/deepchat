@@ -312,8 +312,14 @@ Final review findings, ordered by severity:
 - [x] Retain invocation context after cancellation resolve/rejection until child terminal evidence,
   then freeze failure Tape before release.
 - [x] Reattach crash-window child sessions by stable logical lineage without reusing retry children.
-- [ ] Isolate malformed startup rows and add a capacity-aware queued-run pump.
-- [ ] Add focused sandbox, deadline, cancellation, lineage, and startup recovery tests.
+- [x] Isolate malformed startup rows and add a capacity-aware queued-run pump.
+- [x] Add focused sandbox, deadline, cancellation, lineage, and startup recovery tests.
+
+Runtime/recovery audit validation evidence (2026-07-31):
+
+- the complete 178-test main workflow suite passed;
+- 135 session integration tests and 17 session-lifecycle tests passed;
+- `pnpm run format:check`, `pnpm run lint`, and `pnpm run typecheck:node` passed.
 
 ### Compatibility, Policy, And Performance
 

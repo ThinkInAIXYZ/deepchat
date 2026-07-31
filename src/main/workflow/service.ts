@@ -41,7 +41,8 @@ import logger from '@shared/logger'
 
 const DEFAULT_CANCEL_GRACE_MS = 10_000
 const STOP_SETTLE_MS = 12_000
-const MAX_STARTUP_QUEUED_RUNS = 500
+const MAX_STARTUP_RESULT_DELIVERIES = 500
+const MAX_QUEUED_RUN_SCAN = 500
 
 const ACTIVE_RUN_STATUSES = new Set<WorkflowRunStatus>([
   'running',
@@ -140,8 +141,6 @@ interface ScheduledRun {
   controller: AbortController
   mode: RunStartMode
   promise: Promise<void>
-  nextMode: RunStartMode | null
-  state: 'waiting' | 'executing' | 'settling' | 'settled'
 }
 
 interface ActiveRunExecution {
@@ -167,6 +166,7 @@ export class WorkflowService {
   private readonly active = new Map<string, ActiveRunExecution>()
   private started = false
   private stopping = false
+  private pumpingQueuedRuns = false
   private stopPromise: Promise<void> | null = null
 
   constructor(private readonly options: WorkflowServiceOptions) {
@@ -188,19 +188,21 @@ export class WorkflowService {
     if (this.stopping) {
       throw new Error('Workflow service has already been stopped.')
     }
-    this.options.repository.reconcileInterruptedRuns(
-      'DeepChat restarted while the workflow utility process was active.',
-      this.now()
-    )
+    try {
+      this.options.repository.reconcileInterruptedRuns(
+        'DeepChat restarted while the workflow utility process was active.',
+        this.now()
+      )
+    } catch (error) {
+      logger.warn('[WorkflowService] Failed to reconcile interrupted workflow runs', { error })
+    }
     this.started = true
     try {
-      this.options.resultDelivery.recoverPending(MAX_STARTUP_QUEUED_RUNS)
+      this.options.resultDelivery.recoverPending(MAX_STARTUP_RESULT_DELIVERIES)
     } catch (error) {
       logger.warn('[WorkflowService] Failed to recover workflow result deliveries', { error })
     }
-    for (const run of this.options.repository.listQueuedRuns(MAX_STARTUP_QUEUED_RUNS)) {
-      this.schedule(run, run.startedAt === null ? 'launch' : 'resume')
-    }
+    this.pumpQueuedRuns()
   }
 
   async prepareLaunch(
@@ -263,7 +265,7 @@ export class WorkflowService {
       now: this.now()
     })
     this.emitRun(run.id)
-    this.schedule(run, 'launch')
+    this.pumpQueuedRuns()
     return run
   }
 
@@ -301,7 +303,6 @@ export class WorkflowService {
     const execution = this.active.get(runId)
     if (run.status === 'queued') {
       if (scheduled) {
-        scheduled.nextMode = null
         scheduled.controller.abort(cancellationReason)
       }
       if (execution) {
@@ -320,7 +321,6 @@ export class WorkflowService {
     }
     if (TERMINAL_RUN_STATUSES.has(run.status)) {
       if (scheduled) {
-        scheduled.nextMode = null
         scheduled.controller.abort(cancellationReason)
       }
       return run
@@ -358,7 +358,7 @@ export class WorkflowService {
     this.requireStarted()
     const run = this.options.repository.requireRun(runId)
     if (run.status === 'queued' && run.startedAt !== null) {
-      this.schedule(run, 'resume')
+      this.pumpQueuedRuns()
       return run
     }
     if (run.status !== 'failed' && run.status !== 'interrupted') {
@@ -366,7 +366,7 @@ export class WorkflowService {
     }
     const queued = this.options.repository.queueRunResume(run.id, this.now())
     this.emitRun(run.id)
-    this.schedule(queued, 'resume')
+    this.pumpQueuedRuns()
     return queued
   }
 
@@ -406,7 +406,7 @@ export class WorkflowService {
     }
     const queued = this.options.repository.queueRunResume(run.id, this.now())
     this.emitRun(run.id)
-    this.schedule(queued, 'resume')
+    this.pumpQueuedRuns()
     return queued
   }
 
@@ -461,20 +461,14 @@ export class WorkflowService {
   }
 
   private schedule(run: WorkflowRun, mode: RunStartMode): void {
-    const existing = this.scheduled.get(run.id)
-    if (existing) {
-      if (mode === 'resume' && existing.state !== 'waiting') {
-        existing.nextMode = 'resume'
-      }
+    if (this.scheduled.has(run.id)) {
       return
     }
     const controller = new AbortController()
     const scheduled: ScheduledRun = {
       controller,
       mode,
-      promise: Promise.resolve(),
-      nextMode: null,
-      state: 'waiting'
+      promise: Promise.resolve()
     }
     const promise = this.runScheduled(run.id, scheduled)
     scheduled.promise = promise
@@ -485,21 +479,52 @@ export class WorkflowService {
           return
         }
         this.scheduled.delete(run.id)
-        if (scheduled.nextMode === 'resume' && !this.stopping) {
-          const current = this.options.repository.getRun(run.id)
-          if (
-            current &&
-            ((current.status === 'queued' && current.startedAt !== null) ||
-              current.status === 'failed' ||
-              current.status === 'interrupted')
-          ) {
-            this.schedule(current, 'resume')
-          }
-        }
+        this.pumpQueuedRuns()
       })
       .catch((error) => {
         console.error(`[WorkflowService] Scheduled run cleanup failed for run=${run.id}:`, error)
       })
+  }
+
+  private pumpQueuedRuns(): void {
+    if (
+      !this.started ||
+      this.stopping ||
+      this.pumpingQueuedRuns ||
+      this.options.runAdmission.availableSchedulingSlots() <= 0
+    ) {
+      return
+    }
+    this.pumpingQueuedRuns = true
+    try {
+      const runIds = this.options.repository.listQueuedRunIds(MAX_QUEUED_RUN_SCAN)
+      let availableSlots = this.options.runAdmission.availableSchedulingSlots()
+      for (const runId of runIds) {
+        if (availableSlots <= 0) {
+          break
+        }
+        if (this.scheduled.has(runId)) {
+          continue
+        }
+        try {
+          const run = this.options.repository.getRun(runId)
+          if (!run || run.status !== 'queued') {
+            continue
+          }
+          this.schedule(run, run.startedAt === null ? 'launch' : 'resume')
+          availableSlots -= 1
+        } catch (error) {
+          logger.warn('[WorkflowService] Skipping malformed queued workflow run', {
+            runId,
+            error
+          })
+        }
+      }
+    } catch (error) {
+      logger.warn('[WorkflowService] Failed to scan queued workflow runs', { error })
+    } finally {
+      this.pumpingQueuedRuns = false
+    }
   }
 
   private async runScheduled(runId: string, scheduled: ScheduledRun): Promise<void> {
@@ -511,14 +536,11 @@ export class WorkflowService {
         signal: scheduled.controller.signal
       })
       scheduled.controller.signal.throwIfAborted()
-      scheduled.state = 'executing'
       await this.executeRun(runId, scheduled.mode, scheduled.controller)
     } catch (error) {
-      scheduled.state = 'settling'
       this.handleScheduleFailure(runId, error)
     } finally {
       permit?.release()
-      scheduled.state = 'settled'
     }
   }
 
@@ -1004,10 +1026,14 @@ export class WorkflowService {
       }
       return
     }
-    if (
-      error instanceof AgentInvocationAdmissionQueueFullError ||
-      error instanceof AgentInvocationAdmissionClosedError
-    ) {
+    if (error instanceof AgentInvocationAdmissionQueueFullError) {
+      logger.warn('[WorkflowService] Utility admission filled before a queued run was acquired', {
+        runId,
+        error
+      })
+      return
+    }
+    if (error instanceof AgentInvocationAdmissionClosedError) {
       if (run.status === 'queued') {
         this.options.repository.failRun(
           runId,

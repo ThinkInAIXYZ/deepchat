@@ -269,9 +269,9 @@ export class WorkflowRepository {
     return this.database.workflowRunsTable.listPendingDeliveries(normalizedLimit).map(toWorkflowRun)
   }
 
-  listQueuedRuns(limit = 100): WorkflowRun[] {
+  listQueuedRunIds(limit = 100): string[] {
     const normalizedLimit = RunListLimitSchema.parse(limit)
-    return this.database.workflowRunsTable.listQueued(normalizedLimit).map(toWorkflowRun)
+    return this.database.workflowRunsTable.listQueuedIds(normalizedLimit)
   }
 
   startRun(runId: string, now = Date.now()): WorkflowRun {
