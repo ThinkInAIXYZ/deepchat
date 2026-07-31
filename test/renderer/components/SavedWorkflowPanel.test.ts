@@ -1,7 +1,8 @@
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkflowRunSummary } from '@shared/workflow/projection'
+import { deleteWorkflowAuthoringDraft } from '@/lib/workflowAuthoringDraftStore'
 
 const client = vi.hoisted(() => ({
   listSaved: vi.fn(),
@@ -86,6 +87,8 @@ const savedDocument = {
   updatedAt: 100
 }
 
+const workflowDirectory = '/repo/.deepchat/workflows'
+
 const approval = {
   approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
   sourceHash: savedDocument.sourceHash,
@@ -105,6 +108,14 @@ const approval = {
 describe('SavedWorkflowPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    deleteWorkflowAuthoringDraft('parent-1', workflowDirectory)
+    deleteWorkflowAuthoringDraft('parent-2', workflowDirectory)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    deleteWorkflowAuthoringDraft('parent-1', workflowDirectory)
+    deleteWorkflowAuthoringDraft('parent-2', workflowDirectory)
   })
 
   it('shows that saved workflows require a main-resolved workspace', async () => {
@@ -127,7 +138,7 @@ describe('SavedWorkflowPanel', () => {
 
   it('saves, approves, and launches the exact loaded source snapshot', async () => {
     client.listSaved.mockResolvedValue({
-      directoryPath: '/repo/.deepchat/workflows',
+      directoryPath: workflowDirectory,
       workflows: []
     })
     client.saveSaved.mockResolvedValue(savedDocument)
@@ -186,7 +197,7 @@ describe('SavedWorkflowPanel', () => {
 
   it('requires edited source to be saved before a launch can be prepared', async () => {
     client.listSaved.mockResolvedValue({
-      directoryPath: '/repo/.deepchat/workflows',
+      directoryPath: workflowDirectory,
       workflows: [
         {
           name: savedDocument.name,
@@ -217,7 +228,7 @@ describe('SavedWorkflowPanel', () => {
 
   it('lets a new unsaved draft be discarded without trapping the editor', async () => {
     client.listSaved.mockResolvedValue({
-      directoryPath: '/repo/.deepchat/workflows',
+      directoryPath: workflowDirectory,
       workflows: []
     })
     const wrapper = mount(SavedWorkflowPanel, {
@@ -244,7 +255,7 @@ describe('SavedWorkflowPanel', () => {
 
   it('consumes a slash invocation only after preparing the exact saved source', async () => {
     client.listSaved.mockResolvedValue({
-      directoryPath: '/repo/.deepchat/workflows',
+      directoryPath: workflowDirectory,
       workflows: [
         {
           name: savedDocument.name,
@@ -281,9 +292,33 @@ describe('SavedWorkflowPanel', () => {
     wrapper.unmount()
   })
 
+  it('retains a slash invocation when its saved workflow cannot be resolved', async () => {
+    client.listSaved.mockResolvedValue({
+      directoryPath: workflowDirectory,
+      workflows: []
+    })
+    const wrapper = mount(SavedWorkflowPanel, {
+      props: {
+        sessionId: 'parent-1',
+        invocationRequest: {
+          id: 6,
+          name: 'missing',
+          argsText: '{}'
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(client.readSaved).not.toHaveBeenCalled()
+    expect(client.prepareSavedLaunch).not.toHaveBeenCalled()
+    expect(wrapper.emitted('consumed')).toBeUndefined()
+    expect(wrapper.text()).toContain('common.error.requestFailed')
+    wrapper.unmount()
+  })
+
   it('does not discard unsaved source when a slash invocation arrives', async () => {
     client.listSaved.mockResolvedValue({
-      directoryPath: '/repo/.deepchat/workflows',
+      directoryPath: workflowDirectory,
       workflows: [
         {
           name: savedDocument.name,
@@ -318,14 +353,151 @@ describe('SavedWorkflowPanel', () => {
       'value',
       editedSource
     )
-    expect(wrapper.emitted('consumed')).toEqual([[8]])
+    expect(wrapper.emitted('consumed')).toBeUndefined()
     expect(wrapper.text()).toContain('chat.workflow.saved.unsaved')
+    wrapper.unmount()
+  })
+
+  it('restores a bounded in-memory dirty draft after the panel remounts', async () => {
+    client.listSaved.mockResolvedValue({
+      directoryPath: workflowDirectory,
+      workflows: [
+        {
+          name: savedDocument.name,
+          relativePath: savedDocument.relativePath,
+          byteLength: savedDocument.byteLength,
+          updatedAt: savedDocument.updatedAt
+        }
+      ]
+    })
+    client.readSaved.mockResolvedValue(savedDocument)
+    const first = mount(SavedWorkflowPanel, {
+      props: {
+        sessionId: 'parent-1'
+      }
+    })
+    await flushPromises()
+
+    const editedSource = `${savedDocument.source}\nlog("keep this edit")`
+    await first.get('[data-testid="saved-workflow-source"]').setValue(editedSource)
+    await first.get('[data-testid="saved-workflow-args"]').setValue('{"target":"src"}')
+    first.unmount()
+
+    const second = mount(SavedWorkflowPanel, {
+      props: {
+        sessionId: 'parent-1'
+      }
+    })
+    await flushPromises()
+
+    expect(client.readSaved).toHaveBeenCalledTimes(1)
+    expect(second.get('[data-testid="saved-workflow-source"]').element).toHaveProperty(
+      'value',
+      editedSource
+    )
+    expect(second.get('[data-testid="saved-workflow-args"]').element).toHaveProperty(
+      'value',
+      '{"target":"src"}'
+    )
+    second.unmount()
+  })
+
+  it('keeps a blocked slash invocation until the dirty source is saved and prepared', async () => {
+    const editedSource = `${savedDocument.source}\nlog("saved edit")`
+    const updatedDocument = {
+      ...savedDocument,
+      source: editedSource,
+      sourceHash: 'e'.repeat(64),
+      byteLength: new TextEncoder().encode(editedSource).byteLength,
+      updatedAt: 101
+    }
+    client.listSaved.mockResolvedValue({
+      directoryPath: workflowDirectory,
+      workflows: [
+        {
+          name: savedDocument.name,
+          relativePath: savedDocument.relativePath,
+          byteLength: savedDocument.byteLength,
+          updatedAt: savedDocument.updatedAt
+        }
+      ]
+    })
+    client.readSaved.mockResolvedValueOnce(savedDocument).mockResolvedValueOnce(updatedDocument)
+    client.saveSaved.mockResolvedValue(updatedDocument)
+    client.prepareSavedLaunch.mockResolvedValue({
+      ...approval,
+      sourceHash: updatedDocument.sourceHash
+    })
+    const wrapper = mount(SavedWorkflowPanel, {
+      props: {
+        sessionId: 'parent-1'
+      }
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="saved-workflow-source"]').setValue(editedSource)
+    await wrapper.setProps({
+      invocationRequest: {
+        id: 9,
+        name: 'review',
+        argsText: '{"target":"src"}'
+      }
+    })
+    await flushPromises()
+    expect(wrapper.emitted('consumed')).toBeUndefined()
+
+    await wrapper.get('[data-testid="saved-workflow-save"]').trigger('click')
+    await flushPromises()
+
+    expect(client.prepareSavedLaunch).toHaveBeenCalledWith('parent-1', {
+      name: 'review',
+      argsText: '{"target":"src"}',
+      expectedSourceHash: updatedDocument.sourceHash
+    })
+    expect(wrapper.emitted('consumed')).toEqual([[9]])
+    wrapper.unmount()
+  })
+
+  it('clears an expired approval instead of retaining a disabled launch contract', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-31T00:00:00.000Z'))
+    client.listSaved.mockResolvedValue({
+      directoryPath: workflowDirectory,
+      workflows: [
+        {
+          name: savedDocument.name,
+          relativePath: savedDocument.relativePath,
+          byteLength: savedDocument.byteLength,
+          updatedAt: savedDocument.updatedAt
+        }
+      ]
+    })
+    client.readSaved.mockResolvedValue(savedDocument)
+    client.prepareSavedLaunch.mockResolvedValue({
+      ...approval,
+      expiresAt: Date.now() + 500
+    })
+    const wrapper = mount(SavedWorkflowPanel, {
+      props: {
+        sessionId: 'parent-1'
+      }
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="saved-workflow-prepare"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="saved-workflow-approval"]').exists()).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="saved-workflow-approval"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
   it('ignores save completions from a previously selected parent session', async () => {
     client.listSaved.mockResolvedValue({
-      directoryPath: '/repo/.deepchat/workflows',
+      directoryPath: workflowDirectory,
       workflows: []
     })
     const pendingSave = createDeferred<typeof savedDocument>()

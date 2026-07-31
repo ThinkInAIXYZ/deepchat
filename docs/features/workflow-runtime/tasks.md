@@ -372,8 +372,8 @@ Hot-path validation evidence (2026-07-31):
 - [x] Add bounded typed invocation-delta events.
 - [x] Merge invocation deltas in the renderer without full `inspect` reads per progress event.
 - [x] Avoid detail refreshes while the workflow panel is hidden or collapsed.
-- [ ] Preserve bounded in-memory dirty drafts across panel/session lifecycle changes.
-- [ ] Clear expired approvals and retain unhandled saved-workflow requests.
+- [x] Preserve bounded in-memory dirty drafts across panel/session lifecycle changes.
+- [x] Clear expired approvals and retain unhandled saved-workflow requests.
 - [x] Add focused renderer lifecycle, stale-event, and projection tests.
 
 Incremental projection evidence (2026-07-31):
@@ -386,6 +386,18 @@ Incremental projection evidence (2026-07-31):
 - service cancellation and interruption reconciliation emit terminal invocation deltas;
 - 113 focused contract, projection, service, child-executor, and renderer tests passed;
 - `pnpm run typecheck`.
+
+Authoring lifecycle evidence (2026-07-31):
+
+- dirty source and transient arguments survive panel unmounts in a session/workspace-scoped,
+  memory-only LRU bounded by both eight entries and 4 MiB;
+- stale completion fences remain in place across session changes, and saving or discarding clears
+  retained state;
+- slash invocation requests are acknowledged only after the exact saved source is loaded and a
+  launch approval is prepared; dirty, missing, and failed requests remain pending;
+- expired approvals are actively removed instead of remaining as disabled launch controls;
+- 23 focused saved-authoring, draft-store, and workflow-panel tests passed;
+- `pnpm run typecheck:web`.
 
 ### Outline And Bounded Fan-Out
 

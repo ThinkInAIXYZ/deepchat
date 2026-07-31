@@ -114,7 +114,7 @@
             size="sm"
             class="h-7 text-[10px]"
             :disabled="busy || loadingDocument"
-            @click="loadDocument(document.name)"
+            @click="reloadDocument"
           >
             {{ t('chat.workflow.saved.actions.reload') }}
           </Button>
@@ -250,6 +250,12 @@ import {
 } from '@shared/workflow/savedWorkflow'
 import type { WorkflowLaunchApproval } from '@shared/workflow/serviceContracts'
 import { WORKFLOW_EVENTS } from '@/events'
+import {
+  deleteWorkflowAuthoringDraft,
+  readWorkflowAuthoringDraft,
+  saveWorkflowAuthoringDraft,
+  type WorkflowAuthoringDraft
+} from '@/lib/workflowAuthoringDraftStore'
 import type { SavedWorkflowInvocationRequest } from '@/stores/ui/sidepanel'
 
 const DEFAULT_SOURCE = `phase('work', { label: 'Work' })
@@ -339,8 +345,12 @@ async function loadCatalog(): Promise<void> {
       return
     }
     catalog.value = loaded
+    const restored = restoreDraft(sessionId, loaded.directoryPath)
     if (pendingInvocationRequest.value) {
       await processPendingInvocation()
+      return
+    }
+    if (restored) {
       return
     }
     const selectedStillExists = loaded.workflows.some(
@@ -366,6 +376,7 @@ async function loadCatalog(): Promise<void> {
 }
 
 async function loadDocument(name: string, sessionId = props.sessionId): Promise<void> {
+  deleteCurrentDraft(sessionId)
   const requestId = ++documentRequestId
   selectedName.value = name
   document.value = null
@@ -418,7 +429,15 @@ function selectSavedWorkflow(event: Event): void {
   void loadDocument(name)
 }
 
+function reloadDocument(): void {
+  const name = document.value?.name
+  if (name) {
+    void loadDocument(name)
+  }
+}
+
 function createDraft(): void {
+  deleteCurrentDraft()
   documentRequestId += 1
   loadingDocument.value = false
   document.value = null
@@ -430,6 +449,11 @@ function createDraft(): void {
 }
 
 function resetEditor(): void {
+  deleteCurrentDraft()
+  clearEditor()
+}
+
+function clearEditor(): void {
   documentRequestId += 1
   loadingDocument.value = false
   document.value = null
@@ -462,6 +486,7 @@ async function saveDraft(): Promise<void> {
     draftName.value = saved.name
     draftSource.value = saved.source
     upsertCatalog(saved)
+    deleteCurrentDraft(sessionId)
     window.dispatchEvent(
       new CustomEvent(WORKFLOW_EVENTS.SAVED_CHANGED, {
         detail: {
@@ -481,10 +506,10 @@ async function saveDraft(): Promise<void> {
   }
 }
 
-async function prepareLaunch(): Promise<void> {
+async function prepareLaunch(): Promise<boolean> {
   const current = document.value
   if (!current || !canPrepare.value) {
-    return
+    return false
   }
   const requestId = ++operationRequestId
   const sessionId = props.sessionId
@@ -499,15 +524,17 @@ async function prepareLaunch(): Promise<void> {
       ...(allowedAgentIds.length > 0 ? { allowedAgentIds } : {})
     })
     if (disposed || requestId !== operationRequestId || sessionId !== props.sessionId) {
-      return
+      return false
     }
     approval.value = prepared
     now.value = Date.now()
+    return true
   } catch (error) {
     if (!disposed && requestId === operationRequestId && sessionId === props.sessionId) {
       console.warn('[SavedWorkflowPanel] Failed to prepare workflow launch:', error)
       errorMessage.value = t('common.error.operationFailed')
     }
+    return false
   } finally {
     if (!disposed && requestId === operationRequestId && sessionId === props.sessionId) {
       busy.value = false
@@ -593,6 +620,7 @@ async function processPendingInvocation(): Promise<void> {
 
   processingInvocationRequestId = request.id
   const sessionId = props.sessionId
+  let handled = false
   try {
     if (dirty.value) {
       errorMessage.value = t('chat.workflow.saved.unsaved')
@@ -617,22 +645,36 @@ async function processPendingInvocation(): Promise<void> {
 
     argsText.value = request.argsText.trim() || '{}'
     agentIdsText.value = ''
-    await prepareLaunch()
+    handled = await prepareLaunch()
   } finally {
     if (processingInvocationRequestId === request.id) {
       processingInvocationRequestId = null
     }
-    if (pendingInvocationRequest.value?.id === request.id) {
+    if (handled && pendingInvocationRequest.value?.id === request.id) {
       pendingInvocationRequest.value = null
       lastConsumedInvocationRequestId = request.id
       emit('consumed', request.id)
     }
-    void processPendingInvocation()
+    if (pendingInvocationRequest.value && pendingInvocationRequest.value.id !== request.id) {
+      void processPendingInvocation()
+    }
   }
 }
 
 watch([draftSource, argsText, agentIdsText], () => {
   approval.value = null
+})
+
+watch(dirty, (isDirty) => {
+  if (!isDirty && pendingInvocationRequest.value) {
+    void processPendingInvocation()
+  }
+})
+
+watch(now, (currentTime) => {
+  if (approval.value && approval.value.expiresAt <= currentTime) {
+    approval.value = null
+  }
 })
 
 watch(
@@ -649,7 +691,8 @@ watch(
 
 watch(
   () => props.sessionId,
-  () => {
+  (_, previousSessionId) => {
+    persistCurrentDraft(previousSessionId, catalog.value?.directoryPath)
     catalogRequestId += 1
     documentRequestId += 1
     operationRequestId += 1
@@ -658,7 +701,7 @@ watch(
     pendingInvocationRequest.value = props.invocationRequest ? { ...props.invocationRequest } : null
     processingInvocationRequestId = null
     lastConsumedInvocationRequestId = null
-    resetEditor()
+    clearEditor()
     argsText.value = '{}'
     agentIdsText.value = ''
     void loadCatalog()
@@ -674,6 +717,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  persistCurrentDraft(props.sessionId, catalog.value?.directoryPath)
   disposed = true
   catalogRequestId += 1
   documentRequestId += 1
@@ -683,4 +727,57 @@ onBeforeUnmount(() => {
     clockTimer = null
   }
 })
+
+function persistCurrentDraft(sessionId: string, directoryPath: string | null | undefined): void {
+  if (!directoryPath) {
+    return
+  }
+  const shouldPreserve =
+    editing.value &&
+    (dirty.value || argsText.value !== '{}' || agentIdsText.value.trim().length > 0)
+  if (!shouldPreserve) {
+    deleteWorkflowAuthoringDraft(sessionId, directoryPath)
+    return
+  }
+  saveWorkflowAuthoringDraft(sessionId, directoryPath, {
+    selectedName: selectedName.value,
+    document: document.value,
+    draftName: draftName.value,
+    draftSource: draftSource.value,
+    argsText: argsText.value,
+    agentIdsText: agentIdsText.value
+  })
+}
+
+function restoreDraft(sessionId: string, directoryPath: string | null): boolean {
+  if (!directoryPath) {
+    return false
+  }
+  const restored = readWorkflowAuthoringDraft(sessionId, directoryPath)
+  if (!restored) {
+    return false
+  }
+  applyDraft(restored)
+  return true
+}
+
+function applyDraft(restored: WorkflowAuthoringDraft): void {
+  documentRequestId += 1
+  loadingDocument.value = false
+  selectedName.value = restored.selectedName
+  document.value = restored.document
+  draftName.value = restored.draftName
+  draftSource.value = restored.draftSource
+  argsText.value = restored.argsText
+  agentIdsText.value = restored.agentIdsText
+  approval.value = null
+  errorMessage.value = null
+}
+
+function deleteCurrentDraft(sessionId = props.sessionId): void {
+  const directoryPath = catalog.value?.directoryPath
+  if (directoryPath) {
+    deleteWorkflowAuthoringDraft(sessionId, directoryPath)
+  }
+}
 </script>
