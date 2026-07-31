@@ -3,6 +3,7 @@ import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import type {
   AcpCompatibilityProjectionPort,
+  AcpCancelCause,
   AcpProjectionHandle,
   AcpProjectionSettlement,
   AcpRequestTracePort,
@@ -52,22 +53,46 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
     this.options.setStatus(status)
   }
 
-  begin(input: {
-    sessionId: AcpViewManifestInput['sessionId']
-    userContent: Parameters<SessionTranscript['createUserMessage']>[2]
-  }): AcpProjectionHandle {
+  begin(input: Parameters<AcpCompatibilityProjectionPort['begin']>[0]): AcpProjectionHandle {
     const { messageStore, tapeReconciliation } = this.options
     tapeReconciliation.ensureSessionTapeReady(input.sessionId, messageStore)
-    const userMessageId = messageStore.createUserMessage(
-      input.sessionId,
-      messageStore.getNextOrderSeq(input.sessionId),
-      input.userContent
-    )
-    this.emitCompletedRefresh(input.sessionId, userMessageId)
-    const messageId = messageStore.createAssistantMessage(
-      input.sessionId,
-      messageStore.getNextOrderSeq(input.sessionId)
-    )
+    let userMessageId: string
+    let messageId: string
+    if (input.projectionContext) {
+      const userMessages = input.projectionContext.userMessageIds.map((messageId) =>
+        messageStore.getMessage(messageId)
+      )
+      const assistantMessage = messageStore.getMessage(input.projectionContext.assistantMessageId)
+      if (
+        userMessages.length === 0 ||
+        userMessages.some(
+          (message) =>
+            !message ||
+            message.sessionId !== input.sessionId ||
+            message.role !== 'user' ||
+            message.status !== 'pending'
+        ) ||
+        !assistantMessage ||
+        assistantMessage.sessionId !== input.sessionId ||
+        assistantMessage.role !== 'assistant' ||
+        assistantMessage.status !== 'pending'
+      ) {
+        throw new Error('Claimed ACP steer projection is unavailable.')
+      }
+      userMessageId = input.projectionContext.userMessageIds.at(-1)!
+      messageId = input.projectionContext.assistantMessageId
+    } else {
+      userMessageId = messageStore.createUserMessage(
+        input.sessionId,
+        messageStore.getNextOrderSeq(input.sessionId),
+        input.userContent
+      )
+      this.emitCompletedRefresh(input.sessionId, userMessageId)
+      messageId = messageStore.createAssistantMessage(
+        input.sessionId,
+        messageStore.getNextOrderSeq(input.sessionId)
+      )
+    }
     const handle: AcpProjectionHandle = {
       requestId: messageId,
       messageId,
@@ -154,8 +179,12 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
     return this.settleTerminal(state)
   }
 
-  cancel(handle: AcpProjectionHandle): AcpProjectionSettlement {
+  cancel(handle: AcpProjectionHandle, cause: AcpCancelCause): AcpProjectionSettlement {
     const state = this.takeState(handle.messageId)
+    if (cause === 'pending_input') {
+      finalize(state.stream, state.io)
+      return { status: 'aborted', stopReason: 'pending_input' }
+    }
     const errorMessage = 'common.error.userCanceledGeneration'
     finalizeError(state.stream, state.io, errorMessage)
     return { status: 'aborted', stopReason: 'user_stop', errorMessage }

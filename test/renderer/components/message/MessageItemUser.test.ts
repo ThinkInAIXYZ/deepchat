@@ -43,7 +43,18 @@ vi.mock('@api/WindowClient', () => ({
 vi.mock('@/components/message/MessageInfo.vue', () => ({
   default: defineComponent({
     name: 'MessageInfo',
-    template: '<div class="message-info-stub" />'
+    props: {
+      receipt: {
+        type: String,
+        default: null
+      },
+      receiptLabel: {
+        type: String,
+        default: undefined
+      }
+    },
+    template:
+      '<div class="message-info-stub" :data-receipt="receipt ?? undefined">{{ receiptLabel }}</div>'
   })
 }))
 
@@ -65,6 +76,12 @@ vi.mock('@/components/chat/ChatAttachmentItem.vue', () => ({
 vi.mock('@/components/message/MessageToolbar.vue', () => ({
   default: defineComponent({
     name: 'MessageToolbar',
+    props: {
+      isReadOnly: {
+        type: Boolean,
+        default: false
+      }
+    },
     emits: ['edit', 'save', 'cancel', 'copy', 'delete', 'retry'],
     template: `
       <div class="message-toolbar-stub">
@@ -185,6 +202,7 @@ describe('MessageItemUser', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     window.api = originalApi
     document.body.innerHTML = ''
   })
@@ -392,5 +410,45 @@ describe('MessageItemUser', () => {
     expect(body.attributes('data-user-message-collapsible')).toBe('false')
     expect(body.attributes('data-user-message-expanded')).toBe('true')
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(false)
+  })
+
+  it('shows the Steer receipt lifecycle and keeps unread messages immutable', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+    const wrapper = mount(MessageItemUser, {
+      props: {
+        message: createMessage({
+          status: 'pending',
+          inputReceipt: { mode: 'steer', readAt: null }
+        })
+      },
+      ...globalMountOptions
+    })
+
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBe('unread')
+    expect(wrapper.get('.message-info-stub').text()).toBe('chat.messageReceipt.unread')
+
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBe('unread')
+    await wrapper.get('[data-action="edit"]').trigger('click')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+
+    await wrapper.setProps({
+      message: createMessage({
+        status: 'pending',
+        inputReceipt: { mode: 'steer', readAt: Date.now() }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBe('read')
+    expect(wrapper.get('.message-info-stub').text()).toBe('chat.messageReceipt.read')
+
+    await vi.advanceTimersByTimeAsync(1_499)
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBe('read')
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBeUndefined()
   })
 })

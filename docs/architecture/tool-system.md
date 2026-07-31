@@ -68,9 +68,9 @@ Tool batch 在执行前应用 permission mode、文件/命令/settings 授权和
 ordered interaction。最后一项决定完成后创建新的 resume Run。Side-effect tool 不因 output fitting
 重跑。AbortSignal 必须一直传到 MCP client/provider adapter。
 
-当前 MCP runtime 仍保留 `autoApprove`、session permission cache 和 server-form 配置；删除它们是
-[remove-mcp-permission-system](./remove-mcp-permission-system/) 的 active goal，在该目标完成前不能把
-未来设计写成当前事实。
+一个 source-aware main-process `ToolPermissionBroker` 统一拥有 host tool consent。MCP server
+`autoApprove`、session permission cache 和 server-form permission 配置已经移除；MCP App 的
+same-server tool call 进入同一个 broker，且不持久化 App 专属授权。
 
 ## Agent-scoped extensions
 

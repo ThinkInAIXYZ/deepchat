@@ -19,7 +19,10 @@ const createPendingItem = (id: string, sessionId: string, mode: 'queue' | 'steer
     text: id,
     files: []
   },
-  queueOrder: 0,
+  messageIds: [],
+  assistantMessageId: null,
+  blocking: null,
+  queueOrder: mode === 'queue' ? 0 : null,
   claimedAt: null,
   consumedAt: null,
   createdAt: 1,
@@ -165,7 +168,7 @@ describe('pendingInput store', () => {
     expect(unsubscribePendingInputsChanged).toHaveBeenCalledTimes(1)
   })
 
-  it('exposes steer inputs while counting only queue inputs toward queue capacity', async () => {
+  it('keeps steer inputs out of the queue lane and capacity count', async () => {
     const { store, sessionClient } = await setupStore()
     sessionClient.listPendingInputs.mockResolvedValueOnce([
       createPendingItem('q1', 's1'),
@@ -174,8 +177,8 @@ describe('pendingInput store', () => {
 
     await store.loadPendingInputs('s1')
 
+    expect(store.items).toHaveLength(2)
     expect(store.queueItems).toHaveLength(1)
-    expect(store.steerItems).toHaveLength(1)
     expect(store.activeCount).toBe(1)
     expect(store.isAtCapacity).toBe(false)
   })
@@ -192,7 +195,7 @@ describe('pendingInput store', () => {
     await store.steerPendingInput('s1', 'q1')
 
     expect(sessionClient.steerPendingInput).toHaveBeenCalledWith('s1', 'q1')
-    expect(store.steerItems).toHaveLength(1)
+    expect(store.items).toEqual([steered])
     expect(store.queueItems).toHaveLength(0)
     expect(store.error).toBeNull()
   })

@@ -143,7 +143,8 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
         : ({
             ...baseMessage,
             role: 'user',
-            content: messageStore.getUserMessageContent(record)
+            content: messageStore.getUserMessageContent(record),
+            ...(metadata.inputReceipt ? { inputReceipt: metadata.inputReceipt } : {})
           } as DisplayMessage)
 
     displayMessageCache.set(record.id, {

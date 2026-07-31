@@ -19,6 +19,8 @@ export type ClaimedInputSettlementResult<TDisposition extends ClaimedInputDispos
 export interface ClaimedPendingInputHandle {
   readonly id: string
   readonly source: PendingInputTurnSource
+  readonly messageIds: string[]
+  readonly assistantMessageId: string | null
   readonly disposition: ClaimedInputDisposition | null
 
   settle<TDisposition extends ClaimedInputDisposition>(

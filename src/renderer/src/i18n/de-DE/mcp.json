@@ -31,7 +31,7 @@
   },
   "tabs": {
     "servers": "Server",
-    "tools": "Tools"
+    "tools": "Werkzeuge"
   },
   "serverList": "Serverliste",
   "addServer": "Server hinzufügen",
@@ -57,7 +57,7 @@
     "typeStdio": "Standard-Ein-/Ausgabe",
     "typeSse": "Server-Sent Events",
     "typeInMemory": "In-Memory",
-    "baseUrl": "Base URL",
+    "baseUrl": "Basis-URL",
     "baseUrlPlaceholder": "Base URL des Servers eingeben (z. B. http://localhost:3000)",
     "command": "Befehl",
     "commandPlaceholder": "Befehl eingeben",
@@ -78,11 +78,6 @@
     "iconPlaceholder": "Symbol eingeben",
     "icons": "Symbole",
     "iconsPlaceholder": "Symbol eingeben",
-    "autoApprove": "Automatisch autorisieren",
-    "autoApproveAll": "Alle",
-    "autoApproveRead": "Lesen",
-    "autoApproveWrite": "Schreiben",
-    "autoApproveHelp": "Wählen Sie die Vorgangstypen aus, die ohne Benutzerbestätigung automatisch autorisiert werden",
     "submit": "Absenden",
     "add": "Hinzufügen",
     "update": "Aktualisieren",
@@ -251,7 +246,7 @@
   "market": {
     "browseBuiltin": "Integrierten MCP-Markt durchsuchen",
     "builtinTitle": "MCP-Markt",
-    "poweredBy": "Powered by MCPRouter",
+    "poweredBy": "Bereitgestellt von MCPRouter",
     "keyGuide": "Schlüssel abrufen",
     "keyHelpText": "Bitte gehen Sie zu",
     "keyHelpEnd": "um einen API Key zu beantragen, und tragen Sie ihn oben ein",
@@ -305,5 +300,51 @@
     "autoApproveIn": "Automatische Freigabe mit {model} in {seconds} Sekunden",
     "reviewRequest": "Details ansehen",
     "sessionActive": "Sitzung aktiv - Anfrage wird automatisch genehmigt"
+  },
+  "elicitation": {
+    "title": "MCP-Eingabeanforderung",
+    "accept": "Senden",
+    "decline": "Ablehnen",
+    "noFields": "Diese Anfrage enthält keine Formularfelder.",
+    "openLink": "Sicheren Link öffnen",
+    "selectValue": "Einen Wert auswählen",
+    "error": {
+      "required": "Dieses Feld ist erforderlich.",
+      "number": "Geben Sie eine gültige Zahl ein.",
+      "integer": "Geben Sie eine ganze Zahl ein.",
+      "boolean": "Wählen Sie „Wahr“ oder „Falsch“.",
+      "range": "Der Wert liegt außerhalb des zulässigen Bereichs.",
+      "selection": "Wählen Sie eine gültige Option.",
+      "length": "Die Textlänge liegt außerhalb des zulässigen Bereichs.",
+      "format": "Geben Sie einen Wert im angeforderten Format ein."
+    }
+  },
+  "apps": {
+    "title": "MCP-App",
+    "interactiveContent": "Interaktiver Inhalt von einem MCP-Server",
+    "loadError": "Diese MCP-App konnte nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "fullscreen": "Im Vollbild öffnen",
+    "pictureInPicture": "Bild-in-Bild öffnen",
+    "returnInline": "Zur eingebetteten Ansicht zurückkehren",
+    "securityDetails": "Sicherheitsdetails",
+    "allowedOrigins": "Angegebene Netzwerkursprünge",
+    "requestedPermissions": "Angeforderte Geräteberechtigungen",
+    "noneDeclared": "Keine angegeben",
+    "advisoryDomain": "Hinweisdomain",
+    "toolAccessSuspended": "Der Werkzeugzugriff wurde nach einer abgelehnten Anfrage ausgesetzt.",
+    "retryAccess": "Zugriff erneut anfordern",
+    "permissions": {
+      "camera": "Kamera",
+      "microphone": "Mikrofon",
+      "geolocation": "Standort",
+      "clipboardWrite": "In Zwischenablage schreiben"
+    },
+    "consent": {
+      "title": "Anfrage der MCP-App",
+      "description": "Prüfen Sie diese vom interaktiven MCP-Inhalt angeforderte Aktion.",
+      "allowOnce": "Einmal erlauben",
+      "deny": "Ablehnen"
+    }
   }
 }

@@ -57,7 +57,7 @@
     "typeStdio": "Input/output standard",
     "typeSse": "Server-Sent Events",
     "typeInMemory": "In memoria",
-    "baseUrl": "Base URL",
+    "baseUrl": "URL di base",
     "baseUrlPlaceholder": "Inserisci Base URL del server (es.: http://localhost:3000)",
     "command": "Comando",
     "commandPlaceholder": "Inserisci comando",
@@ -78,11 +78,6 @@
     "iconPlaceholder": "Inserisci icona",
     "icons": "Icone",
     "iconsPlaceholder": "Inserisci icone",
-    "autoApprove": "Autorizzazione automatica",
-    "autoApproveAll": "Tutto",
-    "autoApproveRead": "Lettura",
-    "autoApproveWrite": "Scrittura",
-    "autoApproveHelp": "Seleziona i tipi di operazione da autorizzare automaticamente senza conferma dell'utente",
     "submit": "Invia",
     "add": "Aggiungi",
     "update": "Aggiorna",
@@ -251,7 +246,7 @@
   "market": {
     "browseBuiltin": "Sfoglia mercato MCP integrato",
     "builtinTitle": "Mercato MCP",
-    "poweredBy": "Powered by MCPRouter",
+    "poweredBy": "Fornito da MCPRouter",
     "keyGuide": "Ottieni chiave",
     "keyHelpText": "Vai prima su",
     "keyHelpEnd": "per richiedere una API Key, poi inseriscila nel campo sopra",
@@ -305,5 +300,51 @@
     "autoApproveIn": "Approvazione automatica con {model} tra {seconds} secondi",
     "reviewRequest": "Vedi dettagli",
     "sessionActive": "Sessione attiva - la richiesta verrà approvata automaticamente"
+  },
+  "elicitation": {
+    "title": "Richiesta di input MCP",
+    "accept": "Invia",
+    "decline": "Rifiuta",
+    "noFields": "Questa richiesta non contiene campi del modulo.",
+    "openLink": "Apri link sicuro",
+    "selectValue": "Seleziona un valore",
+    "error": {
+      "required": "Questo campo è obbligatorio.",
+      "number": "Inserisci un numero valido.",
+      "integer": "Inserisci un numero intero.",
+      "boolean": "Seleziona vero o falso.",
+      "range": "Il valore è fuori dall’intervallo consentito.",
+      "selection": "Seleziona un’opzione valida.",
+      "length": "La lunghezza del testo è fuori dall’intervallo consentito.",
+      "format": "Inserisci un valore nel formato richiesto."
+    }
+  },
+  "apps": {
+    "title": "App MCP",
+    "interactiveContent": "Contenuto interattivo da un server MCP",
+    "loadError": "Impossibile caricare questa app MCP.",
+    "retry": "Riprova",
+    "fullscreen": "Apri a schermo intero",
+    "pictureInPicture": "Apri in modalità Picture-in-Picture",
+    "returnInline": "Torna alla vista incorporata",
+    "securityDetails": "Dettagli di sicurezza",
+    "allowedOrigins": "Origini di rete dichiarate",
+    "requestedPermissions": "Autorizzazioni dispositivo richieste",
+    "noneDeclared": "Nessuna dichiarata",
+    "advisoryDomain": "Dominio indicativo",
+    "toolAccessSuspended": "L’accesso agli strumenti è sospeso dopo una richiesta rifiutata.",
+    "retryAccess": "Riprova l’accesso",
+    "permissions": {
+      "camera": "Fotocamera",
+      "microphone": "Microfono",
+      "geolocation": "Posizione",
+      "clipboardWrite": "Scrittura negli appunti"
+    },
+    "consent": {
+      "title": "Richiesta dell’app MCP",
+      "description": "Esamina questa azione richiesta dal contenuto interattivo MCP.",
+      "allowOnce": "Consenti una volta",
+      "deny": "Nega"
+    }
   }
 }

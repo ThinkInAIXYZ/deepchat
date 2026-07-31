@@ -3,9 +3,13 @@ import { McpClient } from '../../../src/main/mcp/mcpClient'
 import { RuntimeHelper } from '../../../src/main/lib/runtimeHelper'
 import path from 'path'
 import fs from 'fs'
-import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
+import {
+  ProtocolError,
+  Client,
+  ProtocolErrorCode,
+  SdkErrorCode
+} from '@modelcontextprotocol/client'
 
 const fsExistsSyncMock = vi.hoisted(() => vi.fn())
 const terminateProcessTreeMock = vi.hoisted(() => vi.fn().mockResolvedValue(true))
@@ -34,6 +38,8 @@ vi.mock('fs', () => ({
 const presenterMocks = vi.hoisted(() => ({
   handleSamplingRequest: vi.fn(),
   cancelSamplingRequest: vi.fn(),
+  handleElicitationRequest: vi.fn(),
+  cancelElicitationRequest: vi.fn(),
   generateCompletionStandalone: vi.fn(),
   getProviderModels: vi.fn(),
   getCustomModels: vi.fn()
@@ -41,6 +47,8 @@ const presenterMocks = vi.hoisted(() => ({
 
 const mockHandleSamplingRequest = presenterMocks.handleSamplingRequest
 const mockCancelSamplingRequest = presenterMocks.cancelSamplingRequest
+const mockHandleElicitationRequest = presenterMocks.handleElicitationRequest
+const mockCancelElicitationRequest = presenterMocks.cancelElicitationRequest
 const mockGenerateCompletionStandalone = presenterMocks.generateCompletionStandalone
 const mockGetProviderModels = presenterMocks.getProviderModels
 const mockGetCustomModels = presenterMocks.getCustomModels
@@ -65,6 +73,10 @@ function createMcpClient(
         handleSamplingRequest: mockHandleSamplingRequest,
         cancelSamplingRequest: mockCancelSamplingRequest
       },
+      elicitation: {
+        handleElicitationRequest: mockHandleElicitationRequest,
+        cancelElicitationRequest: mockCancelElicitationRequest
+      },
       completion: {
         generateCompletionStandalone: mockGenerateCompletionStandalone
       },
@@ -79,45 +91,41 @@ function createMcpClient(
 }
 
 vi.mock('@/agent/shared/process/processTree', () => ({
-  terminateProcessTree: terminateProcessTreeMock
+  terminateProcessTreeByPid: terminateProcessTreeMock
 }))
 
 // Mock MCP SDK modules
-vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
-  Client: vi.fn().mockImplementation(() => ({
-    connect: vi.fn().mockResolvedValue(undefined),
-    callTool: vi.fn(),
-    listTools: vi.fn(),
-    listPrompts: vi.fn(),
-    getPrompt: vi.fn(),
-    listResources: vi.fn(),
-    readResource: vi.fn(),
-    setNotificationHandler: vi.fn(),
-    setRequestHandler: vi.fn()
-  }))
-}))
+vi.mock('@modelcontextprotocol/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@modelcontextprotocol/client')>()
+  return {
+    ...actual,
+    Client: vi.fn().mockImplementation(() => ({
+      connect: vi.fn().mockResolvedValue(undefined),
+      callTool: vi.fn(),
+      listTools: vi.fn(),
+      listPrompts: vi.fn(),
+      getPrompt: vi.fn(),
+      listResources: vi.fn(),
+      readResource: vi.fn(),
+      setNotificationHandler: vi.fn(),
+      setRequestHandler: vi.fn(),
+      getProtocolEra: vi.fn(() => 'modern')
+    })),
+    SSEClientTransport: vi.fn(),
+    InMemoryTransport: {
+      createLinkedPair: vi.fn(() => [vi.fn(), vi.fn()])
+    },
+    StreamableHTTPClientTransport: vi.fn()
+  }
+})
 
-vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
+vi.mock('@modelcontextprotocol/client/stdio', () => ({
   StdioClientTransport: vi.fn().mockImplementation(() => ({
     stderr: {
       on: vi.fn()
     },
     close: vi.fn()
   }))
-}))
-
-vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
-  SSEClientTransport: vi.fn()
-}))
-
-vi.mock('@modelcontextprotocol/sdk/inMemory.js', () => ({
-  InMemoryTransport: {
-    createLinkedPair: vi.fn(() => [vi.fn(), vi.fn()])
-  }
-}))
-
-vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
-  StreamableHTTPClientTransport: vi.fn()
 }))
 
 describe('McpClient Runtime Command Processing Tests', () => {
@@ -137,6 +145,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
     mockHandleSamplingRequest.mockReset()
     mockCancelSamplingRequest.mockReset()
+    mockHandleElicitationRequest.mockReset()
+    mockCancelElicitationRequest.mockReset()
     mockGenerateCompletionStandalone.mockReset()
     mockGetProviderModels.mockReset()
     mockGetCustomModels.mockReset()
@@ -151,7 +161,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
           listResources: vi.fn(),
           readResource: vi.fn(),
           setNotificationHandler: vi.fn(),
-          setRequestHandler: vi.fn()
+          setRequestHandler: vi.fn(),
+          getProtocolEra: vi.fn(() => 'modern')
         }) as any
     )
     vi.mocked(StdioClientTransport).mockImplementation(
@@ -469,9 +480,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
     })
 
-    it('awaits process-tree cleanup before closing stdio transport on disconnect', async () => {
+    it('runs process-tree fallback cleanup after closing stdio transport', async () => {
       const order: string[] = []
-      const child = { pid: 123, exitCode: null, signalCode: null }
+      const pid = 123
       const closeMock = vi.fn(async () => {
         order.push('transport-close')
       })
@@ -484,7 +495,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
           on: vi.fn()
         }
         this.close = closeMock
-        this._process = child
+        this.pid = pid
       } as any)
       const client = createMcpClient('test', {
         type: 'stdio',
@@ -495,13 +506,13 @@ describe('McpClient Runtime Command Processing Tests', () => {
       await client.connect()
       await client.disconnect()
 
-      expect(terminateProcessTreeMock).toHaveBeenCalledWith(child, { graceMs: 2000 })
+      expect(terminateProcessTreeMock).toHaveBeenCalledWith(pid, { graceMs: 2000 })
       expect(closeMock).toHaveBeenCalledTimes(1)
-      expect(order).toEqual(['process-tree', 'transport-close'])
+      expect(order).toEqual(['transport-close', 'process-tree'])
     })
 
-    it('closes stdio transport even when process-tree cleanup fails', async () => {
-      const child = { pid: 456, exitCode: null, signalCode: null }
+    it('keeps stdio transport closed when process-tree fallback cleanup fails', async () => {
+      const pid = 456
       const cleanupError = new Error('cleanup failed')
       const closeMock = vi.fn().mockResolvedValue(undefined)
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -511,7 +522,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
           on: vi.fn()
         }
         this.close = closeMock
-        this._process = child
+        this.pid = pid
       } as any)
       const client = createMcpClient('test', {
         type: 'stdio',
@@ -522,7 +533,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       await client.connect()
       await client.disconnect()
 
-      expect(terminateProcessTreeMock).toHaveBeenCalledWith(child, { graceMs: 2000 })
+      expect(terminateProcessTreeMock).toHaveBeenCalledWith(pid, { graceMs: 2000 })
       expect(closeMock).toHaveBeenCalledTimes(1)
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         'Failed to terminate MCP stdio process tree for test:',
@@ -533,6 +544,44 @@ describe('McpClient Runtime Command Processing Tests', () => {
   })
 
   describe('Unsupported MCP capabilities', () => {
+    it('does not call list methods for capabilities the server did not advertise', async () => {
+      const sdkClient = {
+        connect: vi.fn().mockResolvedValue(undefined),
+        callTool: vi.fn(),
+        listTools: vi.fn(),
+        listPrompts: vi.fn(),
+        getPrompt: vi.fn(),
+        listResources: vi.fn(),
+        listResourceTemplates: vi.fn(),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern'),
+        getServerCapabilities: vi.fn(() => ({}))
+      }
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const client = createMcpClient('minimal-server', {
+        type: 'stdio',
+        command: 'minimal-server',
+        args: []
+      })
+
+      await expect(client.listTools()).resolves.toEqual([])
+      await expect(client.listToolsPage()).resolves.toEqual({ tools: [] })
+      await expect(client.listPrompts()).resolves.toEqual([])
+      await expect(client.listPromptsPage()).resolves.toEqual({ prompts: [] })
+      await expect(client.listResources()).resolves.toEqual([])
+      await expect(client.listResourcesPage()).resolves.toEqual({ resources: [] })
+      await expect(client.listResourceTemplatesPage()).resolves.toEqual({
+        resourceTemplates: []
+      })
+
+      expect(sdkClient.listTools).not.toHaveBeenCalled()
+      expect(sdkClient.listPrompts).not.toHaveBeenCalled()
+      expect(sdkClient.listResources).not.toHaveBeenCalled()
+      expect(sdkClient.listResourceTemplates).not.toHaveBeenCalled()
+    })
+
     it('waits for background startup completion before foreground listTools calls', async () => {
       vi.useFakeTimers()
       let resolveConnect: () => void = () => undefined
@@ -550,7 +599,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         listResources: vi.fn(),
         readResource: vi.fn(),
         setNotificationHandler: vi.fn(),
-        setRequestHandler: vi.fn()
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern')
       }
       vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
       const client = createMcpClient('slow-server', {
@@ -587,7 +637,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         listResources: vi.fn(),
         readResource: vi.fn(),
         setNotificationHandler: vi.fn(),
-        setRequestHandler: vi.fn()
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern')
       }
       vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
       const client = createMcpClient('diagnostic-server', {
@@ -608,8 +659,11 @@ describe('McpClient Runtime Command Processing Tests', () => {
       expect(sdkClient.listTools).toHaveBeenCalledOnce()
     })
 
-    it('propagates cancellation that lands as listTools session recovery settles', async () => {
-      const unsupportedError = new McpError(ErrorCode.MethodNotFound, 'Unknown method: tools/list')
+    it('treats unknown tools/list as an empty tool list', async () => {
+      const unsupportedError = new ProtocolError(
+        ProtocolErrorCode.MethodNotFound,
+        'Unknown method: tools/list'
+      )
       const sdkClient = {
         connect: vi.fn().mockResolvedValue(undefined),
         callTool: vi.fn(),
@@ -619,7 +673,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         listResources: vi.fn(),
         readResource: vi.fn(),
         setNotificationHandler: vi.fn(),
-        setRequestHandler: vi.fn()
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern')
       }
       vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
       const client = createMcpClient('diagnostic-server', {
@@ -629,22 +684,48 @@ describe('McpClient Runtime Command Processing Tests', () => {
       })
       await client.connect()
 
-      let resolveRecovery: () => void = () => undefined
-      const recovery = new Promise<void>((resolve) => {
-        resolveRecovery = resolve
-      })
-      const recoverySpy = vi
-        .spyOn(client as any, 'checkAndHandleSessionError')
-        .mockReturnValue(recovery)
       const controller = new AbortController()
-      const toolsResult = client.listTools({ signal: controller.signal })
-      await vi.waitFor(() => expect(recoverySpy).toHaveBeenCalledWith(unsupportedError))
 
-      resolveRecovery()
-      queueMicrotask(() => controller.abort())
+      await expect(client.listTools({ signal: controller.signal })).resolves.toEqual([])
+      expect(sdkClient.listTools).toHaveBeenCalledOnce()
+    })
 
-      await expect(toolsResult).rejects.toMatchObject({ name: 'AbortError' })
-      expect((client as any).cachedTools).toBeNull()
+    it('treats unknown paginated list methods as empty pages', async () => {
+      const unsupportedError = new ProtocolError(
+        ProtocolErrorCode.MethodNotFound,
+        'Unknown list method'
+      )
+      const sdkClient = {
+        connect: vi.fn().mockResolvedValue(undefined),
+        callTool: vi.fn(),
+        listTools: vi.fn().mockRejectedValue(unsupportedError),
+        listPrompts: vi.fn().mockRejectedValue(unsupportedError),
+        getPrompt: vi.fn(),
+        listResources: vi.fn().mockRejectedValue(unsupportedError),
+        listResourceTemplates: vi.fn().mockRejectedValue(unsupportedError),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern'),
+        getServerCapabilities: vi.fn(() => ({
+          tools: {},
+          prompts: {},
+          resources: {}
+        }))
+      }
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const client = createMcpClient('partial-server', {
+        type: 'stdio',
+        command: 'partial-server',
+        args: []
+      })
+
+      await expect(client.listToolsPage()).resolves.toEqual({ tools: [] })
+      await expect(client.listPromptsPage()).resolves.toEqual({ prompts: [] })
+      await expect(client.listResourcesPage()).resolves.toEqual({ resources: [] })
+      await expect(client.listResourceTemplatesPage()).resolves.toEqual({
+        resourceTemplates: []
+      })
     })
 
     it('treats unknown prompts/list as an empty prompt list', async () => {
@@ -655,13 +736,14 @@ describe('McpClient Runtime Command Processing Tests', () => {
         listPrompts: vi
           .fn()
           .mockRejectedValue(
-            new McpError(ErrorCode.MethodNotFound, 'Unknown method: prompts/list')
+            new ProtocolError(ProtocolErrorCode.MethodNotFound, 'Unknown method: prompts/list')
           ),
         getPrompt: vi.fn(),
         listResources: vi.fn(),
         readResource: vi.fn(),
         setNotificationHandler: vi.fn(),
-        setRequestHandler: vi.fn()
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern')
       }
       vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -674,7 +756,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       await expect(client.listPrompts()).resolves.toEqual([])
       await expect(client.listPrompts()).resolves.toEqual([])
 
-      expect(sdkClient.listPrompts).toHaveBeenCalledTimes(1)
+      expect(sdkClient.listPrompts).toHaveBeenCalledTimes(2)
       expect(consoleErrorSpy).not.toHaveBeenCalledWith(
         expect.stringContaining('Failed to list MCP prompts:'),
         expect.anything()
@@ -694,7 +776,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
           .mockRejectedValue(new Error('MCP error -32601: Unknown method: resources/list')),
         readResource: vi.fn(),
         setNotificationHandler: vi.fn(),
-        setRequestHandler: vi.fn()
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern')
       }
       vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -707,7 +790,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       await expect(client.listResources()).resolves.toEqual([])
       await expect(client.listResources()).resolves.toEqual([])
 
-      expect(sdkClient.listResources).toHaveBeenCalledTimes(1)
+      expect(sdkClient.listResources).toHaveBeenCalledTimes(2)
       expect(consoleErrorSpy).not.toHaveBeenCalledWith(
         expect.stringContaining('Failed to list MCP resources:'),
         expect.anything()
@@ -765,22 +848,16 @@ describe('McpClient Runtime Command Processing Tests', () => {
       return { promise, resolve, reject }
     }
 
-    const configureConnectedClient = (
-      sdkCallTool: ReturnType<typeof vi.fn>,
-      cachedTools: unknown[] = [{ name: 'cached-tool' }]
-    ) => {
+    const configureConnectedClient = (sdkCallTool: ReturnType<typeof vi.fn>) => {
       const client = createMcpClient('cancellable-server', { type: 'stdio' })
       ;(client as any).client = { callTool: sdkCallTool }
       ;(client as any).isConnected = true
-      ;(client as any).cachedTools = cachedTools
       return client
     }
 
-    it('rejects a pre-aborted call without invoking the SDK or session recovery', async () => {
+    it('rejects a pre-aborted call without invoking the SDK', async () => {
       const sdkCallTool = vi.fn()
-      const cachedTools = [{ name: 'cached-tool' }]
-      const client = configureConnectedClient(sdkCallTool, cachedTools)
-      const recoverySpy = vi.spyOn(client as any, 'checkAndHandleSessionError')
+      const client = configureConnectedClient(sdkCallTool)
       const abortController = new AbortController()
       abortController.abort()
 
@@ -789,13 +866,11 @@ describe('McpClient Runtime Command Processing Tests', () => {
       ).rejects.toMatchObject({ name: 'AbortError' })
 
       expect(sdkCallTool).not.toHaveBeenCalled()
-      expect(recoverySpy).not.toHaveBeenCalled()
-      expect((client as any).cachedTools).toBe(cachedTools)
     })
 
-    it('passes the signal to the SDK and skips recovery when an in-flight call aborts', async () => {
+    it('passes the signal to the SDK when an in-flight call aborts', async () => {
       const sdkCallTool = vi.fn(
-        (_request: unknown, _schema: unknown, requestOptions?: { signal?: AbortSignal }) =>
+        (_request: unknown, requestOptions?: { signal?: AbortSignal }) =>
           new Promise((_, reject) => {
             const signal = requestOptions?.signal
             if (!signal) {
@@ -809,25 +884,20 @@ describe('McpClient Runtime Command Processing Tests', () => {
             signal.addEventListener('abort', () => reject(signal.reason), { once: true })
           })
       )
-      const cachedTools = [{ name: 'cached-tool' }]
-      const client = configureConnectedClient(sdkCallTool, cachedTools)
-      const recoverySpy = vi.spyOn(client as any, 'checkAndHandleSessionError')
+      const client = configureConnectedClient(sdkCallTool)
       const abortController = new AbortController()
 
       const callPromise = client.callTool('echo', { value: 1 }, { signal: abortController.signal })
       await vi.waitFor(() => {
         expect(sdkCallTool).toHaveBeenCalledWith(
           { name: 'echo', arguments: { value: 1 } },
-          undefined,
-          { signal: abortController.signal }
+          { signal: abortController.signal, toolDefinition: undefined }
         )
       })
 
       abortController.abort()
 
       await expect(callPromise).rejects.toMatchObject({ name: 'AbortError' })
-      expect(recoverySpy).not.toHaveBeenCalled()
-      expect((client as any).cachedTools).toBe(cachedTools)
     })
 
     it('rejects promptly when cancellation lands during connection setup', async () => {
@@ -878,21 +948,86 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
     })
 
-    it('preserves session recovery and cache invalidation for non-abort failures', async () => {
+    it('propagates non-abort SDK failures', async () => {
       const sdkError = new Error('MCP request failed')
       const sdkCallTool = vi.fn().mockRejectedValue(sdkError)
       const client = configureConnectedClient(sdkCallTool)
-      const recoverySpy = vi
-        .spyOn(client as any, 'checkAndHandleSessionError')
-        .mockResolvedValue(undefined)
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
       await expect(client.callTool('echo', {})).rejects.toBe(sdkError)
 
       expect(sdkCallTool).toHaveBeenCalledTimes(1)
-      expect(recoverySpy).toHaveBeenCalledWith(sdkError)
-      expect((client as any).cachedTools).toBeNull()
       consoleErrorSpy.mockRestore()
+    })
+  })
+
+  describe('Elicitation support', () => {
+    it('reports malformed URLs as invalid protocol parameters', async () => {
+      const client = createMcpClient('server-one', {
+        type: 'stdio'
+      }) as unknown as {
+        handleElicitationCreate(request: unknown, context: unknown): Promise<unknown>
+      }
+
+      await expect(
+        client.handleElicitationCreate(
+          {
+            params: {
+              mode: 'url',
+              message: 'Open the authorization page',
+              url: 'not-an-absolute-url'
+            }
+          },
+          {
+            mcpReq: {
+              signal: new AbortController().signal
+            }
+          }
+        )
+      ).rejects.toMatchObject({
+        code: ProtocolErrorCode.InvalidParams
+      })
+    })
+
+    it('handles a rejected server cancellation without an unhandled rejection', async () => {
+      const cancellationError = new Error('cancel failed')
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      mockHandleElicitationRequest.mockImplementationOnce(() => new Promise(() => undefined))
+      mockCancelElicitationRequest.mockRejectedValueOnce(cancellationError)
+      const controller = new AbortController()
+      const client = createMcpClient('server-one', {
+        type: 'stdio'
+      }) as unknown as {
+        handleElicitationCreate(request: unknown, context: unknown): Promise<unknown>
+      }
+
+      const pending = client.handleElicitationCreate(
+        {
+          params: {
+            mode: 'url',
+            message: 'Open the authorization page',
+            url: 'https://example.com/authorize'
+          }
+        },
+        {
+          mcpReq: {
+            signal: controller.signal
+          }
+        }
+      )
+      controller.abort()
+
+      await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(mockCancelElicitationRequest).toHaveBeenCalledWith(
+        expect.any(String),
+        'cancelled by server'
+      )
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to cancel elicitation request'),
+        cancellationError
+      )
+      consoleWarnSpy.mockRestore()
     })
   })
 
@@ -999,8 +1134,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         })
         throw new Error('Expected prepareSamplingContext to throw for disallowed mime type')
       } catch (error) {
-        expect(error).toBeInstanceOf(McpError)
-        expect((error as McpError).code).toBe(ErrorCode.InvalidParams)
+        expect(error).toBeInstanceOf(ProtocolError)
+        expect((error as ProtocolError).code).toBe(ProtocolErrorCode.InvalidParams)
         expect((error as Error).message).toContain(
           'Unsupported sampling image mime type: image/svg+xml'
         )
@@ -1023,8 +1158,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         })
         throw new Error('Expected prepareSamplingContext to throw for invalid image data')
       } catch (error) {
-        expect(error).toBeInstanceOf(McpError)
-        expect((error as McpError).code).toBe(ErrorCode.InvalidParams)
+        expect(error).toBeInstanceOf(ProtocolError)
+        expect((error as ProtocolError).code).toBe(ProtocolErrorCode.InvalidParams)
         expect((error as Error).message).toContain('Invalid sampling image payload received')
       }
     })
@@ -1035,15 +1170,16 @@ describe('McpClient Runtime Command Processing Tests', () => {
         description: 'Code Reviewer Server'
       })
 
-      mockHandleSamplingRequest.mockResolvedValue({
-        requestId: 'rpc-001',
+      mockHandleSamplingRequest.mockImplementation(async (payload) => ({
+        requestId: payload.requestId,
         approved: true,
         providerId: 'provider-1',
         modelId: 'model-42'
-      })
+      }))
       mockGenerateCompletionStandalone.mockResolvedValue('Generated response')
       mockGetProviderModels.mockReturnValue([{ id: 'model-42', name: 'Model Forty Two' }])
       mockGetCustomModels.mockReturnValue([])
+      const signal = new AbortController().signal
 
       const request = {
         params: {
@@ -1054,12 +1190,15 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
 
       const result = await (client as any).handleSamplingCreateMessage(request, {
-        requestId: 'rpc-001'
+        mcpReq: {
+          id: 'rpc-001',
+          signal
+        }
       })
 
       expect(mockHandleSamplingRequest).toHaveBeenCalledWith(
         expect.objectContaining({
-          requestId: 'rpc-001',
+          requestId: expect.any(String),
           serverName: 'code-reviewer'
         })
       )
@@ -1072,7 +1211,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         'model-42',
         undefined,
         256,
-        { signal: undefined, swallowErrors: false }
+        { signal, swallowErrors: false }
       )
 
       expect(result).toEqual({
@@ -1086,10 +1225,10 @@ describe('McpClient Runtime Command Processing Tests', () => {
     it('should throw when sampling decision is rejected by the user', async () => {
       const client = createMcpClient('code-reviewer', { type: 'stdio' })
 
-      mockHandleSamplingRequest.mockResolvedValue({
-        requestId: 'rpc-002',
+      mockHandleSamplingRequest.mockImplementation(async (payload) => ({
+        requestId: payload.requestId,
         approved: false
-      })
+      }))
 
       const request = {
         params: {
@@ -1099,14 +1238,19 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       let caughtError: unknown
       try {
-        await (client as any).handleSamplingCreateMessage(request, { requestId: 'rpc-002' })
+        await (client as any).handleSamplingCreateMessage(request, {
+          mcpReq: {
+            id: 'rpc-002',
+            signal: new AbortController().signal
+          }
+        })
       } catch (error) {
         caughtError = error
       }
 
       expect(caughtError).toBeInstanceOf(Error)
       expect((caughtError as Error).message).toContain('User rejected sampling request')
-      expect(caughtError).toHaveProperty('code', ErrorCode.InvalidRequest)
+      expect(caughtError).toHaveProperty('code', ProtocolErrorCode.InvalidRequest)
 
       expect(mockGenerateCompletionStandalone).not.toHaveBeenCalled()
     })
@@ -1131,10 +1275,19 @@ describe('McpClient Runtime Command Processing Tests', () => {
               messages: [{ role: 'user', content: { type: 'text', text: 'hello' } }]
             }
           },
-          { requestId: 'rpc-cancelled', signal: abortController.signal }
+          {
+            mcpReq: {
+              id: 'rpc-cancelled',
+              signal: abortController.signal
+            }
+          }
         )
-      ).rejects.toMatchObject({ code: ErrorCode.RequestTimeout })
-      expect(mockCancelSamplingRequest).toHaveBeenCalledWith('rpc-cancelled', 'cancelled by server')
+      ).rejects.toMatchObject({ code: SdkErrorCode.RequestTimeout })
+      const samplingRequestId = mockHandleSamplingRequest.mock.calls[0][0].requestId
+      expect(mockCancelSamplingRequest).toHaveBeenCalledWith(
+        samplingRequestId,
+        'cancelled by server'
+      )
 
       process.on('unhandledRejection', unhandled)
       try {
@@ -1150,12 +1303,12 @@ describe('McpClient Runtime Command Processing Tests', () => {
     it('forwards cancellation through sampling generation without wrapping AbortError', async () => {
       const client = createMcpClient('code-reviewer', { type: 'stdio' })
       const abortController = new AbortController()
-      mockHandleSamplingRequest.mockResolvedValue({
-        requestId: 'rpc-generation-cancelled',
+      mockHandleSamplingRequest.mockImplementation(async (payload) => ({
+        requestId: payload.requestId,
         approved: true,
         providerId: 'provider-1',
         modelId: 'model-42'
-      })
+      }))
       mockCancelSamplingRequest.mockResolvedValue(undefined)
       mockGenerateCompletionStandalone.mockImplementation(
         (...args: unknown[]) =>
@@ -1173,7 +1326,12 @@ describe('McpClient Runtime Command Processing Tests', () => {
             messages: [{ role: 'user', content: { type: 'text', text: 'hello' } }]
           }
         },
-        { requestId: 'rpc-generation-cancelled', signal: abortController.signal }
+        {
+          mcpReq: {
+            id: 'rpc-generation-cancelled',
+            signal: abortController.signal
+          }
+        }
       )
       await vi.waitFor(() => expect(mockGenerateCompletionStandalone).toHaveBeenCalledOnce())
 
@@ -1188,8 +1346,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
         undefined,
         { signal: abortController.signal, swallowErrors: false }
       )
+      const samplingRequestId = mockHandleSamplingRequest.mock.calls[0][0].requestId
       expect(mockCancelSamplingRequest).toHaveBeenCalledWith(
-        'rpc-generation-cancelled',
+        samplingRequestId,
         'cancelled by server'
       )
     })

@@ -2,6 +2,7 @@ import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type {
   DeepChatSessionState,
+  ChatMessageRecord,
   MessageStartResult,
   PendingInputEnqueueSource,
   PendingSessionInputRecord,
@@ -14,22 +15,22 @@ import {
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { SessionPendingInputs } from '@/session/data/pendingInputs'
+import type { SessionTranscript } from '@/session/data/transcript'
 import type {
   AttachmentCapabilityRouter,
   AttachmentPreparationResult
 } from '@/ocr/attachmentCapabilityRouter'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import { createAbortError } from './abortErrors'
+import { createAbortError, PENDING_INPUT_ABORT_REASON } from './abortErrors'
 import { supportsProviderVision } from './providerInputCapabilities'
 import type { ClaimedPendingInputHandle } from './pendingInputContracts'
-import type { PendingInputWakeReason, RunLifecycleCoordinator } from './runLifecycleCoordinator'
+import type { PendingInputWakeReason } from './runLifecycleCoordinator'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { SessionStateResolver } from './sessionStateResolver'
 
 export type PendingInputAdmissionStorePort = Pick<
   SessionPendingInputs,
-  | 'convertPendingInputToSteer'
   | 'degradeBlockedInput'
   | 'deletePendingInput'
   | 'getInput'
@@ -38,9 +39,9 @@ export type PendingInputAdmissionStorePort = Pick<
   | 'isAtCapacity'
   | 'listPendingInputs'
   | 'moveQueuedInput'
+  | 'acceptSteerMessage'
+  | 'promoteQueuedInputToSteerMessage'
   | 'queuePendingInput'
-  | 'queueSteerInput'
-  | 'restoreSteerInputToQueue'
   | 'retryBlockedInput'
   | 'updateQueuedInput'
 >
@@ -70,16 +71,11 @@ export interface PendingInputAdmissionPumpPort {
   ): ClaimedPendingInputHandle
 }
 
-type PendingInputAdmissionLifecyclePort = Pick<
-  RunLifecycleCoordinator,
-  'cancel'
->
-
 export interface PendingInputAdmissionCoordinatorPorts {
   providerSettings: Pick<ProviderModelResolutionPort, 'getModelConfig'>
   pendingInputs: PendingInputAdmissionStorePort
   pump: PendingInputAdmissionPumpPort
-  runLifecycle: PendingInputAdmissionLifecyclePort
+  transcript: Pick<SessionTranscript, 'getMessage'>
   attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
   sessionState: Pick<SessionStateResolver, 'get'>
   registry: SessionScopeRegistry
@@ -92,7 +88,11 @@ export class PendingInputAdmissionCoordinator {
   constructor(private readonly ports: PendingInputAdmissionCoordinatorPorts) {}
 
   list(sessionId: string): PendingSessionInputRecord[] {
-    return this.ports.pendingInputs.listPendingInputs(sessionId)
+    const inputs = this.ports.pendingInputs.listPendingInputs(sessionId)
+    if (inputs.some((input) => input.mode === 'steer' && input.state === 'pending')) {
+      this.ports.pump.schedule(sessionId, 'enqueue')
+    }
+    return inputs
   }
 
   async queue(
@@ -205,7 +205,7 @@ export class PendingInputAdmissionCoordinator {
         throw new Error('Please resolve pending tool interactions before steering.')
       }
       if (!input.text.trim() && (input.files?.length ?? 0) === 0) {
-        return { requestId: null, messageId: null }
+        throw new Error('Message cannot be empty.')
       }
 
       const prepared: AttachmentPreparationResult = input.files?.length
@@ -228,56 +228,55 @@ export class PendingInputAdmissionCoordinator {
         attachmentPreparation: prepared.summary
       }
 
-      if (this.ports.pendingInputs.hasBlockingInput(sessionId)) {
-        this.queueVisibleSteerInput(sessionId, prepared.content)
-        return preparedResult
-      }
-
       const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
       const activeGeneration = instance?.getActiveGeneration()
       const preStreamController = instance?.getAbortController()
 
       if (activeGeneration) {
-        this.queueVisibleSteerInput(sessionId, prepared.content)
-        releaseAcceptanceLane()
-        await this.ports.runLifecycle.cancel(sessionId)
-        return preparedResult
+        this.requireActiveAssistantMessage(sessionId, activeGeneration.messageId)
+        const accepted = this.acceptVisibleSteerInput(sessionId, prepared.content)
+        return { ...preparedResult, userMessage: accepted.message }
       }
 
-      if (preStreamController) {
-        this.queueVisibleSteerInput(sessionId, prepared.content)
-        return preparedResult
+      if (
+        instance &&
+        preStreamController &&
+        (!preStreamController.signal.aborted ||
+          preStreamController.signal.reason === PENDING_INPUT_ABORT_REASON)
+      ) {
+        const accepted = this.acceptVisibleSteerInput(sessionId, prepared.content, {
+          preStreamAnchorMessageId: instance.getPreStreamTranscriptAnchorId() ?? null
+        })
+        if (accepted.sourceMessage) {
+          instance.setPreStreamTranscriptAnchorId(accepted.sourceMessage.id)
+        }
+        if (!preStreamController.signal.aborted) {
+          preStreamController.abort(PENDING_INPUT_ABORT_REASON)
+        }
+        return { ...preparedResult, userMessage: accepted.message }
+      }
+
+      const openSteerInputId = instance?.getActiveSteerPendingInputId()
+      const openSteerInput = openSteerInputId
+        ? this.ports.pendingInputs.getInput(sessionId, openSteerInputId)
+        : null
+      if (openSteerInput?.mode === 'steer' && openSteerInput.state === 'pending') {
+        const accepted = this.acceptVisibleSteerInput(sessionId, prepared.content)
+        this.ports.pump.schedule(sessionId, 'enqueue')
+        return { ...preparedResult, userMessage: accepted.message }
       }
 
       if (!this.ports.pump.canDrain(sessionId, state.status, 'enqueue')) {
-        if (instance?.isPendingQueueDraining() || state.status === 'generating') {
-          this.queueVisibleSteerInput(sessionId, prepared.content)
-          return preparedResult
-        }
         throw new Error('Unable to start the steered input.')
       }
 
-      const record = this.queueVisibleSteerInput(sessionId, prepared.content)
+      const accepted = this.acceptVisibleSteerInput(sessionId, prepared.content)
       releaseAcceptanceLane()
       const started = await this.ports.pump.drain(sessionId, 'enqueue')
-      if (started) {
-        return preparedResult
+      if (!started) {
+        this.ports.pump.schedule(sessionId, 'enqueue')
       }
-
-      if (await this.isAcceptedInputOwned(sessionId, record.id)) {
-        return preparedResult
-      }
-
-      try {
-        this.ports.pendingInputs.deletePendingInput(sessionId, record.id)
-        instance?.clearActiveSteerPendingInputId(record.id)
-      } catch (deleteError) {
-        logger.error(
-          `[DeepChatAgent] failed to delete unstarted steer input session=${sessionId} item=${record.id}`,
-          redactRuntimeErrorForLog(deleteError)
-        )
-      }
-      throw new Error('Unable to start the steered input.')
+      return { ...preparedResult, userMessage: accepted.message }
     } finally {
       releaseAcceptanceLane()
     }
@@ -305,14 +304,6 @@ export class PendingInputAdmissionCoordinator {
   ): Promise<PendingSessionInputRecord[]> {
     await this.ensureSessionReady(sessionId)
     return this.ports.pendingInputs.moveQueuedInput(sessionId, itemId, toIndex)
-  }
-
-  async convertPendingInputToSteer(
-    sessionId: string,
-    itemId: string
-  ): Promise<PendingSessionInputRecord> {
-    await this.ensureSessionReady(sessionId)
-    return this.ports.pendingInputs.convertPendingInputToSteer(sessionId, itemId)
   }
 
   async steerPendingInput(sessionId: string, itemId: string): Promise<PendingSessionInputRecord> {
@@ -358,37 +349,47 @@ export class PendingInputAdmissionCoordinator {
 
       claim.settle({ kind: 'release-before-user-fact' })
       this.ports.pendingInputs.updateQueuedInput(sessionId, itemId, prepared.content)
-      const record = this.ports.pendingInputs.convertPendingInputToSteer(sessionId, itemId)
 
       const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
       const activeGeneration = instance?.getActiveGeneration()
       const preStreamController = instance?.getAbortController()
 
       if (activeGeneration) {
-        releaseAcceptanceLane()
-        await this.ports.runLifecycle.cancel(sessionId)
-        return record
+        this.requireActiveAssistantMessage(sessionId, activeGeneration.messageId)
+        return this.ports.pendingInputs.promoteQueuedInputToSteerMessage(sessionId, itemId)
+          .pendingInput
       }
 
-      if (preStreamController) {
-        return record
+      if (
+        instance &&
+        preStreamController &&
+        (!preStreamController.signal.aborted ||
+          preStreamController.signal.reason === PENDING_INPUT_ABORT_REASON)
+      ) {
+        const accepted = this.ports.pendingInputs.promoteQueuedInputToSteerMessage(
+          sessionId,
+          itemId,
+          {
+            preStreamAnchorMessageId: instance.getPreStreamTranscriptAnchorId() ?? null
+          }
+        )
+        if (accepted.sourceMessage) {
+          instance.setPreStreamTranscriptAnchorId(accepted.sourceMessage.id)
+        }
+        if (!preStreamController.signal.aborted) {
+          preStreamController.abort(PENDING_INPUT_ABORT_REASON)
+        }
+        return accepted.pendingInput
       }
 
+      const record = this.ports.pendingInputs.promoteQueuedInputToSteerMessage(
+        sessionId,
+        itemId
+      ).pendingInput
       releaseAcceptanceLane()
       const started = await this.ports.pump.drain(sessionId, 'enqueue')
       if (!started) {
-        if (await this.isAcceptedInputOwned(sessionId, itemId)) {
-          return record
-        }
-        try {
-          this.ports.pendingInputs.restoreSteerInputToQueue(sessionId, itemId)
-        } catch (restoreError) {
-          logger.error(
-            `[DeepChatAgent] failed to restore steered input session=${sessionId} item=${itemId}`,
-            redactRuntimeErrorForLog(restoreError)
-          )
-        }
-        throw new Error('Unable to start the steered input.')
+        this.ports.pump.schedule(sessionId, 'enqueue')
       }
       return record
     } finally {
@@ -497,50 +498,42 @@ export class PendingInputAdmissionCoordinator {
     }
   }
 
-  private async isAcceptedInputOwned(sessionId: string, itemId: string): Promise<boolean> {
-    const input = this.ports.pendingInputs.getInput(sessionId, itemId)
-    if (!input || input.mode !== 'steer') {
-      return false
-    }
-    if (input.state !== 'pending') {
-      return true
-    }
-
-    const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
-    if (
-      instance?.isPendingQueueDraining() ||
-      instance?.getActiveGeneration() ||
-      instance?.getAbortController()
-    ) {
-      return true
-    }
-
-    return (await this.ports.sessionState.get(sessionId))?.status === 'generating'
-  }
-
-  private queueVisibleSteerInput(
+  private acceptVisibleSteerInput(
     sessionId: string,
-    input: SendMessageInput
-  ): PendingSessionInputRecord {
+    input: SendMessageInput,
+    options?: {
+      preStreamAnchorMessageId?: string | null
+    }
+  ): {
+    pendingInput: PendingSessionInputRecord
+    message: ChatMessageRecord
+    sourceMessage?: ChatMessageRecord
+  } {
     const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
     if (!instance) {
       throw createStaleDeepChatInstanceError(sessionId)
     }
-    const mergeItemId = instance.getActiveSteerPendingInputId() ?? null
-    try {
-      const record = this.ports.pendingInputs.queueSteerInput(sessionId, input, {
-        mergeItemId
-      })
-      instance.setActiveSteerPendingInputId(record.id)
-      return record
-    } catch (error) {
-      if (!mergeItemId) {
-        throw error
-      }
+    const activeItemId = instance.getActiveSteerPendingInputId() ?? null
+    const activeItem = activeItemId
+      ? this.ports.pendingInputs.getInput(sessionId, activeItemId)
+      : null
+    const mergeItemId =
+      activeItem?.mode === 'steer' && activeItem.state === 'pending' ? activeItem.id : null
+    if (activeItemId && !mergeItemId) {
       instance.clearActiveSteerPendingInputId()
-      const record = this.ports.pendingInputs.queueSteerInput(sessionId, input)
-      instance.setActiveSteerPendingInputId(record.id)
-      return record
+    }
+    const accepted = this.ports.pendingInputs.acceptSteerMessage(sessionId, input, {
+      mergeItemId,
+      ...(options ? { preStreamAnchorMessageId: options.preStreamAnchorMessageId ?? null } : {})
+    })
+    instance.setActiveSteerPendingInputId(accepted.pendingInput.id)
+    return accepted
+  }
+
+  private requireActiveAssistantMessage(sessionId: string, messageId: string): void {
+    const message = this.ports.transcript.getMessage(messageId)
+    if (!message || message.sessionId !== sessionId || message.role !== 'assistant') {
+      throw new Error('Wait for the assistant response to start before steering.')
     }
   }
 

@@ -105,7 +105,6 @@ export class McpRouterManager {
       env: {},
       descriptions: detail.description || detail.title || detail.name,
       icons: this.pickRandomEmoji(),
-      autoApprove: ['all'],
       enabled: false,
       disable: false,
       type: 'http',

@@ -2,7 +2,10 @@ import { z } from 'zod'
 import type {
   MCPServerConfig,
   MCPContentItem,
-  McpSamplingDecision,
+  McpAppConsentRequestPayload,
+  McpElicitationDecision,
+  McpElicitationRequestPayload,
+  McpEnterpriseIdentityStatus,
   McpSamplingRequestPayload
 } from '@shared/types/mcp'
 import type {
@@ -10,12 +13,120 @@ import type {
   McpServerStatusPhase,
   McpServerStatusReason
 } from '@shared/types/core/mcp'
-import { defineEventContract } from '../common'
-import { McpServerAuthStatusSchema } from '../routes/mcp.routes'
+import { defineEventContract, JsonValueSchema } from '../common'
+import { McpSamplingDecisionSchema, McpServerAuthStatusSchema } from '../routes/mcp.routes'
 
-const McpSamplingRequestSchema = z.custom<McpSamplingRequestPayload>()
-const McpSamplingDecisionSchema = z.custom<McpSamplingDecision>()
+const McpSamplingMessageSchema = z.discriminatedUnion('type', [
+  z.object({
+    role: z.enum(['user', 'assistant']),
+    type: z.literal('text'),
+    text: z.string().max(1024 * 1024)
+  }),
+  z.object({
+    role: z.enum(['user', 'assistant']),
+    type: z.literal('image'),
+    dataUrl: z.string().max(12 * 1024 * 1024),
+    mimeType: z.string().min(1).max(256)
+  }),
+  z.object({
+    role: z.enum(['user', 'assistant']),
+    type: z.literal('audio'),
+    dataUrl: z.string().max(12 * 1024 * 1024),
+    mimeType: z.string().min(1).max(256)
+  })
+])
+const McpSamplingRequestSchema: z.ZodType<McpSamplingRequestPayload> = z
+  .object({
+    requestId: z.string().min(1).max(256),
+    serverName: z.string().min(1).max(256),
+    serverLabel: z.string().max(512).optional(),
+    serverId: z.string().min(1).max(256).optional(),
+    configGeneration: z.number().int().positive().optional(),
+    bindingHash: z.string().min(1).max(256).optional(),
+    systemPrompt: z
+      .string()
+      .max(1024 * 1024)
+      .optional(),
+    maxTokens: z.number().int().positive().max(1_000_000).optional(),
+    modelPreferences: z
+      .object({
+        costPriority: z.number().min(0).max(1).optional(),
+        speedPriority: z.number().min(0).max(1).optional(),
+        intelligencePriority: z.number().min(0).max(1).optional(),
+        hints: z
+          .array(z.object({ name: z.string().max(256).nullable().optional() }))
+          .max(64)
+          .optional()
+      })
+      .optional(),
+    requiresVision: z.boolean(),
+    messages: z.array(McpSamplingMessageSchema).max(128)
+  })
+  .refine(
+    (value) => {
+      try {
+        return new TextEncoder().encode(JSON.stringify(value)).byteLength <= 20 * 1024 * 1024
+      } catch {
+        return false
+      }
+    },
+    { message: 'MCP sampling request exceeds the 20 MiB event limit' }
+  )
+const BoundedMcpJsonObjectSchema = z.record(z.string().max(256), JsonValueSchema).refine(
+  (value) => {
+    try {
+      return new TextEncoder().encode(JSON.stringify(value)).byteLength <= 2 * 1024 * 1024
+    } catch {
+      return false
+    }
+  },
+  { message: 'MCP JSON object exceeds the 2 MiB event limit' }
+)
+const McpElicitationRequestSchema: z.ZodType<McpElicitationRequestPayload> = z.object({
+  requestId: z.string().min(1).max(256),
+  serverName: z.string().min(1).max(256),
+  mode: z.enum(['form', 'url']),
+  message: z.string().max(16_384),
+  requestedSchema: BoundedMcpJsonObjectSchema.optional(),
+  url: z.url().max(4096).optional()
+})
+const McpElicitationDecisionSchema: z.ZodType<McpElicitationDecision> = z.object({
+  requestId: z.string().min(1).max(256),
+  action: z.enum(['accept', 'decline', 'cancel']),
+  content: BoundedMcpJsonObjectSchema.optional()
+})
+const McpAppConsentRequestSchema: z.ZodType<McpAppConsentRequestPayload> = z.object({
+  requestId: z.string().min(1).max(256),
+  kind: z.enum([
+    'tool-call',
+    'open-link',
+    'send-message',
+    'update-model-context',
+    'camera',
+    'microphone',
+    'geolocation',
+    'clipboard-write'
+  ]),
+  serverName: z.string().min(1).max(256),
+  title: z.string().min(1).max(512),
+  detail: z.string().max(32 * 1024),
+  argumentsPreview: z
+    .string()
+    .max(16 * 1024)
+    .optional(),
+  url: z.url().max(4096).optional()
+})
 const MCPServerConfigSchema = z.custom<MCPServerConfig>()
+const McpEnterpriseIdentityStatusSchema: z.ZodType<McpEnterpriseIdentityStatus> = z.object({
+  profileId: z.string().min(1).max(128),
+  state: z.enum(['signed_out', 'authenticating', 'authenticated', 'error']),
+  authenticated: z.boolean(),
+  persistent: z.boolean(),
+  clientSecretConfigured: z.boolean(),
+  subjectLabel: z.string().max(512).optional(),
+  error: z.string().max(2048).optional(),
+  updatedAt: z.number().int().nonnegative().optional()
+})
 const McpServerLifecycleStatusSchema = z.enum([
   'connecting',
   'connected',
@@ -85,6 +196,14 @@ export const mcpServerAuthChangedEvent = defineEventContract({
   })
 })
 
+export const mcpEnterpriseAuthChangedEvent = defineEventContract({
+  name: 'mcp.enterprise.auth.changed',
+  payload: z.object({
+    status: McpEnterpriseIdentityStatusSchema,
+    version: z.number().int()
+  })
+})
+
 export const mcpToolCallResultEvent = defineEventContract({
   name: 'mcp.toolCall.result',
   payload: z.object({
@@ -113,8 +232,41 @@ export const mcpSamplingDecisionEvent = defineEventContract({
 export const mcpSamplingCancelledEvent = defineEventContract({
   name: 'mcp.sampling.cancelled',
   payload: z.object({
-    requestId: z.string(),
-    reason: z.string().optional(),
+    requestId: z.string().min(1).max(256),
+    reason: z.string().max(1024).optional(),
+    version: z.number().int()
+  })
+})
+
+export const mcpElicitationRequestEvent = defineEventContract({
+  name: 'mcp.elicitation.request',
+  payload: z.object({
+    request: McpElicitationRequestSchema,
+    version: z.number().int()
+  })
+})
+
+export const mcpElicitationDecisionEvent = defineEventContract({
+  name: 'mcp.elicitation.decision',
+  payload: z.object({
+    decision: McpElicitationDecisionSchema,
+    version: z.number().int()
+  })
+})
+
+export const mcpElicitationCancelledEvent = defineEventContract({
+  name: 'mcp.elicitation.cancelled',
+  payload: z.object({
+    requestId: z.string().min(1).max(256),
+    reason: z.string().max(1024).optional(),
+    version: z.number().int()
+  })
+})
+
+export const mcpAppConsentRequestEvent = defineEventContract({
+  name: 'mcp.app.consent.request',
+  payload: z.object({
+    request: McpAppConsentRequestSchema,
     version: z.number().int()
   })
 })

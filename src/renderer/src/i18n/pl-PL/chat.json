@@ -402,6 +402,10 @@
       "caption": "Światło reflektora pozostaje w polu wprowadzania, dopóki nie wyślesz pierwszej wiadomości."
     }
   },
+  "messageReceipt": {
+    "unread": "Nieprzeczytane",
+    "read": "Przeczytane"
+  },
   "attachments": {
     "chooseRepresentation": "Wybierz sposób wysłania pliku {name}",
     "representation": "Reprezentacja załącznika",

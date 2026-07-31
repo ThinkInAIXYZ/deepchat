@@ -57,7 +57,7 @@
     "typeStdio": "Standart giriş ve çıkış",
     "typeSse": "Sunucu Tarafından Gönderilen Etkinlikler (SSE)",
     "typeInMemory": "Hafıza",
-    "baseUrl": "Base URL",
+    "baseUrl": "Temel URL",
     "baseUrlPlaceholder": "Sunucu temel URL girin (örneğin: http://localhost:3000)",
     "command": "Emretmek",
     "commandPlaceholder": "Bir komut girin",
@@ -78,11 +78,6 @@
     "iconPlaceholder": "Simgeyi girin",
     "icons": "Simgeler",
     "iconsPlaceholder": "Simgeleri girin",
-    "autoApprove": "Otomatik onayla",
-    "autoApproveAll": "Tüm",
-    "autoApproveRead": "Okumak",
-    "autoApproveWrite": "Yazmak",
-    "autoApproveHelp": "Otomatik yetkilendirme gerektiren işlem tipini seçin ve kullanıcı onayı olmadan çalıştırın",
     "submit": "Göndermek",
     "add": "Eklemek",
     "update": "Güncelleme",
@@ -305,5 +300,51 @@
     "autoApproveIn": "{model} kullanarak {seconds}s'de otomatik onaylama",
     "reviewRequest": "Gözden geçirmek",
     "sessionActive": "Oturum etkin - istekler otomatik olarak onaylanacak"
+  },
+  "elicitation": {
+    "title": "MCP giriş isteği",
+    "accept": "Gönder",
+    "decline": "Reddet",
+    "noFields": "Bu istekte form alanı yok.",
+    "openLink": "Güvenli bağlantıyı aç",
+    "selectValue": "Bir değer seçin",
+    "error": {
+      "required": "Bu alan zorunludur.",
+      "number": "Geçerli bir sayı girin.",
+      "integer": "Bir tam sayı girin.",
+      "boolean": "Geçerli bir true veya false değeri seçin.",
+      "range": "Değer izin verilen aralığın dışında.",
+      "selection": "Geçerli bir seçenek seçin.",
+      "length": "Metin uzunluğu izin verilen aralığın dışında.",
+      "format": "İstenen biçimde bir değer girin."
+    }
+  },
+  "apps": {
+    "title": "MCP App",
+    "interactiveContent": "Bir MCP sunucusundan etkileşimli içerik",
+    "loadError": "Bu MCP App yüklenemedi.",
+    "retry": "Tekrar dene",
+    "fullscreen": "Tam ekran aç",
+    "pictureInPicture": "Resim içinde resim olarak aç",
+    "returnInline": "Satır içi görünüme dön",
+    "securityDetails": "Güvenlik ayrıntıları",
+    "allowedOrigins": "Bildirilen ağ kökenleri",
+    "requestedPermissions": "İstenen cihaz izinleri",
+    "noneDeclared": "Bildirim yok",
+    "advisoryDomain": "Bilgilendirme alan adı",
+    "toolAccessSuspended": "Reddedilen bir isteğin ardından araç erişimi askıya alındı.",
+    "retryAccess": "Erişimi yeniden dene",
+    "permissions": {
+      "camera": "Kamera",
+      "microphone": "Mikrofon",
+      "geolocation": "Konum",
+      "clipboardWrite": "Panoya yazma"
+    },
+    "consent": {
+      "title": "MCP App isteği",
+      "description": "Etkileşimli MCP içeriğinin istediği bu eylemi inceleyin.",
+      "allowOnce": "Bir kez izin ver",
+      "deny": "Reddet"
+    }
   }
 }

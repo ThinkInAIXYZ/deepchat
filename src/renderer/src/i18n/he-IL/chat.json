@@ -402,6 +402,10 @@
       "caption": "ההדגשה תישאר על שדה הקלט עד שתשלחו את ההודעה הראשונה."
     }
   },
+  "messageReceipt": {
+    "unread": "לא נקרא",
+    "read": "נקרא"
+  },
   "attachments": {
     "chooseRepresentation": "בחירת אופן השליחה של {name}",
     "representation": "ייצוג הקובץ המצורף",

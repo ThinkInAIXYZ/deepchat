@@ -67,10 +67,6 @@ export interface DeepChatAgentBackendPort {
     itemId: string,
     toIndex: number
   ): Promise<PendingSessionInputRecord[]>
-  convertPendingInputToSteer(
-    sessionId: AppSessionId,
-    itemId: string
-  ): Promise<PendingSessionInputRecord>
   steerPendingInput(sessionId: AppSessionId, itemId: string): Promise<PendingSessionInputRecord>
   resolveBlockedPendingInput(
     sessionId: AppSessionId,
@@ -164,7 +160,6 @@ export function createDeepChatAgentBackend(
         queue: (content, queueOptions) => port.queuePendingInput(sessionId, content, queueOptions),
         update: (itemId, content) => port.updateQueuedInput(sessionId, itemId, content),
         move: (itemId, toIndex) => port.moveQueuedInput(sessionId, itemId, toIndex),
-        convertToSteer: (itemId) => port.convertPendingInputToSteer(sessionId, itemId),
         steer: (itemId) => port.steerPendingInput(sessionId, itemId),
         resolveBlocked: (itemId, action) =>
           port.resolveBlockedPendingInput(sessionId, itemId, action),

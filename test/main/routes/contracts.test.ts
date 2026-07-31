@@ -7,6 +7,7 @@ import {
   chatStreamUpdatedEvent,
   contextMenuAskAiRequestedEvent,
   contextMenuTranslateRequestedEvent,
+  mcpSamplingRequestEvent,
   settingsChangedEvent,
   sessionsUpdatedEvent,
   projectEnvironmentsChangedEvent,
@@ -24,6 +25,8 @@ import {
   providersListSummariesRoute,
   providersTestConnectionRoute,
   modelsTranscribeAudioRoute,
+  mcpAppsListToolsRoute,
+  mcpAppsPrepareViewRoute,
   configListAgentsRoute,
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
@@ -51,6 +54,72 @@ import {
 import { SessionGenerationSettingsPatchSchema } from '@shared/contracts/common'
 
 describe('main kernel contracts', () => {
+  it('preserves MCP binding identity and validates MCP App tool metadata', () => {
+    expect(
+      mcpSamplingRequestEvent.payload.parse({
+        request: {
+          requestId: 'request-1',
+          serverName: 'fixture',
+          serverId: 'server-id',
+          configGeneration: 2,
+          bindingHash: 'binding-hash',
+          requiresVision: false,
+          messages: []
+        },
+        version: 1
+      }).request
+    ).toMatchObject({
+      serverId: 'server-id',
+      configGeneration: 2,
+      bindingHash: 'binding-hash'
+    })
+
+    expect(
+      mcpAppsListToolsRoute.output.parse({
+        tools: [
+          {
+            name: 'inspect',
+            inputSchema: { type: 'object' },
+            annotations: {
+              readOnlyHint: true,
+              customHint: 'kept'
+            }
+          }
+        ]
+      }).tools[0].annotations
+    ).toEqual({
+      readOnlyHint: true,
+      customHint: 'kept'
+    })
+    expect(() =>
+      mcpAppsListToolsRoute.output.parse({
+        tools: [
+          {
+            name: 'inspect',
+            inputSchema: {},
+            annotations: { readOnlyHint: 'yes' }
+          }
+        ]
+      })
+    ).toThrow()
+
+    expect(
+      mcpAppsPrepareViewRoute.output.parse({
+        view: {
+          instanceId: 'instance-id-123456',
+          sandboxUrl: 'mcp-app://instance-id-123456/sandbox.html',
+          html: '<main>App</main>',
+          sandbox: 'allow-scripts allow-same-origin',
+          tool: {
+            name: 'inspect',
+            inputSchema: {}
+          },
+          expiresAt: 1
+        }
+      }).view.sandbox
+    ).toBe('allow-scripts allow-same-origin')
+  })
+
   it('accepts and ignores the retired Session-level Subagent input', () => {
     expect(
       sessionsCreateRoute.input.parse({

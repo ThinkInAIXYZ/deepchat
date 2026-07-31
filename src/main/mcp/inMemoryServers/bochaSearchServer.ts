@@ -1,8 +1,7 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { Server, Transport } from '@modelcontextprotocol/server'
+import type { CallToolResult, ContentBlock } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import axios from 'axios'
 
 // Schema definitions
@@ -82,13 +81,6 @@ interface AiSearchWebPageItem {
   // 添加其他可能的字段
 }
 
-// 定义 MCP 资源对象结构
-interface McpResource {
-  uri: string
-  mimeType: string
-  text: string
-}
-
 export class BochaSearchServer {
   private server: Server
   private apiKey: string
@@ -125,7 +117,7 @@ export class BochaSearchServer {
   // 设置请求处理器
   private setupRequestHandlers(): void {
     // 设置工具列表处理器
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async () => {
       return {
         tools: [
           {
@@ -155,7 +147,7 @@ export class BochaSearchServer {
     })
 
     // 设置工具调用处理器
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request): Promise<CallToolResult> => {
       try {
         const { name, arguments: args } = request.params
 
@@ -203,7 +195,7 @@ export class BochaSearchServer {
             }
 
             // 将结果转换为MCP资源格式
-            const results = searchResponse.data.webPages.value.map((item, index) => {
+            const results = searchResponse.data.webPages.value.map((item, index): ContentBlock => {
               // 构建blob内容
               const blobContent = {
                 title: item.name,
@@ -227,7 +219,7 @@ export class BochaSearchServer {
 
             // 添加搜索摘要
             const summaryText = `Found ${results.length} results for "${query}"`
-            const summary = {
+            const summary: ContentBlock = {
               type: 'text',
               text: summaryText
             }
@@ -265,8 +257,7 @@ export class BochaSearchServer {
             )
 
             const aiSearchResponse = response.data as BochaAiSearchResponse
-            const contentResults: Array<{ type: string; text?: string; resource?: McpResource }> =
-              []
+            const contentResults: CallToolResult['content'] = []
 
             if (aiSearchResponse.messages && aiSearchResponse.messages.length > 0) {
               aiSearchResponse.messages.forEach((message) => {
@@ -325,7 +316,7 @@ export class BochaSearchServer {
 
             // 添加摘要
             const summaryText = `Found ${contentResults.filter((r) => r.type === 'resource').length} web results and ${contentResults.filter((r) => r.type === 'text').length} other content for "${query}" via AI Search.`
-            const summary = {
+            const summary: ContentBlock = {
               type: 'text',
               text: summaryText
             }

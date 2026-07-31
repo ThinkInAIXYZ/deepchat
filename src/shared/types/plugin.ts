@@ -83,7 +83,8 @@ export interface PluginMcpServerManifest {
   command: string
   args: string[]
   env?: Record<string, string>
-  autoApprove: string[]
+  /** @deprecated MCP permissions are host-owned; retained only for manifest compatibility. */
+  autoApprove?: string[]
   startMode?: PluginMcpStartMode
   surfaces?: PluginMcpSurface[]
   toolCatalog?: string

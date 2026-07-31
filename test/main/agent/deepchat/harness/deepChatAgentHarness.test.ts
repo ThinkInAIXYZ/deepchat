@@ -187,6 +187,8 @@ function createMockSqlitePresenter() {
         mode: input.mode,
         state: input.state,
         payload_json: input.payloadJson ?? input.payload_json,
+        message_ids_json: input.messageIdsJson ?? input.message_ids_json ?? '[]',
+        assistant_message_id: input.assistantMessageId ?? input.assistant_message_id ?? null,
         blocking_json: input.blockingJson ?? input.blocking_json ?? null,
         queue_order: input.queueOrder ?? input.queue_order ?? null,
         claimed_at: input.claimedAt ?? input.claimed_at ?? null,
@@ -204,7 +206,7 @@ function createMockSqlitePresenter() {
     listBySession: vi.fn((sessionId: string) =>
       pendingRows.filter((row) => row.session_id === sessionId)
     ),
-    listClaimed: vi.fn(() => pendingRows.filter((row) => row.state === 'claimed')),
+    listActive: vi.fn(() => pendingRows.filter((row) => row.state !== 'consumed')),
     listActiveBySession: vi.fn((sessionId: string) =>
       pendingRows.filter((row) => row.session_id === sessionId && row.state !== 'consumed')
     ),
@@ -1142,7 +1144,8 @@ describe('DeepChatAgentHarness', () => {
     }
     hookDispatcher = { dispatchEvent: vi.fn() }
     sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
-      publishPendingInputsChanged: vi.fn()
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
     })
     runtimeDependencies = createRuntimeDependencies({
       skillService,
@@ -2039,6 +2042,21 @@ describe('DeepChatAgentHarness', () => {
 
   function installSessionRows(initialRows: any[]) {
     let rows = [...initialRows]
+    sqlitePresenter.deepchatMessagesTable.insert.mockImplementation((row: any) => {
+      const now = Date.now()
+      rows.push({
+        id: row.id,
+        session_id: row.sessionId,
+        order_seq: row.orderSeq,
+        role: row.role,
+        content: row.content,
+        status: row.status,
+        is_context_edge: row.isContextEdge ?? 0,
+        metadata: row.metadata ?? '{}',
+        created_at: row.createdAt ?? now,
+        updated_at: row.updatedAt ?? now
+      })
+    })
     sqlitePresenter.deepchatMessagesTable.getBySession.mockImplementation((sessionId: string) =>
       rows.filter((row) => row.session_id === sessionId)
     )
@@ -2081,6 +2099,33 @@ describe('DeepChatAgentHarness', () => {
         0
       )
     )
+    sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementation(
+      (messageId: string, content: string) => {
+        const row = rows.find((candidate) => candidate.id === messageId)
+        if (row) {
+          row.content = content
+          row.updated_at = Date.now()
+        }
+      }
+    )
+    sqlitePresenter.deepchatMessagesTable.updateMetadata.mockImplementation(
+      (messageId: string, metadata: string) => {
+        const row = rows.find((candidate) => candidate.id === messageId)
+        if (row) {
+          row.metadata = metadata
+          row.updated_at = Date.now()
+        }
+      }
+    )
+    sqlitePresenter.deepchatMessagesTable.updateStatus.mockImplementation(
+      (messageId: string, status: string) => {
+        const row = rows.find((candidate) => candidate.id === messageId)
+        if (row) {
+          row.status = status
+          row.updated_at = Date.now()
+        }
+      }
+    )
 
     return {
       getRows: () => rows
@@ -2113,7 +2158,8 @@ describe('DeepChatAgentHarness', () => {
         agentSettings: providerSettings,
         database: sqlitePresenter,
         sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
-          publishPendingInputsChanged: vi.fn()
+          publishPendingInputsChanged: vi.fn(),
+          publishMessagesChanged: vi.fn()
         }),
         toolService: toolService,
         hookObserver: noopHookObserver
@@ -2126,13 +2172,16 @@ describe('DeepChatAgentHarness', () => {
 
     it('only recovers claimed pending inputs for sessions that still exist', () => {
       const loggerInfoMock = vi.mocked(logger.info)
-      sqlitePresenter.deepchatPendingInputsTable.listClaimed.mockReturnValue([
+      const claimedInputs = [
         {
           id: 'pending-existing',
           session_id: 's1',
           mode: 'queue',
           state: 'claimed',
           payload_json: '{"text":"hello","files":[]}',
+          message_ids_json: '[]',
+          assistant_message_id: null,
+          blocking_json: null,
           queue_order: 1,
           claimed_at: 123,
           consumed_at: null,
@@ -2145,17 +2194,23 @@ describe('DeepChatAgentHarness', () => {
           mode: 'queue',
           state: 'claimed',
           payload_json: '{"text":"orphan","files":[]}',
+          message_ids_json: '[]',
+          assistant_message_id: null,
+          blocking_json: null,
           queue_order: 2,
           claimed_at: 456,
           consumed_at: null,
           created_at: 2,
           updated_at: 2
         }
-      ])
+      ]
+      sqlitePresenter.deepchatPendingInputsTable.listActive.mockReturnValue(claimedInputs)
+      sqlitePresenter.deepchatPendingInputsTable.get.mockImplementation((id: string) =>
+        claimedInputs.find((input) => input.id === id)
+      )
       sqlitePresenter.deepchatSessionsTable.get.mockImplementation((sessionId: string) =>
         sessionId === 's1' ? { id: 's1' } : null
       )
-
       createDeepChatAgentHarness({
         ...createRuntimeDependencies({
           skillService: getSkillServiceMock()
@@ -2165,7 +2220,8 @@ describe('DeepChatAgentHarness', () => {
         agentSettings: providerSettings,
         database: sqlitePresenter,
         sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
-          publishPendingInputsChanged: vi.fn()
+          publishPendingInputsChanged: vi.fn(),
+          publishMessagesChanged: vi.fn()
         }),
         toolService: toolService,
         hookObserver: noopHookObserver
@@ -2464,114 +2520,78 @@ describe('DeepChatAgentHarness', () => {
       await processPromise
     })
 
-    it('queues steer during pre-stream setup and drains it as the next visible turn', async () => {
-      let releaseTools: (() => void) | null = null
-      toolService.getAllToolDefinitions.mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            releaseTools = () => resolve([])
+    it('keeps rapid pre-stream Steers ordered and replies in one assistant row', async () => {
+      installSessionRows([])
+      vi.mocked(nanoid)
+        .mockReturnValueOnce('source-input')
+        .mockReturnValueOnce('source-user')
+        .mockReturnValueOnce('steer-user-1')
+        .mockReturnValueOnce('steer-input')
+        .mockReturnValueOnce('steer-user-2')
+        .mockReturnValueOnce('steer-assistant')
+      const preStreamStarted = deferred<void>()
+      let preparationCount = 0
+      runtimeDependencies.attachmentRouter.prepare = vi.fn(async ({ content, signal }) => {
+        preparationCount += 1
+        if (preparationCount === 2) {
+          preStreamStarted.resolve()
+          await new Promise<void>((_resolve, reject) => {
+            const rejectAbort = () => reject(new DOMException('Aborted', 'AbortError'))
+            if (signal?.aborted) {
+              rejectAbort()
+              return
+            }
+            signal?.addEventListener('abort', rejectAbort, { once: true })
           })
-      )
+        }
+        return {
+          content,
+          summary: { status: 'ready' as const, issues: [], suggestedActions: [] }
+        }
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        status: 'completed',
+        stopReason: 'complete'
+      })
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const firstProcess = agent.processMessage('s1', 'First prompt')
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await agent.send('s1', {
+        content: { text: 'First prompt', files: [] },
+        queue: { source: 'send' }
+      })
+      await preStreamStarted.promise
+      expect(
+        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getAbortController()?.signal
+      ).toMatchObject({ aborted: false })
 
       await agent.steerActiveTurn('s1', 'Refine before stream')
-      expect(processStream).not.toHaveBeenCalled()
-      expect(agent.getActiveGeneration('s1')).toBeNull()
-
-      releaseTools?.()
-      await firstProcess
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 1) {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-
-      const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
-        .map(([row]) => row)
-        .filter((row) => row.role === 'user')
-
-      expect(userInserts).toHaveLength(2)
-      expect(JSON.parse(userInserts[0].content).text).toBe('First prompt')
-      expect(JSON.parse(userInserts[1].content).text).toBe('Refine before stream')
-      expect(processStream).toHaveBeenCalledTimes(2)
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((await agent.getSessionState('s1'))?.status === 'idle') {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
-    })
-
-    it('interrupts the active stream and runs the steer input as the next turn', async () => {
-      let firstAbortSignal: AbortSignal | null = null
-      ;(processStream as ReturnType<typeof vi.fn>)
-        .mockImplementationOnce(
-          async (params: { io: { abortSignal: AbortSignal } }) =>
-            await new Promise((resolve, reject) => {
-              firstAbortSignal = params.run.abortController.signal
-              // The active stream rejects with an AbortError as soon as it is interrupted, mirroring
-              // a real provider stream reacting to the abort signal.
-              params.run.abortController.signal.addEventListener('abort', () => {
-                const abortError = new Error('Aborted')
-                abortError.name = 'AbortError'
-                reject(abortError)
-              })
-            })
-        )
-        .mockResolvedValueOnce({
-          status: 'completed',
-          stopReason: 'complete'
-        })
-
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const firstProcess = agent.processMessage('s1', 'First prompt')
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 0) {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-
-      await agent.steerActiveTurn('s1', 'Refine active stream')
       await agent.steerActiveTurn('s1', 'Add second steer note')
-      // The active stream is interrupted (not left running) so the steer input takes over.
-      expect(firstAbortSignal?.aborted).toBe(true)
 
-      await firstProcess
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 1) {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
+      await vi.waitFor(() => expect(processStream).toHaveBeenCalledOnce())
+      await vi.waitFor(async () => {
+        expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      })
 
       const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
         .map(([row]) => row)
         .filter((row) => row.role === 'user')
 
-      expect(userInserts).toHaveLength(2)
-      expect(JSON.parse(userInserts[0].content).text).toBe('First prompt')
-      expect(JSON.parse(userInserts[1].content).text).toBe(
-        'Refine active stream\n\nAdd second steer note'
-      )
-      expect(processStream).toHaveBeenCalledTimes(2)
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((await agent.getSessionState('s1'))?.status === 'idle') {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      expect(userInserts).toHaveLength(3)
+      expect(userInserts.map((message) => JSON.parse(message.content).text)).toEqual([
+        'First prompt',
+        'Refine before stream',
+        'Add second steer note'
+      ])
+      expect(userInserts.map((message) => message.status)).toEqual(['sent', 'pending', 'pending'])
+      const assistantInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
+        .map(([row]) => row)
+        .filter((row) => row.role === 'assistant')
+      expect(assistantInserts.map((message) => message.id)).toEqual(['steer-assistant'])
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatPendingInputsTable.get('source-input')).toBeUndefined()
+      expect(sqlitePresenter.deepchatPendingInputsTable.get('steer-input')).toMatchObject({
+        state: 'consumed'
+      })
     })
 
     it('does not interrupt an active stream when steer attachment preflight needs user action', async () => {
@@ -2656,6 +2676,16 @@ describe('DeepChatAgentHarness', () => {
     })
 
     it('does not drain later queue items while a queued steer is being prepared', async () => {
+      installSessionRows([])
+      vi.mocked(nanoid)
+        .mockReturnValueOnce('preflight-initial-user')
+        .mockReturnValueOnce('preflight-initial-assistant')
+        .mockReturnValueOnce('steer-preflight-first')
+        .mockReturnValueOnce('steer-preflight-second')
+        .mockReturnValueOnce('steer-preflight-user')
+        .mockReturnValueOnce('steer-preflight-assistant')
+        .mockReturnValueOnce('later-queue-user')
+        .mockReturnValueOnce('later-queue-assistant')
       const firstStreamDone = deferred<{ status: 'completed'; stopReason: 'complete' }>()
       const steeredStreamDone = deferred<{ status: 'completed'; stopReason: 'complete' }>()
       ;(processStream as ReturnType<typeof vi.fn>)
@@ -2667,10 +2697,6 @@ describe('DeepChatAgentHarness', () => {
       const firstProcess = agent.processMessage('s1', 'First prompt')
       await vi.waitFor(() => expect(processStream).toHaveBeenCalledOnce())
 
-      const { nanoid } = await import('nanoid')
-      ;(nanoid as ReturnType<typeof vi.fn>)
-        .mockReturnValueOnce('steer-preflight-first')
-        .mockReturnValueOnce('steer-preflight-second')
       const firstQueued = await agent.queuePendingInput('s1', 'Steer me first', {
         source: 'queue'
       })
@@ -2722,20 +2748,22 @@ describe('DeepChatAgentHarness', () => {
       expect(thirdRun.run.messages.at(-1)).toEqual({ role: 'user', content: 'Must remain second' })
     })
 
-    it('interrupts the active stream and runs a steered queued input as the next turn', async () => {
+    it('promotes a queued input without user-stop semantics', async () => {
+      installSessionRows([])
+      vi.mocked(nanoid)
+        .mockReturnValueOnce('queued-steer-initial-user')
+        .mockReturnValueOnce('queued-steer-initial-assistant')
+        .mockReturnValueOnce('queued-steer-input')
+        .mockReturnValueOnce('queued-steer-user')
+        .mockReturnValueOnce('queued-steer-assistant')
+      const firstDone = deferred<void>()
       let firstAbortSignal: AbortSignal | null = null
       ;(processStream as ReturnType<typeof vi.fn>)
-        .mockImplementationOnce(
-          async (params: { io: { abortSignal: AbortSignal } }) =>
-            await new Promise((resolve, reject) => {
-              firstAbortSignal = params.run.abortController.signal
-              params.run.abortController.signal.addEventListener('abort', () => {
-                const abortError = new Error('Aborted')
-                abortError.name = 'AbortError'
-                reject(abortError)
-              })
-            })
-        )
+        .mockImplementationOnce(async (params: { run: { abortController: AbortController } }) => {
+          firstAbortSignal = params.run.abortController.signal
+          await firstDone.promise
+          return { status: 'completed', stopReason: 'complete' }
+        })
         .mockResolvedValueOnce({
           status: 'completed',
           stopReason: 'complete'
@@ -2751,14 +2779,13 @@ describe('DeepChatAgentHarness', () => {
         await new Promise((resolve) => setTimeout(resolve, 0))
       }
 
-      // Queue a follow-up while the first turn is streaming, then steer it: it must interrupt the
-      // active turn (not wait for it) and run as the next visible turn ahead of any other queue items.
       await agent.queuePendingInput('s1', 'Queued instruction', { source: 'queue' })
       const [queued] = await agent.listPendingInputs('s1')
       const steered = await agent.steerPendingInput('s1', queued.id)
       expect(steered.mode).toBe('steer')
-      expect(firstAbortSignal?.aborted).toBe(true)
+      expect(firstAbortSignal?.aborted).toBe(false)
 
+      firstDone.resolve()
       await firstProcess
 
       for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -2785,62 +2812,13 @@ describe('DeepChatAgentHarness', () => {
       }
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
       await expect(agent.listPendingInputs('s1')).resolves.toEqual([])
-    })
 
-    it('settles an interrupted turn exactly once (single user_stop hook)', async () => {
-      ;(processStream as ReturnType<typeof vi.fn>)
-        .mockImplementationOnce(
-          async (params: { io: { abortSignal: AbortSignal } }) =>
-            await new Promise((_resolve, reject) => {
-              params.run.abortController.signal.addEventListener('abort', () => {
-                const abortError = new Error('Aborted')
-                abortError.name = 'AbortError'
-                reject(abortError)
-              })
-            })
-        )
-        .mockResolvedValueOnce({
-          status: 'completed',
-          stopReason: 'complete'
-        })
-
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const firstProcess = agent.processMessage('s1', 'First prompt')
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 0) {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-
-      await agent.steerActiveTurn('s1', 'Refine active stream')
-      await firstProcess
-
-      // Wait for the steer turn to actually run (second stream) and settle, so no drain leaks past the
-      // test — cancelGeneration sets idle synchronously, so polling idle alone would finish too early.
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 1) {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((await agent.getSessionState('s1'))?.status === 'idle') {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-
-      // cancelGeneration only requests the abort; the stream handler owns abort settlement, so the
-      // interrupted turn fires exactly one user_stop Stop hook (previously the synchronous cancel path
-      // plus the stream rethrow path could double-fire it).
       const dispatchCalls = (hookDispatcher.dispatchEvent as ReturnType<typeof vi.fn>).mock
         .calls as Array<[string, { stop?: { userStop?: boolean } }]>
       const userStopHooks = dispatchCalls.filter(
         ([event, payload]) => event === 'Stop' && payload?.stop?.userStop === true
       )
-      expect(userStopHooks).toHaveLength(1)
+      expect(userStopHooks).toHaveLength(0)
     })
 
     it('dispatches lifecycle hooks through the required observer', async () => {
@@ -6859,8 +6837,24 @@ describe('DeepChatAgentHarness', () => {
     })
 
     it('keeps a later text steer behind an in-flight attachment steer preflight', async () => {
+      installSessionRows([])
+      vi.mocked(nanoid)
+        .mockReturnValueOnce('serialized-initial-user')
+        .mockReturnValueOnce('serialized-initial-assistant')
+        .mockReturnValueOnce('serialized-steer-user-1')
+        .mockReturnValueOnce('serialized-steer-input')
+        .mockReturnValueOnce('serialized-steer-user-2')
+        .mockReturnValueOnce('serialized-steer-assistant')
+      const initialStreamDone = deferred<void>()
+      ;(processStream as ReturnType<typeof vi.fn>)
+        .mockImplementationOnce(async () => {
+          await initialStreamDone.promise
+          return { status: 'completed', stopReason: 'complete' }
+        })
+        .mockResolvedValueOnce({ status: 'completed', stopReason: 'complete' })
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      setRuntimeStatus(agent, 's1', 'generating')
+      const initialProcess = agent.processMessage('s1', 'Initial prompt')
+      await vi.waitFor(() => expect(processStream).toHaveBeenCalledOnce())
       const firstStarted = deferred<void>()
       const releaseFirst = deferred<void>()
       const prepare = vi.fn(async ({ content }) => {
@@ -6888,9 +6882,18 @@ describe('DeepChatAgentHarness', () => {
       expect(await agent.listPendingInputs('s1')).toEqual([
         expect.objectContaining({
           mode: 'steer',
-          payload: expect.objectContaining({ text: 'first\n\nsecond' })
+          payload: expect.objectContaining({ text: 'first\n\nsecond' }),
+          messageIds: ['serialized-steer-user-1', 'serialized-steer-user-2']
         })
       ])
+      const visibleSteers = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
+        .map(([row]) => row)
+        .filter((row) => row.role === 'user' && row.status === 'pending')
+      expect(visibleSteers.map((row) => JSON.parse(row.content).text)).toEqual(['first', 'second'])
+
+      initialStreamDone.resolve()
+      await initialProcess
+      await vi.waitFor(() => expect(processStream).toHaveBeenCalledTimes(2))
     })
 
     it('releases an accepted send when stop cancels attachment recheck before its user fact', async () => {
@@ -7428,6 +7431,7 @@ describe('DeepChatAgentHarness', () => {
     })
 
     it('blocks a dispatch-time queue head and does not drain later items around it', async () => {
+      installSessionRows([])
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const prepare = vi.fn(async ({ content }) => ({
         content,
@@ -7442,7 +7446,8 @@ describe('DeepChatAgentHarness', () => {
       ;(nanoid as ReturnType<typeof vi.fn>)
         .mockReturnValueOnce('blocked-1')
         .mockReturnValueOnce('waiting-2')
-        .mockReturnValueOnce('waiting-steer-3')
+        .mockReturnValueOnce('waiting-steer-user-3')
+        .mockReturnValueOnce('waiting-steer-4')
 
       await agent.queuePendingInput(
         's1',
@@ -7474,12 +7479,18 @@ describe('DeepChatAgentHarness', () => {
       })
       expect(await agent.listPendingInputs('s1')).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ id: 'waiting-steer-3', mode: 'steer', state: 'pending' }),
+          expect.objectContaining({ id: 'waiting-steer-4', mode: 'steer', state: 'pending' }),
           expect.objectContaining({ id: 'blocked-1', state: 'blocked' }),
           expect.objectContaining({ id: 'waiting-2', state: 'pending' })
         ])
       )
-      expect(sqlitePresenter.deepchatMessagesTable.insert).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'waiting-steer-user-3',
+          role: 'user',
+          status: 'pending'
+        })
+      )
       expect(processStream).not.toHaveBeenCalled()
     })
 
@@ -9471,7 +9482,8 @@ describe('DeepChatAgentHarness', () => {
         agentSettings: providerSettings,
         database: sqlitePresenter,
         sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
-          publishPendingInputsChanged: vi.fn()
+          publishPendingInputsChanged: vi.fn(),
+          publishMessagesChanged: vi.fn()
         }),
         toolService: toolService,
         hookObserver: noopHookObserver

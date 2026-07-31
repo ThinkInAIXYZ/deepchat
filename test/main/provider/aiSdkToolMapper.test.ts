@@ -163,6 +163,69 @@ describe('AI SDK tool schema normalization', () => {
     })
   })
 
+  it('lifts local definitions from composition branches', () => {
+    const normalized = normalizeToolInputSchema({
+      anyOf: [
+        {
+          type: 'object',
+          properties: {
+            filter: { $ref: '#/$defs/filter' }
+          },
+          $defs: {
+            filter: {
+              type: 'object',
+              properties: {
+                query: { type: 'string' }
+              }
+            }
+          }
+        },
+        {
+          type: 'object',
+          properties: {
+            filter: { $ref: '#/$defs/filter' }
+          },
+          $defs: {
+            filter: {
+              type: 'object',
+              properties: {
+                tags: {
+                  type: 'array',
+                  items: { type: 'string' }
+                }
+              }
+            }
+          }
+        }
+      ]
+    })
+
+    expect(normalized.properties).toEqual({
+      filter: { $ref: '#/$defs/filter' }
+    })
+    expect(normalized.$defs).toEqual({
+      filter: {
+        anyOf: [
+          {
+            type: 'object',
+            properties: {
+              query: { type: 'string' }
+            }
+          },
+          {
+            type: 'object',
+            properties: {
+              tags: {
+                type: 'array',
+                items: { type: 'string' }
+              }
+            }
+          }
+        ]
+      }
+    })
+  })
+
   it('uses a safe dictionary when merging variant properties', () => {
     const normalized = normalizeToolInputSchema({
       anyOf: [

@@ -122,6 +122,8 @@ function buildPendingInput(
       text: `${mode}-${id}`,
       files: []
     },
+    messageIds: [],
+    assistantMessageId: null,
     queueOrder: mode === 'queue' ? Number(id.replace(/\D+/g, '') || '1') : null,
     claimedAt: null,
     consumedAt: null,
@@ -133,28 +135,23 @@ function buildPendingInput(
 }
 
 describe('PendingInputLane', () => {
-  it('renders a single pending rail with compact rows for steer and queue items', () => {
+  it('renders compact rows only for queued inputs', () => {
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [buildPendingInput('steer-1', 'steer')],
         queueItems: [buildPendingInput('queue-1', 'queue'), buildPendingInput('queue-2', 'queue')]
       }
     })
 
     expect(wrapper.findAll('[data-testid="pending-rail"]')).toHaveLength(1)
-    expect(wrapper.findAll('[data-testid="pending-row"]')).toHaveLength(3)
+    expect(wrapper.findAll('[data-testid="pending-row"]')).toHaveLength(2)
 
     const queueMain = wrapper.find('[data-mode="queue"] [data-testid="pending-row-main"] span')
     expect(queueMain.classes()).toContain('truncate')
-
-    const steerText = wrapper.find('[data-mode="steer"] [title]')
-    expect(steerText.classes()).toContain('truncate')
   })
 
   it('shows inline file badges and becomes internally scrollable when more than three items exist', () => {
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [buildPendingInput('steer-1', 'steer')],
         queueItems: [
           buildPendingInput('queue-1', 'queue', {
             payload: {
@@ -178,7 +175,6 @@ describe('PendingInputLane', () => {
   it('expands only the active queue item for inline editing and disables drag while editing', async () => {
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [],
         queueItems: [buildPendingInput('queue-1', 'queue'), buildPendingInput('queue-2', 'queue')]
       }
     })
@@ -196,7 +192,6 @@ describe('PendingInputLane', () => {
   it('emits steer-queue with the item id when the queue row interrupt button is clicked', async () => {
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [],
         queueItems: [buildPendingInput('queue-1', 'queue')]
       }
     })
@@ -210,27 +205,9 @@ describe('PendingInputLane', () => {
     expect(wrapper.emitted('steer-queue')).toEqual([['queue-1']])
   })
 
-  it('lets a stranded pending steer item be removed via delete-queue', async () => {
-    const wrapper = mount(PendingInputLane, {
-      props: {
-        steerItems: [buildPendingInput('steer-1', 'steer')],
-        queueItems: []
-      }
-    })
-
-    const deleteButton = wrapper.find('[data-testid="pending-steer-delete"]')
-    expect(deleteButton.exists()).toBe(true)
-    expect(deleteButton.attributes('aria-label')).toBe('Remove')
-
-    await deleteButton.trigger('click')
-
-    expect(wrapper.emitted('delete-queue')).toEqual([['steer-1']])
-  })
-
   it('disables the queue row interrupt button when disableQueueSteerAction is set', () => {
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [],
         queueItems: [buildPendingInput('queue-1', 'queue')],
         disableQueueSteerAction: true
       }
@@ -252,7 +229,6 @@ describe('PendingInputLane', () => {
     })
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [],
         queueItems: [blocked]
       }
     })

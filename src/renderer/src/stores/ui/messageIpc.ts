@@ -1,5 +1,6 @@
 import { createChatClient } from '../../../api/ChatClient'
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import { createSessionClient } from '../../../api/SessionClient'
+import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
 
 interface BindMessageStoreIpcOptions {
   getActiveSessionId: () => string | null
@@ -18,6 +19,7 @@ interface BindMessageStoreIpcOptions {
   clearStreamingState: () => void
   loadMessages: (sessionId: string) => void | Promise<unknown>
   invalidateRecentSessionView: (sessionId: string) => void
+  applyPersistedMessageRecords: (records: ChatMessageRecord[]) => void
   applyStreamingBlocksToMessage?: (
     messageId: string,
     sessionId: string,
@@ -52,6 +54,7 @@ type MessageStoreIpcBinding = {
 
 export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): MessageStoreIpcBinding {
   const chatClient = createChatClient()
+  const sessionClient = createSessionClient()
   // Request entries are tombstones. Keep them until permanent session removal so
   // a known older request cannot become current again after a newer request arrives.
   const streamSessions = new Map<string, StreamSessionState>()
@@ -206,6 +209,13 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): Messag
         sessionId: payload.sessionId,
         requestId: payload.requestId
       })
+    }),
+    sessionClient.onMessagesChanged((payload) => {
+      if (payload.sessionId !== options.getActiveSessionId()) {
+        options.invalidateRecentSessionView(payload.sessionId)
+        return
+      }
+      options.applyPersistedMessageRecords(payload.messages)
     })
   ]
 

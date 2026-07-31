@@ -63,12 +63,14 @@ export type SessionPermissionRequest = {
     signature?: string
     baseCommand?: string
   }
+  requestId?: string
 }
 
 export interface SessionPermissionPort {
   clearSessionPermissions(sessionId: string): void
   cloneSessionPermissions?(sourceSessionId: string, targetSessionId: string): void
   approvePermission(sessionId: string, permission: SessionPermissionRequest): Promise<void>
+  denyPermission?(sessionId: string, requestId: string): Promise<void>
 }
 
 export interface SessionUiPort {

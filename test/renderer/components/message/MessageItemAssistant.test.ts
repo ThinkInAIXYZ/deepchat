@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { defineComponent, onMounted, onUnmounted } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
 import type {
@@ -465,6 +465,81 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
+  })
+
+  it('does not remount an MCP App when live activity becomes grouped', async () => {
+    let appMountCount = 0
+    let appUnmountCount = 0
+    const ToolCallStub = defineComponent({
+      name: 'MessageBlockToolCall',
+      props: {
+        renderMode: {
+          type: String,
+          default: 'full'
+        }
+      },
+      setup(componentProps) {
+        onMounted(() => {
+          if (componentProps.renderMode === 'app-only') {
+            appMountCount += 1
+          }
+        })
+        onUnmounted(() => {
+          if (componentProps.renderMode === 'app-only') {
+            appUnmountCount += 1
+          }
+        })
+        return {}
+      },
+      template: '<div :data-render-mode="renderMode" />'
+    })
+    const appBlock = createToolCallBlock({
+      tool_call: {
+        id: 'tc-app',
+        name: 'render_chart',
+        mcpResult: {
+          schemaVersion: 1,
+          serverId: 'server-id',
+          configGeneration: 1,
+          bindingHash: 'binding-hash',
+          toolName: 'render_chart',
+          app: {
+            schemaVersion: 1,
+            serverId: 'server-id',
+            configGeneration: 1,
+            bindingHash: 'binding-hash',
+            serverName: 'charts',
+            toolName: 'render_chart',
+            resourceUri: 'ui://chart/index.html',
+            resourceMimeType: 'text/html;profile=mcp-app'
+          }
+        }
+      }
+    })
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [createThinkingBlock(), appBlock]),
+        isCapturingImage: false,
+        isStreamingMessage: true
+      },
+      global: {
+        ...global,
+        stubs: {
+          ...global.stubs,
+          MessageBlockToolCall: ToolCallStub
+        }
+      }
+    })
+
+    expect(appMountCount).toBe(1)
+    expect(wrapper.findAll('[data-render-mode="app-only"]')).toHaveLength(1)
+
+    await wrapper.setProps({ isStreamingMessage: false })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-render-mode="app-only"]')).toHaveLength(1)
+    expect(appMountCount).toBe(1)
+    expect(appUnmountCount).toBe(0)
   })
 
   it('does not group pending activity when the thread is idle', () => {

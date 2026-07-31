@@ -58,6 +58,20 @@
           >
             {{ t('common.browser.name') }}
           </button>
+          <button
+            v-if="sidepanelStore.mcpAppPreviewOwnerId"
+            data-testid="mcp-app-sidepanel-tab"
+            class="rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ease-out"
+            :class="
+              sidepanelStore.activeTab === 'mcp-app'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground'
+            "
+            type="button"
+            @click="sidepanelStore.openMcpAppPreview(sidepanelStore.mcpAppPreviewOwnerId)"
+          >
+            {{ t('mcp.apps.title') }}
+          </button>
         </div>
 
         <Button variant="ghost" size="icon" class="h-7 w-7" @click="sidepanelStore.closePanel()">
@@ -74,10 +88,16 @@
         @insert-file-reference="handleWorkspaceInsertFileReference"
       />
       <BrowserPanel
-        v-else
+        v-else-if="sidepanelStore.activeTab === 'browser'"
         :session-id="props.sessionId"
         :is-fullscreen="isBrowserFullscreenActive"
         @toggle-fullscreen="toggleBrowserFullscreen"
+      />
+      <div
+        id="mcp-app-sidepanel-outlet"
+        data-testid="mcp-app-sidepanel-outlet"
+        v-show="sidepanelStore.activeTab === 'mcp-app'"
+        class="min-h-0 flex-1"
       />
     </aside>
   </div>

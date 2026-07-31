@@ -402,6 +402,10 @@
       "caption": "The spotlight stays on the input box until you send your first message."
     }
   },
+  "messageReceipt": {
+    "unread": "Ulæst",
+    "read": "Læst"
+  },
   "attachments": {
     "chooseRepresentation": "Vælg, hvordan {name} skal sendes",
     "representation": "Visning af vedhæftet fil",

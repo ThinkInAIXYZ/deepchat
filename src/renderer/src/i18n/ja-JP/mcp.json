@@ -88,11 +88,6 @@
     "addArg": "パラメーターを追加",
     "argPlaceholder": "パラメーター値を入力",
     "argsRequired": "パラメーターを空にすることはできません",
-    "autoApprove": "自動認証",
-    "autoApproveAll": "全て",
-    "autoApproveHelp": "自動認証が必要な操作タイプを選択し、ユーザー確認なしで実行する",
-    "autoApproveRead": "読む",
-    "autoApproveWrite": "書く",
     "baseUrl": "基本URL",
     "baseUrlPlaceholder": "サーバーの基本URLを入力します（例：http：// localhost：3000）",
     "cancel": "キャンセル",
@@ -251,7 +246,7 @@
   "market": {
     "browseBuiltin": "内蔵MCPマーケットを閲覧",
     "builtinTitle": "MCP市場",
-    "poweredBy": "Powered by MCPRouter",
+    "poweredBy": "MCPRouter により提供",
     "keyGuide": "APIキーを取得",
     "keyHelpText": "まず",
     "keyHelpEnd": "でAPIキーを申請し、上記の入力ボックスに入力してください",
@@ -305,5 +300,51 @@
     "selectModel": "モデルを選択してください",
     "sendResponse": "応答を送信する",
     "sessionActive": "セッションがアクティブです - リクエストは自動的に承認されます"
+  },
+  "elicitation": {
+    "title": "MCP 入力リクエスト",
+    "accept": "送信",
+    "decline": "拒否",
+    "noFields": "このリクエストにはフォーム項目がありません。",
+    "openLink": "安全なリンクを開く",
+    "selectValue": "値を選択",
+    "error": {
+      "required": "この項目は必須です。",
+      "number": "有効な数値を入力してください。",
+      "integer": "整数を入力してください。",
+      "boolean": "有効な true または false を選択してください。",
+      "range": "値が許容範囲外です。",
+      "selection": "有効な選択肢を選んでください。",
+      "length": "テキストの長さが許容範囲外です。",
+      "format": "指定された形式で値を入力してください。"
+    }
+  },
+  "apps": {
+    "title": "MCP App",
+    "interactiveContent": "MCP サーバーからのインタラクティブコンテンツ",
+    "loadError": "この MCP App を読み込めません。",
+    "retry": "再試行",
+    "fullscreen": "全画面で開く",
+    "pictureInPicture": "ピクチャ・イン・ピクチャで開く",
+    "returnInline": "インライン表示に戻す",
+    "securityDetails": "セキュリティ情報",
+    "allowedOrigins": "宣言されたネットワークオリジン",
+    "requestedPermissions": "要求されたデバイス権限",
+    "noneDeclared": "宣言なし",
+    "advisoryDomain": "参考ドメイン",
+    "toolAccessSuspended": "リクエストが拒否されたため、ツールへのアクセスは停止されています。",
+    "retryAccess": "アクセスを再試行",
+    "permissions": {
+      "camera": "カメラ",
+      "microphone": "マイク",
+      "geolocation": "位置情報",
+      "clipboardWrite": "クリップボードへの書き込み"
+    },
+    "consent": {
+      "title": "MCP App からのリクエスト",
+      "description": "インタラクティブな MCP コンテンツが要求した操作を確認してください。",
+      "allowOnce": "1 回だけ許可",
+      "deny": "拒否"
+    }
   }
 }

@@ -88,11 +88,6 @@
     "addArg": "Adicionar argumento",
     "argPlaceholder": "Digite o valor do argumento",
     "argsRequired": "Os parâmetros não podem estar vazios",
-    "autoApprove": "Aprovação automática",
-    "autoApproveAll": "Todos",
-    "autoApproveHelp": "Selecione o tipo de operação que requer autorização automática e execute sem confirmação do usuário",
-    "autoApproveRead": "Leitura",
-    "autoApproveWrite": "Escrita",
     "baseUrl": "URL Base",
     "baseUrlPlaceholder": "Digite a URL básica do servidor (por exemplo: http://localhost:3000)",
     "cancel": "Cancelar",
@@ -305,5 +300,51 @@
     "selectModel": "Selecione o modelo",
     "sendResponse": "Enviar resposta",
     "sessionActive": "Sessão ativa - a solicitação será aprovada automaticamente"
+  },
+  "elicitation": {
+    "title": "Solicitação de entrada MCP",
+    "accept": "Enviar",
+    "decline": "Recusar",
+    "noFields": "Esta solicitação não tem campos de formulário.",
+    "openLink": "Abrir link seguro",
+    "selectValue": "Selecionar um valor",
+    "error": {
+      "required": "Este campo é obrigatório.",
+      "number": "Insira um número válido.",
+      "integer": "Insira um número inteiro.",
+      "boolean": "Escolha um valor true ou false válido.",
+      "range": "O valor está fora do intervalo permitido.",
+      "selection": "Escolha uma opção válida.",
+      "length": "O tamanho do texto está fora do intervalo permitido.",
+      "format": "Insira um valor no formato solicitado."
+    }
+  },
+  "apps": {
+    "title": "MCP App",
+    "interactiveContent": "Conteúdo interativo de um servidor MCP",
+    "loadError": "Não foi possível carregar este MCP App.",
+    "retry": "Tentar novamente",
+    "fullscreen": "Abrir em tela cheia",
+    "pictureInPicture": "Abrir em picture-in-picture",
+    "returnInline": "Voltar à exibição embutida",
+    "securityDetails": "Detalhes de segurança",
+    "allowedOrigins": "Origens de rede declaradas",
+    "requestedPermissions": "Permissões de dispositivo solicitadas",
+    "noneDeclared": "Nenhuma declarada",
+    "advisoryDomain": "Domínio informativo",
+    "toolAccessSuspended": "O acesso às ferramentas foi suspenso após uma solicitação negada.",
+    "retryAccess": "Tentar acessar novamente",
+    "permissions": {
+      "camera": "Câmera",
+      "microphone": "Microfone",
+      "geolocation": "Localização",
+      "clipboardWrite": "Escrever na área de transferência"
+    },
+    "consent": {
+      "title": "Solicitação do MCP App",
+      "description": "Revise esta ação solicitada pelo conteúdo interativo do MCP.",
+      "allowOnce": "Permitir uma vez",
+      "deny": "Negar"
+    }
   }
 }

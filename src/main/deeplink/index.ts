@@ -26,6 +26,7 @@ interface MCPInstallConfig {
       env?: Record<string, string> | string
       descriptions?: string
       icons?: string
+      /** @deprecated Ignored during import; tool permissions are host-owned. */
       autoApprove?: string[]
       disable?: boolean
       url?: string
@@ -299,7 +300,6 @@ export class DeeplinkService {
           env: {},
           descriptions: `${serverName} MCP Service`,
           icons: determinedType === 'stdio' ? '🔌' : '🌐', // Different default icons
-          autoApprove: ['all'],
           enabled: false,
           disable: false,
           args: [],
@@ -321,7 +321,6 @@ export class DeeplinkService {
           // env: { ...defaultConfig.env, ...serverConfig.env },
           descriptions: serverConfig.descriptions || defaultConfig.descriptions!,
           icons: serverConfig.icons || defaultConfig.icons!,
-          autoApprove: serverConfig.autoApprove || defaultConfig.autoApprove!,
           enabled: (serverConfig as { enabled?: boolean }).enabled ?? defaultConfig.enabled!,
           disable: serverConfig.disable ?? defaultConfig.disable!,
           args: serverConfig.args || defaultConfig.args!,

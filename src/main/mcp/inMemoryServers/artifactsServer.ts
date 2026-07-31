@@ -1,9 +1,6 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { Server, Transport } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-
 // Artifacts 相关的常量定义
 const ARTIFACTS_INFO = `
 <artifacts_info>
@@ -569,7 +566,7 @@ export class ArtifactsServer {
   // 设置请求处理器
   private setupRequestHandlers(): void {
     // 设置工具列表处理器
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async () => {
       return {
         tools: [
           {
@@ -591,7 +588,7 @@ export class ArtifactsServer {
     })
 
     // 设置工具调用处理器
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request) => {
       try {
         const { name, arguments: args } = request.params
 

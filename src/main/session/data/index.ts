@@ -2,6 +2,7 @@ import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import type { TapeMutationProjection } from '@/tape/ports/storage'
 import type { SessionTapePort } from './contracts'
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { SessionPendingInputStore } from './pendingInputStore'
 import { SessionPendingInputs } from './pendingInputs'
 import { SessionSettingsStore } from './settings'
@@ -20,6 +21,7 @@ export function createSessionData(
 
 export type SessionDataEvents = {
   publishPendingInputsChanged(sessionId: string): void
+  publishMessagesChanged(sessionId: string, messages: ChatMessageRecord[]): void
 }
 
 export function createSessionDataFromDatabase(
@@ -84,7 +86,7 @@ export function createSessionDataFromDatabase(
     transcript,
     tape,
     tapeStore,
-    pendingInputs: new SessionPendingInputs(pendingInputStore, events.publishPendingInputsChanged)
+    pendingInputs: new SessionPendingInputs(pendingInputStore, transcript, events)
   }
 }
 

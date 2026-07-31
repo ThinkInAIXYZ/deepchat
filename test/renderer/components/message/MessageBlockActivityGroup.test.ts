@@ -105,9 +105,14 @@ const mountGroup = () =>
             block: {
               type: Object,
               required: true
+            },
+            renderMode: {
+              type: String,
+              default: 'full'
             }
           },
-          template: '<div data-testid="tool-block">{{ block.tool_call?.name }}</div>'
+          template:
+            '<div data-testid="tool-block" :data-render-mode="renderMode">{{ block.tool_call?.name }}</div>'
         })
       }
     }
@@ -160,6 +165,9 @@ describe('MessageBlockActivityGroup', () => {
     )
     expect(wrapper.find('[data-testid="think-block"]').text()).toBe('thinking')
     expect(wrapper.find('[data-testid="tool-block"]').text()).toBe('shell_command')
+    expect(wrapper.find('[data-testid="tool-block"]').attributes('data-render-mode')).toBe(
+      'tool-only'
+    )
 
     await wrapper.get('[data-testid="activity-group-toggle"]').trigger('click')
 

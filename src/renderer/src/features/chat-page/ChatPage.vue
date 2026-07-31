@@ -131,7 +131,6 @@
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
           <div class="relative w-full">
             <PendingInputLane
-              :steer-items="pendingInputStore.steerItems"
               :queue-items="pendingInputStore.queueItems"
               :disable-steer-action="pendingInputStore.isAtCapacity"
               :disable-queue-steer-action="disableQueueSteerAction"
@@ -234,7 +233,6 @@
                         :send-disabled="isInputSubmitDisabled"
                         :queue-disabled="isQueueSubmitDisabled"
                         :steer-disabled="disableQueueSteerAction"
-                        :is-steering="isSteering"
                         :is-stopping="isStopping"
                         :show-voice-input="isVoiceInputEnabled"
                         :is-voice-input-listening="isVoiceInputListening"
@@ -1168,7 +1166,6 @@ const {
   attachmentPreparationSummary: composerAttachmentPreparationSummary,
   isPreparingAttachments,
   hasDraftInput,
-  isSteering,
   isQueueSubmitDisabled,
   isInputSubmitDisabled,
   disableQueueSteerAction,

@@ -46187,6 +46187,335 @@
         }
       ]
     },
+    "qvac": {
+      "id": "qvac",
+      "name": "QVAC",
+      "display_name": "QVAC",
+      "doc": "https://www.npmjs.com/package/@qvac/ai-sdk-provider",
+      "models": [
+        {
+          "id": "gemma4-31b",
+          "name": "Gemma 4 31B IT",
+          "display_name": "Gemma 4 31B IT",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-04-02",
+          "last_updated": "2026-04-02",
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.6-35b-a3b",
+          "name": "Qwen3.6 35B-A3B",
+          "display_name": "Qwen3.6 35B-A3B",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-04-17",
+          "last_updated": "2026-04-17",
+          "type": "chat"
+        },
+        {
+          "id": "gpt-oss-20b",
+          "name": "GPT OSS 20B",
+          "display_name": "GPT OSS 20B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-08-05",
+          "last_updated": "2025-08-05",
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.5-9b",
+          "name": "Qwen3.5 9B",
+          "display_name": "Qwen3.5 9B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-02-23",
+          "last_updated": "2026-02-23",
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.6-27b",
+          "name": "Qwen3.6 27B",
+          "display_name": "Qwen3.6 27B",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-04-22",
+          "last_updated": "2026-04-22",
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.5-4b",
+          "name": "Qwen3.5 4B",
+          "display_name": "Qwen3.5 4B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-11-01",
+          "last_updated": "2025-11-01",
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.5-0.8b",
+          "name": "Qwen3.5 0.8B",
+          "display_name": "Qwen3.5 0.8B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-11-01",
+          "last_updated": "2025-11-01",
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.5-2b",
+          "name": "Qwen3.5 2B",
+          "display_name": "Qwen3.5 2B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-11-01",
+          "last_updated": "2025-11-01",
+          "type": "chat"
+        },
+        {
+          "id": "gpt-oss-120b",
+          "name": "GPT OSS 120B",
+          "display_name": "GPT OSS 120B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-08-05",
+          "last_updated": "2025-08-05",
+          "type": "chat"
+        }
+      ]
+    },
     "abliteration-ai": {
       "id": "abliteration-ai",
       "name": "abliteration.ai",
@@ -88582,7 +88911,7 @@
           },
           "attachment": true,
           "open_weights": false,
-          "knowledge": "2025-02-31",
+          "knowledge": "2025-02-28",
           "release_date": "2025-11-18",
           "last_updated": "2025-11-18",
           "type": "chat"
@@ -95156,7 +95485,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 524288,
             "output": 65536
           },
           "temperature": true,
@@ -96400,7 +96729,7 @@
           },
           "attachment": false,
           "open_weights": false,
-          "release_date": "2025-25-11",
+          "release_date": "2025-06-05",
           "last_updated": "2026-03-17",
           "type": "embedding"
         }
@@ -103050,7 +103379,7 @@
           },
           "attachment": true,
           "open_weights": false,
-          "knowledge": "2025-02-31",
+          "knowledge": "2025-02-28",
           "release_date": "2025-11-18",
           "last_updated": "2025-11-18",
           "type": "chat"
@@ -108796,6 +109125,7 @@
           "display_name": "Grok Imagine Video 1.5",
           "modalities": {
             "input": [
+              "text",
               "image",
               "pdf"
             ],
@@ -144415,6 +144745,40 @@
           "knowledge": "2024-08",
           "release_date": "2026-04-30",
           "last_updated": "2026-07-22",
+          "type": "chat"
+        },
+        {
+          "id": "minimax-m3",
+          "name": "MiniMax-M3",
+          "display_name": "MiniMax-M3",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 512000,
+            "output": 512000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-30",
+          "last_updated": "2026-07-31",
           "type": "chat"
         },
         {
@@ -244163,7 +244527,7 @@
           },
           "limit": {
             "context": 131072,
-            "output": 32768
+            "output": 131072
           },
           "tool_call": true,
           "reasoning": {

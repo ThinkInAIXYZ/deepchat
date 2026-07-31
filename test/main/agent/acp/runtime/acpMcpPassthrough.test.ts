@@ -35,7 +35,6 @@ describe('ACP MCP passthrough helpers', () => {
       env: { FOO: 'bar', NUM: 1 },
       descriptions: 'desc',
       icons: '🧪',
-      autoApprove: [],
       enabled: true
     })
 
@@ -81,7 +80,6 @@ describe('AcpSessionManager MCP server injection', () => {
           env: {},
           descriptions: '',
           icons: '',
-          autoApprove: [],
           enabled: true
         },
         'http-1': {
@@ -91,7 +89,6 @@ describe('AcpSessionManager MCP server injection', () => {
           env: {},
           descriptions: '',
           icons: '',
-          autoApprove: [],
           enabled: true,
           baseUrl: 'http://localhost',
           customHeaders: { Authorization: 'Bearer test' }

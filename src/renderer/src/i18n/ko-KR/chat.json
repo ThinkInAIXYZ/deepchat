@@ -402,6 +402,10 @@
       "caption": "첫 메시지를 보낼 때까지 스포트라이트가 입력창에 유지됩니다."
     }
   },
+  "messageReceipt": {
+    "unread": "읽지 않음",
+    "read": "읽음"
+  },
   "attachments": {
     "chooseRepresentation": "{name} 전송 방법 선택",
     "representation": "첨부 파일 전송 형식",

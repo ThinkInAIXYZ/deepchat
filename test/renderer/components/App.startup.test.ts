@@ -443,6 +443,8 @@ const mountApp = async (options?: {
         UpdateDialog: true,
         MessageDialog: true,
         McpSamplingDialog: true,
+        McpElicitationDialog: true,
+        McpAppConsentDialog: true,
         SelectedTextContextMenu: true,
         TranslatePopup: true,
         SpotlightOverlay: true,

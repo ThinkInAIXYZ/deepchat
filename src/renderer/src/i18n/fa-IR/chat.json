@@ -402,6 +402,10 @@
       "caption": "تا زمانی که اولین پیام خود را ارسال کنید، نورافکن روی کادر ورودی می‌ماند."
     }
   },
+  "messageReceipt": {
+    "unread": "خوانده‌نشده",
+    "read": "خوانده‌شده"
+  },
   "attachments": {
     "chooseRepresentation": "نحوهٔ ارسال {name} را انتخاب کنید",
     "representation": "شیوهٔ نمایش پیوست",

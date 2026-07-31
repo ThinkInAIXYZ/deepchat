@@ -3,7 +3,7 @@
  * Types for the unified right sidepanel workspace experience.
  */
 
-export type SidePanelTab = 'workspace' | 'browser'
+export type SidePanelTab = 'workspace' | 'browser' | 'mcp-app'
 
 export type WorkspaceNavSection = 'artifacts' | 'files' | 'git' | 'subagents'
 

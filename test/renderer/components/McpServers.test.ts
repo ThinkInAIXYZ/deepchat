@@ -8,6 +8,14 @@ const passthrough = (name: string) =>
     template: '<div><slot /></div>'
   })
 
+const dialogStub = defineComponent({
+  name: 'Dialog',
+  props: {
+    open: { type: Boolean, default: false }
+  },
+  template: '<div data-testid="dialog" :data-open="open"><slot /></div>'
+})
+
 const buttonStub = defineComponent({
   name: 'Button',
   props: {
@@ -29,11 +37,15 @@ const serverCardStub = defineComponent({
       required: true
     }
   },
-  emits: ['toggle', 'authenticate'],
+  emits: ['toggle', 'authenticate', 'remove', 'diagnostics'],
   template: `
     <div>
       <button data-testid="server-card" @click="$emit('toggle')">{{ server.name }}:{{ server.enabled }}</button>
       <button data-testid="authenticate-server" @click="$emit('authenticate')">auth</button>
+      <button data-testid="remove-server" @click="$emit('remove')">remove</button>
+      <button data-testid="diagnostics-server" @click="$emit('diagnostics')">
+        {{ server.name }} diagnostics
+      </button>
     </div>
   `
 })
@@ -79,6 +91,27 @@ type SetupOptions = {
     mcpServers?: Record<string, Record<string, unknown>>
   }
 }
+
+const createDiagnostics = (serverId: string) => ({
+  serverId,
+  serverName: 'fixture',
+  owner: 'deepchat' as const,
+  transport: 'http' as const,
+  connectionState: 'running' as const,
+  era: 'modern' as const,
+  protocolVersion: '2025-06-18',
+  probe: {
+    outcome: 'modern' as const
+  },
+  extensions: [],
+  clientExtensions: [],
+  cacheState: 'active' as const,
+  subscriptions: [],
+  auth: {
+    state: 'none' as const
+  },
+  updatedAt: 1
+})
 
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
@@ -171,6 +204,17 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('vue-router', () => ({
     useRouter: () => router
   }))
+  const getServerDiagnostics = vi.fn()
+  vi.doMock('@api/McpClient', () => ({
+    createMcpClient: () => ({
+      getServerDiagnostics
+    })
+  }))
+  vi.doMock('@api/DeviceClient', () => ({
+    createDeviceClient: () => ({
+      copyText: vi.fn()
+    })
+  }))
 
   const McpServers = (await import('@/components/mcp-config/components/McpServers.vue')).default
 
@@ -182,7 +226,7 @@ const setup = async (options: SetupOptions = {}) => {
       stubs: {
         Button: buttonStub,
         ScrollArea: passthrough('ScrollArea'),
-        Dialog: passthrough('Dialog'),
+        Dialog: dialogStub,
         DialogTrigger: passthrough('DialogTrigger'),
         DialogContent: passthrough('DialogContent'),
         DialogHeader: passthrough('DialogHeader'),
@@ -194,6 +238,7 @@ const setup = async (options: SetupOptions = {}) => {
         McpToolPanel: true,
         McpPromptPanel: true,
         McpResourceViewer: true,
+        McpEnterpriseProfiles: true,
         Icon: true
       }
     }
@@ -203,7 +248,8 @@ const setup = async (options: SetupOptions = {}) => {
     wrapper,
     router,
     mcpStore,
-    notifyRenderer
+    notifyRenderer,
+    getServerDiagnostics
   }
 }
 
@@ -224,6 +270,74 @@ describe('McpServers', () => {
     const { wrapper } = await setup({ showFooterAddButton: false })
 
     expect(wrapper.text()).not.toContain('common.add')
+  })
+
+  it('uses a localized refresh label in MCP diagnostics', async () => {
+    const { wrapper } = await setup()
+
+    expect(wrapper.text()).toContain('mcp.tools.refresh')
+    expect(wrapper.text()).not.toContain('common.refresh')
+  })
+
+  it('ignores diagnostics responses from a previously selected server', async () => {
+    const { wrapper, getServerDiagnostics } = await setup({ withServers: true })
+    let resolveRunning!: (value: ReturnType<typeof createDiagnostics>) => void
+    let resolveStopped!: (value: ReturnType<typeof createDiagnostics>) => void
+    getServerDiagnostics.mockImplementation(
+      (serverName: string) =>
+        new Promise<ReturnType<typeof createDiagnostics>>((resolve) => {
+          if (serverName === 'running-server') {
+            resolveRunning = resolve
+          } else {
+            resolveStopped = resolve
+          }
+        })
+    )
+
+    const diagnosticButtons = wrapper.findAll('[data-testid="diagnostics-server"]')
+    await diagnosticButtons[0].trigger('click')
+    await diagnosticButtons[1].trigger('click')
+
+    resolveStopped(createDiagnostics('stopped-id'))
+    await flushPromises()
+    expect(
+      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
+    ).toBe('stopped-id')
+
+    resolveRunning(createDiagnostics('running-id'))
+    await flushPromises()
+    expect(
+      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
+    ).toBe('stopped-id')
+  })
+
+  it('clears diagnostics while loading a different server', async () => {
+    const { wrapper, getServerDiagnostics } = await setup({ withServers: true })
+    let resolveStopped!: (value: ReturnType<typeof createDiagnostics>) => void
+    getServerDiagnostics
+      .mockResolvedValueOnce(createDiagnostics('running-id'))
+      .mockImplementationOnce(
+        () =>
+          new Promise<ReturnType<typeof createDiagnostics>>((resolve) => {
+            resolveStopped = resolve
+          })
+      )
+
+    const diagnosticButtons = wrapper.findAll('[data-testid="diagnostics-server"]')
+    await diagnosticButtons[0].trigger('click')
+    await flushPromises()
+    expect(
+      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
+    ).toBe('running-id')
+
+    await diagnosticButtons[1].trigger('click')
+    expect((wrapper.vm as unknown as { diagnostics: unknown }).diagnostics).toBeNull()
+
+    resolveStopped(createDiagnostics('stopped-id'))
+    await flushPromises()
+    expect(
+      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
+    ).toBe('stopped-id')
   })
 
   it('keeps duplicate add feedback inline until the server name changes', async () => {
@@ -390,6 +504,40 @@ describe('McpServers', () => {
 
     expect(wrapper.text()).toContain('settings.mcp.noServersFound')
     expect(wrapper.findAll('[data-testid="server-card"]')).toHaveLength(0)
+  })
+
+  it('closes the removal dialog before a slow server shutdown finishes', async () => {
+    const { wrapper, mcpStore } = await setup({ withServers: true })
+    let resolveRemoval!: (value: boolean) => void
+    mcpStore.removeServer.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRemoval = resolve
+        })
+    )
+
+    await wrapper.find('[data-testid="remove-server"]').trigger('click')
+    const removeDialog = wrapper
+      .findAll('[data-testid="dialog"]')
+      .find((dialog) => dialog.text().includes('settings.mcp.removeServerDialog.title'))
+
+    expect(removeDialog?.attributes('data-open')).toBe('true')
+    const confirmButton = removeDialog
+      ?.findAll('[data-testid="action-button"]')
+      .find((button) => button.text().includes('common.confirm'))
+    expect(confirmButton).toBeDefined()
+    await confirmButton?.trigger('click')
+
+    expect(mcpStore.removeServer).toHaveBeenCalledWith('running-server')
+    expect(
+      wrapper
+        .findAll('[data-testid="dialog"]')
+        .find((dialog) => dialog.text().includes('settings.mcp.removeServerDialog.title'))
+        ?.attributes('data-open')
+    ).toBe('false')
+
+    resolveRemoval(true)
+    await flushPromises()
   })
 
   it('refreshes auth status when returning to the callback dialog', async () => {

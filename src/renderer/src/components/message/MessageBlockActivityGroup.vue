@@ -49,6 +49,7 @@
             :block="block"
             :message-id="messageId"
             :thread-id="threadId"
+            render-mode="tool-only"
           />
         </template>
       </div>

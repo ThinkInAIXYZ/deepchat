@@ -85,6 +85,7 @@ type StagedToolResult = {
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
   imagePreviews?: ToolCallImagePreview[]
+  mcpResult?: MCPToolResponse['mcpResult']
   skillDraftPrompt?: SkillDraftPromptPayload
   postHookKind: 'success' | 'failure'
   skippedReason?: 'max_tokens'
@@ -491,7 +492,8 @@ function updateToolCallBlock(
     rtkMode?: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
   },
-  imagePreviews?: ToolCallImagePreview[]
+  imagePreviews?: ToolCallImagePreview[],
+  mcpResult?: MCPToolResponse['mcpResult']
 ): void {
   const block = blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === toolCallId)
   if (block?.tool_call) {
@@ -509,6 +511,9 @@ function updateToolCallBlock(
       block.tool_call.imagePreviews = imagePreviews
     } else if (imagePreviews) {
       delete block.tool_call.imagePreviews
+    }
+    if (mcpResult) {
+      block.tool_call.mcpResult = mcpResult
     }
     block.status = isError ? 'error' : 'success'
   }
@@ -766,6 +771,7 @@ function buildReturnedToolResultOutcome(
       rtkMode: rawData.rtkMode,
       rtkFallbackReason: rawData.rtkFallbackReason,
       imagePreviews: rawData.imagePreviews,
+      mcpResult: rawData.mcpResult,
       postHookKind: isError ? 'failure' : 'success'
     },
     toolsChanged: false
@@ -900,7 +906,8 @@ function applyFinalizedToolResults(params: {
             rtkMode: stagedResult.rtkMode,
             rtkFallbackReason: stagedResult.rtkFallbackReason
           },
-      imagePresentation.toolBlockImagePreviews
+      imagePresentation.toolBlockImagePreviews,
+      stagedResult.mcpResult
     )
     if (stagedResult.skippedReason) {
       markToolCallSkipped(batchToolCallBlocks, stagedResult.toolCallId, stagedResult.skippedReason)
@@ -1639,6 +1646,7 @@ async function runToolCall(params: {
         rtkMode: toolRawData.rtkMode,
         rtkFallbackReason: toolRawData.rtkFallbackReason,
         imagePreviews,
+        mcpResult: toolRawData.mcpResult,
         skillDraftPrompt: extractSkillDraftPromptPayload(toolRawData),
         postHookKind: stagedIsError ? 'failure' : 'success'
       },

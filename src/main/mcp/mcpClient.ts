@@ -1,30 +1,42 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { type Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import type { ChildProcess } from 'node:child_process'
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import {
-  ToolListChangedNotificationSchema,
-  PromptListChangedNotificationSchema,
-  ResourceListChangedNotificationSchema,
-  ResourceUpdatedNotificationSchema,
-  LoggingMessageNotificationSchema,
-  CreateMessageRequestSchema,
-  ErrorCode,
-  McpError
-} from '@modelcontextprotocol/sdk/types.js'
-import type { CreateMessageRequest, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js'
+  Client,
+  InMemoryTransport,
+  ProtocolError,
+  ProtocolErrorCode,
+  SdkError,
+  SdkErrorCode,
+  SSEClientTransport,
+  StreamableHTTPClientTransport,
+  UnauthorizedError,
+  fromJsonSchema
+} from '@modelcontextprotocol/client'
+import type {
+  AuthProvider,
+  ClientContext,
+  CreateMessageRequest,
+  CreateMessageResult,
+  ElicitRequest,
+  ElicitResult,
+  ListPromptsResult,
+  ListResourcesResult,
+  ListResourceTemplatesResult,
+  ListRootsRequest,
+  ListRootsResult,
+  ListToolsResult,
+  Tool as SdkTool,
+  Transport
+} from '@modelcontextprotocol/client'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import path from 'path'
+import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
 // import { NO_PROXY, proxyConfig } from '@/platform/proxy'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import { terminateProcessTree } from '@/agent/shared/process/processTree'
+import { terminateProcessTreeByPid } from '@/agent/shared/process/processTree'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { McpOAuthManager } from './mcpOAuthManager'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -35,8 +47,12 @@ import type {
   Tool,
   ResourceListEntry,
   Resource,
+  McpElicitationRequestPayload,
+  McpServerDiagnostics,
   McpSamplingRequestPayload,
   McpSamplingDecision,
+  McpServerAuthStatus,
+  McpProbeReasonCode,
   MCPServerConfig
 } from '@shared/types/mcp'
 import type { McpServicePort } from '@shared/types/mcp'
@@ -47,6 +63,15 @@ import type {
   McpServerStatusReason
 } from '@shared/types/core/mcp'
 import { createMinimalProcessEnvironment } from './processEnvironment'
+import {
+  assertBoundedMcpJson,
+  validateAndCloneJsonSchema,
+  validateAndCloneMcpTool
+} from './schemaValidation'
+import {
+  AUTH_EXTENSION_CLIENT_CREDENTIALS,
+  MCP_CLIENT_CREDENTIALS_DRAFT_REVISION
+} from './mcpOAuthManager'
 
 const ALLOWED_SAMPLING_IMAGE_MIME_TYPES = new Set([
   'image/png',
@@ -57,17 +82,84 @@ const ALLOWED_SAMPLING_IMAGE_MIME_TYPES = new Set([
 
 const MCP_STARTUP_SOFT_TIMEOUT_MS = 45 * 1000
 const MCP_CONNECT_HARD_TIMEOUT_MS = 5 * 60 * 1000
+const MCP_NEGOTIATION_PROBE_TIMEOUT_MS = 8 * 1000
+const MCP_STDIO_MAX_BUFFER_BYTES = 10 * 1024 * 1024
+const MCP_INPUT_REQUIRED_MAX_ROUNDS = 10
+const MCP_DEFAULT_CACHE_TTL_MS = 0
+const MCP_SAMPLING_MAX_MESSAGES = 128
+const MCP_SAMPLING_MAX_TEXT_BYTES = 1024 * 1024
+const MCP_SAMPLING_MAX_IMAGE_BYTES = 8 * 1024 * 1024
+const MCP_SAMPLING_MAX_ENCODED_IMAGE_CHARS = 12 * 1024 * 1024
+const MCP_SAMPLING_MAX_TOTAL_BYTES = 20 * 1024 * 1024
+const MCP_SAMPLING_MAX_HINTS = 64
+const MCP_TOOL_RESULT_MAX_BYTES = 32 * 1024 * 1024
+const MCP_CONTROL_RESULT_MAX_BYTES = 32 * 1024 * 1024
+const MCP_ELICITATION_MAX_MESSAGE_BYTES = 32 * 1024
+const MCP_ELICITATION_MAX_URL_BYTES = 8 * 1024
+const MCP_ELICITATION_MAX_FIELDS = 256
+const MCP_ELICITATION_MAX_CONTENT_BYTES = 1024 * 1024
+const MCP_CUSTOM_HEADER_MAX_COUNT = 64
+const MCP_CUSTOM_HEADER_MAX_NAME_BYTES = 256
+const MCP_CUSTOM_HEADER_MAX_VALUE_BYTES = 16 * 1024
+const HTTP_HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
+
+const normalizeCustomHeaders = (raw: unknown): Record<string, string> => {
+  if (raw === undefined) {
+    return {}
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('MCP custom headers must be an object')
+  }
+  const entries = Object.entries(raw)
+  if (entries.length > MCP_CUSTOM_HEADER_MAX_COUNT) {
+    throw new Error('MCP custom headers exceeded the host limit')
+  }
+  return Object.fromEntries(
+    entries.map(([name, value]) => {
+      if (
+        !HTTP_HEADER_NAME_PATTERN.test(name) ||
+        Buffer.byteLength(name, 'utf8') > MCP_CUSTOM_HEADER_MAX_NAME_BYTES
+      ) {
+        throw new Error(`Invalid MCP custom header name: ${name.slice(0, 128)}`)
+      }
+      if (
+        typeof value !== 'string' ||
+        /[\r\n]/.test(value) ||
+        Buffer.byteLength(value, 'utf8') > MCP_CUSTOM_HEADER_MAX_VALUE_BYTES
+      ) {
+        throw new Error(`Invalid MCP custom header value for ${name}`)
+      }
+      return [name, value]
+    })
+  )
+}
+
+const normalizeRemoteMcpUrl = (raw: unknown): URL => {
+  if (typeof raw !== 'string' || !raw.trim()) {
+    throw new Error('MCP remote server URL is missing')
+  }
+  const url = new URL(raw)
+  if (
+    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+    url.username ||
+    url.password ||
+    url.hash
+  ) {
+    throw new Error('MCP remote server URL must be HTTP(S) without credentials or fragments')
+  }
+  return url
+}
 
 export type McpConnectResult = 'connected' | 'soft-timeout-released' | 'stopped'
 
-export class McpStartupSoftTimeoutError extends Error {
+class McpStartupSoftTimeoutError extends Error {
   constructor(serverName: string) {
     super(`Connection to MCP server ${serverName} reached startup soft timeout`)
     this.name = 'McpStartupSoftTimeoutError'
   }
 }
 
-export class McpConnectionHardTimeoutError extends Error {
+class McpConnectionHardTimeoutError extends Error {
   constructor(serverName: string) {
     super(`Connection to MCP server ${serverName} timed out`)
     this.name = 'McpConnectionHardTimeoutError'
@@ -93,83 +185,35 @@ interface ServerStatusChangedOptions {
   message?: string
 }
 
-type StdioClientTransportProcessAccess = {
-  _process?: ChildProcess
-}
-
 export type McpClientRuntime = {
   sampling: Pick<McpServicePort, 'handleSamplingRequest' | 'cancelSamplingRequest'>
+  elicitation: Pick<McpServicePort, 'handleElicitationRequest' | 'cancelElicitationRequest'>
   completion: Pick<ProviderRuntimePort, 'generateCompletionStandalone'>
   config: Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>
 }
 
-// TODO: resources 和 prompts 的类型,Notifactions 的类型 https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/examples/client/simpleStreamableHttp.ts
-// Simple OAuth provider for handling Bearer Token
-class SimpleOAuthProvider {
-  private token: string | null = null
+// Static bearer adapter. Configured headers take precedence over managed OAuth modes.
+class SimpleOAuthProvider implements AuthProvider {
+  private accessToken: string | null = null
 
   constructor(authHeader: string | undefined) {
     if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
-      this.token = authHeader.substring(7) // Remove 'Bearer ' prefix
+      const token = authHeader.substring(7).trim()
+      if (!token) {
+        throw new Error('MCP Bearer authorization header is missing a token')
+      }
+      this.accessToken = token
     }
   }
 
-  async tokens(): Promise<{ access_token: string } | null> {
-    if (this.token) {
-      return { access_token: this.token }
-    }
-    return null
+  async token(): Promise<string | undefined> {
+    return this.accessToken ?? undefined
   }
-}
-
-// Session management related types
-interface SessionError extends Error {
-  httpStatus?: number
-  isSessionExpired?: boolean
-}
-
-interface RequestHandlerContext {
-  signal?: AbortSignal
-  requestId?: string | number
-  [key: string]: unknown
-}
-
-// Helper function to check if error is session-related
-function isSessionError(error: unknown): error is SessionError {
-  if (error instanceof Error) {
-    const message = error.message.toLowerCase()
-
-    // Check for specific MCP Streamable HTTP session error patterns
-    const sessionErrorPatterns = [
-      'no valid session',
-      'session expired',
-      'session not found',
-      'invalid session',
-      'session id',
-      'mcp-session-id'
-    ]
-
-    const httpErrorPatterns = ['http 400', 'http 404', 'bad request', 'not found']
-
-    // Check for session-specific errors first (high confidence)
-    const hasSessionPattern = sessionErrorPatterns.some((pattern) => message.includes(pattern))
-    if (hasSessionPattern) {
-      return true
-    }
-
-    // Check for HTTP errors that might be session-related (lower confidence)
-    // Only treat as session error if it's an HTTP transport
-    const hasHttpPattern = httpErrorPatterns.some((pattern) => message.includes(pattern))
-    if (hasHttpPattern && (message.includes('posting') || message.includes('endpoint'))) {
-      return true
-    }
-  }
-  return false
 }
 
 function isUnsupportedCapabilityError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
-  if (error instanceof McpError && error.code === ErrorCode.MethodNotFound) {
+  if (error instanceof ProtocolError && error.code === ProtocolErrorCode.MethodNotFound) {
     return true
   }
   return /method not found|unknown method|not supported|unsupported|mcp error -32601/i.test(message)
@@ -179,6 +223,26 @@ function isUnsupportedCapabilityError(error: unknown): boolean {
 const isAbortError = (error: unknown): boolean =>
   error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
 
+const withUnsupportedCapabilityFallback = async <T>(
+  request: () => Promise<T>,
+  fallback: T,
+  signal?: AbortSignal
+): Promise<T> => {
+  try {
+    const result = await request()
+    signal?.throwIfAborted()
+    return result
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) {
+      throw error
+    }
+    if (isUnsupportedCapabilityError(error)) {
+      return fallback
+    }
+    throw error
+  }
+}
+
 export class McpClient {
   private client: Client | null = null
   private transport: Transport | null = null
@@ -186,7 +250,7 @@ export class McpClient {
   public serverConfig: Record<string, unknown>
   private isConnected: boolean = false
   private connectionTimeout: NodeJS.Timeout | null = null
-  private stdioChildProcessForShutdown?: ChildProcess
+  private stdioPidForShutdown?: number
   private connectPromise: Promise<void> | null = null
   private startupAttempt = 0
   private lifecycleStatus: McpServerLifecycleStatus = 'stopped'
@@ -198,15 +262,7 @@ export class McpClient {
   private readonly runtime: McpClientRuntime
   private readonly onRegistryChanged: () => void
   private readonly runtimeHelper = RuntimeHelper.getInstance()
-
-  // Session management
-  private isRecovering: boolean = false
-  private hasRestarted: boolean = false
-
-  // Cache
-  private cachedTools: Tool[] | null = null
-  private cachedPrompts: PromptListEntry[] | null = null
-  private cachedResources: ResourceListEntry[] | null = null
+  private probe: McpServerDiagnostics['probe'] = { outcome: 'not-run' }
 
   constructor(
     serverName: string,
@@ -417,25 +473,39 @@ export class McpClient {
   }
 
   private async performConnect(attempt: number, phase: McpServerStatusPhase): Promise<void> {
+    const transportType = this.serverConfig.type
+    const useModernNegotiation =
+      !this.serverConfig.forceLegacyWire && (transportType === 'stdio' || transportType === 'http')
     try {
-      console.info(`Starting MCP server ${this.serverName}...`, this.serverConfig)
+      console.info(`Starting MCP server ${this.serverName}...`, {
+        type: this.serverConfig.type
+      })
 
       // Handle customHeaders and AuthProvider
       let authProvider: SimpleOAuthProvider | null = null
-      const customHeaders = this.serverConfig.customHeaders
-        ? { ...(this.serverConfig.customHeaders as Record<string, string>) } // Create copy for modification
-        : {}
+      const customHeaders = normalizeCustomHeaders(this.serverConfig.customHeaders)
 
-      if (customHeaders.Authorization) {
-        authProvider = new SimpleOAuthProvider(customHeaders.Authorization)
-        delete customHeaders.Authorization // Remove from headers as it will be handled by AuthProvider
+      const authorizationHeaderKeys = Object.keys(customHeaders).filter(
+        (key) => key.toLowerCase() === 'authorization'
+      )
+      if (authorizationHeaderKeys.length > 1) {
+        throw new Error('MCP server configuration contains duplicate Authorization headers')
       }
-      const runtimeOAuthProvider =
-        authProvider ??
-        this.mcpOAuthManager?.createRuntimeProvider(
-          this.serverName,
-          this.serverConfig as Partial<MCPServerConfig>
-        )
+      const authorizationHeaderKey = authorizationHeaderKeys[0]
+      const hasConfiguredAuthorization = Boolean(authorizationHeaderKey)
+      if (authorizationHeaderKey) {
+        const authorizationHeader = customHeaders[authorizationHeaderKey]
+        if (authorizationHeader.toLowerCase().startsWith('bearer ')) {
+          authProvider = new SimpleOAuthProvider(authorizationHeader)
+          delete customHeaders[authorizationHeaderKey]
+        }
+      }
+      const runtimeOAuthProvider = hasConfiguredAuthorization
+        ? (authProvider ?? undefined)
+        : await this.mcpOAuthManager?.createRuntimeProvider(
+            this.serverName,
+            this.serverConfig as Partial<MCPServerConfig>
+          )
 
       if (this.serverConfig.type === 'inmemory') {
         const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -565,25 +635,25 @@ export class McpClient {
           env.PIP_INDEX_URL = this.uvRegistry
         }
 
-        // console.log('mcp env', command, env, args)
         this.transport = new StdioClientTransport({
           command,
           args,
           env,
-          stderr: 'pipe'
+          stderr: 'pipe',
+          maxBufferSize: MCP_STDIO_MAX_BUFFER_BYTES
         })
         ;(this.transport as StdioClientTransport).stderr?.on('data', (data) => {
           console.info('mcp StdioClientTransport error', this.serverName, data.toString())
         })
       } else if (this.serverConfig.baseUrl && this.serverConfig.type === 'sse') {
-        this.transport = new SSEClientTransport(new URL(this.serverConfig.baseUrl as string), {
+        this.transport = new SSEClientTransport(normalizeRemoteMcpUrl(this.serverConfig.baseUrl), {
           requestInit: { headers: customHeaders },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           authProvider: (runtimeOAuthProvider ?? undefined) as any
         })
       } else if (this.serverConfig.baseUrl && this.serverConfig.type === 'http') {
         this.transport = new StreamableHTTPClientTransport(
-          new URL(this.serverConfig.baseUrl as string),
+          normalizeRemoteMcpUrl(this.serverConfig.baseUrl),
           {
             requestInit: { headers: customHeaders },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -595,22 +665,83 @@ export class McpClient {
       }
 
       // 创建 MCP 客户端
+      this.probe = { outcome: 'not-run' }
+      const authorizationExtensions =
+        this.mcpOAuthManager?.getUsableAuthorizationExtensions(
+          this.serverConfig as Partial<MCPServerConfig>
+        ) ?? []
       this.client = new Client(
         { name: 'DeepChat', version: app.getVersion() },
         {
           capabilities: {
-            sampling: {}
-          }
+            sampling: {},
+            elicitation: {
+              form: { applyDefaults: true },
+              url: {}
+            },
+            roots: {},
+            extensions: {
+              'io.modelcontextprotocol/ui': {
+                mimeTypes: ['text/html;profile=mcp-app']
+              },
+              ...Object.fromEntries(authorizationExtensions.map((extension) => [extension, {}]))
+            }
+          },
+          versionNegotiation: useModernNegotiation
+            ? {
+                mode: 'auto',
+                probe: {
+                  timeoutMs: MCP_NEGOTIATION_PROBE_TIMEOUT_MS,
+                  maxRetries: 0
+                }
+              }
+            : { mode: 'legacy' },
+          inputRequired: {
+            autoFulfill: true,
+            maxRounds: MCP_INPUT_REQUIRED_MAX_ROUNDS
+          },
+          listChanged: {
+            tools: {
+              onChanged: (error) => this.handleListChanged('tools', error)
+            },
+            prompts: {
+              onChanged: (error) => this.handleListChanged('prompts', error)
+            },
+            resources: {
+              onChanged: (error) => this.handleListChanged('resources', error)
+            }
+          },
+          defaultCacheTtlMs: MCP_DEFAULT_CACHE_TTL_MS
         }
       )
-
-      // 设置通知处理器
-      this.registerNotificationHandlers()
+      const connectedClient = this.client
+      connectedClient.onerror = (error) => {
+        console.warn(`[MCP] Protocol error from ${this.serverName}:`, error)
+      }
+      connectedClient.onclose = () => {
+        if (this.client !== connectedClient || !this.isConnected) {
+          return
+        }
+        this.client = null
+        this.transport = null
+        this.isConnected = false
+        this.emitServerStatusChanged('stopped', {
+          reason: 'connect-error',
+          message: 'The MCP server closed the connection'
+        })
+      }
 
       // 注册采样请求处理器
-      this.client.setRequestHandler(CreateMessageRequestSchema, async (request, extra) => {
-        return this.handleSamplingCreateMessage(request, extra)
+      this.client.setRequestHandler('sampling/createMessage', async (request, ctx) => {
+        return this.handleSamplingCreateMessage(request, ctx)
       })
+      this.client.setRequestHandler('elicitation/create', async (request, ctx) => {
+        return this.handleElicitationCreate(request, ctx)
+      })
+      this.client.setRequestHandler(
+        'roots/list',
+        async (_request: ListRootsRequest): Promise<ListRootsResult> => ({ roots: [] })
+      )
 
       // 设置连接超时
       const timeoutPromise = new Promise<void>((_, reject) => {
@@ -637,6 +768,13 @@ export class McpClient {
       }
 
       this.isConnected = true
+      if (useModernNegotiation) {
+        const era = this.client.getProtocolEra()
+        this.probe =
+          era === 'modern'
+            ? { outcome: 'modern', reasonCode: 'modern-accepted' }
+            : { outcome: 'legacy-fallback', reasonCode: 'valid-legacy-signal' }
+      }
       console.info(`MCP server ${this.serverName} connected successfully`)
 
       this.emitServerStatusChanged('connected', { phase, attempt })
@@ -655,6 +793,12 @@ export class McpClient {
         throw new McpConnectionCancelledError(this.serverName)
       }
 
+      if (useModernNegotiation) {
+        this.probe = {
+          outcome: 'failed',
+          reasonCode: this.classifyProbeFailure(error)
+        }
+      }
       console.error(`Failed to connect to MCP server ${this.serverName}:`, error)
 
       this.emitServerStatusChanged('failed', {
@@ -694,9 +838,14 @@ export class McpClient {
       this.connectionTimeout = null
     }
 
+    if (this.client) {
+      this.client.onclose = undefined
+      this.client.onerror = undefined
+    }
+
     // 关闭transport
     const transport = this.transport
-    this.stdioChildProcessForShutdown = this.getStdioChildProcess(transport)
+    this.stdioPidForShutdown = this.getStdioPid(transport) ?? this.stdioPidForShutdown
     this.transport = null
     if (transport) {
       try {
@@ -710,33 +859,26 @@ export class McpClient {
     this.client = null
     this.isConnected = false
 
-    // 清空缓存
-    this.cachedTools = null
-    this.cachedPrompts = null
-    this.cachedResources = null
-
     if (options.emitStopped) {
       this.emitServerStatusChanged('stopped', { reason: 'shutdown' })
     }
   }
 
-  private getStdioChildProcess(
-    transport: Transport | null = this.transport
-  ): ChildProcess | undefined {
+  private getStdioPid(transport: Transport | null = this.transport): number | undefined {
     if (!(transport instanceof StdioClientTransport)) {
       return undefined
     }
-    return (transport as unknown as StdioClientTransportProcessAccess)._process
+    return transport.pid ?? undefined
   }
 
   async forceTerminateStdioProcessTree(reason: string): Promise<boolean> {
-    const child = this.getStdioChildProcess() ?? this.stdioChildProcessForShutdown
-    if (!child) {
+    const pid = this.getStdioPid() ?? this.stdioPidForShutdown
+    if (!pid) {
       return false
     }
 
     try {
-      await terminateProcessTree(child, { graceMs: 2000 })
+      await terminateProcessTreeByPid(pid, { graceMs: 2000 })
       console.warn(`[MCP] Force terminated stdio process tree for ${this.serverName}: ${reason}`)
       return true
     } catch (error) {
@@ -749,95 +891,44 @@ export class McpClient {
   }
 
   private async closeTransport(transport: Transport): Promise<void> {
-    const child = this.getStdioChildProcess(transport)
-    if (child) {
-      try {
-        await terminateProcessTree(child, { graceMs: 2000 })
-      } catch (error) {
-        console.error(`Failed to terminate MCP stdio process tree for ${this.serverName}:`, error)
-      }
-    }
+    const pid = this.getStdioPid(transport)
 
     try {
       await transport.close()
     } finally {
-      if (this.stdioChildProcessForShutdown === child) {
-        this.stdioChildProcessForShutdown = undefined
+      if (pid) {
+        try {
+          await terminateProcessTreeByPid(pid, { graceMs: 2000 })
+        } catch (error) {
+          console.error(`Failed to terminate MCP stdio process tree for ${this.serverName}:`, error)
+        }
+      }
+      if (this.stdioPidForShutdown === pid) {
+        this.stdioPidForShutdown = undefined
       }
     }
   }
 
-  // Register notification handlers
-  private registerNotificationHandlers(): void {
-    if (!this.client) {
+  private handleListChanged(kind: 'tools' | 'prompts' | 'resources', error: Error | null): void {
+    if (error) {
+      console.warn(`[MCP] Failed to refresh ${kind} after list change:`, error)
       return
     }
-
-    // Tool list changed notification - clear tool cache and actively refresh
-    this.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
-      console.info(`[MCP] Tools list changed for server: ${this.serverName}`)
-      this.cachedTools = null
+    if (kind === 'tools') {
       this.onRegistryChanged()
-      // Actively refresh tool list
-      try {
-        await this.listTools()
-      } catch (error) {
-        console.warn(`[MCP] Failed to refresh tools after notification:`, error)
-      }
-    })
-
-    // Prompt list changed notification - clear prompt cache and actively refresh
-    this.client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
-      console.info(`[MCP] Prompts list changed for server: ${this.serverName}`)
-      this.cachedPrompts = null
-      // Actively refresh prompt list
-      try {
-        await this.listPrompts()
-      } catch (error) {
-        console.warn(`[MCP] Failed to refresh prompts after notification:`, error)
-      }
-    })
-
-    // Resource list changed notification - clear resource cache and actively refresh
-    this.client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
-      console.info(`[MCP] Resources list changed for server: ${this.serverName}`)
-      this.cachedResources = null
-      // Actively refresh resource list
-      try {
-        await this.listResources()
-      } catch (error) {
-        console.warn(`[MCP] Failed to refresh resources after notification:`, error)
-      }
-    })
-
-    // Resource updated notification - clear resource cache and actively refresh
-    this.client.setNotificationHandler(ResourceUpdatedNotificationSchema, async (params) => {
-      console.info(`[MCP] Resource updated for server: ${this.serverName}`, params)
-      this.cachedResources = null
-      // Actively refresh resource list
-      try {
-        await this.listResources()
-      } catch (error) {
-        console.warn(`[MCP] Failed to refresh resources after update notification:`, error)
-      }
-    })
-
-    // Logging message notification - just log the message
-    this.client.setNotificationHandler(LoggingMessageNotificationSchema, async (params) => {
-      console.info(`[MCP] Log message from server ${this.serverName}:`, params)
-    })
+    }
   }
 
   private async handleSamplingCreateMessage(
     request: CreateMessageRequest,
-    extra: RequestHandlerContext
+    ctx: ClientContext
   ): Promise<CreateMessageResult> {
     const params = request.params ?? {}
-    const requestId = this.resolveSamplingRequestId(extra)
+    const requestId = this.resolveRequestId()
     const { payload, chatMessages } = this.prepareSamplingContext(requestId, params)
 
     const decisionPromise = this.runtime.sampling.handleSamplingRequest(payload)
-    const signal = extra?.signal as AbortSignal | undefined
+    const signal = ctx.mcpReq.signal
     const decisionWait = awaitWithAbort(decisionPromise, signal)
     let abortListener: (() => void) | undefined
 
@@ -859,17 +950,20 @@ export class McpClient {
         decision = await decisionWait
       } catch (error) {
         if (signal?.aborted || isAbortError(error)) {
-          throw new McpError(ErrorCode.RequestTimeout, 'Sampling request cancelled')
+          throw new SdkError(SdkErrorCode.RequestTimeout, 'Sampling request cancelled')
         }
         throw error
       }
 
       if (!decision.approved) {
-        throw new McpError(ErrorCode.InvalidRequest, 'User rejected sampling request')
+        throw new ProtocolError(ProtocolErrorCode.InvalidRequest, 'User rejected sampling request')
       }
 
       if (!decision.providerId || !decision.modelId) {
-        throw new McpError(ErrorCode.InvalidParams, 'No model selected for sampling request')
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          'No model selected for sampling request'
+        )
       }
 
       let assistantText = ''
@@ -886,8 +980,8 @@ export class McpClient {
       } catch (error) {
         if (signal?.aborted || isAbortError(error)) throw error
         console.error(`[MCP] Sampling request failed for server ${this.serverName}:`, error)
-        throw new McpError(
-          ErrorCode.InternalError,
+        throw new ProtocolError(
+          ProtocolErrorCode.InternalError,
           error instanceof Error ? error.message : 'Sampling request failed'
         )
       }
@@ -911,24 +1005,155 @@ export class McpClient {
     }
   }
 
-  private resolveSamplingRequestId(extra: RequestHandlerContext): string {
-    const rawId = extra?.requestId
-    if (typeof rawId === 'string' || typeof rawId === 'number') {
-      return String(rawId)
+  private async handleElicitationCreate(
+    request: ElicitRequest,
+    ctx: ClientContext
+  ): Promise<ElicitResult> {
+    const params = request.params
+    const requestId = this.resolveRequestId()
+    const mode = params.mode === 'url' ? 'url' : 'form'
+    if (Buffer.byteLength(params.message, 'utf8') > MCP_ELICITATION_MAX_MESSAGE_BYTES) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Elicitation message exceeded the host limit'
+      )
+    }
+    let url: string | undefined
+    if (params.mode === 'url') {
+      let candidate: URL
+      try {
+        candidate = new URL(params.url)
+      } catch {
+        throw new ProtocolError(ProtocolErrorCode.InvalidParams, 'Elicitation URL is invalid')
+      }
+      if (candidate.protocol !== 'https:' && candidate.protocol !== 'http:') {
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          'Elicitation URL must use HTTP or HTTPS'
+        )
+      }
+      if (candidate.username || candidate.password) {
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          'Elicitation URL must not contain embedded credentials'
+        )
+      }
+      url = candidate.toString()
+      if (Buffer.byteLength(url, 'utf8') > MCP_ELICITATION_MAX_URL_BYTES) {
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          'Elicitation URL exceeded the host limit'
+        )
+      }
     }
 
-    return `${this.serverName}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    const requestedSchema =
+      mode === 'form' && 'requestedSchema' in params
+        ? validateAndCloneJsonSchema(
+            params.requestedSchema,
+            `MCP elicitation ${this.serverName} requestedSchema`
+          )
+        : undefined
+    if (
+      requestedSchema &&
+      (!requestedSchema.properties ||
+        typeof requestedSchema.properties !== 'object' ||
+        Array.isArray(requestedSchema.properties) ||
+        Object.keys(requestedSchema.properties).length > MCP_ELICITATION_MAX_FIELDS)
+    ) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Elicitation form exceeded the host field limit'
+      )
+    }
+
+    const payload: McpElicitationRequestPayload = {
+      requestId,
+      serverName: this.serverName,
+      mode,
+      message: params.message,
+      requestedSchema,
+      url
+    }
+    const signal = ctx.mcpReq.signal
+    const decisionPromise = this.runtime.elicitation.handleElicitationRequest(payload)
+    let abortListener: (() => void) | undefined
+    if (signal) {
+      abortListener = () => {
+        void this.runtime.elicitation
+          .cancelElicitationRequest(requestId, 'cancelled by server')
+          .catch((error) => {
+            console.warn(`[MCP] Failed to cancel elicitation request ${requestId}:`, error)
+          })
+      }
+      signal.addEventListener('abort', abortListener, { once: true })
+      if (signal.aborted) {
+        abortListener()
+      }
+    }
+
+    try {
+      const decision = await awaitWithAbort(decisionPromise, signal)
+      let acceptedContent: ElicitResult['content']
+      if (decision.action === 'accept' && mode === 'form' && requestedSchema) {
+        const validation = await fromJsonSchema<Record<string, unknown>>(requestedSchema)[
+          '~standard'
+        ].validate(decision.content ?? {})
+        if (validation.issues) {
+          throw new ProtocolError(
+            ProtocolErrorCode.InvalidParams,
+            'Elicitation response did not match the requested schema'
+          )
+        }
+        acceptedContent = validation.value as ElicitResult['content']
+        assertBoundedMcpJson(
+          acceptedContent,
+          'MCP elicitation accepted content',
+          MCP_ELICITATION_MAX_CONTENT_BYTES
+        )
+      }
+      return {
+        action: decision.action,
+        ...(decision.action === 'accept' && acceptedContent ? { content: acceptedContent } : {})
+      }
+    } finally {
+      if (abortListener) {
+        signal.removeEventListener('abort', abortListener)
+      }
+    }
+  }
+
+  private resolveRequestId(): string {
+    return randomUUID()
   }
 
   private prepareSamplingContext(
     requestId: string,
     params: CreateMessageRequest['params']
   ): { payload: McpSamplingRequestPayload; chatMessages: ChatMessage[] } {
+    const systemPrompt = typeof params?.systemPrompt === 'string' ? params.systemPrompt : undefined
+    if (systemPrompt && Buffer.byteLength(systemPrompt, 'utf8') > MCP_SAMPLING_MAX_TEXT_BYTES) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Sampling system prompt exceeded the host limit'
+      )
+    }
+
     const payload: McpSamplingRequestPayload = {
       requestId,
       serverName: this.serverName,
       serverLabel: this.getServerLabel(),
-      systemPrompt: typeof params?.systemPrompt === 'string' ? params.systemPrompt : undefined,
+      serverId:
+        typeof this.serverConfig.serverId === 'string' ? this.serverConfig.serverId : undefined,
+      configGeneration:
+        typeof this.serverConfig.configGeneration === 'number'
+          ? this.serverConfig.configGeneration
+          : undefined,
+      bindingHash:
+        typeof this.serverConfig.bindingHash === 'string'
+          ? this.serverConfig.bindingHash
+          : undefined,
+      systemPrompt,
       maxTokens: typeof params?.maxTokens === 'number' ? params.maxTokens : undefined,
       modelPreferences: this.normalizeModelPreferences(params?.modelPreferences),
       requiresVision: false,
@@ -942,6 +1167,12 @@ export class McpClient {
     }
 
     const messageList = Array.isArray(params?.messages) ? params.messages : []
+    if (messageList.length > MCP_SAMPLING_MAX_MESSAGES) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Sampling message count exceeded the host limit'
+      )
+    }
 
     for (const message of messageList) {
       if (!message || (message.role !== 'user' && message.role !== 'assistant')) {
@@ -950,13 +1181,22 @@ export class McpClient {
 
       const rawContent = message.content
       if (!rawContent || typeof rawContent !== 'object' || !('type' in rawContent)) {
-        throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling message content received')
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          'Invalid sampling message content received'
+        )
       }
 
       const content = rawContent as { type: string } & Record<string, unknown>
 
       if (content.type === 'text') {
         const text = typeof content.text === 'string' ? content.text : ''
+        if (Buffer.byteLength(text, 'utf8') > MCP_SAMPLING_MAX_TEXT_BYTES) {
+          throw new ProtocolError(
+            ProtocolErrorCode.InvalidParams,
+            'Sampling text content exceeded the host limit'
+          )
+        }
         payload.messages.push({ role: message.role, type: 'text', text })
         chatMessages.push({ role: message.role, content: text })
       } else if (content.type === 'image') {
@@ -964,8 +1204,8 @@ export class McpClient {
         const normalizedMimeType = rawMimeType?.toLowerCase()
 
         if (normalizedMimeType && !ALLOWED_SAMPLING_IMAGE_MIME_TYPES.has(normalizedMimeType)) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
+          throw new ProtocolError(
+            ProtocolErrorCode.InvalidParams,
             `Unsupported sampling image mime type: ${rawMimeType}`
           )
         }
@@ -990,16 +1230,23 @@ export class McpClient {
           ]
         })
       } else if (content.type === 'audio') {
-        throw new McpError(
-          ErrorCode.InvalidParams,
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
           'Audio sampling content is not supported by this client'
         )
       } else {
-        throw new McpError(
-          ErrorCode.InvalidParams,
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
           `Unsupported sampling content type: ${String((content as { type?: unknown }).type)}`
         )
       }
+    }
+
+    if (Buffer.byteLength(JSON.stringify(payload), 'utf8') > MCP_SAMPLING_MAX_TOTAL_BYTES) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Sampling request exceeded the host limit'
+      )
     }
 
     return { payload, chatMessages }
@@ -1007,17 +1254,32 @@ export class McpClient {
 
   private sanitizeSamplingImageData(rawData: unknown): string {
     if (typeof rawData !== 'string') {
-      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Invalid sampling image payload received'
+      )
+    }
+    if (rawData.length > MCP_SAMPLING_MAX_ENCODED_IMAGE_CHARS) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Sampling image payload exceeded the host limit'
+      )
     }
 
     const sanitized = rawData.replace(/\s+/g, '')
 
     if (!sanitized) {
-      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Invalid sampling image payload received'
+      )
     }
 
     if (sanitized.length % 4 !== 0 || /[^A-Za-z0-9+/=]/.test(sanitized)) {
-      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Invalid sampling image payload received'
+      )
     }
 
     let decoded: Buffer
@@ -1025,17 +1287,32 @@ export class McpClient {
     try {
       decoded = Buffer.from(sanitized, 'base64')
     } catch {
-      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Invalid sampling image payload received'
+      )
     }
 
     if (!decoded.length) {
-      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Invalid sampling image payload received'
+      )
+    }
+    if (decoded.length > MCP_SAMPLING_MAX_IMAGE_BYTES) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Sampling image payload exceeded the host limit'
+      )
     }
 
     const reencoded = decoded.toString('base64')
 
     if (reencoded.replace(/=+$/, '') !== sanitized.replace(/=+$/, '')) {
-      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        'Invalid sampling image payload received'
+      )
     }
 
     return sanitized
@@ -1061,9 +1338,22 @@ export class McpClient {
       normalized.intelligencePriority = preferences.intelligencePriority
     }
     if (Array.isArray(preferences.hints)) {
-      normalized.hints = preferences.hints.map((hint: { name?: unknown }) => ({
-        name: typeof hint?.name === 'string' ? hint.name : undefined
-      }))
+      if (preferences.hints.length > MCP_SAMPLING_MAX_HINTS) {
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          'Sampling model hint count exceeded the host limit'
+        )
+      }
+      normalized.hints = preferences.hints.map((hint: { name?: unknown }) => {
+        const name = typeof hint?.name === 'string' ? hint.name : undefined
+        if (name && name.length > 256) {
+          throw new ProtocolError(
+            ProtocolErrorCode.InvalidParams,
+            'Sampling model hint exceeded the host limit'
+          )
+        }
+        return { name }
+      })
     }
 
     if (
@@ -1090,7 +1380,10 @@ export class McpClient {
       typeof config['name'] === 'string' ? (config['name'] as string) : undefined
     ]
 
-    return candidates.find((label) => label && label.trim().length > 0)
+    return candidates
+      .find((label) => label && label.trim().length > 0)
+      ?.trim()
+      .slice(0, 512)
   }
 
   private resolveModelDisplayName(providerId: string, modelId: string): string | undefined {
@@ -1133,60 +1426,6 @@ export class McpClient {
     return this.connectPromise
   }
 
-  // Check and handle session errors by restarting the service
-  private async checkAndHandleSessionError(error: unknown): Promise<void> {
-    if (isSessionError(error) && !this.isRecovering) {
-      // If already restarted once and still getting session errors, stop the service
-      if (this.hasRestarted) {
-        console.error(
-          `Session error persists after restart for server ${this.serverName}, stopping service...`,
-          error
-        )
-        await this.stopService()
-        throw new Error(
-          `MCP service ${this.serverName} still has session errors after restart, service has been stopped`
-        )
-      }
-
-      console.warn(
-        `Session error detected for server ${this.serverName}, restarting service...`,
-        error
-      )
-
-      this.isRecovering = true
-
-      try {
-        // Clean up current connection
-        await this.cleanupResources()
-
-        // Clear all caches to ensure fresh data after reconnection
-        this.cachedTools = null
-        this.cachedPrompts = null
-        this.cachedResources = null
-
-        // Mark as restarted
-        this.hasRestarted = true
-
-        console.info(`Service ${this.serverName} restarted due to session error`)
-      } catch (restartError) {
-        console.error(`Failed to restart service ${this.serverName}:`, restartError)
-      } finally {
-        this.isRecovering = false
-      }
-    }
-  }
-
-  // Stop the service completely due to persistent session errors
-  private async stopService(): Promise<void> {
-    try {
-      // Use the same disconnect logic but with different reason
-      await this.internalDisconnect('persistent session errors', 'connect-error')
-    } catch (error) {
-      console.error(`Failed to stop service ${this.serverName}:`, error)
-    }
-  }
-
-  // Internal disconnect with custom reason
   private async internalDisconnect(
     reason?: string,
     statusReason: McpServerStatusReason = 'shutdown'
@@ -1203,11 +1442,10 @@ export class McpClient {
     this.emitServerStatusChanged('stopped', { reason: statusReason })
   }
 
-  // 调用 MCP 工具
   async callTool(
     toolName: string,
     args: Record<string, unknown>,
-    options?: { signal?: AbortSignal }
+    options?: { signal?: AbortSignal; toolDefinition?: Tool }
   ): Promise<ToolCallResult> {
     try {
       options?.signal?.throwIfAborted()
@@ -1218,56 +1456,41 @@ export class McpClient {
         throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
-      // 调用工具
       const request = {
         name: toolName,
         arguments: args
       }
-      const result = (
-        options?.signal
-          ? await this.client.callTool(request, undefined, { signal: options.signal })
-          : await this.client.callTool(request)
-      ) as ToolCallResult
+      const result = (await this.client.callTool(request, {
+        signal: options?.signal,
+        toolDefinition: options?.toolDefinition as SdkTool | undefined
+      })) as unknown as ToolCallResult
       options?.signal?.throwIfAborted()
-
-      // 成功调用后重置重启标志
-      this.hasRestarted = false
-
-      // 检查结果
-      if (result.isError) {
-        const errorText =
-          result.content && result.content[0] ? result.content[0].text : 'Unknown error'
-        // 如果调用失败，清空工具缓存，以便下次重新获取
-        this.cachedTools = null
-        return {
-          isError: true,
-          content: [{ type: 'error', text: errorText }]
-        }
-      }
+      assertBoundedMcpJson(
+        result,
+        `MCP tool result ${this.serverName}/${toolName}`,
+        MCP_TOOL_RESULT_MAX_BYTES
+      )
       return result
     } catch (error) {
       if (options?.signal?.aborted || isAbortError(error)) {
         throw error
       }
-
-      // 检查并处理session错误
-      await awaitWithAbort(this.checkAndHandleSessionError(error), options?.signal)
-      options?.signal?.throwIfAborted()
-
       console.error(`Failed to call MCP tool ${toolName}:`, error)
-      // 调用失败，清空工具缓存
-      this.cachedTools = null
       throw error
     }
   }
 
-  // 列出可用工具
+  private serverDoesNotAdvertise(capability: 'tools' | 'prompts' | 'resources'): boolean {
+    const getCapabilities = this.client?.getServerCapabilities
+    if (typeof getCapabilities !== 'function') {
+      return false
+    }
+    const capabilities = getCapabilities.call(this.client)
+    return capabilities !== undefined && capabilities[capability] === undefined
+  }
+
   async listTools(options?: { signal?: AbortSignal }): Promise<Tool[]> {
     options?.signal?.throwIfAborted()
-    // 检查缓存
-    if (this.cachedTools !== null) {
-      return this.cachedTools
-    }
 
     try {
       await this.ensureConnectedForRequest(options?.signal)
@@ -1276,105 +1499,124 @@ export class McpClient {
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
       }
+      if (this.serverDoesNotAdvertise('tools')) {
+        return []
+      }
 
       const response = options?.signal
         ? await this.client.listTools(undefined, { signal: options.signal })
         : await this.client.listTools()
       options?.signal?.throwIfAborted()
-      // 成功调用后重置重启标志
-      this.hasRestarted = false
-
-      // 检查响应格式
-      if (response && typeof response === 'object' && 'tools' in response) {
-        const toolsArray = response.tools
-        if (Array.isArray(toolsArray)) {
-          // 缓存结果
-          this.cachedTools = toolsArray as Tool[]
-          return this.cachedTools
-        }
+      this.assertControlResult(response, 'tool list')
+      if (Array.isArray(response.tools)) {
+        return (response.tools as unknown as Tool[]).map((tool) =>
+          validateAndCloneMcpTool(tool, this.serverName)
+        )
       }
       throw new Error('Invalid tool response format')
     } catch (error) {
       if (options?.signal?.aborted || isAbortError(error)) {
         throw error
       }
-      // 检查并处理session错误
-      await awaitWithAbort(this.checkAndHandleSessionError(error), options?.signal)
-      options?.signal?.throwIfAborted()
-
-      // 如果错误表明不支持，则缓存空数组
       if (isUnsupportedCapabilityError(error)) {
         console.warn(`Server ${this.serverName} does not support listTools`)
-        this.cachedTools = []
-        return this.cachedTools
-      } else {
-        console.error(`Failed to list MCP tools:`, error)
-        // 发生其他错误，不清空缓存（保持null），以便下次重试
-        throw error
+        return []
       }
+      console.error(`Failed to list MCP tools:`, error)
+      throw error
     }
   }
 
-  // 列出可用提示
-  async listPrompts(): Promise<PromptListEntry[]> {
-    // 检查缓存
-    if (this.cachedPrompts !== null) {
-      return this.cachedPrompts
+  async listToolsPage(cursor?: string, signal?: AbortSignal): Promise<ListToolsResult> {
+    signal?.throwIfAborted()
+    await this.ensureConnectedForRequest(signal)
+    signal?.throwIfAborted()
+    const client = this.client
+    if (!client) {
+      throw new Error(`MCP client ${this.serverName} not initialized`)
     }
+    if (this.serverDoesNotAdvertise('tools')) {
+      return { tools: [] }
+    }
+    const result = await withUnsupportedCapabilityFallback(
+      () =>
+        signal
+          ? client.listTools(cursor ? { cursor } : undefined, { signal })
+          : client.listTools(cursor ? { cursor } : undefined),
+      { tools: [] },
+      signal
+    )
+    this.assertControlResult(result, 'tool list page')
+    return {
+      ...result,
+      tools: (result.tools as unknown as Tool[]).map((tool) =>
+        validateAndCloneMcpTool(tool, this.serverName)
+      )
+    } as unknown as ListToolsResult
+  }
 
+  async listPrompts(): Promise<PromptListEntry[]> {
     try {
       await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
       }
+      if (this.serverDoesNotAdvertise('prompts')) {
+        return []
+      }
 
-      // SDK可能没有 listPrompts 方法，需要使用通用的 request
       const response = await this.client.listPrompts()
-
-      // 成功调用后重置重启标志
-      this.hasRestarted = false
-
-      // 检查响应格式
-      if (response && typeof response === 'object' && 'prompts' in response) {
-        const promptsArray = (response as { prompts: unknown }).prompts
-        // console.log('promptsArray', JSON.stringify(promptsArray, null, 2))
-        if (Array.isArray(promptsArray)) {
-          // 需要确保每个元素都符合 Prompt 接口
-          const validPrompts = promptsArray.map((p) => ({
-            name: typeof p === 'object' && p !== null && 'name' in p ? String(p.name) : 'unknown',
-            description:
-              typeof p === 'object' && p !== null && 'description' in p
-                ? String(p.description)
-                : undefined,
-            arguments:
-              typeof p === 'object' && p !== null && 'arguments' in p ? p.arguments : undefined,
-            files: typeof p === 'object' && p !== null && 'files' in p ? p.files : undefined
-          })) as PromptListEntry[]
-          // 缓存结果
-          this.cachedPrompts = validPrompts
-          return this.cachedPrompts
-        }
+      this.assertControlResult(response, 'prompt list')
+      if (Array.isArray(response.prompts)) {
+        return response.prompts.map((prompt) => ({
+          name: prompt.name,
+          description: prompt.description,
+          arguments: prompt.arguments?.map((argument) => ({
+            name: argument.name,
+            description: argument.description,
+            required: Boolean(argument.required)
+          })),
+          client: {
+            name: this.serverName,
+            icon: String(this.serverConfig.icons ?? '')
+          }
+        }))
       }
       throw new Error('Invalid prompt response format')
     } catch (error) {
-      // 检查并处理session错误
-      await this.checkAndHandleSessionError(error)
-
-      // 如果错误表明不支持，则缓存空数组
       if (isUnsupportedCapabilityError(error)) {
         console.info(`Server ${this.serverName} does not support listPrompts`)
-        this.cachedPrompts = []
-        return this.cachedPrompts
-      } else {
-        console.error(`Failed to list MCP prompts:`, error)
-        // 发生其他错误，不清空缓存（保持null），以便下次重试
-        throw error
+        return []
       }
+      console.error(`Failed to list MCP prompts:`, error)
+      throw error
     }
   }
 
-  // 获取指定提示
+  async listPromptsPage(cursor?: string, signal?: AbortSignal): Promise<ListPromptsResult> {
+    signal?.throwIfAborted()
+    await this.ensureConnectedForRequest(signal)
+    signal?.throwIfAborted()
+    const client = this.client
+    if (!client) {
+      throw new Error(`MCP client ${this.serverName} not initialized`)
+    }
+    if (this.serverDoesNotAdvertise('prompts')) {
+      return { prompts: [] }
+    }
+    const result = await withUnsupportedCapabilityFallback(
+      () =>
+        signal
+          ? client.listPrompts(cursor ? { cursor } : undefined, { signal })
+          : client.listPrompts(cursor ? { cursor } : undefined),
+      { prompts: [] },
+      signal
+    )
+    this.assertControlResult(result, 'prompt list page')
+    return result
+  }
+
   async getPrompt(name: string, args?: Record<string, unknown>): Promise<Prompt> {
     try {
       await this.ensureConnectedForRequest()
@@ -1387,11 +1629,8 @@ export class McpClient {
         name,
         arguments: (args as Record<string, string>) || {}
       })
+      this.assertControlResult(response, `prompt ${name}`)
 
-      // 成功调用后重置重启标志
-      this.hasRestarted = false
-
-      // 检查响应格式并转换为 Prompt 类型
       if (
         response &&
         typeof response === 'object' &&
@@ -1400,77 +1639,111 @@ export class McpClient {
       ) {
         return {
           id: name,
-          name: name, // 从请求参数中获取 name
+          name,
           description: response.description || '',
           messages: response.messages as Array<{ role: string; content: { text: string } }>
         }
       }
       throw new Error('Invalid get prompt response format')
     } catch (error) {
-      // 检查并处理session错误
-      await this.checkAndHandleSessionError(error)
-
       console.error(`Failed to get MCP prompt ${name}:`, error)
-      // 获取失败，清空提示缓存
-      this.cachedPrompts = null
       throw error
     }
   }
 
-  // 列出可用资源
   async listResources(): Promise<ResourceListEntry[]> {
-    // 检查缓存
-    if (this.cachedResources !== null) {
-      return this.cachedResources
-    }
-
     try {
       await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
       }
+      if (this.serverDoesNotAdvertise('resources')) {
+        return []
+      }
 
-      // SDK可能没有 listResources 方法，需要使用通用的 request
       const response = await this.client.listResources()
-
-      // 成功调用后重置重启标志
-      this.hasRestarted = false
-
-      // 检查响应格式
-      if (response && typeof response === 'object' && 'resources' in response) {
-        const resourcesArray = (response as { resources: unknown }).resources
-        if (Array.isArray(resourcesArray)) {
-          // 需要确保每个元素都符合 ResourceListEntry 接口
-          const validResources = resourcesArray.map((r) => ({
-            uri: typeof r === 'object' && r !== null && 'uri' in r ? String(r.uri) : 'unknown',
-            name: typeof r === 'object' && r !== null && 'name' in r ? String(r.name) : undefined
-          })) as ResourceListEntry[]
-          // 缓存结果
-          this.cachedResources = validResources
-          return this.cachedResources
-        }
+      this.assertControlResult(response, 'resource list')
+      if (Array.isArray(response.resources)) {
+        return response.resources.map((resource) => ({
+          uri: resource.uri,
+          name: resource.name,
+          client: {
+            name: this.serverName,
+            icon: String(this.serverConfig.icons ?? '')
+          }
+        }))
       }
       throw new Error('Invalid resource list response format')
     } catch (error) {
-      // 检查并处理session错误
-      await this.checkAndHandleSessionError(error)
-
-      // 如果错误表明不支持，则缓存空数组
       if (isUnsupportedCapabilityError(error)) {
         console.info(`Server ${this.serverName} does not support listResources`)
-        this.cachedResources = []
-        return this.cachedResources
-      } else {
-        console.error(`Failed to list MCP resources:`, error)
-        // 发生其他错误，不清空缓存（保持null），以便下次重试
-        throw error
+        return []
       }
+      console.error(`Failed to list MCP resources:`, error)
+      throw error
     }
   }
 
-  // 读取资源
+  async listResourcesPage(cursor?: string, signal?: AbortSignal): Promise<ListResourcesResult> {
+    signal?.throwIfAborted()
+    await this.ensureConnectedForRequest(signal)
+    signal?.throwIfAborted()
+    const client = this.client
+    if (!client) {
+      throw new Error(`MCP client ${this.serverName} not initialized`)
+    }
+    if (this.serverDoesNotAdvertise('resources')) {
+      return { resources: [] }
+    }
+    const result = await withUnsupportedCapabilityFallback(
+      () =>
+        signal
+          ? client.listResources(cursor ? { cursor } : undefined, { signal })
+          : client.listResources(cursor ? { cursor } : undefined),
+      { resources: [] },
+      signal
+    )
+    this.assertControlResult(result, 'resource list page')
+    return result
+  }
+
+  async listResourceTemplatesPage(
+    cursor?: string,
+    signal?: AbortSignal
+  ): Promise<ListResourceTemplatesResult> {
+    signal?.throwIfAborted()
+    await this.ensureConnectedForRequest(signal)
+    signal?.throwIfAborted()
+    const client = this.client
+    if (!client) {
+      throw new Error(`MCP client ${this.serverName} not initialized`)
+    }
+    if (this.serverDoesNotAdvertise('resources')) {
+      return { resourceTemplates: [] }
+    }
+    const result = await withUnsupportedCapabilityFallback(
+      () =>
+        signal
+          ? client.listResourceTemplates(cursor ? { cursor } : undefined, { signal })
+          : client.listResourceTemplates(cursor ? { cursor } : undefined),
+      { resourceTemplates: [] },
+      signal
+    )
+    this.assertControlResult(result, 'resource template list page')
+    return result
+  }
+
   async readResource(resourceUri: string): Promise<Resource> {
+    const resources = await this.readResourceContents(resourceUri)
+    const content = resources.find((entry) => entry.uri === resourceUri) ?? resources[0]
+    if (!content) {
+      throw new Error(`MCP resource ${resourceUri} returned no content`)
+    }
+    return content
+  }
+
+  async readResourceContents(resourceUri: string): Promise<Resource[]> {
     try {
       await this.ensureConnectedForRequest()
 
@@ -1478,30 +1751,117 @@ export class McpClient {
         throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
-      // 使用 unknown 作为中间类型进行转换
       const rawResource = await this.client.readResource({ uri: resourceUri })
-
-      // 成功调用后重置重启标志
-      this.hasRestarted = false
-
-      // 手动构造 Resource 对象
-      const resource: Resource = {
-        uri: resourceUri,
-        text:
-          typeof rawResource === 'object' && rawResource !== null && 'text' in rawResource
-            ? String(rawResource['text'])
-            : JSON.stringify(rawResource)
-      }
-
-      return resource
+      this.assertControlResult(rawResource, `resource ${resourceUri}`)
+      return rawResource.contents.map((content) => ({
+        uri: content.uri,
+        mimeType: content.mimeType,
+        ...('text' in content ? { text: content.text } : {}),
+        ...('blob' in content ? { blob: content.blob } : {}),
+        ...('_meta' in content && content._meta ? { _meta: content._meta } : {})
+      }))
     } catch (error) {
-      // 检查并处理session错误
-      await this.checkAndHandleSessionError(error)
-
       console.error(`Failed to read MCP resource ${resourceUri}:`, error)
-      // 读取失败，清空资源缓存
-      this.cachedResources = null
       throw error
+    }
+  }
+
+  private classifyProbeFailure(error: unknown): McpProbeReasonCode {
+    const status = (error as { status?: unknown; httpStatus?: unknown } | undefined)?.status
+    const httpStatus =
+      typeof status === 'number'
+        ? status
+        : (error as { httpStatus?: unknown } | undefined)?.httpStatus
+    if (error instanceof UnauthorizedError || httpStatus === 401 || httpStatus === 403) {
+      return 'authentication-required'
+    }
+    if (typeof httpStatus === 'number' && httpStatus >= 500) {
+      return 'http-server-error'
+    }
+    if (
+      error instanceof McpConnectionHardTimeoutError ||
+      (error instanceof SdkError && error.code === SdkErrorCode.RequestTimeout)
+    ) {
+      return 'timeout'
+    }
+    return 'transport-error'
+  }
+
+  private assertControlResult(value: unknown, label: string): void {
+    assertBoundedMcpJson(
+      value,
+      `MCP ${label} from ${this.serverName}`,
+      MCP_CONTROL_RESULT_MAX_BYTES
+    )
+  }
+
+  getDiagnostics(auth: McpServerAuthStatus): McpServerDiagnostics {
+    const client = this.client
+    const capabilities = client?.getServerCapabilities()
+    const serverVersion = client?.getServerVersion()
+    const transport = this.serverConfig.type as MCPServerConfig['type']
+    let authorizationExtensions: string[] = []
+    try {
+      authorizationExtensions =
+        this.mcpOAuthManager?.getUsableAuthorizationExtensions(
+          this.serverConfig as Partial<MCPServerConfig>
+        ) ?? []
+    } catch {
+      authorizationExtensions = []
+    }
+    const subscriptions: McpServerDiagnostics['subscriptions'] = []
+    if (capabilities?.tools?.listChanged) subscriptions.push('tools-list-changed')
+    if (capabilities?.prompts?.listChanged) subscriptions.push('prompts-list-changed')
+    if (capabilities?.resources?.listChanged) subscriptions.push('resources-list-changed')
+    if (capabilities?.resources?.subscribe) subscriptions.push('resource-updated')
+    if (client?.autoOpenedSubscription) subscriptions.push('modern-listen')
+    const connectionState: McpServerDiagnostics['connectionState'] =
+      this.lifecycleStatus === 'connected'
+        ? 'running'
+        : this.lifecycleStatus === 'failed'
+          ? 'error'
+          : this.lifecycleStatus === 'connecting' ||
+              this.lifecycleStatus === 'retrying' ||
+              this.lifecycleStatus === 'timeout'
+            ? 'starting'
+            : 'stopped'
+
+    return {
+      serverId: String(this.serverConfig.serverId ?? this.serverName),
+      serverName: this.serverName,
+      owner: this.serverConfig.ownerPluginId ? 'plugin' : 'deepchat',
+      transport,
+      connectionState,
+      era: client?.getProtocolEra() ?? 'unknown',
+      protocolVersion: client?.getNegotiatedProtocolVersion(),
+      serverImplementation: serverVersion
+        ? {
+            name: serverVersion.name.slice(0, 256),
+            version: serverVersion.version.slice(0, 128)
+          }
+        : undefined,
+      probe: this.probe,
+      extensions: Object.keys(capabilities?.extensions ?? {})
+        .filter((id) => id.length > 0 && id.length <= 256)
+        .sort()
+        .slice(0, 64),
+      clientExtensions: [
+        { id: 'io.modelcontextprotocol/ui' },
+        ...authorizationExtensions.map((id) => ({
+          id,
+          ...(id === AUTH_EXTENSION_CLIENT_CREDENTIALS
+            ? { revision: MCP_CLIENT_CREDENTIALS_DRAFT_REVISION }
+            : {})
+        }))
+      ],
+      cacheState: client ? 'active' : 'unknown',
+      subscriptions,
+      auth: {
+        state: auth.state,
+        persistent: auth.persistent,
+        mode: auth.mode
+      },
+      updatedAt: Date.now()
     }
   }
 }

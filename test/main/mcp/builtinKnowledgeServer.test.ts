@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { Server } from '@modelcontextprotocol/server'
 import { BuiltinKnowledgeServer } from '@/mcp/inMemoryServers/builtinKnowledgeServer'
 
-const serverInstances = vi.hoisted(() => [] as Array<{ handlers: Map<unknown, Function> }>)
+const serverInstances = vi.hoisted(() => [] as Array<{ handlers: Map<string, Function> }>)
 const mockGetKnowledgeConfigs = vi.hoisted(() => vi.fn())
 const mockSimilarityQuery = vi.hoisted(() => vi.fn())
 
-vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
+vi.mock('@modelcontextprotocol/server', () => ({
   Server: vi.fn()
 }))
 
@@ -39,10 +38,10 @@ describe('BuiltinKnowledgeServer', () => {
       }
     ).mockImplementation(() => {
       const instance = {
-        handlers: new Map<unknown, Function>(),
+        handlers: new Map<string, Function>(),
         connect: vi.fn(),
-        setRequestHandler: vi.fn((schema: unknown, handler: Function) => {
-          instance.handlers.set(schema, handler)
+        setRequestHandler: vi.fn((method: string, handler: Function) => {
+          instance.handlers.set(method, handler)
         })
       }
       serverInstances.push(instance)
@@ -56,7 +55,7 @@ describe('BuiltinKnowledgeServer', () => {
   it('starts without env configs', async () => {
     createServer()
 
-    const handler = serverInstances[0].handlers.get(ListToolsRequestSchema)
+    const handler = serverInstances[0].handlers.get('tools/list')
     await expect(handler?.()).resolves.toEqual({ tools: [] })
   })
 
@@ -68,7 +67,7 @@ describe('BuiltinKnowledgeServer', () => {
     ])
     createServer()
 
-    const handler = serverInstances[0].handlers.get(ListToolsRequestSchema)
+    const handler = serverInstances[0].handlers.get('tools/list')
     const result = await handler?.()
 
     expect(result.tools).toEqual([
@@ -97,7 +96,7 @@ describe('BuiltinKnowledgeServer', () => {
     ])
     createServer()
 
-    const handler = serverInstances[0].handlers.get(CallToolRequestSchema)
+    const handler = serverInstances[0].handlers.get('tools/call')
     const result = await handler?.({
       params: {
         name: 'builtin_knowledge_search',

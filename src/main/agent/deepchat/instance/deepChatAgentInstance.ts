@@ -49,6 +49,7 @@ export class DeepChatAgentInstance {
   private readonly firstTurnReadyWaiters = new Set<(ready: boolean) => void>()
   private abortController?: AbortController
   private activeRun?: DeepChatActiveGeneration
+  private preStreamTranscriptAnchorId?: string
   private activeSteerPendingInputId?: string
   private pendingQueueDrainLease?: PendingQueueDrainLease
   private pendingInteractions: DeepChatPendingInteractionRef[] = []
@@ -153,6 +154,18 @@ export class DeepChatAgentInstance {
     }
     this.abortController = undefined
     return true
+  }
+
+  getPreStreamTranscriptAnchorId(): string | undefined {
+    return this.preStreamTranscriptAnchorId
+  }
+
+  setPreStreamTranscriptAnchorId(messageId: string): void {
+    this.preStreamTranscriptAnchorId = messageId
+  }
+
+  clearPreStreamTranscriptAnchor(): void {
+    this.preStreamTranscriptAnchorId = undefined
   }
 
   getActiveGeneration(): DeepChatActiveGeneration | undefined {
@@ -472,6 +485,7 @@ export class DeepChatAgentInstance {
     this.agentId = undefined
     this.projectDir = undefined
     this.clearFirstTurnReady()
+    this.preStreamTranscriptAnchorId = undefined
     this.activeSteerPendingInputId = undefined
     this.pendingQueueDrainLease = undefined
     this.pendingInteractions = []

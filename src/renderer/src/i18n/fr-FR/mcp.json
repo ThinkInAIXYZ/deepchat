@@ -88,11 +88,6 @@
     "addArg": "Ajouter un argument",
     "argPlaceholder": "Saisir la valeur de l'argument",
     "argsRequired": "Les paramètres ne peuvent pas être vides",
-    "autoApprove": "Autorisation automatique",
-    "autoApproveAll": "Tout",
-    "autoApproveHelp": "Sélectionnez le type d'opération nécessitant une autorisation automatique et exécutez sans confirmation de l'utilisateur",
-    "autoApproveRead": "Lecture",
-    "autoApproveWrite": "Écriture",
     "baseUrl": "URL de base",
     "baseUrlPlaceholder": "Entrez l'URL de base du serveur (par exemple : http://localhost:3000)",
     "cancel": "Annuler",
@@ -305,5 +300,51 @@
     "unknownServer": "serveur inconnu",
     "unsupportedMessage": "Ce type de contenu n'est pas pris en charge.",
     "visionWarning": "Le modèle sélectionné ne prend pas en charge la saisie visuelle.\nVeuillez sélectionner un modèle visuellement capable avant de continuer."
+  },
+  "elicitation": {
+    "title": "Demande de saisie MCP",
+    "accept": "Envoyer",
+    "decline": "Refuser",
+    "noFields": "Cette demande ne contient aucun champ de formulaire.",
+    "openLink": "Ouvrir le lien sécurisé",
+    "selectValue": "Sélectionner une valeur",
+    "error": {
+      "required": "Ce champ est obligatoire.",
+      "number": "Saisissez un nombre valide.",
+      "integer": "Saisissez un nombre entier.",
+      "boolean": "Sélectionnez vrai ou faux.",
+      "range": "La valeur est hors de la plage autorisée.",
+      "selection": "Sélectionnez une option valide.",
+      "length": "La longueur du texte est hors de la plage autorisée.",
+      "format": "Saisissez une valeur au format demandé."
+    }
+  },
+  "apps": {
+    "title": "Application MCP",
+    "interactiveContent": "Contenu interactif provenant d’un serveur MCP",
+    "loadError": "Impossible de charger cette application MCP.",
+    "retry": "Réessayer",
+    "fullscreen": "Ouvrir en plein écran",
+    "pictureInPicture": "Ouvrir en image dans l’image",
+    "returnInline": "Revenir à l’affichage intégré",
+    "securityDetails": "Détails de sécurité",
+    "allowedOrigins": "Origines réseau déclarées",
+    "requestedPermissions": "Autorisations d’appareil demandées",
+    "noneDeclared": "Aucune déclarée",
+    "advisoryDomain": "Domaine indicatif",
+    "toolAccessSuspended": "L’accès aux outils est suspendu après le refus d’une demande.",
+    "retryAccess": "Réessayer l’accès",
+    "permissions": {
+      "camera": "Caméra",
+      "microphone": "Microphone",
+      "geolocation": "Localisation",
+      "clipboardWrite": "Écriture dans le presse-papiers"
+    },
+    "consent": {
+      "title": "Demande de l’application MCP",
+      "description": "Examinez cette action demandée par le contenu interactif MCP.",
+      "allowOnce": "Autoriser une fois",
+      "deny": "Refuser"
+    }
   }
 }

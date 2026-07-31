@@ -70,6 +70,10 @@
     "audioInputUnsupportedTitle": "Current model does not support audio attachments",
     "audioInputUnsupportedDescription": "Model {model} does not support audio input. Ignored {count} audio attachment(s)."
   },
+  "messageReceipt": {
+    "unread": "Unread",
+    "read": "Read"
+  },
   "attachments": {
     "chooseRepresentation": "Choose how to send {name}",
     "representation": "Attachment representation",

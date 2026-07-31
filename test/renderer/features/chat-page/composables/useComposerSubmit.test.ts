@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerSubmit } from '@/features/chat-page/composables/useComposerSubmit'
 import type {
   AttachmentPreparationSummary,
+  ChatMessageRecord,
   MessageFile,
   UserMessageInlineItem
 } from '@shared/types/agent-interface'
@@ -16,6 +17,21 @@ function createDeferred<T>() {
     reject = innerReject
   })
   return { promise, resolve, reject }
+}
+
+function createSteerMessage(): ChatMessageRecord {
+  return {
+    id: 'steer-user',
+    sessionId: 's1',
+    orderSeq: 3,
+    role: 'user',
+    content: JSON.stringify({ text: 'tighten the answer', files: [] }),
+    status: 'pending',
+    isContextEdge: 0,
+    metadata: JSON.stringify({ inputReceipt: { mode: 'steer', readAt: null } }),
+    createdAt: 1,
+    updatedAt: 1
+  }
 }
 
 function createHarness(options: { composerMounted?: boolean } = {}) {
@@ -50,8 +66,22 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     options.composerMounted === false ? null : inputHandle
   )
   const messageStore = {
+    currentStreamMessageId: 'assistant-1',
+    committedSessionId: 's1',
+    messageCache: new Map([
+      [
+        'assistant-1',
+        {
+          id: 'assistant-1',
+          sessionId: 's1',
+          role: 'assistant'
+        }
+      ]
+    ]),
     addOptimisticUserMessage: vi.fn(() => 'optimistic-user'),
-    removeOptimisticMessage: vi.fn()
+    removeOptimisticMessage: vi.fn(),
+    applyPersistedMessageRecords: vi.fn(),
+    invalidateRecentSessionView: vi.fn()
   }
   const sessionStore = { activeSession: { providerId: 'openai' } }
   const modelStore = { findChatSelectableModel: vi.fn(() => null) }
@@ -61,7 +91,10 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
   }
   const chatClient = {
     sendMessage: vi.fn().mockResolvedValue({ accepted: true }),
-    steerActiveTurn: vi.fn().mockResolvedValue({ accepted: true }),
+    steerActiveTurn: vi.fn().mockResolvedValue({
+      accepted: true,
+      message: createSteerMessage()
+    }),
     cancelSubmission: vi.fn().mockResolvedValue({ cancelled: true })
   }
   const sessionClient = { compactSession: vi.fn().mockResolvedValue({ compacted: true }) }
@@ -704,7 +737,7 @@ describe('useComposerSubmit attachment preflight', () => {
   })
 
   it('blocks duplicates and clears the draft only after acceptance', async () => {
-    const steering = createDeferred<{ accepted: boolean }>()
+    const steering = createDeferred<{ accepted: true; message: ChatMessageRecord }>()
     const harness = createHarness()
     harness.isGenerating.value = true
     harness.chatClient.steerActiveTurn.mockReturnValueOnce(steering.promise)
@@ -713,23 +746,23 @@ describe('useComposerSubmit attachment preflight', () => {
     const request = harness.actions.onSteer()
     await vi.waitFor(() => expect(harness.chatClient.steerActiveTurn).toHaveBeenCalledTimes(1))
 
-    expect(harness.actions.isSteering.value).toBe(true)
     expect(harness.actions.disableQueueSteerAction.value).toBe(true)
     expect(harness.actions.isQueueSubmitDisabled.value).toBe(true)
 
     await harness.actions.onSteer()
     expect(harness.chatClient.steerActiveTurn).toHaveBeenCalledTimes(1)
 
-    steering.resolve({ accepted: true })
+    const steerMessage = createSteerMessage()
+    steering.resolve({ accepted: true, message: steerMessage })
     await request
 
     expect(harness.chatClient.steerActiveTurn).toHaveBeenCalledWith(
       's1',
       expect.objectContaining({ text: 'tighten the answer', files: [] })
     )
+    expect(harness.messageStore.applyPersistedMessageRecords).toHaveBeenCalledWith([steerMessage])
     expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     expect(harness.actions.message.value).toBe('')
-    expect(harness.actions.isSteering.value).toBe(false)
     harness.stop()
   })
 
@@ -753,7 +786,7 @@ describe('useComposerSubmit attachment preflight', () => {
   })
 
   it('does not clear a new draft when an old A-B-A request resolves', async () => {
-    const steering = createDeferred<{ accepted: boolean }>()
+    const steering = createDeferred<{ accepted: true; message: ChatMessageRecord }>()
     const harness = createHarness()
     harness.isGenerating.value = true
     harness.chatClient.steerActiveTurn.mockReturnValueOnce(steering.promise)
@@ -770,7 +803,7 @@ describe('useComposerSubmit attachment preflight', () => {
     harness.restoreRequestId.value += 1
     harness.actions.message.value = 'new draft'
 
-    steering.resolve({ accepted: true })
+    steering.resolve({ accepted: true, message: createSteerMessage() })
     await request
 
     expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')

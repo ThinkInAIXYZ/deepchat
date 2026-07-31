@@ -1,10 +1,5 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  type CallToolRequest
-} from '@modelcontextprotocol/sdk/types.js'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import { Server, Transport } from '@modelcontextprotocol/server'
+import type { CallToolRequest, CallToolResult } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { Prompt } from '@shared/types/prompt'
@@ -142,7 +137,7 @@ export class AutoPromptingServer {
   }
 
   // 处理工具调用 (对应 CallToolRequestSchema)
-  private async handleToolCall(request: CallToolRequest) {
+  private async handleToolCall(request: CallToolRequest): Promise<CallToolResult> {
     const { name, arguments: args } = request.params
 
     if (name === 'list_all_prompt_template_names') {
@@ -228,12 +223,12 @@ export class AutoPromptingServer {
   // 设置所有请求处理器
   private setupRequestHandlers(): void {
     // 注册 ListToolsRequestSchema 处理器，返回所有工具的元数据
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async () => {
       return this.listTools()
     })
 
     // 注册 CallToolRequestSchema 处理器，根据工具名称调用相应的处理逻辑
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request): Promise<CallToolResult> => {
       try {
         return await this.handleToolCall(request)
       } catch (error) {

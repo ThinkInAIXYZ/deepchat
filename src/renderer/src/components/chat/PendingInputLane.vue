@@ -10,12 +10,6 @@
       <div class="mb-1.5 flex items-center justify-between gap-2" data-testid="pending-rail-header">
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           <span
-            v-if="steerItems.length > 0"
-            class="inline-flex items-center rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-          >
-            {{ t('chat.pendingInput.steer') }} {{ steerItems.length }}
-          </span>
-          <span
             v-if="queueItems.length > 0"
             class="inline-flex items-center rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
           >
@@ -40,92 +34,6 @@
         data-testid="pending-rail-list"
         :data-scrollable="isScrollable ? 'true' : 'false'"
       >
-        <div
-          v-for="item in steerItems"
-          :key="item.id"
-          data-testid="pending-row"
-          data-mode="steer"
-          :data-state="item.state"
-          class="group flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/65 px-1.5 py-1 transition hover:border-border/80 hover:bg-background/80"
-        >
-          <Icon
-            :icon="item.state === 'blocked' ? 'lucide:triangle-alert' : 'lucide:corner-down-right'"
-            :class="[
-              'h-3.5 w-3.5 shrink-0',
-              item.state === 'blocked' ? 'text-amber-500' : 'text-muted-foreground/80'
-            ]"
-          />
-          <div class="min-w-0 flex-1">
-            <div
-              class="truncate text-[13px] leading-5 text-foreground"
-              :title="formatPayloadTitle(item)"
-            >
-              {{ formatPayloadText(item) }}
-            </div>
-            <div v-if="item.state === 'blocked'" class="truncate text-[11px] text-amber-600">
-              {{ formatBlockingText(item) }}
-            </div>
-          </div>
-          <div class="flex shrink-0 items-center gap-1">
-            <span
-              v-if="(item.payload.files?.length ?? 0) > 0"
-              class="inline-flex items-center rounded-full border border-border/60 bg-muted/35 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground"
-            >
-              {{ t('chat.pendingInput.files', { count: item.payload.files?.length ?? 0 }) }}
-            </span>
-            <span
-              class="inline-flex items-center rounded-full border border-border/60 bg-muted/45 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground"
-            >
-              {{
-                item.state === 'blocked'
-                  ? t('chat.attachments.pending.blocked')
-                  : t('chat.pendingInput.locked')
-              }}
-            </span>
-            <Button
-              v-if="item.state === 'blocked'"
-              variant="ghost"
-              size="icon"
-              data-testid="pending-blocked-retry"
-              class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
-              :title="t('chat.attachments.pending.retry')"
-              :aria-label="t('chat.attachments.pending.retry')"
-              @click.stop="emit('resolve-blocked', { itemId: item.id, action: 'retry' })"
-            >
-              <Icon icon="lucide:refresh-cw" class="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              v-if="item.state === 'blocked'"
-              variant="ghost"
-              size="icon"
-              data-testid="pending-blocked-send-without"
-              class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
-              :title="t('chat.attachments.pending.sendWithoutImageContent')"
-              :aria-label="t('chat.attachments.pending.sendWithoutImageContent')"
-              @click.stop="
-                emit('resolve-blocked', {
-                  itemId: item.id,
-                  action: 'send_without_image_content'
-                })
-              "
-            >
-              <Icon icon="lucide:file-x-2" class="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              v-if="item.state === 'pending' || item.state === 'blocked'"
-              variant="ghost"
-              size="icon"
-              data-testid="pending-steer-delete"
-              class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
-              :title="t('chat.pendingInput.remove')"
-              :aria-label="t('chat.pendingInput.remove')"
-              @click.stop="emit('delete-queue', item.id)"
-            >
-              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-
         <draggable
           :list="localQueueItems"
           item-key="id"
@@ -325,7 +233,6 @@ import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 
 const props = withDefaults(
   defineProps<{
-    steerItems: PendingSessionInputRecord[]
     queueItems: PendingSessionInputRecord[]
     activeLimit?: number
     disableSteerAction?: boolean
@@ -351,15 +258,14 @@ const localQueueItems = ref<PendingSessionInputRecord[]>([])
 const editingItemId = ref<string | null>(null)
 const editingText = ref('')
 
-const showLane = computed(() => props.steerItems.length > 0 || props.queueItems.length > 0)
+const showLane = computed(() => props.queueItems.length > 0)
 const blockedCount = computed(
-  () => [...props.steerItems, ...props.queueItems].filter((item) => item.state === 'blocked').length
+  () => props.queueItems.filter((item) => item.state === 'blocked').length
 )
 const hasBlockedQueueItem = computed(() =>
   props.queueItems.some((item) => item.state === 'blocked')
 )
-const totalItems = computed(() => props.steerItems.length + props.queueItems.length)
-const isScrollable = computed(() => totalItems.value > 3 || Boolean(editingItemId.value))
+const isScrollable = computed(() => props.queueItems.length > 3 || Boolean(editingItemId.value))
 const listMaxHeightClass = computed(() => (editingItemId.value ? 'max-h-[220px]' : 'max-h-[116px]'))
 const editingQueueItem = computed(
   () => props.queueItems.find((item) => item.id === editingItemId.value) ?? null

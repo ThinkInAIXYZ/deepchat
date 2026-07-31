@@ -1,3 +1,5 @@
+export const PENDING_INPUT_ABORT_REASON = 'pending_input'
+
 export function createAbortError(): Error {
   if (typeof DOMException !== 'undefined') {
     return new DOMException('Aborted', 'AbortError')
