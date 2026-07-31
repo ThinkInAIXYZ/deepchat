@@ -40,7 +40,8 @@ export class ChildRuntimeTracker {
     private readonly invocationId: string,
     private readonly repository: WorkflowChildRuntimeRepositoryPort,
     subscribe: (listener: (update: SessionRuntimeUpdate) => void) => () => void,
-    private readonly now: () => number
+    private readonly now: () => number,
+    private readonly onInvocationChanged?: (invocation: WorkflowInvocation) => void
   ) {
     this.terminal = new Promise<ChildTerminalState>((resolve, reject) => {
       this.resolveTerminal = resolve
@@ -120,9 +121,13 @@ export class ChildRuntimeTracker {
   private applyWaitingState(waiting: boolean): void {
     const invocation = this.repository.requireInvocation(this.invocationId)
     if (waiting && invocation.status === 'running') {
-      this.repository.setInvocationWaiting(this.invocationId, this.now())
+      this.onInvocationChanged?.(
+        this.repository.setInvocationWaiting(this.invocationId, this.now())
+      )
     } else if (!waiting && invocation.status === 'waiting_interaction') {
-      this.repository.markInvocationRunning(this.invocationId, this.now())
+      this.onInvocationChanged?.(
+        this.repository.markInvocationRunning(this.invocationId, this.now())
+      )
     }
   }
 }

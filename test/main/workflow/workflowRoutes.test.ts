@@ -8,7 +8,7 @@ import {
   workflowSynthesizeRoute
 } from '@shared/contracts/routes'
 import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
-import type { WorkflowRun } from '@shared/workflow/domain'
+import type { WorkflowInvocation, WorkflowRun } from '@shared/workflow/domain'
 import { createWorkflowRoutes } from '@/workflow/routes'
 import type { WorkflowService } from '@/workflow/service'
 
@@ -44,6 +44,41 @@ const run = (overrides: Partial<WorkflowRun> = {}): WorkflowRun => ({
   updatedAt: 1,
   completedAt: null,
   revision: 0,
+  ...overrides
+})
+
+const invocation = (overrides: Partial<WorkflowInvocation> = {}): WorkflowInvocation => ({
+  id: 'invocation-1',
+  runId: 'run-1',
+  seq: 1,
+  callPath: 'root/review',
+  attempt: 1,
+  executionEpoch: 1,
+  request: {
+    callPath: 'root/review',
+    prompt: 'Review the change.',
+    options: {
+      key: 'review'
+    }
+  },
+  inputHash: 'c'.repeat(64),
+  policyHash: 'b'.repeat(64),
+  childCorrelationSlot: 'workflow-run-1-invocation-1',
+  childSessionId: 'child-1',
+  status: 'waiting_interaction',
+  timeoutDeadlineAt: null,
+  result: null,
+  error: null,
+  effectState: 'none',
+  effectEvidence: null,
+  usage: null,
+  tapeLinkReceipt: null,
+  invalidatedAt: null,
+  invalidationReason: null,
+  createdAt: 2,
+  startedAt: 3,
+  updatedAt: 4,
+  completedAt: null,
   ...overrides
 })
 
@@ -149,6 +184,45 @@ describe('workflow routes', () => {
       run: { id: 'run-1', invocations: [] }
     })
     expect(JSON.stringify({ listed, inspected })).not.toContain('return null')
+  })
+
+  it('injects only pending child interaction summaries into inspection', async () => {
+    const service = createService()
+    vi.mocked(service.listInvocations).mockReturnValue([
+      invocation(),
+      invocation({
+        id: 'invocation-2',
+        seq: 2,
+        callPath: 'root/done',
+        childSessionId: 'child-2',
+        status: 'succeeded',
+        result: { text: 'done' },
+        completedAt: 5
+      })
+    ])
+    const resolveWaitingInteractions = vi.fn().mockReturnValue([
+      {
+        kind: 'permission',
+        messageId: 'message-1',
+        toolCallId: 'tool-call-1',
+        toolName: 'write_file',
+        label: 'Allow write_file'
+      }
+    ])
+    const routes = createWorkflowRoutes(service, { resolveWaitingInteractions })
+    const inspect = routes.get(workflowInspectRoute.name)!
+
+    const inspected = await inspect({ parentSessionId: 'parent-1', runId: 'run-1' }, context)
+
+    expect(resolveWaitingInteractions).toHaveBeenCalledOnce()
+    expect(resolveWaitingInteractions).toHaveBeenCalledWith('child-1')
+    expect(inspected.run.invocations[0].waitingInteractions).toEqual([
+      expect.objectContaining({
+        kind: 'permission',
+        toolCallId: 'tool-call-1'
+      })
+    ])
+    expect(inspected.run.invocations[1].waitingInteractions).toEqual([])
   })
 
   it('rejects cross-session inspection and mutation before calling the service action', async () => {

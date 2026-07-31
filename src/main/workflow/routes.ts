@@ -9,11 +9,21 @@ import {
   workflowSynthesizeRoute
 } from '@shared/contracts/routes'
 import type { WorkflowRun } from '@shared/workflow/domain'
+import type { WorkflowWaitingInteractionProjection } from '@shared/workflow/projection'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import type { WorkflowService } from './service'
 import { projectWorkflowRunDetail, projectWorkflowRunSummaryWithCounts } from './projection'
 
-export function createWorkflowRoutes(service: WorkflowService): DeepchatRouteMap {
+export interface WorkflowRouteOptions {
+  resolveWaitingInteractions?: (
+    childSessionId: string
+  ) => readonly WorkflowWaitingInteractionProjection[]
+}
+
+export function createWorkflowRoutes(
+  service: WorkflowService,
+  options: WorkflowRouteOptions = {}
+): DeepchatRouteMap {
   const summarize = (run: WorkflowRun) => {
     const counts = service.getInvocationCounts([run.id]).get(run.id)
     if (!counts) {
@@ -70,8 +80,22 @@ export function createWorkflowRoutes(service: WorkflowService): DeepchatRouteMap
       async (rawInput) => {
         const input = workflowInspectRoute.input.parse(rawInput)
         const run = requireOwnedRun(input.parentSessionId, input.runId)
+        const invocations = service.listInvocations(run.id)
+        const waitingInteractions = new Map<
+          string,
+          readonly WorkflowWaitingInteractionProjection[]
+        >()
+        for (const invocation of invocations) {
+          if (invocation.status !== 'waiting_interaction' || !invocation.childSessionId) {
+            continue
+          }
+          waitingInteractions.set(
+            invocation.id,
+            options.resolveWaitingInteractions?.(invocation.childSessionId) ?? []
+          )
+        }
         return workflowInspectRoute.output.parse({
-          run: projectWorkflowRunDetail(run, service.listInvocations(run.id))
+          run: projectWorkflowRunDetail(run, invocations, waitingInteractions)
         })
       }
     ],

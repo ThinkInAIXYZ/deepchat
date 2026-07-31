@@ -15,7 +15,8 @@ import {
   type WorkflowInvocationProjection,
   type WorkflowRunDetail,
   type WorkflowRunSummary,
-  type WorkflowValuePreview
+  type WorkflowValuePreview,
+  type WorkflowWaitingInteractionProjection
 } from '@shared/workflow/projection'
 import { WorkflowRunBudgetSchema } from '@shared/workflow/serviceContracts'
 
@@ -63,7 +64,11 @@ export function projectWorkflowRunSummaryWithCounts(
 
 export function projectWorkflowRunDetail(
   run: WorkflowRun,
-  invocations: readonly WorkflowInvocation[]
+  invocations: readonly WorkflowInvocation[],
+  waitingInteractions: ReadonlyMap<
+    string,
+    readonly WorkflowWaitingInteractionProjection[]
+  > = new Map()
 ): WorkflowRunDetail {
   return WorkflowRunDetailSchema.parse({
     ...projectWorkflowRunSummary(run, invocations),
@@ -72,12 +77,15 @@ export function projectWorkflowRunDetail(
     budget: run.budget === null ? null : WorkflowRunBudgetSchema.parse(run.budget),
     resultPreview: run.result === null ? null : createJsonPreview(run.result),
     invalidatedFromSeq: run.invalidatedFromSeq,
-    invocations: invocations.map(projectWorkflowInvocation)
+    invocations: invocations.map((invocation) =>
+      projectWorkflowInvocation(invocation, waitingInteractions.get(invocation.id))
+    )
   })
 }
 
 export function projectWorkflowInvocation(
-  invocation: WorkflowInvocation
+  invocation: WorkflowInvocation,
+  waitingInteractions: readonly WorkflowWaitingInteractionProjection[] = []
 ): WorkflowInvocationProjection {
   return WorkflowInvocationProjectionSchema.parse({
     id: invocation.id,
@@ -106,6 +114,7 @@ export function projectWorkflowInvocation(
     tapeLinkReceipt: invocation.tapeLinkReceipt,
     invalidatedAt: invocation.invalidatedAt,
     invalidationReason: invocation.invalidationReason,
+    waitingInteractions,
     createdAt: invocation.createdAt,
     startedAt: invocation.startedAt,
     updatedAt: invocation.updatedAt,

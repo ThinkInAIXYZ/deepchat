@@ -160,6 +160,7 @@ import { WorkflowRunAdmission } from '@/workflow/runAdmission'
 import { WorkflowLaunchScopeResolver } from '@/workflow/launchScope'
 import { WorkflowService, type WorkflowServiceUpdate } from '@/workflow/service'
 import { WorkflowResultDelivery } from '@/workflow/resultDelivery'
+import { projectWorkflowWaitingInteractions } from '@/workflow/interactionProjection'
 import {
   projectWorkflowRunDetail,
   projectWorkflowRunSummaryWithCounts
@@ -1489,6 +1490,17 @@ export async function createMainProcessControl(dependencies: {
     agents: agentSettings,
     messages: sessionData.transcript
   })
+  const publishWorkflowRunChanged = (runId: string): void => {
+    const run = workflowRepository.requireRun(runId)
+    const counts = workflowRepository.getInvocationCounts([run.id]).get(run.id)
+    if (!counts) {
+      throw new Error(`Workflow invocation counts are unavailable for run ${run.id}.`)
+    }
+    publishDeepchatEvent('workflow.run.changed', {
+      schemaVersion: 1,
+      run: projectWorkflowRunSummaryWithCounts(run, counts)
+    })
+  }
   const workflowChildExecutor = new WorkflowChildExecutor({
     repository: workflowRepository,
     sessions: {
@@ -1519,19 +1531,13 @@ export async function createMainProcessControl(dependencies: {
     admission: agentInvocationAdmission,
     launchScope: workflowLaunchScope,
     invocationContexts: workflowInvocationContexts,
-    structuredOutput: workflowStructuredOutput
+    structuredOutput: workflowStructuredOutput,
+    onInvocationChanged: (invocation) => publishWorkflowRunChanged(invocation.runId)
   })
   const publishWorkflowUpdate = (update: WorkflowServiceUpdate): void => {
     const run = workflowRepository.requireRun(update.runId)
     if (update.type === 'run_changed') {
-      const counts = workflowRepository.getInvocationCounts([run.id]).get(run.id)
-      if (!counts) {
-        throw new Error(`Workflow invocation counts are unavailable for run ${run.id}.`)
-      }
-      publishDeepchatEvent('workflow.run.changed', {
-        schemaVersion: 1,
-        run: projectWorkflowRunSummaryWithCounts(run, counts)
-      })
+      publishWorkflowRunChanged(run.id)
       return
     }
     publishDeepchatEvent('workflow.log', {
@@ -2046,7 +2052,13 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const workspaceRoutes = createWorkspaceRoutes(workspaceService)
-    const workflowRoutes = createWorkflowRoutes(createLivePort(() => workflowService))
+    const workflowRoutes = createWorkflowRoutes(
+      createLivePort(() => workflowService),
+      {
+        resolveWaitingInteractions: (childSessionId) =>
+          projectWorkflowWaitingInteractions(sessionData.transcript, childSessionId)
+      }
+    )
     const projectRoutes = createProjectRoutes({
       projectService,
       publishEnvironmentsChanged: (action, environmentPath, version) => {

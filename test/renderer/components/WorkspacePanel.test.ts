@@ -131,11 +131,13 @@ const sessionState = reactive({
   selectedArtifactContext: null,
   selectedFilePath: null,
   selectedDiffPath: null,
+  selectedWorkflowRunId: null,
   viewMode: 'preview',
   sections: {
     files: true,
     git: true,
-    artifacts: true
+    artifacts: true,
+    workflows: true
   }
 })
 
@@ -147,6 +149,7 @@ const sidepanelStore = reactive({
   clearDiff: clearDiffMock,
   selectFile: selectFileMock,
   selectDiff: selectDiffMock,
+  selectWorkflowRun: vi.fn(),
   getSessionState: () => sessionState
 })
 
@@ -318,6 +321,30 @@ vi.mock('@/components/workspace/WorkspaceFileNode.vue', () => ({
   })
 }))
 
+vi.mock('@/components/sidepanel/WorkflowPanel.vue', () => ({
+  default: defineComponent({
+    name: 'WorkflowPanel',
+    props: {
+      sessionId: {
+        type: String,
+        required: true
+      },
+      selectedRunId: {
+        type: String,
+        required: false,
+        default: null
+      },
+      expanded: {
+        type: Boolean,
+        required: true
+      }
+    },
+    emits: ['toggle', 'select-run'],
+    template:
+      '<button data-testid="workflow-panel-stub" @click="$emit(\'toggle\')">Workflow</button>'
+  })
+}))
+
 vi.mock('@/components/sidepanel/WorkspaceViewer.vue', () => ({
   default: defineComponent({
     emits: ['toggle-fullscreen', 'back'],
@@ -335,9 +362,11 @@ describe('WorkspacePanel', () => {
     sessionState.selectedArtifactContext = null
     sessionState.selectedFilePath = null
     sessionState.selectedDiffPath = null
+    sessionState.selectedWorkflowRunId = null
     sessionState.sections.files = true
     sessionState.sections.git = true
     sessionState.sections.artifacts = true
+    sessionState.sections.workflows = true
     artifactStore.currentArtifact = null
     artifactStore.currentMessageId = null
     artifactStore.currentThreadId = null
@@ -349,6 +378,7 @@ describe('WorkspacePanel', () => {
     clearDiffMock.mockReset()
     selectFileMock.mockReset()
     selectDiffMock.mockReset()
+    sidepanelStore.selectWorkflowRun.mockReset()
     registerWorkspaceMock.mockReset().mockResolvedValue(undefined)
     watchWorkspaceMock.mockReset().mockResolvedValue(undefined)
     unwatchWorkspaceMock.mockReset().mockResolvedValue(undefined)
@@ -411,7 +441,8 @@ describe('WorkspacePanel', () => {
     wrapper.unmount()
   })
 
-  it('does not render a subagent section in the workspace navigation', async () => {
+  it('renders the workflow section through the shared workspace navigation state', async () => {
+    sessionState.selectedWorkflowRunId = 'run-1'
     const wrapper = mount(WorkspacePanel, {
       props: {
         sessionId: 's1',
@@ -421,7 +452,13 @@ describe('WorkspacePanel', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).not.toContain('chat.workspace.sections.subagents')
+    expect(wrapper.get('[data-testid="workflow-panel-stub"]').exists()).toBe(true)
+    const workflowPanel = wrapper.getComponent({ name: 'WorkflowPanel' })
+    expect(workflowPanel.props('selectedRunId')).toBe('run-1')
+    await wrapper.get('[data-testid="workflow-panel-stub"]').trigger('click')
+    expect(toggleSectionMock).toHaveBeenCalledWith('s1', 'workflows')
+    workflowPanel.vm.$emit('select-run', 'run-2')
+    expect(sidepanelStore.selectWorkflowRun).toHaveBeenCalledWith('s1', 'run-2')
 
     wrapper.unmount()
   })

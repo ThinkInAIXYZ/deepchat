@@ -13,6 +13,7 @@ export interface WorkspaceSessionState {
   selectedArtifactContext: WorkspaceArtifactContext | null
   selectedFilePath: string | null
   selectedDiffPath: string | null
+  selectedWorkflowRunId: string | null
   viewMode: WorkspaceViewMode
   sections: Record<WorkspaceNavSection, boolean>
 }
@@ -21,12 +22,13 @@ const createSessionState = (): WorkspaceSessionState => ({
   selectedArtifactContext: null,
   selectedFilePath: null,
   selectedDiffPath: null,
+  selectedWorkflowRunId: null,
   viewMode: 'preview',
   sections: {
     artifacts: true,
     files: true,
     git: false,
-    subagents: true
+    workflows: true
   }
 })
 
@@ -122,6 +124,19 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
   const openBrowser = () => {
     open.value = true
     activeTab.value = 'browser'
+  }
+
+  const selectWorkflowRun = (sessionId: string, runId: string | null) => {
+    ensureSessionState(sessionId).selectedWorkflowRunId = runId?.trim() || null
+  }
+
+  const openWorkflow = (sessionId: string, runId?: string | null) => {
+    const state = ensureSessionState(sessionId)
+    state.sections.workflows = true
+    if (runId !== undefined) {
+      state.selectedWorkflowRunId = runId?.trim() || null
+    }
+    openWorkspace(sessionId)
   }
 
   const closePanel = () => {
@@ -233,6 +248,8 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     setWidth,
     openWorkspace,
     openBrowser,
+    openWorkflow,
+    selectWorkflowRun,
     closePanel,
     toggleWorkspace,
     setViewMode,

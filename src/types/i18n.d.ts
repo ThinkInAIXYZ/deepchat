@@ -1276,6 +1276,82 @@ declare module 'vue-i18n' {
         }
       }
     }
+    workflow: {
+      title: string
+      loading: string
+      runLabel: string
+      empty: {
+        title: string
+        description: string
+      }
+      status: {
+        queued: string
+        running: string
+        waiting_interaction: string
+        cancelling: string
+        succeeded: string
+        failed: string
+        cancelled: string
+        interrupted: string
+      }
+      fields: {
+        duration: string
+        usage: string
+        phase: string
+        budget: string
+        reason: string
+        result: string
+      }
+      actions: {
+        refresh: string
+        resume: string
+        synthesize: string
+        openChild: string
+        retryFromHere: string
+      }
+      states: {
+        incompatible: string
+        partialResult: string
+        unknownReason: string
+        unavailable: string
+        previewTruncated: string
+        synthesisQueued: string
+        synthesisStarted: string
+      }
+      invocations: {
+        title: string
+        empty: string
+        defaultPhase: string
+        attempt: string
+        timedOut: string
+      }
+      interactions: {
+        generic: string
+        permission: string
+        question: string
+      }
+      effects: {
+        none: string
+        read: string
+        unknown: string
+        write: string
+      }
+      effectWarning: {
+        title: string
+        retry: string
+        retryFromHere: string
+        confirm: string
+      }
+      duration: {
+        seconds: string
+        minutes: string
+        hours: string
+      }
+      budget: {
+        tokens: string
+        duration: string
+      }
+    }
     notifications: {
       label: string
       actionFailed: string

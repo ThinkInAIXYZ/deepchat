@@ -126,6 +126,32 @@ describe('workflow renderer projections', () => {
     expect(projection.promptPreview.truncated).toBe(true)
     expect(projection.resultPreview?.truncated).toBe(true)
     expect(projection.resultPreview?.byteLength).toBeGreaterThan(WORKFLOW_VALUE_PREVIEW_MAX_BYTES)
+    expect(projection.waitingInteractions).toEqual([])
+  })
+
+  it('projects interaction summaries only as bounded metadata', () => {
+    const projection = projectWorkflowInvocation(
+      createInvocation({
+        childSessionId: 'child-1',
+        status: 'waiting_interaction'
+      }),
+      [
+        {
+          kind: 'question',
+          messageId: 'message-1',
+          toolCallId: 'question-1',
+          toolName: 'ask_user',
+          label: 'Choose an implementation.'
+        }
+      ]
+    )
+
+    expect(projection.waitingInteractions).toEqual([
+      expect.objectContaining({
+        kind: 'question',
+        toolCallId: 'question-1'
+      })
+    ])
   })
 
   it('counts every durable invocation status explicitly', () => {

@@ -95,6 +95,7 @@ export interface WorkflowChildExecutorOptions {
   launchScope: WorkflowLaunchScopePort
   invocationContexts: WorkflowInvocationContextRegistry
   structuredOutput: WorkflowStructuredOutputPort
+  onInvocationChanged?: (invocation: WorkflowInvocation) => void
   now?: () => number
 }
 
@@ -204,7 +205,9 @@ export class WorkflowChildExecutor {
     await assertCurrentWorkflowRunScope(this.options.launchScope, run)
     signal.throwIfAborted()
     try {
-      this.options.repository.markInvocationAdmitted(invocationId, this.now())
+      this.notifyInvocationChanged(
+        this.options.repository.markInvocationAdmitted(invocationId, this.now())
+      )
     } catch (error) {
       if (this.options.repository.requireInvocation(invocationId).status !== 'queued') {
         throw new WorkflowInvocationOwnershipLostError(invocationId, { cause: error })
@@ -237,10 +240,14 @@ export class WorkflowChildExecutor {
         parent,
         targetAgentId
       )
-      this.options.repository.attachChildSession(invocationId, child.sessionId, this.now())
+      this.notifyInvocationChanged(
+        this.options.repository.attachChildSession(invocationId, child.sessionId, this.now())
+      )
       childAttached = true
       shouldCancelChild = true
-      this.options.repository.markInvocationRunning(invocationId, this.now())
+      this.notifyInvocationChanged(
+        this.options.repository.markInvocationRunning(invocationId, this.now())
+      )
 
       releaseContext = this.options.invocationContexts.bind(child.sessionId, {
         runId: run.id,
@@ -268,7 +275,8 @@ export class WorkflowChildExecutor {
           invocationId,
           this.options.repository,
           this.options.sessions.subscribeSessionRuntimeUpdates.bind(this.options.sessions),
-          this.now
+          this.now,
+          (invocation) => this.notifyInvocationChanged(invocation)
         )
         childKnownStopped = false
         await awaitWithAbort(
@@ -352,6 +360,14 @@ export class WorkflowChildExecutor {
       if (contextMayRelease) {
         releaseContext?.()
       }
+    }
+  }
+
+  private notifyInvocationChanged(invocation: WorkflowInvocation): void {
+    try {
+      this.options.onInvocationChanged?.(invocation)
+    } catch (error) {
+      console.warn('[WorkflowChildExecutor] Failed to publish invocation update:', error)
     }
   }
 

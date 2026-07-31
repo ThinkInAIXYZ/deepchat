@@ -27,6 +27,9 @@ const WorkflowProjectionWorkspacePathSchema = z
 export const WORKFLOW_PROJECTION_SCHEMA_VERSION = 1 as const
 export const WORKFLOW_VALUE_PREVIEW_MAX_BYTES = 16 * 1024
 export const WORKFLOW_PROMPT_PREVIEW_MAX_BYTES = 4 * 1024
+export const WORKFLOW_WAITING_INTERACTIONS_MAX_ITEMS = 32
+export const WORKFLOW_WAITING_INTERACTION_TOOL_NAME_MAX_LENGTH = 256
+export const WORKFLOW_WAITING_INTERACTION_LABEL_MAX_LENGTH = 512
 
 export const WorkflowValuePreviewSchema = z
   .object({
@@ -41,6 +44,16 @@ export const WorkflowPromptPreviewSchema = z
     text: z.string().max(WORKFLOW_PROMPT_PREVIEW_MAX_BYTES),
     byteLength: z.number().int().nonnegative(),
     truncated: z.boolean()
+  })
+  .strict()
+
+export const WorkflowWaitingInteractionProjectionSchema = z
+  .object({
+    kind: z.enum(['permission', 'question']),
+    messageId: WorkflowProjectionIdSchema,
+    toolCallId: WorkflowProjectionIdSchema,
+    toolName: z.string().max(WORKFLOW_WAITING_INTERACTION_TOOL_NAME_MAX_LENGTH).nullable(),
+    label: z.string().max(WORKFLOW_WAITING_INTERACTION_LABEL_MAX_LENGTH).nullable()
   })
   .strict()
 
@@ -106,6 +119,9 @@ export const WorkflowInvocationProjectionSchema = z
     tapeLinkReceipt: WorkflowTapeLinkReceiptSchema.nullable(),
     invalidatedAt: WorkflowProjectionTimestampSchema.nullable(),
     invalidationReason: z.string().max(8_192).nullable(),
+    waitingInteractions: z
+      .array(WorkflowWaitingInteractionProjectionSchema)
+      .max(WORKFLOW_WAITING_INTERACTIONS_MAX_ITEMS),
     createdAt: WorkflowProjectionTimestampSchema,
     startedAt: WorkflowProjectionTimestampSchema.nullable(),
     updatedAt: WorkflowProjectionTimestampSchema,
@@ -125,6 +141,9 @@ export const WorkflowRunDetailSchema = WorkflowRunSummarySchema.extend({
 export type WorkflowValuePreview = z.infer<typeof WorkflowValuePreviewSchema>
 export type WorkflowPromptPreview = z.infer<typeof WorkflowPromptPreviewSchema>
 export type WorkflowInvocationCounts = z.infer<typeof WorkflowInvocationCountsSchema>
+export type WorkflowWaitingInteractionProjection = z.infer<
+  typeof WorkflowWaitingInteractionProjectionSchema
+>
 export type WorkflowRunSummary = z.infer<typeof WorkflowRunSummarySchema>
 export type WorkflowInvocationProjection = z.infer<typeof WorkflowInvocationProjectionSchema>
 export type WorkflowRunDetail = z.infer<typeof WorkflowRunDetailSchema>

@@ -5,6 +5,7 @@ import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtoco
 import type { JsonValue } from '@shared/contracts/common'
 import type { ConversationSessionInfo, CreateSubagentSessionInput } from '@/tool/runtimePorts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
+import type { WorkflowInvocation } from '@shared/workflow/domain'
 import type {
   WorkflowStructuredOutputLease,
   WorkflowStructuredOutputPort
@@ -172,7 +173,8 @@ describeIfSqlite('WorkflowChildExecutor', () => {
 
   function createExecutor(
     admission = new AgentInvocationAdmission(1, 8),
-    structuredOutput: WorkflowStructuredOutputPort = output
+    structuredOutput: WorkflowStructuredOutputPort = output,
+    onInvocationChanged?: (invocation: WorkflowInvocation) => void
   ) {
     return new WorkflowChildExecutorCtor({
       repository,
@@ -188,6 +190,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       },
       invocationContexts: contexts,
       structuredOutput,
+      onInvocationChanged,
       now: () => now++
     })
   }
@@ -196,6 +199,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     const { invocation } = createRunAndInvocation()
     const setWaiting = vi.spyOn(repository, 'setInvocationWaiting')
     const setRunning = vi.spyOn(repository, 'markInvocationRunning')
+    const onInvocationChanged = vi.fn()
     sessions.onSend = async (sessionId) => {
       expect(contexts.get(sessionId)).toEqual({
         runId: 'run-1',
@@ -236,7 +240,11 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       })
     }
 
-    const result = await createExecutor().execute(invocation.id)
+    const result = await createExecutor(
+      new AgentInvocationAdmission(1, 8),
+      output,
+      onInvocationChanged
+    ).execute(invocation.id)
 
     expect(result).toMatchObject({
       status: 'succeeded',
@@ -250,6 +258,12 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     })
     expect(setWaiting).toHaveBeenCalledOnce()
     expect(setRunning).toHaveBeenCalledTimes(2)
+    expect(onInvocationChanged.mock.calls.map(([changed]) => changed.status)).toEqual(
+      expect.arrayContaining(['admitted', 'running', 'waiting_interaction'])
+    )
+    expect(
+      onInvocationChanged.mock.calls.some(([changed]) => changed.childSessionId === 'child-1')
+    ).toBe(true)
     expect(sessions.createSubagentSession).toHaveBeenCalledWith(
       expect.objectContaining({
         slotId: invocation.childCorrelationSlot,

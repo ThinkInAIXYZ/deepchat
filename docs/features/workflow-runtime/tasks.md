@@ -179,13 +179,14 @@ Control-surface validation evidence (2026-07-31):
 - [x] Deliver with `triggerTurn: false`.
 - [x] Queue safely while a parent turn is active.
 - [x] Add explicit parent synthesis action.
-- [ ] Add the workflow side-panel section and progress tree.
-- [ ] Add child-session navigation and interaction projection.
-- [ ] Add cancel, resume, retry, retry-from-here, and effect-warning controls.
-- [ ] Add loading, empty, interrupted, incompatible, and partial-result states.
-- [ ] Add vue-i18n copy and renderer tests.
+- [x] Add the workflow side-panel section and progress tree.
+- [x] Add child-session navigation and interaction projection.
+- [x] Add cancel, resume, retry, retry-from-here, and effect-warning controls.
+- [x] Add loading, empty, interrupted, incompatible, and partial-result states.
+- [x] Add vue-i18n copy and renderer tests.
 - [x] Complete the pre-commit parent-result review, focused validation, and commit.
-- [ ] Complete the pre-commit UI review, focused validation, and commit.
+- [x] Complete the pre-commit UI review and focused validation.
+- [x] Commit the validated UI slice.
 
 Parent-result validation evidence (2026-07-31):
 
@@ -196,6 +197,26 @@ Parent-result validation evidence (2026-07-31):
   at 256 KiB, and carries a system-level untrusted-data guard;
 - 490 workflow, persistence, transcript, context-builder, memory-ingestion, route, and DeepChat
   harness tests passed in the final focused run;
+- `pnpm run format:check`
+- `pnpm run i18n`
+- `pnpm run lint`
+- `pnpm run typecheck`
+- `pnpm exec electron-vite build`
+
+UI validation evidence (2026-07-31):
+
+- the renderer consumes only typed bounded summaries and keeps terminal state main-owned;
+- live admitted, running, and waiting-interaction transitions refresh the selected durable run;
+- pending child interactions expose bounded labels and identifiers, never tool arguments, and link
+  to the existing child permission/question surface;
+- Workflow Result messages deep-link to the exact run even when it is older than the bounded list;
+- retry controls mirror service legality, require explicit confirmation for write/unknown effect
+  suffixes, and optimistically remove stale actions after a successful mutation;
+- malformed transcript blocks fail closed, duplicate synthesis clicks are suppressed, and failed
+  detail refreshes retain the last successful durable projection;
+- 155 tests passed across the complete `test/main/workflow` directory;
+- 1,922 tests passed across the complete renderer suite;
+- the final focused UI and interaction-projection run passed 8 tests;
 - `pnpm run format:check`
 - `pnpm run i18n`
 - `pnpm run lint`

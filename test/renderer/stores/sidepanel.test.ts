@@ -61,4 +61,18 @@ describe('sidepanel store', () => {
     expect(storageRef.value).toBe(310)
     expect(store.width).toBe(310)
   })
+
+  it('opens and expands the Workflow section for a session', async () => {
+    const { store } = await setupSidepanelStore(1200)
+    const sessionState = store.ensureSessionState('session-1')
+    sessionState.sections.workflows = false
+    store.openBrowser()
+
+    store.openWorkflow('session-1', 'run-1')
+
+    expect(store.open).toBe(true)
+    expect(store.activeTab).toBe('workspace')
+    expect(sessionState.sections.workflows).toBe(true)
+    expect(sessionState.selectedWorkflowRunId).toBe('run-1')
+  })
 })

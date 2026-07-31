@@ -555,5 +555,81 @@
       "amendRetryable": "修改失败，原记忆已恢复。请保留输入后重试。",
       "amendRestoreFailed": "修改失败，且原记忆未能恢复。请手动重新记住这段内容。"
     }
+  },
+  "workflow": {
+    "title": "工作流",
+    "loading": "正在加载工作流...",
+    "runLabel": "运行 {id}",
+    "empty": {
+      "title": "暂无工作流",
+      "description": "当前会话显式启动的工作流会显示在这里。"
+    },
+    "status": {
+      "queued": "排队中",
+      "running": "运行中",
+      "waiting_interaction": "需要处理",
+      "cancelling": "正在取消",
+      "succeeded": "已成功",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "interrupted": "已中断"
+    },
+    "fields": {
+      "duration": "耗时",
+      "usage": "用量",
+      "phase": "阶段",
+      "budget": "预算",
+      "reason": "原因",
+      "result": "结果预览"
+    },
+    "actions": {
+      "refresh": "刷新工作流",
+      "resume": "恢复",
+      "synthesize": "让父 Agent 综合结果",
+      "openChild": "打开子会话",
+      "retryFromHere": "从这里重试"
+    },
+    "states": {
+      "incompatible": "当前版本使用 Runtime API v{current}，无法恢复 v{version} 的运行；历史记录仍可查看。",
+      "partialResult": "此运行在全部调用完成前结束；下方仍保留已经成功的子任务结果。",
+      "unknownReason": "未记录原因。",
+      "unavailable": "不可用",
+      "previewTruncated": "预览已截断",
+      "synthesisQueued": "父会话正在运行，综合请求已进入队列。",
+      "synthesisStarted": "父会话已开始综合结果。"
+    },
+    "invocations": {
+      "title": "子任务调用",
+      "empty": "暂无子任务调用",
+      "defaultPhase": "工作流",
+      "attempt": "第 {attempt} 次尝试",
+      "timedOut": "已达到 Host 管理的超时时间。"
+    },
+    "interactions": {
+      "generic": "此子会话正在等待权限确认或问题回答。",
+      "permission": "需要权限确认",
+      "question": "需要回答问题"
+    },
+    "effects": {
+      "none": "无副作用",
+      "read": "只读",
+      "unknown": "副作用未知",
+      "write": "有写副作用"
+    },
+    "effectWarning": {
+      "title": "此次重试可能重复外部副作用",
+      "retry": "此子任务已经执行或可能执行过写操作，重试可能再次修改 DeepChat 之外的状态。",
+      "retryFromHere": "此调用或其下游子任务已经执行或可能执行过写操作，从这里重试可能再次修改 DeepChat 之外的状态。",
+      "confirm": "确认并重试"
+    },
+    "duration": {
+      "seconds": "{count} 秒",
+      "minutes": "{minutes} 分 {seconds} 秒",
+      "hours": "{hours} 小时 {minutes} 分"
+    },
+    "budget": {
+      "tokens": "{count} tokens",
+      "duration": "最长 {duration}"
+    }
   }
 }
