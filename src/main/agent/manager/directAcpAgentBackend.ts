@@ -136,9 +136,10 @@ export const createDirectAcpAgentBackend = (
           }
         },
         async list() {
-          const inputs = runtime.listPendingInputs(sessionId)
+          let inputs = runtime.listPendingInputs(sessionId)
           if (inputs.some((input) => input.mode === 'steer' && input.state === 'pending')) {
             await runtime.resumePendingInputs(await options.resolveInput(sessionId, descriptor))
+            inputs = runtime.listPendingInputs(sessionId)
           }
           return inputs
         },

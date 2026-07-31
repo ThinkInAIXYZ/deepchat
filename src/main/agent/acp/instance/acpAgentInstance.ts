@@ -347,8 +347,10 @@ export class AcpAgentInstance
   async cancel(cause: AcpCancelCause = 'user_stop'): Promise<void> {
     const active = this.active
     if (!active) return
-    active.cancelCause = cause
-    active.controller.abort()
+    if (!active.controller.signal.aborted) {
+      active.cancelCause = cause
+      active.controller.abort()
+    }
     if (active.session) {
       this.permissionBridge.cancelSession(active.session.sessionId)
       try {

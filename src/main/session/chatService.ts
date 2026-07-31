@@ -182,9 +182,13 @@ export class ChatService {
         }
       }
 
+      if (!result.userMessage) {
+        throw new Error(`Steer accepted without a persisted user message: ${sessionId}`)
+      }
+
       return {
         accepted: true,
-        message: result.userMessage!,
+        message: result.userMessage,
         ...(result.attachmentPreparation
           ? { attachmentPreparation: result.attachmentPreparation }
           : {})

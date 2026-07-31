@@ -77,6 +77,7 @@ function createHarness(options?: {
   scope?: 'regular' | 'subagent'
 }) {
   const calls: string[] = []
+  const cancelCauses: string[] = []
   let hooks:
     | {
         onEvents?(events: ReturnType<typeof createStreamEvent.text>[]): void
@@ -144,7 +145,8 @@ function createHarness(options?: {
       calls.push(`projection.fail.ACP: ${message}`)
       return { status: 'completed', stopReason: 'complete' }
     },
-    cancel: () => {
+    cancel: (_handle, cause) => {
+      cancelCauses.push(cause)
       calls.push('projection.cancel')
       return {
         status: 'aborted',
@@ -220,7 +222,7 @@ function createHarness(options?: {
     },
     dependencies
   )
-  return { calls, connection, dependencies, instance, session }
+  return { calls, cancelCauses, connection, dependencies, instance, session }
 }
 
 describe('AcpAgentInstance', () => {
@@ -308,16 +310,20 @@ describe('AcpAgentInstance', () => {
     })
   })
 
-  it('resolves first-turn readiness after projection is readable without sending a title prompt', async () => {
+  it('keeps first-turn readiness and the first cancellation cause stable', async () => {
     const harness = createHarness({ promptNeverSettles: true })
     const sending = harness.instance.send('hello')
 
     await expect(harness.instance.waitForFirstTurnReady({ timeoutMs: 100 })).resolves.toBe(true)
     expect(harness.connection.prompt).toHaveBeenCalledTimes(1)
 
-    await harness.instance.cancel()
+    const pendingInputCancellation = harness.instance.cancel('pending_input')
+    const repeatedCancellation = harness.instance.cancel()
+    await Promise.all([pendingInputCancellation, repeatedCancellation])
     await sending
+
     expect(harness.connection.prompt).toHaveBeenCalledTimes(1)
+    expect(harness.cancelCauses).toEqual(['pending_input'])
   })
 
   it('settles an active prompt before clearing its session on close', async () => {

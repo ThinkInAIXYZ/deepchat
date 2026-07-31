@@ -42,6 +42,7 @@ function createHarness() {
     close: vi.fn().mockResolvedValue(undefined),
     cleanupSession: vi.fn().mockResolvedValue(undefined),
     listPendingInputs: vi.fn().mockReturnValue([]),
+    resumePendingInputs: vi.fn().mockResolvedValue(true),
     queuePendingInput: vi.fn().mockResolvedValue({ id: 'pending' }),
     steer: vi.fn().mockResolvedValue({ id: 'steer' }),
     updateQueuedInput: vi.fn().mockReturnValue({ id: 'pending' }),
@@ -337,9 +338,14 @@ describe('direct ACP agent backend', () => {
     )
   })
 
-  it('exposes direct transfer, subagent, generation, and close facets', async () => {
+  it('exposes direct transfer, pending, subagent, generation, and close facets', async () => {
     const harness = createHarness()
     const handle = harness.backend.open(sessionId, descriptor)
+    const pendingBeforeResume = { id: 'steer', mode: 'steer', state: 'pending' }
+    const pendingAfterResume = { ...pendingBeforeResume, state: 'claimed' }
+    harness.runtime.listPendingInputs
+      .mockReturnValueOnce([pendingBeforeResume])
+      .mockReturnValueOnce([pendingAfterResume])
     const childId = toAppSessionId('child')
     const linkInput = {
       parentSessionId: sessionId,
@@ -353,6 +359,7 @@ describe('direct ACP agent backend', () => {
     }
 
     await expect(harness.backend.transferSource.hasMessages(sessionId)).resolves.toBe(true)
+    await expect(handle.pending.list()).resolves.toEqual([pendingAfterResume])
     await expect(harness.backend.subagent.linkTape(linkInput)).resolves.toMatchObject({
       linkEntry: { sessionId, entryId: 1 },
       childSessionId: childId,
@@ -369,6 +376,9 @@ describe('direct ACP agent backend', () => {
     await handle.close()
 
     expect(harness.tape.linkSubagentTape).toHaveBeenCalledWith(linkInput)
+    expect(harness.runtime.resumePendingInputs).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId, descriptor })
+    )
     expect(harness.runtime.cleanupSession).toHaveBeenCalledWith(sessionId)
     expect(harness.deleteDurableSession).toHaveBeenCalledWith(sessionId)
     expect(harness.sessionState.destroySession).toHaveBeenCalledWith(sessionId)
