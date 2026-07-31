@@ -39,14 +39,21 @@ const WORKFLOW_BOOTSTRAP_SOURCE = String.raw`
   const promiseResolve = NativePromise.resolve.bind(NativePromise)
   const promiseReject = NativePromise.reject.bind(NativePromise)
   const invokeAgentHost = __deepchatWorkflowInvokeAgent
+  const observeAgentHost = __deepchatWorkflowObserveAgent
   const validateMapLimitHost = __deepchatWorkflowValidateMapLimit
   const phaseHost = __deepchatWorkflowPhase
   const logHost = __deepchatWorkflowLog
   delete globalThis.__deepchatWorkflowInvokeAgent
+  delete globalThis.__deepchatWorkflowObserveAgent
   delete globalThis.__deepchatWorkflowValidateMapLimit
   delete globalThis.__deepchatWorkflowPhase
   delete globalThis.__deepchatWorkflowLog
 
+  Object.defineProperty(NativePromise.prototype, 'constructor', {
+    value: undefined,
+    writable: false,
+    configurable: false
+  })
   Object.freeze(NativePromise.prototype)
   Object.freeze(NativePromise)
 
@@ -84,10 +91,22 @@ const WORKFLOW_BOOTSTRAP_SOURCE = String.raw`
         fail('agent options must be an object with a stable key.')
       }
       const key = keySegment(options.key, 'agent key')
-      return invokeAgentHost({
-        callPath: prefix + '/agent/' + key,
+      const callPath = prefix + '/agent/' + key
+      const hostPromise = invokeAgentHost({
+        callPath,
         prompt,
         options
+      })
+      let observed = false
+      return Object.freeze({
+        constructor: undefined,
+        then: (onFulfilled, onRejected) => {
+          if (!observed) {
+            observeAgentHost(callPath)
+            observed = true
+          }
+          return hostPromise.then(onFulfilled, onRejected)
+        }
       })
     }
 
@@ -279,6 +298,7 @@ type WorkflowRuntimeEventPayload = WithoutRuntimeEnvelope<WorkflowRuntimeEvent>
 
 export class QuickJSWorkflowRuntime {
   private readonly pendingInvocations = new Map<string, PendingInvocation>()
+  private readonly unobservedCallPaths = new Set<string>()
   private readonly seenCallPaths = new Set<string>()
   private vmQueue: Promise<void> = Promise.resolve()
   private rootPromiseHandle: QuickJSHandle | null = null
@@ -390,6 +410,16 @@ ${source}
           resolved.dispose()
         }
       })
+      if (this.unobservedCallPaths.size > 0) {
+        throw new Error(
+          `Workflow completed with ${this.unobservedCallPaths.size} unobserved agent invocation(s). Await every agent promise before returning.`
+        )
+      }
+      if (this.pendingInvocations.size > 0) {
+        throw new Error(
+          `Workflow completed with ${this.pendingInvocations.size} pending agent invocation(s). Await every agent promise before returning.`
+        )
+      }
       if (!this.cancelled) {
         this.emit({
           type: 'COMPLETE',
@@ -545,6 +575,7 @@ ${source}
       pending.deferred.dispose()
     }
     this.pendingInvocations.clear()
+    this.unobservedCallPaths.clear()
     this.rootPromiseHandle?.dispose()
     this.rootPromiseHandle = null
     this.jsonParseHandle?.dispose()
@@ -576,6 +607,7 @@ ${source}
       }
 
       this.seenCallPaths.add(request.callPath)
+      this.unobservedCallPaths.add(request.callPath)
       this.invocationCount += 1
       const requestId = `${this.options.runId}:${++this.requestSequence}`
       const deferred = this.context.newPromise()
@@ -588,10 +620,19 @@ ${source}
         })
       } catch (error) {
         this.pendingInvocations.delete(requestId)
+        this.unobservedCallPaths.delete(request.callPath)
         deferred.dispose()
         throw error
       }
       return deferred.handle
+    })
+
+    this.installFunction('__deepchatWorkflowObserveAgent', (callPathHandle) => {
+      const callPath = this.context.dump(callPathHandle)
+      if (typeof callPath !== 'string' || !this.unobservedCallPaths.delete(callPath)) {
+        throw new Error('Workflow agent observation did not match a known logical call.')
+      }
+      return this.context.undefined
     })
 
     this.installFunction('__deepchatWorkflowValidateMapLimit', (limitHandle) => {

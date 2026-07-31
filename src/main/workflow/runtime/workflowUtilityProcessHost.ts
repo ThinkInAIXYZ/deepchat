@@ -13,6 +13,7 @@ import { WORKFLOW_UTILITY_HOST_ARG } from './workflowUtilityHost'
 
 const DEFAULT_READY_TIMEOUT_MS = 10_000
 const DEFAULT_SHUTDOWN_GRACE_MS = 2_000
+const DEFAULT_KILL_SETTLE_MS = 2_000
 const WORKFLOW_ENV_ALLOWLIST = [
   'LANG',
   'LC_ALL',
@@ -41,17 +42,19 @@ export interface WorkflowUtilityProcessHostOptions {
   onExit: (event: { runId: string; code: number; expected: boolean }) => void
   readyTimeoutMs?: number
   shutdownGraceMs?: number
+  killSettleMs?: number
   spawnHost?: () => Promise<WorkflowUtilityProcess>
 }
 
 export class WorkflowUtilityProcessHost {
   private host: WorkflowUtilityProcess | null = null
-  private readyPromise: Promise<Extract<WorkflowRuntimeEvent, { type: 'READY' }>> | null = null
+  private spawningHost: WorkflowUtilityProcess | null = null
   private resolveReady: ((event: Extract<WorkflowRuntimeEvent, { type: 'READY' }>) => void) | null =
     null
   private rejectReady: ((error: Error) => void) | null = null
   private readyTimer: NodeJS.Timeout | null = null
   private shutdownTimer: NodeJS.Timeout | null = null
+  private killTimer: NodeJS.Timeout | null = null
   private started = false
   private spawning = false
   private terminationRequested = false
@@ -74,21 +77,42 @@ export class WorkflowUtilityProcessHost {
       throw new Error('Workflow utility START runId does not match the process host.')
     }
     this.started = true
-    this.readyPromise = new Promise((resolve, reject) => {
-      this.resolveReady = resolve
-      this.rejectReady = reject
-    })
-    void this.readyPromise.catch(() => undefined)
+    const readyPromise = new Promise<Extract<WorkflowRuntimeEvent, { type: 'READY' }>>(
+      (resolve, reject) => {
+        this.resolveReady = resolve
+        this.rejectReady = reject
+      }
+    )
+    void readyPromise.catch(() => undefined)
     this.readyTimer = setTimeout(() => {
       this.fail(new Error('Workflow utility process did not become ready before timeout.'))
     }, this.options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS)
 
     this.spawning = true
     try {
-      const host = this.options.spawnHost
-        ? await this.options.spawnHost()
-        : await this.spawnDefaultHost()
+      const spawnPromise = this.options.spawnHost
+        ? this.options.spawnHost()
+        : this.spawnDefaultHost()
+      void spawnPromise
+        .then((lateHost) => {
+          if (!this.exited && !this.terminationRequested) {
+            return
+          }
+          try {
+            lateHost.kill()
+          } catch (error) {
+            console.error('[WorkflowUtilityProcessHost] Failed to kill a late utility spawn:', error)
+          }
+        })
+        .catch(() => undefined)
+      const host = await new Promise<WorkflowUtilityProcess>((resolve, reject) => {
+        void spawnPromise.then(resolve, reject)
+        void readyPromise.catch(reject)
+      })
       this.spawning = false
+      if (this.spawningHost === host) {
+        this.spawningHost = null
+      }
       this.host = host
       host.on('message', (message) => this.handleMessage(message))
       host.on('exit', (code) => this.handleExit(code))
@@ -97,10 +121,10 @@ export class WorkflowUtilityProcessHost {
       })
       if (this.terminationRequested) {
         this.killProcess(this.expectedExit)
-        return await this.readyPromise
+        return await readyPromise
       }
       this.post(command)
-      return await this.readyPromise
+      return await readyPromise
     } catch (error) {
       this.spawning = false
       const failure = error instanceof Error ? error : new Error(String(error))
@@ -109,7 +133,7 @@ export class WorkflowUtilityProcessHost {
       } else {
         this.fail(failure)
       }
-      await this.readyPromise.catch(() => undefined)
+      await readyPromise.catch(() => undefined)
       throw failure
     }
   }
@@ -144,7 +168,7 @@ export class WorkflowUtilityProcessHost {
     this.clearReadyTimer()
     if (!this.host) {
       if (this.spawning) {
-        this.terminationRequested = true
+        this.killProcess(true)
         return
       }
       this.handleExit(0)
@@ -184,8 +208,14 @@ export class WorkflowUtilityProcessHost {
     this.clearShutdownTimer()
     const host = this.host
     if (!host) {
-      if (this.spawning) {
-        return
+      const spawningHost = this.spawningHost
+      if (spawningHost) {
+        try {
+          spawningHost.kill()
+        } catch {
+          this.handleExit(1)
+          return
+        }
       }
       this.handleExit(this.expectedExit ? 0 : 1)
       return
@@ -198,6 +228,18 @@ export class WorkflowUtilityProcessHost {
       host.kill()
     } catch {
       this.handleExit(1)
+      return
+    }
+    if (!this.exited) {
+      this.killTimer = setTimeout(() => {
+        if (this.exited) {
+          return
+        }
+        console.warn(
+          `[WorkflowUtilityProcessHost] Utility kill did not emit exit for run=${this.options.runId}; settling the host lifecycle.`
+        )
+        this.handleExit(this.expectedExit ? 0 : 1)
+      }, this.options.killSettleMs ?? DEFAULT_KILL_SETTLE_MS)
     }
   }
 
@@ -249,6 +291,7 @@ export class WorkflowUtilityProcessHost {
     this.exited = true
     this.clearReadyTimer()
     this.clearShutdownTimer()
+    this.clearKillTimer()
     this.host = null
     if (this.rejectReady) {
       this.rejectReady(new Error(`Workflow utility exited before READY with code ${code}.`))
@@ -282,8 +325,9 @@ export class WorkflowUtilityProcessHost {
       stdio: 'ignore',
       env: createWorkflowUtilityEnvironment(process.env)
     }) as WorkflowUtilityProcess
+    this.spawningHost = host
 
-    return await new Promise<WorkflowUtilityProcess>((resolve, reject) => {
+    const spawned = new Promise<WorkflowUtilityProcess>((resolve, reject) => {
       let settled = false
       const settle = (callback: () => void) => {
         if (settled) {
@@ -296,10 +340,26 @@ export class WorkflowUtilityProcessHost {
       }
       const onSpawn = () => settle(() => resolve(host))
       const onExit = (code: number) =>
-        settle(() => reject(new Error(`Workflow utility exited before spawn with code ${code}.`)))
+        settle(() => {
+          if (this.spawningHost === host) {
+            this.spawningHost = null
+          }
+          reject(new Error(`Workflow utility exited before spawn with code ${code}.`))
+        })
       host.once('spawn', onSpawn)
       host.once('exit', onExit)
     })
+    if (this.exited || this.terminationRequested) {
+      try {
+        host.kill()
+      } catch (error) {
+        console.error(
+          '[WorkflowUtilityProcessHost] Failed to kill a utility created after termination:',
+          error
+        )
+      }
+    }
+    return await spawned
   }
 
   private clearReadyTimer(): void {
@@ -313,6 +373,13 @@ export class WorkflowUtilityProcessHost {
     if (this.shutdownTimer) {
       clearTimeout(this.shutdownTimer)
       this.shutdownTimer = null
+    }
+  }
+
+  private clearKillTimer(): void {
+    if (this.killTimer) {
+      clearTimeout(this.killTimer)
+      this.killTimer = null
     }
   }
 }

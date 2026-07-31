@@ -200,7 +200,10 @@ This section supersedes the first final-review claim that no critical or high fi
 
 - Freeze native promise intrinsics reachable through async functions and retain host-owned handles
   for settlement conversion.
+- Return controlled agent thenables and reject root completion while any child call is unobserved
+  or pending.
 - Make settlement cleanup and the pending-job drain failure-safe.
+- Bound process creation, readiness, and forced-kill lifecycle settlement, including late spawns.
 - Apply non-optional default run and invocation deadlines, with invocation time beginning after
   child admission.
 - Isolate malformed startup rows and replace bulk queued-run scheduling with a capacity-aware pump.
@@ -227,6 +230,7 @@ This section supersedes the first final-review claim that no critical or high fi
 - Emit bounded invocation deltas and stop full-detail refreshes on every run event.
 - Preserve dirty authoring drafts in bounded memory across panel and session lifecycle changes.
 - Clear expired approval state and avoid consuming unhandled saved-workflow requests.
+- Show the approved source hash, limits, budget, and capability summary before launch.
 - Add a stable keyed `mapLimit()` guest helper for bounded fan-out.
 
 ### Performance follow-up

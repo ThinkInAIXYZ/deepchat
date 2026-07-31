@@ -436,14 +436,67 @@ Static-outline validation evidence (2026-07-31):
 - `pnpm run i18n`;
 - `pnpm run typecheck`.
 
+### Terminal-State And Approval Closeout
+
+- [x] Bound utility creation, readiness, and forced-kill settlement even when spawn or exit events
+  never arrive.
+- [x] Kill a utility handle that becomes available after its run has already terminated.
+- [x] Reject root completion with unobserved or pending agent calls without exposing the native
+  Promise constructor.
+- [x] Derive run-level waiting state transactionally from all concurrent waiting invocations.
+- [x] Preserve successful JSON `null` results through replay and renderer projection.
+- [x] Reject retry requests against superseded invocation attempts.
+- [x] Show the full approved source hash, pending limit, budget, and capability summary.
+
+Closeout evidence (2026-07-31):
+
+- utility-host tests cover unresolved spawn, late spawn cleanup, READY timeout, missing forced-kill
+  exit, and duplicate late exit delivery;
+- QuickJS tests cover unobserved calls before and after settlement, pending-root rejection, native
+  Promise constructor removal, and normal `await`/`Promise.all` behavior;
+- persistence tests cover multiple waiting children, continued sibling creation, and restoration
+  to running only after the last waiting child leaves;
+- service and projection tests cover JSON `null` replay/projection and superseded retry rejection;
+- saved-workflow renderer tests cover the exact source hash, pending limit, budget, capabilities,
+  and advisory outline;
+- 105 focused main and renderer tests passed;
+- `pnpm run i18n`;
+- `pnpm run typecheck:node`;
+- `pnpm run typecheck:web`.
+
 ### Reopened Final Validation
 
-- [ ] Run all focused workflow and affected regression suites.
-- [ ] Run `pnpm run format`.
-- [ ] Run `pnpm run i18n`.
-- [ ] Run `pnpm run lint`.
-- [ ] Run `pnpm run typecheck`.
-- [ ] Run `pnpm run build`.
-- [ ] Perform the final cross-module review and record findings by severity.
-- [ ] Commit every validated slice locally.
-- [ ] Do not push.
+- [x] Run all focused workflow and affected regression suites.
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run `pnpm run typecheck`.
+- [x] Run `pnpm run build`.
+- [x] Perform the final cross-module review and record findings by severity.
+- [x] Commit every validated slice locally.
+- [x] Do not push.
+
+Final validation evidence (2026-07-31):
+
+- 29 affected main and renderer files passed with 239 tests;
+- the full renderer suite passed with 242 files and 1,950 tests;
+- the production Electron build passed and emitted the workflow utility-process entry point;
+- format, i18n contract generation, lint, and node/web typechecks passed;
+- the repository-wide main suite was also attempted: its one Workflow-induced migration-test
+  isolation failure was fixed. The remaining 11 failures are confined to three pre-existing or
+  stale baseline files (`mainDatabase`, `schedulerService`, and `sessionDataMigrations.sqlite`).
+  The workflow-focused suites are green; those baseline failures are recorded rather than hidden
+  or expanded into this feature.
+
+Final cross-module review findings, ordered by severity:
+
+- critical/high: no remaining workflow finding after terminal process lifecycle, guest settlement,
+  deadline, recovery, tool-policy, and child-association hardening;
+- medium, fixed before commit: unresolved utility spawn/kill lifecycle, unobserved or pending child
+  completion, non-transactional run interaction state, JSON `null` replay/projection, superseded
+  retry selection, and incomplete approval-contract display;
+- low, fixed before commit: dead direct waiting-state setters and unnecessary interaction-state
+  synchronization on unrelated invocation transitions;
+- known validation debt: the three repository-wide main test files above remain outside this
+  feature's implementation scope and must be resolved or refreshed before treating the entire
+  repository test gate as green.

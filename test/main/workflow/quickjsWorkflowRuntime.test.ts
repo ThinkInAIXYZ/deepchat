@@ -342,6 +342,119 @@ return await Promise.all([
     ])
   })
 
+  it('fails instead of completing with an unawaited agent invocation', async () => {
+    const events: WorkflowRuntimeEvent[] = []
+    const runtime = await createRuntime(events)
+    const completion = runtime.start(
+      `
+agent('write a result', { key: 'unawaited' })
+return 'premature success'
+`,
+      null
+    )
+    const observed = completion.then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    await waitForInvocationCount(events, 1)
+
+    await expect(observed).resolves.toMatchObject({
+      message:
+        'Workflow completed with 1 unobserved agent invocation(s). Await every agent promise before returning.'
+    })
+    expect(events.some((event) => event.type === 'COMPLETE')).toBe(false)
+    expect(events.at(-1)).toMatchObject({
+      type: 'FAILED',
+      error: {
+        code: 'WORKFLOW_EXECUTION_FAILED'
+      }
+    })
+  })
+
+  it('fails when an unobserved agent settles before the workflow returns', async () => {
+    const events: WorkflowRuntimeEvent[] = []
+    const runtime = await createRuntime(events)
+    const completion = runtime.start(
+      `
+agent('ignored', { key: 'ignored' })
+const gate = await agent('gate', { key: 'gate' })
+return gate
+`,
+      null
+    )
+
+    const [ignored, gate] = await waitForInvocationCount(events, 2)
+    await runtime.settleInvocation(ignored.requestId, {
+      status: 'success',
+      value: 'ignored result'
+    })
+    await runtime.settleInvocation(gate.requestId, {
+      status: 'success',
+      value: 'gate result'
+    })
+
+    await expect(completion).rejects.toThrow(
+      'Workflow completed with 1 unobserved agent invocation'
+    )
+    expect(runtime.getPendingInvocationCount()).toBe(0)
+    expect(events.some((event) => event.type === 'COMPLETE')).toBe(false)
+  })
+
+  it('fails when an observed agent is still pending as the workflow returns', async () => {
+    const events: WorkflowRuntimeEvent[] = []
+    const runtime = await createRuntime(events)
+    const completion = runtime.start(
+      `
+Promise.resolve(agent('still running', { key: 'pending' }))
+return 'premature success'
+`,
+      null
+    )
+    const observed = completion.then(
+      () => null,
+      (error: unknown) => error
+    )
+
+    await waitForInvocationCount(events, 1)
+
+    await expect(observed).resolves.toMatchObject({
+      message:
+        'Workflow completed with 1 pending agent invocation(s). Await every agent promise before returning.'
+    })
+    expect(runtime.getPendingInvocationCount()).toBe(1)
+    expect(events.some((event) => event.type === 'COMPLETE')).toBe(false)
+  })
+
+  it('does not expose the native Promise constructor through invocation promises', async () => {
+    const events: WorkflowRuntimeEvent[] = []
+    const runtime = await createRuntime(events)
+    const completion = runtime.start(
+      `
+const pending = agent('inspect', { key: 'inspect' })
+const constructorType = typeof pending.constructor
+const value = await pending
+return { constructorType, value }
+`,
+      null
+    )
+
+    await waitForInvocationCount(events, 1)
+    const invocation = events.find(
+      (event): event is Extract<WorkflowRuntimeEvent, { type: 'INVOKE_AGENT' }> =>
+        event.type === 'INVOKE_AGENT'
+    )!
+    await runtime.settleInvocation(invocation.requestId, {
+      status: 'success',
+      value: { answer: 'done' }
+    })
+
+    await expect(completion).resolves.toEqual({
+      constructorType: 'undefined',
+      value: { answer: 'done' }
+    })
+  })
+
   it('removes timing and ambient host globals', async () => {
     const events: WorkflowRuntimeEvent[] = []
     const runtime = await createRuntime(events)
@@ -375,10 +488,10 @@ return {
     const runtime = await createRuntime(events)
     const completion = runtime.start(
       `
-const nativePromise = (async () => null)().constructor
+const nativePromisePrototype = Object.getPrototypeOf((async () => null)())
 let promiseMutationBlocked = false
 try {
-  nativePromise.prototype.then = () => null
+  nativePromisePrototype.then = () => null
 } catch {
   promiseMutationBlocked = true
 }
@@ -387,7 +500,7 @@ const value = await agent('inspect', { key: 'inspect' })
 return {
   jsonWasPoisoned: JSON.parse('{}').poisoned === true,
   promiseMutationBlocked,
-  promisePrototypeFrozen: Object.isFrozen(nativePromise.prototype),
+  promisePrototypeFrozen: Object.isFrozen(nativePromisePrototype),
   value
 }
 `,

@@ -284,10 +284,6 @@ export class WorkflowRepository {
     return this.transitionRun(runId, 'running', now)
   }
 
-  setRunWaiting(runId: string, now = Date.now()): WorkflowRun {
-    return this.transitionRun(runId, 'waiting_interaction', now)
-  }
-
   setRunCancelling(runId: string, reason: string, now = Date.now()): WorkflowRun {
     return this.transitionRun(runId, 'cancelling', now, {
       cancellationReason: clampReason(reason)
@@ -518,7 +514,7 @@ export class WorkflowRepository {
       if (!run) {
         throw new Error(`Unknown workflow run: ${runId}`)
       }
-      if (run.status !== 'running') {
+      if (run.status !== 'running' && run.status !== 'waiting_interaction') {
         throw new Error(`Workflow run ${runId} is not accepting invocations (${run.status}).`)
       }
       const limits = parseStoredJson(
@@ -916,10 +912,6 @@ export class WorkflowRepository {
     return this.transitionInvocation(invocationId, 'running', now)
   }
 
-  setInvocationWaiting(invocationId: string, now = Date.now()): WorkflowInvocation {
-    return this.transitionInvocation(invocationId, 'waiting_interaction', now)
-  }
-
   setInvocationInteractionState(
     invocationId: string,
     waiting: boolean,
@@ -929,25 +921,31 @@ export class WorkflowRepository {
     const timestamp = parseTimestamp(now, 'workflow interaction state time')
     const currentStatus: WorkflowInvocationStatus = waiting ? 'running' : 'waiting_interaction'
     const nextStatus: WorkflowInvocationStatus = waiting ? 'waiting_interaction' : 'running'
-    const row = this.database
-      .getDatabase()
-      .prepare(
-        `UPDATE workflow_invocations
-         SET status = ?,
-             updated_at = ?
-         WHERE invocation_id = ?
-           AND status = ?
-           AND EXISTS (
-             SELECT 1
-             FROM workflow_runs
-             WHERE workflow_runs.run_id = workflow_invocations.run_id
-               AND workflow_runs.status IN ('running', 'waiting_interaction')
-           )
-         RETURNING *`
-      )
-      .get(nextStatus, timestamp, normalizedInvocationId, currentStatus) as
-      | WorkflowInvocationRow
-      | undefined
+    const db = this.database.getDatabase()
+    const row = db.transaction(() => {
+      const updated = db
+        .prepare(
+          `UPDATE workflow_invocations
+           SET status = ?,
+               updated_at = ?
+           WHERE invocation_id = ?
+             AND status = ?
+             AND EXISTS (
+               SELECT 1
+               FROM workflow_runs
+               WHERE workflow_runs.run_id = workflow_invocations.run_id
+                 AND workflow_runs.status IN ('running', 'waiting_interaction')
+             )
+           RETURNING *`
+        )
+        .get(nextStatus, timestamp, normalizedInvocationId, currentStatus) as
+        | WorkflowInvocationRow
+        | undefined
+      if (updated) {
+        this.synchronizeRunInteractionStatus(updated.run_id, timestamp)
+      }
+      return updated
+    })()
     return row ? toWorkflowInvocation(row) : null
   }
 
@@ -1445,32 +1443,41 @@ export class WorkflowRepository {
     }
     values.push(invocationId, current.status, requiresActiveRun)
 
-    const result = this.database
-      .getDatabase()
-      .prepare(
-        `UPDATE workflow_invocations
-         SET status = ?,
-             started_at = ?,
-             updated_at = ?,
-             completed_at = ?,
-             result_json = ?,
-             error_json = ?,
-             usage_json = ?,
-             tape_link_receipt_json = ?
-             ${hasTimeoutDeadline ? ', timeout_deadline_at = ?' : ''}
-         WHERE invocation_id = ?
-           AND status = ?
-           AND (
-             ? = 0
-             OR EXISTS (
-               SELECT 1
-               FROM workflow_runs
-               WHERE workflow_runs.run_id = workflow_invocations.run_id
-                 AND workflow_runs.status IN ('running', 'waiting_interaction')
-             )
-           )`
-      )
-      .run(...values)
+    const db = this.database.getDatabase()
+    const result = db.transaction(() => {
+      const update = db
+        .prepare(
+          `UPDATE workflow_invocations
+           SET status = ?,
+               started_at = ?,
+               updated_at = ?,
+               completed_at = ?,
+               result_json = ?,
+               error_json = ?,
+               usage_json = ?,
+               tape_link_receipt_json = ?
+               ${hasTimeoutDeadline ? ', timeout_deadline_at = ?' : ''}
+           WHERE invocation_id = ?
+             AND status = ?
+             AND (
+               ? = 0
+               OR EXISTS (
+                 SELECT 1
+                 FROM workflow_runs
+                 WHERE workflow_runs.run_id = workflow_invocations.run_id
+                   AND workflow_runs.status IN ('running', 'waiting_interaction')
+               )
+             )`
+        )
+        .run(...values)
+      if (
+        update.changes === 1 &&
+        (current.status === 'waiting_interaction' || nextStatus === 'waiting_interaction')
+      ) {
+        this.synchronizeRunInteractionStatus(current.runId, timestamp)
+      }
+      return update
+    })()
     if (result.changes !== 1) {
       if (requiresActiveRun === 1) {
         throw new Error(
@@ -1480,6 +1487,31 @@ export class WorkflowRepository {
       throw new Error(`Workflow invocation ${invocationId} changed concurrently.`)
     }
     return this.requireInvocation(invocationId)
+  }
+
+  private synchronizeRunInteractionStatus(runId: string, now: number): void {
+    const db = this.database.getDatabase()
+    const waiting = db
+      .prepare(
+        `SELECT 1
+         FROM workflow_invocations
+         WHERE run_id = ?
+           AND status = 'waiting_interaction'
+         LIMIT 1`
+      )
+      .get(runId)
+    const nextStatus: Extract<WorkflowRunStatus, 'running' | 'waiting_interaction'> = waiting
+      ? 'waiting_interaction'
+      : 'running'
+    db.prepare(
+      `UPDATE workflow_runs
+       SET status = ?,
+           updated_at = ?,
+           revision = revision + 1
+       WHERE run_id = ?
+         AND status IN ('running', 'waiting_interaction')
+         AND status != ?`
+    ).run(nextStatus, now, runId, nextStatus)
   }
 
   private reconcileInterrupted(

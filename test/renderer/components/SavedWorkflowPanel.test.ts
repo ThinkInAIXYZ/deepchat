@@ -18,7 +18,8 @@ vi.mock('@api/WorkflowClient', () => ({
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string) => key
+    t: (key: string, params?: Record<string, unknown>) =>
+      params ? `${key}:${JSON.stringify(params)}` : key
   })
 }))
 
@@ -100,7 +101,10 @@ const approval = {
     allowedAgentIds: ['deepchat'],
     maxInvocations: 128,
     maxPendingInvocations: 64,
-    budget: null,
+    budget: {
+      maxTotalTokens: 10_000,
+      maxExecutionMs: 2 * 60 * 60 * 1_000
+    },
     capabilities: ['deepchat-child-sessions'],
     outline: {
       schemaVersion: 1,
@@ -212,7 +216,12 @@ describe('SavedWorkflowPanel', () => {
       allowedAgentIds: ['deepchat', 'reviewer']
     })
     expect(wrapper.get('[data-testid="saved-workflow-approval"]').text()).toContain(
-      savedDocument.sourceHash.slice(0, 16)
+      savedDocument.sourceHash
+    )
+    expect(wrapper.get('[data-testid="saved-workflow-approval"]').text()).toContain('64')
+    expect(wrapper.get('[data-testid="saved-workflow-approval"]').text()).toContain('10,000')
+    expect(wrapper.get('[data-testid="saved-workflow-capabilities"]').text()).toContain(
+      'deepchat-child-sessions'
     )
     expect(wrapper.get('[data-testid="saved-workflow-outline"]').text()).toContain('agent · Review')
 

@@ -88,8 +88,14 @@ CREATE INDEX sample_value_idx ON sample(value);`
     }
     presenter.currentVersion = 43
     presenter.databaseFileExistedBeforeOpen = true
+    const newSessionsTable = new NewSessionsTable({} as any)
     presenter.schemaCatalog = {
-      migrationTables: [new NewSessionsTable({} as any)]
+      migrationTables: [
+        {
+          getLatestVersion: () => 44,
+          getMigrationSQL: (version: number) => newSessionsTable.getMigrationSQL(version)
+        }
+      ]
     }
 
     presenter.migrate()
@@ -123,8 +129,14 @@ CREATE INDEX sample_value_idx ON sample(value);`
     }
     presenter.currentVersion = 43
     presenter.databaseFileExistedBeforeOpen = true
+    const newSessionsTable = new NewSessionsTable({} as any)
     presenter.schemaCatalog = {
-      migrationTables: [new NewSessionsTable({} as any)]
+      migrationTables: [
+        {
+          getLatestVersion: () => 44,
+          getMigrationSQL: (version: number) => newSessionsTable.getMigrationSQL(version)
+        }
+      ]
     }
 
     expect(() => presenter.migrate()).not.toThrow()

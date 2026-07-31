@@ -213,7 +213,7 @@ V1 never silently reinterprets them.
 
 ### `agent(prompt, options)`
 
-`agent()` returns a guest promise and accepts:
+`agent()` returns a controlled awaitable thenable and accepts:
 
 - `key`: required stable key within its current scope;
 - `label`: optional bounded display label;
@@ -291,7 +291,8 @@ This is a correctness guardrail for model-generated scripts, not a security boun
 proof that every possible JavaScript program is timing-independent. Async functions still expose
 the VM's native promise intrinsics indirectly, so the utility host freezes the relevant intrinsic
 constructors and prototypes before user source runs and retains host-owned handles for promise and
-JSON conversion operations. Workflow authors must use `await`, `Promise.all`,
+JSON conversion operations. The returned thenable intentionally exposes no direct `.catch()` or
+`.finally()` surface. Workflow authors must use `await`, `Promise.all`,
 `Promise.allSettled`, `parallel`, `pipeline`, and `mapLimit` without branching on relative host
 completion timing. The sandbox and stable call-path rules still preserve safety when a script
 violates that authoring contract: it fails or creates a new keyed attempt rather than reusing
@@ -329,7 +330,10 @@ disable either host deadline. Invocation time starts after the global child perm
 queueing behind unrelated work does not consume execution time.
 
 Guest handles are disposed on every terminal path. The process is killed after a bounded graceful
-shutdown interval. A process exit is an expected failure boundary, not an uncaught main-process
+shutdown interval. The `READY` deadline includes process creation: an unresolved spawn, a process
+that never becomes ready, or a forced kill that never emits `exit` all settle the main-owned
+lifecycle within a bound. A process handle created after timeout or termination is killed instead
+of being adopted. A process exit is an expected failure boundary, not an uncaught main-process
 exception.
 
 ## Deferred Promise Driver Invariant
@@ -344,6 +348,12 @@ Host settlements may arrive concurrently, but QuickJS handle mutation and
 VM while a drain is active. Settlement conversion, resolve/reject, handle disposal, and the
 pending-job drain form one failure-safe operation: a conversion or disposal error cannot skip the
 required drain or leave the root promise waiting forever.
+
+`agent()` returns a frozen controlled thenable rather than exposing the native deferred promise.
+The first `await`, `Promise.all`, or `Promise.allSettled` observation is recorded by the host. The
+root cannot emit `COMPLETE` while any invocation is unobserved or still pending. Native promise
+constructors remain unreachable from agent thenables and async-function promise prototypes, so
+workflow source cannot recover unsupported scheduling primitives through reflection.
 
 ## Durable Data Model
 
@@ -396,6 +406,11 @@ Invocation status is a closed set:
 
 `queued | admitted | running | waiting_interaction | succeeded | failed | timed_out | cancelled | interrupted`
 
+For an active run, `waiting_interaction` is transactionally derived from whether at least one
+invocation is waiting. Other concurrent branches may continue creating invocations while the run
+is in that state. The run returns to `running` only after the last waiting invocation resumes or
+becomes terminal.
+
 The database enforces uniqueness for `(run_id, seq)` and `(run_id, call_path, attempt)`. Foreign
 keys are declared, and workflow-scoped integrity triggers preserve the same parent/run lifecycle
 when a SQLite connection has foreign-key enforcement disabled. Status, terminal-state, immutable
@@ -412,6 +427,10 @@ Resume evaluates the exact stored script from the beginning. When the guest requ
 4. reuse a terminal successful result only when the input hash, runtime API, structured schema, and
    relevant execution policy match;
 5. otherwise create a new attempt or stop for explicit confirmation according to effect state.
+
+JSON `null` is a valid successful invocation result and is replayed and projected as such. An
+explicit retry may target only the latest attempt for a call path; retrying a superseded historical
+attempt fails instead of acknowledging a no-op invalidation.
 
 An upstream result change normally changes downstream request hashes, causing downstream work to
 be recomputed without a global suffix invalidation rule. Explicit “rerun from here” still records
@@ -624,6 +643,8 @@ output, imported content, and quoted instructions cannot activate auto orchestra
 The workflow surface shows:
 
 - an advisory source outline with `exact` or `partial` confidence before launch;
+- the full approved source hash, target agents, invocation limits, budget, and concrete capability
+  summary before launch;
 - run status, phase, duration, usage, and budget;
 - invocation tree ordered by phase and audit sequence;
 - labels, stable paths, child-session links, timeout, and effect-risk state;
@@ -658,6 +679,7 @@ approvals are removed from the visible state and never leave a stale runnable ca
 - Active utility processes and queued workflow runs are capped before process creation.
 - Unknown tool effect metadata fails closed for automatic recovery.
 - Guest promise and JSON intrinsics used by the host cannot be replaced by workflow source.
+- Guest completion fails closed when an agent thenable was never observed or remains pending.
 - Startup recovery isolates malformed rows and pumps only the number of queued runs that the
   in-memory admission queue can accept.
 
@@ -680,6 +702,10 @@ approvals are removed from the visible state and never leave a stale runnable ca
 - A guest `Promise.all` with multiple deferred `agent()` calls runs concurrently under the sync
   QuickJS driver and always drains pending jobs.
 - Guest mutation attempts cannot poison host promise resolution or JSON settlement conversion.
+- Bare unobserved `agent()` calls and root completion with pending children fail instead of
+  reporting success.
+- Utility creation, readiness, and forced-kill settlement remain bounded even when process events
+  never arrive.
 - Duplicate or unstable invocation keys fail before child creation.
 - An `agentId` outside the launch allowlist fails before admission or child creation.
 - A pipeline can complete items out of order and resume without swapping cached results.
@@ -698,6 +724,9 @@ approvals are removed from the visible state and never leave a stale runnable ca
 - Existing orchestrator five-way fan-out remains compatible, and an admission failure in one task
   does not overwrite sibling outcomes.
 - Completed matching invocations replay without a provider call.
+- Successful JSON `null` results replay and project as present results.
+- Run-level waiting state follows the complete set of concurrently waiting child invocations.
+- Superseded historical attempts cannot be selected for retry.
 - A completed child is not replayable until its frozen-head Tape link is durably acknowledged.
 - Interrupted trusted read-only work can be retried automatically; interrupted write/unknown work
   requires explicit confirmation.

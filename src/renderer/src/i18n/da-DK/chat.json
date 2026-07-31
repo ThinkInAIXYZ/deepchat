@@ -659,6 +659,7 @@
         "workspace": "Workspace",
         "agents": "Allowed agents",
         "maxInvocations": "Maximum invocations",
+        "maxPendingInvocations": "Maximum pending invocations",
         "warning": "Child agents may use their existing write-capable tools. Their individual permission prompts still apply.",
         "expired": "Approval expired"
       }

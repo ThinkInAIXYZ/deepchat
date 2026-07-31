@@ -187,7 +187,7 @@
           <dl class="space-y-1 text-muted-foreground">
             <div>
               <dt class="inline">{{ t('chat.workflow.saved.approval.sourceHash') }}:</dt>
-              <dd class="ml-1 inline font-mono">{{ approval.sourceHash.slice(0, 16) }}</dd>
+              <dd class="ml-1 inline break-all font-mono">{{ approval.sourceHash }}</dd>
             </div>
             <div>
               <dt class="inline">{{ t('chat.workflow.saved.approval.workspace') }}:</dt>
@@ -202,6 +202,23 @@
             <div>
               <dt class="inline">{{ t('chat.workflow.saved.approval.maxInvocations') }}:</dt>
               <dd class="ml-1 inline">{{ approval.summary.maxInvocations }}</dd>
+            </div>
+            <div>
+              <dt class="inline">{{ t('chat.workflow.saved.approval.maxPendingInvocations') }}:</dt>
+              <dd class="ml-1 inline">{{ approval.summary.maxPendingInvocations }}</dd>
+            </div>
+            <div>
+              <dt class="inline">{{ t('chat.workflow.fields.budget') }}:</dt>
+              <dd class="ml-1 inline">{{ formatApprovalBudget(approval.summary.budget) }}</dd>
+            </div>
+            <div>
+              <dt class="inline">{{ t('model.capabilities') }}:</dt>
+              <dd
+                data-testid="saved-workflow-capabilities"
+                class="ml-1 inline break-words font-mono"
+              >
+                {{ approval.summary.capabilities.join(', ') || '—' }}
+              </dd>
             </div>
             <div
               v-if="approval.summary.outline.nodes.length > 0"
@@ -271,7 +288,7 @@ import {
   type WorkflowSavedCatalog,
   type WorkflowSavedDocument
 } from '@shared/workflow/savedWorkflow'
-import type { WorkflowLaunchApproval } from '@shared/workflow/serviceContracts'
+import type { WorkflowLaunchApproval, WorkflowRunBudget } from '@shared/workflow/serviceContracts'
 import { WORKFLOW_EVENTS } from '@/events'
 import {
   deleteWorkflowAuthoringDraft,
@@ -357,6 +374,46 @@ const canPrepare = computed(
 const approvalExpired = computed(
   () => approval.value !== null && approval.value.expiresAt <= now.value
 )
+
+function formatApprovalBudget(budget: WorkflowRunBudget | null): string {
+  if (!budget) {
+    return '—'
+  }
+  const parts: string[] = []
+  if (budget.maxTotalTokens !== undefined) {
+    parts.push(
+      t('chat.workflow.budget.tokens', {
+        count: budget.maxTotalTokens.toLocaleString()
+      })
+    )
+  }
+  if (budget.maxExecutionMs !== undefined) {
+    parts.push(
+      t('chat.workflow.budget.duration', {
+        duration: formatApprovalDuration(budget.maxExecutionMs)
+      })
+    )
+  }
+  return parts.join(' · ') || '—'
+}
+
+function formatApprovalDuration(durationMs: number): string {
+  const seconds = Math.floor(durationMs / 1_000)
+  if (seconds < 60) {
+    return t('chat.workflow.duration.seconds', { count: seconds })
+  }
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) {
+    return t('chat.workflow.duration.minutes', {
+      minutes,
+      seconds: seconds % 60
+    })
+  }
+  return t('chat.workflow.duration.hours', {
+    hours: Math.floor(minutes / 60),
+    minutes: minutes % 60
+  })
+}
 
 async function loadCatalog(): Promise<void> {
   const requestId = ++catalogRequestId

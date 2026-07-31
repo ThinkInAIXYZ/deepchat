@@ -877,6 +877,68 @@ describeIfSqlite('WorkflowService', () => {
     expect(repository.listInvocations(run.id)).toHaveLength(1)
   })
 
+  it('replays a successful JSON null result as a success outcome', async () => {
+    const run = repository.createRun({
+      id: 'null-replay-run',
+      parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
+      scriptSource: 'return await agent("Do the work", { key: "work" })',
+      input: null,
+      limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
+      allowedAgentIds: ['deepchat'],
+      now: now++
+    })
+    repository.startRun(run.id, now++)
+    const existing = repository.createInvocation({
+      id: 'null-replay-invocation',
+      runId: run.id,
+      request: request(),
+      now: now++
+    })
+    db.prepare('INSERT INTO new_sessions (id) VALUES (?)').run('null-replay-child')
+    repository.markInvocationAdmitted(existing.id, now++)
+    repository.attachChildSession(existing.id, 'null-replay-child', now++)
+    repository.markInvocationRunning(existing.id, now++)
+    const receipt = {
+      linkEntry: {
+        sessionId: 'parent',
+        entryId: 1
+      },
+      childSessionId: 'null-replay-child',
+      childHeadEntryId: 1,
+      childEntryCount: 1,
+      outcome: 'completed' as const
+    }
+    repository.succeedInvocation(existing.id, null, receipt, null, now++)
+    repository.failRun(
+      run.id,
+      {
+        code: 'WORKFLOW_AFTER_CHILD_FAILED',
+        message: 'failed after child completion',
+        retriable: true
+      },
+      now++
+    )
+    const childExecutor = succeedingChildExecutor()
+    const service = createService(childExecutor)
+
+    service.resume(run.id)
+    const host = await waitForHost()
+    host.emit({
+      type: 'INVOKE_AGENT',
+      requestId: 'replayed-null',
+      request: request()
+    })
+    await vi.waitFor(() => expect(host.settlements).toHaveLength(1))
+
+    expect(host.settlements[0].outcome).toEqual({
+      status: 'success',
+      value: null
+    })
+    expect(childExecutor.execute).not.toHaveBeenCalled()
+  })
+
   it('rejects a duplicate active call path before allocating a second child', async () => {
     let resolveChild!: (invocation: WorkflowInvocation) => void
     const childExecutor: WorkflowChildExecutionPort = {
@@ -1114,6 +1176,86 @@ describeIfSqlite('WorkflowService', () => {
     ).toThrow(WorkflowEffectConfirmationRequiredError)
     expect(repository.requireInvocation(first.id).invalidatedAt).toBeNull()
     expect(repository.requireInvocation(second.id).invalidatedAt).toBeNull()
+  })
+
+  it('rejects retrying a superseded invocation attempt', () => {
+    const run = repository.createRun({
+      id: 'superseded-retry-run',
+      parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
+      scriptSource: 'return await agent("Do the work", { key: "work" })',
+      input: null,
+      limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
+      allowedAgentIds: ['deepchat'],
+      now: now++
+    })
+    repository.startRun(run.id, now++)
+    const first = repository.createInvocation({
+      id: 'superseded-attempt',
+      runId: run.id,
+      request: request(),
+      now: now++
+    })
+    repository.failInvocation(
+      first.id,
+      {
+        status: 'failed',
+        error: {
+          code: 'FIRST_FAILED',
+          message: 'first attempt failed',
+          retriable: true
+        }
+      },
+      now++
+    )
+    repository.failRun(
+      run.id,
+      {
+        code: 'FIRST_RUN_FAILED',
+        message: 'resume for another attempt',
+        retriable: true
+      },
+      now++
+    )
+    repository.resumeRun(run.id, now++)
+    const latest = repository.createInvocation({
+      id: 'latest-attempt',
+      runId: run.id,
+      request: request(),
+      now: now++
+    })
+    repository.failInvocation(
+      latest.id,
+      {
+        status: 'failed',
+        error: {
+          code: 'LATEST_FAILED',
+          message: 'latest attempt failed',
+          retriable: true
+        }
+      },
+      now++
+    )
+    repository.failRun(
+      run.id,
+      {
+        code: 'LATEST_RUN_FAILED',
+        message: 'latest run failed',
+        retriable: true
+      },
+      now++
+    )
+    const service = createService()
+
+    expect(() =>
+      service.retryInvocation({
+        runId: run.id,
+        invocationId: first.id
+      })
+    ).toThrow('is not the latest attempt')
+    expect(repository.requireInvocation(first.id).invalidatedAt).toBeNull()
+    expect(repository.requireRun(run.id).status).toBe('failed')
   })
 
   it('cancels a queued run without ever spawning its utility process', async () => {

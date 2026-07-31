@@ -390,6 +390,12 @@ export class WorkflowService {
     if (invocation.runId !== run.id) {
       throw new Error(`Workflow invocation ${invocation.id} does not belong to run ${run.id}.`)
     }
+    const latestInvocation = this.options.repository.findLatestAttempt(run.id, invocation.callPath)
+    if (latestInvocation?.id !== invocation.id) {
+      throw new Error(
+        `Workflow invocation ${invocation.id} is not the latest attempt for ${invocation.callPath}.`
+      )
+    }
     const affectedInvocations = input.fromHere
       ? this.options.repository
           .listInvocations(run.id)
@@ -1256,7 +1262,7 @@ export class WorkflowEffectConfirmationRequiredError extends Error {
 }
 
 function invocationOutcome(invocation: WorkflowInvocation): WorkflowInvocationOutcome {
-  if (invocation.status === 'succeeded' && invocation.result !== null) {
+  if (invocation.status === 'succeeded') {
     return {
       status: 'success',
       value: invocation.result

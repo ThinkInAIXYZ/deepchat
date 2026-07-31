@@ -145,6 +145,41 @@ describe('WorkflowUtilityProcessHost', () => {
     expect(exits).toEqual([{ runId: 'run-process', code: 0, expected: false }])
   })
 
+  it('settles the host lifecycle when a forced kill emits no exit event', async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const process = new FakeUtilityProcess()
+    process.exitOnKill = false
+    const exits: Array<{ runId: string; code: number; expected: boolean }> = []
+    const host = new WorkflowUtilityProcessHost({
+      runId: 'run-process',
+      onEvent: vi.fn(),
+      onExit: (event) => exits.push(event),
+      killSettleMs: 100,
+      spawnHost: async () => process as never
+    })
+
+    const readyPromise = host.start(startCommand)
+    await vi.waitFor(() => expect(process.posted).toHaveLength(1))
+    process.emit('message', {
+      type: 'READY',
+      protocolVersion: WORKFLOW_RUNTIME_PROTOCOL_VERSION,
+      runId: 'run-process',
+      pid: 4242
+    })
+    await readyPromise
+
+    host.kill()
+    expect(exits).toEqual([])
+    await vi.advanceTimersByTimeAsync(100)
+    expect(exits).toEqual([{ runId: 'run-process', code: 0, expected: true }])
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('did not emit exit'))
+
+    process.emit('exit', 0)
+    expect(exits).toHaveLength(1)
+    warn.mockRestore()
+  })
+
   it('reports a terminal exit when process creation fails before a host exists', async () => {
     const exits: Array<{ runId: string; code: number; expected: boolean }> = []
     const host = new WorkflowUtilityProcessHost({
@@ -160,7 +195,7 @@ describe('WorkflowUtilityProcessHost', () => {
     expect(exits).toEqual([{ runId: 'run-process', code: 1, expected: false }])
   })
 
-  it('holds termination until a process still spawning has actually exited', async () => {
+  it('settles termination and kills a process that finishes spawning afterward', async () => {
     const process = new FakeUtilityProcess()
     process.exitOnKill = false
     const exits: Array<{ runId: string; code: number; expected: boolean }> = []
@@ -178,16 +213,14 @@ describe('WorkflowUtilityProcessHost', () => {
     const startPromise = host.start(startCommand)
     const rejectedStart = expect(startPromise).rejects.toThrow('exited before READY')
     host.kill()
-    expect(exits).toEqual([])
+    await rejectedStart
+    expect(exits).toEqual([{ runId: 'run-process', code: 0, expected: true }])
 
     resolveSpawn(process)
     await vi.waitFor(() => expect(process.kill).toHaveBeenCalledTimes(1))
     host.kill()
     expect(process.kill).toHaveBeenCalledTimes(1)
-    expect(exits).toEqual([])
-
     process.emit('exit', 0)
-    await rejectedStart
     expect(exits).toEqual([{ runId: 'run-process', code: 0, expected: true }])
   })
 
@@ -213,16 +246,37 @@ describe('WorkflowUtilityProcessHost', () => {
       'did not become ready before timeout'
     )
     await vi.advanceTimersByTimeAsync(100)
-    expect(exits).toEqual([])
+    await rejectedStart
+    expect(exits).toEqual([{ runId: 'run-process', code: 1, expected: false }])
 
     resolveSpawn(process)
-    await rejectedStart
+    await vi.waitFor(() => expect(process.kill).toHaveBeenCalledOnce())
     expect(process.kill).toHaveBeenCalledOnce()
-    expect(exits).toEqual([])
 
     process.emit('exit', 1)
     expect(exits).toEqual([{ runId: 'run-process', code: 1, expected: false }])
     vi.useRealTimers()
+  })
+
+  it('rejects a READY timeout even when process creation never settles', async () => {
+    vi.useFakeTimers()
+    const exits: Array<{ runId: string; code: number; expected: boolean }> = []
+    const host = new WorkflowUtilityProcessHost({
+      runId: 'run-process',
+      onEvent: vi.fn(),
+      onExit: (event) => exits.push(event),
+      readyTimeoutMs: 100,
+      spawnHost: async () => await new Promise<never>(() => undefined)
+    })
+
+    const startPromise = host.start(startCommand)
+    const rejectedStart = expect(startPromise).rejects.toThrow(
+      'did not become ready before timeout'
+    )
+    await vi.advanceTimersByTimeAsync(100)
+
+    await rejectedStart
+    expect(exits).toEqual([{ runId: 'run-process', code: 1, expected: false }])
   })
 
   it('passes only the utility baseline environment', () => {

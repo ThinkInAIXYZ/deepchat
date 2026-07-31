@@ -1379,6 +1379,7 @@ declare module 'vue-i18n' {
           workspace: string
           agents: string
           maxInvocations: string
+          maxPendingInvocations: string
           warning: string
           expired: string
         }

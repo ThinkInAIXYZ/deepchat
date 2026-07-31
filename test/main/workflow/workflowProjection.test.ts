@@ -174,6 +174,45 @@ return await agent('private prompt', { key: 'reviewer', label: 'Reviewer' })
     expect(projection.waitingInteractions).toEqual([])
   })
 
+  it('projects successful JSON null results instead of treating them as absent', () => {
+    const run = projectWorkflowRunDetail(
+      createRun({
+        status: 'succeeded',
+        result: null,
+        resultDeliveryState: 'pending',
+        resultDeliveryId: 'delivery-1',
+        completedAt: 4
+      }),
+      []
+    )
+    const invocation = projectWorkflowInvocation(
+      createInvocation({
+        status: 'succeeded',
+        result: null,
+        childSessionId: 'child-1',
+        tapeLinkReceipt: {
+          linkEntry: { sessionId: 'parent-1', entryId: 1 },
+          childSessionId: 'child-1',
+          childHeadEntryId: 1,
+          childEntryCount: 1,
+          outcome: 'completed'
+        },
+        completedAt: 4
+      })
+    )
+
+    expect(run.resultPreview).toEqual({
+      text: 'null',
+      byteLength: 4,
+      truncated: false
+    })
+    expect(invocation.resultPreview).toEqual({
+      text: 'null',
+      byteLength: 4,
+      truncated: false
+    })
+  })
+
   it('projects interaction summaries only as bounded metadata', () => {
     const projection = projectWorkflowInvocation(
       createInvocation({

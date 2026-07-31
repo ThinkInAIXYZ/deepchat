@@ -164,7 +164,6 @@ describeIfSqlite('WorkflowRepository', () => {
   it('preserves the first start time and requires explicit epoch advancement to resume', () => {
     createRun()
     expect(repository.startRun('run-1', 110).startedAt).toBe(110)
-    expect(repository.setRunWaiting('run-1', 120).startedAt).toBe(110)
     repository.failRun(
       'run-1',
       {
@@ -184,7 +183,7 @@ describeIfSqlite('WorkflowRepository', () => {
       error: null
     })
     expect(() => repository.resumeRun('run-1', 150)).toThrow('cannot be resumed')
-    expect(() => repository.setRunWaiting('run-1', 1.5)).toThrow(
+    expect(() => repository.setRunCancelling('run-1', 'cancel', 1.5)).toThrow(
       'workflow transition time must be a non-negative integer'
     )
   })
@@ -353,7 +352,7 @@ describeIfSqlite('WorkflowRepository', () => {
     db!.pragma('ignore_check_constraints = OFF')
   })
 
-  it('updates interaction state only when the durable status actually changes', () => {
+  it('keeps run interaction state synchronized across concurrent children', () => {
     const run = createRun()
     repository.startRun(run.id, 110)
     const invocation = createInvocation(run.id, 'interaction')
@@ -363,12 +362,34 @@ describeIfSqlite('WorkflowRepository', () => {
       status: 'waiting_interaction',
       updatedAt: 310
     })
+    expect(repository.requireRun(run.id).status).toBe('waiting_interaction')
     expect(repository.setInvocationInteractionState(invocation.id, true, 311)).toBeNull()
-    expect(repository.setInvocationInteractionState(invocation.id, false, 312)).toMatchObject({
-      status: 'running',
-      updatedAt: 312
+
+    const sibling = createInvocation(run.id, 'interaction-sibling', { now: 312 })
+    attachAndRun(sibling.id, 'interaction-sibling-child', 320)
+    expect(repository.setInvocationInteractionState(sibling.id, true, 323)).toMatchObject({
+      status: 'waiting_interaction'
     })
-    expect(repository.setInvocationInteractionState(invocation.id, false, 313)).toBeNull()
+    expect(repository.setInvocationInteractionState(invocation.id, false, 324)).toMatchObject({
+      status: 'running',
+      updatedAt: 324
+    })
+    expect(repository.requireRun(run.id).status).toBe('waiting_interaction')
+    expect(repository.setInvocationInteractionState(invocation.id, false, 325)).toBeNull()
+
+    repository.failInvocation(
+      sibling.id,
+      {
+        status: 'failed',
+        error: {
+          code: 'CHILD_FAILED',
+          message: 'child stopped',
+          retriable: true
+        }
+      },
+      326
+    )
+    expect(repository.requireRun(run.id).status).toBe('running')
 
     repository.failInvocation(
       invocation.id,
@@ -380,9 +401,9 @@ describeIfSqlite('WorkflowRepository', () => {
           retriable: true
         }
       },
-      314
+      327
     )
-    expect(repository.setInvocationInteractionState(invocation.id, true, 315)).toBeNull()
+    expect(repository.setInvocationInteractionState(invocation.id, true, 328)).toBeNull()
   })
 
   it('enforces the host-side total invocation limit across attempts', () => {

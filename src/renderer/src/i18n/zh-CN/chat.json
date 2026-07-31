@@ -659,6 +659,7 @@
         "workspace": "工作区",
         "agents": "允许的 Agent",
         "maxInvocations": "最大调用数",
+        "maxPendingInvocations": "最大未完成调用数",
         "warning": "子 Agent 可能使用其已有的写入工具；每次工具权限确认仍按原有规则处理。",
         "expired": "审批已过期"
       }

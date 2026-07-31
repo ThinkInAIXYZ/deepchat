@@ -81,7 +81,7 @@ export function projectWorkflowRunDetail(
     allowedAgentIds: run.allowedAgentIds,
     budget: run.budget === null ? null : WorkflowRunBudgetSchema.parse(run.budget),
     outline: projectWorkflowSourceOutline(run.scriptSource),
-    resultPreview: run.result === null ? null : createJsonPreview(run.result),
+    resultPreview: run.status === 'succeeded' ? createJsonPreview(run.result) : null,
     invalidatedFromSeq: run.invalidatedFromSeq,
     invocations: invocations.map((invocation) =>
       projectWorkflowInvocation(invocation, waitingInteractions.get(invocation.id))
@@ -112,7 +112,7 @@ export function projectWorkflowInvocation(
     childSessionId: invocation.childSessionId,
     status: invocation.status,
     timeoutDeadlineAt: invocation.timeoutDeadlineAt,
-    resultPreview: invocation.result === null ? null : createJsonPreview(invocation.result),
+    resultPreview: invocation.status === 'succeeded' ? createJsonPreview(invocation.result) : null,
     error: invocation.error,
     effectState: invocation.effectState,
     effectEvidence: invocation.effectEvidence,
