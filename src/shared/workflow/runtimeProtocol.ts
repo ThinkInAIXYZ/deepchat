@@ -96,7 +96,7 @@ export const WorkflowGuestAgentOptionsSchema = z
     key: WorkflowKeySchema,
     label: z.string().min(1).max(256).optional(),
     phase: WorkflowKeySchema.optional(),
-    agentId: z.string().min(1).max(128).optional(),
+    agentId: z.string().min(1).max(256).optional(),
     schema: JsonValueSchema.optional(),
     timeoutMs: z
       .number()

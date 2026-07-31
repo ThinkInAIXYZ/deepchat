@@ -39,6 +39,8 @@ import { SettingsActivityTable } from '@/settings/data/tables/settingsActivity'
 import { CronJobsTable } from '@/scheduler/data/tables/cronJobs'
 import { CronJobRunsTable } from '@/scheduler/data/tables/cronJobRuns'
 import { CronJobDeliveriesTable } from '@/scheduler/data/tables/cronJobDeliveries'
+import { WorkflowRunsTable } from '@/workflow/data/tables/workflowRuns'
+import { WorkflowInvocationsTable } from '@/workflow/data/tables/workflowInvocations'
 import type { BaseTable } from '@/data/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
@@ -318,6 +320,30 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'cron_job_deliveries',
     createTable: (db) => new CronJobDeliveriesTable(db)
+  },
+  {
+    name: 'workflow_runs',
+    createTable: (db) => new WorkflowRunsTable(db),
+    afterRepair: (db) => {
+      new WorkflowRunsTable(db).createTable()
+      new WorkflowInvocationsTable(db).createTable()
+    },
+    typeCheckedColumns: [
+      'runtime_api_version',
+      'execution_epoch',
+      'next_invocation_seq',
+      'created_at',
+      'updated_at',
+      'revision'
+    ]
+  },
+  {
+    name: 'workflow_invocations',
+    createTable: (db) => new WorkflowInvocationsTable(db),
+    afterRepair: (db) => {
+      new WorkflowInvocationsTable(db).createTable()
+    },
+    typeCheckedColumns: ['seq', 'attempt', 'execution_epoch', 'created_at', 'updated_at']
   }
 ]
 
@@ -425,6 +451,8 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const cronJobs = new CronJobsTable(db)
   const cronJobRuns = new CronJobRunsTable(db)
   const cronJobDeliveries = new CronJobDeliveriesTable(db)
+  const workflowRuns = new WorkflowRunsTable(db)
+  const workflowInvocations = new WorkflowInvocationsTable(db)
 
   const createTables: BaseTable[] = [
     acpSessions,
@@ -462,7 +490,9 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     settingsActivity,
     cronJobs,
     cronJobRuns,
-    cronJobDeliveries
+    cronJobDeliveries,
+    workflowRuns,
+    workflowInvocations
   ]
 
   return {

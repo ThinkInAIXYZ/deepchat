@@ -335,8 +335,10 @@ Invocation status is a closed set:
 `queued | admitted | running | waiting_interaction | succeeded | failed | timed_out | cancelled | interrupted`
 
 The database enforces uniqueness for `(run_id, seq)` and `(run_id, call_path, attempt)`. Foreign
-keys and status checks are enabled. JSON columns are parsed at repository boundaries and never
-trusted as typed data merely because they came from SQLite.
+keys are declared, and workflow-scoped integrity triggers preserve the same parent/run lifecycle
+when a SQLite connection has foreign-key enforcement disabled. Status, terminal-state, immutable
+snapshot, JSON-type, and byte-size constraints fail closed. JSON columns are parsed at repository
+boundaries and never trusted as typed data merely because they came from SQLite.
 
 ## Replay And Recovery
 

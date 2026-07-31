@@ -43,17 +43,26 @@ Validation evidence (2026-07-31):
 
 ## Persistence And Recovery
 
-- [ ] Add schema version 53.
-- [ ] Add `workflow_runs`.
-- [ ] Add `workflow_invocations`.
-- [ ] Store immutable source, hashes, statuses, attempts, effects, usage, and delivery state.
-- [ ] Persist stable child correlation slots.
-- [ ] Add repository parsing and transactional sequence allocation.
-- [ ] Add startup and utility-exit interruption reconciliation.
-- [ ] Add stable call-path replay and downstream invalidation.
-- [ ] Add timeout replay and explicit retry attempts.
-- [ ] Add migration, constraint, replay, and reconciliation tests.
-- [ ] Complete the pre-commit persistence review, focused validation, and commit.
+- [x] Add schema version 53.
+- [x] Add `workflow_runs`.
+- [x] Add `workflow_invocations`.
+- [x] Store immutable source, hashes, statuses, attempts, effects, usage, and delivery state.
+- [x] Persist stable child correlation slots.
+- [x] Add repository parsing and transactional sequence allocation.
+- [x] Add startup and utility-exit interruption reconciliation.
+- [x] Add stable call-path replay and downstream invalidation.
+- [x] Add timeout replay and explicit retry attempts.
+- [x] Add migration, constraint, replay, and reconciliation tests.
+- [x] Complete the pre-commit persistence review and focused validation.
+
+Validation evidence (2026-07-31):
+
+- 63 workflow, schema repair, schema catalog, and database connection tests passed under
+  Electron's Node ABI.
+- `pnpm run typecheck:node`
+- The broader `test/main/data` run passed 81 tests and exposed 8 pre-existing
+  `mainDatabase.test.ts` failures against removed presenter APIs or incomplete legacy fixtures;
+  none touched workflow code or failed in the new v52-to-v53 migration test.
 
 ## Shared Admission
 
