@@ -3,9 +3,11 @@ import type { WorkflowInvocation } from '@shared/workflow/domain'
 import { WorkflowUsageSchema, type WorkflowUsage } from '@shared/workflow/serviceContracts'
 
 export interface WorkflowChildRuntimeRepositoryPort {
-  requireInvocation(invocationId: string): WorkflowInvocation
-  markInvocationRunning(invocationId: string, now?: number): WorkflowInvocation
-  setInvocationWaiting(invocationId: string, now?: number): WorkflowInvocation
+  setInvocationInteractionState(
+    invocationId: string,
+    waiting: boolean,
+    now?: number
+  ): WorkflowInvocation | null
 }
 
 export type ChildTerminalState =
@@ -30,6 +32,7 @@ export class ChildRuntimeTracker {
   private responseMarkdown = ''
   private answerMarkdown = ''
   private usage: WorkflowUsage = {}
+  private interactionWaiting: boolean
   private stoppedState = false
   private resolveTerminal!: (state: ChildTerminalState) => void
   private rejectTerminal!: (error: unknown) => void
@@ -44,8 +47,10 @@ export class ChildRuntimeTracker {
     private readonly repository: WorkflowChildRuntimeRepositoryPort,
     subscribe: (listener: (update: SessionRuntimeUpdate) => void) => () => void,
     private readonly now: () => number,
+    initialInteractionWaiting: boolean,
     private readonly onInvocationChanged?: (invocation: WorkflowInvocation) => void
   ) {
+    this.interactionWaiting = initialInteractionWaiting
     this.terminal = new Promise<ChildTerminalState>((resolve, reject) => {
       this.resolveTerminal = resolve
       this.rejectTerminal = reject
@@ -59,6 +64,10 @@ export class ChildRuntimeTracker {
 
   get isStopped(): boolean {
     return this.stoppedState
+  }
+
+  get isWaitingInteraction(): boolean {
+    return this.interactionWaiting
   }
 
   markStarted(): void {
@@ -147,15 +156,17 @@ export class ChildRuntimeTracker {
   }
 
   private applyWaitingState(waiting: boolean): void {
-    const invocation = this.repository.requireInvocation(this.invocationId)
-    if (waiting && invocation.status === 'running') {
-      this.onInvocationChanged?.(
-        this.repository.setInvocationWaiting(this.invocationId, this.now())
-      )
-    } else if (!waiting && invocation.status === 'waiting_interaction') {
-      this.onInvocationChanged?.(
-        this.repository.markInvocationRunning(this.invocationId, this.now())
-      )
+    if (waiting === this.interactionWaiting) {
+      return
+    }
+    const invocation = this.repository.setInvocationInteractionState(
+      this.invocationId,
+      waiting,
+      this.now()
+    )
+    this.interactionWaiting = waiting
+    if (invocation) {
+      this.onInvocationChanged?.(invocation)
     }
   }
 }

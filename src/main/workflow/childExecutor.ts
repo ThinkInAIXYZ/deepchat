@@ -50,7 +50,11 @@ export interface WorkflowChildRepositoryPort {
   attachChildSession(invocationId: string, childSessionId: string, now?: number): WorkflowInvocation
   markInvocationAdmitted(invocationId: string, now?: number): WorkflowInvocation
   markInvocationRunning(invocationId: string, now?: number): WorkflowInvocation
-  setInvocationWaiting(invocationId: string, now?: number): WorkflowInvocation
+  setInvocationInteractionState(
+    invocationId: string,
+    waiting: boolean,
+    now?: number
+  ): WorkflowInvocation | null
   recordInvocationTapeReceipt(
     invocationId: string,
     tapeLinkReceipt: JsonValue,
@@ -280,6 +284,7 @@ export class WorkflowChildExecutor {
         this.options.repository.requireInvocation(invocationId),
         outputInstruction
       )
+      let invocationInteractionWaiting = false
       let result: JsonValue
       while (true) {
         tracker = new ChildRuntimeTracker(
@@ -288,6 +293,7 @@ export class WorkflowChildExecutor {
           this.options.repository,
           this.options.sessions.subscribeSessionRuntimeUpdates.bind(this.options.sessions),
           this.now,
+          invocationInteractionWaiting,
           (invocation) => this.notifyInvocationChanged(invocation)
         )
         childKnownStopped = false
@@ -301,6 +307,7 @@ export class WorkflowChildExecutor {
           signal
         )
         childKnownStopped = true
+        invocationInteractionWaiting = tracker.isWaitingInteraction
         tracker.close()
         tracker = null
         invocationUsage = addUsage(invocationUsage, terminal.usage)

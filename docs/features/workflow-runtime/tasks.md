@@ -329,9 +329,9 @@ Runtime/recovery audit validation evidence (2026-07-31):
 - [x] Make the model-facing workflow tool user-configurable and disabled by default.
 - [x] Stop globally reserving the `workflow` MCP name.
 - [x] Require write/unknown retry confirmation independently of a changed input hash.
-- [ ] Aggregate token usage without loading every invocation on each dispatch.
-- [ ] Remove avoidable per-block workflow invocation reads.
-- [ ] Add focused admission, exposure, retry, and performance-contract tests.
+- [x] Aggregate token usage without loading every invocation on each dispatch.
+- [x] Remove avoidable per-block workflow invocation reads.
+- [x] Add focused admission, exposure, retry, and performance-contract tests.
 
 Shared-admission compatibility evidence (2026-07-31):
 
@@ -354,6 +354,17 @@ Policy/retry validation evidence (2026-07-31):
   are covered by focused tests;
 - 161 Agent settings, session lifecycle, tool, migration, memory migration, and Workflow service
   tests passed;
+- `pnpm run typecheck:node`.
+
+Hot-path validation evidence (2026-07-31):
+
+- dispatch-time token budget checks return one SQL aggregate scalar without materializing
+  invocation payloads, while rejecting malformed documents, invalid keys or values, duplicate
+  keys, non-integral token accounting, and safe-integer overflow;
+- child block updates perform no invocation read and write only when interaction state changes;
+  correction turns preserve the prior tracker state;
+- 75 focused persistence, child-executor, and service tests passed, followed by all 181 Workflow
+  tests;
 - `pnpm run typecheck:node`.
 
 ### Projection And Authoring UX

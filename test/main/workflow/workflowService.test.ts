@@ -1004,9 +1004,11 @@ describeIfSqlite('WorkflowService', () => {
     )
     const childExecutor = succeedingChildExecutor()
     const service = createService(childExecutor)
+    const listInvocations = vi.spyOn(repository, 'listInvocations')
 
     service.resume(run.id)
     const host = await waitForHost()
+    listInvocations.mockClear()
     host.emit({
       type: 'INVOKE_AGENT',
       requestId: 'over-budget',
@@ -1019,6 +1021,7 @@ describeIfSqlite('WorkflowService', () => {
       error: { code: 'WORKFLOW_TOKEN_BUDGET_EXCEEDED', retriable: false }
     })
     expect(childExecutor.execute).not.toHaveBeenCalled()
+    expect(listInvocations).not.toHaveBeenCalled()
     expect(repository.listInvocations(run.id)).toHaveLength(1)
   })
 

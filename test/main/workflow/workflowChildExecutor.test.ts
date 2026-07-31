@@ -200,7 +200,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
 
   it('creates, binds, observes interaction state, links Tape, and succeeds in order', async () => {
     const { invocation } = createRunAndInvocation()
-    const setWaiting = vi.spyOn(repository, 'setInvocationWaiting')
+    const setInteractionState = vi.spyOn(repository, 'setInvocationInteractionState')
     const setRunning = vi.spyOn(repository, 'markInvocationRunning')
     const onInvocationChanged = vi.fn()
     const admission = new AgentInvocationAdmission(1, 8)
@@ -231,9 +231,28 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       sessions.emit({
         sessionId,
         kind: 'blocks',
+        responseMarkdown: 'Still working',
+        waitingInteraction: {
+          type: 'question',
+          messageId: 'message-1',
+          toolCallId: 'question-1',
+          actionBlock: {} as any
+        },
+        updatedAt: 312
+      })
+      sessions.emit({
+        sessionId,
+        kind: 'blocks',
         responseMarkdown: 'Done',
         waitingInteraction: null,
-        updatedAt: 312
+        updatedAt: 313
+      })
+      sessions.emit({
+        sessionId,
+        kind: 'blocks',
+        responseMarkdown: 'Done',
+        waitingInteraction: null,
+        updatedAt: 314
       })
       output.current!.resolve({ answer: 42 })
       sessions.emit({
@@ -241,7 +260,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
         kind: 'status',
         status: 'idle',
         usage: { inputTokens: 7, outputTokens: 5, totalTokens: 12 },
-        updatedAt: 313
+        updatedAt: 315
       })
     }
 
@@ -259,8 +278,8 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       },
       usage: { inputTokens: 7, outputTokens: 5, totalTokens: 12 }
     })
-    expect(setWaiting).toHaveBeenCalledOnce()
-    expect(setRunning).toHaveBeenCalledTimes(2)
+    expect(setInteractionState.mock.calls.map(([, waiting]) => waiting)).toEqual([true, false])
+    expect(setRunning).toHaveBeenCalledOnce()
     expect(onInvocationChanged.mock.calls.map(([changed]) => changed.status)).toEqual(
       expect.arrayContaining(['admitted', 'running', 'waiting_interaction'])
     )
@@ -730,6 +749,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     const structuredOutput = new WorkflowStructuredOutputRegistry({
       onCatalogChanged: vi.fn()
     })
+    const setInteractionState = vi.spyOn(repository, 'setInvocationInteractionState')
     let turn = 0
     sessions.onSend = async (sessionId) => {
       turn += 1
@@ -752,7 +772,15 @@ describeIfSqlite('WorkflowChildExecutor', () => {
             sourceMessageId: `message-${turn}`
           }
         ],
-        waitingInteraction: null,
+        waitingInteraction:
+          turn === 1
+            ? {
+                type: 'question',
+                messageId: 'correction-question',
+                toolCallId: 'correction-tool',
+                actionBlock: {} as any
+              }
+            : null,
         updatedAt: 338 + turn * 3
       })
       sessions.emit({
@@ -790,6 +818,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       'child-1',
       expect.stringContaining('Structured output rejected (1/3)')
     )
+    expect(setInteractionState.mock.calls.map(([, waiting]) => waiting)).toEqual([true, false])
     expect(structuredOutput.getToolDefinitions('child-1')).toEqual([])
   })
 

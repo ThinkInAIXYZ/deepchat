@@ -937,8 +937,7 @@ export class WorkflowService {
     if (!budget?.maxTotalTokens) {
       return null
     }
-    const usage = aggregateRunUsage(this.options.repository.listInvocations(runId))
-    const totalTokens = usage ? readTotalTokens(usage) : 0
+    const totalTokens = this.options.repository.getTotalTokenUsage(runId)
     return totalTokens >= budget.maxTotalTokens
       ? {
           code: 'WORKFLOW_TOKEN_BUDGET_EXCEEDED',

@@ -289,6 +289,102 @@ describeIfSqlite('WorkflowRepository', () => {
     ).toThrow('limited to 500 runs')
   })
 
+  it('aggregates token usage in SQL and fails closed on invalid accounting', () => {
+    const run = createRun()
+    repository.startRun(run.id, 110)
+    const first = createInvocation(run.id, 'first')
+    attachAndRun(first.id, 'usage-child-1')
+    repository.succeedInvocation(
+      first.id,
+      { ok: true },
+      receipt('usage-child-1'),
+      { totalTokens: 7, latencyMs: 1.5 },
+      310
+    )
+    const second = createInvocation(run.id, 'second', {
+      id: 'usage-invocation-2',
+      now: 320
+    })
+    attachAndRun(second.id, 'usage-child-2', 330)
+    repository.failInvocation(
+      second.id,
+      {
+        status: 'failed',
+        error: {
+          code: 'PROVIDER_FAILED',
+          message: 'provider failed after reporting usage',
+          retriable: true
+        }
+      },
+      340,
+      { inputTokens: 3, outputTokens: 2 }
+    )
+
+    expect(repository.getTotalTokenUsage(run.id)).toBe(12)
+
+    db!
+      .prepare('UPDATE workflow_invocations SET usage_json = ? WHERE invocation_id = ?')
+      .run('{"toString":1}', second.id)
+    expect(() => repository.getTotalTokenUsage(run.id)).toThrow('usage accounting is invalid')
+
+    db!
+      .prepare('UPDATE workflow_invocations SET usage_json = ? WHERE invocation_id = ?')
+      .run('{"totalTokens":1,"totalTokens":2}', second.id)
+    expect(() => repository.getTotalTokenUsage(run.id)).toThrow('usage accounting is invalid')
+
+    db!
+      .prepare('UPDATE workflow_invocations SET usage_json = ? WHERE invocation_id = ?')
+      .run('{"totalTokens":1.5}', second.id)
+    expect(() => repository.getTotalTokenUsage(run.id)).toThrow('usage accounting is invalid')
+
+    db!
+      .prepare('UPDATE workflow_invocations SET usage_json = ? WHERE invocation_id = ?')
+      .run(`{"totalTokens":${Number.MAX_SAFE_INTEGER}}`, first.id)
+    db!
+      .prepare('UPDATE workflow_invocations SET usage_json = ? WHERE invocation_id = ?')
+      .run('{"totalTokens":1}', second.id)
+    expect(() => repository.getTotalTokenUsage(run.id)).toThrow('token accounting overflowed')
+
+    db!.pragma('ignore_check_constraints = ON')
+    db!
+      .prepare('UPDATE workflow_invocations SET usage_json = ? WHERE invocation_id = ?')
+      .run('{', second.id)
+    expect(() => repository.getTotalTokenUsage(run.id)).toThrow('usage accounting is invalid')
+    db!.pragma('ignore_check_constraints = OFF')
+  })
+
+  it('updates interaction state only when the durable status actually changes', () => {
+    const run = createRun()
+    repository.startRun(run.id, 110)
+    const invocation = createInvocation(run.id, 'interaction')
+    attachAndRun(invocation.id, 'interaction-child')
+
+    expect(repository.setInvocationInteractionState(invocation.id, true, 310)).toMatchObject({
+      status: 'waiting_interaction',
+      updatedAt: 310
+    })
+    expect(repository.setInvocationInteractionState(invocation.id, true, 311)).toBeNull()
+    expect(repository.setInvocationInteractionState(invocation.id, false, 312)).toMatchObject({
+      status: 'running',
+      updatedAt: 312
+    })
+    expect(repository.setInvocationInteractionState(invocation.id, false, 313)).toBeNull()
+
+    repository.failInvocation(
+      invocation.id,
+      {
+        status: 'failed',
+        error: {
+          code: 'CHILD_FAILED',
+          message: 'child stopped',
+          retriable: true
+        }
+      },
+      314
+    )
+    expect(repository.setInvocationInteractionState(invocation.id, true, 315)).toBeNull()
+  })
+
   it('enforces the host-side total invocation limit across attempts', () => {
     const run = repository.createRun({
       id: 'limited-run',
