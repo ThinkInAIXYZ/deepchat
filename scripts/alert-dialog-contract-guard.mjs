@@ -15,6 +15,8 @@ const CLICK_HANDLER =
   /(?:^|\s)(?:@click|v-on:click)(?:\.[A-Za-z0-9_-]+)*\s*=\s*(["'])(.*?)\1/gs
 const BOUND_CLICK_HANDLER =
   /(?:^|\s)(?::onClick|v-bind:onClick)\s*=\s*(["'])(.*?)\1/gs
+const DYNAMIC_EVENT_LISTENER =
+  /(?:^|\s)(?:@\[[^\s=/>]+\]|v-on:\[[^\s=/>]+\])(?:\.[A-Za-z0-9_-]+)*(?=\s|=|\/?>)/g
 const OPAQUE_LISTENER_BAG = /(?:^|\s)(?:v-bind|v-on)\s*=\s*(["']).*?\1/gs
 const SCRIPT_BLOCK = /<script\b[^>]*>([\s\S]*?)<\/script>/g
 
@@ -125,6 +127,25 @@ function referencedAsyncHandler(expression, asyncFunctionNames) {
   return null
 }
 
+function maskQuotedTagValues(tag) {
+  let quote = null
+  let masked = ''
+  for (const character of tag) {
+    if (quote) {
+      if (character === quote) {
+        quote = null
+        masked += character
+      } else {
+        masked += character === '\n' ? '\n' : ' '
+      }
+    } else {
+      if (character === '"' || character === "'") quote = character
+      masked += character
+    }
+  }
+  return masked
+}
+
 function propertyNameText(name) {
   if (!name) return null
   if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
@@ -226,6 +247,15 @@ export function findNonSynchronousAlertDialogClickHandlers(source) {
           })
         }
       }
+    }
+
+    const tagWithoutValues = maskQuotedTagValues(tag)
+    for (const binding of tagWithoutValues.matchAll(DYNAMIC_EVENT_LISTENER)) {
+      violations.push({
+        component,
+        reason: 'dynamic-template-listener',
+        line: lineNumberAt(source, tagOffset + (binding.index ?? 0))
+      })
     }
 
     const opaqueBinding = tag.match(OPAQUE_LISTENER_BAG)

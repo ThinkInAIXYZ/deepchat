@@ -153,6 +153,34 @@ describe('alert dialog synchronous-handler guard', () => {
     ])
   })
 
+  it('rejects dynamic event names without matching directive-like attribute values', () => {
+    expect(
+      findNonSynchronousAlertDialogClickHandlers(`
+        <template>
+          <AlertDialogAction
+            data-description="Example: @[eventName]"
+            @[eventNames[index]]="confirm"
+          >
+            Confirm
+          </AlertDialogAction>
+          <AlertDialogCancel v-on:[cancelEvent].once="cancel">Cancel</AlertDialogCancel>
+          <Button @[eventName]="unrelated">Other</Button>
+        </template>
+      `)
+    ).toEqual([
+      {
+        component: 'AlertDialogAction',
+        reason: 'dynamic-template-listener',
+        line: 5
+      },
+      {
+        component: 'AlertDialogCancel',
+        reason: 'dynamic-template-listener',
+        line: 9
+      }
+    ])
+  })
+
   it('rejects async methods and dynamic click expressions in render-function props', () => {
     expect(
       findNonSynchronousAlertDialogClickHandlers(`
