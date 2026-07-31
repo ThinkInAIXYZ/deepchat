@@ -61,6 +61,8 @@ describeIfSqlite('WorkflowRepository', () => {
     return repository.createRun({
       id,
       parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
       scriptSource: 'return input',
       input: { z: 1, a: 2 },
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -136,6 +138,8 @@ describeIfSqlite('WorkflowRepository', () => {
       repository.createRun({
         id: 'orphan',
         parentSessionId: 'missing',
+        workspacePath: '/repo',
+        capabilityScopeHash: 'a'.repeat(64),
         scriptSource: 'return input',
         input: null,
         limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -247,10 +251,31 @@ describeIfSqlite('WorkflowRepository', () => {
     expect(repository.requireRun(run.id).nextInvocationSeq).toBe(5)
   })
 
+  it('aggregates bounded invocation counts without loading invocation payloads', () => {
+    const run = createRun()
+    repository.startRun(run.id, 110)
+    const admitted = createInvocation(run.id, 'admitted')
+    createInvocation(run.id, 'queued', { id: 'queued-invocation' })
+    repository.markInvocationAdmitted(admitted.id, 210)
+
+    expect(repository.getInvocationCounts([run.id]).get(run.id)).toMatchObject({
+      queued: 1,
+      admitted: 1,
+      running: 0,
+      succeeded: 0,
+      failed: 0
+    })
+    expect(() =>
+      repository.getInvocationCounts(Array.from({ length: 501 }, (_, index) => `run-${index}`))
+    ).toThrow('limited to 500 runs')
+  })
+
   it('enforces the host-side total invocation limit across attempts', () => {
     const run = repository.createRun({
       id: 'limited-run',
       parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
       scriptSource: 'return input',
       input: null,
       limits: {
@@ -277,6 +302,8 @@ describeIfSqlite('WorkflowRepository', () => {
     const run = repository.createRun({
       id: 'bounded-run',
       parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
       scriptSource: 'return input',
       input: null,
       limits: {

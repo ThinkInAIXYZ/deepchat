@@ -97,6 +97,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
   let sessions: ReturnType<typeof createSessionPort>
   let output: ReturnType<typeof createStructuredOutputPort>
   let now: number
+  let capabilityScopeHash: string
 
   beforeEach(() => {
     db = new DatabaseCtor(':memory:')
@@ -114,6 +115,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     sessions.addSessionRow = addSessionRow
     output = createStructuredOutputPort()
     now = 300
+    capabilityScopeHash = 'a'.repeat(64)
   })
 
   afterEach(() => {
@@ -140,6 +142,8 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     const run = repository.createRun({
       id: runId,
       parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
       scriptSource: 'return await agent("work", { key: "work" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -174,6 +178,14 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       repository,
       sessions,
       admission,
+      launchScope: {
+        resolve: vi.fn(async (input) => ({
+          workspacePath: '/repo',
+          allowedAgentIds: [...new Set(input.allowedAgentIds)].sort(),
+          capabilityScopeHash,
+          capabilities: []
+        }))
+      },
       invocationContexts: contexts,
       structuredOutput,
       now: () => now++
@@ -241,6 +253,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     expect(sessions.createSubagentSession).toHaveBeenCalledWith(
       expect.objectContaining({
         slotId: invocation.childCorrelationSlot,
+        projectDir: '/repo',
         workflowContext: {
           runId: 'run-1',
           invocationId: invocation.id,
@@ -269,6 +282,27 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     )
     expect(output.close).toHaveBeenCalledOnce()
     expect(contexts.size).toBe(0)
+  })
+
+  it('revalidates durable scope after admission wait and fails before creating a child', async () => {
+    const { invocation } = createRunAndInvocation()
+    const admission = new AgentInvocationAdmission(1, 8)
+    const blocker = await admission.acquire({ ownerId: 'other-work' })
+    const execution = createExecutor(admission).execute(invocation.id)
+    await vi.waitFor(() => expect(admission.snapshot().pending).toBe(1))
+
+    capabilityScopeHash = 'b'.repeat(64)
+    blocker.release()
+
+    await expect(execution).rejects.toThrow('capability scope changed after launch')
+    expect(repository.requireInvocation(invocation.id)).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'WORKFLOW_CAPABILITY_SCOPE_CHANGED',
+        retriable: false
+      }
+    })
+    expect(sessions.createSubagentSession).not.toHaveBeenCalled()
   })
 
   it('coalesces duplicate execution requests without sending a second handoff', async () => {

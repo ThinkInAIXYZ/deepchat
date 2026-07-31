@@ -17,6 +17,11 @@ import type {
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { WorkflowSubagentContext } from '@shared/workflow/subagent'
+import type { WorkflowRunDetail, WorkflowRunSummary } from '@shared/workflow/projection'
+import type {
+  WorkflowLaunchApproval,
+  WorkflowLaunchIntent
+} from '@shared/workflow/serviceContracts'
 import type { AgentInvocationAdmissionPort } from '@/agent/invocationAdmission'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
@@ -129,6 +134,31 @@ export interface AgentSubagentToolPort {
   subscribeSessionRuntimeUpdates(listener: (update: SessionRuntimeUpdate) => void): () => void
 }
 
+export interface AgentWorkflowToolPort {
+  canUse(parentSessionId: string): Promise<boolean>
+  prepareLaunch(
+    parentSessionId: string,
+    input: Omit<WorkflowLaunchIntent, 'parentSessionId' | 'allowedAgentIds'> & {
+      allowedAgentIds?: string[]
+    }
+  ): Promise<WorkflowLaunchApproval>
+  getLaunchApproval(parentSessionId: string, approvalId: string): Promise<WorkflowLaunchApproval>
+  launch(parentSessionId: string, approvalId: string): Promise<WorkflowRunSummary>
+  list(parentSessionId: string, limit?: number): Promise<WorkflowRunSummary[]>
+  inspect(parentSessionId: string, runId: string): Promise<WorkflowRunDetail>
+  cancel(parentSessionId: string, runId: string, reason?: string): Promise<WorkflowRunSummary>
+  resume(parentSessionId: string, runId: string): Promise<WorkflowRunSummary>
+  retry(
+    parentSessionId: string,
+    input: {
+      runId: string
+      invocationId: string
+      fromHere?: boolean
+      confirmEffects?: boolean
+    }
+  ): Promise<WorkflowRunSummary>
+}
+
 export interface AgentBrowserToolPort {
   getToolDefinitions(): MCPToolDefinition[]
   callTool(
@@ -177,6 +207,7 @@ export interface AgentToolDependencies {
   memory: AgentMemoryToolPort
   cronJobs: AgentCronJobToolPort
   subagents: AgentSubagentToolPort
+  workflow?: AgentWorkflowToolPort
   agentInvocationAdmission: AgentInvocationAdmissionPort
   skills: SkillServicePort
   browser: AgentBrowserToolPort

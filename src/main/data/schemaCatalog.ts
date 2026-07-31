@@ -39,7 +39,10 @@ import { SettingsActivityTable } from '@/settings/data/tables/settingsActivity'
 import { CronJobsTable } from '@/scheduler/data/tables/cronJobs'
 import { CronJobRunsTable } from '@/scheduler/data/tables/cronJobRuns'
 import { CronJobDeliveriesTable } from '@/scheduler/data/tables/cronJobDeliveries'
-import { WorkflowRunsTable } from '@/workflow/data/tables/workflowRuns'
+import {
+  LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH,
+  WorkflowRunsTable
+} from '@/workflow/data/tables/workflowRuns'
 import { WorkflowInvocationsTable } from '@/workflow/data/tables/workflowInvocations'
 import type { BaseTable } from '@/data/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
@@ -324,7 +327,24 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'workflow_runs',
     createTable: (db) => new WorkflowRunsTable(db),
+    repairableColumns: {
+      workspace_path: `ALTER TABLE workflow_runs
+        ADD COLUMN workspace_path TEXT CHECK (
+          workspace_path IS NULL
+          OR (
+            length(workspace_path) BETWEEN 1 AND 4096
+            AND instr(workspace_path, char(0)) = 0
+          )
+        );`,
+      capability_scope_hash: `ALTER TABLE workflow_runs
+        ADD COLUMN capability_scope_hash TEXT NOT NULL
+        DEFAULT '${LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH}' CHECK (
+          length(capability_scope_hash) = 64
+          AND capability_scope_hash NOT GLOB '*[^0-9a-f]*'
+        );`
+    },
     afterRepair: (db) => {
+      db.exec('DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot')
       new WorkflowRunsTable(db).createTable()
       new WorkflowInvocationsTable(db).createTable()
     },

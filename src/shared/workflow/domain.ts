@@ -52,6 +52,11 @@ const HashSchema = z
   .string()
   .length(64)
   .regex(/^[0-9a-f]+$/)
+const WorkspacePathSchema = z
+  .string()
+  .min(1)
+  .max(4_096)
+  .refine((value) => !value.includes('\0'), 'Workspace path cannot contain NUL')
 const TimestampSchema = z.number().int().nonnegative()
 
 export const WorkflowTapeLinkReceiptSchema = z
@@ -113,6 +118,8 @@ export const WorkflowRunSchema = z
     parentSessionId: StoredIdSchema,
     parentMessageId: StoredIdSchema.nullable(),
     namedWorkflowPath: z.string().max(4_096).nullable(),
+    workspacePath: WorkspacePathSchema.nullable(),
+    capabilityScopeHash: HashSchema,
     scriptSource: z.string().min(1),
     scriptHash: HashSchema,
     input: JsonValueSchema,
@@ -260,6 +267,8 @@ export interface WorkflowRunCreateInput {
   parentSessionId: string
   parentMessageId?: string | null
   namedWorkflowPath?: string | null
+  workspacePath: string | null
+  capabilityScopeHash: string
   scriptSource: string
   input: JsonValue
   limits: WorkflowRuntimeLimits

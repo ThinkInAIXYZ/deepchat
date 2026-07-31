@@ -41,7 +41,8 @@ testable solution.
 
 ## 3. Add Durable Run And Invocation Storage
 
-- Add additive schema version 53 with `workflow_runs` and `workflow_invocations`.
+- Add schema version 53 with `workflow_runs` and `workflow_invocations`, then additive version 54
+  for the immutable workspace/capability scope snapshot.
 - Store the exact immutable executed script source and hash in the run row.
 - Enforce status checks, foreign keys, uniqueness, JSON bounds, and timestamps.
 - Implement domain mapping and Zod parsing at repository boundaries.
@@ -50,8 +51,8 @@ testable solution.
 - Persist a stable child correlation slot for crash-safe session reattachment.
 - Add startup reconciliation and utility-exit reconciliation transactions.
 - Add idempotent parent-result delivery state.
-- Test new database creation, v52-to-v53 migration, constraints, replay lookup, restart
-  reconciliation, and duplicate delivery prevention.
+- Test new database creation, v52-to-v54 and v53-to-v54 migration, constraints, replay lookup,
+  restart reconciliation, and duplicate delivery prevention.
 
 ## 4. Introduce Shared Child-Agent Admission
 

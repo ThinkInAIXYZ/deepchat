@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { JsonValue } from '@shared/contracts/common'
 import {
   WorkflowLaunchApprovalExpiredError,
+  WorkflowLaunchApprovalScopeError,
   WorkflowLaunchApprovalRegistry
 } from '@/workflow/launchApproval'
 
@@ -108,5 +109,18 @@ describe('WorkflowLaunchApprovalRegistry', () => {
     expect(() => registry.prepare(draft({ payload: 'y'.repeat(700) }))).toThrow('pending limit')
     registry.consume(first.approvalId)
     expect(registry.prepare(draft({ payload: 'y'.repeat(700) })).approvalId).toBeTruthy()
+  })
+
+  it('does not reveal or consume an approval through another parent session', () => {
+    const registry = new WorkflowLaunchApprovalRegistry()
+    const approval = registry.prepare(draft())
+
+    expect(() => registry.get(approval.approvalId, 'other-parent')).toThrow(
+      WorkflowLaunchApprovalScopeError
+    )
+    expect(() => registry.consume(approval.approvalId, 'other-parent')).toThrow(
+      WorkflowLaunchApprovalScopeError
+    )
+    expect(registry.consume(approval.approvalId, 'parent').parentSessionId).toBe('parent')
   })
 })

@@ -8,13 +8,17 @@ import {
 } from '@shared/workflow/domain'
 import { WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES } from '@shared/workflow/runtimeProtocol'
 
-export const WORKFLOW_SCHEMA_VERSION = 53
+export const WORKFLOW_BASE_SCHEMA_VERSION = 53
+export const WORKFLOW_SCHEMA_VERSION = 54
+export const LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH = '0'.repeat(64)
 
 export interface WorkflowRunRow {
   run_id: string
   parent_session_id: string
   parent_message_id: string | null
   named_workflow_path: string | null
+  workspace_path: string | null
+  capability_scope_hash: string
   script_source: string
   script_hash: string
   input_json: string
@@ -70,6 +74,8 @@ const WORKFLOW_RUNS_TRIGGER_SQL = `
     parent_session_id,
     parent_message_id,
     named_workflow_path,
+    workspace_path,
+    capability_scope_hash,
     script_source,
     script_hash,
     input_json,
@@ -99,6 +105,17 @@ export class WorkflowRunsTable extends BaseTable {
         ),
         named_workflow_path TEXT CHECK (
           named_workflow_path IS NULL OR length(named_workflow_path) <= 4096
+        ),
+        workspace_path TEXT CHECK (
+          workspace_path IS NULL
+          OR (
+            length(workspace_path) BETWEEN 1 AND 4096
+            AND instr(workspace_path, char(0)) = 0
+          )
+        ),
+        capability_scope_hash TEXT NOT NULL CHECK (
+          length(capability_scope_hash) = 64
+          AND capability_scope_hash NOT GLOB '*[^0-9a-f]*'
         ),
         script_source TEXT NOT NULL CHECK (
           length(CAST(script_source AS BLOB)) BETWEEN 1 AND ${WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES}
@@ -260,7 +277,37 @@ export class WorkflowRunsTable extends BaseTable {
   }
 
   getMigrationSQL(version: number): string | null {
-    return version === WORKFLOW_SCHEMA_VERSION ? this.getCreateTableSQL() : null
+    if (version === WORKFLOW_BASE_SCHEMA_VERSION) {
+      return this.getCreateTableSQL()
+    }
+    if (version === WORKFLOW_SCHEMA_VERSION) {
+      const statements: string[] = []
+      if (!this.hasColumn('workspace_path')) {
+        statements.push(`
+          ALTER TABLE workflow_runs
+          ADD COLUMN workspace_path TEXT CHECK (
+            workspace_path IS NULL
+            OR (
+              length(workspace_path) BETWEEN 1 AND 4096
+              AND instr(workspace_path, char(0)) = 0
+            )
+          )
+        `)
+      }
+      if (!this.hasColumn('capability_scope_hash')) {
+        statements.push(`
+          ALTER TABLE workflow_runs
+          ADD COLUMN capability_scope_hash TEXT NOT NULL
+          DEFAULT '${LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH}' CHECK (
+            length(capability_scope_hash) = 64
+            AND capability_scope_hash NOT GLOB '*[^0-9a-f]*'
+          )
+        `)
+      }
+      statements.push('DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot')
+      return `${statements.join(';\n')};`
+    }
+    return null
   }
 
   getLatestVersion(): number {
@@ -268,7 +315,7 @@ export class WorkflowRunsTable extends BaseTable {
   }
 
   override finalizeMigration(version: number): void {
-    if (version === WORKFLOW_SCHEMA_VERSION) {
+    if (version === WORKFLOW_BASE_SCHEMA_VERSION || version === WORKFLOW_SCHEMA_VERSION) {
       this.db.exec(WORKFLOW_RUNS_TRIGGER_SQL)
     }
   }

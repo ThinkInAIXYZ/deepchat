@@ -45,6 +45,7 @@ export const createAgentToolDependencies = (
     cancelConversation: overrides.cancelConversation ?? vi.fn(),
     subscribeSessionRuntimeUpdates: overrides.subscribeSessionRuntimeUpdates ?? vi.fn(() => vi.fn())
   },
+  ...(overrides.workflow ? { workflow: overrides.workflow } : {}),
   skills:
     overrides.skillService ??
     ({

@@ -10,6 +10,8 @@ import {
   DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
   resolveDeepChatSubagentCapability
 } from '@shared/lib/deepchatSubagents'
+import { WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
 
 vi.mock('electron', () => ({
   app: {
@@ -41,7 +43,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   const resolveConversationSessionInfo = vi.fn()
   const getToolDefinitions = vi.fn().mockReturnValue([])
 
-  const buildManager = () =>
+  const buildManager = (workflow?: any) =>
     new AgentToolManager({
       skillSettings: { isEnabled: () => true } as any,
       settings: { get: vi.fn() },
@@ -73,7 +75,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
         getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
+        consumeSettingsApproval: vi.fn().mockReturnValue(false),
+        workflow
       })
     })
 
@@ -477,5 +480,62 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       'The child session uses the same working directory as the parent session'
     )
     expect(resolveConversationSessionInfo).toHaveBeenCalled()
+  })
+
+  it('exposes workflow only through its policy gate and requires non-remembered launch approval', async () => {
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
+    const workflow = {
+      canUse: vi.fn().mockResolvedValue(true),
+      getLaunchApproval: vi.fn().mockResolvedValue({
+        approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
+        sourceHash: 'a'.repeat(64),
+        scopeHash: 'b'.repeat(64),
+        expiresAt: 10_000,
+        summary: {
+          workspacePath: '/repo',
+          capabilityScopeHash: 'c'.repeat(64),
+          allowedAgentIds: ['deepchat'],
+          maxInvocations: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxInvocations,
+          maxPendingInvocations: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxPendingInvocations,
+          budget: null,
+          capabilities: ['deepchat-child-sessions']
+        }
+      })
+    }
+    const manager = buildManager(workflow)
+
+    const definitions = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1'
+    })
+    expect(
+      definitions.some((definition) => definition.function.name === WORKFLOW_AGENT_TOOL_NAME)
+    ).toBe(true)
+
+    await expect(
+      manager.preCheckToolPermission(
+        WORKFLOW_AGENT_TOOL_NAME,
+        {
+          operation: 'launch',
+          approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
+        },
+        'conv-1'
+      )
+    ).resolves.toMatchObject({
+      needsPermission: true,
+      permissionType: 'write',
+      rememberable: false,
+      conversationId: 'conv-1'
+    })
+    await expect(
+      manager.preCheckToolPermission(WORKFLOW_AGENT_TOOL_NAME, { operation: 'list' }, 'conv-1')
+    ).resolves.toBeNull()
+    expect(workflow.getLaunchApproval).toHaveBeenCalledWith(
+      'conv-1',
+      '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
+    )
   })
 })

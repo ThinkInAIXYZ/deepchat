@@ -44,6 +44,7 @@ Validation evidence (2026-07-31):
 ## Persistence And Recovery
 
 - [x] Add schema version 53.
+- [x] Add schema version 54 for the durable workspace and capability scope.
 - [x] Add `workflow_runs`.
 - [x] Add `workflow_invocations`.
 - [x] Store immutable source, hashes, statuses, attempts, effects, usage, and delivery state.
@@ -62,7 +63,7 @@ Validation evidence (2026-07-31):
 - `pnpm run typecheck:node`
 - The broader `test/main/data` run passed 81 tests and exposed 8 pre-existing
   `mainDatabase.test.ts` failures against removed presenter APIs or incomplete legacy fixtures;
-  none touched workflow code or failed in the new v52-to-v53 migration test.
+  none touched workflow code or failed in the workflow migration tests.
 
 ## Shared Admission
 
@@ -132,12 +133,12 @@ Structured-output validation evidence (2026-07-31):
 - [x] Add one-process-per-run lifecycle.
 - [x] Add admission, execution, settlement, timeout, cancellation, and budget orchestration.
 - [x] Add resume, retry, and retry-from-here behavior.
-- [ ] Add typed launch/status/cancel/resume/retry routes.
-- [ ] Add explicit workflow agent-tool actions.
-- [ ] Add typed workflow events and renderer projections.
-- [ ] Keep activation independent from reasoning effort and explicit-only in V1.
+- [x] Add typed launch/status/cancel/resume/retry routes.
+- [x] Add explicit workflow agent-tool actions.
+- [x] Add typed workflow events and renderer projections.
+- [x] Keep activation independent from reasoning effort and explicit-only in V1.
 - [x] Add service, protocol-failure, recovery, and budget tests.
-- [ ] Add route and agent-tool tests.
+- [x] Add route and agent-tool tests.
 - [x] Complete the pre-commit service-core review, focused validation, and commit.
 
 Service-core validation evidence (2026-07-31):
@@ -151,6 +152,21 @@ Service-core validation evidence (2026-07-31):
 - child usage is validated, correction-turn usage is accumulated, and terminal invocation usage is
   durable.
 - 435 workflow, shared-admission, orchestrator, session-lifecycle, and DeepChat harness tests passed.
+- `pnpm run format:check`
+- `pnpm run i18n`
+- `pnpm run lint`
+- `pnpm run typecheck`
+- `pnpm exec electron-vite build`
+
+Control-surface validation evidence (2026-07-31):
+
+- launch approval and every invocation dispatch revalidate the immutable workspace and effective
+  target-agent capability scope, including MCP and Skill selections;
+- typed routes and events expose bounded projections rather than stored script, input, prompt, or
+  full result payloads;
+- the Agent tool keeps launch as a non-rememberable two-step permission action and preserves
+  completed mutation results if the calling turn is cancelled afterward;
+- 309 workflow, Agent-tool, and composition-boundary tests passed;
 - `pnpm run format:check`
 - `pnpm run i18n`
 - `pnpm run lint`

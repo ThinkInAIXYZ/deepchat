@@ -155,6 +155,15 @@ import { WorkflowRepository } from '@/workflow/repository'
 import { WorkflowToolEffectObserver } from '@/workflow/effectObserver'
 import { WorkflowInvocationContextRegistry } from '@/workflow/invocationContextRegistry'
 import { WorkflowStructuredOutputRegistry } from '@/workflow/structuredOutput/registry'
+import { WorkflowChildExecutor } from '@/workflow/childExecutor'
+import { WorkflowRunAdmission } from '@/workflow/runAdmission'
+import { WorkflowLaunchScopeResolver } from '@/workflow/launchScope'
+import { WorkflowService, type WorkflowServiceUpdate } from '@/workflow/service'
+import {
+  projectWorkflowRunDetail,
+  projectWorkflowRunSummaryWithCounts
+} from '@/workflow/projection'
+import { createWorkflowRoutes } from '@/workflow/routes'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -325,6 +334,7 @@ export async function createMainProcessControl(dependencies: {
   let sessionHistorySearch: SessionHistorySearch
   let agentSessionExportService: AgentSessionExportService
   let sessionTranslation: SessionTranslation
+  let workflowService: WorkflowService
   let acpAsLlmProviderSessionControl: AcpAsLlmProviderSessionControlPort
   let acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
   let hasInitialized = false
@@ -913,6 +923,76 @@ export async function createMainProcessControl(dependencies: {
       },
       subscribeSessionRuntimeUpdates: (listener) => sessionRuntimeEvents.subscribe(listener)
     },
+    workflow: {
+      canUse: async (parentSessionId) => {
+        const parent =
+          await agentToolDependencies.sessions.resolveConversationSessionInfo(parentSessionId)
+        if (!parent || parent.agentType !== 'deepchat' || parent.sessionKind !== 'regular') {
+          return false
+        }
+        const config = await agentSettings.resolveDeepChatAgentConfig(parent.agentId)
+        return config.subagentEnabled === true
+      },
+      prepareLaunch: async (parentSessionId, input) => {
+        const parent =
+          await agentToolDependencies.sessions.resolveConversationSessionInfo(parentSessionId)
+        if (!parent) {
+          throw new Error(`Workflow parent session does not exist: ${parentSessionId}`)
+        }
+        return await workflowService.prepareLaunch({
+          parentSessionId,
+          scriptSource: input.scriptSource,
+          input: input.input,
+          allowedAgentIds: input.allowedAgentIds ?? [parent.agentId],
+          ...(input.parentMessageId === undefined
+            ? {}
+            : { parentMessageId: input.parentMessageId }),
+          ...(input.namedWorkflowPath === undefined
+            ? {}
+            : { namedWorkflowPath: input.namedWorkflowPath }),
+          ...(input.limits === undefined ? {} : { limits: input.limits }),
+          ...(input.budget === undefined ? {} : { budget: input.budget })
+        })
+      },
+      getLaunchApproval: async (parentSessionId, approvalId) =>
+        workflowService.getLaunchApproval(approvalId, parentSessionId),
+      launch: async (parentSessionId, approvalId) =>
+        summarizeWorkflowRun(await workflowService.launch(approvalId, parentSessionId)),
+      list: async (parentSessionId, limit) => {
+        const runs = workflowService.listRuns(parentSessionId, limit)
+        const counts = workflowService.getInvocationCounts(runs.map((run) => run.id))
+        return runs.map((run) => {
+          const runCounts = counts.get(run.id)
+          if (!runCounts) {
+            throw new Error(`Workflow invocation counts are unavailable for run ${run.id}.`)
+          }
+          return projectWorkflowRunSummaryWithCounts(run, runCounts)
+        })
+      },
+      inspect: async (parentSessionId, runId) => {
+        const run = requireWorkflowRunOwned(parentSessionId, runId)
+        return projectWorkflowRunDetail(run, workflowService.listInvocations(run.id))
+      },
+      cancel: async (parentSessionId, runId, reason) => {
+        requireWorkflowRunOwned(parentSessionId, runId)
+        return summarizeWorkflowRun(workflowService.cancel(runId, reason))
+      },
+      resume: async (parentSessionId, runId) => {
+        requireWorkflowRunOwned(parentSessionId, runId)
+        return summarizeWorkflowRun(workflowService.resume(runId))
+      },
+      retry: async (parentSessionId, input) => {
+        requireWorkflowRunOwned(parentSessionId, input.runId)
+        return summarizeWorkflowRun(
+          workflowService.retryInvocation({
+            runId: input.runId,
+            invocationId: input.invocationId,
+            fromHere: input.fromHere,
+            confirmEffects: input.confirmEffects
+          })
+        )
+      }
+    },
     skills: skillService,
     browser: yoBrowserPresenter.toolHandler,
     files: {
@@ -956,6 +1036,22 @@ export async function createMainProcessControl(dependencies: {
       consumeSettingsApproval: (conversationId, toolName) =>
         settingsPermissionService.consumeApproval(conversationId, toolName)
     }
+  }
+
+  function requireWorkflowRunOwned(parentSessionId: string, runId: string) {
+    const run = workflowService.getRun(runId)
+    if (run.parentSessionId !== parentSessionId) {
+      throw new Error(`Workflow run ${runId} does not belong to session ${parentSessionId}.`)
+    }
+    return run
+  }
+
+  function summarizeWorkflowRun(run: ReturnType<WorkflowService['getRun']>) {
+    const counts = workflowService.getInvocationCounts([run.id]).get(run.id)
+    if (!counts) {
+      throw new Error(`Workflow invocation counts are unavailable for run ${run.id}.`)
+    }
+    return projectWorkflowRunSummaryWithCounts(run, counts)
   }
 
   // Initialize the merged MCP and built-in Tool service.
@@ -1386,6 +1482,74 @@ export async function createMainProcessControl(dependencies: {
     agentSettings,
     providerRuntime: providerRuntime
   })
+  const workflowRunAdmission = new WorkflowRunAdmission()
+  const workflowLaunchScope = new WorkflowLaunchScopeResolver({
+    sessions: agentToolDependencies.sessions,
+    agents: agentSettings,
+    messages: sessionData.transcript
+  })
+  const workflowChildExecutor = new WorkflowChildExecutor({
+    repository: workflowRepository,
+    sessions: {
+      createSubagentSession: (input) =>
+        agentToolDependencies.subagents.createSubagentSession(input),
+      linkSubagentTape: (input) => agentToolDependencies.subagents.linkSubagentTape(input),
+      sendConversationMessage: (conversationId, content) =>
+        agentToolDependencies.subagents.sendConversationMessage(conversationId, content),
+      cancelConversation: (conversationId) =>
+        agentToolDependencies.subagents.cancelConversation(conversationId),
+      subscribeSessionRuntimeUpdates: (listener) =>
+        agentToolDependencies.subagents.subscribeSessionRuntimeUpdates(listener),
+      resolveSessionInfo: (sessionId) =>
+        agentToolDependencies.sessions.resolveConversationSessionInfo(sessionId),
+      resolveAgentType: (agentId) => agentSettings.getAgentType(agentId),
+      findCorrelatedChild: async (parentSessionId, correlationSlot) => {
+        const matches = appSessionService
+          .list({ includeSubagents: true, parentSessionId })
+          .filter((session) => session.subagentMeta?.workflow?.correlationSlot === correlationSlot)
+        if (matches.length > 1) {
+          throw new Error(`Multiple workflow children share correlation slot ${correlationSlot}.`)
+        }
+        return matches[0]
+          ? await agentToolDependencies.sessions.resolveConversationSessionInfo(matches[0].id)
+          : null
+      }
+    },
+    admission: agentInvocationAdmission,
+    launchScope: workflowLaunchScope,
+    invocationContexts: workflowInvocationContexts,
+    structuredOutput: workflowStructuredOutput
+  })
+  const publishWorkflowUpdate = (update: WorkflowServiceUpdate): void => {
+    const run = workflowRepository.requireRun(update.runId)
+    if (update.type === 'run_changed') {
+      const counts = workflowRepository.getInvocationCounts([run.id]).get(run.id)
+      if (!counts) {
+        throw new Error(`Workflow invocation counts are unavailable for run ${run.id}.`)
+      }
+      publishDeepchatEvent('workflow.run.changed', {
+        schemaVersion: 1,
+        run: projectWorkflowRunSummaryWithCounts(run, counts)
+      })
+      return
+    }
+    publishDeepchatEvent('workflow.log', {
+      schemaVersion: 1,
+      parentSessionId: run.parentSessionId,
+      runId: run.id,
+      value: update.value,
+      createdAt: update.createdAt
+    })
+  }
+  const createWorkflowService = (): WorkflowService =>
+    new WorkflowService({
+      repository: workflowRepository,
+      childExecutor: workflowChildExecutor,
+      runAdmission: workflowRunAdmission,
+      launchScope: workflowLaunchScope,
+      onUpdate: publishWorkflowUpdate
+    })
+  workflowService = createWorkflowService()
   remoteService = new RemoteService({
     settings: dependencies.settingsStore,
     catalog: {
@@ -1461,6 +1625,7 @@ export async function createMainProcessControl(dependencies: {
       return
     }
 
+    workflowService.start()
     hasInitialized = true
 
     const providers = providerSettings.getProviders()
@@ -1684,6 +1849,7 @@ export async function createMainProcessControl(dependencies: {
 
   async function destroy(): Promise<void> {
     await runDestroyStep('providerCatalog.unsubscribe', () => unsubscribeProviderDbCatalog())
+    await runDestroyStep('workflowService.stop', () => workflowService.stop())
     await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('hookService.stop', () => hookService.stop())
@@ -1866,6 +2032,7 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const workspaceRoutes = createWorkspaceRoutes(workspaceService)
+    const workflowRoutes = createWorkflowRoutes(createLivePort(() => workflowService))
     const projectRoutes = createProjectRoutes({
       projectService,
       publishEnvironmentsChanged: (action, environmentPath, version) => {
@@ -2038,6 +2205,7 @@ export async function createMainProcessControl(dependencies: {
         ocrRoutes,
         knowledgeRoutes,
         workspaceRoutes,
+        workflowRoutes,
         projectRoutes,
         sessionRoutes,
         agentRoutes,
@@ -2238,6 +2406,7 @@ export async function createMainProcessControl(dependencies: {
     if (
       routeName.startsWith('chat.') ||
       routeName.startsWith('sessions.') ||
+      routeName.startsWith('workflow.') ||
       routeName.startsWith('remoteControl.') ||
       routeName.startsWith('cronJobs.')
     ) {
@@ -2258,6 +2427,7 @@ export async function createMainProcessControl(dependencies: {
     let operationResult: T | undefined
     let operationError: unknown
     try {
+      await workflowService.stop()
       await cronJobs.stop()
       await remoteService.destroy()
       await hookService.stop()
@@ -2299,6 +2469,8 @@ export async function createMainProcessControl(dependencies: {
       hookService.start()
       cronJobs.start()
       await remoteService.initialize()
+      workflowService = createWorkflowService()
+      workflowService.start()
       startupWorkloadCoordinator.createRun('main')
       scheduleBackgroundWork()
       databaseMaintenanceState = 'running'

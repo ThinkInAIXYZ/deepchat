@@ -7,6 +7,7 @@ import {
 } from '@/agent/invocationAdmission'
 import type { JsonValue } from '@shared/contracts/common'
 import type { WorkflowInvocation, WorkflowRun, WorkflowRunStatus } from '@shared/workflow/domain'
+import type { WorkflowInvocationCounts } from '@shared/workflow/projection'
 import {
   WORKFLOW_RUNTIME_API_VERSION,
   WORKFLOW_RUNTIME_PROTOCOL_VERSION,
@@ -27,6 +28,7 @@ import {
 } from '@shared/workflow/serviceContracts'
 import { canonicalizeWorkflowJson } from './domain/json'
 import { WorkflowLaunchApprovalRegistry } from './launchApproval'
+import { assertCurrentWorkflowRunScope, WorkflowCapabilityScopeChangedError } from './launchScope'
 import type { WorkflowRepository } from './repository'
 import type { WorkflowRunAdmissionPort } from './runAdmission'
 import {
@@ -197,9 +199,14 @@ export class WorkflowService {
     })
   }
 
-  async launch(approvalId: string): Promise<WorkflowRun> {
+  getLaunchApproval(approvalId: string, expectedParentSessionId?: string): WorkflowLaunchApproval {
+    this.requireAvailable()
+    return this.approvals.get(approvalId, expectedParentSessionId)
+  }
+
+  async launch(approvalId: string, expectedParentSessionId?: string): Promise<WorkflowRun> {
     this.requireStarted()
-    const request = this.approvals.consume(approvalId)
+    const request = this.approvals.consume(approvalId, expectedParentSessionId)
     const resolved = await this.resolveLaunchScope({
       parentSessionId: request.parentSessionId,
       parentMessageId: request.parentMessageId,
@@ -217,6 +224,8 @@ export class WorkflowService {
       parentSessionId: request.parentSessionId,
       parentMessageId: request.parentMessageId,
       namedWorkflowPath: request.namedWorkflowPath,
+      workspacePath: request.workspacePath,
+      capabilityScopeHash: request.capabilityScopeHash,
       scriptSource: request.scriptSource,
       input: request.input,
       limits: request.limits,
@@ -240,6 +249,10 @@ export class WorkflowService {
   listInvocations(runId: string): WorkflowInvocation[] {
     this.options.repository.requireRun(runId)
     return this.options.repository.listInvocations(runId)
+  }
+
+  getInvocationCounts(runIds: readonly string[]): Map<string, WorkflowInvocationCounts> {
+    return this.options.repository.getInvocationCounts(runIds)
   }
 
   cancel(runId: string, reason = 'Workflow cancelled by the user.'): WorkflowRun {
@@ -477,6 +490,9 @@ export class WorkflowService {
     controller: AbortController
   ): Promise<void> {
     controller.signal.throwIfAborted()
+    const persistedRun = this.options.repository.requireRun(runId)
+    await assertCurrentWorkflowRunScope(this.options.launchScope, persistedRun)
+    controller.signal.throwIfAborted()
     const run =
       mode === 'launch'
         ? this.options.repository.startRun(runId, this.now())
@@ -627,6 +643,21 @@ export class WorkflowService {
     try {
       outcome = await this.resolveInvocation(execution, request)
     } catch (error) {
+      if (
+        error instanceof WorkflowCapabilityScopeChangedError &&
+        !execution.exited &&
+        !execution.terminalizing
+      ) {
+        execution.terminalizing = true
+        this.runFinalizer(
+          execution,
+          this.finalizeFailure(execution, {
+            code: 'WORKFLOW_CAPABILITY_SCOPE_CHANGED',
+            message: normalizeErrorMessage(error),
+            retriable: false
+          })
+        )
+      }
       outcome = {
         status: 'error',
         error: toServiceInvocationError(error)
@@ -650,6 +681,20 @@ export class WorkflowService {
     execution: ActiveRunExecution,
     request: WorkflowGuestAgentRequest
   ): Promise<WorkflowInvocationOutcome> {
+    if (execution.controller.signal.aborted) {
+      return {
+        status: 'error',
+        error: {
+          code: 'WORKFLOW_RUN_STOPPED',
+          message: normalizeAbortReason(execution.controller.signal.reason),
+          retriable: true
+        }
+      }
+    }
+    await assertCurrentWorkflowRunScope(
+      this.options.launchScope,
+      this.options.repository.requireRun(execution.runId)
+    )
     if (execution.controller.signal.aborted) {
       return {
         status: 'error',
@@ -905,6 +950,21 @@ export class WorkflowService {
       return
     }
     if (error instanceof AgentInvocationAdmissionAbortedError) {
+      return
+    }
+    if (error instanceof WorkflowCapabilityScopeChangedError) {
+      if (run.status === 'queued' || ACTIVE_RUN_STATUSES.has(run.status)) {
+        this.options.repository.failRun(
+          runId,
+          {
+            code: 'WORKFLOW_CAPABILITY_SCOPE_CHANGED',
+            message: normalizeErrorMessage(error),
+            retriable: false
+          },
+          this.now()
+        )
+        this.emitRun(runId)
+      }
       return
     }
     if (
@@ -1187,6 +1247,13 @@ function toServiceInvocationError(error: unknown): WorkflowInvocationError {
       code: 'WORKFLOW_RETRY_CONFIRMATION_REQUIRED',
       message: error.message,
       retriable: true
+    }
+  }
+  if (error instanceof WorkflowCapabilityScopeChangedError) {
+    return {
+      code: 'WORKFLOW_CAPABILITY_SCOPE_CHANGED',
+      message: normalizeErrorMessage(error),
+      retriable: false
     }
   }
   return {

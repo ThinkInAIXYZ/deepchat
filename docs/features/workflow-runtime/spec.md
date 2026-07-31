@@ -299,6 +299,7 @@ The run row contains at least:
 - `run_id` primary key;
 - parent session and parent message identifiers;
 - optional named-workflow path for provenance;
+- immutable main-resolved workspace path and effective capability-scope hash;
 - immutable bounded `script_source` and `script_hash`;
 - bounded input, result, error, phase, usage, and budget JSON;
 - `runtime_api_version`;
@@ -495,6 +496,12 @@ and capability summary. The renderer cannot self-assert the workspace shown by t
 summary describes write-capable scope, not a claim that static inspection can predict which tools
 a model will call. Editing the source or input, changing scope, or expanding the allowlist
 invalidates a remembered launch approval.
+
+The approved workspace and effective capability hash are persisted in the immutable run snapshot.
+Main resolves and compares that scope before starting or resuming a run, before dispatching each
+invocation, and again after the child obtains its global admission permit. A mismatch fails the
+whole run closed before child creation; the child uses the persisted workspace rather than reading
+a newer parent workspace opportunistically.
 
 Child sessions use the existing assignment policy:
 

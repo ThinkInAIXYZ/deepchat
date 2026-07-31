@@ -22,6 +22,7 @@ import {
   CRON_JOB_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   TAPE_TOOL_NAMES,
+  WORKFLOW_AGENT_TOOL_NAME,
   getAgentToolExposure,
   isUserConfigurableAgentTool
 } from '@shared/agentTools'
@@ -73,6 +74,7 @@ const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   UPDATE_PLAN_TOOL_NAME,
   CRON_JOB_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_NAME,
   ...Object.values(TAPE_TOOL_NAMES)
 ])
 

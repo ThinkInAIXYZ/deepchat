@@ -29,6 +29,13 @@ export class WorkflowLaunchApprovalExpiredError extends Error {
   }
 }
 
+export class WorkflowLaunchApprovalScopeError extends Error {
+  constructor() {
+    super('Workflow launch approval does not belong to the expected parent session.')
+    this.name = 'WorkflowLaunchApprovalScopeError'
+  }
+}
+
 export class WorkflowLaunchApprovalRegistry {
   private readonly pending = new Map<string, PendingWorkflowApproval>()
   private pendingBytes = 0
@@ -116,12 +123,23 @@ export class WorkflowLaunchApprovalRegistry {
     return approval
   }
 
-  consume(approvalId: string): WorkflowLaunchRequest {
+  get(approvalId: string, expectedParentSessionId?: string): WorkflowLaunchApproval {
     this.prune()
     const pending = this.pending.get(approvalId)
     if (!pending) {
       throw new WorkflowLaunchApprovalExpiredError()
     }
+    this.assertExpectedParent(pending, expectedParentSessionId)
+    return WorkflowLaunchApprovalSchema.parse(pending.approval)
+  }
+
+  consume(approvalId: string, expectedParentSessionId?: string): WorkflowLaunchRequest {
+    this.prune()
+    const pending = this.pending.get(approvalId)
+    if (!pending) {
+      throw new WorkflowLaunchApprovalExpiredError()
+    }
+    this.assertExpectedParent(pending, expectedParentSessionId)
     this.deletePending(approvalId, pending)
     return pending.request
   }
@@ -154,5 +172,17 @@ export class WorkflowLaunchApprovalRegistry {
       throw new Error('Workflow launch approval byte accounting underflowed.')
     }
     return true
+  }
+
+  private assertExpectedParent(
+    pending: PendingWorkflowApproval,
+    expectedParentSessionId: string | undefined
+  ): void {
+    if (
+      expectedParentSessionId !== undefined &&
+      pending.request.parentSessionId !== expectedParentSessionId
+    ) {
+      throw new WorkflowLaunchApprovalScopeError()
+    }
   }
 }

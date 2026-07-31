@@ -225,6 +225,8 @@ describeIfSqlite('WorkflowService', () => {
     const run = repository.createRun({
       id: `dormant-${++idSequence}`,
       parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
       scriptSource: 'return await agent("Do the work", { key: "work" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -360,6 +362,65 @@ describeIfSqlite('WorkflowService', () => {
     expect(repository.listRunsByParent('parent')).toEqual([])
   })
 
+  it('fails the whole run when capability scope changes before a child dispatch', async () => {
+    let capabilityScopeHash = 'a'.repeat(64)
+    const childExecutor = succeedingChildExecutor()
+    const service = createService(childExecutor, new WorkflowRunAdmission(1, 1), {
+      launchScope: {
+        resolve: vi.fn(async (input) => ({
+          workspacePath: '/repo',
+          allowedAgentIds: input.allowedAgentIds,
+          capabilityScopeHash,
+          capabilities: ['Delegate with the current parent permission policy']
+        }))
+      }
+    })
+    const run = await prepareAndLaunch(service)
+    const host = await waitForHost()
+    capabilityScopeHash = 'b'.repeat(64)
+
+    host.emit({
+      type: 'INVOKE_AGENT',
+      requestId: 'scope-changed',
+      request: request()
+    })
+
+    const failed = await waitForRun(run.id, 'failed')
+    expect(failed.error).toMatchObject({
+      code: 'WORKFLOW_CAPABILITY_SCOPE_CHANGED',
+      retriable: false
+    })
+    expect(childExecutor.execute).not.toHaveBeenCalled()
+  })
+
+  it('fails a resumed run before starting a utility when its durable scope changed', async () => {
+    const dormant = createDormantRun('failed')
+    const service = createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 1), {
+      launchScope: {
+        resolve: vi.fn(async (input) => ({
+          workspacePath: '/repo',
+          allowedAgentIds: input.allowedAgentIds,
+          capabilityScopeHash: 'b'.repeat(64),
+          capabilities: ['Delegate with the current parent permission policy']
+        }))
+      }
+    })
+
+    service.resume(dormant.id)
+
+    await vi.waitFor(() =>
+      expect(repository.requireRun(dormant.id).error?.code).toBe(
+        'WORKFLOW_CAPABILITY_SCOPE_CHANGED'
+      )
+    )
+    const failed = repository.requireRun(dormant.id)
+    expect(failed.error).toMatchObject({
+      code: 'WORKFLOW_CAPABILITY_SCOPE_CHANGED',
+      retriable: false
+    })
+    expect(hosts).toEqual([])
+  })
+
   it('keeps utility processes behind a separate active and queued bound', async () => {
     const admission = new WorkflowRunAdmission(1, 1)
     const service = createService(succeedingChildExecutor(), admission)
@@ -383,6 +444,8 @@ describeIfSqlite('WorkflowService', () => {
     const interrupted = repository.createRun({
       id: 'startup-active',
       parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
       scriptSource: 'return await agent("active", { key: "active" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -399,6 +462,8 @@ describeIfSqlite('WorkflowService', () => {
     const queued = repository.createRun({
       id: 'startup-queued',
       parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
       scriptSource: 'return null',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -562,6 +627,8 @@ describeIfSqlite('WorkflowService', () => {
     const run = repository.createRun({
       id: 'replay-run',
       parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
       scriptSource: 'return await agent("Do the work", { key: "work" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -649,6 +716,8 @@ describeIfSqlite('WorkflowService', () => {
     const run = repository.createRun({
       id: 'write-run',
       parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
       scriptSource: 'return await agent("Write the file", { key: "write" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -767,6 +836,8 @@ describeIfSqlite('WorkflowService', () => {
     const run = repository.createRun({
       id: 'downstream-effects-run',
       parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
       scriptSource: 'return await agent("Do the work", { key: "work" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,

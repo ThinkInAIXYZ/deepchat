@@ -83,4 +83,53 @@ describeIfSqlite('workflow schema migration', () => {
     ])
     migrated.close()
   })
+
+  it('adds durable capability scope columns when upgrading an existing v53 workflow table', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workflow-scope-migration-'))
+    tempDirectories.push(directory)
+    const databasePath = path.join(directory, 'agent.db')
+    const current = new MainDatabaseCtor(databasePath)
+    current.close()
+
+    const bootstrap = new DatabaseCtor(databasePath)
+    bootstrap.exec(`
+      DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot;
+      ALTER TABLE workflow_runs DROP COLUMN workspace_path;
+      ALTER TABLE workflow_runs DROP COLUMN capability_scope_hash;
+      DELETE FROM schema_versions;
+      INSERT INTO schema_versions (version, applied_at) VALUES (53, 100);
+    `)
+    bootstrap.close()
+
+    const database = new MainDatabaseCtor(databasePath)
+    database.close()
+
+    const migrated = new DatabaseCtor(databasePath)
+    const columns = migrated.prepare('PRAGMA table_info(workflow_runs)').all() as Array<{
+      name: string
+      notnull: number
+      dflt_value: string | null
+    }>
+    expect(columns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'workspace_path', notnull: 0 }),
+        expect.objectContaining({
+          name: 'capability_scope_hash',
+          notnull: 1,
+          dflt_value: "'0000000000000000000000000000000000000000000000000000000000000000'"
+        })
+      ])
+    )
+    const trigger = migrated
+      .prepare(
+        `SELECT sql
+         FROM sqlite_master
+         WHERE type = 'trigger'
+           AND name = 'trg_workflow_runs_immutable_snapshot'`
+      )
+      .get() as { sql: string }
+    expect(trigger.sql).toContain('workspace_path')
+    expect(trigger.sql).toContain('capability_scope_hash')
+    migrated.close()
+  })
 })

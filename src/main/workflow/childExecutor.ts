@@ -15,6 +15,8 @@ import type { WorkflowUsage } from '@shared/workflow/serviceContracts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { ChildRuntimeTracker, type ChildTerminalState } from './childRuntimeTracker'
 import type { WorkflowInvocationContextRegistry } from './invocationContextRegistry'
+import { assertCurrentWorkflowRunScope, WorkflowCapabilityScopeChangedError } from './launchScope'
+import type { WorkflowLaunchScopePort } from './service'
 import { WorkflowStructuredOutputError } from './structuredOutput/errors'
 import type {
   WorkflowPreparedStructuredOutput,
@@ -90,6 +92,7 @@ export interface WorkflowChildExecutorOptions {
   repository: WorkflowChildRepositoryPort
   sessions: WorkflowChildSessionPort
   admission: AgentInvocationAdmissionPort
+  launchScope: WorkflowLaunchScopePort
   invocationContexts: WorkflowInvocationContextRegistry
   structuredOutput: WorkflowStructuredOutputPort
   now?: () => number
@@ -177,7 +180,11 @@ export class WorkflowChildExecutor {
       if (error instanceof WorkflowInvocationOwnershipLostError) {
         throw error
       }
-      return this.failActiveInvocation(initial.id, toInvocationFailure(error, abortScope))
+      const terminal = this.failActiveInvocation(initial.id, toInvocationFailure(error, abortScope))
+      if (error instanceof WorkflowCapabilityScopeChangedError) {
+        throw error
+      }
+      return terminal
     } finally {
       abortScope.dispose()
     }
@@ -193,6 +200,8 @@ export class WorkflowChildExecutor {
     abortScope: InvocationAbortScope
   }): Promise<WorkflowInvocation> {
     const { invocationId, run, parent, targetAgentId, preparedOutput, signal, abortScope } = input
+    signal.throwIfAborted()
+    await assertCurrentWorkflowRunScope(this.options.launchScope, run)
     signal.throwIfAborted()
     try {
       this.options.repository.markInvocationAdmitted(invocationId, this.now())
@@ -622,6 +631,16 @@ function toInvocationFailure(
       }
     }
   }
+  if (error instanceof WorkflowCapabilityScopeChangedError) {
+    return {
+      status: 'failed',
+      error: {
+        code: 'WORKFLOW_CAPABILITY_SCOPE_CHANGED',
+        message: normalizeFailureMessage(error.message),
+        retriable: false
+      }
+    }
+  }
   if (error instanceof WorkflowStructuredOutputError) {
     return {
       status: 'failed',
@@ -658,7 +677,7 @@ function buildChildCreationInput(
     slotId: invocation.childCorrelationSlot,
     displayName: invocation.request.options.label ?? invocation.request.options.key,
     targetAgentId: invocation.request.options.agentId ? targetAgentId : null,
-    projectDir: parent.projectDir,
+    projectDir: run.workspacePath,
     providerId: parent.providerId,
     modelId: parent.modelId,
     permissionMode: parent.permissionMode,

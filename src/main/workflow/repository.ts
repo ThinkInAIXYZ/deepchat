@@ -2,10 +2,12 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { JsonValue } from '@shared/contracts/common'
 import {
+  WORKFLOW_INVOCATION_STATUSES,
   WorkflowEffectStateSchema,
   WorkflowEffectEvidenceSchema,
   WorkflowInvocationFailureSchema,
   WorkflowInvocationSchema,
+  WorkflowInvocationStatusSchema,
   WorkflowRunSchema,
   WorkflowTapeLinkReceiptSchema,
   WORKFLOW_STORED_EVIDENCE_MAX_BYTES,
@@ -21,6 +23,7 @@ import {
   type WorkflowRunCreateInput,
   type WorkflowRunStatus
 } from '@shared/workflow/domain'
+import type { WorkflowInvocationCounts } from '@shared/workflow/projection'
 import {
   WORKFLOW_RUNTIME_API_VERSION,
   WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES,
@@ -39,6 +42,15 @@ const MAX_STORED_JSON_BYTES = WORKFLOW_STORED_JSON_MAX_BYTES
 const MAX_RUN_LIST_LIMIT = 500
 
 const StoredIdSchema = z.string().trim().min(1).max(256)
+const WorkspacePathSchema = z
+  .string()
+  .min(1)
+  .max(4_096)
+  .refine((value) => !value.includes('\0'), 'Workspace path cannot contain a NUL byte')
+const HashSchema = z
+  .string()
+  .length(64)
+  .regex(/^[0-9a-f]+$/)
 const AllowedAgentIdsSchema = z.array(StoredIdSchema).min(1).max(32)
 const TimestampSchema = z.number().int().nonnegative()
 const RunListLimitSchema = z.number().int().min(1).max(MAX_RUN_LIST_LIMIT)
@@ -121,6 +133,9 @@ export class WorkflowRepository {
     const parentSessionId = StoredIdSchema.parse(input.parentSessionId)
     const parentMessageId =
       input.parentMessageId == null ? null : StoredIdSchema.parse(input.parentMessageId)
+    const workspacePath =
+      input.workspacePath === null ? null : WorkspacePathSchema.parse(input.workspacePath)
+    const capabilityScopeHash = HashSchema.parse(input.capabilityScopeHash)
     const limits = WorkflowRuntimeLimitsSchema.parse(input.limits)
     const scriptSource = input.scriptSource
     const sourceBytes = Buffer.byteLength(scriptSource, 'utf8')
@@ -145,8 +160,10 @@ export class WorkflowRepository {
     const policy = canonicalizeWorkflowJson(
       {
         allowedAgentIds,
+        capabilityScopeHash,
         limits,
-        runtimeApiVersion: WORKFLOW_RUNTIME_API_VERSION
+        runtimeApiVersion: WORKFLOW_RUNTIME_API_VERSION,
+        workspacePath
       },
       { maxBytes: MAX_METADATA_JSON_BYTES }
     )
@@ -174,6 +191,8 @@ export class WorkflowRepository {
          parent_session_id,
          parent_message_id,
          named_workflow_path,
+         workspace_path,
+         capability_scope_hash,
          script_source,
          script_hash,
          input_json,
@@ -199,13 +218,15 @@ export class WorkflowRepository {
          updated_at,
          completed_at,
          revision
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 1, 1, NULL, NULL, NULL, NULL,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 1, 1, NULL, NULL, NULL, NULL,
                  NULL, NULL, NULL, 'not_ready', NULL, ?, NULL, ?, NULL, 0)`
     ).run(
       runId,
       parentSessionId,
       parentMessageId,
       namedWorkflowPath,
+      workspacePath,
+      capabilityScopeHash,
       scriptSource,
       hashString(scriptSource),
       canonicalInput.json,
@@ -471,6 +492,8 @@ export class WorkflowRepository {
              next_invocation_seq,
              policy_hash,
              runtime_api_version,
+             workspace_path,
+             capability_scope_hash,
              limits_json,
              allowed_agent_ids_json
            FROM workflow_runs
@@ -483,6 +506,8 @@ export class WorkflowRepository {
             next_invocation_seq: number
             policy_hash: string
             runtime_api_version: number
+            workspace_path: string | null
+            capability_scope_hash: string
             limits_json: string
             allowed_agent_ids_json: string
           }
@@ -508,8 +533,10 @@ export class WorkflowRepository {
       const policy = canonicalizeWorkflowJson(
         {
           allowedAgentIds: [...allowedAgentIds].sort(),
+          capabilityScopeHash: run.capability_scope_hash,
           limits,
-          runtimeApiVersion: run.runtime_api_version
+          runtimeApiVersion: run.runtime_api_version,
+          workspacePath: run.workspace_path
         },
         { maxBytes: MAX_METADATA_JSON_BYTES }
       )
@@ -661,6 +688,40 @@ export class WorkflowRepository {
 
   listInvocations(runId: string): WorkflowInvocation[] {
     return this.database.workflowInvocationsTable.listByRun(runId).map(toWorkflowInvocation)
+  }
+
+  getInvocationCounts(runIds: readonly string[]): Map<string, WorkflowInvocationCounts> {
+    const normalizedRunIds = [...new Set(runIds.map((runId) => StoredIdSchema.parse(runId)))]
+    if (normalizedRunIds.length > MAX_RUN_LIST_LIMIT) {
+      throw new Error(
+        `Workflow invocation counts are limited to ${MAX_RUN_LIST_LIMIT} runs per query.`
+      )
+    }
+    const result = new Map(
+      normalizedRunIds.map((runId) => [runId, createInvocationCounts()] as const)
+    )
+    if (normalizedRunIds.length === 0) {
+      return result
+    }
+
+    const placeholders = normalizedRunIds.map(() => '?').join(', ')
+    const rows = this.database
+      .getDatabase()
+      .prepare(
+        `SELECT run_id, status, COUNT(*) AS count
+         FROM workflow_invocations
+         WHERE run_id IN (${placeholders})
+         GROUP BY run_id, status`
+      )
+      .all(...normalizedRunIds) as Array<{ run_id: string; status: string; count: number }>
+    for (const row of rows) {
+      const counts = result.get(row.run_id)
+      if (!counts || !Number.isSafeInteger(row.count) || row.count < 0) {
+        throw new Error(`Stored workflow invocation count is invalid for run ${row.run_id}.`)
+      }
+      counts[WorkflowInvocationStatusSchema.parse(row.status)] = row.count
+    }
+    return result
   }
 
   findLatestAttempt(runId: string, callPath: string): WorkflowInvocation | null {
@@ -1338,8 +1399,10 @@ export class WorkflowRepository {
     const policy = canonicalizeWorkflowJson(
       {
         allowedAgentIds: [...run.allowedAgentIds].sort(),
+        capabilityScopeHash: run.capabilityScopeHash,
         limits: run.limits,
-        runtimeApiVersion: run.runtimeApiVersion
+        runtimeApiVersion: run.runtimeApiVersion,
+        workspacePath: run.workspacePath
       },
       { maxBytes: MAX_METADATA_JSON_BYTES }
     )
@@ -1374,6 +1437,8 @@ function toWorkflowRun(row: WorkflowRunRow): WorkflowRun {
     parentSessionId: row.parent_session_id,
     parentMessageId: row.parent_message_id,
     namedWorkflowPath: row.named_workflow_path,
+    workspacePath: row.workspace_path,
+    capabilityScopeHash: row.capability_scope_hash,
     scriptSource: row.script_source,
     scriptHash: row.script_hash,
     input: parseStoredJsonValue(row.input_json, limits.maxInputBytes, 'workflow input'),
@@ -1514,6 +1579,12 @@ function parseNullableJsonValue(
 
 function hashString(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex')
+}
+
+function createInvocationCounts(): WorkflowInvocationCounts {
+  return Object.fromEntries(
+    WORKFLOW_INVOCATION_STATUSES.map((status) => [status, 0])
+  ) as WorkflowInvocationCounts
 }
 
 function createChildCorrelationSlot(runId: string, callPath: string, attempt: number): string {

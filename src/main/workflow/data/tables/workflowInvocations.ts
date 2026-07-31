@@ -7,7 +7,7 @@ import {
   type WorkflowEffectState,
   type WorkflowInvocationStatus
 } from '@shared/workflow/domain'
-import { WORKFLOW_SCHEMA_VERSION } from './workflowRuns'
+import { WORKFLOW_BASE_SCHEMA_VERSION } from './workflowRuns'
 
 export interface WorkflowInvocationRow {
   invocation_id: string
@@ -285,15 +285,15 @@ export class WorkflowInvocationsTable extends BaseTable {
   }
 
   getMigrationSQL(version: number): string | null {
-    return version === WORKFLOW_SCHEMA_VERSION ? this.getCreateTableSQL() : null
+    return version === WORKFLOW_BASE_SCHEMA_VERSION ? this.getCreateTableSQL() : null
   }
 
   getLatestVersion(): number {
-    return WORKFLOW_SCHEMA_VERSION
+    return WORKFLOW_BASE_SCHEMA_VERSION
   }
 
   override finalizeMigration(version: number): void {
-    if (version === WORKFLOW_SCHEMA_VERSION) {
+    if (version === WORKFLOW_BASE_SCHEMA_VERSION) {
       this.db.exec(WORKFLOW_INVOCATIONS_TRIGGER_SQL)
     }
   }

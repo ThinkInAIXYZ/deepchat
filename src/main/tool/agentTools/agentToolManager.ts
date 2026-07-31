@@ -46,6 +46,7 @@ import { AgentMemoryToolHandler } from './agentMemoryTools'
 import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_NAME,
   assertAgentToolExposure,
   isTapeToolName,
   type AgentToolExposure
@@ -59,6 +60,7 @@ import { isYoBrowserUnavailableError } from '../browser/errors'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
+import { WorkflowAgentTool } from './workflowTool'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -167,6 +169,7 @@ export class AgentToolManager {
   private readonly tapeToolHandler: AgentTapeToolHandler
   private readonly memoryToolHandler: AgentMemoryToolHandler
   private readonly cronJobToolHandler: CronJobToolHandler
+  private readonly workflowTool: WorkflowAgentTool | null
   private readonly fffSearchService = new FffSearchService()
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
@@ -354,6 +357,9 @@ export class AgentToolManager {
       this.dependencies.memory
     )
     this.cronJobToolHandler = new CronJobToolHandler(this.dependencies.cronJobs)
+    this.workflowTool = this.dependencies.workflow
+      ? new WorkflowAgentTool(this.dependencies.workflow)
+      : null
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -493,6 +499,22 @@ export class AgentToolManager {
       }
     }
 
+    // 2.6. Durable workflows (regular DeepChat sessions with workflow policy enabled)
+    if (
+      isAgentMode &&
+      acceptsExposure('system-model') &&
+      this.workflowTool &&
+      context.conversationId
+    ) {
+      try {
+        if (await this.workflowTool.canUse(context.conversationId)) {
+          appendDefinitions([this.workflowTool.getToolDefinition()], 'system-model')
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to resolve workflow tool availability', { error })
+      }
+    }
+
     // 3. Skill tools (agent mode only)
     if (isAgentMode && this.isSkillsEnabled()) {
       const skillDefs = this.getSkillToolDefinitions()
@@ -583,6 +605,13 @@ export class AgentToolManager {
 
     if (toolName === SUBAGENT_ORCHESTRATOR_TOOL_NAME) {
       return await this.subagentOrchestratorTool.call(args, conversationId, options)
+    }
+
+    if (toolName === WORKFLOW_AGENT_TOOL_NAME) {
+      if (!this.workflowTool) {
+        throw new Error('workflow is unavailable.')
+      }
+      return await this.workflowTool.call(args, conversationId, options)
     }
 
     if (toolName === IMAGE_GENERATE_TOOL_NAME) {
@@ -2108,6 +2137,7 @@ export class AgentToolManager {
       baseCommand?: string
     }
     conversationId?: string
+    rememberable?: boolean
   } | null> {
     const writeTools = ['write', 'edit']
     const readTools = ['read', GLOB_TOOL_NAME, GREP_TOOL_NAME]
@@ -2122,6 +2152,25 @@ export class AgentToolManager {
         description: 'Scheduled task changes require approval.',
         conversationId
       }
+    }
+
+    if (toolName === WORKFLOW_AGENT_TOOL_NAME && this.workflowTool) {
+      const description = await this.workflowTool.getMutationPermissionDescription(
+        args,
+        conversationId
+      )
+      if (description) {
+        return {
+          needsPermission: true,
+          toolName,
+          serverName: 'agent-workflows',
+          permissionType: 'write',
+          description,
+          conversationId,
+          rememberable: false
+        }
+      }
+      return null
     }
 
     if (this.isFileSystemTool(toolName)) {
