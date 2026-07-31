@@ -184,6 +184,82 @@ describe('AppSessionService', () => {
       )
     })
 
+    it('preserves valid workflow correlation metadata and ignores malformed extensions', () => {
+      const baseRow = {
+        id: 'child-1',
+        agent_id: 'deepchat',
+        title: 'Workflow child',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'subagent',
+        parent_session_id: 'parent-1',
+        created_at: 1000,
+        updated_at: 2000,
+        revision: 0
+      }
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'workflow:slot',
+          displayName: 'Workflow child',
+          targetAgentId: 'deepchat',
+          workflow: {
+            runId: 'run-1',
+            invocationId: 'invocation-1',
+            correlationSlot: 'workflow:slot'
+          }
+        })
+      })
+
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'workflow:slot',
+        displayName: 'Workflow child',
+        targetAgentId: 'deepchat',
+        workflow: {
+          runId: 'run-1',
+          invocationId: 'invocation-1',
+          correlationSlot: 'workflow:slot'
+        }
+      })
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'legacy-slot',
+          displayName: 'Legacy child',
+          workflow: {
+            runId: '',
+            invocationId: 'invocation-1',
+            correlationSlot: 'workflow:slot'
+          }
+        })
+      })
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'legacy-slot',
+        displayName: 'Legacy child',
+        targetAgentId: undefined
+      })
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'workflow:slot',
+          displayName: 'Mismatched workflow child',
+          workflow: {
+            runId: 'run-1',
+            invocationId: 'invocation-1',
+            correlationSlot: 'workflow:different'
+          }
+        })
+      })
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'workflow:slot',
+        displayName: 'Mismatched workflow child',
+        targetAgentId: undefined
+      })
+    })
+
     it('returns null when not found', () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
       expect(manager.get('missing')).toBeNull()

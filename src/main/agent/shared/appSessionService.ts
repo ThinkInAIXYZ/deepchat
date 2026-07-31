@@ -11,6 +11,7 @@ import type {
   SessionRecord
 } from '@shared/types/agent-interface'
 import type { SessionListPageCursor } from '@/session/data/tables/newSessions'
+import { parseWorkflowSubagentContext } from '@shared/workflow/subagent'
 
 const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta | null => {
   if (!raw) {
@@ -23,13 +24,16 @@ const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta
       return null
     }
 
+    const workflow = parseWorkflowSubagentContext(parsed.workflow)
+    const correlatedWorkflow = workflow?.correlationSlot === parsed.slotId ? workflow : undefined
     return {
       slotId: parsed.slotId,
       displayName: typeof parsed.displayName === 'string' ? parsed.displayName : parsed.slotId,
       targetAgentId:
         parsed.targetAgentId === null || typeof parsed.targetAgentId === 'string'
           ? parsed.targetAgentId
-          : undefined
+          : undefined,
+      ...(correlatedWorkflow ? { workflow: correlatedWorkflow } : {})
     }
   } catch {
     return null

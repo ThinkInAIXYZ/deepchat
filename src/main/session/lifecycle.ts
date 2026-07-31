@@ -29,6 +29,7 @@ import type {
   ResolvedSubagentAssignment
 } from './contracts'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
+import { WorkflowSubagentContextSchema } from '@shared/workflow/subagent'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 
@@ -276,10 +277,18 @@ export class SessionLifecycle implements SessionLifecyclePort {
 
     const displayName = input.displayName?.trim() || 'Subagent'
     const projectDir = input.projectDir?.trim() || null
+    const workflowContext =
+      input.workflowContext === undefined
+        ? undefined
+        : WorkflowSubagentContextSchema.parse(input.workflowContext)
+    if (workflowContext && workflowContext.correlationSlot !== slotId) {
+      throw new Error('Workflow correlation slot must match the subagent slotId.')
+    }
     const subagentMeta: DeepChatSubagentMeta = {
       slotId,
       displayName,
-      targetAgentId: runtimeConfig.targetAgentId || null
+      targetAgentId: runtimeConfig.targetAgentId || null,
+      ...(workflowContext ? { workflow: workflowContext } : {})
     }
     let lastError: unknown = null
 

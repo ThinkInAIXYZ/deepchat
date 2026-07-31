@@ -65,8 +65,8 @@ const INVOCATION_TRANSITIONS: Record<
   WorkflowInvocationStatus,
   ReadonlySet<WorkflowInvocationStatus>
 > = {
-  queued: new Set(['admitted', 'failed', 'cancelled', 'interrupted']),
-  admitted: new Set(['running', 'failed', 'cancelled', 'interrupted']),
+  queued: new Set(['admitted', 'failed', 'timed_out', 'cancelled', 'interrupted']),
+  admitted: new Set(['running', 'failed', 'timed_out', 'cancelled', 'interrupted']),
   running: new Set([
     'waiting_interaction',
     'succeeded',
@@ -758,6 +758,41 @@ export class WorkflowRepository {
     return invocation
   }
 
+  recordInvocationTapeReceipt(
+    invocationId: string,
+    tapeLinkReceipt: JsonValue,
+    now = Date.now()
+  ): WorkflowInvocation {
+    const invocation = this.requireInvocation(invocationId)
+    if (!invocation.childSessionId) {
+      throw new Error(`Workflow invocation ${invocationId} has no durable child session identity.`)
+    }
+    const run = this.requireRun(invocation.runId)
+    const parsedReceipt = WorkflowTapeLinkReceiptSchema.parse(tapeLinkReceipt)
+    this.assertTapeReceiptMatches(invocation, run, parsedReceipt)
+    const receiptJson = canonicalizeWorkflowJson(parsedReceipt, {
+      maxBytes: MAX_EVIDENCE_JSON_BYTES
+    }).json
+    const timestamp = parseTimestamp(now, 'workflow Tape receipt time')
+    const result = this.database
+      .getDatabase()
+      .prepare(
+        `UPDATE workflow_invocations
+         SET tape_link_receipt_json = ?,
+             updated_at = ?
+         WHERE invocation_id = ?
+           AND (
+             tape_link_receipt_json IS NULL
+             OR tape_link_receipt_json = ?
+           )`
+      )
+      .run(receiptJson, timestamp, invocationId, receiptJson)
+    if (result.changes !== 1) {
+      throw new Error(`Workflow invocation ${invocationId} already has another Tape receipt.`)
+    }
+    return this.requireInvocation(invocationId)
+  }
+
   succeedInvocation(
     invocationId: string,
     result: JsonValue,
@@ -778,18 +813,21 @@ export class WorkflowRepository {
       maxBytes: maxResultBytes
     }).json
     const parsedReceipt = WorkflowTapeLinkReceiptSchema.parse(tapeLinkReceipt)
-    if (parsedReceipt.childSessionId !== invocation.childSessionId) {
-      throw new Error(`Workflow Tape receipt child does not match invocation ${invocationId}.`)
-    }
-    if (parsedReceipt.linkEntry.sessionId !== run.parentSessionId) {
-      throw new Error(`Workflow Tape receipt parent does not match invocation ${invocationId}.`)
-    }
+    this.assertTapeReceiptMatches(invocation, run, parsedReceipt)
     if (parsedReceipt.outcome !== 'completed') {
       throw new Error(`Workflow Tape receipt is not a completed outcome for ${invocationId}.`)
     }
     const receiptJson = canonicalizeWorkflowJson(parsedReceipt, {
       maxBytes: MAX_EVIDENCE_JSON_BYTES
     }).json
+    if (
+      invocation.tapeLinkReceipt !== null &&
+      canonicalizeWorkflowJson(invocation.tapeLinkReceipt, {
+        maxBytes: MAX_EVIDENCE_JSON_BYTES
+      }).json !== receiptJson
+    ) {
+      throw new Error(`Workflow invocation ${invocationId} already has another Tape receipt.`)
+    }
     const usageJson =
       usage == null
         ? null
@@ -967,6 +1005,19 @@ export class WorkflowRepository {
       throw new Error(`Workflow run ${runId} changed concurrently.`)
     }
     return this.requireRun(runId)
+  }
+
+  private assertTapeReceiptMatches(
+    invocation: WorkflowInvocation,
+    run: WorkflowRun,
+    receipt: z.infer<typeof WorkflowTapeLinkReceiptSchema>
+  ): void {
+    if (receipt.childSessionId !== invocation.childSessionId) {
+      throw new Error(`Workflow Tape receipt child does not match invocation ${invocation.id}.`)
+    }
+    if (receipt.linkEntry.sessionId !== run.parentSessionId) {
+      throw new Error(`Workflow Tape receipt parent does not match invocation ${invocation.id}.`)
+    }
   }
 
   private transitionInvocation(

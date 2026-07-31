@@ -593,6 +593,7 @@ export interface DeepChatSubagentMeta {
   slotId: string
   displayName: string
   targetAgentId?: string | null
+  workflow?: import('../workflow/subagent').WorkflowSubagentContext
 }
 
 export interface DeepChatAgentMemoryEmbedding {

@@ -69,7 +69,7 @@ Validation evidence (2026-07-31):
 - [x] Add cancellation-aware owner-fair `AgentInvocationAdmission`.
 - [x] Apply the process-wide default limit of four active children.
 - [ ] Add a separate bounded workflow utility-process admission gate.
-- [ ] Gate both workflow and `subagent_orchestrator` child starts.
+- [x] Gate both workflow and `subagent_orchestrator` child starts.
 - [x] Gate `subagent_orchestrator` child lifetimes through the shared admission layer.
 - [x] Preserve existing orchestrator local limits.
 - [x] Bound waiters and make close/cancel/release leak-free.
@@ -79,26 +79,33 @@ Validation evidence (2026-07-31):
 
 ## Child Execution And Effects
 
-- [ ] Create workflow children through `AgentSubagentToolPort`.
-- [ ] Reject direct ACP and preserve DeepChat-loop ACP compatibility.
-- [ ] Enforce the launch target-agent allowlist before admission.
-- [ ] Make child creation crash-safe and idempotent by correlation slot.
-- [ ] Persist child identity before handoff.
+- [x] Create workflow children through `AgentSubagentToolPort`.
+- [x] Reject direct ACP and preserve DeepChat-loop ACP compatibility.
+- [x] Enforce the launch target-agent allowlist before admission.
+- [x] Make child creation crash-safe and idempotent by correlation slot.
+- [x] Persist child identity before handoff.
 - [ ] Map child runtime state and usage into durable invocation state.
-- [ ] Add workflow-scoped frozen-head Tape lineage.
-- [ ] Require a durable Tape-link receipt before replayable success.
-- [ ] Propagate workflow invocation context to the common tool boundary.
+- [x] Add workflow-scoped frozen-head Tape lineage.
+- [x] Require a durable Tape-link receipt before replayable success.
+- [x] Propagate workflow invocation context to the common tool boundary.
 - [x] Add an explicit invocation-context registry at the common tool boundary.
 - [x] Persist monotonic effect state before every bound child tool execution.
 - [x] Fail tool execution closed when effect intent persistence fails.
 - [x] Treat unknown or untrusted tool metadata conservatively.
-- [ ] Add crash-window, late-event, Tape-evidence, and lineage tests.
-- [ ] Complete the pre-commit child/effect review, focused validation, and commit.
+- [x] Add crash-window, late-event, Tape-evidence, and lineage tests.
+- [x] Complete the pre-commit child/effect review, focused validation, and commit.
 
 Effect-boundary validation evidence (2026-07-31):
 
 - 236 workflow and tool tests passed under Electron's Node ABI.
 - `pnpm run typecheck:node`
+
+Child-executor validation evidence (2026-07-31):
+
+- 57 workflow, session-lifecycle, and session-projection tests passed under Electron's Node ABI.
+- 159 session integration and existing subagent-orchestrator regression tests passed.
+- `pnpm run lint`
+- `pnpm run typecheck`
 
 ## Structured Output
 

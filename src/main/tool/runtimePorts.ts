@@ -16,6 +16,7 @@ import type {
   SubagentTapeLinkInput,
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
+import type { WorkflowSubagentContext } from '@shared/workflow/subagent'
 import type { AgentInvocationAdmissionPort } from '@/agent/invocationAdmission'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
@@ -64,6 +65,7 @@ export interface CreateSubagentSessionInput {
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
   activeSkills?: string[]
+  workflowContext?: WorkflowSubagentContext
 }
 
 export interface AgentToolSessionPort {

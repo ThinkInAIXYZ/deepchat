@@ -337,6 +337,64 @@ describe('SessionLifecycle', () => {
     expect(harness.assignmentPolicy.resolveSubagentAssignment).toHaveBeenCalledOnce()
   })
 
+  it('persists validated workflow correlation metadata before runtime initialization', async () => {
+    const harness = createHarness()
+
+    await harness.coordinator.createSubagentSession({
+      parentSessionId: 'parent',
+      agentId: 'deepchat',
+      slotId: 'workflow:correlation',
+      displayName: 'Workflow child',
+      providerId: 'openai',
+      modelId: 'model-1',
+      permissionMode: 'default',
+      workflowContext: {
+        runId: 'run-1',
+        invocationId: 'invocation-1',
+        correlationSlot: 'workflow:correlation'
+      }
+    })
+
+    expect(harness.sessions.create).toHaveBeenCalledWith(
+      'deepchat',
+      'Workflow child',
+      null,
+      expect.objectContaining({
+        sessionKind: 'subagent',
+        parentSessionId: 'parent',
+        subagentMeta: expect.objectContaining({
+          workflow: {
+            runId: 'run-1',
+            invocationId: 'invocation-1',
+            correlationSlot: 'workflow:correlation'
+          }
+        })
+      })
+    )
+  })
+
+  it('rejects workflow metadata whose correlation slot differs from the subagent slot', async () => {
+    const harness = createHarness()
+
+    await expect(
+      harness.coordinator.createSubagentSession({
+        parentSessionId: 'parent',
+        agentId: 'deepchat',
+        slotId: 'workflow:expected',
+        displayName: 'Workflow child',
+        providerId: 'openai',
+        modelId: 'model-1',
+        permissionMode: 'default',
+        workflowContext: {
+          runId: 'run-1',
+          invocationId: 'invocation-1',
+          correlationSlot: 'workflow:different'
+        }
+      })
+    ).rejects.toThrow('Workflow correlation slot must match the subagent slotId')
+    expect(harness.sessions.create).not.toHaveBeenCalled()
+  })
+
   it('initializes before publication and awaits initial-turn preflight', async () => {
     const harness = createHarness()
     harness.initialTurn.startInitialTurn.mockImplementation(async () => {

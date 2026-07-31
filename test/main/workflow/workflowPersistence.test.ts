@@ -467,11 +467,25 @@ describeIfSqlite('WorkflowRepository', () => {
       )
     ).toThrow('entry count cannot exceed')
 
+    const completedReceipt = receipt('child-write')
+    repository.recordInvocationTapeReceipt(invocation.id, completedReceipt, 320)
+    expect(() =>
+      repository.succeedInvocation(
+        invocation.id,
+        { ok: true },
+        {
+          ...completedReceipt,
+          childHeadEntryId: 15
+        },
+        null,
+        320
+      )
+    ).toThrow('already has another Tape receipt')
     expect(
       repository.succeedInvocation(
         invocation.id,
         { ok: true },
-        receipt('child-write'),
+        completedReceipt,
         { inputTokens: 10 },
         321
       )
@@ -480,6 +494,48 @@ describeIfSqlite('WorkflowRepository', () => {
       result: { ok: true },
       usage: { inputTokens: 10 }
     })
+  })
+
+  it('records an idempotent Tape receipt after a terminal child failure', () => {
+    const run = createRun()
+    repository.startRun(run.id, 110)
+    const invocation = createInvocation(run.id, 'cancelled-child')
+    attachAndRun(invocation.id, 'cancelled-child')
+    repository.failInvocation(
+      invocation.id,
+      {
+        status: 'cancelled',
+        error: {
+          code: 'INVOCATION_CANCELLED',
+          message: 'cancelled by caller',
+          retriable: false
+        }
+      },
+      310
+    )
+    const cancelledReceipt = receipt('cancelled-child', 'cancelled')
+
+    expect(
+      repository.recordInvocationTapeReceipt(invocation.id, cancelledReceipt, 311)
+    ).toMatchObject({
+      status: 'cancelled',
+      tapeLinkReceipt: cancelledReceipt
+    })
+    expect(
+      repository.recordInvocationTapeReceipt(invocation.id, cancelledReceipt, 312)
+    ).toMatchObject({
+      tapeLinkReceipt: cancelledReceipt
+    })
+    expect(() =>
+      repository.recordInvocationTapeReceipt(
+        invocation.id,
+        {
+          ...cancelledReceipt,
+          childHeadEntryId: 15
+        },
+        313
+      )
+    ).toThrow('already has another Tape receipt')
   })
 
   it('blocks late work after cancellation while retaining a crash-window child identity', () => {

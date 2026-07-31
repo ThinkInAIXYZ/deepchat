@@ -43,6 +43,7 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
+import type { WorkflowSubagentContext } from '@shared/workflow/subagent'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
 import type { DeepChatMessageRow } from '../session/data/tables/deepchatMessages'
@@ -508,6 +509,7 @@ export interface SessionLifecycleSubagentInput {
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
   activeSkills?: string[]
+  workflowContext?: WorkflowSubagentContext
 }
 
 export interface SessionLifecyclePort {
