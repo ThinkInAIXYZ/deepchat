@@ -82,7 +82,6 @@
     "limitReached": "Ruang menunggu penuh (maksimum {max} penyertaan).",
     "remove": "Buang",
     "steerUnavailable": "Tidak boleh mengganggu sekarang",
-    "steerWaitingForResponse": "Tunggu sehingga respons pembantu bermula",
     "steerFailed": "Gagal mengganggu giliran ini"
   },
   "features": {

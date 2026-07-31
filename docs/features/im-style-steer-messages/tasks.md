@@ -39,7 +39,8 @@ Assistant A streaming
 - [x] Persist ACP Steer before cancellation and distinguish `pending_input` from `user_stop`.
 - [x] Settle the old ACP projection without user-cancel error copy.
 - [x] Wait for the old ACP operation before claim and reuse the reserved projection.
-- [x] Reject pre-stream Steer before creating a user message.
+- [x] Persist the current user fact before accepting a pre-stream Steer.
+- [x] End pre-stream work with `pending_input` and remove any empty assistant reservation.
 - [x] Route both Queue promotion entry points through the same prepared Steer lifecycle.
 
 ### Renderer and interaction
@@ -50,7 +51,8 @@ Assistant A streaming
 - [x] Insert the accepted Steer before clearing the matching composer draft.
 - [x] Keep failed or attachment-blocked submissions in the composer.
 - [x] Remove the visible Steer spinner and `aria-busy`; retain the non-visual duplicate-submit lock.
-- [x] Disable pre-stream Steer while leaving Queue available.
+- [x] Keep Steer available before the first assistant stream update.
+- [x] Replace the optimistic source bubble when its pre-stream persisted record arrives.
 - [x] Render only Queue records in `PendingInputLane`.
 - [x] Preserve Queue editing, ordering, deletion, attachment resolution, promotion, and capacity.
 - [x] Render `Unread` and `Read` in the existing fixed-height message-info line.
@@ -58,7 +60,7 @@ Assistant A streaming
 - [x] Disable receipt fade for reduced motion.
 - [x] Keep active Steer messages read-only while preserving Copy.
 - [x] Reject low-level pending-input deletion for accepted Steer messages.
-- [x] Add receipt and pre-stream copy to all 20 locales.
+- [x] Add receipt copy to all 20 locales.
 
 ## Retained Regression Coverage
 
@@ -67,7 +69,7 @@ implementation probes:
 
 - rapid Steers remain separate messages, share one claimed batch, and use a new assistant row;
 - Queue promotion follows the same Steer admission path without cancelling the active stream;
-- pre-stream Steer creates no message;
+- pre-stream Steer preserves source/Steer order and leaves no empty assistant message;
 - DeepChat handoff emits no user-stop hook;
 - ACP cancellation, promotion, and reserved-projection reuse;
 - pending-input schema, ordering, claim, settlement, and restart behavior;
@@ -86,10 +88,7 @@ No standalone test helper, temporary probe, or new test-only production API is r
 | `pnpm run i18n` | passed; 20 locales, no missing or invalid keys |
 | `pnpm run lint` | passed |
 | `pnpm run typecheck` | passed for main and renderer |
-| changed main/renderer regression files | 850 passed, 9 native-SQLite tests skipped |
-| adjacent process, compaction, ACP projection, and display-message suites | 93 passed |
-| schema catalog and migration SQL splitting | 7 passed |
-| SQLite migration syntax smoke check | passed with system SQLite and Electron native driver |
+| affected DeepChat, ACP, session-data, and renderer suites | 469 passed, 9 native-SQLite tests skipped |
 
 The skipped native-SQLite cases require the Electron ABI build of
 `better-sqlite3-multiple-ciphers`; the Node test process uses a different ABI. Their migration SQL

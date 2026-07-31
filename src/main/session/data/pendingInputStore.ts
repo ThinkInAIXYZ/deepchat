@@ -69,6 +69,16 @@ export class SessionPendingInputStore {
     return row ? this.toRecord(row) : null
   }
 
+  getClaimedInput(sessionId: string): PendingSessionInputRecord | null {
+    const rows = this.database.deepchatPendingInputsTable
+      .listActiveBySession(sessionId)
+      .filter((row) => row.state === 'claimed')
+    if (rows.length > 1) {
+      throw new Error(`Session ${sessionId} has multiple claimed pending inputs.`)
+    }
+    return rows[0] ? this.toRecord(rows[0]) : null
+  }
+
   createQueueInput(sessionId: string, input: SendMessageInput): PendingSessionInputRecord {
     return this.createQueueInputWithState(sessionId, input, 'pending')
   }
@@ -171,6 +181,23 @@ export class SessionPendingInputStore {
     this.database.deepchatPendingInputsTable.update(itemId, {
       message_ids_json: JSON.stringify([...this.decodeMessageIds(row), messageId])
     })
+    return this.toRecord(this.requireRow(itemId, row.session_id))
+  }
+
+  linkClaimedQueueMessage(itemId: string, messageId: string): PendingSessionInputRecord {
+    const row = this.requireRow(itemId)
+    if (row.mode !== 'queue' || row.state !== 'claimed') {
+      throw new Error(`Pending input ${itemId} is not a claimed queue item.`)
+    }
+    const messageIds = this.decodeMessageIds(row)
+    if (messageIds.length > 0 && (messageIds.length !== 1 || messageIds[0] !== messageId)) {
+      throw new Error(`Claimed queue item ${itemId} already links another message.`)
+    }
+    if (messageIds.length === 0) {
+      this.database.deepchatPendingInputsTable.update(itemId, {
+        message_ids_json: JSON.stringify([messageId])
+      })
+    }
     return this.toRecord(this.requireRow(itemId, row.session_id))
   }
 

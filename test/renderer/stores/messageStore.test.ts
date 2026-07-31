@@ -209,8 +209,8 @@ describe('messageStore', () => {
     expect(store.messages.value[0]?.metadata).toContain('"readAt":1000')
   })
 
-  it('can remove optimistic messages by id', async () => {
-    const { store } = await setupStore()
+  it('replaces an optimistic user with its persisted source record', async () => {
+    const { store, messageListeners } = await setupStore()
     await store.loadMessages('s1')
 
     const optimisticId = store.addOptimisticUserMessage('s1', {
@@ -223,9 +223,19 @@ describe('messageStore', () => {
     expect(store.messages.value[0]?.id).toBe(optimisticId)
     expect(store.messages.value[0]?.content).toContain('skill-a')
 
-    store.removeOptimisticMessage(optimisticId)
+    messageListeners[0]({
+      sessionId: 's1',
+      messages: [
+        buildUserMessage('source-user', 's1', 1, 'hello'),
+        {
+          ...buildUserMessage('steer-user', 's1', 2, 'steer'),
+          status: 'pending',
+          metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}'
+        }
+      ]
+    })
 
-    expect(store.messages.value).toHaveLength(0)
+    expect(store.messageIds.value).toEqual(['source-user', 'steer-user'])
   })
 
   it('does not resort message ids when an existing message keeps the same order', async () => {

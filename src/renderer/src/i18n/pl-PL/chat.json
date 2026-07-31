@@ -82,7 +82,6 @@
     "limitReached": "Pas oczekujących jest pełny (maks. {max}).",
     "remove": "Usuń",
     "steerUnavailable": "Nie można teraz przerwać",
-    "steerWaitingForResponse": "Poczekaj, aż asystent zacznie odpowiadać",
     "steerFailed": "Nie udało się przerwać tej tury"
   },
   "features": {

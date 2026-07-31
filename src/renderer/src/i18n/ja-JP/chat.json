@@ -82,7 +82,6 @@
     "limitReached": "待機レーンがいっぱいです（最大{max}件）。",
     "remove": "削除",
     "steerUnavailable": "今は中断できません",
-    "steerWaitingForResponse": "アシスタントが応答を開始するまでお待ちください",
     "steerFailed": "このターンを中断できませんでした"
   },
   "features": {

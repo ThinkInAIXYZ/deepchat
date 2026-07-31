@@ -892,6 +892,21 @@ export const useMessageStore = defineStore('message', () => {
     })
     if (changedRecords.length === 0) return
 
+    const replacesOptimisticUser =
+      records.some(
+        (record) => record.role === 'user' && !getMessageMetadata(record).inputReceipt
+      ) &&
+      records.some(
+        (record) => record.role === 'user' && Boolean(getMessageMetadata(record).inputReceipt)
+      )
+    if (replacesOptimisticUser) {
+      for (const messageId of messageIds.value) {
+        if (messageId.startsWith('__optimistic_user_')) {
+          removeOptimisticMessage(messageId, sessionId)
+        }
+      }
+    }
+
     markLiveMessageViewMutation(sessionId)
     for (const record of changedRecords) {
       parsedMessageCache.delete(record.id)

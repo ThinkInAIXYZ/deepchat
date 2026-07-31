@@ -82,7 +82,6 @@
     "limitReached": "等待區已滿（最多 {max} 條）。",
     "remove": "刪除",
     "steerUnavailable": "目前無法打斷",
-    "steerWaitingForResponse": "等待助理開始回覆後即可打斷",
     "steerFailed": "打斷失敗"
   },
   "features": {

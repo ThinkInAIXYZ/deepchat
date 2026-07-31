@@ -525,10 +525,6 @@ const setup = async (options: SetupOptions = {}) => {
           type: Boolean,
           default: false
         },
-        steerWaitingForTarget: {
-          type: Boolean,
-          default: false
-        },
         isStopping: {
           type: Boolean,
           default: false
@@ -536,7 +532,7 @@ const setup = async (options: SetupOptions = {}) => {
       },
       emits: ['attach', 'queue', 'send', 'steer', 'stop'],
       template:
-        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled" :data-waiting-for-target="String(steerWaitingForTarget)" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
+        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
     })
   }))
   vi.doMock('@/components/chat/AgentProgressFloat.vue', () => ({
@@ -2897,10 +2893,9 @@ describe('ChatPage', () => {
     expect(wrapper.findComponent({ name: 'ChatInputToolbar' }).props('hasInput')).toBe(true)
   })
 
-  it('disables queue submit when the waiting queue is full but keeps steer button available', async () => {
+  it('keeps pre-stream steer available when the waiting queue is full', async () => {
     const { wrapper } = await setup({
       isStreaming: true,
-      currentStreamMessageId: 'm1',
       pendingInputStorePatch: {
         isAtCapacity: true
       }

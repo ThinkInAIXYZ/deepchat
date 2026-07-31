@@ -82,7 +82,6 @@
     "limitReached": "Область ожидания заполнена (макс. {max}).",
     "remove": "Удалить",
     "steerUnavailable": "Сейчас нельзя прервать",
-    "steerWaitingForResponse": "Дождитесь начала ответа ассистента",
     "steerFailed": "Не удалось прервать этот ход"
   },
   "features": {

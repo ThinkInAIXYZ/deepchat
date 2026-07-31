@@ -21,7 +21,7 @@ import type {
   AttachmentPreparationResult
 } from '@/ocr/attachmentCapabilityRouter'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import { createAbortError } from './abortErrors'
+import { createAbortError, PENDING_INPUT_ABORT_REASON } from './abortErrors'
 import { supportsProviderVision } from './providerInputCapabilities'
 import type { ClaimedPendingInputHandle } from './pendingInputContracts'
 import type { PendingInputWakeReason } from './runLifecycleCoordinator'
@@ -238,8 +238,32 @@ export class PendingInputAdmissionCoordinator {
         return { ...preparedResult, userMessage: accepted.message }
       }
 
-      if (preStreamController) {
-        throw new Error('Wait for the assistant response to start before steering.')
+      if (
+        instance &&
+        preStreamController &&
+        (!preStreamController.signal.aborted ||
+          preStreamController.signal.reason === PENDING_INPUT_ABORT_REASON)
+      ) {
+        const accepted = this.acceptVisibleSteerInput(sessionId, prepared.content, {
+          preStreamAnchorMessageId: instance.getPreStreamTranscriptAnchorId() ?? null
+        })
+        if (accepted.sourceMessage) {
+          instance.setPreStreamTranscriptAnchorId(accepted.sourceMessage.id)
+        }
+        if (!preStreamController.signal.aborted) {
+          preStreamController.abort(PENDING_INPUT_ABORT_REASON)
+        }
+        return { ...preparedResult, userMessage: accepted.message }
+      }
+
+      const openSteerInputId = instance?.getActiveSteerPendingInputId()
+      const openSteerInput = openSteerInputId
+        ? this.ports.pendingInputs.getInput(sessionId, openSteerInputId)
+        : null
+      if (openSteerInput?.mode === 'steer' && openSteerInput.state === 'pending') {
+        const accepted = this.acceptVisibleSteerInput(sessionId, prepared.content)
+        this.ports.pump.schedule(sessionId, 'enqueue')
+        return { ...preparedResult, userMessage: accepted.message }
       }
 
       if (!this.ports.pump.canDrain(sessionId, state.status, 'enqueue')) {
@@ -336,8 +360,26 @@ export class PendingInputAdmissionCoordinator {
           .pendingInput
       }
 
-      if (preStreamController) {
-        throw new Error('Wait for the assistant response to start before steering.')
+      if (
+        instance &&
+        preStreamController &&
+        (!preStreamController.signal.aborted ||
+          preStreamController.signal.reason === PENDING_INPUT_ABORT_REASON)
+      ) {
+        const accepted = this.ports.pendingInputs.promoteQueuedInputToSteerMessage(
+          sessionId,
+          itemId,
+          {
+            preStreamAnchorMessageId: instance.getPreStreamTranscriptAnchorId() ?? null
+          }
+        )
+        if (accepted.sourceMessage) {
+          instance.setPreStreamTranscriptAnchorId(accepted.sourceMessage.id)
+        }
+        if (!preStreamController.signal.aborted) {
+          preStreamController.abort(PENDING_INPUT_ABORT_REASON)
+        }
+        return accepted.pendingInput
       }
 
       const record = this.ports.pendingInputs.promoteQueuedInputToSteerMessage(
@@ -458,10 +500,14 @@ export class PendingInputAdmissionCoordinator {
 
   private acceptVisibleSteerInput(
     sessionId: string,
-    input: SendMessageInput
+    input: SendMessageInput,
+    options?: {
+      preStreamAnchorMessageId?: string | null
+    }
   ): {
     pendingInput: PendingSessionInputRecord
     message: ChatMessageRecord
+    sourceMessage?: ChatMessageRecord
   } {
     const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
     if (!instance) {
@@ -477,7 +523,8 @@ export class PendingInputAdmissionCoordinator {
       instance.clearActiveSteerPendingInputId()
     }
     const accepted = this.ports.pendingInputs.acceptSteerMessage(sessionId, input, {
-      mergeItemId
+      mergeItemId,
+      ...(options ? { preStreamAnchorMessageId: options.preStreamAnchorMessageId ?? null } : {})
     })
     instance.setActiveSteerPendingInputId(accepted.pendingInput.id)
     return accepted

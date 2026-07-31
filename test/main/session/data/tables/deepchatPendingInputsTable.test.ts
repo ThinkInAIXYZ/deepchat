@@ -294,30 +294,46 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
 
     try {
       data.settings.create('s1', 'openai', 'gpt-4o', 'full_access')
-      const first = data.pendingInputs.acceptSteerMessage('s1', {
-        text: 'first',
-        files: []
-      })
+      const source = data.pendingInputs.queuePendingInput(
+        's1',
+        { text: 'source', files: [] },
+        { state: 'claimed' }
+      )
+      const first = data.pendingInputs.acceptSteerMessage(
+        's1',
+        {
+          text: 'first',
+          files: []
+        },
+        { preStreamAnchorMessageId: null }
+      )
       const second = data.pendingInputs.acceptSteerMessage(
         's1',
         { text: 'second', files: [] },
         { mergeItemId: first.pendingInput.id }
       )
 
+      expect(first.sourceMessage?.content).toContain('source')
+      expect(data.pendingInputs.getInput('s1', source.id)?.messageIds).toEqual([
+        first.sourceMessage?.id
+      ])
       expect(second.pendingInput.messageIds).toEqual([first.message.id, second.message.id])
       expect(data.transcript.getMessages('s1').map((message) => message.status)).toEqual([
+        'sent',
         'pending',
         'pending'
       ])
 
+      data.pendingInputs.consumeQueuedInput('s1', source.id)
       const claimed = data.pendingInputs.claimSteerInput('s1', first.pendingInput.id)
       const claimedMessages = data.transcript.getMessages('s1')
       expect(claimedMessages.map((message) => message.id)).toEqual([
+        first.sourceMessage?.id,
         first.message.id,
         second.message.id,
         claimed.assistantMessageId
       ])
-      const readAt = claimedMessages.slice(0, 2).map((message) => {
+      const readAt = claimedMessages.slice(1, 3).map((message) => {
         const metadata = JSON.parse(message.metadata) as {
           inputReceipt: { readAt: number | null }
         }
@@ -330,10 +346,10 @@ describeIfNativeSqlite('Steer message lifecycle', () => {
       expect(
         data.transcript
           .getMessages('s1')
-          .slice(0, 2)
+          .slice(1, 3)
           .map((message) => message.status)
       ).toEqual(['sent', 'sent'])
-      expect(publishedMessages.map((batch) => batch.length)).toEqual([1, 1, 3, 2])
+      expect(publishedMessages.map((batch) => batch.length)).toEqual([2, 1, 3, 2])
     } finally {
       connection.close()
     }

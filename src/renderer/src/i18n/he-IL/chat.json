@@ -82,7 +82,6 @@
     "limitReached": "אזור ההמתנה מלא (מקסימום {max}).",
     "remove": "הסר",
     "steerUnavailable": "לא ניתן להפסיק כעת",
-    "steerWaitingForResponse": "יש להמתין עד שהעוזר יתחיל להשיב",
     "steerFailed": "לא ניתן היה להפסיק את התור הזה"
   },
   "features": {

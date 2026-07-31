@@ -89,7 +89,6 @@
     "limitReached": "Venteområdet er fuldt (maks. {max}).",
     "remove": "Fjern",
     "steerUnavailable": "Kan ikke afbryde lige nu",
-    "steerWaitingForResponse": "Vent på, at assistentens svar starter",
     "steerFailed": "Kunne ikke afbryde denne tur"
   },
   "messages": {

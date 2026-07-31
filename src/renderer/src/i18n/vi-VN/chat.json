@@ -82,7 +82,6 @@
     "limitReached": "Làn chờ đã đầy (tối đa {max}).",
     "remove": "Xóa",
     "steerUnavailable": "Hiện không thể ngắt",
-    "steerWaitingForResponse": "Chờ trợ lý bắt đầu phản hồi",
     "steerFailed": "Không thể ngắt lượt này"
   },
   "features": {

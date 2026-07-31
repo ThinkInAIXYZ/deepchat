@@ -74,7 +74,10 @@ class FakePendingInputs implements SessionPendingInputRuntimePort {
   acceptSteerMessage(
     sessionId: ReturnType<typeof toAppSessionId>,
     input: SendMessageInput,
-    options?: { mergeItemId?: string | null }
+    options?: {
+      mergeItemId?: string | null
+      preStreamAnchorMessageId?: string | null
+    }
   ) {
     const message = this.createUserMessage(sessionId, input)
     const pendingInput = options?.mergeItemId
@@ -229,6 +232,7 @@ function createHarness(options?: {
   clearRejects?: boolean
   clearPromise?: Promise<void>
   resourceRejects?: boolean
+  resourceGate?: { started: () => void; wait: Promise<void> }
   firstPromptNeverSettles?: boolean
   pendingInputs?: FakePendingInputs
 }) {
@@ -321,6 +325,10 @@ function createHarness(options?: {
       promptResources: {
         resolve: vi.fn(async ({ content }) => {
           if (options?.resourceRejects) throw new Error('resource failed')
+          if (options?.resourceGate) {
+            options.resourceGate.started()
+            await options.resourceGate.wait
+          }
           const text = typeof content === 'string' ? content : content.text
           return {
             latestUserMessage: { role: 'user', content: text },
@@ -852,21 +860,37 @@ describe('AcpAgentRuntime', () => {
     expect(harness.calls).toContain('session.clear')
   })
 
-  it('queues and auto-drains steer input after cancelling an active direct turn', async () => {
+  it('orders and drains steer input before the first ACP projection', async () => {
+    let markResourceStarted!: () => void
+    const resourceStarted = new Promise<void>((resolve) => {
+      markResourceStarted = resolve
+    })
+    let releaseResources!: () => void
+    const resourcesReleased = new Promise<void>((resolve) => {
+      releaseResources = resolve
+    })
     const pendingInputs = new FakePendingInputs()
-    const harness = createHarness({ firstPromptNeverSettles: true, pendingInputs })
+    const harness = createHarness({
+      pendingInputs,
+      resourceGate: { started: markResourceStarted, wait: resourcesReleased }
+    })
     const input = createInput()
-    const active = harness.runtime.send(input, 'active')
-    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledTimes(1))
+    const source = await harness.runtime.queuePendingInput(input, {
+      text: 'active',
+      files: []
+    })
+    await resourceStarted
+    expect(harness.connection.prompt).not.toHaveBeenCalled()
 
-    await harness.runtime.steer(input, 'steer')
-    await active
+    await harness.runtime.steer(input, { text: 'steer', files: [] })
+    releaseResources()
 
-    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledTimes(2))
-    expect(harness.connection.prompt.mock.calls[1][0].prompt).toEqual([
+    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledOnce())
+    expect(harness.connection.prompt.mock.calls[0][0].prompt).toEqual([
       { type: 'text', text: 'steer' }
     ])
-    await vi.waitFor(() => expect(pendingInputs.records[0].state).toBe('consumed'))
+    await vi.waitFor(() => expect(source.state).toBe('consumed'))
+    await vi.waitFor(() => expect(pendingInputs.records[1].state).toBe('consumed'))
   })
 
   it('promotes a queued item into active steer after terminal cancellation', async () => {

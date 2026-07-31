@@ -82,7 +82,6 @@
     "limitReached": "La zone d'attente est pleine (max. {max}).",
     "remove": "Supprimer",
     "steerUnavailable": "Impossible d'interrompre pour le moment",
-    "steerWaitingForResponse": "Attendez que la réponse de l'assistant commence",
     "steerFailed": "Impossible d'interrompre ce tour"
   },
   "features": {

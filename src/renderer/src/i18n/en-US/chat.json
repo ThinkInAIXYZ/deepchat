@@ -167,7 +167,6 @@
     "limitReached": "Waiting lane is full (max {max}).",
     "remove": "Remove",
     "steerUnavailable": "Can't interrupt right now",
-    "steerWaitingForResponse": "Wait for the assistant response to start",
     "steerFailed": "Couldn't interrupt this turn"
   },
   "features": {

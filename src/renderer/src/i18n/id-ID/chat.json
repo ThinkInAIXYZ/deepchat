@@ -82,7 +82,6 @@
     "limitReached": "Ruang tunggu penuh (maks {max} entri).",
     "remove": "Hapus",
     "steerUnavailable": "Tidak bisa menyela saat ini",
-    "steerWaitingForResponse": "Tunggu hingga respons asisten dimulai",
     "steerFailed": "Gagal menyela giliran ini"
   },
   "features": {

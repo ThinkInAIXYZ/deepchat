@@ -82,7 +82,6 @@
     "limitReached": "대기 영역이 가득 찼습니다 (최대 {max}개).",
     "remove": "삭제",
     "steerUnavailable": "지금은 중단할 수 없습니다",
-    "steerWaitingForResponse": "어시스턴트가 응답을 시작할 때까지 기다리세요",
     "steerFailed": "이 턴을 중단하지 못했습니다"
   },
   "features": {

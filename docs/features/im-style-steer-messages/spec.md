@@ -48,17 +48,22 @@ without a reliable answer to three basic questions:
 
 ## Target Experience
 
-Steer behaves like inserting a message into an IM conversation while the other side is typing:
+Steer behaves like inserting a message into an IM conversation while the other side is preparing or
+typing:
 
-1. The current assistant message keeps its place and continues until a safe runtime boundary.
-2. The accepted Steer appears immediately below it as a standard user message.
+1. The current turn keeps its place and continues until a safe runtime boundary.
+2. The accepted Steer appears immediately after the current turn's durable transcript facts as a
+   standard user message.
 3. The Steer shows `Unread`.
 4. At the safe boundary, the current assistant message becomes terminal.
 5. The runtime claims the Steer and the receipt changes to `Read`.
 6. A new assistant message, with a new message ID, starts below the Steer.
 7. `Read` remains visible for 1.5 seconds, fades over 150 ms, and then disappears.
 
-The old assistant row is never reused for the new response.
+If Steer arrives before the provider stream starts, the current user fact is persisted first, the
+pre-stream operation ends with `pending_input`, and no empty assistant row remains. The old assistant
+row is never reused for the new response. The persisted source user fact replaces the existing
+optimistic source bubble in the same renderer update, so the source message is not duplicated.
 
 ## Goals
 
@@ -184,6 +189,8 @@ Accepting a Steer must not call the generic user-stop cancellation path.
   assistant message is the safe boundary.
 - During a tool loop, the existing `shouldYieldForPendingInput` check yields after the current tool
   batch and before another provider round.
+- Before provider streaming starts, persist or reuse the current user fact before the Steer, abort
+  preparation with cause `pending_input`, and remove any empty assistant reservation.
 - A pending permission or question remains a blocker. The Steer stays `Unread` until that interaction
   is resolved.
 - The old assistant message settles with `stopReason: 'pending_input'` and no cancellation error
@@ -196,28 +203,35 @@ ACP does not expose the same in-loop yield hook. It keeps the same visible contr
 backend-specific boundary:
 
 1. Persist and display the Steer as `Unread`.
-2. Cancel the active ACP prompt with cause `pending_input`.
-3. Wait for the old ACP operation and projection to settle.
-4. Claim the Steer batch.
-5. Start a new ACP prompt and a new assistant message.
+2. If projection has not started, persist the claimed Queue input's user fact before the Steer.
+3. Cancel the active ACP prompt with cause `pending_input`.
+4. Wait for the old ACP operation and projection to settle.
+5. Claim the Steer batch.
+6. Start a new ACP prompt and a new assistant message.
 
 The old ACP assistant message must not show the generic
 `common.error.userCanceledGeneration` error for a Steer handoff.
 
 ### Common invariant
 
-For both backends:
+After an assistant row exists, both backends preserve:
 
 ```text
 oldAssistant.id != newAssistant.id
 oldAssistant.orderSeq < every steerUser.orderSeq < newAssistant.orderSeq
 ```
 
+Before an assistant row exists, both backends preserve:
+
+```text
+sourceUser.orderSeq < every steerUser.orderSeq < newAssistant.orderSeq
+```
+
 No stream update from the new run may target `oldAssistant.id`.
 
 ## UI and Interaction Specification
 
-### Current layout
+### BEFORE: command-style Steer
 
 ```text
 +--------------------------------------------------------------+
@@ -229,6 +243,41 @@ No stream update from the new run may target `oldAssistant.id`.
 | [Steer spinner] [Queue]                                      |
 +--------------------------------------------------------------+
 ```
+
+Before the first assistant row existed, the Steer action was disabled:
+
+```text
++--------------------------------------------------------------+
+|                                      You  14:23               |
+|                                  +-------------------------+ |
+|                                  | Start the analysis.     | |
+|                                  +-------------------------+ |
+|                                                              |
+| Assistant is preparing...                                    |
+| [composer: Change the approach...                    ]       |
+| [Steer disabled] [Queue]                                     |
++--------------------------------------------------------------+
+```
+
+### AFTER: pre-stream Steer
+
+```text
++--------------------------------------------------------------+
+|                                      You  14:23               |
+|                                  +-------------------------+ |
+|                                  | Start the analysis.     | |
+|                                  +-------------------------+ |
+|                                      You  14:23 · Unread      |
+|                                  +-------------------------+ |
+|                                  | Change the approach...  | |
+|                                  +-------------------------+ |
+|                                                              |
+| Assistant is preparing...                                    |
++--------------------------------------------------------------+
+```
+
+At claim, `Unread` becomes `Read`, the preparation placeholder is replaced by a new assistant
+message below the Steer, and `Read` then disappears on the normal receipt timer.
 
 ### Accepted Steer
 
@@ -357,9 +406,8 @@ It receives no `Unread` / `Read` receipt.
 - Do not expose that short text-only lock as a Steer spinner or `aria-busy`.
 - Attachment preparation remains visible through the existing attachment preparation flow because
   it is real work before acceptance.
-- While the session is generating but has no authoritative assistant message yet, Steer is
-  unavailable and Queue remains available. This prevents a pre-stream Steer from being ordered
-  before the assistant it intends to interrupt.
+- While the session is generating, Steer remains available before the first assistant message. Main
+  persists the current user fact before the Steer so authoritative `orderSeq` stays stable.
 - If generation ends in the click/IPC race, main may admit the Steer immediately as the next turn;
   it still follows the same message and receipt contract.
 
@@ -396,7 +444,8 @@ It receives no `Unread` / `Read` receipt.
 - Do not repeatedly announce `Unread` during streaming renders.
 - The message bubble and copy action keep their existing keyboard behavior.
 - The composer retains focus after acceptance.
-- Disabled Steer keeps the existing tooltip path and adds specific copy for the pre-stream case.
+- Existing disabled-state tooltips remain for actual blockers such as attachment preparation,
+  permissions, or an unavailable session.
 
 ## Failure and Recovery Behavior
 
@@ -406,6 +455,7 @@ It receives no `Unread` / `Read` receipt.
 | Persistence fails before acceptance | No partial pending row or message; keep draft and show error |
 | Renderer misses acceptance event | Route result inserts the persisted message; later restore is authoritative |
 | Renderer misses claim event | Session restore reconstructs `readAt` and the new assistant row |
+| App restarts during pre-stream handoff | Keep the materialized source user fact, consume its claimed Queue record, and resume the `Unread` Steer |
 | Previous DeepChat turn errors | Open the safe boundary and drain the durable Steer unless an interaction blocks it |
 | Previous ACP turn cancellation fails | Keep Steer `Unread`; do not claim until the old operation is terminal |
 | Runtime fails after claim | Keep user messages `Read`; settle a new assistant error row; do not delete or retry silently |
@@ -429,6 +479,8 @@ It receives no `Unread` / `Read` receipt.
    facts.
 9. Search and transcript restore may show an accepted `Unread` Steer because it is a real sent fact.
 10. Event delivery is a cache update, never the source of truth.
+11. Pre-stream acceptance materializes and links the current claimed Queue user fact in the same
+    transaction as the Steer, before assigning the Steer's `orderSeq`.
 
 ## Acceptance Criteria
 
@@ -436,6 +488,8 @@ It receives no `Unread` / `Read` receipt.
 
 - Sending a text-only Steer during an active assistant response adds a standard user message without
   a bottom loading row or Steer spinner.
+- Sending Steer while the assistant is still preparing creates the current user fact first, then the
+  `Unread` Steer, and leaves no blank or cancelled assistant row.
 - The message initially shows `Unread`.
 - The current assistant message remains the active stream until the backend-safe boundary.
 - At claim, `Unread` becomes `Read`.
@@ -484,6 +538,6 @@ It receives no `Unread` / `Read` receipt.
 - `Read` is irreversible; post-claim errors produce an assistant error row.
 - `Read` remains visible for 1.5 seconds and fades for 150 ms.
 - Accepted Steers cannot be recalled or edited while active.
-- Pre-stream input uses Queue until an authoritative assistant row exists.
+- Steer is available throughout an active turn, including before the first assistant stream update.
 - This feature is delivered directly through its implementation PR; no separate GitHub issue is
   required.

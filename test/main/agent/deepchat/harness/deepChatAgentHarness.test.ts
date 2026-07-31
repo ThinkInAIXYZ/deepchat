@@ -2520,77 +2520,78 @@ describe('DeepChatAgentHarness', () => {
       await processPromise
     })
 
-    it('keeps rapid Steers as separate messages and replies in a new assistant row', async () => {
+    it('keeps rapid pre-stream Steers ordered and replies in one assistant row', async () => {
       installSessionRows([])
       vi.mocked(nanoid)
-        .mockReturnValueOnce('first-user')
-        .mockReturnValueOnce('first-assistant')
+        .mockReturnValueOnce('source-input')
+        .mockReturnValueOnce('source-user')
         .mockReturnValueOnce('steer-user-1')
         .mockReturnValueOnce('steer-input')
         .mockReturnValueOnce('steer-user-2')
         .mockReturnValueOnce('steer-assistant')
-      const firstDone = deferred<void>()
-      let firstAbortSignal: AbortSignal | null = null
-      ;(processStream as ReturnType<typeof vi.fn>)
-        .mockImplementationOnce(async (params: { run: { abortController: AbortController } }) => {
-          firstAbortSignal = params.run.abortController.signal
-          await firstDone.promise
-          return { status: 'completed', stopReason: 'complete' }
-        })
-        .mockResolvedValueOnce({
-          status: 'completed',
-          stopReason: 'complete'
-        })
+      const preStreamStarted = deferred<void>()
+      let preparationCount = 0
+      runtimeDependencies.attachmentRouter.prepare = vi.fn(async ({ content, signal }) => {
+        preparationCount += 1
+        if (preparationCount === 2) {
+          preStreamStarted.resolve()
+          await new Promise<void>((_resolve, reject) => {
+            const rejectAbort = () => reject(new DOMException('Aborted', 'AbortError'))
+            if (signal?.aborted) {
+              rejectAbort()
+              return
+            }
+            signal?.addEventListener('abort', rejectAbort, { once: true })
+          })
+        }
+        return {
+          content,
+          summary: { status: 'ready' as const, issues: [], suggestedActions: [] }
+        }
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        status: 'completed',
+        stopReason: 'complete'
+      })
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const firstProcess = agent.processMessage('s1', 'First prompt')
+      await agent.send('s1', {
+        content: { text: 'First prompt', files: [] },
+        queue: { source: 'send' }
+      })
+      await preStreamStarted.promise
+      expect(
+        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getAbortController()?.signal
+      ).toMatchObject({ aborted: false })
 
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 0) {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-
-      await agent.steerActiveTurn('s1', 'Refine active stream')
+      await agent.steerActiveTurn('s1', 'Refine before stream')
       await agent.steerActiveTurn('s1', 'Add second steer note')
-      expect(firstAbortSignal?.aborted).toBe(false)
 
-      firstDone.resolve()
-      await firstProcess
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 1) {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
+      await vi.waitFor(() => expect(processStream).toHaveBeenCalledOnce())
+      await vi.waitFor(async () => {
+        expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      })
 
       const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
         .map(([row]) => row)
         .filter((row) => row.role === 'user')
 
       expect(userInserts).toHaveLength(3)
-      expect(JSON.parse(userInserts[0].content).text).toBe('First prompt')
-      expect(JSON.parse(userInserts[1].content).text).toBe('Refine active stream')
-      expect(JSON.parse(userInserts[2].content).text).toBe('Add second steer note')
-      expect(userInserts.slice(1).map((message) => message.status)).toEqual(['pending', 'pending'])
+      expect(userInserts.map((message) => JSON.parse(message.content).text)).toEqual([
+        'First prompt',
+        'Refine before stream',
+        'Add second steer note'
+      ])
+      expect(userInserts.map((message) => message.status)).toEqual(['sent', 'pending', 'pending'])
       const assistantInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
         .map(([row]) => row)
         .filter((row) => row.role === 'assistant')
-      expect(assistantInserts.map((message) => message.id)).toEqual([
-        'first-assistant',
-        'steer-assistant'
-      ])
-      expect(processStream).toHaveBeenCalledTimes(2)
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((await agent.getSessionState('s1'))?.status === 'idle') {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      expect(assistantInserts.map((message) => message.id)).toEqual(['steer-assistant'])
+      expect(processStream).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatPendingInputsTable.get('source-input')).toBeUndefined()
+      expect(sqlitePresenter.deepchatPendingInputsTable.get('steer-input')).toMatchObject({
+        state: 'consumed'
+      })
     })
 
     it('does not interrupt an active stream when steer attachment preflight needs user action', async () => {

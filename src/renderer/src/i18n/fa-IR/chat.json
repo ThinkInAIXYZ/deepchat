@@ -82,7 +82,6 @@
     "limitReached": "بخش انتظار پر است (حداکثر {max}).",
     "remove": "حذف",
     "steerUnavailable": "اکنون نمی‌توان وقفه داد",
-    "steerWaitingForResponse": "منتظر شروع پاسخ دستیار بمانید",
     "steerFailed": "وقفه در این نوبت ناموفق بود"
   },
   "features": {

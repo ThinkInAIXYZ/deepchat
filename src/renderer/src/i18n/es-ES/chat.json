@@ -82,7 +82,6 @@
     "limitReached": "La zona de espera está llena (máx. {max}).",
     "remove": "Eliminar",
     "steerUnavailable": "No se puede interrumpir ahora",
-    "steerWaitingForResponse": "Espera a que comience la respuesta del asistente",
     "steerFailed": "No se pudo interrumpir este turno"
   },
   "features": {

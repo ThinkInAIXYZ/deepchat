@@ -82,7 +82,6 @@
     "limitReached": "Wartebereich ist voll (maximal {max}).",
     "remove": "Entfernen",
     "steerUnavailable": "Derzeit nicht unterbrechbar",
-    "steerWaitingForResponse": "Warte, bis die Antwort des Assistenten beginnt",
     "steerFailed": "Diese Runde konnte nicht unterbrochen werden"
   },
   "features": {

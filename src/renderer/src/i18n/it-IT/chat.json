@@ -82,7 +82,6 @@
     "limitReached": "Area di attesa piena (max {max}).",
     "remove": "Rimuovi",
     "steerUnavailable": "Impossibile interrompere ora",
-    "steerWaitingForResponse": "Attendi l'inizio della risposta dell'assistente",
     "steerFailed": "Impossibile interrompere questo turno"
   },
   "features": {

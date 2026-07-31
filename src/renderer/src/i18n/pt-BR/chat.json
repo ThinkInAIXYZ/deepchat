@@ -82,7 +82,6 @@
     "limitReached": "A área de espera está cheia (máx. {max}).",
     "remove": "Remover",
     "steerUnavailable": "Não é possível interromper agora",
-    "steerWaitingForResponse": "Aguarde o início da resposta do assistente",
     "steerFailed": "Não foi possível interromper este turno"
   },
   "features": {

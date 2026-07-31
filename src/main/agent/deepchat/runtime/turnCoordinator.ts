@@ -77,7 +77,11 @@ import {
   resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts
 } from './providerModelRuntimeFacts'
-import { isAbortError, throwIfAbortRequested } from './abortErrors'
+import {
+  isAbortError,
+  PENDING_INPUT_ABORT_REASON,
+  throwIfAbortRequested
+} from './abortErrors'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { RuntimeHookSink } from './runtimeHookSink'
 import type {
@@ -291,6 +295,12 @@ export class TurnCoordinator {
     const initializeTurn = () => {
       const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
       if (!instance) throw new Error(`Session ${sessionId} not found`)
+      instance.clearPreStreamTranscriptAnchor()
+      const reservedTranscriptAnchor =
+        reservedSteerAssistantMessageId ?? linkedSteerMessageIds.at(-1)
+      if (reservedTranscriptAnchor) {
+        instance.setPreStreamTranscriptAnchorId(reservedTranscriptAnchor)
+      }
       const scope = this.ports.runLifecycle.scopeFor(sessionId, instance)
       initializedScope = scope
       const state = instance.getRuntimeState()
@@ -376,6 +386,7 @@ export class TurnCoordinator {
           console.warn('[DeepChatAgent] failed to clear rejected turn abort controller:', cleanupError)
         }
       }
+      initializedScope?.instance.clearPreStreamTranscriptAnchor()
       if (
         statusTransitionAttempted &&
         initializedScope &&
@@ -612,6 +623,17 @@ export class TurnCoordinator {
               intent.previousState.summaryUpdatedAt
             ),
           appendUserFact: () => {
+            const preStreamUserMessageId = instance.getPreStreamTranscriptAnchorId()
+            const preStreamUserMessage = preStreamUserMessageId
+              ? this.ports.messageStore.getMessage(preStreamUserMessageId)
+              : null
+            if (
+              preStreamUserMessage?.sessionId === sessionId &&
+              preStreamUserMessage.role === 'user'
+            ) {
+              userMessageId = preStreamUserMessage.id
+              return preStreamUserMessage.id
+            }
             const createdUserMessageId = runSynchronousPreStreamStep(
               sessionId,
               'user-message-create',
@@ -623,6 +645,7 @@ export class TurnCoordinator {
                 )
             )
             userMessageId = createdUserMessageId
+            instance.setPreStreamTranscriptAnchorId(createdUserMessageId)
             return createdUserMessageId
           },
           beginCompaction: (intent) => {
@@ -866,7 +889,19 @@ export class TurnCoordinator {
       })
     } catch (err) {
       const aborted = isAbortError(err) || preStreamAbortSignal.aborted
+      const pendingInputHandoff =
+        preStreamAbortSignal.reason === PENDING_INPUT_ABORT_REASON
       const staleInstance = isStaleDeepChatInstanceError(err)
+      if (!userMessageId && pendingInputHandoff && claimedInput?.source !== 'steer') {
+        userMessageId = claimedInput?.messageIds.at(-1) ?? null
+      }
+      if (!userMessageId && pendingInputHandoff) {
+        const anchorId = instance.getPreStreamTranscriptAnchorId()
+        const anchorMessage = anchorId ? this.ports.messageStore.getMessage(anchorId) : null
+        if (anchorMessage?.role === 'user' && anchorMessage.sessionId === sessionId) {
+          userMessageId = anchorMessage.id
+        }
+      }
       if (claimedInput && !claimedInput.disposition) {
         if (isSteerClaim) {
           try {
@@ -919,6 +954,25 @@ export class TurnCoordinator {
           requestId: assistantMessageId,
           messageId: assistantMessageId
         })
+      }
+      if (pendingInputHandoff) {
+        if (userMessageId && !isSteerClaim) {
+          this.ports.messageProjection.refresh(sessionId, userMessageId)
+        }
+        if (assistantMessageId) {
+          this.ports.messageStore.deleteMessage(assistantMessageId)
+          this.ports.messageProjection.refresh(sessionId, assistantMessageId)
+          assistantMessageId = null
+        }
+        this.ports.runLifecycle.clearOperationController(scope, preStreamAbortController)
+        this.ports.runLifecycle.applyProcessResultStatus(sessionId, {
+          status: 'completed',
+          stopReason: PENDING_INPUT_ABORT_REASON
+        })
+        if (!claimedInput) {
+          this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
+        }
+        return complete({ requestId: null, messageId: null })
       }
       console.error('[DeepChatAgent] processMessage error:', err)
       if (aborted) {
@@ -1023,6 +1077,7 @@ export class TurnCoordinator {
       })
     } finally {
       this.ports.runLifecycle.clearOperationController(scope, preStreamAbortController)
+      instance.clearPreStreamTranscriptAnchor()
       instance.replaceRuntimeActivatedSkills([])
     }
   }
@@ -1056,6 +1111,8 @@ export class TurnCoordinator {
       this.ports.runLifecycle.transitionStatus(scope, 'generating')
       preStreamAbortController = this.ports.runLifecycle.ensureOperationController(scope)
       preStreamAbortSignal = preStreamAbortController.signal
+      instance.clearPreStreamTranscriptAnchor()
+      instance.setPreStreamTranscriptAnchorId(messageId)
       const preStreamStartedAt = Date.now()
       const providerModelFacts = resolveProviderModelRuntimeFacts(
         this.ports.providerSettings,
@@ -1376,6 +1433,34 @@ export class TurnCoordinator {
       if (isStaleDeepChatInstanceError(error)) {
         return false
       }
+      if (preStreamAbortSignal?.reason === PENDING_INPUT_ABORT_REASON) {
+        const message = this.ports.messageStore.getMessage(messageId)
+        if (message?.role === 'assistant') {
+          this.ports.messageStore.finalizeAssistantMessage(
+            messageId,
+            parseAssistantBlocks(message.content),
+            JSON.stringify(
+              stampTerminalMetadata(
+                resumeAccounting,
+                'completed',
+                PENDING_INPUT_ABORT_REASON,
+                streamRunId
+              )
+            )
+          )
+          this.ports.messageProjection.refresh(sessionId, messageId)
+        }
+        this.ports.runLifecycle.clearOperationController(
+          scope,
+          preStreamAbortController ?? undefined
+        )
+        this.ports.runLifecycle.applyProcessResultStatus(sessionId, {
+          status: 'completed',
+          stopReason: PENDING_INPUT_ABORT_REASON
+        })
+        this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
+        return false
+      }
       console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
       if (isAbortError(error) || preStreamAbortSignal?.aborted) {
         this.ports.runLifecycle.clearOperationController(
@@ -1425,6 +1510,7 @@ export class TurnCoordinator {
         scope,
         preStreamAbortController ?? undefined
       )
+      instance.clearPreStreamTranscriptAnchor()
       instance.finishResume(messageId)
     }
   }

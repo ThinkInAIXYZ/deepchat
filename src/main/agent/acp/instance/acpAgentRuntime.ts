@@ -279,16 +279,16 @@ export class AcpAgentRuntime {
     const instance = await this.getOrHydrate(input)
     this.assertAccepting()
     const snapshot = await instance.snapshot()
-    if (snapshot.active && !instance.getActiveGeneration()) {
-      throw new Error('Wait for the assistant response to start before steering.')
-    }
     if (snapshot.status === 'initializing') {
       throw new Error('Wait for the assistant response to start before steering.')
     }
     const pending = this.pendingInputs
     const existingSteer = pending.getNextSteerInput(input.sessionId)
     const accepted = pending.acceptSteerMessage(input.sessionId, content, {
-      mergeItemId: existingSteer?.id ?? null
+      mergeItemId: existingSteer?.id ?? null,
+      ...(snapshot.active && !instance.getActiveGeneration()
+        ? { preStreamAnchorMessageId: null }
+        : {})
     })
     const handoff = (async () => {
       if (snapshot.active) await instance.cancel('pending_input')
@@ -326,13 +326,16 @@ export class AcpAgentRuntime {
       throw new Error(`ACP session ${sessionId} is not initialized`)
     }
     const snapshot: AcpAgentSnapshot = await instance.snapshot()
-    if (snapshot.active && !instance.getActiveGeneration()) {
-      throw new Error('Wait for the assistant response to start before steering.')
-    }
     if (snapshot.status === 'initializing') {
       throw new Error('Wait for the assistant response to start before steering.')
     }
-    const record = pending.promoteQueuedInputToSteerMessage(sessionId, itemId).pendingInput
+    const record = pending.promoteQueuedInputToSteerMessage(
+      sessionId,
+      itemId,
+      snapshot.active && !instance.getActiveGeneration()
+        ? { preStreamAnchorMessageId: null }
+        : undefined
+    ).pendingInput
     let activeOperations: Promise<unknown>[] = []
     try {
       if (snapshot.active || this.draining.has(sessionId)) {

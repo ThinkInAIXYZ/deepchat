@@ -70,10 +70,12 @@ export class SessionPendingInputs {
     input: SendMessageInput,
     options?: {
       mergeItemId?: string | null
+      preStreamAnchorMessageId?: string | null
     }
   ): {
     pendingInput: PendingSessionInputRecord
     message: ChatMessageRecord
+    sourceMessage?: ChatMessageRecord
   } {
     const accepted = this.store.runInTransaction(() => {
       if (options?.mergeItemId) {
@@ -88,6 +90,12 @@ export class SessionPendingInputs {
         }
       }
 
+      const sourceMessage = Object.prototype.hasOwnProperty.call(
+        options ?? {},
+        'preStreamAnchorMessageId'
+      )
+        ? this.materializePreStreamSource(sessionId, options?.preStreamAnchorMessageId ?? null)
+        : undefined
       const messageId = this.transcript.createUserMessage(
         sessionId,
         this.transcript.getNextOrderSeq(sessionId),
@@ -106,20 +114,27 @@ export class SessionPendingInputs {
         ? this.store.appendSteerInput(options.mergeItemId, input, messageId)
         : this.store.createSteerInput(sessionId, input, messageId)
       const message = this.requireMessage(messageId)
-      return { pendingInput, message }
+      return { pendingInput, message, sourceMessage }
     })
 
     this.emitUpdated(sessionId)
-    this.events.publishMessagesChanged(sessionId, [accepted.message])
+    this.events.publishMessagesChanged(
+      sessionId,
+      accepted.sourceMessage ? [accepted.sourceMessage, accepted.message] : [accepted.message]
+    )
     return accepted
   }
 
   promoteQueuedInputToSteerMessage(
     sessionId: string,
-    itemId: string
+    itemId: string,
+    options?: {
+      preStreamAnchorMessageId?: string | null
+    }
   ): {
     pendingInput: PendingSessionInputRecord
     message: ChatMessageRecord
+    sourceMessage?: ChatMessageRecord
   } {
     const accepted = this.store.runInTransaction(() => {
       const queued = this.store.getInput(itemId)
@@ -131,6 +146,12 @@ export class SessionPendingInputs {
       ) {
         throw new Error(`Pending queue item ${itemId} is not steerable.`)
       }
+      const sourceMessage = Object.prototype.hasOwnProperty.call(
+        options ?? {},
+        'preStreamAnchorMessageId'
+      )
+        ? this.materializePreStreamSource(sessionId, options?.preStreamAnchorMessageId ?? null)
+        : undefined
       const messageId = this.transcript.createUserMessage(
         sessionId,
         this.transcript.getNextOrderSeq(sessionId),
@@ -149,12 +170,16 @@ export class SessionPendingInputs {
       const pendingInput = this.store.linkSteerMessage(itemId, messageId)
       return {
         pendingInput,
-        message: this.requireMessage(messageId)
+        message: this.requireMessage(messageId),
+        sourceMessage
       }
     })
 
     this.emitUpdated(sessionId)
-    this.events.publishMessagesChanged(sessionId, [accepted.message])
+    this.events.publishMessagesChanged(
+      sessionId,
+      accepted.sourceMessage ? [accepted.sourceMessage, accepted.message] : [accepted.message]
+    )
     return accepted
   }
 
@@ -314,7 +339,11 @@ export class SessionPendingInputs {
       for (const input of this.store.listActiveInputs()) {
         if (input.mode === 'queue') {
           if (input.state === 'claimed') {
-            this.store.releaseClaimedQueueInput(input.id)
+            if (input.messageIds.length > 0) {
+              this.store.consumeQueueInput(input.id)
+            } else {
+              this.store.releaseClaimedQueueInput(input.id)
+            }
             sessionIds.add(input.sessionId)
           }
           continue
@@ -380,6 +409,43 @@ export class SessionPendingInputs {
     if (this.store.countActiveQueue(sessionId) >= MAX_ACTIVE_PENDING_INPUTS) {
       throw new Error('Pending input limit reached for this session.')
     }
+  }
+
+  private materializePreStreamSource(
+    sessionId: string,
+    anchorMessageId: string | null
+  ): ChatMessageRecord | undefined {
+    const anchor = anchorMessageId ? this.requireMessage(anchorMessageId) : undefined
+    if (anchor && anchor.sessionId !== sessionId) {
+      throw new Error(`Pre-stream message ${anchor.id} does not belong to session ${sessionId}.`)
+    }
+
+    const claimedInput = this.store.getClaimedInput(sessionId)
+    if (claimedInput?.mode === 'queue') {
+      const linkedMessageId = claimedInput.messageIds.at(-1)
+      let sourceMessage = linkedMessageId ? this.requireMessage(linkedMessageId) : anchor
+      if (sourceMessage && sourceMessage.role !== 'user') {
+        sourceMessage = undefined
+      }
+      if (!sourceMessage) {
+        const messageId = this.transcript.createUserMessage(
+          sessionId,
+          this.transcript.getNextOrderSeq(sessionId),
+          toUserMessageContent(claimedInput.payload)
+        )
+        sourceMessage = this.requireMessage(messageId)
+      }
+      this.store.linkClaimedQueueMessage(claimedInput.id, sourceMessage.id)
+      return sourceMessage
+    }
+
+    if (anchor) {
+      return anchor.role === 'user' ? anchor : undefined
+    }
+
+    if (claimedInput?.mode === 'steer') return undefined
+
+    throw new Error('Unable to identify the active pre-stream transcript boundary.')
   }
 
   private assertQueueInput(sessionId: string, itemId: string): void {

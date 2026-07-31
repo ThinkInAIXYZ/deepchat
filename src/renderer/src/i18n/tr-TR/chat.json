@@ -82,7 +82,6 @@
     "limitReached": "Bekleme şeridi dolu (maks. {max}).",
     "remove": "Kaldır",
     "steerUnavailable": "Şu anda kesilemiyor",
-    "steerWaitingForResponse": "Asistan yanıt vermeye başlayana kadar bekleyin",
     "steerFailed": "Bu tur kesilemedi"
   },
   "features": {

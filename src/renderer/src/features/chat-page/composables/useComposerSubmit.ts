@@ -211,17 +211,6 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   const hasAttachments = computed(() => attachedFiles.value.length > 0)
   const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
   const isSteering = computed(() => steeringSessionIds.value.has(options.sessionId()))
-  const canSteerActiveMessage = computed(() => {
-    const messageId = messageStore.currentStreamMessageId
-    if (!messageId || messageId.startsWith('__')) return false
-    const record = messageStore.messageCache.get(messageId)
-    return (
-      record?.sessionId === options.sessionId() &&
-      record.role === 'assistant' &&
-      messageStore.committedSessionId === options.sessionId()
-    )
-  })
-  const isWaitingForSteerTarget = computed(() => isGenerating.value && !canSteerActiveMessage.value)
   const isQueueSubmitDisabled = computed(
     () =>
       isSessionViewPreparing.value ||
@@ -245,7 +234,6 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       !isGenerating.value ||
-      !canSteerActiveMessage.value ||
       isAcpWorkdirMissing.value ||
       options.hasBlockingInteraction() ||
       isSteering.value
@@ -1098,7 +1086,6 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     attachmentPreparationSummary,
     isPreparingAttachments,
     hasDraftInput,
-    isWaitingForSteerTarget,
     isQueueSubmitDisabled,
     isInputSubmitDisabled,
     disableQueueSteerAction,

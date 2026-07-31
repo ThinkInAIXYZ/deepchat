@@ -82,17 +82,23 @@ export interface SessionPendingInputRuntimePort {
   acceptSteerMessage(
     sessionId: string,
     input: SendMessageInput,
-    options?: { mergeItemId?: string | null }
+    options?: {
+      mergeItemId?: string | null
+      preStreamAnchorMessageId?: string | null
+    }
   ): {
     pendingInput: PendingSessionInputRecord
     message: ChatMessageRecord
+    sourceMessage?: ChatMessageRecord
   }
   promoteQueuedInputToSteerMessage(
     sessionId: string,
-    itemId: string
+    itemId: string,
+    options?: { preStreamAnchorMessageId?: string | null }
   ): {
     pendingInput: PendingSessionInputRecord
     message: ChatMessageRecord
+    sourceMessage?: ChatMessageRecord
   }
   updateQueuedInput(
     sessionId: string,

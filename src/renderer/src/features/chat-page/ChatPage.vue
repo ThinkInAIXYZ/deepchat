@@ -233,7 +233,6 @@
                         :send-disabled="isInputSubmitDisabled"
                         :queue-disabled="isQueueSubmitDisabled"
                         :steer-disabled="disableQueueSteerAction"
-                        :steer-waiting-for-target="isWaitingForSteerTarget"
                         :is-stopping="isStopping"
                         :show-voice-input="isVoiceInputEnabled"
                         :is-voice-input-listening="isVoiceInputListening"
@@ -1167,7 +1166,6 @@ const {
   attachmentPreparationSummary: composerAttachmentPreparationSummary,
   isPreparingAttachments,
   hasDraftInput,
-  isWaitingForSteerTarget,
   isQueueSubmitDisabled,
   isInputSubmitDisabled,
   disableQueueSteerAction,

@@ -224,6 +224,7 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
       getAbortController: () => harness.preStreamController,
       getActiveGeneration: () => undefined,
       getActiveSteerPendingInputId: () => harness.activeSteerInputId,
+      getPreStreamTranscriptAnchorId: () => undefined,
       isPendingQueueDraining: () => harness.draining,
       setActiveSteerPendingInputId: (itemId: string) => {
         harness.activeSteerInputId = itemId
@@ -257,14 +258,27 @@ function createDeferred<T>() {
 }
 
 describe('PendingInputAdmissionCoordinator', () => {
-  it('rejects steer before the assistant stream starts', async () => {
+  it('accepts steer before the assistant stream starts and ends preparation', async () => {
     const test = createHarness()
     test.harness.preStreamController = new AbortController()
+    test.harness.input = {
+      ...test.harness.input!,
+      state: 'claimed',
+      claimedAt: 1
+    }
 
-    await expect(test.coordinator.steerActiveTurn(SESSION_ID, 'Steer now')).rejects.toThrow(
-      'Wait for the assistant response to start before steering.'
+    await expect(test.coordinator.steerActiveTurn(SESSION_ID, 'Steer now')).resolves.toMatchObject({
+      userMessage: { id: 'direct-steer-message', status: 'pending' }
+    })
+    expect(test.pendingInputs.acceptSteerMessage).toHaveBeenCalledWith(
+      SESSION_ID,
+      { text: 'Steer now', files: [] },
+      { mergeItemId: null, preStreamAnchorMessageId: null }
     )
-    expect(test.pendingInputs.acceptSteerMessage).not.toHaveBeenCalled()
+    expect(test.harness.preStreamController.signal).toMatchObject({
+      aborted: true,
+      reason: 'pending_input'
+    })
   })
 
   it('rejects a send before attachment preparation when the lane is at capacity', async () => {

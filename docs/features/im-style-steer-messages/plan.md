@@ -36,7 +36,8 @@ boundaries, renderer interaction, and regression coverage.
 - Layout constraint: receipt changes must not alter row height or trigger scroll correction.
 - Performance-sensitive area: high-frequency assistant stream updates and the virtualized message
   list.
-- Accessibility: receipt announcement, focus retention, reduced motion, disabled pre-stream Steer.
+- Accessibility: receipt announcement, focus retention, reduced motion, and accurate blocker
+  tooltips.
 - Electron boundary: typed route response plus typed event; no raw IPC access from Vue.
 
 ### Diagnosis
@@ -47,8 +48,8 @@ boundaries, renderer interaction, and regression coverage.
   the message list only renders the resulting transcript facts.
 - Affected consumers: DeepChat, ACP, session data, route contracts, renderer message cache,
   composer, pending lane, and message components.
-- Constraint: a newly accepted Steer must never be ordered before the assistant message it intends
-  to interrupt.
+- Constraint: a newly accepted Steer must never be ordered before the current turn's durable user
+  fact or after the assistant row reserved for its own response.
 - Existing pattern to reuse: the current Steer payload merge and pending-input priority.
 
 ### Decision
@@ -309,9 +310,12 @@ In `PendingInputAdmissionCoordinator`:
 - retain the current payload merge helper;
 - remove `runLifecycle.cancel(sessionId)` from the active-generation Steer path;
 - schedule the pump immediately only when no active turn owns the session;
-- reject the pre-stream case when no authoritative assistant message exists.
+- during pre-stream, materialize or reuse the current claimed Queue user fact in the Steer
+  acceptance transaction, then abort preparation with cause `pending_input`.
 
-The renderer gate prevents the normal pre-stream path, while the main check closes the race.
+The pre-stream transaction publishes the source user fact and Steer together, preserving durable
+ordering even when no assistant row exists yet. The renderer replaces the matching optimistic source
+bubble when that authoritative source record arrives.
 
 ### Safe yield
 
@@ -360,6 +364,8 @@ Normal send and Queue paths retain their current user/assistant creation behavio
 ### Terminal behavior
 
 - `pending_input` finalizes the old assistant without an error block.
+- A pre-stream `pending_input` handoff deletes an empty assistant reservation, transitions the old
+  operation to idle, and lets the pending-input pump claim the Steer.
 - A claimed Steer always settles once.
 - A post-claim pre-stream error writes a terminal error into the reserved assistant row.
 - The old and new assistant request IDs remain distinct in stream lifecycle tracking.
@@ -373,9 +379,11 @@ ACP uses the same session-data acceptance and claim operations.
 Change `AcpAgentRuntime.steer`:
 
 1. Persist the Steer message/batch.
-2. If a prompt is active, call `instance.cancel('pending_input')`.
-3. Await the active operation settlement.
-4. Drain and claim the Steer batch.
+2. Before ACP projection begins, materialize the claimed Queue input's user fact in the same
+   transaction.
+3. If a prompt is active, call `instance.cancel('pending_input')`.
+4. Await the active operation settlement.
+5. Drain and claim the Steer batch.
 
 Add a narrow cancel cause:
 
@@ -438,24 +446,24 @@ Do not add an optimistic Steer row. Local IPC plus the synchronous SQLite accept
 returns the authoritative ID and order quickly, avoids temporary IDs, and guarantees that every
 visible Steer survives reload.
 
-### Pre-stream gate
+### Pre-stream admission
 
-Add one derived `canSteerActiveMessage` condition:
+Steer availability follows the active-turn state:
 
 ```text
 session is generating
-and active stream/message identity is non-ephemeral
-and that assistant record belongs to the committed session
 and no interaction/preparation gate blocks submission
 ```
 
-When false during generation:
+Before the first stream update:
 
-- Queue remains available;
-- Steer is disabled;
-- tooltip explains that the response has not started yet.
+- the renderer submits Steer through the normal path;
+- main persists the current user fact before the Steer;
+- the Steer appears as `Unread`;
+- the old pre-stream operation ends with `pending_input`;
+- the next assistant row starts below the Steer.
 
-Main validates the same invariant.
+No optimistic row or renderer-only ordering rule is added.
 
 ## 7. Renderer Presentation
 
@@ -512,7 +520,7 @@ Otherwise remove that derived getter after all call sites migrate.
 - remove the Steer spinner and `aria-busy`;
 - keep the icon and label stable;
 - keep real attachment-preparation disabling;
-- use the pre-stream-specific tooltip when applicable.
+- remove the pre-stream-only disabled tooltip.
 
 ## 8. Ordering and Race Handling
 
@@ -576,7 +584,7 @@ No route may append to a `claimed` batch.
 | Message UI | `MessageItemUser.vue`, `MessageInfo.vue` | Render receipt and lock actions |
 | Queue UI | `PendingInputLane.vue`, `ChatPage.vue` | Remove Steer rail |
 | Toolbar | `ChatInputToolbar.vue` | Remove visible Steer loading |
-| i18n | `src/renderer/src/i18n/*/chat.json` | Receipt and pre-stream copy |
+| i18n | `src/renderer/src/i18n/*/chat.json` | Receipt copy |
 
 This is a map, not a requirement to touch every file if an existing port already carries the needed
 data.
@@ -593,6 +601,7 @@ Add focused tests for:
 - claim stamps one `readAt` across all messages and creates one assistant;
 - acceptance after claim starts a new batch after that assistant;
 - consume marks all linked user messages sent;
+- pre-stream acceptance materializes and links the claimed source user before the Steer;
 - legacy pending/claimed/blocked reconciliation is idempotent;
 - migration defaults and schema catalog.
 
@@ -607,6 +616,8 @@ Add focused tests for:
 - merged payload is supplied once;
 - linked pending user messages are excluded from history;
 - compaction divider is inserted before the first Steer message;
+- pre-stream Steer cancels preparation with `pending_input`, keeps source/Steer order, and leaves no
+  empty assistant row;
 - post-claim pre-stream failure keeps user facts and writes an assistant error;
 - Stop and previous-turn error still drain `Unread` Steer.
 
@@ -615,6 +626,7 @@ Add focused tests for:
 Add focused tests for:
 
 - Steer message persists before cancel;
+- pre-projection Steer materializes the claimed source user before cancellation;
 - `pending_input` cancel settles without user-cancel error copy;
 - claim waits for the active ACP operation;
 - new projection reuses linked user messages and reserved assistant;
@@ -632,7 +644,7 @@ Add focused tests for:
 - accepted Steer clears the matching draft and requests one scroll;
 - failure retains the draft;
 - no visible Steer spinner;
-- pre-stream Steer disabled while Queue remains usable.
+- pre-stream Steer remains available while the session is generating.
 
 ### Components
 
@@ -683,7 +695,7 @@ Run the same ordering assertion through one ACP fixture.
 - Message-store event/upsert.
 - Composer result handling.
 - Queue-only lane.
-- Receipt UI, action lock, i18n, and pre-stream gate.
+- Receipt UI, action lock, i18n, and pre-stream admission.
 - Renderer tests.
 - Suggested commit: `feat(chat): render steer receipts`
 

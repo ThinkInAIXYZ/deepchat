@@ -122,13 +122,7 @@
         </TooltipTrigger>
         <TooltipContent>
           <p>
-            {{
-              steerDisabled
-                ? steerWaitingForTarget
-                  ? t('chat.pendingInput.steerWaitingForResponse')
-                  : t('chat.pendingInput.steerUnavailable')
-                : t('chat.input.steer')
-            }}
+            {{ steerDisabled ? t('chat.pendingInput.steerUnavailable') : t('chat.input.steer') }}
           </p>
         </TooltipContent>
       </Tooltip>
@@ -206,7 +200,6 @@ const props = withDefaults(
     sendDisabled?: boolean
     queueDisabled?: boolean
     steerDisabled?: boolean
-    steerWaitingForTarget?: boolean
     isStopping?: boolean
     showVoiceInput?: boolean
     isVoiceInputListening?: boolean
@@ -220,7 +213,6 @@ const props = withDefaults(
     sendDisabled: false,
     queueDisabled: false,
     steerDisabled: false,
-    steerWaitingForTarget: false,
     isStopping: false,
     showVoiceInput: false,
     isVoiceInputListening: false,

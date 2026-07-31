@@ -167,7 +167,6 @@
     "limitReached": "等待区已满（最多 {max} 条）。",
     "remove": "删除",
     "steerUnavailable": "当前无法打断",
-    "steerWaitingForResponse": "等待助手开始回复后即可打断",
     "steerFailed": "打断失败"
   },
   "features": {
