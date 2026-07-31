@@ -9,11 +9,11 @@
 
 ## Shared wrapper contract
 
-- [ ] Declare and implement click-before-close for Action.
-- [ ] Apply the same contract to Cancel.
-- [ ] Preserve native attributes and explicit capture listener ordering.
-- [ ] Remove the ChatPage `.capture` workaround.
-- [ ] Add real-primitive contract tests.
+- [x] Declare and implement click-before-close for Action.
+- [x] Apply the same contract to Cancel.
+- [x] Preserve native attributes and explicit capture listener ordering.
+- [x] Remove the ChatPage `.capture` workaround.
+- [x] Add real-primitive contract tests.
 
 ## Asynchronous confirmations
 

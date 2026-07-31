@@ -291,7 +291,7 @@
           <AlertDialogCancel @click="cancelMessageDelete">
             {{ t('dialog.cancel') }}
           </AlertDialogCancel>
-          <AlertDialogAction variant="destructive" @click.capture="confirmMessageDelete">
+          <AlertDialogAction variant="destructive" @click="confirmMessageDelete">
             {{ t('dialog.deleteMessage.confirm') }}
           </AlertDialogAction>
         </AlertDialogFooter>
