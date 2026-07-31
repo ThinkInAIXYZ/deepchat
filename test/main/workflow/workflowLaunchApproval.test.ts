@@ -51,6 +51,15 @@ describe('WorkflowLaunchApprovalRegistry', () => {
       budget: {
         maxTotalTokens: 10_000,
         maxExecutionMs: 60_000
+      },
+      outline: {
+        confidence: 'exact',
+        nodes: [
+          expect.objectContaining({
+            kind: 'agent',
+            key: 'inspect'
+          })
+        ]
       }
     })
 

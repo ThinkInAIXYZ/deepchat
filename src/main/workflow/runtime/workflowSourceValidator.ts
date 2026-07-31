@@ -1,5 +1,7 @@
 import { parse, type Node } from 'acorn'
 
+const STRICT_MODE_PREFIX = "'use strict';\n"
+
 const INJECTED_GLOBALS = new Set([
   'agent',
   'parallel',
@@ -22,10 +24,10 @@ export class WorkflowSourceValidationError extends Error {
   }
 }
 
-export function validateWorkflowSource(source: string): void {
+export function validateWorkflowSource(source: string): Node {
   let root: Node
   try {
-    root = parse(source, {
+    root = parse(`${STRICT_MODE_PREFIX}${source}`, {
       ecmaVersion: 'latest',
       sourceType: 'script',
       allowAwaitOutsideFunction: true,
@@ -33,7 +35,9 @@ export function validateWorkflowSource(source: string): void {
     })
   } catch (error) {
     throw new WorkflowSourceValidationError(
-      error instanceof Error ? error.message : 'Workflow source is not valid JavaScript.'
+      error instanceof Error
+        ? normalizeStrictModeLocation(error.message)
+        : 'Workflow source is not valid JavaScript.'
     )
   }
 
@@ -63,6 +67,12 @@ export function validateWorkflowSource(source: string): void {
     if (node.type === 'AssignmentExpression') {
       assertMutationTargetAllowed(readNode(node, 'left'))
     }
+    if (node.type === 'ForInStatement' || node.type === 'ForOfStatement') {
+      const target = readNode(node, 'left')
+      if (target?.type !== 'VariableDeclaration') {
+        assertMutationTargetAllowed(target)
+      }
+    }
     if (node.type === 'UpdateExpression' || node.type === 'UnaryExpression') {
       if (node.type === 'UnaryExpression' && readString(node, 'operator') !== 'delete') {
         return
@@ -70,6 +80,7 @@ export function validateWorkflowSource(source: string): void {
       assertMutationTargetAllowed(readNode(node, 'argument'))
     }
   })
+  return root
 }
 
 function walkNode(root: Node, visit: (node: Node) => void): void {
@@ -96,6 +107,28 @@ function walkNode(root: Node, visit: (node: Node) => void): void {
 
 function assertMutationTargetAllowed(target: Node | null): void {
   if (!target) {
+    return
+  }
+  if (target.type === 'RestElement') {
+    assertMutationTargetAllowed(readNode(target, 'argument'))
+    return
+  }
+  if (target.type === 'AssignmentPattern') {
+    assertMutationTargetAllowed(readNode(target, 'left'))
+    return
+  }
+  if (target.type === 'ArrayPattern') {
+    for (const element of readNodeArray(target, 'elements')) {
+      assertMutationTargetAllowed(element)
+    }
+    return
+  }
+  if (target.type === 'ObjectPattern') {
+    for (const property of readNodeArray(target, 'properties')) {
+      assertMutationTargetAllowed(
+        readNode(property, property.type === 'Property' ? 'value' : 'argument')
+      )
+    }
     return
   }
   const targetName = target.type === 'Identifier' ? readString(target, 'name') : null
@@ -151,6 +184,11 @@ function readNode(node: Node, key: string): Node | null {
   return isNode(value) ? value : null
 }
 
+function readNodeArray(node: Node, key: string): Node[] {
+  const value = readUnknown(node, key)
+  return Array.isArray(value) ? value.filter(isNode) : []
+}
+
 function readString(node: Node, key: string): string | null {
   const value = readUnknown(node, key)
   return typeof value === 'string' ? value : null
@@ -170,6 +208,12 @@ function isNode(value: unknown): value is Node {
     value !== null &&
     typeof (value as { type?: unknown }).type === 'string'
   )
+}
+
+function normalizeStrictModeLocation(message: string): string {
+  return message.replace(/\((\d+):(\d+)\)$/u, (_match, line: string, column: string) => {
+    return `(${Math.max(1, Number(line) - 1)}:${column})`
+  })
 }
 
 function reject(message: string): never {

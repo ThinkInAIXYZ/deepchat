@@ -11,6 +11,7 @@ import {
 } from './domain'
 import { WorkflowInvocationErrorSchema, WorkflowRuntimeLimitsSchema } from './runtimeProtocol'
 import { WorkflowRunBudgetSchema } from './serviceContracts'
+import { WorkflowSourceOutlineSchema } from './outline'
 
 const WorkflowProjectionIdSchema = z.string().min(1).max(256)
 const WorkflowProjectionTimestampSchema = z.number().int().nonnegative()
@@ -133,6 +134,7 @@ export const WorkflowRunDetailSchema = WorkflowRunSummarySchema.extend({
   limits: WorkflowRuntimeLimitsSchema,
   allowedAgentIds: z.array(WorkflowProjectionIdSchema).min(1).max(32),
   budget: WorkflowRunBudgetSchema.nullable(),
+  outline: WorkflowSourceOutlineSchema,
   resultPreview: WorkflowValuePreviewSchema.nullable(),
   invalidatedFromSeq: z.number().int().positive().nullable(),
   invocations: z.array(WorkflowInvocationProjectionSchema)

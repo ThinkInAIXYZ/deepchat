@@ -401,11 +401,11 @@ Authoring lifecycle evidence (2026-07-31):
 
 ### Outline And Bounded Fan-Out
 
-- [ ] Derive an advisory `exact | partial` static outline from workflow source.
-- [ ] Include the outline in approval and run-detail projections without persisting a second
+- [x] Derive an advisory `exact | partial` static outline from workflow source.
+- [x] Include the outline in approval and run-detail projections without persisting a second
   runtime graph.
 - [x] Add stable keyed `mapLimit()` with declared-order results and bounded concurrency.
-- [ ] Add validator, call-path, replay, and out-of-order completion tests.
+- [x] Add validator, call-path, replay, and out-of-order completion tests.
 
 Bounded fan-out evidence (2026-07-31):
 
@@ -418,6 +418,23 @@ Bounded fan-out evidence (2026-07-31):
 - raw host validation callbacks are removed before user source runs;
 - 30 focused runtime and source-validator tests passed;
 - `pnpm run typecheck:node`.
+
+Static-outline validation evidence (2026-07-31):
+
+- approval derives the bounded outline from the same strict-mode AST used for source validation,
+  counts it against pending approval memory, and never exposes prompts, input, source snippets, or
+  results;
+- aliases, scoped helper APIs, computed properties, spread collections, dynamic metadata, and
+  truncation conservatively produce `partial`; direct root helpers retain source ordering;
+- run details independently derive the advisory outline from immutable source, fall back to an
+  empty partial outline for invalid or future source, and continue to use the durable invocation
+  journal as the only runtime graph;
+- the renderer displays at most 256 source nodes before the first durable invocation and switches
+  to journal-derived progress once execution begins;
+- 221 Workflow and affected Agent-tool tests passed, followed by 23 focused renderer tests;
+- `pnpm run format:check`;
+- `pnpm run i18n`;
+- `pnpm run typecheck`.
 
 ### Reopened Final Validation
 

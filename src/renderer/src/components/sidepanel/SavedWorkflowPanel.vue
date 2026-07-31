@@ -203,6 +203,29 @@
               <dt class="inline">{{ t('chat.workflow.saved.approval.maxInvocations') }}:</dt>
               <dd class="ml-1 inline">{{ approval.summary.maxInvocations }}</dd>
             </div>
+            <div
+              v-if="approval.summary.outline.nodes.length > 0"
+              data-testid="saved-workflow-outline"
+              class="pt-1"
+            >
+              <dt class="flex items-center gap-1">
+                <Icon icon="lucide:route" class="h-3 w-3" />
+                {{ t('chat.workflow.invocations.defaultPhase') }}:
+                <span class="rounded bg-background/70 px-1 font-mono text-[9px]">
+                  {{ approval.summary.outline.confidence }}
+                </span>
+              </dt>
+              <dd class="mt-1 max-h-28 space-y-0.5 overflow-auto">
+                <p
+                  v-for="node in approval.summary.outline.nodes"
+                  :key="node.id"
+                  class="truncate font-mono text-[9px]"
+                  :title="formatWorkflowOutlineNode(node)"
+                >
+                  {{ formatWorkflowOutlineNode(node) }}
+                </p>
+              </dd>
+            </div>
           </dl>
           <p class="leading-relaxed text-amber-800 dark:text-amber-200">
             {{ t('chat.workflow.saved.approval.warning') }}
@@ -256,6 +279,7 @@ import {
   saveWorkflowAuthoringDraft,
   type WorkflowAuthoringDraft
 } from '@/lib/workflowAuthoringDraftStore'
+import { formatWorkflowOutlineNode } from '@/lib/workflowOutline'
 import type { SavedWorkflowInvocationRequest } from '@/stores/ui/sidepanel'
 
 const DEFAULT_SOURCE = `phase('work', { label: 'Work' })

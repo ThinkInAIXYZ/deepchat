@@ -99,6 +99,15 @@ trusted module imports, or a second mutable runtime graph. QuickJS in a dedicate
 remains the execution boundary. The static outline is an advisory source-derived projection, while
 the dynamic graph is derived from the durable invocation journal and typed progress events.
 
+The outline contains at most 256 source-ordered `phase`, `agent`, `parallel`, `pipeline`, and
+`mapLimit` nodes. It exposes only bounded literal keys, labels, and static group dimensions; it
+never includes prompts, input, source snippets, or results. `exact` means every reference to a
+root workflow helper is directly visible to the supported static scanner and its structural
+metadata is literal. Aliases, scoped callback APIs such as `api.agent`, computed access, dynamic
+keys, and truncation produce `partial`. Confidence describes source-skeleton coverage, not whether
+a conditional or loop will execute at runtime. Approval and detail routes independently derive the
+same outline from the immutable source; runs do not persist a second graph.
+
 ### Correct the post-implementation audit
 
 The first implementation review incorrectly recorded that no critical or high findings remained.

@@ -221,6 +221,12 @@ function runDetail(
     limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
     allowedAgentIds: ['deepchat'],
     budget: { maxTotalTokens: 10_000 },
+    outline: {
+      schemaVersion: 1,
+      confidence: 'exact',
+      truncated: false,
+      nodes: []
+    },
     resultPreview: null,
     invalidatedFromSeq: null,
     invocations: [invocation()],
@@ -330,6 +336,40 @@ describe('WorkflowPanel', () => {
     expect(client.inspect).toHaveBeenCalledTimes(1)
     expect(wrapper.get('[data-testid="workflow-run-detail"]').text()).not.toContain(
       'Which implementation should be used?'
+    )
+    wrapper.unmount()
+  })
+
+  it('renders the source outline before the first durable invocation appears', async () => {
+    const summary = runSummary({
+      invocationCounts: { ...invocationCounts }
+    })
+    const detail = runDetail(summary, {
+      invocations: [],
+      outline: {
+        schemaVersion: 1,
+        confidence: 'partial',
+        truncated: false,
+        nodes: [
+          {
+            id: 'outline-1',
+            ordinal: 1,
+            kind: 'map_limit',
+            key: 'reviews',
+            label: null,
+            itemCount: 4,
+            stageCount: null,
+            concurrency: 2,
+            dynamic: false
+          }
+        ]
+      }
+    })
+    const wrapper = await mountPanel(summary, detail)
+
+    expect(wrapper.get('[data-testid="workflow-static-outline"]').text()).toContain('partial')
+    expect(wrapper.get('[data-testid="workflow-static-outline"]').text()).toContain(
+      'mapLimit · reviews · ×4 · ≤2'
     )
     wrapper.unmount()
   })

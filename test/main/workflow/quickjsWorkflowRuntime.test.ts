@@ -228,6 +228,62 @@ return await mapLimit(
     expect(invocationEvents(events)).toEqual([])
   })
 
+  it('keeps mapLimit replay paths stable across different completion orders', async () => {
+    const source = `
+return await mapLimit(
+  'review',
+  [
+    { key: 'a', value: 'A' },
+    { key: 'b', value: 'B' },
+    { key: 'c', value: 'C' },
+    { key: 'd', value: 'D' }
+  ],
+  2,
+  (value, api) => api.agent(value, { key: 'worker' })
+)
+`
+    const execute = async (firstCompletedIndex: 0 | 1): Promise<string[]> => {
+      const events: WorkflowRuntimeEvent[] = []
+      const runtime = await createRuntime(events, { maxPendingInvocations: 2 })
+      const completion = runtime.start(source, null)
+      const initial = await waitForInvocationCount(events, 2)
+      const first = initial[firstCompletedIndex]
+      const second = initial[firstCompletedIndex === 0 ? 1 : 0]
+
+      await runtime.settleInvocation(first.requestId, {
+        status: 'success',
+        value: first.request.callPath
+      })
+      const third = (await waitForInvocationCount(events, 3))[2]
+      await runtime.settleInvocation(second.requestId, {
+        status: 'success',
+        value: second.request.callPath
+      })
+      const fourth = (await waitForInvocationCount(events, 4))[3]
+      await runtime.settleInvocation(fourth.requestId, {
+        status: 'success',
+        value: fourth.request.callPath
+      })
+      await runtime.settleInvocation(third.requestId, {
+        status: 'success',
+        value: third.request.callPath
+      })
+      await completion
+      return invocationEvents(events).map((event) => event.request.callPath)
+    }
+
+    const firstExecution = await execute(1)
+    const replayExecution = await execute(0)
+
+    expect(replayExecution).toEqual(firstExecution)
+    expect(replayExecution).toEqual([
+      'root/mapLimit/review/item/a/agent/worker',
+      'root/mapLimit/review/item/b/agent/worker',
+      'root/mapLimit/review/item/c/agent/worker',
+      'root/mapLimit/review/item/d/agent/worker'
+    ])
+  })
+
   it('validates all mapLimit item keys before starting mapper work', async () => {
     const events: WorkflowRuntimeEvent[] = []
     const runtime = await createRuntime(events)

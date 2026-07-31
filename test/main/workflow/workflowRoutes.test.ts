@@ -111,7 +111,13 @@ function createService() {
         maxInvocations: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxInvocations,
         maxPendingInvocations: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxPendingInvocations,
         budget: null,
-        capabilities: ['deepchat-child-sessions']
+        capabilities: ['deepchat-child-sessions'],
+        outline: {
+          schemaVersion: 1,
+          confidence: 'exact',
+          truncated: false,
+          nodes: []
+        }
       }
     }),
     launch: vi.fn().mockResolvedValue(run()),

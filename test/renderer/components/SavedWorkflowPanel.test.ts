@@ -101,7 +101,13 @@ const approval = {
     maxInvocations: 128,
     maxPendingInvocations: 64,
     budget: null,
-    capabilities: ['deepchat-child-sessions']
+    capabilities: ['deepchat-child-sessions'],
+    outline: {
+      schemaVersion: 1,
+      confidence: 'exact',
+      truncated: false,
+      nodes: []
+    }
   }
 }
 
@@ -142,7 +148,30 @@ describe('SavedWorkflowPanel', () => {
       workflows: []
     })
     client.saveSaved.mockResolvedValue(savedDocument)
-    client.prepareSavedLaunch.mockResolvedValue(approval)
+    client.prepareSavedLaunch.mockResolvedValue({
+      ...approval,
+      summary: {
+        ...approval.summary,
+        outline: {
+          schemaVersion: 1,
+          confidence: 'exact',
+          truncated: false,
+          nodes: [
+            {
+              id: 'outline-1',
+              ordinal: 1,
+              kind: 'agent',
+              key: 'review',
+              label: 'Review',
+              itemCount: null,
+              stageCount: null,
+              concurrency: null,
+              dynamic: false
+            }
+          ]
+        }
+      }
+    })
     const launchedRun = {
       id: 'run-1',
       parentSessionId: 'parent-1',
@@ -185,6 +214,7 @@ describe('SavedWorkflowPanel', () => {
     expect(wrapper.get('[data-testid="saved-workflow-approval"]').text()).toContain(
       savedDocument.sourceHash.slice(0, 16)
     )
+    expect(wrapper.get('[data-testid="saved-workflow-outline"]').text()).toContain('agent · Review')
 
     await wrapper.get('[data-testid="saved-workflow-launch"]').trigger('click')
     await flushPromises()

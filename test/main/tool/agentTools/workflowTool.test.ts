@@ -21,7 +21,13 @@ describe('WorkflowAgentTool', () => {
           maxInvocations: 8,
           maxPendingInvocations: 4,
           budget: null,
-          capabilities: ['deepchat-child-sessions']
+          capabilities: ['deepchat-child-sessions'],
+          outline: {
+            schemaVersion: 1,
+            confidence: 'exact',
+            truncated: false,
+            nodes: []
+          }
         }
       }),
       getLaunchApproval: vi.fn().mockResolvedValue({
@@ -36,7 +42,13 @@ describe('WorkflowAgentTool', () => {
           maxInvocations: 8,
           maxPendingInvocations: 4,
           budget: null,
-          capabilities: ['deepchat-child-sessions']
+          capabilities: ['deepchat-child-sessions'],
+          outline: {
+            schemaVersion: 1,
+            confidence: 'exact',
+            truncated: false,
+            nodes: []
+          }
         }
       }),
       launch: vi.fn().mockResolvedValue({ id: 'run-1' }),

@@ -37,7 +37,13 @@ describe('WorkflowClient', () => {
               maxInvocations: 128,
               maxPendingInvocations: 64,
               budget: null,
-              capabilities: ['deepchat-child-sessions']
+              capabilities: ['deepchat-child-sessions'],
+              outline: {
+                schemaVersion: 1,
+                confidence: 'exact',
+                truncated: false,
+                nodes: []
+              }
             }
           }
         }

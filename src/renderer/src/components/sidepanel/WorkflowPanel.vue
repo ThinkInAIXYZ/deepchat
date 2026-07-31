@@ -283,7 +283,26 @@
             </div>
 
             <div
-              v-if="detail.invocations.length === 0"
+              v-if="detail.invocations.length === 0 && detail.outline.nodes.length > 0"
+              data-testid="workflow-static-outline"
+              class="max-h-32 space-y-1 overflow-auto rounded-md border border-dashed px-2.5 py-2 text-[10px] text-muted-foreground"
+            >
+              <div class="mb-1 flex items-center gap-1">
+                <Icon icon="lucide:route" class="h-3 w-3" />
+                <span class="font-mono text-[9px]">{{ detail.outline.confidence }}</span>
+              </div>
+              <p
+                v-for="node in detail.outline.nodes"
+                :key="node.id"
+                class="truncate font-mono text-[9px]"
+                :title="formatWorkflowOutlineNode(node)"
+              >
+                {{ formatWorkflowOutlineNode(node) }}
+              </p>
+            </div>
+
+            <div
+              v-else-if="detail.invocations.length === 0"
               class="rounded-md border border-dashed px-3 py-3 text-center text-[11px] text-muted-foreground"
             >
               {{ t('chat.workflow.invocations.empty') }}
@@ -493,6 +512,7 @@ import { WORKFLOW_RUNTIME_API_VERSION } from '@shared/workflow/runtimeProtocol'
 import type { WorkflowRunBudget } from '@shared/workflow/serviceContracts'
 import { useSessionStore } from '@/stores/ui/session'
 import type { SavedWorkflowInvocationRequest } from '@/stores/ui/sidepanel'
+import { formatWorkflowOutlineNode } from '@/lib/workflowOutline'
 import SavedWorkflowPanel from './SavedWorkflowPanel.vue'
 
 const MAX_BUFFERED_INVOCATION_DELTAS = 256

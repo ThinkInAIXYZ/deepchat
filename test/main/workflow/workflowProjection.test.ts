@@ -98,6 +98,50 @@ describe('workflow renderer projections', () => {
     expect(serialized).not.toContain('privateInput')
     expect(serialized).not.toContain('secretsecret')
     expect(summary.invocationCounts.running).toBe(0)
+    expect(detail.outline).toEqual({
+      schemaVersion: 1,
+      confidence: 'exact',
+      truncated: false,
+      nodes: []
+    })
+  })
+
+  it('keeps a stored run inspectable when its source cannot be outlined', () => {
+    const detail = projectWorkflowRunDetail(
+      createRun({
+        runtimeApiVersion: 99,
+        scriptSource: 'return ('
+      }),
+      []
+    )
+
+    expect(detail.outline).toEqual({
+      schemaVersion: 1,
+      confidence: 'partial',
+      truncated: false,
+      nodes: []
+    })
+  })
+
+  it('derives a bounded outline from the immutable run source', () => {
+    const detail = projectWorkflowRunDetail(
+      createRun({
+        scriptSource: `
+phase('review', { label: 'Review' })
+return await agent('private prompt', { key: 'reviewer', label: 'Reviewer' })
+`
+      }),
+      []
+    )
+
+    expect(detail.outline).toMatchObject({
+      confidence: 'exact',
+      nodes: [
+        { kind: 'phase', key: 'review', label: 'Review' },
+        { kind: 'agent', key: 'reviewer', label: 'Reviewer' }
+      ]
+    })
+    expect(JSON.stringify(detail.outline)).not.toContain('private prompt')
   })
 
   it('bounds prompt and result previews by UTF-8 bytes', () => {

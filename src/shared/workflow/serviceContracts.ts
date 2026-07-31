@@ -5,6 +5,7 @@ import {
   WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES,
   WorkflowRuntimeLimitsSchema
 } from './runtimeProtocol'
+import { WorkflowSourceOutlineSchema } from './outline'
 
 export const WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS = 2 * 60 * 60 * 1_000
 
@@ -117,7 +118,8 @@ export const WorkflowLaunchApprovalSchema = z
         maxInvocations: z.number().int().positive(),
         maxPendingInvocations: z.number().int().positive(),
         budget: WorkflowRunBudgetSchema.nullable(),
-        capabilities: z.array(z.string().min(1).max(256)).max(16)
+        capabilities: z.array(z.string().min(1).max(256)).max(16),
+        outline: WorkflowSourceOutlineSchema
       })
       .strict()
   })

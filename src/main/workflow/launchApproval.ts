@@ -11,6 +11,7 @@ import {
 import { WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES } from '@shared/workflow/runtimeProtocol'
 import { canonicalizeWorkflowJson } from './domain/json'
 import { validateWorkflowSource } from './runtime/workflowSourceValidator'
+import { deriveWorkflowSourceOutlineFromAst } from './runtime/workflowSourceOutline'
 
 const DEFAULT_APPROVAL_TTL_MS = 5 * 60 * 1_000
 const DEFAULT_MAX_PENDING_APPROVALS = 128
@@ -70,12 +71,14 @@ export class WorkflowLaunchApprovalRegistry {
     ) {
       throw new Error(`Workflow source exceeds its ${request.limits.maxScriptBytes}-byte limit.`)
     }
-    validateWorkflowSource(request.scriptSource)
+    const sourceAst = validateWorkflowSource(request.scriptSource)
+    const outline = deriveWorkflowSourceOutlineFromAst(sourceAst)
     const sourceHash = createHash('sha256').update(request.scriptSource, 'utf8').digest('hex')
     const canonicalInput = canonicalizeWorkflowJson(request.input, {
       maxBytes: request.limits.maxInputBytes
     })
-    const approvalBytes = sourceBytes + canonicalInput.byteLength
+    const outlineBytes = Buffer.byteLength(JSON.stringify(outline), 'utf8')
+    const approvalBytes = sourceBytes + canonicalInput.byteLength + outlineBytes
     if (
       approvalBytes > this.maxPendingBytes ||
       this.pendingBytes + approvalBytes > this.maxPendingBytes
@@ -111,7 +114,8 @@ export class WorkflowLaunchApprovalRegistry {
         maxInvocations: request.limits.maxInvocations,
         maxPendingInvocations: request.limits.maxPendingInvocations,
         budget: request.budget,
-        capabilities: request.capabilities
+        capabilities: request.capabilities,
+        outline
       }
     })
     this.pending.set(approval.approvalId, {

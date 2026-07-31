@@ -25,9 +25,17 @@ return rows
     "import('./module.js')",
     "Function('return 1')()",
     "new Function('return 1')()",
+    'with ({}) {}',
+    'delete agent',
+    '({ agent } = {})',
+    'for (agent of []) {}',
     'delete globalThis.agent',
     'Promise.all = null'
   ])('rejects unsupported construct %s', (source) => {
     expect(() => validateWorkflowSource(source)).toThrow(WorkflowSourceValidationError)
+  })
+
+  it('reports strict-mode parse failures against user source lines', () => {
+    expect(() => validateWorkflowSource('with ({}) {}')).toThrow('(1:0)')
   })
 })

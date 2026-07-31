@@ -19,6 +19,11 @@ import {
   type WorkflowWaitingInteractionProjection
 } from '@shared/workflow/projection'
 import { WorkflowRunBudgetSchema } from '@shared/workflow/serviceContracts'
+import type { WorkflowSourceOutline } from '@shared/workflow/outline'
+import {
+  createPartialWorkflowSourceOutline,
+  deriveWorkflowSourceOutline
+} from './runtime/workflowSourceOutline'
 
 export function projectWorkflowRunSummary(
   run: WorkflowRun,
@@ -75,6 +80,7 @@ export function projectWorkflowRunDetail(
     limits: run.limits,
     allowedAgentIds: run.allowedAgentIds,
     budget: run.budget === null ? null : WorkflowRunBudgetSchema.parse(run.budget),
+    outline: projectWorkflowSourceOutline(run.scriptSource),
     resultPreview: run.result === null ? null : createJsonPreview(run.result),
     invalidatedFromSeq: run.invalidatedFromSeq,
     invocations: invocations.map((invocation) =>
@@ -120,6 +126,14 @@ export function projectWorkflowInvocation(
     updatedAt: invocation.updatedAt,
     completedAt: invocation.completedAt
   })
+}
+
+function projectWorkflowSourceOutline(scriptSource: string): WorkflowSourceOutline {
+  try {
+    return deriveWorkflowSourceOutline(scriptSource)
+  } catch {
+    return createPartialWorkflowSourceOutline()
+  }
 }
 
 function createInvocationCounts(): WorkflowInvocationCounts {
