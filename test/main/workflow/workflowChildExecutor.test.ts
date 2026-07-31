@@ -219,6 +219,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
         sessionId,
         kind: 'status',
         status: 'idle',
+        usage: { inputTokens: 7, outputTokens: 5, totalTokens: 12 },
         updatedAt: 313
       })
     }
@@ -232,7 +233,8 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       tapeLinkReceipt: {
         childSessionId: 'child-1',
         outcome: 'completed'
-      }
+      },
+      usage: { inputTokens: 7, outputTokens: 5, totalTokens: 12 }
     })
     expect(setWaiting).toHaveBeenCalledOnce()
     expect(setRunning).toHaveBeenCalledTimes(2)
@@ -299,6 +301,47 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     expect(sessions.createSubagentSession).toHaveBeenCalledOnce()
     expect(sessions.sendConversationMessage).toHaveBeenCalledOnce()
     expect(sessions.linkSubagentTape).toHaveBeenCalledOnce()
+    expect(repository.requireInvocation(invocation.id).usage).toBeNull()
+  })
+
+  it('preserves observed usage when run interruption wins the terminal persistence race', async () => {
+    const { run, invocation } = createRunAndInvocation()
+    const linkStarted = deferred<void>()
+    const allowLink = deferred<void>()
+    sessions.linkSubagentTape.mockImplementation(async (input) => {
+      linkStarted.resolve()
+      await allowLink.promise
+      return {
+        linkEntry: {
+          sessionId: input.parentSessionId,
+          entryId: 1
+        },
+        childSessionId: input.childSessionId,
+        childHeadEntryId: 2,
+        childEntryCount: 2,
+        outcome: input.outcome
+      }
+    })
+    sessions.onSend = async (sessionId) => {
+      output.current!.resolve({ answer: 42 })
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'idle',
+        usage: { totalTokens: 12 },
+        updatedAt: 316
+      })
+    }
+
+    const execution = createExecutor().execute(invocation.id)
+    await linkStarted.promise
+    repository.reconcileInterruptedRun(run.id, 'utility exited', 317)
+    allowLink.resolve()
+
+    await expect(execution).resolves.toMatchObject({
+      status: 'interrupted',
+      usage: { totalTokens: 12 }
+    })
   })
 
   it('does not restart an invocation already persisted as active', async () => {
@@ -560,6 +603,11 @@ describeIfSqlite('WorkflowChildExecutor', () => {
         sessionId,
         kind: 'status',
         status: 'idle',
+        usage: {
+          inputTokens: turn * 2,
+          outputTokens: turn,
+          totalTokens: turn * 3
+        },
         updatedAt: 339 + turn * 3
       })
     }
@@ -573,6 +621,11 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       status: 'succeeded',
       result: {
         answer: 'corrected'
+      },
+      usage: {
+        inputTokens: 6,
+        outputTokens: 3,
+        totalTokens: 9
       }
     })
     expect(sessions.sendConversationMessage).toHaveBeenCalledTimes(2)

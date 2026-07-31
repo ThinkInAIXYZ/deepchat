@@ -53,6 +53,9 @@ export class WorkflowUtilityProcessHost {
   private readyTimer: NodeJS.Timeout | null = null
   private shutdownTimer: NodeJS.Timeout | null = null
   private started = false
+  private spawning = false
+  private terminationRequested = false
+  private killSent = false
   private expectedExit = false
   private exited = false
 
@@ -64,6 +67,9 @@ export class WorkflowUtilityProcessHost {
     if (this.started) {
       throw new Error('Workflow utility process host can only start once.')
     }
+    if (this.exited) {
+      throw new Error('Workflow utility process host has already exited.')
+    }
     if (command.runId !== this.options.runId) {
       throw new Error('Workflow utility START runId does not match the process host.')
     }
@@ -72,25 +78,39 @@ export class WorkflowUtilityProcessHost {
       this.resolveReady = resolve
       this.rejectReady = reject
     })
+    void this.readyPromise.catch(() => undefined)
+    this.readyTimer = setTimeout(() => {
+      this.fail(new Error('Workflow utility process did not become ready before timeout.'))
+    }, this.options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS)
 
+    this.spawning = true
     try {
       const host = this.options.spawnHost
         ? await this.options.spawnHost()
         : await this.spawnDefaultHost()
+      this.spawning = false
       this.host = host
       host.on('message', (message) => this.handleMessage(message))
       host.on('exit', (code) => this.handleExit(code))
       host.on('error', (type, location) => {
         this.fail(new Error(`Workflow utility process error: ${type} at ${location}`))
       })
-      this.readyTimer = setTimeout(() => {
-        this.fail(new Error('Workflow utility process did not become ready before timeout.'))
-      }, this.options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS)
+      if (this.terminationRequested) {
+        this.killProcess(this.expectedExit)
+        return await this.readyPromise
+      }
       this.post(command)
       return await this.readyPromise
     } catch (error) {
-      this.fail(error instanceof Error ? error : new Error(String(error)))
-      throw error
+      this.spawning = false
+      const failure = error instanceof Error ? error : new Error(String(error))
+      if (this.terminationRequested && !this.exited && !this.host) {
+        this.handleExit(1)
+      } else {
+        this.fail(failure)
+      }
+      await this.readyPromise.catch(() => undefined)
+      throw failure
     }
   }
 
@@ -123,6 +143,10 @@ export class WorkflowUtilityProcessHost {
     this.expectedExit = true
     this.clearReadyTimer()
     if (!this.host) {
+      if (this.spawning) {
+        this.terminationRequested = true
+        return
+      }
       this.handleExit(0)
       return
     }
@@ -150,15 +174,30 @@ export class WorkflowUtilityProcessHost {
     if (this.exited) {
       return
     }
-    this.expectedExit = expected
+    if (!this.terminationRequested) {
+      this.expectedExit = expected
+    } else if (!expected) {
+      this.expectedExit = false
+    }
+    this.terminationRequested = true
     this.clearReadyTimer()
     this.clearShutdownTimer()
     const host = this.host
-    this.host = null
-    if (host) {
-      try {
-        host.kill()
-      } catch {}
+    if (!host) {
+      if (this.spawning) {
+        return
+      }
+      this.handleExit(this.expectedExit ? 0 : 1)
+      return
+    }
+    if (this.killSent) {
+      return
+    }
+    this.killSent = true
+    try {
+      host.kill()
+    } catch {
+      this.handleExit(1)
     }
   }
 

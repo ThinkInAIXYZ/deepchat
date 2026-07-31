@@ -1,5 +1,6 @@
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type { WorkflowInvocation } from '@shared/workflow/domain'
+import { WorkflowUsageSchema, type WorkflowUsage } from '@shared/workflow/serviceContracts'
 
 export interface WorkflowChildRuntimeRepositoryPort {
   requireInvocation(invocationId: string): WorkflowInvocation
@@ -12,11 +13,13 @@ export type ChildTerminalState =
       status: 'completed'
       responseMarkdown: string
       answerMarkdown: string
+      usage: WorkflowUsage
     }
   | {
       status: 'error'
       responseMarkdown: string
       answerMarkdown: string
+      usage: WorkflowUsage
     }
 
 export class ChildRuntimeTracker {
@@ -26,6 +29,7 @@ export class ChildRuntimeTracker {
   private runtimeStatus: 'idle' | 'generating' | 'error' | null = null
   private responseMarkdown = ''
   private answerMarkdown = ''
+  private usage: WorkflowUsage = {}
   private resolveTerminal!: (state: ChildTerminalState) => void
   private rejectTerminal!: (error: unknown) => void
   private readonly unsubscribe: () => void
@@ -80,6 +84,9 @@ export class ChildRuntimeTracker {
       if (update.kind !== 'status' || !update.status) {
         return
       }
+      if (update.usage) {
+        this.usage = normalizeUsage(update.usage)
+      }
       this.runtimeStatus = update.status
       if (update.status === 'generating') {
         this.started = true
@@ -103,7 +110,8 @@ export class ChildRuntimeTracker {
     const terminalState: ChildTerminalState = {
       status: this.runtimeStatus === 'error' ? 'error' : 'completed',
       responseMarkdown: this.responseMarkdown,
-      answerMarkdown: this.answerMarkdown
+      answerMarkdown: this.answerMarkdown,
+      usage: this.usage
     }
     this.terminalState = terminalState
     this.resolveTerminal(terminalState)
@@ -117,4 +125,12 @@ export class ChildRuntimeTracker {
       this.repository.markInvocationRunning(this.invocationId, this.now())
     }
   }
+}
+
+function normalizeUsage(usage: Record<string, number>): WorkflowUsage {
+  const parsed = WorkflowUsageSchema.safeParse(usage)
+  if (!parsed.success) {
+    throw new Error('Workflow child emitted invalid usage accounting.')
+  }
+  return parsed.data
 }

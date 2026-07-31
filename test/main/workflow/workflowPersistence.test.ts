@@ -349,12 +349,14 @@ describeIfSqlite('WorkflowRepository', () => {
           retriable: true
         }
       },
-      360
+      360,
+      { totalTokens: 7 }
     )
 
     expect(repository.findReplayOutcome(run.id, second.request)).toMatchObject({
       id: second.id,
       status: 'timed_out',
+      usage: { totalTokens: 7 },
       error: {
         code: 'INVOCATION_TIMEOUT'
       }

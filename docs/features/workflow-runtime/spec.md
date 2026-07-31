@@ -314,8 +314,10 @@ Run status is a closed set:
 
 No automatic transition can move a quiescent or terminal run back to `running`. `succeeded` and
 `cancelled` are final. `failed` and `interrupted` are durable quiescent states that may transition
-to `running` only through explicit retry or resume. Re-entry creates a new execution epoch on the
-same run record and replays the immutable source; it does not erase prior invocation attempts.
+to `queued` only through explicit retry or resume. That queued intent is durable across an
+application restart; `started_at` distinguishes a queued first launch from a queued re-entry.
+Admission moves the run to `running`, creates a new execution epoch for re-entry, and replays the
+immutable source without erasing prior invocation attempts.
 
 ### `workflow_invocations`
 
@@ -417,8 +419,9 @@ This is a DeepChat child limit and must not be described as identical to Codex's
 which includes the caller.
 
 A separate workflow-run admission gate defaults to four active utility processes and a bounded
-persisted queue. A queued run does not spawn a process. This prevents many workflows that are
-waiting for child permits from bypassing memory and process limits.
+persisted queue for both first launches and explicit resume requests. A queued run does not spawn a
+process. This prevents many workflows that are waiting for child permits from bypassing memory and
+process limits, while preserving an accepted resume request across restart.
 
 Admission is:
 
@@ -436,9 +439,17 @@ QPS controls.
 Each workflow also enforces:
 
 - a maximum invocation count;
-- a maximum active invocation count no greater than the global cap;
-- optional token and cost budgets aggregated from child usage;
-- a wall-clock deadline.
+- a maximum pending invocation count, with admitted children still bounded by the smaller
+  process-wide child cap;
+- an optional total-token budget aggregated from every durable child attempt;
+- an optional host-owned wall-clock deadline for each explicit execution epoch.
+
+V1 does not expose a cost budget. DeepChat-owned provider sessions do not yet publish one
+normalized, provider-independent monetary-cost fact at the common child runtime boundary. The ACP
+usage notification has an optional cost field, but direct ACP children are outside the V1 workflow
+boundary and the DeepChat-loop compatibility path does not project that field into message usage.
+Treating missing cost as zero would make the budget unsafe, so cost enforcement remains deferred
+until that accounting contract exists.
 
 Budget exhaustion is a soft scheduling stop: no new child is admitted, while already running
 children are allowed to settle unless the user cancels.
@@ -478,10 +489,12 @@ BigInt, or cyclic object crosses IPC.
 
 ## Permissions
 
-Launching a workflow is an explicit action in V1. Approval is bound to the exact script hash,
-workspace, declared `allowedAgentIds`, and effective capability summary. The summary describes
-write-capable scope, not a claim that static inspection can predict which tools a model will call.
-Editing the source or expanding the allowlist invalidates a remembered launch approval.
+Launching a workflow is an explicit action in V1. Approval is bound to the exact script and input
+hashes, main-resolved parent workspace, declared `allowedAgentIds`, effective limits and budget,
+and capability summary. The renderer cannot self-assert the workspace shown by the approval. The
+summary describes write-capable scope, not a claim that static inspection can predict which tools
+a model will call. Editing the source or input, changing scope, or expanding the allowlist
+invalidates a remembered launch approval.
 
 Child sessions use the existing assignment policy:
 
@@ -574,6 +587,7 @@ state from missing events.
 - Recovery reattaches a child created in the session-persistence crash window instead of creating a
   duplicate.
 - Application startup reconciles stale running state without duplicating parent results.
+- Application startup distinguishes and restores queued first launches and queued resume intents.
 - Cancelled admission waiters never consume a later permit.
 - Workflow and orchestrator child work share the configured global active limit.
 - Completed matching invocations replay without a provider call.

@@ -11,6 +11,7 @@ import type {
   WorkflowRun,
   WorkflowTapeLinkReceipt
 } from '@shared/workflow/domain'
+import type { WorkflowUsage } from '@shared/workflow/serviceContracts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { ChildRuntimeTracker, type ChildTerminalState } from './childRuntimeTracker'
 import type { WorkflowInvocationContextRegistry } from './invocationContextRegistry'
@@ -59,6 +60,12 @@ export interface WorkflowChildRepositoryPort {
   failInvocation(
     invocationId: string,
     failure: WorkflowInvocationFailure,
+    now?: number,
+    usage?: JsonValue | null
+  ): WorkflowInvocation
+  recordTerminalInvocationUsage(
+    invocationId: string,
+    usage: JsonValue,
     now?: number
   ): WorkflowInvocation
 }
@@ -204,6 +211,7 @@ export class WorkflowChildExecutor {
     let shouldCancelChild = false
     let childAttached = false
     let childKnownStopped = false
+    let invocationUsage: WorkflowUsage | null = null
     try {
       const resolvedChild = await this.resolveOrCreateChild(
         this.options.repository.requireInvocation(invocationId),
@@ -266,6 +274,7 @@ export class WorkflowChildExecutor {
         childKnownStopped = true
         tracker.close()
         tracker = null
+        invocationUsage = addUsage(invocationUsage, terminal.usage)
         if (terminal.status === 'error') {
           throw new WorkflowChildRuntimeError(
             summarizeText(terminal.responseMarkdown) || 'Workflow child session failed.'
@@ -291,14 +300,14 @@ export class WorkflowChildExecutor {
         invocationId,
         result,
         receipt,
-        null,
+        invocationUsage,
         this.now()
       )
       contextMayRelease = true
       return succeeded
     } catch (error) {
       const failure = toInvocationFailure(error, abortScope)
-      this.failActiveInvocation(invocationId, failure)
+      this.failActiveInvocation(invocationId, failure, invocationUsage)
       if (child && shouldCancelChild) {
         const childAlreadyStopped = childKnownStopped || tracker?.isTerminal === true
         if (childAlreadyStopped) {
@@ -456,14 +465,17 @@ export class WorkflowChildExecutor {
 
   private failActiveInvocation(
     invocationId: string,
-    failure: WorkflowInvocationFailure
+    failure: WorkflowInvocationFailure,
+    usage: JsonValue | null = null
   ): WorkflowInvocation {
     const current = this.options.repository.requireInvocation(invocationId)
     if (isTerminalInvocation(current)) {
-      return current
+      return usage === null
+        ? current
+        : this.options.repository.recordTerminalInvocationUsage(invocationId, usage, this.now())
     }
     try {
-      return this.options.repository.failInvocation(invocationId, failure, this.now())
+      return this.options.repository.failInvocation(invocationId, failure, this.now(), usage)
     } catch (error) {
       const raced = this.options.repository.requireInvocation(invocationId)
       if (isTerminalInvocation(raced)) {
@@ -472,6 +484,21 @@ export class WorkflowChildExecutor {
       throw error
     }
   }
+}
+
+function addUsage(accumulated: WorkflowUsage | null, next: WorkflowUsage): WorkflowUsage | null {
+  if (Object.keys(next).length === 0) {
+    return accumulated
+  }
+  const result: Record<string, number> = Object.assign(Object.create(null), accumulated)
+  for (const [key, value] of Object.entries(next)) {
+    const total = (result[key] ?? 0) + value
+    if (!Number.isFinite(total) || total < 0 || total > Number.MAX_SAFE_INTEGER) {
+      throw new WorkflowChildRuntimeError('Workflow child usage accounting overflowed.')
+    }
+    result[key] = total
+  }
+  return result as WorkflowUsage
 }
 
 interface InvocationAbortScope {

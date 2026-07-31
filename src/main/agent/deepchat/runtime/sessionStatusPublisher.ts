@@ -12,7 +12,11 @@ export interface SessionStatusPublisherPorts {
 export class SessionStatusPublisher {
   constructor(private readonly ports: SessionStatusPublisherPorts) {}
 
-  transition(scope: SessionRuntimeScope, status: DeepChatSessionState['status']): boolean {
+  transition(
+    scope: SessionRuntimeScope,
+    status: DeepChatSessionState['status'],
+    usage?: Record<string, number>
+  ): boolean {
     if (!scope.isCurrent()) {
       return false
     }
@@ -21,12 +25,23 @@ export class SessionStatusPublisher {
     if (!current) {
       return false
     }
+    if (current.status === status && usage === undefined) {
+      return true
+    }
+
+    const sessionId = scope.sessionId
     if (current.status === status) {
+      this.ports.publishSessionUpdate({
+        sessionId,
+        kind: 'status',
+        updatedAt: Date.now(),
+        status,
+        usage
+      })
       return true
     }
 
     current.status = status
-    const sessionId = scope.sessionId
     this.ports.publishEvent('sessions.status.changed', {
       sessionId,
       status,
@@ -40,7 +55,8 @@ export class SessionStatusPublisher {
       sessionId,
       kind: 'status',
       updatedAt: Date.now(),
-      status
+      status,
+      ...(usage === undefined ? {} : { usage })
     })
     this.ports.sessionUiPort.refreshSessionUi()
     return true

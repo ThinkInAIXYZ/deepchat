@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   WORKFLOW_RUNTIME_API_VERSION,
   WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -16,7 +16,12 @@ type Listener = (...args: any[]) => void
 class FakeUtilityProcess {
   pid = 4242
   readonly posted: unknown[] = []
-  readonly kill = vi.fn(() => this.emit('exit', 0))
+  exitOnKill = true
+  readonly kill = vi.fn(() => {
+    if (this.exitOnKill) {
+      this.emit('exit', 0)
+    }
+  })
   private readonly listeners = new Map<string, Set<Listener>>()
   private readonly onceListeners = new Map<string, Set<Listener>>()
 
@@ -67,6 +72,10 @@ const startCommand = {
 }
 
 describe('WorkflowUtilityProcessHost', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('waits for READY and forwards validated commands and events', async () => {
     const process = new FakeUtilityProcess()
     const events: WorkflowRuntimeEvent[] = []
@@ -134,6 +143,86 @@ describe('WorkflowUtilityProcessHost', () => {
 
     expect(process.kill).toHaveBeenCalledTimes(1)
     expect(exits).toEqual([{ runId: 'run-process', code: 0, expected: false }])
+  })
+
+  it('reports a terminal exit when process creation fails before a host exists', async () => {
+    const exits: Array<{ runId: string; code: number; expected: boolean }> = []
+    const host = new WorkflowUtilityProcessHost({
+      runId: 'run-process',
+      onEvent: vi.fn(),
+      onExit: (event) => exits.push(event),
+      spawnHost: async () => {
+        throw new Error('spawn unavailable')
+      }
+    })
+
+    await expect(host.start(startCommand)).rejects.toThrow('spawn unavailable')
+    expect(exits).toEqual([{ runId: 'run-process', code: 1, expected: false }])
+  })
+
+  it('holds termination until a process still spawning has actually exited', async () => {
+    const process = new FakeUtilityProcess()
+    process.exitOnKill = false
+    const exits: Array<{ runId: string; code: number; expected: boolean }> = []
+    let resolveSpawn!: (process: FakeUtilityProcess) => void
+    const spawnPromise = new Promise<FakeUtilityProcess>((resolve) => {
+      resolveSpawn = resolve
+    })
+    const host = new WorkflowUtilityProcessHost({
+      runId: 'run-process',
+      onEvent: vi.fn(),
+      onExit: (event) => exits.push(event),
+      spawnHost: async () => (await spawnPromise) as never
+    })
+
+    const startPromise = host.start(startCommand)
+    const rejectedStart = expect(startPromise).rejects.toThrow('exited before READY')
+    host.kill()
+    expect(exits).toEqual([])
+
+    resolveSpawn(process)
+    await vi.waitFor(() => expect(process.kill).toHaveBeenCalledTimes(1))
+    host.kill()
+    expect(process.kill).toHaveBeenCalledTimes(1)
+    expect(exits).toEqual([])
+
+    process.emit('exit', 0)
+    await rejectedStart
+    expect(exits).toEqual([{ runId: 'run-process', code: 0, expected: true }])
+  })
+
+  it('applies the READY timeout while the process is still spawning', async () => {
+    vi.useFakeTimers()
+    const process = new FakeUtilityProcess()
+    process.exitOnKill = false
+    const exits: Array<{ runId: string; code: number; expected: boolean }> = []
+    let resolveSpawn!: (process: FakeUtilityProcess) => void
+    const spawnPromise = new Promise<FakeUtilityProcess>((resolve) => {
+      resolveSpawn = resolve
+    })
+    const host = new WorkflowUtilityProcessHost({
+      runId: 'run-process',
+      onEvent: vi.fn(),
+      onExit: (event) => exits.push(event),
+      readyTimeoutMs: 100,
+      spawnHost: async () => (await spawnPromise) as never
+    })
+
+    const startPromise = host.start(startCommand)
+    const rejectedStart = expect(startPromise).rejects.toThrow(
+      'did not become ready before timeout'
+    )
+    await vi.advanceTimersByTimeAsync(100)
+    expect(exits).toEqual([])
+
+    resolveSpawn(process)
+    await rejectedStart
+    expect(process.kill).toHaveBeenCalledOnce()
+    expect(exits).toEqual([])
+
+    process.emit('exit', 1)
+    expect(exits).toEqual([{ runId: 'run-process', code: 1, expected: false }])
+    vi.useRealTimers()
   })
 
   it('passes only the utility baseline environment', () => {

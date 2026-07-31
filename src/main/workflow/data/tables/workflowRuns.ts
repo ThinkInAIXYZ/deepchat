@@ -302,4 +302,16 @@ export class WorkflowRunsTable extends BaseTable {
       )
       .all(limit) as WorkflowRunRow[]
   }
+
+  listQueued(limit = 100): WorkflowRunRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM workflow_runs
+         WHERE status = 'queued'
+         ORDER BY created_at ASC, run_id ASC
+         LIMIT ?`
+      )
+      .all(limit) as WorkflowRunRow[]
+  }
 }

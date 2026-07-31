@@ -115,10 +115,13 @@ testable solution.
 - Spawn exactly one utility process per active run with a minimal environment.
 - Persist an invocation before admission and a child identity before handoff.
 - Settle guest promises from terminal or replayed invocation outcomes.
-- Enforce run count, token/cost, active-child, and wall-clock budgets.
+- Enforce run count, total-token, active-child, and per-execution wall-clock budgets.
+- Defer monetary-cost budgets until DeepChat has a normalized cost fact at the common child
+  runtime boundary; never treat unavailable cost as zero.
 - Implement host-owned invocation timeout and typed guest errors.
 - Implement idempotent cancel, process shutdown, and late-event handling.
-- Resume from immutable source, stable call path, input hash, and attempts.
+- Persist accepted resume intent before admission, then resume from immutable source, stable call
+  path, input hash, and attempts.
 - Implement retry and retry-from-here without claiming exactly-once writes.
 
 ## 9. Add Agent Tool, Routes, And Events

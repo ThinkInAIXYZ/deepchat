@@ -27,7 +27,7 @@
 - [x] Prove cancellation and handle disposal.
 - [x] Prove development and packaged WASM resolution.
 - [x] Prove utility-process exit notification.
-- [ ] Prove active-run and queued-run bounds.
+- [x] Prove active-run and queued-run bounds.
 - [x] Complete the pre-commit runtime review and focused validation.
 - [x] Commit the runtime slice.
 
@@ -68,7 +68,7 @@ Validation evidence (2026-07-31):
 
 - [x] Add cancellation-aware owner-fair `AgentInvocationAdmission`.
 - [x] Apply the process-wide default limit of four active children.
-- [ ] Add a separate bounded workflow utility-process admission gate.
+- [x] Add a separate bounded workflow utility-process admission gate.
 - [x] Gate both workflow and `subagent_orchestrator` child starts.
 - [x] Gate `subagent_orchestrator` child lifetimes through the shared admission layer.
 - [x] Preserve existing orchestrator local limits.
@@ -84,7 +84,7 @@ Validation evidence (2026-07-31):
 - [x] Enforce the launch target-agent allowlist before admission.
 - [x] Make child creation crash-safe and idempotent by correlation slot.
 - [x] Persist child identity before handoff.
-- [ ] Map child runtime state and usage into durable invocation state.
+- [x] Map child runtime state and usage into durable invocation state.
 - [x] Add workflow-scoped frozen-head Tape lineage.
 - [x] Require a durable Tape-link receipt before replayable success.
 - [x] Propagate workflow invocation context to the common tool boundary.
@@ -128,16 +128,34 @@ Structured-output validation evidence (2026-07-31):
 
 ## Workflow Service
 
-- [ ] Add explicit launch approval bound to source hash and effective scope.
-- [ ] Add one-process-per-run lifecycle.
-- [ ] Add admission, execution, settlement, timeout, cancellation, and budget orchestration.
-- [ ] Add resume, retry, and retry-from-here behavior.
+- [x] Add explicit launch approval bound to source hash and effective scope.
+- [x] Add one-process-per-run lifecycle.
+- [x] Add admission, execution, settlement, timeout, cancellation, and budget orchestration.
+- [x] Add resume, retry, and retry-from-here behavior.
 - [ ] Add typed launch/status/cancel/resume/retry routes.
 - [ ] Add explicit workflow agent-tool actions.
 - [ ] Add typed workflow events and renderer projections.
 - [ ] Keep activation independent from reasoning effort and explicit-only in V1.
-- [ ] Add service, route, tool, protocol-failure, and budget tests.
-- [ ] Complete the pre-commit service review, focused validation, and commit.
+- [x] Add service, protocol-failure, recovery, and budget tests.
+- [ ] Add route and agent-tool tests.
+- [x] Complete the pre-commit service-core review, focused validation, and commit.
+
+Service-core validation evidence (2026-07-31):
+
+- launch approvals bind the source and input hashes to a main-resolved workspace, allowlist,
+  limits, and budget; pending approval count and bytes are bounded;
+- one-process-per-run admission covers active, queued, overflow, cancellation, and shutdown paths;
+- queued resume intent survives restart; replay, duplicate active paths, utility crashes, token and
+  execution-time budgets, effect-aware retry, retry-from-here, and projection failure isolation
+  are covered by focused tests;
+- child usage is validated, correction-turn usage is accumulated, and terminal invocation usage is
+  durable.
+- 435 workflow, shared-admission, orchestrator, session-lifecycle, and DeepChat harness tests passed.
+- `pnpm run format:check`
+- `pnpm run i18n`
+- `pnpm run lint`
+- `pnpm run typecheck`
+- `pnpm exec electron-vite build`
 
 ## Parent Result And UI
 

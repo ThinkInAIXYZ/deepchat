@@ -317,7 +317,11 @@ export class InteractionCoordinator {
               usage: buildUsageFromMetadata(terminalMetadata) ?? null,
               error: { message: execution.terminalError }
             })
-            this.ports.runLifecycle.transitionStatus(scope, 'error')
+            this.ports.runLifecycle.transitionStatus(
+              scope,
+              'error',
+              buildUsageFromMetadata(terminalMetadata)
+            )
             replacePendingInteractions(
               instance,
               reconcilePendingInteractionEntries(
@@ -420,7 +424,11 @@ export class InteractionCoordinator {
           stopReason: 'user_follow_up',
           usage: buildUsageFromMetadata(persistedMetadata)
         })
-        this.ports.runLifecycle.transitionStatus(scope, 'idle')
+        this.ports.runLifecycle.transitionStatus(
+          scope,
+          'idle',
+          buildUsageFromMetadata(persistedMetadata)
+        )
         return { resumed: false, waitingForUserMessage: true }
       }
 

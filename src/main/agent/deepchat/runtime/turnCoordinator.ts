@@ -893,7 +893,11 @@ export class TurnCoordinator {
           usage: buildUsageFromMetadata(terminalMetadata) ?? null,
           error: { message: errorMessage }
         })
-      this.ports.runLifecycle.transitionCurrentStatus(sessionId, 'error')
+      this.ports.runLifecycle.transitionCurrentStatus(
+        sessionId,
+        'error',
+        buildUsageFromMetadata(terminalMetadata)
+      )
       return complete({
         requestId: assistantMessageId,
         messageId: assistantMessageId
@@ -1157,7 +1161,11 @@ export class TurnCoordinator {
             errorMessage: resumeBudget.message,
             usage: buildUsageFromMetadata(terminalMetadata)
           })
-          this.ports.runLifecycle.transitionCurrentStatus(sessionId, 'error')
+          this.ports.runLifecycle.transitionCurrentStatus(
+            sessionId,
+            'error',
+            buildUsageFromMetadata(terminalMetadata)
+          )
           this.ports.memoryIngestionObserver.afterTurnSettled({
             session: instance.getMemorySessionHandle(),
             origin: 'resume',
@@ -1295,7 +1303,11 @@ export class TurnCoordinator {
         errorMessage,
         usage: buildUsageFromMetadata(terminalMetadata)
       })
-      this.ports.runLifecycle.transitionCurrentStatus(sessionId, 'error')
+      this.ports.runLifecycle.transitionCurrentStatus(
+        sessionId,
+        'error',
+        buildUsageFromMetadata(terminalMetadata)
+      )
       throw error
     } finally {
       this.ports.runLifecycle.clearOperationController(

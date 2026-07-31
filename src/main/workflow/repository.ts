@@ -56,9 +56,9 @@ const RUN_TRANSITIONS: Record<WorkflowRunStatus, ReadonlySet<WorkflowRunStatus>>
   waiting_interaction: new Set(['running', 'cancelling', 'failed', 'cancelled', 'interrupted']),
   cancelling: new Set(['failed', 'cancelled', 'interrupted']),
   succeeded: new Set(),
-  failed: new Set(),
+  failed: new Set(['queued']),
   cancelled: new Set(),
-  interrupted: new Set()
+  interrupted: new Set(['queued'])
 }
 
 const INVOCATION_TRANSITIONS: Record<
@@ -89,6 +89,12 @@ const INVOCATION_TRANSITIONS: Record<
   cancelled: new Set(),
   interrupted: new Set()
 }
+const ACTIVE_INVOCATION_STATUSES = new Set<WorkflowInvocationStatus>([
+  'queued',
+  'admitted',
+  'running',
+  'waiting_interaction'
+])
 
 const EFFECT_RANK: Record<WorkflowEffectState, number> = {
   none: 0,
@@ -100,6 +106,11 @@ const EFFECT_RANK: Record<WorkflowEffectState, number> = {
 export interface WorkflowReconciliationResult {
   runsInterrupted: number
   invocationsInterrupted: number
+}
+
+export interface WorkflowCancellationReconciliationResult {
+  runsCancelled: number
+  invocationsCancelled: number
 }
 
 export class WorkflowRepository {
@@ -235,6 +246,11 @@ export class WorkflowRepository {
     return this.database.workflowRunsTable.listPendingDeliveries(normalizedLimit).map(toWorkflowRun)
   }
 
+  listQueuedRuns(limit = 100): WorkflowRun[] {
+    const normalizedLimit = RunListLimitSchema.parse(limit)
+    return this.database.workflowRunsTable.listQueued(normalizedLimit).map(toWorkflowRun)
+  }
+
   startRun(runId: string, now = Date.now()): WorkflowRun {
     this.requireExecutableRun(runId)
     return this.transitionRun(runId, 'running', now)
@@ -314,7 +330,10 @@ export class WorkflowRepository {
              cancellation_reason = NULL,
              revision = revision + 1
          WHERE run_id = ?
-           AND status IN ('failed', 'interrupted')
+           AND (
+             status IN ('failed', 'interrupted')
+             OR (status = 'queued' AND started_at IS NOT NULL)
+           )
            AND NOT EXISTS (
              SELECT 1
              FROM workflow_invocations
@@ -330,6 +349,43 @@ export class WorkflowRepository {
       .run(timestamp, timestamp, runId)
     if (result.changes !== 1) {
       throw new Error(`Workflow run ${runId} cannot be resumed from its current status.`)
+    }
+    return this.requireRun(runId)
+  }
+
+  queueRunResume(runId: string, now = Date.now()): WorkflowRun {
+    this.requireExecutableRun(runId)
+    const timestamp = parseTimestamp(now, 'workflow resume queue time')
+    const result = this.database
+      .getDatabase()
+      .prepare(
+        `UPDATE workflow_runs
+         SET status = 'queued',
+             updated_at = ?,
+             completed_at = NULL,
+             phase_json = NULL,
+             error_json = NULL,
+             interruption_reason = NULL,
+             cancellation_reason = NULL,
+             revision = revision + 1
+         WHERE run_id = ?
+           AND status IN ('failed', 'interrupted')
+           AND started_at IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1
+             FROM workflow_invocations
+             WHERE workflow_invocations.run_id = workflow_runs.run_id
+               AND workflow_invocations.status IN (
+                 'queued',
+                 'admitted',
+                 'running',
+                 'waiting_interaction'
+               )
+           )`
+      )
+      .run(timestamp, runId)
+    if (result.changes !== 1) {
+      throw new Error(`Workflow run ${runId} cannot queue a resume from its current status.`)
     }
     return this.requireRun(runId)
   }
@@ -845,15 +901,56 @@ export class WorkflowRepository {
   failInvocation(
     invocationId: string,
     failure: WorkflowInvocationFailure,
-    now = Date.now()
+    now = Date.now(),
+    usage: JsonValue | null = null
   ): WorkflowInvocation {
     const parsedFailure = WorkflowInvocationFailureSchema.parse(failure)
+    const usageJson =
+      usage == null
+        ? null
+        : canonicalizeWorkflowJson(usage, {
+            maxBytes: MAX_METADATA_JSON_BYTES
+          }).json
     return this.transitionInvocation(invocationId, parsedFailure.status, now, {
       errorJson: canonicalizeWorkflowJson(parsedFailure.error, {
         maxBytes: MAX_METADATA_JSON_BYTES
       }).json,
+      usageJson,
       completedAt: now
     })
+  }
+
+  recordTerminalInvocationUsage(
+    invocationId: string,
+    usage: JsonValue,
+    now = Date.now()
+  ): WorkflowInvocation {
+    const normalizedInvocationId = StoredIdSchema.parse(invocationId)
+    const usageJson = canonicalizeWorkflowJson(usage, {
+      maxBytes: MAX_METADATA_JSON_BYTES
+    }).json
+    const timestamp = parseTimestamp(now, 'workflow terminal usage time')
+    const current = this.requireInvocation(normalizedInvocationId)
+    if (ACTIVE_INVOCATION_STATUSES.has(current.status)) {
+      throw new Error(
+        `Workflow invocation ${normalizedInvocationId} is still active and cannot accept terminal usage.`
+      )
+    }
+    if (current.usage !== null) {
+      return current
+    }
+    this.database
+      .getDatabase()
+      .prepare(
+        `UPDATE workflow_invocations
+         SET usage_json = ?,
+             updated_at = ?
+         WHERE invocation_id = ?
+           AND usage_json IS NULL
+           AND status IN ('succeeded', 'failed', 'timed_out', 'cancelled', 'interrupted')`
+      )
+      .run(usageJson, timestamp, normalizedInvocationId)
+    return this.requireInvocation(normalizedInvocationId)
   }
 
   invalidateFrom(runId: string, seq: number, reason: string, now = Date.now()): number {
@@ -909,6 +1006,41 @@ export class WorkflowRepository {
     })()
   }
 
+  invalidateInvocation(
+    runId: string,
+    invocationId: string,
+    reason: string,
+    now = Date.now()
+  ): WorkflowInvocation {
+    const normalizedRunId = StoredIdSchema.parse(runId)
+    const normalizedInvocationId = StoredIdSchema.parse(invocationId)
+    const normalizedReason = clampReason(reason)
+    const timestamp = parseTimestamp(now, 'workflow invocation invalidation time')
+    const db = this.database.getDatabase()
+    const result = db
+      .prepare(
+        `UPDATE workflow_invocations
+         SET invalidated_at = COALESCE(invalidated_at, ?),
+             invalidation_reason = COALESCE(invalidation_reason, ?),
+             updated_at = ?
+         WHERE invocation_id = ?
+           AND run_id = ?
+           AND EXISTS (
+             SELECT 1
+             FROM workflow_runs
+             WHERE workflow_runs.run_id = workflow_invocations.run_id
+               AND workflow_runs.status IN ('failed', 'interrupted')
+           )`
+      )
+      .run(timestamp, normalizedReason, timestamp, normalizedInvocationId, normalizedRunId)
+    if (result.changes !== 1) {
+      throw new Error(
+        `Workflow invocation ${normalizedInvocationId} cannot be invalidated for run ${normalizedRunId}.`
+      )
+    }
+    return this.requireInvocation(normalizedInvocationId)
+  }
+
   reconcileInterruptedRun(
     runId: string,
     reason: string,
@@ -919,6 +1051,54 @@ export class WorkflowRepository {
 
   reconcileInterruptedRuns(reason: string, now = Date.now()): WorkflowReconciliationResult {
     return this.reconcileInterrupted(reason, now)
+  }
+
+  reconcileCancelledRun(
+    runId: string,
+    reason: string,
+    now = Date.now()
+  ): WorkflowCancellationReconciliationResult {
+    const normalizedRunId = StoredIdSchema.parse(runId)
+    const timestamp = parseTimestamp(now, 'workflow cancellation reconciliation time')
+    const normalizedReason = clampReason(reason)
+    const errorJson = canonicalizeWorkflowJson(
+      {
+        code: 'WORKFLOW_CANCELLED',
+        message: normalizedReason,
+        retriable: true
+      },
+      { maxBytes: MAX_METADATA_JSON_BYTES }
+    ).json
+    const db = this.database.getDatabase()
+    return db.transaction(() => {
+      const invocationResult = db
+        .prepare(
+          `UPDATE workflow_invocations
+           SET status = 'cancelled',
+               error_json = ?,
+               completed_at = ?,
+               updated_at = ?
+           WHERE run_id = ?
+             AND status IN ('queued', 'admitted', 'running', 'waiting_interaction')`
+        )
+        .run(errorJson, timestamp, timestamp, normalizedRunId)
+      const runResult = db
+        .prepare(
+          `UPDATE workflow_runs
+           SET status = 'cancelled',
+               cancellation_reason = ?,
+               completed_at = ?,
+               updated_at = ?,
+               revision = revision + 1
+           WHERE run_id = ?
+             AND status IN ('queued', 'running', 'waiting_interaction', 'cancelling')`
+        )
+        .run(normalizedReason, timestamp, timestamp, normalizedRunId)
+      return {
+        runsCancelled: runResult.changes,
+        invocationsCancelled: invocationResult.changes
+      }
+    })()
   }
 
   private transitionRun(

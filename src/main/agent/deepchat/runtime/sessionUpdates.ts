@@ -23,6 +23,7 @@ export interface DeepChatInternalSessionUpdate {
   responseMarkdown?: string
   deliverySegments?: AssistantDeliverySegment[]
   waitingInteraction?: DeepChatInternalSessionWaitingInteraction | null
+  usage?: Record<string, number>
 }
 
 const extractBlockText = (block: AssistantMessageBlock): string[] => {
