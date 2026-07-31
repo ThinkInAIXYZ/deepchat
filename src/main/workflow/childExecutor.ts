@@ -12,8 +12,10 @@ import type {
   WorkflowTapeLinkReceipt
 } from '@shared/workflow/domain'
 import type { WorkflowUsage } from '@shared/workflow/serviceContracts'
+import type { WorkflowSubagentContext } from '@shared/workflow/subagent'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { ChildRuntimeTracker, type ChildTerminalState } from './childRuntimeTracker'
+import { createWorkflowChildLineageSlot } from './childIdentity'
 import type { WorkflowInvocationContextRegistry } from './invocationContextRegistry'
 import { assertCurrentWorkflowRunScope, WorkflowCapabilityScopeChangedError } from './launchScope'
 import type { WorkflowLaunchScopePort } from './service'
@@ -43,6 +45,7 @@ export const DEFAULT_WORKFLOW_RESULT_SCHEMA = Object.freeze({
 export interface WorkflowChildRepositoryPort {
   requireRun(runId: string): WorkflowRun
   requireInvocation(invocationId: string): WorkflowInvocation
+  getInvocationByChildSessionId(childSessionId: string): WorkflowInvocation | null
   attachChildSession(invocationId: string, childSessionId: string, now?: number): WorkflowInvocation
   markInvocationAdmitted(invocationId: string, now?: number): WorkflowInvocation
   markInvocationRunning(invocationId: string, now?: number): WorkflowInvocation
@@ -86,6 +89,15 @@ export interface WorkflowChildSessionPort extends Pick<
     parentSessionId: string,
     correlationSlot: string
   ): Promise<ConversationSessionInfo | null>
+  findLineageChild(
+    parentSessionId: string,
+    lineageSlot: string
+  ): Promise<ConversationSessionInfo | null>
+  rebindWorkflowChild(input: {
+    sessionId: string
+    slotId: string
+    workflowContext: WorkflowSubagentContext
+  }): Promise<ConversationSessionInfo | null>
 }
 
 export interface WorkflowChildExecutorOptions {
@@ -324,30 +336,53 @@ export class WorkflowChildExecutor {
       const failure = toInvocationFailure(error, abortScope)
       this.failActiveInvocation(invocationId, failure, invocationUsage)
       if (child && shouldCancelChild) {
-        const childAlreadyStopped = childKnownStopped || tracker?.isTerminal === true
+        const childAlreadyStopped = childKnownStopped || tracker?.isStopped === true
         if (childAlreadyStopped) {
           contextMayRelease = true
           if (childAttached) {
             await this.tryRecordFailureTape(run, invocationId, child, failure)
           }
         } else {
-          const cancellation = await cancelChildWithinBound(this.options.sessions, child.sessionId)
-          contextMayRelease = cancellation.stoppedWithinBound
-          if (cancellation.stoppedWithinBound) {
+          void this.options.sessions.cancelConversation(child.sessionId).catch((cancelError) => {
+            console.warn(
+              `[WorkflowChildExecutor] Failed to request child cancellation for invocation=${invocationId} child=${child!.sessionId}:`,
+              cancelError
+            )
+          })
+          if (!tracker) {
+            contextMayRelease = true
             if (childAttached) {
               await this.tryRecordFailureTape(run, invocationId, child, failure)
             }
-          } else if (!cancellation.completedWithinBound) {
-            const releaseLateContext = releaseContext
-            void cancellation.completion.then(async (stopped) => {
-              if (!stopped) {
-                return
-              }
+          } else {
+            const stoppedWithinBound = await waitForChildStopWithinBound(tracker.stopped)
+            if (stoppedWithinBound) {
+              contextMayRelease = true
               if (childAttached) {
-                await this.tryRecordFailureTape(run, invocationId, child!, failure)
+                await this.tryRecordFailureTape(run, invocationId, child, failure)
               }
-              releaseLateContext?.()
-            })
+            } else {
+              const releaseLateContext = releaseContext
+              const lateTracker = tracker
+              tracker = null
+              void lateTracker.stopped
+                .then(async () => {
+                  try {
+                    if (childAttached) {
+                      await this.tryRecordFailureTape(run, invocationId, child!, failure)
+                    }
+                  } finally {
+                    releaseLateContext?.()
+                  }
+                })
+                .catch((lateError) => {
+                  console.warn(
+                    `[WorkflowChildExecutor] Failed to finalize stopped child for invocation=${invocationId} child=${child!.sessionId}:`,
+                    lateError
+                  )
+                })
+                .finally(() => lateTracker.close())
+            }
           }
         }
       }
@@ -449,6 +484,42 @@ export class WorkflowChildExecutor {
         invocation.childCorrelationSlot
       )
       if (!child) {
+        const lineageSlot = createWorkflowChildLineageSlot(run.id, invocation.callPath)
+        const lineageChild = await this.options.sessions.findLineageChild(
+          parent.sessionId,
+          lineageSlot
+        )
+        if (
+          lineageChild &&
+          this.options.repository.getInvocationByChildSessionId(lineageChild.sessionId) === null
+        ) {
+          this.assertRecoverableLineageChild(
+            lineageChild,
+            invocation,
+            run,
+            parent,
+            targetAgentId,
+            lineageSlot
+          )
+          child = await this.options.sessions.rebindWorkflowChild({
+            sessionId: lineageChild.sessionId,
+            slotId: invocation.childCorrelationSlot,
+            workflowContext: {
+              runId: run.id,
+              invocationId: invocation.id,
+              correlationSlot: invocation.childCorrelationSlot,
+              lineageSlot
+            }
+          })
+          if (!child) {
+            throw new WorkflowChildConfigurationError(
+              'WORKFLOW_CHILD_MISSING',
+              `Recoverable workflow child disappeared: ${lineageChild.sessionId}`
+            )
+          }
+        }
+      }
+      if (!child) {
         child = await this.options.sessions.createSubagentSession(
           buildChildCreationInput(invocation, run, parent, targetAgentId)
         )
@@ -464,6 +535,50 @@ export class WorkflowChildExecutor {
     return {
       child,
       created
+    }
+  }
+
+  private assertRecoverableLineageChild(
+    child: ConversationSessionInfo,
+    invocation: WorkflowInvocation,
+    run: WorkflowRun,
+    parent: ConversationSessionInfo,
+    targetAgentId: string,
+    lineageSlot: string
+  ): void {
+    const workflow = child.subagentMeta?.workflow
+    let priorInvocation: WorkflowInvocation | null = null
+    if (workflow) {
+      try {
+        priorInvocation = this.options.repository.requireInvocation(workflow.invocationId)
+      } catch {
+        priorInvocation = null
+      }
+    }
+    const priorLineage =
+      priorInvocation &&
+      createWorkflowChildLineageSlot(priorInvocation.runId, priorInvocation.callPath)
+    if (
+      !priorInvocation ||
+      child.agentType !== 'deepchat' ||
+      child.sessionKind !== 'subagent' ||
+      child.parentSessionId !== parent.sessionId ||
+      child.agentId !== targetAgentId ||
+      workflow?.runId !== run.id ||
+      priorInvocation.runId !== run.id ||
+      priorInvocation.callPath !== invocation.callPath ||
+      priorInvocation.executionEpoch >= invocation.executionEpoch ||
+      priorInvocation.status !== 'interrupted' ||
+      child.subagentMeta?.slotId !== workflow?.correlationSlot ||
+      workflow?.correlationSlot !== priorInvocation.childCorrelationSlot ||
+      priorLineage !== lineageSlot ||
+      (workflow.lineageSlot !== undefined && workflow.lineageSlot !== priorLineage) ||
+      priorInvocation.childSessionId !== null
+    ) {
+      throw new WorkflowChildConfigurationError(
+        'WORKFLOW_CHILD_LINEAGE_MISMATCH',
+        `Recoverable child session does not match workflow lineage for ${invocation.id}.`
+      )
     }
   }
 
@@ -714,7 +829,8 @@ function buildChildCreationInput(
     workflowContext: {
       runId: run.id,
       invocationId: invocation.id,
-      correlationSlot: invocation.childCorrelationSlot
+      correlationSlot: invocation.childCorrelationSlot,
+      lineageSlot: createWorkflowChildLineageSlot(run.id, invocation.callPath)
     }
   }
 }
@@ -735,7 +851,9 @@ function assertCorrelatedChild(
     child.subagentMeta?.slotId !== invocation.childCorrelationSlot ||
     workflow?.runId !== run.id ||
     workflow?.invocationId !== invocation.id ||
-    workflow?.correlationSlot !== invocation.childCorrelationSlot
+    workflow?.correlationSlot !== invocation.childCorrelationSlot ||
+    (workflow.lineageSlot !== undefined &&
+      workflow.lineageSlot !== createWorkflowChildLineageSlot(run.id, invocation.callPath))
   ) {
     throw new WorkflowChildConfigurationError(
       'WORKFLOW_CHILD_CORRELATION_MISMATCH',
@@ -783,34 +901,15 @@ async function waitForChildTurn(
   ])
 }
 
-async function cancelChildWithinBound(
-  sessions: Pick<WorkflowChildSessionPort, 'cancelConversation'>,
-  childSessionId: string
-): Promise<{
-  stoppedWithinBound: boolean
-  completedWithinBound: boolean
-  completion: Promise<boolean>
-}> {
+async function waitForChildStopWithinBound(stopped: Promise<void>): Promise<boolean> {
   let timeout: ReturnType<typeof setTimeout> | undefined
-  const cancellation = sessions.cancelConversation(childSessionId).then(
-    () => true,
-    () => false
-  )
   try {
-    const outcome = await Promise.race([
-      cancellation.then((stopped) => ({ completedWithinBound: true, stopped })),
-      new Promise<{ completedWithinBound: false; stopped: false }>((resolve) => {
-        timeout = setTimeout(
-          () => resolve({ completedWithinBound: false, stopped: false }),
-          CHILD_CANCELLATION_SETTLE_MS
-        )
+    return await Promise.race([
+      stopped.then(() => true),
+      new Promise<false>((resolve) => {
+        timeout = setTimeout(() => resolve(false), CHILD_CANCELLATION_SETTLE_MS)
       })
     ])
-    return {
-      stoppedWithinBound: outcome.stopped,
-      completedWithinBound: outcome.completedWithinBound,
-      completion: cancellation
-    }
   } finally {
     if (timeout !== undefined) {
       clearTimeout(timeout)

@@ -156,6 +156,7 @@ import { WorkflowToolEffectObserver } from '@/workflow/effectObserver'
 import { WorkflowInvocationContextRegistry } from '@/workflow/invocationContextRegistry'
 import { WorkflowStructuredOutputRegistry } from '@/workflow/structuredOutput/registry'
 import { WorkflowChildExecutor } from '@/workflow/childExecutor'
+import { createWorkflowChildLineageSlot } from '@/workflow/childIdentity'
 import { WorkflowRunAdmission } from '@/workflow/runAdmission'
 import { WorkflowLaunchScopeResolver } from '@/workflow/launchScope'
 import { WorkflowService, type WorkflowServiceUpdate } from '@/workflow/service'
@@ -1528,6 +1529,46 @@ export async function createMainProcessControl(dependencies: {
         return matches[0]
           ? await agentToolDependencies.sessions.resolveConversationSessionInfo(matches[0].id)
           : null
+      },
+      findLineageChild: async (parentSessionId, lineageSlot) => {
+        const matches = appSessionService
+          .list({ includeSubagents: true, parentSessionId })
+          .filter((session) => {
+            const workflow = session.subagentMeta?.workflow
+            if (!workflow) {
+              return false
+            }
+            const priorInvocation = workflowRepository.getInvocation(workflow.invocationId)
+            const effectiveLineage =
+              workflow.lineageSlot ??
+              (priorInvocation
+                ? createWorkflowChildLineageSlot(priorInvocation.runId, priorInvocation.callPath)
+                : null)
+            return (
+              effectiveLineage === lineageSlot &&
+              workflowRepository.getInvocationByChildSessionId(session.id) === null
+            )
+          })
+        if (matches.length > 1) {
+          throw new Error(`Multiple orphan workflow children share lineage ${lineageSlot}.`)
+        }
+        return matches[0]
+          ? await agentToolDependencies.sessions.resolveConversationSessionInfo(matches[0].id)
+          : null
+      },
+      rebindWorkflowChild: async (input) => {
+        const session = appSessionService.get(input.sessionId)
+        if (!session?.subagentMeta) {
+          return null
+        }
+        appSessionService.update(input.sessionId, {
+          subagentMeta: {
+            ...session.subagentMeta,
+            slotId: input.slotId,
+            workflow: input.workflowContext
+          }
+        })
+        return await agentToolDependencies.sessions.resolveConversationSessionInfo(input.sessionId)
       }
     },
     admission: agentInvocationAdmission,

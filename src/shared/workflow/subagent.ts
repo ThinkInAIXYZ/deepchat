@@ -6,7 +6,8 @@ export const WorkflowSubagentContextSchema = z
   .object({
     runId: WorkflowSubagentIdSchema,
     invocationId: WorkflowSubagentIdSchema,
-    correlationSlot: WorkflowSubagentIdSchema
+    correlationSlot: WorkflowSubagentIdSchema,
+    lineageSlot: WorkflowSubagentIdSchema.optional()
   })
   .strict()
 

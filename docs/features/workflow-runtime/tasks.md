@@ -309,8 +309,9 @@ Final review findings, ordered by severity:
 - [x] Make deferred settlement cleanup and pending-job draining failure-safe.
 - [x] Add non-optional default run and invocation deadlines.
 - [x] Arm invocation timeout only after global child admission.
-- [ ] Release invocation context on cancellation false/rejection and record terminal failure.
-- [ ] Reattach crash-window child sessions by stable logical lineage without reusing retry children.
+- [x] Retain invocation context after cancellation resolve/rejection until child terminal evidence,
+  then freeze failure Tape before release.
+- [x] Reattach crash-window child sessions by stable logical lineage without reusing retry children.
 - [ ] Isolate malformed startup rows and add a capacity-aware queued-run pump.
 - [ ] Add focused sandbox, deadline, cancellation, lineage, and startup recovery tests.
 

@@ -33,6 +33,7 @@ import {
   WorkflowRuntimeLimitsSchema
 } from '@shared/workflow/runtimeProtocol'
 import { canonicalizeWorkflowJson } from './domain/json'
+import { createWorkflowChildCorrelationSlot } from './childIdentity'
 import type { WorkflowDatabase } from './data/database'
 import type { WorkflowInvocationRow } from './data/tables/workflowInvocations'
 import type { WorkflowRunRow } from './data/tables/workflowRuns'
@@ -579,7 +580,7 @@ export class WorkflowRepository {
            WHERE run_id = ? AND call_path = ?`
         )
         .get(runId, request.callPath) as { attempt: number }
-      const childCorrelationSlot = createChildCorrelationSlot(
+      const childCorrelationSlot = createWorkflowChildCorrelationSlot(
         runId,
         request.callPath,
         attemptRow.attempt
@@ -1597,10 +1598,6 @@ function createInvocationCounts(): WorkflowInvocationCounts {
   return Object.fromEntries(
     WORKFLOW_INVOCATION_STATUSES.map((status) => [status, 0])
   ) as WorkflowInvocationCounts
-}
-
-function createChildCorrelationSlot(runId: string, callPath: string, attempt: number): string {
-  return `workflow:${hashString(JSON.stringify([runId, callPath, attempt]))}`
 }
 
 function clampReason(reason: string): string {

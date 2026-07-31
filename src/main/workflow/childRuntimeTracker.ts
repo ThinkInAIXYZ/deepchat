@@ -30,10 +30,13 @@ export class ChildRuntimeTracker {
   private responseMarkdown = ''
   private answerMarkdown = ''
   private usage: WorkflowUsage = {}
+  private stoppedState = false
   private resolveTerminal!: (state: ChildTerminalState) => void
   private rejectTerminal!: (error: unknown) => void
+  private resolveStopped!: () => void
   private readonly unsubscribe: () => void
   readonly terminal: Promise<ChildTerminalState>
+  readonly stopped: Promise<void>
 
   constructor(
     private readonly sessionId: string,
@@ -47,16 +50,20 @@ export class ChildRuntimeTracker {
       this.resolveTerminal = resolve
       this.rejectTerminal = reject
     })
+    this.stopped = new Promise<void>((resolve) => {
+      this.resolveStopped = resolve
+    })
     void this.terminal.catch(() => undefined)
     this.unsubscribe = subscribe((update) => this.onUpdate(update))
   }
 
-  get isTerminal(): boolean {
-    return this.terminalState !== null
+  get isStopped(): boolean {
+    return this.stoppedState
   }
 
   markStarted(): void {
     this.started = true
+    this.maybeSettleStopped()
     this.maybeSettleTerminal()
   }
 
@@ -65,7 +72,17 @@ export class ChildRuntimeTracker {
   }
 
   private onUpdate(update: SessionRuntimeUpdate): void {
-    if (update.sessionId !== this.sessionId || this.terminalState || this.failed) {
+    if (update.sessionId !== this.sessionId) {
+      return
+    }
+    if (update.kind === 'status' && update.status) {
+      this.runtimeStatus = update.status
+      if (update.status === 'generating') {
+        this.started = true
+      }
+      this.maybeSettleStopped()
+    }
+    if (this.terminalState || this.failed) {
       return
     }
     try {
@@ -88,9 +105,7 @@ export class ChildRuntimeTracker {
       if (update.usage) {
         this.usage = normalizeUsage(update.usage)
       }
-      this.runtimeStatus = update.status
       if (update.status === 'generating') {
-        this.started = true
         return
       }
       this.maybeSettleTerminal()
@@ -100,9 +115,22 @@ export class ChildRuntimeTracker {
     }
   }
 
+  private maybeSettleStopped(): void {
+    if (
+      !this.started ||
+      this.stoppedState ||
+      (this.runtimeStatus !== 'idle' && this.runtimeStatus !== 'error')
+    ) {
+      return
+    }
+    this.stoppedState = true
+    this.resolveStopped()
+  }
+
   private maybeSettleTerminal(): void {
     if (
       !this.started ||
+      this.failed ||
       this.terminalState ||
       (this.runtimeStatus !== 'idle' && this.runtimeStatus !== 'error')
     ) {

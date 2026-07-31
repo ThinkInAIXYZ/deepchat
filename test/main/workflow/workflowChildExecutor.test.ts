@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 import { WorkflowInvocationContextRegistry } from '@/workflow/invocationContextRegistry'
+import { createWorkflowChildLineageSlot } from '@/workflow/childIdentity'
 import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
 import type { JsonValue } from '@shared/contracts/common'
 import type { ConversationSessionInfo, CreateSubagentSessionInput } from '@/tool/runtimePorts'
@@ -112,7 +113,9 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     )
     addSessionRow('parent')
     contexts = new WorkflowInvocationContextRegistry()
-    sessions = createSessionPort(parentSession())
+    sessions = createSessionPort(parentSession(), (invocationId) =>
+      repository.getInvocation(invocationId)
+    )
     sessions.addSessionRow = addSessionRow
     output = createStructuredOutputPort()
     now = 300
@@ -271,7 +274,8 @@ describeIfSqlite('WorkflowChildExecutor', () => {
         workflowContext: {
           runId: 'run-1',
           invocationId: invocation.id,
-          correlationSlot: invocation.childCorrelationSlot
+          correlationSlot: invocation.childCorrelationSlot,
+          lineageSlot: createWorkflowChildLineageSlot('run-1', invocation.callPath)
         }
       })
     )
@@ -467,6 +471,104 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       'recovered-child',
       expect.stringContaining('Complete the delegated work.')
     )
+  })
+
+  it('reattaches an orphan by logical lineage after recovery creates a new attempt', async () => {
+    const { run, invocation: first } = createRunAndInvocation()
+    const lineageSlot = createWorkflowChildLineageSlot(run.id, first.callPath)
+    const orphan = sessions.addCorrelatedChild({
+      id: 'lineage-orphan',
+      parent: sessions.parent,
+      targetAgentId: 'deepchat',
+      runId: run.id,
+      invocationId: first.id,
+      correlationSlot: first.childCorrelationSlot
+    })
+    addSessionRow(orphan.sessionId)
+    repository.reconcileInterruptedRun(run.id, 'utility crashed', 210)
+    repository.queueRunResume(run.id, 220)
+    repository.resumeRun(run.id, 230)
+    const second = repository.createInvocation({
+      id: 'invocation-2',
+      runId: run.id,
+      request: first.request,
+      now: 240
+    })
+    sessions.onSend = async (sessionId) => {
+      output.current!.resolve({ recovered: true })
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'idle',
+        updatedAt: 321
+      })
+    }
+
+    const result = await createExecutor().execute(second.id)
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      childSessionId: orphan.sessionId,
+      result: { recovered: true }
+    })
+    expect(repository.requireInvocation(first.id).childSessionId).toBeNull()
+    expect(sessions.rebindWorkflowChild).toHaveBeenCalledWith({
+      sessionId: orphan.sessionId,
+      slotId: second.childCorrelationSlot,
+      workflowContext: {
+        runId: run.id,
+        invocationId: second.id,
+        correlationSlot: second.childCorrelationSlot,
+        lineageSlot
+      }
+    })
+    expect(sessions.createSubagentSession).not.toHaveBeenCalled()
+  })
+
+  it('creates a fresh child when the lineage candidate belongs to an earlier attempt', async () => {
+    const { run, invocation: first } = createRunAndInvocation()
+    const lineageSlot = createWorkflowChildLineageSlot(run.id, first.callPath)
+    const priorChild = sessions.addCorrelatedChild({
+      id: 'prior-attempt-child',
+      parent: sessions.parent,
+      targetAgentId: 'deepchat',
+      runId: run.id,
+      invocationId: first.id,
+      correlationSlot: first.childCorrelationSlot,
+      lineageSlot
+    })
+    addSessionRow(priorChild.sessionId)
+    repository.markInvocationAdmitted(first.id, 210)
+    repository.attachChildSession(first.id, priorChild.sessionId, 220)
+    repository.markInvocationRunning(first.id, 230)
+    repository.reconcileInterruptedRun(run.id, 'utility crashed', 240)
+    repository.queueRunResume(run.id, 250)
+    repository.resumeRun(run.id, 260)
+    const second = repository.createInvocation({
+      id: 'invocation-2',
+      runId: run.id,
+      request: first.request,
+      now: 270
+    })
+    sessions.onSend = async (sessionId) => {
+      output.current!.resolve({ fresh: true })
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'idle',
+        updatedAt: 322
+      })
+    }
+
+    const result = await createExecutor().execute(second.id)
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      result: { fresh: true }
+    })
+    expect(result.childSessionId).not.toBe(priorChild.sessionId)
+    expect(sessions.rebindWorkflowChild).not.toHaveBeenCalled()
+    expect(sessions.createSubagentSession).toHaveBeenCalledOnce()
   })
 
   it('does not replace an attached child whose session can no longer be resolved', async () => {
@@ -762,13 +864,43 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     expect(contexts.size).toBe(0)
   })
 
+  it('releases effect protection when terminal status carries invalid usage', async () => {
+    const { invocation } = createRunAndInvocation()
+    sessions.onSend = async (sessionId) => {
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'idle',
+        usage: { totalTokens: -1 },
+        updatedAt: 358
+      })
+    }
+
+    const result = await createExecutor().execute(invocation.id)
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      tapeLinkReceipt: {
+        outcome: 'error'
+      }
+    })
+    expect(sessions.cancelConversation).not.toHaveBeenCalled()
+    expect(contexts.size).toBe(0)
+  })
+
   it('starts the host timeout after admission instead of spending it in the queue', async () => {
     vi.useFakeTimers()
     const { invocation } = createRunAndInvocation({ timeoutMs: 1_000 })
     const admission = new AgentInvocationAdmission(1, 8)
     const blocker = await admission.acquire({ ownerId: 'other-work' })
     const sent = deferred<void>()
-    sessions.onSend = async () => {
+    sessions.onSend = async (sessionId) => {
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'generating',
+        updatedAt: 359
+      })
       sent.resolve()
       await new Promise<void>(() => undefined)
     }
@@ -844,7 +976,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     expect(contexts.size).toBe(0)
   })
 
-  it('keeps effect protection until a delayed child cancellation actually settles', async () => {
+  it('keeps effect protection until terminal evidence arrives after cancellation resolves', async () => {
     vi.useFakeTimers()
     const { invocation } = createRunAndInvocation()
     const controller = new AbortController()
@@ -880,12 +1012,148 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     expect(contexts.size).toBe(1)
 
     cancellation.resolve()
+    await Promise.resolve()
+    expect(contexts.size).toBe(1)
+
+    sessions.emit({
+      sessionId: 'child-1',
+      kind: 'status',
+      status: 'idle',
+      updatedAt: 346
+    })
     await vi.waitFor(() => {
       expect(contexts.size).toBe(0)
       expect(repository.requireInvocation(invocation.id).tapeLinkReceipt).toMatchObject({
         outcome: 'cancelled'
       })
     })
+  })
+
+  it('ignores an idle cancellation event until a delayed child turn actually starts and stops', async () => {
+    vi.useFakeTimers()
+    const { invocation } = createRunAndInvocation()
+    const controller = new AbortController()
+    const sendStarted = deferred<void>()
+    sessions.onSend = async () => {
+      sendStarted.resolve()
+      await new Promise<void>(() => undefined)
+    }
+
+    const execution = createExecutor().execute(invocation.id, {
+      signal: controller.signal
+    })
+    await sendStarted.promise
+    controller.abort()
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    await expect(execution).resolves.toMatchObject({
+      status: 'cancelled',
+      tapeLinkReceipt: null
+    })
+    expect(contexts.size).toBe(1)
+
+    sessions.emit({
+      sessionId: 'child-1',
+      kind: 'status',
+      status: 'generating',
+      updatedAt: 347
+    })
+    expect(contexts.size).toBe(1)
+    sessions.emit({
+      sessionId: 'child-1',
+      kind: 'status',
+      status: 'idle',
+      updatedAt: 348
+    })
+    await vi.waitFor(() => {
+      expect(contexts.size).toBe(0)
+      expect(repository.requireInvocation(invocation.id).tapeLinkReceipt).toMatchObject({
+        outcome: 'cancelled'
+      })
+    })
+  })
+
+  it('releases effect protection after a rejected cancellation is followed by terminal evidence', async () => {
+    const { invocation } = createRunAndInvocation()
+    const controller = new AbortController()
+    const sent = deferred<void>()
+    sessions.cancelConversation.mockRejectedValue(new Error('cancel transport failed'))
+    sessions.onSend = async (sessionId) => {
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'generating',
+        updatedAt: 346
+      })
+      sent.resolve()
+    }
+
+    const execution = createExecutor().execute(invocation.id, {
+      signal: controller.signal
+    })
+    await sent.promise
+    controller.abort()
+
+    await vi.waitFor(() => expect(sessions.cancelConversation).toHaveBeenCalledOnce())
+    expect(contexts.size).toBe(1)
+
+    sessions.emit({
+      sessionId: 'child-1',
+      kind: 'status',
+      status: 'idle',
+      updatedAt: 347
+    })
+    await expect(execution).resolves.toMatchObject({
+      status: 'cancelled',
+      tapeLinkReceipt: {
+        outcome: 'cancelled'
+      }
+    })
+    expect(contexts.size).toBe(0)
+  })
+
+  it('rejects explicit lineage metadata that masks a different persisted call path', async () => {
+    const { run, invocation: first } = createRunAndInvocation()
+    const requestedLineage = createWorkflowChildLineageSlot(run.id, first.callPath)
+    const unrelated = repository.createInvocation({
+      id: 'unrelated-invocation',
+      runId: run.id,
+      request: {
+        ...first.request,
+        callPath: 'unrelated'
+      },
+      now: 205
+    })
+    const orphan = sessions.addCorrelatedChild({
+      id: 'mislabelled-lineage-orphan',
+      parent: sessions.parent,
+      targetAgentId: 'deepchat',
+      runId: run.id,
+      invocationId: unrelated.id,
+      correlationSlot: unrelated.childCorrelationSlot,
+      lineageSlot: requestedLineage
+    })
+    addSessionRow(orphan.sessionId)
+    repository.reconcileInterruptedRun(run.id, 'utility crashed', 210)
+    repository.queueRunResume(run.id, 220)
+    repository.resumeRun(run.id, 230)
+    const second = repository.createInvocation({
+      id: 'invocation-2',
+      runId: run.id,
+      request: first.request,
+      now: 240
+    })
+
+    const result = await createExecutor().execute(second.id)
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'WORKFLOW_CHILD_LINEAGE_MISMATCH'
+      }
+    })
+    expect(sessions.rebindWorkflowChild).not.toHaveBeenCalled()
+    expect(sessions.sendConversationMessage).not.toHaveBeenCalled()
   })
 
   it('fails on a mismatched recovered child before sending a handoff', async () => {
@@ -938,7 +1206,10 @@ describeIfSqlite('WorkflowChildExecutor', () => {
   })
 })
 
-function createSessionPort(initialParent: ConversationSessionInfo) {
+function createSessionPort(
+  initialParent: ConversationSessionInfo,
+  resolveInvocation?: (invocationId: string) => WorkflowInvocation | null
+) {
   const listeners = new Set<(update: SessionRuntimeUpdate) => void>()
   const children = new Map<string, ConversationSessionInfo>()
   let sequence = 0
@@ -967,6 +1238,46 @@ function createSessionPort(initialParent: ConversationSessionInfo) {
       }
       return matches[0] ?? null
     }),
+    findLineageChild: vi.fn(async (parentSessionId: string, lineageSlot: string) => {
+      const matches = [...children.values()].filter((child) => {
+        const workflow = child.subagentMeta?.workflow
+        const priorInvocation = workflow ? resolveInvocation?.(workflow.invocationId) : null
+        const effectiveLineage =
+          workflow?.lineageSlot ??
+          (priorInvocation
+            ? createWorkflowChildLineageSlot(priorInvocation.runId, priorInvocation.callPath)
+            : null)
+        return child.parentSessionId === parentSessionId && effectiveLineage === lineageSlot
+      })
+      if (matches.length > 1) {
+        throw new Error(`Duplicate workflow children for lineage ${lineageSlot}`)
+      }
+      return matches[0] ?? null
+    }),
+    rebindWorkflowChild: vi.fn(
+      async (input: {
+        sessionId: string
+        slotId: string
+        workflowContext: NonNullable<
+          NonNullable<ConversationSessionInfo['subagentMeta']>['workflow']
+        >
+      }) => {
+        const child = children.get(input.sessionId)
+        if (!child?.subagentMeta) {
+          return null
+        }
+        const rebound: ConversationSessionInfo = {
+          ...child,
+          subagentMeta: {
+            ...child.subagentMeta,
+            slotId: input.slotId,
+            workflow: input.workflowContext
+          }
+        }
+        children.set(rebound.sessionId, rebound)
+        return rebound
+      }
+    ),
     createSubagentSession: vi.fn(async (input: CreateSubagentSessionInput) => {
       const sessionId = `child-${++sequence}`
       const child: ConversationSessionInfo = {
@@ -1009,7 +1320,14 @@ function createSessionPort(initialParent: ConversationSessionInfo) {
     sendConversationMessage: vi.fn(async (sessionId: string, content: string) => {
       await port.onSend?.(sessionId, content)
     }),
-    cancelConversation: vi.fn(async () => undefined),
+    cancelConversation: vi.fn(async (sessionId: string) => {
+      port.emit({
+        sessionId,
+        kind: 'status',
+        status: 'idle',
+        updatedAt: 1_000
+      })
+    }),
     subscribeSessionRuntimeUpdates: vi.fn((listener: (update: SessionRuntimeUpdate) => void) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -1026,6 +1344,7 @@ function createSessionPort(initialParent: ConversationSessionInfo) {
       runId: string
       invocationId: string
       correlationSlot: string
+      lineageSlot?: string
     }): ConversationSessionInfo {
       const child: ConversationSessionInfo = {
         ...input.parent,
@@ -1042,7 +1361,8 @@ function createSessionPort(initialParent: ConversationSessionInfo) {
           workflow: {
             runId: input.runId,
             invocationId: input.invocationId,
-            correlationSlot: input.correlationSlot
+            correlationSlot: input.correlationSlot,
+            ...(input.lineageSlot ? { lineageSlot: input.lineageSlot } : {})
           }
         },
         subagentCapability: unavailableSubagents

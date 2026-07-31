@@ -197,7 +197,9 @@ describeIfSqlite('WorkflowRepository', () => {
     expect(firstAlpha).toMatchObject({
       seq: 1,
       attempt: 1,
-      executionEpoch: 1
+      executionEpoch: 1,
+      childCorrelationSlot:
+        'workflow:cf36751b5df71564ca959a73396bbae1ce752197983221642eade38d2005d779'
     })
     expect(
       createInvocation(run.id, 'beta', {
