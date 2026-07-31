@@ -6,6 +6,8 @@ import {
   WorkflowRuntimeLimitsSchema
 } from './runtimeProtocol'
 
+export const WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS = 2 * 60 * 60 * 1_000
+
 const WorkflowStoredIdSchema = z.string().trim().min(1).max(256)
 const WorkflowNamedPathSchema = z
   .string()
@@ -129,11 +131,15 @@ export function resolveWorkflowLaunchRequest(draft: WorkflowLaunchDraft): Workfl
     ...WORKFLOW_RUNTIME_DEFAULT_LIMITS,
     ...parsed.limits
   })
+  const budget = WorkflowRunBudgetSchema.parse({
+    ...(parsed.budget ?? {}),
+    maxExecutionMs: parsed.budget?.maxExecutionMs ?? WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS
+  })
   return WorkflowLaunchRequestSchema.parse({
     ...parsed,
     parentMessageId: parsed.parentMessageId ?? null,
     namedWorkflowPath: parsed.namedWorkflowPath ?? null,
-    budget: parsed.budget ?? null,
+    budget,
     allowedAgentIds: [...new Set(parsed.allowedAgentIds)].sort(),
     limits
   })

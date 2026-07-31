@@ -138,11 +138,7 @@ export class WorkflowChildExecutor {
       )
     }
     const run = this.options.repository.requireRun(initial.runId)
-    const abortScope = createInvocationAbortScope(
-      options?.signal,
-      initial.timeoutDeadlineAt,
-      this.now
-    )
+    const abortScope = createInvocationAbortScope(options?.signal, this.now)
     try {
       abortScope.signal.throwIfAborted()
       const preparedOutput = this.options.structuredOutput.prepare({
@@ -204,16 +200,18 @@ export class WorkflowChildExecutor {
     signal.throwIfAborted()
     await assertCurrentWorkflowRunScope(this.options.launchScope, run)
     signal.throwIfAborted()
+    let admitted: WorkflowInvocation
     try {
-      this.notifyInvocationChanged(
-        this.options.repository.markInvocationAdmitted(invocationId, this.now())
-      )
+      admitted = this.options.repository.markInvocationAdmitted(invocationId, this.now())
     } catch (error) {
       if (this.options.repository.requireInvocation(invocationId).status !== 'queued') {
         throw new WorkflowInvocationOwnershipLostError(invocationId, { cause: error })
       }
       throw error
     }
+    this.notifyInvocationChanged(admitted)
+    abortScope.armTimeout(admitted.timeoutDeadlineAt)
+    signal.throwIfAborted()
 
     let child: ConversationSessionInfo | null = null
     let tracker: ChildRuntimeTracker | null = null
@@ -528,6 +526,7 @@ function addUsage(accumulated: WorkflowUsage | null, next: WorkflowUsage): Workf
 
 interface InvocationAbortScope {
   signal: AbortSignal
+  armTimeout(deadlineAt: number | null): void
   didTimeout(): boolean
   didCancel(): boolean
   dispose(): void
@@ -535,12 +534,12 @@ interface InvocationAbortScope {
 
 function createInvocationAbortScope(
   externalSignal: AbortSignal | undefined,
-  timeoutDeadlineAt: number | null,
   now: () => number
 ): InvocationAbortScope {
   const controller = new AbortController()
   let timedOut = false
   let cancelled = false
+  let timeoutArmed = false
   let timeout: ReturnType<typeof setTimeout> | undefined
   const abortFromExternal = () => {
     if (controller.signal.aborted) {
@@ -553,8 +552,19 @@ function createInvocationAbortScope(
   if (externalSignal?.aborted) {
     abortFromExternal()
   }
-  if (timeoutDeadlineAt !== null && !controller.signal.aborted) {
-    const remaining = timeoutDeadlineAt - now()
+
+  const armTimeout = (deadlineAt: number | null) => {
+    if (timeoutArmed) {
+      throw new Error('Workflow invocation timeout is already armed.')
+    }
+    if (deadlineAt === null) {
+      throw new Error('Admitted workflow invocation is missing its timeout deadline.')
+    }
+    timeoutArmed = true
+    if (controller.signal.aborted) {
+      return
+    }
+    const remaining = deadlineAt - now()
     const abortFromTimeout = () => {
       if (controller.signal.aborted) {
         return
@@ -571,6 +581,7 @@ function createInvocationAbortScope(
 
   return {
     signal: controller.signal,
+    armTimeout,
     didTimeout: () => timedOut,
     didCancel: () => cancelled,
     dispose: () => {

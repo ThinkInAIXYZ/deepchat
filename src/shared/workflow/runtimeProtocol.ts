@@ -4,6 +4,7 @@ import { JsonValueSchema, type JsonValue } from '../contracts/common'
 export const WORKFLOW_RUNTIME_PROTOCOL_VERSION = 1 as const
 export const WORKFLOW_RUNTIME_API_VERSION = 1 as const
 export const WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES = 1024 * 1024
+export const WORKFLOW_DEFAULT_INVOCATION_TIMEOUT_MS = 30 * 60 * 1_000
 
 export const WORKFLOW_RUNTIME_DEFAULT_LIMITS = Object.freeze({
   maxScriptBytes: 256 * 1024,

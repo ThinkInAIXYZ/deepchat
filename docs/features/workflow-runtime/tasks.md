@@ -307,8 +307,8 @@ Final review findings, ordered by severity:
 
 - [x] Freeze guest-reachable native promise intrinsics and retain host-owned JSON conversion.
 - [x] Make deferred settlement cleanup and pending-job draining failure-safe.
-- [ ] Add non-optional default run and invocation deadlines.
-- [ ] Arm invocation timeout only after global child admission.
+- [x] Add non-optional default run and invocation deadlines.
+- [x] Arm invocation timeout only after global child admission.
 - [ ] Release invocation context on cancellation false/rejection and record terminal failure.
 - [ ] Reattach crash-window child sessions by stable logical lineage without reusing retry children.
 - [ ] Isolate malformed startup rows and add a capacity-aware queued-run pump.

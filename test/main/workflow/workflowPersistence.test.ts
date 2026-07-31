@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
+import {
+  WORKFLOW_DEFAULT_INVOCATION_TIMEOUT_MS,
+  WORKFLOW_RUNTIME_DEFAULT_LIMITS
+} from '@shared/workflow/runtimeProtocol'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const workflowDatabaseModule = Database
@@ -232,16 +235,28 @@ describeIfSqlite('WorkflowRepository', () => {
       id: secondAlpha.id,
       attempt: 2
     })
-    expect(
-      createInvocation(run.id, 'gamma', {
-        id: 'timed-invocation',
-        timeoutMs: 1_000,
-        now: 240
-      })
-    ).toMatchObject({
-      seq: 4,
-      timeoutDeadlineAt: 1_240
+    const timed = createInvocation(run.id, 'gamma', {
+      id: 'timed-invocation',
+      timeoutMs: 1_000,
+      now: 240
     })
+    expect(timed).toMatchObject({
+      seq: 4,
+      timeoutDeadlineAt: null
+    })
+    expect(repository.markInvocationAdmitted(timed.id, 250)).toMatchObject({
+      status: 'admitted',
+      timeoutDeadlineAt: 1_250
+    })
+    expect(() =>
+      db!
+        .prepare(
+          `UPDATE workflow_invocations
+           SET timeout_deadline_at = ?
+           WHERE invocation_id = ?`
+        )
+        .run(2_000, timed.id)
+    ).toThrow('timeout may only be armed at admission')
     expect(() =>
       createInvocation(run.id, 'delta', {
         id: 'invalid-deadline',
@@ -256,7 +271,9 @@ describeIfSqlite('WorkflowRepository', () => {
     repository.startRun(run.id, 110)
     const admitted = createInvocation(run.id, 'admitted')
     createInvocation(run.id, 'queued', { id: 'queued-invocation' })
-    repository.markInvocationAdmitted(admitted.id, 210)
+    expect(repository.markInvocationAdmitted(admitted.id, 210).timeoutDeadlineAt).toBe(
+      210 + WORKFLOW_DEFAULT_INVOCATION_TIMEOUT_MS
+    )
 
     expect(repository.getInvocationCounts([run.id]).get(run.id)).toMatchObject({
       queued: 1,

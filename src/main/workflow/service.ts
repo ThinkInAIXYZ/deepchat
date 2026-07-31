@@ -19,6 +19,7 @@ import {
   type WorkflowRuntimeEvent
 } from '@shared/workflow/runtimeProtocol'
 import {
+  WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS,
   WorkflowRunBudgetSchema,
   WorkflowLaunchIntentSchema,
   WorkflowUsageSchema,
@@ -888,9 +889,7 @@ export class WorkflowService {
 
   private armExecutionBudget(execution: ActiveRunExecution, run: WorkflowRun): void {
     const budget = parseBudget(run)
-    if (!budget?.maxExecutionMs) {
-      return
-    }
+    const maxExecutionMs = budget?.maxExecutionMs ?? WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS
     execution.executionTimer = setTimeout(() => {
       if (execution.exited || execution.terminalizing) {
         return
@@ -908,11 +907,11 @@ export class WorkflowService {
         execution,
         this.finalizeFailure(execution, {
           code: 'WORKFLOW_EXECUTION_BUDGET_EXCEEDED',
-          message: `Workflow execution exceeded ${budget.maxExecutionMs}ms.`,
+          message: `Workflow execution exceeded ${maxExecutionMs}ms.`,
           retriable: true
         })
       )
-    }, budget.maxExecutionMs)
+    }, maxExecutionMs)
   }
 
   private checkTokenBudget(runId: string): WorkflowInvocationError | null {

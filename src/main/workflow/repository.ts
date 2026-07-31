@@ -25,6 +25,7 @@ import {
 } from '@shared/workflow/domain'
 import type { WorkflowInvocationCounts } from '@shared/workflow/projection'
 import {
+  WORKFLOW_DEFAULT_INVOCATION_TIMEOUT_MS,
   WORKFLOW_RUNTIME_API_VERSION,
   WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES,
   WorkflowGuestAgentRequestSchema,
@@ -477,10 +478,6 @@ export class WorkflowRepository {
     })
     const request = WorkflowGuestAgentRequestSchema.parse(boundedRequest.value)
     const now = parseTimestamp(input.now ?? Date.now(), 'workflow invocation creation time')
-    const timeoutDeadlineAt =
-      request.options.timeoutMs == null
-        ? null
-        : parseTimestamp(now + request.options.timeoutMs, 'workflow invocation timeout deadline')
     const db = this.database.getDatabase()
 
     const row = db.transaction(() => {
@@ -628,7 +625,7 @@ export class WorkflowRepository {
         boundedRequest.sha256,
         run.policy_hash,
         childCorrelationSlot,
-        timeoutDeadlineAt,
+        null,
         now,
         now
       )
@@ -802,7 +799,16 @@ export class WorkflowRepository {
   }
 
   markInvocationAdmitted(invocationId: string, now = Date.now()): WorkflowInvocation {
-    return this.transitionInvocation(invocationId, 'admitted', now)
+    const invocation = this.requireInvocation(invocationId)
+    const timestamp = parseTimestamp(now, 'workflow invocation admission time')
+    const timeoutMs = invocation.request.options.timeoutMs ?? WORKFLOW_DEFAULT_INVOCATION_TIMEOUT_MS
+    const timeoutDeadlineAt = parseTimestamp(
+      timestamp + timeoutMs,
+      'workflow invocation timeout deadline'
+    )
+    return this.transitionInvocation(invocationId, 'admitted', timestamp, {
+      timeoutDeadlineAt
+    })
   }
 
   markInvocationRunning(invocationId: string, now = Date.now()): WorkflowInvocation {
@@ -1271,6 +1277,7 @@ export class WorkflowRepository {
       usageJson?: string | null
       tapeLinkReceiptJson?: string | null
       completedAt?: number | null
+      timeoutDeadlineAt?: number
     } = {}
   ): WorkflowInvocation {
     const timestamp = parseTimestamp(now, 'workflow invocation transition time')
@@ -1289,6 +1296,23 @@ export class WorkflowRepository {
       nextStatus === 'succeeded'
         ? 1
         : 0
+    const hasTimeoutDeadline = fields.timeoutDeadlineAt !== undefined
+    const values: Array<string | number | null> = [
+      nextStatus,
+      startedAt,
+      timestamp,
+      fields.completedAt ?? current.completedAt,
+      fields.resultJson ?? (current.result == null ? null : JSON.stringify(current.result)),
+      fields.errorJson ?? (current.error == null ? null : JSON.stringify(current.error)),
+      fields.usageJson ?? (current.usage == null ? null : JSON.stringify(current.usage)),
+      fields.tapeLinkReceiptJson ??
+        (current.tapeLinkReceipt == null ? null : JSON.stringify(current.tapeLinkReceipt))
+    ]
+    if (hasTimeoutDeadline) {
+      values.push(fields.timeoutDeadlineAt!)
+    }
+    values.push(invocationId, current.status, requiresActiveRun)
+
     const result = this.database
       .getDatabase()
       .prepare(
@@ -1301,6 +1325,7 @@ export class WorkflowRepository {
              error_json = ?,
              usage_json = ?,
              tape_link_receipt_json = ?
+             ${hasTimeoutDeadline ? ', timeout_deadline_at = ?' : ''}
          WHERE invocation_id = ?
            AND status = ?
            AND (
@@ -1313,20 +1338,7 @@ export class WorkflowRepository {
              )
            )`
       )
-      .run(
-        nextStatus,
-        startedAt,
-        timestamp,
-        fields.completedAt ?? current.completedAt,
-        fields.resultJson ?? (current.result == null ? null : JSON.stringify(current.result)),
-        fields.errorJson ?? (current.error == null ? null : JSON.stringify(current.error)),
-        fields.usageJson ?? (current.usage == null ? null : JSON.stringify(current.usage)),
-        fields.tapeLinkReceiptJson ??
-          (current.tapeLinkReceipt == null ? null : JSON.stringify(current.tapeLinkReceipt)),
-        invocationId,
-        current.status,
-        requiresActiveRun
-      )
+      .run(...values)
     if (result.changes !== 1) {
       if (requiresActiveRun === 1) {
         throw new Error(

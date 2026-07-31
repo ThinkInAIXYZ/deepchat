@@ -11,6 +11,7 @@ import {
   type WorkflowRuntimeCommand,
   type WorkflowRuntimeEvent
 } from '@shared/workflow/runtimeProtocol'
+import { WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS } from '@shared/workflow/serviceContracts'
 import { WorkflowDatabase } from '@/workflow/data/database'
 import { WorkflowInvocationsTable } from '@/workflow/data/tables/workflowInvocations'
 import { WorkflowRunsTable } from '@/workflow/data/tables/workflowRuns'
@@ -1127,6 +1128,21 @@ describeIfSqlite('WorkflowService', () => {
       error: { code: 'WORKFLOW_EXECUTION_BUDGET_EXCEEDED' }
     })
     vi.useRealTimers()
+  })
+
+  it('applies the default execution deadline to a legacy run without a stored budget', async () => {
+    vi.useFakeTimers()
+    const dormant = createDormantRun('interrupted', null)
+    const service = createService()
+
+    service.resume(dormant.id)
+    await waitForHost()
+    await vi.advanceTimersByTimeAsync(WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS)
+
+    expect(repository.requireRun(dormant.id)).toMatchObject({
+      status: 'failed',
+      error: { code: 'WORKFLOW_EXECUTION_BUDGET_EXCEEDED' }
+    })
   })
 
   it('isolates projection failures from durable run completion', async () => {

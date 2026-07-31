@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { JsonValue } from '@shared/contracts/common'
+import { WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS } from '@shared/workflow/serviceContracts'
 import {
   WorkflowLaunchApprovalExpiredError,
   WorkflowLaunchApprovalScopeError,
@@ -71,6 +72,27 @@ describe('WorkflowLaunchApprovalRegistry', () => {
         scriptSource: 'return await Promise.race([agent("a", { key: "a" })])'
       })
     ).toThrow('Direct .race() promise scheduling is unavailable')
+  })
+
+  it('applies a non-optional execution deadline when the draft omits one', () => {
+    const registry = new WorkflowLaunchApprovalRegistry()
+
+    const withoutBudget = registry.prepare({
+      ...draft(),
+      budget: undefined
+    })
+    const tokenOnly = registry.prepare({
+      ...draft(),
+      budget: { maxTotalTokens: 500 }
+    })
+
+    expect(withoutBudget.summary.budget).toEqual({
+      maxExecutionMs: WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS
+    })
+    expect(tokenOnly.summary.budget).toEqual({
+      maxExecutionMs: WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS,
+      maxTotalTokens: 500
+    })
   })
 
   it('bounds unconsumed approval state', () => {

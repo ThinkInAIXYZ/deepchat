@@ -762,11 +762,36 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     expect(contexts.size).toBe(0)
   })
 
-  it('records a host timeout while still queued without allocating a child', async () => {
+  it('starts the host timeout after admission instead of spending it in the queue', async () => {
+    vi.useFakeTimers()
     const { invocation } = createRunAndInvocation({ timeoutMs: 1_000 })
-    now = 2_000
+    const admission = new AgentInvocationAdmission(1, 8)
+    const blocker = await admission.acquire({ ownerId: 'other-work' })
+    const sent = deferred<void>()
+    sessions.onSend = async () => {
+      sent.resolve()
+      await new Promise<void>(() => undefined)
+    }
+    const execution = createExecutor(admission).execute(invocation.id)
+    await vi.waitFor(() => expect(admission.snapshot().pending).toBe(1))
 
-    const result = await createExecutor().execute(invocation.id)
+    now = 2_000
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(repository.requireInvocation(invocation.id)).toMatchObject({
+      status: 'queued',
+      timeoutDeadlineAt: null
+    })
+    expect(sessions.createSubagentSession).not.toHaveBeenCalled()
+
+    blocker.release()
+    await sent.promise
+    expect(repository.requireInvocation(invocation.id)).toMatchObject({
+      status: 'running',
+      timeoutDeadlineAt: 3_000
+    })
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    const result = await execution
 
     expect(result).toMatchObject({
       status: 'timed_out',
@@ -774,7 +799,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
         code: 'INVOCATION_TIMEOUT'
       }
     })
-    expect(sessions.createSubagentSession).not.toHaveBeenCalled()
+    expect(sessions.createSubagentSession).toHaveBeenCalledOnce()
     expect(repository.findReplayOutcome('run-1', invocation.request)).toMatchObject({
       status: 'timed_out'
     })

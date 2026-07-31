@@ -7,7 +7,7 @@ import {
   type WorkflowEffectState,
   type WorkflowInvocationStatus
 } from '@shared/workflow/domain'
-import { WORKFLOW_BASE_SCHEMA_VERSION } from './workflowRuns'
+import { WORKFLOW_BASE_SCHEMA_VERSION, WORKFLOW_SCHEMA_VERSION } from './workflowRuns'
 
 export interface WorkflowInvocationRow {
   invocation_id: string
@@ -94,11 +94,31 @@ const WORKFLOW_INVOCATIONS_TRIGGER_SQL = `
     request_json,
     input_hash,
     policy_hash,
-    child_correlation_slot,
-    timeout_deadline_at
+    child_correlation_slot
   ON workflow_invocations
   BEGIN
     SELECT RAISE(ABORT, 'workflow invocation identity is immutable');
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_workflow_invocations_timeout_arm
+  BEFORE UPDATE OF timeout_deadline_at ON workflow_invocations
+  WHEN NOT (
+    OLD.status = 'queued'
+    AND NEW.status = 'admitted'
+    AND NEW.timeout_deadline_at IS NOT NULL
+    AND typeof(NEW.timeout_deadline_at) = 'integer'
+    AND NEW.timeout_deadline_at >= NEW.updated_at
+  )
+  BEGIN
+    SELECT RAISE(ABORT, 'workflow invocation timeout may only be armed at admission');
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_workflow_invocations_timeout_required
+  BEFORE UPDATE OF status ON workflow_invocations
+  WHEN NEW.status IN ('admitted', 'running', 'waiting_interaction')
+    AND NEW.timeout_deadline_at IS NULL
+  BEGIN
+    SELECT RAISE(ABORT, 'active workflow invocation requires a timeout deadline');
   END;
 
   CREATE TRIGGER IF NOT EXISTS trg_workflow_runs_delete_invocations
@@ -285,15 +305,28 @@ export class WorkflowInvocationsTable extends BaseTable {
   }
 
   getMigrationSQL(version: number): string | null {
-    return version === WORKFLOW_BASE_SCHEMA_VERSION ? this.getCreateTableSQL() : null
+    if (version === WORKFLOW_BASE_SCHEMA_VERSION) {
+      return this.getCreateTableSQL()
+    }
+    if (version === WORKFLOW_SCHEMA_VERSION) {
+      return `
+        DROP TRIGGER IF EXISTS trg_workflow_invocations_immutable_identity;
+        DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_arm;
+        DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_required;
+        UPDATE workflow_invocations
+        SET timeout_deadline_at = NULL
+        WHERE status = 'queued';
+      `
+    }
+    return null
   }
 
   getLatestVersion(): number {
-    return WORKFLOW_BASE_SCHEMA_VERSION
+    return WORKFLOW_SCHEMA_VERSION
   }
 
   override finalizeMigration(version: number): void {
-    if (version === WORKFLOW_BASE_SCHEMA_VERSION) {
+    if (version === WORKFLOW_BASE_SCHEMA_VERSION || version === WORKFLOW_SCHEMA_VERSION) {
       this.db.exec(WORKFLOW_INVOCATIONS_TRIGGER_SQL)
     }
   }

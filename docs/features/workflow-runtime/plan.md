@@ -42,7 +42,8 @@ testable solution.
 ## 3. Add Durable Run And Invocation Storage
 
 - Add schema version 53 with `workflow_runs` and `workflow_invocations`, then additive version 54
-  for the immutable workspace/capability scope snapshot.
+  for the immutable workspace/capability scope snapshot, and version 55 for one-time invocation
+  deadline arming at admission.
 - Store the exact immutable executed script source and hash in the run row.
 - Enforce status checks, foreign keys, uniqueness, JSON bounds, and timestamps.
 - Implement domain mapping and Zod parsing at repository boundaries.

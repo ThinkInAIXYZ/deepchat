@@ -9,7 +9,8 @@ import {
 import { WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES } from '@shared/workflow/runtimeProtocol'
 
 export const WORKFLOW_BASE_SCHEMA_VERSION = 53
-export const WORKFLOW_SCHEMA_VERSION = 54
+export const WORKFLOW_SCOPE_SCHEMA_VERSION = 54
+export const WORKFLOW_SCHEMA_VERSION = 55
 export const LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH = '0'.repeat(64)
 
 export interface WorkflowRunRow {
@@ -280,7 +281,7 @@ export class WorkflowRunsTable extends BaseTable {
     if (version === WORKFLOW_BASE_SCHEMA_VERSION) {
       return this.getCreateTableSQL()
     }
-    if (version === WORKFLOW_SCHEMA_VERSION) {
+    if (version === WORKFLOW_SCOPE_SCHEMA_VERSION) {
       const statements: string[] = []
       if (!this.hasColumn('workspace_path')) {
         statements.push(`
@@ -315,7 +316,7 @@ export class WorkflowRunsTable extends BaseTable {
   }
 
   override finalizeMigration(version: number): void {
-    if (version === WORKFLOW_BASE_SCHEMA_VERSION || version === WORKFLOW_SCHEMA_VERSION) {
+    if (version === WORKFLOW_BASE_SCHEMA_VERSION || version === WORKFLOW_SCOPE_SCHEMA_VERSION) {
       this.db.exec(WORKFLOW_RUNS_TRIGGER_SQL)
     }
   }
