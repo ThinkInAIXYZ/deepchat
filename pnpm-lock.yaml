@@ -81,6 +81,9 @@ importers:
       ai:
         specifier: ^7.0.37
         version: 7.0.37(zod@4.4.3)
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
       axios:
         specifier: ^1.18.1
         version: 1.18.1

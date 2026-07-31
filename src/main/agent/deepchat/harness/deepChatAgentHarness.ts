@@ -43,6 +43,12 @@ export class DeepChatAgentHarness
     this.services.runtime.markToolRegistryChanged()
   }
 
+  invalidateSessionToolCatalog(sessionId: string): void {
+    this.services.runtime
+      .getHydratedScope(toAppSessionId(sessionId))
+      ?.instance.invalidateToolProfileCache()
+  }
+
   createAcpAgentInstanceDependencies(
     input: Parameters<AcpAgentInstanceDependencyFactory>[0]
   ): ReturnType<AcpAgentInstanceDependencyFactory> {

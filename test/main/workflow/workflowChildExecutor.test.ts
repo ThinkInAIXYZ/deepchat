@@ -2,12 +2,17 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 import { WorkflowInvocationContextRegistry } from '@/workflow/invocationContextRegistry'
 import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
+import type { JsonValue } from '@shared/contracts/common'
 import type { ConversationSessionInfo, CreateSubagentSessionInput } from '@/tool/runtimePorts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type {
   WorkflowStructuredOutputLease,
   WorkflowStructuredOutputPort
-} from '@/workflow/childExecutor'
+} from '@/workflow/structuredOutput/contracts'
+import {
+  WORKFLOW_STRUCTURED_OUTPUT_TOOL_NAME,
+  WorkflowStructuredOutputRegistry
+} from '@/workflow/structuredOutput/registry'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const workflowDatabaseModule = Database
@@ -127,6 +132,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       invocationId?: string
       agentId?: string
       timeoutMs?: number
+      schema?: JsonValue
     } = {}
   ) {
     const runId = options.runId ?? 'run-1'
@@ -151,7 +157,8 @@ describeIfSqlite('WorkflowChildExecutor', () => {
           key: 'work',
           label: 'Workflow worker',
           ...(options.agentId ? { agentId: options.agentId } : {}),
-          ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {})
+          ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+          ...(options.schema ? { schema: options.schema } : {})
         }
       },
       now: 200
@@ -159,13 +166,16 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     return { run, invocation }
   }
 
-  function createExecutor(admission = new AgentInvocationAdmission(1, 8)) {
+  function createExecutor(
+    admission = new AgentInvocationAdmission(1, 8),
+    structuredOutput: WorkflowStructuredOutputPort = output
+  ) {
     return new WorkflowChildExecutorCtor({
       repository,
       sessions,
       admission,
       invocationContexts: contexts,
-      structuredOutput: output,
+      structuredOutput,
       now: () => now++
     })
   }
@@ -247,7 +257,11 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     expect(output.open).toHaveBeenCalledWith(
       expect.objectContaining({
         childSessionId: 'child-1',
-        providerId: 'openai',
+        providerId: 'openai'
+      })
+    )
+    expect(output.prepare).toHaveBeenCalledWith(
+      expect.objectContaining({
         maxResultBytes: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxResultBytes
       })
     )
@@ -421,6 +435,230 @@ describeIfSqlite('WorkflowChildExecutor', () => {
         providerId: 'acp'
       })
     )
+  })
+
+  it('rejects an unsafe output schema before allocating a child', async () => {
+    const { invocation } = createRunAndInvocation({
+      schema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: true
+      }
+    })
+    const structuredOutput = new WorkflowStructuredOutputRegistry({
+      onCatalogChanged: vi.fn()
+    })
+
+    const result = await createExecutor(
+      new AgentInvocationAdmission(1, 8),
+      structuredOutput
+    ).execute(invocation.id)
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'STRUCTURED_SCHEMA_INVALID',
+        retriable: false
+      }
+    })
+    expect(sessions.createSubagentSession).not.toHaveBeenCalled()
+  })
+
+  it('accepts a normal-provider result through the invocation-scoped tool', async () => {
+    const { invocation } = createRunAndInvocation({
+      schema: {
+        type: 'object',
+        properties: {
+          answer: { type: 'string' }
+        },
+        required: ['answer'],
+        additionalProperties: false
+      }
+    })
+    const structuredOutput = new WorkflowStructuredOutputRegistry({
+      onCatalogChanged: vi.fn()
+    })
+    sessions.onSend = async (sessionId) => {
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'generating',
+        updatedAt: 335
+      })
+      await structuredOutput.callTool({
+        id: 'result-call',
+        type: 'function',
+        function: {
+          name: WORKFLOW_STRUCTURED_OUTPUT_TOOL_NAME,
+          arguments: '{"answer":"Done"}'
+        },
+        conversationId: sessionId
+      })
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'idle',
+        updatedAt: 336
+      })
+    }
+
+    const result = await createExecutor(
+      new AgentInvocationAdmission(1, 8),
+      structuredOutput
+    ).execute(invocation.id)
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      result: {
+        answer: 'Done'
+      }
+    })
+    expect(structuredOutput.getToolDefinitions('child-1')).toEqual([])
+  })
+
+  it('corrects ACP-backed DeepChat output in the same child session', async () => {
+    sessions.parent = parentSession('acp')
+    const { invocation } = createRunAndInvocation({
+      schema: {
+        type: 'object',
+        properties: {
+          answer: { type: 'string' }
+        },
+        required: ['answer'],
+        additionalProperties: false
+      }
+    })
+    const structuredOutput = new WorkflowStructuredOutputRegistry({
+      onCatalogChanged: vi.fn()
+    })
+    let turn = 0
+    sessions.onSend = async (sessionId) => {
+      turn += 1
+      const answer = turn === 1 ? '```json\n{"answer":"wrapped"}\n```' : '{"answer":"corrected"}'
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'generating',
+        updatedAt: 337 + turn * 3
+      })
+      sessions.emit({
+        sessionId,
+        kind: 'blocks',
+        responseMarkdown: answer,
+        deliverySegments: [
+          {
+            key: `answer-${turn}`,
+            kind: 'answer',
+            text: answer,
+            sourceMessageId: `message-${turn}`
+          }
+        ],
+        waitingInteraction: null,
+        updatedAt: 338 + turn * 3
+      })
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'idle',
+        updatedAt: 339 + turn * 3
+      })
+    }
+
+    const result = await createExecutor(
+      new AgentInvocationAdmission(1, 8),
+      structuredOutput
+    ).execute(invocation.id)
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      result: {
+        answer: 'corrected'
+      }
+    })
+    expect(sessions.sendConversationMessage).toHaveBeenCalledTimes(2)
+    expect(sessions.sendConversationMessage).toHaveBeenNthCalledWith(
+      2,
+      'child-1',
+      expect.stringContaining('Structured output rejected (1/3)')
+    )
+    expect(structuredOutput.getToolDefinitions('child-1')).toEqual([])
+  })
+
+  it('fails after bounded normal-provider correction turns without leaking the output tool', async () => {
+    const { invocation } = createRunAndInvocation({
+      schema: {
+        type: 'object',
+        properties: {
+          answer: { type: 'string' }
+        },
+        required: ['answer'],
+        additionalProperties: false
+      }
+    })
+    const structuredOutput = new WorkflowStructuredOutputRegistry({
+      onCatalogChanged: vi.fn()
+    })
+    sessions.onSend = async (sessionId) => {
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'idle',
+        updatedAt: 355
+      })
+    }
+
+    const result = await createExecutor(
+      new AgentInvocationAdmission(1, 8),
+      structuredOutput
+    ).execute(invocation.id)
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'STRUCTURED_OUTPUT_EXHAUSTED',
+        retriable: false
+      },
+      tapeLinkReceipt: {
+        outcome: 'error'
+      }
+    })
+    expect(sessions.sendConversationMessage).toHaveBeenCalledTimes(3)
+    expect(structuredOutput.getToolDefinitions('child-1')).toEqual([])
+    expect(contexts.size).toBe(0)
+  })
+
+  it('maps a provider terminal error without waiting for structured output', async () => {
+    const { invocation } = createRunAndInvocation()
+    sessions.onSend = async (sessionId) => {
+      sessions.emit({
+        sessionId,
+        kind: 'blocks',
+        responseMarkdown: 'Provider failed',
+        waitingInteraction: null,
+        updatedAt: 356
+      })
+      sessions.emit({
+        sessionId,
+        kind: 'status',
+        status: 'error',
+        updatedAt: 357
+      })
+    }
+
+    const result = await createExecutor().execute(invocation.id)
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'CHILD_RUNTIME_FAILED',
+        message: 'Provider failed'
+      },
+      tapeLinkReceipt: {
+        outcome: 'error'
+      }
+    })
+    expect(output.close).toHaveBeenCalledOnce()
+    expect(contexts.size).toBe(0)
   })
 
   it('records a host timeout while still queued without allocating a child', async () => {
@@ -692,21 +930,28 @@ function createSessionPort(initialParent: ConversationSessionInfo) {
 
 function createStructuredOutputPort() {
   const close = vi.fn()
+  const completeTurn = vi.fn(() => null)
+  const open = vi.fn((): WorkflowStructuredOutputLease => {
+    const current = deferred<any>()
+    port.current = current
+    return {
+      instruction: 'Submit one value through the workflow structured-output channel.',
+      result: current.promise,
+      completeTurn,
+      close
+    }
+  })
   const port = {
     current: null as (Deferred<unknown> & { resolve(value: unknown): void }) | null,
     close,
-    open: vi.fn((): WorkflowStructuredOutputLease => {
-      const current = deferred<any>()
-      port.current = current
-      return {
-        instruction: 'Submit one value through the workflow structured-output channel.',
-        result: current.promise,
-        close
-      }
-    })
+    completeTurn,
+    open,
+    prepare: vi.fn(() => ({ open }))
   } satisfies WorkflowStructuredOutputPort & {
     current: (Deferred<unknown> & { resolve(value: unknown): void }) | null
     close: ReturnType<typeof vi.fn>
+    completeTurn: ReturnType<typeof vi.fn>
+    open: ReturnType<typeof vi.fn>
   }
   return port
 }

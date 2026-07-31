@@ -154,6 +154,7 @@ import { WorkflowDatabase } from '@/workflow/data/database'
 import { WorkflowRepository } from '@/workflow/repository'
 import { WorkflowToolEffectObserver } from '@/workflow/effectObserver'
 import { WorkflowInvocationContextRegistry } from '@/workflow/invocationContextRegistry'
+import { WorkflowStructuredOutputRegistry } from '@/workflow/structuredOutput/registry'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -264,6 +265,10 @@ export async function createMainProcessControl(dependencies: {
     workflowRepository,
     workflowInvocationContexts
   )
+  let invalidateDeepChatSessionToolCatalog = (_sessionId: string): void => undefined
+  const workflowStructuredOutput = new WorkflowStructuredOutputRegistry({
+    onCatalogChanged: (sessionId) => invalidateDeepChatSessionToolCatalog(sessionId)
+  })
   const fileWatcherService = new FileWatcherService()
   let windowPresenter: IWindowPresenter
   let providerSettings: ProviderSettings
@@ -963,7 +968,8 @@ export async function createMainProcessControl(dependencies: {
     desktopSettings,
     commandPermissionHandler,
     agentTools: agentToolDependencies,
-    effectObserver: workflowEffectObserver
+    effectObserver: workflowEffectObserver,
+    sessionTools: workflowStructuredOutput
   })
 
   // Plugin activation is a shared startup barrier for Skill migration and MCP startup.
@@ -1134,6 +1140,8 @@ export async function createMainProcessControl(dependencies: {
     promptSettings,
     attachmentRouter
   })
+  invalidateDeepChatSessionToolCatalog = (sessionId) =>
+    deepChatAgentHarness.invalidateSessionToolCatalog(sessionId)
   const sessionTranscriptMutations = new SessionTranscriptMutations({
     transcript: sessionData.transcript,
     settings: sessionData.settings,

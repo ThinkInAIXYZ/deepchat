@@ -1,5 +1,4 @@
 import type { JsonValue } from '@shared/contracts/common'
-import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type {
   AgentSubagentToolPort,
   ConversationSessionInfo,
@@ -13,7 +12,14 @@ import type {
   WorkflowTapeLinkReceipt
 } from '@shared/workflow/domain'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { ChildRuntimeTracker, type ChildTerminalState } from './childRuntimeTracker'
 import type { WorkflowInvocationContextRegistry } from './invocationContextRegistry'
+import { WorkflowStructuredOutputError } from './structuredOutput/errors'
+import type {
+  WorkflowPreparedStructuredOutput,
+  WorkflowStructuredOutputLease,
+  WorkflowStructuredOutputPort
+} from './structuredOutput/contracts'
 
 const CHILD_CANCELLATION_SETTLE_MS = 10_000
 const RESULT_SUMMARY_MAX_LENGTH = 2_000
@@ -73,23 +79,6 @@ export interface WorkflowChildSessionPort extends Pick<
   ): Promise<ConversationSessionInfo | null>
 }
 
-export interface WorkflowStructuredOutputLease {
-  instruction: string
-  result: Promise<JsonValue>
-  close(): void
-}
-
-export interface WorkflowStructuredOutputPort {
-  open(input: {
-    runId: string
-    invocationId: string
-    childSessionId: string
-    providerId: string
-    schema: JsonValue
-    maxResultBytes: number
-  }): WorkflowStructuredOutputLease
-}
-
 export interface WorkflowChildExecutorOptions {
   repository: WorkflowChildRepositoryPort
   sessions: WorkflowChildSessionPort
@@ -98,16 +87,6 @@ export interface WorkflowChildExecutorOptions {
   structuredOutput: WorkflowStructuredOutputPort
   now?: () => number
 }
-
-type ChildTerminalState =
-  | {
-      status: 'completed'
-      responseMarkdown: string
-    }
-  | {
-      status: 'error'
-      responseMarkdown: string
-    }
 
 export class WorkflowChildExecutor {
   private readonly now: () => number
@@ -155,6 +134,10 @@ export class WorkflowChildExecutor {
     )
     try {
       abortScope.signal.throwIfAborted()
+      const preparedOutput = this.options.structuredOutput.prepare({
+        schema: initial.request.options.schema ?? DEFAULT_WORKFLOW_RESULT_SCHEMA,
+        maxResultBytes: resolveMaxResultBytes(initial, run)
+      })
       const parent = await this.requireParent(run)
       const targetAgentId = initial.request.options.agentId ?? parent.agentId
       this.assertTargetAllowed(run, targetAgentId)
@@ -178,6 +161,7 @@ export class WorkflowChildExecutor {
             run,
             parent,
             targetAgentId,
+            preparedOutput,
             signal: abortScope.signal,
             abortScope
           })
@@ -197,10 +181,11 @@ export class WorkflowChildExecutor {
     run: WorkflowRun
     parent: ConversationSessionInfo
     targetAgentId: string
+    preparedOutput: WorkflowPreparedStructuredOutput
     signal: AbortSignal
     abortScope: InvocationAbortScope
   }): Promise<WorkflowInvocation> {
-    const { invocationId, run, parent, targetAgentId, signal, abortScope } = input
+    const { invocationId, run, parent, targetAgentId, preparedOutput, signal, abortScope } = input
     signal.throwIfAborted()
     try {
       this.options.repository.markInvocationAdmitted(invocationId, this.now())
@@ -218,6 +203,7 @@ export class WorkflowChildExecutor {
     let contextMayRelease = true
     let shouldCancelChild = false
     let childAttached = false
+    let childKnownStopped = false
     try {
       const resolvedChild = await this.resolveOrCreateChild(
         this.options.repository.requireInvocation(invocationId),
@@ -244,54 +230,55 @@ export class WorkflowChildExecutor {
         invocationId
       })
       contextMayRelease = false
-      tracker = new ChildRuntimeTracker(
-        child.sessionId,
-        invocationId,
-        this.options.repository,
-        this.options.sessions.subscribeSessionRuntimeUpdates.bind(this.options.sessions),
-        this.now
-      )
-      outputLease = this.options.structuredOutput.open({
+      outputLease = preparedOutput.open({
         runId: run.id,
         invocationId,
         childSessionId: child.sessionId,
-        providerId: child.providerId,
-        schema:
-          this.options.repository.requireInvocation(invocationId).request.options.schema ??
-          DEFAULT_WORKFLOW_RESULT_SCHEMA,
-        maxResultBytes: resolveMaxResultBytes(
-          this.options.repository.requireInvocation(invocationId),
-          run
-        )
+        providerId: child.providerId
       })
       void outputLease.result.catch(() => undefined)
 
       signal.throwIfAborted()
       const outputInstruction = requireStructuredOutputInstruction(outputLease.instruction)
-      const handoff = buildWorkflowHandoff(
+      let handoff = buildWorkflowHandoff(
         this.options.repository.requireInvocation(invocationId),
         outputInstruction
       )
-      await awaitWithAbort(
-        this.options.sessions.sendConversationMessage(child.sessionId, handoff),
-        signal
-      )
-      tracker.markStarted()
-
-      const [result] = await awaitWithAbort(
-        Promise.all([
-          outputLease.result,
-          tracker.terminal.then((state) => {
-            if (state.status === 'error') {
-              throw new WorkflowChildRuntimeError(
-                summarizeText(state.responseMarkdown) || 'Workflow child session failed.'
-              )
-            }
-            return state
-          })
-        ]),
-        signal
-      )
+      let result: JsonValue
+      while (true) {
+        tracker = new ChildRuntimeTracker(
+          child.sessionId,
+          invocationId,
+          this.options.repository,
+          this.options.sessions.subscribeSessionRuntimeUpdates.bind(this.options.sessions),
+          this.now
+        )
+        childKnownStopped = false
+        await awaitWithAbort(
+          this.options.sessions.sendConversationMessage(child.sessionId, handoff),
+          signal
+        )
+        tracker.markStarted()
+        const terminal = await awaitWithAbort(
+          waitForChildTurn(tracker.terminal, outputLease.result),
+          signal
+        )
+        childKnownStopped = true
+        tracker.close()
+        tracker = null
+        if (terminal.status === 'error') {
+          throw new WorkflowChildRuntimeError(
+            summarizeText(terminal.responseMarkdown) || 'Workflow child session failed.'
+          )
+        }
+        const correction = outputLease.completeTurn(terminal.answerMarkdown)
+        if (correction) {
+          handoff = buildWorkflowCorrectionHandoff(correction)
+          continue
+        }
+        result = await awaitWithAbort(outputLease.result, signal)
+        break
+      }
       const receipt = await this.linkChildTape({
         run,
         invocation: this.options.repository.requireInvocation(invocationId),
@@ -313,7 +300,7 @@ export class WorkflowChildExecutor {
       const failure = toInvocationFailure(error, abortScope)
       this.failActiveInvocation(invocationId, failure)
       if (child && shouldCancelChild) {
-        const childAlreadyStopped = tracker?.isTerminal === true
+        const childAlreadyStopped = childKnownStopped || tracker?.isTerminal === true
         if (childAlreadyStopped) {
           contextMayRelease = true
           if (childAttached) {
@@ -487,98 +474,6 @@ export class WorkflowChildExecutor {
   }
 }
 
-class ChildRuntimeTracker {
-  private started = false
-  private failed = false
-  private terminalState: ChildTerminalState | null = null
-  private runtimeStatus: 'idle' | 'generating' | 'error' | null = null
-  private responseMarkdown = ''
-  private resolveTerminal!: (state: ChildTerminalState) => void
-  private rejectTerminal!: (error: unknown) => void
-  private readonly unsubscribe: () => void
-  readonly terminal: Promise<ChildTerminalState>
-
-  constructor(
-    private readonly sessionId: string,
-    private readonly invocationId: string,
-    private readonly repository: WorkflowChildRepositoryPort,
-    subscribe: (listener: (update: SessionRuntimeUpdate) => void) => () => void,
-    private readonly now: () => number
-  ) {
-    this.terminal = new Promise<ChildTerminalState>((resolve, reject) => {
-      this.resolveTerminal = resolve
-      this.rejectTerminal = reject
-    })
-    void this.terminal.catch(() => undefined)
-    this.unsubscribe = subscribe((update) => this.onUpdate(update))
-  }
-
-  get isTerminal(): boolean {
-    return this.terminalState !== null
-  }
-
-  markStarted(): void {
-    this.started = true
-    this.maybeSettleTerminal()
-  }
-
-  close(): void {
-    this.unsubscribe()
-  }
-
-  private onUpdate(update: SessionRuntimeUpdate): void {
-    if (update.sessionId !== this.sessionId || this.terminalState || this.failed) {
-      return
-    }
-    try {
-      if (update.kind === 'blocks') {
-        this.responseMarkdown = update.responseMarkdown?.trim() || this.responseMarkdown
-        this.applyWaitingState(
-          update.waitingInteraction !== null && update.waitingInteraction !== undefined
-        )
-        return
-      }
-      if (update.kind !== 'status' || !update.status) {
-        return
-      }
-      this.runtimeStatus = update.status
-      if (update.status === 'generating') {
-        this.started = true
-        return
-      }
-      this.maybeSettleTerminal()
-    } catch (error) {
-      this.failed = true
-      this.rejectTerminal(error)
-    }
-  }
-
-  private maybeSettleTerminal(): void {
-    if (
-      !this.started ||
-      this.terminalState ||
-      (this.runtimeStatus !== 'idle' && this.runtimeStatus !== 'error')
-    ) {
-      return
-    }
-    const terminalState: ChildTerminalState = {
-      status: this.runtimeStatus === 'error' ? 'error' : 'completed',
-      responseMarkdown: this.responseMarkdown
-    }
-    this.terminalState = terminalState
-    this.resolveTerminal(terminalState)
-  }
-
-  private applyWaitingState(waiting: boolean): void {
-    const invocation = this.repository.requireInvocation(this.invocationId)
-    if (waiting && invocation.status === 'running') {
-      this.repository.setInvocationWaiting(this.invocationId, this.now())
-    } else if (!waiting && invocation.status === 'waiting_interaction') {
-      this.repository.markInvocationRunning(this.invocationId, this.now())
-    }
-  }
-}
-
 interface InvocationAbortScope {
   signal: AbortSignal
   didTimeout(): boolean
@@ -700,6 +595,16 @@ function toInvocationFailure(
       }
     }
   }
+  if (error instanceof WorkflowStructuredOutputError) {
+    return {
+      status: 'failed',
+      error: {
+        code: error.code,
+        message: normalizeFailureMessage(error.message),
+        retriable: error.retriable
+      }
+    }
+  }
   return {
     status: 'failed',
     error: {
@@ -786,6 +691,23 @@ function buildWorkflowHandoff(
     'Output contract:',
     structuredOutputInstruction
   ].join('\n')
+}
+
+function buildWorkflowCorrectionHandoff(feedback: string): string {
+  return ['# Workflow Output Correction', '', feedback].join('\n')
+}
+
+async function waitForChildTurn(
+  terminal: Promise<ChildTerminalState>,
+  outputResult: Promise<JsonValue>
+): Promise<ChildTerminalState> {
+  return await Promise.race([
+    terminal,
+    outputResult.then(
+      async () => await terminal,
+      (error) => Promise.reject(error)
+    )
+  ])
 }
 
 async function cancelChildWithinBound(

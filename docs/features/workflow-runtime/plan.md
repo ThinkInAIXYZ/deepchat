@@ -98,7 +98,9 @@ testable solution.
 - Accept bounded JSON Schema from the guest and normalize it in main.
 - Reject remote references, recursive/unbounded forms, unsafe property names, and excessive depth
   or size.
-- Inject a run-scoped structured-output tool into DeepChat-loop children.
+- Inject an invocation-scoped structured-output tool into ordinary DeepChat-loop children.
+- Use an exact-JSON terminal-response adapter with bounded same-child correction turns for
+  DeepChat-owned ACP-as-LLM children, whose compatibility runtime exposes no local DeepChat tools.
 - Validate tool arguments before accepting invocation success.
 - Provide bounded same-session correction feedback for invalid output.
 - Remove the temporary tool on every terminal path so later child turns use their ordinary catalog.

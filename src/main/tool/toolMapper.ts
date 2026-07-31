@@ -1,6 +1,6 @@
 import type { MCPToolDefinition } from '@shared/types/mcp'
 
-export type ToolSource = 'mcp' | 'agent'
+export type ToolSource = 'mcp' | 'agent' | 'session'
 
 export interface ToolMapping {
   toolName: string

@@ -196,10 +196,14 @@ The launch request declares `allowedAgentIds`; omission allows only the parent a
 runtime capability boundary, not merely approval-card text. Dynamic script input cannot select an
 agent outside the declared set.
 
-The host injects a run-scoped structured-output tool into eligible DeepChat-loop children. The tool
-validates its arguments against the requested schema. Invalid output receives bounded correction
-feedback in the same child session up to the configured attempt limit. Free text is not silently
-coerced into structured data.
+For ordinary DeepChat providers, the host injects an invocation-scoped structured-output tool. The tool
+validates its arguments against the requested schema. ACP-as-LLM subagent sessions remain
+DeepChat-owned sessions, but the current compatibility adapter deliberately exposes no DeepChat
+local tools and `AcpProvider` does not forward local tool definitions. Those children therefore use
+an explicit exact-JSON terminal-response contract instead of pretending tool injection is
+available. Both paths receive bounded correction feedback in the same child session up to the
+configured attempt limit. Free text, prose-wrapped JSON, and fenced JSON are not silently coerced
+into structured data.
 
 The temporary tool is scoped to the workflow invocation turn and is removed on success, failure,
 timeout, cancellation, or recovery. Continuing the child session after the workflow uses its
@@ -460,8 +464,10 @@ cancelled invocation into success.
 
 ## Structured Output Boundary
 
-Structured output is implemented only for children that run through `DeepChatLoopEngine`.
-`kind=deepchat + providerId=acp` is included. Direct `kind=acp` is rejected before session creation.
+Structured output is implemented only for DeepChat-owned child sessions. Ordinary providers use
+the invocation-scoped result tool. `kind=deepchat + providerId=acp` uses the exact-JSON
+terminal-response adapter described above because its compatibility runtime does not expose local
+DeepChat tools. Direct `kind=acp` is rejected before session creation.
 
 The schema and result have explicit byte, nesting, property-count, and array-length limits. Remote
 `$ref`, prototype-sensitive keys, and schemas that cannot be represented by the tool contract are

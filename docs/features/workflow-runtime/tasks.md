@@ -109,14 +109,22 @@ Child-executor validation evidence (2026-07-31):
 
 ## Structured Output
 
-- [ ] Add bounded JSON Schema validation.
-- [ ] Add run-scoped structured-output tool injection for DeepChat-loop children.
-- [ ] Add same-child correction feedback and bounded attempts.
-- [ ] Remove the temporary output tool on every invocation terminal path.
-- [ ] Validate and bound plain JSON before persistence and guest settlement.
-- [ ] Cover normal providers and DeepChat-loop ACP compatibility.
-- [ ] Add valid, invalid, oversized, exhausted, cancelled, and direct-ACP tests.
-- [ ] Complete the pre-commit structured-output review, focused validation, and commit.
+- [x] Add bounded JSON Schema validation.
+- [x] Add invocation-scoped structured-output tool injection for DeepChat-loop children.
+- [x] Add same-child correction feedback and bounded attempts.
+- [x] Remove the temporary output tool on every invocation terminal path.
+- [x] Validate and bound plain JSON before persistence and guest settlement.
+- [x] Cover normal providers and DeepChat-loop ACP compatibility.
+- [x] Add valid, invalid, oversized, exhausted, cancelled, and direct-ACP tests.
+- [x] Complete the pre-commit structured-output review, focused validation, and commit.
+
+Structured-output validation evidence (2026-07-31):
+
+- 531 workflow, tool, and DeepChat harness tests passed with native SQLite required.
+- `pnpm run format:check`
+- `pnpm run lint`
+- `pnpm run typecheck`
+- `pnpm exec electron-vite build`
 
 ## Workflow Service
 

@@ -3807,6 +3807,21 @@ describe('DeepChatAgentHarness', () => {
       expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(2)
     })
 
+    it('invalidates workflow tools without evicting unrelated session catalogs', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.initSession('s2', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Prime first session')
+      await agent.processMessage('s2', 'Prime second session')
+
+      expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(2)
+
+      agent.invalidateSessionToolCatalog('s1')
+      await agent.processMessage('s2', 'Keep second session cache')
+      await agent.processMessage('s1', 'Reload first session tools')
+
+      expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(3)
+    })
+
     it('does not let stale turn cleanup clear replacement instance resources', async () => {
       const streamResult = deferred<{ status: 'completed' }>()
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(

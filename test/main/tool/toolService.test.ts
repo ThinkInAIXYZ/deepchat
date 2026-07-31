@@ -103,6 +103,111 @@ const cronJobRunFixture = {
 } as any
 
 describe('ToolService', () => {
+  it('routes reserved session tools without permission or workflow-effect side effects', async () => {
+    const sessionDefinition = {
+      ...buildToolDefinition('workflow_result', 'session-tools'),
+      source: 'agent' as const,
+      execution: TOOL_EXECUTION.read.sequential
+    }
+    const mcpService = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([
+        {
+          ...sessionDefinition,
+          source: 'mcp'
+        }
+      ]),
+      callTool: vi.fn().mockResolvedValue({
+        content: 'ordinary MCP result',
+        rawData: {
+          toolCallId: 'mcp-call',
+          content: 'ordinary MCP result'
+        }
+      }),
+      preCheckToolPermission: vi.fn()
+    } as any
+    const sessionTools = {
+      getToolDefinitions: vi.fn((conversationId: string) =>
+        conversationId === 'workflow-child' ? [sessionDefinition] : []
+      ),
+      callTool: vi.fn(async (request) => ({
+        content: 'accepted',
+        rawData: {
+          toolCallId: request.id,
+          content: 'accepted'
+        }
+      }))
+    }
+    const effectObserver = {
+      beforeToolExecution: vi.fn()
+    }
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => false } as any,
+      mcpService,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock(),
+      effectObserver,
+      sessionTools
+    })
+    const inactiveDefinitions = await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'ordinary-conversation'
+    })
+    const request = {
+      id: 'call-1',
+      type: 'function',
+      function: {
+        name: 'workflow_result',
+        arguments: '{"answer":"done"}'
+      },
+      conversationId: 'workflow-child'
+    }
+
+    expect(
+      inactiveDefinitions.filter((definition) => definition.function.name === 'workflow_result')
+    ).toEqual([
+      expect.objectContaining({
+        source: 'mcp'
+      })
+    ])
+    const definitions = await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'workflow-child'
+    })
+    expect(
+      definitions.filter((definition) => definition.function.name === 'workflow_result')
+    ).toEqual([sessionDefinition])
+    await expect(toolService.preCheckToolPermission(request)).resolves.toBeNull()
+    await expect(toolService.callTool(request)).resolves.toMatchObject({
+      content: 'accepted'
+    })
+    expect(sessionTools.callTool).toHaveBeenCalledOnce()
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+    expect(mcpService.preCheckToolPermission).not.toHaveBeenCalled()
+
+    await expect(
+      toolService.callTool({
+        ...request,
+        id: 'mcp-call',
+        conversationId: 'ordinary-conversation'
+      })
+    ).resolves.toMatchObject({
+      content: 'ordinary MCP result'
+    })
+    expect(effectObserver.beforeToolExecution).toHaveBeenCalledOnce()
+    expect(effectObserver.beforeToolExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: 'ordinary-conversation',
+        source: 'mcp',
+        toolName: 'workflow_result'
+      })
+    )
+    expect(mcpService.callTool).toHaveBeenCalledOnce()
+  })
+
   it('records workflow effect intent before dispatch and blocks execution when it cannot persist', async () => {
     const order: string[] = []
     const effectObserver = {
