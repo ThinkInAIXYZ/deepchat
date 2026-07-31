@@ -79,19 +79,27 @@ export interface SessionPendingInputRuntimePort {
     input: string | SendMessageInput,
     options?: { state?: PendingSessionInputState }
   ): PendingSessionInputRecord
-  queueSteerInput(
+  acceptSteerMessage(
     sessionId: string,
-    input: string | SendMessageInput,
+    input: SendMessageInput,
     options?: { mergeItemId?: string | null }
-  ): PendingSessionInputRecord
+  ): {
+    pendingInput: PendingSessionInputRecord
+    message: ChatMessageRecord
+  }
+  promoteQueuedInputToSteerMessage(
+    sessionId: string,
+    itemId: string
+  ): {
+    pendingInput: PendingSessionInputRecord
+    message: ChatMessageRecord
+  }
   updateQueuedInput(
     sessionId: string,
     itemId: string,
     input: string | SendMessageInput
   ): PendingSessionInputRecord
   moveQueuedInput(sessionId: string, itemId: string, toIndex: number): PendingSessionInputRecord[]
-  convertPendingInputToSteer(sessionId: string, itemId: string): PendingSessionInputRecord
-  restoreSteerInputToQueue(sessionId: string, itemId: string): PendingSessionInputRecord
   deletePendingInput(sessionId: string, itemId: string): void
   getNextQueuedInput(sessionId: string): PendingSessionInputRecord | null
   getNextSteerInput(sessionId: string): PendingSessionInputRecord | null

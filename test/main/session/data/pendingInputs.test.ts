@@ -16,6 +16,8 @@ function createRecord(
       text: id,
       files: []
     },
+    messageIds: [],
+    assistantMessageId: null,
     blocking: null,
     queueOrder: mode === 'queue' ? 1 : null,
     claimedAt: 1,
@@ -46,7 +48,10 @@ function createCoordinator(records: Map<string, PendingSessionInputRecord>) {
   }
 
   return {
-    coordinator: new SessionPendingInputs(store as any, vi.fn()),
+    coordinator: new SessionPendingInputs(store as any, {} as any, {
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
+    }),
     store
   }
 }
@@ -97,6 +102,8 @@ describe('SessionPendingInputs pending steer recovery', () => {
       mode,
       state: 'pending',
       payload: { text: id, files: [] },
+      messageIds: [],
+      assistantMessageId: null,
       blocking: null,
       queueOrder: mode === 'queue' ? 1 : null,
       claimedAt: null,
@@ -106,29 +113,21 @@ describe('SessionPendingInputs pending steer recovery', () => {
     }
   }
 
-  it('deletes a pending steer item (recovery escape hatch for a stranded promotion)', () => {
+  it('rejects deleting an accepted Steer message', () => {
     const steer = createPending('steer-1', 'session-1', 'steer')
     const store = {
       listPendingInputs: vi.fn(() => [steer]),
       deleteInput: vi.fn()
     }
-    const coordinator = new SessionPendingInputs(store as any, vi.fn())
+    const coordinator = new SessionPendingInputs(store as any, {} as any, {
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
+    })
 
-    expect(() => coordinator.deletePendingInput('session-1', 'steer-1')).not.toThrow()
-    expect(store.deleteInput).toHaveBeenCalledWith('steer-1')
-  })
-
-  it('restores a pending steer item back to the queue', () => {
-    const steer = createPending('steer-1', 'session-1', 'steer')
-    const store = {
-      listPendingInputs: vi.fn(() => [steer]),
-      convertSteerInputToQueue: vi.fn(() => ({ ...steer, mode: 'queue' as const, queueOrder: 1 }))
-    }
-    const coordinator = new SessionPendingInputs(store as any, vi.fn())
-
-    const result = coordinator.restoreSteerInputToQueue('session-1', 'steer-1')
-    expect(store.convertSteerInputToQueue).toHaveBeenCalledWith('steer-1')
-    expect(result.mode).toBe('queue')
+    expect(() => coordinator.deletePendingInput('session-1', 'steer-1')).toThrow(
+      'Steer messages are sent conversation facts and cannot be deleted.'
+    )
+    expect(store.deleteInput).not.toHaveBeenCalled()
   })
 
   it('rejects deleting a pending input that does not exist', () => {
@@ -136,7 +135,10 @@ describe('SessionPendingInputs pending steer recovery', () => {
       listPendingInputs: vi.fn(() => []),
       deleteInput: vi.fn()
     }
-    const coordinator = new SessionPendingInputs(store as any, vi.fn())
+    const coordinator = new SessionPendingInputs(store as any, {} as any, {
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
+    })
 
     expect(() => coordinator.deletePendingInput('session-1', 'missing')).toThrow(
       'Pending input not found'

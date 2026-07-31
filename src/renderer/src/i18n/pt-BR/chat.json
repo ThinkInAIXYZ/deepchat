@@ -82,6 +82,7 @@
     "limitReached": "A área de espera está cheia (máx. {max}).",
     "remove": "Remover",
     "steerUnavailable": "Não é possível interromper agora",
+    "steerWaitingForResponse": "Aguarde o início da resposta do assistente",
     "steerFailed": "Não foi possível interromper este turno"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "Está tudo pronto. Digite sua primeira mensagem aqui para concluir o onboarding.",
       "caption": "O destaque permanece na caixa de entrada até você enviar sua primeira mensagem."
     }
+  },
+  "messageReceipt": {
+    "unread": "Não lida",
+    "read": "Lida"
   },
   "attachments": {
     "chooseRepresentation": "Escolha como enviar {name}",

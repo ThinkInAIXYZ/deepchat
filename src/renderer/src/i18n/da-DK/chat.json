@@ -89,6 +89,7 @@
     "limitReached": "Venteområdet er fuldt (maks. {max}).",
     "remove": "Fjern",
     "steerUnavailable": "Kan ikke afbryde lige nu",
+    "steerWaitingForResponse": "Vent på, at assistentens svar starter",
     "steerFailed": "Kunne ikke afbryde denne tur"
   },
   "messages": {
@@ -401,6 +402,10 @@
       "description": "Everything is ready. Type your first message here to finish the onboarding flow.",
       "caption": "The spotlight stays on the input box until you send your first message."
     }
+  },
+  "messageReceipt": {
+    "unread": "Ulæst",
+    "read": "Læst"
   },
   "attachments": {
     "chooseRepresentation": "Vælg, hvordan {name} skal sendes",

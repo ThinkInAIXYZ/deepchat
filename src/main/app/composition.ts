@@ -398,6 +398,12 @@ export async function createMainProcessControl(dependencies: {
         publishDeepchatEvent('sessions.pendingInputs.changed', {
           sessionId,
           version: Date.now()
+        }),
+      publishMessagesChanged: (sessionId, messages) =>
+        publishDeepchatEvent('sessions.messages.changed', {
+          sessionId,
+          messages,
+          version: Date.now()
         })
     }
   )

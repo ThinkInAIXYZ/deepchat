@@ -82,6 +82,7 @@
     "limitReached": "等待區已滿（最多 {max} 條）。",
     "remove": "刪除",
     "steerUnavailable": "目前無法打斷",
+    "steerWaitingForResponse": "等待助手開始回覆後即可打斷",
     "steerFailed": "打斷失敗"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "現在已經準備好了，在這裡傳送第一條訊息即可完成引導。",
       "caption": "聚光會一直停留在輸入框，直到你真正送出第一條訊息。"
     }
+  },
+  "messageReceipt": {
+    "unread": "未讀",
+    "read": "已讀"
   },
   "attachments": {
     "chooseRepresentation": "選擇如何傳送 {name}",

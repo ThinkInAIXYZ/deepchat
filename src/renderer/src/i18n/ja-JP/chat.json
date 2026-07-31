@@ -82,6 +82,7 @@
     "limitReached": "待機レーンがいっぱいです（最大{max}件）。",
     "remove": "削除",
     "steerUnavailable": "今は中断できません",
+    "steerWaitingForResponse": "アシスタントが応答を開始するまでお待ちください",
     "steerFailed": "このターンを中断できませんでした"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "準備は完了です。ここに最初のメッセージを入力してオンボーディングを完了しましょう。",
       "caption": "最初のメッセージを送信するまで、スポットライトは入力欄に表示されたままです。"
     }
+  },
+  "messageReceipt": {
+    "unread": "未読",
+    "read": "既読"
   },
   "attachments": {
     "chooseRepresentation": "{name} の送信方法を選択",

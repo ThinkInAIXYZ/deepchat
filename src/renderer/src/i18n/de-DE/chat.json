@@ -82,6 +82,7 @@
     "limitReached": "Wartebereich ist voll (maximal {max}).",
     "remove": "Entfernen",
     "steerUnavailable": "Derzeit nicht unterbrechbar",
+    "steerWaitingForResponse": "Warte, bis die Antwort des Assistenten beginnt",
     "steerFailed": "Diese Runde konnte nicht unterbrochen werden"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "Alles ist bereit. Senden Sie hier Ihre erste Nachricht, um die Einführung abzuschließen.",
       "caption": "Der Fokus bleibt auf dem Eingabefeld, bis Sie die erste Nachricht wirklich senden."
     }
+  },
+  "messageReceipt": {
+    "unread": "Ungelesen",
+    "read": "Gelesen"
   },
   "attachments": {
     "chooseRepresentation": "Auswählen, wie {name} gesendet werden soll",

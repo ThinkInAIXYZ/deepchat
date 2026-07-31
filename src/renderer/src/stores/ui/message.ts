@@ -862,6 +862,44 @@ export const useMessageStore = defineStore('message', () => {
     parsedMessageCache.delete(id)
   }
 
+  function applyPersistedMessageRecords(records: ChatMessageRecord[]): void {
+    const sessionId = records[0]?.sessionId
+    if (
+      !sessionId ||
+      currentSessionId.value !== sessionId ||
+      committedSessionId.value !== sessionId
+    ) {
+      if (sessionId) invalidateRecentSessionView(sessionId)
+      return
+    }
+
+    const changedRecords = records.filter((record) => {
+      if (record.sessionId !== sessionId) return false
+      const cached = messageCache.value.get(record.id)
+      if (!cached) return true
+      if (record.updatedAt < cached.updatedAt) return false
+      return (
+        cached.updatedAt !== record.updatedAt ||
+        cached.orderSeq !== record.orderSeq ||
+        cached.role !== record.role ||
+        cached.content !== record.content ||
+        cached.status !== record.status ||
+        cached.isContextEdge !== record.isContextEdge ||
+        cached.metadata !== record.metadata ||
+        cached.traceCount !== record.traceCount ||
+        cached.createdAt !== record.createdAt
+      )
+    })
+    if (changedRecords.length === 0) return
+
+    markLiveMessageViewMutation(sessionId)
+    for (const record of changedRecords) {
+      parsedMessageCache.delete(record.id)
+      upsertMessageRecord(record)
+    }
+    lastPersistedRevision.value += 1
+  }
+
   function clear(): void {
     latestLoadRequestId += 1
     latestHistoryRequestId += 1
@@ -976,6 +1014,7 @@ export const useMessageStore = defineStore('message', () => {
     clearStreamingState,
     loadMessages,
     invalidateRecentSessionView,
+    applyPersistedMessageRecords,
     applyStreamingBlocksToMessage,
     isEphemeralStreamMessageId
   })
@@ -1019,6 +1058,7 @@ export const useMessageStore = defineStore('message', () => {
     getMessage,
     addOptimisticUserMessage,
     removeOptimisticMessage,
+    applyPersistedMessageRecords,
     clearStreamingState,
     clearStreamingStateForOtherSession,
     clear

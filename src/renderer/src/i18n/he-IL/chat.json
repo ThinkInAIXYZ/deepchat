@@ -82,6 +82,7 @@
     "limitReached": "אזור ההמתנה מלא (מקסימום {max}).",
     "remove": "הסר",
     "steerUnavailable": "לא ניתן להפסיק כעת",
+    "steerWaitingForResponse": "יש להמתין עד שהעוזר יתחיל להשיב",
     "steerFailed": "לא ניתן היה להפסיק את התור הזה"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "הכול מוכן. הקלידו כאן את ההודעה הראשונה כדי להשלים את תהליך ההיכרות.",
       "caption": "ההדגשה תישאר על שדה הקלט עד שתשלחו את ההודעה הראשונה."
     }
+  },
+  "messageReceipt": {
+    "unread": "לא נקרא",
+    "read": "נקרא"
   },
   "attachments": {
     "chooseRepresentation": "בחירת אופן השליחה של {name}",

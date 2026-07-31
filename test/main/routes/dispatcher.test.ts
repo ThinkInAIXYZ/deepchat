@@ -456,7 +456,22 @@ function createRuntime() {
       requestId: 'message-2',
       messageId: 'message-2'
     }),
-    steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
+    steerActiveTurn: vi.fn().mockResolvedValue({
+      requestId: null,
+      messageId: null,
+      userMessage: {
+        id: 'steer-user-message',
+        sessionId: 'session-1',
+        orderSeq: 2,
+        role: 'user' as const,
+        content: '{"text":"refine the active answer"}',
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}',
+        createdAt: 2,
+        updatedAt: 2
+      }
+    }),
     listPendingInputs: vi.fn().mockResolvedValue([]),
     queuePendingInput: vi.fn().mockResolvedValue({}),
     updateQueuedInput: vi.fn().mockResolvedValue({}),

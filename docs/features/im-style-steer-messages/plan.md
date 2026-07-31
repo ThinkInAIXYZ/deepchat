@@ -2,9 +2,9 @@
 
 ## Status
 
-Ready for implementation against `dev`.
+Implemented on `codex/steer-message-lifecycle` against `dev`.
 
-The implementation should land as four reviewable slices: durable lifecycle, backend turn
+The implementation is organized into four reviewable slices: durable lifecycle, backend turn
 boundaries, renderer interaction, and regression coverage.
 
 ## Engineering Context

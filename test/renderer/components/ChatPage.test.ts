@@ -43,6 +43,20 @@ const buildAssistantMessage = (content: unknown) => ({
   updatedAt: 1
 })
 
+const buildSteerMessage = (text: string) => ({
+  id: 'steer-user-1',
+  sessionId: 's1',
+  orderSeq: 2,
+  role: 'user' as const,
+  content: JSON.stringify({ text, files: [], links: [], search: false, think: false }),
+  status: 'pending' as const,
+  isContextEdge: 0,
+  metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}',
+  traceCount: 0,
+  createdAt: 2,
+  updatedAt: 2
+})
+
 type SetupOptions = {
   messages?: Array<Record<string, unknown>>
   sessions?: Array<Record<string, unknown>>
@@ -165,6 +179,7 @@ const setup = async (options: SetupOptions = {}) => {
     loadOlderMessages: vi.fn().mockResolvedValue(0),
     activateRecentSessionView: vi.fn().mockReturnValue(false),
     invalidateRecentSessionView: vi.fn(),
+    applyPersistedMessageRecords: vi.fn(),
     clear: vi.fn(),
     clearStreamingState: vi.fn(),
     clearStreamingStateForOtherSession: vi.fn(),
@@ -180,7 +195,6 @@ const setup = async (options: SetupOptions = {}) => {
 
   const pendingInputStore = reactive({
     items: [],
-    steerItems: [],
     queueItems: [],
     isAtCapacity: false,
     loadPendingInputs: vi.fn().mockResolvedValue(undefined),
@@ -243,8 +257,10 @@ const setup = async (options: SetupOptions = {}) => {
       messageId: null
     }),
     steerActiveTurn: vi.fn().mockResolvedValue({
-      accepted: true
+      accepted: true,
+      message: buildSteerMessage('steer')
     }),
+    cancelSubmission: vi.fn().mockResolvedValue({ cancelled: true }),
     stopStream: vi.fn().mockResolvedValue({ stopped: true }),
     respondToolInteraction: chatRespondToolInteraction,
     onPlanUpdated: vi.fn((listener: (payload: any) => void) => {
@@ -509,7 +525,7 @@ const setup = async (options: SetupOptions = {}) => {
           type: Boolean,
           default: false
         },
-        isSteering: {
+        steerWaitingForTarget: {
           type: Boolean,
           default: false
         },
@@ -520,7 +536,7 @@ const setup = async (options: SetupOptions = {}) => {
       },
       emits: ['attach', 'queue', 'send', 'steer', 'stop'],
       template:
-        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled || isSteering" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
+        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled" :data-waiting-for-target="String(steerWaitingForTarget)" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
     })
   }))
   vi.doMock('@/components/chat/AgentProgressFloat.vue', () => ({
@@ -2884,6 +2900,7 @@ describe('ChatPage', () => {
   it('disables queue submit when the waiting queue is full but keeps steer button available', async () => {
     const { wrapper } = await setup({
       isStreaming: true,
+      currentStreamMessageId: 'm1',
       pendingInputStorePatch: {
         isAtCapacity: true
       }
@@ -2901,6 +2918,32 @@ describe('ChatPage', () => {
     expect(toolbar.props('steerDisabled')).toBe(false)
     const steerButton = toolbar.find('[data-testid="chat-steer-button"]')
     expect(steerButton.exists()).toBe(true)
+  })
+
+  it('inserts an accepted steer message and clears the draft immediately', async () => {
+    const acceptedMessage = buildSteerMessage('tighten the answer')
+    const { wrapper, chatClient, messageStore } = await setup({
+      isStreaming: true,
+      currentStreamMessageId: 'm1'
+    })
+    chatClient.steerActiveTurn.mockResolvedValueOnce({
+      accepted: true,
+      message: acceptedMessage
+    })
+    const inputBox = wrapper.findComponent({ name: 'ChatInputBox' })
+    inputBox.vm.$emit('update:modelValue', 'tighten the answer')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="chat-steer-button"]').trigger('click')
+    await flushPromises()
+
+    expect(chatClient.steerActiveTurn).toHaveBeenCalledWith('s1', {
+      text: 'tighten the answer',
+      files: []
+    })
+    expect(messageStore.applyPersistedMessageRecords).toHaveBeenCalledWith([acceptedMessage])
+    expect(wrapper.findComponent({ name: 'ChatInputToolbar' }).props('hasInput')).toBe(false)
+    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
   })
 
   it('disables composer steer whenever its submit guard would reject it', async () => {

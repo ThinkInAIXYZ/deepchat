@@ -263,6 +263,8 @@ export interface PendingSessionInputRecord {
   mode: PendingSessionInputMode
   state: PendingSessionInputState
   payload: SendMessageInput
+  messageIds: string[]
+  assistantMessageId: string | null
   blocking: AttachmentPreparationSummary | null
   queueOrder: number | null
   claimedAt: number | null
@@ -390,6 +392,10 @@ export interface MessageMetadata {
   messageType?: 'compaction'
   compactionStatus?: 'compacting' | 'compacted'
   summaryUpdatedAt?: number | null
+  inputReceipt?: {
+    mode: 'steer'
+    readAt: number | null
+  }
 }
 
 export interface ChatMessageRecord {
@@ -420,6 +426,7 @@ export interface ChatMessagePageResult {
 export interface MessageStartResult {
   requestId: string | null
   messageId: string | null
+  userMessage?: ChatMessageRecord
   attachmentPreparation?: AttachmentPreparationSummary
 }
 

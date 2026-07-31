@@ -4,6 +4,7 @@ import {
   sessionsAcpConfigOptionsReadyEvent,
   sessionsAcpModesReadyEvent,
   sessionsCompactionChangedEvent,
+  sessionsMessagesChangedEvent,
   sessionsPendingInputsChangedEvent,
   sessionsStatusChangedEvent,
   sessionsUpdatedEvent
@@ -67,6 +68,7 @@ import {
 import type {
   AgentTapeContextOptions,
   AttachmentFallbackPolicy,
+  ChatMessageRecord,
   CreateSessionInput,
   PermissionMode,
   SendMessageInput
@@ -505,6 +507,16 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return bridge.on(sessionsPendingInputsChangedEvent.name, listener)
   }
 
+  function onMessagesChanged(
+    listener: (payload: {
+      sessionId: string
+      messages: ChatMessageRecord[]
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsMessagesChangedEvent.name, listener)
+  }
+
   function onAcpCommandsReady(
     listener: (payload: {
       conversationId: string
@@ -620,6 +632,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     onStatusChanged,
     onCompactionChanged,
     onPendingInputsChanged,
+    onMessagesChanged,
     onAcpModesReady,
     onAcpCommandsReady,
     onAcpConfigOptionsReady

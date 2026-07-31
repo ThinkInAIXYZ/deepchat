@@ -82,6 +82,7 @@
     "limitReached": "La zona de espera está llena (máx. {max}).",
     "remove": "Eliminar",
     "steerUnavailable": "No se puede interrumpir ahora",
+    "steerWaitingForResponse": "Espera a que comience la respuesta del asistente",
     "steerFailed": "No se pudo interrumpir este turno"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "Todo está listo. Escribe aquí tu primer mensaje para completar la introducción.",
       "caption": "El foco permanece en el cuadro de entrada hasta que envíes el primer mensaje."
     }
+  },
+  "messageReceipt": {
+    "unread": "No leído",
+    "read": "Leído"
   },
   "attachments": {
     "chooseRepresentation": "Elige cómo enviar {name}",

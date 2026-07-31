@@ -31,6 +31,12 @@ const createMessage = (): ChatMessageRecord => ({
   updatedAt: 1
 })
 
+const createSteerMessage = (): ChatMessageRecord => ({
+  ...createMessage(),
+  status: 'pending',
+  metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}'
+})
+
 const createScheduler = () => ({
   sleep: vi.fn(),
   timeout: vi.fn(async <T>({ task }: { task: Promise<T> }) => await task),
@@ -45,7 +51,11 @@ function createHarness() {
   }
   const turn = {
     sendMessage: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
-    steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
+    steerActiveTurn: vi.fn().mockResolvedValue({
+      requestId: null,
+      messageId: null,
+      userMessage: createSteerMessage()
+    }),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     respondToolInteraction: vi.fn().mockResolvedValue({ resumed: true })
   }
@@ -179,7 +189,8 @@ describe('ChatService', () => {
     const harness = createHarness()
 
     await expect(harness.service.steerActiveTurn('session-1', 'refine this')).resolves.toEqual({
-      accepted: true
+      accepted: true,
+      message: createSteerMessage()
     })
     expect(harness.turn.steerActiveTurn).toHaveBeenCalledWith('session-1', 'refine this', {
       signal: expect.any(AbortSignal)
@@ -201,6 +212,7 @@ describe('ChatService', () => {
 
     await expect(harness.service.steerActiveTurn('session-1', 'refine this')).resolves.toEqual({
       accepted: false,
+      message: null,
       attachmentPreparation
     })
   })

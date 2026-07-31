@@ -82,6 +82,7 @@
     "limitReached": "Bekleme şeridi dolu (maks. {max}).",
     "remove": "Kaldır",
     "steerUnavailable": "Şu anda kesilemiyor",
+    "steerWaitingForResponse": "Asistan yanıt vermeye başlayana kadar bekleyin",
     "steerFailed": "Bu tur kesilemedi"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "Her şey hazır. İlk katılım akışını tamamlamak için ilk mesajınızı buraya yazın.",
       "caption": "Siz ilk mesajınızı gönderene kadar spot ışığı giriş kutusunun üzerinde kalır."
     }
+  },
+  "messageReceipt": {
+    "unread": "Okunmadı",
+    "read": "Okundu"
   },
   "attachments": {
     "chooseRepresentation": "{name} dosyasının nasıl gönderileceğini seçin",

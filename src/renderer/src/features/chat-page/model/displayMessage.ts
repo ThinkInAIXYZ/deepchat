@@ -74,6 +74,11 @@ export type DisplayUserMessageContent = {
   )[]
 }
 
+export type DisplayInputReceipt = {
+  mode: 'steer'
+  readAt: number | null
+}
+
 export type DisplayAssistantMessageExtra = Record<string, string | number | object[] | boolean> & {
   needsUserAction?: boolean
   permissionType?: 'read' | 'write' | 'all' | 'command'
@@ -212,6 +217,7 @@ type DisplayMessageBase = {
 export type DisplayUserMessage = DisplayMessageBase & {
   role: 'user'
   content: DisplayUserMessageContent
+  inputReceipt?: DisplayInputReceipt
 }
 
 export type DisplayAssistantMessage = DisplayMessageBase & {

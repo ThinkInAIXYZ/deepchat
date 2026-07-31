@@ -82,6 +82,7 @@
     "limitReached": "La zone d'attente est pleine (max. {max}).",
     "remove": "Supprimer",
     "steerUnavailable": "Impossible d'interrompre pour le moment",
+    "steerWaitingForResponse": "Attendez que la réponse de l'assistant commence",
     "steerFailed": "Impossible d'interrompre ce tour"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "Tout est prêt. Saisissez ici votre premier message pour terminer l’onboarding.",
       "caption": "Le projecteur reste sur la zone de saisie jusqu’à l’envoi de votre premier message."
     }
+  },
+  "messageReceipt": {
+    "unread": "Non lu",
+    "read": "Lu"
   },
   "attachments": {
     "chooseRepresentation": "Choisir comment envoyer {name}",

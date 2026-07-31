@@ -42,11 +42,11 @@ function createHarness() {
     close: vi.fn().mockResolvedValue(undefined),
     cleanupSession: vi.fn().mockResolvedValue(undefined),
     listPendingInputs: vi.fn().mockReturnValue([]),
+    resumePendingInputs: vi.fn().mockResolvedValue(true),
     queuePendingInput: vi.fn().mockResolvedValue({ id: 'pending' }),
     steer: vi.fn().mockResolvedValue({ id: 'steer' }),
     updateQueuedInput: vi.fn().mockReturnValue({ id: 'pending' }),
     moveQueuedInput: vi.fn().mockReturnValue([]),
-    convertPendingInputToSteer: vi.fn().mockReturnValue({ id: 'pending' }),
     steerPendingInput: vi.fn().mockResolvedValue({ id: 'pending' }),
     deletePendingInput: vi.fn()
   }
@@ -125,6 +125,33 @@ function createHarness() {
 }
 
 describe('direct ACP agent backend', () => {
+  it('resumes a durable unread Steer when pending inputs are restored', async () => {
+    const harness = createHarness()
+    const handle = harness.backend.open(sessionId, descriptor)
+    harness.runtime.listPendingInputs.mockReturnValueOnce([
+      {
+        id: 'steer',
+        sessionId,
+        mode: 'steer',
+        state: 'pending',
+        payload: { text: 'resume after restart', files: [] },
+        messageIds: ['user'],
+        assistantMessageId: null,
+        blocking: null,
+        queueOrder: null,
+        claimedAt: null,
+        consumedAt: null,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    await expect(handle.pending.list()).resolves.toHaveLength(1)
+    expect(harness.runtime.resumePendingInputs).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId, descriptor })
+    )
+  })
+
   it('initializes and sends exclusively through AcpAgentRuntime', async () => {
     const harness = createHarness()
     const handle = harness.backend.open(sessionId, descriptor)

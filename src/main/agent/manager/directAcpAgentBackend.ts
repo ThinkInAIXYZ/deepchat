@@ -128,11 +128,19 @@ export const createDirectAcpAgentBackend = (
           throwIfAborted(steerOptions?.signal)
           const resolvedInput = await options.resolveInput(sessionId, descriptor)
           throwIfAborted(steerOptions?.signal)
-          await runtime.steer(resolvedInput, content)
-          return { requestId: null, messageId: null }
+          const accepted = await runtime.steer(resolvedInput, content)
+          return {
+            requestId: null,
+            messageId: null,
+            userMessage: accepted.message
+          }
         },
         async list() {
-          return runtime.listPendingInputs(sessionId)
+          const inputs = runtime.listPendingInputs(sessionId)
+          if (inputs.some((input) => input.mode === 'steer' && input.state === 'pending')) {
+            await runtime.resumePendingInputs(await options.resolveInput(sessionId, descriptor))
+          }
+          return inputs
         },
         async queue(content) {
           return await runtime.queuePendingInput(
@@ -145,9 +153,6 @@ export const createDirectAcpAgentBackend = (
         },
         async move(itemId, toIndex) {
           return runtime.moveQueuedInput(sessionId, itemId, toIndex)
-        },
-        async convertToSteer(itemId) {
-          return runtime.convertPendingInputToSteer(sessionId, itemId)
         },
         steer: (itemId) => runtime.steerPendingInput(sessionId, itemId),
         async resolveBlocked() {

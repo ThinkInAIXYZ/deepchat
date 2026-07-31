@@ -96,6 +96,7 @@ import {
   sessionsAcpConfigOptionsReadyEvent,
   sessionsAcpModesReadyEvent,
   sessionsCompactionChangedEvent,
+  sessionsMessagesChangedEvent,
   sessionsPendingInputsChangedEvent,
   sessionsStatusChangedEvent,
   sessionsUpdatedEvent
@@ -194,6 +195,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [sessionsUpdatedEvent.name]: sessionsUpdatedEvent,
   [sessionsStatusChangedEvent.name]: sessionsStatusChangedEvent,
   [sessionsCompactionChangedEvent.name]: sessionsCompactionChangedEvent,
+  [sessionsMessagesChangedEvent.name]: sessionsMessagesChangedEvent,
   [sessionsPendingInputsChangedEvent.name]: sessionsPendingInputsChangedEvent,
   [sessionsAcpModesReadyEvent.name]: sessionsAcpModesReadyEvent,
   [sessionsAcpCommandsReadyEvent.name]: sessionsAcpCommandsReadyEvent,

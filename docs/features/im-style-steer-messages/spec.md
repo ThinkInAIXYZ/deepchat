@@ -2,9 +2,9 @@
 
 ## Status
 
-Ready for implementation. This is a user-visible feature change spanning the pending-input
-lifecycle, transcript persistence, DeepChat and ACP runtime boundaries, typed IPC events, and the
-chat renderer.
+Implemented on `codex/steer-message-lifecycle`. The behavior spans the pending-input lifecycle,
+transcript persistence, DeepChat and ACP runtime boundaries, typed IPC events, and the chat
+renderer.
 
 There are no unresolved product questions in this spec.
 
@@ -485,4 +485,5 @@ It receives no `Unread` / `Read` receipt.
 - `Read` remains visible for 1.5 seconds and fades for 150 ms.
 - Accepted Steers cannot be recalled or edited while active.
 - Pre-stream input uses Queue until an authoritative assistant row exists.
-- No GitHub issue is created as part of this local documentation task.
+- This feature is delivered directly through its implementation PR; no separate GitHub issue is
+  required.

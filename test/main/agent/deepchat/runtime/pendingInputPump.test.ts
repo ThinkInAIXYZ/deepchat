@@ -42,6 +42,8 @@ function createInput(
     mode,
     state: 'pending',
     payload: { text: id, files: [] },
+    messageIds: [],
+    assistantMessageId: null,
     blocking: null,
     queueOrder,
     claimedAt: null,

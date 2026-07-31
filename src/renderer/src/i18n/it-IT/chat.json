@@ -82,6 +82,7 @@
     "limitReached": "Area di attesa piena (max {max}).",
     "remove": "Rimuovi",
     "steerUnavailable": "Impossibile interrompere ora",
+    "steerWaitingForResponse": "Attendi l'inizio della risposta dell'assistente",
     "steerFailed": "Impossibile interrompere questo turno"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "Ora è tutto pronto. Invia qui il primo messaggio per completare la guida.",
       "caption": "L'evidenziazione resterà sul campo di input finché non invii il primo messaggio."
     }
+  },
+  "messageReceipt": {
+    "unread": "Non letto",
+    "read": "Letto"
   },
   "attachments": {
     "chooseRepresentation": "Scegli come inviare {name}",

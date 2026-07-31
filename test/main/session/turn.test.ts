@@ -68,7 +68,6 @@ function createHarness(
     queue: vi.fn().mockResolvedValue(pendingRecord),
     update: vi.fn().mockResolvedValue(pendingRecord),
     move: vi.fn().mockResolvedValue([pendingRecord]),
-    convertToSteer: vi.fn().mockResolvedValue({ ...pendingRecord, mode: 'steer' }),
     steer: vi.fn().mockResolvedValue({ ...pendingRecord, mode: 'steer', state: 'claimed' }),
     resolveBlocked: vi.fn().mockResolvedValue(pendingRecord),
     delete: vi.fn().mockResolvedValue(undefined)
@@ -391,8 +390,9 @@ describe('SessionTurn', () => {
       files: []
     })
     expect(harness.pending.move).toHaveBeenCalledWith('pending-1', 2)
-    expect(harness.pending.convertToSteer).toHaveBeenCalledWith('pending-1')
-    expect(harness.pending.steer).toHaveBeenCalledWith('pending-1')
+    expect(harness.pending.steer).toHaveBeenCalledTimes(2)
+    expect(harness.pending.steer).toHaveBeenNthCalledWith(1, 'pending-1')
+    expect(harness.pending.steer).toHaveBeenNthCalledWith(2, 'pending-1')
     expect(harness.pending.delete).toHaveBeenCalledWith('pending-1')
 
     harness.resolveSession.mockClear()

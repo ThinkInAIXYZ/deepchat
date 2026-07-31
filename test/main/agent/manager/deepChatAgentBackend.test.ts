@@ -22,7 +22,6 @@ const createPort = (): DeepChatAgentBackendPort => {
     steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
     updateQueuedInput: vi.fn().mockResolvedValue({}),
     moveQueuedInput: vi.fn().mockResolvedValue([]),
-    convertPendingInputToSteer: vi.fn().mockResolvedValue({}),
     steerPendingInput: vi.fn().mockResolvedValue({}),
     resolveBlockedPendingInput: vi.fn().mockResolvedValue({}),
     deletePendingInput: vi.fn().mockResolvedValue(undefined),

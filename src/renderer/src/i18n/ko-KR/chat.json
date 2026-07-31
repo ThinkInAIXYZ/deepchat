@@ -82,6 +82,7 @@
     "limitReached": "대기 영역이 가득 찼습니다 (최대 {max}개).",
     "remove": "삭제",
     "steerUnavailable": "지금은 중단할 수 없습니다",
+    "steerWaitingForResponse": "어시스턴트가 응답을 시작할 때까지 기다리세요",
     "steerFailed": "이 턴을 중단하지 못했습니다"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "모든 준비가 완료되었습니다. 첫 메시지를 입력해 온보딩을 완료하세요.",
       "caption": "첫 메시지를 보낼 때까지 스포트라이트가 입력창에 유지됩니다."
     }
+  },
+  "messageReceipt": {
+    "unread": "읽지 않음",
+    "read": "읽음"
   },
   "attachments": {
     "chooseRepresentation": "{name} 전송 방법 선택",

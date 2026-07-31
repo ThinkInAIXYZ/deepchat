@@ -11,6 +11,7 @@ import { isAbortError } from '@/lib/errors'
 import type {
   AttachmentFallbackPolicy,
   AttachmentPreparationSummary,
+  ChatMessageRecord,
   MessageFile,
   SendMessageInput,
   UserMessageInlineItem
@@ -45,16 +46,26 @@ type ChatClientLike = {
     options?: { submissionId?: string }
   ) => Promise<{
     accepted: boolean
+    requestId: string | null
+    messageId: string | null
     attachmentPreparation?: AttachmentPreparationSummary
   }>
   steerActiveTurn: (
     sessionId: string,
     payload: SendMessageInput,
     options?: { submissionId?: string }
-  ) => Promise<{
-    accepted: boolean
-    attachmentPreparation?: AttachmentPreparationSummary
-  }>
+  ) => Promise<
+    | {
+        accepted: true
+        message: ChatMessageRecord
+        attachmentPreparation?: AttachmentPreparationSummary
+      }
+    | {
+        accepted: false
+        message: null
+        attachmentPreparation?: AttachmentPreparationSummary
+      }
+  >
   cancelSubmission: (submissionId: string) => Promise<{ cancelled: boolean }>
 }
 
@@ -200,9 +211,19 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   const hasAttachments = computed(() => attachedFiles.value.length > 0)
   const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
   const isSteering = computed(() => steeringSessionIds.value.has(options.sessionId()))
+  const canSteerActiveMessage = computed(() => {
+    const messageId = messageStore.currentStreamMessageId
+    if (!messageId || messageId.startsWith('__')) return false
+    const record = messageStore.messageCache.get(messageId)
+    return (
+      record?.sessionId === options.sessionId() &&
+      record.role === 'assistant' &&
+      messageStore.committedSessionId === options.sessionId()
+    )
+  })
+  const isWaitingForSteerTarget = computed(() => isGenerating.value && !canSteerActiveMessage.value)
   const isQueueSubmitDisabled = computed(
     () =>
-      isSteering.value ||
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       isAcpWorkdirMissing.value ||
@@ -212,7 +233,6 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   )
   const isInputSubmitDisabled = computed(
     () =>
-      isSteering.value ||
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       isAcpWorkdirMissing.value ||
@@ -225,6 +245,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       !isGenerating.value ||
+      !canSteerActiveMessage.value ||
       isAcpWorkdirMissing.value ||
       options.hasBlockingInteraction() ||
       isSteering.value
@@ -664,14 +685,19 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         ? { submissionId: preparation.submissionId }
         : undefined
       preparation.mainDispatched = Boolean(submissionOptions)
-      const result =
-        currentAttempt.mode === 'send'
-          ? submissionOptions
+      let acceptedSteerMessage: ChatMessageRecord | null = null
+      const result = await (async () => {
+        if (currentAttempt.mode === 'send') {
+          return submissionOptions
             ? await chatClient.sendMessage(sessionId, payload, submissionOptions)
             : await chatClient.sendMessage(sessionId, payload)
-          : submissionOptions
-            ? await chatClient.steerActiveTurn(sessionId, payload, submissionOptions)
-            : await chatClient.steerActiveTurn(sessionId, payload)
+        }
+        const steerResult = submissionOptions
+          ? await chatClient.steerActiveTurn(sessionId, payload, submissionOptions)
+          : await chatClient.steerActiveTurn(sessionId, payload)
+        if (steerResult.accepted) acceptedSteerMessage = steerResult.message
+        return steerResult
+      })()
 
       if (!result.accepted) {
         if (feedback) {
@@ -684,6 +710,13 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         return false
       }
 
+      if (currentAttempt.mode === 'steer') {
+        if (options.canWriteSessionView(sessionId, restoreRequestId)) {
+          messageStore.applyPersistedMessageRecords([acceptedSteerMessage!])
+        } else {
+          messageStore.invalidateRecentSessionView(sessionId)
+        }
+      }
       options.beginPlanTurn(sessionId)
       blockedComposerAttempts.delete(sessionId)
       consumeAcceptedDraft(sessionId, currentAttempt.draft)
@@ -1065,7 +1098,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     attachmentPreparationSummary,
     isPreparingAttachments,
     hasDraftInput,
-    isSteering,
+    isWaitingForSteerTarget,
     isQueueSubmitDisabled,
     isInputSubmitDisabled,
     disableQueueSteerAction,

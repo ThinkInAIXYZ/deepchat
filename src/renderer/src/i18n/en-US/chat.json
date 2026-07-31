@@ -70,6 +70,10 @@
     "audioInputUnsupportedTitle": "Current model does not support audio attachments",
     "audioInputUnsupportedDescription": "Model {model} does not support audio input. Ignored {count} audio attachment(s)."
   },
+  "messageReceipt": {
+    "unread": "Unread",
+    "read": "Read"
+  },
   "attachments": {
     "chooseRepresentation": "Choose how to send {name}",
     "representation": "Attachment representation",
@@ -163,6 +167,7 @@
     "limitReached": "Waiting lane is full (max {max}).",
     "remove": "Remove",
     "steerUnavailable": "Can't interrupt right now",
+    "steerWaitingForResponse": "Wait for the assistant response to start",
     "steerFailed": "Couldn't interrupt this turn"
   },
   "features": {

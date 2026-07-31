@@ -290,7 +290,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     providerSettings,
     pendingInputs: pendingInputCoordinator,
     pump: pendingInputPump,
-    runLifecycle,
+    transcript: messageStore,
     attachmentRouter,
     sessionState,
     registry: runtime,
@@ -367,16 +367,16 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
       input
     )
 
-  const recovered = messageStore.recoverPendingMessages()
-  if (recovered > 0) {
-    logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
-  }
-
   const recoveredPendingInputs = pendingInputCoordinator.recoverClaimedInputsAfterRestart()
   if (recoveredPendingInputs > 0) {
     logger.info(
       `DeepChatAgent: recovered ${recoveredPendingInputs} sessions with claimed pending inputs`
     )
+  }
+
+  const recovered = messageStore.recoverPendingMessages()
+  if (recovered > 0) {
+    logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
   }
 
   return {

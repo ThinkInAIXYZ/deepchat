@@ -82,6 +82,7 @@
     "limitReached": "Pas oczekujących jest pełny (maks. {max}).",
     "remove": "Usuń",
     "steerUnavailable": "Nie można teraz przerwać",
+    "steerWaitingForResponse": "Poczekaj, aż asystent zacznie odpowiadać",
     "steerFailed": "Nie udało się przerwać tej tury"
   },
   "features": {
@@ -401,6 +402,10 @@
       "description": "Wszystko jest gotowe. Wpisz tutaj swoją pierwszą wiadomość, aby zakończyć proces wdrażania.",
       "caption": "Światło reflektora pozostaje w polu wprowadzania, dopóki nie wyślesz pierwszej wiadomości."
     }
+  },
+  "messageReceipt": {
+    "unread": "Nieprzeczytane",
+    "read": "Przeczytane"
   },
   "attachments": {
     "chooseRepresentation": "Wybierz sposób wysłania pliku {name}",

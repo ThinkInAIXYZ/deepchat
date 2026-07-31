@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   AttachmentPreparationSummarySchema,
+  ChatMessageRecordSchema,
   EntityIdSchema,
   SubmissionIdSchema,
   SendMessageInputSchema,
@@ -31,10 +32,18 @@ export const chatSteerActiveTurnRoute = defineRouteContract({
     content: z.union([z.string(), SendMessageInputSchema]),
     submissionId: SubmissionIdSchema.optional()
   }),
-  output: z.object({
-    accepted: z.boolean(),
-    attachmentPreparation: AttachmentPreparationSummarySchema.optional()
-  })
+  output: z.discriminatedUnion('accepted', [
+    z.object({
+      accepted: z.literal(true),
+      message: ChatMessageRecordSchema,
+      attachmentPreparation: AttachmentPreparationSummarySchema.optional()
+    }),
+    z.object({
+      accepted: z.literal(false),
+      message: z.null(),
+      attachmentPreparation: AttachmentPreparationSummarySchema.optional()
+    })
+  ])
 })
 
 export const chatCancelSubmissionRoute = defineRouteContract({
