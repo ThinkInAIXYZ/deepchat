@@ -66,8 +66,10 @@ describe('WorkflowClient', () => {
     ).resolves.toMatchObject({
       approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
     })
-    const listener = vi.fn()
-    const stop = workflow.onRunChanged(listener)
+    const runListener = vi.fn()
+    const invocationListener = vi.fn()
+    const stopRun = workflow.onRunChanged(runListener)
+    const stopInvocation = workflow.onInvocationChanged(invocationListener)
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'workflow.list', {
       parentSessionId: 'parent-1',
@@ -86,7 +88,9 @@ describe('WorkflowClient', () => {
       argsText: '{"scope":"src"}',
       expectedSourceHash: 'd'.repeat(64)
     })
-    expect(on).toHaveBeenCalledWith('workflow.run.changed', listener)
-    expect(stop).toBeTypeOf('function')
+    expect(on).toHaveBeenCalledWith('workflow.run.changed', runListener)
+    expect(on).toHaveBeenCalledWith('workflow.invocation.changed', invocationListener)
+    expect(stopRun).toBeTypeOf('function')
+    expect(stopInvocation).toBeTypeOf('function')
   })
 })

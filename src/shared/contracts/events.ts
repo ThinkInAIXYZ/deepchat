@@ -132,7 +132,11 @@ import {
   workspaceInvalidatedEvent,
   workspaceWatchStatusChangedEvent
 } from './events/workspace.events'
-import { workflowLogEvent, workflowRunChangedEvent } from './events/workflow.events'
+import {
+  workflowInvocationChangedEvent,
+  workflowLogEvent,
+  workflowRunChangedEvent
+} from './events/workflow.events'
 
 export * from './events/browser.events'
 export * from './events/computerUse.events'
@@ -167,6 +171,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [workspaceInvalidatedEvent.name]: workspaceInvalidatedEvent,
   [workspaceWatchStatusChangedEvent.name]: workspaceWatchStatusChangedEvent,
   [workflowRunChangedEvent.name]: workflowRunChangedEvent,
+  [workflowInvocationChangedEvent.name]: workflowInvocationChangedEvent,
   [workflowLogEvent.name]: workflowLogEvent,
   [browserActivityChangedEvent.name]: browserActivityChangedEvent,
   [browserPreviewActionEvent.name]: browserPreviewActionEvent,

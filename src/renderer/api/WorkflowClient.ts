@@ -1,5 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
+  workflowInvocationChangedEvent,
   workflowLogEvent,
   workflowRunChangedEvent,
   type DeepchatEventPayload
@@ -151,6 +152,12 @@ export function createWorkflowClient(bridge: DeepchatBridge = getDeepchatBridge(
     return bridge.on(workflowRunChangedEvent.name, listener)
   }
 
+  function onInvocationChanged(
+    listener: (payload: DeepchatEventPayload<typeof workflowInvocationChangedEvent.name>) => void
+  ) {
+    return bridge.on(workflowInvocationChangedEvent.name, listener)
+  }
+
   function onLog(listener: (payload: DeepchatEventPayload<typeof workflowLogEvent.name>) => void) {
     return bridge.on(workflowLogEvent.name, listener)
   }
@@ -168,6 +175,7 @@ export function createWorkflowClient(bridge: DeepchatBridge = getDeepchatBridge(
     saveSaved,
     prepareSavedLaunch,
     onRunChanged,
+    onInvocationChanged,
     onLog
   }
 }

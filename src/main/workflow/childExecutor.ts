@@ -196,6 +196,7 @@ export class WorkflowChildExecutor {
         throw error
       }
       const terminal = this.failActiveInvocation(initial.id, toInvocationFailure(error, abortScope))
+      this.notifyInvocationChanged(terminal)
       if (error instanceof WorkflowCapabilityScopeChangedError) {
         throw error
       }
@@ -339,11 +340,14 @@ export class WorkflowChildExecutor {
         invocationUsage,
         this.now()
       )
+      this.notifyInvocationChanged(succeeded)
       contextMayRelease = true
       return succeeded
     } catch (error) {
       const failure = toInvocationFailure(error, abortScope)
-      this.failActiveInvocation(invocationId, failure, invocationUsage)
+      this.notifyInvocationChanged(
+        this.failActiveInvocation(invocationId, failure, invocationUsage)
+      )
       if (child && shouldCancelChild) {
         const childAlreadyStopped = childKnownStopped || tracker?.isStopped === true
         if (childAlreadyStopped) {
@@ -432,7 +436,9 @@ export class WorkflowChildExecutor {
         outcome,
         resultSummary: failure.error.message
       })
-      this.options.repository.recordInvocationTapeReceipt(invocationId, receipt, this.now())
+      this.notifyInvocationChanged(
+        this.options.repository.recordInvocationTapeReceipt(invocationId, receipt, this.now())
+      )
     } catch (error) {
       // Failure remains durable and retryable even if lineage finalization needs recovery.
       console.warn(

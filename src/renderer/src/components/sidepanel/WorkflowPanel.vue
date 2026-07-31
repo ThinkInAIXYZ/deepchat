@@ -495,6 +495,8 @@ import { useSessionStore } from '@/stores/ui/session'
 import type { SavedWorkflowInvocationRequest } from '@/stores/ui/sidepanel'
 import SavedWorkflowPanel from './SavedWorkflowPanel.vue'
 
+const MAX_BUFFERED_INVOCATION_DELTAS = 256
+
 const props = defineProps<{
   sessionId: string
   expanded: boolean
@@ -531,9 +533,10 @@ const now = ref(Date.now())
 let disposed = false
 let sessionRequestId = 0
 let detailRequestId = 0
-let detailRefreshQueued = false
 let clockTimer: number | null = null
 let stopRunChanged: (() => void) | null = null
+let stopInvocationChanged: (() => void) | null = null
+const pendingInvocationDeltas = new Map<string, WorkflowInvocationProjection>()
 
 const isRuntimeCompatible = computed(
   () => detail.value?.runtimeApiVersion === WORKFLOW_RUNTIME_API_VERSION
@@ -614,7 +617,7 @@ function mergeRuns(nextRuns: readonly WorkflowRunSummary[]): WorkflowRunSummary[
   return [...nextRuns]
     .map((run) => {
       const current = previous.get(run.id)
-      return current && current.revision > run.revision ? current : run
+      return current && current.revision >= run.revision ? current : run
     })
     .sort((left, right) => right.updatedAt - left.updatedAt || right.id.localeCompare(left.id))
 }
@@ -635,9 +638,9 @@ async function refreshRuns(): Promise<void> {
     if (!selectedRunId.value && runs.value[0]) {
       setSelectedRunId(runs.value[0].id)
     }
-    if (selectedRunId.value) {
+    if (selectedRunId.value && props.expanded) {
       await loadDetail(selectedRunId.value, sessionId)
-    } else {
+    } else if (!selectedRunId.value) {
       detail.value = null
     }
   } catch (error) {
@@ -666,16 +669,29 @@ async function loadDetail(runId: string, sessionId = props.sessionId): Promise<v
     ) {
       return
     }
-    if (
-      !detail.value ||
-      loaded.revision >= detail.value.revision ||
-      detail.value.id !== loaded.id
-    ) {
-      detail.value = loaded
-      runs.value = mergeRuns([
-        ...runs.value.filter((candidate) => candidate.id !== loaded.id),
-        loaded
-      ])
+    const currentSummary = runs.value.find((candidate) => candidate.id === loaded.id)
+    const requiresTerminalReload =
+      currentSummary?.status === 'succeeded' &&
+      currentSummary.revision > loaded.revision &&
+      loaded.status !== 'succeeded'
+    let merged =
+      currentSummary && currentSummary.revision >= loaded.revision
+        ? {
+            ...loaded,
+            ...currentSummary,
+            invocationCounts: loaded.invocationCounts
+          }
+        : loaded
+    for (const invocation of pendingInvocationDeltas.values()) {
+      merged = mergeInvocationDelta(merged, invocation)
+    }
+    pendingInvocationDeltas.clear()
+    detail.value = merged
+    runs.value = [...runs.value.filter((candidate) => candidate.id !== loaded.id), merged].sort(
+      (left, right) => right.updatedAt - left.updatedAt || right.id.localeCompare(left.id)
+    )
+    if (requiresTerminalReload) {
+      void loadDetail(runId, sessionId)
     }
   } catch (error) {
     if (
@@ -700,7 +716,7 @@ async function loadDetail(runId: string, sessionId = props.sessionId): Promise<v
 }
 
 function loadSelectedDetail(): void {
-  if (selectedRunId.value) {
+  if (props.expanded && selectedRunId.value) {
     void loadDetail(selectedRunId.value)
   }
 }
@@ -714,7 +730,10 @@ function selectRun(runId: string): void {
   detailError.value = null
   actionError.value = null
   synthesisState.value = null
-  void loadDetail(runId)
+  pendingInvocationDeltas.clear()
+  if (props.expanded) {
+    void loadDetail(runId)
+  }
 }
 
 function setSelectedRunId(runId: string | null, notify = true): void {
@@ -728,17 +747,79 @@ function setSelectedRunId(runId: string | null, notify = true): void {
   }
 }
 
-function queueDetailRefresh(): void {
-  if (detailRefreshQueued) {
+function mergeInvocationDelta(
+  currentDetail: WorkflowRunDetail,
+  invocation: WorkflowInvocationProjection
+): WorkflowRunDetail {
+  if (invocation.runId !== currentDetail.id) {
+    return currentDetail
+  }
+  const currentIndex = currentDetail.invocations.findIndex(
+    (candidate) => candidate.id === invocation.id
+  )
+  const currentInvocation = currentIndex >= 0 ? currentDetail.invocations[currentIndex] : undefined
+  if (currentInvocation && currentInvocation.updatedAt > invocation.updatedAt) {
+    return currentDetail
+  }
+
+  const invocationCounts = { ...currentDetail.invocationCounts }
+  if (!currentInvocation) {
+    invocationCounts[invocation.status] += 1
+  } else if (currentInvocation.status !== invocation.status) {
+    invocationCounts[currentInvocation.status] = Math.max(
+      0,
+      invocationCounts[currentInvocation.status] - 1
+    )
+    invocationCounts[invocation.status] += 1
+  }
+  const invocations =
+    currentIndex >= 0
+      ? currentDetail.invocations.map((candidate, index) =>
+          index === currentIndex ? invocation : candidate
+        )
+      : [...currentDetail.invocations, invocation]
+
+  return {
+    ...currentDetail,
+    invocationCounts,
+    invocations: invocations.sort(
+      (left, right) => left.seq - right.seq || left.attempt - right.attempt
+    )
+  }
+}
+
+function bufferInvocationDelta(invocation: WorkflowInvocationProjection): void {
+  const current = pendingInvocationDeltas.get(invocation.id)
+  if (current && current.updatedAt > invocation.updatedAt) {
     return
   }
-  detailRefreshQueued = true
-  queueMicrotask(() => {
-    detailRefreshQueued = false
-    if (!disposed) {
-      loadSelectedDetail()
+  if (!current && pendingInvocationDeltas.size >= MAX_BUFFERED_INVOCATION_DELTAS) {
+    const oldestInvocationId = pendingInvocationDeltas.keys().next().value
+    if (oldestInvocationId) {
+      pendingInvocationDeltas.delete(oldestInvocationId)
     }
-  })
+  }
+  pendingInvocationDeltas.set(invocation.id, invocation)
+}
+
+function applyInvocationDelta(invocation: WorkflowInvocationProjection): void {
+  if (invocation.runId !== selectedRunId.value) {
+    return
+  }
+  if (loadingDetail.value || detail.value?.id !== invocation.runId) {
+    bufferInvocationDelta(invocation)
+  }
+  if (detail.value?.id !== invocation.runId) {
+    return
+  }
+  const merged = mergeInvocationDelta(detail.value, invocation)
+  if (merged === detail.value) {
+    return
+  }
+  detail.value = merged
+  runs.value = runs.value.map((run) =>
+    run.id === merged.id ? { ...run, invocationCounts: merged.invocationCounts } : run
+  )
 }
 
 function upsertRun(run: WorkflowRunSummary): void {
@@ -746,6 +827,11 @@ function upsertRun(run: WorkflowRunSummary): void {
   if (index >= 0 && runs.value[index].revision > run.revision) {
     return
   }
+  const shouldRefreshSucceededDetail =
+    props.expanded &&
+    run.status === 'succeeded' &&
+    detail.value?.id === run.id &&
+    (detail.value.status !== 'succeeded' || detail.value.revision < run.revision)
   const next =
     index >= 0
       ? runs.value.map((candidate, i) => (i === index ? run : candidate))
@@ -761,16 +847,20 @@ function upsertRun(run: WorkflowRunSummary): void {
   }
   if (!selectedRunId.value) {
     setSelectedRunId(run.id)
-  }
-  if (selectedRunId.value === run.id) {
-    queueDetailRefresh()
+    if (props.expanded) {
+      void loadDetail(run.id)
+    }
+  } else if (shouldRefreshSucceededDetail) {
+    void loadDetail(run.id)
   }
 }
 
 function handleSavedWorkflowLaunched(run: WorkflowRunSummary): void {
   upsertRun(run)
   setSelectedRunId(run.id)
-  void loadDetail(run.id)
+  if (props.expanded) {
+    void loadDetail(run.id)
+  }
 }
 
 async function performRunAction(
@@ -784,9 +874,13 @@ async function performRunAction(
   actionError.value = null
   synthesisState.value = null
   try {
-    upsertRun(await action())
+    const updated = await action()
+    upsertRun(updated)
     if (options?.clearRetry) {
       pendingRetry.value = null
+    }
+    if (props.expanded && selectedRunId.value === updated.id) {
+      await loadDetail(updated.id)
     }
   } catch (error) {
     console.warn('[WorkflowPanel] Run action failed:', error)
@@ -1043,6 +1137,7 @@ watch(
     runs.value = []
     setSelectedRunId(props.selectedRunId ?? null, false)
     detail.value = null
+    pendingInvocationDeltas.clear()
     detailError.value = null
     void refreshRuns()
   }
@@ -1057,13 +1152,27 @@ watch(
     }
     setSelectedRunId(normalized, false)
     detail.value = null
+    pendingInvocationDeltas.clear()
     detailError.value = null
     actionError.value = null
     synthesisState.value = null
     if (normalized) {
-      void loadDetail(normalized)
+      if (props.expanded) {
+        void loadDetail(normalized)
+      }
     } else if (runs.value[0]) {
       selectRun(runs.value[0].id)
+    }
+  }
+)
+
+watch(
+  () => props.expanded,
+  (expanded) => {
+    detailRequestId += 1
+    loadingDetail.value = false
+    if (expanded && selectedRunId.value) {
+      void loadDetail(selectedRunId.value)
     }
   }
 )
@@ -1078,6 +1187,17 @@ onMounted(() => {
       upsertRun(run)
     }
   })
+  stopInvocationChanged = workflowClient.onInvocationChanged(
+    ({ parentSessionId, runId, invocation }) => {
+      if (
+        parentSessionId === props.sessionId &&
+        runId === invocation.runId &&
+        runId === selectedRunId.value
+      ) {
+        applyInvocationDelta(invocation)
+      }
+    }
+  )
   void refreshRuns()
 })
 
@@ -1091,5 +1211,8 @@ onBeforeUnmount(() => {
   }
   stopRunChanged?.()
   stopRunChanged = null
+  stopInvocationChanged?.()
+  stopInvocationChanged = null
+  pendingInvocationDeltas.clear()
 })
 </script>

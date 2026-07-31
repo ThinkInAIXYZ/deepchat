@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { workflowInvocationChangedEvent } from '@shared/contracts/events/workflow.events'
 import type { WorkflowInvocation, WorkflowRun } from '@shared/workflow/domain'
 import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
 import {
@@ -179,5 +180,23 @@ describe('workflow renderer projections', () => {
     expect(summary.invocationCounts.running).toBe(1)
     expect(summary.invocationCounts.cancelled).toBe(1)
     expect(summary.invocationCounts.succeeded).toBe(0)
+  })
+
+  it('rejects invocation events whose envelope targets another run', () => {
+    const invocation = projectWorkflowInvocation(createInvocation())
+    const payload = {
+      schemaVersion: 1,
+      parentSessionId: 'parent-1',
+      runId: 'another-run',
+      invocation
+    }
+
+    expect(workflowInvocationChangedEvent.payload.safeParse(payload).success).toBe(false)
+    expect(
+      workflowInvocationChangedEvent.payload.safeParse({
+        ...payload,
+        runId: invocation.runId
+      }).success
+    ).toBe(true)
   })
 })

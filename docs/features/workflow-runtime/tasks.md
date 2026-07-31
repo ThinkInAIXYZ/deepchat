@@ -369,12 +369,23 @@ Hot-path validation evidence (2026-07-31):
 
 ### Projection And Authoring UX
 
-- [ ] Add bounded typed invocation-delta events.
-- [ ] Merge invocation deltas in the renderer without full `inspect` reads per progress event.
-- [ ] Avoid detail refreshes while the workflow panel is hidden or collapsed.
+- [x] Add bounded typed invocation-delta events.
+- [x] Merge invocation deltas in the renderer without full `inspect` reads per progress event.
+- [x] Avoid detail refreshes while the workflow panel is hidden or collapsed.
 - [ ] Preserve bounded in-memory dirty drafts across panel/session lifecycle changes.
 - [ ] Clear expired approvals and retain unhandled saved-workflow requests.
-- [ ] Add focused renderer lifecycle, stale-event, and projection tests.
+- [x] Add focused renderer lifecycle, stale-event, and projection tests.
+
+Incremental projection evidence (2026-07-31):
+
+- invocation events carry the bounded renderer projection and reject envelope/projection run
+  mismatches;
+- selected details merge invocation deltas by durable identity without progress-driven `inspect`
+  calls, while successful terminal transitions perform one result refresh;
+- collapsed panels avoid detail reads and load one current snapshot when expanded;
+- service cancellation and interruption reconciliation emit terminal invocation deltas;
+- 113 focused contract, projection, service, child-executor, and renderer tests passed;
+- `pnpm run typecheck`.
 
 ### Outline And Bounded Fan-Out
 

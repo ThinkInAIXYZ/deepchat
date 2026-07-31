@@ -10,6 +10,14 @@ import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtoco
 
 const client = vi.hoisted(() => {
   let runChanged: ((payload: { schemaVersion: 1; run: WorkflowRunSummary }) => void) | null = null
+  let invocationChanged:
+    | ((payload: {
+        schemaVersion: 1
+        parentSessionId: string
+        runId: string
+        invocation: WorkflowInvocationProjection
+      }) => void)
+    | null = null
   return {
     list: vi.fn(),
     inspect: vi.fn(),
@@ -22,11 +30,24 @@ const client = vi.hoisted(() => {
       runChanged = listener
       return vi.fn()
     }),
+    onInvocationChanged: vi.fn((listener: typeof invocationChanged) => {
+      invocationChanged = listener
+      return vi.fn()
+    }),
     emitRunChanged(run: WorkflowRunSummary) {
       runChanged?.({ schemaVersion: 1, run })
     },
+    emitInvocationChanged(next: WorkflowInvocationProjection) {
+      invocationChanged?.({
+        schemaVersion: 1,
+        parentSessionId: 'parent-1',
+        runId: next.runId,
+        invocation: next
+      })
+    },
     reset() {
       runChanged = null
+      invocationChanged = null
     }
   }
 })
@@ -212,14 +233,15 @@ async function mountPanel(
   detail: WorkflowRunDetail,
   selectedRunId?: string,
   savedInvocationRequest?: { id: number; name: string; argsText: string },
-  savedWorkflowsEnabled = true
+  savedWorkflowsEnabled = true,
+  expanded = true
 ) {
   client.list.mockResolvedValue([summary])
   client.inspect.mockResolvedValue(detail)
   const wrapper = mount(WorkflowPanel, {
     props: {
       sessionId: 'parent-1',
-      expanded: true,
+      expanded,
       selectedRunId,
       savedInvocationRequest,
       savedWorkflowsEnabled
@@ -290,12 +312,13 @@ describe('WorkflowPanel', () => {
     await wrapper.get('[data-testid="workflow-open-child-invocation-1"]').trigger('click')
     expect(client.selectSession).toHaveBeenCalledWith('child-1')
 
-    client.inspect.mockResolvedValue({
-      ...detail,
-      revision: 2,
-      status: 'running',
-      invocations: [invocation({ status: 'running' })]
-    })
+    client.emitInvocationChanged(
+      invocation({
+        status: 'running',
+        waitingInteractions: [],
+        updatedAt: 5
+      })
+    )
     client.emitRunChanged({
       ...summary,
       revision: 2,
@@ -304,7 +327,10 @@ describe('WorkflowPanel', () => {
     })
     await flushPromises()
 
-    expect(client.inspect).toHaveBeenCalledTimes(2)
+    expect(client.inspect).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="workflow-run-detail"]').text()).not.toContain(
+      'Which implementation should be used?'
+    )
     wrapper.unmount()
   })
 
@@ -327,23 +353,109 @@ describe('WorkflowPanel', () => {
     wrapper.unmount()
   })
 
-  it('keeps the last durable detail visible when a live refresh fails', async () => {
+  it('keeps the last durable detail visible when a manual refresh fails', async () => {
     const summary = runSummary()
     const detail = runDetail(summary)
     const wrapper = await mountPanel(summary, detail)
 
     client.inspect.mockRejectedValueOnce(new Error('temporary inspect failure'))
-    client.emitRunChanged({
-      ...summary,
-      revision: 2,
-      updatedAt: 4
-    })
+    await wrapper.get('[aria-label="chat.workflow.actions.refresh"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.get('[data-testid="workflow-run-detail"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="workflow-detail-error"]').text()).toContain(
       'common.error.requestFailed'
     )
+    wrapper.unmount()
+  })
+
+  it('merges invocation deltas by identity and ignores older updates', async () => {
+    const summary = runSummary()
+    const detail = runDetail(summary, {
+      invocations: [invocation({ updatedAt: 10 })]
+    })
+    const wrapper = await mountPanel(summary, detail)
+
+    client.emitInvocationChanged(
+      invocation({
+        status: 'waiting_interaction',
+        waitingInteractions: [
+          {
+            kind: 'question',
+            messageId: 'new-message',
+            toolCallId: 'new-question',
+            toolName: 'ask_user',
+            label: 'Newest interaction'
+          }
+        ],
+        updatedAt: 20
+      })
+    )
+    client.emitInvocationChanged(
+      invocation({
+        status: 'running',
+        waitingInteractions: [],
+        updatedAt: 15
+      })
+    )
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="workflow-run-detail"]').text()).toContain(
+      'Newest interaction'
+    )
+    expect(client.inspect).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('refreshes detail once when a successful run exposes its final result', async () => {
+    const summary = runSummary()
+    const detail = runDetail(summary)
+    const succeededSummary = runSummary({
+      status: 'succeeded',
+      resultDeliveryState: 'pending',
+      invocationCounts: { ...invocationCounts, succeeded: 1 },
+      revision: 2,
+      updatedAt: 6,
+      completedAt: 6
+    })
+    const wrapper = await mountPanel(summary, detail)
+    client.inspect.mockResolvedValueOnce(
+      runDetail(succeededSummary, {
+        resultPreview: {
+          text: '{"summary":"done"}',
+          byteLength: 18,
+          truncated: false
+        },
+        invocations: [invocation({ status: 'succeeded', updatedAt: 5, completedAt: 5 })]
+      })
+    )
+
+    client.emitRunChanged(succeededSummary)
+    await flushPromises()
+
+    expect(client.inspect).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('[data-testid="workflow-run-detail"]').text()).toContain(
+      '{"summary":"done"}'
+    )
+    wrapper.unmount()
+  })
+
+  it('does not inspect details while collapsed and refreshes once when expanded', async () => {
+    const summary = runSummary()
+    const detail = runDetail(summary)
+    const wrapper = await mountPanel(summary, detail, undefined, undefined, true, false)
+
+    expect(client.list).toHaveBeenCalledOnce()
+    expect(client.inspect).not.toHaveBeenCalled()
+
+    client.emitRunChanged({ ...summary, revision: 2, updatedAt: 4 })
+    client.emitInvocationChanged(invocation({ status: 'succeeded', updatedAt: 5 }))
+    await flushPromises()
+    expect(client.inspect).not.toHaveBeenCalled()
+
+    await wrapper.setProps({ expanded: true })
+    await flushPromises()
+    expect(client.inspect).toHaveBeenCalledOnce()
     wrapper.unmount()
   })
 

@@ -110,6 +110,12 @@ export type WorkflowServiceUpdate =
       updatedAt: number
     }
   | {
+      type: 'invocation_changed'
+      runId: string
+      parentSessionId: string
+      invocation: WorkflowInvocation
+    }
+  | {
       type: 'log'
       runId: string
       value: JsonValue
@@ -309,7 +315,7 @@ export class WorkflowService {
         execution.controller.abort(cancellationReason)
       }
       try {
-        this.options.repository.reconcileCancelledRun(runId, cancellationReason, this.now())
+        this.reconcileCancelledRun(runId, cancellationReason)
         this.emitRun(runId)
       } finally {
         if (execution) {
@@ -327,7 +333,7 @@ export class WorkflowService {
 
     if (!execution) {
       scheduled?.controller.abort(cancellationReason)
-      this.options.repository.reconcileCancelledRun(runId, cancellationReason, this.now())
+      this.reconcileCancelledRun(runId, cancellationReason)
       this.emitRun(runId)
       return this.options.repository.requireRun(runId)
     }
@@ -403,6 +409,9 @@ export class WorkflowService {
     } else {
       this.options.repository.invalidateInvocation(run.id, invocation.id, reason, this.now())
     }
+    for (const affected of affectedInvocations) {
+      this.emitInvocation(this.options.repository.requireInvocation(affected.id))
+    }
     const queued = this.options.repository.queueRunResume(run.id, this.now())
     this.emitRun(run.id)
     this.pumpQueuedRuns()
@@ -431,10 +440,9 @@ export class WorkflowService {
       execution.controller.abort('Workflow service is stopping.')
       try {
         if (ACTIVE_RUN_STATUSES.has(this.options.repository.requireRun(execution.runId).status)) {
-          this.options.repository.reconcileInterruptedRun(
+          this.reconcileInterruptedRun(
             execution.runId,
-            'DeepChat stopped while the workflow was active.',
-            this.now()
+            'DeepChat stopped while the workflow was active.'
           )
           this.emitRun(execution.runId)
         }
@@ -806,6 +814,7 @@ export class WorkflowService {
       request,
       now: this.now()
     })
+    this.emitInvocation(invocation)
     this.emitRun(execution.runId)
     const terminal = await this.options.childExecutor.execute(invocation.id, {
       signal: execution.controller.signal
@@ -854,11 +863,7 @@ export class WorkflowService {
     }
     const run = this.options.repository.requireRun(execution.runId)
     if (run.status === 'cancelling' || execution.cancellationReason) {
-      this.options.repository.reconcileCancelledRun(
-        execution.runId,
-        execution.cancellationReason ?? error.message,
-        this.now()
-      )
+      this.reconcileCancelledRun(execution.runId, execution.cancellationReason ?? error.message)
     } else if (ACTIVE_RUN_STATUSES.has(run.status)) {
       this.options.repository.failRun(execution.runId, error, this.now())
     }
@@ -879,17 +884,15 @@ export class WorkflowService {
       const run = this.options.repository.requireRun(execution.runId)
       if (ACTIVE_RUN_STATUSES.has(run.status)) {
         if (run.status === 'cancelling' || execution.cancellationReason) {
-          this.options.repository.reconcileCancelledRun(
+          this.reconcileCancelledRun(
             execution.runId,
-            execution.cancellationReason ?? 'Workflow cancellation stopped its utility process.',
-            this.now()
+            execution.cancellationReason ?? 'Workflow cancellation stopped its utility process.'
           )
         } else {
           const qualifier = event.expected ? 'before reaching a terminal state' : 'unexpectedly'
-          this.options.repository.reconcileInterruptedRun(
+          this.reconcileInterruptedRun(
             execution.runId,
-            `Workflow utility exited ${qualifier} with code ${event.code}.`,
-            this.now()
+            `Workflow utility exited ${qualifier} with code ${event.code}.`
           )
         }
         this.emitRun(execution.runId)
@@ -965,11 +968,7 @@ export class WorkflowService {
   private failActiveRun(execution: ActiveRunExecution, error: WorkflowInvocationError): void {
     const run = this.options.repository.requireRun(execution.runId)
     if (run.status === 'cancelling' || execution.cancellationReason) {
-      this.options.repository.reconcileCancelledRun(
-        execution.runId,
-        execution.cancellationReason ?? error.message,
-        this.now()
-      )
+      this.reconcileCancelledRun(execution.runId, execution.cancellationReason ?? error.message)
     } else if (ACTIVE_RUN_STATUSES.has(run.status)) {
       this.options.repository.failRun(execution.runId, error, this.now())
     }
@@ -981,10 +980,9 @@ export class WorkflowService {
       return
     }
     try {
-      this.options.repository.reconcileCancelledRun(
+      this.reconcileCancelledRun(
         execution.runId,
-        execution.cancellationReason ?? 'Workflow cancellation grace period expired.',
-        this.now()
+        execution.cancellationReason ?? 'Workflow cancellation grace period expired.'
       )
       this.emitRun(execution.runId)
     } catch (error) {
@@ -1054,10 +1052,9 @@ export class WorkflowService {
       )
       this.emitRun(runId)
     } else if (ACTIVE_RUN_STATUSES.has(run.status)) {
-      this.options.repository.reconcileInterruptedRun(
+      this.reconcileInterruptedRun(
         runId,
-        `Workflow scheduling failed after activation: ${normalizeErrorMessage(error)}`,
-        this.now()
+        `Workflow scheduling failed after activation: ${normalizeErrorMessage(error)}`
       )
       this.emitRun(runId)
     }
@@ -1074,6 +1071,38 @@ export class WorkflowService {
     }
   }
 
+  private reconcileCancelledRun(runId: string, reason: string): void {
+    const activeInvocationIds = this.listActiveInvocationIds(runId)
+    this.options.repository.reconcileCancelledRun(runId, reason, this.now())
+    this.emitInvocations(activeInvocationIds)
+  }
+
+  private reconcileInterruptedRun(runId: string, reason: string): void {
+    const activeInvocationIds = this.listActiveInvocationIds(runId)
+    this.options.repository.reconcileInterruptedRun(runId, reason, this.now())
+    this.emitInvocations(activeInvocationIds)
+  }
+
+  private listActiveInvocationIds(runId: string): string[] {
+    return this.options.repository
+      .listInvocations(runId)
+      .filter((invocation) => ACTIVE_INVOCATION_STATUSES.has(invocation.status))
+      .map((invocation) => invocation.id)
+  }
+
+  private emitInvocations(invocationIds: readonly string[]): void {
+    if (invocationIds.length === 0) {
+      return
+    }
+    const invocations = invocationIds.map((invocationId) =>
+      this.options.repository.requireInvocation(invocationId)
+    )
+    const run = this.options.repository.requireRun(invocations[0].runId)
+    for (const invocation of invocations) {
+      this.emitInvocation(invocation, run.parentSessionId)
+    }
+  }
+
   private emitRun(runId: string): void {
     const run = this.options.repository.requireRun(runId)
     this.emitUpdate({
@@ -1083,6 +1112,17 @@ export class WorkflowService {
       status: run.status,
       revision: run.revision,
       updatedAt: run.updatedAt
+    })
+  }
+
+  private emitInvocation(invocation: WorkflowInvocation, parentSessionId?: string): void {
+    const resolvedParentSessionId =
+      parentSessionId ?? this.options.repository.requireRun(invocation.runId).parentSessionId
+    this.emitUpdate({
+      type: 'invocation_changed',
+      runId: invocation.runId,
+      parentSessionId: resolvedParentSessionId,
+      invocation
     })
   }
 
@@ -1133,10 +1173,9 @@ export class WorkflowService {
       try {
         const run = this.options.repository.requireRun(execution.runId)
         if (ACTIVE_RUN_STATUSES.has(run.status)) {
-          this.options.repository.reconcileInterruptedRun(
+          this.reconcileInterruptedRun(
             execution.runId,
-            `Workflow terminal reconciliation failed: ${normalizeErrorMessage(error)}`,
-            this.now()
+            `Workflow terminal reconciliation failed: ${normalizeErrorMessage(error)}`
           )
           this.emitRun(execution.runId)
         }

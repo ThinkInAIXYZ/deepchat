@@ -305,7 +305,8 @@ describeIfSqlite('WorkflowService', () => {
 
   it('launches one process, settles durable invocations, and persists final usage', async () => {
     const childExecutor = succeedingChildExecutor()
-    const service = createService(childExecutor)
+    const onUpdate = vi.fn()
+    const service = createService(childExecutor, undefined, { onUpdate })
     const run = await prepareAndLaunch(service)
     const host = await waitForHost()
 
@@ -340,6 +341,12 @@ describeIfSqlite('WorkflowService', () => {
     })
     expect(host.shutdownCount).toBe(1)
     expect(childExecutor.execute).toHaveBeenCalledOnce()
+    expect(onUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'invocation_changed',
+        invocation: expect.objectContaining({ status: 'queued' })
+      })
+    )
   })
 
   it('delivers successful results without coupling delivery failure to run completion', async () => {
@@ -710,7 +717,8 @@ describeIfSqlite('WorkflowService', () => {
           })
       )
     }
-    const service = createService(childExecutor)
+    const onUpdate = vi.fn()
+    const service = createService(childExecutor, undefined, { onUpdate })
     const run = await prepareAndLaunch(service)
     const host = await waitForHost()
     host.emit({
@@ -729,6 +737,15 @@ describeIfSqlite('WorkflowService', () => {
       status: 'interrupted',
       error: { code: 'WORKFLOW_INTERRUPTED' }
     })
+    expect(onUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'invocation_changed',
+        invocation: expect.objectContaining({
+          id: invocation.id,
+          status: 'interrupted'
+        })
+      })
+    )
     resolveChild(invocation)
   })
 
