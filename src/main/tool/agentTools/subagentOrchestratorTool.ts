@@ -20,6 +20,7 @@ const DEFAULT_RUN_TIMEOUT_MS = 300000
 const MIN_RUN_TIMEOUT_MS = 1000
 const MAX_RUN_TIMEOUT_MS = 1800000
 const MAX_ACTIVE_RUNS_PER_PARENT = 3
+const SUBAGENT_ORCHESTRATOR_OWNER_LIMIT = 5
 const SUBAGENT_WORKDIR_RULE =
   'Every child session inherits the same working directory as the parent session.'
 const SUBAGENT_PROMPT_DESCRIPTION = [
@@ -131,7 +132,7 @@ type MutableRunState = {
   createdAt: number
   updatedAt: number
   runTimeoutMs: number
-  deadlineAt: number
+  deadlineAt: number | null
   completion: Promise<void>
   abortController: AbortController
   executionSettled: boolean
@@ -1008,7 +1009,7 @@ export class SubagentOrchestratorTool {
       createdAt: now,
       updatedAt: now,
       runTimeoutMs,
-      deadlineAt: now + runTimeoutMs,
+      deadlineAt: null,
       completion: Promise.resolve(),
       abortController,
       executionSettled: false
@@ -1235,53 +1236,85 @@ export class SubagentOrchestratorTool {
       }
     }
 
-    const runTask = async (task: MutableTaskState): Promise<void> => {
-      await this.invocationAdmission.run(
-        {
-          ownerId: `subagent-orchestrator:${runId}`,
-          signal: abortController.signal
-        },
-        () => executeTask(task)
-      )
+    let resolveDeadline = () => {}
+    const deadline = new Promise<void>((resolve) => {
+      resolveDeadline = resolve
+    })
+    const armRunDeadline = () => {
+      if (run.deadlineAt !== null || run.executionSettled || abortController.signal.aborted) {
+        return
+      }
+      run.deadlineAt = Date.now() + run.runTimeoutMs
+      run.deadlineTimer = setTimeout(() => {
+        const reason = `Run deadline exceeded after ${run.runTimeoutMs}ms.`
+        void this.cancelRun(run, reason)
+        resolveDeadline()
+      }, run.runTimeoutMs)
+      emitProgress()
+    }
+    const admissionOptions = {
+      ownerId: `subagent-orchestrator:${runId}`,
+      maxActiveForOwner: SUBAGENT_ORCHESTRATOR_OWNER_LIMIT,
+      signal: abortController.signal
+    }
+    const recordTaskExecutionFailure = (task: MutableTaskState, error: unknown) => {
+      if (isTerminalStatus(task.status)) {
+        return
+      }
+      const message = errorMessage(error)
+      task.updatedAt = Date.now()
+      if (abortController.signal.aborted) {
+        this.markTaskCancelled(task, run.cancellationReason || 'Cancelled by parent session.')
+      } else {
+        task.status = 'error'
+        task.resultSummary = message
+        task.completion.resolve()
+      }
+      emitProgress()
+    }
+    const runParallelTask = async (task: MutableTaskState): Promise<void> => {
+      try {
+        await this.invocationAdmission.run(admissionOptions, async () => {
+          armRunDeadline()
+          await executeTask(task)
+        })
+      } catch (error) {
+        recordTaskExecutionFailure(task, error)
+      }
     }
 
     const execution = (async () => {
       emitProgress()
 
-      try {
-        if (mode === 'parallel') {
-          await Promise.all(tasks.map((task) => runTask(task)))
-        } else {
-          for (const task of tasks) {
-            if (abortController.signal.aborted) {
-              break
+      if (mode === 'parallel') {
+        const outcomes = await Promise.allSettled(tasks.map((task) => runParallelTask(task)))
+        outcomes.forEach((outcome, index) => {
+          if (outcome.status === 'rejected') {
+            recordTaskExecutionFailure(tasks[index], outcome.reason)
+          }
+        })
+      } else {
+        try {
+          await this.invocationAdmission.run(admissionOptions, async () => {
+            armRunDeadline()
+            for (const task of tasks) {
+              if (abortController.signal.aborted) {
+                break
+              }
+              await executeTask(task)
             }
-            await runTask(task)
+          })
+        } catch (error) {
+          run.error = errorMessage(error)
+          for (const task of tasks) {
+            recordTaskExecutionFailure(task, error)
           }
-        }
-      } catch (error) {
-        run.error = error instanceof Error ? error.message : String(error)
-        for (const task of tasks) {
-          if (isTerminalStatus(task.status)) {
-            continue
-          }
-          task.status = abortController.signal.aborted ? 'cancelled' : 'error'
-          task.resultSummary = run.error
-          task.updatedAt = Date.now()
-          task.completion.resolve()
         }
       }
     })().finally(() => {
       run.executionSettled = true
     })
 
-    const deadline = new Promise<void>((resolve) => {
-      run.deadlineTimer = setTimeout(() => {
-        const reason = `Run deadline exceeded after ${run.runTimeoutMs}ms.`
-        void this.cancelRun(run, reason)
-        resolve()
-      }, run.runTimeoutMs)
-    })
     const lifecycleEvents = [execution, deadline]
     if (parentCancellation) {
       lifecycleEvents.push(parentCancellation)

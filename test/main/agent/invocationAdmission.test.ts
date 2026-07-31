@@ -7,6 +7,14 @@ import {
 } from '@/agent/invocationAdmission'
 
 describe('AgentInvocationAdmission', () => {
+  it('reserves process-wide headroom beyond one workflow owner', () => {
+    expect(new AgentInvocationAdmission().snapshot()).toMatchObject({
+      capacity: 6,
+      active: 0,
+      pending: 0
+    })
+  })
+
   it('enforces capacity and schedules queued owners round-robin', async () => {
     const admission = new AgentInvocationAdmission(1, 10)
     const first = await admission.acquire({ ownerId: 'owner-a' })
@@ -35,6 +43,36 @@ describe('AgentInvocationAdmission', () => {
     await Promise.all(queued)
 
     expect(order).toEqual(['a1', 'b1', 'a2', 'b2'])
+    expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
+  })
+
+  it('enforces owner limits while allowing other owners to use global headroom', async () => {
+    const admission = new AgentInvocationAdmission(3, 10)
+    const first = await admission.acquire({ ownerId: 'workflow-a', maxActiveForOwner: 2 })
+    const second = await admission.acquire({ ownerId: 'workflow-a', maxActiveForOwner: 2 })
+    const queued = admission.acquire({ ownerId: 'workflow-a', maxActiveForOwner: 2 })
+    const other = await admission.acquire({
+      ownerId: 'orchestrator-b',
+      maxActiveForOwner: 5
+    })
+
+    expect(admission.snapshot()).toMatchObject({
+      capacity: 3,
+      active: 3,
+      pending: 1,
+      pendingOwners: 1
+    })
+
+    other.release()
+    await Promise.resolve()
+    expect(admission.snapshot()).toMatchObject({ active: 2, pending: 1 })
+
+    first.release()
+    const queuedPermit = await queued
+    expect(admission.snapshot()).toMatchObject({ active: 2, pending: 0 })
+
+    second.release()
+    queuedPermit.release()
     expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
   })
 

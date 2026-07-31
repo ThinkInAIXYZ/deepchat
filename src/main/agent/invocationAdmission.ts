@@ -1,4 +1,4 @@
-export const DEFAULT_AGENT_INVOCATION_CAPACITY = 4
+export const DEFAULT_AGENT_INVOCATION_CAPACITY = 6
 export const DEFAULT_AGENT_INVOCATION_MAX_PENDING = 256
 
 export interface AgentInvocationPermit {
@@ -7,6 +7,7 @@ export interface AgentInvocationPermit {
 
 export interface AgentInvocationAdmissionOptions {
   ownerId: string
+  maxActiveForOwner?: number
   signal?: AbortSignal
 }
 
@@ -46,6 +47,7 @@ export class AgentInvocationAdmissionQueueFullError extends Error {
 
 interface AdmissionWaiter {
   ownerId: string
+  maxActiveForOwner: number
   resolve: (permit: AgentInvocationPermit) => void
   reject: (error: Error) => void
   signal?: AbortSignal
@@ -56,6 +58,7 @@ interface AdmissionWaiter {
 export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
   private readonly ownerQueues = new Map<string, AdmissionWaiter[]>()
   private readonly ownerRing: string[] = []
+  private readonly activeByOwner = new Map<string, number>()
   private active = 0
   private pending = 0
   private closedError: AgentInvocationAdmissionClosedError | null = null
@@ -74,15 +77,19 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
 
   acquire(options: AgentInvocationAdmissionOptions): Promise<AgentInvocationPermit> {
     const ownerId = normalizeOwnerId(options.ownerId)
+    const maxActiveForOwner = normalizeOwnerLimit(options.maxActiveForOwner, this.capacity)
     if (this.closedError) {
       return Promise.reject(this.closedError)
     }
     if (options.signal?.aborted) {
       return Promise.reject(new AgentInvocationAdmissionAbortedError())
     }
-    if (this.active < this.capacity && this.pending === 0) {
-      this.active += 1
-      return Promise.resolve(this.createPermit())
+    if (
+      this.active < this.capacity &&
+      this.pending === 0 &&
+      this.getActiveForOwner(ownerId) < maxActiveForOwner
+    ) {
+      return Promise.resolve(this.grant(ownerId))
     }
     if (this.pending >= this.maxPending) {
       return Promise.reject(new AgentInvocationAdmissionQueueFullError(this.maxPending))
@@ -91,6 +98,7 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
     return new Promise<AgentInvocationPermit>((resolve, reject) => {
       const waiter: AdmissionWaiter = {
         ownerId,
+        maxActiveForOwner,
         resolve,
         reject,
         signal: options.signal,
@@ -151,28 +159,47 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
 
   private dispatch(): void {
     while (this.active < this.capacity && this.pending > 0 && this.ownerRing.length > 0) {
-      const ownerId = this.ownerRing.shift()!
-      const queue = this.ownerQueues.get(ownerId)
-      if (!queue || queue.length === 0) {
-        this.ownerQueues.delete(ownerId)
-        continue
+      const ownersInRound = this.ownerRing.length
+      let grantedInRound = false
+
+      for (
+        let ownerIndex = 0;
+        ownerIndex < ownersInRound && this.active < this.capacity;
+        ownerIndex += 1
+      ) {
+        const ownerId = this.ownerRing.shift()!
+        const queue = this.ownerQueues.get(ownerId)
+        if (!queue || queue.length === 0) {
+          this.ownerQueues.delete(ownerId)
+          continue
+        }
+
+        const waiter = queue[0]
+        if (this.getActiveForOwner(ownerId) >= waiter.maxActiveForOwner) {
+          this.ownerRing.push(ownerId)
+          continue
+        }
+
+        queue.shift()
+        if (queue.length > 0) {
+          this.ownerRing.push(ownerId)
+        } else {
+          this.ownerQueues.delete(ownerId)
+        }
+        if (waiter.settled) {
+          continue
+        }
+
+        waiter.settled = true
+        this.detachAbort(waiter)
+        this.pending -= 1
+        grantedInRound = true
+        waiter.resolve(this.grant(ownerId))
       }
 
-      const waiter = queue.shift()!
-      if (queue.length > 0) {
-        this.ownerRing.push(ownerId)
-      } else {
-        this.ownerQueues.delete(ownerId)
+      if (!grantedInRound) {
+        return
       }
-      if (waiter.settled) {
-        continue
-      }
-
-      waiter.settled = true
-      this.detachAbort(waiter)
-      this.pending -= 1
-      this.active += 1
-      waiter.resolve(this.createPermit())
     }
   }
 
@@ -214,7 +241,13 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
     }
   }
 
-  private createPermit(): AgentInvocationPermit {
+  private getActiveForOwner(ownerId: string): number {
+    return this.activeByOwner.get(ownerId) ?? 0
+  }
+
+  private grant(ownerId: string): AgentInvocationPermit {
+    this.active += 1
+    this.activeByOwner.set(ownerId, this.getActiveForOwner(ownerId) + 1)
     let released = false
     return {
       release: () => {
@@ -225,7 +258,16 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
         if (this.active <= 0) {
           throw new Error('Agent invocation permit accounting underflow.')
         }
+        const ownerActive = this.getActiveForOwner(ownerId)
+        if (ownerActive <= 0) {
+          throw new Error(`Agent invocation owner permit accounting underflow: ${ownerId}`)
+        }
         this.active -= 1
+        if (ownerActive === 1) {
+          this.activeByOwner.delete(ownerId)
+        } else {
+          this.activeByOwner.set(ownerId, ownerActive - 1)
+        }
         this.dispatch()
       }
     }
@@ -238,4 +280,14 @@ function normalizeOwnerId(ownerId: string): string {
     throw new Error('Agent invocation ownerId must contain 1 to 256 characters.')
   }
   return normalized
+}
+
+function normalizeOwnerLimit(requested: number | undefined, capacity: number): number {
+  if (requested === undefined) {
+    return capacity
+  }
+  if (!Number.isSafeInteger(requested) || requested < 1) {
+    throw new Error('Agent invocation owner limit must be a positive safe integer.')
+  }
+  return Math.min(requested, capacity)
 }

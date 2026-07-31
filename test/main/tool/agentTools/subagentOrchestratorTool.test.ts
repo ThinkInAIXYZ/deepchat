@@ -7,7 +7,10 @@ import {
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { SubagentTapeLinkInput, SubagentTapeLinkReceipt } from '@shared/types/agent-interface'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
-import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
+import {
+  AgentInvocationAdmission,
+  type AgentInvocationAdmissionPort
+} from '@/agent/invocationAdmission'
 
 const parentSubagentCapability = resolveDeepChatSubagentCapability({
   agentType: 'deepchat',
@@ -82,7 +85,7 @@ const buildRuntimePort = (
   ...overrides
 })
 
-const createTool = (runtimePort: any, admission?: AgentInvocationAdmission) =>
+const createTool = (runtimePort: any, admission?: AgentInvocationAdmissionPort) =>
   new SubagentOrchestratorTool(
     runtimePort,
     runtimePort,
@@ -99,6 +102,233 @@ const createDeferredPromise = <T>() => {
 }
 
 describe('SubagentOrchestratorTool', () => {
+  it('preserves the documented five-way parallel fanout', async () => {
+    const admission = new AgentInvocationAdmission()
+    const parentSession = buildSessionInfo()
+    let childIndex = 0
+    const runtimePort = buildRuntimePort(parentSession, {
+      createSubagentSession: vi.fn().mockImplementation(async () => {
+        childIndex += 1
+        return buildSessionInfo({
+          sessionId: `parallel-child-${childIndex}`,
+          sessionKind: 'subagent',
+          parentSessionId: parentSession.sessionId,
+          subagentCapability: childSubagentCapability
+        })
+      })
+    })
+    const tool = createTool(runtimePort, admission)
+
+    const started = await tool.call(
+      {
+        mode: 'parallel',
+        background: true,
+        tasks: Array.from({ length: 5 }, (_, index) => ({
+          slotId: 'reviewer',
+          title: `Parallel ${index + 1}`,
+          prompt: `Run parallel task ${index + 1}.`
+        }))
+      },
+      parentSession.sessionId
+    )
+    const runId = JSON.parse((started.rawData?.toolResult as any).subagentProgress).runId
+
+    await vi.waitFor(() => expect(runtimePort.createSubagentSession).toHaveBeenCalledTimes(5))
+    expect(admission.snapshot()).toMatchObject({ capacity: 6, active: 5, pending: 0 })
+
+    await tool.call({ operation: 'kill', runId }, parentSession.sessionId)
+    await vi.waitFor(() => expect(admission.snapshot().active).toBe(0))
+  })
+
+  it('holds one admission permit across an entire chain', async () => {
+    const admission = new AgentInvocationAdmission()
+    const acquire = vi.spyOn(admission, 'acquire')
+    const parentSession = buildSessionInfo()
+    let childIndex = 0
+    let listener: ((update: SessionRuntimeUpdate) => void) | null = null
+    const runtimePort = buildRuntimePort(parentSession, {
+      createSubagentSession: vi.fn().mockImplementation(async () => {
+        childIndex += 1
+        return buildSessionInfo({
+          sessionId: `chain-child-${childIndex}`,
+          sessionKind: 'subagent',
+          parentSessionId: parentSession.sessionId,
+          subagentCapability: childSubagentCapability
+        })
+      }),
+      sendConversationMessage: vi.fn().mockImplementation(async (sessionId: string) => {
+        queueMicrotask(() => {
+          listener?.({
+            sessionId,
+            kind: 'status',
+            updatedAt: Date.now(),
+            status: 'idle'
+          })
+        })
+      }),
+      subscribeSessionRuntimeUpdates: vi.fn((callback) => {
+        listener = callback
+        return () => {
+          listener = null
+        }
+      })
+    })
+    const tool = createTool(runtimePort, admission)
+
+    const result = await tool.call(
+      {
+        mode: 'chain',
+        tasks: Array.from({ length: 3 }, (_, index) => ({
+          slotId: 'reviewer',
+          title: `Chain ${index + 1}`,
+          prompt: `Run chain task ${index + 1}.`
+        }))
+      },
+      parentSession.sessionId
+    )
+    const finalProgress = JSON.parse((result.rawData?.toolResult as any).subagentFinal)
+
+    expect(acquire).toHaveBeenCalledOnce()
+    expect(acquire).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerId: expect.stringMatching(/^subagent-orchestrator:/),
+        maxActiveForOwner: 5
+      })
+    )
+    expect(runtimePort.createSubagentSession).toHaveBeenCalledTimes(3)
+    expect(finalProgress.tasks.map((task: any) => task.status)).toEqual([
+      'completed',
+      'completed',
+      'completed'
+    ])
+    expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
+  })
+
+  it('starts the run deadline only after first admission', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-13T00:00:00.000Z'))
+
+    try {
+      const admission = new AgentInvocationAdmission(1, 10)
+      const blocker = await admission.acquire({ ownerId: 'blocking-owner' })
+      const parentSession = buildSessionInfo()
+      const childSession = buildSessionInfo({
+        sessionId: 'admitted-after-wait',
+        sessionKind: 'subagent',
+        parentSessionId: parentSession.sessionId,
+        subagentCapability: childSubagentCapability
+      })
+      const runtimePort = buildRuntimePort(parentSession, {
+        createSubagentSession: vi.fn().mockResolvedValue(childSession)
+      })
+      const tool = createTool(runtimePort, admission)
+
+      const started = await tool.call(
+        {
+          mode: 'parallel',
+          background: true,
+          runTimeoutMs: 1000,
+          tasks: [{ slotId: 'reviewer', title: 'Queued', prompt: 'Wait for admission.' }]
+        },
+        parentSession.sessionId
+      )
+      const initial = JSON.parse((started.rawData?.toolResult as any).subagentProgress)
+
+      expect(initial.deadlineAt).toBeNull()
+      expect(runtimePort.createSubagentSession).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(5000)
+      const stillQueued = await tool.call(
+        { operation: 'info', runId: initial.runId },
+        parentSession.sessionId
+      )
+      expect(JSON.parse((stillQueued.rawData?.toolResult as any).subagentProgress)).toMatchObject({
+        status: 'queued',
+        deadlineAt: null
+      })
+
+      blocker.release()
+      await vi.advanceTimersByTimeAsync(0)
+      const admitted = await tool.call(
+        { operation: 'info', runId: initial.runId },
+        parentSession.sessionId
+      )
+      expect(JSON.parse((admitted.rawData?.toolResult as any).subagentProgress)).toMatchObject({
+        deadlineAt: Date.now() + 1000
+      })
+      expect(runtimePort.createSubagentSession).toHaveBeenCalledOnce()
+
+      await vi.advanceTimersByTimeAsync(1000)
+      const expired = await tool.call(
+        { operation: 'info', runId: initial.runId },
+        parentSession.sessionId
+      )
+      expect(JSON.parse((expired.rawData?.toolResult as any).subagentProgress)).toMatchObject({
+        status: 'cancelled',
+        cancellationReason: 'Run deadline exceeded after 1000ms.'
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('isolates parallel admission failures to their own tasks', async () => {
+    const admission = new AgentInvocationAdmission(2, 0)
+    const parentSession = buildSessionInfo()
+    let childIndex = 0
+    let listener: ((update: SessionRuntimeUpdate) => void) | null = null
+    const runtimePort = buildRuntimePort(parentSession, {
+      createSubagentSession: vi.fn().mockImplementation(async () => {
+        childIndex += 1
+        return buildSessionInfo({
+          sessionId: `admitted-child-${childIndex}`,
+          sessionKind: 'subagent',
+          parentSessionId: parentSession.sessionId,
+          subagentCapability: childSubagentCapability
+        })
+      }),
+      sendConversationMessage: vi.fn().mockImplementation(async (sessionId: string) => {
+        queueMicrotask(() => {
+          listener?.({
+            sessionId,
+            kind: 'status',
+            updatedAt: Date.now(),
+            status: 'idle'
+          })
+        })
+      }),
+      subscribeSessionRuntimeUpdates: vi.fn((callback) => {
+        listener = callback
+        return () => {
+          listener = null
+        }
+      })
+    })
+    const tool = createTool(runtimePort, admission)
+
+    const result = await tool.call(
+      {
+        mode: 'parallel',
+        tasks: Array.from({ length: 3 }, (_, index) => ({
+          slotId: 'reviewer',
+          title: `Task ${index + 1}`,
+          prompt: `Run task ${index + 1}.`
+        }))
+      },
+      parentSession.sessionId
+    )
+    const finalProgress = JSON.parse((result.rawData?.toolResult as any).subagentFinal)
+
+    expect(finalProgress.status).toBe('error')
+    expect(finalProgress.tasks.map((task: any) => task.status)).toEqual([
+      'completed',
+      'completed',
+      'error'
+    ])
+    expect(finalProgress.tasks[2].resultSummary).toContain('queue is full')
+    expect(runtimePort.createSubagentSession).toHaveBeenCalledTimes(2)
+  })
+
   it('shares one process-wide child admission gate across orchestrator instances', async () => {
     const admission = new AgentInvocationAdmission(1, 10)
     const firstCreation = createDeferredPromise<ConversationSessionInfo | null>()
@@ -387,12 +617,20 @@ describe('SubagentOrchestratorTool', () => {
 
       expect(startedProgress).toMatchObject({
         runTimeoutMs: 1200,
-        deadlineAt: Date.now() + 1200
+        deadlineAt: null
       })
       expect(startedProgress.cancellationReason).toBeUndefined()
 
-      await Promise.resolve()
-      await Promise.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+      const armed = await tool.call(
+        { operation: 'info', runId: startedProgress.runId },
+        parentSession.sessionId
+      )
+      expect(JSON.parse((armed.rawData?.toolResult as any).subagentProgress)).toMatchObject({
+        runTimeoutMs: 1200,
+        deadlineAt: Date.now() + 1200
+      })
+
       await vi.advanceTimersByTimeAsync(1200)
 
       const info = await tool.call(

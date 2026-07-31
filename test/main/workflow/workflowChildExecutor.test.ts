@@ -203,6 +203,8 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     const setWaiting = vi.spyOn(repository, 'setInvocationWaiting')
     const setRunning = vi.spyOn(repository, 'markInvocationRunning')
     const onInvocationChanged = vi.fn()
+    const admission = new AgentInvocationAdmission(1, 8)
+    const acquire = vi.spyOn(admission, 'acquire')
     sessions.onSend = async (sessionId) => {
       expect(contexts.get(sessionId)).toEqual({
         runId: 'run-1',
@@ -243,11 +245,9 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       })
     }
 
-    const result = await createExecutor(
-      new AgentInvocationAdmission(1, 8),
-      output,
-      onInvocationChanged
-    ).execute(invocation.id)
+    const result = await createExecutor(admission, output, onInvocationChanged).execute(
+      invocation.id
+    )
 
     expect(result).toMatchObject({
       status: 'succeeded',
@@ -299,6 +299,12 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       })
     )
     expect(output.close).toHaveBeenCalledOnce()
+    expect(acquire).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerId: 'workflow:run-1',
+        maxActiveForOwner: 4
+      })
+    )
     expect(contexts.size).toBe(0)
   })
 

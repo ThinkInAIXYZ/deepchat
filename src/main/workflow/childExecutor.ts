@@ -27,6 +27,7 @@ import type {
 } from './structuredOutput/contracts'
 
 const CHILD_CANCELLATION_SETTLE_MS = 10_000
+const WORKFLOW_INVOCATION_OWNER_LIMIT = 4
 const RESULT_SUMMARY_MAX_LENGTH = 2_000
 const STRUCTURED_OUTPUT_INSTRUCTION_MAX_LENGTH = 32 * 1024
 const INVOCATION_ERROR_MESSAGE_MAX_LENGTH = 8_192
@@ -172,6 +173,7 @@ export class WorkflowChildExecutor {
       return await this.options.admission.run(
         {
           ownerId: `workflow:${run.id}`,
+          maxActiveForOwner: WORKFLOW_INVOCATION_OWNER_LIMIT,
           signal: abortScope.signal
         },
         async () =>

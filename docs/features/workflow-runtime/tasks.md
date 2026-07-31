@@ -323,15 +323,25 @@ Runtime/recovery audit validation evidence (2026-07-31):
 
 ### Compatibility, Policy, And Performance
 
-- [ ] Keep workflow owner concurrency at four while preserving orchestrator five-way fan-out.
-- [ ] Hold one permit across sequential orchestrator chains and isolate parallel admission errors.
-- [ ] Start orchestrator overall timeout after first admission.
+- [x] Keep workflow owner concurrency at four while preserving orchestrator five-way fan-out.
+- [x] Hold one permit across sequential orchestrator chains and isolate parallel admission errors.
+- [x] Start orchestrator overall timeout after first admission.
 - [x] Make the model-facing workflow tool user-configurable and disabled by default.
 - [x] Stop globally reserving the `workflow` MCP name.
 - [x] Require write/unknown retry confirmation independently of a changed input hash.
 - [ ] Aggregate token usage without loading every invocation on each dispatch.
 - [ ] Remove avoidable per-block workflow invocation reads.
 - [ ] Add focused admission, exposure, retry, and performance-contract tests.
+
+Shared-admission compatibility evidence (2026-07-31):
+
+- the process-wide child pool defaults to six permits, workflow runs cap themselves at four, and
+  orchestrator runs cap themselves at five;
+- a sequential orchestrator chain holds one permit, while parallel admission failure is recorded
+  only against the rejected task;
+- orchestrator deadline serialization remains `null` until the first permit is acquired;
+- 59 admission, orchestrator, and Workflow child-executor tests passed;
+- `pnpm run typecheck:node`.
 
 Policy/retry validation evidence (2026-07-31):
 
