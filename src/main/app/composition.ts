@@ -150,6 +150,10 @@ import { ProjectDatabase } from '@/project/data/database'
 import { SettingsDatabase } from '@/settings/data/database'
 import { SchedulerDatabase } from '@/scheduler/data/database'
 import { AppDatabase } from '@/app/data/database'
+import { WorkflowDatabase } from '@/workflow/data/database'
+import { WorkflowRepository } from '@/workflow/repository'
+import { WorkflowToolEffectObserver } from '@/workflow/effectObserver'
+import { WorkflowInvocationContextRegistry } from '@/workflow/invocationContextRegistry'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -254,6 +258,12 @@ export async function createMainProcessControl(dependencies: {
   const databaseSecurityService = dependencies.databaseSecurityService
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
   const mainDatabase = dependencies.database
+  const workflowRepository = new WorkflowRepository(new WorkflowDatabase(mainDatabase))
+  const workflowInvocationContexts = new WorkflowInvocationContextRegistry()
+  const workflowEffectObserver = new WorkflowToolEffectObserver(
+    workflowRepository,
+    workflowInvocationContexts
+  )
   const fileWatcherService = new FileWatcherService()
   let windowPresenter: IWindowPresenter
   let providerSettings: ProviderSettings
@@ -952,7 +962,8 @@ export async function createMainProcessControl(dependencies: {
     skillSettings,
     desktopSettings,
     commandPermissionHandler,
-    agentTools: agentToolDependencies
+    agentTools: agentToolDependencies,
+    effectObserver: workflowEffectObserver
   })
 
   // Plugin activation is a shared startup barrier for Skill migration and MCP startup.

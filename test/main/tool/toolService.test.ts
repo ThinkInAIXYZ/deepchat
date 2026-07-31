@@ -103,6 +103,81 @@ const cronJobRunFixture = {
 } as any
 
 describe('ToolService', () => {
+  it('records workflow effect intent before dispatch and blocks execution when it cannot persist', async () => {
+    const order: string[] = []
+    const effectObserver = {
+      beforeToolExecution: vi.fn(async () => {
+        order.push('effect')
+      })
+    }
+    const mcpDefinition = {
+      ...buildToolDefinition('remote_read', 'remote'),
+      execution: TOOL_EXECUTION.read.parallel
+    }
+    const mcpService = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([mcpDefinition]),
+      callTool: vi.fn(async () => {
+        order.push('tool')
+        return {
+          content: 'ok',
+          rawData: {
+            toolCallId: 'call-1',
+            content: 'ok'
+          }
+        }
+      })
+    } as any
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => false } as any,
+      mcpService,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock(),
+      effectObserver
+    })
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'workflow-child'
+    })
+    const request = {
+      id: 'call-1',
+      type: 'function',
+      function: {
+        name: 'remote_read',
+        arguments: '{}'
+      },
+      conversationId: 'workflow-child'
+    }
+
+    await expect(toolService.callTool(request)).resolves.toMatchObject({ content: 'ok' })
+    expect(order).toEqual(['effect', 'tool'])
+    expect(effectObserver.beforeToolExecution).toHaveBeenCalledWith({
+      conversationId: 'workflow-child',
+      toolCallId: 'call-1',
+      toolName: 'remote_read',
+      source: 'mcp',
+      reviewedExecution: null
+    })
+
+    order.length = 0
+    mcpService.callTool.mockClear()
+    effectObserver.beforeToolExecution.mockRejectedValueOnce(new Error('intent write failed'))
+    await expect(toolService.callTool(request)).rejects.toThrow('intent write failed')
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+
+    effectObserver.beforeToolExecution.mockClear()
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      toolService.callTool(request, { signal: controller.signal })
+    ).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+  })
+
   it('reserves image_generate for the built-in agent tool when MCP exposes the same name', async () => {
     const mcpService = {
       getAllToolDefinitions: vi

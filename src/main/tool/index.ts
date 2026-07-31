@@ -5,7 +5,8 @@ import {
   type MCPToolCall,
   type MCPToolDefinition,
   type MCPToolDefinitionBase,
-  type MCPToolResponse
+  type MCPToolResponse,
+  type ToolExecutionContract
 } from '@shared/types/mcp'
 import type {
   ToolCallOptions,
@@ -43,6 +44,7 @@ import { YO_BROWSER_TOOL_NAMES } from './browser/definitions'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
+import type { ToolEffectObserver } from './effectObserver'
 
 type McpToolPort = Pick<
   McpServicePort,
@@ -58,6 +60,7 @@ interface ToolServiceOptions {
   desktopSettings: AgentDisplaySettingsPort
   commandPermissionHandler: CommandPermissionService
   agentTools: AgentToolDependencies
+  effectObserver?: ToolEffectObserver
 }
 
 const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'glob', 'grep', 'exec', 'process']
@@ -111,8 +114,13 @@ export class ToolService implements ToolServicePort {
   private readonly conversationMappers: Map<string, ToolMapper>
   private globalMapperConversationId: string | null = null
   private readonly conversationMcpAccessContexts = new Map<string, StoredMcpAccessContext>()
+  private readonly conversationReviewedExecutions = new Map<
+    string,
+    Map<string, ToolExecutionContract>
+  >()
   private readonly options: ToolServiceOptions
   private agentToolManager: AgentToolManager | null = null
+  private globalReviewedExecutions = new Map<string, ToolExecutionContract>()
 
   constructor(options: ToolServiceOptions) {
     this.options = options
@@ -204,7 +212,7 @@ export class ToolService implements ToolServicePort {
       console.warn('[Tool] Failed to load Agent tool definitions', error)
     }
 
-    this.publishMapper(context.conversationId, mapper)
+    this.publishMapper(context.conversationId, mapper, defs)
     return defs
   }
 
@@ -261,6 +269,7 @@ export class ToolService implements ToolServicePort {
     }
 
     this.conversationMappers.delete(normalizedConversationId)
+    this.conversationReviewedExecutions.delete(normalizedConversationId)
     this.conversationMcpAccessContexts.delete(normalizedConversationId)
     this.clearAgentPlanState(normalizedConversationId)
   }
@@ -281,11 +290,23 @@ export class ToolService implements ToolServicePort {
     request: MCPToolCall,
     options?: ToolCallOptions
   ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
+    options?.signal?.throwIfAborted()
     const toolName = request.function.name
     const source = this.getToolSource(toolName, request.conversationId)
 
     if (!source) {
       throw new Error(`Tool ${toolName} not found in any source`)
+    }
+
+    const normalizedConversationId = request.conversationId?.trim()
+    if (normalizedConversationId && this.options.effectObserver) {
+      await this.options.effectObserver.beforeToolExecution({
+        conversationId: normalizedConversationId,
+        toolCallId: request.id,
+        toolName,
+        source,
+        reviewedExecution: this.getReviewedExecution(toolName, normalizedConversationId)
+      })
     }
 
     if (source === 'agent') {
@@ -457,10 +478,20 @@ export class ToolService implements ToolServicePort {
       : undefined
   }
 
-  private publishMapper(conversationId: string | undefined, mapper: ToolMapper): void {
+  private publishMapper(
+    conversationId: string | undefined,
+    mapper: ToolMapper,
+    definitions: MCPToolDefinition[]
+  ): void {
     const normalizedConversationId = conversationId?.trim()
+    const reviewedExecutions = new Map(
+      definitions
+        .filter((definition) => definition.source === 'agent')
+        .map((definition) => [definition.function.name, definition.execution])
+    )
     if (normalizedConversationId) {
       this.conversationMappers.set(normalizedConversationId, mapper)
+      this.conversationReviewedExecutions.set(normalizedConversationId, reviewedExecutions)
     }
 
     this.mapper.clear()
@@ -468,6 +499,7 @@ export class ToolService implements ToolServicePort {
       this.mapper.registerTool(mapping.toolName, mapping.source, mapping.originalName)
     }
     this.globalMapperConversationId = normalizedConversationId || null
+    this.globalReviewedExecutions = reviewedExecutions
   }
 
   private getToolSource(toolName: string, conversationId?: string): ToolSource | undefined {
@@ -483,6 +515,24 @@ export class ToolService implements ToolServicePort {
     }
 
     return this.mapper.getToolSource(toolName)
+  }
+
+  private getReviewedExecution(
+    toolName: string,
+    conversationId?: string
+  ): ToolExecutionContract | null {
+    const normalizedConversationId = conversationId?.trim()
+    if (normalizedConversationId) {
+      const executions = this.conversationReviewedExecutions.get(normalizedConversationId)
+      if (executions) {
+        return executions.get(toolName) ?? null
+      }
+      if (this.globalMapperConversationId !== null) {
+        return null
+      }
+    }
+
+    return this.globalReviewedExecutions.get(toolName) ?? null
   }
 
   buildToolSystemPrompt(context: {

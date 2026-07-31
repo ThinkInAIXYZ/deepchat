@@ -424,6 +424,10 @@ describeIfSqlite('WorkflowRepository', () => {
         toolId: 'write_file'
       }
     })
+    expect(repository.getInvocationByChildSessionId('child-write')).toMatchObject({
+      id: invocation.id,
+      runId: run.id
+    })
 
     expect(() =>
       repository.succeedInvocation(

@@ -88,11 +88,17 @@ Validation evidence (2026-07-31):
 - [ ] Add workflow-scoped frozen-head Tape lineage.
 - [ ] Require a durable Tape-link receipt before replayable success.
 - [ ] Propagate workflow invocation context to the common tool boundary.
-- [ ] Persist monotonic effect state before every child tool execution.
-- [ ] Fail tool execution closed when effect intent persistence fails.
-- [ ] Treat unknown or untrusted tool metadata conservatively.
+- [x] Add an explicit invocation-context registry at the common tool boundary.
+- [x] Persist monotonic effect state before every bound child tool execution.
+- [x] Fail tool execution closed when effect intent persistence fails.
+- [x] Treat unknown or untrusted tool metadata conservatively.
 - [ ] Add crash-window, late-event, Tape-evidence, and lineage tests.
 - [ ] Complete the pre-commit child/effect review, focused validation, and commit.
+
+Effect-boundary validation evidence (2026-07-31):
+
+- 236 workflow and tool tests passed under Electron's Node ABI.
+- `pnpm run typecheck:node`
 
 ## Structured Output
 

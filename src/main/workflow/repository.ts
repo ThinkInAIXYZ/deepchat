@@ -596,6 +596,13 @@ export class WorkflowRepository {
     return row ? toWorkflowInvocation(row) : null
   }
 
+  getInvocationByChildSessionId(childSessionId: string): WorkflowInvocation | null {
+    const row = this.database.workflowInvocationsTable.getByChildSessionId(
+      StoredIdSchema.parse(childSessionId)
+    )
+    return row ? toWorkflowInvocation(row) : null
+  }
+
   listInvocations(runId: string): WorkflowInvocation[] {
     return this.database.workflowInvocationsTable.listByRun(runId).map(toWorkflowInvocation)
   }

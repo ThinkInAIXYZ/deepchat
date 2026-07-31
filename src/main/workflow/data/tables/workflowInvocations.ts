@@ -318,6 +318,16 @@ export class WorkflowInvocationsTable extends BaseTable {
       .get(runId, childCorrelationSlot) as WorkflowInvocationRow | undefined
   }
 
+  getByChildSessionId(childSessionId: string): WorkflowInvocationRow | undefined {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM workflow_invocations
+         WHERE child_session_id = ?`
+      )
+      .get(childSessionId) as WorkflowInvocationRow | undefined
+  }
+
   listByRun(runId: string): WorkflowInvocationRow[] {
     return this.db
       .prepare(
