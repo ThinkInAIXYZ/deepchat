@@ -223,6 +223,16 @@ function cloneMetadata(
 
 export function validateAndCloneMcpTool(tool: Tool, serverName: string): Tool {
   const label = `MCP tool ${serverName}/${tool.name}`
+  let outputSchema: Record<string, unknown> | undefined
+  if (tool.outputSchema !== undefined) {
+    try {
+      outputSchema = validateAndCloneJsonSchema(tool.outputSchema, `${label} outputSchema`)
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      console.warn(`Ignoring invalid ${label} outputSchema: ${reason}`)
+    }
+  }
+
   return {
     name: tool.name,
     title: tool.title,
@@ -233,9 +243,7 @@ export function validateAndCloneMcpTool(tool: Tool, serverName: string): Tool {
         }) as Tool['icons'])
       : undefined,
     inputSchema: validateAndCloneJsonSchema(tool.inputSchema, `${label} inputSchema`),
-    outputSchema: tool.outputSchema
-      ? validateAndCloneJsonSchema(tool.outputSchema, `${label} outputSchema`)
-      : undefined,
+    outputSchema,
     annotations: cloneMetadata(tool.annotations, `${label} annotations`),
     _meta: cloneMetadata(tool._meta, `${label} metadata`),
     execution: cloneMetadata(tool.execution, `${label} execution`)
