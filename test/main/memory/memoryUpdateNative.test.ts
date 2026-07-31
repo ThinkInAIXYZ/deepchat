@@ -244,7 +244,7 @@ describeIfNative('Memory update SQLite integration', () => {
         provenanceKey: buildMemoryProvenanceKey('deepchat', 'semantic', mergedContent)
       })
       expect(
-        memoryTable(sqlite).markConflictIfRevision('deepchat', 'target', 1, 'challenger')
+        memoryTable(sqlite).markConflictIfRevision('deepchat', 'target', 1, 'challenged')
       ).toBe(true)
 
       const targetBefore = { ...memoryTable(sqlite).getById('target')! }
@@ -272,7 +272,7 @@ describeIfNative('Memory update SQLite integration', () => {
           null,
           { mergedContent }
         )
-      ).resolves.toBe(false)
+      ).resolves.toEqual({ action: 'rejected', reason: 'stale' })
 
       expect(memoryTable(sqlite).getById('target')).toEqual(targetBefore)
       expect(memoryTable(sqlite).getById('challenger')).toEqual(challengerBefore)
