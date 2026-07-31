@@ -45,6 +45,9 @@ const WORKFLOW_BOOTSTRAP_SOURCE = String.raw`
   delete globalThis.__deepchatWorkflowPhase
   delete globalThis.__deepchatWorkflowLog
 
+  Object.freeze(NativePromise.prototype)
+  Object.freeze(NativePromise)
+
   const fail = (message) => {
     const error = new Error(message)
     error.name = 'WorkflowSourceError'
@@ -228,6 +231,7 @@ export class QuickJSWorkflowRuntime {
   private readonly seenCallPaths = new Set<string>()
   private vmQueue: Promise<void> = Promise.resolve()
   private rootPromiseHandle: QuickJSHandle | null = null
+  private jsonParseHandle: QuickJSHandle | null = null
   private interruptDeadline = Number.POSITIVE_INFINITY
   private requestSequence = 0
   private invocationCount = 0
@@ -260,6 +264,7 @@ export class QuickJSWorkflowRuntime {
     try {
       instance.installHostFunctions()
       instance.evaluateBootstrap()
+      instance.captureHostIntrinsics()
       return instance
     } catch (error) {
       instance.dispose()
@@ -291,6 +296,7 @@ export class QuickJSWorkflowRuntime {
 (async () => {
   'use strict'
   const input = JSON.parse(__deepchatWorkflowInputJson)
+  delete globalThis.__deepchatWorkflowInputJson
   const result = await (async () => {
 ${source}
   })()
@@ -369,35 +375,48 @@ ${source}
       }
       this.pendingInvocations.delete(requestId)
 
+      let fatalSettlementError: unknown = null
       try {
-        if (outcome.status === 'success') {
-          const maxBytes = Math.min(
-            pending.request.options.maxOutputBytes ?? this.options.limits.maxResultBytes,
-            this.options.limits.maxResultBytes
-          )
-          const canonical = canonicalizeWorkflowJson(outcome.value, { maxBytes })
-          const valueHandle = this.jsonToHandle(canonical.json)
-          try {
-            pending.deferred.resolve(valueHandle)
-          } finally {
-            valueHandle.dispose()
-          }
-        } else {
-          const errorHandle = this.context.newError({
-            name: outcome.error.code,
-            message: outcome.error.message
+        this.applyInvocationOutcome(pending, outcome)
+      } catch (error) {
+        try {
+          this.rejectDeferred(pending.deferred, {
+            code: 'WORKFLOW_SETTLEMENT_FAILED',
+            message:
+              error instanceof Error ? error.message : 'Workflow invocation settlement failed.',
+            retriable: false
           })
-          try {
-            pending.deferred.reject(errorHandle)
-          } finally {
-            errorHandle.dispose()
-          }
+        } catch (rejectError) {
+          fatalSettlementError = combineErrors(
+            error,
+            rejectError,
+            'Workflow settlement and fallback rejection both failed.'
+          )
         }
       } finally {
-        pending.deferred.dispose()
+        try {
+          pending.deferred.dispose()
+        } catch (disposeError) {
+          fatalSettlementError = combineErrors(
+            fatalSettlementError,
+            disposeError,
+            'Workflow deferred disposal failed.'
+          )
+        }
+        try {
+          this.drainPendingJobs()
+        } catch (drainError) {
+          fatalSettlementError = combineErrors(
+            fatalSettlementError,
+            drainError,
+            'Workflow settlement pending-job drain failed.'
+          )
+        }
       }
 
-      this.drainPendingJobs()
+      if (fatalSettlementError) {
+        throw fatalSettlementError
+      }
       return true
     })
   }
@@ -409,20 +428,44 @@ ${source}
     this.cancelled = true
     try {
       await this.enqueueVm(() => {
+        let cancellationError: unknown = null
         for (const pending of this.pendingInvocations.values()) {
-          const errorHandle = this.context.newError({
-            name: 'WORKFLOW_CANCELLED',
-            message: reason
-          })
           try {
-            pending.deferred.reject(errorHandle)
-          } finally {
-            errorHandle.dispose()
+            this.rejectDeferred(pending.deferred, {
+              code: 'WORKFLOW_CANCELLED',
+              message: reason,
+              retriable: false
+            })
+          } catch (error) {
+            cancellationError = combineErrors(
+              cancellationError,
+              error,
+              'One or more workflow promises could not be cancelled.'
+            )
+          }
+          try {
             pending.deferred.dispose()
+          } catch (error) {
+            cancellationError = combineErrors(
+              cancellationError,
+              error,
+              'One or more cancelled workflow promises could not be disposed.'
+            )
           }
         }
         this.pendingInvocations.clear()
-        this.drainPendingJobs()
+        try {
+          this.drainPendingJobs()
+        } catch (error) {
+          cancellationError = combineErrors(
+            cancellationError,
+            error,
+            'Workflow cancellation pending-job drain failed.'
+          )
+        }
+        if (cancellationError) {
+          throw cancellationError
+        }
       })
     } catch {
       // Cancellation is terminal even if hostile guest cleanup exhausts the VM job budget.
@@ -453,6 +496,8 @@ ${source}
     this.pendingInvocations.clear()
     this.rootPromiseHandle?.dispose()
     this.rootPromiseHandle = null
+    this.jsonParseHandle?.dispose()
+    this.jsonParseHandle = null
     if (this.context.alive) {
       this.context.dispose()
     }
@@ -582,6 +627,20 @@ ${source}
     })
   }
 
+  private captureHostIntrinsics(): void {
+    const jsonObject = this.context.getProp(this.context.global, 'JSON')
+    try {
+      const parseHandle = this.context.getProp(jsonObject, 'parse')
+      if (this.context.typeof(parseHandle) !== 'function') {
+        parseHandle.dispose()
+        throw new Error('QuickJS JSON.parse intrinsic is unavailable.')
+      }
+      this.jsonParseHandle = parseHandle
+    } finally {
+      jsonObject.dispose()
+    }
+  }
+
   private drainPendingJobs(): void {
     this.withInterruptDeadline(() => {
       const result = this.runtime.executePendingJobs(
@@ -602,17 +661,54 @@ ${source}
   }
 
   private jsonToHandle(json: string): QuickJSHandle {
-    const jsonObject = this.context.getProp(this.context.global, 'JSON')
-    const parseFunction = this.context.getProp(jsonObject, 'parse')
+    const parseFunction = this.jsonParseHandle
+    if (!parseFunction?.alive) {
+      throw new Error('QuickJS JSON.parse intrinsic is unavailable.')
+    }
     const stringHandle = this.context.newString(json)
     try {
       return this.context.unwrapResult(
-        this.context.callFunction(parseFunction, jsonObject, stringHandle)
+        this.context.callFunction(parseFunction, this.context.undefined, stringHandle)
       )
     } finally {
       stringHandle.dispose()
-      parseFunction.dispose()
-      jsonObject.dispose()
+    }
+  }
+
+  private applyInvocationOutcome(
+    pending: PendingInvocation,
+    outcome: WorkflowInvocationOutcome
+  ): void {
+    if (outcome.status === 'error') {
+      this.rejectDeferred(pending.deferred, outcome.error)
+      return
+    }
+
+    const maxBytes = Math.min(
+      pending.request.options.maxOutputBytes ?? this.options.limits.maxResultBytes,
+      this.options.limits.maxResultBytes
+    )
+    const canonical = canonicalizeWorkflowJson(outcome.value, { maxBytes })
+    const valueHandle = this.jsonToHandle(canonical.json)
+    try {
+      pending.deferred.resolve(valueHandle)
+    } finally {
+      valueHandle.dispose()
+    }
+  }
+
+  private rejectDeferred(
+    deferred: QuickJSDeferredPromise,
+    error: WorkflowInvocationError
+  ): void {
+    const errorHandle = this.context.newError({
+      name: error.code,
+      message: clampString(error.message, 8_192, 'Workflow invocation failed.')
+    })
+    try {
+      deferred.reject(errorHandle)
+    } finally {
+      errorHandle.dispose()
     }
   }
 
@@ -748,6 +844,13 @@ function clampString(value: string, maxLength: number, fallback: string): string
     return fallback
   }
   return value.length <= maxLength ? value : value.slice(0, maxLength)
+}
+
+function combineErrors(current: unknown, next: unknown, message: string): unknown {
+  if (!current) {
+    return next
+  }
+  return new AggregateError([current, next], message)
 }
 
 export function workflowRuntimeReadyEvent(runId: string): WorkflowRuntimeEvent {

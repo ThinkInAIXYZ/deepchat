@@ -206,6 +206,72 @@ return {
     })
   })
 
+  it('protects host settlement from guest Promise and JSON mutation', async () => {
+    const events: WorkflowRuntimeEvent[] = []
+    const runtime = await createRuntime(events)
+    const completion = runtime.start(
+      `
+const nativePromise = (async () => null)().constructor
+let promiseMutationBlocked = false
+try {
+  nativePromise.prototype.then = () => null
+} catch {
+  promiseMutationBlocked = true
+}
+JSON.parse = () => ({ poisoned: true })
+const value = await agent('inspect', { key: 'inspect' })
+return {
+  jsonWasPoisoned: JSON.parse('{}').poisoned === true,
+  promiseMutationBlocked,
+  promisePrototypeFrozen: Object.isFrozen(nativePromise.prototype),
+  value
+}
+`,
+      null
+    )
+
+    const [invocation] = await waitForInvocationCount(events, 1)
+    await runtime.settleInvocation(invocation.requestId, {
+      status: 'success',
+      value: { safe: true }
+    })
+
+    await expect(completion).resolves.toEqual({
+      jsonWasPoisoned: true,
+      promiseMutationBlocked: true,
+      promisePrototypeFrozen: true,
+      value: { safe: true }
+    })
+  })
+
+  it('rejects the guest and drains jobs when settlement conversion fails', async () => {
+    const events: WorkflowRuntimeEvent[] = []
+    const runtime = await createRuntime(events)
+    const completion = runtime.start("return await agent('inspect', { key: 'inspect' })", null)
+    const observed = completion.then(
+      () => null,
+      (error: unknown) => error
+    )
+    const [invocation] = await waitForInvocationCount(events, 1)
+
+    await expect(
+      runtime.settleInvocation(invocation.requestId, {
+        status: 'success',
+        value: undefined as never
+      })
+    ).resolves.toBe(true)
+
+    expect(runtime.getPendingInvocationCount()).toBe(0)
+    await expect(observed).resolves.toMatchObject({
+      name: 'WORKFLOW_SETTLEMENT_FAILED'
+    })
+    expect(events.filter((event) => event.type === 'FAILED')).toEqual([
+      expect.objectContaining({
+        error: expect.objectContaining({ code: 'WORKFLOW_SETTLEMENT_FAILED' })
+      })
+    ])
+  })
+
   it('interrupts CPU-bound guest code within the configured burst', async () => {
     const events: WorkflowRuntimeEvent[] = []
     const runtime = await createRuntime(events, { maxExecutionBurstMs: 20 })
