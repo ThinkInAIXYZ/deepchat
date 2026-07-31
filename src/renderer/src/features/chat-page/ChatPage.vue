@@ -125,7 +125,7 @@
       <div
         v-if="!isReadOnlySession"
         data-testid="chat-composer-region"
-        class="chat-capture-hide relative w-full px-6 pb-3 pt-3"
+        class="chat-capture-hide relative w-full min-w-0 px-6 pb-3 pt-3"
         style="z-index: var(--dc-z-sticky)"
       >
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">

@@ -889,4 +889,11 @@ defineExpose({
   height: 0;
   pointer-events: none;
 }
+
+/* ProseMirror injects an unlayered `.ProseMirror { overflow-wrap: break-word }` rule, which
+   wins over layered utilities. `anywhere` (unlike `break-word`) also collapses intrinsic
+   min-content, so long unbroken tokens (e.g. pasted paths) wrap instead of widening the composer. */
+:deep(.chat-input-editor .tiptap) {
+  overflow-wrap: anywhere;
+}
 </style>
