@@ -133,7 +133,7 @@ describe('MemoryService.processPendingEmbeddings (batch + fairness)', () => {
 
     const drain = presenter.processPendingEmbeddings('a')
     await started
-    expect(await presenter.forgetMemory('a', 'm1')).toBe(true)
+    expect(await presenter.forgetMemory('a', 'm1')).toEqual({ action: 'applied' })
     releaseEmbedding?.()
     await drain
 
@@ -174,7 +174,7 @@ describe('MemoryService.processPendingEmbeddings (batch + fairness)', () => {
 
     const drain = presenter.processPendingEmbeddings('a')
     await started
-    expect(await presenter.forgetMemory('a', 'm1')).toBe(true)
+    expect(await presenter.forgetMemory('a', 'm1')).toEqual({ action: 'applied' })
     rejectEmbedding?.(new Error('ECONNRESET'))
     await drain
 
@@ -220,7 +220,7 @@ describe('MemoryService.processPendingEmbeddings (batch + fairness)', () => {
 
     const drain = presenter.processPendingEmbeddings('a')
     await upsertStarted
-    expect(await presenter.forgetMemory('a', 'm1')).toBe(true)
+    expect(await presenter.forgetMemory('a', 'm1')).toEqual({ action: 'applied' })
     rejectUpsert?.(new Error('INSERT failed'))
     await drain
 

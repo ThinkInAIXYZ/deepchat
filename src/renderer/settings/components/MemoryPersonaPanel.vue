@@ -194,7 +194,10 @@ async function rollback(versionId: string): Promise<void> {
   try {
     // Main broadcasts memory.updated for this mutation, which bumps
     // refreshToken and reloads this panel; no need to also reload locally.
-    await memoryClient.rollbackPersona(agentId, versionId)
+    const result = await memoryClient.rollbackPersona(agentId, versionId)
+    if (props.agentId === agentId && result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+    }
   } catch (error) {
     if (props.agentId === agentId) panelFeedback.fail(error)
   } finally {
@@ -208,7 +211,10 @@ async function setAnchor(versionId: string, anchored: boolean): Promise<void> {
   clearFeedback()
   setPending(versionId, true)
   try {
-    await memoryClient.setPersonaAnchor(agentId, versionId, anchored)
+    const result = await memoryClient.setPersonaAnchor(agentId, versionId, anchored)
+    if (props.agentId === agentId && result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+    }
   } catch (error) {
     if (props.agentId === agentId) panelFeedback.fail(error)
   } finally {

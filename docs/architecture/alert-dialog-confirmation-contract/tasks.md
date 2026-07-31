@@ -33,18 +33,18 @@
 
 ## Memory result contract
 
-- [ ] Add the shared Memory command result and rejection reasons.
-- [ ] Preserve structured outcomes in management, conflict, and persona services.
-- [ ] Update routes, clients, renderer callers, and mocks.
-- [ ] Cover rejected conflict and persona operations.
-- [ ] Remove the dead `MemoryInlinePanel.changed` contract.
+- [x] Add the shared Memory command result and rejection reasons.
+- [x] Preserve structured outcomes in management, conflict, and persona services.
+- [x] Update routes, clients, renderer callers, and mocks.
+- [x] Cover rejected conflict and persona operations.
+- [x] Remove the dead `MemoryInlinePanel.changed` contract.
 
 ## Validation and delivery
 
 - [x] Run focused wrapper and renderer tests after each UI slice.
-- [ ] Run focused service, route, and Memory tests after the result-contract slice.
-- [ ] Run formatter and i18n validation.
-- [ ] Run lint and type checking.
+- [x] Run focused service, route, and Memory tests after the result-contract slice.
+- [x] Run formatter and i18n validation.
+- [x] Run lint and type checking.
 - [ ] Run complete Memory and renderer suites.
 - [ ] Complete a severity-ordered review before every commit and fix all findings.
 - [ ] Commit locally with Conventional Commits.

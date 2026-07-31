@@ -1,7 +1,10 @@
 import { readonly, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@shared/types/agent-memory'
-import type { MemoryDirectiveCommandResult } from '@shared/contracts/routes'
+import type {
+  MemoryCommandRejectionReason,
+  MemoryDirectiveCommandResult
+} from '@shared/contracts/routes'
 
 export type MemoryInlineFeedbackTone = 'error' | 'warning' | 'info'
 
@@ -53,11 +56,17 @@ export function useMemoryInlineFeedback(scope: string) {
     )
   }
 
+  const rejectCommand = (reason: MemoryCommandRejectionReason): void => {
+    console.warn(`[${diagnosticScope}] Command rejected`, { reason })
+    show('error', t('settings.deepchatAgents.memoryManager.actionFailed'))
+  }
+
   return Object.freeze({
     feedback: readonly(feedback),
     show,
     clear,
     fail,
+    rejectCommand,
     rejectDirective
   })
 }

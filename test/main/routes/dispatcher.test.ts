@@ -2795,7 +2795,7 @@ describe('dispatchDeepchatRoute', () => {
 
   it('dispatches memory.archive with deepchat guard', async () => {
     const { runtime } = createRuntime()
-    const archiveUserMemory = vi.fn().mockResolvedValue(true)
+    const archiveUserMemory = vi.fn().mockResolvedValue({ action: 'applied' })
     ;(runtime as any).memoryService = { archiveUserMemory }
 
     await expect(
@@ -2805,7 +2805,7 @@ describe('dispatchDeepchatRoute', () => {
         { agentId: 'other', memoryId: 'm1' },
         { webContentsId: 42, windowId: 7 }
       )
-    ).resolves.toEqual({ ok: false })
+    ).resolves.toEqual({ action: 'rejected', reason: 'unavailable' })
     expect(archiveUserMemory).not.toHaveBeenCalled()
 
     await expect(
@@ -2815,7 +2815,7 @@ describe('dispatchDeepchatRoute', () => {
         { agentId: 'deepchat', memoryId: 'm1' },
         { webContentsId: 42, windowId: 7 }
       )
-    ).resolves.toEqual({ ok: true })
+    ).resolves.toEqual({ action: 'applied' })
     expect(archiveUserMemory).toHaveBeenCalledWith('deepchat', 'm1')
   })
 

@@ -1421,8 +1421,11 @@ describe('MemoryService management', () => {
     const ids = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], {
       agentId: 'a'
     })
-    expect(await presenter.deleteMemory('other-agent', ids[0])).toBe(false)
-    expect(await presenter.deleteMemory('a', ids[0])).toBe(true)
+    expect(await presenter.deleteMemory('other-agent', ids[0])).toEqual({
+      action: 'rejected',
+      reason: 'not-found'
+    })
+    expect(await presenter.deleteMemory('a', ids[0])).toEqual({ action: 'applied' })
     expect(repo.countByAgent('a')).toBe(0)
   })
 
@@ -1434,16 +1437,19 @@ describe('MemoryService management', () => {
     await presenter.processPendingEmbeddings('a')
     expect((await presenter.recall('a', 'redis')).map((item) => item.id)).toContain(ids[0])
 
-    expect(await presenter.forgetMemory('other-agent', ids[0])).toBe(false)
+    expect(await presenter.forgetMemory('other-agent', ids[0])).toEqual({
+      action: 'rejected',
+      reason: 'not-found'
+    })
     expect(repo.getById(ids[0])?.status).toBe('embedded')
-    expect(await presenter.forgetMemory('a', ids[0])).toBe(true)
+    expect(await presenter.forgetMemory('a', ids[0])).toEqual({ action: 'applied' })
     expect(repo.tombstones.size).toBe(0)
     expect(repo.getById(ids[0])?.status).toBe('archived')
     expect(repo.rows.has(ids[0])).toBe(true)
     expect(store.vectors.has(ids[0])).toBe(true)
     expect((await presenter.recall('a', 'redis')).map((item) => item.id)).not.toContain(ids[0])
 
-    expect(presenter.restoreMemory('a', ids[0])).toBe(true)
+    expect(presenter.restoreMemory('a', ids[0])).toEqual({ action: 'applied' })
     await presenter.processPendingEmbeddings('a')
     expect(repo.getById(ids[0])?.status).toBe('embedded')
     expect((await presenter.recall('a', 'redis')).map((item) => item.id)).toContain(ids[0])
@@ -1670,7 +1676,7 @@ describe('MemoryService management', () => {
     expect(store.vectors.has(id)).toBe(false)
     expect(repo.getById(id)?.embedding_id).toBeNull()
 
-    expect(presenter.restoreMemory('a', id)).toBe(true)
+    expect(presenter.restoreMemory('a', id)).toEqual({ action: 'applied' })
     await presenter.processPendingEmbeddings('a')
 
     expect(repo.getById(id)).toMatchObject({
@@ -1747,8 +1753,11 @@ describe('MemoryService management', () => {
       agentId: 'a'
     })
 
-    await expect(presenter.archiveUserMemory('other-agent', id)).resolves.toBe(false)
-    await expect(presenter.archiveUserMemory('a', id)).resolves.toBe(true)
+    await expect(presenter.archiveUserMemory('other-agent', id)).resolves.toEqual({
+      action: 'rejected',
+      reason: 'not-found'
+    })
+    await expect(presenter.archiveUserMemory('a', id)).resolves.toEqual({ action: 'applied' })
 
     expect(repo.getById(id)?.status).toBe('archived')
     const [firstAudit] = auditRepo.listByAgent('a', {
@@ -1766,14 +1775,14 @@ describe('MemoryService management', () => {
     expect(firstAudit.input_refs_json).not.toContain('redis cache')
     expect(firstAudit.output_refs_json).not.toContain('redis cache')
 
-    await expect(presenter.archiveUserMemory('a', id)).resolves.toBe(true)
+    await expect(presenter.archiveUserMemory('a', id)).resolves.toEqual({ action: 'applied' })
     const archiveAudits = auditRepo.listByAgent('a', {
       eventType: 'memory/archive',
       actorType: 'user'
     })
     expect(archiveAudits).toHaveLength(2)
     expect(archiveAudits.some((audit) => audit.reason === 'already_archived')).toBe(true)
-    expect(presenter.restoreMemory('a', id)).toBe(true)
+    expect(presenter.restoreMemory('a', id)).toEqual({ action: 'applied' })
     expect(repo.getById(id)?.status).toBe('pending_embedding')
   })
 
@@ -1816,12 +1825,27 @@ describe('MemoryService management', () => {
       expect.arrayContaining(internalIds)
     )
     expect(presenter.getByIds('a', internalIds).map((row) => row.id)).toEqual(internalIds)
-    await expect(presenter.forgetMemory('a', 'persona-active')).resolves.toBe(false)
-    await expect(presenter.archiveUserMemory('a', 'persona-active')).resolves.toBe(false)
-    expect(presenter.restoreMemory('a', 'persona-active')).toBe(false)
-    await expect(presenter.forgetMemory('a', 'working')).resolves.toBe(false)
+    await expect(presenter.forgetMemory('a', 'persona-active')).resolves.toEqual({
+      action: 'rejected',
+      reason: 'invalid-state'
+    })
+    await expect(presenter.archiveUserMemory('a', 'persona-active')).resolves.toEqual({
+      action: 'rejected',
+      reason: 'invalid-state'
+    })
+    expect(presenter.restoreMemory('a', 'persona-active')).toEqual({
+      action: 'rejected',
+      reason: 'invalid-state'
+    })
+    await expect(presenter.forgetMemory('a', 'working')).resolves.toEqual({
+      action: 'rejected',
+      reason: 'invalid-state'
+    })
     for (const id of internalIds) {
-      await expect(presenter.deleteMemory('a', id)).resolves.toBe(false)
+      await expect(presenter.deleteMemory('a', id)).resolves.toEqual({
+        action: 'rejected',
+        reason: 'invalid-state'
+      })
     }
 
     expect(repo.getById('persona-active')).toMatchObject({
@@ -1984,7 +2008,10 @@ describe('MemoryService agentId safety guards', () => {
     })
     expect(presenter.getHealth('ghost')).toEqual(createEmptyMemoryHealth())
     expect(await presenter.clearMemories('ghost')).toBe(0)
-    expect(await presenter.rollbackPersona('ghost', 'v')).toBe(false)
+    expect(await presenter.rollbackPersona('ghost', 'v')).toEqual({
+      action: 'rejected',
+      reason: 'unavailable'
+    })
 
     // A real agent works normally.
     expect(presenter.listMemories('real')).toHaveLength(1)

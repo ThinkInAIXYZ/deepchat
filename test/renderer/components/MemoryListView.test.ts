@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { MemoryItem, MemorySearchResult } from '../../../src/shared/contracts/routes'
+import type {
+  MemoryCommandResult,
+  MemoryItem,
+  MemorySearchResult
+} from '../../../src/shared/contracts/routes'
 
 const passthrough = (name: string) => defineComponent({ name, template: '<div><slot /></div>' })
 
@@ -41,7 +45,6 @@ const MemoryInlinePanelStub = defineComponent({
   emits: [
     'close',
     'edit',
-    'changed',
     'saved',
     'feedback',
     'busy',
@@ -132,9 +135,9 @@ async function setup(
         }
       ]
     ),
-    archive: vi.fn().mockResolvedValue(true),
-    restore: vi.fn().mockResolvedValue(true),
-    remove: vi.fn().mockResolvedValue(true)
+    archive: vi.fn().mockResolvedValue({ action: 'applied' }),
+    restore: vi.fn().mockResolvedValue({ action: 'applied' }),
+    remove: vi.fn().mockResolvedValue({ action: 'applied' })
   }
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
   vi.doMock('vue-i18n', () => ({
@@ -593,9 +596,9 @@ describe('MemoryListView', () => {
     expect(wrapper.text()).toContain('second memory')
   })
 
-  it('shows inline failure feedback and keeps the row when permanent delete returns false', async () => {
+  it('shows inline failure feedback and keeps the row when permanent delete is rejected', async () => {
     const { wrapper, memoryClient } = await setup({ realAlertDialog: true })
-    const pending = deferred<boolean>()
+    const pending = deferred<MemoryCommandResult>()
     memoryClient.remove.mockReturnValueOnce(pending.promise)
 
     await wrapper.find('[data-testid="memory-row-delete"]').trigger('click')
@@ -614,7 +617,7 @@ describe('MemoryListView', () => {
     ).toBe(true)
     expect(document.querySelector('[data-testid="memory-list-delete-spinner"]')).not.toBeNull()
 
-    pending.resolve(false)
+    pending.resolve({ action: 'rejected', reason: 'stale' })
     await flushPromises()
 
     const deleteContent = document
@@ -669,7 +672,7 @@ describe('MemoryListView', () => {
     expect(wrapper.findComponent({ name: 'DropdownMenu' }).exists()).toBe(false)
   })
 
-  it('updates the local list when archive succeeds and reports false archive results', async () => {
+  it('updates the local list when archive succeeds and reports rejected archive results', async () => {
     const { wrapper, memoryClient } = await setup()
 
     await wrapper.find('[data-testid="memory-row-archive"]').trigger('click')
@@ -684,7 +687,7 @@ describe('MemoryListView', () => {
     })
     await wrapper.setProps({ refreshToken: 1 })
     await flushPromises()
-    memoryClient.archive.mockResolvedValueOnce(false)
+    memoryClient.archive.mockResolvedValueOnce({ action: 'rejected', reason: 'stale' })
 
     await wrapper.find('[data-testid="memory-row-archive"]').trigger('click')
     await flushPromises()
@@ -716,7 +719,7 @@ describe('MemoryListView', () => {
     expect(wrapper.text()).not.toContain('redis search fact')
   })
 
-  it('updates the local archived row when restore succeeds and reports false restore results', async () => {
+  it('updates the local archived row when restore succeeds and reports rejected restore results', async () => {
     const archived = memory({ status: 'archived' })
     const { wrapper, memoryClient } = await setup({ rows: [archived] })
 
@@ -732,7 +735,10 @@ describe('MemoryListView', () => {
     memoryClient.page.mockResolvedValueOnce({ items: [archived], nextCursor: null })
     await wrapper.setProps({ refreshToken: 1 })
     await flushPromises()
-    memoryClient.restore.mockResolvedValueOnce(false)
+    memoryClient.restore.mockResolvedValueOnce({
+      action: 'rejected',
+      reason: 'invalid-state'
+    })
 
     await wrapper.find('[data-testid="memory-row-restore"]').trigger('click')
     await flushPromises()

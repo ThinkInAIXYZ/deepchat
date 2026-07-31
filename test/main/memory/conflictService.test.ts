@@ -93,7 +93,7 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
       model: { providerId: 'main', modelId: 'main' }
     })
     await decisionStarted
-    expect(await presenter.forgetMemory('a', 'forgotten-owner')).toBe(true)
+    expect(await presenter.forgetMemory('a', 'forgotten-owner')).toEqual({ action: 'applied' })
     releaseDecision('[{"candidateIndex":1,"decision":"NOOP","targetIndex":0}]')
 
     await expect(pending).resolves.toEqual({ ok: false })
@@ -317,12 +317,24 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
     expect(
       presenter.updateMemory('a', 'challenger', { content: 'edited challenger' })
     ).toMatchObject({ action: 'noop', reason: 'conflict' })
-    await expect(presenter.archiveUserMemory('a', targetId)).resolves.toBe(false)
-    await expect(presenter.forgetMemory('a', 'challenger')).resolves.toBe(false)
-    await expect(presenter.deleteMemory('a', targetId)).resolves.toBe(false)
+    await expect(presenter.archiveUserMemory('a', targetId)).resolves.toEqual({
+      action: 'rejected',
+      reason: 'conflict'
+    })
+    await expect(presenter.forgetMemory('a', 'challenger')).resolves.toEqual({
+      action: 'rejected',
+      reason: 'conflict'
+    })
+    await expect(presenter.deleteMemory('a', targetId)).resolves.toEqual({
+      action: 'rejected',
+      reason: 'conflict'
+    })
 
     repo.seedArchived(targetId)
-    expect(presenter.restoreMemory('a', targetId)).toBe(false)
+    expect(presenter.restoreMemory('a', targetId)).toEqual({
+      action: 'rejected',
+      reason: 'conflict'
+    })
   })
 
   it('repairs conflict integrity idempotently with one content-free aggregate audit', async () => {
@@ -420,7 +432,7 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
     expect(presenter.listConflicts('a')).toEqual([])
     await expect(
       presenter.resolveConflict('a', 'session-challenger', 'keep_challenger')
-    ).resolves.toBe(false)
+    ).resolves.toEqual({ action: 'rejected', reason: 'invalid-state' })
     expect(memoryRuntimeForTests(presenter).conflictService.repairConflictIntegrity('a')).toEqual({
       repairedTargets: 0,
       archivedChallengers: 1,
@@ -440,7 +452,9 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
     seedConflicted(repo, 'c1', targetId, 'user dislikes redis')
     seedConflicted(repo, 'c2', targetId, 'user avoids redis')
 
-    expect(await presenter.resolveConflict('a', 'c1', 'keep_target')).toBe(true)
+    expect(await presenter.resolveConflict('a', 'c1', 'keep_target')).toEqual({
+      action: 'applied'
+    })
     expect(repo.getById(targetId)?.conflict_state).toBe('challenged')
     expect(repo.getById('c1')?.status).toBe('archived')
     expect(repo.listDerivationsByChild('a', targetId)).toEqual([
@@ -452,7 +466,9 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
     ])
     expect(presenter.listConflicts('a').map((pair) => pair.challenger.id)).toEqual(['c2'])
 
-    expect(await presenter.resolveConflict('a', 'c2', 'keep_target')).toBe(true)
+    expect(await presenter.resolveConflict('a', 'c2', 'keep_target')).toEqual({
+      action: 'applied'
+    })
     expect(repo.getById(targetId)?.conflict_state).toBeNull()
     expect(
       new Set(repo.listDerivationsByChild('a', targetId).map((edge) => edge.parent_memory_id))
@@ -466,14 +482,18 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
     seedConflicted(repo, 'c1', targetId, 'user dislikes redis')
     seedConflicted(repo, 'c2', targetId, 'user sometimes likes redis')
 
-    expect(await presenter.resolveConflict('a', 'c1', 'keep_both')).toBe(true)
+    expect(await presenter.resolveConflict('a', 'c1', 'keep_both')).toEqual({
+      action: 'applied'
+    })
     expect(repo.getById('c1')?.status).toBe('pending_embedding')
     expect(repo.getById('c1')?.conflict_with).toBeNull()
     expect(repo.getById(targetId)?.conflict_state).toBe('challenged')
     expect(repo.derivations.size).toBe(0)
     expect(presenter.listConflicts('a').map((pair) => pair.challenger.id)).toEqual(['c2'])
 
-    expect(await presenter.resolveConflict('a', 'c2', 'keep_both')).toBe(true)
+    expect(await presenter.resolveConflict('a', 'c2', 'keep_both')).toEqual({
+      action: 'applied'
+    })
     expect(repo.getById('c2')?.status).toBe('pending_embedding')
     expect(repo.getById(targetId)?.conflict_state).toBeNull()
   })
@@ -484,7 +504,9 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
     seedConflicted(repo, 'c1', targetId, 'user dislikes redis')
     seedConflicted(repo, 'c2', targetId, 'user avoids redis')
 
-    expect(await presenter.resolveConflict('a', 'c1', 'keep_challenger')).toBe(true)
+    expect(await presenter.resolveConflict('a', 'c1', 'keep_challenger')).toEqual({
+      action: 'applied'
+    })
     expect(repo.getById('c1')?.status).toBe('pending_embedding')
     expect(repo.getById('c1')?.conflict_with).toBeNull()
     expect(repo.getById(targetId)?.status).toBe('archived')
@@ -512,7 +534,10 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
 
     config.memoryEnabled = false
 
-    expect(await presenter.resolveConflict('a', 'c1', 'keep_challenger')).toBe(false)
+    expect(await presenter.resolveConflict('a', 'c1', 'keep_challenger')).toEqual({
+      action: 'rejected',
+      reason: 'unavailable'
+    })
     expect(repo.getById('c1')?.status).toBe('conflicted')
     expect(repo.getById('c1')?.conflict_with).toBe(targetId)
     expect(repo.getById(targetId)?.conflict_state).toBe('challenged')
@@ -577,13 +602,35 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
       conflictService.resolveConflict('a', 'c1', 'keep_challenger', 'scheduler', null, {
         mergedContent: ' user   prefers valkey over redis '
       })
-    ).resolves.toBe(false)
+    ).resolves.toEqual({ action: 'rejected', reason: 'stale' })
     expect(repo.getById('c1')).toMatchObject({
       lifecycle_state: 'conflicted',
       conflict_with: targetId,
       content: 'user prefers valkey'
     })
     expect(repo.getById(targetId)?.conflict_state).toBe('challenged')
+  })
+
+  it('does not mark a maintenance pass touched when resolution is rejected', async () => {
+    const { presenter, repo } = makeLLMPresenter(
+      routedLLM({
+        decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+      })
+    )
+    const targetId = await seedEmbedded(presenter, 'user likes redis')
+    seedConflicted(repo, 'c1', targetId, 'user dislikes redis')
+    const conflictService = memoryRuntimeForTests(presenter).conflictService
+    vi.spyOn(conflictService, 'resolveConflict').mockResolvedValue({
+      action: 'rejected',
+      reason: 'stale'
+    })
+
+    await expect(
+      conflictService.runChallengeResolutionPass('a', {
+        providerId: 'main',
+        modelId: 'main'
+      })
+    ).resolves.toEqual({ touched: false, calls: 1, failures: 0 })
   })
 
   it('continues challenge resolution after a merged challenger hits provenance uniqueness', async () => {

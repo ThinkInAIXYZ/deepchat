@@ -421,7 +421,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   edit: []
-  changed: []
   saved: [memory?: MemoryItem]
   feedback: [feedback: MemoryInlineFeedbackState]
   busy: [value: boolean]
@@ -574,7 +573,6 @@ async function save(): Promise<void> {
       if (!isCurrentOperation(agentId, memoryId, mode)) return
       notifyAddOutcome(result)
       if (result.action === 'noop') return
-      emit('changed')
       const next = await selectResultMemory(agentId, result.memoryId)
       if (!isCurrentOperation(agentId, memoryId, mode)) return
       emit('saved', next)
@@ -601,7 +599,6 @@ async function save(): Promise<void> {
             importance: patch.importance ?? memory.importance
           }
     if (!isCurrentOperation(agentId, memoryId, mode)) return
-    emit('changed')
     emit('saved', next)
   } catch (error) {
     if (isCurrentOperation(agentId, memoryId, mode)) panelFeedback.fail(error)
@@ -617,13 +614,12 @@ async function archive(): Promise<void> {
   clearFeedback()
   pendingMutation.value = 'archive'
   try {
-    const ok = await memoryClient.archive(agentId, memory.id)
+    const result = await memoryClient.archive(agentId, memory.id)
     if (props.agentId !== agentId || props.memory?.id !== memory.id) return
-    if (!ok) {
-      panelFeedback.fail()
+    if (result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
       return
     }
-    emit('changed')
     emit('close')
   } catch (error) {
     if (props.agentId === agentId && props.memory?.id === memory.id) panelFeedback.fail(error)
@@ -639,13 +635,12 @@ async function restore(): Promise<void> {
   clearFeedback()
   pendingMutation.value = 'restore'
   try {
-    const ok = await memoryClient.restore(agentId, memory.id)
+    const result = await memoryClient.restore(agentId, memory.id)
     if (props.agentId !== agentId || props.memory?.id !== memory.id) return
-    if (!ok) {
-      panelFeedback.fail()
+    if (result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
       return
     }
-    emit('changed')
   } catch (error) {
     if (props.agentId === agentId && props.memory?.id === memory.id) panelFeedback.fail(error)
   } finally {
@@ -660,14 +655,13 @@ async function remove(): Promise<void> {
   clearFeedback()
   pendingMutation.value = 'remove'
   try {
-    const ok = await memoryClient.remove(agentId, memory.id)
+    const result = await memoryClient.remove(agentId, memory.id)
     if (props.agentId !== agentId || props.memory?.id !== memory.id) return
-    if (!ok) {
-      panelFeedback.fail()
+    if (result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
       return
     }
     deleteDialogOpen.value = false
-    emit('changed')
     emit('close')
   } catch (error) {
     if (props.agentId === agentId && props.memory?.id === memory.id) panelFeedback.fail(error)

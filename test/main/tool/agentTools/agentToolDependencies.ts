@@ -21,7 +21,9 @@ export const createAgentToolDependencies = (
     isMemoryEnabled: overrides.isMemoryEnabled ?? vi.fn(() => false),
     rememberMemory: overrides.rememberMemory ?? vi.fn(),
     recallMemory: overrides.recallMemory ?? vi.fn().mockResolvedValue([]),
-    forgetMemory: overrides.forgetMemory ?? vi.fn().mockResolvedValue(false)
+    forgetMemory:
+      overrides.forgetMemory ??
+      vi.fn().mockResolvedValue({ action: 'rejected', reason: 'unavailable' })
   },
   cronJobs: {
     listCronJobs:

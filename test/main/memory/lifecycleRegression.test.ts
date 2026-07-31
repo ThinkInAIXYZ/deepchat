@@ -377,7 +377,7 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     const { presenter, repo } = makeLLMPresenter(generateText)
     const ownerId = await seedEmbedded(presenter, 'user prefers vue')
     const targetId = await seedEmbedded(presenter, 'user likes redis')
-    expect(await presenter.archiveUserMemory('a', ownerId)).toBe(true)
+    expect(await presenter.archiveUserMemory('a', ownerId)).toEqual({ action: 'applied' })
     const targetBefore = repo.getById(targetId)!
     const beforeSnapshot = {
       content: targetBefore.content,
@@ -412,9 +412,9 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
       vi.setSystemTime(1000)
       const id = await seedEmbedded(presenter, 'user likes redis')
       vi.setSystemTime(2000)
-      expect(await presenter.forgetMemory('a', id)).toBe(true)
+      expect(await presenter.forgetMemory('a', id)).toEqual({ action: 'applied' })
       vi.setSystemTime(3000)
-      expect(presenter.restoreMemory('a', id)).toBe(true)
+      expect(presenter.restoreMemory('a', id)).toEqual({ action: 'applied' })
       expect(auditRepo.hasForgetEvent('a', id)).toBe(false)
       vi.setSystemTime(4000)
       repo.seedArchived(id, Date.now())
@@ -444,13 +444,13 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
       vi.setSystemTime(1000)
       const id = await seedEmbedded(presenter, 'user likes redis')
       vi.setSystemTime(2000)
-      expect(await presenter.forgetMemory('a', id)).toBe(true)
+      expect(await presenter.forgetMemory('a', id)).toEqual({ action: 'applied' })
       vi.setSystemTime(3000)
-      expect(presenter.restoreMemory('a', id)).toBe(true)
+      expect(presenter.restoreMemory('a', id)).toEqual({ action: 'applied' })
       vi.setSystemTime(4000)
       repo.seedArchived(id, Date.now())
       vi.setSystemTime(5000)
-      expect(await presenter.forgetMemory('a', id)).toBe(true)
+      expect(await presenter.forgetMemory('a', id)).toEqual({ action: 'applied' })
       expect(auditRepo.hasForgetEvent('a', id)).toBe(true)
 
       vi.setSystemTime(6000)
@@ -730,10 +730,19 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     expect(
       await presenter.rememberMemory({ kind: 'semantic', content: 'x' }, { agentId: 'a' })
     ).toEqual({ action: 'noop', reason: 'disposed' })
-    expect(await presenter.deleteMemory('a', id)).toBe(false)
+    expect(await presenter.deleteMemory('a', id)).toEqual({
+      action: 'rejected',
+      reason: 'unavailable'
+    })
     expect(await presenter.clearMemories('a')).toBe(0)
-    expect(await presenter.rollbackPersona('a', id)).toBe(false)
-    expect(presenter.restoreMemory('a', id)).toBe(false)
+    expect(await presenter.rollbackPersona('a', id)).toEqual({
+      action: 'rejected',
+      reason: 'unavailable'
+    })
+    expect(presenter.restoreMemory('a', id)).toEqual({
+      action: 'rejected',
+      reason: 'unavailable'
+    })
 
     expect(insertSpy).not.toHaveBeenCalled()
     expect(deleteSpy).not.toHaveBeenCalled()
@@ -1001,9 +1010,9 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     // `disposed` synchronously before that await resumes, so the vector op must be skipped.
     const del = presenter.deleteMemory('a', 'm1')
     const disp = presenter.dispose()
-    const [ok] = await Promise.all([del, disp])
+    const [result] = await Promise.all([del, disp])
 
-    expect(ok).toBe(true) // the authoritative SQLite delete still happened
+    expect(result).toEqual({ action: 'applied' }) // the authoritative SQLite delete still happened
     expect(repo.getById('m1')).toBeUndefined()
     expect(deleteSpy).not.toHaveBeenCalled() // no write against the store dispose just closed
   })
@@ -1031,7 +1040,7 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     store.vectors.set('m1', textToVector('redis fact'))
     const deleteSpy = vi.spyOn(store, 'deleteByMemoryIds')
 
-    expect(await presenter.deleteMemory('a', 'm1')).toBe(true)
+    expect(await presenter.deleteMemory('a', 'm1')).toEqual({ action: 'applied' })
 
     expect(createVectorStore).toHaveBeenCalledWith('a', { providerId: 'p', modelId: 'legacy' }, 4)
     expect(deleteSpy).toHaveBeenCalledWith(['m1'])
@@ -1073,7 +1082,7 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     store.vectors.set('m1', textToVector('redis fact'))
     const deleteSpy = vi.spyOn(store, 'deleteByMemoryIds')
 
-    expect(await presenter.deleteMemory('a', 'm1')).toBe(true)
+    expect(await presenter.deleteMemory('a', 'm1')).toEqual({ action: 'applied' })
 
     expect(createVectorStore).toHaveBeenCalledWith('a', { providerId: 'p', modelId: 'legacy' }, 4)
     expect(deleteSpy).toHaveBeenCalledWith(['m1'])
@@ -1097,7 +1106,7 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
       embeddingModel: 'p:m'
     })
 
-    await expect(presenter.deleteMemory('a', 'm1')).resolves.toBe(true)
+    await expect(presenter.deleteMemory('a', 'm1')).resolves.toEqual({ action: 'applied' })
     expect(repo.getById('m1')).toBeUndefined()
   })
 
@@ -1127,7 +1136,7 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     })
     const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings').mockResolvedValue()
 
-    expect(await presenter.deleteMemory('a', 'm1')).toBe(true)
+    expect(await presenter.deleteMemory('a', 'm1')).toEqual({ action: 'applied' })
 
     expect(reindexSpy).toHaveBeenCalledWith('a', true)
     expect(repo.getById('m1')).toBeUndefined()
@@ -1167,8 +1176,8 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     }
 
     resolveDelete()
-    const [ok] = await Promise.all([del, disp])
-    expect(ok).toBe(true)
+    const [result] = await Promise.all([del, disp])
+    expect(result).toEqual({ action: 'applied' })
     expect(closeSpy).not.toHaveBeenCalled()
   })
 

@@ -337,7 +337,10 @@ async function resolveConflict(
   try {
     // Main broadcasts memory.updated for this mutation, which bumps
     // refreshToken and reloads this panel; no need to also reload locally.
-    await memoryClient.resolveConflict(agentId, challengerId, outcome)
+    const result = await memoryClient.resolveConflict(agentId, challengerId, outcome)
+    if (props.agentId === agentId && result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+    }
   } catch (error) {
     if (props.agentId === agentId) panelFeedback.fail(error)
   } finally {
@@ -351,7 +354,10 @@ async function approveDraft(draftId: string): Promise<void> {
   clearFeedback()
   setPending(pendingPersonaIds, draftId, true)
   try {
-    await memoryClient.approvePersonaDraft(agentId, draftId)
+    const result = await memoryClient.approvePersonaDraft(agentId, draftId)
+    if (props.agentId === agentId && result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+    }
   } catch (error) {
     if (props.agentId === agentId) panelFeedback.fail(error)
   } finally {
@@ -365,7 +371,10 @@ async function rejectDraft(draftId: string): Promise<void> {
   clearFeedback()
   setPending(pendingPersonaIds, draftId, true)
   try {
-    await memoryClient.rejectPersonaDraft(agentId, draftId)
+    const result = await memoryClient.rejectPersonaDraft(agentId, draftId)
+    if (props.agentId === agentId && result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+    }
   } catch (error) {
     if (props.agentId === agentId) panelFeedback.fail(error)
   } finally {

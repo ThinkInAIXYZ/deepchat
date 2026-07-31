@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import type { MemoryCommandResult } from '@shared/contracts/routes/memory.routes'
 import { AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
 import { unicodeCodePointLength } from '@shared/lib/unicodeText'
 
@@ -24,6 +25,7 @@ import type {
   MemoryMaintenanceStepResult
 } from '../types'
 import { isUniqueConstraintError, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+import { memoryCommandApplied, memoryCommandRejected } from '../domain/commandResult'
 import type {
   MemoryEmbeddingRepositoryPort,
   MemoryLifecycleRepositoryPort,
@@ -134,34 +136,36 @@ export class ConflictService {
     actorType: 'scheduler' | 'user' = 'user',
     model?: MemoryModelRef | null,
     options: ConflictResolutionOptions = {}
-  ): Promise<boolean> {
-    if (this.ctx.isDisposed) return false
+  ): Promise<MemoryCommandResult> {
+    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canManageClaimMemory(agentId)) return false
-    if (!this.ctx.canWriteAgentMemory(agentId)) return false
+    if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
+    if (!this.ctx.canWriteAgentMemory(agentId)) return memoryCommandRejected('unavailable')
     const challenger = this.ports.repository.getById(challengerId)
-    const target = challenger?.conflict_with
-      ? this.ports.repository.getById(challenger.conflict_with)
-      : undefined
-    const pair =
-      challenger?.agent_id === agentId &&
-      challenger.lifecycle_state === 'conflicted' &&
-      challenger.superseded_by === null &&
-      target?.agent_id === agentId &&
-      rowsShareMemoryScope(challenger, target) &&
-      target.conflict_state === 'challenged' &&
-      target.superseded_by === null
-        ? { challenger, target }
-        : undefined
-    if (!pair) return false
-    if (!this.ctx.canWriteAgentMemory(agentId)) return false
+    if (!challenger || challenger.agent_id !== agentId) {
+      return memoryCommandRejected('not-found')
+    }
+    if (!challenger.conflict_with) return memoryCommandRejected('invalid-state')
+    const target = this.ports.repository.getById(challenger.conflict_with)
+    if (!target || target.agent_id !== agentId) return memoryCommandRejected('not-found')
+    if (
+      challenger.lifecycle_state !== 'conflicted' ||
+      challenger.superseded_by !== null ||
+      !rowsShareMemoryScope(challenger, target) ||
+      target.conflict_state !== 'challenged' ||
+      target.superseded_by !== null
+    ) {
+      return memoryCommandRejected('invalid-state')
+    }
+    const pair = { challenger, target }
+    if (!this.ctx.canWriteAgentMemory(agentId)) return memoryCommandRejected('unavailable')
     try {
       this.ports.repository.runInTransaction(() => {
         this.applyConflictResolution(agentId, pair, outcome, options)
       })
     } catch (error) {
       if (error instanceof ConflictTransitionRejectedError || isUniqueConstraintError(error)) {
-        return false
+        return memoryCommandRejected('stale')
       }
       throw error
     }
@@ -182,7 +186,7 @@ export class ConflictService {
     }
     this.ctx.emitChanged(agentId, 'extract')
     this.ports.scheduleConsolidation(agentId)
-    return true
+    return memoryCommandApplied()
   }
 
   private applyConflictResolution(
@@ -402,13 +406,17 @@ export class ConflictService {
         unicodeCodePointLength(proposedMergedContent) <= AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS
           ? proposedMergedContent
           : null
-      if (
-        await this.resolveConflict(agentId, pair.challenger.id, outcome, 'scheduler', model, {
+      const result = await this.resolveConflict(
+        agentId,
+        pair.challenger.id,
+        outcome,
+        'scheduler',
+        model,
+        {
           mergedContent
-        })
-      ) {
-        touched = true
-      }
+        }
+      )
+      if (result.action === 'applied') touched = true
     }
     return { touched, calls, failures }
   }

@@ -107,7 +107,9 @@ describe('MemoryService.addUserMemory (manual user write)', () => {
     })
     if (created.action !== 'created') throw new Error('expected initial memory creation')
 
-    await expect(presenter.deleteMemory('deepchat', created.id)).resolves.toBe(true)
+    await expect(presenter.deleteMemory('deepchat', created.id)).resolves.toEqual({
+      action: 'applied'
+    })
     expect(
       presenter.writeMemoriesSync(
         [{ kind: 'semantic', content: '  Project   Saffron uses Rust.  ' }],

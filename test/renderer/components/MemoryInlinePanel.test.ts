@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { MemoryItem, MemorySourceSpan } from '../../../src/shared/contracts/routes'
+import type {
+  MemoryCommandResult,
+  MemoryItem,
+  MemorySourceSpan
+} from '../../../src/shared/contracts/routes'
 
 const passthrough = (name: string) => defineComponent({ name, template: '<div><slot /></div>' })
 
@@ -109,9 +113,9 @@ async function setup(
     add: vi.fn().mockResolvedValue({ action: 'created', memoryId: 'created' }),
     update: vi.fn().mockResolvedValue({ action: 'updated', memoryId: options.item?.id ?? 'm1' }),
     getByIds: vi.fn().mockResolvedValue([]),
-    archive: vi.fn().mockResolvedValue(true),
-    restore: vi.fn().mockResolvedValue(true),
-    remove: vi.fn().mockResolvedValue(true),
+    archive: vi.fn().mockResolvedValue({ action: 'applied' }),
+    restore: vi.fn().mockResolvedValue({ action: 'applied' }),
+    remove: vi.fn().mockResolvedValue({ action: 'applied' }),
     getSourceSpan: vi.fn(),
     getLifecycle: vi.fn().mockResolvedValue(null)
   }
@@ -303,7 +307,7 @@ describe('MemoryInlinePanel', () => {
     await flushPromises()
 
     expect(memoryClient.archive).toHaveBeenCalledWith('deepchat', 'm1')
-    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('changed')).toBeUndefined()
     expect(wrapper.emitted('close')).toHaveLength(1)
     wrapper.unmount()
   })
@@ -318,7 +322,7 @@ describe('MemoryInlinePanel', () => {
     await flushPromises()
 
     expect(memoryClient.restore).toHaveBeenCalledWith('deepchat', 'm1')
-    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('changed')).toBeUndefined()
     expect(wrapper.emitted('close')).toBeUndefined()
     wrapper.unmount()
   })
@@ -335,13 +339,13 @@ describe('MemoryInlinePanel', () => {
     await flushPromises()
 
     expect(memoryClient.remove).toHaveBeenCalledWith('deepchat', 'm1')
-    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('changed')).toBeUndefined()
     expect(wrapper.emitted('close')).toHaveLength(1)
     wrapper.unmount()
   })
 
   it('keeps real delete confirmation progress and errors visible until dismissal', async () => {
-    const pending = deferred<boolean>()
+    const pending = deferred<MemoryCommandResult>()
     const { wrapper, memoryClient } = await setup({ realAlertDialog: true })
     memoryClient.remove.mockReturnValueOnce(pending.promise)
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -396,12 +400,12 @@ describe('MemoryInlinePanel', () => {
     ['restore', 'settings.deepchatAgents.memoryManager.restore'],
     ['remove', 'settings.deepchatAgents.memoryManager.deletePermanent']
   ] as const)(
-    'shows inline feedback when the footer %s action returns false',
+    'shows inline feedback when the footer %s action is rejected',
     async (action, label) => {
       const { wrapper, memoryClient } = await setup({
         item: action === 'restore' ? memory({ status: 'archived' }) : memory()
       })
-      memoryClient[action].mockResolvedValueOnce(false)
+      memoryClient[action].mockResolvedValueOnce({ action: 'rejected', reason: 'stale' })
 
       const button = wrapper.findAll('button').find((candidate) => candidate.text().includes(label))
       await button!.trigger('click')

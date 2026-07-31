@@ -31,7 +31,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
     isMemoryEnabled: vi.fn().mockReturnValue(true),
     rememberMemory: vi.fn(),
     recallMemory: vi.fn(),
-    forgetMemory: vi.fn().mockResolvedValue(true),
+    forgetMemory: vi.fn().mockResolvedValue({ action: 'applied' }),
     ...overrides
   }) as any
 
@@ -150,9 +150,29 @@ describe('Agent memory tools', () => {
     expect(forgetDef?.function.description).toContain('Archive')
     expect(forgetDef?.function.description).not.toContain('Delete')
     expect(runtimePort.forgetMemory).toHaveBeenCalledWith('deepchat', 'mem-1')
-    expect(JSON.parse(result.content)).toEqual({ ok: true })
+    expect(JSON.parse(result.content)).toEqual({ ok: true, action: 'applied' })
     expect(JSON.stringify(result.rawData)).toContain('Archived the memory.')
     expect(JSON.stringify(result.rawData)).toContain('retained locally')
     expect(JSON.stringify(result.rawData)).not.toContain('Deleted the memory.')
+  })
+
+  it('preserves the rejection reason when memory_forget cannot archive the target', async () => {
+    const runtimePort = buildRuntimePort({
+      forgetMemory: vi.fn().mockResolvedValue({ action: 'rejected', reason: 'conflict' })
+    })
+    const handler = new AgentMemoryToolHandler(runtimePort, runtimePort)
+
+    const result = await handler.call(
+      MEMORY_TOOL_NAMES.forget,
+      { memoryId: 'mem-conflicted' },
+      'conv-1'
+    )
+
+    expect(JSON.parse(result.content)).toEqual({
+      ok: false,
+      action: 'rejected',
+      reason: 'conflict'
+    })
+    expect(JSON.stringify(result.rawData)).toContain('Memory could not be archived: conflict.')
   })
 })

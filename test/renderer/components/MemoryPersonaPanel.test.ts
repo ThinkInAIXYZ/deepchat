@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { MemoryItem } from '../../../src/shared/contracts/routes'
+import type { MemoryCommandResult, MemoryItem } from '../../../src/shared/contracts/routes'
 
 const passthrough = (name: string) => defineComponent({ name, template: '<div><slot /></div>' })
 
@@ -68,8 +68,8 @@ async function setup() {
         supersededBy: 'persona-active'
       })
     ]),
-    rollbackPersona: vi.fn().mockResolvedValue(undefined),
-    setPersonaAnchor: vi.fn().mockResolvedValue(undefined)
+    rollbackPersona: vi.fn().mockResolvedValue({ action: 'applied' }),
+    setPersonaAnchor: vi.fn().mockResolvedValue({ action: 'applied' })
   }
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
   vi.doMock('vue-i18n', () => ({
@@ -98,7 +98,7 @@ afterEach(() => {
 
 describe('MemoryPersonaPanel', () => {
   it('prevents duplicate anchor commands while the first request is pending', async () => {
-    const pending = deferred<void>()
+    const pending = deferred<MemoryCommandResult>()
     const { wrapper, memoryClient } = await setup()
     memoryClient.setPersonaAnchor.mockReturnValueOnce(pending.promise)
     const anchor = wrapper
@@ -112,7 +112,7 @@ describe('MemoryPersonaPanel', () => {
     expect(memoryClient.setPersonaAnchor).toHaveBeenCalledOnce()
     expect(anchor.attributes('disabled')).toBeDefined()
 
-    pending.resolve()
+    pending.resolve({ action: 'applied' })
     await flushPromises()
     expect(anchor.attributes('disabled')).toBeUndefined()
   })
@@ -136,5 +136,27 @@ describe('MemoryPersonaPanel', () => {
       '[MemoryPersonaPanel] Action failed',
       expect.any(Error)
     )
+  })
+
+  it('shows inline feedback when a persona command is rejected without throwing', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.setPersonaAnchor.mockResolvedValueOnce({
+      action: 'rejected',
+      reason: 'stale'
+    })
+    const anchor = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.deepchatAgents.memoryManager.anchor'))!
+
+    await anchor.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
+      'error'
+    )
+    expect(consoleWarn).toHaveBeenCalledWith('[MemoryPersonaPanel] Command rejected', {
+      reason: 'stale'
+    })
   })
 })

@@ -834,10 +834,10 @@ async function archive(memory: MemoryItem): Promise<void> {
   clearFeedback()
   setPending(memory.id, true)
   try {
-    const ok = await memoryClient.archive(agentId, memory.id)
+    const result = await memoryClient.archive(agentId, memory.id)
     if (props.agentId !== agentId) return
-    if (!ok) {
-      panelFeedback.fail()
+    if (result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
       return
     }
     upsertMemory({ ...memory, status: 'archived' })
@@ -855,10 +855,10 @@ async function restore(memory: MemoryItem): Promise<void> {
   clearFeedback()
   setPending(memory.id, true)
   try {
-    const ok = await memoryClient.restore(agentId, memory.id)
+    const result = await memoryClient.restore(agentId, memory.id)
     if (props.agentId !== agentId) return
-    if (!ok) {
-      panelFeedback.fail()
+    if (result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
       return
     }
     upsertMemory({ ...memory, status: 'pending_embedding' })
@@ -895,11 +895,11 @@ async function confirmRemove(): Promise<void> {
   deleteRequest.value = pendingRequest
   setPending(memory.id, true)
   try {
-    const ok = await memoryClient.remove(pendingRequest.agentId, memory.id)
+    const result = await memoryClient.remove(pendingRequest.agentId, memory.id)
     if (props.agentId !== pendingRequest.agentId || deleteRequest.value !== pendingRequest) return
-    if (!ok) {
+    if (result.action === 'rejected') {
       deleteRequest.value = { status: 'confirming', target: memory }
-      panelFeedback.fail()
+      panelFeedback.rejectCommand(result.reason)
       return
     }
     deleteRequest.value = { status: 'idle' }

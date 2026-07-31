@@ -969,8 +969,15 @@ describe('renderer api clients', () => {
                   createdAt: 1000 + index
                 }))
               }
+            case 'memory.delete':
             case 'memory.archive':
-              return { ok: true }
+            case 'memory.restore':
+            case 'memory.resolveConflict':
+            case 'memory.rollbackPersona':
+            case 'memory.approvePersonaDraft':
+            case 'memory.rejectPersonaDraft':
+            case 'memory.setPersonaAnchor':
+              return { action: 'applied' }
             case 'memory.reindex':
               return { started: true }
             case 'memory.listDirectives':
@@ -1593,7 +1600,7 @@ describe('renderer api clients', () => {
       agentId: 'agent-1',
       memoryId: 'mem-added'
     })
-    expect(archived).toBe(true)
+    expect(archived).toEqual({ action: 'applied' })
     expect(bridge.invoke).toHaveBeenNthCalledWith(17, 'memory.reindex', { agentId: 'agent-1' })
     expect(reindex.started).toBe(true)
     expect(bridge.invoke).toHaveBeenNthCalledWith(18, 'memory.getHealth', { agentId: 'agent-1' })

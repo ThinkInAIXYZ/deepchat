@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import type { MemoryCommandResult } from '@shared/contracts/routes/memory.routes'
 import { nanoid } from 'nanoid'
 
 import {
@@ -22,6 +23,7 @@ import type {
   MemoryPersonaDraftResult
 } from '../types'
 import { type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+import { memoryCommandApplied, memoryCommandRejected } from '../domain/commandResult'
 import type {
   MemoryLifecycleRepositoryPort,
   MemoryMutationRepositoryPort,
@@ -189,20 +191,16 @@ export class PersonaService {
     }
   }
 
-  async approvePersonaDraft(agentId: string, draftId: string): Promise<boolean> {
-    if (this.ctx.isDisposed) return false
+  async approvePersonaDraft(agentId: string, draftId: string): Promise<MemoryCommandResult> {
+    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canManageClaimMemory(agentId)) return false
+    if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
     return this.withPersonaLock(agentId, () => {
-      if (!this.ctx.canManageClaimMemory(agentId)) return false
+      if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
       const draft = this.ports.repository.getById(draftId)
-      if (
-        !draft ||
-        draft.agent_id !== agentId ||
-        draft.kind !== 'persona' ||
-        draft.persona_state !== 'draft'
-      ) {
-        return false
+      if (!draft || draft.agent_id !== agentId) return memoryCommandRejected('not-found')
+      if (draft.kind !== 'persona' || draft.persona_state !== 'draft') {
+        return memoryCommandRejected('invalid-state')
       }
       const current = this.ports.repository.getActivePersona(agentId)
       if (current && current.id !== draft.id) {
@@ -211,45 +209,46 @@ export class PersonaService {
       this.ports.repository.setPersonaState(draft.id, 'active', null)
       this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-approve')
-      return true
+      return memoryCommandApplied()
     })
   }
 
-  async rejectPersonaDraft(agentId: string, draftId: string): Promise<boolean> {
-    if (this.ctx.isDisposed) return false
+  async rejectPersonaDraft(agentId: string, draftId: string): Promise<MemoryCommandResult> {
+    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canManageClaimMemory(agentId)) return false
+    if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
     return this.withPersonaLock(agentId, () => {
-      if (!this.ctx.canManageClaimMemory(agentId)) return false
+      if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
       const draft = this.ports.repository.getById(draftId)
-      if (
-        !draft ||
-        draft.agent_id !== agentId ||
-        draft.kind !== 'persona' ||
-        draft.persona_state !== 'draft'
-      ) {
-        return false
+      if (!draft || draft.agent_id !== agentId) return memoryCommandRejected('not-found')
+      if (draft.kind !== 'persona' || draft.persona_state !== 'draft') {
+        return memoryCommandRejected('invalid-state')
       }
       this.ports.repository.setPersonaState(draft.id, 'rejected')
       this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-reject')
-      return true
+      return memoryCommandApplied()
     })
   }
 
-  async setPersonaAnchor(agentId: string, versionId: string, anchored: boolean): Promise<boolean> {
-    if (this.ctx.isDisposed) return false
+  async setPersonaAnchor(
+    agentId: string,
+    versionId: string,
+    anchored: boolean
+  ): Promise<MemoryCommandResult> {
+    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canManageClaimMemory(agentId)) return false
+    if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
     return this.withPersonaLock(agentId, () => {
-      if (!this.ctx.canManageClaimMemory(agentId)) return false
+      if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
       const row = this.ports.repository.getById(versionId)
-      if (!row || row.agent_id !== agentId || row.kind !== 'persona') return false
-      if ((row.is_anchor === 1) === anchored) return true
+      if (!row || row.agent_id !== agentId) return memoryCommandRejected('not-found')
+      if (row.kind !== 'persona') return memoryCommandRejected('invalid-state')
+      if ((row.is_anchor === 1) === anchored) return memoryCommandApplied()
       this.ports.repository.setAnchor(row.id, anchored)
       this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-anchor')
-      return true
+      return memoryCommandApplied()
     })
   }
 
@@ -274,28 +273,29 @@ export class PersonaService {
       }))
   }
 
-  async rollbackPersona(agentId: string, versionId: string): Promise<boolean> {
-    if (this.ctx.isDisposed) return false
+  async rollbackPersona(agentId: string, versionId: string): Promise<MemoryCommandResult> {
+    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canManageClaimMemory(agentId)) return false
+    if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
     return this.withPersonaLock(agentId, () => {
-      if (!this.ctx.canManageClaimMemory(agentId)) return false
+      if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
       const target = this.ports.repository.getById(versionId)
-      if (!target || target.agent_id !== agentId || target.kind !== 'persona') return false
+      if (!target || target.agent_id !== agentId) return memoryCommandRejected('not-found')
+      if (target.kind !== 'persona') return memoryCommandRejected('invalid-state')
       const current = this.ports.repository.getActivePersona(agentId)
-      if (current && current.id === versionId) return true
+      if (current && current.id === versionId) return memoryCommandApplied()
       const isHistorical =
         target.persona_state === 'superseded' ||
         (target.persona_state == null && target.superseded_by != null)
-      if (!isHistorical) return false
-      if (current && current.is_anchor === 1) return false
+      if (!isHistorical) return memoryCommandRejected('invalid-state')
+      if (current && current.is_anchor === 1) return memoryCommandRejected('anchored')
       if (current) {
         this.ports.repository.setPersonaState(current.id, 'superseded', versionId)
       }
       this.ports.repository.setPersonaState(versionId, 'active', null)
       this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-rollback')
-      return true
+      return memoryCommandApplied()
     })
   }
 

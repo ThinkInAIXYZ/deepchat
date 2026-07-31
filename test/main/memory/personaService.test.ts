@@ -65,7 +65,7 @@ describe('MemoryService guarded persona evolution', () => {
     const v1 = presenter.evolvePersona('a', 'v1', null)
     await presenter.approvePersonaDraft('a', v1!)
     const draft = presenter.evolvePersona('a', 'unwanted', null)
-    expect(await presenter.rejectPersonaDraft('a', draft!)).toBe(true)
+    expect(await presenter.rejectPersonaDraft('a', draft!)).toEqual({ action: 'applied' })
     expect(repo.getById(draft!)?.persona_state).toBe('rejected')
     expect(presenter.listPersonaDrafts('a')).toHaveLength(0)
     expect(repo.getActivePersona('a')?.content).toBe('v1')
@@ -75,7 +75,7 @@ describe('MemoryService guarded persona evolution', () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     const v1 = presenter.evolvePersona('a', 'v1', null)
     await presenter.approvePersonaDraft('a', v1!)
-    expect(await presenter.setPersonaAnchor('a', v1!, true)).toBe(true)
+    expect(await presenter.setPersonaAnchor('a', v1!, true)).toEqual({ action: 'applied' })
     expect(repo.getById(v1!)?.is_anchor).toBe(1)
     const v2 = presenter.evolvePersona('a', 'v2', null)
     await presenter.approvePersonaDraft('a', v2!)
@@ -94,7 +94,10 @@ describe('MemoryService guarded persona evolution', () => {
     const v2 = presenter.evolvePersona('a', 'v2', null)
     await presenter.approvePersonaDraft('a', v2!)
     await presenter.setPersonaAnchor('a', v2!, true)
-    expect(await presenter.rollbackPersona('a', v1!)).toBe(false)
+    expect(await presenter.rollbackPersona('a', v1!)).toEqual({
+      action: 'rejected',
+      reason: 'anchored'
+    })
     expect(repo.getActivePersona('a')?.id).toBe(v2)
     expect(repo.getById(v2!)?.superseded_by).toBeNull()
   })
@@ -105,7 +108,7 @@ describe('MemoryService guarded persona evolution', () => {
     await presenter.approvePersonaDraft('a', v1!)
     const v2 = presenter.evolvePersona('a', 'v2', null)
     await presenter.approvePersonaDraft('a', v2!)
-    expect(await presenter.rollbackPersona('a', v1!)).toBe(true)
+    expect(await presenter.rollbackPersona('a', v1!)).toEqual({ action: 'applied' })
     expect(repo.getActivePersona('a')?.id).toBe(v1)
     expect(repo.getById(v2!)?.superseded_by).toBe(v1)
   })
@@ -116,7 +119,10 @@ describe('MemoryService guarded persona evolution', () => {
     await presenter.approvePersonaDraft('a', active!)
     const draft = presenter.evolvePersona('a', 'unapproved draft', null)
     expect(repo.getById(draft!)?.persona_state).toBe('draft')
-    expect(await presenter.rollbackPersona('a', draft!)).toBe(false)
+    expect(await presenter.rollbackPersona('a', draft!)).toEqual({
+      action: 'rejected',
+      reason: 'invalid-state'
+    })
     expect(repo.getById(draft!)?.persona_state).toBe('draft')
     expect(repo.getActivePersona('a')?.id).toBe(active)
   })
@@ -128,7 +134,10 @@ describe('MemoryService guarded persona evolution', () => {
     const draft = presenter.evolvePersona('a', 'rejected draft', null)
     await presenter.rejectPersonaDraft('a', draft!)
     expect(repo.getById(draft!)?.persona_state).toBe('rejected')
-    expect(await presenter.rollbackPersona('a', draft!)).toBe(false)
+    expect(await presenter.rollbackPersona('a', draft!)).toEqual({
+      action: 'rejected',
+      reason: 'invalid-state'
+    })
     expect(repo.getById(draft!)?.persona_state).toBe('rejected')
     expect(repo.getActivePersona('a')?.id).toBe(active)
   })

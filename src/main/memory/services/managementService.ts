@@ -10,6 +10,7 @@ import {
   type MemoryHealthDto,
   type MemoryLifecycle,
   type MemoryRuntimeDiagnosticsDto,
+  type MemoryCommandResult,
   type MemoryUpdateResult
 } from '@shared/contracts/routes/memory.routes'
 import {
@@ -43,6 +44,7 @@ import {
 import { FORGET_HALF_LIFE_MS, type AgentMemoryRow } from '../types'
 import type { ManualEditFieldFlags } from '../domain/types'
 import { embeddingFingerprint, type MemoryRuntimeContext } from '../context'
+import { memoryCommandApplied, memoryCommandRejected } from '../domain/commandResult'
 import type {
   MemoryAgentPolicyPort,
   MemoryAuditReadPort,
@@ -197,14 +199,17 @@ export class ManagementService {
     }
   }
 
-  restoreMemory(agentId: string, memoryId: string): boolean {
-    if (this.ctx.isDisposed) return false
+  restoreMemory(agentId: string, memoryId: string): MemoryCommandResult {
+    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canWriteAgentMemory(agentId)) return false
+    if (!this.ctx.canWriteAgentMemory(agentId)) return memoryCommandRejected('unavailable')
     const row = this.ports.repository.getById(memoryId)
-    if (!row || row.agent_id !== agentId || row.lifecycle_state !== 'archived') return false
-    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
-    if (isInternalMemoryKind(row)) return false
+    if (!row || row.agent_id !== agentId) return memoryCommandRejected('not-found')
+    if (row.lifecycle_state !== 'archived') return memoryCommandRejected('invalid-state')
+    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) {
+      return memoryCommandRejected('conflict')
+    }
+    if (isInternalMemoryKind(row)) return memoryCommandRejected('invalid-state')
     let restored = false
     this.ports.repository.runInTransaction(() => {
       restored = this.ports.repository.restoreArchivedMemory({
@@ -221,24 +226,26 @@ export class ManagementService {
         outputRefs: { action: 'restored', memoryId }
       })
     })
-    if (!restored) return false
+    if (!restored) return memoryCommandRejected('stale')
     this.ctx.markDomainMutationCommitted(agentId)
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     void this.ports.triggerEmbedding(agentId).catch((error) => {
       logger.warn(`[Memory] background embedding failed: ${String(error)}`)
     })
     this.ctx.emitChanged(agentId, 'extract')
-    return true
+    return memoryCommandApplied()
   }
 
-  async forgetMemory(agentId: string, memoryId: string): Promise<boolean> {
-    if (this.ctx.isDisposed) return false
+  async forgetMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
+    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canManageClaimMemory(agentId)) return false
+    if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
     const row = this.ports.repository.getById(memoryId)
-    if (!row || row.agent_id !== agentId) return false
-    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
-    if (isInternalMemoryKind(row)) return false
+    if (!row || row.agent_id !== agentId) return memoryCommandRejected('not-found')
+    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) {
+      return memoryCommandRejected('conflict')
+    }
+    if (isInternalMemoryKind(row)) return memoryCommandRejected('invalid-state')
     this.ctx.invalidateAgentOperations(agentId)
     const alreadyArchived = row.lifecycle_state === 'archived'
     let archived = alreadyArchived
@@ -260,23 +267,25 @@ export class ManagementService {
         outputRefs: { action: alreadyArchived ? 'already_archived' : 'archived', memoryId }
       })
     })
-    if (!archived) return false
+    if (!archived) return memoryCommandRejected('stale')
     if (!alreadyArchived) {
       this.ctx.markDomainMutationCommitted(agentId)
       this.ports.syncWorkingMemoryAfterMutation(agentId)
       this.ctx.emitChanged(agentId, 'extract')
     }
-    return true
+    return memoryCommandApplied()
   }
 
-  async archiveUserMemory(agentId: string, memoryId: string): Promise<boolean> {
-    if (this.ctx.isDisposed) return false
+  async archiveUserMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
+    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canManageClaimMemory(agentId)) return false
+    if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
     const row = this.ports.repository.getById(memoryId)
-    if (!row || row.agent_id !== agentId) return false
-    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
-    if (isInternalMemoryKind(row)) return false
+    if (!row || row.agent_id !== agentId) return memoryCommandRejected('not-found')
+    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) {
+      return memoryCommandRejected('conflict')
+    }
+    if (isInternalMemoryKind(row)) return memoryCommandRejected('invalid-state')
     this.ctx.invalidateAgentOperations(agentId)
     const alreadyArchived = row.lifecycle_state === 'archived'
     let archived = alreadyArchived
@@ -298,13 +307,13 @@ export class ManagementService {
         outputRefs: { action: alreadyArchived ? 'already_archived' : 'archived', memoryId }
       })
     })
-    if (!archived) return false
+    if (!archived) return memoryCommandRejected('stale')
     if (!alreadyArchived) {
       this.ctx.markDomainMutationCommitted(agentId)
       this.ports.syncWorkingMemoryAfterMutation(agentId)
       this.ctx.emitChanged(agentId, 'extract')
     }
-    return true
+    return memoryCommandApplied()
   }
 
   /** @deprecated Use pageMemories for bounded management reads. */
@@ -689,14 +698,16 @@ export class ManagementService {
     return result
   }
 
-  async deleteMemory(agentId: string, memoryId: string): Promise<boolean> {
-    if (this.ctx.isDisposed) return false
+  async deleteMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
+    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canManageClaimMemory(agentId)) return false
+    if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
     const row = this.ports.repository.getById(memoryId)
-    if (!row || row.agent_id !== agentId) return false
-    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) return false
-    if (isInternalMemoryKind(row)) return false
+    if (!row || row.agent_id !== agentId) return memoryCommandRejected('not-found')
+    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) {
+      return memoryCommandRejected('conflict')
+    }
+    if (isInternalMemoryKind(row)) return memoryCommandRejected('invalid-state')
     this.ctx.invalidateAgentOperations(agentId)
     const deleted = this.ports.repository.tombstoneAndDelete({
       agentId,
@@ -704,7 +715,7 @@ export class ManagementService {
       expectedRevision: row.decision_revision,
       createdAt: this.ctx.now()
     })
-    if (!deleted) return false
+    if (!deleted) return memoryCommandRejected('stale')
     this.ctx.markDomainMutationCommitted(agentId)
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     const deleteResult = await this.ports.deleteVectorsForDeletedMemory(agentId, [memoryId], {
@@ -716,9 +727,9 @@ export class ManagementService {
         logger.warn(`[Memory] store rebuild after delete failed for ${agentId}: ${String(error)}`)
       })
     }
-    if (this.ctx.isDisposed) return true
+    if (this.ctx.isDisposed) return memoryCommandApplied()
     this.ctx.emitChanged(agentId, 'delete', { memoryId })
-    return true
+    return memoryCommandApplied()
   }
 
   clearMemories(agentId: string): Promise<MemoryClearResult> {
