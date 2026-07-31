@@ -260,7 +260,7 @@
         "invalidState": "Ta akcja nie jest już prawidłowa. Widok został odświeżony.",
         "conflict": "Rozwiąż konflikt pamięci przed ponowną próbą.",
         "stale": "Ta pamięć uległa zmianie. Widok został odświeżony; spróbuj ponownie.",
-        "anchored": "Odłącz aktywną personę przed przywróceniem."
+        "anchored": "Odkotwicz aktywną personę przed przywróceniem."
       },
       "conflict": "Konflikt",
       "restore": "Przywróć",

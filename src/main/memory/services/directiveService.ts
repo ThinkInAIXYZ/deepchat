@@ -149,8 +149,12 @@ export class DirectiveService {
   }
 
   rejectDirective(agentId: string, directiveId: string): AgentMemoryDirectiveRow | null {
-    const result = this.transitionDraftResult(agentId, directiveId, 'rejected')
+    const result = this.rejectDirectiveResult(agentId, directiveId)
     return result.action === 'applied' ? result.directive : null
+  }
+
+  rejectDirectiveResult(agentId: string, directiveId: string): MemoryDirectiveCommandResult {
+    return this.transitionDraftResult(agentId, directiveId, 'rejected')
   }
 
   private transitionDraftResult(

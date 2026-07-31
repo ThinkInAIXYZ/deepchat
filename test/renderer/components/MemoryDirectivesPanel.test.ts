@@ -402,7 +402,10 @@ describe('MemoryDirectivesPanel', () => {
     const draft = directive('draft', 'draft')
     const rejected = { ...draft, status: 'rejected' as const, updatedAt: 2 }
     const { wrapper, memoryClient } = await setup([draft])
-    memoryClient.rejectDirective.mockResolvedValue(rejected)
+    memoryClient.rejectDirective.mockResolvedValue({
+      action: 'applied',
+      directive: rejected
+    })
 
     await buttonContaining(wrapper, 'settings.deepchatAgents.memoryManager.reject').trigger('click')
     await flushPromises()
@@ -412,6 +415,30 @@ describe('MemoryDirectivesPanel', () => {
       'settings.memory.redesign.directiveStatus.rejected'
     )
     expect(memoryClient.approveDirective).not.toHaveBeenCalled()
+  })
+
+  it('keeps a draft visible and explains an unavailable rejection', async () => {
+    const draft = directive('draft', 'draft')
+    const { wrapper, memoryClient } = await setup([draft])
+    const listCallCount = memoryClient.listDirectives.mock.calls.length
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    memoryClient.rejectDirective.mockResolvedValue({
+      action: 'rejected',
+      directive: null,
+      reason: 'unavailable'
+    })
+
+    await buttonContaining(wrapper, 'settings.deepchatAgents.memoryManager.reject').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="memory-directive-draft"]').text()).toContain(
+      'settings.memory.redesign.directiveStatus.draft'
+    )
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.unavailable'
+    )
+    expect(memoryClient.listDirectives).toHaveBeenCalledTimes(listCallCount)
+    consoleWarn.mockRestore()
   })
 
   it('explains active-capacity rejection for create and approval', async () => {

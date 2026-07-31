@@ -321,9 +321,8 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
   async function rejectDirective(
     agentId: string,
     directiveId: string
-  ): Promise<MemoryDirectiveItem | null> {
-    const result = await bridge.invoke(memoryRejectDirectiveRoute.name, { agentId, directiveId })
-    return result.directive
+  ): Promise<MemoryDirectiveCommandResult> {
+    return bridge.invoke(memoryRejectDirectiveRoute.name, { agentId, directiveId })
   }
 
   async function deleteDirective(

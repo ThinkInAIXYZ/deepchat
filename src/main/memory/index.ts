@@ -664,6 +664,10 @@ export class MemoryService implements MemoryRuntimePort {
     return this.directives.rejectDirective(agentId, directiveId)
   }
 
+  rejectDirectiveResult(agentId: string, directiveId: string): MemoryDirectiveCommandResult {
+    return this.directives.rejectDirectiveResult(agentId, directiveId)
+  }
+
   deleteDirective(agentId: string, directiveId: string): boolean {
     return this.directives.deleteDirective(agentId, directiveId)
   }

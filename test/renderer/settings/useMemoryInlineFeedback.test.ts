@@ -40,26 +40,19 @@ describe('useMemoryInlineFeedback', () => {
   })
 
   it('reconciles only rejection reasons that prove the local projection is stale', () => {
-    const reasons: MemoryCommandRejectionReason[] = [
-      'unavailable',
-      'not-found',
-      'invalid-state',
-      'conflict',
-      'stale',
-      'anchored'
-    ]
-
-    expect(
-      Object.fromEntries(
-        reasons.map((reason) => [reason, shouldReconcileMemoryCommandRejection(reason)])
-      )
-    ).toEqual({
+    const expected = {
       unavailable: false,
       'not-found': true,
       'invalid-state': true,
       conflict: false,
       stale: true,
       anchored: false
-    })
+    } satisfies Record<MemoryCommandRejectionReason, boolean>
+
+    for (const [reason, shouldReconcile] of Object.entries(expected)) {
+      expect(shouldReconcileMemoryCommandRejection(reason as MemoryCommandRejectionReason)).toBe(
+        shouldReconcile
+      )
+    }
   })
 })

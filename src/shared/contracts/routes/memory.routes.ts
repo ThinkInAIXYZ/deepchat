@@ -1117,7 +1117,7 @@ export const memoryApproveDirectiveRoute = defineRouteContract({
 export const memoryRejectDirectiveRoute = defineRouteContract({
   name: 'memory.rejectDirective',
   input: z.object({ agentId: AgentIdSchema, directiveId: z.string().trim().min(1).max(128) }),
-  output: z.object({ directive: MemoryDirectiveItemSchema.nullable() })
+  output: MemoryDirectiveCommandResultSchema
 })
 
 export const memoryDeleteDirectiveRoute = defineRouteContract({

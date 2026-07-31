@@ -1055,6 +1055,13 @@ describe('memory directive route contracts', () => {
       })
     ).toEqual({ action: 'rejected', directive: null, reason: 'not-found' })
     expect(
+      memoryRejectDirectiveRoute.output.parse({
+        action: 'rejected',
+        directive: null,
+        reason: 'unavailable'
+      })
+    ).toEqual({ action: 'rejected', directive: null, reason: 'unavailable' })
+    expect(
       memoryCreateDirectiveRoute.output.safeParse({
         action: 'applied',
         directive: null

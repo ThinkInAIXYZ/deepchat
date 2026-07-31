@@ -105,7 +105,10 @@ async function setup() {
       action: 'applied',
       directive: { ...draft, status: 'active' }
     }),
-    rejectDirective: vi.fn().mockResolvedValue({ ...draft, status: 'rejected' })
+    rejectDirective: vi.fn().mockResolvedValue({
+      action: 'applied',
+      directive: { ...draft, status: 'rejected' }
+    })
   }
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
   vi.doMock('vue-i18n', () => ({
@@ -198,6 +201,32 @@ describe('MemoryInboxBar directives', () => {
     expect(feedback.attributes('data-tone')).toBe('error')
     expect(feedback.text()).toContain('settings.memory.redesign.directiveCapacityTitle')
     expect(feedback.text()).toContain(String(AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT))
+  })
+
+  it('explains and reconciles a draft that vanished before rejection', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.rejectDirective.mockResolvedValueOnce({
+      action: 'rejected',
+      directive: null,
+      reason: 'not-found'
+    })
+    memoryClient.listDirectives.mockResolvedValueOnce([])
+    const reject = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.deepchatAgents.memoryManager.reject'))
+    if (!reject) throw new Error('Reject button not found')
+
+    await reject.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.rejectDirective).toHaveBeenCalledWith('deepchat', 'directive-draft')
+    expect(memoryClient.listDirectives).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('Do not proactively mention Project X.')
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.notFound'
+    )
+    consoleWarn.mockRestore()
   })
 
   it('keeps persona results available when directive loading fails', async () => {

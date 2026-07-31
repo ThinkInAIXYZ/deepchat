@@ -448,10 +448,12 @@ async function rejectDirective(directiveId: string): Promise<void> {
   setDirectivePending(directiveId, true)
   let shouldReload = false
   try {
-    const rejected = await memoryClient.rejectDirective(agentId, directiveId)
+    const result = await memoryClient.rejectDirective(agentId, directiveId)
     if (props.agentId !== agentId) return
-    if (!rejected) {
-      panelFeedback.fail()
+    if (result.action === 'rejected') {
+      panelFeedback.rejectDirective(result.reason)
+      shouldReload =
+        result.reason !== 'capacity' && shouldReconcileMemoryCommandRejection(result.reason)
       return
     }
     directiveDrafts.value = directiveDrafts.value.filter(

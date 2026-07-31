@@ -1017,6 +1017,7 @@ describe('renderer api clients', () => {
               }
             case 'memory.rejectDirective':
               return {
+                action: 'applied',
                 directive: {
                   id: payload?.directiveId ?? 'directive-rejected',
                   agentId: payload?.agentId ?? 'agent-1',
@@ -1668,7 +1669,7 @@ describe('renderer api clients', () => {
     expect(listed[0]).toMatchObject({ id: 'directive-1', status: 'active' })
     expect(created.directive.id).toBe('directive-created')
     expect(approved.directive?.status).toBe('active')
-    expect(rejected?.status).toBe('rejected')
+    expect(rejected.directive?.status).toBe('rejected')
     expect(deleted).toEqual({ action: 'applied' })
   })
 
