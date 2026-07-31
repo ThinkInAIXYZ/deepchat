@@ -8,8 +8,10 @@ import { gzip } from 'node:zlib'
 import { promisify } from 'node:util'
 
 import {
+  getRequiredPdfiumDirectoryPaths,
   getRequiredPdfiumArtifactPaths,
   groupLightOcrArtifactPaths,
+  inspectRegularArtifactTree,
   isEncodedMacLightOcrArtifact
 } from './light-ocr-artifacts.mjs'
 
@@ -313,11 +315,16 @@ async function copyOpendalNativePackages(context) {
   }
 }
 
-async function copyPackageToUnpackedApp(sourceDir, nodeModulesDir, packageName) {
+async function copyPackageToUnpackedApp(
+  sourceDir,
+  nodeModulesDir,
+  packageName,
+  { dereference = true } = {}
+) {
   const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
   await fs.mkdir(path.dirname(destinationDir), { recursive: true })
   await fs.rm(destinationDir, { recursive: true, force: true })
-  await fs.cp(sourceDir, destinationDir, { recursive: true, force: true, dereference: true })
+  await fs.cp(sourceDir, destinationDir, { recursive: true, force: true, dereference })
   return destinationDir
 }
 
@@ -542,17 +549,16 @@ async function verifyNativeArtifacts(nativePackageDir, platform) {
 }
 
 async function assertExactPdfiumDirectory(nativePackageDir, platform) {
-  const entries = await fs.readdir(path.join(nativePackageDir, 'pdfium'), {
-    withFileTypes: true
-  })
-  if (entries.some((entry) => !entry.isFile())) {
-    throw new Error(`OCR native PDFium directory contains a non-file entry for ${platform}`)
-  }
-  const actualPaths = entries.map((entry) => `pdfium/${entry.name}`).sort()
+  const actual = await inspectRegularArtifactTree(nativePackageDir, 'pdfium')
   const expectedPaths = getRequiredPdfiumArtifactPaths(platform).sort()
+  const expectedDirectories = getRequiredPdfiumDirectoryPaths().sort()
   if (
-    actualPaths.length !== expectedPaths.length ||
-    actualPaths.some((relativePath, index) => relativePath !== expectedPaths[index])
+    actual.files.length !== expectedPaths.length ||
+    actual.files.some((relativePath, index) => relativePath !== expectedPaths[index]) ||
+    actual.directories.length !== expectedDirectories.length ||
+    actual.directories.some(
+      (relativePath, index) => relativePath !== expectedDirectories[index]
+    )
   ) {
     throw new Error(
       `OCR native PDFium directory mismatch for ${platform}: expected ${expectedPaths.join(', ')}`
@@ -596,7 +602,9 @@ async function assertLegalAssets(facadeDir, runtimeDir, modelDir, nativeDir) {
     path.join(modelDir, 'bundle', 'LICENSES', 'PaddleOCR-Apache-2.0.txt'),
     path.join(nativeDir, 'LICENSE'),
     path.join(nativeDir, 'NOTICE'),
-    path.join(nativeDir, 'licenses')
+    path.join(nativeDir, 'licenses'),
+    path.join(nativeDir, 'licenses', 'noto-sans-sc-OFL-1.1.txt'),
+    path.join(nativeDir, 'pdfium', 'fonts', 'OFL.txt')
   ]
   for (const requiredPath of requiredPaths) await fs.access(requiredPath)
 }
@@ -692,7 +700,8 @@ export async function packageLightOcrAssets(context) {
   const nativeDir = await copyPackageToUnpackedApp(
     nativeSourceDir,
     nodeModulesDir,
-    nativePackage
+    nativePackage,
+    { dereference: false }
   )
 
   const nodeRelativePath =

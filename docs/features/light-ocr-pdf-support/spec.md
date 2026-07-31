@@ -1,24 +1,29 @@
-# Light OCR 0.5.5 PDF Support
+# Light OCR PDF Support
 
 Status: implemented and locally validated
 
-Upstream release:
+Current runtime increment:
+[arcships/light-ocr v0.5.6](https://github.com/arcships/light-ocr/releases/tag/v0.5.6)
+
+Initial PDF support release:
 [arcships/light-ocr v0.5.5](https://github.com/arcships/light-ocr/releases/tag/v0.5.5)
 
 ## User Need
 
 DeepChat already extracts embedded PDF text through `pdf-parse-new`, but scanned PDFs and PDFs with
 little usable text remain effectively empty. Light OCR 0.5.5 adds built-in, offline PDF OCR through
-the same facade and model used for image OCR. DeepChat needs to ship that runtime correctly, expose
-PDF representation choices in the attachment UI, and preserve the exact bounded PDF text used by
-the provider.
+the same facade and model used for image OCR. Light OCR 0.5.6 adds a package-local Noto Sans SC
+fallback so PDFium can render documents that reference common non-embedded Chinese fonts. DeepChat
+needs to ship that runtime correctly, expose PDF representation choices in the attachment UI, and
+preserve the exact bounded PDF text used by the provider.
 
 ## Goals
 
-- Upgrade the stable Light OCR facade to 0.5.5 without changing the existing image-recognition
+- Upgrade the stable Light OCR facade to 0.5.6 without changing the existing image-recognition
   semantics.
 - Package the model-free runtime and the matching six native packages, including each platform's
-  PDFium payload, with no postinstall download or runtime network dependency.
+  PDFium payload and fallback-font resources, with no postinstall download or runtime network
+  dependency.
 - Add `Auto`, `Use embedded text`, and `Use OCR text` choices for PDF attachments.
 - Route `Auto` using page-level embedded-text coverage instead of formatted `file.content`.
 - Stream PDF pages from the standalone helper so main can stop work when the local output budget is
@@ -49,10 +54,10 @@ The four independently versioned components are pinned exactly:
 
 | Component | Package | Version |
 | --- | --- | --- |
-| Stable facade | `@arcships/light-ocr` | `0.5.5` |
-| Model-free runtime | `@arcships/light-ocr-runtime` | `0.1.5` |
+| Stable facade | `@arcships/light-ocr` | `0.5.6` |
+| Model-free runtime | `@arcships/light-ocr-runtime` | `0.1.6` |
 | Small model | `@arcships/light-ocr-model-ppocrv6-small` | `0.3.4` |
-| Native packages | six `@arcships/light-ocr-<platform>` packages | `0.5.5` |
+| Native packages | six `@arcships/light-ocr-<platform>` packages | `0.5.6` |
 
 The facade entry point is `src/index.cjs`. The runtime is a required packaged dependency because the
 facade imports `@arcships/light-ocr-runtime/facade`, and native-package resolution belongs to that
@@ -62,12 +67,14 @@ Each supported native package must contain its existing OCR runtime inventory pl
 
 | Platform | Required PDFium inventory |
 | --- | --- |
-| macOS | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/libpdfium.dylib` |
-| Linux | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/libpdfium.so` |
-| Windows | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/pdfium.dll` |
+| macOS | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/libpdfium.dylib`, `pdfium/fonts/NotoSansSC-Regular.otf`, `pdfium/fonts/OFL.txt` |
+| Linux | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/libpdfium.so`, `pdfium/fonts/NotoSansSC-Regular.otf`, `pdfium/fonts/OFL.txt` |
+| Windows | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/pdfium.dll`, `pdfium/fonts/NotoSansSC-Regular.otf`, `pdfium/fonts/OFL.txt` |
 
 Inventory checks group descriptor-owned OCR runtime code and manifest-owned `pdfium/` files
-separately. They must not assume an exact count for unrelated provider artifacts.
+separately. The complete recursive `pdfium/` tree is an explicit allowlist and rejects missing,
+unexpected, non-regular, or symlinked resources; unrelated provider artifacts do not affect that
+contract.
 
 macOS continues to encode raw Mach-O files as `gzip-base64-v1` before signing. Both
 `native/*.{node,dylib}` and `pdfium/*.{node,dylib}` are encoded and removed from the unpacked app.
@@ -77,6 +84,8 @@ Runtime materialization:
 - reconstructs the descriptor-owned OCR runtime files;
 - reconstructs `pdfium/index.cjs`, `pdfium/pdfium.node`, and `pdfium/libpdfium.dylib` with the two
   PDFium Mach-O files in the same directory, preserving the `@loader_path` dependency;
+- copies the verified raw font and OFL resources into the private materialized
+  `pdfium/fonts/` directory so the loader's relative fallback path remains valid;
 - sets `LIGHT_OCR_PDFIUM_MODULE` to the materialized `pdfium/index.cjs` only on macOS.
 
 Linux and Windows keep the direct package layout and do not set `LIGHT_OCR_PDFIUM_MODULE`; upstream
@@ -308,7 +317,7 @@ If turn-level attachment packing cannot retain any otherwise valid PDF OCR text,
 ## Acceptance Criteria
 
 - Existing image OCR routing, cache behavior, cancellation, and real packaged image smoke still pass
-  with the 0.5.5 facade.
+  with the 0.5.6 facade.
 - A textual PDF in `Auto` uses its embedded snapshot without starting the OCR helper.
 - A scanned PDF in `Auto`, and any PDF explicitly set to `ocr_text`, streams offline OCR text into
   the provider context.
@@ -320,8 +329,9 @@ If turn-level attachment packing cannot retain any otherwise valid PDF OCR text,
 - Empty completed OCR is negatively cached and does not offer a no-op retry.
 - Cancellation after one or more streamed pages retains the composer draft but stores no message or
   artifact.
-- Packaged smoke validates the runtime closure, PDFium inventory/materialization, real image OCR,
-  real PDF OCR, and offline execution for supported targets.
+- Packaged smoke validates the runtime closure, exact PDFium inventory/materialization, real image
+  OCR, raster-PDF OCR, non-embedded Chinese-font PDF OCR, and offline execution for supported
+  targets.
 - Typecheck, formatting, i18n validation, lint, focused main/renderer tests, and the production build
   pass locally. Platform packaging claims remain limited to targets actually validated by their
   workflows.

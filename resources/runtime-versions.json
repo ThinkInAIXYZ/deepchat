@@ -25,12 +25,12 @@
   "uv": "0.9.18",
   "rtk": "v0.43.0",
   "lightOcr": {
-    "facadeVersion": "0.5.5",
+    "facadeVersion": "0.5.6",
     "runtimePackage": "@arcships/light-ocr-runtime",
-    "runtimeVersion": "0.1.5",
+    "runtimeVersion": "0.1.6",
     "modelPackage": "@arcships/light-ocr-model-ppocrv6-small",
     "modelVersion": "0.3.4",
-    "nativeVersion": "0.5.5",
+    "nativeVersion": "0.5.6",
     "bundleId": "ppocrv6-small-native-20260719.1",
     "nativePackages": {
       "darwin-x64": "@arcships/light-ocr-darwin-x64",

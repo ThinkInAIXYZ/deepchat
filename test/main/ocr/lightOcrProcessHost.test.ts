@@ -154,9 +154,10 @@ describe('LightOcrProcessHost', () => {
     const nativePackageDir = path.join(tempDir, 'native-package')
     const nativeDir = path.join(nativePackageDir, 'native')
     const pdfiumDir = path.join(nativePackageDir, 'pdfium')
+    const pdfiumFontsDir = path.join(pdfiumDir, 'fonts')
     await Promise.all([
       mkdir(nativeDir, { recursive: true }),
-      mkdir(pdfiumDir, { recursive: true })
+      mkdir(pdfiumFontsDir, { recursive: true })
     ])
     const hash = (value: Buffer | string) => createHash('sha256').update(value).digest('hex')
     const addon = Buffer.from('qualified-addon')
@@ -182,6 +183,8 @@ describe('LightOcrProcessHost', () => {
     const pdfiumLoader = Buffer.from('module.exports = require("./pdfium.node")')
     const pdfiumAddon = Buffer.from('qualified-pdfium-addon')
     const pdfiumLibrary = Buffer.from('qualified-pdfium-library')
+    const pdfiumFont = Buffer.from('qualified-pdfium-font')
+    const pdfiumFontLicense = Buffer.from('qualified-pdfium-font-license')
     const pdfiumLoaderArtifact = {
       path: 'pdfium/index.cjs',
       bytes: pdfiumLoader.byteLength,
@@ -196,6 +199,16 @@ describe('LightOcrProcessHost', () => {
       path: 'pdfium/libpdfium.dylib',
       bytes: pdfiumLibrary.byteLength,
       sha256: hash(pdfiumLibrary)
+    }
+    const pdfiumFontArtifact = {
+      path: 'pdfium/fonts/NotoSansSC-Regular.otf',
+      bytes: pdfiumFont.byteLength,
+      sha256: hash(pdfiumFont)
+    }
+    const pdfiumFontLicenseArtifact = {
+      path: 'pdfium/fonts/OFL.txt',
+      bytes: pdfiumFontLicense.byteLength,
+      sha256: hash(pdfiumFontLicense)
     }
     await Promise.all([
       writeFile(
@@ -216,6 +229,8 @@ describe('LightOcrProcessHost', () => {
       ),
       writeFile(path.join(nativePackageDir, descriptorArtifact.path), descriptor),
       writeFile(path.join(nativePackageDir, pdfiumLoaderArtifact.path), pdfiumLoader),
+      writeFile(path.join(nativePackageDir, pdfiumFontArtifact.path), pdfiumFont),
+      writeFile(path.join(nativePackageDir, pdfiumFontLicenseArtifact.path), pdfiumFontLicense),
       writeFile(
         path.join(nativePackageDir, 'artifact-hashes.json'),
         JSON.stringify({
@@ -225,7 +240,9 @@ describe('LightOcrProcessHost', () => {
             descriptorArtifact,
             pdfiumLoaderArtifact,
             pdfiumAddonArtifact,
-            pdfiumLibraryArtifact
+            pdfiumLibraryArtifact,
+            pdfiumFontArtifact,
+            pdfiumFontLicenseArtifact
           ]
         })
       )
@@ -258,6 +275,12 @@ describe('LightOcrProcessHost', () => {
     await expect(readFile(materializedAddon!)).resolves.toEqual(addon)
     await expect(readFile(materializedDescriptor!)).resolves.toEqual(descriptor)
     await expect(readFile(materializedPdfium!)).resolves.toEqual(pdfiumLoader)
+    await expect(
+      readFile(path.join(path.dirname(materializedPdfium!), 'fonts/NotoSansSC-Regular.otf'))
+    ).resolves.toEqual(pdfiumFont)
+    await expect(
+      readFile(path.join(path.dirname(materializedPdfium!), 'fonts/OFL.txt'))
+    ).resolves.toEqual(pdfiumFontLicense)
 
     await host.close()
     await expect(readFile(materializedAddon!)).rejects.toThrow()
