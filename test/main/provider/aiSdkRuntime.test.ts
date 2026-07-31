@@ -383,6 +383,7 @@ describe('AI SDK runtime', () => {
     expect(mockGenerateText).toHaveBeenCalledWith(
       expect.objectContaining({ abortSignal: controller.signal, maxRetries: 2 })
     )
+    expect(mockGenerateText.mock.calls[0]?.[0]).not.toHaveProperty('telemetry')
   })
 
   it('combines caller cancellation with the configured model timeout', async () => {

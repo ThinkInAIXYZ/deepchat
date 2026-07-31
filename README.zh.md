@@ -138,6 +138,11 @@ DeepChat 的会话与 Agent 过程基于 Tape.systems 的哲学设计：把过�
 
 DeepChat 的 session Tape 继承 Tape.systems 的哲学，让 Agent 工作可恢复、可检查。Trace 预览可以查看请求序号、供应商/模型元数据、Tape 视图清单、包含/排除的上下文条目和 token 预算，让长会话更容易调试和续跑。
 
+DeepChat 还可以将 AI SDK 请求的无内容 OpenInference trace 导出到
+[AgentPond](https://github.com/marcusschiesser/agentpond) Files SDK 环境。此功能默认禁用；只有在
+DeepChat 启动前设置 `FILES_SDK_PROVIDER` 以及所选存储供应商的环境变量后才会启用。导出的
+trace 包含操作、模型、耗时和 token 用量元数据，但绝不包含提示词或回复内容。
+
 ## 🧠 Skills 支持
 
 DeepChat Skills 是兼容标准 Agent Skills 规范的设计。一个 Skill 可以包含任务说明、参考资料、素材和可选脚本，让 DeepChat 在启用后更像某个领域的专门助手。

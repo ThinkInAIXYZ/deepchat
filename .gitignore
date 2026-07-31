@@ -25,3 +25,4 @@ plugins/*/runtime/**/*
 playwright-report/
 test-results/
 .deepchat/
+.agentpond/

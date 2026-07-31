@@ -140,6 +140,12 @@ For more details on how to use these features, see the [documentation index](./d
 
 DeepChat's session Tape follows the Tape.systems philosophy and keeps agent work recoverable and inspectable. Trace previews expose request sequences, provider/model metadata, Tape view manifests, included or excluded entries, and token budgets, making long-running agent sessions easier to debug and resume.
 
+DeepChat can also export content-free OpenInference traces for AI SDK requests to an
+[AgentPond](https://github.com/marcusschiesser/agentpond) Files SDK environment. This is disabled by
+default and only starts when `FILES_SDK_PROVIDER` and the selected provider's environment variables
+are present before DeepChat starts. Exported traces include operation, model, timing, and token-usage
+metadata, but never prompt or response content.
+
 ## 🧠 Skills Support
 
 DeepChat Skills are designed to be compatible with the standard Agent Skills specification. A Skill can include task instructions, reference files, assets, and optional scripts, so DeepChat can act more like a domain specialist after it is enabled.

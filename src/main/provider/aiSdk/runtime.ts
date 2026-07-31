@@ -55,6 +55,7 @@ import {
   normalizeGeminiBaseUrl
 } from './providerFactory'
 import { adaptAiSdkStream } from './streamAdapter'
+import { agentPondTelemetry } from './agentPondTracing'
 import {
   learnEmbeddingBatchLimit,
   refreshLearnedEmbeddingBatchLimit,
@@ -1342,7 +1343,8 @@ export async function runAiSdkGenerateText(
     providerOptions: runtime.providerOptions as any,
     ...(requestSignal ? { abortSignal: requestSignal } : {}),
     ...effectiveRequest.samplingOptions,
-    maxOutputTokens: maxTokens
+    maxOutputTokens: maxTokens,
+    ...(agentPondTelemetry ? { telemetry: agentPondTelemetry } : {})
   })
 
   return {
@@ -1565,7 +1567,8 @@ export async function* runAiSdkCoreStream(
     providerOptions: runtime.providerOptions as any,
     ...(requestSignal ? { abortSignal: requestSignal } : {}),
     ...effectiveRequest.samplingOptions,
-    maxOutputTokens: maxTokens
+    maxOutputTokens: maxTokens,
+    ...(agentPondTelemetry ? { telemetry: agentPondTelemetry } : {})
   })
 
   yield* adaptAiSdkStream(result.stream, {
