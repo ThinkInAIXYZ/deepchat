@@ -39,9 +39,11 @@ const WORKFLOW_BOOTSTRAP_SOURCE = String.raw`
   const promiseResolve = NativePromise.resolve.bind(NativePromise)
   const promiseReject = NativePromise.reject.bind(NativePromise)
   const invokeAgentHost = __deepchatWorkflowInvokeAgent
+  const validateMapLimitHost = __deepchatWorkflowValidateMapLimit
   const phaseHost = __deepchatWorkflowPhase
   const logHost = __deepchatWorkflowLog
   delete globalThis.__deepchatWorkflowInvokeAgent
+  delete globalThis.__deepchatWorkflowValidateMapLimit
   delete globalThis.__deepchatWorkflowPhase
   delete globalThis.__deepchatWorkflowLog
 
@@ -136,6 +138,53 @@ const WORKFLOW_BOOTSTRAP_SOURCE = String.raw`
       )
     }
 
+    const mapLimit = async (key, items, limit, mapper) => {
+      const scope = prefix + '/mapLimit/' + keySegment(key, 'mapLimit key')
+      if (!Array.isArray(items)) {
+        fail('mapLimit items must be an array.')
+      }
+      if (typeof mapper !== 'function') {
+        fail('mapLimit mapper must be a function.')
+      }
+      validateMapLimitHost(limit)
+      assertUniqueKeys(items, 'mapLimit item', (item) => {
+        if (!item || typeof item !== 'object' || !('value' in item)) {
+          fail('mapLimit items must contain key and value.')
+        }
+      })
+
+      const results = new Array(items.length)
+      let nextIndex = 0
+      let stopped = false
+      const worker = async () => {
+        while (!stopped) {
+          const index = nextIndex
+          nextIndex += 1
+          if (index >= items.length) {
+            return
+          }
+          const item = items[index]
+          const itemScope = scope + '/item/' + keySegment(item.key, 'mapLimit item key')
+          try {
+            results[index] = {
+              key: item.key,
+              value: await mapper(item.value, createApi(itemScope), item)
+            }
+          } catch (error) {
+            stopped = true
+            throw error
+          }
+        }
+      }
+      const workers = []
+      const workerCount = Math.min(limit, items.length)
+      for (let index = 0; index < workerCount; index += 1) {
+        workers.push(worker())
+      }
+      await promiseAll(workers)
+      return results
+    }
+
     const phase = (key, options = {}) => {
       if (!options || typeof options !== 'object' || Array.isArray(options)) {
         fail('phase options must be an object.')
@@ -151,6 +200,7 @@ const WORKFLOW_BOOTSTRAP_SOURCE = String.raw`
       agent,
       parallel,
       pipeline,
+      mapLimit,
       phase,
       log: logHost
     })
@@ -161,6 +211,7 @@ const WORKFLOW_BOOTSTRAP_SOURCE = String.raw`
     agent: { value: rootApi.agent, writable: false, configurable: false },
     parallel: { value: rootApi.parallel, writable: false, configurable: false },
     pipeline: { value: rootApi.pipeline, writable: false, configurable: false },
+    mapLimit: { value: rootApi.mapLimit, writable: false, configurable: false },
     phase: { value: rootApi.phase, writable: false, configurable: false },
     log: { value: rootApi.log, writable: false, configurable: false },
     Promise: {
@@ -541,6 +592,20 @@ ${source}
         throw error
       }
       return deferred.handle
+    })
+
+    this.installFunction('__deepchatWorkflowValidateMapLimit', (limitHandle) => {
+      const limit = this.context.dump(limitHandle)
+      if (
+        !Number.isInteger(limit) ||
+        (limit as number) < 1 ||
+        (limit as number) > this.options.limits.maxPendingInvocations
+      ) {
+        throw new Error(
+          `mapLimit concurrency must be an integer between 1 and ${this.options.limits.maxPendingInvocations}.`
+        )
+      }
+      return this.context.undefined
     })
 
     this.installFunction('__deepchatWorkflowPhase', (valueHandle) => {

@@ -146,6 +146,114 @@ return await pipeline(
     ])
   })
 
+  it('bounds keyed map fan-out and preserves declared result order', async () => {
+    const events: WorkflowRuntimeEvent[] = []
+    const runtime = await createRuntime(events, {
+      maxPendingInvocations: 2
+    })
+    const completion = runtime.start(
+      `
+return await mapLimit(
+  'review',
+  [
+    { key: 'a', value: 'A' },
+    { key: 'b', value: 'B' },
+    { key: 'c', value: 'C' },
+    { key: 'd', value: 'D' }
+  ],
+  2,
+  (value, api) => api.agent('review ' + value, { key: 'worker' })
+)
+`,
+      null
+    )
+
+    const [firstA, firstB] = await waitForInvocationCount(events, 2)
+    expect(firstA.request.callPath).toBe('root/mapLimit/review/item/a/agent/worker')
+    expect(firstB.request.callPath).toBe('root/mapLimit/review/item/b/agent/worker')
+    expect(runtime.getPendingInvocationCount()).toBe(2)
+
+    await runtime.settleInvocation(firstB.requestId, {
+      status: 'success',
+      value: 'B-reviewed'
+    })
+    const third = (await waitForInvocationCount(events, 3))[2]
+    expect(third.request.callPath).toBe('root/mapLimit/review/item/c/agent/worker')
+    expect(runtime.getPendingInvocationCount()).toBe(2)
+
+    await runtime.settleInvocation(third.requestId, {
+      status: 'success',
+      value: 'C-reviewed'
+    })
+    const fourth = (await waitForInvocationCount(events, 4))[3]
+    expect(fourth.request.callPath).toBe('root/mapLimit/review/item/d/agent/worker')
+    expect(runtime.getPendingInvocationCount()).toBe(2)
+
+    await runtime.settleInvocation(fourth.requestId, {
+      status: 'success',
+      value: 'D-reviewed'
+    })
+    await runtime.settleInvocation(firstA.requestId, {
+      status: 'success',
+      value: 'A-reviewed'
+    })
+
+    await expect(completion).resolves.toEqual([
+      { key: 'a', value: 'A-reviewed' },
+      { key: 'b', value: 'B-reviewed' },
+      { key: 'c', value: 'C-reviewed' },
+      { key: 'd', value: 'D-reviewed' }
+    ])
+  })
+
+  it('rejects mapLimit concurrency above the host pending-invocation cap', async () => {
+    const events: WorkflowRuntimeEvent[] = []
+    const runtime = await createRuntime(events, {
+      maxPendingInvocations: 2
+    })
+
+    await expect(
+      runtime.start(
+        `
+return await mapLimit(
+  'review',
+  [{ key: 'a', value: 'A' }],
+  3,
+  (value, api) => api.agent(value, { key: 'worker' })
+)
+`,
+        null
+      )
+    ).rejects.toThrow('mapLimit concurrency must be an integer between 1 and 2')
+    expect(invocationEvents(events)).toEqual([])
+  })
+
+  it('validates all mapLimit item keys before starting mapper work', async () => {
+    const events: WorkflowRuntimeEvent[] = []
+    const runtime = await createRuntime(events)
+
+    await expect(
+      runtime.start(
+        `
+return await mapLimit(
+  'review',
+  [
+    { key: 'same', value: 'A' },
+    { key: 'same', value: 'B' }
+  ],
+  1,
+  (value, api) => api.agent(value, { key: 'worker' })
+)
+`,
+        null
+      )
+    ).rejects.toMatchObject({
+      name: 'WorkflowSourceError',
+      message: 'mapLimit item contains duplicate key "same".'
+    })
+    expect(invocationEvents(events)).toEqual([])
+  })
+
   it('rejects all outstanding deferred promises on cancellation', async () => {
     const events: WorkflowRuntimeEvent[] = []
     const runtime = await createRuntime(events)
@@ -308,7 +416,8 @@ return await Promise.all([
       '.then()'
     ],
     ['dynamic eval', "return eval('1 + 1')", 'Dynamic eval'],
-    ['injected global mutation', 'agent = null; return null', 'Mutation of injected global']
+    ['injected global mutation', 'agent = null; return null', 'Mutation of injected global'],
+    ['mapLimit mutation', 'mapLimit = null; return null', 'Mutation of injected global']
   ])('rejects unsupported source pattern: %s', async (_label, source, message) => {
     const events: WorkflowRuntimeEvent[] = []
     const runtime = await createRuntime(events)
@@ -331,6 +440,7 @@ return await Promise.all([
         `
 return {
   invokeType: typeof __deepchatWorkflowInvokeAgent,
+  mapLimitValidatorType: typeof __deepchatWorkflowValidateMapLimit,
   functionConstructorType: typeof (() => {}).constructor,
   asyncFunctionConstructorType: typeof (async () => {}).constructor
 }
@@ -340,7 +450,8 @@ return {
     ).resolves.toEqual({
       asyncFunctionConstructorType: 'undefined',
       functionConstructorType: 'undefined',
-      invokeType: 'undefined'
+      invokeType: 'undefined',
+      mapLimitValidatorType: 'undefined'
     })
   })
 

@@ -404,8 +404,20 @@ Authoring lifecycle evidence (2026-07-31):
 - [ ] Derive an advisory `exact | partial` static outline from workflow source.
 - [ ] Include the outline in approval and run-detail projections without persisting a second
   runtime graph.
-- [ ] Add stable keyed `mapLimit()` with declared-order results and bounded concurrency.
+- [x] Add stable keyed `mapLimit()` with declared-order results and bounded concurrency.
 - [ ] Add validator, call-path, replay, and out-of-order completion tests.
+
+Bounded fan-out evidence (2026-07-31):
+
+- `mapLimit()` creates only the configured worker count, validates all item keys before work, and
+  returns keyed results in declared item order;
+- the host rejects concurrency outside `1..maxPendingInvocations`, while normal child admission
+  continues to enforce the smaller workflow-owner and process-wide limits;
+- mapper call paths include the map key and stable item key, so out-of-order completion does not
+  change replay identity;
+- raw host validation callbacks are removed before user source runs;
+- 30 focused runtime and source-validator tests passed;
+- `pnpm run typecheck:node`.
 
 ### Reopened Final Validation
 

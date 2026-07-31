@@ -4,6 +4,7 @@ const INJECTED_GLOBALS = new Set([
   'agent',
   'parallel',
   'pipeline',
+  'mapLimit',
   'phase',
   'log',
   'Promise',
