@@ -126,7 +126,21 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 
 ## Settings And UX
 
-Add Tools -> File processing -> OCR with:
+Expose OCR as a built-in capability in the main-window Plugins Hub. Keep the legacy
+`settings-ocr` route registered for direct navigation and persisted settings activity, but hide it
+from the Settings sidebar. The route continues to render the same management component as a
+compatibility surface; the Plugins Hub remains the canonical entry. When an ACP agent is selected,
+Spotlight falls back to that compatibility route because the whole Plugins Hub is gated. The Plugins
+Hub entry remains visible when the runtime is unavailable so users can inspect the reason. Both
+surfaces may coexist in separate windows, but only the visible, focused instance polls runtime
+status.
+
+Runtime-status polling runs only while the owning renderer document is visible and its window is
+focused. Returning to an active surface refreshes status immediately. Catalog refresh failure is
+shown as an unknown status even when a previous snapshot exists; it must not keep presenting a stale
+Available badge.
+
+The OCR management page provides:
 
 - automatic OCR for non-vision models, enabled by default;
 - Auto/CPU execution backend;
@@ -137,6 +151,27 @@ Add Tools -> File processing -> OCR with:
 Image attachment actions are named `Auto`, `Send image` and `Use OCR text`. Do not call the existing
 optimized provider payload an "original" image. Sent attachments show their effective
 representation and allow the OCR snapshot to be inspected.
+
+Composer representation controls use progressive disclosure:
+
+- `auto` is the implicit default and does not render a persistent label on image or PDF chips;
+- an accessible attachment-options trigger is discoverable on hover and keyboard focus, and remains
+  visible for coarse-pointer devices that cannot hover;
+- explicit `image`, `embedded_text` and `ocr_text` preferences remain visible as compact intent
+  badges until the user restores `auto`;
+- menu actions keep action-oriented labels, while badges keep the existing short state labels;
+- renderer capability checks are advisory only. Unknown model capability and failed OCR status
+  reads fail open, while the main-process attachment router remains authoritative at dispatch;
+- a known non-vision model cannot create a new `image` preference from the menu. An existing
+  `image` preference remains intact, and the UI offers the existing vision-model picker and an
+  `auto` reset instead of silently changing user intent;
+- ACP composers hide representation controls and intent badges because ACP does not consume the
+  DeepChat attachment representation contract. Stored preferences remain unchanged and become
+  visible again when the draft returns to a DeepChat Agent;
+- OCR availability is read on demand when the attachment menu opens. A short-lived successful
+  snapshot is shared across nodes, and an expired snapshot remains authoritative while its refresh
+  is in flight so a known unavailable capability cannot flicker back to selectable. Composer nodes
+  never poll the runtime or reuse a potentially stale plugin-catalog snapshot.
 
 ## Acceptance Criteria
 
@@ -149,6 +184,9 @@ representation and allow the OCR snapshot to be inspected.
 - Helper crashes, hangs, cancellation and app shutdown leave no orphan process or stale private temp
   files.
 - Unsupported platforms clearly report why OCR is unavailable.
+- Composer attachment chips keep the default path free of representation labels, expose advanced
+  choices to pointer and keyboard users, suppress no-op representation controls for ACP, and never
+  destroy an explicit preference merely because the selected model or Agent changes.
 - Packaged smoke verifies the bundled Node version, helper, native package, model identity, real OCR
   and offline execution on each supported target before that target is considered enabled.
 - Release and package-regression packaging compare every selected installer role against the

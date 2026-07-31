@@ -232,7 +232,7 @@ describe('useComposerSubmit attachment preflight', () => {
     harness.stop()
   })
 
-  it('cancels main-owned image preparation without clearing the draft or showing an error', async () => {
+  it('cancels main-owned image preparation before opening the model picker', async () => {
     const harness = createHarness()
     const deferred = createDeferred<{ accepted: boolean }>()
     harness.chatClient.sendMessage.mockReturnValueOnce(deferred.promise)
@@ -243,9 +243,13 @@ describe('useComposerSubmit attachment preflight', () => {
     await vi.waitFor(() => expect(harness.chatClient.sendMessage).toHaveBeenCalledTimes(1))
     const submissionOptions = harness.chatClient.sendMessage.mock.calls[0]?.[2]
 
-    harness.actions.cancelAttachmentPreparation()
+    harness.actions.switchToVisionModel()
     expect(harness.chatClient.cancelSubmission).toHaveBeenCalledWith(
       submissionOptions?.submissionId
+    )
+    expect(harness.openModelPicker).toHaveBeenCalledOnce()
+    expect(harness.chatClient.cancelSubmission.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.openModelPicker.mock.invocationCallOrder[0]!
     )
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'

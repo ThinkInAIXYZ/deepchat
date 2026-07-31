@@ -8,7 +8,7 @@ const AVAILABLE_STATUS: OcrRuntimeStatus = {
   arch: 'arm64',
   availability: {
     status: 'available',
-    lightOcrVersion: '0.3.4',
+    lightOcrVersion: '0.5.5',
     bundleId: 'ppocrv6-small-native-20260719.1'
   },
   process: null,
@@ -52,7 +52,10 @@ async function setup(status: OcrRuntimeStatus | Error = AVAILABLE_STATUS, settin
     })
   }
   const resumePolling = vi.fn()
-  const useIntervalFn = vi.fn(() => ({ resume: resumePolling, pause: vi.fn() }))
+  const pausePolling = vi.fn()
+  const documentVisibility = ref<DocumentVisibilityState>('visible')
+  const windowFocused = ref(true)
+  const useIntervalFn = vi.fn(() => ({ resume: resumePolling, pause: pausePolling }))
   const notifyRenderer = vi.fn(() => true)
 
   vi.doMock('@api/SettingsClient', () => ({ createSettingsClient: () => settingsClient }))
@@ -64,7 +67,9 @@ async function setup(status: OcrRuntimeStatus | Error = AVAILABLE_STATUS, settin
     const original = await importOriginal<typeof import('@vueuse/core')>()
     return {
       ...original,
-      useIntervalFn
+      useDocumentVisibility: () => documentVisibility,
+      useIntervalFn,
+      useWindowFocus: () => windowFocused
     }
   })
   vi.doMock('vue-i18n', () => ({
@@ -137,7 +142,17 @@ async function setup(status: OcrRuntimeStatus | Error = AVAILABLE_STATUS, settin
   })
   await flushPromises()
 
-  return { wrapper, settingsClient, ocrClient, notifyRenderer, resumePolling, useIntervalFn }
+  return {
+    wrapper,
+    settingsClient,
+    ocrClient,
+    notifyRenderer,
+    documentVisibility,
+    windowFocused,
+    pausePolling,
+    resumePolling,
+    useIntervalFn
+  }
 }
 
 async function openAdvanced(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
@@ -175,6 +190,43 @@ describe('OcrSettings', () => {
       immediateCallback: false
     })
     expect(resumePolling).toHaveBeenCalledOnce()
+  })
+
+  it('polls only while the renderer is visible and focused', async () => {
+    const {
+      ocrClient,
+      documentVisibility,
+      windowFocused,
+      pausePolling,
+      resumePolling,
+      useIntervalFn
+    } = await setup()
+    const pollStatus = useIntervalFn.mock.calls[0]?.[0] as () => Promise<void>
+
+    documentVisibility.value = 'hidden'
+    await flushPromises()
+    await pollStatus()
+
+    expect(pausePolling).toHaveBeenCalled()
+    expect(ocrClient.getRuntimeStatus).toHaveBeenCalledOnce()
+
+    documentVisibility.value = 'visible'
+    await flushPromises()
+
+    expect(ocrClient.getRuntimeStatus).toHaveBeenCalledTimes(2)
+    expect(resumePolling).toHaveBeenCalledTimes(2)
+
+    windowFocused.value = false
+    await flushPromises()
+    await pollStatus()
+
+    expect(ocrClient.getRuntimeStatus).toHaveBeenCalledTimes(2)
+
+    windowFocused.value = true
+    await flushPromises()
+
+    expect(ocrClient.getRuntimeStatus).toHaveBeenCalledTimes(3)
+    expect(resumePolling).toHaveBeenCalledTimes(3)
   })
 
   it('does not overwrite persisted values when the initial settings snapshot fails', async () => {
@@ -235,7 +287,7 @@ describe('OcrSettings', () => {
       availability: {
         status: 'unavailable',
         reason: 'unsupported_platform',
-        lightOcrVersion: '0.3.4',
+        lightOcrVersion: '0.5.5',
         bundleId: 'ppocrv6-small-native-20260719.1'
       },
       process: null,

@@ -39,6 +39,16 @@ Status: implemented; reusable packaging workflow remote validation pending.
 - [ ] Run the refactored six-target reusable packaging workflows after this branch is pushed by a
   maintainer.
 
+## Composer Progressive Disclosure
+
+- [x] Add a typed attachment-node context without mixing reactive state into node actions.
+- [x] Hide representation controls and badges for ACP while preserving stored draft preferences.
+- [x] Make `auto` implicit and expose advanced choices through a hover- and focus-accessible menu.
+- [x] Fail open for unresolved capability reads while preserving known OCR state during refresh.
+- [x] Prevent new `image` overrides for known non-vision models without rewriting existing intent.
+- [x] Reuse the existing vision-model picker action from the attachment menu.
+- [x] Add focused renderer regression coverage and run the repository validation gate.
+
 ## Merge-blocking Review Hardening
 
 - [x] Make legacy attachment detection tolerate missing and malformed metadata.

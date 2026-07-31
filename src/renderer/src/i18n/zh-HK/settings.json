@@ -2687,7 +2687,7 @@
       "assets_missing": "目前安裝缺少必要的離線 OCR 資產。",
       "runtime_manifest_invalid": "內建 OCR 執行階段清單無效。",
       "service_closed": "OCR 服務正在關閉。",
-      "unsupported_platform": "Light OCR 0.3.4 暫不支援目前平台與架構。"
+      "unsupported_platform": "目前平台與架構暫不支援 OCR。"
     },
     "processStates": {
       "idle": "閒置",
@@ -3266,6 +3266,7 @@
     "available": "可用插件",
     "add": "新增",
     "manage": "管理",
+    "builtinCapability": "內置能力",
     "emptySearch": "沒有可用插件。",
     "pluginNotFound": "找不到插件。",
     "actionResult": "操作結果",

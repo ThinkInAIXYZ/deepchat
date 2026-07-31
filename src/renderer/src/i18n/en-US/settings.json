@@ -133,7 +133,7 @@
       "assets_missing": "Required offline OCR assets are missing from this installation.",
       "runtime_manifest_invalid": "The bundled OCR runtime manifest is invalid.",
       "service_closed": "The OCR service is shutting down.",
-      "unsupported_platform": "OCR is not available for this platform and architecture in version 0.3.4."
+      "unsupported_platform": "OCR is not available for this platform and architecture."
     },
     "processStates": {
       "idle": "Idle",
@@ -3027,6 +3027,7 @@
     "available": "Available plugins",
     "add": "Add",
     "manage": "Manage",
+    "builtinCapability": "Built-in capability",
     "emptySearch": "No available plugins.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

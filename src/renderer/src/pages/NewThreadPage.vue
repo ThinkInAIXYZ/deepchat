@@ -106,6 +106,7 @@
             :agent-id="selectedAgent.id"
             :workspace-path="projectStore.selectedProject?.path ?? null"
             :is-acp-session="isAcpSelectedAgent"
+            :supports-vision="composerSupportsVision"
             :editable="!isSubmittingInput"
             :submit-disabled="isAcpWorkdirUnavailable || isSubmittingInput"
             :is-attachment-preparation-pending="isPreparingAttachments"
@@ -113,6 +114,7 @@
             @pending-skills-change="onPendingSkillsChange"
             @command-submit="onCommandSubmit"
             @submit="onSubmit"
+            @switch-vision-model="switchToVisionModel"
             @toggle-voice-input="onToggleVoiceInput"
           >
             <template #toolbar>
@@ -133,7 +135,7 @@
         </div>
 
         <!-- Status bar -->
-        <ChatStatusBar :acp-draft-session-id="acpDraftSessionId" />
+        <ChatStatusBar ref="chatStatusBarRef" :acp-draft-session-id="acpDraftSessionId" />
       </div>
 
       <GuidedOnboardingOverlay
@@ -180,6 +182,11 @@ import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
+import {
+  openChatStatusBarModelPicker,
+  switchAttachmentToVisionModel,
+  type ChatStatusBarModelPicker
+} from '@/components/chat/attachmentModelPicker'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
@@ -257,6 +264,7 @@ const chatInputRef = ref<{
   clearPendingSkills?: () => void
   focusInput?: () => void
 } | null>(null)
+const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const acpDraftModelSelection = ref<SubmissionModelSelection | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
@@ -364,6 +372,20 @@ const selectedAgent = computed(() => {
 })
 const isAcpSelectedAgent = computed(() => selectedAgent.value.type === 'acp')
 const isDeepChatSelectedAgent = computed(() => selectedAgent.value.type === 'deepchat')
+const composerSupportsVision = computed<boolean | null>(() => {
+  if (
+    isAcpSelectedAgent.value ||
+    !modelStore.initialized ||
+    !draftStore.providerId ||
+    !draftStore.modelId
+  ) {
+    return null
+  }
+  return (
+    modelStore.findChatSelectableModel(draftStore.providerId, draftStore.modelId)?.model.vision ??
+    null
+  )
+})
 const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
@@ -1138,6 +1160,14 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
 
 function onAttach() {
   chatInputRef.value?.triggerAttach()
+}
+
+function openAttachmentModelPicker(): void {
+  openChatStatusBarModelPicker(chatStatusBarRef, 'NewThreadPage')
+}
+
+function switchToVisionModel(): void {
+  switchAttachmentToVisionModel(cancelSubmissionPreparation, openAttachmentModelPicker)
 }
 
 function onToggleVoiceInput() {

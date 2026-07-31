@@ -2687,7 +2687,7 @@
       "assets_missing": "בהתקנה זו חסרים משאבי OCR לא מקוונים נדרשים.",
       "runtime_manifest_invalid": "מניפסט סביבת ה-OCR המובנית אינו תקין.",
       "service_closed": "שירות ה-OCR נמצא בתהליך סגירה.",
-      "unsupported_platform": "OCR אינו זמין לפלטפורמה ולארכיטקטורה האלה בגרסה 0.3.4."
+      "unsupported_platform": "OCR אינו זמין לפלטפורמה ולארכיטקטורה האלה."
     },
     "processStates": {
       "idle": "לא פעיל",
@@ -3266,6 +3266,7 @@
     "available": "תוספים זמינים",
     "add": "הוספה",
     "manage": "Manage",
+    "builtinCapability": "יכולת מובנית",
     "emptySearch": "אין תוספים זמינים.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

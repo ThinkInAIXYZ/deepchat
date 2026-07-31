@@ -2687,7 +2687,7 @@
       "assets_missing": "Des ressources OCR hors ligne requises sont absentes de cette installation.",
       "runtime_manifest_invalid": "Le manifeste du moteur OCR intégré n’est pas valide.",
       "service_closed": "Le service OCR est en cours d’arrêt.",
-      "unsupported_platform": "L’OCR n’est pas disponible pour cette plateforme et cette architecture dans la version 0.3.4."
+      "unsupported_platform": "L’OCR n’est pas disponible pour cette plateforme et cette architecture."
     },
     "processStates": {
       "idle": "Inactif",
@@ -3266,6 +3266,7 @@
     "available": "Plugins disponibles",
     "add": "Ajouter",
     "manage": "Manage",
+    "builtinCapability": "Fonctionnalité intégrée",
     "emptySearch": "Aucun plugin disponible.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

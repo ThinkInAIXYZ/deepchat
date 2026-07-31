@@ -283,8 +283,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useIntervalFn } from '@vueuse/core'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useDocumentVisibility, useIntervalFn, useWindowFocus } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
 import type { AcceptableValue } from 'reka-ui'
@@ -346,7 +346,10 @@ const clearDialogOpen = ref(false)
 const advancedOpen = ref(false)
 const diagnosticsOpen = ref(false)
 const statusHasError = ref(false)
+const documentVisibility = useDocumentVisibility()
+const windowFocused = useWindowFocus()
 const statusStale = computed(() => statusHasError.value && status.value !== null)
+const pollingAllowed = computed(() => documentVisibility.value === 'visible' && windowFocused.value)
 
 const availabilityLabel = computed(() =>
   status.value?.availability.status === 'available'
@@ -410,22 +413,33 @@ const canClearCache = computed(() => {
   )
 })
 
-const { pause: pausePolling, resume: resumePolling } = useIntervalFn(refreshStatus, 5_000, {
+const { pause: pausePolling, resume: resumePolling } = useIntervalFn(pollRuntimeStatus, 5_000, {
   immediate: false,
   immediateCallback: false
 })
+let mounted = false
 let disposed = false
 
+const activatePolling = () => {
+  if (!mounted || disposed || !pollingAllowed.value) return
+  void refreshStatus()
+  resumePolling()
+}
+
 onMounted(() => {
+  mounted = true
   void loadSettings()
-  void refreshStatus().finally(() => {
-    if (!disposed) resumePolling()
-  })
+  activatePolling()
 })
 
 onBeforeUnmount(() => {
   disposed = true
   pausePolling()
+})
+
+watch(pollingAllowed, (allowed) => {
+  pausePolling()
+  if (allowed) activatePolling()
 })
 
 async function loadSettings(): Promise<void> {
@@ -504,6 +518,11 @@ async function refreshStatus(): Promise<void> {
   } finally {
     statusLoading.value = false
   }
+}
+
+async function pollRuntimeStatus(): Promise<void> {
+  if (!pollingAllowed.value) return
+  await refreshStatus()
 }
 
 async function clearCache(): Promise<void> {

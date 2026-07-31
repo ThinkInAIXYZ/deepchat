@@ -17,6 +17,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { CapabilitySnapshotQuery } from '@shared/types/model-capabilities'
 import { isAttachmentPreparationCandidate } from '@shared/utils/attachmentRepresentation'
+import { switchAttachmentToVisionModel } from '@/components/chat/attachmentModelPicker'
 import {
   applyAcceptedComposerSubmission,
   composerDraftFingerprint,
@@ -1048,8 +1049,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   function switchToVisionModel(): void {
-    cancelAttachmentPreparation()
-    options.openModelPicker()
+    switchAttachmentToVisionModel(cancelAttachmentPreparation, options.openModelPicker)
   }
 
   function dispose(): void {

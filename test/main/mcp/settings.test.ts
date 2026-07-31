@@ -134,6 +134,25 @@ describe('McpSettings', () => {
     )
   })
 
+  it("adds the disabled McDonald's MCP server with a token placeholder for existing users", async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    const mcpStore = (helper as any).mcpStore
+
+    mcpStore.set('mcpServers', {})
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers['mcd-mcp']).toMatchObject({
+      type: 'http',
+      baseUrl: 'https://mcp.mcd.cn',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_MCP_TOKEN'
+      },
+      enabled: false
+    })
+  })
+
   it('does not recreate the Apple built-in server after the user removed it', async () => {
     const { McpSettings } = await loadHelper('darwin')
     const helper = new McpSettings()

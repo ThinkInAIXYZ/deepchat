@@ -212,6 +212,7 @@
                     :agent-id="sessionStore.activeSession?.agentId ?? 'deepchat'"
                     :workspace-path="sessionStore.activeSession?.projectDir ?? null"
                     :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
+                    :supports-vision="composerSupportsVision"
                     :is-generating="isGenerating"
                     :submit-disabled="isInputSubmitDisabled"
                     :queue-submit-enabled="isGenerating && hasDraftInput"
@@ -223,6 +224,7 @@
                     @pending-skills-change="recordComposerSkillsChange"
                     @queue-submit="onQueueSubmit"
                     @submit="onSubmit"
+                    @switch-vision-model="switchToVisionModel"
                     @toggle-voice-input="onToggleVoiceInput"
                   >
                     <template #toolbar>
@@ -321,6 +323,10 @@ import MessageList from '@/components/chat/MessageList.vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import AttachmentPreparationDialog from '@/components/chat/AttachmentPreparationDialog.vue'
+import {
+  openChatStatusBarModelPicker,
+  type ChatStatusBarModelPicker
+} from '@/components/chat/attachmentModelPicker'
 import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
@@ -1081,12 +1087,10 @@ const chatInputRef = ref<{
   getDocumentSnapshot?: () => JSONContent
   restoreDocumentSnapshot?: (document: JSONContent) => void
 } | null>(null)
-const chatStatusBarRef = ref<{ openModelPicker?: () => boolean } | null>(null)
+const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 
 function openAttachmentModelPicker(): void {
-  void nextTick(() => {
-    chatStatusBarRef.value?.openModelPicker?.()
-  })
+  openChatStatusBarModelPicker(chatStatusBarRef, 'ChatPage')
 }
 
 const {
@@ -1132,6 +1136,17 @@ function getActiveModelSelection(): { providerId: string; modelId: string } | nu
     modelId: activeSession.modelId
   }
 }
+
+const composerSupportsVision = computed<boolean | null>(() => {
+  const selection = getActiveModelSelection()
+  if (!selection || selection.providerId === 'acp' || !modelStore.initialized) {
+    return null
+  }
+  return (
+    modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.vision ??
+    null
+  )
+})
 
 const {
   isVoiceInputEnabled,

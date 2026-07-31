@@ -2687,7 +2687,7 @@
       "assets_missing": "このインストールには必要なオフライン OCR アセットがありません。",
       "runtime_manifest_invalid": "内蔵 OCR ランタイムのマニフェストが無効です。",
       "service_closed": "OCR サービスを終了しています。",
-      "unsupported_platform": "バージョン 0.3.4 では、このプラットフォームとアーキテクチャで OCR を利用できません。"
+      "unsupported_platform": "このプラットフォームとアーキテクチャでは OCR を利用できません。"
     },
     "processStates": {
       "idle": "アイドル",
@@ -3266,6 +3266,7 @@
     "available": "利用可能なプラグイン",
     "add": "追加",
     "manage": "Manage",
+    "builtinCapability": "組み込み機能",
     "emptySearch": "利用可能なプラグインはありません。",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

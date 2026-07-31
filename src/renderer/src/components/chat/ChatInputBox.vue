@@ -59,6 +59,7 @@ import { TextSelection } from '@tiptap/pm/state'
 import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
 import { Spinner } from '@shadcn/components/ui/spinner'
+import { createOcrClient, type OcrClient } from '@api/OcrClient'
 import {
   buildChatInputWorkspaceReferenceText,
   getChatInputWorkspaceItemDragData
@@ -70,7 +71,12 @@ import { useSkillsData } from '@/components/chat-input/composables/useSkillsData
 import { SkillChip } from './nodes/skillChip'
 import { FileAttachment } from './nodes/fileAttachment'
 import { CommandForm } from './nodes/commandForm'
-import { INPUT_NODE_ACTIONS, type InputNodeActions } from './nodes/symbols'
+import {
+  ATTACHMENT_NODE_CONTEXT,
+  INPUT_NODE_ACTIONS,
+  type AttachmentOcrAvailability,
+  type InputNodeActions
+} from './nodes/symbols'
 
 const SlashMention = Mention.extend({
   name: 'slashMention'
@@ -84,6 +90,7 @@ const props = withDefaults(
     agentId?: string | null
     workspacePath?: string | null
     isAcpSession?: boolean
+    supportsVision?: boolean | null
     isGenerating?: boolean
     editable?: boolean
     submitDisabled?: boolean
@@ -100,6 +107,7 @@ const props = withDefaults(
     agentId: 'deepchat',
     workspacePath: null,
     isAcpSession: false,
+    supportsVision: null,
     isGenerating: false,
     editable: true,
     submitDisabled: false,
@@ -118,6 +126,7 @@ const emit = defineEmits<{
   'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
   'pending-skills-change': [skills: string[]]
+  'switch-vision-model': []
   'draft-change': []
   'toggle-voice-input': []
 }>()
@@ -186,6 +195,10 @@ const actions: InputNodeActions = {
       files.updateFile(idx, { requestedRepresentation: preference })
     }
   },
+  switchToVisionModel: () => {
+    if (!props.editable) return
+    emit('switch-vision-model')
+  },
   submitCommandForm: (values) => {
     if (!props.editable) return
     mentions.submitDialog(values)
@@ -196,6 +209,65 @@ const actions: InputNodeActions = {
 }
 
 provide(INPUT_NODE_ACTIONS, actions)
+
+const attachmentOcrAvailability = ref<AttachmentOcrAvailability>({ status: 'unknown' })
+const attachmentIsAcpSession = computed(() => props.isAcpSession)
+const attachmentSupportsVision = computed(() => props.supportsVision)
+const ATTACHMENT_OCR_AVAILABILITY_TTL_MS = 30_000
+let attachmentOcrClient: OcrClient | null = null
+let attachmentOcrStatusLoadedAt = 0
+let attachmentOcrStatusRequest: Promise<void> | null = null
+let attachmentOcrStatusRequestId = 0
+
+async function refreshAttachmentOcrAvailability(): Promise<void> {
+  const cacheAge = Date.now() - attachmentOcrStatusLoadedAt
+  if (
+    attachmentOcrAvailability.value.status !== 'unknown' &&
+    cacheAge >= 0 &&
+    cacheAge < ATTACHMENT_OCR_AVAILABILITY_TTL_MS
+  ) {
+    return
+  }
+  if (attachmentOcrStatusRequest) {
+    await attachmentOcrStatusRequest
+    return
+  }
+
+  const requestId = ++attachmentOcrStatusRequestId
+  const request = (async () => {
+    try {
+      attachmentOcrClient ??= createOcrClient()
+      const status = await attachmentOcrClient.getRuntimeStatus()
+      if (requestId !== attachmentOcrStatusRequestId) {
+        return
+      }
+      attachmentOcrAvailability.value = status.availability
+      attachmentOcrStatusLoadedAt = Date.now()
+    } catch (error) {
+      if (requestId !== attachmentOcrStatusRequestId) {
+        return
+      }
+      attachmentOcrAvailability.value = { status: 'unknown' }
+      attachmentOcrStatusLoadedAt = 0
+      console.warn('[ChatInputBox] Failed to load OCR availability:', error)
+    }
+  })()
+  attachmentOcrStatusRequest = request
+  try {
+    await request
+  } finally {
+    if (attachmentOcrStatusRequest === request) {
+      attachmentOcrStatusRequest = null
+    }
+  }
+}
+
+provide(ATTACHMENT_NODE_CONTEXT, {
+  isAcpSession: attachmentIsAcpSession,
+  supportsVision: attachmentSupportsVision,
+  ocrAvailability: attachmentOcrAvailability,
+  refreshOcrAvailability: refreshAttachmentOcrAvailability
+})
 
 // ── Editor helpers ─────────────────────────────────────────────
 
@@ -546,6 +618,7 @@ watch(
 )
 
 onUnmounted(() => {
+  attachmentOcrStatusRequestId += 1
   editor.destroy()
 })
 

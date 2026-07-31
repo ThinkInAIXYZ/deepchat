@@ -129,12 +129,36 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
 - Pending-input migration adds nullable blocking data and does not rewrite existing payloads.
 - Cache is not a fact source and can be cleared or lost without affecting sent messages.
 
+## Composer Progressive Disclosure
+
+Keep node commands and reactive environment state behind separate injection keys.
+`INPUT_NODE_ACTIONS` continues to own mutations and the existing vision-model picker action.
+`ATTACHMENT_NODE_CONTEXT` carries the ACP flag, the advisory selected-model vision capability and
+an on-demand OCR availability snapshot.
+
+The chat page and new-thread page derive model capability from their effective provider/model
+selection and pass `null` until the renderer can resolve the selected model. `ChatInputBox` provides
+that state to TipTap attachment nodes, owns one request-versioned OCR status read shared by its
+nodes, coalesces concurrent reads and reuses a successful snapshot for a short TTL. Refresh does not
+replace known availability with an indistinguishable loading state; a failed read resets to
+`unknown` rather than retaining stale availability. Nodes treat both unknown model capability and
+unknown OCR availability as selectable; the main router is the only enforcement boundary.
+
+The composer hides representation controls entirely for ACP without mutating stored preferences.
+For DeepChat, an `auto` attachment renders only a focusable attachment-options affordance that is
+visually disclosed on hover or focus. Explicit preferences render a compact intent badge. A known
+non-vision selection disables creation of a new `image` preference and routes the existing
+switch-model action to the same picker used by attachment-preparation recovery. No composer code
+rewrites an explicit preference in response to a model or Agent change.
+
 ## Validation Strategy
 
 - Unit test routing, preprocessing, cache keys/GC, process protocol and failure recovery.
 - Test direct/new-thread/queue/steer/remote semantics and provider non-invocation when blocked.
 - Test persistence, restart, retry, compaction, delete, export, sync-compatible JSON and search.
-- Test renderer draft preservation, action dialogs, pending blocked controls and settings states.
+- Test renderer draft preservation, action dialogs, pending blocked controls, settings states,
+  ACP control suppression, nullable model capability, on-demand OCR status failure and explicit
+  preference preservation.
 - Run real packaged OCR on the current macOS target; configure but do not claim remote target results
   until their workflows run.
 - Record cold/warm latency, peak/idle RSS and packaged size. Stop for review above 768 MiB peak RSS

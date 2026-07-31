@@ -133,7 +133,7 @@
       "assets_missing": "Bản cài đặt này thiếu tài nguyên OCR ngoại tuyến bắt buộc.",
       "runtime_manifest_invalid": "Tệp kê khai runtime OCR tích hợp không hợp lệ.",
       "service_closed": "Dịch vụ OCR đang tắt.",
-      "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này trong phiên bản 0.3.4."
+      "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này."
     },
     "processStates": {
       "idle": "Không hoạt động",
@@ -3266,6 +3266,7 @@
     "available": "Plugin khả dụng",
     "add": "Thêm",
     "manage": "Manage",
+    "builtinCapability": "Tính năng tích hợp",
     "emptySearch": "Không có plugin khả dụng.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

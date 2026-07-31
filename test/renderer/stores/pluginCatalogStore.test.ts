@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { RemoteChannelDescriptor, TelegramRemoteStatus } from '@shared/types/remote'
 import type { PluginListItem } from '@shared/types/plugin'
+import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
@@ -37,6 +38,18 @@ const telegramStatus = (enabled = false): TelegramRemoteStatus => ({
   botUser: null
 })
 
+const ocrStatus: OcrRuntimeStatus = {
+  platform: 'darwin',
+  arch: 'arm64',
+  availability: {
+    status: 'available',
+    lightOcrVersion: '0.5.5',
+    bundleId: 'ppocrv6-small-native-20260719.1'
+  },
+  process: null,
+  cache: null
+}
+
 describe('pluginCatalogStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -51,11 +64,14 @@ describe('pluginCatalogStore', () => {
       [telegramStatus()],
       store.captureRemoteRefresh()
     )
+    store.replaceOcrStatus(ocrStatus, store.beginOcrRefresh())
 
     const secondConsumer = usePluginCatalogStore()
     expect(secondConsumer.getPlugin('com.deepchat.plugins.test')?.enabled).toBe(false)
     expect(secondConsumer.remoteChannels).toEqual([telegramDescriptor])
     expect(secondConsumer.remoteStatuses.telegram?.state).toBe('disabled')
+    expect(secondConsumer.ocrStatus).toEqual(ocrStatus)
+    expect(secondConsumer.ocrStatusHasError).toBe(false)
   })
 
   it('keeps an optimistic plugin update when an older refresh completes', () => {
@@ -96,5 +112,21 @@ describe('pluginCatalogStore', () => {
       store.replaceRemoteSnapshot([telegramDescriptor], [telegramStatus()], refreshDuringMutation)
     ).toBe(false)
     expect(store.remoteStatuses.telegram).toMatchObject({ enabled: true, state: 'running' })
+  })
+
+  it('keeps only the latest OCR refresh result and clears stale errors after recovery', () => {
+    const store = usePluginCatalogStore()
+    const staleRefresh = store.beginOcrRefresh()
+    const currentRefresh = store.beginOcrRefresh()
+
+    expect(store.replaceOcrStatus(ocrStatus, staleRefresh)).toBe(false)
+    expect(store.markOcrStatusRefreshFailed(currentRefresh)).toBe(true)
+    expect(store.ocrStatus).toBeNull()
+    expect(store.ocrStatusHasError).toBe(true)
+
+    const recoveryRefresh = store.beginOcrRefresh()
+    expect(store.replaceOcrStatus(ocrStatus, recoveryRefresh)).toBe(true)
+    expect(store.ocrStatus).toEqual(ocrStatus)
+    expect(store.ocrStatusHasError).toBe(false)
   })
 })

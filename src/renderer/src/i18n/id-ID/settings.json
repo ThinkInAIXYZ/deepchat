@@ -133,7 +133,7 @@
       "assets_missing": "Aset OCR luring yang diperlukan tidak ada dalam instalasi ini.",
       "runtime_manifest_invalid": "Manifes runtime OCR bawaan tidak valid.",
       "service_closed": "Layanan OCR sedang dihentikan.",
-      "unsupported_platform": "OCR tidak tersedia untuk platform dan arsitektur ini pada versi 0.3.4."
+      "unsupported_platform": "OCR tidak tersedia untuk platform dan arsitektur ini."
     },
     "processStates": {
       "idle": "Tidak aktif",
@@ -3266,6 +3266,7 @@
     "available": "Plugin yang tersedia",
     "add": "Tambah",
     "manage": "Manage",
+    "builtinCapability": "Kemampuan bawaan",
     "emptySearch": "Tidak ada plugin yang tersedia.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",

@@ -1,27 +1,39 @@
 <template>
   <NodeViewWrapper
-    class="file-chip inline-flex items-center gap-1 rounded-md border border-muted-foreground/25 bg-muted/25 px-1.5 py-0.5 text-xs text-muted-foreground select-none"
+    class="file-chip group inline-flex items-center gap-1 rounded-md border border-muted-foreground/25 bg-muted/25 px-1.5 py-0.5 text-xs text-muted-foreground select-none"
     data-file-attachment
     as="span"
   >
     <Icon :icon="fileIcon" class="h-3 w-3 shrink-0" />
     <span class="truncate max-w-[120px]">{{ node.attrs.fileName }}</span>
-    <DropdownMenu v-if="hasRepresentationChoice">
+    <DropdownMenu v-if="hasRepresentationChoice" @update:open="handleMenuOpenChange">
       <DropdownMenuTrigger as-child>
         <button
           type="button"
           contenteditable="false"
           data-testid="attachment-representation-trigger"
-          class="inline-flex h-4 items-center gap-0.5 rounded-sm px-1 text-[10px] font-medium text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
-          :title="representationLabel"
+          class="attachment-representation-trigger inline-flex h-4 shrink-0 items-center justify-center rounded-sm text-[10px] font-medium transition-[color,background-color,opacity] hover:bg-muted-foreground/20 hover:text-foreground focus:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          :class="
+            hasExplicitPreference
+              ? 'max-w-20 gap-0.5 border border-border/70 bg-background/70 px-1 text-foreground opacity-100'
+              : 'w-4 px-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+          "
+          :title="
+            hasExplicitPreference
+              ? representationLabel
+              : t('chat.attachments.chooseRepresentation', { name: node.attrs.fileName })
+          "
           :aria-label="t('chat.attachments.chooseRepresentation', { name: node.attrs.fileName })"
           @mousedown.stop
         >
-          <span>{{ representationLabel }}</span>
-          <Icon icon="lucide:chevron-down" class="h-2.5 w-2.5" />
+          <span v-if="hasExplicitPreference" class="truncate">{{ representationLabel }}</span>
+          <Icon
+            :icon="hasExplicitPreference ? 'lucide:chevron-down' : 'lucide:ellipsis'"
+            class="h-2.5 w-2.5 shrink-0"
+          />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" class="min-w-40" @mousedown.stop>
+      <DropdownMenuContent align="start" class="min-w-48 max-w-72" @mousedown.stop>
         <DropdownMenuRadioGroup
           :model-value="requestedRepresentation"
           @update:model-value="handleRepresentationChange"
@@ -30,10 +42,26 @@
             v-for="option in representationOptions"
             :key="option.value"
             :value="option.value"
+            :disabled="option.disabled"
           >
-            {{ t(option.labelKey) }}
+            <span class="min-w-0">
+              <span class="block">{{ t(option.labelKey) }}</span>
+              <span
+                v-if="option.disabledReason"
+                class="mt-0.5 block text-[10px] leading-tight text-muted-foreground"
+              >
+                {{ option.disabledReason }}
+              </span>
+            </span>
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
+        <template v-if="isImage && supportsVision === false">
+          <DropdownMenuSeparator />
+          <DropdownMenuItem @select="handleSwitchToVisionModel">
+            <Icon icon="lucide:scan-eye" class="mr-2 h-3.5 w-3.5 shrink-0" />
+            <span class="whitespace-normal">{{ t('chat.attachments.switchVisionModel') }}</span>
+          </DropdownMenuItem>
+        </template>
       </DropdownMenuContent>
     </DropdownMenu>
     <button
@@ -57,8 +85,10 @@ import { getMimeTypeIcon } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
 import type { AttachmentRepresentationPreference } from '@shared/types/attachment'
@@ -67,10 +97,11 @@ import {
   isPdfAttachment,
   normalizeAttachmentRepresentationPreferenceForFile
 } from '@shared/utils/attachmentRepresentation'
-import { INPUT_NODE_ACTIONS, type InputNodeActions } from './symbols'
+import { ATTACHMENT_NODE_CONTEXT, INPUT_NODE_ACTIONS, type InputNodeActions } from './symbols'
 
 const props = defineProps<NodeViewProps>()
 const actions = inject<InputNodeActions>(INPUT_NODE_ACTIONS)
+const attachmentContext = inject(ATTACHMENT_NODE_CONTEXT)
 const { t } = useI18n()
 
 const fileIcon = computed(() => {
@@ -86,28 +117,66 @@ const attachmentFile = computed(() => ({
 }))
 const isImage = computed(() => isImageAttachment(attachmentFile.value))
 const isPdf = computed(() => isPdfAttachment(attachmentFile.value))
-const hasRepresentationChoice = computed(() => isImage.value || isPdf.value)
+const isAcpSession = computed(() => attachmentContext?.isAcpSession.value ?? false)
+const supportsVision = computed(() => attachmentContext?.supportsVision.value ?? null)
+const ocrAvailability = computed(
+  () => attachmentContext?.ocrAvailability.value ?? { status: 'unknown' as const }
+)
+const hasRepresentationChoice = computed(
+  () => !isAcpSession.value && (isImage.value || isPdf.value)
+)
 const requestedRepresentation = computed<AttachmentRepresentationPreference>(() =>
   normalizeAttachmentRepresentationPreferenceForFile(
     attachmentFile.value,
     props.node.attrs.requestedRepresentation
   )
 )
+const hasExplicitPreference = computed(() => requestedRepresentation.value !== 'auto')
+const isOcrKnownUnavailable = computed(() => ocrAvailability.value.status === 'unavailable')
+const ocrUnavailableReason = computed(() => {
+  const availability = ocrAvailability.value
+  return availability.status === 'unavailable'
+    ? t(`settings.ocr.unavailableReasons.${availability.reason}`)
+    : undefined
+})
 const representationOptions = computed<
-  Array<{ value: AttachmentRepresentationPreference; labelKey: string }>
+  Array<{
+    value: AttachmentRepresentationPreference
+    labelKey: string
+    disabled?: boolean
+    disabledReason?: string
+  }>
 >(() => {
   if (isPdf.value) {
     return [
       { value: 'auto', labelKey: 'chat.attachments.auto' },
       { value: 'embedded_text', labelKey: 'chat.attachments.useEmbeddedText' },
-      { value: 'ocr_text', labelKey: 'chat.attachments.useOcrText' }
+      {
+        value: 'ocr_text',
+        labelKey: 'chat.attachments.useOcrText',
+        disabled: isOcrKnownUnavailable.value,
+        disabledReason: ocrUnavailableReason.value
+      }
     ]
   }
   if (isImage.value) {
     return [
       { value: 'auto', labelKey: 'chat.attachments.auto' },
-      { value: 'image', labelKey: 'chat.attachments.sendImage' },
-      { value: 'ocr_text', labelKey: 'chat.attachments.useOcrText' }
+      {
+        value: 'image',
+        labelKey: 'chat.attachments.sendImage',
+        disabled: supportsVision.value === false,
+        disabledReason:
+          supportsVision.value === false
+            ? t('chat.attachments.reasons.requested_image_requires_vision')
+            : undefined
+      },
+      {
+        value: 'ocr_text',
+        labelKey: 'chat.attachments.useOcrText',
+        disabled: isOcrKnownUnavailable.value,
+        disabledReason: ocrUnavailableReason.value
+      }
     ]
   }
   return []
@@ -124,6 +193,13 @@ const representationLabel = computed(() => {
 
 function handleRepresentationChange(value: unknown) {
   const preference = normalizeAttachmentRepresentationPreferenceForFile(attachmentFile.value, value)
+  if (
+    isAcpSession.value ||
+    (preference === 'image' && supportsVision.value === false) ||
+    (preference === 'ocr_text' && isOcrKnownUnavailable.value)
+  ) {
+    return
+  }
   const filePath = props.node.attrs.filePath as string
   if (!filePath) {
     return
@@ -131,6 +207,16 @@ function handleRepresentationChange(value: unknown) {
 
   props.updateAttributes({ requestedRepresentation: preference })
   actions?.setFileRepresentation?.(filePath, preference)
+}
+
+function handleMenuOpenChange(open: boolean): void {
+  if (open) {
+    void attachmentContext?.refreshOcrAvailability()
+  }
+}
+
+function handleSwitchToVisionModel(): void {
+  actions?.switchToVisionModel()
 }
 
 function handleRemove() {
@@ -141,3 +227,11 @@ function handleRemove() {
   }
 }
 </script>
+
+<style scoped>
+@media (pointer: coarse) {
+  .attachment-representation-trigger {
+    opacity: 1;
+  }
+}
+</style>
