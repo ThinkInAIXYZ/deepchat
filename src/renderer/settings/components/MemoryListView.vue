@@ -41,7 +41,11 @@
     </div>
 
     <p v-if="searchError" role="alert" class="text-xs text-destructive">{{ searchError }}</p>
-    <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
+    <MemoryInlineFeedback
+      v-if="feedback && !deleteDialogOpen"
+      :feedback="feedback"
+      @clear="clearFeedback"
+    />
 
     <div
       v-if="expandedMode === 'create'"
@@ -172,7 +176,7 @@
       </Button>
     </div>
 
-    <AlertDialog :open="deleteTarget !== null" @update:open="onDeleteDialogOpen">
+    <AlertDialog :open="deleteDialogOpen" @update:open="onDeleteDialogOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
@@ -182,15 +186,27 @@
             {{ t('settings.deepchatAgents.memoryManager.deleteConfirmBody') }}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
         <AlertDialogFooter>
-          <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-          <AlertDialogAction
+          <AlertDialogCancel
+            data-testid="memory-list-delete-cancel"
+            :disabled="deleteRequest.status === 'pending'"
+          >
+            {{ t('common.cancel') }}
+          </AlertDialogCancel>
+          <AlertDialogAsyncAction
+            data-testid="memory-list-delete-confirm"
             class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            :disabled="deleteTarget ? pendingIds.has(deleteTarget.id) : false"
+            :disabled="deleteRequest.status === 'pending'"
             @click="confirmRemove"
           >
+            <Spinner
+              v-if="deleteRequest.status === 'pending'"
+              data-testid="memory-list-delete-spinner"
+              class="mr-1.5 size-3.5"
+            />
             {{ t('settings.deepchatAgents.memoryManager.deletePermanent') }}
-          </AlertDialogAction>
+          </AlertDialogAsyncAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -198,7 +214,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import {
+  computed,
+  defineComponent,
+  h,
+  nextTick,
+  onBeforeUnmount,
+  ref,
+  shallowRef,
+  watch
+} from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
@@ -206,7 +231,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -216,6 +241,7 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { Input } from '@shadcn/components/ui/input'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   Select,
   SelectContent,
@@ -272,6 +298,10 @@ type PendingPanelAction =
   | { type: 'expand'; memory: MemoryItem; mode: Exclude<PanelMode, 'create'> }
   | { type: 'create' }
   | { type: 'close' }
+type DeleteRequest =
+  | { status: 'idle' }
+  | { status: 'confirming'; target: MemoryItem }
+  | { status: 'pending'; target: MemoryItem; agentId: string }
 
 const expandedMode = ref<PanelMode | null>(null)
 const expandedMemory = ref<MemoryItem | null>(null)
@@ -280,13 +310,15 @@ const pendingAction = ref<PendingPanelAction | null>(null)
 const closePrompt = ref(false)
 const panelDirty = ref(false)
 const panelBusy = ref(false)
-const deleteTarget = ref<MemoryItem | null>(null)
+// Preserve request identity so stale async completions cannot overwrite a newer state.
+const deleteRequest = shallowRef<DeleteRequest>({ status: 'idle' })
 let pageGeneration = 0
 let loadedPageCount = 0
 let searchRequestId = 0
 
 const memoryDisabled = computed(() => props.memoryEnabled === false)
 const panelLocked = computed(() => panelBusy.value || panelDirty.value)
+const deleteDialogOpen = computed(() => deleteRequest.value.status !== 'idle')
 // Only block the whole view with a spinner when there's nothing to show yet
 // (initial/agent-switch load); background refreshes keep the list mounted.
 const initialLoading = computed(() => loading.value && memories.value.length === 0)
@@ -642,7 +674,7 @@ function resetForAgentChange(): void {
   expandedMemory.value = null
   pendingAction.value = null
   closePrompt.value = false
-  deleteTarget.value = null
+  deleteRequest.value = { status: 'idle' }
   pendingIds.value = new Set()
   clearFeedback()
   expandedMode.value = null
@@ -839,35 +871,45 @@ async function restore(memory: MemoryItem): Promise<void> {
 }
 
 function remove(memory: MemoryItem): void {
-  deleteTarget.value = memory
+  if (deleteRequest.value.status !== 'idle' || pendingIds.value.has(memory.id)) return
+  clearFeedback()
+  deleteRequest.value = { status: 'confirming', target: memory }
 }
 
 function onDeleteDialogOpen(open: boolean): void {
-  if (!open) deleteTarget.value = null
+  if (open || deleteRequest.value.status !== 'confirming') return
+  deleteRequest.value = { status: 'idle' }
+  clearFeedback()
 }
 
 async function confirmRemove(): Promise<void> {
-  const memory = deleteTarget.value
-  if (!memory || pendingIds.value.has(memory.id)) return
-  const agentId = props.agentId
+  const request = deleteRequest.value
+  if (request.status !== 'confirming' || pendingIds.value.has(request.target.id)) return
+  const memory = request.target
+  const pendingRequest = {
+    status: 'pending' as const,
+    target: memory,
+    agentId: props.agentId
+  }
   clearFeedback()
+  deleteRequest.value = pendingRequest
   setPending(memory.id, true)
   try {
-    const ok = await memoryClient.remove(agentId, memory.id)
-    if (props.agentId !== agentId) return
+    const ok = await memoryClient.remove(pendingRequest.agentId, memory.id)
+    if (props.agentId !== pendingRequest.agentId || deleteRequest.value !== pendingRequest) return
     if (!ok) {
+      deleteRequest.value = { status: 'confirming', target: memory }
       panelFeedback.fail()
       return
     }
+    deleteRequest.value = { status: 'idle' }
     removeMemory(memory.id)
   } catch (error) {
-    if (props.agentId !== agentId) return
+    if (props.agentId !== pendingRequest.agentId || deleteRequest.value !== pendingRequest) return
+    deleteRequest.value = { status: 'confirming', target: memory }
     panelFeedback.fail(error)
   } finally {
-    if (props.agentId === agentId) {
-      setPending(memory.id, false)
-      deleteTarget.value = null
-    }
+    if (props.agentId === pendingRequest.agentId) setPending(memory.id, false)
   }
 }
 

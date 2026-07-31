@@ -27,9 +27,9 @@
 
 ## Confirmation target state
 
-- [ ] Model Memory list deletion as a discriminated request state.
-- [ ] Model Skill conflict overwrite as a discriminated request state.
-- [ ] Add real-dialog deletion and overwrite regressions.
+- [x] Model Memory list deletion as a discriminated request state.
+- [x] Model Skill conflict overwrite as a discriminated request state.
+- [x] Add real-dialog deletion and overwrite regressions.
 
 ## Memory result contract
 

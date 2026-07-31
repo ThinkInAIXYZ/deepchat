@@ -65,6 +65,7 @@ const stubs = {
   ScrollArea: passthrough('ScrollArea'),
   AlertDialog: AlertDialogStub,
   AlertDialogAction: ButtonStub,
+  AlertDialogAsyncAction: ButtonStub,
   AlertDialogCancel: ButtonStub,
   AlertDialogContent: passthrough('AlertDialogContent'),
   AlertDialogDescription: passthrough('AlertDialogDescription'),
@@ -73,6 +74,7 @@ const stubs = {
   AlertDialogTitle: passthrough('AlertDialogTitle'),
   MemoryInlinePanel: MemoryInlinePanelStub,
   MemoryEmptyState: passthrough('MemoryEmptyState'),
+  Spinner: passthrough('Spinner'),
   Icon: passthrough('Icon')
 }
 
@@ -112,6 +114,7 @@ async function setup(
     agentId?: string
     refreshToken?: number
     nextCursor?: string | null
+    realAlertDialog?: boolean
   } = {}
 ) {
   vi.resetModules()
@@ -143,12 +146,28 @@ async function setup(
     await import('../../../src/renderer/settings/components/MemoryListView.vue')
   ).default
   const wrapper = mount(MemoryListView, {
+    ...(options.realAlertDialog ? { attachTo: document.body } : {}),
     props: {
       agentId: options.agentId ?? 'deepchat',
       memoryEnabled: true,
       refreshToken: options.refreshToken ?? 0
     },
-    global: { stubs }
+    global: {
+      stubs: options.realAlertDialog
+        ? {
+            ...stubs,
+            AlertDialog: false,
+            AlertDialogAction: false,
+            AlertDialogAsyncAction: false,
+            AlertDialogCancel: false,
+            AlertDialogContent: false,
+            AlertDialogDescription: false,
+            AlertDialogFooter: false,
+            AlertDialogHeader: false,
+            AlertDialogTitle: false
+          }
+        : stubs
+    }
   })
   await flushPromises()
   return { wrapper, memoryClient }
@@ -522,7 +541,7 @@ describe('MemoryListView', () => {
   })
 
   it('uses a direct permanent-delete row action without opening the inline panel', async () => {
-    const { wrapper, memoryClient } = await setup()
+    const { wrapper, memoryClient } = await setup({ realAlertDialog: true })
 
     expect(wrapper.html()).not.toContain('lucide:ellipsis')
     expect(wrapper.findComponent({ name: 'DropdownMenu' }).exists()).toBe(false)
@@ -537,30 +556,29 @@ describe('MemoryListView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="delete-confirm-dialog"]').attributes('data-open')).toBe(
-      'true'
+    expect(document.body.textContent).toContain(
+      'settings.deepchatAgents.memoryManager.deleteConfirmTitle'
     )
-    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.deleteConfirmTitle')
 
-    const confirmButton = wrapper
-      .findAll('button')
-      .find((button) =>
-        button.text().includes('settings.deepchatAgents.memoryManager.deletePermanent')
-      )
-    expect(confirmButton).toBeTruthy()
-    await confirmButton!.trigger('click')
+    document.querySelector<HTMLButtonElement>('[data-testid="memory-list-delete-confirm"]')!.click()
     await flushPromises()
 
     expect(memoryClient.remove).toHaveBeenCalledWith('deepchat', 'm1')
     expect(wrapper.text()).not.toContain('user likes redis')
+    wrapper.unmount()
   })
 
-  it('shows inline failure feedback and keeps the row when permanent delete returns false', async () => {
-    const { wrapper, memoryClient } = await setup()
-    memoryClient.remove.mockResolvedValueOnce(false)
+  it('does not replace an active delete target with a second row action', async () => {
+    const { wrapper, memoryClient } = await setup({
+      rows: [
+        memory({ id: 'm1', content: 'first memory' }),
+        memory({ id: 'm2', content: 'second memory' })
+      ]
+    })
+    const deleteButtons = wrapper.findAll('[data-testid="memory-row-delete"]')
 
-    await wrapper.find('[data-testid="memory-row-delete"]').trigger('click')
-    await flushPromises()
+    await deleteButtons[0].trigger('click')
+    await deleteButtons[1].trigger('click')
     const confirmButton = wrapper
       .findAll('button')
       .find((button) =>
@@ -569,11 +587,52 @@ describe('MemoryListView', () => {
     await confirmButton!.trigger('click')
     await flushPromises()
 
+    expect(memoryClient.remove).toHaveBeenCalledOnce()
     expect(memoryClient.remove).toHaveBeenCalledWith('deepchat', 'm1')
-    expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
-      'error'
-    )
+    expect(wrapper.text()).not.toContain('first memory')
+    expect(wrapper.text()).toContain('second memory')
+  })
+
+  it('shows inline failure feedback and keeps the row when permanent delete returns false', async () => {
+    const { wrapper, memoryClient } = await setup({ realAlertDialog: true })
+    const pending = deferred<boolean>()
+    memoryClient.remove.mockReturnValueOnce(pending.promise)
+
+    await wrapper.find('[data-testid="memory-row-delete"]').trigger('click')
+    await flushPromises()
+    document.querySelector<HTMLButtonElement>('[data-testid="memory-list-delete-confirm"]')!.click()
+    await flushPromises()
+
+    expect(memoryClient.remove).toHaveBeenCalledWith('deepchat', 'm1')
+    expect(
+      document.querySelector<HTMLButtonElement>('[data-testid="memory-list-delete-confirm"]')
+        ?.disabled
+    ).toBe(true)
+    expect(
+      document.querySelector<HTMLButtonElement>('[data-testid="memory-list-delete-cancel"]')
+        ?.disabled
+    ).toBe(true)
+    expect(document.querySelector('[data-testid="memory-list-delete-spinner"]')).not.toBeNull()
+
+    pending.resolve(false)
+    await flushPromises()
+
+    const deleteContent = document
+      .querySelector('[data-testid="memory-list-delete-confirm"]')
+      ?.closest('[data-slot="alert-dialog-content"]')
+    expect(
+      deleteContent
+        ?.querySelector('[data-testid="memory-inline-feedback"]')
+        ?.getAttribute('data-tone')
+    ).toBe('error')
     expect(wrapper.text()).toContain('user likes redis')
+
+    document.querySelector<HTMLButtonElement>('[data-testid="memory-list-delete-confirm"]')!.click()
+    await flushPromises()
+
+    expect(memoryClient.remove).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('user likes redis')
+    wrapper.unmount()
   })
 
   it('removes an expanded row locally and closes its inline panel after permanent delete', async () => {
