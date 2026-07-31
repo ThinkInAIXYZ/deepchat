@@ -75,7 +75,6 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'copy',
     'copy-plus',
     'corner-down-left',
-    'corner-down-right',
     'corner-up-left',
     'database',
     'database-backup',

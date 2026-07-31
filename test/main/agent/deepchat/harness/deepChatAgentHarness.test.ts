@@ -2520,45 +2520,6 @@ describe('DeepChatAgentHarness', () => {
       await processPromise
     })
 
-    it('rejects steer during pre-stream setup before creating a message', async () => {
-      let releaseTools: (() => void) | null = null
-      toolService.getAllToolDefinitions.mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            releaseTools = () => resolve([])
-          })
-      )
-
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const firstProcess = agent.processMessage('s1', 'First prompt')
-      await new Promise((resolve) => setTimeout(resolve, 0))
-
-      await expect(agent.steerActiveTurn('s1', 'Refine before stream')).rejects.toThrow(
-        'Wait for the assistant response to start before steering.'
-      )
-      expect(processStream).not.toHaveBeenCalled()
-      expect(agent.getActiveGeneration('s1')).toBeNull()
-
-      releaseTools?.()
-      await firstProcess
-
-      const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
-        .map(([row]) => row)
-        .filter((row) => row.role === 'user')
-
-      expect(userInserts).toHaveLength(1)
-      expect(JSON.parse(userInserts[0].content).text).toBe('First prompt')
-      expect(processStream).toHaveBeenCalledOnce()
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((await agent.getSessionState('s1'))?.status === 'idle') {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
-    })
-
     it('keeps rapid Steers as separate messages and replies in a new assistant row', async () => {
       installSessionRows([])
       vi.mocked(nanoid)
@@ -2786,7 +2747,7 @@ describe('DeepChatAgentHarness', () => {
       expect(thirdRun.run.messages.at(-1)).toEqual({ role: 'user', content: 'Must remain second' })
     })
 
-    it('promotes a queued input without cancelling the active stream', async () => {
+    it('promotes a queued input without user-stop semantics', async () => {
       installSessionRows([])
       vi.mocked(nanoid)
         .mockReturnValueOnce('queued-steer-initial-user')
@@ -2850,55 +2811,6 @@ describe('DeepChatAgentHarness', () => {
       }
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
       await expect(agent.listPendingInputs('s1')).resolves.toEqual([])
-    })
-
-    it('does not emit a user-stop hook for a Steer handoff', async () => {
-      installSessionRows([])
-      vi.mocked(nanoid)
-        .mockReturnValueOnce('hook-initial-user')
-        .mockReturnValueOnce('hook-initial-assistant')
-        .mockReturnValueOnce('hook-steer-user')
-        .mockReturnValueOnce('hook-steer-input')
-        .mockReturnValueOnce('hook-steer-assistant')
-      const firstDone = deferred<void>()
-      ;(processStream as ReturnType<typeof vi.fn>)
-        .mockImplementationOnce(async () => {
-          await firstDone.promise
-          return { status: 'completed', stopReason: 'complete' }
-        })
-        .mockResolvedValueOnce({
-          status: 'completed',
-          stopReason: 'complete'
-        })
-
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const firstProcess = agent.processMessage('s1', 'First prompt')
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 0) {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-
-      await agent.steerActiveTurn('s1', 'Refine active stream')
-      firstDone.resolve()
-      await firstProcess
-
-      // Wait for the steer turn to actually run (second stream) and settle, so no drain leaks past the
-      // test — cancelGeneration sets idle synchronously, so polling idle alone would finish too early.
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 1) {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        if ((await agent.getSessionState('s1'))?.status === 'idle') {
-          break
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0))
-      }
 
       const dispatchCalls = (hookDispatcher.dispatchEvent as ReturnType<typeof vi.fn>).mock
         .calls as Array<[string, { stop?: { userStop?: boolean } }]>

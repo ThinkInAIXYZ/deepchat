@@ -194,7 +194,7 @@ export class SessionTranscript {
       role: 'user',
       content: serializedContent,
       status: options?.status ?? 'sent',
-      metadata: JSON.stringify(options?.metadata ?? {})
+      ...(options?.metadata ? { metadata: JSON.stringify(options.metadata) } : {})
     })
     this.persistUserContent(id, content)
     this.upsertMessageSearchDocument(sessionId, id, 'user', serializedContent)

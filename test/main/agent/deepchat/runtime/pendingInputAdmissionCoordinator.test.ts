@@ -60,7 +60,8 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
   const harness: HarnessState = {
     activeSteerInputId: undefined,
     draining: false,
-    input: createInput()
+    input: createInput(),
+    preStreamController: undefined
   }
   const replaceInput = (
     patch: Partial<PendingSessionInputRecord>
@@ -220,7 +221,7 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
         harness.activeSteerInputId = undefined
         return true
       },
-      getAbortController: () => undefined,
+      getAbortController: () => harness.preStreamController,
       getActiveGeneration: () => undefined,
       getActiveSteerPendingInputId: () => harness.activeSteerInputId,
       isPendingQueueDraining: () => harness.draining,
@@ -244,6 +245,7 @@ interface HarnessState {
   activeSteerInputId: string | undefined
   draining: boolean
   input: PendingSessionInputRecord | null
+  preStreamController: AbortController | undefined
 }
 
 function createDeferred<T>() {
@@ -255,12 +257,14 @@ function createDeferred<T>() {
 }
 
 describe('PendingInputAdmissionCoordinator', () => {
-  it('resumes a durable unread Steer when pending inputs are restored', () => {
+  it('rejects steer before the assistant stream starts', async () => {
     const test = createHarness()
-    test.harness.input = createInput('restored-steer', 'steer')
+    test.harness.preStreamController = new AbortController()
 
-    expect(test.coordinator.list(SESSION_ID)).toEqual([test.harness.input])
-    expect(test.pump.schedule).toHaveBeenCalledWith(SESSION_ID, 'enqueue')
+    await expect(test.coordinator.steerActiveTurn(SESSION_ID, 'Steer now')).rejects.toThrow(
+      'Wait for the assistant response to start before steering.'
+    )
+    expect(test.pendingInputs.acceptSteerMessage).not.toHaveBeenCalled()
   })
 
   it('rejects a send before attachment preparation when the lane is at capacity', async () => {

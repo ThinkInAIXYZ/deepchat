@@ -412,7 +412,7 @@ describe('MessageItemUser', () => {
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(false)
   })
 
-  it('keeps an unread steer receipt visible until the message is claimed', async () => {
+  it('shows the Steer receipt lifecycle and keeps unread messages immutable', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(1_000)
     const wrapper = mount(MessageItemUser, {
@@ -433,25 +433,11 @@ describe('MessageItemUser', () => {
     expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBe('unread')
     await wrapper.get('[data-action="edit"]').trigger('click')
     expect(wrapper.find('textarea').exists()).toBe(false)
-  })
-
-  it('shows read from the persisted deadline and then removes the receipt', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(1_000)
-    const wrapper = mount(MessageItemUser, {
-      props: {
-        message: createMessage({
-          status: 'pending',
-          inputReceipt: { mode: 'steer', readAt: null }
-        })
-      },
-      ...globalMountOptions
-    })
 
     await wrapper.setProps({
       message: createMessage({
         status: 'pending',
-        inputReceipt: { mode: 'steer', readAt: 1_000 }
+        inputReceipt: { mode: 'steer', readAt: Date.now() }
       })
     })
     await nextTick()

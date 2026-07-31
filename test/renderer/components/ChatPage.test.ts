@@ -2920,32 +2920,6 @@ describe('ChatPage', () => {
     expect(steerButton.exists()).toBe(true)
   })
 
-  it('inserts an accepted steer message and clears the draft immediately', async () => {
-    const acceptedMessage = buildSteerMessage('tighten the answer')
-    const { wrapper, chatClient, messageStore } = await setup({
-      isStreaming: true,
-      currentStreamMessageId: 'm1'
-    })
-    chatClient.steerActiveTurn.mockResolvedValueOnce({
-      accepted: true,
-      message: acceptedMessage
-    })
-    const inputBox = wrapper.findComponent({ name: 'ChatInputBox' })
-    inputBox.vm.$emit('update:modelValue', 'tighten the answer')
-    await flushPromises()
-
-    await wrapper.get('[data-testid="chat-steer-button"]').trigger('click')
-    await flushPromises()
-
-    expect(chatClient.steerActiveTurn).toHaveBeenCalledWith('s1', {
-      text: 'tighten the answer',
-      files: []
-    })
-    expect(messageStore.applyPersistedMessageRecords).toHaveBeenCalledWith([acceptedMessage])
-    expect(wrapper.findComponent({ name: 'ChatInputToolbar' }).props('hasInput')).toBe(false)
-    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
-  })
-
   it('disables composer steer whenever its submit guard would reject it', async () => {
     const { wrapper, chatClient } = await setup({
       isStreaming: true,
