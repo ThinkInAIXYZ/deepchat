@@ -190,3 +190,48 @@ Before final handoff:
 - perform one final cross-module review;
 - update `tasks.md` with actual validation evidence;
 - do not push.
+
+## 14. Post-Implementation Audit And DimAgent Reconciliation
+
+This section supersedes the first final-review claim that no critical or high findings remained.
+
+### Runtime and recovery hardening
+
+- Freeze native promise intrinsics reachable through async functions and retain host-owned handles
+  for settlement conversion.
+- Make settlement cleanup and the pending-job drain failure-safe.
+- Apply non-optional default run and invocation deadlines, with invocation time beginning after
+  child admission.
+- Isolate malformed startup rows and replace bulk queued-run scheduling with a capacity-aware pump.
+- Add stable logical child lineage for crash-window reattachment across attempt boundaries.
+- Release workflow tool-invocation context on every cancellation result and persist terminal
+  failure evidence.
+
+### Compatibility and policy
+
+- Make the model-facing workflow tool user-configurable and disabled by default.
+- Resolve MCP name collisions through configured tool precedence instead of reserving `workflow`
+  globally.
+- Keep workflow owner concurrency at four while sizing the shared pool for the orchestrator's
+  existing five-way fan-out.
+- Hold one permit across a sequential orchestrator task chain, start its overall timeout after
+  admission, and isolate parallel task admission failures.
+- Require explicit retry confirmation for interrupted `write` or `unknown` attempts even when the
+  caller changes the invocation input.
+
+### Projection and authoring UX
+
+- Add a bounded source-derived static outline with explicit partial confidence.
+- Derive the runtime graph from durable invocation rows rather than persisting a second graph.
+- Emit bounded invocation deltas and stop full-detail refreshes on every run event.
+- Preserve dirty authoring drafts in bounded memory across panel and session lifecycle changes.
+- Clear expired approval state and avoid consuming unhandled saved-workflow requests.
+- Add a stable keyed `mapLimit()` guest helper for bounded fan-out.
+
+### Performance follow-up
+
+- Aggregate durable token usage in SQL instead of loading and hashing every invocation on each
+  dispatch.
+- Use lightweight run-summary queries for progress projection.
+- Remove per-block invocation reads from child runtime tracking when no status transition is
+  required.

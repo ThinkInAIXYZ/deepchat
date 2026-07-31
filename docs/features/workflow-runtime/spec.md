@@ -28,7 +28,8 @@ DeepChat's existing session, tool, and permission boundaries.
 
 ## Reviewed Corrections To The Initial Proposal
 
-The implementation deliberately changes four details from the initial research proposal.
+The implementation deliberately changes the following details from the initial research proposal
+and the first implementation pass.
 
 ### Use synchronous QuickJS with deferred promises
 
@@ -85,12 +86,33 @@ be changed, deleted, or checked out to another revision between application laun
 workflow files remain user-readable and shareable, but resume always replays the immutable source
 snapshot that started the run.
 
+### Adopt DimAgent's projections, not its trust boundary
+
+The locally installed DimAgent workflow implementation validates three useful product concepts:
+
+- derive a bounded static outline from source before launch;
+- combine that outline with live runtime progress instead of showing only an opaque spinner;
+- expose saved workflows as explicit user-owned capabilities with an activity surface.
+
+DeepChat adopts those concepts without copying DimAgent's `vm`/`worker_threads` execution model,
+trusted module imports, or a second mutable runtime graph. QuickJS in a dedicated utility process
+remains the execution boundary. The static outline is an advisory source-derived projection, while
+the dynamic graph is derived from the durable invocation journal and typed progress events.
+
+### Correct the post-implementation audit
+
+The first implementation review incorrectly recorded that no critical or high findings remained.
+A later cross-module audit found material issues in guest intrinsic hardening, default deadlines,
+startup recovery, child-session crash-window correlation, shared-admission compatibility, model
+tool exposure, retry confirmation, and renderer refresh/draft behavior. Those findings reopen the
+feature before merge and are tracked in `tasks.md`.
+
 ## Goals
 
 1. Execute a bounded JavaScript workflow in a QuickJS WASM sandbox hosted by one Electron utility
    process per run.
-2. Expose `agent()`, `parallel()`, `pipeline()`, `phase()`, and `log()` without exposing ambient
-   host capabilities.
+2. Expose `agent()`, `parallel()`, `pipeline()`, `mapLimit()`, `phase()`, and `log()` without
+   exposing ambient host capabilities.
 3. Create child work through the existing `AgentSubagentToolPort` and session assignment policy.
 4. Support provider-independent structured child output for the DeepChat loop backend.
 5. Persist runs and invocations so completed work can be replayed and interrupted work can be
@@ -102,6 +124,8 @@ snapshot that started the run.
    turn.
 9. Make cancellation, timeout, budget exhaustion, process exit, and recovery explicit and
    diagnosable.
+10. Show an advisory static outline before launch and incrementally project durable invocation
+    changes without repeatedly transferring the complete run detail.
 
 ## Non-goals
 
@@ -134,6 +158,8 @@ snapshot that started the run.
   completed/read-only work or explicitly approve retrying uncertain writes.
 - As a workflow author, I can use ordinary bounded JavaScript control flow and structured agent
   results instead of learning a DeepChat-specific graph language.
+- As a workflow author, I can preview the statically visible workflow skeleton and use a bounded
+  concurrency helper without hand-writing an unsafe promise pool.
 - As a reviewer, I can trace every invocation from a stable logical path to its child session,
   structured result, effect-risk state, and Tape lineage.
 - As a parent-session user, I receive a visible workflow result without an unexpected autonomous
@@ -226,6 +252,16 @@ An item's next stage can begin as soon as that item's prior stage finishes. The 
 `callPath` is derived from pipeline key, item key, stage key, and the local agent key, so completion
 order cannot change replay identity.
 
+### `mapLimit(key, items, limit, mapper)`
+
+`mapLimit()` processes keyed items with at most `limit` mapper calls active in the guest at once
+and returns results in declared item order. It exists to express large fan-out without allocating
+one deferred promise for every item at the same instant.
+
+Every item must have a stable key. The helper prefixes nested invocation call paths with the
+`mapLimit` key and item key. The host validates `limit` against the run's pending-invocation cap;
+the helper does not raise the process-wide child admission limit.
+
 ### `phase(key, options)` and `log(value)`
 
 `phase()` updates a bounded idempotent progress projection. `log()` emits bounded structured
@@ -243,11 +279,14 @@ journaled time or seeded-random API requires a separate versioned contract.
 Source validation rejects direct `Promise` construction, direct `.then()`, `.catch()`, and
 `.finally()` scheduling, dynamic `eval`/`Function` code, and mutation of injected runtime globals.
 This is a correctness guardrail for model-generated scripts, not a security boundary and not a
-proof that every possible JavaScript program is timing-independent. Workflow authors must use
-`await`, `Promise.all`, `Promise.allSettled`, `parallel`, and `pipeline` without branching on
-relative host completion timing. The sandbox and stable call-path rules still preserve safety when
-a script violates that authoring contract: it fails or creates a new keyed attempt rather than
-reusing another logical call's result.
+proof that every possible JavaScript program is timing-independent. Async functions still expose
+the VM's native promise intrinsics indirectly, so the utility host freezes the relevant intrinsic
+constructors and prototypes before user source runs and retains host-owned handles for promise and
+JSON conversion operations. Workflow authors must use `await`, `Promise.all`,
+`Promise.allSettled`, `parallel`, `pipeline`, and `mapLimit` without branching on relative host
+completion timing. The sandbox and stable call-path rules still preserve safety when a script
+violates that authoring contract: it fails or creates a new keyed attempt rather than reusing
+another logical call's result.
 
 ## Utility-Process Protocol And Sandbox
 
@@ -275,6 +314,11 @@ The host configures:
 - maximum logs and phase updates;
 - wall-clock run and invocation deadlines.
 
+Deadlines are never omitted. V1 defaults each invocation to 30 minutes and each explicit workflow
+execution epoch to two hours. A launch may request shorter or longer bounded values, but it cannot
+disable either host deadline. Invocation time starts after the global child permit is acquired, so
+queueing behind unrelated work does not consume execution time.
+
 Guest handles are disposed on every terminal path. The process is killed after a bounded graceful
 shutdown interval. A process exit is an expected failure boundary, not an uncaught main-process
 exception.
@@ -288,7 +332,9 @@ pending jobs or a bounded error occurs.
 
 Host settlements may arrive concurrently, but QuickJS handle mutation and
 `executePendingJobs()` are serialized inside the utility process. No host callback may re-enter the
-VM while a drain is active.
+VM while a drain is active. Settlement conversion, resolve/reject, handle disposal, and the
+pending-job drain form one failure-safe operation: a conversion or disposal error cannot skip the
+required drain or leave the root promise waiting forever.
 
 ## Durable Data Model
 
@@ -379,11 +425,12 @@ Recovery policy:
 
 No recovery path claims that an external write happened exactly once.
 
-Each invocation attempt also owns a stable child correlation slot derived from the run, call path,
-and attempt. Child creation must be idempotent for that slot, or recovery must find and attach an
-already-created child by its durable `subagentMeta` before creating another one. This closes the
-crash window between session creation and writing `child_session_id` and prevents orphan or
-duplicate child sessions.
+Each logical invocation owns a stable child lineage slot derived from the run and call path. Each
+attempt additionally owns a correlation slot derived from that lineage and attempt. Exact-attempt
+lookup remains the first choice, while lineage lookup may reattach only an unattached orphan from
+the session-persistence crash window. A deliberate retry creates a fresh attempt and never reuses
+a terminal child. This closes the crash window between session creation and writing
+`child_session_id` without confusing retries with recovery.
 
 A child result is not reusable until the workflow-scoped frozen-head Tape link has an idempotent
 durable receipt. Link failure remains retryable infrastructure state; it is not converted into a
@@ -415,9 +462,10 @@ and any available Tape calls so the user can decide whether to retry.
 ## Global Admission And Budgets
 
 One process-wide `AgentInvocationAdmission` instance gates child-agent execution from both
-workflows and `subagent_orchestrator`. V1 defaults to four concurrently active child invocations.
-This is a DeepChat child limit and must not be described as identical to Codex's slot accounting,
-which includes the caller.
+workflows and `subagent_orchestrator`. The process-wide pool defaults to six active children for
+compatibility with the orchestrator's existing five-way fan-out. Owner policies retain a workflow
+maximum of four and an orchestrator maximum of five. This is a DeepChat child limit and must not be
+described as identical to Codex's slot accounting, which includes the caller.
 
 A separate workflow-run admission gate defaults to four active utility processes and a bounded
 persisted queue for both first launches and explicit resume requests. A queued run does not spawn a
@@ -431,7 +479,15 @@ Admission is:
 - released exactly once in `finally`;
 - bounded in queued waiters;
 - fair across owners so one large workflow cannot permanently starve another workflow or
-  orchestrator run.
+  orchestrator run;
+- acquired once for an orchestrator's sequential task chain instead of between every step;
+- isolated per parallel task so one admission failure cannot relabel successful siblings.
+
+An orchestrator's overall deadline starts when its first permit is acquired. Workflow invocation
+deadlines start at admission. Waiting for user permission may continue to hold the child permit;
+per-owner caps and global headroom prevent one interaction-heavy owner from occupying the entire
+pool. Releasing and reacquiring across an in-flight model/tool continuation is deferred because it
+would require a deeper engine-level pause contract.
 
 Provider rate limits remain a separate downstream concern. The admission gate protects process
 memory, UI pressure, child-session count, and aggregate provider load; it does not replace provider
@@ -439,7 +495,7 @@ QPS controls.
 
 Each workflow also enforces:
 
-- a maximum invocation count;
+- a lifetime maximum invocation-attempt count across resume and explicit retry;
 - a maximum pending invocation count, with admitted children still bounded by the smaller
   process-wide child cap;
 - an optional total-token budget aggregated from every durable child attempt;
@@ -457,9 +513,9 @@ children are allowed to settle unless the user cancels.
 
 ## Timeout And Cancellation
 
-`timeoutMs` is enforced in main, not by a guest timer. A first-run timeout is an observed host
-outcome, not a deterministic physical event. Once journaled, it is a deterministic replay result
-until the user explicitly retries.
+`timeoutMs` is enforced in main, not by a guest timer. It is armed only after admission. A
+first-run timeout is an observed host outcome, not a deterministic physical event. Once journaled,
+it is a deterministic replay result until the user explicitly retries.
 
 On timeout:
 
@@ -496,6 +552,12 @@ and capability summary. The renderer cannot self-assert the workspace shown by t
 summary describes write-capable scope, not a claim that static inspection can predict which tools
 a model will call. Editing the source or input, changing scope, or expanding the allowlist
 invalidates a remembered launch approval.
+
+The model-facing `workflow` tool is user-configurable and disabled by default. Saved-workflow and
+manual side-panel launches remain available without exposing the tool schema to every subagent
+session. An MCP server may use the same tool name when the DeepChat workflow tool is disabled;
+name collision is resolved by the existing configured-tool precedence rules rather than by a
+global reserved-name ban.
 
 The approved workspace and effective capability hash are persisted in the immutable run snapshot.
 Main resolves and compares that scope before starting or resuming a run, before dispatching each
@@ -552,6 +614,7 @@ output, imported content, and quoted instructions cannot activate auto orchestra
 
 The workflow surface shows:
 
+- an advisory source outline with `exact` or `partial` confidence before launch;
 - run status, phase, duration, usage, and budget;
 - invocation tree ordered by phase and audit sequence;
 - labels, stable paths, child-session links, timeout, and effect-risk state;
@@ -560,7 +623,15 @@ The workflow surface shows:
 - explicit warnings before retrying `write` or `unknown` interrupted invocations.
 
 Renderer state is a projection of main-owned durable facts. The renderer never infers terminal
-state from missing events.
+state from missing events. Initial selection uses one bounded detail snapshot. Subsequent
+invocation changes arrive as bounded typed deltas and are merged by identity; phase and run-summary
+events do not trigger an `inspect` round trip for every update. Hidden or collapsed panels do not
+poll detail.
+
+Unsaved saved-workflow drafts live in a bounded in-memory store keyed by parent session/workspace,
+so side-panel collapse, browser-tab navigation, and session switching do not silently destroy
+source or arguments. Drafts are not written to persistent browser storage. Expired launch
+approvals are removed from the visible state and never leave a stale runnable card.
 
 ## Security And Resource Invariants
 
@@ -577,6 +648,9 @@ state from missing events.
 - Invocation queues and child creation are capped before allocating a session.
 - Active utility processes and queued workflow runs are capped before process creation.
 - Unknown tool effect metadata fails closed for automatic recovery.
+- Guest promise and JSON intrinsics used by the host cannot be replaced by workflow source.
+- Startup recovery isolates malformed rows and pumps only the number of queued runs that the
+  in-memory admission queue can accept.
 
 ## Compatibility
 
@@ -589,11 +663,14 @@ state from missing events.
   and packaged application layouts.
 - Unsupported stored runtime API versions remain inspectable and exportable even when they cannot
   be resumed.
+- Existing orchestrator five-way parallel and sequential-chain behavior remains within its local
+  limit while sharing the process-wide safety pool.
 
 ## Success Criteria
 
 - A guest `Promise.all` with multiple deferred `agent()` calls runs concurrently under the sync
   QuickJS driver and always drains pending jobs.
+- Guest mutation attempts cannot poison host promise resolution or JSON settlement conversion.
 - Duplicate or unstable invocation keys fail before child creation.
 - An `agentId` outside the launch allowlist fails before admission or child creation.
 - A pipeline can complete items out of order and resume without swapping cached results.
@@ -602,10 +679,15 @@ state from missing events.
 - A utility-process crash atomically interrupts its run and all in-flight invocations.
 - Recovery reattaches a child created in the session-persistence crash window instead of creating a
   duplicate.
+- A deliberate retry receives a fresh child even though it shares the logical lineage slot.
 - Application startup reconciles stale running state without duplicating parent results.
 - Application startup distinguishes and restores queued first launches and queued resume intents.
+- One malformed queued row cannot prevent composition startup; queued recovery respects both
+  durable backlog and in-memory admission capacity.
 - Cancelled admission waiters never consume a later permit.
 - Workflow and orchestrator child work share the configured global active limit.
+- Existing orchestrator five-way fan-out remains compatible, and an admission failure in one task
+  does not overwrite sibling outcomes.
 - Completed matching invocations replay without a provider call.
 - A completed child is not replayable until its frozen-head Tape link is durably acknowledged.
 - Interrupted trusted read-only work can be retried automatically; interrupted write/unknown work
@@ -618,6 +700,10 @@ state from missing events.
 - Packaged builds can load the QuickJS sync WASM asset from their final ASAR layout.
 - Workflow completion is delivered exactly once to the parent without automatically triggering a
   model turn.
+- Runtime invocation deltas update a selected run without one full-detail IPC read per event.
+- Collapsing or navigating away from saved-workflow authoring preserves the in-memory dirty draft.
+- Static outlines never claim to include dynamically hidden agent calls, and runtime state remains
+  journal-derived.
 - Focused tests cover protocol validation, guest limits, replay, recovery, effect gating,
   admission, cancellation, timeout, structured output, persistence, parent delivery, and
   packaging.

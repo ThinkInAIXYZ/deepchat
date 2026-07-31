@@ -282,12 +282,75 @@ Final validation evidence (2026-07-31):
 
 Final review findings, ordered by severity:
 
-- Critical / high: no findings.
+- Superseded: the first review reported no critical/high findings; the post-implementation audit
+  below found material issues and reopened the feature before merge.
 - Medium, fixed: saved-source approval could cross a concurrent parent-workspace change; direct ACP
   mounted an unusable saved-authoring surface; stale session operations, unsaved-draft navigation,
   and concurrent catalog creates had unsafe edge behavior.
 - Low, fixed: symlink defense depended too heavily on `O_NOFOLLOW`, catalog ordering depended on the
   host locale, the UI silently truncated oversized Agent allowlists, and exact-source mismatch
   coverage was incomplete.
-- Remaining material findings: none. Workflow side effects retain the documented non-exactly-once
-  contract.
+- At that review point, no additional findings were recorded. This conclusion is superseded below.
+  Workflow side effects retain the documented non-exactly-once contract.
+
+## Post-Implementation Audit And DimAgent Reconciliation
+
+### SDD
+
+- [x] Reconcile the external audit, local DimAgent runtime, and DimAgent renderer evidence.
+- [x] Keep the QuickJS utility-process trust boundary and immutable run snapshots.
+- [x] Adopt source outlines, journal-derived live projections, explicit tool exposure, and bounded
+  fan-out as DeepChat-native concepts.
+- [x] Record the corrected risk assessment and implementation order.
+
+### Runtime And Recovery Blockers
+
+- [ ] Freeze guest-reachable native promise intrinsics and retain host-owned JSON conversion.
+- [ ] Make deferred settlement cleanup and pending-job draining failure-safe.
+- [ ] Add non-optional default run and invocation deadlines.
+- [ ] Arm invocation timeout only after global child admission.
+- [ ] Release invocation context on cancellation false/rejection and record terminal failure.
+- [ ] Reattach crash-window child sessions by stable logical lineage without reusing retry children.
+- [ ] Isolate malformed startup rows and add a capacity-aware queued-run pump.
+- [ ] Add focused sandbox, deadline, cancellation, lineage, and startup recovery tests.
+
+### Compatibility, Policy, And Performance
+
+- [ ] Keep workflow owner concurrency at four while preserving orchestrator five-way fan-out.
+- [ ] Hold one permit across sequential orchestrator chains and isolate parallel admission errors.
+- [ ] Start orchestrator overall timeout after first admission.
+- [ ] Make the model-facing workflow tool user-configurable and disabled by default.
+- [ ] Stop globally reserving the `workflow` MCP name.
+- [ ] Require write/unknown retry confirmation independently of a changed input hash.
+- [ ] Aggregate token usage without loading every invocation on each dispatch.
+- [ ] Remove avoidable per-block workflow invocation reads.
+- [ ] Add focused admission, exposure, retry, and performance-contract tests.
+
+### Projection And Authoring UX
+
+- [ ] Add bounded typed invocation-delta events.
+- [ ] Merge invocation deltas in the renderer without full `inspect` reads per progress event.
+- [ ] Avoid detail refreshes while the workflow panel is hidden or collapsed.
+- [ ] Preserve bounded in-memory dirty drafts across panel/session lifecycle changes.
+- [ ] Clear expired approvals and retain unhandled saved-workflow requests.
+- [ ] Add focused renderer lifecycle, stale-event, and projection tests.
+
+### Outline And Bounded Fan-Out
+
+- [ ] Derive an advisory `exact | partial` static outline from workflow source.
+- [ ] Include the outline in approval and run-detail projections without persisting a second
+  runtime graph.
+- [ ] Add stable keyed `mapLimit()` with declared-order results and bounded concurrency.
+- [ ] Add validator, call-path, replay, and out-of-order completion tests.
+
+### Reopened Final Validation
+
+- [ ] Run all focused workflow and affected regression suites.
+- [ ] Run `pnpm run format`.
+- [ ] Run `pnpm run i18n`.
+- [ ] Run `pnpm run lint`.
+- [ ] Run `pnpm run typecheck`.
+- [ ] Run `pnpm run build`.
+- [ ] Perform the final cross-module review and record findings by severity.
+- [ ] Commit every validated slice locally.
+- [ ] Do not push.
