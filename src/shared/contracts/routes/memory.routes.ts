@@ -331,6 +331,11 @@ export const MemoryCommandResultSchema = z.discriminatedUnion('action', [
   })
 ])
 
+export const MemoryDirectiveCommandRejectionReasonSchema = z.union([
+  z.literal('capacity'),
+  MemoryCommandRejectionReasonSchema.extract(['not-found', 'unavailable'])
+])
+
 export const MemoryDirectiveCommandResultSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('applied'),
@@ -339,7 +344,7 @@ export const MemoryDirectiveCommandResultSchema = z.discriminatedUnion('action',
   z.object({
     action: z.literal('rejected'),
     directive: z.null(),
-    reason: z.enum(['capacity', 'not-found', 'unavailable'])
+    reason: MemoryDirectiveCommandRejectionReasonSchema
   })
 ])
 
@@ -1118,7 +1123,7 @@ export const memoryRejectDirectiveRoute = defineRouteContract({
 export const memoryDeleteDirectiveRoute = defineRouteContract({
   name: 'memory.deleteDirective',
   input: z.object({ agentId: AgentIdSchema, directiveId: z.string().trim().min(1).max(128) }),
-  output: z.object({ ok: z.boolean() })
+  output: MemoryCommandResultSchema
 })
 
 export type MemoryItem = z.infer<typeof MemoryItemSchema>

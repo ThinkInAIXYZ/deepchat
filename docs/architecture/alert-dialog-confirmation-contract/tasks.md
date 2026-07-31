@@ -49,3 +49,18 @@
 - [x] Complete a severity-ordered review before every commit and fix all findings.
 - [x] Commit locally with Conventional Commits.
 - [x] Confirm the branch was not pushed.
+
+## Follow-up hardening
+
+- [x] Align OCR confirmation disabled state with every handler precondition.
+- [x] Migrate directive deletion, clear-all, persona rollback, and built-in config removal.
+- [x] Reject async and uninspectable regular close-action handlers in the source guard.
+- [x] Keep Skill overwrite's regular action handler synchronously complete.
+- [x] Separate page/panel feedback from delete-confirmation feedback.
+- [x] Localize Memory command rejection reasons and reconcile stale projections.
+- [x] Keep pending confirmations mounted and preserve feedback across reconciliation.
+- [x] Migrate directive deletion to a structured result and share rejection vocabulary.
+- [x] Sanitize `memory_forget` model-visible output.
+- [x] Make the real-primitive async harness structurally valid and clarify `.stop`.
+- [x] Run focused and full validation.
+- [x] Complete the severity-ordered pre-commit review and commit without pushing.

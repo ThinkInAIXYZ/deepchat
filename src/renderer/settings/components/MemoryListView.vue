@@ -41,11 +41,7 @@
     </div>
 
     <p v-if="searchError" role="alert" class="text-xs text-destructive">{{ searchError }}</p>
-    <MemoryInlineFeedback
-      v-if="feedback && !deleteDialogOpen"
-      :feedback="feedback"
-      @clear="clearFeedback"
-    />
+    <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
 
     <div
       v-if="expandedMode === 'create'"
@@ -59,6 +55,7 @@
         :discard-prompt="panelDiscardPrompt"
         @close="requestClosePanel"
         @saved="handlePanelSaved"
+        @reconcile="refreshLoadedPages"
         @feedback="handlePanelFeedback"
         @busy="panelBusy = $event"
         @dirty="panelDirty = $event"
@@ -109,6 +106,7 @@
                 @close="requestClosePanel"
                 @edit="editMemory(memory)"
                 @saved="handlePanelSaved"
+                @reconcile="refreshLoadedPages"
                 @feedback="handlePanelFeedback"
                 @busy="panelBusy = $event"
                 @dirty="panelDirty = $event"
@@ -148,6 +146,7 @@
                   @close="requestClosePanel"
                   @edit="editMemory(memory)"
                   @saved="handlePanelSaved"
+                  @reconcile="refreshLoadedPages"
                   @feedback="handlePanelFeedback"
                   @busy="panelBusy = $event"
                   @dirty="panelDirty = $event"
@@ -186,7 +185,11 @@
             {{ t('settings.deepchatAgents.memoryManager.deleteConfirmBody') }}
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
+        <MemoryInlineFeedback
+          v-if="deleteFeedback"
+          :feedback="deleteFeedback"
+          @clear="clearDeleteFeedback"
+        />
         <AlertDialogFooter>
           <AlertDialogCancel
             data-testid="memory-list-delete-cancel"
@@ -253,6 +256,7 @@ import { createMemoryClient } from '@api/MemoryClient'
 import { AGENT_MEMORY_CATEGORIES, type AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { MemoryItem, MemorySearchResult } from '@shared/contracts/routes'
 import {
+  shouldReconcileMemoryCommandRejection,
   useMemoryInlineFeedback,
   type MemoryInlineFeedbackState
 } from '../lib/useMemoryInlineFeedback'
@@ -282,6 +286,9 @@ const memoryClient = createMemoryClient()
 const panelFeedback = useMemoryInlineFeedback('MemoryListView')
 const feedback = panelFeedback.feedback
 const clearFeedback = panelFeedback.clear
+const deleteOperationFeedback = useMemoryInlineFeedback('MemoryListView.delete')
+const deleteFeedback = deleteOperationFeedback.feedback
+const clearDeleteFeedback = deleteOperationFeedback.clear
 
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -677,6 +684,7 @@ function resetForAgentChange(): void {
   deleteRequest.value = { status: 'idle' }
   pendingIds.value = new Set()
   clearFeedback()
+  clearDeleteFeedback()
   expandedMode.value = null
   panelDirty.value = false
   panelBusy.value = false
@@ -833,11 +841,13 @@ async function archive(memory: MemoryItem): Promise<void> {
   const agentId = props.agentId
   clearFeedback()
   setPending(memory.id, true)
+  let shouldReload = false
   try {
     const result = await memoryClient.archive(agentId, memory.id)
     if (props.agentId !== agentId) return
     if (result.action === 'rejected') {
       panelFeedback.rejectCommand(result.reason)
+      shouldReload = shouldReconcileMemoryCommandRejection(result.reason)
       return
     }
     upsertMemory({ ...memory, status: 'archived' })
@@ -845,7 +855,10 @@ async function archive(memory: MemoryItem): Promise<void> {
     if (props.agentId !== agentId) return
     panelFeedback.fail(error)
   } finally {
-    if (props.agentId === agentId) setPending(memory.id, false)
+    if (props.agentId === agentId) {
+      setPending(memory.id, false)
+      if (shouldReload) void refreshLoadedPages()
+    }
   }
 }
 
@@ -854,11 +867,13 @@ async function restore(memory: MemoryItem): Promise<void> {
   const agentId = props.agentId
   clearFeedback()
   setPending(memory.id, true)
+  let shouldReload = false
   try {
     const result = await memoryClient.restore(agentId, memory.id)
     if (props.agentId !== agentId) return
     if (result.action === 'rejected') {
       panelFeedback.rejectCommand(result.reason)
+      shouldReload = shouldReconcileMemoryCommandRejection(result.reason)
       return
     }
     upsertMemory({ ...memory, status: 'pending_embedding' })
@@ -866,20 +881,23 @@ async function restore(memory: MemoryItem): Promise<void> {
     if (props.agentId !== agentId) return
     panelFeedback.fail(error)
   } finally {
-    if (props.agentId === agentId) setPending(memory.id, false)
+    if (props.agentId === agentId) {
+      setPending(memory.id, false)
+      if (shouldReload) void refreshLoadedPages()
+    }
   }
 }
 
 function remove(memory: MemoryItem): void {
   if (deleteRequest.value.status !== 'idle' || pendingIds.value.has(memory.id)) return
-  clearFeedback()
+  clearDeleteFeedback()
   deleteRequest.value = { status: 'confirming', target: memory }
 }
 
 function onDeleteDialogOpen(open: boolean): void {
   if (open || deleteRequest.value.status !== 'confirming') return
   deleteRequest.value = { status: 'idle' }
-  clearFeedback()
+  clearDeleteFeedback()
 }
 
 async function confirmRemove(): Promise<void> {
@@ -891,15 +909,22 @@ async function confirmRemove(): Promise<void> {
     target: memory,
     agentId: props.agentId
   }
-  clearFeedback()
+  clearDeleteFeedback()
   deleteRequest.value = pendingRequest
   setPending(memory.id, true)
+  let shouldReload = false
   try {
     const result = await memoryClient.remove(pendingRequest.agentId, memory.id)
     if (props.agentId !== pendingRequest.agentId || deleteRequest.value !== pendingRequest) return
     if (result.action === 'rejected') {
-      deleteRequest.value = { status: 'confirming', target: memory }
-      panelFeedback.rejectCommand(result.reason)
+      if (shouldReconcileMemoryCommandRejection(result.reason)) {
+        deleteRequest.value = { status: 'idle' }
+        panelFeedback.rejectCommand(result.reason)
+        shouldReload = true
+      } else {
+        deleteRequest.value = { status: 'confirming', target: memory }
+        deleteOperationFeedback.rejectCommand(result.reason)
+      }
       return
     }
     deleteRequest.value = { status: 'idle' }
@@ -907,9 +932,12 @@ async function confirmRemove(): Promise<void> {
   } catch (error) {
     if (props.agentId !== pendingRequest.agentId || deleteRequest.value !== pendingRequest) return
     deleteRequest.value = { status: 'confirming', target: memory }
-    panelFeedback.fail(error)
+    deleteOperationFeedback.fail(error)
   } finally {
-    if (props.agentId === pendingRequest.agentId) setPending(memory.id, false)
+    if (props.agentId === pendingRequest.agentId) {
+      setPending(memory.id, false)
+      if (shouldReload) void refreshLoadedPages()
+    }
   }
 }
 

@@ -2294,13 +2294,13 @@ describe('dispatchDeepchatRoute', () => {
       directive: { ...row, status: 'active' }
     })
     const rejectDirective = vi.fn().mockReturnValue({ ...row, status: 'rejected' })
-    const deleteDirective = vi.fn().mockReturnValue(true)
+    const deleteDirectiveResult = vi.fn().mockReturnValue({ action: 'applied' })
     ;(runtime as any).memoryService = {
       listDirectives,
       createDirectiveResult,
       approveDirectiveResult,
       rejectDirective,
-      deleteDirective
+      deleteDirectiveResult
     }
 
     const context = { webContentsId: 42, windowId: 7 }
@@ -2360,7 +2360,7 @@ describe('dispatchDeepchatRoute', () => {
       directive: { status: 'active' }
     })
     expect(rejected.directive).toMatchObject({ status: 'rejected' })
-    expect(deleted).toEqual({ ok: true })
+    expect(deleted).toEqual({ action: 'applied' })
     expect(listed.directives[0]).not.toHaveProperty('identityHash')
     expect(listed.directives[0]).not.toHaveProperty('identity_hash')
     expect(created).toMatchObject({
@@ -2373,8 +2373,8 @@ describe('dispatchDeepchatRoute', () => {
     const { runtime, providerSettings } = createRuntime()
     vi.mocked(providerSettings.getAgentType).mockResolvedValue('acp')
     const createDirectiveResult = vi.fn()
-    const deleteDirective = vi.fn()
-    ;(runtime as any).memoryService = { createDirectiveResult, deleteDirective }
+    const deleteDirectiveResult = vi.fn()
+    ;(runtime as any).memoryService = { createDirectiveResult, deleteDirectiveResult }
     const context = { webContentsId: 42, windowId: 7 }
 
     await expect(
@@ -2395,9 +2395,9 @@ describe('dispatchDeepchatRoute', () => {
         { agentId: 'acp-agent', directiveId: 'directive-1' },
         context
       )
-    ).resolves.toEqual({ ok: false })
+    ).resolves.toEqual({ action: 'rejected', reason: 'unavailable' })
     expect(createDirectiveResult).not.toHaveBeenCalled()
-    expect(deleteDirective).not.toHaveBeenCalled()
+    expect(deleteDirectiveResult).not.toHaveBeenCalled()
   })
 
   it('dispatches memory health with deepchat guard and zero fallback', async () => {

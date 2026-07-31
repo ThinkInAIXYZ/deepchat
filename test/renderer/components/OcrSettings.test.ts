@@ -400,6 +400,53 @@ describe('OcrSettings', () => {
     wrapper.unmount()
   })
 
+  it('disables an open cache confirmation when polled eligibility changes', async () => {
+    const idleStatus: OcrRuntimeStatus = {
+      ...AVAILABLE_STATUS,
+      cache: {
+        mode: 'persistent',
+        entryCount: 4,
+        logicalBytes: 4096,
+        maxBytes: 256 * 1024 * 1024
+      }
+    }
+    const { wrapper, ocrClient, useIntervalFn } = await setup(idleStatus, false, true)
+    const pollStatus = useIntervalFn.mock.calls[0]?.[0] as () => Promise<void>
+
+    await openAdvanced(wrapper)
+    await wrapper.get('[data-testid="ocr-clear-cache"]').trigger('click')
+    await flushPromises()
+
+    const confirm = document.querySelector<HTMLButtonElement>(
+      '[data-testid="ocr-clear-cache-confirm"]'
+    )!
+    expect(confirm.disabled).toBe(false)
+
+    ocrClient.getRuntimeStatus.mockResolvedValueOnce({
+      ...idleStatus,
+      process: {
+        state: 'busy',
+        nodeVersion: 'v24.14.1',
+        queuedRequests: 0,
+        pendingInputBytes: 1024,
+        engine: null
+      }
+    })
+    await pollStatus()
+    await flushPromises()
+
+    expect(confirm.disabled).toBe(true)
+    confirm.click()
+    expect(ocrClient.clearCache).not.toHaveBeenCalled()
+
+    ocrClient.getRuntimeStatus.mockResolvedValueOnce(idleStatus)
+    await pollStatus()
+    await flushPromises()
+
+    expect(confirm.disabled).toBe(false)
+    wrapper.unmount()
+  })
+
   it('does not offer cache clearing while extraction is active', async () => {
     const { wrapper } = await setup({
       ...AVAILABLE_STATUS,

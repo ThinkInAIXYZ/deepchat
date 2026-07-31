@@ -254,6 +254,14 @@
       "personaActive": "Đang dùng",
       "rollback": "Khôi phục",
       "actionFailed": "Hành động thất bại",
+      "commandRejected": {
+        "unavailable": "Bộ nhớ tạm thời không khả dụng. Hãy thử lại.",
+        "notFound": "Bộ nhớ này không còn tồn tại. Chế độ xem đã được làm mới.",
+        "invalidState": "Hành động này không còn hợp lệ. Chế độ xem đã được làm mới.",
+        "conflict": "Hãy giải quyết xung đột bộ nhớ trước khi thử lại.",
+        "stale": "Bộ nhớ này đã thay đổi. Chế độ xem đã được làm mới; hãy thử lại.",
+        "anchored": "Hãy bỏ neo nhân dạng đang hoạt động trước khi khôi phục."
+      },
       "conflict": "Xung đột",
       "restore": "Khôi phục",
       "sourceLine": "Từ phiên {session} · {count} bản ghi",

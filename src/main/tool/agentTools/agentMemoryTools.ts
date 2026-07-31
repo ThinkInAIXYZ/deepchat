@@ -208,12 +208,12 @@ export class AgentMemoryToolHandler {
     const ok = result.action === 'applied'
     return createMemoryResult(
       toolName,
-      { ...result, ok },
+      { ok },
       ok
         ? 'Archived the memory. It is retained locally but excluded from normal recall.'
         : result.reason === 'not-found'
           ? 'Memory not found.'
-          : `Memory could not be archived: ${result.reason}.`
+          : 'Memory could not be archived.'
     )
   }
 }

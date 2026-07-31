@@ -254,6 +254,14 @@
       "personaActive": "Aktif",
       "rollback": "Undur",
       "actionFailed": "Tindakan gagal",
+      "commandRejected": {
+        "unavailable": "Memori tidak tersedia buat sementara waktu. Cuba lagi.",
+        "notFound": "Memori ini tidak lagi wujud. Paparan telah dimuat semula.",
+        "invalidState": "Tindakan ini tidak lagi sah. Paparan telah dimuat semula.",
+        "conflict": "Selesaikan konflik memori sebelum mencuba lagi.",
+        "stale": "Memori ini telah berubah. Paparan telah dimuat semula; cuba lagi.",
+        "anchored": "Nyahsauh persona aktif sebelum mengundur."
+      },
       "conflict": "Konflik",
       "restore": "Pulihkan",
       "sourceLine": "Dari sesi {session} · {count} entri",

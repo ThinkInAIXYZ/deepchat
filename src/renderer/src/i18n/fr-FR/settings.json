@@ -2741,6 +2741,14 @@
       "personaActive": "Active",
       "rollback": "Restaurer",
       "actionFailed": "Échec de l'action",
+      "commandRejected": {
+        "unavailable": "La mémoire est temporairement indisponible. Réessayez.",
+        "notFound": "Cette mémoire n’existe plus. La vue a été actualisée.",
+        "invalidState": "Cette action n’est plus valide. La vue a été actualisée.",
+        "conflict": "Résolvez le conflit de mémoire avant de réessayer.",
+        "stale": "Cette mémoire a changé. La vue a été actualisée ; réessayez.",
+        "anchored": "Désancrez la persona active avant de revenir en arrière."
+      },
       "conflict": "Conflit",
       "restore": "Restaurer",
       "sourceLine": "De la session {session} · {count} entrées",

@@ -14,6 +14,21 @@ export type MemoryInlineFeedbackState = Readonly<{
   description?: string
 }>
 
+const commandRejectionKeys = {
+  unavailable: 'settings.deepchatAgents.memoryManager.commandRejected.unavailable',
+  'not-found': 'settings.deepchatAgents.memoryManager.commandRejected.notFound',
+  'invalid-state': 'settings.deepchatAgents.memoryManager.commandRejected.invalidState',
+  conflict: 'settings.deepchatAgents.memoryManager.commandRejected.conflict',
+  stale: 'settings.deepchatAgents.memoryManager.commandRejected.stale',
+  anchored: 'settings.deepchatAgents.memoryManager.commandRejected.anchored'
+} as const satisfies Record<MemoryCommandRejectionReason, string>
+
+export function shouldReconcileMemoryCommandRejection(
+  reason: MemoryCommandRejectionReason
+): boolean {
+  return reason === 'not-found' || reason === 'invalid-state' || reason === 'stale'
+}
+
 export function useMemoryInlineFeedback(scope: string) {
   const { t } = useI18n()
   const feedback = shallowRef<MemoryInlineFeedbackState | null>(null)
@@ -44,7 +59,7 @@ export function useMemoryInlineFeedback(scope: string) {
     reason: Extract<MemoryDirectiveCommandResult, { action: 'rejected' }>['reason']
   ): void => {
     if (reason !== 'capacity') {
-      fail()
+      rejectCommand(reason)
       return
     }
     show(
@@ -58,7 +73,7 @@ export function useMemoryInlineFeedback(scope: string) {
 
   const rejectCommand = (reason: MemoryCommandRejectionReason): void => {
     console.warn(`[${diagnosticScope}] Command rejected`, { reason })
-    show('error', t('settings.deepchatAgents.memoryManager.actionFailed'))
+    show('error', t(commandRejectionKeys[reason]))
   }
 
   return Object.freeze({

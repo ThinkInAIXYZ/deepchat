@@ -239,6 +239,10 @@ describe('MemoryInboxBar directives', () => {
     expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
       'error'
     )
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.stale'
+    )
+    expect(memoryClient.listConflicts).toHaveBeenCalledTimes(3)
     expect(consoleWarn).toHaveBeenCalledWith('[MemoryInboxBar] Command rejected', {
       reason: 'stale'
     })
@@ -269,6 +273,10 @@ describe('MemoryInboxBar directives', () => {
     expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
       'error'
     )
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.invalidState'
+    )
+    expect(memoryClient.listPersonaDrafts).toHaveBeenCalledTimes(3)
     expect(consoleWarn).toHaveBeenCalledWith('[MemoryInboxBar] Command rejected', {
       reason: 'invalid-state'
     })

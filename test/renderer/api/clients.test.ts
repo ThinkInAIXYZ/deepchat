@@ -1030,7 +1030,7 @@ describe('renderer api clients', () => {
                 }
               }
             case 'memory.deleteDirective':
-              return { ok: true }
+              return { action: 'applied' }
             case 'memory.getHealth':
               return {
                 health: {
@@ -1669,7 +1669,7 @@ describe('renderer api clients', () => {
     expect(created.directive.id).toBe('directive-created')
     expect(approved.directive?.status).toBe('active')
     expect(rejected?.status).toBe('rejected')
-    expect(deleted).toBe(true)
+    expect(deleted).toEqual({ action: 'applied' })
   })
 
   it('routes agent dashboard calls through the shared registry names', async () => {

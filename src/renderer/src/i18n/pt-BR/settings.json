@@ -2741,6 +2741,14 @@
       "personaActive": "Ativa",
       "rollback": "Reverter",
       "actionFailed": "A ação falhou",
+      "commandRejected": {
+        "unavailable": "A memória está temporariamente indisponível. Tente novamente.",
+        "notFound": "Esta memória não existe mais. A visualização foi atualizada.",
+        "invalidState": "Esta ação não é mais válida. A visualização foi atualizada.",
+        "conflict": "Resolva o conflito de memória antes de tentar novamente.",
+        "stale": "Esta memória mudou. A visualização foi atualizada; tente novamente.",
+        "anchored": "Desancore a persona ativa antes de reverter."
+      },
       "conflict": "Conflito",
       "restore": "Restaurar",
       "sourceLine": "Da sessão {session} · {count} registros",

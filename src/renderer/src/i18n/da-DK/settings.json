@@ -2741,6 +2741,14 @@
       "personaActive": "Aktiv",
       "rollback": "Rul tilbage",
       "actionFailed": "Handling mislykkedes",
+      "commandRejected": {
+        "unavailable": "Hukommelsen er midlertidigt utilgængelig. Prøv igen.",
+        "notFound": "Denne hukommelse findes ikke længere. Visningen er blevet opdateret.",
+        "invalidState": "Denne handling er ikke længere gyldig. Visningen er blevet opdateret.",
+        "conflict": "Løs hukommelseskonflikten, før du prøver igen.",
+        "stale": "Denne hukommelse er ændret. Visningen er blevet opdateret; prøv igen.",
+        "anchored": "Fjern forankringen af den aktive persona, før du ruller tilbage."
+      },
       "conflict": "Konflikt",
       "restore": "Gendan",
       "sourceLine": "Fra session {session} · {count} poster",

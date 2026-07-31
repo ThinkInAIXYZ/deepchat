@@ -13,9 +13,16 @@ const ButtonStub = defineComponent({
     '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>'
 })
 
+const AlertDialogStub = defineComponent({
+  name: 'AlertDialog',
+  props: { open: { type: Boolean, default: false } },
+  template: '<div v-if="open"><slot /></div>'
+})
+
 const stubs = {
-  AlertDialog: passthrough('AlertDialog'),
+  AlertDialog: AlertDialogStub,
   AlertDialogAction: ButtonStub,
+  AlertDialogAsyncAction: ButtonStub,
   AlertDialogCancel: ButtonStub,
   AlertDialogContent: passthrough('AlertDialogContent'),
   AlertDialogDescription: passthrough('AlertDialogDescription'),
@@ -26,7 +33,8 @@ const stubs = {
   Badge: passthrough('Badge'),
   Button: ButtonStub,
   Icon: passthrough('Icon'),
-  ScrollArea: passthrough('ScrollArea')
+  ScrollArea: passthrough('ScrollArea'),
+  Spinner: passthrough('Spinner')
 }
 
 function persona(overrides: Partial<MemoryItem> = {}): MemoryItem {
@@ -50,10 +58,12 @@ function persona(overrides: Partial<MemoryItem> = {}): MemoryItem {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((next) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
     resolve = next
+    reject = fail
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 async function setup() {
@@ -97,6 +107,79 @@ afterEach(() => {
 })
 
 describe('MemoryPersonaPanel', () => {
+  it('keeps rollback progress and failures inside the confirmation until retry succeeds', async () => {
+    const pending = deferred<MemoryCommandResult>()
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.rollbackPersona.mockReturnValueOnce(pending.promise)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await wrapper.get('[data-testid="memory-persona-rollback-trigger"]').trigger('click')
+    await wrapper.get('[data-testid="memory-persona-rollback-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="memory-persona-rollback-confirm"]').attributes('disabled')
+    ).toBeDefined()
+    expect(
+      wrapper.get('[data-testid="memory-persona-rollback-cancel"]').attributes('disabled')
+    ).toBeDefined()
+    expect(wrapper.find('[data-testid="memory-persona-rollback-spinner"]').exists()).toBe(true)
+
+    pending.reject(new Error('secret rollback failure'))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="memory-persona-rollback-confirm"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.actionFailed'
+    )
+
+    await wrapper.get('[data-testid="memory-persona-rollback-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.rollbackPersona).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="memory-persona-rollback-confirm"]').exists()).toBe(false)
+    consoleError.mockRestore()
+  })
+
+  it('explains an anchored rollback rejection without dismissing its target', async () => {
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.rollbackPersona.mockResolvedValueOnce({
+      action: 'rejected',
+      reason: 'anchored'
+    })
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await wrapper.get('[data-testid="memory-persona-rollback-trigger"]').trigger('click')
+    await wrapper.get('[data-testid="memory-persona-rollback-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="memory-persona-rollback-confirm"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.anchored'
+    )
+    consoleWarn.mockRestore()
+  })
+
+  it('closes and reloads after a stale rollback rejection', async () => {
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.rollbackPersona.mockResolvedValueOnce({
+      action: 'rejected',
+      reason: 'stale'
+    })
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await wrapper.get('[data-testid="memory-persona-rollback-trigger"]').trigger('click')
+    await wrapper.get('[data-testid="memory-persona-rollback-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.listPersonaVersions).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="memory-persona-rollback-confirm"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.stale'
+    )
+    consoleWarn.mockRestore()
+  })
+
   it('prevents duplicate anchor commands while the first request is pending', async () => {
     const pending = deferred<MemoryCommandResult>()
     const { wrapper, memoryClient } = await setup()

@@ -254,6 +254,14 @@
       "personaActive": "Etkin",
       "rollback": "Geri al",
       "actionFailed": "İşlem başarısız",
+      "commandRejected": {
+        "unavailable": "Bellek geçici olarak kullanılamıyor. Tekrar deneyin.",
+        "notFound": "Bu bellek artık mevcut değil. Görünüm yenilendi.",
+        "invalidState": "Bu işlem artık geçerli değil. Görünüm yenilendi.",
+        "conflict": "Tekrar denemeden önce bellek çakışmasını çözün.",
+        "stale": "Bu bellek değişti. Görünüm yenilendi; tekrar deneyin.",
+        "anchored": "Geri almadan önce etkin kişiliğin sabitlemesini kaldırın."
+      },
       "conflict": "Çakışma",
       "restore": "Geri yükle",
       "sourceLine": "{session} oturumundan · {count} kayıt",

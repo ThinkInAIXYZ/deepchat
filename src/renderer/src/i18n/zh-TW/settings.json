@@ -2741,6 +2741,14 @@
       "personaActive": "目前生效",
       "rollback": "回復",
       "actionFailed": "操作失敗",
+      "commandRejected": {
+        "unavailable": "記憶功能暫時無法使用，請重試。",
+        "notFound": "這條記憶已不存在，檢視已重新整理。",
+        "invalidState": "此操作已不再有效，檢視已重新整理。",
+        "conflict": "請先解決記憶衝突，再重試。",
+        "stale": "這條記憶已發生變更，檢視已重新整理，請重試。",
+        "anchored": "回復前請先取消目前人格的錨定。"
+      },
       "conflict": "衝突",
       "restore": "復原",
       "sourceLine": "來自會話 {session} · {count} 條記錄",

@@ -15,6 +15,22 @@ const buttonStub = defineComponent({
   template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
 })
 
+const AlertDialogStub = defineComponent({
+  name: 'AlertDialog',
+  props: { open: { type: Boolean, default: false } },
+  template: '<div v-if="open"><slot /></div>'
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
+    resolve = next
+    reject = fail
+  })
+  return { promise, resolve, reject }
+}
+
 const createKnowledgeConfig = (id: string) => ({
   id,
   description: 'Local docs',
@@ -175,8 +191,9 @@ async function setup(options: { setRejects?: boolean } = {}) {
         DialogTitle: passthrough('DialogTitle'),
         DialogFooter: passthrough('DialogFooter'),
         DialogDescription: passthrough('DialogDescription'),
-        AlertDialog: passthrough('AlertDialog'),
+        AlertDialog: AlertDialogStub,
         AlertDialogAction: buttonStub,
+        AlertDialogAsyncAction: buttonStub,
         AlertDialogCancel: buttonStub,
         AlertDialogContent: passthrough('AlertDialogContent'),
         AlertDialogDescription: passthrough('AlertDialogDescription'),
@@ -184,6 +201,7 @@ async function setup(options: { setRejects?: boolean } = {}) {
         AlertDialogHeader: passthrough('AlertDialogHeader'),
         AlertDialogTitle: passthrough('AlertDialogTitle'),
         AlertDialogTrigger: passthrough('AlertDialogTrigger'),
+        Spinner: passthrough('Spinner'),
         Popover: passthrough('Popover'),
         PopoverContent: passthrough('PopoverContent'),
         PopoverTrigger: passthrough('PopoverTrigger'),
@@ -221,6 +239,60 @@ describe('BuiltinKnowledgeSettings', () => {
     expect(configClient.getKnowledgeConfigs).toHaveBeenCalledTimes(1)
     expect((wrapper.vm as any).builtinConfigs).toEqual([createKnowledgeConfig('knowledge-1')])
     expect(mcpStore.updateServer).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps built-in config removal pending and retries failures in its confirmation', async () => {
+    const { wrapper, configClient, feedbackController } = await setup()
+    const pending = deferred<unknown[]>()
+    configClient.setKnowledgeConfigs.mockReturnValueOnce(pending.promise)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await wrapper.get('[data-testid="builtin-knowledge-remove-trigger"]').trigger('click')
+    await wrapper.get('[data-testid="builtin-knowledge-remove-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="builtin-knowledge-remove-confirm"]').attributes('disabled')
+    ).toBeDefined()
+    expect(
+      wrapper.get('[data-testid="builtin-knowledge-remove-cancel"]').attributes('disabled')
+    ).toBeDefined()
+    expect(wrapper.find('[data-testid="builtin-knowledge-remove-spinner"]').exists()).toBe(true)
+
+    pending.reject(new Error('secret config failure'))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="builtin-knowledge-remove-confirm"]').exists()).toBe(true)
+    expect((wrapper.vm as any).builtinConfigs).toHaveLength(1)
+    expect(feedbackController.fail).toHaveBeenCalledWith({
+      code: 'settings.knowledgeBase.builtin.remove.failed',
+      title: 'common.error.operationFailed'
+    })
+
+    ;(wrapper.vm as any).knowledgeOperation.retry()
+    await flushPromises()
+
+    expect(configClient.setKnowledgeConfigs).toHaveBeenCalledTimes(2)
+    expect((wrapper.vm as any).builtinConfigs).toEqual([])
+    expect(wrapper.find('[data-testid="builtin-knowledge-remove-confirm"]').exists()).toBe(false)
+    consoleError.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('removes the selected config when legacy entries share an id', async () => {
+    const { wrapper, configClient } = await setup()
+    const first = { ...createKnowledgeConfig(''), description: 'First legacy config' }
+    const second = { ...createKnowledgeConfig(''), description: 'Second legacy config' }
+    ;(wrapper.vm as any).builtinConfigs = [first, second]
+    await wrapper.vm.$nextTick()
+
+    await wrapper.findAll('[data-testid="builtin-knowledge-remove-trigger"]')[1].trigger('click')
+    await wrapper.get('[data-testid="builtin-knowledge-remove-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(configClient.setKnowledgeConfigs).toHaveBeenCalledWith([first])
+    expect((wrapper.vm as any).builtinConfigs).toEqual([first])
     wrapper.unmount()
   })
 

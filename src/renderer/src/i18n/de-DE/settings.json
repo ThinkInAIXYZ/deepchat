@@ -254,6 +254,14 @@
       "personaActive": "Aktiv",
       "rollback": "Zurücksetzen",
       "actionFailed": "Aktion fehlgeschlagen",
+      "commandRejected": {
+        "unavailable": "Der Speicher ist vorübergehend nicht verfügbar. Versuchen Sie es erneut.",
+        "notFound": "Dieser Speichereintrag existiert nicht mehr. Die Ansicht wurde aktualisiert.",
+        "invalidState": "Diese Aktion ist nicht mehr gültig. Die Ansicht wurde aktualisiert.",
+        "conflict": "Lösen Sie den Speicherkonflikt, bevor Sie es erneut versuchen.",
+        "stale": "Dieser Speichereintrag wurde geändert. Die Ansicht wurde aktualisiert; versuchen Sie es erneut.",
+        "anchored": "Lösen Sie die Verankerung der aktiven Persona vor dem Zurücksetzen."
+      },
       "conflict": "Konflikt",
       "restore": "Wiederherstellen",
       "sourceLine": "Aus Sitzung {session} · {count} Einträge",

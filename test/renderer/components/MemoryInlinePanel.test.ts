@@ -395,12 +395,46 @@ describe('MemoryInlinePanel', () => {
     wrapper.unmount()
   })
 
+  it('keeps unrelated panel feedback outside the delete confirmation and preserves it on cancel', async () => {
+    const { wrapper, memoryClient } = await setup({ realAlertDialog: true })
+    memoryClient.archive.mockResolvedValueOnce({ action: 'rejected', reason: 'conflict' })
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const archiveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'settings.memory.redesign.archive')!
+    await archiveButton.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.conflict'
+    )
+
+    await wrapper.get('[data-testid="memory-inline-delete-trigger"]').trigger('click')
+    await flushPromises()
+
+    const deleteContent = document
+      .querySelector('[data-testid="memory-inline-delete-confirm"]')
+      ?.closest('[data-slot="alert-dialog-content"]')
+    expect(deleteContent?.querySelector('[data-testid="memory-inline-feedback"]')).toBeNull()
+
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="memory-inline-delete-cancel"]')!
+      .click()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.conflict'
+    )
+    consoleWarn.mockRestore()
+    wrapper.unmount()
+  })
+
   it.each([
     ['archive', 'settings.memory.redesign.archive'],
     ['restore', 'settings.deepchatAgents.memoryManager.restore'],
     ['remove', 'settings.deepchatAgents.memoryManager.deletePermanent']
   ] as const)(
-    'shows inline feedback when the footer %s action is rejected',
+    'promotes feedback when the footer %s action requires parent reconciliation',
     async (action, label) => {
       const { wrapper, memoryClient } = await setup({
         item: action === 'restore' ? memory({ status: 'archived' }) : memory()
@@ -411,9 +445,16 @@ describe('MemoryInlinePanel', () => {
       await button!.trigger('click')
       await flushPromises()
 
-      expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
-        'error'
-      )
+      expect(wrapper.find('[data-testid="memory-inline-feedback"]').exists()).toBe(false)
+      expect(wrapper.emitted('feedback')).toEqual([
+        [
+          {
+            tone: 'error',
+            title: 'settings.deepchatAgents.memoryManager.commandRejected.stale'
+          }
+        ]
+      ])
+      expect(wrapper.emitted('reconcile')).toHaveLength(1)
       expect(wrapper.emitted('changed')).toBeUndefined()
       expect(wrapper.emitted('close')).toBeUndefined()
       wrapper.unmount()

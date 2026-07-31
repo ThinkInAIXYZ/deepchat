@@ -69,6 +69,15 @@ function mountHarness(options: HarnessOptions = {}) {
                   default: () => [
                     h(AlertDialogTitle, {}, { default: () => 'Confirmation' }),
                     h(AlertDialogDescription, {}, { default: () => 'Confirm the operation' }),
+                    ...(options.kind === 'async'
+                      ? [
+                          h(
+                            AlertDialogCancel,
+                            { 'data-testid': 'dialog-cancel' },
+                            { default: () => 'Cancel' }
+                          )
+                        ]
+                      : []),
                     h(Subject, subjectProps, {
                       default: () =>
                         options.asChild
@@ -192,6 +201,8 @@ describe.each([
     ['button', (harness: ReturnType<typeof mountHarness>) => harness.subject()],
     ['descendant', (harness: ReturnType<typeof mountHarness>) => harness.child()]
   ])('preserves native stop propagation from the %s target', async (_label, target) => {
+    // This documents native event behavior only. The source guard forbids application call sites
+    // from using `.stop` as a dialog lifecycle API.
     const harness = mountHarness({
       kind,
       subjectProps: {

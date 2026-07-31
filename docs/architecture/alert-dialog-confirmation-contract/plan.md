@@ -45,6 +45,24 @@ After migration, add a lint-time source guard that scans Vue opening tags and re
 `@click.prevent` or `@click.stop` on `AlertDialogAction` and `AlertDialogCancel`. Remove all
 remaining local `.capture` workarounds.
 
+Harden the guard so regular close actions also reject locally declared async click handlers,
+inline async expressions, dynamic listener bags, and uninspectable render-function bindings.
+Keep Skill overwrite on the regular action contract by making its click handler synchronously
+retain the pending request before starting the existing async workflow.
+
+Align every async action's disabled predicate with all of its handler preconditions. In
+particular, OCR cache confirmation must react to polled runtime-state changes while open.
+
+Migrate the remaining destructive async confirmations:
+
+- Memory directive deletion;
+- Memory clear-all;
+- persona rollback;
+- built-in knowledge configuration removal.
+
+Each uses controlled visibility, a retained target, pending dismissal guards, dialog-local
+feedback, stable mounting across owner refresh, and explicit success close.
+
 ## 3. Typed confirmation target state
 
 Replace Memory list deletion's nullable target/open coupling with a discriminated request state:
@@ -82,6 +100,18 @@ handle `rejected` explicitly and add failure-path tests.
 Remove `MemoryInlinePanel.changed` declarations and emissions. Keep `memory.updated` as the only
 page-level refresh signal.
 
+Map each shared Memory rejection reason to actionable localized copy. Reconcile the immediate
+projection after `not-found`, `invalid-state`, or `stale`, without publishing a fake mutation
+event. Separate delete-operation feedback from general panel feedback, and promote reconciliation
+feedback before a stale inline panel can be removed.
+
+Reuse the shared rejection vocabulary for directive `not-found` and `unavailable` outcomes while
+retaining directive-only `capacity`. Migrate directive deletion from `{ ok: boolean }` to
+`MemoryCommandResult`.
+
+Project Memory command results at the agent-tool boundary. Preserve `memory_forget`'s public
+`{ ok }` payload and do not serialize internal `action` or `reason` fields into the model context.
+
 ## 5. Validation and review
 
 For every commit:
@@ -105,6 +135,11 @@ pnpm run test:renderer
 ```
 
 Run smaller focused suites after each implementation layer. Do not push the branch.
+
+Document in the real-primitive suite that `.stop` behavior is native behavior, not an application
+permission, and render a valid Cancel control in the async harness. Add regressions for feedback
+ownership, stale-projection reconciliation, changing OCR eligibility, and each newly controlled
+confirmation.
 
 ## Rollback
 

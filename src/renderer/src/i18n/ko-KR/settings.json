@@ -2741,6 +2741,14 @@
       "personaActive": "활성",
       "rollback": "롤백",
       "actionFailed": "작업 실패",
+      "commandRejected": {
+        "unavailable": "메모리를 일시적으로 사용할 수 없습니다. 다시 시도하세요.",
+        "notFound": "이 메모리는 더 이상 존재하지 않습니다. 보기를 새로 고쳤습니다.",
+        "invalidState": "이 작업은 더 이상 유효하지 않습니다. 보기를 새로 고쳤습니다.",
+        "conflict": "메모리 충돌을 해결한 후 다시 시도하세요.",
+        "stale": "이 메모리가 변경되었습니다. 보기를 새로 고쳤으니 다시 시도하세요.",
+        "anchored": "롤백하기 전에 활성 페르소나의 고정을 해제하세요."
+      },
       "conflict": "충돌",
       "restore": "복원",
       "sourceLine": "{session} 세션에서 · 기록 {count}개",

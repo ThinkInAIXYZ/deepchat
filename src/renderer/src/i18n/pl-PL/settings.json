@@ -254,6 +254,14 @@
       "personaActive": "Aktywna",
       "rollback": "Przywróć",
       "actionFailed": "Akcja nie powiodła się",
+      "commandRejected": {
+        "unavailable": "Pamięć jest tymczasowo niedostępna. Spróbuj ponownie.",
+        "notFound": "Ta pamięć już nie istnieje. Widok został odświeżony.",
+        "invalidState": "Ta akcja nie jest już prawidłowa. Widok został odświeżony.",
+        "conflict": "Rozwiąż konflikt pamięci przed ponowną próbą.",
+        "stale": "Ta pamięć uległa zmianie. Widok został odświeżony; spróbuj ponownie.",
+        "anchored": "Odłącz aktywną personę przed przywróceniem."
+      },
       "conflict": "Konflikt",
       "restore": "Przywróć",
       "sourceLine": "Z sesji {session} · {count} wpisów",

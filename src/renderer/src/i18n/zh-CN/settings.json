@@ -259,6 +259,14 @@
       "personaActive": "当前生效",
       "rollback": "回滚",
       "actionFailed": "操作失败",
+      "commandRejected": {
+        "unavailable": "记忆功能暂时不可用，请重试。",
+        "notFound": "这条记忆已不存在，视图已刷新。",
+        "invalidState": "此操作已不再有效，视图已刷新。",
+        "conflict": "请先解决记忆冲突，再重试。",
+        "stale": "这条记忆已发生变化，视图已刷新，请重试。",
+        "anchored": "回滚前请先取消当前人格的锚定。"
+      },
       "conflict": "冲突",
       "conflictPairsTitle": "待裁决冲突（{count}）",
       "keepTarget": "保留当前",

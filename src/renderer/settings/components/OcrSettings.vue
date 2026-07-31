@@ -271,7 +271,7 @@
           </AlertDialogCancel>
           <AlertDialogAsyncAction
             data-testid="ocr-clear-cache-confirm"
-            :disabled="cacheClearInFlight"
+            :disabled="!canClearCache"
             @click="clearCache"
           >
             <Spinner

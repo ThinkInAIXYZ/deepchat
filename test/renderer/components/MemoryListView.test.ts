@@ -46,6 +46,7 @@ const MemoryInlinePanelStub = defineComponent({
     'close',
     'edit',
     'saved',
+    'reconcile',
     'feedback',
     'busy',
     'dirty',
@@ -617,7 +618,7 @@ describe('MemoryListView', () => {
     ).toBe(true)
     expect(document.querySelector('[data-testid="memory-list-delete-spinner"]')).not.toBeNull()
 
-    pending.resolve({ action: 'rejected', reason: 'stale' })
+    pending.resolve({ action: 'rejected', reason: 'conflict' })
     await flushPromises()
 
     const deleteContent = document
@@ -635,6 +636,55 @@ describe('MemoryListView', () => {
 
     expect(memoryClient.remove).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).not.toContain('user likes redis')
+    wrapper.unmount()
+  })
+
+  it('closes and reconciles the list after a stale permanent-delete result', async () => {
+    const { wrapper, memoryClient } = await setup({ realAlertDialog: true })
+    memoryClient.remove.mockResolvedValueOnce({ action: 'rejected', reason: 'stale' })
+    memoryClient.page.mockResolvedValueOnce({ items: [], nextCursor: null })
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await wrapper.find('[data-testid="memory-row-delete"]').trigger('click')
+    await flushPromises()
+    document.querySelector<HTMLButtonElement>('[data-testid="memory-list-delete-confirm"]')!.click()
+    await flushPromises()
+
+    expect(memoryClient.page).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('[data-testid="memory-list-delete-confirm"]')).toBeNull()
+    expect(wrapper.text()).not.toContain('user likes redis')
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.stale'
+    )
+    consoleWarn.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('keeps refresh feedback outside an open delete dialog and preserves it on cancel', async () => {
+    const { wrapper, memoryClient } = await setup({ realAlertDialog: true })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await wrapper.find('[data-testid="memory-row-delete"]').trigger('click')
+    await flushPromises()
+    memoryClient.page.mockRejectedValueOnce(new Error('refresh failed'))
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+
+    const deleteContent = document
+      .querySelector('[data-testid="memory-list-delete-confirm"]')
+      ?.closest('[data-slot="alert-dialog-content"]')
+    expect(deleteContent?.querySelector('[data-testid="memory-inline-feedback"]')).toBeNull()
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.actionFailed'
+    )
+
+    document.querySelector<HTMLButtonElement>('[data-testid="memory-list-delete-cancel"]')!.click()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.actionFailed'
+    )
+    consoleError.mockRestore()
     wrapper.unmount()
   })
 
@@ -681,7 +731,7 @@ describe('MemoryListView', () => {
     expect(memoryClient.archive).toHaveBeenCalledWith('deepchat', 'm1')
     expect(wrapper.text()).not.toContain('user likes redis')
 
-    memoryClient.page.mockResolvedValueOnce({
+    memoryClient.page.mockResolvedValue({
       items: [memory({ id: 'm2', content: 'visible fact' })],
       nextCursor: null
     })
@@ -852,6 +902,27 @@ describe('MemoryListView', () => {
 
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m2')
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+  })
+
+  it('preserves promoted rejection feedback when reconciliation removes the inline panel', async () => {
+    const { wrapper, memoryClient } = await setup({ rows: [memory()] })
+
+    await wrapper.find('[role="button"]').trigger('click')
+    await flushPromises()
+    memoryClient.page.mockResolvedValueOnce({ items: [], nextCursor: null })
+    const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
+    panel.vm.$emit('feedback', {
+      tone: 'error',
+      title: 'settings.deepchatAgents.memoryManager.commandRejected.stale'
+    })
+    panel.vm.$emit('reconcile')
+    await flushPromises()
+
+    expect(memoryClient.page).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('user likes redis')
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.stale'
+    )
   })
 
   it('keeps child feedback visible across panel handoff and refreshes unknown saved rows', async () => {

@@ -28,6 +28,17 @@ where `false` can mean unavailable, not found, invalid state, stale conflict sta
 transition. Five renderer call sites ignore that value and rely exclusively on `memory.updated`,
 which is not emitted for a rejected command.
 
+A post-implementation review exposed additional ownership gaps:
+
+- an async action can remain enabled after its handler eligibility changes and then return without
+  feedback;
+- regular close actions can still call locally declared `async` handlers;
+- several destructive confirmations still close before their pending and failure state settles;
+- page-level feedback can be moved into, or cleared by, an unrelated delete dialog;
+- structured Memory rejection reasons reach the renderer but are collapsed to generic copy;
+- rejected commands that prove a local projection stale do not trigger reconciliation;
+- the Memory agent tool forwards the internal command-result object into model-visible output.
+
 ## Goal
 
 Establish one explicit confirmation contract across shared UI and Memory domain boundaries:
@@ -54,6 +65,11 @@ Establish one explicit confirmation contract across shared UI and Memory domain 
 `AlertDialogAction` or `AlertDialogCancel` call sites. A source guard must reject both so future
 code cannot accidentally depend on modifier-specific propagation behavior.
 
+Regular close-action click handlers must be synchronously declared. A source guard must reject
+locally declared `async` handlers, inline async expressions, and dynamic listener forms that it
+cannot prove synchronous. A workflow that intentionally closes after synchronously retaining its
+target may start background work from a synchronous handler.
+
 ### Asynchronous confirmations
 
 - a dedicated alert-dialog action renders the same visual button contract without delegating to
@@ -64,10 +80,25 @@ code cannot accidentally depend on modifier-specific propagation behavior.
 - failure keeps the dialog open with local retry context;
 - async callers do not depend on a pending flag being set before the first `await` to suppress
   automatic close.
+- the action's disabled predicate covers every condition that can make its handler return before
+  starting work.
+- controlled content remains mounted while its operation is pending, including when a related
+  refresh switches the owning panel into a loading state.
 
 OCR cache cleanup, browser sandbox cleanup, data reset, provider rate-limit disable, and inline
 Memory deletion must use the explicit async contract because they already render pending or
 failure state associated with their confirmation surface.
+
+Memory directive deletion, Memory clear-all, persona rollback, and built-in knowledge
+configuration removal must follow the same contract. Their confirmation target and failure
+feedback remain owned by the dialog until success or explicit dismissal.
+
+### Feedback ownership
+
+- page or panel feedback remains visible in its owning surface while a confirmation is open;
+- a confirmation renders only feedback produced by its own operation;
+- dismissing a confirmation clears only confirmation-owned feedback;
+- an unrelated refresh or background mutation cannot move feedback into a destructive dialog.
 
 ### Confirmation target ownership
 
@@ -91,15 +122,31 @@ boundary:
 - shared routes validate the closed result;
 - renderer clients return the typed result;
 - renderer callers handle both variants exhaustively;
-- a rejected command displays local failure feedback and does not wait for `memory.updated`.
+- a rejected command displays reason-specific local feedback and does not wait for
+  `memory.updated`;
+- `not-found`, `invalid-state`, and `stale` rejections reconcile the local projection explicitly
+  because rejected commands emit no mutation event.
+- reconciliation feedback is promoted to the persistent projection owner before a stale child
+  surface can be removed.
 
 The existing `MemoryDirectiveCommandResultSchema` is the local precedent. New command reasons may
-share vocabulary, but directive-specific payloads remain separate.
+share vocabulary, but directive-specific payloads remain separate. Directive capacity remains a
+directive-only reason; shared `not-found` and `unavailable` meanings reuse the Memory command
+vocabulary. Directive deletion returns a structured command result rather than the last bare
+boolean route.
 
 ### Refresh ownership
 
 `memory.updated` remains the single cross-panel refresh path. The unused
 `MemoryInlinePanel.changed` event is removed rather than wired to a second refresh source.
+Local recovery after a rejected command may request reconciliation from the immediate projection
+owner; that event reports no mutation and does not replace `memory.updated`.
+
+### Model-visible tool output
+
+Internal Memory command results are not forwarded wholesale to model-visible tool output.
+`memory_forget` preserves its public `{ ok }` result and uses sanitized summaries; internal action
+and rejection enums remain diagnostic implementation details.
 
 ## Acceptance Criteria
 
@@ -112,8 +159,17 @@ share vocabulary, but directive-specific payloads remain separate.
 6. A lint-time source guard rejects future `.prevent` and `.stop` call sites.
 7. Rejected Memory persona and conflict commands produce local failure feedback.
 8. `MemoryInlinePanel` declares and emits no `changed` event.
-9. Focused renderer and Memory suites, formatting, i18n, lint, and type checking pass.
-10. Every commit is preceded by a severity-ordered review and no branch is pushed.
+9. Every async confirmation keeps its own pending and failure state visible and cannot silently
+   return from an enabled action.
+10. Regular close actions cannot bind locally declared async or uninspectable click handlers.
+11. Memory command rejection copy identifies the actionable reason and stale projections reload.
+12. Delete-dialog dismissal cannot clear unrelated page or panel feedback.
+13. `memory.deleteDirective` returns a structured command result and `memory_forget` exposes only
+    its stable public result.
+14. Pending confirmation content survives owner refresh and reconciliation feedback survives child
+    removal.
+15. Focused renderer and Memory suites, formatting, i18n, lint, and type checking pass.
+16. Every commit is preceded by a severity-ordered review and no branch is pushed.
 
 ## Compatibility
 
@@ -131,4 +187,6 @@ share vocabulary, but directive-specific payloads remain separate.
 - Building a generic promise-owning dialog framework.
 - Reworking unrelated Dialog, Sheet, Drawer, or notification behavior.
 - Consolidating all duplicated Memory panel lifecycle code.
+- Caching forwarded wrapper attributes: Vue `useAttrs()` is live but not reactive, so merging
+  during render is required for updated fallthrough attributes.
 - Adding or synchronizing a GitHub issue.

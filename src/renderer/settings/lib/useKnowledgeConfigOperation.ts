@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid'
 import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
 import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 
-export type KnowledgeConfigOperationSource = 'dialog' | 'panel'
+export type KnowledgeConfigOperationSource = 'confirmation' | 'dialog' | 'panel'
 
 export type KnowledgeConfigOperationFailure = Readonly<{
   title: string

@@ -254,6 +254,14 @@
       "personaActive": "Attiva",
       "rollback": "Ripristina",
       "actionFailed": "Azione non riuscita",
+      "commandRejected": {
+        "unavailable": "La memoria non è temporaneamente disponibile. Riprova.",
+        "notFound": "Questa memoria non esiste più. La vista è stata aggiornata.",
+        "invalidState": "Questa azione non è più valida. La vista è stata aggiornata.",
+        "conflict": "Risolvi il conflitto di memoria prima di riprovare.",
+        "stale": "Questa memoria è cambiata. La vista è stata aggiornata; riprova.",
+        "anchored": "Rimuovi l’ancoraggio dalla persona attiva prima del ripristino."
+      },
       "conflict": "Conflitto",
       "restore": "Ripristina",
       "sourceLine": "Dalla sessione {session} · {count} voci",

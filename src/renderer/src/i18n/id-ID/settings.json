@@ -254,6 +254,14 @@
       "personaActive": "Aktif",
       "rollback": "Kembalikan",
       "actionFailed": "Tindakan gagal",
+      "commandRejected": {
+        "unavailable": "Memori sementara tidak tersedia. Coba lagi.",
+        "notFound": "Memori ini sudah tidak ada. Tampilan telah dimuat ulang.",
+        "invalidState": "Tindakan ini sudah tidak valid. Tampilan telah dimuat ulang.",
+        "conflict": "Selesaikan konflik memori sebelum mencoba lagi.",
+        "stale": "Memori ini telah berubah. Tampilan telah dimuat ulang; coba lagi.",
+        "anchored": "Lepaskan sematan persona aktif sebelum mengembalikan."
+      },
       "conflict": "Konflik",
       "restore": "Pulihkan",
       "sourceLine": "Dari sesi {session} · {count} entri",

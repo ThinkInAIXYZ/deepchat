@@ -21,11 +21,18 @@ const ButtonStub = defineComponent({
     '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>'
 })
 
+const AlertDialogStub = defineComponent({
+  name: 'AlertDialog',
+  props: { open: { type: Boolean, default: false } },
+  template: '<div v-if="open"><slot /></div>'
+})
+
 const stubs = {
   Button: ButtonStub,
   Badge: passthrough('Badge'),
-  AlertDialog: passthrough('AlertDialog'),
+  AlertDialog: AlertDialogStub,
   AlertDialogAction: ButtonStub,
+  AlertDialogAsyncAction: ButtonStub,
   AlertDialogCancel: ButtonStub,
   AlertDialogContent: passthrough('AlertDialogContent'),
   AlertDialogDescription: passthrough('AlertDialogDescription'),
@@ -33,7 +40,8 @@ const stubs = {
   AlertDialogHeader: passthrough('AlertDialogHeader'),
   AlertDialogTitle: passthrough('AlertDialogTitle'),
   AlertDialogTrigger: passthrough('AlertDialogTrigger'),
-  Icon: passthrough('Icon')
+  Icon: passthrough('Icon'),
+  Spinner: passthrough('Spinner')
 }
 
 const baseStatus: MemoryStatusDto = {
@@ -76,10 +84,12 @@ const basePreview: MemoryArchiveCandidateLifecyclePreview = {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((next) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
     resolve = next
+    reject = fail
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 function auditEvent(overrides: Partial<MemoryAuditEvent> = {}): MemoryAuditEvent {
@@ -156,11 +166,9 @@ function refreshButton(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
     .find((button) => button.text().includes('settings.memory.redesign.refresh'))!
 }
 
-function clearAllActionButton(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
-  return wrapper
-    .findAll('button')
-    .filter((button) => button.text().includes('settings.deepchatAgents.memoryManager.clearAll'))
-    .at(-1)!
+async function confirmClearAll(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
+  await wrapper.get('[data-testid="memory-clear-all-trigger"]').trigger('click')
+  await wrapper.get('[data-testid="memory-clear-all-confirm"]').trigger('click')
 }
 
 describe('MemoryDiagnosticsPanel', () => {
@@ -461,24 +469,90 @@ describe('MemoryDiagnosticsPanel', () => {
   it('reloads diagnostics after clearing all memories for the current agent', async () => {
     const { wrapper, memoryClient } = await setup()
 
-    await clearAllActionButton(wrapper).trigger('click')
+    await confirmClearAll(wrapper)
     await flushPromises()
 
     expect(memoryClient.clear).toHaveBeenCalledWith('deepchat')
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
-  it('shows inline failure feedback when clearing all memories fails', async () => {
+  it('keeps the confirmation mounted while the post-clear reload is pending', async () => {
     const { wrapper, memoryClient } = await setup()
-    memoryClient.clear.mockRejectedValueOnce(new Error('clear failed'))
+    const pendingHealth = deferred<MemoryHealthDto>()
+    memoryClient.getHealth.mockReturnValueOnce(pendingHealth.promise)
 
-    await clearAllActionButton(wrapper).trigger('click')
+    await confirmClearAll(wrapper)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="memory-clear-all-spinner"]').exists()).toBe(true)
+
+    pendingHealth.resolve(baseHealth)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('disables clear confirmation while a background diagnostics reload is pending', async () => {
+    const { wrapper, memoryClient } = await setup()
+    const pendingHealth = deferred<MemoryHealthDto>()
+
+    await wrapper.get('[data-testid="memory-clear-all-trigger"]').trigger('click')
+    memoryClient.getHealth.mockReturnValueOnce(pendingHealth.promise)
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+
+    const confirm = wrapper.get('[data-testid="memory-clear-all-confirm"]')
+    expect(confirm.attributes('disabled')).toBeDefined()
+    await confirm.trigger('click')
+    expect(memoryClient.clear).not.toHaveBeenCalled()
+
+    pendingHealth.resolve(baseHealth)
+    await flushPromises()
+
+    expect(confirm.attributes('disabled')).toBeUndefined()
+    await confirm.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.clear).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps clear-all progress and failure feedback inside the confirmation', async () => {
+    const { wrapper, memoryClient } = await setup()
+    const pending = deferred<{ removed: number; cleanupPendingRestart: boolean }>()
+    memoryClient.clear.mockReturnValueOnce(pending.promise)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await confirmClearAll(wrapper)
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="memory-clear-all-confirm"]').attributes('disabled')
+    ).toBeDefined()
+    expect(
+      wrapper.get('[data-testid="memory-clear-all-cancel"]').attributes('disabled')
+    ).toBeDefined()
+    expect(wrapper.find('[data-testid="memory-clear-all-spinner"]').exists()).toBe(true)
+
+    pending.reject(new Error('clear failed'))
     await flushPromises()
 
     const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
     expect(feedback.attributes('data-tone')).toBe('error')
     expect(feedback.text()).toContain('settings.deepchatAgents.memoryManager.actionFailed')
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="memory-clear-all-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.clear).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(false)
+    consoleError.mockRestore()
     wrapper.unmount()
   })
 
@@ -486,7 +560,7 @@ describe('MemoryDiagnosticsPanel', () => {
     const { wrapper, memoryClient } = await setup()
     memoryClient.clear.mockResolvedValueOnce({ removed: 3, cleanupPendingRestart: true })
 
-    await clearAllActionButton(wrapper).trigger('click')
+    await confirmClearAll(wrapper)
     await flushPromises()
 
     const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
@@ -500,7 +574,7 @@ describe('MemoryDiagnosticsPanel', () => {
     const pending = deferred<{ removed: number; cleanupPendingRestart: boolean }>()
     memoryClient.clear.mockReturnValueOnce(pending.promise)
 
-    await clearAllActionButton(wrapper).trigger('click')
+    await confirmClearAll(wrapper)
     await flushPromises()
     expect(memoryClient.clear).toHaveBeenCalledWith('deepchat')
 

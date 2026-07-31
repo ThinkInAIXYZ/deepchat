@@ -259,6 +259,14 @@
       "personaActive": "Active",
       "rollback": "Roll back",
       "actionFailed": "Action failed",
+      "commandRejected": {
+        "unavailable": "Memory is temporarily unavailable. Try again.",
+        "notFound": "This memory no longer exists. The view has been refreshed.",
+        "invalidState": "This action is no longer valid. The view has been refreshed.",
+        "conflict": "Resolve the memory conflict before trying again.",
+        "stale": "This memory changed. The view has been refreshed; try again.",
+        "anchored": "Unanchor the active persona before rolling back."
+      },
       "conflict": "Conflict",
       "conflictPairsTitle": "Conflicts pending review ({count})",
       "keepTarget": "Keep current",

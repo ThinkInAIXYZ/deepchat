@@ -2741,6 +2741,14 @@
       "personaActive": "有効",
       "rollback": "ロールバック",
       "actionFailed": "操作に失敗しました",
+      "commandRejected": {
+        "unavailable": "メモリは一時的に利用できません。もう一度お試しください。",
+        "notFound": "このメモリは存在しません。表示を更新しました。",
+        "invalidState": "この操作は現在無効です。表示を更新しました。",
+        "conflict": "メモリの競合を解決してから、もう一度お試しください。",
+        "stale": "このメモリは変更されています。表示を更新しました。もう一度お試しください。",
+        "anchored": "ロールバックする前に、現在のペルソナの固定を解除してください。"
+      },
       "conflict": "競合",
       "restore": "復元",
       "sourceLine": "セッション {session} より · {count} 件のレコード",

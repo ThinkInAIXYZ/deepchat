@@ -543,18 +543,27 @@ const handleConflictOpenChange = (open: boolean) => {
   if (!open) handleConflictCancel()
 }
 
-const handleConflictOverwrite = async () => {
-  const request = conflictRequest.value
-  if (request.status !== 'confirming') return
-  const pendingRequest = { ...request, status: 'pending' as const }
-  conflictRequest.value = pendingRequest
+const runConflictOverwrite = async (
+  request: Extract<ConflictRequest, { status: 'confirming' }>,
+  pendingRequest: Extract<ConflictRequest, { status: 'pending' }>
+): Promise<void> => {
   try {
     await request.overwrite()
+  } catch (error) {
+    showError(error)
   } finally {
     if (conflictRequest.value === pendingRequest) {
       conflictRequest.value = { status: 'idle' }
     }
   }
+}
+
+const handleConflictOverwrite = () => {
+  const request = conflictRequest.value
+  if (request.status !== 'confirming') return
+  const pendingRequest = { ...request, status: 'pending' as const }
+  conflictRequest.value = pendingRequest
+  void runConflictOverwrite(request, pendingRequest)
 }
 
 const showError = (error: unknown) => {

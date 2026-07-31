@@ -110,8 +110,12 @@ describe('DirectiveService', () => {
     expect(active).not.toBeNull()
     expect(presenter.listDirectives('b')).toEqual([])
     expect(presenter.approveDirective('b', active!.id)).toBeNull()
+    expect(presenter.deleteDirectiveResult('b', active!.id)).toEqual({
+      action: 'rejected',
+      reason: 'not-found'
+    })
     expect(presenter.deleteDirective('b', active!.id)).toBe(false)
-    expect(presenter.deleteDirective('a', active!.id)).toBe(true)
+    expect(presenter.deleteDirectiveResult('a', active!.id)).toEqual({ action: 'applied' })
     expect(presenter.listDirectives('a')).toEqual([])
 
     expect(() =>

@@ -668,6 +668,10 @@ export class MemoryService implements MemoryRuntimePort {
     return this.directives.deleteDirective(agentId, directiveId)
   }
 
+  deleteDirectiveResult(agentId: string, directiveId: string): MemoryCommandResult {
+    return this.directives.deleteDirectiveResult(agentId, directiveId)
+  }
+
   async setPersonaAnchor(
     agentId: string,
     versionId: string,

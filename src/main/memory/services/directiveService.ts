@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
 import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@shared/types/agent-memory'
+import type { MemoryCommandResult } from '@shared/contracts/routes/memory.routes'
 
 import {
   normalizeMemoryDirective,
@@ -11,6 +12,7 @@ import {
 } from '../domain/directives'
 import type { MemoryRuntimeContext } from '../context'
 import type { MemoryDirectiveRepositoryPort } from '../ports'
+import { memoryCommandApplied, memoryCommandRejected } from '../domain/commandResult'
 
 const DIRECTIVE_ID_PREFIX = 'directive-'
 export const ACTIVE_DIRECTIVE_READ_LIMIT = AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT
@@ -191,12 +193,16 @@ export class DirectiveService {
   }
 
   deleteDirective(agentId: string, directiveId: string): boolean {
+    return this.deleteDirectiveResult(agentId, directiveId).action === 'applied'
+  }
+
+  deleteDirectiveResult(agentId: string, directiveId: string): MemoryCommandResult {
     this.ports.ctx.assertSafeAgentId(agentId)
-    if (!this.ports.ctx.canManageAgentMemory(agentId)) return false
+    if (!this.ports.ctx.canManageAgentMemory(agentId)) return memoryCommandRejected('unavailable')
     const id = directiveId.trim()
-    if (!id) return false
+    if (!id) return memoryCommandRejected('not-found')
     const row = this.ports.repository.deleteDirective(agentId, id)
-    if (!row) return false
+    if (!row) return memoryCommandRejected('not-found')
     const now = this.ports.ctx.now()
 
     this.ports.ctx.markDomainMutationCommitted(agentId)
@@ -209,7 +215,7 @@ export class DirectiveService {
       createdAt: now
     })
     this.ports.ctx.emitChanged(agentId, 'directive-delete', { directiveId: id })
-    return true
+    return memoryCommandApplied()
   }
 
   getCounts(agentId: string) {

@@ -300,7 +300,7 @@ interface MemoryRouteService {
   ): MemoryDirectiveCommandResult
   approveDirectiveResult(agentId: string, directiveId: string): MemoryDirectiveCommandResult
   rejectDirective(agentId: string, directiveId: string): AgentMemoryDirectiveRow | null
-  deleteDirective(agentId: string, directiveId: string): boolean
+  deleteDirectiveResult(agentId: string, directiveId: string): MemoryCommandResult
 }
 
 export function createMemoryRoutes(deps: {
@@ -710,11 +710,11 @@ export function createMemoryRoutes(deps: {
       memoryDeleteDirectiveRoute.name,
       async (rawInput) => {
         const input = memoryDeleteDirectiveRoute.input.parse(rawInput)
-        return memoryDeleteDirectiveRoute.output.parse({
-          ok:
-            (await deps.getAgentType(input.agentId)) === 'deepchat' &&
-            memoryService.deleteDirective(input.agentId, input.directiveId)
-        })
+        const result =
+          (await deps.getAgentType(input.agentId)) === 'deepchat'
+            ? memoryService.deleteDirectiveResult(input.agentId, input.directiveId)
+            : { action: 'rejected' as const, reason: 'unavailable' as const }
+        return memoryDeleteDirectiveRoute.output.parse(result)
       }
     ]
   ])

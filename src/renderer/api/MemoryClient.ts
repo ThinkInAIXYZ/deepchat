@@ -326,9 +326,11 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.directive
   }
 
-  async function deleteDirective(agentId: string, directiveId: string): Promise<boolean> {
-    const result = await bridge.invoke(memoryDeleteDirectiveRoute.name, { agentId, directiveId })
-    return result.ok
+  async function deleteDirective(
+    agentId: string,
+    directiveId: string
+  ): Promise<MemoryCommandResult> {
+    return bridge.invoke(memoryDeleteDirectiveRoute.name, { agentId, directiveId })
   }
 
   function onUpdated(listener: (payload: MemoryUpdatedPayload) => void): () => void {

@@ -29,6 +29,7 @@ function handleClickCapture(event: MouseEvent): void {
 }
 
 function forwardedProps() {
+  // `useAttrs()` stays current across renders but is not reactive enough to cache in a computed.
   return mergeProps(delegatedProps, attrs, { onClickCapture: handleClickCapture })
 }
 </script>
