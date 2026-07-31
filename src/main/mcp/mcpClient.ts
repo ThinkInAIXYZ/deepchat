@@ -418,7 +418,7 @@ export class McpClient {
 
   private async performConnect(attempt: number, phase: McpServerStatusPhase): Promise<void> {
     try {
-      console.info(`Starting MCP server ${this.serverName}...`, this.serverConfig)
+      console.info(`Starting MCP server ${this.serverName}...`)
 
       // Handle customHeaders and AuthProvider
       let authProvider: SimpleOAuthProvider | null = null
