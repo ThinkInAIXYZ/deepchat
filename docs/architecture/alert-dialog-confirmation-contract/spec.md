@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress.
+Implemented.
 
 ## Context
 

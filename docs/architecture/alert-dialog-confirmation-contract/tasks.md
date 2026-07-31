@@ -45,7 +45,7 @@
 - [x] Run focused service, route, and Memory tests after the result-contract slice.
 - [x] Run formatter and i18n validation.
 - [x] Run lint and type checking.
-- [ ] Run complete Memory and renderer suites.
-- [ ] Complete a severity-ordered review before every commit and fix all findings.
-- [ ] Commit locally with Conventional Commits.
-- [ ] Confirm the branch was not pushed.
+- [x] Run complete Memory and renderer suites.
+- [x] Complete a severity-ordered review before every commit and fix all findings.
+- [x] Commit locally with Conventional Commits.
+- [x] Confirm the branch was not pushed.
