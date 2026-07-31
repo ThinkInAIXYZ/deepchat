@@ -206,6 +206,95 @@ export class SessionTranscript {
     return id
   }
 
+  appendAssistantNotice(input: {
+    messageId: string
+    sessionId: string
+    blocks: AssistantMessageBlock[]
+    metadata: MessageMetadata
+    createdAt: number
+  }): ChatMessageRecord {
+    const messageId = input.messageId.trim()
+    const sessionId = input.sessionId.trim()
+    if (!messageId || messageId.length > 256 || !sessionId || sessionId.length > 256) {
+      throw new Error('Assistant notice requires bounded message and session identifiers.')
+    }
+    if (
+      !Number.isSafeInteger(input.createdAt) ||
+      input.createdAt < 0 ||
+      input.blocks.length === 0 ||
+      input.blocks.some((block) => block.status === 'pending' || block.status === 'loading')
+    ) {
+      throw new Error('Assistant notice must contain terminal blocks and a valid timestamp.')
+    }
+    if (
+      input.metadata.messageType === 'workflow_result' &&
+      (input.metadata.workflowResultDeliveryId !== messageId ||
+        !input.metadata.workflowRunId?.trim())
+    ) {
+      throw new Error('Workflow result notice metadata does not match its delivery identity.')
+    }
+
+    const content = JSON.stringify(input.blocks)
+    const metadata = JSON.stringify(input.metadata)
+    return this.runInDatabaseTransaction(() => {
+      const existing = this.database.deepchatMessagesTable.get(messageId)
+      if (existing) {
+        if (
+          existing.session_id !== sessionId ||
+          existing.role !== 'assistant' ||
+          existing.status !== 'sent' ||
+          !this.isIdempotentAssistantNotice(existing, input.metadata, content, metadata)
+        ) {
+          throw new Error(`Assistant notice identity collision: ${messageId}`)
+        }
+        return this.toRecord(existing)
+      }
+      if (!this.database.newSessionsTable.get(sessionId)) {
+        throw new Error(`Assistant notice session does not exist: ${sessionId}`)
+      }
+
+      this.database.deepchatMessagesTable.insert({
+        id: messageId,
+        sessionId,
+        orderSeq: this.getNextOrderSeq(sessionId),
+        role: 'assistant',
+        content,
+        status: 'sent',
+        metadata,
+        createdAt: input.createdAt,
+        updatedAt: input.createdAt
+      })
+      this.database.deepchatAssistantBlocksTable.replaceForMessage(messageId, input.blocks)
+      this.upsertAssistantSearchDocument(messageId, input.blocks)
+      this.appendLiveTapeFacts(messageId)
+      const created = this.getMessage(messageId)
+      if (!created) {
+        throw new Error(`Assistant notice was not persisted: ${messageId}`)
+      }
+      return created
+    })
+  }
+
+  private isIdempotentAssistantNotice(
+    existing: DeepChatMessageRow,
+    expectedMetadata: MessageMetadata,
+    expectedContent: string,
+    serializedExpectedMetadata: string
+  ): boolean {
+    if (existing.content === expectedContent && existing.metadata === serializedExpectedMetadata) {
+      return true
+    }
+    if (expectedMetadata.messageType !== 'workflow_result') {
+      return false
+    }
+    const persistedMetadata = parseMessageMetadata(existing.metadata)
+    return (
+      persistedMetadata.messageType === 'workflow_result' &&
+      persistedMetadata.workflowRunId === expectedMetadata.workflowRunId &&
+      persistedMetadata.workflowResultDeliveryId === expectedMetadata.workflowResultDeliveryId
+    )
+  }
+
   private insertCompactionMessageRecord(
     sessionId: string,
     orderSeq: number,

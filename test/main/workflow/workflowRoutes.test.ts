@@ -4,7 +4,8 @@ import {
   workflowLaunchRoute,
   workflowListRoute,
   workflowPrepareLaunchRoute,
-  workflowRetryRoute
+  workflowRetryRoute,
+  workflowSynthesizeRoute
 } from '@shared/contracts/routes'
 import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
 import type { WorkflowRun } from '@shared/workflow/domain'
@@ -88,7 +89,12 @@ function createService() {
     ),
     cancel: vi.fn().mockReturnValue(run({ status: 'cancelled', completedAt: 2 })),
     resume: vi.fn().mockReturnValue(run()),
-    retryInvocation: vi.fn().mockReturnValue(run())
+    retryInvocation: vi.fn().mockReturnValue(run()),
+    synthesize: vi.fn().mockResolvedValue({
+      runId: 'run-1',
+      pendingInputId: 'pending-1',
+      state: 'pending'
+    })
   } as unknown as WorkflowService
 }
 
@@ -150,6 +156,7 @@ describe('workflow routes', () => {
     const routes = createWorkflowRoutes(service)
     const inspect = routes.get(workflowInspectRoute.name)!
     const retry = routes.get(workflowRetryRoute.name)!
+    const synthesize = routes.get(workflowSynthesizeRoute.name)!
 
     await expect(
       inspect({ parentSessionId: 'parent-1', runId: 'foreign' }, context)
@@ -164,6 +171,27 @@ describe('workflow routes', () => {
         context
       )
     ).rejects.toThrow('does not belong to session')
+    await expect(
+      synthesize({ parentSessionId: 'parent-1', runId: 'foreign' }, context)
+    ).rejects.toThrow('does not belong to session')
     expect(service.retryInvocation).not.toHaveBeenCalled()
+    expect(service.synthesize).not.toHaveBeenCalled()
+  })
+
+  it('queues explicit parent synthesis for an owned run', async () => {
+    const service = createService()
+    const routes = createWorkflowRoutes(service)
+    const synthesize = routes.get(workflowSynthesizeRoute.name)!
+
+    await expect(
+      synthesize({ parentSessionId: 'parent-1', runId: 'run-1' }, context)
+    ).resolves.toEqual({
+      receipt: {
+        runId: 'run-1',
+        pendingInputId: 'pending-1',
+        state: 'pending'
+      }
+    })
+    expect(service.synthesize).toHaveBeenCalledWith('run-1')
   })
 })

@@ -5,7 +5,8 @@ import {
   workflowListRoute,
   workflowPrepareLaunchRoute,
   workflowResumeRoute,
-  workflowRetryRoute
+  workflowRetryRoute,
+  workflowSynthesizeRoute
 } from '@shared/contracts/routes'
 import type { WorkflowRun } from '@shared/workflow/domain'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
@@ -108,6 +109,16 @@ export function createWorkflowRoutes(service: WorkflowService): DeepchatRouteMap
               confirmEffects: input.confirmEffects
             })
           )
+        })
+      }
+    ],
+    [
+      workflowSynthesizeRoute.name,
+      async (rawInput) => {
+        const input = workflowSynthesizeRoute.input.parse(rawInput)
+        requireOwnedRun(input.parentSessionId, input.runId)
+        return workflowSynthesizeRoute.output.parse({
+          receipt: await service.synthesize(input.runId)
         })
       }
     ]

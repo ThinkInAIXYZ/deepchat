@@ -8,6 +8,7 @@ import {
 import type { JsonValue } from '@shared/contracts/common'
 import type { WorkflowInvocation, WorkflowRun, WorkflowRunStatus } from '@shared/workflow/domain'
 import type { WorkflowInvocationCounts } from '@shared/workflow/projection'
+import type { WorkflowSynthesisReceipt } from '@shared/workflow/resultDelivery'
 import {
   WORKFLOW_RUNTIME_API_VERSION,
   WORKFLOW_RUNTIME_PROTOCOL_VERSION,
@@ -35,6 +36,7 @@ import {
   WorkflowUtilityProcessHost,
   type WorkflowUtilityProcessHostOptions
 } from './runtime/workflowUtilityProcessHost'
+import logger from '@shared/logger'
 
 const DEFAULT_CANCEL_GRACE_MS = 10_000
 const STOP_SETTLE_MS = 12_000
@@ -87,6 +89,16 @@ export type WorkflowUtilityHostFactory = (
   options: WorkflowUtilityProcessHostOptions
 ) => WorkflowUtilityHostPort
 
+export interface WorkflowResultDeliveryPort {
+  deliver(run: WorkflowRun): boolean
+  recoverPending(limit?: number): {
+    attempted: number
+    delivered: number
+    failed: number
+  }
+  synthesize(run: WorkflowRun): Promise<WorkflowSynthesisReceipt>
+}
+
 export type WorkflowServiceUpdate =
   | {
       type: 'run_changed'
@@ -108,6 +120,7 @@ export interface WorkflowServiceOptions {
   childExecutor: WorkflowChildExecutionPort
   runAdmission: WorkflowRunAdmissionPort
   launchScope: WorkflowLaunchScopePort
+  resultDelivery: WorkflowResultDeliveryPort
   approvals?: WorkflowLaunchApprovalRegistry
   hostFactory?: WorkflowUtilityHostFactory
   onUpdate?: (update: WorkflowServiceUpdate) => void
@@ -175,6 +188,11 @@ export class WorkflowService {
       this.now()
     )
     this.started = true
+    try {
+      this.options.resultDelivery.recoverPending(MAX_STARTUP_QUEUED_RUNS)
+    } catch (error) {
+      logger.warn('[WorkflowService] Failed to recover workflow result deliveries', { error })
+    }
     for (const run of this.options.repository.listQueuedRuns(MAX_STARTUP_QUEUED_RUNS)) {
       this.schedule(run, run.startedAt === null ? 'launch' : 'resume')
     }
@@ -253,6 +271,15 @@ export class WorkflowService {
 
   getInvocationCounts(runIds: readonly string[]): Map<string, WorkflowInvocationCounts> {
     return this.options.repository.getInvocationCounts(runIds)
+  }
+
+  async synthesize(runId: string): Promise<WorkflowSynthesisReceipt> {
+    this.requireStarted()
+    const run = this.options.repository.requireRun(runId)
+    if (run.status !== 'succeeded') {
+      throw new Error(`Workflow run ${run.id} has no successful result to synthesize.`)
+    }
+    return await this.options.resultDelivery.synthesize(run)
   }
 
   cancel(runId: string, reason = 'Workflow cancelled by the user.'): WorkflowRun {
@@ -769,7 +796,7 @@ export class WorkflowService {
         this.shutdownExecutionHost(execution)
         return
       }
-      this.options.repository.succeedRun(
+      const completedRun = this.options.repository.succeedRun(
         execution.runId,
         result,
         this.idFactory(),
@@ -777,6 +804,7 @@ export class WorkflowService {
         this.now()
       )
       this.emitRun(execution.runId)
+      this.tryDeliverResult(completedRun)
       this.shutdownExecutionHost(execution)
     } catch (error) {
       await this.finalizeFailure(execution, {
@@ -1091,6 +1119,20 @@ export class WorkflowService {
       }
       this.killExecutionHost(execution)
     })
+  }
+
+  private tryDeliverResult(run: WorkflowRun): void {
+    try {
+      if (this.options.resultDelivery.deliver(run)) {
+        this.emitRun(run.id)
+      }
+    } catch (error) {
+      logger.warn('[WorkflowService] Workflow succeeded but parent result delivery is pending', {
+        runId: run.id,
+        parentSessionId: run.parentSessionId,
+        error
+      })
+    }
   }
 
   private shutdownExecutionHost(execution: ActiveRunExecution): void {

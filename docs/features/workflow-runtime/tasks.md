@@ -175,16 +175,32 @@ Control-surface validation evidence (2026-07-31):
 
 ## Parent Result And UI
 
-- [ ] Persist one idempotent Workflow Result.
-- [ ] Deliver with `triggerTurn: false`.
-- [ ] Queue safely while a parent turn is active.
-- [ ] Add explicit parent synthesis action.
+- [x] Persist one idempotent Workflow Result.
+- [x] Deliver with `triggerTurn: false`.
+- [x] Queue safely while a parent turn is active.
+- [x] Add explicit parent synthesis action.
 - [ ] Add the workflow side-panel section and progress tree.
 - [ ] Add child-session navigation and interaction projection.
 - [ ] Add cancel, resume, retry, retry-from-here, and effect-warning controls.
 - [ ] Add loading, empty, interrupted, incompatible, and partial-result states.
 - [ ] Add vue-i18n copy and renderer tests.
-- [ ] Complete the pre-commit result/UI review, focused validation, and commit.
+- [x] Complete the pre-commit parent-result review, focused validation, and commit.
+- [ ] Complete the pre-commit UI review, focused validation, and commit.
+
+Parent-result validation evidence (2026-07-31):
+
+- a stable delivery/message identity closes the transcript-write/result-state crash window;
+- result notices are bounded, searchable first-class facts but do not enter parent model history,
+  compaction, or memory ingestion;
+- explicit synthesis preserves the pending-input `pending`/`claimed` state, caps full-result input
+  at 256 KiB, and carries a system-level untrusted-data guard;
+- 490 workflow, persistence, transcript, context-builder, memory-ingestion, route, and DeepChat
+  harness tests passed in the final focused run;
+- `pnpm run format:check`
+- `pnpm run i18n`
+- `pnpm run lint`
+- `pnpm run typecheck`
+- `pnpm exec electron-vite build`
 
 ## Saved Workflows
 

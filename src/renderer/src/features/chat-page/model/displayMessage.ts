@@ -204,9 +204,11 @@ type DisplayMessageBase = {
   variants?: DisplayMessage[]
   renderKey?: string
   orderSeq: number
-  messageType?: 'normal' | 'compaction'
+  messageType?: 'normal' | 'compaction' | 'workflow_result'
   compactionStatus?: 'compacting' | 'compacted'
   summaryUpdatedAt?: number | null
+  workflowRunId?: string
+  workflowResultDeliveryId?: string
 }
 
 export type DisplayUserMessage = DisplayMessageBase & {

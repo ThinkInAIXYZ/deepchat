@@ -384,6 +384,149 @@ describe('SessionTranscript', () => {
     })
   })
 
+  describe('appendAssistantNotice', () => {
+    const blocks = [
+      {
+        type: 'content' as const,
+        content: 'Workflow completed.',
+        status: 'success' as const,
+        timestamp: 1234
+      }
+    ]
+    const metadata = {
+      messageType: 'workflow_result' as const,
+      workflowRunId: 'run-1',
+      workflowResultDeliveryId: 'delivery-1'
+    }
+
+    it('atomically appends a terminal assistant notice with a caller-owned identity', () => {
+      const persistedRecord = {
+        id: 'delivery-1',
+        sessionId: 's1',
+        orderSeq: 6,
+        role: 'assistant' as const,
+        content: JSON.stringify(blocks),
+        status: 'sent' as const,
+        isContextEdge: 0,
+        metadata: JSON.stringify(metadata),
+        traceCount: 0,
+        createdAt: 1234,
+        updatedAt: 1234
+      }
+      vi.spyOn(store, 'getMessage').mockReturnValue(persistedRecord)
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq.mockReturnValue(5)
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValueOnce(undefined).mockReturnValue(
+        createMessageRow({
+          id: 'delivery-1',
+          session_id: 's1',
+          order_seq: 6,
+          role: 'assistant',
+          content: JSON.stringify(blocks),
+          status: 'sent',
+          metadata: JSON.stringify(metadata),
+          created_at: 1234,
+          updated_at: 1234
+        })
+      )
+
+      expect(
+        store.appendAssistantNotice({
+          messageId: 'delivery-1',
+          sessionId: 's1',
+          blocks,
+          metadata,
+          createdAt: 1234
+        })
+      ).toEqual(persistedRecord)
+      expect(sqlitePresenter.deepchatMessagesTable.insert).toHaveBeenCalledWith({
+        id: 'delivery-1',
+        sessionId: 's1',
+        orderSeq: 6,
+        role: 'assistant',
+        content: JSON.stringify(blocks),
+        status: 'sent',
+        metadata: JSON.stringify(metadata),
+        createdAt: 1234,
+        updatedAt: 1234
+      })
+      expect(sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage).toHaveBeenCalledWith(
+        'delivery-1',
+        blocks
+      )
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 's1',
+          messageId: 'delivery-1',
+          role: 'assistant',
+          content: 'Workflow completed.'
+        })
+      )
+      expect(sqlitePresenter.deepchatTapeEntriesTable.append).toHaveBeenCalledOnce()
+    })
+
+    it('accepts an existing workflow notice across presentation-version changes', () => {
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(
+        createMessageRow({
+          id: 'delivery-1',
+          session_id: 's1',
+          role: 'assistant',
+          content: JSON.stringify([{ ...blocks[0], content: 'Older notice formatting.' }]),
+          status: 'sent',
+          metadata: JSON.stringify(metadata)
+        })
+      )
+
+      expect(
+        store.appendAssistantNotice({
+          messageId: 'delivery-1',
+          sessionId: 's1',
+          blocks,
+          metadata,
+          createdAt: 1234
+        })
+      ).toMatchObject({ id: 'delivery-1', role: 'assistant', status: 'sent' })
+      expect(sqlitePresenter.deepchatMessagesTable.insert).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatTapeEntriesTable.append).not.toHaveBeenCalled()
+    })
+
+    it('rejects a reused notice identity attributed to a different workflow run', () => {
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(
+        createMessageRow({
+          id: 'delivery-1',
+          session_id: 's1',
+          role: 'assistant',
+          content: JSON.stringify(blocks),
+          status: 'sent',
+          metadata: JSON.stringify({ ...metadata, workflowRunId: 'other-run' })
+        })
+      )
+
+      expect(() =>
+        store.appendAssistantNotice({
+          messageId: 'delivery-1',
+          sessionId: 's1',
+          blocks,
+          metadata,
+          createdAt: 1234
+        })
+      ).toThrow('identity collision')
+      expect(sqlitePresenter.deepchatMessagesTable.insert).not.toHaveBeenCalled()
+    })
+
+    it('rejects workflow notice metadata whose delivery ID differs from the message ID', () => {
+      expect(() =>
+        store.appendAssistantNotice({
+          messageId: 'delivery-1',
+          sessionId: 's1',
+          blocks,
+          metadata: { ...metadata, workflowResultDeliveryId: 'delivery-2' },
+          createdAt: 1234
+        })
+      ).toThrow('does not match its delivery identity')
+      expect(sqlitePresenter.deepchatMessagesTable.get).not.toHaveBeenCalled()
+    })
+  })
+
   describe('updateAssistantContent', () => {
     it('updates structured assistant blocks and keeps the header pending', () => {
       const blocks = [

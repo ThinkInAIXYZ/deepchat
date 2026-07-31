@@ -521,9 +521,18 @@ remain governed by the existing session and exact-tool permission paths.
 Completion creates one durable Workflow Result associated with the parent session. Delivery is
 idempotent and uses `triggerTurn: false` semantics:
 
-- it never starts a parent model turn while another turn is running;
-- it is visible as a first-class result message or pending input;
+- the persisted delivery identity is also the first-class assistant notice identity, so a crash
+  between transcript insertion and the delivery-state update replays without duplication;
+- the notice contains a bounded 16 KiB preview while the complete result remains in
+  `workflow_runs`;
+- it never queues input or starts a parent model turn on completion;
+- workflow result notices remain visible and searchable but are excluded from model history,
+  compaction, and memory ingestion by default;
 - the user can explicitly choose “Ask parent agent to synthesize”;
+- explicit synthesis accepts at most 256 KiB of result JSON and uses the existing pending-input
+  path, which starts immediately when the parent is idle and queues while another turn is active;
+- synthesized result text is framed as untrusted data and adds a system-level prompt-injection
+  guard for the current and historical turn;
 - repeated startup reconciliation cannot duplicate the result.
 
 Child sessions remain navigable and continuable after workflow completion. DeepChat does not

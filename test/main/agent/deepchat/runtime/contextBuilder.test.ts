@@ -10,6 +10,7 @@ import {
   estimateMessagesTokens,
   fitCacheAwareMessagesToContextWindow,
   fitMessagesToContextWindow,
+  recordToChatMessages,
   truncateContext
 } from '@/agent/deepchat/runtime/contextBuilder'
 import { buildContextCheckpoint } from '@/agent/deepchat/runtime/contextContributions'
@@ -374,6 +375,31 @@ describe('truncateContext', () => {
 })
 
 describe('buildContext', () => {
+  it('keeps workflow result notices out of parent model history', () => {
+    const workflowResult = {
+      ...makeAssistantRecord(2, 'SECRET_WORKFLOW_RESULT'),
+      metadata: JSON.stringify({
+        messageType: 'workflow_result',
+        workflowRunId: 'run-1',
+        workflowResultDeliveryId: 'delivery-1'
+      })
+    }
+    const messages = [makeUserRecord(1, 'Earlier request'), workflowResult]
+    const store = createMockMessageStore(messages)
+
+    const result = buildContext(
+      's1',
+      { text: 'Unrelated follow-up', files: [] },
+      'System',
+      10_000,
+      100,
+      store
+    )
+
+    expect(JSON.stringify(result)).not.toContain('SECRET_WORKFLOW_RESULT')
+    expect(recordToChatMessages(workflowResult, false)).toEqual([])
+  })
+
   it('returns [system, user] when no history', () => {
     const store = createMockMessageStore([])
     const result = buildContext(

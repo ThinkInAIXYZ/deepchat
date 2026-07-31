@@ -21,6 +21,7 @@ import {
   WorkflowService,
   type WorkflowChildExecutionPort,
   type WorkflowLaunchScopePort,
+  type WorkflowResultDeliveryPort,
   type WorkflowServiceUpdate,
   type WorkflowUtilityHostPort
 } from '@/workflow/service'
@@ -135,12 +136,14 @@ describeIfSqlite('WorkflowService', () => {
       cancelGraceMs?: number
       onUpdate?: (update: WorkflowServiceUpdate) => void
       launchScope?: WorkflowLaunchScopePort
+      resultDelivery?: WorkflowResultDeliveryPort
     } = {}
   ): WorkflowService {
     const service = new WorkflowService({
       repository,
       childExecutor,
       runAdmission,
+      resultDelivery: options.resultDelivery ?? createResultDelivery(),
       launchScope: options.launchScope ?? {
         resolve: vi.fn(
           async (input): Promise<Awaited<ReturnType<WorkflowLaunchScopePort['resolve']>>> => ({
@@ -164,6 +167,21 @@ describeIfSqlite('WorkflowService', () => {
     service.start()
     services.push(service)
     return service
+  }
+
+  function createResultDelivery(
+    overrides: Partial<WorkflowResultDeliveryPort> = {}
+  ): WorkflowResultDeliveryPort {
+    return {
+      deliver: vi.fn(() => true),
+      recoverPending: vi.fn(() => ({ attempted: 0, delivered: 0, failed: 0 })),
+      synthesize: vi.fn(async (run) => ({
+        runId: run.id,
+        pendingInputId: 'pending-synthesis',
+        state: 'pending'
+      })),
+      ...overrides
+    }
   }
 
   async function prepareAndLaunch(
@@ -307,6 +325,71 @@ describeIfSqlite('WorkflowService', () => {
     })
     expect(host.shutdownCount).toBe(1)
     expect(childExecutor.execute).toHaveBeenCalledOnce()
+  })
+
+  it('delivers successful results without coupling delivery failure to run completion', async () => {
+    const deliver = vi.fn(() => {
+      throw new Error('parent transcript unavailable')
+    })
+    const resultDelivery = createResultDelivery({ deliver })
+    const service = createService(undefined, undefined, { resultDelivery })
+    const run = await prepareAndLaunch(service)
+    const host = await waitForHost()
+
+    host.emit({ type: 'COMPLETE', value: { summary: 'done' } })
+
+    const succeeded = await waitForRun(run.id, 'succeeded')
+    expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ id: run.id }))
+    expect(succeeded.resultDeliveryState).toBe('pending')
+    expect(host.shutdownCount).toBe(1)
+  })
+
+  it('recovers pending result deliveries when the service starts', () => {
+    const recoverPending = vi.fn(() => ({ attempted: 1, delivered: 1, failed: 0 }))
+    createService(undefined, undefined, {
+      resultDelivery: createResultDelivery({ recoverPending })
+    })
+
+    expect(recoverPending).toHaveBeenCalledWith(500)
+  })
+
+  it('delegates explicit synthesis only for successful runs', async () => {
+    const synthesize = vi.fn(async (run: WorkflowRun) => ({
+      runId: run.id,
+      pendingInputId: 'pending-synthesis',
+      state: 'pending' as const
+    }))
+    const service = createService(undefined, undefined, {
+      resultDelivery: createResultDelivery({ synthesize })
+    })
+    const failed = createDormantRun('failed')
+
+    await expect(service.synthesize(failed.id)).rejects.toThrow('no successful result')
+    expect(synthesize).not.toHaveBeenCalled()
+
+    const successful = repository.createRun({
+      id: `success-${++idSequence}`,
+      parentSessionId: 'parent',
+      workspacePath: '/repo',
+      capabilityScopeHash: 'a'.repeat(64),
+      scriptSource: 'return null',
+      input: null,
+      limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
+      allowedAgentIds: ['deepchat'],
+      budget: null,
+      now: now++
+    })
+    repository.startRun(successful.id, now++)
+    repository.succeedRun(successful.id, null, 'delivery-synthesis', null, now++)
+
+    await expect(service.synthesize(successful.id)).resolves.toEqual({
+      runId: successful.id,
+      pendingInputId: 'pending-synthesis',
+      state: 'pending'
+    })
+    expect(synthesize).toHaveBeenCalledWith(
+      expect.objectContaining({ id: successful.id, result: null })
+    )
   })
 
   it('revalidates the main-resolved workspace when consuming a launch approval', async () => {

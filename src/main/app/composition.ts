@@ -159,6 +159,7 @@ import { WorkflowChildExecutor } from '@/workflow/childExecutor'
 import { WorkflowRunAdmission } from '@/workflow/runAdmission'
 import { WorkflowLaunchScopeResolver } from '@/workflow/launchScope'
 import { WorkflowService, type WorkflowServiceUpdate } from '@/workflow/service'
+import { WorkflowResultDelivery } from '@/workflow/resultDelivery'
 import {
   projectWorkflowRunDetail,
   projectWorkflowRunSummaryWithCounts
@@ -1541,12 +1542,25 @@ export async function createMainProcessControl(dependencies: {
       createdAt: update.createdAt
     })
   }
+  const workflowResultDelivery = new WorkflowResultDelivery({
+    repository: workflowRepository,
+    transcript: sessionData.transcript,
+    queue: {
+      queuePendingInput: (sessionId, content) => sessionTurn.queuePendingInput(sessionId, content)
+    },
+    onDelivered: (sessionId) =>
+      sessionQuery.notify({
+        sessionIds: [sessionId],
+        reason: 'updated'
+      })
+  })
   const createWorkflowService = (): WorkflowService =>
     new WorkflowService({
       repository: workflowRepository,
       childExecutor: workflowChildExecutor,
       runAdmission: workflowRunAdmission,
       launchScope: workflowLaunchScope,
+      resultDelivery: workflowResultDelivery,
       onUpdate: publishWorkflowUpdate
     })
   workflowService = createWorkflowService()

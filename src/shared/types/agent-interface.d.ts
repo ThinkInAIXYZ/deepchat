@@ -387,9 +387,11 @@ export interface MessageMetadata {
   tokensPerSecond?: number
   model?: string
   provider?: string
-  messageType?: 'compaction'
+  messageType?: 'compaction' | 'workflow_result'
   compactionStatus?: 'compacting' | 'compacted'
   summaryUpdatedAt?: number | null
+  workflowRunId?: string
+  workflowResultDeliveryId?: string
 }
 
 export interface ChatMessageRecord {

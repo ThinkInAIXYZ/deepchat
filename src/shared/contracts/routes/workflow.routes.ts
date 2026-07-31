@@ -5,6 +5,7 @@ import {
   WorkflowLaunchApprovalSchema,
   WorkflowLaunchIntentSchema
 } from '../../workflow/serviceContracts'
+import { WorkflowSynthesisReceiptSchema } from '../../workflow/resultDelivery'
 
 const WorkflowRouteIdSchema = z.string().trim().min(1).max(256)
 const WorkflowRunRefSchema = z
@@ -96,6 +97,16 @@ export const workflowRetryRoute = defineRouteContract({
   output: z
     .object({
       run: WorkflowRunSummarySchema
+    })
+    .strict()
+})
+
+export const workflowSynthesizeRoute = defineRouteContract({
+  name: 'workflow.synthesize',
+  input: WorkflowRunRefSchema,
+  output: z
+    .object({
+      receipt: WorkflowSynthesisReceiptSchema
     })
     .strict()
 })

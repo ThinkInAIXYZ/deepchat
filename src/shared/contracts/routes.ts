@@ -525,7 +525,8 @@ import {
   workflowListRoute,
   workflowPrepareLaunchRoute,
   workflowResumeRoute,
-  workflowRetryRoute
+  workflowRetryRoute,
+  workflowSynthesizeRoute
 } from './routes/workflow.routes'
 
 export * from './routes/browser.routes'
@@ -1054,7 +1055,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [workflowInspectRoute.name]: workflowInspectRoute,
   [workflowCancelRoute.name]: workflowCancelRoute,
   [workflowResumeRoute.name]: workflowResumeRoute,
-  [workflowRetryRoute.name]: workflowRetryRoute
+  [workflowRetryRoute.name]: workflowRetryRoute,
+  [workflowSynthesizeRoute.name]: workflowSynthesizeRoute
 } satisfies Record<string, RouteContract>
 
 export type DeepchatRouteCatalog = typeof DEEPCHAT_ROUTE_CATALOG_PART_1 &

@@ -343,8 +343,9 @@ export class WorkflowRunsTable extends BaseTable {
       .prepare(
         `SELECT *
          FROM workflow_runs
-         WHERE result_delivery_state = 'pending'
-         ORDER BY updated_at ASC, run_id ASC
+         WHERE status = 'succeeded'
+           AND result_delivery_state = 'pending'
+         ORDER BY completed_at ASC, run_id ASC
          LIMIT ?`
       )
       .all(limit) as WorkflowRunRow[]

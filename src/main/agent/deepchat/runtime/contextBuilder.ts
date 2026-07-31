@@ -28,6 +28,7 @@ import {
   isImageAttachment,
   isPdfAttachment
 } from '@shared/utils/attachmentRepresentation'
+import { isWorkflowResultMessageMetadata } from '@shared/workflow/resultDelivery'
 
 export { estimateMessagesTokens } from '@shared/utils/messageTokens'
 
@@ -222,7 +223,7 @@ function parseUserRecordContent(content: string): SendMessageInput {
 }
 
 export function isContextHistoryRecord(record: ChatMessageRecord): boolean {
-  if (isCompactionRecord(record)) {
+  if (isCompactionRecord(record) || isWorkflowResultRecord(record)) {
     return false
   }
   if (record.status === 'sent') {
@@ -851,7 +852,7 @@ export function recordToChatMessages(
   supportsAudioInput: boolean = false,
   userLeadingContext?: string | null
 ): ChatMessage[] {
-  if (isCompactionRecord(record)) {
+  if (isCompactionRecord(record) || isWorkflowResultRecord(record)) {
     return []
   }
 
@@ -1001,6 +1002,10 @@ export function recordToChatMessages(
   }
 
   return result
+}
+
+function isWorkflowResultRecord(record: ChatMessageRecord): boolean {
+  return isWorkflowResultMessageMetadata(record.metadata)
 }
 
 export function buildHistoryTurns(
