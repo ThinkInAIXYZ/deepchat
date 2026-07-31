@@ -17,6 +17,8 @@
         class="flex-row-reverse"
         :name="message.name ?? 'user'"
         :timestamp="message.timestamp"
+        :receipt="receipt"
+        :receipt-label="receiptLabel"
       />
       <div
         v-if="standaloneActiveSkills.length"
@@ -106,7 +108,7 @@
         :is-assistant="false"
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
-        :is-read-only="isReadOnly"
+        :is-read-only="effectiveReadOnly"
         @retry="onRetryAction"
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
@@ -141,6 +143,7 @@ import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 
 const COLLAPSE_CHAR_THRESHOLD = 600
 const COLLAPSE_EXPLICIT_LINE_THRESHOLD = 8
+const READ_RECEIPT_VISIBLE_MS = 1500
 
 const countExplicitLines = (value: string) => {
   if (!value) {
@@ -177,6 +180,13 @@ const editedText = ref('')
 const editTextarea = ref<HTMLTextAreaElement | null>(null)
 const isExpanded = ref(true)
 const hasManualCollapsePreference = ref(false)
+const receipt = ref<'unread' | 'read' | null>(null)
+let receiptTimer: ReturnType<typeof setTimeout> | null = null
+
+const effectiveReadOnly = computed(() => props.isReadOnly || props.message.status === 'pending')
+const receiptLabel = computed(() =>
+  receipt.value ? t(`chat.messageReceipt.${receipt.value}`) : undefined
+)
 
 const messageFileByKey = computed(() => {
   const files = new Map<string, (typeof props.message.content.files)[number]>()
@@ -257,7 +267,7 @@ const toggleExpanded = () => {
 }
 
 const startEdit = () => {
-  if (props.isReadOnly) {
+  if (effectiveReadOnly.value) {
     return
   }
 
@@ -272,7 +282,7 @@ const startEdit = () => {
 }
 
 const saveEdit = async () => {
-  if (props.isReadOnly) {
+  if (effectiveReadOnly.value) {
     return
   }
 
@@ -293,7 +303,7 @@ const saveEdit = async () => {
 }
 
 const onRetryAction = () => {
-  if (props.isReadOnly) {
+  if (effectiveReadOnly.value) {
     return
   }
   emit('retry', props.message.id)
@@ -320,7 +330,7 @@ const cancelEdit = () => {
 
 const handleAction = (action: 'delete' | 'copy') => {
   if (action === 'delete') {
-    if (props.isReadOnly) {
+    if (effectiveReadOnly.value) {
       return
     }
     emit('delete', props.message.id)
@@ -385,7 +395,41 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => [props.message.id, props.message.inputReceipt?.readAt] as const,
+  ([, readAt]) => {
+    if (receiptTimer) {
+      clearTimeout(receiptTimer)
+      receiptTimer = null
+    }
+    if (!props.message.inputReceipt) {
+      receipt.value = null
+      return
+    }
+    if (readAt === null || readAt === undefined) {
+      receipt.value = 'unread'
+      return
+    }
+
+    const remaining = readAt + READ_RECEIPT_VISIBLE_MS - Date.now()
+    if (remaining <= 0) {
+      receipt.value = null
+      return
+    }
+    receipt.value = 'read'
+    receiptTimer = setTimeout(() => {
+      receipt.value = null
+      receiptTimer = null
+    }, remaining)
+  },
+  { immediate: true }
+)
+
 onBeforeUnmount(() => {
+  if (receiptTimer) {
+    clearTimeout(receiptTimer)
+    receiptTimer = null
+  }
   if (pendingResizeFrame !== null) {
     window.cancelAnimationFrame(pendingResizeFrame)
     pendingResizeFrame = null

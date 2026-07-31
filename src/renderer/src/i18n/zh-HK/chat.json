@@ -402,6 +402,10 @@
       "caption": "聚光會一直停留在輸入框，直到你真正送出第一條訊息。"
     }
   },
+  "messageReceipt": {
+    "unread": "未讀",
+    "read": "已讀"
+  },
   "attachments": {
     "chooseRepresentation": "選擇如何傳送 {name}",
     "representation": "附件表示方式",

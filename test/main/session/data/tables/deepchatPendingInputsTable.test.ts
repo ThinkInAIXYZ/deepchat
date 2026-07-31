@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import { SessionPendingInputStore } from '@/session/data/pendingInputStore'
 import { DeepChatPendingInputsTable } from '@/session/data/tables/deepchatPendingInputs'
+import { createSessionData } from '@/session/data'
+import { MainDatabase } from '@/data/mainDatabase'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 
 const DatabaseCtor = Database!
@@ -10,10 +12,14 @@ const describeIfNativeSqlite = nativeSqliteDescribeIf()
 describe('DeepChatPendingInputsTable migrations', () => {
   it('adds body-free blocking metadata at global schema version 43', () => {
     const table = new DeepChatPendingInputsTable({} as never)
-    expect(table.getLatestVersion()).toBe(43)
+    expect(table.getLatestVersion()).toBe(46)
     expect(table.getMigrationSQL(43)).toBe(
       'ALTER TABLE deepchat_pending_inputs ADD COLUMN blocking_json TEXT;'
     )
+    expect(table.getMigrationSQL(46)).toContain(
+      "ADD COLUMN message_ids_json TEXT NOT NULL DEFAULT '[]'"
+    )
+    expect(table.getMigrationSQL(46)).toContain('ADD COLUMN assistant_message_id TEXT')
   })
 })
 
@@ -44,7 +50,11 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
       expect(store.getNextPendingQueueInput('s1')).toBeNull()
       expect(store.listPendingInputs('s1').map((item) => item.id)).toEqual([first.id, second.id])
 
-      const laterSteer = store.createSteerInput('s1', { text: 'urgent but later', files: [] })
+      const laterSteer = store.createSteerInput(
+        's1',
+        { text: 'urgent but later', files: [] },
+        'steer-message'
+      )
       expect(store.getNextPendingSteerInput('s1')?.id).toBe(laterSteer.id)
       expect(store.hasBlockingInput('s1')).toBe(true)
 
@@ -267,6 +277,81 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
       expect(item.payload.files?.[1].resolvedRepresentation).toEqual({ kind: 'image' })
     } finally {
       db.close()
+    }
+  })
+})
+
+describeIfNativeSqlite('Steer message lifecycle', () => {
+  it('persists separate user messages and one read-boundary assistant row', () => {
+    const connection = new MainDatabase(':memory:')
+    const publishedMessages: string[][] = []
+    const data = createSessionData(connection, undefined, {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: (_sessionId, messages) => {
+        publishedMessages.push(messages.map((message) => message.id))
+      }
+    })
+
+    try {
+      data.settings.create('s1', 'openai', 'gpt-4o', 'full_access')
+      const source = data.pendingInputs.queuePendingInput(
+        's1',
+        { text: 'source', files: [] },
+        { state: 'claimed' }
+      )
+      const first = data.pendingInputs.acceptSteerMessage(
+        's1',
+        {
+          text: 'first',
+          files: []
+        },
+        { preStreamAnchorMessageId: null }
+      )
+      const second = data.pendingInputs.acceptSteerMessage(
+        's1',
+        { text: 'second', files: [] },
+        { mergeItemId: first.pendingInput.id }
+      )
+
+      expect(first.sourceMessage?.content).toContain('source')
+      expect(data.pendingInputs.getInput('s1', source.id)?.messageIds).toEqual([
+        first.sourceMessage?.id
+      ])
+      expect(second.pendingInput.messageIds).toEqual([first.message.id, second.message.id])
+      expect(data.transcript.getMessages('s1').map((message) => message.status)).toEqual([
+        'sent',
+        'pending',
+        'pending'
+      ])
+
+      data.pendingInputs.consumeQueuedInput('s1', source.id)
+      const claimed = data.pendingInputs.claimSteerInput('s1', first.pendingInput.id)
+      const claimedMessages = data.transcript.getMessages('s1')
+      expect(claimedMessages.map((message) => message.id)).toEqual([
+        first.sourceMessage?.id,
+        first.message.id,
+        second.message.id,
+        claimed.assistantMessageId
+      ])
+      const readAt = claimedMessages.slice(1, 3).map((message) => {
+        const metadata = JSON.parse(message.metadata) as {
+          inputReceipt: { readAt: number | null }
+        }
+        return metadata.inputReceipt.readAt
+      })
+      expect(readAt[0]).toBeTypeOf('number')
+      expect(readAt[1]).toBe(readAt[0])
+
+      data.pendingInputs.consumeSteerInput('s1', first.pendingInput.id)
+      expect(
+        data.transcript
+          .getMessages('s1')
+          .slice(1, 3)
+          .map((message) => message.status)
+      ).toEqual(['sent', 'sent'])
+      expect(publishedMessages.map((batch) => batch.length)).toEqual([2, 1, 3, 2])
+    } finally {
+      connection.close()
     }
   })
 })

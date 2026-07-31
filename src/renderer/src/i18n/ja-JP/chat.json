@@ -402,6 +402,10 @@
       "caption": "最初のメッセージを送信するまで、スポットライトは入力欄に表示されたままです。"
     }
   },
+  "messageReceipt": {
+    "unread": "未読",
+    "read": "既読"
+  },
   "attachments": {
     "chooseRepresentation": "{name} の送信方法を選択",
     "representation": "添付ファイルの送信形式",

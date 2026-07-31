@@ -1651,11 +1651,6 @@ declare module 'vue-i18n' {
       iconPlaceholder: string
       icons: string
       iconsPlaceholder: string
-      autoApprove: string
-      autoApproveAll: string
-      autoApproveRead: string
-      autoApproveWrite: string
-      autoApproveHelp: string
       submit: string
       add: string
       update: string
@@ -1873,6 +1868,52 @@ declare module 'vue-i18n' {
       autoApproveIn: string
       reviewRequest: string
       sessionActive: string
+    }
+    elicitation: {
+      title: string
+      accept: string
+      decline: string
+      noFields: string
+      openLink: string
+      selectValue: string
+      error: {
+        required: string
+        number: string
+        integer: string
+        boolean: string
+        range: string
+        selection: string
+        length: string
+        format: string
+      }
+    }
+    apps: {
+      title: string
+      interactiveContent: string
+      loadError: string
+      retry: string
+      fullscreen: string
+      pictureInPicture: string
+      returnInline: string
+      securityDetails: string
+      allowedOrigins: string
+      requestedPermissions: string
+      noneDeclared: string
+      advisoryDomain: string
+      toolAccessSuspended: string
+      retryAccess: string
+      permissions: {
+        camera: string
+        microphone: string
+        geolocation: string
+        clipboardWrite: string
+      }
+      consent: {
+        title: string
+        description: string
+        allowOnce: string
+        deny: string
+      }
     }
     type: {
       custom: string
@@ -2367,6 +2408,7 @@ declare module 'vue-i18n' {
         searchPlaceholder: string
         noSearchResults: string
         addMemory: string
+        loadMore: string
         addContentPlaceholder: string
         addCategoryLabel: string
         addCategoryNone: string
@@ -2493,7 +2535,6 @@ declare module 'vue-i18n' {
             working: string
           }
         }
-        loadMore: string
       }
       compactionThreshold: string
       compactionRetainPairs: string
@@ -3182,11 +3223,6 @@ declare module 'vue-i18n' {
         iconPlaceholder: string
         icons: string
         iconsPlaceholder: string
-        autoApprove: string
-        autoApproveAll: string
-        autoApproveRead: string
-        autoApproveWrite: string
-        autoApproveHelp: string
         submit: string
         add: string
         update: string
@@ -3220,6 +3256,41 @@ declare module 'vue-i18n' {
         e2bApiKeyPlaceholder: string
         e2bApiKeyHelp: string
         e2bApiKeyRequired: string
+        sseCompatibilityBadge: string
+        sseMigrationHint: string
+        authorizationMode: string
+        authorizationInteractive: string
+        authorizationNone: string
+        authorizationClientCredentials: string
+        authorizationPrivateKeyJwt: string
+        authorizationEnterprise: string
+        authorizationHelp: {
+          none: string
+          interactive: string
+          client_credentials: string
+          private_key_jwt: string
+          cross_app_access: string
+        }
+        authorizationHeaderOverride: string
+        protectedResourceUrl: string
+        protectedResourceUrlPlaceholder: string
+        authorizationServerIssuer: string
+        authorizationServerIssuerPlaceholder: string
+        clientMetadataUrl: string
+        authorizationClientId: string
+        authorizationScopes: string
+        authorizationScopesPlaceholder: string
+        keyAlgorithm: string
+        identityProfile: string
+        identityProfilePlaceholder: string
+        privateKey: string
+        clientSecret: string
+        removeCredential: string
+        credentialConfiguredPlaceholder: string
+        credentialConfigured: string
+        credentialMemoryOnly: string
+        credentialRemoveError: string
+        credentialSaveError: string
       }
       deleteServer: string
       editServer: string
@@ -3321,6 +3392,52 @@ declare module 'vue-i18n' {
       completeAuthentication: string
       saveSuccess: string
       saveFailed: string
+      enterpriseProfiles: {
+        title: string
+        description: string
+        label: string
+        issuer: string
+        clientId: string
+        scopes: string
+        clientAuthentication: string
+        publicClient: string
+        confidentialClient: string
+        clientSecret: string
+        clientSecretMissing: string
+        authenticated: string
+        signIn: string
+        signOut: string
+        callbackUrl: string
+        empty: string
+        loadError: string
+        saveError: string
+        authError: string
+        removeError: string
+        removeTitle: string
+        removeDescription: string
+        status: {
+          signed_out: string
+          authenticating: string
+          authenticated: string
+          error: string
+        }
+      }
+      diagnostics: {
+        title: string
+        serverId: string
+        owner: string
+        transport: string
+        connectionState: string
+        era: string
+        serverImplementation: string
+        probe: string
+        extensions: string
+        clientExtensions: string
+        cache: string
+        subscriptions: string
+        auth: string
+        copy: string
+      }
     }
     cronJobs: {
       title: string

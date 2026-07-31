@@ -1,6 +1,8 @@
 import Database from 'better-sqlite3-multiple-ciphers'
+import { isDeepStrictEqual } from 'node:util'
 import { BaseTable } from '@/data/baseTable'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { McpAppDescriptor } from '@shared/types/mcp'
 
 export interface DeepChatAssistantBlockRow {
   message_id: string
@@ -34,6 +36,11 @@ type PersistedBlockExtra = {
   reasoningTime?: number
 }
 
+type McpAppSourceRow = Pick<
+  DeepChatAssistantBlockRow,
+  'tool_call_id' | 'tool_params' | 'extra_json'
+>
+
 function buildPersistedExtra(block: AssistantMessageBlock): PersistedBlockExtra {
   return {
     id: block.id,
@@ -48,7 +55,8 @@ function buildPersistedExtra(block: AssistantMessageBlock): PersistedBlockExtra 
           imagePreviews: block.tool_call.imagePreviews,
           server_name: block.tool_call.server_name,
           server_icons: block.tool_call.server_icons,
-          server_description: block.tool_call.server_description
+          server_description: block.tool_call.server_description,
+          mcpResult: block.tool_call.mcpResult
         }
       : undefined,
     reasoningTime: typeof block.reasoning_time === 'number' ? block.reasoning_time : undefined
@@ -172,6 +180,92 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
          ORDER BY block_index`
       )
       .all(messageId) as DeepChatAssistantBlockRow[]
+  }
+
+  matchesMcpAppSource(
+    messageId: string,
+    blockId: string,
+    descriptor: McpAppDescriptor,
+    toolInput: Record<string, unknown>
+  ): boolean {
+    for (const row of this.listByMessageId(messageId)) {
+      if (row.block_type !== 'tool_call') {
+        continue
+      }
+      if (this.matchMcpAppSourceRow(row, blockId, descriptor, toolInput)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  updateMcpAppModelContext(
+    messageId: string,
+    blockId: string,
+    descriptor: McpAppDescriptor,
+    toolInput: Record<string, unknown>,
+    modelContext: {
+      content?: NonNullable<NonNullable<AssistantMessageBlock['tool_call']>['mcpResult']>['content']
+      structuredContent?: Record<string, unknown>
+      approvedHash: string
+    }
+  ): boolean {
+    const rows = this.db
+      .prepare(
+        `SELECT block_index, tool_call_id, tool_params, extra_json
+         FROM deepchat_assistant_blocks
+         WHERE message_id = ? AND block_type = 'tool_call'`
+      )
+      .all(messageId) as Array<{
+      block_index: number
+      tool_call_id: string | null
+      tool_params: string | null
+      extra_json: string | null
+    }>
+
+    for (const row of rows) {
+      const extra = this.matchMcpAppSourceRow(row, blockId, descriptor, toolInput)
+      if (!extra) {
+        continue
+      }
+      const toolCallExtra = extra.toolCallExtra
+      const mcpResult = toolCallExtra?.mcpResult
+      if (!mcpResult) {
+        continue
+      }
+      toolCallExtra.mcpResult = {
+        ...mcpResult,
+        modelContext
+      }
+      this.db
+        .prepare(
+          `UPDATE deepchat_assistant_blocks
+           SET extra_json = ?, updated_at = ?
+           WHERE message_id = ? AND block_index = ?`
+        )
+        .run(JSON.stringify(extra), Date.now(), messageId, row.block_index)
+      return true
+    }
+    return false
+  }
+
+  private matchMcpAppSourceRow(
+    row: McpAppSourceRow,
+    blockId: string,
+    descriptor: McpAppDescriptor,
+    toolInput: Record<string, unknown>
+  ): PersistedBlockExtra | null {
+    try {
+      const extra = row.extra_json ? (JSON.parse(row.extra_json) as PersistedBlockExtra) : {}
+      const persistedInput = row.tool_params ? JSON.parse(row.tool_params) : {}
+      return (extra.id ?? row.tool_call_id) === blockId &&
+        isDeepStrictEqual(extra.toolCallExtra?.mcpResult?.app, descriptor) &&
+        isDeepStrictEqual(persistedInput, toolInput)
+        ? extra
+        : null
+    } catch {
+      return null
+    }
   }
 
   delete(messageId: string): void {

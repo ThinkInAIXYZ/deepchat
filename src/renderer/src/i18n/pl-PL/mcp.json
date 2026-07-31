@@ -88,11 +88,6 @@
     "addArg": "Dodaj argument",
     "argPlaceholder": "Wprowadź wartość argumentu",
     "argsRequired": "Parametry nie mogą być puste",
-    "autoApprove": "Automatyczne zatwierdzanie",
-    "autoApproveAll": "Wszystko",
-    "autoApproveHelp": "Wybierz typ operacji wymagający automatycznej autoryzacji i wykonaj ją bez potwierdzenia użytkownika",
-    "autoApproveRead": "Przeczytaj",
-    "autoApproveWrite": "Napisz",
     "baseUrl": "Baza URL",
     "baseUrlPlaceholder": "Wprowadź podstawowy serwer URL (na przykład: http://localhost:3000)",
     "cancel": "Anuluj",
@@ -305,5 +300,51 @@
     "empty": "Brak usług",
     "loadMore": "Załaduj więcej",
     "pullDownToLoad": "Kontynuuj ciągnięcie w dół, aby załadować więcej"
+  },
+  "elicitation": {
+    "title": "Żądanie danych MCP",
+    "accept": "Wyślij",
+    "decline": "Odrzuć",
+    "noFields": "To żądanie nie zawiera pól formularza.",
+    "openLink": "Otwórz bezpieczny link",
+    "selectValue": "Wybierz wartość",
+    "error": {
+      "required": "To pole jest wymagane.",
+      "number": "Wpisz prawidłową liczbę.",
+      "integer": "Wpisz liczbę całkowitą.",
+      "boolean": "Wybierz prawidłową wartość true lub false.",
+      "range": "Wartość jest poza dozwolonym zakresem.",
+      "selection": "Wybierz prawidłową opcję.",
+      "length": "Długość tekstu jest poza dozwolonym zakresem.",
+      "format": "Wpisz wartość w wymaganym formacie."
+    }
+  },
+  "apps": {
+    "title": "MCP App",
+    "interactiveContent": "Interaktywna zawartość z serwera MCP",
+    "loadError": "Nie można załadować tej aplikacji MCP.",
+    "retry": "Ponów próbę",
+    "fullscreen": "Otwórz na pełnym ekranie",
+    "pictureInPicture": "Otwórz obraz w obrazie",
+    "returnInline": "Wróć do widoku w treści",
+    "securityDetails": "Szczegóły zabezpieczeń",
+    "allowedOrigins": "Zadeklarowane źródła sieciowe",
+    "requestedPermissions": "Żądane uprawnienia urządzenia",
+    "noneDeclared": "Nie zadeklarowano",
+    "advisoryDomain": "Domena informacyjna",
+    "toolAccessSuspended": "Dostęp do narzędzi wstrzymano po odrzuceniu żądania.",
+    "retryAccess": "Ponów próbę dostępu",
+    "permissions": {
+      "camera": "Aparat",
+      "microphone": "Mikrofon",
+      "geolocation": "Lokalizacja",
+      "clipboardWrite": "Zapis w schowku"
+    },
+    "consent": {
+      "title": "Żądanie aplikacji MCP",
+      "description": "Sprawdź działanie żądane przez interaktywną zawartość MCP.",
+      "allowOnce": "Zezwól raz",
+      "deny": "Odrzuć"
+    }
   }
 }

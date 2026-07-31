@@ -84,7 +84,6 @@ async function createCuaPluginFixture() {
         transport: 'stdio',
         command: '${runtime.cua-driver.command}',
         args: ['mcp', '--embedded'],
-        autoApprove: [],
         startMode: 'onDemand',
         surfaces: ['tools'],
         toolCatalog: 'runtime/${target.platform}/${arch}/tool-catalog.json',

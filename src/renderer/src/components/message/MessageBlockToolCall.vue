@@ -1,6 +1,7 @@
 <template>
   <div class="flex flex-col w-full">
     <button
+      v-if="renderMode !== 'app-only'"
       type="button"
       data-testid="tool-call-trigger"
       class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-left text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none overflow-hidden bg-accent hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -57,6 +58,7 @@
     </button>
 
     <div
+      v-if="renderMode !== 'app-only'"
       class="grid w-full overflow-hidden transition-[grid-template-rows,opacity,margin-top,margin-bottom] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
       :class="
         isExpanded
@@ -201,13 +203,30 @@
         </div>
       </div>
     </div>
+
+    <McpAppView
+      v-if="
+        renderMode !== 'tool-only' &&
+        mcpAppDescriptor &&
+        mcpAppResult &&
+        appConversationId &&
+        appMessageId &&
+        appBlockId
+      "
+      :descriptor="mcpAppDescriptor"
+      :result="mcpAppResult"
+      :conversation-id="appConversationId"
+      :message-id="appMessageId"
+      :block-id="appBlockId"
+      :tool-input="appToolInput"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
 import { useThemeStore } from '@/stores/theme'
@@ -216,6 +235,8 @@ import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { createDeviceClient } from '@api/DeviceClient'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
+
+const McpAppView = defineAsyncComponent(() => import('@/components/mcp/McpAppView.vue'))
 
 const { t } = useI18n()
 
@@ -227,6 +248,7 @@ const props = defineProps<{
   block: DisplayAssistantMessageBlock
   messageId?: string
   threadId?: string
+  renderMode?: 'full' | 'tool-only' | 'app-only'
 }>()
 
 type ExpansionSource = 'auto' | 'manual' | null
@@ -326,6 +348,12 @@ const parsedParams = computed(() => {
 const parsedParamsRecord = computed(() =>
   isRecord(parsedParams.value.value) ? parsedParams.value.value : null
 )
+const mcpAppResult = computed(() => props.block.tool_call?.mcpResult)
+const mcpAppDescriptor = computed(() => mcpAppResult.value?.app)
+const appConversationId = computed(() => props.threadId?.trim() ?? '')
+const appMessageId = computed(() => props.messageId?.trim() ?? '')
+const appBlockId = computed(() => props.block.id?.trim() || props.block.tool_call?.id?.trim() || '')
+const appToolInput = computed<Record<string, unknown>>(() => parsedParamsRecord.value ?? {})
 
 const rawToolName = computed(() => props.block.tool_call?.name?.trim().toLowerCase() ?? '')
 const isSubagentOrchestrator = computed(() => rawToolName.value === 'subagent_orchestrator')

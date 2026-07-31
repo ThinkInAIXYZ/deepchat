@@ -204,9 +204,13 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     name: 'deepchat_pending_inputs',
     createTable: (db) => new DeepChatPendingInputsTable(db),
     repairableColumns: {
-      blocking_json: 'ALTER TABLE deepchat_pending_inputs ADD COLUMN blocking_json TEXT;'
+      blocking_json: 'ALTER TABLE deepchat_pending_inputs ADD COLUMN blocking_json TEXT;',
+      message_ids_json:
+        "ALTER TABLE deepchat_pending_inputs ADD COLUMN message_ids_json TEXT NOT NULL DEFAULT '[]';",
+      assistant_message_id:
+        'ALTER TABLE deepchat_pending_inputs ADD COLUMN assistant_message_id TEXT;'
     },
-    typeCheckedColumns: ['blocking_json']
+    typeCheckedColumns: ['blocking_json', 'message_ids_json', 'assistant_message_id']
   },
   {
     name: 'deepchat_usage_stats',

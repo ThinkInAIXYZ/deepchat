@@ -21,6 +21,8 @@ function createQueueRow(
     mode: 'queue',
     state,
     payload_json: JSON.stringify({ text: id, files: [] }),
+    message_ids_json: '[]',
+    assistant_message_id: null,
     blocking_json: null,
     queue_order: queueOrder,
     claimed_at: state === 'claimed' ? now : null,
@@ -42,6 +44,8 @@ function createStore(initialRows: DeepChatPendingInputRow[]) {
         mode: row.mode,
         state: row.state ?? 'pending',
         payload_json: row.payloadJson,
+        message_ids_json: row.messageIdsJson ?? '[]',
+        assistant_message_id: row.assistantMessageId ?? null,
         blocking_json: row.blockingJson ?? null,
         queue_order: row.queueOrder ?? null,
         claimed_at: row.claimedAt ?? null,
@@ -81,7 +85,7 @@ function createStore(initialRows: DeepChatPendingInputRow[]) {
         if (row.session_id === sessionId) rows.delete(id)
       }
     }),
-    listClaimed: vi.fn(() => Array.from(rows.values()).filter((row) => row.state === 'claimed'))
+    listActive: vi.fn(() => Array.from(rows.values()).filter((row) => row.state !== 'consumed'))
   }
 
   const sqlitePresenter = {
@@ -225,11 +229,15 @@ describe('SessionPendingInputStore', () => {
       })
       const { store, deepchatPendingInputsTable } = createStore([row])
 
-      store.appendSteerInput('steer-1', {
-        text: 'second',
-        files: [],
-        ...(nextPolicy ? { attachmentFallbackPolicy: nextPolicy } : {})
-      })
+      store.appendSteerInput(
+        'steer-1',
+        {
+          text: 'second',
+          files: [],
+          ...(nextPolicy ? { attachmentFallbackPolicy: nextPolicy } : {})
+        },
+        'steer-message-2'
+      )
 
       const update = deepchatPendingInputsTable.update.mock.calls[0][1]
       expect(JSON.parse(update.payload_json)).toMatchObject({

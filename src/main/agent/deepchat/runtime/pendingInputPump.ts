@@ -100,6 +100,14 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
     return this.fencedDisposition
   }
 
+  get messageIds(): string[] {
+    return this.requireRecord().messageIds
+  }
+
+  get assistantMessageId(): string | null {
+    return this.requireRecord().assistantMessageId
+  }
+
   settle<TDisposition extends ClaimedInputDisposition>(
     disposition: TDisposition
   ): ClaimedInputSettlementResult<TDisposition> {
@@ -160,10 +168,7 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
   }
 
   private assertClaimed(): void {
-    const record = this.pendingInputs.getInput(this.sessionId, this.id)
-    if (!record) {
-      throw new Error(`Pending input not found: ${this.id}`)
-    }
+    const record = this.requireRecord()
     const expectedMode = this.source === 'steer' ? 'steer' : 'queue'
     if (record.mode !== expectedMode) {
       throw new Error(`Pending input ${this.id} changed mode before settlement.`)
@@ -171,6 +176,14 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
     if (record.state !== 'claimed') {
       throw new Error(`Pending input ${this.id} is not claimed.`)
     }
+  }
+
+  private requireRecord(): PendingSessionInputRecord {
+    const record = this.pendingInputs.getInput(this.sessionId, this.id)
+    if (!record) {
+      throw new Error(`Pending input not found: ${this.id}`)
+    }
+    return record
   }
 
   private wasApplied(disposition: ClaimedInputDisposition): boolean {
@@ -358,26 +371,32 @@ export class PendingInputPump {
 
       let claimedInput: PendingSessionInputRecord
       try {
+        scope.assertCurrent()
         claimedInput =
           source === 'steer'
             ? this.ports.pendingInputs.claimSteerInput(sessionId, nextPendingInput.id)
             : this.ports.pendingInputs.claimQueuedInput(sessionId, nextPendingInput.id)
       } catch (error) {
-        // Publication can throw after the durable row changed to claimed.
+        const persisted = this.ports.pendingInputs.getInput(sessionId, nextPendingInput.id)
+        if (
+          source !== 'steer' ||
+          persisted?.state !== 'claimed' ||
+          !persisted.assistantMessageId
+        ) {
+          this.tryRelease(claim)
+          this.logDrainError(sessionId, reason, 'claim-input', error)
+          return false
+        }
+        claimedInput = persisted
+      }
+
+      if (!scope.isCurrent() && source === 'queue') {
         this.tryRelease(claim)
-        this.logDrainError(sessionId, reason, 'claim-input', error)
         return false
       }
 
-      try {
-        scope.assertCurrent()
-        if (source === 'steer') {
-          scope.instance.clearActiveSteerPendingInputId(claimedInput.id)
-        }
-      } catch (error) {
-        this.tryRelease(claim)
-        this.logDrainError(sessionId, reason, 'adopt-claim', error)
-        return false
+      if (source === 'steer') {
+        scope.instance.clearActiveSteerPendingInputId(claimedInput.id)
       }
 
       this.launch(scope, claimedInput, claim, projectDir, reason, drainLease)

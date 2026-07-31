@@ -1,9 +1,8 @@
+import { Server, Transport } from '@modelcontextprotocol/server'
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { isSafeRegexPattern } from '@shared/regexValidator'
 import type { SessionDatabase } from '@/session/data/database'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
@@ -459,7 +458,7 @@ export class ConversationSearchServer {
   // 设置请求处理器
   private setupRequestHandlers(): void {
     // 列出工具
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async () => {
       return {
         tools: [
           {
@@ -505,7 +504,7 @@ export class ConversationSearchServer {
     })
 
     // 调用工具
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request) => {
       const { name, arguments: args } = request.params
 
       try {

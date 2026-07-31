@@ -90,7 +90,6 @@ function createMockDeepChatAgent() {
     }),
     updateQueuedInput: vi.fn().mockResolvedValue({}),
     moveQueuedInput: vi.fn().mockResolvedValue([]),
-    convertPendingInputToSteer: vi.fn().mockResolvedValue({}),
     steerPendingInput: vi.fn().mockResolvedValue({}),
     resolveBlockedPendingInput: vi.fn().mockResolvedValue({}),
     deletePendingInput: vi.fn().mockResolvedValue(undefined),
@@ -2386,8 +2385,9 @@ describe('Session application coordinators', () => {
       const steered = { id: 'pending-1', state: 'claimed' }
       deepChatAgent.updateQueuedInput.mockResolvedValueOnce(updated)
       deepChatAgent.moveQueuedInput.mockResolvedValueOnce(moved)
-      deepChatAgent.convertPendingInputToSteer.mockResolvedValueOnce(converted)
-      deepChatAgent.steerPendingInput.mockResolvedValueOnce(steered)
+      deepChatAgent.steerPendingInput
+        .mockResolvedValueOnce(converted)
+        .mockResolvedValueOnce(steered)
 
       await expect(turn.updateQueuedInput('s1', 'pending-1', 'Updated')).resolves.toBe(updated)
       await expect(turn.moveQueuedInput('s1', 'pending-1', 2)).resolves.toBe(moved)
@@ -2400,8 +2400,9 @@ describe('Session application coordinators', () => {
         files: []
       })
       expect(deepChatAgent.moveQueuedInput).toHaveBeenCalledWith('s1', 'pending-1', 2)
-      expect(deepChatAgent.convertPendingInputToSteer).toHaveBeenCalledWith('s1', 'pending-1')
-      expect(deepChatAgent.steerPendingInput).toHaveBeenCalledWith('s1', 'pending-1')
+      expect(deepChatAgent.steerPendingInput).toHaveBeenCalledTimes(2)
+      expect(deepChatAgent.steerPendingInput).toHaveBeenNthCalledWith(1, 's1', 'pending-1')
+      expect(deepChatAgent.steerPendingInput).toHaveBeenNthCalledWith(2, 's1', 'pending-1')
       expect(deepChatAgent.deletePendingInput).toHaveBeenCalledWith('s1', 'pending-1')
     })
 

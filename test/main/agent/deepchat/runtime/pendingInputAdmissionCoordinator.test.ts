@@ -1,4 +1,5 @@
 import type {
+  ChatMessageRecord,
   DeepChatSessionState,
   PendingSessionInputRecord,
   SendMessageInput
@@ -28,6 +29,8 @@ function createInput(
     mode,
     state: 'pending',
     payload: { text: 'Promote me', files: [] },
+    messageIds: [],
+    assistantMessageId: null,
     blocking: null,
     queueOrder: mode === 'queue' ? 1 : null,
     claimedAt: null,
@@ -57,7 +60,8 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
   const harness: HarnessState = {
     activeSteerInputId: undefined,
     draining: false,
-    input: createInput()
+    input: createInput(),
+    preStreamController: undefined
   }
   const replaceInput = (
     patch: Partial<PendingSessionInputRecord>
@@ -70,11 +74,30 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
     }
     return harness.input
   }
+  const createUserMessage = (id: string, content: SendMessageInput): ChatMessageRecord => ({
+    id,
+    sessionId: SESSION_ID,
+    orderSeq: 2,
+    role: 'user',
+    content: JSON.stringify(content),
+    status: 'pending',
+    isContextEdge: 0,
+    metadata: JSON.stringify({
+      inputReceipt: {
+        mode: 'steer',
+        readAt: null
+      }
+    }),
+    createdAt: 1,
+    updatedAt: 1
+  })
 
   let disposition: ClaimedInputDisposition | null = null
   const claim: ClaimedPendingInputHandle = {
     id: 'input',
     source: 'queue',
+    messageIds: [],
+    assistantMessageId: null,
     get disposition() {
       return disposition
     },
@@ -99,9 +122,6 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
   }
 
   const pendingInputs: PendingInputAdmissionStorePort = {
-    convertPendingInputToSteer: vi.fn((_sessionId, _itemId) =>
-      replaceInput({ mode: 'steer', queueOrder: null })
-    ),
     degradeBlockedInput: vi.fn(() => replaceInput({ state: 'pending', blocking: null })),
     deletePendingInput: vi.fn(() => {
       harness.input = null
@@ -118,6 +138,26 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
         : []
     ),
     moveQueuedInput: vi.fn(() => (harness.input ? [harness.input] : [])),
+    acceptSteerMessage: vi.fn((_sessionId, input) => {
+      const message = createUserMessage('direct-steer-message', input)
+      harness.input = {
+        ...createInput('direct-steer', 'steer'),
+        payload: input,
+        messageIds: [message.id]
+      }
+      return { pendingInput: harness.input, message }
+    }),
+    promoteQueuedInputToSteerMessage: vi.fn(() => {
+      const message = createUserMessage('promoted-steer-message', harness.input!.payload)
+      return {
+        pendingInput: replaceInput({
+          mode: 'steer',
+          queueOrder: null,
+          messageIds: [message.id]
+        }),
+        message
+      }
+    }),
     queuePendingInput: vi.fn((_sessionId, input, options) => {
       harness.input = {
         ...createInput(),
@@ -126,16 +166,6 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
       }
       return harness.input
     }),
-    queueSteerInput: vi.fn((_sessionId, input) => {
-      harness.input = {
-        ...createInput('direct-steer', 'steer'),
-        payload: input
-      }
-      return harness.input
-    }),
-    restoreSteerInputToQueue: vi.fn(() =>
-      replaceInput({ mode: 'queue', queueOrder: 1 })
-    ),
     retryBlockedInput: vi.fn(() => replaceInput({ state: 'pending', blocking: null })),
     updateQueuedInput: vi.fn((_sessionId, _itemId, input) => replaceInput({ payload: input }))
   }
@@ -162,8 +192,16 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
     },
     pendingInputs,
     pump,
-    runLifecycle: {
-      cancel: vi.fn(async () => undefined)
+    transcript: {
+      getMessage: vi.fn((messageId: string) =>
+        messageId === 'assistant'
+          ? ({
+              id: messageId,
+              sessionId: SESSION_ID,
+              role: 'assistant'
+            } as ChatMessageRecord)
+          : null
+      )
     },
     attachmentRouter: {
       prepare: vi.fn(async ({ content }) => ({
@@ -183,9 +221,10 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
         harness.activeSteerInputId = undefined
         return true
       },
-      getAbortController: () => undefined,
+      getAbortController: () => harness.preStreamController,
       getActiveGeneration: () => undefined,
       getActiveSteerPendingInputId: () => harness.activeSteerInputId,
+      getPreStreamTranscriptAnchorId: () => undefined,
       isPendingQueueDraining: () => harness.draining,
       setActiveSteerPendingInputId: (itemId: string) => {
         harness.activeSteerInputId = itemId
@@ -207,6 +246,7 @@ interface HarnessState {
   activeSteerInputId: string | undefined
   draining: boolean
   input: PendingSessionInputRecord | null
+  preStreamController: AbortController | undefined
 }
 
 function createDeferred<T>() {
@@ -218,6 +258,29 @@ function createDeferred<T>() {
 }
 
 describe('PendingInputAdmissionCoordinator', () => {
+  it('accepts steer before the assistant stream starts and ends preparation', async () => {
+    const test = createHarness()
+    test.harness.preStreamController = new AbortController()
+    test.harness.input = {
+      ...test.harness.input!,
+      state: 'claimed',
+      claimedAt: 1
+    }
+
+    await expect(test.coordinator.steerActiveTurn(SESSION_ID, 'Steer now')).resolves.toMatchObject({
+      userMessage: { id: 'direct-steer-message', status: 'pending' }
+    })
+    expect(test.pendingInputs.acceptSteerMessage).toHaveBeenCalledWith(
+      SESSION_ID,
+      { text: 'Steer now', files: [] },
+      { mergeItemId: null, preStreamAnchorMessageId: null }
+    )
+    expect(test.harness.preStreamController.signal).toMatchObject({
+      aborted: true,
+      reason: 'pending_input'
+    })
+  })
+
   it('rejects a send before attachment preparation when the lane is at capacity', async () => {
     const test = createHarness()
     vi.mocked(test.pendingInputs.isAtCapacity).mockReturnValueOnce(true)
@@ -342,7 +405,7 @@ describe('PendingInputAdmissionCoordinator', () => {
       mode: 'steer'
     })
 
-    expect(test.pendingInputs.restoreSteerInputToQueue).not.toHaveBeenCalled()
+    expect(test.harness.input).toMatchObject({ mode: 'steer', state: 'claimed' })
   })
 
   it('keeps a promoted steer behind another in-flight drain', async () => {
@@ -356,7 +419,6 @@ describe('PendingInputAdmissionCoordinator', () => {
     })
 
     expect(test.harness.input).toMatchObject({ mode: 'steer', state: 'pending' })
-    expect(test.pendingInputs.restoreSteerInputToQueue).not.toHaveBeenCalled()
   })
 
   it('accepts a direct steer that completed before its drain result was observed', async () => {
@@ -377,21 +439,27 @@ describe('PendingInputAdmissionCoordinator', () => {
     ).resolves.toMatchObject({
       requestId: null,
       messageId: null,
+      userMessage: {
+        id: 'direct-steer-message',
+        status: 'pending'
+      },
       attachmentPreparation: { status: 'ready' }
     })
 
     expect(test.pendingInputs.deletePendingInput).not.toHaveBeenCalled()
   })
 
-  it('restores a promoted steer when no runtime owner accepted it', async () => {
+  it('keeps a promoted steer durable when its drain is deferred', async () => {
     const test = createHarness()
 
-    await expect(test.coordinator.steerPendingInput(SESSION_ID, 'input')).rejects.toThrow(
-      'Unable to start the steered input.'
-    )
+    await expect(test.coordinator.steerPendingInput(SESSION_ID, 'input')).resolves.toMatchObject({
+      id: 'input',
+      mode: 'steer',
+      state: 'pending'
+    })
 
-    expect(test.pendingInputs.restoreSteerInputToQueue).toHaveBeenCalledWith(SESSION_ID, 'input')
-    expect(test.harness.input).toMatchObject({ mode: 'queue', state: 'pending' })
+    expect(test.pump.schedule).toHaveBeenCalledWith(SESSION_ID, 'enqueue')
+    expect(test.harness.input).toMatchObject({ mode: 'steer', state: 'pending' })
   })
 
   it('classifies a missing hydrated steer owner as a stale runtime instance', async () => {
@@ -402,7 +470,7 @@ describe('PendingInputAdmissionCoordinator', () => {
       name: 'StaleDeepChatAgentInstanceError'
     })
 
-    expect(test.pendingInputs.queueSteerInput).not.toHaveBeenCalled()
+    expect(test.pendingInputs.acceptSteerMessage).not.toHaveBeenCalled()
   })
 
   it('returns the durable blocked record without a nullable settlement branch', async () => {

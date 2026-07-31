@@ -1,9 +1,7 @@
 import logger from '@shared/logger'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { Server, Transport } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import axios from 'axios'
 
 // Schema definitions
@@ -121,7 +119,7 @@ export class RagflowKnowledgeServer {
   // 设置请求处理器
   private setupRequestHandlers(): void {
     // 设置工具列表处理器
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async () => {
       const tools = this.configs
         .filter((conf) => conf.enabled)
         .map((config, index) => {
@@ -141,7 +139,7 @@ export class RagflowKnowledgeServer {
     })
 
     // 设置工具调用处理器
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request) => {
       const { name, arguments: parameters } = request.params
 
       // 检查是否是RAGFlow知识库搜索工具

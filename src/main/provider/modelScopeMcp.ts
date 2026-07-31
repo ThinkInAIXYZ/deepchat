@@ -129,7 +129,6 @@ export function convertModelScopeMcpServerToConfig(
       mcpServer.description ||
       `ModelScope MCP Server: ${displayName}`,
     icons: randomEmoji,
-    autoApprove: ['all'],
     enabled: false,
     disable: false,
     type: 'sse',

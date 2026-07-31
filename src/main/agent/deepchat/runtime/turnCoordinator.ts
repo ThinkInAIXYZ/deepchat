@@ -77,7 +77,11 @@ import {
   resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts
 } from './providerModelRuntimeFacts'
-import { isAbortError, throwIfAbortRequested } from './abortErrors'
+import {
+  isAbortError,
+  PENDING_INPUT_ABORT_REASON,
+  throwIfAbortRequested
+} from './abortErrors'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { RuntimeHookSink } from './runtimeHookSink'
 import type {
@@ -277,6 +281,7 @@ export class TurnCoordinator {
     context?: TurnExecutionContext
   ): Promise<TurnCompletion> {
     const claimedInput = context?.claimedInput
+    const isSteerClaim = claimedInput?.source === 'steer'
     const complete = (messageStart: MessageStartResult): TurnCompletion => ({
       messageStart,
       claimedInputDisposition: claimedInput?.disposition ?? null
@@ -285,9 +290,17 @@ export class TurnCoordinator {
     let initializedAbortController: AbortController | undefined
     let statusTransitionAttempted = false
     let statusBeforeInitialization: DeepChatSessionState['status'] | undefined
+    let linkedSteerMessageIds: string[] = []
+    let reservedSteerAssistantMessageId: string | null = null
     const initializeTurn = () => {
       const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
       if (!instance) throw new Error(`Session ${sessionId} not found`)
+      instance.clearPreStreamTranscriptAnchor()
+      const reservedTranscriptAnchor =
+        reservedSteerAssistantMessageId ?? linkedSteerMessageIds.at(-1)
+      if (reservedTranscriptAnchor) {
+        instance.setPreStreamTranscriptAnchorId(reservedTranscriptAnchor)
+      }
       const scope = this.ports.runLifecycle.scopeFor(sessionId, instance)
       initializedScope = scope
       const state = instance.getRuntimeState()
@@ -335,11 +348,30 @@ export class TurnCoordinator {
 
     let initializedTurn: ReturnType<typeof initializeTurn>
     try {
+      if (isSteerClaim && claimedInput) {
+        linkedSteerMessageIds = claimedInput.messageIds
+        reservedSteerAssistantMessageId = claimedInput.assistantMessageId
+        if (linkedSteerMessageIds.length === 0 || !reservedSteerAssistantMessageId) {
+          throw new Error(`Claimed steer input ${claimedInput.id} has no reserved transcript.`)
+        }
+      }
       initializedTurn = initializeTurn()
     } catch (error) {
       if (claimedInput && !claimedInput.disposition) {
         try {
-          claimedInput.settle({ kind: 'release-before-user-fact' })
+          if (isSteerClaim) {
+            if (reservedSteerAssistantMessageId) {
+              const errorMessage = error instanceof Error ? error.message : String(error)
+              this.ports.messageStore.setMessageError(
+                reservedSteerAssistantMessageId,
+                buildTerminalErrorBlocks([], errorMessage)
+              )
+              this.ports.messageProjection.refresh(sessionId, reservedSteerAssistantMessageId)
+            }
+            claimedInput.settle({ kind: 'consume' })
+          } else {
+            claimedInput.settle({ kind: 'release-before-user-fact' })
+          }
         } catch (releaseError) {
           console.warn('[DeepChatAgent] failed to release claimed pending input:', releaseError)
         }
@@ -354,6 +386,7 @@ export class TurnCoordinator {
           console.warn('[DeepChatAgent] failed to clear rejected turn abort controller:', cleanupError)
         }
       }
+      initializedScope?.instance.clearPreStreamTranscriptAnchor()
       if (
         statusTransitionAttempted &&
         initializedScope &&
@@ -379,33 +412,67 @@ export class TurnCoordinator {
       preStreamAbortSignal
     } = initializedTurn
     let pendingInputFailedBeforeUserFact = false
-    let userMessageId: string | null = null
-    let assistantMessageId: string | null = null
-    let assistantCreationAttempted = false
+    let userMessageId: string | null =
+      linkedSteerMessageIds[linkedSteerMessageIds.length - 1] ?? null
+    let assistantMessageId: string | null = reservedSteerAssistantMessageId
+    let assistantCreationAttempted = isSteerClaim
     let streamRunId: string | undefined
     let attachmentPreparation: AttachmentPreparationSummary | undefined
 
     try {
       const preStreamStartedAt = Date.now()
-      const preparedAttachments = await this.runPreStreamStep(
-        {
-          sessionId,
-          messageId: userMessageId,
-          step: 'attachment-preparation',
-          signal: preStreamAbortSignal
-        },
-        () =>
-          this.ports.attachmentRouter.prepare({
-            content,
-            supportsVision,
-            signal: preStreamAbortSignal,
-            reusePreparedAttachmentRepresentations: Boolean(claimedInput),
-            preserveResolvedRepresentations: context?.preserveResolvedRepresentations
-          })
-      )
-      content = preparedAttachments.content
-      attachmentPreparation = preparedAttachments.summary
-      if (attachmentPreparation.status === 'needs_user_action') {
+      let firstSteerOrderSeq: number | undefined
+      if (isSteerClaim) {
+        const linkedMessages = linkedSteerMessageIds.map((messageId) =>
+          this.ports.messageStore.getMessage(messageId)
+        )
+        if (
+          linkedMessages.some(
+            (message) =>
+              !message ||
+              message.sessionId !== sessionId ||
+              message.role !== 'user' ||
+              message.status !== 'pending'
+          )
+        ) {
+          throw new Error('Claimed steer messages are not available.')
+        }
+        firstSteerOrderSeq = linkedMessages[0]?.orderSeq
+        const reservedAssistant = assistantMessageId
+          ? this.ports.messageStore.getMessage(assistantMessageId)
+          : null
+        const lastSteerOrderSeq = linkedMessages[linkedMessages.length - 1]?.orderSeq
+        if (
+          !reservedAssistant ||
+          reservedAssistant.sessionId !== sessionId ||
+          reservedAssistant.role !== 'assistant' ||
+          reservedAssistant.status !== 'pending' ||
+          lastSteerOrderSeq === undefined ||
+          reservedAssistant.orderSeq <= lastSteerOrderSeq
+        ) {
+          throw new Error('Claimed steer assistant message is not available.')
+        }
+      } else {
+        const preparedAttachments = await this.runPreStreamStep(
+          {
+            sessionId,
+            messageId: userMessageId,
+            step: 'attachment-preparation',
+            signal: preStreamAbortSignal
+          },
+          () =>
+            this.ports.attachmentRouter.prepare({
+              content,
+              supportsVision,
+              signal: preStreamAbortSignal,
+              reusePreparedAttachmentRepresentations: Boolean(claimedInput),
+              preserveResolvedRepresentations: context?.preserveResolvedRepresentations
+            })
+        )
+        content = preparedAttachments.content
+        attachmentPreparation = preparedAttachments.summary
+      }
+      if (attachmentPreparation?.status === 'needs_user_action') {
         if (claimedInput) {
           claimedInput.settle({
             kind: 'block',
@@ -452,126 +519,188 @@ export class TurnCoordinator {
         ...(content.inlineItems?.length ? { inlineItems: content.inlineItems } : {})
       }
 
-      const preparedInput = await this.ports.inputPreparationCoordinator.prepareInitial({
-        ensureHistory: () =>
-          runSynchronousPreStreamStep(sessionId, 'tape-ready', () =>
-            getTapeContextHistoryRecords(
-              this.ports.tapeReconciliation.ensureSessionTapeReady(
-                sessionId,
-                this.ports.messageStore
-              )
-                .historyRecords
-            )
-          ),
-        prepareIntent: async (historyRecords) => {
-          if (
-            !shouldGuardAttachmentText &&
-            historyContainsUntrustedAttachmentText(historyRecords)
-          ) {
-            shouldGuardAttachmentText = true
-            baseSystemPrompt = appendAttachmentTextSafetyRule(unguardedBaseSystemPrompt)
-          }
-          if (!useContextBudget) {
-            return null
-          }
-          return await this.runPreStreamStep(
-            {
+      const ensureHistory = () =>
+        runSynchronousPreStreamStep(sessionId, 'tape-ready', () =>
+          getTapeContextHistoryRecords(
+            this.ports.tapeReconciliation.ensureSessionTapeReady(
               sessionId,
-              messageId: userMessageId,
-              step: 'compaction-prepare',
-              signal: preStreamAbortSignal
-            },
-            () =>
-              this.ports.compactionService.prepareForNextUserTurn({
-                sessionId,
-                providerId: state.providerId,
-                modelId: state.modelId,
-                systemPrompt: baseSystemPrompt,
-                contextLength: contextBudgetLength,
-                reserveTokens: maxTokens,
-                extraReserveTokens: toolReserveTokens,
-                supportsVision,
-                supportsAudioInput,
-                preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-                preserveEmptyInterleavedReasoning:
-                  interleavedReasoning.preserveEmptyReasoningContent === true,
-                newUserContent: content,
-                historyRecords,
-                signal: preStreamAbortSignal
-              })
+              this.ports.messageStore
+            ).historyRecords
           )
-        },
-        createCompactionProjection: (intent) =>
-          this.ports.messageStore.createCompactionMessage(
-            sessionId,
-            this.ports.messageStore.getNextOrderSeq(sessionId),
-            'compacting',
-            intent.previousState.summaryUpdatedAt
-          ),
-        appendUserFact: () => {
-          const createdUserMessageId = runSynchronousPreStreamStep(
-            sessionId,
-            'user-message-create',
-            () =>
-              this.ports.messageStore.createUserMessage(
-                sessionId,
-                this.ports.messageStore.getNextOrderSeq(sessionId),
-                userContent
-              )
-          )
-          userMessageId = createdUserMessageId
-          return createdUserMessageId
-        },
-        beginCompaction: (intent) => {
-          this.ports.compactionRuntimeCoordinator.emit(
-            sessionId,
-            {
-              status: 'compacting',
-              cursorOrderSeq: intent.targetCursorOrderSeq,
-              summaryUpdatedAt: intent.previousState.summaryUpdatedAt
-            },
-            instance
-          )
-        },
-        applyCompaction: async (intent, compactionMessageId) =>
-          await this.runPreStreamStep(
-            {
-              sessionId,
-              messageId: userMessageId,
-              step: 'compaction-apply',
-              signal: preStreamAbortSignal
-            },
-            () =>
-              this.ports.compactionRuntimeCoordinator.apply(
-                sessionId,
-                intent,
-                {
-                  compactionMessageId,
-                  startedExternally: true,
-                  signal: preStreamAbortSignal
-                },
-                instance
-              )
-          ),
-        readSummary: () => this.ports.sessionStore.getSummaryState(sessionId),
-        afterCompactionApplyReturned: (intent) =>
-          this.ports.memoryIngestionObserver.afterCompactionApplyReturned({
-            session: instance.getMemorySessionHandle(),
-            origin: 'initial',
-            targetCursorOrderSeq: intent.targetCursorOrderSeq
-          }),
-        checkpoints: {
-          assertCurrent: () => scope.assertCurrent()
+        )
+      const prepareCompactionIntent = async (historyRecords: ChatMessageRecord[]) => {
+        if (!shouldGuardAttachmentText && historyContainsUntrustedAttachmentText(historyRecords)) {
+          shouldGuardAttachmentText = true
+          baseSystemPrompt = appendAttachmentTextSafetyRule(unguardedBaseSystemPrompt)
         }
-      })
-      const historyRecords = preparedInput.history
-      const summaryState = preparedInput.summary
-      userMessageId = preparedInput.userMessageId
+        if (!useContextBudget) {
+          return null
+        }
+        return await this.runPreStreamStep(
+          {
+            sessionId,
+            messageId: userMessageId,
+            step: 'compaction-prepare',
+            signal: preStreamAbortSignal
+          },
+          () =>
+            this.ports.compactionService.prepareForNextUserTurn({
+              sessionId,
+              providerId: state.providerId,
+              modelId: state.modelId,
+              systemPrompt: baseSystemPrompt,
+              contextLength: contextBudgetLength,
+              reserveTokens: maxTokens,
+              extraReserveTokens: toolReserveTokens,
+              supportsVision,
+              supportsAudioInput,
+              preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+              preserveEmptyInterleavedReasoning:
+                interleavedReasoning.preserveEmptyReasoningContent === true,
+              newUserContent: content,
+              historyRecords,
+              signal: preStreamAbortSignal
+            })
+        )
+      }
+
+      let historyRecords: ChatMessageRecord[]
+      let summaryState = this.ports.sessionStore.getSummaryState(sessionId)
+      if (isSteerClaim) {
+        if (firstSteerOrderSeq === undefined) {
+          throw new Error('Claimed steer message order is unavailable.')
+        }
+        const preparedInput = await this.ports.inputPreparationCoordinator.prepareExisting({
+          ensureHistory,
+          refreshHistory: ensureHistory,
+          prepareIntent: prepareCompactionIntent,
+          applyCompaction: async (intent) =>
+            await this.runPreStreamStep(
+              {
+                sessionId,
+                messageId: userMessageId,
+                step: 'compaction-apply',
+                signal: preStreamAbortSignal
+              },
+              () =>
+                this.ports.compactionRuntimeCoordinator.apply(
+                  sessionId,
+                  intent,
+                  {
+                    compactionMessageOrderSeq: firstSteerOrderSeq,
+                    shiftMessagesFromCompactionOrderSeq: true,
+                    signal: preStreamAbortSignal
+                  },
+                  instance
+                )
+            ),
+          readSummary: () => this.ports.sessionStore.getSummaryState(sessionId),
+          afterCompactionApplyReturned: (intent) =>
+            this.ports.memoryIngestionObserver.afterCompactionApplyReturned({
+              session: instance.getMemorySessionHandle(),
+              origin: 'initial',
+              targetCursorOrderSeq: intent.targetCursorOrderSeq
+            }),
+          checkpoints: {
+            assertCurrent: () => scope.assertCurrent(),
+            beforeHistoryRefresh: () => {
+              scope.assertCurrent()
+              throwIfAbortRequested(preStreamAbortSignal)
+            }
+          }
+        })
+        historyRecords = preparedInput.history
+        summaryState = preparedInput.summary
+      } else {
+        const preparedInput = await this.ports.inputPreparationCoordinator.prepareInitial({
+          ensureHistory,
+          prepareIntent: prepareCompactionIntent,
+          createCompactionProjection: (intent) =>
+            this.ports.messageStore.createCompactionMessage(
+              sessionId,
+              this.ports.messageStore.getNextOrderSeq(sessionId),
+              'compacting',
+              intent.previousState.summaryUpdatedAt
+            ),
+          appendUserFact: () => {
+            const preStreamUserMessageId = instance.getPreStreamTranscriptAnchorId()
+            const preStreamUserMessage = preStreamUserMessageId
+              ? this.ports.messageStore.getMessage(preStreamUserMessageId)
+              : null
+            if (
+              preStreamUserMessage?.sessionId === sessionId &&
+              preStreamUserMessage.role === 'user'
+            ) {
+              userMessageId = preStreamUserMessage.id
+              return preStreamUserMessage.id
+            }
+            const createdUserMessageId = runSynchronousPreStreamStep(
+              sessionId,
+              'user-message-create',
+              () =>
+                this.ports.messageStore.createUserMessage(
+                  sessionId,
+                  this.ports.messageStore.getNextOrderSeq(sessionId),
+                  userContent
+                )
+            )
+            userMessageId = createdUserMessageId
+            instance.setPreStreamTranscriptAnchorId(createdUserMessageId)
+            return createdUserMessageId
+          },
+          beginCompaction: (intent) => {
+            this.ports.compactionRuntimeCoordinator.emit(
+              sessionId,
+              {
+                status: 'compacting',
+                cursorOrderSeq: intent.targetCursorOrderSeq,
+                summaryUpdatedAt: intent.previousState.summaryUpdatedAt
+              },
+              instance
+            )
+          },
+          applyCompaction: async (intent, compactionMessageId) =>
+            await this.runPreStreamStep(
+              {
+                sessionId,
+                messageId: userMessageId,
+                step: 'compaction-apply',
+                signal: preStreamAbortSignal
+              },
+              () =>
+                this.ports.compactionRuntimeCoordinator.apply(
+                  sessionId,
+                  intent,
+                  {
+                    compactionMessageId,
+                    startedExternally: true,
+                    signal: preStreamAbortSignal
+                  },
+                  instance
+                )
+            ),
+          readSummary: () => this.ports.sessionStore.getSummaryState(sessionId),
+          afterCompactionApplyReturned: (intent) =>
+            this.ports.memoryIngestionObserver.afterCompactionApplyReturned({
+              session: instance.getMemorySessionHandle(),
+              origin: 'initial',
+              targetCursorOrderSeq: intent.targetCursorOrderSeq
+            }),
+          checkpoints: {
+            assertCurrent: () => scope.assertCurrent()
+          }
+        })
+        historyRecords = preparedInput.history
+        summaryState = preparedInput.summary
+        userMessageId = preparedInput.userMessageId
+      }
       if (!userMessageId) {
         throw new Error('Failed to create user message.')
       }
       throwIfAbortRequested(preStreamAbortSignal)
-      this.ports.messageProjection.refresh(sessionId, userMessageId)
+      if (!isSteerClaim) {
+        this.ports.messageProjection.refresh(sessionId, userMessageId)
+      }
 
       this.ports.hookSink
         .scope({
@@ -636,14 +765,19 @@ export class TurnCoordinator {
       const contextContributions = preparedContext.contributions
       const messages = contextBuild.messages
 
-      const assistantOrderSeq = this.ports.messageStore.getNextOrderSeq(sessionId)
       scope.assertCurrent()
-      assistantCreationAttempted = true
-      assistantMessageId = runSynchronousPreStreamStep(
-        sessionId,
-        'assistant-message-create',
-        () => this.ports.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
-      )
+      if (!isSteerClaim) {
+        const assistantOrderSeq = this.ports.messageStore.getNextOrderSeq(sessionId)
+        assistantCreationAttempted = true
+        assistantMessageId = runSynchronousPreStreamStep(
+          sessionId,
+          'assistant-message-create',
+          () => this.ports.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
+        )
+      }
+      if (!assistantMessageId) {
+        throw new Error('Failed to create assistant message.')
+      }
       this.ports.toolService.clearAgentPlanState(sessionId)
       throwIfAbortRequested(preStreamAbortSignal)
 
@@ -715,9 +849,8 @@ export class TurnCoordinator {
       const { runId, result } = streamResult
       streamRunId = runId
       if (claimedInput && !claimedInput.disposition) {
-        // Abort keeps the partial turn and advances the queue. A genuine error first rolls back
-        // transcript-derived state, then makes the durable claim retryable.
         if (
+          isSteerClaim ||
           result.status === 'completed' ||
           result.status === 'paused' ||
           result.status === 'aborted'
@@ -756,9 +889,27 @@ export class TurnCoordinator {
       })
     } catch (err) {
       const aborted = isAbortError(err) || preStreamAbortSignal.aborted
+      const pendingInputHandoff =
+        preStreamAbortSignal.reason === PENDING_INPUT_ABORT_REASON
       const staleInstance = isStaleDeepChatInstanceError(err)
+      if (!userMessageId && pendingInputHandoff && claimedInput?.source !== 'steer') {
+        userMessageId = claimedInput?.messageIds.at(-1) ?? null
+      }
+      if (!userMessageId && pendingInputHandoff) {
+        const anchorId = instance.getPreStreamTranscriptAnchorId()
+        const anchorMessage = anchorId ? this.ports.messageStore.getMessage(anchorId) : null
+        if (anchorMessage?.role === 'user' && anchorMessage.sessionId === sessionId) {
+          userMessageId = anchorMessage.id
+        }
+      }
       if (claimedInput && !claimedInput.disposition) {
-        if (!userMessageId) {
+        if (isSteerClaim) {
+          try {
+            claimedInput.settle({ kind: 'consume' })
+          } catch (releaseError) {
+            console.warn('[DeepChatAgent] failed to consume claimed steer input:', releaseError)
+          }
+        } else if (!userMessageId) {
           pendingInputFailedBeforeUserFact = true
           try {
             claimedInput.settle({ kind: 'release-before-user-fact' })
@@ -792,14 +943,40 @@ export class TurnCoordinator {
         console.warn('[DeepChatAgent] failed to observe rejected turn:', observerError)
       }
       if (staleInstance) {
+        if (isSteerClaim && assistantMessageId) {
+          this.ports.messageStore.setMessageError(
+            assistantMessageId,
+            buildTerminalErrorBlocks([], 'common.error.sessionInterrupted')
+          )
+          this.ports.messageProjection.refresh(sessionId, assistantMessageId)
+        }
         return complete({
           requestId: assistantMessageId,
           messageId: assistantMessageId
         })
       }
+      if (pendingInputHandoff) {
+        if (userMessageId && !isSteerClaim) {
+          this.ports.messageProjection.refresh(sessionId, userMessageId)
+        }
+        if (assistantMessageId) {
+          this.ports.messageStore.deleteMessage(assistantMessageId)
+          this.ports.messageProjection.refresh(sessionId, assistantMessageId)
+          assistantMessageId = null
+        }
+        this.ports.runLifecycle.clearOperationController(scope, preStreamAbortController)
+        this.ports.runLifecycle.applyProcessResultStatus(sessionId, {
+          status: 'completed',
+          stopReason: PENDING_INPUT_ABORT_REASON
+        })
+        if (!claimedInput) {
+          this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
+        }
+        return complete({ requestId: null, messageId: null })
+      }
       console.error('[DeepChatAgent] processMessage error:', err)
       if (aborted) {
-        if (userMessageId) {
+        if (userMessageId && !isSteerClaim) {
           this.ports.messageProjection.refresh(sessionId, userMessageId)
         }
         this.ports.runLifecycle.clearOperationController(scope, preStreamAbortController)
@@ -900,6 +1077,7 @@ export class TurnCoordinator {
       })
     } finally {
       this.ports.runLifecycle.clearOperationController(scope, preStreamAbortController)
+      instance.clearPreStreamTranscriptAnchor()
       instance.replaceRuntimeActivatedSkills([])
     }
   }
@@ -933,6 +1111,8 @@ export class TurnCoordinator {
       this.ports.runLifecycle.transitionStatus(scope, 'generating')
       preStreamAbortController = this.ports.runLifecycle.ensureOperationController(scope)
       preStreamAbortSignal = preStreamAbortController.signal
+      instance.clearPreStreamTranscriptAnchor()
+      instance.setPreStreamTranscriptAnchorId(messageId)
       const preStreamStartedAt = Date.now()
       const providerModelFacts = resolveProviderModelRuntimeFacts(
         this.ports.providerSettings,
@@ -1253,6 +1433,34 @@ export class TurnCoordinator {
       if (isStaleDeepChatInstanceError(error)) {
         return false
       }
+      if (preStreamAbortSignal?.reason === PENDING_INPUT_ABORT_REASON) {
+        const message = this.ports.messageStore.getMessage(messageId)
+        if (message?.role === 'assistant') {
+          this.ports.messageStore.finalizeAssistantMessage(
+            messageId,
+            parseAssistantBlocks(message.content),
+            JSON.stringify(
+              stampTerminalMetadata(
+                resumeAccounting,
+                'completed',
+                PENDING_INPUT_ABORT_REASON,
+                streamRunId
+              )
+            )
+          )
+          this.ports.messageProjection.refresh(sessionId, messageId)
+        }
+        this.ports.runLifecycle.clearOperationController(
+          scope,
+          preStreamAbortController ?? undefined
+        )
+        this.ports.runLifecycle.applyProcessResultStatus(sessionId, {
+          status: 'completed',
+          stopReason: PENDING_INPUT_ABORT_REASON
+        })
+        this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
+        return false
+      }
       console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
       if (isAbortError(error) || preStreamAbortSignal?.aborted) {
         this.ports.runLifecycle.clearOperationController(
@@ -1302,6 +1510,7 @@ export class TurnCoordinator {
         scope,
         preStreamAbortController ?? undefined
       )
+      instance.clearPreStreamTranscriptAnchor()
       instance.finishResume(messageId)
     }
   }

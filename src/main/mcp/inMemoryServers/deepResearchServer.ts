@@ -1,13 +1,13 @@
 import logger from '@shared/logger'
+import { Server, Transport } from '@modelcontextprotocol/server'
+import type { CallToolResult } from '@modelcontextprotocol/server'
+
 // src/main/mcp/inMemoryServers/deepResearchServer.ts
 // 主要代码参考自 https://github.com/pinkpixel-dev/deep-research-mcp
 // 已替换搜索引擎为 Bocha，重写页面内容提取逻辑。
 // 采用基于反思的增量迭代研究模式。
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import axios from 'axios'
 import type { DesktopSettings } from '@/desktop/settings'
 import { nanoid } from 'nanoid'
@@ -283,7 +283,7 @@ export class DeepResearchServer {
   // 设置服务器的请求处理器，定义工具列表和工具调用逻辑
   private setupRequestHandlers(): void {
     // 定义可用工具列表
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async () => {
       return {
         tools: [
           {
@@ -337,7 +337,7 @@ export class DeepResearchServer {
     })
 
     // 处理工具调用请求
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request): Promise<CallToolResult> => {
       try {
         const { name, arguments: args } = request.params
 
@@ -373,7 +373,7 @@ export class DeepResearchServer {
   }
 
   // 处理启动深度研究请求
-  private async handleStartDeepResearch(args: unknown) {
+  private async handleStartDeepResearch(args: unknown): Promise<CallToolResult> {
     const parsed = StartDeepResearchArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`start_deep_research 参数无效: ${parsed.error}`)
@@ -390,7 +390,7 @@ export class DeepResearchServer {
   }
 
   // 处理单次网页搜索请求
-  private async handleSingleWebSearch(args: unknown) {
+  private async handleSingleWebSearch(args: unknown): Promise<CallToolResult> {
     const parsed = SingleWebSearchArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`execute_single_web_search 参数无效: ${parsed.error}`)
@@ -416,7 +416,7 @@ export class DeepResearchServer {
   }
 
   // 处理请求研究数据的请求 (增量发送)
-  private async handleRequestResearchData(args: unknown) {
+  private async handleRequestResearchData(args: unknown): Promise<CallToolResult> {
     const parsed = RequestResearchDataArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`request_research_data 参数无效: ${parsed.error}`)
@@ -468,7 +468,7 @@ export class DeepResearchServer {
   }
 
   // 处理提交反思结果的请求
-  private async handleSubmitReflectionResults(args: unknown) {
+  private async handleSubmitReflectionResults(args: unknown): Promise<CallToolResult> {
     const parsed = SubmitReflectionResultsArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`submit_reflection_results 参数无效: ${parsed.error}`)
@@ -511,7 +511,7 @@ export class DeepResearchServer {
   }
 
   // 处理生成最终答案的请求
-  private async handleGenerateFinalAnswer(args: unknown) {
+  private async handleGenerateFinalAnswer(args: unknown): Promise<CallToolResult> {
     const parsed = GenerateFinalAnswerArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`generate_final_answer 参数无效: ${parsed.error}`)

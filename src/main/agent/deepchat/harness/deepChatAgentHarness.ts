@@ -146,18 +146,6 @@ export class DeepChatAgentHarness
     return await this.services.pendingInputAdmission.moveQueuedInput(sessionId, itemId, toIndex)
   }
 
-  /**
-   * Low-level, non-interrupting promote: move a queued item into the steer lane (so it sorts ahead
-   * of queued items) WITHOUT aborting the active turn. The interactive UI uses
-   * {@link steerPendingInput} instead, which promotes *and* interrupts.
-   */
-  async convertPendingInputToSteer(
-    sessionId: string,
-    itemId: string
-  ): Promise<PendingSessionInputRecord> {
-    return await this.services.pendingInputAdmission.convertPendingInputToSteer(sessionId, itemId)
-  }
-
   async steerPendingInput(sessionId: string, itemId: string): Promise<PendingSessionInputRecord> {
     return await this.services.pendingInputAdmission.steerPendingInput(sessionId, itemId)
   }

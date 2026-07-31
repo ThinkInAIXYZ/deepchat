@@ -14,7 +14,6 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   const error = ref<string | null>(null)
   let latestLoadRequestId = 0
 
-  const steerItems = computed(() => items.value.filter((item) => item.mode === 'steer'))
   const queueItems = computed(() =>
     items.value
       .filter((item) => item.mode === 'queue')
@@ -147,7 +146,6 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     items,
     loading,
     error,
-    steerItems,
     queueItems,
     activeCount,
     isAtCapacity,

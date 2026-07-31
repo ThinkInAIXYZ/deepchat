@@ -18,6 +18,12 @@ import type {
 
 export type AcpInstanceScope = 'regular' | 'subagent'
 export type AcpAgentStatus = 'initializing' | 'idle' | 'generating' | 'error' | 'closed'
+export type AcpCancelCause = 'user_stop' | 'pending_input'
+
+export interface AcpProjectionContext {
+  userMessageIds: string[]
+  assistantMessageId: string
+}
 
 export interface AcpAgentSnapshot {
   sessionId: AppSessionId
@@ -33,8 +39,11 @@ export interface AcpAgentSnapshot {
 export interface AcpAgentSessionHandle {
   readonly kind: 'acp'
   readonly sessionId: AppSessionId
-  send(content: SendMessageInput): Promise<MessageStartResult>
-  cancel(): Promise<void>
+  send(
+    content: SendMessageInput,
+    projectionContext?: AcpProjectionContext
+  ): Promise<MessageStartResult>
+  cancel(cause?: AcpCancelCause): Promise<void>
   snapshot(): Promise<AcpAgentSnapshot>
   waitForFirstTurnReady(options?: { timeoutMs?: number }): Promise<boolean>
   close(): Promise<void>
@@ -190,11 +199,19 @@ export type AcpProjectionSettlement =
       stopReason: 'complete' | 'max_tokens' | 'max_turn_requests'
     }
   | { status: 'error'; stopReason: 'error'; errorMessage: string }
-  | { status: 'aborted'; stopReason: 'user_stop'; errorMessage: string }
+  | {
+      status: 'aborted'
+      stopReason: 'user_stop' | 'pending_input'
+      errorMessage?: string
+    }
 
 export interface AcpCompatibilityProjectionPort {
   setStatus(status: 'generating' | 'idle' | 'error'): void
-  begin(input: { sessionId: AppSessionId; userContent: UserMessageContent }): AcpProjectionHandle
+  begin(input: {
+    sessionId: AppSessionId
+    userContent: UserMessageContent
+    projectionContext?: AcpProjectionContext
+  }): AcpProjectionHandle
   attemptViewManifest(input: AcpViewManifestInput): void | Promise<void>
   applyEvents(handle: AcpProjectionHandle, events: readonly LLMCoreStreamEvent[]): void
   presentPermission(handle: AcpProjectionHandle, payload: PermissionRequestPayload): void
@@ -204,7 +221,7 @@ export interface AcpCompatibilityProjectionPort {
     stopReason: schema.PromptResponse['stopReason']
   ): AcpProjectionSettlement
   fail(handle: AcpProjectionHandle, error: unknown): AcpProjectionSettlement
-  cancel(handle: AcpProjectionHandle): AcpProjectionSettlement
+  cancel(handle: AcpProjectionHandle, cause: AcpCancelCause): AcpProjectionSettlement
 }
 
 export interface AcpRequestTracePort {

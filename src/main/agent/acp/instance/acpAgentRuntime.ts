@@ -244,6 +244,11 @@ export class AcpAgentRuntime {
     return this.pendingInputs.listPendingInputs(sessionId)
   }
 
+  async resumePendingInputs(input: AcpAgentRuntimeSessionInput): Promise<boolean> {
+    await this.getOrHydrate(input)
+    return await this.drainPendingInputs(input.sessionId, 'enqueue')
+  }
+
   async queuePendingInput(
     input: AcpAgentRuntimeSessionInput,
     content: SendMessageInput
@@ -270,23 +275,29 @@ export class AcpAgentRuntime {
     return record
   }
 
-  async steer(
-    input: AcpAgentRuntimeSessionInput,
-    content: SendMessageInput
-  ): Promise<PendingSessionInputRecord> {
+  async steer(input: AcpAgentRuntimeSessionInput, content: SendMessageInput) {
     const instance = await this.getOrHydrate(input)
     this.assertAccepting()
     const snapshot = await instance.snapshot()
+    if (snapshot.status === 'initializing') {
+      throw new Error('Wait for the assistant response to start before steering.')
+    }
     const pending = this.pendingInputs
     const existingSteer = pending.getNextSteerInput(input.sessionId)
-    const record = pending.queueSteerInput(input.sessionId, content, {
-      mergeItemId: existingSteer?.id ?? null
+    const accepted = pending.acceptSteerMessage(input.sessionId, content, {
+      mergeItemId: existingSteer?.id ?? null,
+      ...(snapshot.active && !instance.getActiveGeneration()
+        ? { preStreamAnchorMessageId: null }
+        : {})
     })
-    if (snapshot.active) await instance.cancel()
-    if (snapshot.status !== 'initializing') {
-      void this.drainPendingInputs(input.sessionId, 'enqueue')
-    }
-    return record
+    const handoff = (async () => {
+      if (snapshot.active) await instance.cancel('pending_input')
+      await this.drainPendingInputs(input.sessionId, 'enqueue')
+    })()
+    void this.trackOperation(input.sessionId, handoff).catch((error) => {
+      console.error('[ACP] Steer handoff failed:', error)
+    })
+    return accepted
   }
 
   updateQueuedInput(
@@ -305,48 +316,40 @@ export class AcpAgentRuntime {
     return this.pendingInputs.moveQueuedInput(sessionId, itemId, toIndex)
   }
 
-  convertPendingInputToSteer(sessionId: AppSessionId, itemId: string): PendingSessionInputRecord {
-    return this.pendingInputs.convertPendingInputToSteer(sessionId, itemId)
-  }
-
   async steerPendingInput(
     sessionId: AppSessionId,
     itemId: string
   ): Promise<PendingSessionInputRecord> {
     const pending = this.pendingInputs
-    const record = pending.convertPendingInputToSteer(sessionId, itemId)
     const instance = this.instances.get(sessionId)?.instance
     if (!instance) {
-      pending.restoreSteerInputToQueue(sessionId, itemId)
       throw new Error(`ACP session ${sessionId} is not initialized`)
     }
-    let snapshot: AcpAgentSnapshot
+    const snapshot: AcpAgentSnapshot = await instance.snapshot()
+    if (snapshot.status === 'initializing') {
+      throw new Error('Wait for the assistant response to start before steering.')
+    }
+    const record = pending.promoteQueuedInputToSteerMessage(
+      sessionId,
+      itemId,
+      snapshot.active && !instance.getActiveGeneration()
+        ? { preStreamAnchorMessageId: null }
+        : undefined
+    ).pendingInput
     let activeOperations: Promise<unknown>[] = []
     try {
-      snapshot = await instance.snapshot()
       if (snapshot.active || this.draining.has(sessionId)) {
         this.steering.add(sessionId)
         activeOperations = this.getOperations(sessionId)
-        if (snapshot.active) await instance.cancel()
+        if (snapshot.active) await instance.cancel('pending_input')
         await Promise.allSettled(activeOperations)
       }
-    } catch (error) {
-      pending.restoreSteerInputToQueue(sessionId, itemId)
-      throw error
     } finally {
       this.steering.delete(sessionId)
     }
-    if (snapshot.status === 'initializing') return record
-    let started = false
-    try {
-      started = await this.drainPendingInputs(sessionId, 'enqueue')
-    } catch (error) {
-      pending.restoreSteerInputToQueue(sessionId, itemId)
-      throw error
-    }
+    const started = await this.drainPendingInputs(sessionId, 'enqueue')
     if (!started) {
-      pending.restoreSteerInputToQueue(sessionId, itemId)
-      throw new Error('Unable to start the steered input.')
+      void this.drainPendingInputs(sessionId, 'enqueue')
     }
     return record
   }
@@ -400,20 +403,31 @@ export class AcpAgentRuntime {
     pending: SessionPendingInputRuntimePort,
     claimed: PendingSessionInputRecord
   ): void {
+    const projectionContext =
+      claimed.mode === 'steer'
+        ? {
+            userMessageIds: claimed.messageIds,
+            assistantMessageId: claimed.assistantMessageId!
+          }
+        : undefined
     const operation = instance
-      .send(claimed.payload)
+      .send(claimed.payload, projectionContext)
       .then(async () => {
         const completed = await instance.snapshot()
-        if (completed.status === 'error') {
-          pending.releaseClaimedInput(sessionId, claimed.id)
-        } else if (claimed.mode === 'steer') {
+        if (claimed.mode === 'steer') {
           pending.consumeSteerInput(sessionId, claimed.id)
+        } else if (completed.status === 'error') {
+          pending.releaseClaimedInput(sessionId, claimed.id)
         } else {
           pending.consumeQueuedInput(sessionId, claimed.id)
         }
       })
       .catch((error) => {
-        pending.releaseClaimedInput(sessionId, claimed.id)
+        if (claimed.mode === 'steer') {
+          pending.consumeSteerInput(sessionId, claimed.id)
+        } else {
+          pending.releaseClaimedInput(sessionId, claimed.id)
+        }
         console.error('[ACP] Pending input failed:', error)
       })
       .finally(() => {

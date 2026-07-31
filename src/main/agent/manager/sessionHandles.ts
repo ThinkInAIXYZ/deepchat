@@ -38,7 +38,6 @@ export interface AgentPendingInputFacet {
   ): Promise<PendingSessionInputRecord>
   update(itemId: string, content: SendMessageInput): Promise<PendingSessionInputRecord>
   move(itemId: string, toIndex: number): Promise<PendingSessionInputRecord[]>
-  convertToSteer(itemId: string): Promise<PendingSessionInputRecord>
   steer(itemId: string): Promise<PendingSessionInputRecord>
   resolveBlocked(
     itemId: string,

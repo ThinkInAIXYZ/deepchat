@@ -103,7 +103,7 @@
     {
       "id": "claude-acp",
       "name": "Claude Agent",
-      "version": "0.63.0",
+      "version": "0.64.0",
       "description": "ACP wrapper for Anthropic's Claude",
       "repository": "https://github.com/agentclientprotocol/claude-agent-acp",
       "authors": [
@@ -114,7 +114,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/claude-agent-acp@0.63.0"
+          "package": "@agentclientprotocol/claude-agent-acp@0.64.0"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/claude-acp.svg"
@@ -467,7 +467,7 @@
     {
       "id": "dimcode",
       "name": "DimCode",
-      "version": "0.2.39",
+      "version": "0.3.1",
       "description": "A coding agent that puts leading models at your command.",
       "website": "https://dimcode.dev/docs/acp.html",
       "authors": [
@@ -476,7 +476,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "dimcode@0.2.39",
+          "package": "dimcode@0.3.1",
           "args": [
             "acp"
           ]
@@ -534,7 +534,7 @@
     {
       "id": "fast-agent",
       "name": "fast-agent",
-      "version": "0.9.27",
+      "version": "0.9.28",
       "description": "Code and build agents with comprehensive multi-provider support",
       "repository": "https://github.com/evalstate/fast-agent",
       "website": "https://fast-agent.ai",
@@ -544,7 +544,7 @@
       "license": "Apache 2.0",
       "distribution": {
         "uvx": {
-          "package": "fast-agent-acp==0.9.27",
+          "package": "fast-agent-acp==0.9.28",
           "args": [
             "-x"
           ]
@@ -671,7 +671,7 @@
     {
       "id": "grok-build",
       "name": "Grok Build",
-      "version": "0.2.115",
+      "version": "0.2.116",
       "description": "xAI's coding agent and CLI",
       "website": "https://x.ai/cli",
       "authors": [
@@ -680,7 +680,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@xai-official/grok@0.2.115",
+          "package": "@xai-official/grok@0.2.116",
           "args": [
             "agent",
             "stdio"
@@ -692,7 +692,7 @@
     {
       "id": "harn",
       "name": "Harn",
-      "version": "0.10.42",
+      "version": "0.10.44",
       "description": "Harn runs .harn agent pipelines as a native ACP coding agent over stdio.",
       "repository": "https://github.com/burin-labs/harn",
       "website": "https://harnlang.com",
@@ -703,49 +703,49 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.42/harn-aarch64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.44/harn-aarch64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "4029d2993ea96c2985c8f1136eda7c133c2d662bb7ebab5a41e1af2d30e1bab6"
+            "sha256": "987958f50097eed91ad1271e7672a92ec42bc0022ffa6f784f319d578551f254"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.42/harn-x86_64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.44/harn-x86_64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "81cbf9eca813b6f55dce3a1fd46f28261b73cd3b51b1c78341305ef2244c8a2d"
+            "sha256": "8d862c038455c4199ebe0e459a3e045b9b9bab28f6745c4039ffb2b85fd539ba"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.42/harn-aarch64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.44/harn-aarch64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "ed81fd6ec189b9ba56fd35d576abe07d2a35124775d99b42fe039940fe6216bd"
+            "sha256": "af120cdc0361266ba8b152b5e265e3e9330696055d7ff102802a416d216e5472"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.42/harn-x86_64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.44/harn-x86_64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "9e374bee46c714228c7745f109c92da567509b5ca1c277369798267caca9d1bf"
+            "sha256": "18c6f44746a5dc57a1c2eb8b6f46e9545223abcd86e0592c3e1961df774c16ad"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.42/harn-x86_64-pc-windows-msvc.zip",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.44/harn-x86_64-pc-windows-msvc.zip",
             "cmd": "harn.exe",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "8bae51d390c14d8602421624b178ab7bc2f7baceadf0f89508f9d5042b473c88"
+            "sha256": "aace0715050a09f2fdde46a7b70e9f5a4514c384eaaf5d9f1ee67f6fc6c34417"
           }
         }
       },
@@ -953,7 +953,7 @@
     {
       "id": "mistral-vibe",
       "name": "Mistral Vibe",
-      "version": "2.23.1",
+      "version": "2.23.2",
       "description": "Mistral's open-source coding assistant",
       "repository": "https://github.com/mistralai/mistral-vibe",
       "website": "https://mistral.ai/products/vibe",
@@ -965,29 +965,29 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.1/vibe-acp-darwin-aarch64-2.23.1.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.2/vibe-acp-darwin-aarch64-2.23.2.zip",
             "cmd": "./vibe-acp",
-            "sha256": "12a0d7cedf6e17bb3ce41c70c8712d5694090f4e9ba51ec46434f790418034b8"
+            "sha256": "548f5aaff1a7a5569ab74952078f54a1ac363500e4dba16e7962f7cf49b30ce5"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.1/vibe-acp-darwin-x86_64-2.23.1.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.2/vibe-acp-darwin-x86_64-2.23.2.zip",
             "cmd": "./vibe-acp",
-            "sha256": "8373432bf786ca49a05dff33238a459ef7b0ae0cb317325e07f9b377fae69bc3"
+            "sha256": "4576b323f113e1deda3d314abbc7ab8f81562694343deaebba161db2e2c8cdbd"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.1/vibe-acp-linux-aarch64-2.23.1.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.2/vibe-acp-linux-aarch64-2.23.2.zip",
             "cmd": "./vibe-acp",
-            "sha256": "94d5760a99be7ac080e8fcf5e7d82c17db66ed96ac155995795689d6112369df"
+            "sha256": "9d32b224a089418e268a87effc6dbe37570c7cc92c0b541ce2c761cc03ab72ae"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.1/vibe-acp-linux-x86_64-2.23.1.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.2/vibe-acp-linux-x86_64-2.23.2.zip",
             "cmd": "./vibe-acp",
-            "sha256": "446d2401a944f8765417072a14890343786a170da7e4046ee432cce12fc1f5a2"
+            "sha256": "8e8bfef60afc3261caf5962279679d80a1fd916cf9faf3bff68f4d392f0a6915"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.1/vibe-acp-windows-x86_64-2.23.1.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.2/vibe-acp-windows-x86_64-2.23.2.zip",
             "cmd": "./vibe-acp.exe",
-            "sha256": "a3cff1667ed9d77664909a9a360f2402bcd315444d2ce405939f199327afe40c"
+            "sha256": "eb2a9043d1693d5ed9c28415567ee9949ff679700a26b96b4cfb5866fbb79a04"
           }
         }
       }
@@ -1016,7 +1016,7 @@
     {
       "id": "opencode",
       "name": "OpenCode",
-      "version": "1.18.9",
+      "version": "1.18.10",
       "description": "The open source coding agent",
       "repository": "https://github.com/anomalyco/opencode",
       "website": "https://opencode.ai",
@@ -1028,52 +1028,52 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.9/opencode-darwin-arm64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.10/opencode-darwin-arm64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "6f998b7dabb9425bb348fd0d88afeb92a14422771231cec9b0f4374b947397e6"
+            "sha256": "641fe2e65e42db76c2d32db5f85573c3682a8c72f82d01568a922a8feccc4658"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.9/opencode-darwin-x64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.10/opencode-darwin-x64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "b9e6081f4db1f2066910f121258c23c8243438d22b1b80987d1569c5e40ef00e"
+            "sha256": "b2d9e161b3c6f398ab8a21a129455550c7b79b68579bb542dbc986f10b084ae4"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.9/opencode-linux-arm64.tar.gz",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.10/opencode-linux-arm64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "b16bd7593ea960a25d9c6849b3023bcd9b9244a6f51675341fd2052043b0670f"
+            "sha256": "41ae3041e91b894e4c0dc06a73a9a2796254bf390ffb99626a43af5e2912d170"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.9/opencode-linux-x64.tar.gz",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.10/opencode-linux-x64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "a0fa4b7b8bdacbd013e79a5f69d4220d36b545cd3ea296ba765f3016fa501b5b"
+            "sha256": "6b1113da704253fb4da12b41e4236acecb9f2b62949c945f6eeacaa15111b976"
           },
           "windows-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.9/opencode-windows-arm64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.10/opencode-windows-arm64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "1f2c650b517d725635e56da080c73c641c250696a3d7e6cdbada96af8f31a6d3"
+            "sha256": "0ef987b43df4ff427f55b805f6d44231313ef098296fa154d2043837656e092f"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.9/opencode-windows-x64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.10/opencode-windows-x64.zip",
             "cmd": "./opencode.exe",
             "args": [
               "acp"
             ],
-            "sha256": "1becf92ceb23edd7d951e7e3d8efcbe9c9808f5cc728f1b75277d5f951ada5c2"
+            "sha256": "b1d85ce5211bfefbc2b4940a19e1639fc75cb87ff82eb79806ffb84b01dd1482"
           }
         }
       }

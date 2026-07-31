@@ -78,11 +78,6 @@
     "iconPlaceholder": "ikon input",
     "icons": "ikon",
     "iconsPlaceholder": "ikon input",
-    "autoApprove": "Keizinan automatik",
-    "autoApproveAll": "semua",
-    "autoApproveRead": "membaca",
-    "autoApproveWrite": "menulis",
-    "autoApproveHelp": "Pilih jenis operasi yang memerlukan kebenaran automatik dan boleh dilakukan tanpa pengesahan pengguna",
     "submit": "serahkan",
     "add": "Tambah ke",
     "update": "memperbaharui",
@@ -251,7 +246,7 @@
   "market": {
     "browseBuiltin": "Semak imbas pasaran MCP terbina dalam",
     "builtinTitle": "Pasaran MCP",
-    "poweredBy": "Powered by MCPRouter",
+    "poweredBy": "Dikuasakan oleh MCPRouter",
     "keyGuide": "Dapatkan kunci",
     "keyHelpText": "Sila datang dahulu",
     "keyHelpEnd": "Selepas memohon API Key, isikan kotak input di atas",
@@ -305,5 +300,51 @@
     "autoApproveIn": "{seconds} secara automatik menggunakan kelulusan {model} selepas beberapa saat",
     "reviewRequest": "semak butiran",
     "sessionActive": "Sesi aktif - permintaan akan diluluskan secara automatik"
+  },
+  "elicitation": {
+    "title": "Permintaan input MCP",
+    "accept": "Hantar",
+    "decline": "Tolak",
+    "noFields": "Permintaan ini tidak mempunyai medan borang.",
+    "openLink": "Buka pautan selamat",
+    "selectValue": "Pilih nilai",
+    "error": {
+      "required": "Medan ini wajib.",
+      "number": "Masukkan nombor yang sah.",
+      "integer": "Masukkan nombor bulat.",
+      "boolean": "Pilih nilai true atau false yang sah.",
+      "range": "Nilai di luar julat yang dibenarkan.",
+      "selection": "Pilih pilihan yang sah.",
+      "length": "Panjang teks di luar julat yang dibenarkan.",
+      "format": "Masukkan nilai dalam format yang diminta."
+    }
+  },
+  "apps": {
+    "title": "MCP App",
+    "interactiveContent": "Kandungan interaktif daripada pelayan MCP",
+    "loadError": "MCP App ini tidak dapat dimuatkan.",
+    "retry": "Cuba lagi",
+    "fullscreen": "Buka skrin penuh",
+    "pictureInPicture": "Buka gambar dalam gambar",
+    "returnInline": "Kembali ke paparan sebaris",
+    "securityDetails": "Butiran keselamatan",
+    "allowedOrigins": "Asal rangkaian yang diisytiharkan",
+    "requestedPermissions": "Kebenaran peranti yang diminta",
+    "noneDeclared": "Tiada yang diisytiharkan",
+    "advisoryDomain": "Domain rujukan",
+    "toolAccessSuspended": "Akses alat dijeda selepas permintaan ditolak.",
+    "retryAccess": "Cuba akses semula",
+    "permissions": {
+      "camera": "Kamera",
+      "microphone": "Mikrofon",
+      "geolocation": "Lokasi",
+      "clipboardWrite": "Tulis ke papan keratan"
+    },
+    "consent": {
+      "title": "Permintaan MCP App",
+      "description": "Semak tindakan yang diminta oleh kandungan MCP interaktif ini.",
+      "allowOnce": "Benarkan sekali",
+      "deny": "Tolak"
+    }
   }
 }

@@ -402,6 +402,10 @@
       "caption": "Siz ilk mesajınızı gönderene kadar spot ışığı giriş kutusunun üzerinde kalır."
     }
   },
+  "messageReceipt": {
+    "unread": "Okunmadı",
+    "read": "Okundu"
+  },
   "attachments": {
     "chooseRepresentation": "{name} dosyasının nasıl gönderileceğini seçin",
     "representation": "Ek gösterimi",

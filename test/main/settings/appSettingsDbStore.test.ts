@@ -183,7 +183,6 @@ function mcpServer(command: string): MCPServerConfig {
     env: {},
     descriptions: '',
     icons: '',
-    autoApprove: [],
     enabled: true,
     type: 'stdio'
   }

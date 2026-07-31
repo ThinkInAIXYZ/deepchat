@@ -8,6 +8,8 @@ export interface DeepChatPendingInputRow {
   mode: 'queue' | 'steer'
   state: PendingSessionInputState
   payload_json: string
+  message_ids_json: string
+  assistant_message_id: string | null
   blocking_json: string | null
   queue_order: number | null
   claimed_at: number | null
@@ -29,6 +31,8 @@ export class DeepChatPendingInputsTable extends BaseTable {
         mode TEXT NOT NULL,
         state TEXT NOT NULL DEFAULT 'pending',
         payload_json TEXT NOT NULL,
+        message_ids_json TEXT NOT NULL DEFAULT '[]',
+        assistant_message_id TEXT,
         blocking_json TEXT,
         queue_order INTEGER,
         claimed_at INTEGER,
@@ -48,11 +52,19 @@ export class DeepChatPendingInputsTable extends BaseTable {
     if (version === 43) {
       return 'ALTER TABLE deepchat_pending_inputs ADD COLUMN blocking_json TEXT;'
     }
+    if (version === 46) {
+      return `
+        ALTER TABLE deepchat_pending_inputs
+          ADD COLUMN message_ids_json TEXT NOT NULL DEFAULT '[]';
+        ALTER TABLE deepchat_pending_inputs
+          ADD COLUMN assistant_message_id TEXT;
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 43
+    return 46
   }
 
   insert(row: {
@@ -61,6 +73,8 @@ export class DeepChatPendingInputsTable extends BaseTable {
     mode: 'queue' | 'steer'
     state?: PendingSessionInputState
     payloadJson: string
+    messageIdsJson?: string
+    assistantMessageId?: string | null
     blockingJson?: string | null
     queueOrder?: number | null
     claimedAt?: number | null
@@ -79,13 +93,15 @@ export class DeepChatPendingInputsTable extends BaseTable {
           mode,
           state,
           payload_json,
+          message_ids_json,
+          assistant_message_id,
           blocking_json,
           queue_order,
           claimed_at,
           consumed_at,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -93,6 +109,8 @@ export class DeepChatPendingInputsTable extends BaseTable {
         row.mode,
         row.state ?? 'pending',
         row.payloadJson,
+        row.messageIdsJson ?? '[]',
+        row.assistantMessageId ?? null,
         row.blockingJson ?? null,
         row.queueOrder ?? null,
         row.claimedAt ?? null,
@@ -125,12 +143,12 @@ export class DeepChatPendingInputsTable extends BaseTable {
       .all(sessionId) as DeepChatPendingInputRow[]
   }
 
-  listClaimed(): DeepChatPendingInputRow[] {
+  listActive(): DeepChatPendingInputRow[] {
     return this.db
       .prepare(
         `SELECT *
          FROM deepchat_pending_inputs
-         WHERE state = 'claimed'
+         WHERE state != 'consumed'
          ORDER BY session_id ASC, created_at ASC`
       )
       .all() as DeepChatPendingInputRow[]
@@ -175,6 +193,8 @@ export class DeepChatPendingInputsTable extends BaseTable {
         | 'mode'
         | 'state'
         | 'payload_json'
+        | 'message_ids_json'
+        | 'assistant_message_id'
         | 'blocking_json'
         | 'queue_order'
         | 'claimed_at'
@@ -196,6 +216,14 @@ export class DeepChatPendingInputsTable extends BaseTable {
     if (fields.payload_json !== undefined) {
       setClauses.push('payload_json = ?')
       params.push(fields.payload_json)
+    }
+    if (fields.message_ids_json !== undefined) {
+      setClauses.push('message_ids_json = ?')
+      params.push(fields.message_ids_json)
+    }
+    if (fields.assistant_message_id !== undefined) {
+      setClauses.push('assistant_message_id = ?')
+      params.push(fields.assistant_message_id)
     }
     if (fields.blocking_json !== undefined) {
       setClauses.push('blocking_json = ?')

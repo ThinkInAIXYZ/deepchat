@@ -70,6 +70,10 @@
     "audioInputUnsupportedTitle": "当前模型不支持音频附件",
     "audioInputUnsupportedDescription": "模型 {model} 不支持音频输入，已忽略 {count} 个音频附件。"
   },
+  "messageReceipt": {
+    "unread": "未读",
+    "read": "已读"
+  },
   "attachments": {
     "chooseRepresentation": "选择如何发送 {name}",
     "representation": "附件表示方式",

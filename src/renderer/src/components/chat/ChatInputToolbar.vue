@@ -113,22 +113,16 @@
             variant="outline"
             size="sm"
             class="h-7 gap-1.5 rounded-lg px-2.5 text-foreground"
-            :disabled="isPreparingAttachments || steerDisabled || isSteering"
-            :aria-busy="isSteering || undefined"
+            :disabled="isPreparingAttachments || steerDisabled"
             @click="emit('steer')"
           >
-            <Spinner v-if="isSteering" class="size-4" />
-            <Icon v-else icon="lucide:compass" class="w-4 h-4" />
+            <Icon icon="lucide:compass" class="w-4 h-4" />
             <span class="text-xs font-medium">{{ t('chat.input.steer') }}</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>
           <p>
-            {{
-              steerDisabled && !isSteering
-                ? t('chat.pendingInput.steerUnavailable')
-                : t('chat.input.steer')
-            }}
+            {{ steerDisabled ? t('chat.pendingInput.steerUnavailable') : t('chat.input.steer') }}
           </p>
         </TooltipContent>
       </Tooltip>
@@ -206,7 +200,6 @@ const props = withDefaults(
     sendDisabled?: boolean
     queueDisabled?: boolean
     steerDisabled?: boolean
-    isSteering?: boolean
     isStopping?: boolean
     showVoiceInput?: boolean
     isVoiceInputListening?: boolean
@@ -220,7 +213,6 @@ const props = withDefaults(
     sendDisabled: false,
     queueDisabled: false,
     steerDisabled: false,
-    isSteering: false,
     isStopping: false,
     showVoiceInput: false,
     isVoiceInputListening: false,

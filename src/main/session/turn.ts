@@ -273,10 +273,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     sessionId: string,
     itemId: string
   ): Promise<PendingSessionInputRecord> {
-    this.requireSession(sessionId)
-    return await this.dependencies.runtime
-      .resolveSession(toAppSessionId(sessionId))
-      .pending.convertToSteer(itemId)
+    return await this.steerPendingInput(sessionId, itemId)
   }
 
   async steerPendingInput(sessionId: string, itemId: string): Promise<PendingSessionInputRecord> {

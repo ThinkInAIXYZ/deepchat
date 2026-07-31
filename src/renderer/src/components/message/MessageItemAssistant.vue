@@ -49,6 +49,13 @@
                 :tool-call-count="item.toolCallCount"
                 @toggle-collapse="handleCollapseToggle"
               />
+              <MessageBlockToolCall
+                v-else-if="item.kind === 'mcp-app'"
+                :block="item.block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+                render-mode="app-only"
+              />
               <MessageBlockContent
                 v-else-if="item.block.type === 'content'"
                 :block="item.block"
@@ -72,6 +79,7 @@
                 :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
+                :render-mode="item.block.tool_call?.mcpResult?.app ? 'tool-only' : 'full'"
               />
               <MessageBlockQuestionRequest
                 v-else-if="

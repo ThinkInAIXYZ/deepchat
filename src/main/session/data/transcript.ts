@@ -176,7 +176,15 @@ export class SessionTranscript {
     return this.database.getDatabase().transaction(operation)() as T
   }
 
-  createUserMessage(sessionId: string, orderSeq: number, content: UserMessageContent): string {
+  createUserMessage(
+    sessionId: string,
+    orderSeq: number,
+    content: UserMessageContent,
+    options?: {
+      status?: 'pending' | 'sent'
+      metadata?: MessageMetadata
+    }
+  ): string {
     const id = nanoid()
     const serializedContent = JSON.stringify(content)
     this.database.deepchatMessagesTable.insert({
@@ -185,7 +193,8 @@ export class SessionTranscript {
       orderSeq,
       role: 'user',
       content: serializedContent,
-      status: 'sent'
+      status: options?.status ?? 'sent',
+      ...(options?.metadata ? { metadata: JSON.stringify(options.metadata) } : {})
     })
     this.persistUserContent(id, content)
     this.upsertMessageSearchDocument(sessionId, id, 'user', serializedContent)
@@ -271,6 +280,48 @@ export class SessionTranscript {
 
   updateMessageStatus(messageId: string, status: 'pending' | 'sent' | 'error'): void {
     this.database.deepchatMessagesTable.updateStatus(messageId, status)
+  }
+
+  markSteerMessagesRead(messageIds: string[], readAt: number): ChatMessageRecord[] {
+    for (const messageId of messageIds) {
+      const message = this.getMessage(messageId)
+      if (!message || message.role !== 'user' || message.status !== 'pending') {
+        throw new Error(`Pending steer message not found: ${messageId}`)
+      }
+      const metadata = parseMessageMetadata(message.metadata)
+      if (metadata.inputReceipt?.mode !== 'steer' || metadata.inputReceipt.readAt !== null) {
+        throw new Error(`Message ${messageId} is not an unread steer message.`)
+      }
+      this.database.deepchatMessagesTable.updateMetadata(
+        messageId,
+        JSON.stringify({
+          ...metadata,
+          inputReceipt: {
+            mode: 'steer',
+            readAt
+          }
+        } satisfies MessageMetadata)
+      )
+      const updated = this.getMessage(messageId)
+      if (!updated) {
+        throw new Error(`Failed to mark steer message read: ${messageId}`)
+      }
+      this.tapeFacts.appendMessageReplacement(updated, 'steer_message_read')
+    }
+    return messageIds.map((messageId) => this.requireMessage(messageId))
+  }
+
+  settleSteerMessages(messageIds: string[]): ChatMessageRecord[] {
+    for (const messageId of messageIds) {
+      const message = this.getMessage(messageId)
+      if (!message || message.role !== 'user' || message.status !== 'pending') {
+        throw new Error(`Pending steer message not found: ${messageId}`)
+      }
+      this.database.deepchatMessagesTable.updateStatus(messageId, 'sent')
+      const updated = this.requireMessage(messageId)
+      this.tapeFacts.appendMessageReplacement(updated, 'steer_message_settled')
+    }
+    return messageIds.map((messageId) => this.requireMessage(messageId))
   }
 
   finalizeAssistantMessage(
@@ -385,6 +436,14 @@ export class SessionTranscript {
     const row = this.database.deepchatMessagesTable.get(messageId)
     if (!row) return null
     return this.toRecord(row)
+  }
+
+  private requireMessage(messageId: string): ChatMessageRecord {
+    const message = this.getMessage(messageId)
+    if (!message) {
+      throw new Error(`Message not found: ${messageId}`)
+    }
+    return message
   }
 
   getLastUserMessageBeforeOrAt(sessionId: string, orderSeq: number): ChatMessageRecord | null {
@@ -693,8 +752,8 @@ export class SessionTranscript {
   }
 
   private shouldKeepPending(row: DeepChatMessageRow): boolean {
-    if (row.role !== 'assistant') {
-      return false
+    if (row.role === 'user') {
+      return parseMessageMetadata(row.metadata).inputReceipt?.mode === 'steer'
     }
     const blocks = this.parseAssistantBlocks(this.materializeContent(row))
     return blocks.some(

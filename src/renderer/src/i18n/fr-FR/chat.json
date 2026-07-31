@@ -402,6 +402,10 @@
       "caption": "Le projecteur reste sur la zone de saisie jusqu’à l’envoi de votre premier message."
     }
   },
+  "messageReceipt": {
+    "unread": "Non lu",
+    "read": "Lu"
+  },
   "attachments": {
     "chooseRepresentation": "Choisir comment envoyer {name}",
     "representation": "Représentation de la pièce jointe",

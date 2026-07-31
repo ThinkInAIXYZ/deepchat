@@ -210,7 +210,6 @@ describe('DeeplinkService', () => {
               env: {},
               descriptions: 'demo MCP Service',
               icons: '🔌',
-              autoApprove: ['all'],
               enabled: false,
               disable: false,
               args: ['-y', '@modelcontextprotocol/server-filesystem'],

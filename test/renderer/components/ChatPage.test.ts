@@ -43,6 +43,20 @@ const buildAssistantMessage = (content: unknown) => ({
   updatedAt: 1
 })
 
+const buildSteerMessage = (text: string) => ({
+  id: 'steer-user-1',
+  sessionId: 's1',
+  orderSeq: 2,
+  role: 'user' as const,
+  content: JSON.stringify({ text, files: [], links: [], search: false, think: false }),
+  status: 'pending' as const,
+  isContextEdge: 0,
+  metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}',
+  traceCount: 0,
+  createdAt: 2,
+  updatedAt: 2
+})
+
 type SetupOptions = {
   messages?: Array<Record<string, unknown>>
   sessions?: Array<Record<string, unknown>>
@@ -165,6 +179,7 @@ const setup = async (options: SetupOptions = {}) => {
     loadOlderMessages: vi.fn().mockResolvedValue(0),
     activateRecentSessionView: vi.fn().mockReturnValue(false),
     invalidateRecentSessionView: vi.fn(),
+    applyPersistedMessageRecords: vi.fn(),
     clear: vi.fn(),
     clearStreamingState: vi.fn(),
     clearStreamingStateForOtherSession: vi.fn(),
@@ -180,7 +195,6 @@ const setup = async (options: SetupOptions = {}) => {
 
   const pendingInputStore = reactive({
     items: [],
-    steerItems: [],
     queueItems: [],
     isAtCapacity: false,
     loadPendingInputs: vi.fn().mockResolvedValue(undefined),
@@ -243,8 +257,10 @@ const setup = async (options: SetupOptions = {}) => {
       messageId: null
     }),
     steerActiveTurn: vi.fn().mockResolvedValue({
-      accepted: true
+      accepted: true,
+      message: buildSteerMessage('steer')
     }),
+    cancelSubmission: vi.fn().mockResolvedValue({ cancelled: true }),
     stopStream: vi.fn().mockResolvedValue({ stopped: true }),
     respondToolInteraction: chatRespondToolInteraction,
     onPlanUpdated: vi.fn((listener: (payload: any) => void) => {
@@ -509,10 +525,6 @@ const setup = async (options: SetupOptions = {}) => {
           type: Boolean,
           default: false
         },
-        isSteering: {
-          type: Boolean,
-          default: false
-        },
         isStopping: {
           type: Boolean,
           default: false
@@ -520,7 +532,7 @@ const setup = async (options: SetupOptions = {}) => {
       },
       emits: ['attach', 'queue', 'send', 'steer', 'stop'],
       template:
-        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled || isSteering" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
+        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
     })
   }))
   vi.doMock('@/components/chat/AgentProgressFloat.vue', () => ({
@@ -2881,7 +2893,7 @@ describe('ChatPage', () => {
     expect(wrapper.findComponent({ name: 'ChatInputToolbar' }).props('hasInput')).toBe(true)
   })
 
-  it('disables queue submit when the waiting queue is full but keeps steer button available', async () => {
+  it('keeps pre-stream steer available when the waiting queue is full', async () => {
     const { wrapper } = await setup({
       isStreaming: true,
       pendingInputStorePatch: {

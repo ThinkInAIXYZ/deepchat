@@ -128,7 +128,6 @@ describe('useMcpStore', () => {
           env: {},
           descriptions: 'Demo server',
           icons: 'D',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: false
@@ -163,7 +162,6 @@ describe('useMcpStore', () => {
           env: {},
           descriptions: 'Demo server',
           icons: 'D',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: false
@@ -201,7 +199,6 @@ describe('useMcpStore', () => {
           env: {},
           descriptions: 'Demo server',
           icons: 'D',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: true
@@ -212,7 +209,6 @@ describe('useMcpStore', () => {
           env: {},
           descriptions: 'Computer Use',
           icons: 'plugin',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: true,
@@ -243,7 +239,6 @@ describe('useMcpStore', () => {
           env: {},
           descriptions: 'Demo server',
           icons: 'D',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: true
@@ -253,7 +248,6 @@ describe('useMcpStore', () => {
           args: ['mcp', '--embedded'],
           descriptions: 'Computer Use',
           icons: 'plugin',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: true,
@@ -286,7 +280,6 @@ describe('useMcpStore', () => {
           env: {},
           descriptions: 'Memory',
           icons: 'M',
-          autoApprove: [],
           disable: false,
           type: 'inmemory',
           enabled: false
@@ -297,7 +290,6 @@ describe('useMcpStore', () => {
           env: {},
           descriptions: 'Tavily',
           icons: 'T',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: false
@@ -308,7 +300,6 @@ describe('useMcpStore', () => {
           env: {},
           descriptions: 'Linear',
           icons: 'L',
-          autoApprove: [],
           disable: false,
           type: 'sse',
           enabled: true

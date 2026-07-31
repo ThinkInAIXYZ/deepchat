@@ -456,7 +456,22 @@ function createRuntime() {
       requestId: 'message-2',
       messageId: 'message-2'
     }),
-    steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
+    steerActiveTurn: vi.fn().mockResolvedValue({
+      requestId: null,
+      messageId: null,
+      userMessage: {
+        id: 'steer-user-message',
+        sessionId: 'session-1',
+        orderSeq: 2,
+        role: 'user' as const,
+        content: '{"text":"refine the active answer"}',
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}',
+        createdAt: 2,
+        updatedAt: 2
+      }
+    }),
     listPendingInputs: vi.fn().mockResolvedValue([]),
     queuePendingInput: vi.fn().mockResolvedValue({}),
     updateQueuedInput: vi.fn().mockResolvedValue({}),
@@ -1549,6 +1564,8 @@ function createRuntime() {
   })
   const mcpRoutes = createMcpRoutes({
     mcpService,
+    mcpAppHost: {} as any,
+    isSettingsWindow: () => true,
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
   const remoteRoutes = createRemoteRoutes(remoteService)
@@ -3680,7 +3697,15 @@ describe('dispatchDeepchatRoute', () => {
   it('returns typed MCP add results and records only persisted additions', async () => {
     const { runtime, mcpService, sqlitePresenter } = createRuntime()
     const context = { webContentsId: 42, windowId: 7 }
-    const config = { type: 'stdio', command: 'node' } as const
+    const config = {
+      type: 'stdio',
+      command: 'node',
+      args: [],
+      env: {},
+      descriptions: '',
+      icons: '',
+      enabled: false
+    } as const
 
     const added = await dispatchDeepchatRoute(
       runtime,

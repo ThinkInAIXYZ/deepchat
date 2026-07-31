@@ -103,6 +103,19 @@ afterEach(() => {
 })
 
 describe('MessageBlockToolCall', () => {
+  it('hides the tool disclosure in app-only mode', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { id: 'app-1', name: 'render_chart', response: 'done' }
+        }),
+        renderMode: 'app-only'
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-trigger"]').exists()).toBe(false)
+  })
+
   it('does not schedule detail cleanup for an initially collapsed tool', () => {
     const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
 

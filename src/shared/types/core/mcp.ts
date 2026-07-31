@@ -67,6 +67,25 @@ export interface MCPToolDefinitionBase {
     name: string
     icons: string
     description: string
+    id?: string
+    configGeneration?: number
+    bindingHash?: string
+  }
+  raw?: {
+    name: string
+    title?: string
+    description?: string
+    icons?: Array<{
+      src: string
+      mimeType?: string
+      sizes?: string[]
+      theme?: 'light' | 'dark'
+    }>
+    inputSchema: Record<string, unknown>
+    outputSchema?: Record<string, unknown>
+    annotations?: Record<string, unknown>
+    _meta?: Record<string, unknown>
+    execution?: Record<string, unknown>
   }
 }
 
@@ -97,15 +116,39 @@ export interface MCPToolCall {
   providerId?: string
 }
 
-export type MCPContentItem = MCPTextContent | MCPImageContent | MCPResourceContent
+export interface MCPContentAnnotations {
+  [key: string]: unknown
+  audience?: Array<'user' | 'assistant'>
+  priority?: number
+  lastModified?: string
+}
 
-export interface MCPTextContent {
+export interface MCPContentBase {
+  [key: string]: unknown
+  annotations?: MCPContentAnnotations
+  _meta?: Record<string, unknown>
+}
+
+export type MCPContentItem =
+  | MCPTextContent
+  | MCPImageContent
+  | MCPAudioContent
+  | MCPResourceContent
+  | MCPResourceLinkContent
+
+export interface MCPTextContent extends MCPContentBase {
   type: 'text'
   text: string
 }
 
-export interface MCPImageContent {
+export interface MCPImageContent extends MCPContentBase {
   type: 'image'
+  data: string
+  mimeType: string
+}
+
+export interface MCPAudioContent extends MCPContentBase {
+  type: 'audio'
   data: string
   mimeType: string
 }
@@ -120,13 +163,70 @@ export interface ToolCallImagePreview {
   source: ToolCallImagePreviewSource
 }
 
-export interface MCPResourceContent {
+export interface MCPResourceContent extends MCPContentBase {
   type: 'resource'
-  resource: {
-    uri: string
+  resource: MCPResourceContents
+}
+
+export interface MCPResourceContents {
+  [key: string]: unknown
+  uri: string
+  mimeType?: string
+  text?: string
+  blob?: string
+  _meta?: Record<string, unknown>
+}
+
+export interface MCPResourceLinkContent extends MCPContentBase {
+  type: 'resource_link'
+  uri: string
+  name: string
+  title?: string
+  description?: string
+  mimeType?: string
+  size?: number
+  icons?: Array<{
+    src: string
     mimeType?: string
-    text?: string
-    blob?: string
+    sizes?: string[]
+    theme?: 'light' | 'dark'
+  }>
+}
+
+export interface McpAppDescriptor {
+  schemaVersion: 1
+  serverId: string
+  configGeneration: number
+  bindingHash: string
+  serverName: string
+  toolName: string
+  resourceUri: string
+  resourceMimeType: string
+}
+
+export interface McpAppModelContext {
+  content?: MCPContentItem[]
+  structuredContent?: Record<string, unknown>
+  approvedHash?: string
+}
+
+export interface PersistedMcpToolResult {
+  schemaVersion: 1
+  serverId: string
+  configGeneration: number
+  bindingHash: string
+  toolName: string
+  isError?: boolean
+  content?: MCPContentItem[]
+  structuredContent?: unknown
+  meta?: Record<string, unknown>
+  app?: McpAppDescriptor
+  modelContext?: McpAppModelContext
+  truncated?: {
+    content?: boolean
+    structuredContent?: boolean
+    meta?: boolean
+    binaryContentOmitted?: boolean
   }
 }
 
@@ -136,6 +236,7 @@ export interface MCPToolResponse {
   _meta?: Record<string, unknown>
   isError?: boolean
   structuredContent?: unknown
+  mcpResult?: PersistedMcpToolResult
   ownerPluginId?: string
   toolResult?: unknown
   rtkApplied?: boolean
@@ -191,6 +292,9 @@ export interface McpSamplingRequestPayload {
   requestId: string
   serverName: string
   serverLabel?: string
+  serverId?: string
+  configGeneration?: number
+  bindingHash?: string
   systemPrompt?: string
   maxTokens?: number
   modelPreferences?: McpSamplingModelPreferences

@@ -8,7 +8,11 @@ import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/a
 import { AcpAgentRuntime, type AcpAgentRuntimeSessionInput } from '@/agent/acp/instance'
 import { AcpSessionController, type AcpSessionRecord } from '@/agent/acp/runtime'
 import type { SessionPendingInputRuntimePort } from '@/session/data/contracts'
-import type { PendingSessionInputRecord, SendMessageInput } from '@shared/types/agent-interface'
+import type {
+  ChatMessageRecord,
+  PendingSessionInputRecord,
+  SendMessageInput
+} from '@shared/types/agent-interface'
 
 const descriptor: AcpAgentDescriptor = {
   id: 'agent',
@@ -49,6 +53,7 @@ class FakePendingInputs implements SessionPendingInputRuntimePort {
   readonly records: PendingSessionInputRecord[] = []
   readonly queuedStates: Array<PendingSessionInputRecord['state']> = []
   private nextId = 1
+  private nextMessageId = 1
 
   listPendingInputs(sessionId: ReturnType<typeof toAppSessionId>) {
     return this.records.filter(
@@ -66,20 +71,34 @@ class FakePendingInputs implements SessionPendingInputRuntimePort {
     return record
   }
 
-  queueSteerInput(
+  acceptSteerMessage(
     sessionId: ReturnType<typeof toAppSessionId>,
-    input: string | SendMessageInput,
-    options?: { mergeItemId?: string | null }
-  ) {
-    const existing = options?.mergeItemId
-      ? this.records.find((record) => record.id === options.mergeItemId)
-      : undefined
-    if (existing) {
-      const next = this.normalize(input)
-      existing.payload.text = [existing.payload.text, next.text].filter(Boolean).join('\n\n')
-      return existing
+    input: SendMessageInput,
+    options?: {
+      mergeItemId?: string | null
+      preStreamAnchorMessageId?: string | null
     }
-    return this.create(sessionId, 'steer', input)
+  ) {
+    const message = this.createUserMessage(sessionId, input)
+    const pendingInput = options?.mergeItemId
+      ? this.require(options.mergeItemId)
+      : this.create(sessionId, 'steer', input)
+    if (options?.mergeItemId) {
+      pendingInput.payload.text = [pendingInput.payload.text, input.text]
+        .filter(Boolean)
+        .join('\n\n')
+    }
+    pendingInput.messageIds.push(message.id)
+    return { pendingInput, message }
+  }
+
+  promoteQueuedInputToSteerMessage(sessionId: ReturnType<typeof toAppSessionId>, itemId: string) {
+    const pendingInput = this.require(itemId)
+    pendingInput.mode = 'steer'
+    pendingInput.queueOrder = null
+    const message = this.createUserMessage(sessionId, pendingInput.payload)
+    pendingInput.messageIds.push(message.id)
+    return { pendingInput, message }
   }
 
   updateQueuedInput(
@@ -94,20 +113,6 @@ class FakePendingInputs implements SessionPendingInputRuntimePort {
 
   moveQueuedInput(sessionId: ReturnType<typeof toAppSessionId>, _itemId: string, _toIndex: number) {
     return this.listPendingInputs(sessionId)
-  }
-
-  convertPendingInputToSteer(_sessionId: ReturnType<typeof toAppSessionId>, itemId: string) {
-    const record = this.require(itemId)
-    record.mode = 'steer'
-    record.queueOrder = null
-    return record
-  }
-
-  restoreSteerInputToQueue(_sessionId: ReturnType<typeof toAppSessionId>, itemId: string) {
-    const record = this.require(itemId)
-    record.mode = 'queue'
-    record.queueOrder = this.records.length
-    return record
   }
 
   deletePendingInput(_sessionId: ReturnType<typeof toAppSessionId>, itemId: string) {
@@ -137,7 +142,9 @@ class FakePendingInputs implements SessionPendingInputRuntimePort {
   }
 
   claimSteerInput(_sessionId: ReturnType<typeof toAppSessionId>, itemId: string) {
-    return this.claim(itemId)
+    const record = this.claim(itemId)
+    record.assistantMessageId = `assistant-${this.nextMessageId++}`
+    return record
   }
 
   releaseClaimedInput(_sessionId: ReturnType<typeof toAppSessionId>, itemId: string) {
@@ -170,6 +177,9 @@ class FakePendingInputs implements SessionPendingInputRuntimePort {
       mode,
       state,
       payload: this.normalize(input),
+      messageIds: [],
+      assistantMessageId: null,
+      blocking: null,
       queueOrder: mode === 'queue' ? this.records.length : null,
       claimedAt: null,
       consumedAt: null,
@@ -195,6 +205,25 @@ class FakePendingInputs implements SessionPendingInputRuntimePort {
   private normalize(input: string | SendMessageInput): SendMessageInput {
     return typeof input === 'string' ? { text: input, files: [] } : input
   }
+
+  private createUserMessage(
+    sessionId: ReturnType<typeof toAppSessionId>,
+    input: SendMessageInput
+  ): ChatMessageRecord {
+    const now = Date.now()
+    return {
+      id: `user-${this.nextMessageId++}`,
+      sessionId,
+      orderSeq: this.nextMessageId,
+      role: 'user',
+      content: JSON.stringify({ ...input, files: input.files ?? [] }),
+      status: 'pending',
+      isContextEdge: 0,
+      metadata: JSON.stringify({ inputReceipt: { mode: 'steer', readAt: null } }),
+      createdAt: now,
+      updatedAt: now
+    }
+  }
 }
 
 function createHarness(options?: {
@@ -203,6 +232,7 @@ function createHarness(options?: {
   clearRejects?: boolean
   clearPromise?: Promise<void>
   resourceRejects?: boolean
+  resourceGate?: { started: () => void; wait: Promise<void> }
   firstPromptNeverSettles?: boolean
   pendingInputs?: FakePendingInputs
 }) {
@@ -295,6 +325,10 @@ function createHarness(options?: {
       promptResources: {
         resolve: vi.fn(async ({ content }) => {
           if (options?.resourceRejects) throw new Error('resource failed')
+          if (options?.resourceGate) {
+            options.resourceGate.started()
+            await options.resourceGate.wait
+          }
           const text = typeof content === 'string' ? content : content.text
           return {
             latestUserMessage: { role: 'user', content: text },
@@ -627,6 +661,24 @@ describe('AcpAgentRuntime', () => {
     expect(pendingInputs.records.map((record) => record.state)).toEqual(['consumed', 'consumed'])
   })
 
+  it('resumes a durable Steer after runtime restart', async () => {
+    const pendingInputs = new FakePendingInputs()
+    const input = createInput()
+    pendingInputs.acceptSteerMessage(input.sessionId, {
+      text: 'resume after restart',
+      files: []
+    })
+    const harness = createHarness({ pendingInputs })
+
+    await expect(harness.runtime.resumePendingInputs(input)).resolves.toBe(true)
+
+    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledOnce())
+    expect(harness.connection.prompt.mock.calls[0][0].prompt).toEqual([
+      { type: 'text', text: 'resume after restart' }
+    ])
+    await vi.waitFor(() => expect(pendingInputs.records[0].state).toBe('consumed'))
+  })
+
   it('waits for in-flight hydration before closing all instances', async () => {
     const harness = createHarness()
     const input = createInput()
@@ -808,21 +860,37 @@ describe('AcpAgentRuntime', () => {
     expect(harness.calls).toContain('session.clear')
   })
 
-  it('queues and auto-drains steer input after cancelling an active direct turn', async () => {
+  it('orders and drains steer input before the first ACP projection', async () => {
+    let markResourceStarted!: () => void
+    const resourceStarted = new Promise<void>((resolve) => {
+      markResourceStarted = resolve
+    })
+    let releaseResources!: () => void
+    const resourcesReleased = new Promise<void>((resolve) => {
+      releaseResources = resolve
+    })
     const pendingInputs = new FakePendingInputs()
-    const harness = createHarness({ firstPromptNeverSettles: true, pendingInputs })
+    const harness = createHarness({
+      pendingInputs,
+      resourceGate: { started: markResourceStarted, wait: resourcesReleased }
+    })
     const input = createInput()
-    const active = harness.runtime.send(input, 'active')
-    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledTimes(1))
+    const source = await harness.runtime.queuePendingInput(input, {
+      text: 'active',
+      files: []
+    })
+    await resourceStarted
+    expect(harness.connection.prompt).not.toHaveBeenCalled()
 
-    await harness.runtime.steer(input, 'steer')
-    await active
+    await harness.runtime.steer(input, { text: 'steer', files: [] })
+    releaseResources()
 
-    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledTimes(2))
-    expect(harness.connection.prompt.mock.calls[1][0].prompt).toEqual([
+    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledOnce())
+    expect(harness.connection.prompt.mock.calls[0][0].prompt).toEqual([
       { type: 'text', text: 'steer' }
     ])
-    await vi.waitFor(() => expect(pendingInputs.records[0].state).toBe('consumed'))
+    await vi.waitFor(() => expect(source.state).toBe('consumed'))
+    await vi.waitFor(() => expect(pendingInputs.records[1].state).toBe('consumed'))
   })
 
   it('promotes a queued item into active steer after terminal cancellation', async () => {
@@ -851,7 +919,7 @@ describe('AcpAgentRuntime', () => {
     await vi.waitFor(() => expect(pendingInputs.records[0].state).toBe('consumed'))
   })
 
-  it('does not cancel preparation and drains a steer after the draft becomes ready', async () => {
+  it('rejects steer while the draft is still preparing', async () => {
     let resolvePrepare!: (session: AcpSessionRecord) => void
     const preparePromise = new Promise<AcpSessionRecord>((resolve) => {
       resolvePrepare = resolve
@@ -862,13 +930,15 @@ describe('AcpAgentRuntime', () => {
     const preparing = harness.runtime.prepare(input)
     await vi.waitFor(() => expect(harness.sessions.prepare).toHaveBeenCalledTimes(1))
 
-    await harness.runtime.steer(input, 'after prepare')
+    await expect(harness.runtime.steer(input, 'after prepare')).rejects.toThrow(
+      'Wait for the assistant response to start before steering.'
+    )
     expect(harness.connection.cancel).not.toHaveBeenCalled()
+    expect(pendingInputs.records).toEqual([])
     resolvePrepare(harness.session)
     await preparing
 
-    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledTimes(1))
-    expect(pendingInputs.records[0].state).toBe('consumed')
+    expect(harness.connection.prompt).not.toHaveBeenCalled()
   })
 
   it('evicts prepare-only state on process exit without clearing the durable binding', async () => {

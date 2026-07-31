@@ -572,7 +572,6 @@ describe('SessionAssignment', () => {
             queue: vi.fn().mockResolvedValue(pendingRecord),
             update: vi.fn().mockResolvedValue(pendingRecord),
             move: vi.fn().mockResolvedValue([pendingRecord]),
-            convertToSteer: vi.fn().mockResolvedValue({ ...pendingRecord, mode: 'steer' as const }),
             steer: vi.fn().mockResolvedValue({
               ...pendingRecord,
               mode: 'steer' as const,

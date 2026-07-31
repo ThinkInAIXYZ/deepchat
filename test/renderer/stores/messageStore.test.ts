@@ -28,6 +28,7 @@ function buildUserMessage(id: string, sessionId: string, orderSeq: number, text:
 const setupStore = async () => {
   vi.resetModules()
 
+  const messageListeners: Array<(payload: any) => void> = []
   const sessionClient = {
     restore: vi.fn().mockResolvedValue({
       session: { id: 's1' },
@@ -39,6 +40,10 @@ const setupStore = async () => {
       messages: [],
       nextCursor: null,
       hasMore: false
+    }),
+    onMessagesChanged: vi.fn((listener: (payload: any) => void) => {
+      messageListeners.push(listener)
+      return () => undefined
     })
   }
   const streamListeners = {
@@ -96,7 +101,7 @@ const setupStore = async () => {
   const { useMessageStore } = await import('@/stores/ui/message')
   const store = useMessageStore()
   store.setCurrentSessionId('s1')
-  return { store, sessionClient, streamListeners, ipcListeners }
+  return { store, sessionClient, streamListeners, ipcListeners, messageListeners }
 }
 
 describe('messageStore', () => {
@@ -167,8 +172,45 @@ describe('messageStore', () => {
     expect(store.messages.value[0]?.metadata).toContain('"messageType":"compaction"')
   })
 
-  it('can remove optimistic messages by id', async () => {
-    const { store } = await setupStore()
+  it('applies persisted steer receipt updates without reloading the transcript', async () => {
+    const { store, sessionClient, messageListeners } = await setupStore()
+    const unreadMessage = {
+      ...buildUserMessage('steer-1', 's1', 1, 'redirect'),
+      status: 'pending' as const,
+      metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}'
+    }
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [unreadMessage]
+    })
+    await store.loadMessages('s1')
+    const revision = store.lastPersistedRevision.value
+
+    messageListeners[0]({
+      sessionId: 's1',
+      messages: [
+        {
+          ...unreadMessage,
+          metadata: '{"inputReceipt":{"mode":"steer","readAt":1000}}',
+          updatedAt: 2
+        }
+      ]
+    })
+
+    expect(store.messages.value[0]?.metadata).toContain('"readAt":1000')
+    expect(store.lastPersistedRevision.value).toBe(revision + 1)
+
+    messageListeners[0]({
+      sessionId: 's1',
+      messages: [unreadMessage]
+    })
+    expect(store.messages.value[0]?.metadata).toContain('"readAt":1000')
+  })
+
+  it('replaces an optimistic user with its persisted source record', async () => {
+    const { store, messageListeners } = await setupStore()
     await store.loadMessages('s1')
 
     const optimisticId = store.addOptimisticUserMessage('s1', {
@@ -181,9 +223,19 @@ describe('messageStore', () => {
     expect(store.messages.value[0]?.id).toBe(optimisticId)
     expect(store.messages.value[0]?.content).toContain('skill-a')
 
-    store.removeOptimisticMessage(optimisticId)
+    messageListeners[0]({
+      sessionId: 's1',
+      messages: [
+        buildUserMessage('source-user', 's1', 1, 'hello'),
+        {
+          ...buildUserMessage('steer-user', 's1', 2, 'steer'),
+          status: 'pending',
+          metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}'
+        }
+      ]
+    })
 
-    expect(store.messages.value).toHaveLength(0)
+    expect(store.messageIds.value).toEqual(['source-user', 'steer-user'])
   })
 
   it('does not resort message ids when an existing message keeps the same order', async () => {

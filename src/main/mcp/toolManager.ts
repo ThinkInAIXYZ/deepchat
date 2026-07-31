@@ -3,11 +3,14 @@ import {
   TOOL_EXECUTION,
   type MCPContentItem,
   type MCPTextContent,
+  type MCPServerConfig,
   type MCPToolCall,
   type MCPToolDefinition,
   type MCPToolResponse,
+  type McpExpectedToolTarget,
   type Resource,
-  type Tool
+  type Tool,
+  type ToolCallResult
 } from '@shared/types/mcp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { ServerManager } from './serverManager'
@@ -25,6 +28,7 @@ import type {
   PluginOwnedToolCatalogRegistration,
   PluginRuntimeStartReason
 } from '@/plugin/runtimeSupervisor'
+import { createPersistedMcpToolResult, getToolVisibility } from './resultProjection'
 
 const isAbortError = (error: unknown): boolean =>
   error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
@@ -131,9 +135,6 @@ export class ToolManager {
   private catalogValidationPromises = new WeakMap<McpClient, Promise<Map<string, Tool>>>()
   private toolDefinitionsCacheGeneration = 0
   private activeToolDefinitionsRefresh: ActiveToolDefinitionsRefresh | null = null
-  // Session-scoped permission cache. Ordinary MCP servers retain coarse
-  // server/type grants; closed plugin policies use exact server/tool grants.
-  private sessionPermissions = new Map<string, Set<string>>()
 
   constructor(
     agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>,
@@ -196,7 +197,8 @@ export class ToolManager {
     const result = await client.callTool('check_permissions', { prompt: false }, { signal })
     if (result.isError) {
       const detail = result.content
-        ?.map((item) => item.text)
+        ?.filter((item): item is MCPTextContent => item.type === 'text')
+        .map((item) => item.text)
         .filter(Boolean)
         .join('; ')
       throw new Error(detail || `Plugin runtime server "${serverName}" permission check failed`)
@@ -236,6 +238,7 @@ export class ToolManager {
       console.info('Fetching/refreshing tool definitions and target map...')
       const clients = await awaitWithAbort(this.serverManager.getRunningClients(), options?.signal)
       const sources = await this.loadToolSources(clients ?? [], options?.signal)
+      const serverConfigs = await awaitWithAbort(this.mcpSettings.getMcpServers(), options?.signal)
       const results: MCPToolDefinition[] = []
       const nextToolNameToTargetMap = new Map<string, ToolTarget>()
 
@@ -249,6 +252,9 @@ export class ToolManager {
       for (const source of sources) {
         const currentServerRenames = toolsToRename.get(source.serverName) ?? new Set<string>()
         for (const tool of source.tools) {
+          if (!getToolVisibility(tool).includes('model')) {
+            continue
+          }
           const originalServerName = toolNameToServerMap.get(tool.name)
           if (originalServerName && originalServerName !== source.serverName) {
             console.warn(
@@ -270,13 +276,16 @@ export class ToolManager {
       for (const source of sources) {
         const renamesForThisServer = toolsToRename.get(source.serverName) ?? new Set()
         for (const tool of source.tools) {
+          if (!getToolVisibility(tool).includes('model')) {
+            continue
+          }
           let finalName = tool.name
-          let finalDescription = tool.description
+          let finalDescription = tool.description ?? ''
           const originalName = tool.name
 
           if (renamesForThisServer.has(originalName)) {
             finalName = `${source.serverName}_${originalName}`
-            finalDescription = `[${source.serverName}] ${tool.description}`
+            finalDescription = `[${source.serverName}] ${tool.description ?? ''}`
           }
 
           const namePattern = /^[a-zA-Z0-9_-]+$/
@@ -299,7 +308,9 @@ export class ToolManager {
             ])
           )
 
+          const serverConfig = serverConfigs[source.serverName]
           results.push({
+            // Server annotations are untrusted hints and must not weaken local execution policy.
             execution: TOOL_EXECUTION.write,
             type: 'function',
             function: {
@@ -314,7 +325,21 @@ export class ToolManager {
             server: {
               name: source.serverName,
               icons: source.icon,
-              description: source.displayName
+              description: source.displayName,
+              id: serverConfig?.serverId,
+              configGeneration: serverConfig?.configGeneration,
+              bindingHash: serverConfig?.bindingHash
+            },
+            raw: {
+              name: tool.name,
+              title: tool.title,
+              description: tool.description,
+              icons: tool.icons,
+              inputSchema: tool.inputSchema,
+              outputSchema: tool.outputSchema,
+              annotations: tool.annotations,
+              _meta: tool._meta,
+              execution: tool.execution
             }
           })
 
@@ -323,7 +348,7 @@ export class ToolManager {
             originalName,
             client: source.client,
             catalogBacked: source.catalogBacked,
-            ...(source.catalogBacked ? { catalogTool: tool } : {})
+            catalogTool: tool
           })
         }
       }
@@ -464,212 +489,44 @@ export class ToolManager {
     return !context.enabledServerIds || context.enabledServerIds.includes(serverName)
   }
 
-  // 确定权限类型的新方法
-  private determinePermissionType(toolName: string): 'read' | 'write' | 'all' {
-    const lowerToolName = toolName.toLowerCase()
-
-    // Read operations
-    if (
-      lowerToolName.includes('read') ||
-      lowerToolName.includes('list') ||
-      lowerToolName.includes('get') ||
-      lowerToolName.includes('show') ||
-      lowerToolName.includes('view') ||
-      lowerToolName.includes('fetch') ||
-      lowerToolName.includes('search') ||
-      lowerToolName.includes('find') ||
-      lowerToolName.includes('query') ||
-      lowerToolName.includes('tree')
-    ) {
-      return 'read'
+  private describeExpectedTargetMismatch(
+    finalName: string,
+    target: ToolTarget | undefined,
+    expected: McpExpectedToolTarget | undefined,
+    config?: MCPServerConfig | null
+  ): string | null {
+    if (!expected) {
+      return null
     }
-
-    // Write operations
-    if (
-      lowerToolName.includes('write') ||
-      lowerToolName.includes('create') ||
-      lowerToolName.includes('update') ||
-      lowerToolName.includes('delete') ||
-      lowerToolName.includes('modify') ||
-      lowerToolName.includes('edit') ||
-      lowerToolName.includes('remove') ||
-      lowerToolName.includes('add') ||
-      lowerToolName.includes('insert') ||
-      lowerToolName.includes('save') ||
-      lowerToolName.includes('execute') ||
-      lowerToolName.includes('run') ||
-      lowerToolName.includes('call') ||
-      lowerToolName.includes('move') ||
-      lowerToolName.includes('copy') ||
-      lowerToolName.includes('mkdir') ||
-      lowerToolName.includes('rmdir')
-    ) {
-      return 'write'
+    if (expected.finalName !== finalName) {
+      return 'the authorized tool name no longer matches the requested tool'
     }
-
-    // Default to write for safety (unknown operations require higher permissions)
-    return 'write'
+    if (
+      !target ||
+      target.serverName !== expected.serverName ||
+      target.originalName !== expected.originalName
+    ) {
+      return 'the authorized MCP tool now resolves to a different target'
+    }
+    if (config === null) {
+      return 'the authorized MCP server configuration is no longer available'
+    }
+    if (
+      config &&
+      (config.serverId !== expected.serverId ||
+        config.configGeneration !== expected.configGeneration ||
+        config.bindingHash !== expected.bindingHash)
+    ) {
+      return 'the authorized MCP server binding changed before dispatch'
+    }
+    return null
   }
 
-  // 检查工具调用权限
-  private checkToolPermission(
-    originalToolName: string,
-    serverName: string,
-    autoApprove: string[],
-    conversationId?: string
-  ): boolean {
-    logger.info(
-      `[ToolManager] Checking permissions for tool '${originalToolName}' on server '${serverName}' with autoApprove:`,
-      autoApprove,
-      `conversationId: ${conversationId}`
-    )
-
-    const policy = resolvePluginToolPolicy(serverName, originalToolName)
-    if (policy.decision === 'allow') {
-      logger.info(
-        `[ToolManager] Permission granted by plugin tool policy: ${serverName}.${originalToolName}`
-      )
-      return true
-    }
-    if (policy.managed) {
-      if (
-        policy.decision === 'ask' &&
-        conversationId &&
-        this.checkSessionToolPermission(conversationId, serverName, originalToolName)
-      ) {
-        logger.info(
-          `[ToolManager] Permission granted by exact plugin session cache: ${serverName}.${originalToolName}`
-        )
-        return true
-      }
-      logger.info(
-        `[ToolManager] Permission blocked by closed plugin tool policy '${policy.decision ?? 'undeclared'}': ${serverName}.${originalToolName}`
-      )
-      return false
-    }
-
-    const permissionType = this.determinePermissionType(originalToolName)
-    logger.info(`[ToolManager] Tool '${originalToolName}' requires '${permissionType}' permission`)
-
-    // Existing servers without a closed plugin policy retain coarse session grants.
-    if (conversationId && this.checkSessionPermission(conversationId, serverName, permissionType)) {
-      logger.info(
-        `[ToolManager] Permission granted via session cache: server '${serverName}' has '${permissionType}' permission`
-      )
-      return true
-    }
-
-    // 检查持久化的 'all' 权限
-    if (autoApprove.includes('all')) {
-      logger.info(`[ToolManager] Permission granted: server '${serverName}' has 'all' permissions`)
-      return true
-    }
-
-    // 检查持久化的特定权限类型
-    if (autoApprove.includes(permissionType)) {
-      logger.info(
-        `[ToolManager] Permission granted: server '${serverName}' has '${permissionType}' permission`
-      )
-      return true
-    }
-
-    logger.info(
-      `[ToolManager] Permission required for tool '${originalToolName}' on server '${serverName}'.`
-    )
-    return false
-  }
-
-  /**
-   * Pre-check tool permissions without executing the tool
-   * Returns permission requirement info if permission is needed, null if already has permission
-   */
-  async preCheckToolPermission(
-    toolCall: MCPToolCall,
-    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'> & {
-      signal?: AbortSignal
-    }
-  ): Promise<{
-    needsPermission: true
-    toolName: string
-    serverName: string
-    permissionType: 'read' | 'write' | 'all' | 'command'
-    description: string
-    command?: string
-    commandSignature?: string
-    commandInfo?: {
-      command: string
-      riskLevel: 'low' | 'medium' | 'high' | 'critical'
-      suggestion: string
-      signature?: string
-      baseCommand?: string
-    }
-  } | null> {
-    access?.signal?.throwIfAborted()
-    const finalName = toolCall.function.name
-
-    // Ensure definitions and map are loaded/cached
-    await awaitWithAbort(
-      this.getAllToolDefinitions(undefined, { signal: access?.signal }),
-      access?.signal
-    )
-    access?.signal?.throwIfAborted()
-
-    if (!this.toolNameToTargetMap) {
-      console.error('[ToolManager] Tool target map is not available for permission check.')
-      return null
-    }
-
-    const targetInfo = this.toolNameToTargetMap.get(finalName)
-
-    if (!targetInfo) {
-      console.error(`[ToolManager] Tool '${finalName}' not found for permission check.`)
-      return null
-    }
-
-    const { originalName, serverName: toolServerName } = targetInfo
-
-    // Get server config to check auto-approve settings
-    const servers = await awaitWithAbort(this.mcpSettings.getMcpServers(), access?.signal)
-    access?.signal?.throwIfAborted()
-    const serverConfig = servers[toolServerName]
-    const accessContext = normalizeToolAccessContext({
-      agentId: access?.agentId,
-      enabledServerIds: access?.enabledServerIds,
-      conversationId: toolCall.conversationId
-    })
-    if (serverConfig && !this.isServerAllowedByContext(toolServerName, accessContext)) {
-      return null
-    }
-    const autoApprove = serverConfig?.autoApprove || []
-    const pluginPolicy = resolvePluginToolPolicy(toolServerName, originalName)
-
-    if (
-      pluginPolicy.managed &&
-      pluginPolicy.decision !== 'allow' &&
-      pluginPolicy.decision !== 'ask'
-    ) {
-      return null
-    }
-
-    // Check permission using existing logic
-    const hasPermission = this.checkToolPermission(
-      originalName,
-      toolServerName,
-      autoApprove,
-      toolCall.conversationId
-    )
-
-    if (hasPermission) {
-      return null // Already has permission
-    }
-
-    const permissionType = this.determinePermissionType(originalName)
+  private createTargetChangedResponse(toolCallId: string, reason: string): MCPToolResponse {
     return {
-      needsPermission: true,
-      toolName: originalName,
-      serverName: toolServerName,
-      permissionType,
-      description: `Allow ${originalName} to perform ${permissionType} operations on ${toolServerName}?`
+      toolCallId,
+      content: `Error: MCP tool execution was cancelled because ${reason}. Refresh tools and retry.`,
+      isError: true
     }
   }
 
@@ -678,6 +535,7 @@ export class ToolManager {
     access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds'> & {
       signal?: AbortSignal
       runId?: string
+      expectedTarget?: McpExpectedToolTarget
     }
   ): Promise<MCPToolResponse> {
     let previewCall: ComputerUsePreviewCall | null = null
@@ -690,8 +548,7 @@ export class ToolManager {
       logger.info(`[ToolManager] Calling tool:`, {
         requestedName: finalName,
         originalName: finalName,
-        serverName: toolCall.server?.name || 'unknown',
-        rawArguments: argsString
+        serverName: toolCall.server?.name || 'unknown'
       })
 
       // Ensure definitions and map are loaded/cached
@@ -722,6 +579,14 @@ export class ToolManager {
       }
 
       const { originalName, serverName: toolServerName } = targetInfo
+      const targetMismatch = this.describeExpectedTargetMismatch(
+        finalName,
+        targetInfo,
+        access?.expectedTarget
+      )
+      if (targetMismatch) {
+        return this.createTargetChangedResponse(toolCall.id, targetMismatch)
+      }
       const accessContext = normalizeToolAccessContext({
         agentId: access?.agentId,
         enabledServerIds: access?.enabledServerIds,
@@ -767,26 +632,37 @@ export class ToolManager {
       console.info('[MCP] ToolManager calling tool', {
         requestedName: finalName,
         originalName: originalName,
-        serverName: toolServerName,
-        rawArguments: argsString
+        serverName: toolServerName
       })
 
       // Parse arguments
-      let args: Record<string, unknown> | null = null
-      try {
-        args = JSON.parse(argsString)
-      } catch (error: unknown) {
-        console.warn(
-          'Error parsing tool call arguments with JSON.parse, trying jsonrepair:',
-          error instanceof Error ? error.message : String(error)
-        )
+      let args: Record<string, unknown> = {}
+      if (argsString.trim()) {
         try {
-          args = JSON.parse(jsonrepair(argsString))
-        } catch (e: unknown) {
-          console.error('Error parsing tool call arguments even after jsonrepair:', argsString, e)
-          // Decide how to handle: return error or proceed with empty args?
-          // Let's proceed with empty args for now, mirroring previous behavior.
-          args = {}
+          const parsed = JSON.parse(argsString)
+          if (!isRecord(parsed)) {
+            throw new Error('MCP tool arguments must be a JSON object')
+          }
+          args = parsed
+        } catch (error: unknown) {
+          console.warn(
+            'Error parsing tool call arguments with JSON.parse, trying jsonrepair:',
+            error instanceof Error ? error.message : String(error)
+          )
+          try {
+            const repaired = JSON.parse(jsonrepair(argsString))
+            if (!isRecord(repaired)) {
+              throw new Error('MCP tool arguments must be a JSON object')
+            }
+            args = repaired
+          } catch (repairError: unknown) {
+            console.error('Error parsing MCP tool arguments even after jsonrepair:', repairError)
+            return {
+              toolCallId: toolCall.id,
+              content: 'Error: MCP tool arguments must be a valid JSON object.',
+              isError: true
+            }
+          }
         }
       }
 
@@ -802,6 +678,15 @@ export class ToolManager {
           isError: true
         }
       }
+      const bindingMismatch = this.describeExpectedTargetMismatch(
+        finalName,
+        targetInfo,
+        access?.expectedTarget,
+        serverConfig
+      )
+      if (bindingMismatch) {
+        return this.createTargetChangedResponse(toolCall.id, bindingMismatch)
+      }
       if (!this.isServerAllowedByContext(toolServerName, accessContext)) {
         return {
           toolCallId: toolCall.id,
@@ -809,7 +694,6 @@ export class ToolManager {
           isError: true
         }
       }
-      const autoApprove = serverConfig?.autoApprove || []
       const pluginPolicy = resolvePluginToolPolicy(toolServerName, originalName)
       if (
         pluginPolicy.managed &&
@@ -825,47 +709,12 @@ export class ToolManager {
           isError: true
         }
       }
-      logger.info(
-        `Checking permissions for tool '${originalName}' on server '${toolServerName}' with autoApprove:`,
-        autoApprove
-      )
-      // Use originalName and toolServerName for permission check, pass conversationId for session cache
-      const hasPermission = this.checkToolPermission(
-        originalName,
-        toolServerName,
-        autoApprove,
-        toolCall.conversationId
-      )
-
-      if (!hasPermission) {
-        console.warn(
-          `Permission required for tool '${originalName}' on server '${toolServerName}'.`
-        )
-
-        const permissionType = this.determinePermissionType(originalName)
-
-        // Return permission request instead of error
-        return {
-          toolCallId: toolCall.id,
-          content: `components.messageBlockPermissionRequest.description.${permissionType}`,
-          isError: false,
-          requiresPermission: true,
-          permissionRequest: {
-            toolName: originalName,
-            serverName: toolServerName,
-            permissionType,
-            conversationId: toolCall.conversationId,
-            description: `Allow ${originalName} to perform ${permissionType} operations on ${toolServerName}?`
-          }
-        }
-      }
-
       const targetClient = await this.resolveToolClient(targetInfo, access?.signal)
       access?.signal?.throwIfAborted()
       const preparedArgs = await this.prepareToolArguments(
         targetClient,
         originalName,
-        args || {},
+        args,
         access?.signal
       )
       access?.signal?.throwIfAborted()
@@ -875,6 +724,28 @@ export class ToolManager {
           content: `Error: ${preparedArgs.error}`,
           isError: true
         }
+      }
+
+      const currentServers = await awaitWithAbort(this.mcpSettings.getMcpServers(), access?.signal)
+      access?.signal?.throwIfAborted()
+      const currentTarget = this.toolNameToTargetMap?.get(finalName)
+      const currentConfig = currentServers[toolServerName]
+      const finalMismatch = this.describeExpectedTargetMismatch(
+        finalName,
+        currentTarget,
+        access?.expectedTarget,
+        currentConfig ?? null
+      )
+      if (
+        finalMismatch ||
+        !currentTarget ||
+        !currentConfig ||
+        (access?.expectedTarget && this.serverManager.getClient(toolServerName) !== targetClient)
+      ) {
+        return this.createTargetChangedResponse(
+          toolCall.id,
+          finalMismatch || 'the active MCP client changed before dispatch'
+        )
       }
 
       previewCall =
@@ -893,14 +764,27 @@ export class ToolManager {
 
       // Call the tool on the target client using the ORIGINAL name
       const result = access?.signal
-        ? await targetClient.callTool(originalName, preparedArgs.args, { signal: access.signal })
-        : await targetClient.callTool(originalName, preparedArgs.args)
+        ? await targetClient.callTool(originalName, preparedArgs.args, {
+            signal: access.signal,
+            toolDefinition: currentTarget.catalogTool
+          })
+        : await targetClient.callTool(originalName, preparedArgs.args, {
+            toolDefinition: currentTarget.catalogTool
+          })
       access?.signal?.throwIfAborted()
 
       const ownerPluginId = this.pluginOwnership.ownsServer(toolServerName)
         ? this.pluginOwnership.getOwnerPluginId(toolServerName)
         : undefined
       const formattedResponse = this.formatToolResponse(toolCall.id, result)
+      const mcpResult = currentTarget.catalogTool
+        ? createPersistedMcpToolResult({
+            tool: currentTarget.catalogTool,
+            config: currentConfig,
+            serverName: toolServerName,
+            result
+          })
+        : undefined
       const response: MCPToolResponse = {
         ...formattedResponse,
         content:
@@ -911,7 +795,8 @@ export class ToolManager {
                 result.structuredContent
               )
             : formattedResponse.content,
-        ...(ownerPluginId ? { ownerPluginId } : {})
+        ...(ownerPluginId ? { ownerPluginId } : {}),
+        ...(mcpResult ? { mcpResult } : {})
       }
 
       if (previewCall) {
@@ -1153,10 +1038,7 @@ export class ToolManager {
     }
   }
 
-  private formatToolResponse(
-    toolCallId: string,
-    result: { content?: unknown; isError?: boolean; structuredContent?: unknown }
-  ): MCPToolResponse {
+  private formatToolResponse(toolCallId: string, result: ToolCallResult): MCPToolResponse {
     let formattedContent: string | MCPContentItem[] = ''
     if (typeof result.content === 'string') {
       formattedContent = result.content
@@ -1170,7 +1052,9 @@ export class ToolManager {
           if (
             contentItem.type === 'text' ||
             contentItem.type === 'image' ||
-            contentItem.type === 'resource'
+            contentItem.type === 'resource' ||
+            contentItem.type === 'resource_link' ||
+            contentItem.type === 'audio'
           ) {
             return item as MCPContentItem
           }
@@ -1188,6 +1072,7 @@ export class ToolManager {
       toolCallId,
       content: formattedContent,
       isError: result.isError,
+      ...(result._meta ? { _meta: result._meta } : {}),
       ...(result.structuredContent !== undefined
         ? { structuredContent: result.structuredContent }
         : {})
@@ -1443,172 +1328,6 @@ export class ToolManager {
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('Failed to read resource:', errorMessage)
       throw new Error(`Failed to read resource: ${errorMessage}`)
-    }
-  }
-
-  // 权限管理方法
-  async grantPermission(
-    serverName: string,
-    permissionType: 'read' | 'write' | 'all',
-    remember: boolean = true,
-    conversationId?: string,
-    toolName?: string
-  ): Promise<void> {
-    logger.info(
-      `[ToolManager] Granting permission: ${permissionType} for server: ${serverName}, remember: ${remember}, conversationId: ${conversationId}`
-    )
-
-    const pluginPolicy = toolName
-      ? resolvePluginToolPolicy(serverName, toolName)
-      : resolvePluginToolPolicy(serverName, '')
-    if (pluginPolicy.managed) {
-      if (remember || !conversationId || !toolName || pluginPolicy.decision !== 'ask') {
-        throw new Error(
-          `Closed plugin policy permission for "${serverName}" requires an exact ask-policy tool and conversation`
-        )
-      }
-      const key = this.pluginToolPermissionKey(serverName, toolName)
-      const existing = this.sessionPermissions.get(conversationId) ?? new Set<string>()
-      existing.add(key)
-      this.sessionPermissions.set(conversationId, existing)
-      logger.info(
-        `[ToolManager] Exact plugin session permission stored: ${serverName}.${toolName} for conversation ${conversationId}`
-      )
-      return
-    }
-
-    if (remember) {
-      // Persist to configuration
-      await this.updateServerPermissions(serverName, permissionType)
-    } else {
-      // Store in temporary session storage (memory only)
-      if (conversationId) {
-        const key = `${serverName}:${permissionType}`
-        const existing = this.sessionPermissions.get(conversationId) ?? new Set<string>()
-        existing.add(key)
-        this.sessionPermissions.set(conversationId, existing)
-        logger.info(
-          `[ToolManager] Session permission stored: ${key} for conversation ${conversationId}`
-        )
-      } else {
-        logger.info(`[ToolManager] Temporary permission granted (no conversationId)`)
-      }
-    }
-  }
-
-  // 检查会话级别的权限
-  // 当前会话权限遵循层级：all > write > read
-  checkSessionPermission(
-    conversationId: string,
-    serverName: string,
-    permissionType: 'read' | 'write' | 'all'
-  ): boolean {
-    const sessionPerms = this.sessionPermissions.get(conversationId)
-    if (!sessionPerms) return false
-
-    const permissionLevelMap: Record<'read' | 'write' | 'all', number> = {
-      read: 1,
-      write: 2,
-      all: 3
-    }
-    const requiredLevel = permissionLevelMap[permissionType]
-    const prefix = `${serverName}:`
-
-    for (const permKey of sessionPerms) {
-      if (!permKey.startsWith(prefix)) continue
-
-      const storedPermission = permKey.slice(prefix.length) as 'read' | 'write' | 'all'
-      const storedLevel = permissionLevelMap[storedPermission]
-      if (storedLevel >= requiredLevel) {
-        logger.info(
-          `[ToolManager] Session auto-execute: server '${serverName}' has granted permission '${permKey}' in conversation '${conversationId}', required='${permissionType}'`
-        )
-        return true
-      }
-    }
-
-    return false
-  }
-
-  private checkSessionToolPermission(
-    conversationId: string,
-    serverName: string,
-    toolName: string
-  ): boolean {
-    return (
-      this.sessionPermissions
-        .get(conversationId)
-        ?.has(this.pluginToolPermissionKey(serverName, toolName)) ?? false
-    )
-  }
-
-  private pluginToolPermissionKey(serverName: string, toolName: string): string {
-    return JSON.stringify(['plugin-tool', serverName, toolName])
-  }
-
-  // 清除会话的临时权限
-  clearSessionPermissions(conversationId: string): void {
-    this.sessionPermissions.delete(conversationId)
-  }
-
-  private async updateServerPermissions(
-    serverName: string,
-    permissionType: 'read' | 'write' | 'all'
-  ): Promise<void> {
-    try {
-      logger.info(`[ToolManager] Updating server ${serverName} permissions: ${permissionType}`)
-      const servers = await this.mcpSettings.getMcpServers()
-      const serverConfig = servers[serverName]
-
-      if (serverConfig) {
-        let autoApprove = [...(serverConfig.autoApprove || [])]
-
-        // If 'all' permission already exists, no need to add specific permissions
-        if (autoApprove.includes('all')) {
-          logger.info(`Server ${serverName} already has 'all' permissions`)
-          return
-        }
-
-        // If requesting 'all' permission, remove specific permissions and add 'all'
-        if (permissionType === 'all') {
-          autoApprove = autoApprove.filter((p) => p !== 'read' && p !== 'write')
-          autoApprove.push('all')
-        } else {
-          // Add the specific permission if not already present
-          if (!autoApprove.includes(permissionType)) {
-            autoApprove.push(permissionType)
-          }
-        }
-
-        logger.info(
-          `[ToolManager] Before update - Server ${serverName} permissions:`,
-          serverConfig.autoApprove || []
-        )
-        logger.info(`[ToolManager] After update - Server ${serverName} permissions:`, autoApprove)
-
-        // Update server configuration
-        await this.mcpSettings.updateMcpServer(serverName, {
-          ...serverConfig,
-          autoApprove
-        })
-
-        logger.info(
-          `[ToolManager] Successfully updated server ${serverName} permissions to:`,
-          autoApprove
-        )
-
-        // Verify the update by reading back
-        const updatedServers = await this.mcpSettings.getMcpServers()
-        const updatedConfig = updatedServers[serverName]
-        logger.info(
-          `[ToolManager] Verification - Server ${serverName} current permissions:`,
-          updatedConfig?.autoApprove || []
-        )
-      } else {
-        console.error(`[ToolManager] Server configuration not found for: ${serverName}`)
-      }
-    } catch (error) {
-      console.error('[ToolManager] Failed to update server permissions:', error)
     }
   }
 }

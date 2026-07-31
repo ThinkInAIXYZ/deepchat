@@ -20,7 +20,6 @@ const implementation = (name: string) =>
     queuePendingInput: vi.fn(),
     updateQueuedInput: vi.fn(),
     moveQueuedInput: vi.fn(),
-    convertPendingInputToSteer: vi.fn(),
     steerPendingInput: vi.fn(),
     deletePendingInput: vi.fn(),
     getPermissionMode: vi.fn(),

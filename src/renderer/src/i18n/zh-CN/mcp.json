@@ -78,11 +78,6 @@
     "iconPlaceholder": "输入图标",
     "icons": "图标",
     "iconsPlaceholder": "输入图标",
-    "autoApprove": "自动授权",
-    "autoApproveAll": "全部",
-    "autoApproveRead": "读取",
-    "autoApproveWrite": "写入",
-    "autoApproveHelp": "选择需要自动授权的操作类型，无需用户确认即可执行",
     "submit": "提交",
     "add": "添加",
     "update": "更新",
@@ -251,7 +246,7 @@
   "market": {
     "browseBuiltin": "浏览内置 MCP 市场",
     "builtinTitle": "MCP 市场",
-    "poweredBy": "Powered by MCPRouter",
+    "poweredBy": "由 MCPRouter 提供支持",
     "keyGuide": "获取密钥",
     "keyHelpText": "请先到",
     "keyHelpEnd": "申请 API Key 后填写到上方输入框",
@@ -305,5 +300,51 @@
     "autoApproveIn": "{seconds}秒后自动使用 {model} 批准",
     "reviewRequest": "查看详情",
     "sessionActive": "会话活跃 - 请求将被自动批准"
+  },
+  "elicitation": {
+    "title": "MCP 输入请求",
+    "accept": "提交",
+    "decline": "拒绝",
+    "noFields": "此请求不包含表单字段。",
+    "openLink": "打开安全链接",
+    "selectValue": "选择一个值",
+    "error": {
+      "required": "此项为必填项。",
+      "number": "请输入有效数字。",
+      "integer": "请输入整数。",
+      "boolean": "请选择有效的布尔值。",
+      "range": "该值超出允许范围。",
+      "selection": "请选择有效选项。",
+      "length": "文本长度超出允许范围。",
+      "format": "请按要求的格式输入。"
+    }
+  },
+  "apps": {
+    "title": "MCP App",
+    "interactiveContent": "来自 MCP 服务器的交互内容",
+    "loadError": "无法加载此 MCP App。",
+    "retry": "重试",
+    "fullscreen": "全屏打开",
+    "pictureInPicture": "画中画打开",
+    "returnInline": "返回内嵌视图",
+    "securityDetails": "安全详情",
+    "allowedOrigins": "声明的网络来源",
+    "requestedPermissions": "请求的设备权限",
+    "noneDeclared": "未声明",
+    "advisoryDomain": "建议域名",
+    "toolAccessSuspended": "一次请求被拒绝后，工具访问已暂停。",
+    "retryAccess": "重试访问",
+    "permissions": {
+      "camera": "摄像头",
+      "microphone": "麦克风",
+      "geolocation": "位置",
+      "clipboardWrite": "写入剪贴板"
+    },
+    "consent": {
+      "title": "MCP App 请求",
+      "description": "请检查 MCP 交互内容请求执行的操作。",
+      "allowOnce": "仅允许一次",
+      "deny": "拒绝"
+    }
   }
 }

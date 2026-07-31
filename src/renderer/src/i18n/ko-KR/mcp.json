@@ -53,11 +53,6 @@
     "iconPlaceholder": "아이콘 입력",
     "icons": "아이콘",
     "iconsPlaceholder": "아이콘 입력",
-    "autoApprove": "자동 승인",
-    "autoApproveAll": "전체",
-    "autoApproveRead": "읽기",
-    "autoApproveWrite": "쓰기",
-    "autoApproveHelp": "자동 승인할 작업 유형을 선택하세요. 사용자 확인 없이 실행할 수 있습니다",
     "submit": "제출",
     "add": "추가",
     "update": "업데이트",
@@ -305,5 +300,51 @@
     "selectModel": "모델 선택",
     "sendResponse": "응답 보내기",
     "sessionActive": "세션 활성 - 요청이 자동으로 승인됩니다."
+  },
+  "elicitation": {
+    "title": "MCP 입력 요청",
+    "accept": "제출",
+    "decline": "거부",
+    "noFields": "이 요청에는 양식 필드가 없습니다.",
+    "openLink": "보안 링크 열기",
+    "selectValue": "값 선택",
+    "error": {
+      "required": "필수 항목입니다.",
+      "number": "올바른 숫자를 입력하세요.",
+      "integer": "정수를 입력하세요.",
+      "boolean": "올바른 true 또는 false 값을 선택하세요.",
+      "range": "허용 범위를 벗어난 값입니다.",
+      "selection": "올바른 옵션을 선택하세요.",
+      "length": "텍스트 길이가 허용 범위를 벗어났습니다.",
+      "format": "요청된 형식으로 값을 입력하세요."
+    }
+  },
+  "apps": {
+    "title": "MCP App",
+    "interactiveContent": "MCP 서버의 대화형 콘텐츠",
+    "loadError": "이 MCP App을 불러올 수 없습니다.",
+    "retry": "다시 시도",
+    "fullscreen": "전체 화면으로 열기",
+    "pictureInPicture": "PIP로 열기",
+    "returnInline": "인라인으로 돌아가기",
+    "securityDetails": "보안 세부 정보",
+    "allowedOrigins": "선언된 네트워크 오리진",
+    "requestedPermissions": "요청된 기기 권한",
+    "noneDeclared": "선언되지 않음",
+    "advisoryDomain": "참고 도메인",
+    "toolAccessSuspended": "요청이 거부되어 도구 접근이 일시 중지되었습니다.",
+    "retryAccess": "접근 다시 시도",
+    "permissions": {
+      "camera": "카메라",
+      "microphone": "마이크",
+      "geolocation": "위치",
+      "clipboardWrite": "클립보드 쓰기"
+    },
+    "consent": {
+      "title": "MCP App 요청",
+      "description": "대화형 MCP 콘텐츠가 요청한 작업을 검토하세요.",
+      "allowOnce": "한 번 허용",
+      "deny": "거부"
+    }
   }
 }

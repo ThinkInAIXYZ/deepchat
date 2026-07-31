@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 import {
+  ChatMessageRecordSchema,
   EntityIdSchema,
   SessionCompactionStateSchema,
   SessionStatusSchema,
@@ -59,6 +60,15 @@ export const sessionsPendingInputsChangedEvent = defineEventContract({
   payload: z.object({
     sessionId: EntityIdSchema,
     items: z.array(PendingSessionInputRecordSchema).optional(),
+    version: z.number().int()
+  })
+})
+
+export const sessionsMessagesChangedEvent = defineEventContract({
+  name: 'sessions.messages.changed',
+  payload: z.object({
+    sessionId: EntityIdSchema,
+    messages: z.array(ChatMessageRecordSchema),
     version: z.number().int()
   })
 })
