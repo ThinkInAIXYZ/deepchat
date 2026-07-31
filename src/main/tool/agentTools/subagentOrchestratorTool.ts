@@ -9,6 +9,7 @@ import type {
   AgentToolSessionPort,
   ConversationSessionInfo
 } from '../runtimePorts'
+import type { AgentInvocationAdmissionPort } from '@/agent/invocationAdmission'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { SUBAGENT_ORCHESTRATOR_TOOL_NAME } from '@shared/agentTools'
 import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
@@ -309,7 +310,8 @@ export class SubagentOrchestratorTool {
 
   constructor(
     private readonly sessions: AgentToolSessionPort,
-    private readonly subagents: AgentSubagentToolPort
+    private readonly subagents: AgentSubagentToolPort,
+    private readonly invocationAdmission: AgentInvocationAdmissionPort
   ) {}
 
   private resolveRunStatus(tasks: MutableTaskState[]): SubagentTerminalStatus {
@@ -1116,7 +1118,7 @@ export class SubagentOrchestratorTool {
       abortListener()
     }
 
-    const runTask = async (task: MutableTaskState): Promise<void> => {
+    const executeTask = async (task: MutableTaskState): Promise<void> => {
       if (options?.signal?.aborted) {
         abortListener()
       }
@@ -1231,6 +1233,16 @@ export class SubagentOrchestratorTool {
         }
         emitProgress()
       }
+    }
+
+    const runTask = async (task: MutableTaskState): Promise<void> => {
+      await this.invocationAdmission.run(
+        {
+          ownerId: `subagent-orchestrator:${runId}`,
+          signal: abortController.signal
+        },
+        () => executeTask(task)
+      )
     }
 
     const execution = (async () => {

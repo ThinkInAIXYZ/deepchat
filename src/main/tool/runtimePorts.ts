@@ -16,6 +16,7 @@ import type {
   SubagentTapeLinkInput,
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
+import type { AgentInvocationAdmissionPort } from '@/agent/invocationAdmission'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
@@ -174,6 +175,7 @@ export interface AgentToolDependencies {
   memory: AgentMemoryToolPort
   cronJobs: AgentCronJobToolPort
   subagents: AgentSubagentToolPort
+  agentInvocationAdmission: AgentInvocationAdmissionPort
   skills: SkillServicePort
   browser: AgentBrowserToolPort
   files: AgentFileToolPort

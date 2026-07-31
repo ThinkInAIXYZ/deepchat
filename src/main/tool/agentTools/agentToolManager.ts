@@ -335,7 +335,8 @@ export class AgentToolManager {
     this.dependencies = options.dependencies
     this.subagentOrchestratorTool = new SubagentOrchestratorTool(
       this.dependencies.sessions,
-      this.dependencies.subagents
+      this.dependencies.subagents,
+      this.dependencies.agentInvocationAdmission
     )
     this.imageGenerationTool = new AgentImageGenerationTool({
       providerSettings: this.providerSettings,

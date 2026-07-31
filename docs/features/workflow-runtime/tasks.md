@@ -29,7 +29,7 @@
 - [x] Prove utility-process exit notification.
 - [ ] Prove active-run and queued-run bounds.
 - [x] Complete the pre-commit runtime review and focused validation.
-- [ ] Commit the runtime slice.
+- [x] Commit the runtime slice.
 
 Validation evidence (2026-07-31):
 
@@ -57,14 +57,16 @@ Validation evidence (2026-07-31):
 
 ## Shared Admission
 
-- [ ] Add cancellation-aware owner-fair `AgentInvocationAdmission`.
-- [ ] Apply the process-wide default limit of four active children.
+- [x] Add cancellation-aware owner-fair `AgentInvocationAdmission`.
+- [x] Apply the process-wide default limit of four active children.
 - [ ] Add a separate bounded workflow utility-process admission gate.
 - [ ] Gate both workflow and `subagent_orchestrator` child starts.
-- [ ] Preserve existing orchestrator local limits.
-- [ ] Bound waiters and make close/cancel/release leak-free.
-- [ ] Add concurrency, fairness, cancellation, overflow, and regression tests.
-- [ ] Complete the pre-commit admission review, focused validation, and commit.
+- [x] Gate `subagent_orchestrator` child lifetimes through the shared admission layer.
+- [x] Preserve existing orchestrator local limits.
+- [x] Bound waiters and make close/cancel/release leak-free.
+- [x] Add concurrency, fairness, cancellation, overflow, and orchestrator regression tests.
+- [x] Complete the pre-commit admission review and focused validation.
+- [x] Commit the shared-admission slice.
 
 ## Child Execution And Effects
 

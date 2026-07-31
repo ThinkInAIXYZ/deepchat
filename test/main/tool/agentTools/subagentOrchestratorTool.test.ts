@@ -7,6 +7,7 @@ import {
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { SubagentTapeLinkInput, SubagentTapeLinkReceipt } from '@shared/types/agent-interface'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
+import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 
 const parentSubagentCapability = resolveDeepChatSubagentCapability({
   agentType: 'deepchat',
@@ -81,7 +82,12 @@ const buildRuntimePort = (
   ...overrides
 })
 
-const createTool = (runtimePort: any) => new SubagentOrchestratorTool(runtimePort, runtimePort)
+const createTool = (runtimePort: any, admission?: AgentInvocationAdmission) =>
+  new SubagentOrchestratorTool(
+    runtimePort,
+    runtimePort,
+    admission ?? new AgentInvocationAdmission()
+  )
 
 const createDeferredPromise = <T>() => {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -93,6 +99,45 @@ const createDeferredPromise = <T>() => {
 }
 
 describe('SubagentOrchestratorTool', () => {
+  it('shares one process-wide child admission gate across orchestrator instances', async () => {
+    const admission = new AgentInvocationAdmission(1, 10)
+    const firstCreation = createDeferredPromise<ConversationSessionInfo | null>()
+    const secondCreation = createDeferredPromise<ConversationSessionInfo | null>()
+    const firstPort = buildRuntimePort(buildSessionInfo({ sessionId: 'parent-a' }), {
+      createSubagentSession: vi.fn(() => firstCreation.promise)
+    })
+    const secondPort = buildRuntimePort(buildSessionInfo({ sessionId: 'parent-b' }), {
+      createSubagentSession: vi.fn(() => secondCreation.promise)
+    })
+    const firstTool = createTool(firstPort, admission)
+    const secondTool = createTool(secondPort, admission)
+
+    await firstTool.call(
+      {
+        mode: 'parallel',
+        background: true,
+        tasks: [{ slotId: 'reviewer', title: 'First', prompt: 'First task.' }]
+      },
+      'parent-a'
+    )
+    await secondTool.call(
+      {
+        mode: 'parallel',
+        background: true,
+        tasks: [{ slotId: 'reviewer', title: 'Second', prompt: 'Second task.' }]
+      },
+      'parent-b'
+    )
+
+    await vi.waitFor(() => expect(firstPort.createSubagentSession).toHaveBeenCalledOnce())
+    expect(secondPort.createSubagentSession).not.toHaveBeenCalled()
+
+    firstCreation.resolve(null)
+    await vi.waitFor(() => expect(secondPort.createSubagentSession).toHaveBeenCalledOnce())
+    secondCreation.resolve(null)
+    await vi.waitFor(() => expect(admission.snapshot().active).toBe(0))
+  })
+
   it('distinguishes explicit requests from proactive delegation guidance', () => {
     const tool = createTool(buildRuntimePort(buildSessionInfo()) as any)
     const definition = tool.getToolDefinition(parentSubagentCapability)

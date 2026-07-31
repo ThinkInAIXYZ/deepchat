@@ -1,9 +1,11 @@
 import { vi } from 'vitest'
 import type { AgentToolDependencies } from '@/tool/runtimePorts'
+import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 
 export const createAgentToolDependencies = (
   overrides: Record<string, any> = {}
 ): AgentToolDependencies => ({
+  agentInvocationAdmission: overrides.agentInvocationAdmission ?? new AgentInvocationAdmission(),
   sessions: {
     resolveConversationWorkdir:
       overrides.resolveConversationWorkdir ?? vi.fn().mockResolvedValue(null),

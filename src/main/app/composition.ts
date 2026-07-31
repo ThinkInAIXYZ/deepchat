@@ -25,6 +25,7 @@ import type {
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
+import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 import { ProviderImportService } from '../provider/providerImportService'
 import { ProviderDatabase } from '../provider/data/database'
 import { createProviderRoutes } from '../provider/routes'
@@ -781,7 +782,9 @@ export async function createMainProcessControl(dependencies: {
     }
   )
 
+  const agentInvocationAdmission = new AgentInvocationAdmission()
   const agentToolDependencies: AgentToolDependencies = {
+    agentInvocationAdmission,
     sessions: {
       resolveConversationWorkdir: async (conversationId) => {
         try {
