@@ -6,18 +6,42 @@ import {
   workflowPrepareLaunchRoute,
   workflowResumeRoute,
   workflowRetryRoute,
+  workflowSavedListRoute,
+  workflowSavedPrepareLaunchRoute,
+  workflowSavedReadRoute,
+  workflowSavedSaveRoute,
   workflowSynthesizeRoute
 } from '@shared/contracts/routes'
 import type { WorkflowRun } from '@shared/workflow/domain'
 import type { WorkflowWaitingInteractionProjection } from '@shared/workflow/projection'
+import type { WorkflowSavedCatalog, WorkflowSavedDocument } from '@shared/workflow/savedWorkflow'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import type { WorkflowService } from './service'
 import { projectWorkflowRunDetail, projectWorkflowRunSummaryWithCounts } from './projection'
+import { parseWorkflowSavedArgs } from './savedWorkflowArgs'
+
+export interface WorkflowSavedRoutePort {
+  list(workspacePath: string | null): Promise<WorkflowSavedCatalog>
+  read(workspacePath: string | null, name: string): Promise<WorkflowSavedDocument>
+  save(input: {
+    workspacePath: string | null
+    name: string
+    source: string
+    expectedSourceHash: string | null
+  }): Promise<WorkflowSavedDocument>
+}
 
 export interface WorkflowRouteOptions {
   resolveWaitingInteractions?: (
     childSessionId: string
   ) => readonly WorkflowWaitingInteractionProjection[]
+  savedWorkflows?: {
+    store: WorkflowSavedRoutePort
+    resolveContext(parentSessionId: string): Promise<{
+      workspacePath: string | null
+      defaultAgentId: string
+    }>
+  }
 }
 
 export function createWorkflowRoutes(
@@ -38,6 +62,13 @@ export function createWorkflowRoutes(
       throw new Error(`Workflow run ${runId} does not belong to session ${parentSessionId}.`)
     }
     return run
+  }
+
+  const requireSavedWorkflows = () => {
+    if (!options.savedWorkflows) {
+      throw new Error('Saved workflows are unavailable.')
+    }
+    return options.savedWorkflows
   }
 
   return createRouteMap([
@@ -143,6 +174,68 @@ export function createWorkflowRoutes(
         requireOwnedRun(input.parentSessionId, input.runId)
         return workflowSynthesizeRoute.output.parse({
           receipt: await service.synthesize(input.runId)
+        })
+      }
+    ],
+    [
+      workflowSavedListRoute.name,
+      async (rawInput) => {
+        const input = workflowSavedListRoute.input.parse(rawInput)
+        const saved = requireSavedWorkflows()
+        const context = await saved.resolveContext(input.parentSessionId)
+        return workflowSavedListRoute.output.parse(await saved.store.list(context.workspacePath))
+      }
+    ],
+    [
+      workflowSavedReadRoute.name,
+      async (rawInput) => {
+        const input = workflowSavedReadRoute.input.parse(rawInput)
+        const saved = requireSavedWorkflows()
+        const context = await saved.resolveContext(input.parentSessionId)
+        return workflowSavedReadRoute.output.parse({
+          workflow: await saved.store.read(context.workspacePath, input.name)
+        })
+      }
+    ],
+    [
+      workflowSavedSaveRoute.name,
+      async (rawInput) => {
+        const input = workflowSavedSaveRoute.input.parse(rawInput)
+        const saved = requireSavedWorkflows()
+        const context = await saved.resolveContext(input.parentSessionId)
+        return workflowSavedSaveRoute.output.parse({
+          workflow: await saved.store.save({
+            workspacePath: context.workspacePath,
+            name: input.name,
+            source: input.source,
+            expectedSourceHash: input.expectedSourceHash
+          })
+        })
+      }
+    ],
+    [
+      workflowSavedPrepareLaunchRoute.name,
+      async (rawInput) => {
+        const input = workflowSavedPrepareLaunchRoute.input.parse(rawInput)
+        const saved = requireSavedWorkflows()
+        const context = await saved.resolveContext(input.parentSessionId)
+        const workflow = await saved.store.read(context.workspacePath, input.name)
+        if (workflow.sourceHash !== input.expectedSourceHash) {
+          throw new Error('The saved workflow changed since it was loaded.')
+        }
+        return workflowSavedPrepareLaunchRoute.output.parse({
+          approval: await service.prepareLaunch(
+            {
+              parentSessionId: input.parentSessionId,
+              namedWorkflowPath: workflow.absolutePath,
+              scriptSource: workflow.source,
+              input: parseWorkflowSavedArgs(input.argsText),
+              allowedAgentIds: input.allowedAgentIds ?? [context.defaultAgentId]
+            },
+            {
+              expectedWorkspacePath: context.workspacePath
+            }
+          )
         })
       }
     ]

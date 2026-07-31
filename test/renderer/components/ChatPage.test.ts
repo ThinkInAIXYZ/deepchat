@@ -97,6 +97,23 @@ const setup = async (options: SetupOptions = {}) => {
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn().mockResolvedValue(undefined)
   })
+  const agentStore = reactive({
+    agents: [
+      {
+        id: 'deepchat',
+        type: 'deepchat',
+        agentType: 'deepchat'
+      },
+      {
+        id: 'acp-agent',
+        type: 'acp',
+        agentType: 'acp'
+      }
+    ]
+  })
+  const sidepanelStore = {
+    requestSavedWorkflow: vi.fn()
+  }
 
   const messageStore = reactive({
     messages: options.messages ?? [
@@ -291,6 +308,12 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
   }))
+  vi.doMock('@/stores/ui/agent', () => ({
+    useAgentStore: () => agentStore
+  }))
+  vi.doMock('@/stores/ui/sidepanel', () => ({
+    useSidepanelStore: () => sidepanelStore
+  }))
   vi.doMock('@/stores/ui/message', () => ({
     useMessageStore: () => messageStore
   }))
@@ -444,6 +467,10 @@ const setup = async (options: SetupOptions = {}) => {
           type: Boolean,
           default: false
         },
+        workflowEnabled: {
+          type: Boolean,
+          default: false
+        },
         supportsVision: {
           type: Boolean,
           default: null
@@ -469,6 +496,7 @@ const setup = async (options: SetupOptions = {}) => {
         'update:modelValue',
         'update:files',
         'command-submit',
+        'workflow-submit',
         'queue-submit',
         'submit',
         'switch-vision-model'
@@ -666,6 +694,7 @@ const setup = async (options: SetupOptions = {}) => {
     chatRespondToolInteraction,
     sessionClient,
     sessionStore,
+    sidepanelStore,
     notify,
     messageStore,
     pendingInputStore,
@@ -769,6 +798,44 @@ describe('ChatPage', () => {
     })
 
     expect(wrapper.findComponent({ name: 'ChatInputBox' }).props('agentId')).toBe('agent-b')
+  })
+
+  it('opens saved Workflow approval for a DeepChat Agent using the ACP provider', async () => {
+    const { wrapper, sidepanelStore } = await setup({
+      activeSessionPatch: {
+        agentId: 'deepchat',
+        providerId: 'acp',
+        sessionKind: 'regular'
+      }
+    })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    expect(input.props('workflowEnabled')).toBe(true)
+    input.vm.$emit('workflow-submit', 'review', '{"target":"src"}')
+    await flushPromises()
+
+    expect(sidepanelStore.requestSavedWorkflow).toHaveBeenCalledWith(
+      's1',
+      'review',
+      '{"target":"src"}'
+    )
+  })
+
+  it('keeps saved Workflow approval disabled for a direct ACP Agent', async () => {
+    const { wrapper, sidepanelStore } = await setup({
+      activeSessionPatch: {
+        agentId: 'acp-agent',
+        providerId: 'openai',
+        sessionKind: 'regular'
+      }
+    })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    expect(input.props('workflowEnabled')).toBe(false)
+    input.vm.$emit('workflow-submit', 'review', '{}')
+    await flushPromises()
+
+    expect(sidepanelStore.requestSavedWorkflow).not.toHaveBeenCalled()
   })
 
   it('passes the active DeepChat model vision capability to the composer', async () => {

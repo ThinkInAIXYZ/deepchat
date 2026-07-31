@@ -419,6 +419,36 @@ describeIfSqlite('WorkflowService', () => {
     expect(hosts).toEqual([])
   })
 
+  it('rejects a saved source if its workspace changes before approval registration', async () => {
+    const service = createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 1), {
+      launchScope: {
+        resolve: vi.fn(async (input) => ({
+          workspacePath: '/other-repo',
+          allowedAgentIds: input.allowedAgentIds,
+          capabilityScopeHash: 'a'.repeat(64),
+          capabilities: ['Delegate with the current parent permission policy']
+        }))
+      }
+    })
+
+    await expect(
+      service.prepareLaunch(
+        {
+          parentSessionId: 'parent',
+          namedWorkflowPath: '/repo/.deepchat/workflows/review.js',
+          scriptSource: 'return null',
+          input: null,
+          allowedAgentIds: ['deepchat']
+        },
+        {
+          expectedWorkspacePath: '/repo'
+        }
+      )
+    ).rejects.toThrow('workspace changed while preparing the saved source')
+    expect(repository.listRunsByParent('parent')).toEqual([])
+    expect(hosts).toEqual([])
+  })
+
   it('invalidates approval when the effective child capability scope changes', async () => {
     let capabilityScopeHash = 'a'.repeat(64)
     const service = createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 1), {

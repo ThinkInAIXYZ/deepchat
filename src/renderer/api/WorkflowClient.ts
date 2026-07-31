@@ -7,9 +7,14 @@ import {
 import {
   workflowCancelRoute,
   workflowInspectRoute,
+  workflowLaunchRoute,
   workflowListRoute,
   workflowResumeRoute,
   workflowRetryRoute,
+  workflowSavedListRoute,
+  workflowSavedPrepareLaunchRoute,
+  workflowSavedReadRoute,
+  workflowSavedSaveRoute,
   workflowSynthesizeRoute
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
@@ -29,6 +34,15 @@ export function createWorkflowClient(bridge: DeepchatBridge = getDeepchatBridge(
       await bridge.invoke(workflowInspectRoute.name, {
         parentSessionId,
         runId
+      })
+    ).run
+  }
+
+  async function launch(parentSessionId: string, approvalId: string) {
+    return workflowLaunchRoute.output.parse(
+      await bridge.invoke(workflowLaunchRoute.name, {
+        parentSessionId,
+        approvalId
       })
     ).run
   }
@@ -81,6 +95,56 @@ export function createWorkflowClient(bridge: DeepchatBridge = getDeepchatBridge(
     ).receipt
   }
 
+  async function listSaved(parentSessionId: string) {
+    return workflowSavedListRoute.output.parse(
+      await bridge.invoke(workflowSavedListRoute.name, {
+        parentSessionId
+      })
+    )
+  }
+
+  async function readSaved(parentSessionId: string, name: string) {
+    return workflowSavedReadRoute.output.parse(
+      await bridge.invoke(workflowSavedReadRoute.name, {
+        parentSessionId,
+        name
+      })
+    ).workflow
+  }
+
+  async function saveSaved(
+    parentSessionId: string,
+    input: {
+      name: string
+      source: string
+      expectedSourceHash: string | null
+    }
+  ) {
+    return workflowSavedSaveRoute.output.parse(
+      await bridge.invoke(workflowSavedSaveRoute.name, {
+        parentSessionId,
+        ...input
+      })
+    ).workflow
+  }
+
+  async function prepareSavedLaunch(
+    parentSessionId: string,
+    input: {
+      name: string
+      argsText: string
+      expectedSourceHash: string
+      allowedAgentIds?: string[]
+    }
+  ) {
+    return workflowSavedPrepareLaunchRoute.output.parse(
+      await bridge.invoke(workflowSavedPrepareLaunchRoute.name, {
+        parentSessionId,
+        ...input
+      })
+    ).approval
+  }
+
   function onRunChanged(
     listener: (payload: DeepchatEventPayload<typeof workflowRunChangedEvent.name>) => void
   ) {
@@ -94,10 +158,15 @@ export function createWorkflowClient(bridge: DeepchatBridge = getDeepchatBridge(
   return {
     list,
     inspect,
+    launch,
     cancel,
     resume,
     retry,
     synthesize,
+    listSaved,
+    readSaved,
+    saveSaved,
+    prepareSavedLaunch,
     onRunChanged,
     onLog
   }

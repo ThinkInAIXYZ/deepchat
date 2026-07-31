@@ -299,6 +299,20 @@ describe('ChatInputBox attachments', () => {
     expect(mentionOptions?.agentId.value).toBe('agent-a')
   })
 
+  it('routes saved workflow requests through a dedicated local event', async () => {
+    const wrapper = await mountComponent()
+    const mentionOptions = useChatInputMentionsMock.mock.calls.at(-1)?.[0] as
+      | {
+          onWorkflowSubmit?: (name: string, argsText: string) => void
+        }
+      | undefined
+
+    mentionOptions?.onWorkflowSubmit?.('review', '{"target":"src"}')
+
+    expect(wrapper.emitted('workflow-submit')).toEqual([['review', '{"target":"src"}']])
+    expect(wrapper.emitted('command-submit')).toBeUndefined()
+  })
+
   it('provides reactive attachment context and fails open when OCR status cannot be read', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     let attachmentContext: AttachmentNodeContext | undefined

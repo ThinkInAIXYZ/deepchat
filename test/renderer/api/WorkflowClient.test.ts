@@ -17,6 +17,31 @@ describe('WorkflowClient', () => {
           }
         }
       }
+      if (routeName === 'workflow.saved.list') {
+        return {
+          directoryPath: '/repo/.deepchat/workflows',
+          workflows: []
+        }
+      }
+      if (routeName === 'workflow.saved.prepareLaunch') {
+        return {
+          approval: {
+            approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
+            sourceHash: 'a'.repeat(64),
+            scopeHash: 'b'.repeat(64),
+            expiresAt: 10_000,
+            summary: {
+              workspacePath: '/repo',
+              capabilityScopeHash: 'c'.repeat(64),
+              allowedAgentIds: ['deepchat'],
+              maxInvocations: 128,
+              maxPendingInvocations: 64,
+              budget: null,
+              capabilities: ['deepchat-child-sessions']
+            }
+          }
+        }
+      }
       throw new Error(`Unexpected route: ${routeName}`)
     })
     const on = vi.fn(() => vi.fn())
@@ -28,6 +53,19 @@ describe('WorkflowClient', () => {
       pendingInputId: 'pending-1',
       state: 'claimed'
     })
+    await expect(workflow.listSaved('parent-1')).resolves.toEqual({
+      directoryPath: '/repo/.deepchat/workflows',
+      workflows: []
+    })
+    await expect(
+      workflow.prepareSavedLaunch('parent-1', {
+        name: 'review',
+        argsText: '{"scope":"src"}',
+        expectedSourceHash: 'd'.repeat(64)
+      })
+    ).resolves.toMatchObject({
+      approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
+    })
     const listener = vi.fn()
     const stop = workflow.onRunChanged(listener)
 
@@ -38,6 +76,15 @@ describe('WorkflowClient', () => {
     expect(invoke).toHaveBeenNthCalledWith(2, 'workflow.synthesize', {
       parentSessionId: 'parent-1',
       runId: 'run-1'
+    })
+    expect(invoke).toHaveBeenNthCalledWith(3, 'workflow.saved.list', {
+      parentSessionId: 'parent-1'
+    })
+    expect(invoke).toHaveBeenNthCalledWith(4, 'workflow.saved.prepareLaunch', {
+      parentSessionId: 'parent-1',
+      name: 'review',
+      argsText: '{"scope":"src"}',
+      expectedSourceHash: 'd'.repeat(64)
     })
     expect(on).toHaveBeenCalledWith('workflow.run.changed', listener)
     expect(stop).toBeTypeOf('function')

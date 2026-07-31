@@ -90,6 +90,7 @@ const props = withDefaults(
     agentId?: string | null
     workspacePath?: string | null
     isAcpSession?: boolean
+    workflowEnabled?: boolean
     supportsVision?: boolean | null
     isGenerating?: boolean
     editable?: boolean
@@ -107,6 +108,7 @@ const props = withDefaults(
     agentId: 'deepchat',
     workspacePath: null,
     isAcpSession: false,
+    workflowEnabled: false,
     supportsVision: null,
     isGenerating: false,
     editable: true,
@@ -125,6 +127,7 @@ const emit = defineEmits<{
   'queue-submit': []
   'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
+  'workflow-submit': [name: string, argsText: string]
   'pending-skills-change': [skills: string[]]
   'switch-vision-model': []
   'draft-change': []
@@ -148,11 +151,18 @@ const mentions = useChatInputMentions({
   sessionId: computed(() => props.sessionId),
   agentId: skillAgentId,
   isAcpSession: computed(() => props.isAcpSession),
+  workflowEnabled: computed(() => props.workflowEnabled),
   isGenerating: computed(() => props.isGenerating),
   compactCommandDescription: computed(() => t('chat.compaction.commandDescription')),
+  workflowArgsLabel: computed(() => t('chat.workflow.saved.fields.args')),
+  workflowPrepareText: computed(() => t('chat.workflow.saved.actions.prepare')),
   onCommandSubmit: (command) => {
     if (!props.editable) return
     emit('command-submit', command)
+  },
+  onWorkflowSubmit: (name, argsText) => {
+    if (!props.editable) return
+    emit('workflow-submit', name, argsText)
   },
   onActivateSkill: async (skillName) => {
     if (!props.editable) return

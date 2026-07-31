@@ -1,4 +1,5 @@
 import type { MCPToolDefinition, PromptListEntry } from '@shared/types/mcp'
+import type { WorkflowSavedSummary } from '@shared/workflow/savedWorkflow'
 
 export interface AcpSessionCommand {
   name: string
@@ -6,28 +7,37 @@ export interface AcpSessionCommand {
   input?: { hint: string } | null
 }
 
-export type SlashCategory = 'command' | 'skill' | 'prompt' | 'tool'
+export type SlashCategory = 'command' | 'workflow' | 'skill' | 'prompt' | 'tool'
+
+export type WorkflowSlashPayload = Pick<WorkflowSavedSummary, 'name' | 'relativePath'>
 
 export interface SlashSuggestionItem {
   id: string
   category: SlashCategory
   label: string
   description?: string
-  payload: AcpSessionCommand | PromptListEntry | MCPToolDefinition | { name: string }
+  payload:
+    | AcpSessionCommand
+    | WorkflowSlashPayload
+    | PromptListEntry
+    | MCPToolDefinition
+    | { name: string }
 }
 
 export const MAX_FILTERED_SLASH_SUGGESTIONS = 20
 
 const SLASH_CATEGORY_RANK: Record<SlashCategory, number> = {
   command: 0,
-  skill: 1,
-  prompt: 2,
-  tool: 3
+  workflow: 1,
+  skill: 2,
+  prompt: 3,
+  tool: 4
 }
 
 export type SlashActionDecision =
   | { kind: 'send-command'; command: string }
   | { kind: 'request-command-input'; command: AcpSessionCommand }
+  | { kind: 'request-workflow-input'; workflow: WorkflowSlashPayload }
   | { kind: 'activate-skill'; skillName: string }
   | { kind: 'insert-tool'; text: string }
   | { kind: 'insert-prompt'; prompt: PromptListEntry }
@@ -169,6 +179,13 @@ export const resolveSlashSelectionAction = (item: SlashSuggestionItem): SlashAct
       return { kind: 'request-command-input', command }
     }
     return { kind: 'send-command', command: buildCommandText(command.name) }
+  }
+
+  if (item.category === 'workflow') {
+    return {
+      kind: 'request-workflow-input',
+      workflow: item.payload as WorkflowSlashPayload
+    }
   }
 
   if (item.category === 'skill') {

@@ -40,12 +40,13 @@
     <ChatSidePanel
       :session-id="pageRouter.currentRoute === 'chat' ? pageRouter.chatSessionId : null"
       :workspace-path="sessionStore.activeSession?.projectDir ?? null"
+      :saved-workflows-enabled="supportsSavedWorkflows"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createStartupClient } from '@api/StartupClient'
 import type { RendererStartupWorkloadTaskId } from '@shared/contracts/routes'
 import ChatSidePanel from '@/components/sidepanel/ChatSidePanel.vue'
@@ -61,6 +62,7 @@ import { useProjectStore } from '@/stores/ui/project'
 import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
 import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
+import { isSavedWorkflowSupported } from '@/lib/workflowSupport'
 import { markStartupInteractive, scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import {
   RENDERER_PERFORMANCE_REPORTER,
@@ -87,6 +89,14 @@ try {
 }
 const isReady = ref(false)
 let cancelDeferredHydration: (() => void) | null = null
+
+const supportsSavedWorkflows = computed(() =>
+  isSavedWorkflowSupported(
+    sessionStore.activeSession,
+    pageRouter.currentRoute === 'chat' ? pageRouter.chatSessionId : null,
+    agentStore.agents
+  )
+)
 
 function isRendererStartupWorkloadTaskId(taskId: string): taskId is RendererStartupWorkloadTaskId {
   return (

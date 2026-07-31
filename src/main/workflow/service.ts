@@ -129,6 +129,10 @@ export interface WorkflowServiceOptions {
   cancelGraceMs?: number
 }
 
+export interface WorkflowLaunchPreparationConstraints {
+  expectedWorkspacePath: string | null
+}
+
 type RunStartMode = 'launch' | 'resume'
 
 interface ScheduledRun {
@@ -198,7 +202,10 @@ export class WorkflowService {
     }
   }
 
-  async prepareLaunch(intent: WorkflowLaunchIntent): Promise<WorkflowLaunchApproval> {
+  async prepareLaunch(
+    intent: WorkflowLaunchIntent,
+    constraints?: WorkflowLaunchPreparationConstraints
+  ): Promise<WorkflowLaunchApproval> {
     this.requireAvailable()
     const parsedIntent = WorkflowLaunchIntentSchema.parse(intent)
     const requestedAgentIds = [...new Set(parsedIntent.allowedAgentIds)].sort()
@@ -208,6 +215,9 @@ export class WorkflowService {
       allowedAgentIds: requestedAgentIds
     })
     this.requireAvailable()
+    if (constraints && resolved.workspacePath !== constraints.expectedWorkspacePath) {
+      throw new Error('Workflow parent workspace changed while preparing the saved source.')
+    }
     return this.approvals.prepare({
       ...parsedIntent,
       workspacePath: resolved.workspacePath,

@@ -5,6 +5,10 @@ import {
   workflowListRoute,
   workflowPrepareLaunchRoute,
   workflowRetryRoute,
+  workflowSavedListRoute,
+  workflowSavedPrepareLaunchRoute,
+  workflowSavedReadRoute,
+  workflowSavedSaveRoute,
   workflowSynthesizeRoute
 } from '@shared/contracts/routes'
 import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
@@ -267,5 +271,152 @@ describe('workflow routes', () => {
       }
     })
     expect(service.synthesize).toHaveBeenCalledWith('run-1')
+  })
+
+  it('resolves saved workflows from the main-owned parent workspace', async () => {
+    const service = createService()
+    const savedDocument = {
+      name: 'review',
+      relativePath: '.deepchat/workflows/review.js',
+      absolutePath: '/repo/.deepchat/workflows/review.js',
+      sourceHash: 'd'.repeat(64),
+      source: 'return await agent(input.prompt, { key: "review" })',
+      byteLength: 51,
+      updatedAt: 100
+    }
+    const store = {
+      list: vi.fn().mockResolvedValue({
+        directoryPath: '/repo/.deepchat/workflows',
+        workflows: [
+          {
+            name: savedDocument.name,
+            relativePath: savedDocument.relativePath,
+            byteLength: savedDocument.byteLength,
+            updatedAt: savedDocument.updatedAt
+          }
+        ]
+      }),
+      read: vi.fn().mockResolvedValue(savedDocument),
+      save: vi.fn().mockResolvedValue(savedDocument)
+    }
+    const resolveContext = vi.fn().mockResolvedValue({
+      workspacePath: '/repo',
+      defaultAgentId: 'parent-agent'
+    })
+    const routes = createWorkflowRoutes(service, {
+      savedWorkflows: {
+        store,
+        resolveContext
+      }
+    })
+
+    await expect(
+      routes.get(workflowSavedListRoute.name)!({ parentSessionId: 'parent-1' }, context)
+    ).resolves.toMatchObject({
+      directoryPath: '/repo/.deepchat/workflows',
+      workflows: [{ name: 'review' }]
+    })
+    await expect(
+      routes.get(workflowSavedReadRoute.name)!(
+        { parentSessionId: 'parent-1', name: 'review' },
+        context
+      )
+    ).resolves.toEqual({ workflow: savedDocument })
+    await routes.get(workflowSavedSaveRoute.name)!(
+      {
+        parentSessionId: 'parent-1',
+        name: 'review',
+        source: savedDocument.source,
+        expectedSourceHash: savedDocument.sourceHash
+      },
+      context
+    )
+    expect(store.save).toHaveBeenCalledWith({
+      workspacePath: '/repo',
+      name: 'review',
+      source: savedDocument.source,
+      expectedSourceHash: savedDocument.sourceHash
+    })
+
+    await routes.get(workflowSavedPrepareLaunchRoute.name)!(
+      {
+        parentSessionId: 'parent-1',
+        name: 'review',
+        argsText: '{"prompt":"Inspect the change"}',
+        expectedSourceHash: savedDocument.sourceHash
+      },
+      context
+    )
+    expect(service.prepareLaunch).toHaveBeenCalledWith(
+      {
+        parentSessionId: 'parent-1',
+        namedWorkflowPath: savedDocument.absolutePath,
+        scriptSource: savedDocument.source,
+        input: {
+          prompt: 'Inspect the change'
+        },
+        allowedAgentIds: ['parent-agent']
+      },
+      {
+        expectedWorkspacePath: '/repo'
+      }
+    )
+    expect(resolveContext).toHaveBeenCalledWith('parent-1')
+
+    store.read.mockResolvedValueOnce({
+      ...savedDocument,
+      sourceHash: 'e'.repeat(64),
+      source: 'return "changed outside DeepChat"'
+    })
+    await expect(
+      routes.get(workflowSavedPrepareLaunchRoute.name)!(
+        {
+          parentSessionId: 'parent-1',
+          name: 'review',
+          argsText: '{}',
+          expectedSourceHash: savedDocument.sourceHash
+        },
+        context
+      )
+    ).rejects.toThrow('changed since it was loaded')
+    expect(service.prepareLaunch).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects unsafe saved-workflow args before preparing an approval', async () => {
+    const service = createService()
+    const routes = createWorkflowRoutes(service, {
+      savedWorkflows: {
+        store: {
+          list: vi.fn(),
+          read: vi.fn().mockResolvedValue({
+            name: 'review',
+            relativePath: '.deepchat/workflows/review.js',
+            absolutePath: '/repo/.deepchat/workflows/review.js',
+            sourceHash: 'd'.repeat(64),
+            source: 'return null',
+            byteLength: 11,
+            updatedAt: 100
+          }),
+          save: vi.fn()
+        },
+        resolveContext: vi.fn().mockResolvedValue({
+          workspacePath: '/repo',
+          defaultAgentId: 'parent-agent'
+        })
+      }
+    })
+
+    await expect(
+      routes.get(workflowSavedPrepareLaunchRoute.name)!(
+        {
+          parentSessionId: 'parent-1',
+          name: 'review',
+          argsText: '{"__proto__":{"polluted":true}}',
+          expectedSourceHash: 'd'.repeat(64)
+        },
+        context
+      )
+    ).rejects.toThrow('unsafe key')
+    expect(service.prepareLaunch).not.toHaveBeenCalled()
   })
 })

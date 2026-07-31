@@ -69,6 +69,7 @@
         v-if="sidepanelStore.activeTab === 'workspace'"
         :session-id="props.sessionId"
         :workspace-path="props.workspacePath"
+        :saved-workflows-enabled="props.savedWorkflowsEnabled"
         :is-fullscreen="isWorkspaceFullscreenActive"
         @toggle-fullscreen="toggleWorkspaceFullscreen"
         @insert-file-reference="handleWorkspaceInsertFileReference"
@@ -98,6 +99,7 @@ import { useSidepanelStore } from '@/stores/ui/sidepanel'
 const props = defineProps<{
   sessionId: string | null
   workspacePath: string | null
+  savedWorkflowsEnabled?: boolean
 }>()
 
 const { t } = useI18n()

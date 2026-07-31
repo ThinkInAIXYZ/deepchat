@@ -225,23 +225,69 @@ UI validation evidence (2026-07-31):
 
 ## Saved Workflows
 
-- [ ] Add safe user-readable named workflow storage.
-- [ ] Keep immutable run snapshots separate from editable source files.
-- [ ] Add bounded args and path/symlink validation.
-- [ ] Add named invocation UX.
-- [ ] Defer auto mode until explicit workflows pass recovery validation.
-- [ ] Complete the pre-commit saved-workflow review, focused validation, and commit.
+- [x] Add safe user-readable named workflow storage.
+- [x] Keep immutable run snapshots separate from editable source files.
+- [x] Add bounded args and path/symlink validation.
+- [x] Add named invocation UX.
+- [x] Defer auto mode until explicit workflows pass recovery validation.
+- [x] Complete the pre-commit saved-workflow review, focused validation, and commit.
+
+Saved-workflow validation evidence (2026-07-31):
+
+- named sources live under the main-resolved `<workspace>/.deepchat/workflows` directory with
+  strict flat names, bounded UTF-8 source and JSON args, a 200-file catalog bound, deterministic
+  ordering, and serialized creates;
+- static and raced final-component symlinks are rejected with no-follow plus inode checks, while
+  directory components are realpath-contained and cannot traverse outside the workspace;
+- optimistic source hashes reject stale editor saves, and launch preparation re-reads the exact
+  loaded hash and rejects a parent-workspace change before registering an approval;
+- editable files remain authoring inputs only; every run continues to store and resume from its
+  immutable source snapshot;
+- slash suggestions hand off a durable renderer request to the side panel, prepare but never launch
+  automatically, preserve dirty source, and fence stale catalog, document, save, prepare, and
+  launch completions across session changes;
+- `kind=deepchat + providerId=acp` remains supported, while direct ACP hides saved authoring and
+  still retains access to any durable run history;
+- authoring saves use portable optimistic concurrency rather than claiming cross-process filesystem
+  compare-and-swap; exact execution remains protected by source-hash and workspace-bound approval.
 
 ## Final Validation
 
-- [ ] Run all focused workflow and affected regression suites.
-- [ ] Run `pnpm run format`.
-- [ ] Run `pnpm run i18n`.
-- [ ] Run `pnpm run lint`.
-- [ ] Run `pnpm run typecheck`.
-- [ ] Run `pnpm run build`.
-- [ ] Verify packaged QuickJS loading on the current platform.
-- [ ] Perform the final cross-module review and fix findings.
-- [ ] Record actual validation evidence in this document.
-- [ ] Commit all validated work locally.
-- [ ] Do not push.
+- [x] Run all focused workflow and affected regression suites.
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run `pnpm run typecheck`.
+- [x] Run `pnpm run build`.
+- [x] Verify packaged QuickJS loading on the current platform.
+- [x] Perform the final cross-module review and fix findings.
+- [x] Record actual validation evidence in this document.
+- [x] Commit all validated work locally.
+- [x] Do not push.
+
+Final validation evidence (2026-07-31):
+
+- all 23 files and 164 tests in `test/main/workflow` passed;
+- all 241 renderer test files and 1,940 tests passed;
+- `pnpm run format`
+- `pnpm run i18n` validated 20 locales, 400 namespace registrations, and 4,124 source-message
+  contracts with no missing keys or invalid translations;
+- `pnpm run lint`
+- `pnpm run typecheck`
+- `pnpm run build`, including the workflow utility host, main, preload, and renderer bundles;
+- the current macOS arm64 packaged app contains the sync QuickJS WASM under
+  `app.asar.unpacked`, and the earlier packaged Electron utility-process smoke returned a settled
+  QuickJS result;
+- normal prebuild refreshes were retained: 179 provider records and 38 ACP registry agents.
+
+Final review findings, ordered by severity:
+
+- Critical / high: no findings.
+- Medium, fixed: saved-source approval could cross a concurrent parent-workspace change; direct ACP
+  mounted an unusable saved-authoring surface; stale session operations, unsaved-draft navigation,
+  and concurrent catalog creates had unsafe edge behavior.
+- Low, fixed: symlink defense depended too heavily on `O_NOFOLLOW`, catalog ordering depended on the
+  host locale, the UI silently truncated oversized Agent allowlists, and exact-source mismatch
+  coverage was incomplete.
+- Remaining material findings: none. Workflow side effects retain the documented non-exactly-once
+  contract.

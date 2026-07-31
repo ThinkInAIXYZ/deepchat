@@ -35,6 +35,21 @@ vi.mock('@api/WorkflowClient', () => ({
   createWorkflowClient: () => client
 }))
 
+vi.mock('@/components/sidepanel/SavedWorkflowPanel.vue', () => ({
+  default: defineComponent({
+    name: 'SavedWorkflowPanel',
+    props: {
+      invocationRequest: {
+        type: Object,
+        default: null
+      }
+    },
+    emits: ['launched', 'consumed'],
+    template:
+      '<button data-testid="saved-workflow-panel-stub" @click="$emit(\'consumed\', invocationRequest?.id)">Saved</button>'
+  })
+}))
+
 vi.mock('@/stores/ui/session', () => ({
   useSessionStore: () => ({
     selectSession: client.selectSession
@@ -195,7 +210,9 @@ function runDetail(
 async function mountPanel(
   summary: WorkflowRunSummary,
   detail: WorkflowRunDetail,
-  selectedRunId?: string
+  selectedRunId?: string,
+  savedInvocationRequest?: { id: number; name: string; argsText: string },
+  savedWorkflowsEnabled = true
 ) {
   client.list.mockResolvedValue([summary])
   client.inspect.mockResolvedValue(detail)
@@ -203,7 +220,9 @@ async function mountPanel(
     props: {
       sessionId: 'parent-1',
       expanded: true,
-      selectedRunId
+      selectedRunId,
+      savedInvocationRequest,
+      savedWorkflowsEnabled
     }
   })
   await flushPromises()
@@ -214,6 +233,32 @@ describe('WorkflowPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     client.reset()
+  })
+
+  it('forwards saved Workflow requests and consumption acknowledgements', async () => {
+    const summary = runSummary()
+    const detail = runDetail(summary)
+    const request = {
+      id: 12,
+      name: 'review',
+      argsText: '{}'
+    }
+    const wrapper = await mountPanel(summary, detail, undefined, request)
+    const savedPanel = wrapper.getComponent({ name: 'SavedWorkflowPanel' })
+
+    expect(savedPanel.props('invocationRequest')).toEqual(request)
+    await savedPanel.trigger('click')
+
+    expect(wrapper.emitted('consumeSavedInvocation')).toEqual([[12]])
+  })
+
+  it('hides saved Workflow authoring for an incompatible parent without hiding run history', async () => {
+    const summary = runSummary()
+    const detail = runDetail(summary)
+    const wrapper = await mountPanel(summary, detail, undefined, undefined, false)
+
+    expect(wrapper.findComponent({ name: 'SavedWorkflowPanel' }).exists()).toBe(false)
+    expect(wrapper.get('[data-testid="workflow-run-list"]').exists()).toBe(true)
   })
 
   it('renders durable progress, waiting interaction facts, and opens the child session', async () => {

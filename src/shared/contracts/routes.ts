@@ -526,6 +526,10 @@ import {
   workflowPrepareLaunchRoute,
   workflowResumeRoute,
   workflowRetryRoute,
+  workflowSavedListRoute,
+  workflowSavedPrepareLaunchRoute,
+  workflowSavedReadRoute,
+  workflowSavedSaveRoute,
   workflowSynthesizeRoute
 } from './routes/workflow.routes'
 
@@ -1056,6 +1060,10 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [workflowCancelRoute.name]: workflowCancelRoute,
   [workflowResumeRoute.name]: workflowResumeRoute,
   [workflowRetryRoute.name]: workflowRetryRoute,
+  [workflowSavedListRoute.name]: workflowSavedListRoute,
+  [workflowSavedReadRoute.name]: workflowSavedReadRoute,
+  [workflowSavedSaveRoute.name]: workflowSavedSaveRoute,
+  [workflowSavedPrepareLaunchRoute.name]: workflowSavedPrepareLaunchRoute,
   [workflowSynthesizeRoute.name]: workflowSynthesizeRoute
 } satisfies Record<string, RouteContract>
 

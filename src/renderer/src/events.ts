@@ -64,5 +64,6 @@ export const WORKSPACE_EVENTS = {
 }
 
 export const WORKFLOW_EVENTS = {
-  OPEN_REQUESTED: 'workflow:open-requested'
+  OPEN_REQUESTED: 'workflow:open-requested',
+  SAVED_CHANGED: 'workflow:saved-changed'
 }

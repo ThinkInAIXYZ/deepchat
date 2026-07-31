@@ -75,4 +75,27 @@ describe('sidepanel store', () => {
     expect(sessionState.sections.workflows).toBe(true)
     expect(sessionState.selectedWorkflowRunId).toBe('run-1')
   })
+
+  it('keeps saved Workflow invocation requests until the matching consumer acknowledges them', async () => {
+    const { store } = await setupSidepanelStore(1200)
+    store.openBrowser()
+
+    store.requestSavedWorkflow('session-1', ' review ', '  ')
+
+    const sessionState = store.ensureSessionState('session-1')
+    const request = sessionState.savedWorkflowInvocationRequest
+    expect(store.open).toBe(true)
+    expect(store.activeTab).toBe('workspace')
+    expect(sessionState.sections.workflows).toBe(true)
+    expect(request).toMatchObject({
+      name: 'review',
+      argsText: '{}'
+    })
+
+    store.consumeSavedWorkflowRequest('session-1', (request?.id ?? 0) + 1)
+    expect(sessionState.savedWorkflowInvocationRequest).toEqual(request)
+
+    store.consumeSavedWorkflowRequest('session-1', request!.id)
+    expect(sessionState.savedWorkflowInvocationRequest).toBeNull()
+  })
 })

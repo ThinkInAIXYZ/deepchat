@@ -630,6 +630,38 @@
     "budget": {
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
+    },
+    "saved": {
+      "title": "Saved workflows",
+      "workspaceRequired": "Open a project workspace to create and run saved workflows.",
+      "selectPlaceholder": "Select a workflow",
+      "empty": "No saved workflows in this workspace.",
+      "unsaved": "Save changes before preparing a run.",
+      "runTitle": "Run saved workflow",
+      "agentPlaceholder": "Optional agent IDs, separated by commas",
+      "fields": {
+        "name": "Name",
+        "source": "JavaScript source",
+        "args": "JSON args",
+        "agents": "Allowed agents"
+      },
+      "actions": {
+        "refresh": "Refresh saved workflows",
+        "new": "New",
+        "save": "Save",
+        "reload": "Reload",
+        "prepare": "Review launch",
+        "launch": "Launch workflow"
+      },
+      "approval": {
+        "title": "Confirm this exact workflow snapshot",
+        "sourceHash": "Source hash",
+        "workspace": "Workspace",
+        "agents": "Allowed agents",
+        "maxInvocations": "Maximum invocations",
+        "warning": "Child agents may use their existing write-capable tools. Their individual permission prompts still apply.",
+        "expired": "Approval expired"
+      }
     }
   }
 }

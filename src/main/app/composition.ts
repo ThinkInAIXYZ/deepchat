@@ -161,6 +161,7 @@ import { WorkflowLaunchScopeResolver } from '@/workflow/launchScope'
 import { WorkflowService, type WorkflowServiceUpdate } from '@/workflow/service'
 import { WorkflowResultDelivery } from '@/workflow/resultDelivery'
 import { projectWorkflowWaitingInteractions } from '@/workflow/interactionProjection'
+import { WorkflowSavedStore } from '@/workflow/savedWorkflowStore'
 import {
   projectWorkflowRunDetail,
   projectWorkflowRunSummaryWithCounts
@@ -1490,6 +1491,7 @@ export async function createMainProcessControl(dependencies: {
     agents: agentSettings,
     messages: sessionData.transcript
   })
+  const workflowSavedStore = new WorkflowSavedStore()
   const publishWorkflowRunChanged = (runId: string): void => {
     const run = workflowRepository.requireRun(runId)
     const counts = workflowRepository.getInvocationCounts([run.id]).get(run.id)
@@ -2056,7 +2058,24 @@ export async function createMainProcessControl(dependencies: {
       createLivePort(() => workflowService),
       {
         resolveWaitingInteractions: (childSessionId) =>
-          projectWorkflowWaitingInteractions(sessionData.transcript, childSessionId)
+          projectWorkflowWaitingInteractions(sessionData.transcript, childSessionId),
+        savedWorkflows: {
+          store: workflowSavedStore,
+          resolveContext: async (parentSessionId) => {
+            const parent =
+              await agentToolDependencies.sessions.resolveConversationSessionInfo(parentSessionId)
+            if (!parent) {
+              throw new Error(`Workflow parent session does not exist: ${parentSessionId}`)
+            }
+            if (parent.agentType !== 'deepchat' || parent.sessionKind !== 'regular') {
+              throw new Error('Saved workflows require a regular DeepChat parent session.')
+            }
+            return {
+              workspacePath: parent.projectDir?.trim() ? path.resolve(parent.projectDir) : null,
+              defaultAgentId: parent.agentId
+            }
+          }
+        }
       }
     )
     const projectRoutes = createProjectRoutes({

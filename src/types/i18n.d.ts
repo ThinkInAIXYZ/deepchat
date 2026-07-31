@@ -1351,6 +1351,38 @@ declare module 'vue-i18n' {
         tokens: string
         duration: string
       }
+      saved: {
+        title: string
+        workspaceRequired: string
+        selectPlaceholder: string
+        empty: string
+        unsaved: string
+        runTitle: string
+        agentPlaceholder: string
+        fields: {
+          name: string
+          source: string
+          args: string
+          agents: string
+        }
+        actions: {
+          refresh: string
+          new: string
+          save: string
+          reload: string
+          prepare: string
+          launch: string
+        }
+        approval: {
+          title: string
+          sourceHash: string
+          workspace: string
+          agents: string
+          maxInvocations: string
+          warning: string
+          expired: string
+        }
+      }
     }
     notifications: {
       label: string

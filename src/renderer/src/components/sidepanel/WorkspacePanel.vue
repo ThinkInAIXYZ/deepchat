@@ -10,8 +10,13 @@
             :session-id="props.sessionId"
             :expanded="sessionState.sections.workflows"
             :selected-run-id="sessionState.selectedWorkflowRunId"
+            :saved-invocation-request="sessionState.savedWorkflowInvocationRequest"
+            :saved-workflows-enabled="props.savedWorkflowsEnabled"
             @toggle="sidepanelStore.toggleSection(props.sessionId, 'workflows')"
             @select-run="sidepanelStore.selectWorkflowRun(props.sessionId, $event)"
+            @consume-saved-invocation="
+              sidepanelStore.consumeSavedWorkflowRequest(props.sessionId, $event)
+            "
           />
 
           <section>
@@ -192,6 +197,7 @@ import type { WorkspaceGitFileChange } from '@shared/types/workspace'
 const props = defineProps<{
   sessionId: string
   workspacePath: string | null
+  savedWorkflowsEnabled?: boolean
   isFullscreen?: boolean
 }>()
 

@@ -630,6 +630,38 @@
     "budget": {
       "tokens": "{count} tokens",
       "duration": "最長 {duration}"
+    },
+    "saved": {
+      "title": "已儲存的工作流程",
+      "workspaceRequired": "請先開啟專案工作區，再建立和執行已儲存的工作流程。",
+      "selectPlaceholder": "選擇工作流程",
+      "empty": "目前工作區尚未有已儲存的工作流程。",
+      "unsaved": "請先儲存變更，再準備執行。",
+      "runTitle": "執行已儲存的工作流程",
+      "agentPlaceholder": "可選 Agent ID，以逗號分隔",
+      "fields": {
+        "name": "名稱",
+        "source": "JavaScript 原始碼",
+        "args": "JSON 參數",
+        "agents": "允許的 Agent"
+      },
+      "actions": {
+        "refresh": "重新整理已儲存的工作流程",
+        "new": "新增",
+        "save": "儲存",
+        "reload": "重新載入",
+        "prepare": "審核啟動資料",
+        "launch": "啟動工作流程"
+      },
+      "approval": {
+        "title": "確認這一份精確的工作流程快照",
+        "sourceHash": "原始碼雜湊",
+        "workspace": "工作區",
+        "agents": "允許的 Agent",
+        "maxInvocations": "最大呼叫次數",
+        "warning": "子 Agent 可能使用現有的寫入工具；每次工具權限確認仍按原有規則處理。",
+        "expired": "核准已過期"
+      }
     }
   }
 }

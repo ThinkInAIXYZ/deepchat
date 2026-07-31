@@ -4,9 +4,12 @@ import type { Editor, Range } from '@tiptap/core'
 import tippy from 'tippy.js'
 import { createSessionClient } from '@api/SessionClient'
 import { createSkillClient } from '@api/SkillClient'
+import { createWorkflowClient } from '@api/WorkflowClient'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
 import type { WorkspaceFileNode } from '@shared/types/workspace'
 import type { PromptListEntry } from '@shared/types/mcp'
+import type { WorkflowSavedSummary } from '@shared/workflow/savedWorkflow'
+import { WORKFLOW_EVENTS } from '@/events'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
 import {
@@ -23,7 +26,8 @@ import {
   shouldShowManualCompactionCommand,
   sortSlashSuggestionItems,
   type AcpSessionCommand,
-  type SlashSuggestionItem
+  type SlashSuggestionItem,
+  type WorkflowSlashPayload
 } from '../mentions/utils'
 
 export interface UseChatInputMentionsOptions {
@@ -32,9 +36,13 @@ export interface UseChatInputMentionsOptions {
   sessionId: Ref<string | null>
   agentId: Ref<string | null>
   isAcpSession: Ref<boolean>
+  workflowEnabled?: Ref<boolean>
   isGenerating?: Ref<boolean>
   compactCommandDescription?: Ref<string>
+  workflowArgsLabel?: Ref<string>
+  workflowPrepareText?: Ref<string>
   onCommandSubmit: (command: string) => void
+  onWorkflowSubmit?: (name: string, argsText: string) => void
   onActivateSkill?: (skillName: string) => Promise<void> | void
   onPendingSkillsChange?: (skills: string[]) => void
 }
@@ -80,23 +88,28 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const workspaceClient = createWorkspaceClient()
   const sessionClient = createSessionClient()
   const skillClient = createSkillClient()
+  const workflowClient = createWorkflowClient()
   const mcpStore = useMcpStore()
   const skillsStore = useSkillsStore()
 
   const acpCommands = ref<AcpSessionCommand[]>([])
   const acpCommandFetchSeq = ref(0)
+  const savedWorkflows = ref<WorkflowSavedSummary[]>([])
+  const savedWorkflowFetchSeq = ref(0)
   const pendingSkills = ref<string[]>([])
   const isSuggestionMenuOpen = ref(false)
   const suppressSubmitUntil = ref(0)
   const registeredWorkspacePath = ref<string | null>(null)
   const normalizedAgentId = computed(() => options.agentId.value?.trim() || 'deepchat')
   let unsubscribeAcpCommandsReady: (() => void) | null = null
+  let removeSavedWorkflowChangedListener: (() => void) | null = null
 
-  // Stores the pending command/prompt context for the inline CommandForm
+  // Stores the pending command/prompt/workflow context for the inline CommandForm.
   const pendingFormData = ref<{
-    type: 'command' | 'prompt'
+    type: 'command' | 'prompt' | 'workflow'
     command?: AcpSessionCommand
     prompt?: PromptListEntry
+    workflow?: WorkflowSlashPayload
   } | null>(null)
 
   const shouldSuppressSubmit = () => Date.now() < suppressSubmitUntil.value
@@ -197,6 +210,16 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       })
     }
 
+    for (const workflow of savedWorkflows.value) {
+      items.push({
+        id: `workflow:${workflow.name}`,
+        category: 'workflow',
+        label: `/${workflow.name}`,
+        description: workflow.relativePath,
+        payload: workflow
+      })
+    }
+
     for (const skill of skillsStore.getSkillsForAgent(normalizedAgentId.value)) {
       items.push({
         id: `skill:${skill.name}`,
@@ -265,6 +288,39 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       }
       console.warn('[ChatInputMentions] Failed to fetch ACP session commands:', error)
       acpCommands.value = []
+    }
+  }
+
+  const refreshSavedWorkflows = async () => {
+    const sessionId = options.sessionId.value
+    const workspacePath = options.workspacePath.value?.trim()
+    const workflowEnabled = options.workflowEnabled?.value ?? !options.isAcpSession.value
+    const fetchSeq = ++savedWorkflowFetchSeq.value
+
+    if (!sessionId || !workspacePath || !workflowEnabled) {
+      savedWorkflows.value = []
+      return
+    }
+
+    try {
+      const catalog = await workflowClient.listSaved(sessionId)
+      if (fetchSeq !== savedWorkflowFetchSeq.value) {
+        return
+      }
+      if (
+        options.sessionId.value !== sessionId ||
+        options.workspacePath.value?.trim() !== workspacePath ||
+        (options.workflowEnabled?.value ?? !options.isAcpSession.value) !== workflowEnabled
+      ) {
+        return
+      }
+      savedWorkflows.value = catalog.workflows
+    } catch (error) {
+      if (fetchSeq !== savedWorkflowFetchSeq.value) {
+        return
+      }
+      console.warn('[ChatInputMentions] Failed to fetch saved workflows:', error)
+      savedWorkflows.value = []
     }
   }
 
@@ -342,6 +398,28 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       return
     }
 
+    if (action.kind === 'request-workflow-input') {
+      pendingFormData.value = {
+        type: 'workflow',
+        workflow: action.workflow
+      }
+      insertCommandFormNode(editor, range, {
+        mode: 'command',
+        commandName: action.workflow.name,
+        description: action.workflow.relativePath,
+        confirmText: options.workflowPrepareText?.value ?? 'Prepare',
+        fields: JSON.stringify([
+          {
+            name: 'args',
+            label: options.workflowArgsLabel?.value ?? 'JSON args',
+            placeholder: '{}',
+            required: false
+          }
+        ])
+      })
+      return
+    }
+
     if (action.kind === 'activate-skill') {
       editor.chain().focus().insertContentAt(range, '').run()
 
@@ -389,6 +467,12 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     if (data.type === 'command' && data.command) {
       const input = values.input ?? ''
       options.onCommandSubmit(buildCommandText(data.command.name, input))
+      closeDialog()
+      return
+    }
+
+    if (data.type === 'workflow' && data.workflow) {
+      options.onWorkflowSubmit?.(data.workflow.name, values.args?.trim() || '{}')
       closeDialog()
       return
     }
@@ -528,6 +612,18 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     acpCommands.value = normalizeAcpCommands(payload.commands)
   }
 
+  const handleSavedWorkflowChanged = (event: Event) => {
+    const detail = (
+      event as CustomEvent<{
+        sessionId?: string
+      }>
+    ).detail
+    if (!detail?.sessionId || detail.sessionId !== options.sessionId.value) {
+      return
+    }
+    void refreshSavedWorkflows()
+  }
+
   watch(
     () => options.workspacePath.value,
     (workspacePath) => {
@@ -568,16 +664,35 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     { immediate: true }
   )
 
+  watch(
+    () =>
+      [
+        options.sessionId.value,
+        options.workspacePath.value?.trim() || null,
+        options.workflowEnabled?.value ?? !options.isAcpSession.value
+      ] as const,
+    () => {
+      void refreshSavedWorkflows()
+    },
+    { immediate: true }
+  )
+
   onMounted(() => {
     void mcpStore.loadPrompts()
     void mcpStore.loadTools()
 
     unsubscribeAcpCommandsReady = sessionClient.onAcpCommandsReady(handleAcpCommandsReady)
+    window.addEventListener(WORKFLOW_EVENTS.SAVED_CHANGED, handleSavedWorkflowChanged)
+    removeSavedWorkflowChangedListener = () => {
+      window.removeEventListener(WORKFLOW_EVENTS.SAVED_CHANGED, handleSavedWorkflowChanged)
+    }
   })
 
   onUnmounted(() => {
     unsubscribeAcpCommandsReady?.()
     unsubscribeAcpCommandsReady = null
+    removeSavedWorkflowChangedListener?.()
+    removeSavedWorkflowChangedListener = null
   })
 
   return {

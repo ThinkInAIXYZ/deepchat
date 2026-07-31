@@ -17,6 +17,14 @@
     </button>
 
     <div v-if="props.expanded" class="space-y-2 px-2 pb-3">
+      <SavedWorkflowPanel
+        v-if="props.savedWorkflowsEnabled"
+        :session-id="props.sessionId"
+        :invocation-request="props.savedInvocationRequest"
+        @launched="handleSavedWorkflowLaunched"
+        @consumed="emit('consumeSavedInvocation', $event)"
+      />
+
       <div v-if="loadingRuns" class="rounded-md border border-dashed px-3 py-4 text-center">
         <Icon
           icon="lucide:loader-circle"
@@ -484,16 +492,21 @@ import { WORKFLOW_RESULT_SYNTHESIS_MAX_BYTES } from '@shared/workflow/resultDeli
 import { WORKFLOW_RUNTIME_API_VERSION } from '@shared/workflow/runtimeProtocol'
 import type { WorkflowRunBudget } from '@shared/workflow/serviceContracts'
 import { useSessionStore } from '@/stores/ui/session'
+import type { SavedWorkflowInvocationRequest } from '@/stores/ui/sidepanel'
+import SavedWorkflowPanel from './SavedWorkflowPanel.vue'
 
 const props = defineProps<{
   sessionId: string
   expanded: boolean
   selectedRunId?: string | null
+  savedInvocationRequest?: SavedWorkflowInvocationRequest | null
+  savedWorkflowsEnabled?: boolean
 }>()
 
 const emit = defineEmits<{
   toggle: []
   selectRun: [runId: string | null]
+  consumeSavedInvocation: [requestId: number]
 }>()
 
 const { t } = useI18n()
@@ -752,6 +765,12 @@ function upsertRun(run: WorkflowRunSummary): void {
   if (selectedRunId.value === run.id) {
     queueDetailRefresh()
   }
+}
+
+function handleSavedWorkflowLaunched(run: WorkflowRunSummary): void {
+  upsertRun(run)
+  setSelectedRunId(run.id)
+  void loadDetail(run.id)
 }
 
 async function performRunAction(

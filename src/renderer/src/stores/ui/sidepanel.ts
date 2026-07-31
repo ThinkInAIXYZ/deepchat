@@ -9,11 +9,18 @@ export interface WorkspaceArtifactContext {
   artifactId: string
 }
 
+export interface SavedWorkflowInvocationRequest {
+  id: number
+  name: string
+  argsText: string
+}
+
 export interface WorkspaceSessionState {
   selectedArtifactContext: WorkspaceArtifactContext | null
   selectedFilePath: string | null
   selectedDiffPath: string | null
   selectedWorkflowRunId: string | null
+  savedWorkflowInvocationRequest: SavedWorkflowInvocationRequest | null
   viewMode: WorkspaceViewMode
   sections: Record<WorkspaceNavSection, boolean>
 }
@@ -23,6 +30,7 @@ const createSessionState = (): WorkspaceSessionState => ({
   selectedFilePath: null,
   selectedDiffPath: null,
   selectedWorkflowRunId: null,
+  savedWorkflowInvocationRequest: null,
   viewMode: 'preview',
   sections: {
     artifacts: true,
@@ -31,6 +39,8 @@ const createSessionState = (): WorkspaceSessionState => ({
     workflows: true
   }
 })
+
+let savedWorkflowInvocationSequence = 0
 
 export const useSidepanelStore = defineStore('sidepanel', () => {
   const viewportWidth = ref(typeof window === 'undefined' ? 1548 : window.innerWidth)
@@ -137,6 +147,29 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
       state.selectedWorkflowRunId = runId?.trim() || null
     }
     openWorkspace(sessionId)
+  }
+
+  const requestSavedWorkflow = (sessionId: string, name: string, argsText: string) => {
+    const normalizedSessionId = sessionId.trim()
+    const normalizedName = name.trim()
+    if (!normalizedSessionId || !normalizedName) {
+      return
+    }
+    const state = ensureSessionState(normalizedSessionId)
+    savedWorkflowInvocationSequence += 1
+    state.savedWorkflowInvocationRequest = {
+      id: savedWorkflowInvocationSequence,
+      name: normalizedName,
+      argsText: argsText.trim() || '{}'
+    }
+    openWorkflow(normalizedSessionId)
+  }
+
+  const consumeSavedWorkflowRequest = (sessionId: string, requestId: number) => {
+    const state = ensureSessionState(sessionId)
+    if (state.savedWorkflowInvocationRequest?.id === requestId) {
+      state.savedWorkflowInvocationRequest = null
+    }
   }
 
   const closePanel = () => {
@@ -249,6 +282,8 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     openWorkspace,
     openBrowser,
     openWorkflow,
+    requestSavedWorkflow,
+    consumeSavedWorkflowRequest,
     selectWorkflowRun,
     closePanel,
     toggleWorkspace,

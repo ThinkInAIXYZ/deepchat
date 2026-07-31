@@ -212,6 +212,7 @@
                     :agent-id="sessionStore.activeSession?.agentId ?? 'deepchat'"
                     :workspace-path="sessionStore.activeSession?.projectDir ?? null"
                     :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
+                    :workflow-enabled="supportsSavedWorkflows"
                     :supports-vision="composerSupportsVision"
                     :is-generating="isGenerating"
                     :submit-disabled="isInputSubmitDisabled"
@@ -220,6 +221,7 @@
                     :is-attachment-preparation-pending="isPreparingAttachments"
                     @update:files="onFilesChange"
                     @command-submit="onCommandSubmit"
+                    @workflow-submit="onWorkflowSubmit"
                     @draft-change="recordComposerDocumentChange"
                     @pending-skills-change="recordComposerSkillsChange"
                     @queue-submit="onQueueSubmit"
@@ -339,6 +341,9 @@ import { createChatClient } from '../../../api/ChatClient'
 import { createModelClient } from '@api/ModelClient'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useSessionStore } from '@/stores/ui/session'
+import { useAgentStore } from '@/stores/ui/agent'
+import { useSidepanelStore } from '@/stores/ui/sidepanel'
+import { isSavedWorkflowSupported } from '@/lib/workflowSupport'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { useAttachmentPreparationStore } from '@/stores/ui/attachmentPreparation'
@@ -395,6 +400,8 @@ function recordChatSessionPerformance(
 
 const uiSettingsStore = useUiSettingsStore()
 const sessionStore = useSessionStore()
+const agentStore = useAgentStore()
+const sidepanelStore = useSidepanelStore()
 const messageStore = useMessageStore()
 const pendingInputStore = usePendingInputStore()
 const attachmentPreparationStore = useAttachmentPreparationStore()
@@ -420,6 +427,9 @@ const isCurrentSessionStreaming = computed(
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? t('common.newChat'))
 const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? '')
 const isReadOnlySession = computed(() => sessionStore.activeSession?.sessionKind === 'subagent')
+const supportsSavedWorkflows = computed(() =>
+  isSavedWorkflowSupported(sessionStore.activeSession, props.sessionId, agentStore.agents)
+)
 const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || isCurrentSessionStreaming.value
 )
@@ -1216,6 +1226,13 @@ const {
   t
 })
 switchComposerSessionDraft = switchComposerSession
+
+function onWorkflowSubmit(name: string, argsText: string): void {
+  if (!supportsSavedWorkflows.value || isReadOnlySession.value) {
+    return
+  }
+  sidepanelStore.requestSavedWorkflow(props.sessionId, name, argsText)
+}
 
 watch(
   [() => props.sessionId, isSessionViewPreparing],

@@ -6,6 +6,14 @@ import {
   WorkflowLaunchIntentSchema
 } from '../../workflow/serviceContracts'
 import { WorkflowSynthesisReceiptSchema } from '../../workflow/resultDelivery'
+import {
+  WORKFLOW_SAVED_MAX_SOURCE_BYTES,
+  WorkflowSavedArgsTextSchema,
+  WorkflowSavedCatalogSchema,
+  WorkflowSavedDocumentSchema,
+  WorkflowSavedNameSchema,
+  WorkflowSavedSourceHashSchema
+} from '../../workflow/savedWorkflow'
 
 const WorkflowRouteIdSchema = z.string().trim().min(1).max(256)
 const WorkflowRunRefSchema = z
@@ -107,6 +115,66 @@ export const workflowSynthesizeRoute = defineRouteContract({
   output: z
     .object({
       receipt: WorkflowSynthesisReceiptSchema
+    })
+    .strict()
+})
+
+export const workflowSavedListRoute = defineRouteContract({
+  name: 'workflow.saved.list',
+  input: z
+    .object({
+      parentSessionId: WorkflowRouteIdSchema
+    })
+    .strict(),
+  output: WorkflowSavedCatalogSchema
+})
+
+export const workflowSavedReadRoute = defineRouteContract({
+  name: 'workflow.saved.read',
+  input: z
+    .object({
+      parentSessionId: WorkflowRouteIdSchema,
+      name: WorkflowSavedNameSchema
+    })
+    .strict(),
+  output: z
+    .object({
+      workflow: WorkflowSavedDocumentSchema
+    })
+    .strict()
+})
+
+export const workflowSavedSaveRoute = defineRouteContract({
+  name: 'workflow.saved.save',
+  input: z
+    .object({
+      parentSessionId: WorkflowRouteIdSchema,
+      name: WorkflowSavedNameSchema,
+      source: z.string().min(1).max(WORKFLOW_SAVED_MAX_SOURCE_BYTES),
+      expectedSourceHash: WorkflowSavedSourceHashSchema.nullable()
+    })
+    .strict(),
+  output: z
+    .object({
+      workflow: WorkflowSavedDocumentSchema
+    })
+    .strict()
+})
+
+export const workflowSavedPrepareLaunchRoute = defineRouteContract({
+  name: 'workflow.saved.prepareLaunch',
+  input: z
+    .object({
+      parentSessionId: WorkflowRouteIdSchema,
+      name: WorkflowSavedNameSchema,
+      argsText: WorkflowSavedArgsTextSchema,
+      expectedSourceHash: WorkflowSavedSourceHashSchema,
+      allowedAgentIds: z.array(WorkflowRouteIdSchema).min(1).max(32).optional()
+    })
+    .strict(),
+  output: z
+    .object({
+      approval: WorkflowLaunchApprovalSchema
     })
     .strict()
 })

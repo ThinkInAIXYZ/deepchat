@@ -76,6 +76,27 @@ describe('resolveSlashSelectionAction', () => {
     expect(action.kind).toBe('request-command-input')
   })
 
+  it('routes saved workflows to the local approval flow', () => {
+    const item: SlashSuggestionItem = {
+      id: 'workflow:review',
+      category: 'workflow',
+      label: '/review',
+      description: '.deepchat/workflows/review.js',
+      payload: {
+        name: 'review',
+        relativePath: '.deepchat/workflows/review.js'
+      }
+    }
+
+    expect(resolveSlashSelectionAction(item)).toEqual({
+      kind: 'request-workflow-input',
+      workflow: {
+        name: 'review',
+        relativePath: '.deepchat/workflows/review.js'
+      }
+    })
+  })
+
   it('activates skill without inserting text', () => {
     const item: SlashSuggestionItem = {
       id: 'skill:code-review',
@@ -137,11 +158,20 @@ describe('resolveSlashSelectionAction', () => {
     expect(action.kind).toBe('request-prompt-args')
   })
 
-  it('sorts slash entries by category: command > skill > prompt > tool', () => {
+  it('sorts slash entries by category: command > workflow > skill > prompt > tool', () => {
     const unordered: SlashSuggestionItem[] = [
       { id: 'tool:a', category: 'tool', label: 'z-tool', payload: {} as any },
       { id: 'prompt:a', category: 'prompt', label: 'b-prompt', payload: {} as any },
       { id: 'skill:a', category: 'skill', label: 'c-skill', payload: { name: 'c-skill' } },
+      {
+        id: 'workflow:a',
+        category: 'workflow',
+        label: '/workflow',
+        payload: {
+          name: 'workflow',
+          relativePath: '.deepchat/workflows/workflow.js'
+        }
+      },
       {
         id: 'command:a',
         category: 'command',
@@ -151,7 +181,13 @@ describe('resolveSlashSelectionAction', () => {
     ]
 
     const sorted = sortSlashSuggestionItems(unordered)
-    expect(sorted.map((item) => item.category)).toEqual(['command', 'skill', 'prompt', 'tool'])
+    expect(sorted.map((item) => item.category)).toEqual([
+      'command',
+      'workflow',
+      'skill',
+      'prompt',
+      'tool'
+    ])
   })
 })
 

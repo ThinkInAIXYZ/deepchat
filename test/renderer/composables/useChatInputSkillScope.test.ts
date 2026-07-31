@@ -52,6 +52,14 @@ describe('chat input Skill Agent scope', () => {
         searchFiles: vi.fn().mockResolvedValue([])
       })
     }))
+    vi.doMock('@api/WorkflowClient', () => ({
+      createWorkflowClient: () => ({
+        listSaved: vi.fn().mockResolvedValue({
+          directoryPath: null,
+          workflows: []
+        })
+      })
+    }))
     vi.doMock('@/stores/mcp', () => ({
       useMcpStore: () => ({
         visiblePrompts: [],
@@ -152,5 +160,122 @@ describe('chat input Skill Agent scope', () => {
     )
     expect(wrapper.find('[data-testid="picker-b-only-skill"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="mention-skill:b-only-skill"]').exists()).toBe(true)
+  })
+
+  it('keeps saved Workflow slash submissions on the local approval path', async () => {
+    const listSaved = vi.fn().mockResolvedValue({
+      directoryPath: '/repo/.deepchat/workflows',
+      workflows: [
+        {
+          name: 'review',
+          relativePath: '.deepchat/workflows/review.js',
+          byteLength: 42,
+          updatedAt: 1
+        }
+      ]
+    })
+    vi.doMock('@api/WorkflowClient', () => ({
+      createWorkflowClient: () => ({ listSaved })
+    }))
+    vi.doMock('@api/SkillClient', () => ({
+      createSkillClient: () => ({
+        getActiveSkills: vi.fn().mockResolvedValue([]),
+        setActiveSkills: vi.fn().mockResolvedValue([])
+      })
+    }))
+    vi.doMock('@api/SessionClient', () => ({
+      createSessionClient: () => ({
+        getAcpSessionCommands: vi.fn().mockResolvedValue([]),
+        onAcpCommandsReady: vi.fn(() => () => undefined)
+      })
+    }))
+    vi.doMock('@api/WorkspaceClient', () => ({
+      createWorkspaceClient: () => ({
+        registerWorkspace: vi.fn().mockResolvedValue(undefined),
+        searchFiles: vi.fn().mockResolvedValue([])
+      })
+    }))
+    vi.doMock('@/stores/mcp', () => ({
+      useMcpStore: () => ({
+        visiblePrompts: [],
+        visibleTools: [],
+        pluginTools: [],
+        loadPrompts: vi.fn().mockResolvedValue(undefined),
+        loadTools: vi.fn().mockResolvedValue(undefined),
+        getPrompt: vi.fn()
+      })
+    }))
+    vi.doMock('@/stores/skillsStore', () => ({
+      useSkillsStore: () => ({
+        getSkillsForAgent: () => [],
+        ensureSkillsLoaded: vi.fn().mockResolvedValue(undefined)
+      })
+    }))
+
+    const { useChatInputMentions } =
+      await import('@/components/chat/composables/useChatInputMentions')
+    const onCommandSubmit = vi.fn()
+    const onWorkflowSubmit = vi.fn()
+    const insertedNode = vi.fn()
+    const editor = {
+      chain: () => {
+        const chain = {
+          focus: () => chain,
+          insertContentAt: (_position: unknown, content: unknown) => {
+            if (content && typeof content === 'object') {
+              insertedNode(content)
+            }
+            return chain
+          },
+          run: () => undefined
+        }
+        return chain
+      }
+    }
+    const Harness = defineComponent({
+      setup() {
+        const mentions = useChatInputMentions({
+          getEditor: () => null,
+          workspacePath: ref('/repo'),
+          sessionId: ref('session-1'),
+          agentId: ref('deepchat'),
+          isAcpSession: ref(true),
+          workflowEnabled: ref(true),
+          onCommandSubmit,
+          onWorkflowSubmit
+        })
+        const trigger = () => {
+          const workflow = mentions.slashSuggestion
+            .items({ query: 'review' })
+            .find((item) => item.category === 'workflow')
+          if (!workflow) {
+            return
+          }
+          mentions.slashSuggestion.command({
+            editor: editor as never,
+            range: { from: 0, to: 7 },
+            props: workflow
+          })
+          void mentions.submitDialog({ args: '{"target":"src"}' })
+        }
+        return { trigger }
+      },
+      template: '<button data-testid="trigger" @click="trigger">trigger</button>'
+    })
+
+    const wrapper = mount(Harness)
+    await flushPromises()
+    await wrapper.get('[data-testid="trigger"]').trigger('click')
+    await flushPromises()
+
+    expect(listSaved).toHaveBeenCalledWith('session-1')
+    expect(insertedNode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'commandForm'
+      })
+    )
+    expect(onWorkflowSubmit).toHaveBeenCalledWith('review', '{"target":"src"}')
+    expect(onCommandSubmit).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 })

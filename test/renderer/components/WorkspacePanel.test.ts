@@ -132,6 +132,11 @@ const sessionState = reactive({
   selectedFilePath: null,
   selectedDiffPath: null,
   selectedWorkflowRunId: null,
+  savedWorkflowInvocationRequest: null as {
+    id: number
+    name: string
+    argsText: string
+  } | null,
   viewMode: 'preview',
   sections: {
     files: true,
@@ -150,6 +155,7 @@ const sidepanelStore = reactive({
   selectFile: selectFileMock,
   selectDiff: selectDiffMock,
   selectWorkflowRun: vi.fn(),
+  consumeSavedWorkflowRequest: vi.fn(),
   getSessionState: () => sessionState
 })
 
@@ -334,12 +340,22 @@ vi.mock('@/components/sidepanel/WorkflowPanel.vue', () => ({
         required: false,
         default: null
       },
+      savedInvocationRequest: {
+        type: Object,
+        required: false,
+        default: null
+      },
+      savedWorkflowsEnabled: {
+        type: Boolean,
+        required: false,
+        default: false
+      },
       expanded: {
         type: Boolean,
         required: true
       }
     },
-    emits: ['toggle', 'select-run'],
+    emits: ['toggle', 'select-run', 'consume-saved-invocation'],
     template:
       '<button data-testid="workflow-panel-stub" @click="$emit(\'toggle\')">Workflow</button>'
   })
@@ -363,6 +379,7 @@ describe('WorkspacePanel', () => {
     sessionState.selectedFilePath = null
     sessionState.selectedDiffPath = null
     sessionState.selectedWorkflowRunId = null
+    sessionState.savedWorkflowInvocationRequest = null
     sessionState.sections.files = true
     sessionState.sections.git = true
     sessionState.sections.artifacts = true
@@ -379,6 +396,7 @@ describe('WorkspacePanel', () => {
     selectFileMock.mockReset()
     selectDiffMock.mockReset()
     sidepanelStore.selectWorkflowRun.mockReset()
+    sidepanelStore.consumeSavedWorkflowRequest.mockReset()
     registerWorkspaceMock.mockReset().mockResolvedValue(undefined)
     watchWorkspaceMock.mockReset().mockResolvedValue(undefined)
     unwatchWorkspaceMock.mockReset().mockResolvedValue(undefined)
@@ -446,7 +464,8 @@ describe('WorkspacePanel', () => {
     const wrapper = mount(WorkspacePanel, {
       props: {
         sessionId: 's1',
-        workspacePath: 'C:/repo'
+        workspacePath: 'C:/repo',
+        savedWorkflowsEnabled: true
       }
     })
 
@@ -455,10 +474,23 @@ describe('WorkspacePanel', () => {
     expect(wrapper.get('[data-testid="workflow-panel-stub"]').exists()).toBe(true)
     const workflowPanel = wrapper.getComponent({ name: 'WorkflowPanel' })
     expect(workflowPanel.props('selectedRunId')).toBe('run-1')
+    expect(workflowPanel.props('savedWorkflowsEnabled')).toBe(true)
     await wrapper.get('[data-testid="workflow-panel-stub"]').trigger('click')
     expect(toggleSectionMock).toHaveBeenCalledWith('s1', 'workflows')
     workflowPanel.vm.$emit('select-run', 'run-2')
     expect(sidepanelStore.selectWorkflowRun).toHaveBeenCalledWith('s1', 'run-2')
+
+    sessionState.savedWorkflowInvocationRequest = {
+      id: 17,
+      name: 'review',
+      argsText: '{}'
+    }
+    await wrapper.vm.$nextTick()
+    expect(workflowPanel.props('savedInvocationRequest')).toEqual(
+      sessionState.savedWorkflowInvocationRequest
+    )
+    workflowPanel.vm.$emit('consume-saved-invocation', 17)
+    expect(sidepanelStore.consumeSavedWorkflowRequest).toHaveBeenCalledWith('s1', 17)
 
     wrapper.unmount()
   })

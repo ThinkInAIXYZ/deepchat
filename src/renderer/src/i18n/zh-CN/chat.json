@@ -630,6 +630,38 @@
     "budget": {
       "tokens": "{count} tokens",
       "duration": "最长 {duration}"
+    },
+    "saved": {
+      "title": "已保存的工作流",
+      "workspaceRequired": "请先打开项目工作区，再创建和运行已保存的工作流。",
+      "selectPlaceholder": "选择工作流",
+      "empty": "当前工作区还没有已保存的工作流。",
+      "unsaved": "请先保存修改，再准备运行。",
+      "runTitle": "运行已保存的工作流",
+      "agentPlaceholder": "可选 Agent ID，使用逗号分隔",
+      "fields": {
+        "name": "名称",
+        "source": "JavaScript 源码",
+        "args": "JSON 参数",
+        "agents": "允许的 Agent"
+      },
+      "actions": {
+        "refresh": "刷新已保存的工作流",
+        "new": "新建",
+        "save": "保存",
+        "reload": "重新加载",
+        "prepare": "审核启动信息",
+        "launch": "启动工作流"
+      },
+      "approval": {
+        "title": "确认这一份精确的工作流快照",
+        "sourceHash": "源码哈希",
+        "workspace": "工作区",
+        "agents": "允许的 Agent",
+        "maxInvocations": "最大调用数",
+        "warning": "子 Agent 可能使用其已有的写入工具；每次工具权限确认仍按原有规则处理。",
+        "expired": "审批已过期"
+      }
     }
   }
 }

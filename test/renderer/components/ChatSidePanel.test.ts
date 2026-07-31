@@ -20,6 +20,7 @@ describe('ChatSidePanel', () => {
     open?: boolean
     activeTab?: 'workspace' | 'browser'
     sessionId?: string | null
+    savedWorkflowsEnabled?: boolean
   }) => {
     vi.resetModules()
 
@@ -79,6 +80,10 @@ describe('ChatSidePanel', () => {
           isFullscreen: {
             type: Boolean,
             default: false
+          },
+          savedWorkflowsEnabled: {
+            type: Boolean,
+            default: false
           }
         },
         emits: ['toggle-fullscreen', 'insert-file-reference'],
@@ -95,7 +100,8 @@ describe('ChatSidePanel', () => {
     const wrapper = mount(ChatSidePanel, {
       props: {
         sessionId: options?.sessionId ?? 'session-1',
-        workspacePath: 'C:/workspace'
+        workspacePath: 'C:/workspace',
+        savedWorkflowsEnabled: options?.savedWorkflowsEnabled ?? false
       },
       global: {
         stubs: {
@@ -116,6 +122,16 @@ describe('ChatSidePanel', () => {
       emitOpenRequested: (payload: unknown) => openRequestedHandler?.(payload)
     }
   }
+
+  it('forwards saved Workflow compatibility to the workspace panel', async () => {
+    const { wrapper } = await setup({
+      savedWorkflowsEnabled: true
+    })
+
+    expect(wrapper.getComponent({ name: 'WorkspacePanel' }).props('savedWorkflowsEnabled')).toBe(
+      true
+    )
+  })
 
   it('opens the browser sidepanel when OPEN_REQUESTED targets the current host window', async () => {
     const { sidepanelStore, emitOpenRequested } = await setup({
