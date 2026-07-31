@@ -48,7 +48,12 @@ const createProvider = (): LLM_PROVIDER =>
     }
   }) as LLM_PROVIDER
 
-async function setup() {
+async function setup(
+  options: {
+    provider?: LLM_PROVIDER
+    realAlertDialog?: boolean
+  } = {}
+) {
   vi.resetModules()
 
   let rateLimitListener: ((payload: { providerId: string; version: number }) => void) | null = null
@@ -92,23 +97,29 @@ async function setup() {
   vi.doMock('@shadcn/components/ui/label', () => ({
     Label: passthrough('Label')
   }))
-  vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
-    AlertDialog: passthrough('AlertDialog'),
-    AlertDialogAction: passthrough('AlertDialogAction'),
-    AlertDialogCancel: passthrough('AlertDialogCancel'),
-    AlertDialogContent: passthrough('AlertDialogContent'),
-    AlertDialogDescription: passthrough('AlertDialogDescription'),
-    AlertDialogFooter: passthrough('AlertDialogFooter'),
-    AlertDialogHeader: passthrough('AlertDialogHeader'),
-    AlertDialogTitle: passthrough('AlertDialogTitle')
-  }))
+  if (options.realAlertDialog) {
+    vi.doUnmock('@shadcn/components/ui/alert-dialog')
+  } else {
+    vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
+      AlertDialog: passthrough('AlertDialog'),
+      AlertDialogAction: passthrough('AlertDialogAction'),
+      AlertDialogAsyncAction: passthrough('AlertDialogAsyncAction'),
+      AlertDialogCancel: passthrough('AlertDialogCancel'),
+      AlertDialogContent: passthrough('AlertDialogContent'),
+      AlertDialogDescription: passthrough('AlertDialogDescription'),
+      AlertDialogFooter: passthrough('AlertDialogFooter'),
+      AlertDialogHeader: passthrough('AlertDialogHeader'),
+      AlertDialogTitle: passthrough('AlertDialogTitle')
+    }))
+  }
   const ProviderRateLimitConfig = (
     await import('../../../src/renderer/settings/components/ProviderRateLimitConfig.vue')
   ).default
 
   const wrapper = mount(ProviderRateLimitConfig, {
+    ...(options.realAlertDialog ? { attachTo: document.body } : {}),
     props: {
-      provider: createProvider()
+      provider: options.provider ?? createProvider()
     }
   })
   await flushPromises()
@@ -212,6 +223,41 @@ describe('ProviderRateLimitConfig', () => {
     await flushPromises()
 
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+  })
+
+  it('keeps the disable confirmation open with real primitives when persistence fails', async () => {
+    const provider = createProvider()
+    provider.rateLimit = {
+      enabled: true,
+      qpsLimit: 0.5
+    }
+    const { wrapper, providerClient } = await setup({
+      provider,
+      realAlertDialog: true
+    })
+    providerClient.updateProviderRateLimit.mockRejectedValueOnce(new Error('transport details'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    wrapper.getComponent(inputStub).vm.$emit('update:modelValue', 0)
+    await wrapper.get('input').trigger('blur')
+    await flushPromises()
+    document.querySelector<HTMLButtonElement>('[data-testid="rate-limit-disable-confirm"]')!.click()
+    await flushPromises()
+
+    expect(document.querySelector('[data-testid="rate-limit-disable-confirm"]')).not.toBeNull()
+    const feedback = document.querySelector(
+      '[data-slot="alert-dialog-content"] [data-testid="inline-operation-feedback"]'
+    )
+    expect(feedback?.getAttribute('data-status')).toBe('error')
+    expect(feedback?.textContent).not.toContain('transport details')
+
+    document.querySelector<HTMLButtonElement>('[data-testid="rate-limit-disable-confirm"]')!.click()
+    await flushPromises()
+
+    expect(providerClient.updateProviderRateLimit).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('[data-testid="rate-limit-disable-confirm"]')).toBeNull()
+    consoleError.mockRestore()
+    wrapper.unmount()
   })
 
   it('coalesces polling and event refreshes while status IPC is slow', async () => {

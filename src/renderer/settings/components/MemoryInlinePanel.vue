@@ -62,7 +62,11 @@
         </Button>
       </header>
 
-      <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
+      <MemoryInlineFeedback
+        v-if="feedback && !deleteDialogOpen"
+        :feedback="feedback"
+        @clear="clearFeedback"
+      />
 
       <template v-if="mode === 'view'">
         <div class="space-y-1.5">
@@ -263,9 +267,15 @@
             <Icon v-else icon="lucide:archive" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('settings.memory.redesign.archive') }}
           </Button>
-          <AlertDialog v-model:open="deleteDialogOpen">
+          <AlertDialog :open="deleteDialogOpen" @update:open="handleDeleteDialogOpenChange">
             <AlertDialogTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive" :disabled="busy">
+              <Button
+                data-testid="memory-inline-delete-trigger"
+                variant="ghost"
+                size="icon"
+                class="h-8 w-8 text-destructive"
+                :disabled="busy"
+              >
                 <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
               </Button>
             </AlertDialogTrigger>
@@ -278,16 +288,24 @@
                   {{ t('settings.deepchatAgents.memoryManager.deleteConfirmBody') }}
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
               <AlertDialogFooter>
-                <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                <AlertDialogAction
+                <AlertDialogCancel data-testid="memory-inline-delete-cancel" :disabled="busy">
+                  {{ t('common.cancel') }}
+                </AlertDialogCancel>
+                <AlertDialogAsyncAction
+                  data-testid="memory-inline-delete-confirm"
                   class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   :disabled="busy"
                   @click="remove"
                 >
-                  <Spinner v-if="pendingMutation === 'remove'" class="mr-1.5 size-3.5" />
+                  <Spinner
+                    v-if="pendingMutation === 'remove'"
+                    data-testid="memory-inline-delete-spinner"
+                    class="mr-1.5 size-3.5"
+                  />
                   {{ t('settings.deepchatAgents.memoryManager.deletePermanent') }}
-                </AlertDialogAction>
+                </AlertDialogAsyncAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -344,7 +362,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -648,16 +666,20 @@ async function remove(): Promise<void> {
       panelFeedback.fail()
       return
     }
+    deleteDialogOpen.value = false
     emit('changed')
     emit('close')
   } catch (error) {
     if (props.agentId === agentId && props.memory?.id === memory.id) panelFeedback.fail(error)
   } finally {
     pendingMutation.value = null
-    if (props.agentId === agentId && props.memory?.id === memory.id) {
-      deleteDialogOpen.value = false
-    }
   }
+}
+
+function handleDeleteDialogOpenChange(open: boolean): void {
+  if (pendingMutation.value === 'remove') return
+  if (open && !deleteDialogOpen.value) clearFeedback()
+  deleteDialogOpen.value = open
 }
 
 async function loadSource(): Promise<void> {

@@ -4,13 +4,14 @@ import { defineComponent, h, mergeProps, nextTick, ref, withModifiers } from 'vu
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogTitle
 } from '../../../src/shadcn/components/ui/alert-dialog'
 
-type SubjectKind = 'action' | 'cancel'
+type SubjectKind = 'action' | 'async' | 'cancel'
 
 type HarnessOptions = {
   kind?: SubjectKind
@@ -30,7 +31,12 @@ function mountHarness(options: HarnessOptions = {}) {
   const events: string[] = []
   const open = ref(true)
   const target = ref<string | null>('m1')
-  const Subject = options.kind === 'cancel' ? AlertDialogCancel : AlertDialogAction
+  const Subject =
+    options.kind === 'cancel'
+      ? AlertDialogCancel
+      : options.kind === 'async'
+        ? AlertDialogAsyncAction
+        : AlertDialogAction
   const subjectProps = mergeProps(
     {
       'data-testid': 'dialog-subject',
@@ -250,5 +256,59 @@ describe.each([
     dispatchClick(harness.child())
 
     expect(harness.events).toEqual(['click', 'update:false'])
+  })
+})
+
+describe('AlertDialogAsyncAction contract', () => {
+  it('runs the native click without closing the dialog', async () => {
+    const harness = mountHarness({
+      kind: 'async',
+      subjectProps: {
+        onClick: () => harness.events.push(`click:${harness.target.value}`)
+      }
+    })
+    await nextTick()
+
+    dispatchClick(harness.child())
+
+    expect(harness.events).toEqual(['click:m1'])
+    expect(harness.open.value).toBe(true)
+    expect(harness.subject().type).toBe('button')
+  })
+
+  it('keeps native attributes and disabled behavior', async () => {
+    const harness = mountHarness({
+      kind: 'async',
+      subjectProps: {
+        'aria-label': 'Run async operation',
+        disabled: true,
+        onClick: () => harness.events.push('click')
+      }
+    })
+    await nextTick()
+
+    harness.subject().click()
+
+    expect(harness.subject().getAttribute('aria-label')).toBe('Run async operation')
+    expect(harness.events).toEqual([])
+    expect(harness.open.value).toBe(true)
+  })
+
+  it('forwards attributes and click handling through asChild without closing', async () => {
+    const harness = mountHarness({
+      kind: 'async',
+      asChild: true,
+      subjectProps: {
+        'aria-label': 'Run nested async operation',
+        onClick: () => harness.events.push('click')
+      }
+    })
+    await nextTick()
+
+    dispatchClick(harness.child())
+
+    expect(harness.subject().getAttribute('aria-label')).toBe('Run nested async operation')
+    expect(harness.events).toEqual(['click'])
+    expect(harness.open.value).toBe(true)
   })
 })

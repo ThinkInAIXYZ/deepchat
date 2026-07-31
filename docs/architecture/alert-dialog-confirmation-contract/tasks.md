@@ -17,13 +17,13 @@
 
 ## Asynchronous confirmations
 
-- [ ] Add a non-closing alert-dialog action primitive.
-- [ ] Migrate OCR cache cleanup.
-- [ ] Migrate browser sandbox cleanup and data reset.
-- [ ] Migrate provider rate-limit disable.
-- [ ] Migrate inline Memory deletion.
-- [ ] Add the forbidden click-modifier source guard.
-- [ ] Add pending, failure, retry, and success-close regression tests.
+- [x] Add a non-closing alert-dialog action primitive.
+- [x] Migrate OCR cache cleanup.
+- [x] Migrate browser sandbox cleanup and data reset.
+- [x] Migrate provider rate-limit disable.
+- [x] Migrate inline Memory deletion.
+- [x] Add the forbidden click-modifier source guard.
+- [x] Add pending, failure, retry, and success-close regression tests.
 
 ## Confirmation target state
 
@@ -41,7 +41,7 @@
 
 ## Validation and delivery
 
-- [ ] Run focused wrapper and renderer tests after each UI slice.
+- [x] Run focused wrapper and renderer tests after each UI slice.
 - [ ] Run focused service, route, and Memory tests after the result-contract slice.
 - [ ] Run formatter and i18n validation.
 - [ ] Run lint and type checking.
