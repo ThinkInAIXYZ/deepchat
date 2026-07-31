@@ -340,10 +340,10 @@ describe('Agent-scoped Skill install dialogs', () => {
       { overwrite: true },
       'agent-a'
     )
-    expect(
-      (wrapper.vm as unknown as { conflictRequest: { status: string } }).conflictRequest.status
-    ).toBe('pending')
-    expect((wrapper.vm as unknown as { installing: boolean }).installing).toBe(true)
+    expect(wrapper.findComponent({ name: 'Spinner' }).exists()).toBe(true)
+    await wrapper.get('.border-dashed').trigger('click')
+    expect(mocks.deviceClient.selectDirectory).toHaveBeenCalledOnce()
+    expect(mocks.skillClient.installFromFolder).toHaveBeenCalledTimes(2)
 
     overwrite.resolve({
       success: true,
@@ -351,9 +351,7 @@ describe('Agent-scoped Skill install dialogs', () => {
     })
     await flushPromises()
 
-    expect(
-      (wrapper.vm as unknown as { conflictRequest: { status: string } }).conflictRequest.status
-    ).toBe('idle')
+    expect(wrapper.findComponent({ name: 'Spinner' }).exists()).toBe(false)
     expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
     wrapper.unmount()
   })
