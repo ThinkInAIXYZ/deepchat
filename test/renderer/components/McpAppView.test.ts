@@ -20,7 +20,7 @@ describe('McpAppView', () => {
     vi.restoreAllMocks()
   })
 
-  it('uses a screen ratio inline and moves the same view into the right sidepanel', async () => {
+  it('scrolls inline content and reloads the frame when moving through the sidepanel', async () => {
     vi.resetModules()
     vi.stubGlobal(
       'matchMedia',
@@ -73,6 +73,23 @@ describe('McpAppView', () => {
       updateAppModelContext: vi.fn(),
       retryAppToolAccess: vi.fn()
     }
+    class MockAppBridge {
+      onsizechange?: (params: { height?: number }) => void
+      setRequestHandler = vi.fn()
+      setHostContext = vi.fn()
+      connect = vi.fn().mockResolvedValue(undefined)
+      teardownResource = vi.fn().mockResolvedValue(undefined)
+      close = vi.fn().mockResolvedValue(undefined)
+      getAppCapabilities = vi.fn(() => ({}))
+      sendSandboxResourceReady = vi.fn().mockResolvedValue(undefined)
+      sendToolInput = vi.fn().mockResolvedValue(undefined)
+      sendToolResult = vi.fn().mockResolvedValue(undefined)
+
+      constructor() {
+        appBridges.push(this)
+      }
+    }
+    const appBridges: MockAppBridge[] = []
 
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -103,17 +120,7 @@ describe('McpAppView', () => {
     vi.doMock('@modelcontextprotocol/ext-apps/app-bridge', () => ({
       buildAllowAttribute: vi.fn(() => ''),
       PostMessageTransport: class {},
-      AppBridge: class {
-        setRequestHandler = vi.fn()
-        setHostContext = vi.fn()
-        connect = vi.fn().mockResolvedValue(undefined)
-        teardownResource = vi.fn().mockResolvedValue(undefined)
-        close = vi.fn().mockResolvedValue(undefined)
-        getAppCapabilities = vi.fn(() => ({}))
-        sendSandboxResourceReady = vi.fn().mockResolvedValue(undefined)
-        sendToolInput = vi.fn().mockResolvedValue(undefined)
-        sendToolResult = vi.fn().mockResolvedValue(undefined)
-      }
+      AppBridge: MockAppBridge
     }))
 
     const outlet = document.createElement('div')
@@ -152,7 +159,15 @@ describe('McpAppView', () => {
     })
     await flushPromises()
 
-    expect(wrapper.get('iframe').classes()).toContain('aspect-video')
+    const inlineViewport = wrapper.get('[data-testid="mcp-app-frame-viewport"]')
+    const initialIframe = wrapper.get('iframe').element
+    expect(inlineViewport.classes()).toContain('aspect-video')
+    expect(inlineViewport.classes()).toContain('overflow-auto')
+    expect(appBridges).toHaveLength(1)
+
+    appBridges[0].onsizechange?.({ height: 600 })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('iframe').element.style.height).toBe('600px')
 
     await wrapper.get('[data-testid="mcp-app-open-sidepanel"]').trigger('click')
     await flushPromises()
@@ -160,8 +175,11 @@ describe('McpAppView', () => {
     expect(sidepanelStore.openMcpAppPreview).toHaveBeenCalledWith(ownerId)
     expect(outlet.querySelector('[data-testid="mcp-app-surface"]')).not.toBeNull()
     expect(outlet.querySelector('iframe')?.classList.contains('flex-1')).toBe(true)
+    expect(outlet.querySelector('iframe')).not.toBe(initialIframe)
+    expect(appBridges).toHaveLength(2)
     expect(mcpClient.prepareAppView).toHaveBeenCalledTimes(1)
 
+    const sidepanelIframe = outlet.querySelector('iframe')
     const returnButton = outlet.querySelector(
       '[data-testid="mcp-app-return-inline"]'
     ) as HTMLButtonElement
@@ -169,7 +187,11 @@ describe('McpAppView', () => {
     await flushPromises()
 
     expect(sidepanelStore.closeMcpAppPreview).toHaveBeenCalledWith(ownerId)
-    expect(wrapper.get('iframe').classes()).toContain('aspect-video')
+    expect(wrapper.get('[data-testid="mcp-app-frame-viewport"]').classes()).toContain(
+      'aspect-video'
+    )
+    expect(wrapper.get('iframe').element).not.toBe(sidepanelIframe)
+    expect(appBridges).toHaveLength(3)
     expect(mcpClient.prepareAppView).toHaveBeenCalledTimes(1)
 
     wrapper.unmount()

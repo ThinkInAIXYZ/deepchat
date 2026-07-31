@@ -57,11 +57,14 @@ const status = ref<'loading' | 'ready' | 'error' | 'released'>('loading')
 const errorMessage = ref('')
 const displayMode = ref<McpAppDisplayMode>('inline')
 const supportedDisplayModes = ref<McpAppDisplayMode[]>(['inline'])
+const inlineContentHeight = ref<number | null>(null)
 const toolAccessSuspended = ref(false)
 const detailsExpanded = ref(false)
 const viewportRevision = ref(0)
+const iframeKey = ref(0)
 let hostVersion = 'unknown'
 let prepareRevision = 0
+let frameRevision = 0
 let disposed = false
 
 const sidepanelOwnerId = `${props.conversationId}:${props.messageId}:${props.blockId}`
@@ -93,6 +96,16 @@ const frameClass = computed(() => {
     prepared.value?.prefersBorder === false ? '' : 'rounded-lg border'
   ]
 })
+const frameViewportClass = computed(() =>
+  displayMode.value === 'inline' && !isSidepanelPreview.value
+    ? 'dc-overscroll-contain aspect-video w-full overflow-auto'
+    : 'flex min-h-0 flex-1'
+)
+const frameStyle = computed(() =>
+  displayMode.value === 'inline' && !isSidepanelPreview.value && inlineContentHeight.value !== null
+    ? { height: `${inlineContentHeight.value}px` }
+    : undefined
+)
 const declaredPermissions = computed(() => {
   const permissions = prepared.value?.permissions
   if (!permissions) {
@@ -183,15 +196,27 @@ const extractMessageText = (content: ContentBlock[]): string =>
     .join('\n\n')
     .trim()
 
+const handleSizeChange = (height?: number) => {
+  if (!Number.isFinite(height)) {
+    return
+  }
+  inlineContentHeight.value = Math.max(120, Math.min(800, Number(height)))
+}
+
+const closeBridge = async (currentBridge: AppBridge) => {
+  await Promise.race([
+    currentBridge.teardownResource({}).catch(() => undefined),
+    new Promise<void>((resolve) => window.setTimeout(resolve, 500))
+  ])
+  await currentBridge.close().catch(() => undefined)
+}
+
 const release = async () => {
+  frameRevision += 1
   const currentBridge = bridge.value
   bridge.value = null
   if (currentBridge) {
-    await Promise.race([
-      currentBridge.teardownResource({}).catch(() => undefined),
-      new Promise<void>((resolve) => window.setTimeout(resolve, 500))
-    ])
-    await currentBridge.close().catch(() => undefined)
+    await closeBridge(currentBridge)
   }
   const instanceId = prepared.value?.instanceId
   if (instanceId) {
@@ -264,6 +289,7 @@ const connectBridge = async () => {
       errorMessage.value = error instanceof Error ? error.message : String(error)
     })
   }
+  nextBridge.onsizechange = ({ height }) => handleSizeChange(height)
   nextBridge.onrequestdisplaymode = async ({ mode }) => ({
     mode: setDisplayMode(mode as McpAppDisplayMode) as McpUiDisplayMode
   })
@@ -385,6 +411,23 @@ const returnInline = () => {
   }
   sidepanelStore.closeMcpAppPreview(sidepanelOwnerId)
 }
+
+const reloadRelocatedFrame = () => {
+  const revision = ++frameRevision
+  const currentBridge = bridge.value
+  bridge.value = null
+  if (currentBridge) {
+    void closeBridge(currentBridge)
+  }
+  iframeKey.value += 1
+  void nextTick(() => {
+    if (!disposed && revision === frameRevision) {
+      void connectBridge()
+    }
+  })
+}
+
+watch(isSidepanelPreview, reloadRelocatedFrame, { flush: 'sync' })
 
 watch(
   () => [
@@ -520,20 +563,24 @@ onBeforeUnmount(() => {
           <p class="mt-0.5 break-all text-muted-foreground">{{ prepared.advisoryDomain }}</p>
         </div>
       </div>
-      <iframe
-        ref="iframe"
-        :src="prepared.sandboxUrl"
-        :sandbox="prepared.sandbox"
-        :allow="frameAllow"
-        class="block w-full bg-transparent"
-        :class="
-          displayMode === 'inline' && !isSidepanelPreview
-            ? 'aspect-video shrink-0'
-            : 'min-h-0 flex-1'
-        "
-        :title="t('mcp.apps.title')"
-        @load="connectBridge"
-      />
+      <div data-testid="mcp-app-frame-viewport" :class="frameViewportClass">
+        <iframe
+          :key="iframeKey"
+          ref="iframe"
+          :src="prepared.sandboxUrl"
+          :sandbox="prepared.sandbox"
+          :allow="frameAllow"
+          class="block h-full w-full bg-transparent"
+          :class="
+            displayMode === 'inline' && !isSidepanelPreview
+              ? 'min-h-full shrink-0'
+              : 'min-h-0 flex-1'
+          "
+          :style="frameStyle"
+          :title="t('mcp.apps.title')"
+          @load="connectBridge"
+        />
+      </div>
       <div
         v-if="toolAccessSuspended"
         class="flex items-center justify-between gap-3 border-t bg-muted/40 px-3 py-2 text-xs"
