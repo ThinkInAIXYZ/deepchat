@@ -55,8 +55,8 @@ Every invocation therefore has a stable `callPath`:
   per-stage local key.
 
 `callPath + inputHash` determines whether a terminal result is reusable. `seq` remains a monotonic
-audit and UI order; it is not replay identity. Duplicate active `callPath` values fail before a
-child session is created.
+audit and UI order; it is not replay identity. A `callPath` may be emitted only once per execution
+epoch; duplicates fail before a child session is created.
 
 ### Use write-ahead effect evidence plus Tape, not Tape alone
 

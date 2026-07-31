@@ -10,25 +10,36 @@
 - [x] Require an immutable executed source snapshot for cross-restart resume.
 - [x] Write the feature specification and implementation plan.
 - [x] Complete the pre-commit SDD review and fix findings.
-- [ ] Commit the specification slice.
+- [x] Commit the specification slice.
 
 ## Runtime Contracts And QuickJS Spike
 
-- [ ] Add versioned Zod domain and utility-process protocol contracts.
-- [ ] Add canonical bounded JSON serialization and hashing.
-- [ ] Add minimal sync QuickJS dependencies.
-- [ ] Add workflow utility-process build entry and minimal environment.
-- [ ] Implement the guest driver and deterministic global restrictions.
-- [ ] Reject unsupported direct promise scheduling and dynamic code.
-- [ ] Implement deferred promise settlement with serialized pending-job drains.
-- [ ] Implement keyed `agent`, `parallel`, `pipeline`, `phase`, and `log`.
-- [ ] Enforce guest CPU, memory, stack, IPC, log, result, and invocation limits.
-- [ ] Prove concurrent `Promise.all` progress.
-- [ ] Prove cancellation and handle disposal.
-- [ ] Prove development and packaged WASM resolution.
-- [ ] Prove utility-process exit notification.
+- [x] Add versioned Zod domain and utility-process protocol contracts.
+- [x] Add canonical bounded JSON serialization and hashing.
+- [x] Add minimal sync QuickJS dependencies.
+- [x] Add workflow utility-process build entry and minimal environment.
+- [x] Implement the guest driver and deterministic global restrictions.
+- [x] Reject unsupported direct promise scheduling and dynamic code.
+- [x] Implement deferred promise settlement with serialized pending-job drains.
+- [x] Implement keyed `agent`, `parallel`, `pipeline`, `phase`, and `log`.
+- [x] Enforce guest CPU, memory, stack, IPC, log, result, and invocation limits.
+- [x] Prove concurrent `Promise.all` progress.
+- [x] Prove cancellation and handle disposal.
+- [x] Prove development and packaged WASM resolution.
+- [x] Prove utility-process exit notification.
 - [ ] Prove active-run and queued-run bounds.
-- [ ] Complete the pre-commit runtime review, focused validation, and commit.
+- [x] Complete the pre-commit runtime review and focused validation.
+- [ ] Commit the runtime slice.
+
+Validation evidence (2026-07-31):
+
+- `pnpm run typecheck:node`
+- 49 focused main/build tests
+- `pnpm exec electron-vite build`
+- packaged ASAR inspection, unpacked WASM size check, and Electron `utilityProcess` end-to-end
+  execution returning a settled QuickJS result
+- `electron-builder --dir` reached `afterPack`; the outer command then failed because this worktree
+  lacks the pre-existing OCR `runtime/node/bin/node` asset
 
 ## Persistence And Recovery
 

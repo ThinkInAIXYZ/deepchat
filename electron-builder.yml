@@ -39,6 +39,7 @@ asarUnpack:
   - '**/node_modules/@yuuang/ffi-rs-*/**/*'
   - '**/node_modules/@parcel/watcher/**/*'
   - '**/node_modules/@parcel/watcher-*/**/*'
+  - '**/node_modules/@jitl/quickjs-wasmfile-release-sync/**/*'
   - '**/node_modules/@arcships/light-ocr*/**/*'
   - '**/node_modules/@zerob13/nativekit/prebuilds/**/*'
 extraResources:
