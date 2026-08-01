@@ -525,6 +525,7 @@ import {
   workflowLaunchRoute,
   workflowListRoute,
   workflowPrepareLaunchRoute,
+  workflowRevokeLaunchApprovalRoute,
   workflowResumeRoute,
   workflowRetryRoute,
   workflowSavedListRoute,
@@ -532,7 +533,8 @@ import {
   workflowSavedReadRoute,
   workflowSavedSaveRoute,
   workflowSetModeRoute,
-  workflowSynthesizeRoute
+  workflowSynthesizeRoute,
+  workflowValidateLaunchApprovalRoute
 } from './routes/workflow.routes'
 
 export * from './routes/browser.routes'
@@ -1057,6 +1059,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [systemOpenSettingsRoute.name]: systemOpenSettingsRoute,
   [workflowPrepareLaunchRoute.name]: workflowPrepareLaunchRoute,
   [workflowGetCapabilityRoute.name]: workflowGetCapabilityRoute,
+  [workflowValidateLaunchApprovalRoute.name]: workflowValidateLaunchApprovalRoute,
+  [workflowRevokeLaunchApprovalRoute.name]: workflowRevokeLaunchApprovalRoute,
   [workflowSetModeRoute.name]: workflowSetModeRoute,
   [workflowLaunchRoute.name]: workflowLaunchRoute,
   [workflowListRoute.name]: workflowListRoute,

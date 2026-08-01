@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "در حال بررسی تأیید…",
+      "unavailable": "این تأیید دیگر در دسترس نیست. برای ادامه یک طرح اصلاح‌شده آماده کنید.",
+      "unavailableShort": "تأیید در دسترس نیست",
+      "launched": "گردش‌کار آغاز شد",
+      "launchUnconfirmed": "نتیجه اجرای گردش‌کار قابل تأیید نبود. پیش از آماده‌سازی طرحی دیگر، تاریخچه گردش‌کار را بررسی کنید.",
+      "revisionRequested": "بازخورد به کادر ورودی افزوده شد. برای آماده‌سازی تأیید جدید آن را ارسال کنید.",
+      "revisionRequestedShort": "اصلاح درخواست شد",
+      "feedbackPlaceholder": "تغییرات موردنظر را توضیح دهید…",
+      "stageRevision": "افزودن بازخورد به ورودی",
+      "modify": "اصلاح طرح",
+      "sourceDisclosure": "منبع گردش‌کار تولیدشده",
+      "revisionPrompt": "طرح گردش‌کار در انتظار با هش منبع {sourceHash} را بر اساس بازخورد زیر اصلاح کنید. workflow را دوباره با operation=prepare_launch فراخوانی کنید و آن را اجرا نکنید.\n\nبازخورد:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

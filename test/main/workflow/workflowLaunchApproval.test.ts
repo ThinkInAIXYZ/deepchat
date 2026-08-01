@@ -5,6 +5,7 @@ import { WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS } from '@shared/workflow/serviceC
 import {
   WorkflowLaunchApprovalExpiredError,
   WorkflowLaunchApprovalScopeError,
+  WorkflowLaunchApprovalSourceError,
   WorkflowLaunchApprovalRegistry
 } from '@/workflow/launchApproval'
 import { TEST_WORKFLOW_EXECUTION_SNAPSHOT } from './workflowTestFixtures'
@@ -184,6 +185,45 @@ describe('WorkflowLaunchApprovalRegistry', () => {
     expect(() => registry.consume(approval.approvalId, 'other-parent')).toThrow(
       WorkflowLaunchApprovalScopeError
     )
+    expect(() => registry.revoke(approval.approvalId, 'other-parent')).toThrow(
+      WorkflowLaunchApprovalScopeError
+    )
     expect(registry.consume(approval.approvalId, 'parent').parentSessionId).toBe('parent')
+  })
+
+  it('revokes only the exact parent-scoped pending approval', () => {
+    const registry = new WorkflowLaunchApprovalRegistry()
+    const approval = registry.prepare(draft())
+
+    expect(registry.revoke(approval.approvalId, 'parent')).toBe(true)
+    expect(registry.revoke(approval.approvalId, 'parent')).toBe(false)
+    expect(() => registry.get(approval.approvalId, 'parent')).toThrow(
+      WorkflowLaunchApprovalExpiredError
+    )
+  })
+
+  it('treats an expired approval as unavailable when revoking', () => {
+    let now = 1_000
+    const registry = new WorkflowLaunchApprovalRegistry(() => now, 1_000)
+    const approval = registry.prepare(draft())
+
+    now = approval.expiresAt
+    expect(registry.revoke(approval.approvalId, 'parent')).toBe(false)
+  })
+
+  it('validates the displayed source against the retained launch snapshot', () => {
+    const registry = new WorkflowLaunchApprovalRegistry()
+    const approval = registry.prepare(draft())
+
+    expect(() => registry.validateSource(approval.approvalId, 'parent', 'return 42')).toThrow(
+      WorkflowLaunchApprovalSourceError
+    )
+    expect(
+      registry.validateSource(
+        approval.approvalId,
+        'parent',
+        'return await agent("Inspect the change", { key: "inspect" })'
+      ).approvalId
+    ).toBe(approval.approvalId)
   })
 })

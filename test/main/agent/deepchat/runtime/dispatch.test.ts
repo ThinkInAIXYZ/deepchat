@@ -290,7 +290,7 @@ describe('dispatch', () => {
 
   describe('settleToolBatch', () => {
     it('builds assistant message, calls tools, updates blocks', async () => {
-      const tools = [makeTool('get_weather')]
+      const tools = [makeAgentTool('get_weather')]
       const toolService = createMockToolService({ get_weather: 'Sunny, 72F' })
       const conversation = [{ role: 'user' as const, content: 'Hello' }]
 
@@ -350,6 +350,7 @@ describe('dispatch', () => {
       const toolBlock = state.blocks.find((b) => b.type === 'tool_call')
       expect(toolBlock!.tool_call!.response).toBe('Sunny, 72F')
       expect(toolBlock!.status).toBe('success')
+      expect(toolBlock!.extra?.toolSource).toBe('agent')
     })
 
     it('rejects an output-truncated batch atomically without tool side effects', async () => {

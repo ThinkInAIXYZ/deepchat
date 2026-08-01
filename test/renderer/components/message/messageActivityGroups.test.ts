@@ -16,6 +16,47 @@ const createBlock = (
   ...overrides
 })
 
+const createWorkflowApprovalBlock = (): DisplayAssistantMessageBlock =>
+  createBlock('tool_call', {
+    extra: {
+      toolSource: 'agent'
+    },
+    tool_call: {
+      id: 'workflow-approval',
+      name: 'workflow',
+      server_name: 'agent-workflows',
+      params: JSON.stringify({
+        operation: 'prepare_launch',
+        scriptSource: 'return null'
+      }),
+      response: JSON.stringify({
+        approval: {
+          approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
+          sourceHash: 'a'.repeat(64),
+          scopeHash: 'b'.repeat(64),
+          expiresAt: Date.now() + 60_000,
+          summary: {
+            workspacePath: '/repo',
+            capabilityScopeHash: 'c'.repeat(64),
+            executionSnapshotHash: 'd'.repeat(64),
+            allowedAgentIds: ['deepchat'],
+            maxInvocations: 8,
+            maxPendingInvocations: 4,
+            budget: null,
+            capabilities: ['deepchat-child-sessions'],
+            outline: {
+              schemaVersion: 1,
+              confidence: 'exact',
+              truncated: false,
+              nodes: []
+            }
+          }
+        },
+        nextAction: 'Await native approval.'
+      })
+    }
+  })
+
 const zhDurationLabels: ActivityDurationLabels = {
   day: '天',
   hour: '小时',
@@ -77,6 +118,34 @@ describe('messageActivityGroups', () => {
     })
 
     expect(items.map((item) => item.kind)).toEqual(['activity-group', 'block', 'activity-group'])
+  })
+
+  it('keeps a native workflow approval outside collapsed activity groups', () => {
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: true,
+      blocks: [
+        createBlock('reasoning_content', { content: 'prepare plan' }),
+        createWorkflowApprovalBlock(),
+        createBlock('tool_call', {
+          tool_call: {
+            id: 'tc2',
+            name: 'read'
+          }
+        })
+      ]
+    })
+
+    expect(items.map((item) => item.kind)).toEqual(['activity-group', 'block', 'activity-group'])
+    expect(items[1]).toMatchObject({
+      kind: 'block',
+      block: {
+        tool_call: {
+          id: 'workflow-approval'
+        }
+      }
+    })
   })
 
   it('ignores empty reasoning signature blocks when merging continuous activity', () => {

@@ -17,6 +17,7 @@ describe('WorkflowAgentTool', () => {
         summary: {
           workspacePath: '/repo',
           capabilityScopeHash: 'c'.repeat(64),
+          executionSnapshotHash: 'd'.repeat(64),
           allowedAgentIds: ['deepchat', 'reviewer'],
           maxInvocations: 8,
           maxPendingInvocations: 4,
@@ -30,28 +31,6 @@ describe('WorkflowAgentTool', () => {
           }
         }
       }),
-      getLaunchApproval: vi.fn().mockResolvedValue({
-        approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
-        sourceHash: 'a'.repeat(64),
-        scopeHash: 'b'.repeat(64),
-        expiresAt: 10_000,
-        summary: {
-          workspacePath: '/repo',
-          capabilityScopeHash: 'c'.repeat(64),
-          allowedAgentIds: ['deepchat', 'reviewer'],
-          maxInvocations: 8,
-          maxPendingInvocations: 4,
-          budget: null,
-          capabilities: ['deepchat-child-sessions'],
-          outline: {
-            schemaVersion: 1,
-            confidence: 'exact',
-            truncated: false,
-            nodes: []
-          }
-        }
-      }),
-      launch: vi.fn().mockResolvedValue({ id: 'run-1' }),
       list: vi.fn().mockResolvedValue([]),
       inspect: vi.fn().mockResolvedValue({ id: 'run-1' }),
       cancel: vi.fn().mockResolvedValue({ id: 'run-1' }),
@@ -69,7 +48,8 @@ describe('WorkflowAgentTool', () => {
     ).toBe(false)
     expect(
       workflowAgentToolSchema.safeParse({
-        operation: 'launch'
+        operation: 'launch',
+        approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
       }).success
     ).toBe(false)
 
@@ -91,25 +71,18 @@ describe('WorkflowAgentTool', () => {
         allowedAgentIds: ['reviewer']
       })
     )
-    expect(prepared.content).toContain('explicit approval')
-    expect(port.launch).not.toHaveBeenCalled()
+    expect(prepared.content).toContain('native approval card')
+
+    const operationSchema = tool.getToolDefinition().function.parameters.properties?.operation as {
+      enum?: string[]
+    }
+    expect(operationSchema.enum).not.toContain('launch')
   })
 
-  it('builds launch permission text from the parent-scoped approval', async () => {
-    const description = await tool.getMutationPermissionDescription(
-      {
-        operation: 'launch',
-        approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
-      },
-      'parent-1'
-    )
-
-    expect(port.getLaunchApproval).toHaveBeenCalledWith(
-      'parent-1',
-      '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
-    )
-    expect(description).toContain('Workspace: /repo')
-    expect(description).toContain('Allowed agents: deepchat, reviewer')
+  it('keeps launch out of the model-facing operation contract', async () => {
+    expect(tool.getToolDefinition().function.parameters.properties?.operation).toMatchObject({
+      enum: expect.not.arrayContaining(['launch'])
+    })
     expect(
       await tool.getMutationPermissionDescription({ operation: 'list' }, 'parent-1')
     ).toBeNull()
@@ -143,16 +116,16 @@ describe('WorkflowAgentTool', () => {
 
   it('returns a completed mutation even if its caller aborts after the side effect', async () => {
     const controller = new AbortController()
-    vi.mocked(port.launch).mockImplementation(async () => {
-      controller.abort('caller stopped after launch')
+    vi.mocked(port.cancel).mockImplementation(async () => {
+      controller.abort('caller stopped after cancel')
       return { id: 'run-1' } as any
     })
 
     await expect(
       tool.call(
         {
-          operation: 'launch',
-          approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
+          operation: 'cancel',
+          runId: 'run-1'
         },
         'parent-1',
         { signal: controller.signal }
@@ -164,6 +137,6 @@ describe('WorkflowAgentTool', () => {
         }
       }
     })
-    expect(port.launch).toHaveBeenCalledOnce()
+    expect(port.cancel).toHaveBeenCalledOnce()
   })
 })

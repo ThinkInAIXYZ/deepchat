@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Verifica dell’approvazione…",
+      "unavailable": "Questa approvazione non è più disponibile. Prepara un piano rivisto per continuare.",
+      "unavailableShort": "Approvazione non disponibile",
+      "launched": "Workflow avviato",
+      "launchUnconfirmed": "Non è stato possibile confermare l’esito dell’avvio. Controlla la cronologia del workflow prima di preparare un altro piano.",
+      "revisionRequested": "Il feedback è stato aggiunto al campo di input. Invialo per preparare una nuova approvazione.",
+      "revisionRequestedShort": "Revisione richiesta",
+      "feedbackPlaceholder": "Descrivi cosa dovrebbe cambiare…",
+      "stageRevision": "Aggiungi feedback all’input",
+      "modify": "Modifica piano",
+      "sourceDisclosure": "Sorgente del workflow generato",
+      "revisionPrompt": "Rivedi il piano del workflow in attesa con hash sorgente {sourceHash} in base al feedback seguente. Richiama workflow con operation=prepare_launch e non avviarlo.\n\nFeedback:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

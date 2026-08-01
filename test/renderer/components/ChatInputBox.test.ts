@@ -112,6 +112,9 @@ vi.mock('@tiptap/vue-3', () => {
       }),
       updateState: vi.fn()
     }
+    public get isEmpty() {
+      return mockEditorText.trim().length === 0
+    }
     public setEditable = vi.fn()
     constructor(options: any) {
       lastEditorOptions = options
@@ -126,7 +129,7 @@ vi.mock('@tiptap/vue-3', () => {
     chain() {
       const api = {
         focus: () => api,
-        insertContent: (content: string) => {
+        insertContent: (content: unknown) => {
           insertContentMock(content)
           return api
         },
@@ -554,6 +557,21 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     ;(wrapper.vm as any).insertRecognizedText('hello world')
     expect(insertContentMock).toHaveBeenCalledWith('hello world')
+  })
+
+  it('appends a staged text block without overwriting the existing draft', async () => {
+    const wrapper = await mountComponent()
+    mockEditorText = 'existing draft'
+
+    ;(wrapper.vm as any).insertTextBlock('revise the workflow')
+
+    expect(insertContentMock).toHaveBeenCalledWith([
+      { type: 'paragraph' },
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'revise the workflow' }]
+      }
+    ])
   })
 
   it('exposes insertWorkspaceReference and inserts a workspace reference into the editor', async () => {

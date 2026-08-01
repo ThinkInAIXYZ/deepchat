@@ -5,8 +5,9 @@ import { useChatPageEventBridge } from '@/features/chat-page/composables/useChat
 function createHarness() {
   const sessionId = ref('s1')
   const isReadOnly = ref(false)
+  const insertTextBlock = vi.fn()
   const insertWorkspaceReference = vi.fn()
-  const chatInputRef = ref({ insertWorkspaceReference })
+  const chatInputRef = ref({ insertTextBlock, insertWorkspaceReference })
   const setMessage = vi.fn()
   const onWindowKeydown = vi.fn()
   const onPlanUpdated = vi.fn()
@@ -28,13 +29,15 @@ function createHarness() {
     onWindowKeydown,
     onPlanUpdated,
     chatClient: chatClient as any,
-    workspaceInsertReferenceEvent: 'workspace-insert-reference-requested'
+    workspaceInsertReferenceEvent: 'workspace-insert-reference-requested',
+    workflowReviseEvent: 'workflow-revise-requested'
   })
 
   return {
     bridge,
     sessionId,
     isReadOnly,
+    insertTextBlock,
     insertWorkspaceReference,
     setMessage,
     onWindowKeydown,
@@ -79,9 +82,23 @@ describe('useChatPageEventBridge', () => {
     )
     expect(harness.insertWorkspaceReference).toHaveBeenCalledWith('/active.ts')
 
+    window.dispatchEvent(
+      new CustomEvent('workflow-revise-requested', {
+        detail: { sessionId: 's2', text: ' revise this plan ' }
+      })
+    )
+    expect(harness.insertTextBlock).toHaveBeenCalledWith('revise this plan')
+
     harness.isReadOnly.value = true
     window.dispatchEvent(new CustomEvent('context-menu-ask-ai', { detail: 'ignored' }))
     expect(harness.setMessage).toHaveBeenCalledTimes(1)
+
+    window.dispatchEvent(
+      new CustomEvent('workflow-revise-requested', {
+        detail: { sessionId: 's2', text: 'ignored' }
+      })
+    )
+    expect(harness.insertTextBlock).toHaveBeenCalledTimes(1)
   })
 
   it('subscribes once and fully detaches global and plan listeners', () => {

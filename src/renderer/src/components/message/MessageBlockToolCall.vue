@@ -1,5 +1,12 @@
 <template>
-  <div class="flex flex-col w-full">
+  <WorkflowLaunchApprovalCard
+    v-if="workflowApproval"
+    :thread-id="threadId ?? ''"
+    :approval="workflowApproval.approval"
+    :script-source="workflowApproval.scriptSource"
+    :read-only="readOnly"
+  />
+  <div v-else class="flex flex-col w-full">
     <button
       type="button"
       data-testid="tool-call-trigger"
@@ -215,7 +222,9 @@ import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { createDeviceClient } from '@api/DeviceClient'
+import { parseWorkflowLaunchApprovalBlock } from '@/lib/workflowLaunchApproval'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
+import WorkflowLaunchApprovalCard from './WorkflowLaunchApprovalCard.vue'
 
 const { t } = useI18n()
 
@@ -227,6 +236,7 @@ const props = defineProps<{
   block: DisplayAssistantMessageBlock
   messageId?: string
   threadId?: string
+  readOnly?: boolean
 }>()
 
 type ExpansionSource = 'auto' | 'manual' | null
@@ -253,6 +263,8 @@ const detailsId = `tool-call-details-${useId()}`
 // Slightly past --dc-motion-default (220ms) so the collapse transition finishes first.
 const DETAILS_UNMOUNT_DELAY_MS = 240
 let detailsUnmountTimer: number | null = null
+
+const workflowApproval = computed(() => parseWorkflowLaunchApprovalBlock(props.block))
 
 const statusVariant = computed(() => {
   if (props.block.status === 'error') return 'error'

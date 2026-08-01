@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "האישור נבדק…",
+      "unavailable": "האישור הזה אינו זמין עוד. יש להכין תוכנית מתוקנת כדי להמשיך.",
+      "unavailableShort": "האישור אינו זמין",
+      "launched": "תהליך העבודה הופעל",
+      "launchUnconfirmed": "לא ניתן לאשר את תוצאת ההפעלה. יש לבדוק את היסטוריית תהליך העבודה לפני הכנת תוכנית חדשה.",
+      "revisionRequested": "המשוב נוסף לשדה הקלט. יש לשלוח אותו כדי להכין אישור חדש.",
+      "revisionRequestedShort": "התבקש תיקון",
+      "feedbackPlaceholder": "תארו מה צריך להשתנות…",
+      "stageRevision": "הוספת המשוב לקלט",
+      "modify": "שינוי התוכנית",
+      "sourceDisclosure": "קוד המקור שנוצר לתהליך העבודה",
+      "revisionPrompt": "יש לתקן את תוכנית תהליך העבודה הממתינה עם גיבוב המקור {sourceHash} לפי המשוב שלהלן. יש לקרוא שוב ל-workflow עם operation=prepare_launch ולא להפעיל אותו.\n\nמשוב:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

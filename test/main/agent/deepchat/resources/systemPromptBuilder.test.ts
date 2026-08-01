@@ -87,6 +87,7 @@ describe('DeepChat system prompt builder', () => {
     expect(second).toBe(first)
     expect(workflow).toContain('## Workflow Mode')
     expect(workflow).toContain('Do not ask the user to author workflow JavaScript')
+    expect(workflow).toContain('native approval card owns explicit user approval')
     expect(sameNameMcp).not.toContain('## Workflow Mode')
     expect(assertCurrent).toHaveBeenCalled()
   })

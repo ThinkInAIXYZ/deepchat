@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Đang kiểm tra phê duyệt…",
+      "unavailable": "Phê duyệt này không còn khả dụng. Hãy chuẩn bị kế hoạch đã sửa để tiếp tục.",
+      "unavailableShort": "Phê duyệt không khả dụng",
+      "launched": "Đã khởi chạy quy trình",
+      "launchUnconfirmed": "Không thể xác nhận kết quả khởi chạy. Hãy kiểm tra lịch sử quy trình trước khi chuẩn bị kế hoạch khác.",
+      "revisionRequested": "Phản hồi đã được thêm vào ô nhập. Hãy gửi để chuẩn bị phê duyệt mới.",
+      "revisionRequestedShort": "Đã yêu cầu chỉnh sửa",
+      "feedbackPlaceholder": "Mô tả nội dung cần thay đổi…",
+      "stageRevision": "Thêm phản hồi vào ô nhập",
+      "modify": "Sửa kế hoạch",
+      "sourceDisclosure": "Mã nguồn quy trình đã tạo",
+      "revisionPrompt": "Hãy sửa kế hoạch quy trình đang chờ duyệt có mã băm nguồn {sourceHash} theo phản hồi bên dưới. Gọi lại workflow với operation=prepare_launch và không khởi chạy.\n\nPhản hồi:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

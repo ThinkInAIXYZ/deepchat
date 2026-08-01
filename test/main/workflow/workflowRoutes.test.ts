@@ -5,13 +5,15 @@ import {
   workflowLaunchRoute,
   workflowListRoute,
   workflowPrepareLaunchRoute,
+  workflowRevokeLaunchApprovalRoute,
   workflowRetryRoute,
   workflowSavedListRoute,
   workflowSavedPrepareLaunchRoute,
   workflowSavedReadRoute,
   workflowSavedSaveRoute,
   workflowSetModeRoute,
-  workflowSynthesizeRoute
+  workflowSynthesizeRoute,
+  workflowValidateLaunchApprovalRoute
 } from '@shared/contracts/routes'
 import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
 import type { WorkflowInvocation, WorkflowRun } from '@shared/workflow/domain'
@@ -125,6 +127,29 @@ function createService() {
         }
       }
     }),
+    validateLaunchApproval: vi.fn().mockReturnValue({
+      approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
+      sourceHash: 'a'.repeat(64),
+      scopeHash: 'b'.repeat(64),
+      expiresAt: 10_000,
+      summary: {
+        workspacePath: '/repo',
+        capabilityScopeHash: 'c'.repeat(64),
+        executionSnapshotHash: 'd'.repeat(64),
+        allowedAgentIds: ['deepchat'],
+        maxInvocations: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxInvocations,
+        maxPendingInvocations: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxPendingInvocations,
+        budget: null,
+        capabilities: ['deepchat-child-sessions'],
+        outline: {
+          schemaVersion: 1,
+          confidence: 'exact',
+          truncated: false,
+          nodes: []
+        }
+      }
+    }),
+    revokeLaunchApproval: vi.fn().mockReturnValue(true),
     launch: vi.fn().mockResolvedValue(run()),
     listRuns: vi.fn().mockReturnValue([run()]),
     getRun: vi
@@ -203,6 +228,8 @@ describe('workflow routes', () => {
     const service = createService()
     const routes = createWorkflowRoutes(service)
     const prepare = routes.get(workflowPrepareLaunchRoute.name)!
+    const validateApproval = routes.get(workflowValidateLaunchApprovalRoute.name)!
+    const revokeApproval = routes.get(workflowRevokeLaunchApprovalRoute.name)!
     const launch = routes.get(workflowLaunchRoute.name)!
 
     await expect(
@@ -220,6 +247,40 @@ describe('workflow routes', () => {
         approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
       }
     })
+
+    await expect(
+      validateApproval(
+        {
+          parentSessionId: 'parent-1',
+          approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
+          scriptSource: 'return null'
+        },
+        context
+      )
+    ).resolves.toMatchObject({
+      approval: {
+        approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
+      }
+    })
+    expect(service.validateLaunchApproval).toHaveBeenCalledWith(
+      '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
+      'parent-1',
+      'return null'
+    )
+
+    await expect(
+      revokeApproval(
+        {
+          parentSessionId: 'parent-1',
+          approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
+        },
+        context
+      )
+    ).resolves.toEqual({ revoked: true })
+    expect(service.revokeLaunchApproval).toHaveBeenCalledWith(
+      '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
+      'parent-1'
+    )
 
     await launch(
       {

@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Vérification de cette approbation…",
+      "unavailable": "Cette approbation n’est plus disponible. Préparez un plan révisé pour continuer.",
+      "unavailableShort": "Approbation indisponible",
+      "launched": "Workflow lancé",
+      "launchUnconfirmed": "Le résultat du lancement n’a pas pu être confirmé. Vérifiez l’historique du workflow avant de préparer un autre plan.",
+      "revisionRequested": "Le retour a été ajouté à la zone de saisie. Envoyez-le pour préparer une nouvelle approbation.",
+      "revisionRequestedShort": "Révision demandée",
+      "feedbackPlaceholder": "Décrivez ce qui doit changer…",
+      "stageRevision": "Ajouter le retour à la saisie",
+      "modify": "Modifier le plan",
+      "sourceDisclosure": "Source du workflow généré",
+      "revisionPrompt": "Révisez le plan de workflow en attente dont le hachage source est {sourceHash} selon le retour ci-dessous. Appelez de nouveau workflow avec operation=prepare_launch, sans le lancer.\n\nRetour :\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

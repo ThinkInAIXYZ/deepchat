@@ -164,8 +164,9 @@ Control-surface validation evidence (2026-07-31):
   target-agent capability scope, including MCP and Skill selections;
 - typed routes and events expose bounded projections rather than stored script, input, prompt, or
   full result payloads;
-- the Agent tool keeps launch as a non-rememberable two-step permission action and preserves
-  completed mutation results if the calling turn is cancelled afterward;
+- at this implementation stage, the Agent tool kept launch as a non-rememberable two-step
+  permission action; the native launch UX below later removes launch from the model-facing
+  contract entirely;
 - 309 workflow, Agent-tool, and composition-boundary tests passed;
 - `pnpm run format:check`
 - `pnpm run i18n`
@@ -513,12 +514,70 @@ Final cross-module review findings, ordered by severity:
 - [x] Keep named saved-workflow launch independent from session mode.
 - [x] Move low-frequency generation overrides out of model selection without deleting session
   override capability or persisted values.
-- [ ] Render model-generated preparation as a native approval card with direct exact-ID launch.
-- [ ] Keep generated source behind an advanced disclosure and regenerate plans from feedback.
+- [x] Render model-generated preparation as a native approval card with direct exact-ID launch.
+- [x] Keep generated source behind an advanced disclosure and regenerate plans from feedback.
 - [x] Persist a launch-time model/generation snapshot and split it from the live security scope.
 - [x] Verify an active run survives session reasoning changes while later runs use the new value.
-- [ ] Complete a severity-ordered pre-commit review and focused validation for every slice.
-- [ ] Run final format, i18n, lint, typecheck, focused tests, build, and packaging checks.
+- [x] Complete a severity-ordered pre-commit review and focused validation for every slice.
+- [x] Run final format, i18n, lint, typecheck, focused tests, build, and packaging checks.
+
+Native launch approval BEFORE/AFTER:
+
+~~~text
+BEFORE: [generic workflow tool pill]
+        -> expand raw params / JSON response
+        -> model calls operation=launch
+        -> generic tool permission
+
+AFTER:  [native exact-snapshot approval card]
+        [outline + agents + limits + budget + capability warning]
+        [Launch workflow] [Modify plan]
+        [Generated workflow source ▸]
+        -> UI launches the exact approvalId
+        -> main revalidates parent + full source + live safety scope
+~~~
+
+Native launch approval validation evidence (2026-08-01):
+
+- finalized tool blocks persist the runtime-owned `agent | mcp` source; native parsing requires the
+  Agent source, exact built-in tool/server identity, successful `prepare_launch` parameters, and a
+  strict bounded result contract, so a same-name MCP remains a generic tool result;
+- main validates the exact pending approval against the parent session and complete displayed
+  source before enabling launch; launch still performs the existing live workspace and capability
+  checks, while the model-facing tool no longer accepts or advertises `operation=launch`;
+- approvals stay outside collapsed activity groups, source is absent from the DOM until expanded,
+  duplicate launch clicks are suppressed, expiry and navigation fence stale completions, and an
+  unconfirmed launch blocks immediate regeneration until the user checks durable run history;
+- “Modify plan” revokes the exact live parent-scoped approval before appending bounded feedback as
+  explicit TipTap paragraphs; it neither overwrites an existing draft nor submits a model turn;
+- all 244 renderer files passed with 1,980 tests; 44 Workflow, Agent-tool, dispatch, prompt, and tool
+  service files passed with 471 tests;
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`, and `pnpm run build`
+  passed; i18n validated 20 locales, 400 namespace registrations, and 4,145 source contracts;
+- `electron-builder --dir` completed native dependency rebuild and app assembly, then reproduced
+  the pre-existing `afterPack` failure because
+  `app.asar.unpacked/runtime/node/bin/node` is absent in this worktree. The failure is outside the
+  native approval path and is recorded rather than hidden.
+
+Native launch approval review findings, ordered by severity:
+
+- critical: no remaining finding;
+- high, fixed before commit: the executable model-facing schema still accepted `operation=launch`,
+  leaving a second launch/approval path alongside the native card; launch is now UI-only;
+- high, fixed before commit: trusting only a tool/server display name allowed a same-named MCP to
+  imitate first-party presentation; runtime-owned tool provenance plus main-held source validation
+  now form the trust boundary;
+- medium, fixed before commit: a lost launch response could be followed by immediate regeneration
+  and duplicate side effects; unconfirmed outcomes and failed revocation now stop that path;
+- medium, fixed before commit: approvals could be hidden in collapsed activity, stale async
+  completions could cross session changes, revision could leave a still-runnable old approval, and
+  text insertion could collapse multiline feedback or corrupt draft boundaries;
+- low, fixed before commit: repeated large JSON parsing, eager source DOM materialization,
+  unscoped/expired revoke behavior, DOM-only revision-length enforcement, incomplete cache
+  invalidation, and a large no-op template diff increased performance or maintenance risk;
+- known limitation: approval-to-run identity is not persisted, so an old card cannot prove a launch
+  outcome after its approval TTL and a later remount. The card remains fail-closed while live; users
+  must inspect durable Workflow history before intentionally preparing another plan.
 
 Mode/control-surface validation evidence (2026-08-01):
 

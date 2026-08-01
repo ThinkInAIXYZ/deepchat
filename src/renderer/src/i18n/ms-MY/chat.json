@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Menyemak kelulusan…",
+      "unavailable": "Kelulusan ini tidak lagi tersedia. Sediakan pelan yang disemak untuk meneruskan.",
+      "unavailableShort": "Kelulusan tidak tersedia",
+      "launched": "Aliran kerja dimulakan",
+      "launchUnconfirmed": "Hasil pelancaran tidak dapat disahkan. Semak sejarah aliran kerja sebelum menyediakan pelan lain.",
+      "revisionRequested": "Maklum balas ditambahkan pada kotak input. Hantarkannya untuk menyediakan kelulusan baharu.",
+      "revisionRequestedShort": "Semakan diminta",
+      "feedbackPlaceholder": "Terangkan perkara yang perlu diubah…",
+      "stageRevision": "Tambah maklum balas ke input",
+      "modify": "Ubah pelan",
+      "sourceDisclosure": "Sumber aliran kerja yang dijana",
+      "revisionPrompt": "Semak pelan aliran kerja tertunda dengan cincangan sumber {sourceHash} berdasarkan maklum balas berikut. Panggil workflow sekali lagi dengan operation=prepare_launch dan jangan mulakannya.\n\nMaklum balas:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

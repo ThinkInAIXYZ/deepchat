@@ -1,12 +1,15 @@
 import { z } from 'zod'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { JsonValueSchema } from '@shared/contracts/common'
-import { WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { WORKFLOW_AGENT_TOOL_NAME, WORKFLOW_AGENT_TOOL_SERVER_NAME } from '@shared/agentTools'
 import {
   WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES,
   WorkflowRuntimeLimitsSchema
 } from '@shared/workflow/runtimeProtocol'
-import { WorkflowRunBudgetSchema } from '@shared/workflow/serviceContracts'
+import {
+  WorkflowPrepareLaunchToolResultSchema,
+  WorkflowRunBudgetSchema
+} from '@shared/workflow/serviceContracts'
 import type { AgentWorkflowToolPort } from '../runtimePorts'
 import type { AgentToolCallResult } from './agentToolManager'
 
@@ -20,7 +23,7 @@ const WorkflowRuntimeLimitOverridesSchema = z
 
 export const workflowAgentToolSchema = z
   .object({
-    operation: z.enum(['prepare_launch', 'launch', 'list', 'inspect', 'cancel', 'resume', 'retry']),
+    operation: z.enum(['prepare_launch', 'list', 'inspect', 'cancel', 'resume', 'retry']),
     scriptSource: z.string().min(1).max(WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES).optional(),
     input: JsonValueSchema.optional(),
     parentMessageId: WorkflowToolIdSchema.nullable().optional(),
@@ -35,7 +38,6 @@ export const workflowAgentToolSchema = z
     allowedAgentIds: z.array(WorkflowToolIdSchema).min(1).max(32).optional(),
     limits: WorkflowRuntimeLimitOverridesSchema.optional(),
     budget: WorkflowRunBudgetSchema.nullable().optional(),
-    approvalId: z.string().uuid().optional(),
     runId: WorkflowToolIdSchema.optional(),
     invocationId: WorkflowToolIdSchema.optional(),
     limit: z.number().int().min(1).max(100).optional(),
@@ -50,13 +52,6 @@ export const workflowAgentToolSchema = z
         code: 'custom',
         path: ['scriptSource'],
         message: 'scriptSource is required for prepare_launch.'
-      })
-    }
-    if (value.operation === 'launch' && value.approvalId === undefined) {
-      context.addIssue({
-        code: 'custom',
-        path: ['approvalId'],
-        message: 'approvalId is required for launch.'
       })
     }
     if (
@@ -94,13 +89,13 @@ export class WorkflowAgentTool {
       function: {
         name: WORKFLOW_AGENT_TOOL_NAME,
         description:
-          'Prepare and explicitly manage durable JavaScript workflows that coordinate DeepChat child agents. Use only when the user explicitly asks for workflow orchestration. Call prepare_launch first, show its exact approval summary, and call launch only after the user approves. Use status operations to inspect or control existing runs.',
+          'Prepare and manage durable JavaScript workflows that coordinate DeepChat child agents. Use only when the user explicitly asks for workflow orchestration. Call prepare_launch and let the native approval card launch the exact approved snapshot; do not call launch yourself. Use status operations to inspect or control existing runs.',
         parameters: {
           type: 'object',
           properties: {
             operation: {
               type: 'string',
-              enum: ['prepare_launch', 'launch', 'list', 'inspect', 'cancel', 'resume', 'retry']
+              enum: ['prepare_launch', 'list', 'inspect', 'cancel', 'resume', 'retry']
             },
             scriptSource: {
               type: 'string',
@@ -129,10 +124,6 @@ export class WorkflowAgentTool {
             budget: {
               type: ['object', 'null'],
               description: 'Optional maxTotalTokens and/or maxExecutionMs budget.'
-            },
-            approvalId: {
-              type: 'string',
-              description: 'Required for launch; returned by prepare_launch.'
             },
             runId: {
               type: 'string',
@@ -166,7 +157,7 @@ export class WorkflowAgentTool {
         }
       },
       server: {
-        name: 'agent-workflows',
+        name: WORKFLOW_AGENT_TOOL_SERVER_NAME,
         icons: '🔀',
         description: 'Durable DeepChat workflows'
       }
@@ -209,21 +200,6 @@ export class WorkflowAgentTool {
     }
     const args = workflowAgentToolSchema.parse(rawArgs)
     switch (args.operation) {
-      case 'launch': {
-        const approval = await this.workflow.getLaunchApproval(
-          conversationId,
-          requireValue(args.approvalId, 'approvalId')
-        )
-        const targetAgents = approval.summary.allowedAgentIds.join(', ')
-        const workspace = approval.summary.workspacePath ?? 'none'
-        return [
-          `Launch workflow ${approval.sourceHash.slice(0, 12)}.`,
-          `Workspace: ${workspace}.`,
-          `Allowed agents: ${targetAgents}.`,
-          `Maximum invocations: ${approval.summary.maxInvocations}.`,
-          `Capabilities: ${approval.summary.capabilities.join(', ')}.`
-        ].join(' ')
-      }
       case 'cancel':
         return `Cancel workflow run ${requireValue(args.runId, 'runId')}.`
       case 'resume':
@@ -238,7 +214,7 @@ export class WorkflowAgentTool {
   private async execute(args: WorkflowAgentToolArgs, parentSessionId: string): Promise<unknown> {
     switch (args.operation) {
       case 'prepare_launch':
-        return {
+        return WorkflowPrepareLaunchToolResultSchema.parse({
           approval: await this.workflow.prepareLaunch(parentSessionId, {
             scriptSource: requireValue(args.scriptSource, 'scriptSource'),
             input: args.input ?? null,
@@ -249,15 +225,8 @@ export class WorkflowAgentTool {
             budget: args.budget
           }),
           nextAction:
-            'Show this exact approval summary to the user. Call operation=launch only after explicit approval.'
-        }
-      case 'launch':
-        return {
-          run: await this.workflow.launch(
-            parentSessionId,
-            requireValue(args.approvalId, 'approvalId')
-          )
-        }
+            'The native approval card owns explicit user approval and exact-ID launch. Do not call operation=launch.'
+        })
       case 'list':
         return {
           runs: await this.workflow.list(parentSessionId, args.limit)

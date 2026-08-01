@@ -354,7 +354,7 @@ import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
 import { createSessionClient } from '@api/SessionClient'
 
-import { WORKSPACE_EVENTS } from '@/events'
+import { WORKFLOW_EVENTS, WORKSPACE_EVENTS } from '@/events'
 import {
   useMessageWindow,
   type MessageMeasurementSnapshot
@@ -1090,6 +1090,7 @@ function handleWindowKeydown(event: KeyboardEvent) {
 const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
+  insertTextBlock?: (text: string) => void
   insertWorkspaceReference?: (targetPath: string) => boolean
   getInlineItemsSnapshot?: () => UserMessageInlineItem[]
   getPendingSkillsSnapshot?: () => string[]
@@ -1330,7 +1331,8 @@ const { start: startChatPageEventBridge, stop: stopChatPageEventBridge } = useCh
     scheduleInactivePlanSnapshotClear(payload.sessionId)
   },
   chatClient,
-  workspaceInsertReferenceEvent: WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED
+  workspaceInsertReferenceEvent: WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED,
+  workflowReviseEvent: WORKFLOW_EVENTS.REVISE_REQUESTED
 })
 
 function onAttach() {

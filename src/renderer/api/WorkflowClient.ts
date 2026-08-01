@@ -12,13 +12,15 @@ import {
   workflowLaunchRoute,
   workflowListRoute,
   workflowResumeRoute,
+  workflowRevokeLaunchApprovalRoute,
   workflowRetryRoute,
   workflowSavedListRoute,
   workflowSavedPrepareLaunchRoute,
   workflowSavedReadRoute,
   workflowSavedSaveRoute,
   workflowSetModeRoute,
-  workflowSynthesizeRoute
+  workflowSynthesizeRoute,
+  workflowValidateLaunchApprovalRoute
 } from '@shared/contracts/routes'
 import type { SessionOrchestrationMode } from '@shared/workflow/orchestrationMode'
 import { getDeepchatBridge } from './core'
@@ -61,6 +63,29 @@ export function createWorkflowClient(bridge: DeepchatBridge = getDeepchatBridge(
         approvalId
       })
     ).run
+  }
+
+  async function validateLaunchApproval(
+    parentSessionId: string,
+    approvalId: string,
+    scriptSource: string
+  ) {
+    return workflowValidateLaunchApprovalRoute.output.parse(
+      await bridge.invoke(workflowValidateLaunchApprovalRoute.name, {
+        parentSessionId,
+        approvalId,
+        scriptSource
+      })
+    ).approval
+  }
+
+  async function revokeLaunchApproval(parentSessionId: string, approvalId: string) {
+    return workflowRevokeLaunchApprovalRoute.output.parse(
+      await bridge.invoke(workflowRevokeLaunchApprovalRoute.name, {
+        parentSessionId,
+        approvalId
+      })
+    ).revoked
   }
 
   async function cancel(parentSessionId: string, runId: string, reason?: string) {
@@ -182,6 +207,8 @@ export function createWorkflowClient(bridge: DeepchatBridge = getDeepchatBridge(
     setMode,
     list,
     inspect,
+    validateLaunchApproval,
+    revokeLaunchApproval,
     launch,
     cancel,
     resume,

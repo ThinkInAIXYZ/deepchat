@@ -47,6 +47,7 @@ import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
   WORKFLOW_AGENT_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_SERVER_NAME,
   assertAgentToolExposure,
   isTapeToolName,
   type AgentToolExposure
@@ -2171,7 +2172,7 @@ export class AgentToolManager {
         return {
           needsPermission: true,
           toolName,
-          serverName: 'agent-workflows',
+          serverName: WORKFLOW_AGENT_TOOL_SERVER_NAME,
           permissionType: 'write',
           description,
           conversationId,

@@ -953,10 +953,6 @@ export async function createMainProcessControl(dependencies: {
           ...(input.budget === undefined ? {} : { budget: input.budget })
         })
       },
-      getLaunchApproval: async (parentSessionId, approvalId) =>
-        workflowService.getLaunchApproval(approvalId, parentSessionId),
-      launch: async (parentSessionId, approvalId) =>
-        summarizeWorkflowRun(await workflowService.launch(approvalId, parentSessionId)),
       list: async (parentSessionId, limit) => {
         const runs = workflowService.listRuns(parentSessionId, limit)
         const counts = workflowService.getInvocationCounts(runs.map((run) => run.id))

@@ -33,6 +33,7 @@ describe('WorkflowClient', () => {
             summary: {
               workspacePath: '/repo',
               capabilityScopeHash: 'c'.repeat(64),
+              executionSnapshotHash: 'd'.repeat(64),
               allowedAgentIds: ['deepchat'],
               maxInvocations: 128,
               maxPendingInvocations: 64,
@@ -47,6 +48,35 @@ describe('WorkflowClient', () => {
             }
           }
         }
+      }
+      if (routeName === 'workflow.validateLaunchApproval') {
+        return {
+          approval: {
+            approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
+            sourceHash: 'a'.repeat(64),
+            scopeHash: 'b'.repeat(64),
+            expiresAt: 10_000,
+            summary: {
+              workspacePath: '/repo',
+              capabilityScopeHash: 'c'.repeat(64),
+              executionSnapshotHash: 'd'.repeat(64),
+              allowedAgentIds: ['deepchat'],
+              maxInvocations: 128,
+              maxPendingInvocations: 64,
+              budget: null,
+              capabilities: ['deepchat-child-sessions'],
+              outline: {
+                schemaVersion: 1,
+                confidence: 'exact',
+                truncated: false,
+                nodes: []
+              }
+            }
+          }
+        }
+      }
+      if (routeName === 'workflow.revokeLaunchApproval') {
+        return { revoked: true }
       }
       if (routeName === 'workflow.getCapability') {
         return { capability: { available: true } }
@@ -90,6 +120,18 @@ describe('WorkflowClient', () => {
       mode: 'workflow',
       capability: { available: true }
     })
+    await expect(
+      workflow.validateLaunchApproval(
+        'parent-1',
+        '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
+        'return null'
+      )
+    ).resolves.toMatchObject({
+      approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
+    })
+    await expect(
+      workflow.revokeLaunchApproval('parent-1', '50d6dbb8-45cb-4a76-af9c-9137cb4695ac')
+    ).resolves.toBe(true)
     const runListener = vi.fn()
     const invocationListener = vi.fn()
     const stopRun = workflow.onRunChanged(runListener)
@@ -118,6 +160,15 @@ describe('WorkflowClient', () => {
     expect(invoke).toHaveBeenNthCalledWith(6, 'workflow.setMode', {
       parentSessionId: 'parent-1',
       mode: 'workflow'
+    })
+    expect(invoke).toHaveBeenNthCalledWith(7, 'workflow.validateLaunchApproval', {
+      parentSessionId: 'parent-1',
+      approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
+      scriptSource: 'return null'
+    })
+    expect(invoke).toHaveBeenNthCalledWith(8, 'workflow.revokeLaunchApproval', {
+      parentSessionId: 'parent-1',
+      approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
     })
     expect(on).toHaveBeenCalledWith('workflow.run.changed', runListener)
     expect(on).toHaveBeenCalledWith('workflow.invocation.changed', invocationListener)

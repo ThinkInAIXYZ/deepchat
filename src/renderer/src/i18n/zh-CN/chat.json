@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "最长 {duration}"
     },
+    "approval": {
+      "checking": "正在核验这份审批…",
+      "unavailable": "这份审批已不可用。请生成修订后的计划再继续。",
+      "unavailableShort": "审批不可用",
+      "launched": "工作流已启动",
+      "launchUnconfirmed": "无法确认工作流是否已经启动。请先检查工作流历史，再生成新的计划。",
+      "revisionRequested": "反馈已加入输入框。发送后会生成一份新的审批。",
+      "revisionRequestedShort": "已请求修改",
+      "feedbackPlaceholder": "说明你希望修改的内容…",
+      "stageRevision": "将反馈加入输入框",
+      "modify": "修改计划",
+      "sourceDisclosure": "生成的工作流源码",
+      "revisionPrompt": "请根据以下反馈修改源码哈希为 {sourceHash} 的待审批工作流计划，再次调用 workflow 的 operation=prepare_launch，并且不要启动它。\n\n反馈：\n{feedback}"
+    },
     "saved": {
       "title": "已保存的工作流",
       "workspaceRequired": "请先打开项目工作区，再创建和运行已保存的工作流。",

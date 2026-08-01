@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Freigabe wird geprüft…",
+      "unavailable": "Diese Freigabe ist nicht mehr verfügbar. Erstelle einen überarbeiteten Plan, um fortzufahren.",
+      "unavailableShort": "Freigabe nicht verfügbar",
+      "launched": "Workflow gestartet",
+      "launchUnconfirmed": "Das Startergebnis konnte nicht bestätigt werden. Prüfe den Workflow-Verlauf, bevor du einen neuen Plan erstellst.",
+      "revisionRequested": "Das Feedback wurde in das Eingabefeld eingefügt. Sende es, um eine neue Freigabe vorzubereiten.",
+      "revisionRequestedShort": "Überarbeitung angefordert",
+      "feedbackPlaceholder": "Beschreibe die gewünschten Änderungen…",
+      "stageRevision": "Feedback ins Eingabefeld",
+      "modify": "Plan ändern",
+      "sourceDisclosure": "Generierter Workflow-Quellcode",
+      "revisionPrompt": "Überarbeite den ausstehenden Workflow-Plan mit dem Quell-Hash {sourceHash} anhand des folgenden Feedbacks. Rufe workflow erneut mit operation=prepare_launch auf und starte ihn nicht.\n\nFeedback:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

@@ -11,7 +11,6 @@ import {
   resolveDeepChatSubagentCapability
 } from '@shared/lib/deepchatSubagents'
 import { WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
-import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
 
 vi.mock('electron', () => ({
   app: {
@@ -482,32 +481,11 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(resolveConversationSessionInfo).toHaveBeenCalled()
   })
 
-  it('exposes workflow only through its policy gate and requires non-remembered launch approval', async () => {
+  it('exposes workflow only through its policy gate without model-owned launch', async () => {
     skillService.getActiveSkills.mockResolvedValue([])
     skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
     const workflow = {
-      canUse: vi.fn().mockResolvedValue(true),
-      getLaunchApproval: vi.fn().mockResolvedValue({
-        approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
-        sourceHash: 'a'.repeat(64),
-        scopeHash: 'b'.repeat(64),
-        expiresAt: 10_000,
-        summary: {
-          workspacePath: '/repo',
-          capabilityScopeHash: 'c'.repeat(64),
-          allowedAgentIds: ['deepchat'],
-          maxInvocations: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxInvocations,
-          maxPendingInvocations: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxPendingInvocations,
-          budget: null,
-          capabilities: ['deepchat-child-sessions'],
-          outline: {
-            schemaVersion: 1,
-            confidence: 'exact',
-            truncated: false,
-            nodes: []
-          }
-        }
-      })
+      canUse: vi.fn().mockResolvedValue(true)
     }
     const manager = buildManager(workflow)
 
@@ -515,33 +493,21 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: null,
-      conversationId: 'conv-1'
+      conversationId: 'conv-1',
+      orchestrationMode: 'workflow'
     })
     expect(
       definitions.some((definition) => definition.function.name === WORKFLOW_AGENT_TOOL_NAME)
     ).toBe(true)
 
-    await expect(
-      manager.preCheckToolPermission(
-        WORKFLOW_AGENT_TOOL_NAME,
-        {
-          operation: 'launch',
-          approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
-        },
-        'conv-1'
-      )
-    ).resolves.toMatchObject({
-      needsPermission: true,
-      permissionType: 'write',
-      rememberable: false,
-      conversationId: 'conv-1'
+    const workflowDefinition = definitions.find(
+      (definition) => definition.function.name === WORKFLOW_AGENT_TOOL_NAME
+    )
+    expect(workflowDefinition?.function.parameters.properties?.operation).toMatchObject({
+      enum: expect.not.arrayContaining(['launch'])
     })
     await expect(
       manager.preCheckToolPermission(WORKFLOW_AGENT_TOOL_NAME, { operation: 'list' }, 'conv-1')
     ).resolves.toBeNull()
-    expect(workflow.getLaunchApproval).toHaveBeenCalledWith(
-      'conv-1',
-      '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
-    )
   })
 })

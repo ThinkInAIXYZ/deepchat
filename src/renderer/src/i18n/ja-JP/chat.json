@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "承認を確認しています…",
+      "unavailable": "この承認は利用できません。続行するには修正版のプランを準備してください。",
+      "unavailableShort": "承認は利用できません",
+      "launched": "ワークフローを開始しました",
+      "launchUnconfirmed": "ワークフローが開始されたか確認できませんでした。別のプランを準備する前に履歴を確認してください。",
+      "revisionRequested": "フィードバックを入力欄に追加しました。送信すると新しい承認が準備されます。",
+      "revisionRequestedShort": "修正を依頼しました",
+      "feedbackPlaceholder": "変更したい内容を入力してください…",
+      "stageRevision": "フィードバックを入力欄に追加",
+      "modify": "プランを修正",
+      "sourceDisclosure": "生成されたワークフローのソース",
+      "revisionPrompt": "以下のフィードバックに基づき、ソースハッシュ {sourceHash} の承認待ちワークフロープランを修正してください。workflow を operation=prepare_launch でもう一度呼び出し、起動はしないでください。\n\nフィードバック：\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

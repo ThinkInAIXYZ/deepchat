@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Memeriksa persetujuan…",
+      "unavailable": "Persetujuan ini tidak lagi tersedia. Siapkan rencana revisi untuk melanjutkan.",
+      "unavailableShort": "Persetujuan tidak tersedia",
+      "launched": "Workflow dimulai",
+      "launchUnconfirmed": "Hasil peluncuran tidak dapat dikonfirmasi. Periksa riwayat workflow sebelum menyiapkan rencana lain.",
+      "revisionRequested": "Masukan ditambahkan ke kotak input. Kirim untuk menyiapkan persetujuan baru.",
+      "revisionRequestedShort": "Revisi diminta",
+      "feedbackPlaceholder": "Jelaskan apa yang perlu diubah…",
+      "stageRevision": "Tambahkan masukan ke input",
+      "modify": "Ubah rencana",
+      "sourceDisclosure": "Sumber workflow yang dibuat",
+      "revisionPrompt": "Revisi rencana workflow tertunda dengan hash sumber {sourceHash} berdasarkan masukan berikut. Panggil workflow lagi dengan operation=prepare_launch dan jangan jalankan.\n\nMasukan:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

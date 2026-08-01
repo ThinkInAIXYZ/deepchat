@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Checking this approval…",
+      "unavailable": "This approval is no longer available. Prepare a revised plan to continue.",
+      "unavailableShort": "Approval unavailable",
+      "launched": "Workflow launched",
+      "launchUnconfirmed": "The launch result could not be confirmed. Check Workflow history before preparing another plan.",
+      "revisionRequested": "Feedback was added to the composer. Send it to prepare a new approval.",
+      "revisionRequestedShort": "Revision requested",
+      "feedbackPlaceholder": "Describe what should change…",
+      "stageRevision": "Add feedback to input",
+      "modify": "Modify plan",
+      "sourceDisclosure": "Generated workflow source",
+      "revisionPrompt": "Revise the pending workflow plan with source hash {sourceHash} based on the feedback below. Call workflow with operation=prepare_launch again, and do not launch it.\n\nFeedback:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

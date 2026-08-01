@@ -47,6 +47,7 @@
                 :duration-ms="item.durationMs"
                 :reasoning-count="item.reasoningCount"
                 :tool-call-count="item.toolCallCount"
+                :read-only="isReadOnly"
                 @toggle-collapse="handleCollapseToggle"
               />
               <MessageBlockContent
@@ -72,6 +73,7 @@
                 :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
+                :read-only="isReadOnly"
               />
               <MessageBlockQuestionRequest
                 v-else-if="

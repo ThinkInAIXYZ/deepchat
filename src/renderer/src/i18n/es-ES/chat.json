@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Comprobando esta aprobación…",
+      "unavailable": "Esta aprobación ya no está disponible. Prepara un plan revisado para continuar.",
+      "unavailableShort": "Aprobación no disponible",
+      "launched": "Flujo de trabajo iniciado",
+      "launchUnconfirmed": "No se pudo confirmar el resultado del inicio. Revisa el historial del flujo antes de preparar otro plan.",
+      "revisionRequested": "Los comentarios se añadieron al cuadro de entrada. Envíalos para preparar una nueva aprobación.",
+      "revisionRequestedShort": "Revisión solicitada",
+      "feedbackPlaceholder": "Describe qué debería cambiar…",
+      "stageRevision": "Añadir comentarios a la entrada",
+      "modify": "Modificar plan",
+      "sourceDisclosure": "Código fuente generado del flujo",
+      "revisionPrompt": "Revisa el plan de flujo pendiente con hash de origen {sourceHash} según los comentarios siguientes. Vuelve a llamar a workflow con operation=prepare_launch y no lo inicies.\n\nComentarios:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

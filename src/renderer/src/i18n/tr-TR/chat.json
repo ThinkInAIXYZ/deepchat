@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Onay kontrol ediliyor…",
+      "unavailable": "Bu onay artık kullanılamıyor. Devam etmek için güncellenmiş bir plan hazırlayın.",
+      "unavailableShort": "Onay kullanılamıyor",
+      "launched": "İş akışı başlatıldı",
+      "launchUnconfirmed": "Başlatma sonucu doğrulanamadı. Başka bir plan hazırlamadan önce iş akışı geçmişini kontrol edin.",
+      "revisionRequested": "Geri bildirim giriş alanına eklendi. Yeni bir onay hazırlamak için gönderin.",
+      "revisionRequestedShort": "Düzeltme istendi",
+      "feedbackPlaceholder": "Nelerin değişmesi gerektiğini açıklayın…",
+      "stageRevision": "Geri bildirimi girişe ekle",
+      "modify": "Planı değiştir",
+      "sourceDisclosure": "Oluşturulan iş akışı kaynağı",
+      "revisionPrompt": "Kaynak karması {sourceHash} olan bekleyen iş akışı planını aşağıdaki geri bildirime göre düzeltin. workflow aracını operation=prepare_launch ile yeniden çağırın ve başlatmayın.\n\nGeri bildirim:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

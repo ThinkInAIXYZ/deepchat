@@ -2,6 +2,7 @@ import type { ComputedRef, Ref } from 'vue'
 import type { DeepchatEventPayload } from '@shared/contracts/events'
 
 type ChatInputHandle = {
+  insertTextBlock?: (text: string) => void
   insertWorkspaceReference?: (targetPath: string) => boolean
 }
 
@@ -20,6 +21,7 @@ type UseChatPageEventBridgeOptions = {
   onPlanUpdated: (payload: PlanUpdatedPayload) => void
   chatClient: ChatClientLike
   workspaceInsertReferenceEvent: string
+  workflowReviseEvent: string
 }
 
 /**
@@ -60,6 +62,21 @@ export function useChatPageEventBridge(options: UseChatPageEventBridgeOptions) {
     options.chatInputRef.value?.insertWorkspaceReference?.(filePath)
   }
 
+  const onWorkflowReviseRequested = (event: Event) => {
+    if (options.isReadOnlySession.value) {
+      return
+    }
+
+    const detail = (event as CustomEvent<{ sessionId?: unknown; text?: unknown }>).detail
+    const sessionId = typeof detail?.sessionId === 'string' ? detail.sessionId.trim() : ''
+    const text = typeof detail?.text === 'string' ? detail.text.trim() : ''
+    if (sessionId !== options.sessionId() || !text || text.length > 16_384) {
+      return
+    }
+
+    options.chatInputRef.value?.insertTextBlock?.(text)
+  }
+
   function start() {
     if (started) {
       return
@@ -71,6 +88,7 @@ export function useChatPageEventBridge(options: UseChatPageEventBridgeOptions) {
       options.workspaceInsertReferenceEvent,
       onWorkspaceInsertReferenceRequested
     )
+    window.addEventListener(options.workflowReviseEvent, onWorkflowReviseRequested)
     window.addEventListener('keydown', options.onWindowKeydown)
     unsubscribePlanUpdated = options.chatClient.onPlanUpdated(options.onPlanUpdated)
   }
@@ -88,6 +106,7 @@ export function useChatPageEventBridge(options: UseChatPageEventBridgeOptions) {
       options.workspaceInsertReferenceEvent,
       onWorkspaceInsertReferenceRequested
     )
+    window.removeEventListener(options.workflowReviseEvent, onWorkflowReviseRequested)
     window.removeEventListener('keydown', options.onWindowKeydown)
   }
 

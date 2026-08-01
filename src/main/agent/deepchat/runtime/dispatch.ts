@@ -491,7 +491,8 @@ function updateToolCallBlock(
     rtkMode?: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
   },
-  imagePreviews?: ToolCallImagePreview[]
+  imagePreviews?: ToolCallImagePreview[],
+  toolSource?: 'agent' | 'mcp'
 ): void {
   const block = blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === toolCallId)
   if (block?.tool_call) {
@@ -509,6 +510,12 @@ function updateToolCallBlock(
       block.tool_call.imagePreviews = imagePreviews
     } else if (imagePreviews) {
       delete block.tool_call.imagePreviews
+    }
+    if (toolSource) {
+      block.extra = {
+        ...block.extra,
+        toolSource
+      }
     }
     block.status = isError ? 'error' : 'success'
   }
@@ -900,7 +907,8 @@ function applyFinalizedToolResults(params: {
             rtkMode: stagedResult.rtkMode,
             rtkFallbackReason: stagedResult.rtkFallbackReason
           },
-      imagePresentation.toolBlockImagePreviews
+      imagePresentation.toolBlockImagePreviews,
+      stagedResult.toolSource
     )
     if (stagedResult.skippedReason) {
       markToolCallSkipped(batchToolCallBlocks, stagedResult.toolCallId, stagedResult.skippedReason)

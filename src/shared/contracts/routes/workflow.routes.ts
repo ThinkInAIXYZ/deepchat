@@ -6,6 +6,7 @@ import {
   WorkflowLaunchIntentSchema
 } from '../../workflow/serviceContracts'
 import { WorkflowSynthesisReceiptSchema } from '../../workflow/resultDelivery'
+import { WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES } from '../../workflow/runtimeProtocol'
 import {
   WORKFLOW_SAVED_MAX_SOURCE_BYTES,
   WorkflowSavedArgsTextSchema,
@@ -73,6 +74,37 @@ export const workflowPrepareLaunchRoute = defineRouteContract({
   output: z
     .object({
       approval: WorkflowLaunchApprovalSchema
+    })
+    .strict()
+})
+
+export const workflowValidateLaunchApprovalRoute = defineRouteContract({
+  name: 'workflow.validateLaunchApproval',
+  input: z
+    .object({
+      parentSessionId: WorkflowRouteIdSchema,
+      approvalId: z.string().uuid(),
+      scriptSource: z.string().min(1).max(WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES)
+    })
+    .strict(),
+  output: z
+    .object({
+      approval: WorkflowLaunchApprovalSchema
+    })
+    .strict()
+})
+
+export const workflowRevokeLaunchApprovalRoute = defineRouteContract({
+  name: 'workflow.revokeLaunchApproval',
+  input: z
+    .object({
+      parentSessionId: WorkflowRouteIdSchema,
+      approvalId: z.string().uuid()
+    })
+    .strict(),
+  output: z
+    .object({
+      revoked: z.boolean()
     })
     .strict()
 })

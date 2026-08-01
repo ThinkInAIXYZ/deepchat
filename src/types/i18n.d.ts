@@ -1277,6 +1277,18 @@ declare module 'vue-i18n' {
       }
     }
     workflow: {
+      mode: {
+        title: string
+        description: string
+        reasons: {
+          session_unavailable: string
+          agent_unavailable: string
+          deepchat_agent_required: string
+          regular_parent_required: string
+          agent_policy_unavailable: string
+          subagents_disabled: string
+        }
+      }
       title: string
       loading: string
       runLabel: string
@@ -1350,6 +1362,20 @@ declare module 'vue-i18n' {
       budget: {
         tokens: string
         duration: string
+      }
+      approval: {
+        checking: string
+        unavailable: string
+        unavailableShort: string
+        launched: string
+        launchUnconfirmed: string
+        revisionRequested: string
+        revisionRequestedShort: string
+        feedbackPlaceholder: string
+        stageRevision: string
+        modify: string
+        sourceDisclosure: string
+        revisionPrompt: string
       }
       saved: {
         title: string
@@ -2602,7 +2628,6 @@ declare module 'vue-i18n' {
             working: string
           }
         }
-        loadMore: string
       }
       compactionThreshold: string
       compactionRetainPairs: string

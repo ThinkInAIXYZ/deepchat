@@ -131,6 +131,15 @@ export const WorkflowLaunchApprovalSchema = z
 
 export type WorkflowLaunchApproval = z.infer<typeof WorkflowLaunchApprovalSchema>
 
+export const WorkflowPrepareLaunchToolResultSchema = z
+  .object({
+    approval: WorkflowLaunchApprovalSchema,
+    nextAction: z.string().trim().min(1).max(512)
+  })
+  .strict()
+
+export type WorkflowPrepareLaunchToolResult = z.infer<typeof WorkflowPrepareLaunchToolResultSchema>
+
 export function resolveWorkflowLaunchRequest(draft: WorkflowLaunchDraft): WorkflowLaunchRequest {
   const parsed = WorkflowLaunchDraftSchema.parse(draft)
   const limits = WorkflowRuntimeLimitsSchema.parse({

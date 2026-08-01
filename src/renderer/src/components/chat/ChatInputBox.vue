@@ -825,6 +825,18 @@ function insertRecognizedText(text: string) {
   editor.chain().focus().insertContent(normalizedText).run()
 }
 
+function insertTextBlock(text: string) {
+  if (!props.editable) return
+  const normalizedText = text.trim()
+  if (!normalizedText) {
+    return
+  }
+
+  const paragraphs = toEditorDoc(normalizedText).content ?? []
+  const content = editor.isEmpty ? paragraphs : [{ type: 'paragraph' }, ...paragraphs]
+  editor.chain().focus('end').insertContent(content).run()
+}
+
 function onFileSelect(event: Event) {
   if (!props.editable) {
     ;(event.target as HTMLInputElement).value = ''
@@ -918,6 +930,7 @@ function focusInput() {
 defineExpose({
   triggerAttach,
   insertRecognizedText,
+  insertTextBlock,
   insertWorkspaceReference,
   getInlineItemsSnapshot,
   getPendingSkillsSnapshot,

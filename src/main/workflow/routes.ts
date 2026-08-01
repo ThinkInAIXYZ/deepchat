@@ -5,6 +5,7 @@ import {
   workflowLaunchRoute,
   workflowListRoute,
   workflowPrepareLaunchRoute,
+  workflowRevokeLaunchApprovalRoute,
   workflowResumeRoute,
   workflowRetryRoute,
   workflowSavedListRoute,
@@ -12,7 +13,8 @@ import {
   workflowSavedReadRoute,
   workflowSavedSaveRoute,
   workflowSetModeRoute,
-  workflowSynthesizeRoute
+  workflowSynthesizeRoute,
+  workflowValidateLaunchApprovalRoute
 } from '@shared/contracts/routes'
 import type { WorkflowRun } from '@shared/workflow/domain'
 import type { WorkflowWaitingInteractionProjection } from '@shared/workflow/projection'
@@ -131,6 +133,28 @@ export function createWorkflowRoutes(
         const input = workflowPrepareLaunchRoute.input.parse(rawInput)
         return workflowPrepareLaunchRoute.output.parse({
           approval: await service.prepareLaunch(input)
+        })
+      }
+    ],
+    [
+      workflowValidateLaunchApprovalRoute.name,
+      async (rawInput) => {
+        const input = workflowValidateLaunchApprovalRoute.input.parse(rawInput)
+        return workflowValidateLaunchApprovalRoute.output.parse({
+          approval: service.validateLaunchApproval(
+            input.approvalId,
+            input.parentSessionId,
+            input.scriptSource
+          )
+        })
+      }
+    ],
+    [
+      workflowRevokeLaunchApprovalRoute.name,
+      async (rawInput) => {
+        const input = workflowRevokeLaunchApprovalRoute.input.parse(rawInput)
+        return workflowRevokeLaunchApprovalRoute.output.parse({
+          revoked: service.revokeLaunchApproval(input.approvalId, input.parentSessionId)
         })
       }
     ],

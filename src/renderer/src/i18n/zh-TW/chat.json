@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "最長 {duration}"
     },
+    "approval": {
+      "checking": "正在核驗這份審批…",
+      "unavailable": "這份審批已不可用。請產生修訂後的計畫再繼續。",
+      "unavailableShort": "審批不可用",
+      "launched": "工作流程已啟動",
+      "launchUnconfirmed": "無法確認工作流程是否已經啟動。請先檢查工作流程歷史，再產生新的計畫。",
+      "revisionRequested": "意見已加入輸入框。傳送後會產生一份新的審批。",
+      "revisionRequestedShort": "已要求修改",
+      "feedbackPlaceholder": "說明你希望修改的內容…",
+      "stageRevision": "將意見加入輸入框",
+      "modify": "修改計畫",
+      "sourceDisclosure": "產生的工作流程原始碼",
+      "revisionPrompt": "請根據以下意見修改原始碼雜湊為 {sourceHash} 的待審批工作流程計畫，再次呼叫 workflow 的 operation=prepare_launch，並且不要啟動它。\n\n意見：\n{feedback}"
+    },
     "saved": {
       "title": "已儲存的工作流程",
       "workspaceRequired": "請先開啟專案工作區，再建立和執行已儲存的工作流程。",

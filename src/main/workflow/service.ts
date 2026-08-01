@@ -257,9 +257,18 @@ export class WorkflowService {
     })
   }
 
-  getLaunchApproval(approvalId: string, expectedParentSessionId?: string): WorkflowLaunchApproval {
+  validateLaunchApproval(
+    approvalId: string,
+    expectedParentSessionId: string,
+    scriptSource: string
+  ): WorkflowLaunchApproval {
     this.requireAvailable()
-    return this.approvals.get(approvalId, expectedParentSessionId)
+    return this.approvals.validateSource(approvalId, expectedParentSessionId, scriptSource)
+  }
+
+  revokeLaunchApproval(approvalId: string, expectedParentSessionId: string): boolean {
+    this.requireAvailable()
+    return this.approvals.revoke(approvalId, expectedParentSessionId)
   }
 
   async launch(approvalId: string, expectedParentSessionId?: string): Promise<WorkflowRun> {

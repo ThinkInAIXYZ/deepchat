@@ -277,7 +277,7 @@ function buildWorkflowModePrompt(agentToolNames: Set<string>): string {
     'The user explicitly selected persistent Workflow mode for this session.',
     'For complex work that benefits from decomposition, durable progress, or parallel agents, generate the workflow JavaScript internally and call `workflow` with `operation=prepare_launch`.',
     'Do not ask the user to author workflow JavaScript. Simple questions and necessary clarifications may still be answered directly.',
-    'Never call `operation=launch` until the exact prepared plan has received explicit user approval.'
+    'The native approval card owns explicit user approval and exact-ID launch. Never call `operation=launch` for a prepared plan.'
   ].join('\n')
 }
 

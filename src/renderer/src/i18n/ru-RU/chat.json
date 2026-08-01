@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Проверка подтверждения…",
+      "unavailable": "Это подтверждение больше недоступно. Подготовьте обновлённый план, чтобы продолжить.",
+      "unavailableShort": "Подтверждение недоступно",
+      "launched": "Workflow запущен",
+      "launchUnconfirmed": "Не удалось подтвердить результат запуска. Проверьте историю workflow, прежде чем готовить другой план.",
+      "revisionRequested": "Отзыв добавлен в поле ввода. Отправьте его, чтобы подготовить новое подтверждение.",
+      "revisionRequestedShort": "Изменение запрошено",
+      "feedbackPlaceholder": "Опишите, что нужно изменить…",
+      "stageRevision": "Добавить отзыв в поле ввода",
+      "modify": "Изменить план",
+      "sourceDisclosure": "Сгенерированный исходный код workflow",
+      "revisionPrompt": "Измените ожидающий подтверждения план workflow с хешем исходника {sourceHash} согласно отзыву ниже. Снова вызовите workflow с operation=prepare_launch и не запускайте его.\n\nОтзыв:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

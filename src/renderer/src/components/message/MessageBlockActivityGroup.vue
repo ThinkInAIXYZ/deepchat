@@ -49,6 +49,7 @@
             :block="block"
             :message-id="messageId"
             :thread-id="threadId"
+            :read-only="readOnly"
           />
         </template>
       </div>
@@ -76,6 +77,7 @@ const props = defineProps<{
   durationMs: number
   reasoningCount: number
   toolCallCount: number
+  readOnly?: boolean
 }>()
 
 const emit = defineEmits<{

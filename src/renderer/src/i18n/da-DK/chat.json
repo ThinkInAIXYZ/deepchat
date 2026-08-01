@@ -643,6 +643,20 @@
       "tokens": "{count} tokens",
       "duration": "{duration} maximum"
     },
+    "approval": {
+      "checking": "Kontrollerer godkendelsen…",
+      "unavailable": "Denne godkendelse er ikke længere tilgængelig. Forbered en revideret plan for at fortsætte.",
+      "unavailableShort": "Godkendelse utilgængelig",
+      "launched": "Workflow startet",
+      "launchUnconfirmed": "Det kunne ikke bekræftes, om workflowet blev startet. Kontrollér workflowhistorikken, før du opretter en ny plan.",
+      "revisionRequested": "Feedback blev føjet til inputfeltet. Send den for at forberede en ny godkendelse.",
+      "revisionRequestedShort": "Revision anmodet",
+      "feedbackPlaceholder": "Beskriv, hvad der skal ændres…",
+      "stageRevision": "Føj feedback til input",
+      "modify": "Rediger plan",
+      "sourceDisclosure": "Genereret workflow-kilde",
+      "revisionPrompt": "Revider den afventende workflow-plan med kildehash {sourceHash} ud fra feedbacken nedenfor. Kald workflow igen med operation=prepare_launch, og start den ikke.\n\nFeedback:\n{feedback}"
+    },
     "saved": {
       "title": "Saved workflows",
       "workspaceRequired": "Open a project workspace to create and run saved workflows.",

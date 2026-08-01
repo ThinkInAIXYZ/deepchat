@@ -306,6 +306,7 @@ export interface AssistantMessageExtra {
   permissionType?: 'read' | 'write' | 'all' | 'command'
   grantedPermissions?: 'read' | 'write' | 'all' | 'command'
   toolName?: string
+  toolSource?: 'agent' | 'mcp'
   serverName?: string
   providerId?: string
   permissionRequestId?: string

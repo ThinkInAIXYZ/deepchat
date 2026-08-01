@@ -38,6 +38,13 @@ export class WorkflowLaunchApprovalScopeError extends Error {
   }
 }
 
+export class WorkflowLaunchApprovalSourceError extends Error {
+  constructor() {
+    super('Workflow launch approval does not match the displayed source snapshot.')
+    this.name = 'WorkflowLaunchApprovalSourceError'
+  }
+}
+
 export class WorkflowLaunchApprovalRegistry {
   private readonly pending = new Map<string, PendingWorkflowApproval>()
   private pendingBytes = 0
@@ -142,6 +149,23 @@ export class WorkflowLaunchApprovalRegistry {
     return WorkflowLaunchApprovalSchema.parse(pending.approval)
   }
 
+  validateSource(
+    approvalId: string,
+    expectedParentSessionId: string,
+    scriptSource: string
+  ): WorkflowLaunchApproval {
+    this.prune()
+    const pending = this.pending.get(approvalId)
+    if (!pending) {
+      throw new WorkflowLaunchApprovalExpiredError()
+    }
+    this.assertExpectedParent(pending, expectedParentSessionId)
+    if (pending.request.scriptSource !== scriptSource) {
+      throw new WorkflowLaunchApprovalSourceError()
+    }
+    return WorkflowLaunchApprovalSchema.parse(pending.approval)
+  }
+
   consume(approvalId: string, expectedParentSessionId?: string): WorkflowLaunchRequest {
     this.prune()
     const pending = this.pending.get(approvalId)
@@ -153,9 +177,14 @@ export class WorkflowLaunchApprovalRegistry {
     return pending.request
   }
 
-  revoke(approvalId: string): boolean {
+  revoke(approvalId: string, expectedParentSessionId: string): boolean {
+    this.prune()
     const pending = this.pending.get(approvalId)
-    return pending ? this.deletePending(approvalId, pending) : false
+    if (!pending) {
+      return false
+    }
+    this.assertExpectedParent(pending, expectedParentSessionId)
+    return this.deletePending(approvalId, pending)
   }
 
   close(): void {

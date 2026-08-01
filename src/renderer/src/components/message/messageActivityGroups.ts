@@ -1,4 +1,5 @@
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import { parseWorkflowLaunchApprovalBlock } from '@/lib/workflowLaunchApproval'
 
 export type AssistantRenderItem =
   | {
@@ -149,6 +150,16 @@ export const buildAssistantRenderItems = ({
     }
 
     if (shouldGroup && isEmptyReasoningBlock(block)) {
+      return
+    }
+
+    if (shouldGroup && parseWorkflowLaunchApprovalBlock(block)) {
+      flushActivityBuffer()
+      items.push({
+        kind: 'block',
+        key: buildBlockKey(block, messageId, index),
+        block
+      })
       return
     }
 

@@ -142,8 +142,6 @@ export interface AgentWorkflowToolPort {
       allowedAgentIds?: string[]
     }
   ): Promise<WorkflowLaunchApproval>
-  getLaunchApproval(parentSessionId: string, approvalId: string): Promise<WorkflowLaunchApproval>
-  launch(parentSessionId: string, approvalId: string): Promise<WorkflowRunSummary>
   list(parentSessionId: string, limit?: number): Promise<WorkflowRunSummary[]>
   inspect(parentSessionId: string, runId: string): Promise<WorkflowRunDetail>
   cancel(parentSessionId: string, runId: string, reason?: string): Promise<WorkflowRunSummary>
