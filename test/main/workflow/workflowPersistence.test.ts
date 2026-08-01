@@ -5,6 +5,7 @@ import {
   WORKFLOW_RUNTIME_DEFAULT_LIMITS
 } from '@shared/workflow/runtimeProtocol'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
+import { TEST_WORKFLOW_EXECUTION_SNAPSHOT } from './workflowTestFixtures'
 
 const workflowDatabaseModule = Database
   ? await import('@/workflow/data/database').catch(() => null)
@@ -66,6 +67,7 @@ describeIfSqlite('WorkflowRepository', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return input',
       input: { z: 1, a: 2 },
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -131,6 +133,7 @@ describeIfSqlite('WorkflowRepository', () => {
       id: 'run-1',
       input: { a: 2, z: 1 },
       allowedAgentIds: ['reader', 'writer'],
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       status: 'queued',
       executionEpoch: 1,
       nextInvocationSeq: 1
@@ -143,6 +146,7 @@ describeIfSqlite('WorkflowRepository', () => {
         parentSessionId: 'missing',
         workspacePath: '/repo',
         capabilityScopeHash: 'a'.repeat(64),
+        executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
         scriptSource: 'return input',
         input: null,
         limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -155,6 +159,15 @@ describeIfSqlite('WorkflowRepository', () => {
       db!
         .prepare("UPDATE workflow_runs SET script_source = 'return 42' WHERE run_id = 'run-1'")
         .run()
+    ).toThrow('workflow run snapshot is immutable')
+    expect(() =>
+      db!.prepare('UPDATE workflow_runs SET execution_snapshot_json = ? WHERE run_id = ?').run(
+        JSON.stringify({
+          ...TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+          modelId: 'different-model'
+        }),
+        'run-1'
+      )
     ).toThrow('workflow run snapshot is immutable')
     db!.exec('DROP TRIGGER trg_workflow_runs_immutable_snapshot')
     db!.prepare("UPDATE workflow_runs SET script_source = 'return 42' WHERE run_id = 'run-1'").run()
@@ -412,6 +425,7 @@ describeIfSqlite('WorkflowRepository', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return input',
       input: null,
       limits: {
@@ -440,6 +454,7 @@ describeIfSqlite('WorkflowRepository', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return input',
       input: null,
       limits: {

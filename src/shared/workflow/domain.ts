@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { JsonValueSchema, type JsonValue } from '../contracts/common'
+import {
+  JsonValueSchema,
+  SessionGenerationSettingsPatchSchema,
+  type JsonValue
+} from '../contracts/common'
 import {
   WorkflowGuestAgentRequestSchema,
   WorkflowInvocationErrorSchema,
@@ -36,6 +40,8 @@ export const WORKFLOW_RESULT_DELIVERY_STATES = ['not_ready', 'pending', 'deliver
 export const WORKFLOW_STORED_METADATA_MAX_BYTES = 64 * 1024
 export const WORKFLOW_STORED_EVIDENCE_MAX_BYTES = 256 * 1024
 export const WORKFLOW_STORED_JSON_MAX_BYTES = 8 * 1024 * 1024
+export const WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES = 512 * 1024
+export const WORKFLOW_UNAVAILABLE_EXECUTION_ID = '__deepchat_workflow_legacy_unavailable__'
 
 export const WorkflowRunStatusSchema = z.enum(WORKFLOW_RUN_STATUSES)
 export const WorkflowInvocationStatusSchema = z.enum(WORKFLOW_INVOCATION_STATUSES)
@@ -58,6 +64,32 @@ const WorkspacePathSchema = z
   .max(4_096)
   .refine((value) => !value.includes('\0'), 'Workspace path cannot contain NUL')
 const TimestampSchema = z.number().int().nonnegative()
+const ExecutionIdentitySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(4_096)
+  .refine((value) => !value.includes('\0'), 'Execution identity cannot contain NUL')
+
+export const WorkflowExecutionSnapshotSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    providerId: ExecutionIdentitySchema,
+    modelId: ExecutionIdentitySchema,
+    generationSettings: SessionGenerationSettingsPatchSchema.strict()
+  })
+  .strict()
+
+export type WorkflowExecutionSnapshot = z.infer<typeof WorkflowExecutionSnapshotSchema>
+
+export function isWorkflowExecutionSnapshotUnavailable(
+  snapshot: WorkflowExecutionSnapshot
+): boolean {
+  return (
+    snapshot.providerId === WORKFLOW_UNAVAILABLE_EXECUTION_ID &&
+    snapshot.modelId === WORKFLOW_UNAVAILABLE_EXECUTION_ID
+  )
+}
 
 export const WorkflowTapeLinkReceiptSchema = z
   .object({
@@ -120,6 +152,7 @@ export const WorkflowRunSchema = z
     namedWorkflowPath: z.string().max(4_096).nullable(),
     workspacePath: WorkspacePathSchema.nullable(),
     capabilityScopeHash: HashSchema,
+    executionSnapshot: WorkflowExecutionSnapshotSchema,
     scriptSource: z.string().min(1),
     scriptHash: HashSchema,
     input: JsonValueSchema,
@@ -269,6 +302,7 @@ export interface WorkflowRunCreateInput {
   namedWorkflowPath?: string | null
   workspacePath: string | null
   capabilityScopeHash: string
+  executionSnapshot: WorkflowExecutionSnapshot
   scriptSource: string
   input: JsonValue
   limits: WorkflowRuntimeLimits

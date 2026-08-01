@@ -2,7 +2,12 @@ import type Database from 'better-sqlite3-multiple-ciphers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Database as NativeDatabase, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 import type { JsonValue } from '@shared/contracts/common'
-import type { WorkflowInvocation, WorkflowRun } from '@shared/workflow/domain'
+import {
+  WORKFLOW_UNAVAILABLE_EXECUTION_ID,
+  type WorkflowExecutionSnapshot,
+  type WorkflowInvocation,
+  type WorkflowRun
+} from '@shared/workflow/domain'
 import {
   WORKFLOW_RUNTIME_DEFAULT_LIMITS,
   WORKFLOW_RUNTIME_PROTOCOL_VERSION,
@@ -27,6 +32,7 @@ import {
   type WorkflowUtilityHostPort
 } from '@/workflow/service'
 import type { WorkflowUtilityProcessHostOptions } from '@/workflow/runtime/workflowUtilityProcessHost'
+import { TEST_WORKFLOW_EXECUTION_SNAPSHOT } from './workflowTestFixtures'
 
 const DatabaseCtor = NativeDatabase!
 const describeIfSqlite = nativeSqliteDescribeIf(
@@ -130,6 +136,18 @@ describeIfSqlite('WorkflowService', () => {
     db.close()
   })
 
+  function createLaunchScopePort(
+    resolver: WorkflowLaunchScopePort['resolve']
+  ): WorkflowLaunchScopePort {
+    return {
+      resolve: vi.fn(resolver),
+      resolveCapabilityScope: vi.fn(async (input) => {
+        const { executionSnapshot: _executionSnapshot, ...scope } = await resolver(input)
+        return scope
+      })
+    }
+  }
+
   function createService(
     childExecutor: WorkflowChildExecutionPort = succeedingChildExecutor(),
     runAdmission = new WorkflowRunAdmission(4, 64),
@@ -145,16 +163,17 @@ describeIfSqlite('WorkflowService', () => {
       childExecutor,
       runAdmission,
       resultDelivery: options.resultDelivery ?? createResultDelivery(),
-      launchScope: options.launchScope ?? {
-        resolve: vi.fn(
+      launchScope:
+        options.launchScope ??
+        createLaunchScopePort(
           async (input): Promise<Awaited<ReturnType<WorkflowLaunchScopePort['resolve']>>> => ({
             workspacePath: '/repo',
             allowedAgentIds: [...new Set(input.allowedAgentIds)].sort(),
             capabilityScopeHash: 'a'.repeat(64),
+            executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
             capabilities: ['Delegate with the current parent permission policy']
           })
-        )
-      },
+        ),
       hostFactory: (hostOptions) => {
         const host = new FakeWorkflowHost(hostOptions)
         hosts.push(host)
@@ -246,6 +265,7 @@ describeIfSqlite('WorkflowService', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return await agent("Do the work", { key: "work" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -269,12 +289,16 @@ describeIfSqlite('WorkflowService', () => {
     return repository.requireRun(run.id)
   }
 
-  function createQueuedRun(id: string): WorkflowRun {
+  function createQueuedRun(
+    id: string,
+    executionSnapshot: WorkflowExecutionSnapshot = TEST_WORKFLOW_EXECUTION_SNAPSHOT
+  ): WorkflowRun {
     return repository.createRun({
       id,
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot,
       scriptSource: 'return null',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -394,6 +418,7 @@ describeIfSqlite('WorkflowService', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return null',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -417,14 +442,13 @@ describeIfSqlite('WorkflowService', () => {
   it('revalidates the main-resolved workspace when consuming a launch approval', async () => {
     let workspacePath = '/repo'
     const service = createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 1), {
-      launchScope: {
-        resolve: vi.fn(async (input) => ({
-          workspacePath,
-          allowedAgentIds: input.allowedAgentIds,
-          capabilityScopeHash: 'a'.repeat(64),
-          capabilities: ['Delegate with the current parent permission policy']
-        }))
-      }
+      launchScope: createLaunchScopePort(async (input) => ({
+        workspacePath,
+        allowedAgentIds: input.allowedAgentIds,
+        capabilityScopeHash: 'a'.repeat(64),
+        executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+        capabilities: ['Delegate with the current parent permission policy']
+      }))
     })
     const approval = await service.prepareLaunch({
       parentSessionId: 'parent',
@@ -443,14 +467,13 @@ describeIfSqlite('WorkflowService', () => {
 
   it('rejects a saved source if its workspace changes before approval registration', async () => {
     const service = createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 1), {
-      launchScope: {
-        resolve: vi.fn(async (input) => ({
-          workspacePath: '/other-repo',
-          allowedAgentIds: input.allowedAgentIds,
-          capabilityScopeHash: 'a'.repeat(64),
-          capabilities: ['Delegate with the current parent permission policy']
-        }))
-      }
+      launchScope: createLaunchScopePort(async (input) => ({
+        workspacePath: '/other-repo',
+        allowedAgentIds: input.allowedAgentIds,
+        capabilityScopeHash: 'a'.repeat(64),
+        executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+        capabilities: ['Delegate with the current parent permission policy']
+      }))
     })
 
     await expect(
@@ -474,14 +497,13 @@ describeIfSqlite('WorkflowService', () => {
   it('invalidates approval when the effective child capability scope changes', async () => {
     let capabilityScopeHash = 'a'.repeat(64)
     const service = createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 1), {
-      launchScope: {
-        resolve: vi.fn(async (input) => ({
-          workspacePath: '/repo',
-          allowedAgentIds: input.allowedAgentIds,
-          capabilityScopeHash,
-          capabilities: ['Delegate with the current parent permission policy']
-        }))
-      }
+      launchScope: createLaunchScopePort(async (input) => ({
+        workspacePath: '/repo',
+        allowedAgentIds: input.allowedAgentIds,
+        capabilityScopeHash,
+        executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+        capabilities: ['Delegate with the current parent permission policy']
+      }))
     })
     const approval = await service.prepareLaunch({
       parentSessionId: 'parent',
@@ -497,18 +519,93 @@ describeIfSqlite('WorkflowService', () => {
     expect(repository.listRunsByParent('parent')).toEqual([])
   })
 
+  it('invalidates approval when launch-time model settings change', async () => {
+    let executionSnapshot: WorkflowExecutionSnapshot = TEST_WORKFLOW_EXECUTION_SNAPSHOT
+    const service = createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 1), {
+      launchScope: createLaunchScopePort(async (input) => ({
+        workspacePath: '/repo',
+        allowedAgentIds: input.allowedAgentIds,
+        capabilityScopeHash: 'a'.repeat(64),
+        executionSnapshot,
+        capabilities: ['Delegate with the current parent permission policy']
+      }))
+    })
+    const approval = await service.prepareLaunch({
+      parentSessionId: 'parent',
+      scriptSource: 'return null',
+      input: null,
+      allowedAgentIds: ['deepchat']
+    })
+    executionSnapshot = {
+      ...executionSnapshot,
+      generationSettings: {
+        ...executionSnapshot.generationSettings,
+        reasoningEffort: 'high'
+      }
+    }
+
+    await expect(service.launch(approval.approvalId)).rejects.toThrow(
+      'model or generation settings changed after launch approval'
+    )
+    expect(repository.listRunsByParent('parent')).toEqual([])
+  })
+
+  it('keeps an active run on its immutable execution snapshot', async () => {
+    let executionSnapshot: WorkflowExecutionSnapshot = TEST_WORKFLOW_EXECUTION_SNAPSHOT
+    const childExecutor = succeedingChildExecutor()
+    const service = createService(childExecutor, new WorkflowRunAdmission(1, 1), {
+      launchScope: createLaunchScopePort(async (input) => ({
+        workspacePath: '/repo',
+        allowedAgentIds: input.allowedAgentIds,
+        capabilityScopeHash: 'a'.repeat(64),
+        executionSnapshot,
+        capabilities: ['Delegate with the current parent permission policy']
+      }))
+    })
+    const run = await prepareAndLaunch(service)
+    const host = await waitForHost()
+    executionSnapshot = {
+      ...executionSnapshot,
+      modelId: 'model-2',
+      generationSettings: {
+        ...executionSnapshot.generationSettings,
+        reasoningEffort: 'high'
+      }
+    }
+    const futureRun = await prepareAndLaunch(service, { input: { order: 2 } })
+
+    host.emit({
+      type: 'INVOKE_AGENT',
+      requestId: 'settings-changed',
+      request: request()
+    })
+    await vi.waitFor(() => expect(host.settlements).toHaveLength(1))
+
+    expect(childExecutor.execute).toHaveBeenCalledOnce()
+    expect(repository.requireRun(run.id).executionSnapshot).toEqual(
+      TEST_WORKFLOW_EXECUTION_SNAPSHOT
+    )
+    expect(repository.requireRun(futureRun.id).executionSnapshot).toMatchObject({
+      modelId: 'model-2',
+      generationSettings: { reasoningEffort: 'high' }
+    })
+    expect(host.settlements[0]).toMatchObject({
+      requestId: 'settings-changed',
+      outcome: { status: 'success' }
+    })
+  })
+
   it('fails the whole run when capability scope changes before a child dispatch', async () => {
     let capabilityScopeHash = 'a'.repeat(64)
     const childExecutor = succeedingChildExecutor()
     const service = createService(childExecutor, new WorkflowRunAdmission(1, 1), {
-      launchScope: {
-        resolve: vi.fn(async (input) => ({
-          workspacePath: '/repo',
-          allowedAgentIds: input.allowedAgentIds,
-          capabilityScopeHash,
-          capabilities: ['Delegate with the current parent permission policy']
-        }))
-      }
+      launchScope: createLaunchScopePort(async (input) => ({
+        workspacePath: '/repo',
+        allowedAgentIds: input.allowedAgentIds,
+        capabilityScopeHash,
+        executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+        capabilities: ['Delegate with the current parent permission policy']
+      }))
     })
     const run = await prepareAndLaunch(service)
     const host = await waitForHost()
@@ -531,14 +628,13 @@ describeIfSqlite('WorkflowService', () => {
   it('fails a resumed run before starting a utility when its durable scope changed', async () => {
     const dormant = createDormantRun('failed')
     const service = createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 1), {
-      launchScope: {
-        resolve: vi.fn(async (input) => ({
-          workspacePath: '/repo',
-          allowedAgentIds: input.allowedAgentIds,
-          capabilityScopeHash: 'b'.repeat(64),
-          capabilities: ['Delegate with the current parent permission policy']
-        }))
-      }
+      launchScope: createLaunchScopePort(async (input) => ({
+        workspacePath: '/repo',
+        allowedAgentIds: input.allowedAgentIds,
+        capabilityScopeHash: 'b'.repeat(64),
+        executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+        capabilities: ['Delegate with the current parent permission policy']
+      }))
     })
 
     service.resume(dormant.id)
@@ -581,6 +677,7 @@ describeIfSqlite('WorkflowService', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return await agent("active", { key: "active" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -599,6 +696,7 @@ describeIfSqlite('WorkflowService', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return null',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -631,6 +729,27 @@ describeIfSqlite('WorkflowService', () => {
       status: 'running',
       executionEpoch: 2
     })
+  })
+
+  it('fails closed before utility startup when a legacy execution snapshot is unavailable', async () => {
+    const admission = new WorkflowRunAdmission(1, 1)
+    const acquire = vi.spyOn(admission, 'acquire')
+    const run = createQueuedRun('startup-missing-execution-snapshot', {
+      schemaVersion: 1,
+      providerId: WORKFLOW_UNAVAILABLE_EXECUTION_ID,
+      modelId: WORKFLOW_UNAVAILABLE_EXECUTION_ID,
+      generationSettings: {}
+    })
+
+    createService(succeedingChildExecutor(), admission)
+
+    const failed = await waitForRun(run.id, 'failed')
+    expect(failed.error).toMatchObject({
+      code: 'WORKFLOW_EXECUTION_SNAPSHOT_UNAVAILABLE',
+      retriable: false
+    })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(hosts).toEqual([])
   })
 
   it('pumps a durable startup backlog without overflowing in-memory admission', async () => {
@@ -833,6 +952,7 @@ describeIfSqlite('WorkflowService', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return await agent("Do the work", { key: "work" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -883,6 +1003,7 @@ describeIfSqlite('WorkflowService', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return await agent("Do the work", { key: "work" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -984,6 +1105,7 @@ describeIfSqlite('WorkflowService', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return await agent("Write the file", { key: "write" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -1110,6 +1232,7 @@ describeIfSqlite('WorkflowService', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return await agent("Do the work", { key: "work" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -1184,6 +1307,7 @@ describeIfSqlite('WorkflowService', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return await agent("Do the work", { key: "work" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,

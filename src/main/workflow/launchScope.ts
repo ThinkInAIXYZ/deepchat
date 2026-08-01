@@ -7,9 +7,15 @@ import type {
 } from '@shared/types/agent-interface'
 import type { AgentToolSessionPort, ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { WorkflowLaunchScopePort } from './service'
+import type {
+  WorkflowCapabilityScopeResolution,
+  WorkflowLaunchScopePort,
+  WorkflowScopeRequest
+} from './service'
 import { canonicalizeWorkflowJson } from './domain/json'
 import type { WorkflowCapability } from '@shared/workflow/orchestrationMode'
+import type { WorkflowExecutionSnapshot } from '@shared/workflow/domain'
+import { canonicalizeWorkflowExecutionSnapshot } from './domain/executionSnapshot'
 
 const WORKFLOW_CAPABILITY_SCOPE_MAX_BYTES = 512 * 1024
 
@@ -67,15 +73,31 @@ export class WorkflowLaunchScopeResolver implements WorkflowLaunchScopePort {
     }
   }
 
-  async resolve(input: {
-    parentSessionId: string
-    parentMessageId: string | null
-    allowedAgentIds: string[]
-  }): Promise<{
-    workspacePath: string | null
-    allowedAgentIds: string[]
-    capabilityScopeHash: string
-    capabilities: string[]
+  async resolve(
+    input: WorkflowScopeRequest
+  ): Promise<WorkflowCapabilityScopeResolution & { executionSnapshot: WorkflowExecutionSnapshot }> {
+    const { parent, scope } = await this.resolveBase(input)
+    if (parent.generationSettings === null) {
+      throw new Error('Workflow parent generation settings are unavailable.')
+    }
+    const executionSnapshot = canonicalizeWorkflowExecutionSnapshot({
+      schemaVersion: 1,
+      providerId: parent.providerId,
+      modelId: parent.modelId,
+      generationSettings: parent.generationSettings
+    }).snapshot
+    return { ...scope, executionSnapshot }
+  }
+
+  async resolveCapabilityScope(
+    input: WorkflowScopeRequest
+  ): Promise<WorkflowCapabilityScopeResolution> {
+    return (await this.resolveBase(input)).scope
+  }
+
+  private async resolveBase(input: WorkflowScopeRequest): Promise<{
+    parent: ConversationSessionInfo
+    scope: WorkflowCapabilityScopeResolution
   }> {
     const parent = await this.options.sessions.resolveConversationSessionInfo(input.parentSessionId)
     if (!parent) {
@@ -128,10 +150,13 @@ export class WorkflowLaunchScopeResolver implements WorkflowLaunchScopePort {
     ]
 
     return {
-      workspacePath,
-      allowedAgentIds,
-      capabilityScopeHash,
-      capabilities
+      parent,
+      scope: {
+        workspacePath,
+        allowedAgentIds,
+        capabilityScopeHash,
+        capabilities
+      }
     }
   }
 
@@ -155,9 +180,9 @@ export async function assertCurrentWorkflowRunScope(
   scope: WorkflowLaunchScopePort,
   run: WorkflowRun
 ): Promise<void> {
-  let resolved: Awaited<ReturnType<WorkflowLaunchScopePort['resolve']>>
+  let resolved: Awaited<ReturnType<WorkflowLaunchScopePort['resolveCapabilityScope']>>
   try {
-    resolved = await scope.resolve({
+    resolved = await scope.resolveCapabilityScope({
       parentSessionId: run.parentSessionId,
       // The message is immutable provenance, not execution authority. It is checked during
       // prepare/launch but may be pruned while a durable run remains resumable.
@@ -205,11 +230,8 @@ function projectParentPolicy(
   return {
     sessionId: parent.sessionId,
     agentId: parent.agentId,
-    providerId: parent.providerId,
-    modelId: parent.modelId,
     workspacePath,
     permissionMode: parent.permissionMode,
-    generationSettings: normalizePlainJson(parent.generationSettings),
     disabledAgentTools: [...new Set(parent.disabledAgentTools)].sort(),
     activeSkills: [...new Set(parent.activeSkills)].sort(),
     subagentEnabled: config.subagentEnabled === true

@@ -1,8 +1,10 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 import {
+  WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES,
   WORKFLOW_STORED_JSON_MAX_BYTES,
   WORKFLOW_STORED_METADATA_MAX_BYTES,
+  WORKFLOW_UNAVAILABLE_EXECUTION_ID,
   type WorkflowResultDeliveryState,
   type WorkflowRunStatus
 } from '@shared/workflow/domain'
@@ -10,8 +12,145 @@ import { WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES } from '@shared/workflow/runtimeProto
 
 export const WORKFLOW_BASE_SCHEMA_VERSION = 53
 export const WORKFLOW_SCOPE_SCHEMA_VERSION = 54
-export const WORKFLOW_SCHEMA_VERSION = 55
+export const WORKFLOW_INVOCATION_TIMEOUT_SCHEMA_VERSION = 55
+export const WORKFLOW_EXECUTION_SNAPSHOT_SCHEMA_VERSION = 58
+export const WORKFLOW_SCHEMA_VERSION = WORKFLOW_EXECUTION_SNAPSHOT_SCHEMA_VERSION
 export const LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH = '0'.repeat(64)
+export const LEGACY_WORKFLOW_EXECUTION_SNAPSHOT_JSON = JSON.stringify({
+  schemaVersion: 1,
+  providerId: WORKFLOW_UNAVAILABLE_EXECUTION_ID,
+  modelId: WORKFLOW_UNAVAILABLE_EXECUTION_ID,
+  generationSettings: {}
+})
+const LEGACY_WORKFLOW_SYSTEM_PROMPT_MAX_BYTES = 256 * 1024
+const LEGACY_WORKFLOW_MEDIA_OPTIONS_MAX_BYTES = 96 * 1024
+export const WORKFLOW_EXECUTION_SNAPSHOT_ADD_COLUMN_SQL = `
+  ALTER TABLE workflow_runs
+  ADD COLUMN execution_snapshot_json TEXT NOT NULL
+  DEFAULT '${LEGACY_WORKFLOW_EXECUTION_SNAPSHOT_JSON}' CHECK (
+    json_valid(execution_snapshot_json)
+    AND json_type(execution_snapshot_json) = 'object'
+    AND json_extract(execution_snapshot_json, '$.schemaVersion') = 1
+    AND json_type(execution_snapshot_json, '$.providerId') = 'text'
+    AND length(json_extract(execution_snapshot_json, '$.providerId')) BETWEEN 1 AND 4096
+    AND instr(json_extract(execution_snapshot_json, '$.providerId'), char(0)) = 0
+    AND json_type(execution_snapshot_json, '$.modelId') = 'text'
+    AND length(json_extract(execution_snapshot_json, '$.modelId')) BETWEEN 1 AND 4096
+    AND instr(json_extract(execution_snapshot_json, '$.modelId'), char(0)) = 0
+    AND json_type(execution_snapshot_json, '$.generationSettings') = 'object'
+    AND length(CAST(execution_snapshot_json AS BLOB))
+      <= ${WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES}
+  )
+`
+export const WORKFLOW_EXECUTION_SNAPSHOT_BACKFILL_SQL = `
+  WITH execution_snapshots AS (
+    SELECT
+      workflow_runs.run_id,
+      json_object(
+        'schemaVersion', 1,
+        'providerId', trim(deepchat_sessions.provider_id),
+        'modelId', trim(deepchat_sessions.model_id),
+        'generationSettings', json_patch(
+          '{}',
+          json_object(
+            'systemPrompt', CASE
+              WHEN length(CAST(deepchat_sessions.system_prompt AS BLOB))
+                <= ${LEGACY_WORKFLOW_SYSTEM_PROMPT_MAX_BYTES}
+                THEN deepchat_sessions.system_prompt
+              ELSE NULL
+            END,
+            'temperature', CASE
+              WHEN typeof(deepchat_sessions.temperature) IN ('integer', 'real')
+                THEN deepchat_sessions.temperature
+              ELSE NULL
+            END,
+            'topP', CASE
+              WHEN deepchat_sessions.top_p BETWEEN 0.1 AND 1 THEN deepchat_sessions.top_p
+              ELSE NULL
+            END,
+            'contextLength', CASE
+              WHEN typeof(deepchat_sessions.context_length) = 'integer'
+                THEN deepchat_sessions.context_length
+              ELSE NULL
+            END,
+            'maxTokens', CASE
+              WHEN typeof(deepchat_sessions.max_tokens) = 'integer'
+                THEN deepchat_sessions.max_tokens
+              ELSE NULL
+            END,
+            'timeout', CASE
+              WHEN typeof(deepchat_sessions.timeout_ms) = 'integer'
+                THEN deepchat_sessions.timeout_ms
+              ELSE NULL
+            END,
+            'thinkingBudget', CASE
+              WHEN typeof(deepchat_sessions.thinking_budget) = 'integer'
+                THEN deepchat_sessions.thinking_budget
+              ELSE NULL
+            END,
+            'reasoningEffort', CASE
+              WHEN deepchat_sessions.reasoning_effort IN (
+                'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'
+              ) THEN deepchat_sessions.reasoning_effort
+              ELSE NULL
+            END,
+            'reasoningVisibility', CASE
+              WHEN deepchat_sessions.reasoning_visibility IN (
+                'hidden', 'summary', 'full', 'mixed', 'omitted', 'summarized'
+              ) THEN deepchat_sessions.reasoning_visibility
+              ELSE NULL
+            END,
+            'verbosity', CASE
+              WHEN deepchat_sessions.verbosity IN ('low', 'medium', 'high')
+                THEN deepchat_sessions.verbosity
+              ELSE NULL
+            END,
+            'forceInterleavedThinkingCompat', CASE
+              WHEN deepchat_sessions.force_interleaved_thinking_compat = 1 THEN json('true')
+              WHEN deepchat_sessions.force_interleaved_thinking_compat = 0 THEN json('false')
+              ELSE NULL
+            END,
+            'imageGeneration', CASE
+              WHEN json_valid(deepchat_sessions.image_generation_options_json)
+                AND json_type(deepchat_sessions.image_generation_options_json) = 'object'
+                AND length(CAST(deepchat_sessions.image_generation_options_json AS BLOB))
+                  <= ${LEGACY_WORKFLOW_MEDIA_OPTIONS_MAX_BYTES}
+                THEN json(deepchat_sessions.image_generation_options_json)
+              ELSE NULL
+            END,
+            'videoGeneration', CASE
+              WHEN json_valid(deepchat_sessions.video_generation_options_json)
+                AND json_type(deepchat_sessions.video_generation_options_json) = 'object'
+                AND length(CAST(deepchat_sessions.video_generation_options_json AS BLOB))
+                  <= ${LEGACY_WORKFLOW_MEDIA_OPTIONS_MAX_BYTES}
+                THEN json(deepchat_sessions.video_generation_options_json)
+              ELSE NULL
+            END
+          )
+        )
+      ) AS snapshot_json
+    FROM workflow_runs
+    INNER JOIN deepchat_sessions
+      ON deepchat_sessions.id = workflow_runs.parent_session_id
+    WHERE workflow_runs.execution_snapshot_json = '${LEGACY_WORKFLOW_EXECUTION_SNAPSHOT_JSON}'
+      AND length(trim(deepchat_sessions.provider_id)) BETWEEN 1 AND 4096
+      AND instr(deepchat_sessions.provider_id, char(0)) = 0
+      AND length(trim(deepchat_sessions.model_id)) BETWEEN 1 AND 4096
+      AND instr(deepchat_sessions.model_id, char(0)) = 0
+  )
+  UPDATE workflow_runs
+  SET execution_snapshot_json = (
+    SELECT execution_snapshots.snapshot_json
+    FROM execution_snapshots
+    WHERE execution_snapshots.run_id = workflow_runs.run_id
+  )
+  WHERE workflow_runs.run_id IN (
+    SELECT execution_snapshots.run_id
+    FROM execution_snapshots
+    WHERE length(CAST(execution_snapshots.snapshot_json AS BLOB))
+      <= ${WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES}
+  )
+`
 
 export interface WorkflowRunRow {
   run_id: string
@@ -20,6 +159,7 @@ export interface WorkflowRunRow {
   named_workflow_path: string | null
   workspace_path: string | null
   capability_scope_hash: string
+  execution_snapshot_json: string
   script_source: string
   script_hash: string
   input_json: string
@@ -77,6 +217,7 @@ const WORKFLOW_RUNS_TRIGGER_SQL = `
     named_workflow_path,
     workspace_path,
     capability_scope_hash,
+    execution_snapshot_json,
     script_source,
     script_hash,
     input_json,
@@ -117,6 +258,20 @@ export class WorkflowRunsTable extends BaseTable {
         capability_scope_hash TEXT NOT NULL CHECK (
           length(capability_scope_hash) = 64
           AND capability_scope_hash NOT GLOB '*[^0-9a-f]*'
+        ),
+        execution_snapshot_json TEXT NOT NULL CHECK (
+          json_valid(execution_snapshot_json)
+          AND json_type(execution_snapshot_json) = 'object'
+          AND json_extract(execution_snapshot_json, '$.schemaVersion') = 1
+          AND json_type(execution_snapshot_json, '$.providerId') = 'text'
+          AND length(json_extract(execution_snapshot_json, '$.providerId')) BETWEEN 1 AND 4096
+          AND instr(json_extract(execution_snapshot_json, '$.providerId'), char(0)) = 0
+          AND json_type(execution_snapshot_json, '$.modelId') = 'text'
+          AND length(json_extract(execution_snapshot_json, '$.modelId')) BETWEEN 1 AND 4096
+          AND instr(json_extract(execution_snapshot_json, '$.modelId'), char(0)) = 0
+          AND json_type(execution_snapshot_json, '$.generationSettings') = 'object'
+          AND length(CAST(execution_snapshot_json AS BLOB))
+            <= ${WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES}
         ),
         script_source TEXT NOT NULL CHECK (
           length(CAST(script_source AS BLOB)) BETWEEN 1 AND ${WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES}
@@ -308,6 +463,14 @@ export class WorkflowRunsTable extends BaseTable {
       statements.push('DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot')
       return `${statements.join(';\n')};`
     }
+    if (version === WORKFLOW_EXECUTION_SNAPSHOT_SCHEMA_VERSION) {
+      const statements = ['DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot']
+      if (!this.hasColumn('execution_snapshot_json')) {
+        statements.push(WORKFLOW_EXECUTION_SNAPSHOT_ADD_COLUMN_SQL)
+        statements.push(WORKFLOW_EXECUTION_SNAPSHOT_BACKFILL_SQL)
+      }
+      return `${statements.join(';\n')};`
+    }
     return null
   }
 
@@ -316,7 +479,11 @@ export class WorkflowRunsTable extends BaseTable {
   }
 
   override finalizeMigration(version: number): void {
-    if (version === WORKFLOW_BASE_SCHEMA_VERSION || version === WORKFLOW_SCOPE_SCHEMA_VERSION) {
+    if (
+      version === WORKFLOW_BASE_SCHEMA_VERSION ||
+      version === WORKFLOW_SCOPE_SCHEMA_VERSION ||
+      version === WORKFLOW_EXECUTION_SNAPSHOT_SCHEMA_VERSION
+    ) {
       this.db.exec(WORKFLOW_RUNS_TRIGGER_SQL)
     }
   }

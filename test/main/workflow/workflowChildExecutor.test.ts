@@ -6,7 +6,7 @@ import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtoco
 import type { JsonValue } from '@shared/contracts/common'
 import type { ConversationSessionInfo, CreateSubagentSessionInput } from '@/tool/runtimePorts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
-import type { WorkflowInvocation } from '@shared/workflow/domain'
+import type { WorkflowExecutionSnapshot, WorkflowInvocation } from '@shared/workflow/domain'
 import type {
   WorkflowStructuredOutputLease,
   WorkflowStructuredOutputPort
@@ -16,6 +16,7 @@ import {
   WorkflowStructuredOutputRegistry
 } from '@/workflow/structuredOutput/registry'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
+import { TEST_WORKFLOW_EXECUTION_SNAPSHOT } from './workflowTestFixtures'
 
 const workflowDatabaseModule = Database
   ? await import('@/workflow/data/database').catch(() => null)
@@ -139,6 +140,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       agentId?: string
       timeoutMs?: number
       schema?: JsonValue
+      executionSnapshot?: WorkflowExecutionSnapshot
     } = {}
   ) {
     const runId = options.runId ?? 'run-1'
@@ -148,6 +150,7 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       parentSessionId: 'parent',
       workspacePath: '/repo',
       capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: options.executionSnapshot ?? TEST_WORKFLOW_EXECUTION_SNAPSHOT,
       scriptSource: 'return await agent("work", { key: "work" })',
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -179,17 +182,20 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     structuredOutput: WorkflowStructuredOutputPort = output,
     onInvocationChanged?: (invocation: WorkflowInvocation) => void
   ) {
+    const resolveScope = vi.fn(async (input: { allowedAgentIds: string[] }) => ({
+      workspacePath: '/repo',
+      allowedAgentIds: [...new Set(input.allowedAgentIds)].sort(),
+      capabilityScopeHash,
+      capabilities: [],
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT
+    }))
     return new WorkflowChildExecutorCtor({
       repository,
       sessions,
       admission,
       launchScope: {
-        resolve: vi.fn(async (input) => ({
-          workspacePath: '/repo',
-          allowedAgentIds: [...new Set(input.allowedAgentIds)].sort(),
-          capabilityScopeHash,
-          capabilities: []
-        }))
+        resolve: resolveScope,
+        resolveCapabilityScope: resolveScope
       },
       invocationContexts: contexts,
       structuredOutput,
@@ -290,6 +296,9 @@ describeIfSqlite('WorkflowChildExecutor', () => {
       expect.objectContaining({
         slotId: invocation.childCorrelationSlot,
         projectDir: '/repo',
+        providerId: TEST_WORKFLOW_EXECUTION_SNAPSHOT.providerId,
+        modelId: TEST_WORKFLOW_EXECUTION_SNAPSHOT.modelId,
+        generationSettings: TEST_WORKFLOW_EXECUTION_SNAPSHOT.generationSettings,
         workflowContext: {
           runId: 'run-1',
           invocationId: invocation.id,
@@ -632,7 +641,12 @@ describeIfSqlite('WorkflowChildExecutor', () => {
     sessions.parent = parentSession('acp')
     const compatible = createRunAndInvocation({
       runId: 'compat-run',
-      invocationId: 'compat-invocation'
+      invocationId: 'compat-invocation',
+      executionSnapshot: {
+        ...TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+        providerId: 'acp',
+        modelId: 'compat-agent'
+      }
     })
     sessions.onSend = async (sessionId) => {
       output.current!.resolve({ compatible: true })
@@ -737,6 +751,11 @@ describeIfSqlite('WorkflowChildExecutor', () => {
   it('corrects ACP-backed DeepChat output in the same child session', async () => {
     sessions.parent = parentSession('acp')
     const { invocation } = createRunAndInvocation({
+      executionSnapshot: {
+        ...TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+        providerId: 'acp',
+        modelId: 'compat-agent'
+      },
       schema: {
         type: 'object',
         properties: {

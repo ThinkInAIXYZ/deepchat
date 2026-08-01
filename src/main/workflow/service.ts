@@ -6,7 +6,13 @@ import {
   type AgentInvocationPermit
 } from '@/agent/invocationAdmission'
 import type { JsonValue } from '@shared/contracts/common'
-import type { WorkflowInvocation, WorkflowRun, WorkflowRunStatus } from '@shared/workflow/domain'
+import type {
+  WorkflowExecutionSnapshot,
+  WorkflowInvocation,
+  WorkflowRun,
+  WorkflowRunStatus
+} from '@shared/workflow/domain'
+import { isWorkflowExecutionSnapshotUnavailable } from '@shared/workflow/domain'
 import type { WorkflowInvocationCounts } from '@shared/workflow/projection'
 import type { WorkflowSynthesisReceipt } from '@shared/workflow/resultDelivery'
 import {
@@ -37,6 +43,7 @@ import {
   type WorkflowUtilityProcessHostOptions
 } from './runtime/workflowUtilityProcessHost'
 import logger from '@shared/logger'
+import { canonicalizeWorkflowExecutionSnapshot } from './domain/executionSnapshot'
 
 const DEFAULT_CANCEL_GRACE_MS = 10_000
 const STOP_SETTLE_MS = 12_000
@@ -61,21 +68,35 @@ const ACTIVE_INVOCATION_STATUSES = new Set<WorkflowInvocation['status']>([
   'waiting_interaction'
 ])
 
+class WorkflowExecutionSnapshotUnavailableError extends Error {
+  constructor() {
+    super('Workflow launch-time model settings are unavailable for this legacy run.')
+    this.name = 'WorkflowExecutionSnapshotUnavailableError'
+  }
+}
+
 export interface WorkflowChildExecutionPort {
   execute(invocationId: string, options?: { signal?: AbortSignal }): Promise<WorkflowInvocation>
 }
 
+export interface WorkflowScopeRequest {
+  parentSessionId: string
+  parentMessageId: string | null
+  allowedAgentIds: string[]
+}
+
+export interface WorkflowCapabilityScopeResolution {
+  workspacePath: string | null
+  allowedAgentIds: string[]
+  capabilityScopeHash: string
+  capabilities: string[]
+}
+
 export interface WorkflowLaunchScopePort {
-  resolve(input: {
-    parentSessionId: string
-    parentMessageId: string | null
-    allowedAgentIds: string[]
-  }): Promise<{
-    workspacePath: string | null
-    allowedAgentIds: string[]
-    capabilityScopeHash: string
-    capabilities: string[]
-  }>
+  resolve(
+    input: WorkflowScopeRequest
+  ): Promise<WorkflowCapabilityScopeResolution & { executionSnapshot: WorkflowExecutionSnapshot }>
+  resolveCapabilityScope(input: WorkflowScopeRequest): Promise<WorkflowCapabilityScopeResolution>
 }
 
 export interface WorkflowUtilityHostPort {
@@ -231,7 +252,8 @@ export class WorkflowService {
       workspacePath: resolved.workspacePath,
       allowedAgentIds: resolved.allowedAgentIds,
       capabilityScopeHash: resolved.capabilityScopeHash,
-      capabilities: resolved.capabilities
+      capabilities: resolved.capabilities,
+      executionSnapshot: resolved.executionSnapshot
     })
   }
 
@@ -255,6 +277,12 @@ export class WorkflowService {
     if (resolved.capabilityScopeHash !== request.capabilityScopeHash) {
       throw new Error('Workflow effective capability scope changed after launch approval.')
     }
+    if (
+      canonicalizeWorkflowExecutionSnapshot(resolved.executionSnapshot).sha256 !==
+      canonicalizeWorkflowExecutionSnapshot(request.executionSnapshot).sha256
+    ) {
+      throw new Error('Workflow model or generation settings changed after launch approval.')
+    }
     const run = this.options.repository.createRun({
       id: this.idFactory(),
       parentSessionId: request.parentSessionId,
@@ -262,6 +290,7 @@ export class WorkflowService {
       namedWorkflowPath: request.namedWorkflowPath,
       workspacePath: request.workspacePath,
       capabilityScopeHash: request.capabilityScopeHash,
+      executionSnapshot: request.executionSnapshot,
       scriptSource: request.scriptSource,
       input: request.input,
       limits: request.limits,
@@ -544,6 +573,9 @@ export class WorkflowService {
     let permit: AgentInvocationPermit | null = null
     try {
       const run = this.options.repository.requireRun(runId)
+      if (isWorkflowExecutionSnapshotUnavailable(run.executionSnapshot)) {
+        throw new WorkflowExecutionSnapshotUnavailableError()
+      }
       permit = await this.options.runAdmission.acquire({
         ownerId: run.parentSessionId,
         signal: scheduled.controller.signal
@@ -1024,6 +1056,21 @@ export class WorkflowService {
       }
       return
     }
+    if (error instanceof WorkflowExecutionSnapshotUnavailableError) {
+      if (run.status === 'queued' || ACTIVE_RUN_STATUSES.has(run.status)) {
+        this.options.repository.failRun(
+          runId,
+          {
+            code: 'WORKFLOW_EXECUTION_SNAPSHOT_UNAVAILABLE',
+            message: normalizeErrorMessage(error),
+            retriable: false
+          },
+          this.now()
+        )
+        this.emitRun(runId)
+      }
+      return
+    }
     if (error instanceof AgentInvocationAdmissionQueueFullError) {
       logger.warn('[WorkflowService] Utility admission filled before a queued run was acquired', {
         runId,
@@ -1149,6 +1196,7 @@ export class WorkflowService {
     allowedAgentIds: string[]
     capabilityScopeHash: string
     capabilities: string[]
+    executionSnapshot: WorkflowExecutionSnapshot
   }> {
     const requestedAgentIds = [...new Set(input.allowedAgentIds)].sort()
     const resolved = await this.options.launchScope.resolve({
@@ -1156,6 +1204,12 @@ export class WorkflowService {
       allowedAgentIds: requestedAgentIds
     })
     const resolvedAgentIds = [...new Set(resolved.allowedAgentIds)].sort()
+    const executionSnapshot = canonicalizeWorkflowExecutionSnapshot(
+      resolved.executionSnapshot
+    ).snapshot
+    if (isWorkflowExecutionSnapshotUnavailable(executionSnapshot)) {
+      throw new WorkflowExecutionSnapshotUnavailableError()
+    }
     if (
       resolvedAgentIds.length !== requestedAgentIds.length ||
       resolvedAgentIds.some((agentId, index) => agentId !== requestedAgentIds[index])
@@ -1166,7 +1220,8 @@ export class WorkflowService {
       workspacePath: resolved.workspacePath,
       allowedAgentIds: resolvedAgentIds,
       capabilityScopeHash: resolved.capabilityScopeHash,
-      capabilities: [...resolved.capabilities]
+      capabilities: [...resolved.capabilities],
+      executionSnapshot
     }
   }
 

@@ -7,7 +7,10 @@ import {
   type WorkflowEffectState,
   type WorkflowInvocationStatus
 } from '@shared/workflow/domain'
-import { WORKFLOW_BASE_SCHEMA_VERSION, WORKFLOW_SCHEMA_VERSION } from './workflowRuns'
+import {
+  WORKFLOW_BASE_SCHEMA_VERSION,
+  WORKFLOW_INVOCATION_TIMEOUT_SCHEMA_VERSION
+} from './workflowRuns'
 
 export interface WorkflowInvocationRow {
   invocation_id: string
@@ -308,7 +311,7 @@ export class WorkflowInvocationsTable extends BaseTable {
     if (version === WORKFLOW_BASE_SCHEMA_VERSION) {
       return this.getCreateTableSQL()
     }
-    if (version === WORKFLOW_SCHEMA_VERSION) {
+    if (version === WORKFLOW_INVOCATION_TIMEOUT_SCHEMA_VERSION) {
       return `
         DROP TRIGGER IF EXISTS trg_workflow_invocations_immutable_identity;
         DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_arm;
@@ -322,11 +325,14 @@ export class WorkflowInvocationsTable extends BaseTable {
   }
 
   getLatestVersion(): number {
-    return WORKFLOW_SCHEMA_VERSION
+    return WORKFLOW_INVOCATION_TIMEOUT_SCHEMA_VERSION
   }
 
   override finalizeMigration(version: number): void {
-    if (version === WORKFLOW_BASE_SCHEMA_VERSION || version === WORKFLOW_SCHEMA_VERSION) {
+    if (
+      version === WORKFLOW_BASE_SCHEMA_VERSION ||
+      version === WORKFLOW_INVOCATION_TIMEOUT_SCHEMA_VERSION
+    ) {
       this.db.exec(WORKFLOW_INVOCATIONS_TRIGGER_SQL)
     }
   }

@@ -835,10 +835,10 @@ function buildChildCreationInput(
     displayName: invocation.request.options.label ?? invocation.request.options.key,
     targetAgentId: invocation.request.options.agentId ? targetAgentId : null,
     projectDir: run.workspacePath,
-    providerId: parent.providerId,
-    modelId: parent.modelId,
+    providerId: run.executionSnapshot.providerId,
+    modelId: run.executionSnapshot.modelId,
     permissionMode: parent.permissionMode,
-    generationSettings: parent.generationSettings ?? undefined,
+    generationSettings: run.executionSnapshot.generationSettings,
     disabledAgentTools: parent.disabledAgentTools,
     activeSkills: parent.activeSkills,
     workflowContext: {

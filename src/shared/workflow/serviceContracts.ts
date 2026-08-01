@@ -6,6 +6,7 @@ import {
   WorkflowRuntimeLimitsSchema
 } from './runtimeProtocol'
 import { WorkflowSourceOutlineSchema } from './outline'
+import { WorkflowExecutionSnapshotSchema } from './domain'
 
 export const WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS = 2 * 60 * 60 * 1_000
 
@@ -69,6 +70,7 @@ export const WorkflowLaunchDraftSchema = z
       .refine((value) => !value.includes('\0'), 'Workspace path cannot contain NUL')
       .nullable(),
     capabilityScopeHash: WorkflowHashSchema,
+    executionSnapshot: WorkflowExecutionSnapshotSchema,
     capabilities: z.array(z.string().trim().min(1).max(256)).min(1).max(16),
     scriptSource: z.string().min(1).max(WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES),
     input: JsonValueSchema,
@@ -83,6 +85,7 @@ export type WorkflowLaunchDraft = z.input<typeof WorkflowLaunchDraftSchema>
 export const WorkflowLaunchIntentSchema = WorkflowLaunchDraftSchema.omit({
   workspacePath: true,
   capabilityScopeHash: true,
+  executionSnapshot: true,
   capabilities: true
 }).strict()
 
@@ -114,6 +117,7 @@ export const WorkflowLaunchApprovalSchema = z
       .object({
         workspacePath: z.string().max(4_096).nullable(),
         capabilityScopeHash: WorkflowHashSchema,
+        executionSnapshotHash: WorkflowHashSchema,
         allowedAgentIds: z.array(WorkflowStoredIdSchema).min(1).max(32),
         maxInvocations: z.number().int().positive(),
         maxPendingInvocations: z.number().int().positive(),

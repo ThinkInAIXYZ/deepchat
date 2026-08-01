@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { JsonValue } from '@shared/contracts/common'
 import {
   WORKFLOW_INVOCATION_STATUSES,
+  WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES,
   WorkflowEffectStateSchema,
   WorkflowEffectEvidenceSchema,
   WorkflowInvocationFailureSchema,
@@ -37,6 +38,7 @@ import { createWorkflowChildCorrelationSlot } from './childIdentity'
 import type { WorkflowDatabase } from './data/database'
 import type { WorkflowInvocationRow } from './data/tables/workflowInvocations'
 import type { WorkflowRunRow } from './data/tables/workflowRuns'
+import { canonicalizeWorkflowExecutionSnapshot } from './domain/executionSnapshot'
 
 const MAX_METADATA_JSON_BYTES = WORKFLOW_STORED_METADATA_MAX_BYTES
 const MAX_EVIDENCE_JSON_BYTES = WORKFLOW_STORED_EVIDENCE_MAX_BYTES
@@ -143,6 +145,7 @@ export class WorkflowRepository {
     const workspacePath =
       input.workspacePath === null ? null : WorkspacePathSchema.parse(input.workspacePath)
     const capabilityScopeHash = HashSchema.parse(input.capabilityScopeHash)
+    const executionSnapshot = canonicalizeWorkflowExecutionSnapshot(input.executionSnapshot)
     const limits = WorkflowRuntimeLimitsSchema.parse(input.limits)
     const scriptSource = input.scriptSource
     const sourceBytes = Buffer.byteLength(scriptSource, 'utf8')
@@ -200,6 +203,7 @@ export class WorkflowRepository {
          named_workflow_path,
          workspace_path,
          capability_scope_hash,
+         execution_snapshot_json,
          script_source,
          script_hash,
          input_json,
@@ -225,7 +229,7 @@ export class WorkflowRepository {
          updated_at,
          completed_at,
          revision
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 1, 1, NULL, NULL, NULL, NULL,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 1, 1, NULL, NULL, NULL, NULL,
                  NULL, NULL, NULL, 'not_ready', NULL, ?, NULL, ?, NULL, 0)`
     ).run(
       runId,
@@ -234,6 +238,7 @@ export class WorkflowRepository {
       namedWorkflowPath,
       workspacePath,
       capabilityScopeHash,
+      executionSnapshot.json,
       scriptSource,
       hashString(scriptSource),
       canonicalInput.json,
@@ -1615,6 +1620,13 @@ function toWorkflowRun(row: WorkflowRunRow): WorkflowRun {
     namedWorkflowPath: row.named_workflow_path,
     workspacePath: row.workspace_path,
     capabilityScopeHash: row.capability_scope_hash,
+    executionSnapshot: canonicalizeWorkflowExecutionSnapshot(
+      parseStoredJsonValue(
+        row.execution_snapshot_json,
+        WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES,
+        'workflow execution snapshot'
+      )
+    ).snapshot,
     scriptSource: row.script_source,
     scriptHash: row.script_hash,
     input: parseStoredJsonValue(row.input_json, limits.maxInputBytes, 'workflow input'),

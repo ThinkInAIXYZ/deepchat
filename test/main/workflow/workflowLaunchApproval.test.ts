@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { JsonValue } from '@shared/contracts/common'
+import { WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES } from '@shared/workflow/domain'
 import { WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS } from '@shared/workflow/serviceContracts'
 import {
   WorkflowLaunchApprovalExpiredError,
   WorkflowLaunchApprovalScopeError,
   WorkflowLaunchApprovalRegistry
 } from '@/workflow/launchApproval'
+import { TEST_WORKFLOW_EXECUTION_SNAPSHOT } from './workflowTestFixtures'
 
 function draft(input: JsonValue = null) {
   return {
@@ -14,6 +16,7 @@ function draft(input: JsonValue = null) {
     namedWorkflowPath: null,
     workspacePath: '/repo',
     capabilityScopeHash: 'a'.repeat(64),
+    executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
     capabilities: ['Delegate with the current parent permission policy'],
     scriptSource: 'return await agent("Inspect the change", { key: "inspect" })',
     input,
@@ -37,12 +40,24 @@ describe('WorkflowLaunchApprovalRegistry', () => {
       ...draft({ target: 'a' }),
       parentMessageId: 'message-2'
     })
+    const differentExecutionSnapshot = registry.prepare({
+      ...draft({ target: 'a' }),
+      executionSnapshot: {
+        ...TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+        generationSettings: {
+          ...TEST_WORKFLOW_EXECUTION_SNAPSHOT.generationSettings,
+          reasoningEffort: 'high'
+        }
+      }
+    })
 
     expect(first.sourceHash).toBe(same.sourceHash)
     expect(first.scopeHash).toBe(same.scopeHash)
     expect(differentInput.sourceHash).toBe(first.sourceHash)
     expect(differentInput.scopeHash).not.toBe(first.scopeHash)
     expect(differentParentMessage.scopeHash).not.toBe(first.scopeHash)
+    expect(differentExecutionSnapshot.scopeHash).not.toBe(first.scopeHash)
+    expect(first.summary.executionSnapshotHash).toMatch(/^[0-9a-f]{64}$/)
     expect(first.summary).toMatchObject({
       workspacePath: '/repo',
       allowedAgentIds: ['deepchat', 'reviewer'],
@@ -133,13 +148,30 @@ describe('WorkflowLaunchApprovalRegistry', () => {
     ).toThrow('exceeds the 4-byte limit')
   })
 
-  it('releases bounded approval bytes when a token is consumed', () => {
-    const registry = new WorkflowLaunchApprovalRegistry(Date.now, 60_000, 4, 1_024)
-    const first = registry.prepare(draft({ payload: 'x'.repeat(700) }))
+  it('rejects an oversized execution snapshot before retaining an approval', () => {
+    const registry = new WorkflowLaunchApprovalRegistry()
 
-    expect(() => registry.prepare(draft({ payload: 'y'.repeat(700) }))).toThrow('pending limit')
+    expect(() =>
+      registry.prepare({
+        ...draft(),
+        executionSnapshot: {
+          ...TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+          generationSettings: {
+            ...TEST_WORKFLOW_EXECUTION_SNAPSHOT.generationSettings,
+            systemPrompt: 'x'.repeat(WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES + 1)
+          }
+        }
+      })
+    ).toThrow(`exceeds the ${WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES}-byte limit`)
+  })
+
+  it('releases bounded approval bytes when a token is consumed', () => {
+    const registry = new WorkflowLaunchApprovalRegistry(Date.now, 60_000, 4, 4_096)
+    const first = registry.prepare(draft({ payload: 'x'.repeat(3_000) }))
+
+    expect(() => registry.prepare(draft({ payload: 'y'.repeat(3_000) }))).toThrow('pending limit')
     registry.consume(first.approvalId)
-    expect(registry.prepare(draft({ payload: 'y'.repeat(700) })).approvalId).toBeTruthy()
+    expect(registry.prepare(draft({ payload: 'y'.repeat(3_000) })).approvalId).toBeTruthy()
   })
 
   it('does not reveal or consume an approval through another parent session', () => {

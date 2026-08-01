@@ -12,6 +12,7 @@ import { WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES } from '@shared/workflow/runtimeProto
 import { canonicalizeWorkflowJson } from './domain/json'
 import { validateWorkflowSource } from './runtime/workflowSourceValidator'
 import { deriveWorkflowSourceOutlineFromAst } from './runtime/workflowSourceOutline'
+import { canonicalizeWorkflowExecutionSnapshot } from './domain/executionSnapshot'
 
 const DEFAULT_APPROVAL_TTL_MS = 5 * 60 * 1_000
 const DEFAULT_MAX_PENDING_APPROVALS = 128
@@ -77,8 +78,10 @@ export class WorkflowLaunchApprovalRegistry {
     const canonicalInput = canonicalizeWorkflowJson(request.input, {
       maxBytes: request.limits.maxInputBytes
     })
+    const executionSnapshot = canonicalizeWorkflowExecutionSnapshot(request.executionSnapshot)
     const outlineBytes = Buffer.byteLength(JSON.stringify(outline), 'utf8')
-    const approvalBytes = sourceBytes + canonicalInput.byteLength + outlineBytes
+    const approvalBytes =
+      sourceBytes + canonicalInput.byteLength + executionSnapshot.byteLength + outlineBytes
     if (
       approvalBytes > this.maxPendingBytes ||
       this.pendingBytes + approvalBytes > this.maxPendingBytes
@@ -95,6 +98,7 @@ export class WorkflowLaunchApprovalRegistry {
         namedWorkflowPath: request.namedWorkflowPath,
         workspacePath: request.workspacePath,
         capabilityScopeHash: request.capabilityScopeHash,
+        executionSnapshotHash: executionSnapshot.sha256,
         inputHash: canonicalInput.sha256,
         allowedAgentIds: request.allowedAgentIds,
         limits: request.limits,
@@ -110,6 +114,7 @@ export class WorkflowLaunchApprovalRegistry {
       summary: {
         workspacePath: request.workspacePath,
         capabilityScopeHash: request.capabilityScopeHash,
+        executionSnapshotHash: executionSnapshot.sha256,
         allowedAgentIds: request.allowedAgentIds,
         maxInvocations: request.limits.maxInvocations,
         maxPendingInvocations: request.limits.maxPendingInvocations,

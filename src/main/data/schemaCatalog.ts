@@ -41,6 +41,8 @@ import { CronJobRunsTable } from '@/scheduler/data/tables/cronJobRuns'
 import { CronJobDeliveriesTable } from '@/scheduler/data/tables/cronJobDeliveries'
 import {
   LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH,
+  WORKFLOW_EXECUTION_SNAPSHOT_ADD_COLUMN_SQL,
+  WORKFLOW_EXECUTION_SNAPSHOT_BACKFILL_SQL,
   WorkflowRunsTable
 } from '@/workflow/data/tables/workflowRuns'
 import { WorkflowInvocationsTable } from '@/workflow/data/tables/workflowInvocations'
@@ -343,15 +345,20 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
         DEFAULT '${LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH}' CHECK (
           length(capability_scope_hash) = 64
           AND capability_scope_hash NOT GLOB '*[^0-9a-f]*'
-        );`
+        );`,
+      execution_snapshot_json: `${WORKFLOW_EXECUTION_SNAPSHOT_ADD_COLUMN_SQL};`
     },
-    afterRepair: (db) => {
+    afterRepair: (db, addedColumns) => {
       db.exec('DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot')
+      if (addedColumns.has('execution_snapshot_json')) {
+        db.exec(WORKFLOW_EXECUTION_SNAPSHOT_BACKFILL_SQL)
+      }
       new WorkflowRunsTable(db).createTable()
       new WorkflowInvocationsTable(db).createTable()
     },
     typeCheckedColumns: [
       'runtime_api_version',
+      'execution_snapshot_json',
       'execution_epoch',
       'next_invocation_seq',
       'created_at',

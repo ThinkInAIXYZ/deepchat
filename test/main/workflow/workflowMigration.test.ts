@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
+import { WorkflowExecutionSnapshotSchema } from '@shared/workflow/domain'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
@@ -15,7 +16,10 @@ const newSessionsModule = Database
   : null
 const MainDatabase = mainDatabaseModule?.MainDatabase
 const WORKFLOW_SCHEMA_VERSION = workflowRunsModule?.WORKFLOW_SCHEMA_VERSION
-const LATEST_SCHEMA_VERSION = newSessionsModule?.SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION
+const LATEST_SCHEMA_VERSION = Math.max(
+  WORKFLOW_SCHEMA_VERSION ?? 0,
+  newSessionsModule?.SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION ?? 0
+)
 const DatabaseCtor = Database!
 const MainDatabaseCtor = MainDatabase!
 const describeIfSqlite = nativeSqliteDescribeIf(
@@ -105,6 +109,7 @@ describeIfSqlite('workflow schema migration', () => {
       DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot;
       ALTER TABLE workflow_runs DROP COLUMN workspace_path;
       ALTER TABLE workflow_runs DROP COLUMN capability_scope_hash;
+      ALTER TABLE workflow_runs DROP COLUMN execution_snapshot_json;
       ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
       DELETE FROM schema_versions;
       INSERT INTO schema_versions (version, applied_at) VALUES (53, 100);
@@ -154,9 +159,11 @@ describeIfSqlite('workflow schema migration', () => {
     bootstrap.exec('PRAGMA foreign_keys = OFF;')
     bootstrap.exec(`
       DROP TRIGGER IF EXISTS trg_workflow_runs_parent_insert;
+      DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot;
       DROP TRIGGER IF EXISTS trg_workflow_invocations_immutable_identity;
       DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_arm;
       DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_required;
+      ALTER TABLE workflow_runs DROP COLUMN execution_snapshot_json;
       ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
       CREATE TRIGGER trg_workflow_invocations_immutable_identity
       BEFORE UPDATE OF
@@ -283,6 +290,169 @@ describeIfSqlite('workflow schema migration', () => {
     migrated.close()
   })
 
+  it('backfills immutable launch settings when upgrading an existing v57 run', () => {
+    const directory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'deepchat-workflow-snapshot-migration-')
+    )
+    tempDirectories.push(directory)
+    const databasePath = path.join(directory, 'agent.db')
+    const current = new MainDatabaseCtor(databasePath)
+    current.close()
+
+    const bootstrap = new DatabaseCtor(databasePath)
+    bootstrap.exec(`
+      DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot;
+      ALTER TABLE workflow_runs DROP COLUMN execution_snapshot_json;
+
+      INSERT INTO new_sessions (
+        id,
+        agent_id,
+        title,
+        project_dir,
+        is_pinned,
+        is_draft,
+        active_skills,
+        disabled_agent_tools,
+        subagent_enabled,
+        session_kind,
+        parent_session_id,
+        subagent_meta_json,
+        orchestration_mode,
+        created_at,
+        updated_at,
+        revision
+      ) VALUES (
+        'snapshot-parent',
+        'deepchat',
+        'Snapshot parent',
+        '/repo',
+        0,
+        0,
+        '[]',
+        '[]',
+        1,
+        'regular',
+        NULL,
+        NULL,
+        'workflow',
+        100,
+        100,
+        0
+      );
+
+      INSERT INTO deepchat_sessions (
+        id,
+        provider_id,
+        model_id,
+        permission_mode,
+        system_prompt,
+        temperature,
+        top_p,
+        context_length,
+        max_tokens,
+        timeout_ms,
+        thinking_budget,
+        reasoning_effort,
+        reasoning_visibility,
+        verbosity,
+        force_interleaved_thinking_compat,
+        image_generation_options_json,
+        video_generation_options_json
+      ) VALUES (
+        'snapshot-parent',
+        'openai',
+        'gpt-5.6-sol',
+        'default',
+        'Frozen system prompt',
+        0.25,
+        0.9,
+        64000,
+        8192,
+        120000,
+        4096,
+        'high',
+        'summary',
+        'medium',
+        1,
+        '{"size":"1024x1024","quality":"high"}',
+        '{"seconds":"5","watermark":true}'
+      );
+
+      INSERT INTO workflow_runs (
+        run_id,
+        parent_session_id,
+        workspace_path,
+        capability_scope_hash,
+        script_source,
+        script_hash,
+        input_json,
+        runtime_api_version,
+        limits_json,
+        allowed_agent_ids_json,
+        policy_hash,
+        status,
+        created_at,
+        updated_at,
+        revision
+      ) VALUES (
+        'snapshot-run',
+        'snapshot-parent',
+        '/repo',
+        '${'b'.repeat(64)}',
+        'return null',
+        '${createHash('sha256').update('return null').digest('hex')}',
+        'null',
+        1,
+        '${JSON.stringify(WORKFLOW_RUNTIME_DEFAULT_LIMITS)}',
+        '["deepchat"]',
+        '${'c'.repeat(64)}',
+        'queued',
+        100,
+        100,
+        0
+      );
+
+      DELETE FROM schema_versions;
+      INSERT INTO schema_versions (version, applied_at) VALUES (57, 100);
+    `)
+    bootstrap.close()
+
+    const database = new MainDatabaseCtor(databasePath)
+    database.close()
+
+    const migrated = new DatabaseCtor(databasePath)
+    const row = migrated
+      .prepare('SELECT execution_snapshot_json FROM workflow_runs WHERE run_id = ?')
+      .get('snapshot-run') as { execution_snapshot_json: string }
+    const snapshot = WorkflowExecutionSnapshotSchema.parse(JSON.parse(row.execution_snapshot_json))
+    expect(snapshot).toEqual({
+      schemaVersion: 1,
+      providerId: 'openai',
+      modelId: 'gpt-5.6-sol',
+      generationSettings: {
+        systemPrompt: 'Frozen system prompt',
+        temperature: 0.25,
+        topP: 0.9,
+        contextLength: 64_000,
+        maxTokens: 8_192,
+        timeout: 120_000,
+        thinkingBudget: 4_096,
+        reasoningEffort: 'high',
+        reasoningVisibility: 'summary',
+        verbosity: 'medium',
+        forceInterleavedThinkingCompat: true,
+        imageGeneration: { size: '1024x1024', quality: 'high' },
+        videoGeneration: { seconds: '5', watermark: true }
+      }
+    })
+    expect(() =>
+      migrated
+        .prepare('UPDATE workflow_runs SET execution_snapshot_json = ? WHERE run_id = ?')
+        .run(row.execution_snapshot_json, 'snapshot-run')
+    ).toThrow('workflow run snapshot is immutable')
+    migrated.close()
+  })
+
   it('moves legacy workflow tool state to adaptive mode when upgrading v55', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workflow-tool-migration-'))
     tempDirectories.push(directory)
@@ -292,6 +462,8 @@ describeIfSqlite('workflow schema migration', () => {
 
     const bootstrap = new DatabaseCtor(databasePath)
     bootstrap.exec(`
+      DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot;
+      ALTER TABLE workflow_runs DROP COLUMN execution_snapshot_json;
       ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
 
       INSERT INTO new_sessions (

@@ -17,6 +17,7 @@ import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtoco
 import type { WorkflowInvocation, WorkflowRun } from '@shared/workflow/domain'
 import { createWorkflowRoutes } from '@/workflow/routes'
 import type { WorkflowService } from '@/workflow/service'
+import { TEST_WORKFLOW_EXECUTION_SNAPSHOT } from './workflowTestFixtures'
 
 const run = (overrides: Partial<WorkflowRun> = {}): WorkflowRun => ({
   id: 'run-1',
@@ -25,6 +26,7 @@ const run = (overrides: Partial<WorkflowRun> = {}): WorkflowRun => ({
   namedWorkflowPath: null,
   workspacePath: '/repo',
   capabilityScopeHash: 'c'.repeat(64),
+  executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
   scriptSource: 'return null',
   scriptHash: 'a'.repeat(64),
   input: null,
@@ -109,6 +111,7 @@ function createService() {
       summary: {
         workspacePath: '/repo',
         capabilityScopeHash: 'c'.repeat(64),
+        executionSnapshotHash: 'd'.repeat(64),
         allowedAgentIds: ['deepchat'],
         maxInvocations: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxInvocations,
         maxPendingInvocations: WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxPendingInvocations,

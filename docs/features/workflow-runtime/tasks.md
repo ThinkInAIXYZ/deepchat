@@ -515,8 +515,8 @@ Final cross-module review findings, ordered by severity:
   override capability or persisted values.
 - [ ] Render model-generated preparation as a native approval card with direct exact-ID launch.
 - [ ] Keep generated source behind an advanced disclosure and regenerate plans from feedback.
-- [ ] Persist a launch-time model/generation snapshot and split it from the live security scope.
-- [ ] Verify an active run survives session reasoning changes while later runs use the new value.
+- [x] Persist a launch-time model/generation snapshot and split it from the live security scope.
+- [x] Verify an active run survives session reasoning changes while later runs use the new value.
 - [ ] Complete a severity-ordered pre-commit review and focused validation for every slice.
 - [ ] Run final format, i18n, lint, typecheck, focused tests, build, and packaging checks.
 
@@ -548,4 +548,33 @@ Mode/control-surface review findings, ordered by severity:
   section, the inactive/active icon changed trigger geometry, and same-revision local mode updates
   were not covered against stale session reads;
 - remaining known work is limited to the unchecked native approval, model-picker separation, and
-  immutable execution-snapshot items below.
+  final feature-wide validation items below.
+
+Execution-snapshot validation evidence (2026-08-01):
+
+- schema version 58 stores a bounded, immutable provider/model/generation snapshot and best-effort
+  backfills pre-v58 runs from their DeepChat parent without allowing oversized legacy settings to
+  block database startup;
+- launch approval binds the canonical execution-snapshot hash, rejects settings changed between
+  prepare and launch, and accounts snapshot bytes against the bounded pending-approval budget;
+- active-run checks use a dedicated live security-scope resolver that excludes model and generation
+  settings, while child creation reads provider, model, and generation settings only from the
+  persisted run snapshot;
+- tests cover approval invalidation, active-run continuity, later-run adoption of changed settings,
+  ACP-backed DeepChat compatibility, immutable persistence, v57 backfill, and recovery scope checks.
+
+Execution-snapshot review findings, ordered by severity:
+
+- high, fixed before commit: the v58 backfill initially ran while the immutable-run trigger was
+  armed, which would abort application startup for databases containing existing Workflow runs;
+- medium, fixed before commit: active security revalidation still depended on resolving mutable
+  generation settings, and raising the shared Workflow schema constant would have replayed the v55
+  queued-timeout migration at v58;
+- medium, fixed before commit: unbounded legacy prompts or media options could have made migration
+  fail atomically; bounded best-effort fields now preserve startup and leave unsupported values out;
+- medium, fixed before commit: an unbackfilled legacy placeholder could otherwise reach provider
+  resolution if a colliding provider identifier existed; unavailable snapshots now terminate before
+  utility or provider startup with a non-retriable durable error;
+- low, fixed before commit: migration and schema-repair column SQL could drift, null generation
+  fields were accepted too permissively, and the migration test assumed the session schema was
+  always the repository-wide latest version.
