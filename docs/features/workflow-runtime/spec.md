@@ -581,17 +581,25 @@ summary describes write-capable scope, not a claim that static inspection can pr
 a model will call. Editing the source or input, changing scope, or expanding the allowlist
 invalidates a remembered launch approval.
 
-The model-facing `workflow` tool is user-configurable and disabled by default. Saved-workflow and
-manual side-panel launches remain available without exposing the tool schema to every subagent
-session. An MCP server may use the same tool name when the DeepChat workflow tool is disabled;
-name collision is resolved by the existing configured-tool precedence rules rather than by a
-global reserved-name ban.
+The model-facing `workflow` tool is controlled by the parent session's orchestration mode rather
+than by the generic configurable-tool list. It is not shown as an ordinary tool toggle. Saved
+workflow and manual side-panel launches remain available without changing the parent session mode.
+An MCP server may use the same tool name while the DeepChat workflow tool is not exposed; name
+collision is resolved by the existing configured-tool precedence rules rather than by a global
+reserved-name ban.
 
-The approved workspace and effective capability hash are persisted in the immutable run snapshot.
-Main resolves and compares that scope before starting or resuming a run, before dispatching each
-invocation, and again after the child obtains its global admission permit. A mismatch fails the
-whole run closed before child creation; the child uses the persisted workspace rather than reading
-a newer parent workspace opportunistically.
+The approved workspace, provider/model identity, and bounded generation settings are persisted in
+the immutable run execution snapshot. Each child uses the launch-time generation settings by
+default. Changing reasoning effort, thinking budget, or another session generation setting while a
+run is active affects later parent turns and future runs only; it neither mutates nor invalidates an
+active run.
+
+The continuously revalidated security scope is stored and hashed separately from that execution
+snapshot. Main compares the security scope before starting or resuming a run, before dispatching
+each invocation, and again after the child obtains its global admission permit. A workspace,
+permission, target-agent policy, or other security-sensitive mismatch fails the whole run closed
+before child creation. The child uses the persisted workspace rather than reading a newer parent
+workspace opportunistically.
 
 Child sessions use the existing assignment policy:
 
@@ -630,15 +638,56 @@ promise that an external workflow worker itself is a resumable conversation.
 
 ## Trigger Policy
 
-`orchestrationMode` is independent from model reasoning effort:
+`orchestrationMode` is a session-level user intent independent from model reasoning effort:
 
-`off | on_request | auto`
+`adaptive | workflow`
 
-V1 ships only explicit/on-request launch. A later `auto` phase may trigger only from a local
+`adaptive` preserves the existing opportunistic `subagent_orchestrator` behavior and does not
+expose the DeepChat workflow tool. `workflow` exposes the workflow tool and suppresses
+`subagent_orchestrator` for the parent session so one parent turn cannot choose between two
+different orchestration contracts. The workflow tool is therefore mode-controlled rather than a
+generic user-configurable tool.
+
+Switching orchestration mode never changes reasoning effort or thinking budget. Switching mode or
+generation settings never cancels or mutates an already launched run. V1 activates workflow mode
+only from an explicit local UI action or `/workflow`; saved-workflow launch is an explicit action
+but does not change session mode. A later automatic suggestion may originate only from a local
 human-authored UI input with verified origin. Cron delivery, remote input, child output, tool
-output, imported content, and quoted instructions cannot activate auto orchestration.
+output, imported content, and quoted instructions cannot activate orchestration.
 
 ## UI Contract
+
+The composer status bar exposes one compact execution control with two independent sections:
+
+- the trigger label always shows the current reasoning level, or `Model default` when the model has
+  no adjustable reasoning level;
+- workflow state is shown by a fixed-width workflow icon and semantic accent, not by concatenating
+  `Workflow` into the trigger label;
+- the popover contains reasoning choices followed by a separate workflow switch and description;
+- icon, text alternative, tooltip, and accent communicate the active state without relying on
+  color alone;
+- workflow capability comes from one typed main-owned result with an unavailable reason; the
+  renderer does not duplicate launch-scope policy checks and never silently falls back to
+  adaptive mode.
+
+`/workflow` changes the parent session mode without sending a model message. `/workflow <name>`
+prepares the named saved workflow without changing session mode. The built-in command wins the
+bare-name collision; an existing saved `workflow.js` remains reachable through the namespaced
+form. Existing `/name` saved-workflow commands otherwise remain compatible. Ordinary users provide
+natural language; generated JavaScript is internal execution IR and appears only in an advanced
+source view.
+
+Model selection is limited to search and model choice. Reasoning level lives in the execution
+control. Low-frequency per-session generation overrides remain available in a separate advanced
+session-settings surface; moving them out of the model picker must not remove or reset persisted
+session values.
+
+A model-generated `prepare_launch` result is rendered as a native approval card. The card shows the
+advisory outline, authoritative source hash, target agents, invocation limit, budget, capability
+scope, and effect warning. Its primary action launches the exact `approvalId` directly from the UI;
+it does not require another natural-language confirmation turn. Editing means supplying feedback
+and preparing a new approval in V1, not editing an inferred graph. Source remains collapsed under
+an advanced disclosure.
 
 The workflow surface shows:
 

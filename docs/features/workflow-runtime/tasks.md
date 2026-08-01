@@ -500,3 +500,22 @@ Final cross-module review findings, ordered by severity:
 - known validation debt: the three repository-wide main test files above remain outside this
   feature's implementation scope and must be resolved or refreshed before treating the entire
   repository test gate as green.
+
+## Session Workflow Mode And Native Launch UX
+
+- [ ] Persist `orchestrationMode: adaptive | workflow` for sessions and new-session drafts.
+- [ ] Migrate existing sessions to `adaptive` without inferring intent from disabled tools.
+- [ ] Remove Workflow from the generic configurable-tool surface.
+- [ ] Expose `subagent_orchestrator` and `workflow` mutually exclusively by session mode.
+- [ ] Add one main-owned typed workflow-capability result with exact unavailable reasons.
+- [ ] Add the two-section composer execution popover and non-color-only active indication.
+- [ ] Add `/workflow` mode activation without sending a model message.
+- [ ] Keep named saved-workflow launch independent from session mode.
+- [ ] Move low-frequency generation overrides out of model selection without deleting session
+  override capability or persisted values.
+- [ ] Render model-generated preparation as a native approval card with direct exact-ID launch.
+- [ ] Keep generated source behind an advanced disclosure and regenerate plans from feedback.
+- [ ] Persist a launch-time model/generation snapshot and split it from the live security scope.
+- [ ] Verify an active run survives session reasoning changes while later runs use the new value.
+- [ ] Complete a severity-ordered pre-commit review and focused validation for every slice.
+- [ ] Run final format, i18n, lint, typecheck, focused tests, build, and packaging checks.

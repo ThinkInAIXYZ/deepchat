@@ -132,8 +132,13 @@ testable solution.
   `subagent_orchestrator`.
 - Add typed main routes for list, inspect, launch, cancel, resume, retry, and parent synthesis.
 - Add typed workflow events as renderer projections.
-- Keep `orchestrationMode` independent from reasoning effort.
-- Ship V1 with explicit/on-request activation only.
+- Persist session-level `orchestrationMode: adaptive | workflow` independently from generation
+  settings, including the new-session draft path.
+- Make the workflow tool mode-controlled instead of user-configurable. Expose exactly one parent
+  orchestration tool: `subagent_orchestrator` in adaptive mode and `workflow` in workflow mode.
+- Resolve workflow availability and its unavailable reason in main through one typed contract.
+- Ship V1 with explicit local activation only; `/workflow` changes mode while named workflow
+  launch does not.
 - Bind remembered launch approval to script hash, workspace, declared target-agent allowlist, and
   capability summary.
 - Keep launch approval separate from child tool approval.
@@ -150,6 +155,14 @@ testable solution.
 
 ## 11. Add Workflow UI
 
+- Add one compact composer execution control whose text remains the current reasoning level and
+  whose icon/accent communicates workflow state.
+- Keep reasoning choices and the workflow switch as independent sections in the same popover.
+- Keep icon geometry stable and provide tooltip, keyboard, and screen-reader state.
+- Simplify model selection to search and model choice while retaining low-frequency session
+  overrides in a separate advanced surface.
+- Render model-generated launch preparation as a native approval card whose primary action launches
+  the exact approval directly from UI.
 - Add a workflow section to the existing chat side panel.
 - Show phase, invocation, child session, usage, duration, timeout, and effect-risk state.
 - Lift existing child permission/question interactions into the workflow projection.
@@ -165,7 +178,22 @@ testable solution.
 - Validate names and paths against traversal and symlink escape.
 - Add argument parsing and bounded input serialization.
 - Keep source editing and run history separate so editing cannot mutate historical execution.
-- Defer auto mode until explicit launch, resume, and recovery UX are validated.
+- Treat generated JavaScript as internal IR by default and keep manual source editing behind an
+  advanced disclosure.
+- Make `/workflow` activate the current session mode and `/workflow <name>` prepare a saved source
+  without changing that mode.
+- Defer automatic suggestions until explicit launch, resume, and recovery UX are validated.
+
+## 12.1 Freeze Launch-Time Model Settings
+
+- Persist provider, model, and bounded generation settings as an immutable run execution snapshot.
+- Remove mutable generation settings from the continuously revalidated security-scope hash.
+- Create every workflow child from the launch-time execution snapshot unless a future approved
+  per-invocation override contract explicitly says otherwise.
+- Keep workspace, permission, target-agent policy, and other security-sensitive facts in the
+  continuously revalidated scope.
+- Test reasoning changes before launch, after launch, between invocations, during recovery, and
+  while another run is prepared.
 
 ## 13. Validation And Review
 
@@ -213,7 +241,9 @@ This section supersedes the first final-review claim that no critical or high fi
 
 ### Compatibility and policy
 
-- Make the model-facing workflow tool user-configurable and disabled by default.
+- Historical implementation: make the model-facing workflow tool user-configurable and disabled
+  by default. Section 9 supersedes this exposure policy with session mode control while preserving
+  default-off behavior.
 - Resolve MCP name collisions through configured tool precedence instead of reserving `workflow`
   globally.
 - Keep workflow owner concurrency at four while sizing the shared pool for the orchestrator's
