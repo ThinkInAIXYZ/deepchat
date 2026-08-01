@@ -364,6 +364,10 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
       <a href="https://www.siliconflow.cn/">SiliconFlow</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/orcarouter.svg" width="50" height="50" alt="OrcaRouter Icon"><br/>
+      <a href="https://www.orcarouter.ai/">OrcaRouter</a>
+    </td>
   </tr>
 
 </table>

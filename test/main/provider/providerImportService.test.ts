@@ -1485,6 +1485,50 @@ describe('ProviderImportService', () => {
     })
   })
 
+  it('maps an OrcaRouter base URL to the built-in OrcaRouter provider', async () => {
+    homeDir = createHome()
+    const defaultCherryPath = path.join(
+      homeDir,
+      'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    )
+    await createCherryStudioLevelDb(defaultCherryPath, [
+      {
+        id: 'orca-gateway',
+        name: 'Orca Gateway',
+        type: 'openai',
+        apiKey: 'sk-orca-test',
+        apiHost: 'https://api.orcarouter.ai/v1',
+        models: [{ id: 'anthropic/claude-sonnet-4.6', name: 'Claude Sonnet 4.6' }]
+      }
+    ])
+
+    const providerSettings = createProviderSettings([
+      {
+        id: 'orcarouter',
+        name: 'OrcaRouter',
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: 'https://api.orcarouter.ai/v1',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(providerSettings as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const scan = await service.scan()
+
+    expect(scan.providers[0]).toMatchObject({
+      sourceProviderId: 'orca-gateway',
+      targetKind: 'builtin',
+      targetProviderId: 'orcarouter',
+      targetApiType: 'openai-completions',
+      modelPreview: ['Claude Sonnet 4.6'],
+      warnings: []
+    })
+  })
+
   it('uses Cherry Studio custom data directory from app config', async () => {
     homeDir = createHome()
     const defaultCherryPath = path.join(

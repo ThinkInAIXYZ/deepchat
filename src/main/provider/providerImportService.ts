@@ -100,6 +100,7 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   ppio: 'ppio',
   ppinfra: 'ppio',
   openrouter: 'openrouter',
+  orcarouter: 'orcarouter',
   jiekou: 'jiekou',
   zenmux: 'zenmux',
   poe: 'poe',
@@ -1173,6 +1174,7 @@ export class ProviderImportService {
     if (baseUrl.includes('volces.com') || baseUrl.includes('bytepluses.com')) return 'doubao'
     if (baseUrl.includes('api.siliconflow.cn')) return 'silicon'
     if (baseUrl.includes('openrouter.ai')) return 'openrouter'
+    if (baseUrl.includes('api.orcarouter.ai')) return 'orcarouter'
     if (baseUrl.includes('aihubmix.com')) return 'aihubmix'
     if (baseUrl.includes('modelscope.cn')) return 'modelscope'
     if (baseUrl.includes('api.mistral.ai')) return 'mistral'

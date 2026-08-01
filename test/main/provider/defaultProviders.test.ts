@@ -2,6 +2,25 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 
 describe('DEFAULT_PROVIDERS', () => {
+  it('includes OrcaRouter as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'orcarouter',
+        name: 'OrcaRouter',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.orcarouter.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://www.orcarouter.ai/',
+          apiKey: 'https://www.orcarouter.ai/console/token',
+          docs: 'https://docs.orcarouter.ai',
+          models: 'https://www.orcarouter.ai/models',
+          defaultBaseUrl: 'https://api.orcarouter.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes Modelsell as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

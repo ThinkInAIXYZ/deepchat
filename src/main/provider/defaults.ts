@@ -370,6 +370,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'orcarouter',
+    name: 'OrcaRouter',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.orcarouter.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.orcarouter.ai/',
+      apiKey: 'https://www.orcarouter.ai/console/token',
+      docs: 'https://docs.orcarouter.ai',
+      models: 'https://www.orcarouter.ai/models',
+      defaultBaseUrl: 'https://api.orcarouter.ai/v1'
+    }
+  },
+  {
     id: 'opencode-go',
     name: 'OpenCode Go',
     apiType: 'openai-completions',

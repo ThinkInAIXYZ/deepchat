@@ -158,6 +158,59 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('discovers OrcaRouter models through the OpenAI-compatible endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        object: 'list',
+        data: [
+          { id: 'anthropic/claude-sonnet-4.6', owned_by: 'anthropic' },
+          { id: 'orcarouter/auto', owned_by: 'orcarouter' }
+        ]
+      })
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'orcarouter',
+        name: 'OrcaRouter',
+        baseUrl: 'https://api.orcarouter.ai/v1'
+      }),
+      createProviderSettings()
+    )
+    const models = await provider.fetchModels()
+
+    expect(resolveAiSdkProviderDefinition(createProvider({ id: 'orcarouter' }))).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      routeStrategy: 'none',
+      embeddingStrategy: 'openai'
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.orcarouter.ai/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'anthropic/claude-sonnet-4.6',
+        providerId: 'orcarouter',
+        ownedBy: 'anthropic'
+      }),
+      expect.objectContaining({
+        id: 'orcarouter/auto',
+        providerId: 'orcarouter',
+        ownedBy: 'orcarouter'
+      })
+    ])
+  })
+
   it('discovers Modelsell models through the OpenAI-compatible endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
