@@ -86,8 +86,27 @@ it('exports content-free spans from the generateText runtime path', async () => 
   const spans = exporter.getFinishedSpans()
   expect(spans.length).toBeGreaterThan(0)
 
+  const modelSpan = spans.find((span) => span.attributes['openinference.span.kind'] === 'LLM')
+  expect(modelSpan?.attributes).toMatchObject({
+    'llm.token_count.completion': 4,
+    'llm.token_count.prompt': 7,
+    'llm.token_count.total': 11
+  })
+  expect(modelSpan?.startTime).toHaveLength(2)
+  expect(modelSpan?.endTime).toHaveLength(2)
+  expect(modelSpan?.duration).toHaveLength(2)
+  const toNanoseconds = ([seconds, nanoseconds]: [number, number]): bigint =>
+    BigInt(seconds) * 1_000_000_000n + BigInt(nanoseconds)
+  expect(toNanoseconds(modelSpan!.endTime) - toNanoseconds(modelSpan!.startTime)).toBe(
+    toNanoseconds(modelSpan!.duration)
+  )
+
   const exported = JSON.stringify(
-    spans.map((span) => ({ attributes: span.attributes, name: span.name }))
+    spans.map((span) => ({
+      attributes: span.attributes,
+      events: span.events,
+      name: span.name
+    }))
   )
   expect(exported).toContain('fixture-model')
   expect(exported).not.toContain('PRIVATE_PROMPT_SENTINEL')
