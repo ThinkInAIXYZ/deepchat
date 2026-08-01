@@ -109,18 +109,10 @@
 
           <PopoverContent
             align="start"
-            :class="[
-              'z-72 max-w-[calc(100vw-1rem)] overflow-hidden p-0',
-              isModelSettingsExpanded ? 'w-[38rem]' : 'w-[20rem]'
-            ]"
+            class="z-72 w-[20rem] max-w-[calc(100vw-1rem)] overflow-hidden p-0"
           >
             <div class="flex max-h-[28rem]">
-              <div
-                :class="[
-                  'flex min-w-0 flex-col',
-                  isModelSettingsExpanded ? 'w-[18rem] border-r' : 'w-full'
-                ]"
-              >
+              <div class="flex w-full min-w-0 flex-col">
                 <div v-if="isModelOptionsReady" class="border-b px-2.5 py-2">
                   <Input
                     data-model-search-input="true"
@@ -182,7 +174,7 @@
                         <div
                           v-for="model in group.models"
                           :key="`${group.providerId}-${model.id}`"
-                          class="flex items-center gap-1"
+                          class="flex items-center"
                         >
                           <button
                             type="button"
@@ -204,54 +196,230 @@
                             />
                             <span class="min-w-0 flex-1 truncate font-medium">{{ model.id }}</span>
                           </button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            class="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-                            :aria-label="t('chat.advancedSettings.button')"
-                            :title="t('chat.advancedSettings.button')"
-                            @click.stop="openModelSettings(group.providerId, model.id)"
-                          >
-                            <Icon icon="lucide:chevron-right" class="h-3.5 w-3.5" />
-                          </Button>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+            </div>
+          </PopoverContent>
+        </Popover>
 
-              <div v-if="isModelSettingsExpanded" class="flex w-[21rem] min-w-0 flex-col">
-                <div class="border-b px-3 py-3">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div class="text-sm font-medium">{{ t('settings.model.title') }}</div>
-                      <div class="mt-1 truncate text-xs font-medium">
-                        {{ modelSettingsModelName }}
-                      </div>
-                      <div class="truncate text-[11px] text-muted-foreground">
-                        {{ modelSettingsProviderText }}
-                      </div>
-                    </div>
+        <Button
+          v-else
+          variant="ghost"
+          size="sm"
+          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
+          :disabled="true"
+        >
+          <ModelIcon
+            :model-id="displayIconId"
+            custom-class="w-3.5 h-3.5"
+            :is-dark="themeStore.isDark"
+          />
+          <span>{{ displayModelText }}</span>
+        </Button>
 
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      class="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-                      :aria-label="t('common.close')"
-                      :title="t('common.close')"
-                      @click="collapseModelSettings"
-                    >
-                      <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+        <Popover v-if="showExecutionModeControl" v-model:open="isExecutionModePanelOpen">
+          <PopoverTrigger as-child>
+            <Button
+              data-testid="execution-mode-switcher"
+              variant="ghost"
+              size="sm"
+              :class="[
+                'h-6 gap-1 px-2 text-xs dc-blur-panel',
+                workflowModeEnabled
+                  ? 'bg-violet-500/10 text-violet-600 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/15 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200'
+                  : 'text-muted-foreground hover:text-foreground'
+              ]"
+              :title="executionModeControlTitle"
+              :aria-label="executionModeControlTitle"
+              :aria-pressed="workflowModeEnabled"
+            >
+              <span class="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                <Icon v-if="workflowModeEnabled" icon="lucide:git-fork" class="h-3.5 w-3.5" />
+              </span>
+              <span>{{ reasoningEffortDisplayLabel }}</span>
+              <Icon icon="lucide:chevron-down" class="h-3 w-3" />
+            </Button>
+          </PopoverTrigger>
+
+          <PopoverContent align="start" class="w-[19rem] overflow-hidden p-0">
+            <div class="px-2 py-2">
+              <div v-if="showReasoningEffort && effortOptions.length > 0">
+                <div class="px-2 pb-1 text-[11px] font-medium text-muted-foreground">
+                  {{ t('settings.model.modelConfig.reasoningEffort.label') }}
                 </div>
+                <div class="space-y-0.5">
+                  <button
+                    v-for="option in effortOptions"
+                    :key="option.value"
+                    type="button"
+                    :data-reasoning-effort="option.value"
+                    :class="[
+                      'flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition-colors',
+                      effectiveReasoningEffortValue === option.value
+                        ? 'bg-muted/60 text-foreground'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                    ]"
+                    @click="onReasoningEffortSelect(option.value)"
+                  >
+                    <span class="flex-1">{{ option.label }}</span>
+                    <Icon
+                      v-if="effectiveReasoningEffortValue === option.value"
+                      icon="lucide:check"
+                      class="h-3.5 w-3.5"
+                    />
+                  </button>
+                </div>
+              </div>
+              <div v-else class="px-2 py-1.5 text-xs text-muted-foreground">
+                {{ t('chat.advancedSettings.useDefault') }}
+              </div>
+            </div>
 
-                <div class="dc-overscroll-contain max-h-[24rem] overflow-y-auto px-3 py-3">
+            <div class="border-t px-3 py-3">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-2">
+                  <Icon icon="lucide:git-fork" class="h-4 w-4 shrink-0" />
+                  <span class="text-sm font-medium">{{ t('chat.workflow.mode.title') }}</span>
+                </div>
+                <Switch
+                  data-testid="workflow-mode-toggle"
+                  :model-value="workflowModeEnabled"
+                  :disabled="workflowSwitchDisabled"
+                  :aria-label="t('chat.workflow.mode.title')"
+                  @update:model-value="onWorkflowModeToggle(Boolean($event))"
+                />
+              </div>
+              <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                {{ t('chat.workflow.mode.description') }}
+              </p>
+              <p
+                v-if="workflowCapabilityMessage"
+                data-testid="workflow-capability-message"
+                class="mt-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400"
+              >
+                {{ workflowCapabilityMessage }}
+              </p>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <div class="flex items-center gap-1">
+        <Popover v-if="isAcpAgent && acpOverflowOptions.length > 0">
+          <PopoverTrigger as-child>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
+              :title="t('chat.advancedSettings.button')"
+              :aria-label="t('chat.advancedSettings.button')"
+            >
+              <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+            </Button>
+          </PopoverTrigger>
+
+          <PopoverContent align="end" class="w-[18rem] p-0">
+            <div class="border-b px-3 py-3">
+              <div class="text-sm font-medium">{{ t('chat.advancedSettings.title') }}</div>
+            </div>
+
+            <div class="dc-overscroll-contain max-h-[24rem] space-y-3 overflow-y-auto px-3 py-3">
+              <div
+                v-for="option in acpOverflowOptions"
+                :key="option.id"
+                :data-option-id="option.id"
+                class="acp-overflow-option flex items-center justify-between gap-3"
+              >
+                <label class="min-w-0 flex-1 truncate text-xs font-medium">
+                  {{ option.label }}
+                </label>
+
+                <Select
+                  v-if="option.type === 'select'"
+                  :model-value="String(option.currentValue)"
+                  @update:model-value="onAcpSelectOption(option.id, $event as string)"
+                >
+                  <SelectTrigger
+                    :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+                    class="h-8 w-[9rem] text-xs"
+                  >
+                    <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="entry in option.options ?? []"
+                      :key="`${option.id}-${entry.value}`"
+                      :value="entry.value"
+                    >
+                      {{ entry.value }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  v-else
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  class="h-8 min-w-[6rem] text-xs"
+                  :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+                  @click="onAcpBooleanOption(option.id, !Boolean(option.currentValue))"
+                >
+                  <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <SessionSettingsPopover
+          :show-system-prompt-section="showSystemPromptSection"
+          :system-prompt-options="systemPromptMenuOptions"
+          :selected-system-prompt-id="selectedSystemPromptId"
+          :show-custom-system-prompt-badge="selectedSystemPromptId === '__custom__'"
+          @select-system-prompt="onSystemPromptSelect"
+          @open-change="handleSessionPanelOpenChange"
+        >
+          <template #generation-settings>
+            <Collapsible
+              v-if="!isAcpAgent && generationSettingsModel"
+              v-model:open="isGenerationSettingsExpanded"
+              class="border-b"
+            >
+              <CollapsibleTrigger as-child>
+                <button
+                  type="button"
+                  data-testid="generation-settings-trigger"
+                  class="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/40"
+                >
+                  <Icon
+                    icon="lucide:sliders-horizontal"
+                    class="h-4 w-4 shrink-0 text-muted-foreground"
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-xs font-medium">{{ t('settings.model.title') }}</span>
+                    <span class="block truncate text-[11px] text-muted-foreground">
+                      {{ generationSettingsModelText }}
+                    </span>
+                  </span>
+                  <Icon
+                    icon="lucide:chevron-down"
+                    :class="[
+                      'h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform',
+                      isGenerationSettingsExpanded ? 'rotate-180' : ''
+                    ]"
+                  />
+                </button>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent>
+                <div class="space-y-4 px-3 pb-3 pt-1">
                   <div
-                    v-if="!isModelSettingsReady"
+                    v-if="!isGenerationSettingsReady"
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
                   >
                     {{ t('common.loading') }}
@@ -634,36 +802,6 @@
                       />
 
                       <div
-                        v-if="!showOpenAIMediaGenerationSettings && showReasoningEffort"
-                        class="space-y-1.5"
-                      >
-                        <label class="text-xs font-medium">{{
-                          t('settings.model.modelConfig.reasoningEffort.label')
-                        }}</label>
-                        <Select
-                          :model-value="effectiveReasoningEffortValue"
-                          @update:model-value="onReasoningEffortSelect($event as string)"
-                        >
-                          <SelectTrigger class="h-8 text-xs">
-                            <SelectValue
-                              :placeholder="
-                                t('settings.model.modelConfig.reasoningEffort.placeholder')
-                              "
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem
-                              v-for="option in effortOptions"
-                              :key="option.value"
-                              :value="option.value"
-                            >
-                              {{ option.label }}
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div
                         v-if="!showOpenAIMediaGenerationSettings && showReasoningVisibility"
                         class="space-y-1.5"
                       >
@@ -838,189 +976,10 @@
                     </TooltipProvider>
                   </div>
                 </div>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        <Button
-          v-else
-          variant="ghost"
-          size="sm"
-          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
-          :disabled="true"
-        >
-          <ModelIcon
-            :model-id="displayIconId"
-            custom-class="w-3.5 h-3.5"
-            :is-dark="themeStore.isDark"
-          />
-          <span>{{ displayModelText }}</span>
-        </Button>
-
-        <Popover v-if="showExecutionModeControl" v-model:open="isExecutionModePanelOpen">
-          <PopoverTrigger as-child>
-            <Button
-              data-testid="execution-mode-switcher"
-              variant="ghost"
-              size="sm"
-              :class="[
-                'h-6 gap-1 px-2 text-xs dc-blur-panel',
-                workflowModeEnabled
-                  ? 'bg-violet-500/10 text-violet-600 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/15 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200'
-                  : 'text-muted-foreground hover:text-foreground'
-              ]"
-              :title="executionModeControlTitle"
-              :aria-label="executionModeControlTitle"
-              :aria-pressed="workflowModeEnabled"
-            >
-              <span class="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-                <Icon v-if="workflowModeEnabled" icon="lucide:git-fork" class="h-3.5 w-3.5" />
-              </span>
-              <span>{{ reasoningEffortDisplayLabel }}</span>
-              <Icon icon="lucide:chevron-down" class="h-3 w-3" />
-            </Button>
-          </PopoverTrigger>
-
-          <PopoverContent align="start" class="w-[19rem] overflow-hidden p-0">
-            <div class="px-2 py-2">
-              <div v-if="showReasoningEffort && effortOptions.length > 0">
-                <div class="px-2 pb-1 text-[11px] font-medium text-muted-foreground">
-                  {{ t('settings.model.modelConfig.reasoningEffort.label') }}
-                </div>
-                <div class="space-y-0.5">
-                  <button
-                    v-for="option in effortOptions"
-                    :key="option.value"
-                    type="button"
-                    :data-reasoning-effort="option.value"
-                    :class="[
-                      'flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition-colors',
-                      effectiveReasoningEffortValue === option.value
-                        ? 'bg-muted/60 text-foreground'
-                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                    ]"
-                    @click="onReasoningEffortSelect(option.value)"
-                  >
-                    <span class="flex-1">{{ option.label }}</span>
-                    <Icon
-                      v-if="effectiveReasoningEffortValue === option.value"
-                      icon="lucide:check"
-                      class="h-3.5 w-3.5"
-                    />
-                  </button>
-                </div>
-              </div>
-              <div v-else class="px-2 py-1.5 text-xs text-muted-foreground">
-                {{ t('chat.advancedSettings.useDefault') }}
-              </div>
-            </div>
-
-            <div class="border-t px-3 py-3">
-              <div class="flex items-center justify-between gap-3">
-                <div class="flex min-w-0 items-center gap-2">
-                  <Icon icon="lucide:git-fork" class="h-4 w-4 shrink-0" />
-                  <span class="text-sm font-medium">{{ t('chat.workflow.mode.title') }}</span>
-                </div>
-                <Switch
-                  data-testid="workflow-mode-toggle"
-                  :model-value="workflowModeEnabled"
-                  :disabled="workflowSwitchDisabled"
-                  :aria-label="t('chat.workflow.mode.title')"
-                  @update:model-value="onWorkflowModeToggle(Boolean($event))"
-                />
-              </div>
-              <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                {{ t('chat.workflow.mode.description') }}
-              </p>
-              <p
-                v-if="workflowCapabilityMessage"
-                data-testid="workflow-capability-message"
-                class="mt-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400"
-              >
-                {{ workflowCapabilityMessage }}
-              </p>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      <div class="flex items-center gap-1">
-        <Popover v-if="isAcpAgent && acpOverflowOptions.length > 0">
-          <PopoverTrigger as-child>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
-              :title="t('chat.advancedSettings.button')"
-              :aria-label="t('chat.advancedSettings.button')"
-            >
-              <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
-            </Button>
-          </PopoverTrigger>
-
-          <PopoverContent align="end" class="w-[18rem] p-0">
-            <div class="border-b px-3 py-3">
-              <div class="text-sm font-medium">{{ t('chat.advancedSettings.title') }}</div>
-            </div>
-
-            <div class="dc-overscroll-contain max-h-[24rem] space-y-3 overflow-y-auto px-3 py-3">
-              <div
-                v-for="option in acpOverflowOptions"
-                :key="option.id"
-                :data-option-id="option.id"
-                class="acp-overflow-option flex items-center justify-between gap-3"
-              >
-                <label class="min-w-0 flex-1 truncate text-xs font-medium">
-                  {{ option.label }}
-                </label>
-
-                <Select
-                  v-if="option.type === 'select'"
-                  :model-value="String(option.currentValue)"
-                  @update:model-value="onAcpSelectOption(option.id, $event as string)"
-                >
-                  <SelectTrigger
-                    :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
-                    class="h-8 w-[9rem] text-xs"
-                  >
-                    <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      v-for="entry in option.options ?? []"
-                      :key="`${option.id}-${entry.value}`"
-                      :value="entry.value"
-                    >
-                      {{ entry.value }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  v-else
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  class="h-8 min-w-[6rem] text-xs"
-                  :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
-                  @click="onAcpBooleanOption(option.id, !Boolean(option.currentValue))"
-                >
-                  <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
-                </Button>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        <McpIndicator
-          :show-system-prompt-section="showSystemPromptSection"
-          :system-prompt-options="systemPromptMenuOptions"
-          :selected-system-prompt-id="selectedSystemPromptId"
-          :show-custom-system-prompt-badge="selectedSystemPromptId === '__custom__'"
-          @select-system-prompt="onSystemPromptSelect"
-          @open-change="handleSessionPanelOpenChange"
-        />
+              </CollapsibleContent>
+            </Collapsible>
+          </template>
+        </SessionSettingsPopover>
 
         <DropdownMenu v-if="!isAcpAgent">
           <DropdownMenuTrigger as-child>
@@ -1091,6 +1050,11 @@ import {
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Spinner } from '@shadcn/components/ui/spinner'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@shadcn/components/ui/collapsible'
 import type { SystemPrompt } from '@shared/types/prompt'
 import type { ModelConfig, RENDERER_MODEL_META } from '@shared/types/provider'
 import type {
@@ -1137,7 +1101,7 @@ import {
   supportsVerbosity
 } from './composables/chatStatusBarReasoningOptions'
 import { useGenerationNumericInputs } from './composables/useGenerationNumericInputs'
-import McpIndicator from '@/components/chat-input/McpIndicator.vue'
+import SessionSettingsPopover from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import OpenAIImageGenerationSettingsFields from '@/components/settings/OpenAIImageGenerationSettingsFields.vue'
 import OpenAIVideoGenerationSettingsFields from '@/components/settings/OpenAIVideoGenerationSettingsFields.vue'
@@ -1236,12 +1200,11 @@ const workflowCapability = ref<WorkflowCapability | null>(null)
 const isWorkflowCapabilityLoading = ref(false)
 const workflowCapabilityLoadFailed = ref(false)
 const isWorkflowModeSaving = ref(false)
-const isModelSettingsExpanded = ref(false)
+const isGenerationSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
-const modelSettingsSelection = ref<ModelSelection | null>(null)
-const modelSettingsTargetConfig = ref<ModelConfig | null>(null)
-const modelSettingsTargetConfigSelection = ref<ModelSelection | null>(null)
-let modelSettingsTargetConfigToken = 0
+const generationSettingsModelConfigState = ref<ModelConfig | null>(null)
+const generationSettingsModelConfigSelection = ref<ModelSelection | null>(null)
+let generationSettingsModelConfigToken = 0
 
 const modelCapabilities = useModelCapabilities()
 const capabilityReasoningPortrait = computed(
@@ -1520,32 +1483,32 @@ const filteredModelGroups = computed<GroupedModelList[]>(() => {
     .filter((group) => group.models.length > 0)
 })
 
-const modelSettingsTarget = computed<ModelSelection | null>(() => {
-  return modelSettingsSelection.value ?? effectiveModelSelection.value
+const generationSettingsModel = computed<ModelSelection | null>(() => {
+  return effectiveModelSelection.value
 })
 
-const modelSettingsTargetMeta = computed(() => {
-  const target = modelSettingsTarget.value
+const generationSettingsModelMeta = computed(() => {
+  const target = generationSettingsModel.value
   if (!target) {
     return null
   }
   return findEnabledModelMeta(target.providerId, target.modelId)
 })
 
-const modelSettingsTargetResolvedConfig = computed(() =>
-  isSameModelSelection(modelSettingsTarget.value, modelSettingsTargetConfigSelection.value)
-    ? modelSettingsTargetConfig.value
+const generationSettingsModelConfig = computed(() =>
+  isSameModelSelection(generationSettingsModel.value, generationSettingsModelConfigSelection.value)
+    ? generationSettingsModelConfigState.value
     : null
 )
 
 const showOpenAIImageGenerationSettings = computed(() => {
-  const target = modelSettingsTarget.value
+  const target = generationSettingsModel.value
   if (!target) {
     return false
   }
 
-  const modelMeta = modelSettingsTargetMeta.value
-  const modelConfig = modelSettingsTargetResolvedConfig.value
+  const modelMeta = generationSettingsModelMeta.value
+  const modelConfig = generationSettingsModelConfig.value
   return supportsOpenAIImageGenerationSettings({
     providerId: target.providerId,
     providerApiType: resolveProviderApiType(target.providerId),
@@ -1558,13 +1521,13 @@ const showOpenAIImageGenerationSettings = computed(() => {
 })
 
 const showOpenAIVideoGenerationSettings = computed(() => {
-  const target = modelSettingsTarget.value
+  const target = generationSettingsModel.value
   if (!target) {
     return false
   }
 
-  const modelMeta = modelSettingsTargetMeta.value
-  const modelConfig = modelSettingsTargetResolvedConfig.value
+  const modelMeta = generationSettingsModelMeta.value
+  const modelConfig = generationSettingsModelConfig.value
   return supportsOpenAICompatibleVideoGeneration({
     providerId: target.providerId,
     providerApiType: resolveProviderApiType(target.providerId),
@@ -1582,13 +1545,13 @@ const showOpenAIMediaGenerationSettings = computed(
 
 watch(
   () => {
-    const target = modelSettingsTarget.value
+    const target = generationSettingsModel.value
     return target ? { providerId: target.providerId, modelId: target.modelId } : null
   },
   async (target) => {
-    const token = ++modelSettingsTargetConfigToken
-    modelSettingsTargetConfig.value = null
-    modelSettingsTargetConfigSelection.value = null
+    const token = ++generationSettingsModelConfigToken
+    generationSettingsModelConfigState.value = null
+    generationSettingsModelConfigSelection.value = null
 
     if (!target) {
       return
@@ -1596,13 +1559,13 @@ watch(
 
     try {
       const config = await modelClient.getModelConfig(target.modelId, target.providerId)
-      if (token !== modelSettingsTargetConfigToken) {
+      if (token !== generationSettingsModelConfigToken) {
         return
       }
-      modelSettingsTargetConfig.value = config
-      modelSettingsTargetConfigSelection.value = { ...target }
+      generationSettingsModelConfigState.value = config
+      generationSettingsModelConfigSelection.value = { ...target }
     } catch (error) {
-      if (token !== modelSettingsTargetConfigToken) {
+      if (token !== generationSettingsModelConfigToken) {
         return
       }
       console.warn('[ChatStatusBar] Failed to load model settings target config:', error)
@@ -1937,15 +1900,8 @@ const showSystemPromptSection = computed(
   () => !isAcpAgent.value && hasLoadedGenerationSettingsForCurrentSelection.value
 )
 
-const modelSettingsModelName = computed(() => {
-  return resolveModelName(
-    modelSettingsTarget.value?.providerId ?? null,
-    modelSettingsTarget.value?.modelId ?? null
-  )
-})
-
-const modelSettingsProviderText = computed(() => {
-  const selection = modelSettingsTarget.value
+const generationSettingsModelText = computed(() => {
+  const selection = generationSettingsModel.value
   if (!selection) {
     return ''
   }
@@ -1953,11 +1909,8 @@ const modelSettingsProviderText = computed(() => {
   return `${providerName} / ${selection.modelId}`
 })
 
-const isModelSettingsReady = computed(() => {
-  if (!isModelSettingsExpanded.value) {
-    return false
-  }
-  const target = modelSettingsTarget.value
+const isGenerationSettingsReady = computed(() => {
+  const target = generationSettingsModel.value
   const effective = effectiveModelSelection.value
   const loadedSelection = loadedSettingsSelection.value
   if (!target || !effective) {
@@ -2574,8 +2527,6 @@ function getEffectiveModelSelectionSnapshot(): ModelSelection | null {
 watch(isModelPanelOpen, (open) => {
   if (open) {
     modelSearchKeyword.value = ''
-    isModelSettingsExpanded.value = false
-    modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
 
     if (isAcpAgent.value) {
       return
@@ -2594,8 +2545,6 @@ watch(isModelPanelOpen, (open) => {
   }
 
   modelSearchKeyword.value = ''
-  isModelSettingsExpanded.value = false
-  modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
 })
 
 onBeforeUnmount(() => {
@@ -2754,8 +2703,6 @@ async function handleModelQuickSelect(providerId: string, modelId: string) {
     await completeSwitchModelOnboardingIfNeeded(result.previousSelection)
   }
 
-  modelSettingsSelection.value = { providerId, modelId }
-  isModelSettingsExpanded.value = false
   isModelPanelOpen.value = false
 }
 
@@ -2763,29 +2710,8 @@ function openModelPicker(): boolean {
   if (!showModelPopover.value) {
     return false
   }
-  isModelSettingsExpanded.value = false
   isModelPanelOpen.value = true
   return true
-}
-
-async function openModelSettings(providerId: string, modelId: string) {
-  const result = await changeModelSelection(providerId, modelId)
-  if (!result.applied) {
-    modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
-    isModelSettingsExpanded.value = false
-    return
-  }
-
-  if (result.selectionChanged) {
-    await completeSwitchModelOnboardingIfNeeded(result.previousSelection)
-  }
-
-  modelSettingsSelection.value = { providerId, modelId }
-  isModelSettingsExpanded.value = true
-}
-
-function collapseModelSettings() {
-  isModelSettingsExpanded.value = false
 }
 
 async function retryModelOptionsInitialization() {
@@ -3277,9 +3203,6 @@ defineExpose({
   onWorkflowModeToggle,
   toggleWorkflowMode,
   selectModel: changeModelSelection,
-  openModelPicker,
-  openModelSettings,
-  isModelSettingsExpanded,
-  modelSettingsSelection
+  openModelPicker
 })
 </script>

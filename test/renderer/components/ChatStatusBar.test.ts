@@ -739,8 +739,16 @@ const setup = async (options: SetupOptions = {}) => {
       props: {
         showSystemPromptSection: { type: Boolean, default: false }
       },
-      template:
-        '<div class="mcp-indicator-stub" :data-show-system-prompt-section="String(showSystemPromptSection)" />'
+      template: `
+        <div
+          class="mcp-indicator-stub"
+          :data-show-system-prompt-section="String(showSystemPromptSection)"
+        >
+          <div class="generation-settings-slot">
+            <slot name="generation-settings" />
+          </div>
+        </div>
+      `
     })
   }))
 
@@ -752,6 +760,9 @@ const setup = async (options: SetupOptions = {}) => {
     global: {
       stubs: {
         Button: ButtonStub,
+        Collapsible: passthrough('Collapsible'),
+        CollapsibleContent: passthrough('CollapsibleContent'),
+        CollapsibleTrigger: passthrough('CollapsibleTrigger'),
         Input: InputStub,
         DropdownMenu: passthrough('DropdownMenu'),
         DropdownMenuContent: passthrough('DropdownMenuContent'),
@@ -990,7 +1001,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(modelStore.initialize).toHaveBeenCalledTimes(1)
   })
 
-  it('renders compact model ids in the trigger and list, and keeps chevron actions for settings', async () => {
+  it('keeps the model picker limited to search and model selection', async () => {
     const { wrapper } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false,
@@ -1004,18 +1015,19 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.text()).not.toContain('GPT-4')
     expect(wrapper.text()).not.toContain('Claude 3.5 Sonnet')
 
-    const actionButtons = wrapper.findAll('button[title="chat.advancedSettings.button"]')
-    expect(actionButtons.length).toBeGreaterThan(0)
+    expect(wrapper.findAll('button[title="chat.advancedSettings.button"]')).toHaveLength(0)
     expect(
       wrapper
         .findAll('.icon-stub')
         .some((icon) => icon.attributes('data-icon') === 'lucide:chevron-right')
-    ).toBe(true)
-
-    await actionButtons[0].trigger('click')
-    await flushPromises()
-
-    expect((wrapper.vm as any).isModelSettingsExpanded).toBe(true)
+    ).toBe(false)
+    expect(wrapper.find('[data-testid="generation-settings-trigger"]').exists()).toBe(true)
+    expect(wrapper.get('.generation-settings-slot').text()).toContain(
+      'chat.advancedSettings.contextLength'
+    )
+    expect(wrapper.get('.generation-settings-slot').text()).not.toContain(
+      'settings.model.modelConfig.reasoningEffort.label'
+    )
   })
 
   it('filters embedding and rerank models out of the chat model list', async () => {
@@ -1122,7 +1134,7 @@ describe('ChatStatusBar model and session panels', () => {
       activeModelId: 'gpt-4',
       supportsEffort: true
     })
-    await (enabled.wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (enabled.wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     expect((enabled.wrapper.vm as any).showReasoningEffort).toBe(true)
@@ -1134,7 +1146,7 @@ describe('ChatStatusBar model and session panels', () => {
       activeModelId: 'gpt-4',
       supportsEffort: false
     })
-    await (disabled.wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (disabled.wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     expect((disabled.wrapper.vm as any).showReasoningEffort).toBe(false)
@@ -1169,7 +1181,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-opus-4-7')
     await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(false)
@@ -1207,7 +1219,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-opus-4-7')
     await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(true)
@@ -1246,7 +1258,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-fable-5')
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-fable-5')
     await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(true)
@@ -1284,7 +1296,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('new-api', 'claude-opus-4-7')
+    await (wrapper.vm as any).selectModel('new-api', 'claude-opus-4-7')
     await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(false)
@@ -1324,7 +1336,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('new-api', 'claude-opus-4-7')
+    await (wrapper.vm as any).selectModel('new-api', 'claude-opus-4-7')
     await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(true)
@@ -1367,7 +1379,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('zenmux', 'anthropic/claude-opus-4-7')
+    await (wrapper.vm as any).selectModel('zenmux', 'anthropic/claude-opus-4-7')
     await flushPromises()
 
     expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
@@ -1404,7 +1416,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-opus-4-7')
     await flushPromises()
 
     ;(wrapper.vm as any).localSettings.reasoningVisibility = undefined
@@ -1442,7 +1454,7 @@ describe('ChatStatusBar model and session panels', () => {
       () => pendingSettings.promise
     )
 
-    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-3-5-sonnet')
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-3-5-sonnet')
     await flushPromises()
 
     expect(wrapper.text()).toContain('common.loading')
@@ -1486,7 +1498,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('xai', 'grok-4')
+    await (wrapper.vm as any).selectModel('xai', 'grok-4')
     await flushPromises()
 
     expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('minimal')
@@ -1518,7 +1530,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('xai', 'grok-3-mini-fast-beta')
+    await (wrapper.vm as any).selectModel('xai', 'grok-3-mini-fast-beta')
     await flushPromises()
 
     expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('low')
@@ -1549,7 +1561,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-5.2')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-5.2')
     await flushPromises()
 
     expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('none')
@@ -1588,7 +1600,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-image-2')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-image-2')
     await flushPromises()
 
     expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)
@@ -1628,7 +1640,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('aihubmix', 'gpt-image-2')
+    await (wrapper.vm as any).selectModel('aihubmix', 'gpt-image-2')
     await flushPromises()
 
     expect(modelClient.getModelConfig).toHaveBeenCalledWith('gpt-image-2', 'aihubmix')
@@ -1658,7 +1670,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-5')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-5')
     await flushPromises()
 
     expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(false)
@@ -1712,7 +1724,7 @@ describe('ChatStatusBar model and session panels', () => {
         maxTokens: 32000
       }
     })
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     await commitNumericInput(wrapper, 'maxTokens', '64000')
@@ -1744,7 +1756,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-opus-4-7')
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
@@ -1787,7 +1799,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('new-api', 'claude-opus-4-8')
+    await (wrapper.vm as any).selectModel('new-api', 'claude-opus-4-8')
     await flushPromises()
 
     expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
@@ -1811,7 +1823,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     expect((wrapper.vm as any).localSettings.forceInterleavedThinkingCompat).toBe(true)
@@ -1848,7 +1860,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('moonshot', 'moonshotai/kimi-k2.6')
+    await (wrapper.vm as any).selectModel('moonshot', 'moonshotai/kimi-k2.6')
     await flushPromises()
 
     expect((wrapper.vm as any).localSettings.temperature).toBe(1)
@@ -1901,7 +1913,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('new-api', 'kimi-k3')
+    await (wrapper.vm as any).selectModel('new-api', 'kimi-k3')
     await flushPromises()
 
     expect((wrapper.vm as any).showTemperatureControl).toBe(false)
@@ -1948,7 +1960,7 @@ describe('ChatStatusBar model and session panels', () => {
       }
     })
 
-    await (wrapper.vm as any).openModelSettings('aihubmix', 'kimi-k3')
+    await (wrapper.vm as any).selectModel('aihubmix', 'kimi-k3')
     await flushPromises()
 
     expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
@@ -1966,7 +1978,7 @@ describe('ChatStatusBar model and session panels', () => {
       capabilityRequestError: new Error('ipc unavailable')
     })
 
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
@@ -2022,7 +2034,7 @@ describe('ChatStatusBar model and session panels', () => {
 
   it('steps numeric settings with buttons and blocks invalid relation commits', async () => {
     const { wrapper } = await setup({ agentId: 'deepchat', hasActiveSession: false })
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     await findNumericButton(wrapper, 'temperature', 'increment').trigger('click')
@@ -2053,7 +2065,7 @@ describe('ChatStatusBar model and session panels', () => {
 
   it('keeps invalid numeric drafts visible and only commits valid values', async () => {
     const { wrapper, draftStore } = await setup({ agentId: 'deepchat', hasActiveSession: false })
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     const temperatureInput = findNumericInput(wrapper, 'temperature')
@@ -2107,7 +2119,7 @@ describe('ChatStatusBar model and session panels', () => {
       verbosity: 'medium'
     })
 
-    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-3-5-sonnet')
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-3-5-sonnet')
     await flushPromises()
 
     expect(findThinkingBudgetToggle(wrapper).attributes('data-model-value')).toBe('false')
@@ -2161,7 +2173,7 @@ describe('ChatStatusBar model and session panels', () => {
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
     })
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     await commitNumericInput(wrapper, 'temperature', '0.9')
@@ -2193,7 +2205,7 @@ describe('ChatStatusBar model and session panels', () => {
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
     })
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     await findThinkingBudgetToggle(wrapper).trigger('click')
@@ -2233,7 +2245,7 @@ describe('ChatStatusBar model and session panels', () => {
         verbosityOptions: ['low', 'medium', 'high']
       }
     })
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     await findInterleavedThinkingToggle(wrapper).trigger('click')
@@ -2268,7 +2280,7 @@ describe('ChatStatusBar model and session panels', () => {
       () => firstResponse.promise
     )
 
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     await commitNumericInput(wrapper, 'temperature', '1.1')
@@ -2316,7 +2328,7 @@ describe('ChatStatusBar model and session panels', () => {
       () => responseQueue.shift() ?? Promise.reject(new Error('missing mocked response'))
     )
 
-    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await (wrapper.vm as any).selectModel('openai', 'gpt-4')
     await flushPromises()
 
     await findNumericButton(wrapper, 'thinkingBudget', 'increment').trigger('click')
@@ -2410,7 +2422,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings).toEqual(nextSettings)
   })
 
-  it('clears model settings panel state when switching models is rejected', async () => {
+  it('keeps advanced settings bound to the current model when switching is rejected', async () => {
     const { wrapper } = await setup({
       agentId: 'deepchat',
       hasActiveSession: true,
@@ -2419,14 +2431,10 @@ describe('ChatStatusBar model and session panels', () => {
       setSessionModelError: new Error('Cannot switch model while session is generating.')
     })
 
-    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-3-5-sonnet')
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-3-5-sonnet')
     await flushPromises()
 
-    expect((wrapper.vm as any).isModelSettingsExpanded).toBe(false)
-    expect((wrapper.vm as any).modelSettingsSelection).toEqual({
-      providerId: 'openai',
-      modelId: 'gpt-4'
-    })
+    expect((wrapper.vm as any).generationSettingsModelText).toContain('/ gpt-4')
   })
 
   it('updates draft model and preferred model when no active session', async () => {

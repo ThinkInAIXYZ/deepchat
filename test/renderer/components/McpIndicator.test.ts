@@ -241,6 +241,9 @@ const setup = async (options?: {
 
   const McpIndicator = (await import('@/components/chat-input/McpIndicator.vue')).default
   const wrapper = mount(McpIndicator, {
+    slots: {
+      'generation-settings': '<div data-testid="generation-settings-slot" />'
+    },
     global: {
       stubs: {
         Button: ButtonStub,
@@ -281,6 +284,7 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('Tools')
     expect(wrapper.text()).not.toContain('MCP 1')
     expect(wrapper.text().indexOf('Tools')).toBeLessThan(wrapper.text().indexOf('demo-server'))
+    expect(wrapper.find('[data-testid="generation-settings-slot"]').exists()).toBe(true)
 
     const execButton = buttons.find((button) => button.text() === 'exec')
     expect(execButton).toBeTruthy()
@@ -364,6 +368,7 @@ describe('McpIndicator', () => {
     const buttons = wrapper.findAll('button')
     expect(buttons[0].text()).toContain('MCP 1')
     expect(wrapper.text()).not.toContain('Tools')
+    expect(wrapper.find('[data-testid="generation-settings-slot"]').exists()).toBe(false)
     expect(toolService.getConfigurableAgentToolDefinitions).not.toHaveBeenCalled()
   })
 

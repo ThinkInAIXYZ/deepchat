@@ -511,7 +511,7 @@ Final cross-module review findings, ordered by severity:
 - [x] Add the two-section composer execution popover and non-color-only active indication.
 - [x] Add `/workflow` mode activation without sending a model message.
 - [x] Keep named saved-workflow launch independent from session mode.
-- [ ] Move low-frequency generation overrides out of model selection without deleting session
+- [x] Move low-frequency generation overrides out of model selection without deleting session
   override capability or persisted values.
 - [ ] Render model-generated preparation as a native approval card with direct exact-ID launch.
 - [ ] Keep generated source behind an advanced disclosure and regenerate plans from feedback.
@@ -547,8 +547,42 @@ Mode/control-surface review findings, ordered by severity:
 - low, fixed before commit: unsupported reasoning models could render a misleading reasoning
   section, the inactive/active icon changed trigger geometry, and same-revision local mode updates
   were not covered against stale session reads;
-- remaining known work is limited to the unchecked native approval, model-picker separation, and
-  final feature-wide validation items below.
+- remaining known work is limited to the native approval and final feature-wide validation items
+  below.
+
+Generation-settings surface BEFORE/AFTER:
+
+```text
+BEFORE: [Model v] -> Search + model list + per-row settings arrow -> model side panel
+AFTER:  [Model v] -> Search + model list
+        [Sliders] -> Advanced settings -> Current model settings (collapsed) + tools
+```
+
+Generation-settings surface validation evidence (2026-08-01):
+
+- the model picker now contains only search and model selection, and selecting a model remains the
+  only action that can change the active model;
+- the unified DeepChat session-settings popover owns a collapsed current-model section that reuses
+  the existing capability checks, numeric validation, debounce, and draft/session persistence;
+- reasoning effort remains exclusively in the execution control, while temperature, Top P,
+  context length, maximum output, timeout, reasoning visibility, verbosity, thinking budget,
+  media generation, and compatibility overrides retain their existing behavior;
+- direct ACP keeps its separate MCP/config surface and never receives the DeepChat generation slot;
+- focused renderer validation passes 82 tests across `ChatStatusBar` and `McpIndicator`, and the
+  complete renderer suite, format, i18n, lint, and node/web typechecks pass.
+
+Generation-settings surface review findings, ordered by severity:
+
+- no high-severity findings remained after review;
+- medium, fixed before commit: retaining the per-model settings arrow would have allowed opening
+  advanced settings to switch the model as a hidden side effect; the advanced surface is now bound
+  only to the effective current model;
+- medium, fixed before commit: rendering reasoning effort in both the execution control and the
+  advanced surface would have created two competing controls for one setting; the duplicate was
+  removed without changing the persisted value;
+- low, fixed before commit: a generic named slot could have exposed DeepChat generation controls in
+  direct ACP; the child surface renders the slot only in DeepChat context and regression tests cover
+  both branches.
 
 Execution-snapshot validation evidence (2026-08-01):
 

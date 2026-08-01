@@ -73,6 +73,8 @@
             </Select>
           </div>
 
+          <slot name="generation-settings" />
+
           <div class="border-b px-3 py-3">
             <div
               class="mb-3 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
