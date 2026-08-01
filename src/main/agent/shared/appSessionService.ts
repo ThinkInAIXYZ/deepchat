@@ -12,6 +12,10 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SessionListPageCursor } from '@/session/data/tables/newSessions'
 import { parseWorkflowSubagentContext } from '@shared/workflow/subagent'
+import {
+  normalizeSessionOrchestrationMode,
+  type SessionOrchestrationMode
+} from '@shared/workflow/orchestrationMode'
 
 const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta | null => {
   if (!raw) {
@@ -58,6 +62,7 @@ export class AppSessionService implements AppSessionReadPort {
     options?: {
       isDraft?: boolean
       disabledAgentTools?: string[]
+      orchestrationMode?: SessionOrchestrationMode
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
@@ -68,6 +73,7 @@ export class AppSessionService implements AppSessionReadPort {
     this.sessionDatabase.newSessionsTable.create(id, agentId, title, projectDir, {
       isDraft: options?.isDraft,
       disabledAgentTools: options?.disabledAgentTools,
+      orchestrationMode: options?.orchestrationMode,
       sessionKind: options?.sessionKind,
       parentSessionId: options?.parentSessionId,
       subagentMetaJson: options?.subagentMeta ? JSON.stringify(options.subagentMeta) : null
@@ -149,6 +155,7 @@ export class AppSessionService implements AppSessionReadPort {
         | 'sessionKind'
         | 'parentSessionId'
         | 'subagentMeta'
+        | 'orchestrationMode'
       >
     >
   ): void {
@@ -167,6 +174,7 @@ export class AppSessionService implements AppSessionReadPort {
       session_kind?: SessionKind
       parent_session_id?: string | null
       subagent_meta_json?: string | null
+      orchestration_mode?: SessionOrchestrationMode
     } = {}
     if (fields.title !== undefined) dbFields.title = fields.title
     if (fields.projectDir !== undefined) dbFields.project_dir = fields.projectDir
@@ -178,6 +186,9 @@ export class AppSessionService implements AppSessionReadPort {
     }
     if (fields.subagentMeta !== undefined) {
       dbFields.subagent_meta_json = fields.subagentMeta ? JSON.stringify(fields.subagentMeta) : null
+    }
+    if (fields.orchestrationMode !== undefined) {
+      dbFields.orchestration_mode = normalizeSessionOrchestrationMode(fields.orchestrationMode)
     }
     this.sessionDatabase.newSessionsTable.update(id, dbFields)
     if (fields.title !== undefined) {
@@ -215,6 +226,16 @@ export class AppSessionService implements AppSessionReadPort {
     this.notifyEnvironmentProjectionChanged()
   }
 
+  getOrchestrationMode(id: string): SessionOrchestrationMode {
+    return this.sessionDatabase.newSessionsTable.getOrchestrationMode(id)
+  }
+
+  updateOrchestrationMode(id: string, mode: SessionOrchestrationMode): void {
+    this.sessionDatabase.newSessionsTable.updateOrchestrationMode(id, mode)
+    this.sqlitePresenter.newEnvironmentsTable.syncForSession(id)
+    this.notifyEnvironmentProjectionChanged()
+  }
+
   updateAgentId(id: string, agentId: string): void {
     const current = this.sessionDatabase.newSessionsTable.get(id)
     if (!current || current.agent_id === agentId) {
@@ -236,6 +257,7 @@ export class AppSessionService implements AppSessionReadPort {
     session_kind: string
     parent_session_id: string | null
     subagent_meta_json: string | null
+    orchestration_mode: string
     created_at: number
     updated_at: number
     revision: number
@@ -251,6 +273,7 @@ export class AppSessionService implements AppSessionReadPort {
       sessionKind: row.session_kind === 'subagent' ? 'subagent' : 'regular',
       parentSessionId: row.parent_session_id ?? null,
       subagentMeta: parseSubagentMeta(row.subagent_meta_json),
+      orchestrationMode: normalizeSessionOrchestrationMode(row.orchestration_mode),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       revision: row.revision,

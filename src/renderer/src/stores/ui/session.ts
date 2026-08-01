@@ -16,6 +16,10 @@ import type {
   CreateSessionInput,
   SendMessageInput
 } from '@shared/types/agent-interface'
+import {
+  normalizeSessionOrchestrationMode,
+  type SessionOrchestrationMode
+} from '@shared/workflow/orchestrationMode'
 import { downloadBlob } from '@/lib/download'
 import {
   readGuidedOnboardingResumeIntent,
@@ -42,6 +46,7 @@ export interface UISession {
   sessionKind: SessionKind
   parentSessionId: string | null
   subagentMeta: DeepChatSubagentMeta | null
+  orchestrationMode: SessionOrchestrationMode
   metadata?: SessionMetadata | null
   createdAt: number
   updatedAt: number
@@ -113,6 +118,7 @@ function mapToUISession(session: SessionListItem | SessionWithState): UISession 
     sessionKind: session.sessionKind,
     parentSessionId: session.parentSessionId ?? null,
     subagentMeta: session.subagentMeta ?? null,
+    orchestrationMode: normalizeSessionOrchestrationMode(session.orchestrationMode),
     ...(metadata ? { metadata } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
@@ -625,6 +631,28 @@ export const useSessionStore = defineStore('session', () => {
       activeSessionSummary.value = {
         ...activeSessionSummary.value,
         status: nextStatus
+      }
+    }
+  }
+
+  const applyConfirmedSessionOrchestrationMode = (
+    sessionId: string,
+    mode: SessionOrchestrationMode
+  ): void => {
+    const orchestrationMode = normalizeSessionOrchestrationMode(mode)
+    sessions.value = sessions.value.map((session) =>
+      session.id === sessionId ? { ...session, orchestrationMode } : session
+    )
+    if (bootstrapActiveSession.value?.id === sessionId) {
+      bootstrapActiveSession.value = {
+        ...bootstrapActiveSession.value,
+        orchestrationMode
+      }
+    }
+    if (activeSessionSummary.value?.id === sessionId) {
+      activeSessionSummary.value = {
+        ...activeSessionSummary.value,
+        orchestrationMode
       }
     }
   }
@@ -1346,6 +1374,7 @@ export const useSessionStore = defineStore('session', () => {
     createSession,
     sendMessage,
     setSessionModel,
+    applyConfirmedSessionOrchestrationMode,
     selectSession,
     closeSession,
     startNewConversation,

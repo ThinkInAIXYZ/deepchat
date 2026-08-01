@@ -290,7 +290,9 @@ const setup = async (options: SetupOptions = {}) => {
   const chatInputTriggerAttach = vi.fn()
   const chatInputGetPendingSkillsSnapshot = vi.fn((): string[] => [])
   const chatInputClearPendingSkills = vi.fn()
+  const chatInputConsumeWorkflowSlashCommand = vi.fn(() => false)
   const chatStatusBarOpenModelPicker = vi.fn(() => true)
+  const chatStatusBarToggleWorkflowMode = vi.fn().mockResolvedValue(true)
   const attachmentPreparationStore = reactive({
     consumeInitialDraftRecovery: vi.fn(() => null),
     stageInitialDraftRecovery: vi.fn(),
@@ -471,6 +473,10 @@ const setup = async (options: SetupOptions = {}) => {
           type: Boolean,
           default: false
         },
+        workflowModeCommandEnabled: {
+          type: Boolean,
+          default: false
+        },
         supportsVision: {
           type: Boolean,
           default: null
@@ -497,6 +503,7 @@ const setup = async (options: SetupOptions = {}) => {
         'update:files',
         'command-submit',
         'workflow-submit',
+        'workflow-mode-toggle',
         'queue-submit',
         'submit',
         'switch-vision-model'
@@ -506,7 +513,8 @@ const setup = async (options: SetupOptions = {}) => {
           triggerAttach: chatInputTriggerAttach,
           insertWorkspaceReference: chatInputInsertWorkspaceReference,
           getPendingSkillsSnapshot: chatInputGetPendingSkillsSnapshot,
-          clearPendingSkills: chatInputClearPendingSkills
+          clearPendingSkills: chatInputClearPendingSkills,
+          consumeWorkflowSlashCommand: chatInputConsumeWorkflowSlashCommand
         })
       },
       template:
@@ -583,7 +591,10 @@ const setup = async (options: SetupOptions = {}) => {
     default: defineComponent({
       name: 'ChatStatusBar',
       setup(_, { expose }) {
-        expose({ openModelPicker: chatStatusBarOpenModelPicker })
+        expose({
+          openModelPicker: chatStatusBarOpenModelPicker,
+          toggleWorkflowMode: chatStatusBarToggleWorkflowMode
+        })
         return () => h('div', { class: 'chat-status-bar-stub' })
       }
     })
@@ -704,7 +715,9 @@ const setup = async (options: SetupOptions = {}) => {
     chatInputTriggerAttach,
     chatInputGetPendingSkillsSnapshot,
     chatInputClearPendingSkills,
+    chatInputConsumeWorkflowSlashCommand,
     chatStatusBarOpenModelPicker,
+    chatStatusBarToggleWorkflowMode,
     recentMessageMeasurementCache,
     disposeChatSearch,
     emitPlanUpdated: (payload: any) => {
@@ -811,6 +824,7 @@ describe('ChatPage', () => {
     const input = wrapper.findComponent({ name: 'ChatInputBox' })
 
     expect(input.props('workflowEnabled')).toBe(true)
+    expect(input.props('workflowModeCommandEnabled')).toBe(true)
     input.vm.$emit('workflow-submit', 'review', '{"target":"src"}')
     await flushPromises()
 
@@ -819,6 +833,27 @@ describe('ChatPage', () => {
       'review',
       '{"target":"src"}'
     )
+  })
+
+  it('routes the built-in Workflow command through the shared status control', async () => {
+    const { wrapper, chatStatusBarToggleWorkflowMode } = await setup()
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('workflow-mode-toggle')
+    await flushPromises()
+
+    expect(chatStatusBarToggleWorkflowMode).toHaveBeenCalledOnce()
+  })
+
+  it('consumes a local Workflow command before toolbar submission', async () => {
+    const { wrapper, chatInputConsumeWorkflowSlashCommand, sessionStore } = await setup()
+    chatInputConsumeWorkflowSlashCommand.mockReturnValue(true)
+
+    wrapper.findComponent({ name: 'ChatInputToolbar' }).vm.$emit('send')
+    await flushPromises()
+
+    expect(chatInputConsumeWorkflowSlashCommand).toHaveBeenCalledOnce()
+    expect(sessionStore.sendMessage).not.toHaveBeenCalled()
   })
 
   it('keeps saved Workflow approval disabled for a direct ACP Agent', async () => {
@@ -832,6 +867,7 @@ describe('ChatPage', () => {
     const input = wrapper.findComponent({ name: 'ChatInputBox' })
 
     expect(input.props('workflowEnabled')).toBe(false)
+    expect(input.props('workflowModeCommandEnabled')).toBe(false)
     input.vm.$emit('workflow-submit', 'review', '{}')
     await flushPromises()
 

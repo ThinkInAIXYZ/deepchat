@@ -520,6 +520,7 @@ import {
 } from './routes/workspace.routes'
 import {
   workflowCancelRoute,
+  workflowGetCapabilityRoute,
   workflowInspectRoute,
   workflowLaunchRoute,
   workflowListRoute,
@@ -530,6 +531,7 @@ import {
   workflowSavedPrepareLaunchRoute,
   workflowSavedReadRoute,
   workflowSavedSaveRoute,
+  workflowSetModeRoute,
   workflowSynthesizeRoute
 } from './routes/workflow.routes'
 
@@ -1054,6 +1056,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [toolsListDefinitionsRoute.name]: toolsListDefinitionsRoute,
   [systemOpenSettingsRoute.name]: systemOpenSettingsRoute,
   [workflowPrepareLaunchRoute.name]: workflowPrepareLaunchRoute,
+  [workflowGetCapabilityRoute.name]: workflowGetCapabilityRoute,
+  [workflowSetModeRoute.name]: workflowSetModeRoute,
   [workflowLaunchRoute.name]: workflowLaunchRoute,
   [workflowListRoute.name]: workflowListRoute,
   [workflowInspectRoute.name]: workflowInspectRoute,

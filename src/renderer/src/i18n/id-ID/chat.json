@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "Workflow",
+      "description": "Orkestrasi multi-Agent persisten. Proses dapat berjalan lebih lama dan menggunakan lebih banyak token.",
+      "reasons": {
+        "session_unavailable": "Sesi ini sudah tidak tersedia.",
+        "agent_unavailable": "Agent yang dipilih tidak tersedia.",
+        "deepchat_agent_required": "Mode Workflow memerlukan DeepChat Agent.",
+        "regular_parent_required": "Mode Workflow tidak tersedia di dalam sesi anak.",
+        "agent_policy_unavailable": "Kebijakan Workflow tidak dapat dimuat.",
+        "subagents_disabled": "Aktifkan Subagents untuk Agent ini agar dapat menggunakan mode Workflow."
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

@@ -106,6 +106,7 @@
             :agent-id="selectedAgent.id"
             :workspace-path="projectStore.selectedProject?.path ?? null"
             :is-acp-session="isAcpSelectedAgent"
+            :workflow-mode-command-enabled="isDeepChatSelectedAgent"
             :supports-vision="composerSupportsVision"
             :editable="!isSubmittingInput"
             :submit-disabled="isAcpWorkdirUnavailable || isSubmittingInput"
@@ -113,6 +114,7 @@
             @update:files="onFilesChange"
             @pending-skills-change="onPendingSkillsChange"
             @command-submit="onCommandSubmit"
+            @workflow-mode-toggle="onWorkflowModeToggle"
             @submit="onSubmit"
             @switch-vision-model="switchToVisionModel"
             @toggle-voice-input="onToggleVoiceInput"
@@ -202,6 +204,7 @@ import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOve
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import { DEFAULT_SESSION_ORCHESTRATION_MODE } from '@shared/workflow/orchestrationMode'
 import type {
   DeepChatAgentConfig,
   MessageFile,
@@ -263,6 +266,7 @@ const chatInputRef = ref<{
   getPendingSkillsSnapshot?: () => string[]
   clearPendingSkills?: () => void
   focusInput?: () => void
+  consumeWorkflowSlashCommand?: () => boolean
 } | null>(null)
 const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
@@ -851,6 +855,7 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
 }
 
 async function onSubmit() {
+  if (chatInputRef.value?.consumeWorkflowSlashCommand?.()) return
   if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
 
   const text = message.value.trim()
@@ -931,6 +936,10 @@ async function onCommandSubmit(command: string) {
   }
 }
 
+function onWorkflowModeToggle(): void {
+  void chatStatusBarRef.value?.toggleWorkflowMode?.()
+}
+
 function shouldIgnoreManualCompactionDraft(text: string): boolean {
   return !isAcpSelectedAgent.value && isManualCompactionCommand(text)
 }
@@ -950,6 +959,7 @@ async function submitText(
   const agentId = selectedAgent.value.id
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
+  const draftOrchestrationMode = draftStore.orchestrationMode
   const draftGenerationSettings = draftStore.toGenerationSettings()
 
   try {
@@ -1009,6 +1019,7 @@ async function submitText(
       modelId,
       permissionMode: draftPermissionMode,
       disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
+      orchestrationMode: isAcp ? DEFAULT_SESSION_ORCHESTRATION_MODE : draftOrchestrationMode,
       generationSettings: draftGenerationSettings,
       activeSkills: messagePayload.activeSkills
     }
@@ -1089,6 +1100,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
   draftStore.disabledAgentTools = [...DEFAULT_DISABLED_AGENT_TOOLS]
+  draftStore.orchestrationMode = DEFAULT_SESSION_ORCHESTRATION_MODE
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
   draftStore.topP = undefined

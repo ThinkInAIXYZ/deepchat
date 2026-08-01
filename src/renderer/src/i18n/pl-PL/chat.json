@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "Workflow",
+      "description": "Trwała orkiestracja wielu Agentów. Uruchomienia mogą trwać dłużej i zużywać więcej tokenów.",
+      "reasons": {
+        "session_unavailable": "Ta sesja nie jest już dostępna.",
+        "agent_unavailable": "Wybrany Agent jest niedostępny.",
+        "deepchat_agent_required": "Tryb Workflow wymaga DeepChat Agenta.",
+        "regular_parent_required": "Tryb Workflow jest niedostępny w sesji podrzędnej.",
+        "agent_policy_unavailable": "Nie udało się wczytać zasad Workflow.",
+        "subagents_disabled": "Włącz Subagents dla tego Agenta, aby używać trybu Workflow."
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

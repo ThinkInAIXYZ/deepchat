@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "工作流",
+      "description": "持久化多 Agent 编排；运行可能耗时更久并消耗更多 Token。",
+      "reasons": {
+        "session_unavailable": "当前会话已不可用。",
+        "agent_unavailable": "当前选择的 Agent 不可用。",
+        "deepchat_agent_required": "工作流模式需要使用 DeepChat Agent。",
+        "regular_parent_required": "子会话中不能使用工作流模式。",
+        "agent_policy_unavailable": "无法加载工作流策略。",
+        "subagents_disabled": "请先为此 Agent 启用 Subagent，再使用工作流模式。"
+      }
+    },
     "title": "工作流",
     "loading": "正在加载工作流...",
     "runLabel": "运行 {id}",

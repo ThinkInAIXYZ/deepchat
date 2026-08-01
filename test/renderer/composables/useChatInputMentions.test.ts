@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { TOOL_EXECUTION, type MCPToolDefinition, type PromptListEntry } from '@shared/types/mcp'
 import {
+  buildSavedWorkflowSlashLabel,
   filterSlashSuggestionItems,
   flattenPromptResultToText,
   MAX_FILTERED_SLASH_SUGGESTIONS,
   createManualCompactionSuggestion,
+  createWorkflowModeSuggestion,
   isManualCompactionCommand,
+  parseWorkflowSlashCommand,
   resolveSlashSelectionAction,
   shouldShowManualCompactionCommand,
   sortSlashSuggestionItems,
@@ -50,6 +53,17 @@ describe('resolveSlashSelectionAction', () => {
       kind: 'send-command',
       command: '/compact'
     })
+  })
+
+  it('routes the built-in Workflow command to the local mode control', () => {
+    const item = createWorkflowModeSuggestion('Toggle Workflow mode')
+
+    expect(item).toMatchObject({
+      id: 'command:workflow-mode',
+      category: 'command',
+      label: '/workflow'
+    })
+    expect(resolveSlashSelectionAction(item)).toEqual({ kind: 'toggle-workflow-mode' })
   })
 
   it('dispatches command directly when no input hint', () => {
@@ -228,6 +242,37 @@ describe('manual compaction slash visibility', () => {
     expect(isManualCompactionCommand('  /compact  ')).toBe(true)
     expect(isManualCompactionCommand('/compact now')).toBe(false)
     expect(isManualCompactionCommand('/compactly')).toBe(false)
+  })
+})
+
+describe('Workflow slash parsing', () => {
+  it('keeps mode activation and saved preparation as separate local actions', () => {
+    expect(parseWorkflowSlashCommand('/workflow')).toEqual({ kind: 'toggle-mode' })
+    expect(parseWorkflowSlashCommand(' /workflow review ')).toEqual({
+      kind: 'prepare-saved',
+      name: 'review',
+      argsText: '{}'
+    })
+    expect(parseWorkflowSlashCommand('/workflow review {"target":"src"}')).toEqual({
+      kind: 'prepare-saved',
+      name: 'review',
+      argsText: '{"target":"src"}'
+    })
+    expect(parseWorkflowSlashCommand('/workflow\treview')).toEqual({
+      kind: 'prepare-saved',
+      name: 'review',
+      argsText: '{}'
+    })
+  })
+
+  it('does not claim unrelated or invalid saved-workflow commands', () => {
+    expect(parseWorkflowSlashCommand('/workflowx')).toBeNull()
+    expect(parseWorkflowSlashCommand('/workflow ../review')).toBeNull()
+  })
+
+  it('reserves the bare Workflow name for mode activation', () => {
+    expect(buildSavedWorkflowSlashLabel('workflow')).toBe('/workflow workflow')
+    expect(buildSavedWorkflowSlashLabel('review')).toBe('/review')
   })
 })
 

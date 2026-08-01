@@ -637,7 +637,7 @@ describe('ToolService', () => {
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.anchors)).toBe('diagnostic')
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.handoff)).toBe('runtime-only')
     expect(getAgentToolExposure(SUBAGENT_ORCHESTRATOR_TOOL_NAME)).toBe('system-model')
-    expect(getAgentToolExposure(WORKFLOW_AGENT_TOOL_NAME)).toBe('user-configurable')
+    expect(getAgentToolExposure(WORKFLOW_AGENT_TOOL_NAME)).toBe('mode-controlled')
     expect(getAgentToolExposure('read')).toBe('user-configurable')
     expect(getAgentToolExposure('__proto__')).toBe('user-configurable')
     expect(() => assertAgentToolExposure(TAPE_TOOL_NAMES.handoff, 'user-configurable')).toThrow(
@@ -645,7 +645,7 @@ describe('ToolService', () => {
     )
   })
 
-  it('keeps a same-name MCP workflow tool instead of reserving it globally', async () => {
+  it('keeps a same-name MCP workflow tool in adaptive mode', async () => {
     const toolService = new ToolService({
       mcpService: {
         getAllToolDefinitions: vi
@@ -680,7 +680,7 @@ describe('ToolService', () => {
     ])
   })
 
-  it('lists workflow as configurable and honors its disabled state at runtime', async () => {
+  it('routes workflow and Subagent orchestration exclusively by session mode', async () => {
     const canUse = vi.fn().mockResolvedValue(true)
     const toolService = new ToolService({
       mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
@@ -699,33 +699,92 @@ describe('ToolService', () => {
       supportsVision: false,
       agentWorkspacePath: null
     })
-    expect(configurable.map((definition) => definition.function.name)).toContain(
+    expect(configurable.map((definition) => definition.function.name)).not.toContain(
       WORKFLOW_AGENT_TOOL_NAME
     )
     expect(canUse).not.toHaveBeenCalled()
 
-    const disabled = await toolService.getAllToolDefinitions({
+    const subagentCapability = resolveDeepChatSubagentCapability({
+      agentType: 'deepchat',
+      sessionKind: 'regular',
+      agentPolicyEnabled: true,
+      slots: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review the result.'
+        }
+      ]
+    })
+    const adaptive = await toolService.getAllToolDefinitions({
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: null,
-      conversationId: 'conv-1',
-      disabledAgentTools: [WORKFLOW_AGENT_TOOL_NAME]
+      conversationId: 'conv-adaptive',
+      disabledAgentTools: [WORKFLOW_AGENT_TOOL_NAME],
+      orchestrationMode: 'adaptive',
+      subagentCapability
     })
-    expect(disabled.map((definition) => definition.function.name)).not.toContain(
+    expect(adaptive.map((definition) => definition.function.name)).not.toContain(
       WORKFLOW_AGENT_TOOL_NAME
+    )
+    expect(adaptive.map((definition) => definition.function.name)).toContain(
+      SUBAGENT_ORCHESTRATOR_TOOL_NAME
     )
 
-    const enabled = await toolService.getAllToolDefinitions({
+    const workflow = await toolService.getAllToolDefinitions({
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: null,
-      conversationId: 'conv-1',
-      disabledAgentTools: []
+      conversationId: 'conv-workflow',
+      disabledAgentTools: [WORKFLOW_AGENT_TOOL_NAME],
+      orchestrationMode: 'workflow',
+      subagentCapability
     })
-    expect(enabled.map((definition) => definition.function.name)).toContain(
+    expect(workflow.map((definition) => definition.function.name)).toContain(
       WORKFLOW_AGENT_TOOL_NAME
     )
-    expect(canUse).toHaveBeenCalledWith('conv-1')
+    expect(workflow.map((definition) => definition.function.name)).not.toContain(
+      SUBAGENT_ORCHESTRATOR_TOOL_NAME
+    )
+    expect(canUse).toHaveBeenCalledWith('conv-workflow')
+  })
+
+  it('reserves the built-in workflow name only while workflow mode is active', async () => {
+    const mcpService = {
+      getAllToolDefinitions: vi
+        .fn()
+        .mockResolvedValue([buildToolDefinition(WORKFLOW_AGENT_TOOL_NAME, 'untrusted-mcp')])
+    }
+    const toolService = new ToolService({
+      mcpService: mcpService as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock({
+        workflow: { canUse: vi.fn().mockResolvedValue(true) }
+      })
+    })
+
+    const definitions = await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-workflow',
+      orchestrationMode: 'workflow'
+    })
+
+    expect(
+      definitions.filter((definition) => definition.function.name === WORKFLOW_AGENT_TOOL_NAME)
+    ).toEqual([
+      expect.objectContaining({
+        source: 'agent',
+        server: expect.objectContaining({ name: 'agent-workflows' })
+      })
+    ])
   })
 
   it('reserves the Subagent orchestrator and ignores generic disabled-tool state', async () => {

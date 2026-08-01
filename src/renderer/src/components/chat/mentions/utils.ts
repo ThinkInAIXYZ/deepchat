@@ -1,5 +1,5 @@
 import type { MCPToolDefinition, PromptListEntry } from '@shared/types/mcp'
-import type { WorkflowSavedSummary } from '@shared/workflow/savedWorkflow'
+import { WorkflowSavedNameSchema, type WorkflowSavedSummary } from '@shared/workflow/savedWorkflow'
 
 export interface AcpSessionCommand {
   name: string
@@ -11,6 +11,12 @@ export type SlashCategory = 'command' | 'workflow' | 'skill' | 'prompt' | 'tool'
 
 export type WorkflowSlashPayload = Pick<WorkflowSavedSummary, 'name' | 'relativePath'>
 
+export interface WorkflowModeSlashPayload {
+  kind: 'workflow-mode'
+  name: 'workflow'
+  description: string
+}
+
 export interface SlashSuggestionItem {
   id: string
   category: SlashCategory
@@ -18,6 +24,7 @@ export interface SlashSuggestionItem {
   description?: string
   payload:
     | AcpSessionCommand
+    | WorkflowModeSlashPayload
     | WorkflowSlashPayload
     | PromptListEntry
     | MCPToolDefinition
@@ -38,6 +45,7 @@ export type SlashActionDecision =
   | { kind: 'send-command'; command: string }
   | { kind: 'request-command-input'; command: AcpSessionCommand }
   | { kind: 'request-workflow-input'; workflow: WorkflowSlashPayload }
+  | { kind: 'toggle-workflow-mode' }
   | { kind: 'activate-skill'; skillName: string }
   | { kind: 'insert-tool'; text: string }
   | { kind: 'insert-prompt'; prompt: PromptListEntry }
@@ -45,6 +53,11 @@ export type SlashActionDecision =
 
 export const MANUAL_COMPACTION_COMMAND_NAME = 'compact'
 export const MANUAL_COMPACTION_COMMAND_TEXT = `/${MANUAL_COMPACTION_COMMAND_NAME}`
+export const WORKFLOW_MODE_COMMAND_TEXT = '/workflow'
+
+export type ParsedWorkflowSlashCommand =
+  | { kind: 'toggle-mode' }
+  | { kind: 'prepare-saved'; name: string; argsText: string }
 
 const uniq = (values: string[]) => {
   const seen = new Set<string>()
@@ -87,6 +100,50 @@ export const createManualCompactionSuggestion = (description: string): SlashSugg
     input: null
   }
 })
+
+export const createWorkflowModeSuggestion = (description: string): SlashSuggestionItem => ({
+  id: 'command:workflow-mode',
+  category: 'command',
+  label: '/workflow',
+  description,
+  payload: {
+    kind: 'workflow-mode',
+    name: 'workflow',
+    description
+  }
+})
+
+export const buildSavedWorkflowSlashLabel = (name: string): string =>
+  name === 'workflow' ? '/workflow workflow' : `/${name}`
+
+export const parseWorkflowSlashCommand = (value: string): ParsedWorkflowSlashCommand | null => {
+  const normalized = value.trim()
+  if (normalized === WORKFLOW_MODE_COMMAND_TEXT) {
+    return { kind: 'toggle-mode' }
+  }
+  if (
+    !normalized.startsWith(WORKFLOW_MODE_COMMAND_TEXT) ||
+    !/\s/u.test(normalized.charAt(WORKFLOW_MODE_COMMAND_TEXT.length))
+  ) {
+    return null
+  }
+
+  const remainder = normalized.slice(WORKFLOW_MODE_COMMAND_TEXT.length).trim()
+  const separatorIndex = remainder.search(/\s/)
+  const name = separatorIndex === -1 ? remainder : remainder.slice(0, separatorIndex)
+  if (!WorkflowSavedNameSchema.safeParse(name).success) {
+    return null
+  }
+  const argsText = separatorIndex === -1 ? '{}' : remainder.slice(separatorIndex).trim() || '{}'
+  return { kind: 'prepare-saved', name, argsText }
+}
+
+const isWorkflowModeSlashPayload = (value: unknown): value is WorkflowModeSlashPayload =>
+  Boolean(
+    value &&
+    typeof value === 'object' &&
+    (value as Partial<WorkflowModeSlashPayload>).kind === 'workflow-mode'
+  )
 
 const collectPromptSegments = (value: unknown, segments: string[], visited: Set<object>): void => {
   if (typeof value === 'string') {
@@ -174,6 +231,9 @@ export const filterSlashSuggestionItems = (
 
 export const resolveSlashSelectionAction = (item: SlashSuggestionItem): SlashActionDecision => {
   if (item.category === 'command') {
+    if (isWorkflowModeSlashPayload(item.payload)) {
+      return { kind: 'toggle-workflow-mode' }
+    }
     const command = item.payload as AcpSessionCommand
     if (command.input?.hint?.trim()) {
       return { kind: 'request-command-input', command }

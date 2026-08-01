@@ -503,14 +503,14 @@ Final cross-module review findings, ordered by severity:
 
 ## Session Workflow Mode And Native Launch UX
 
-- [ ] Persist `orchestrationMode: adaptive | workflow` for sessions and new-session drafts.
-- [ ] Migrate existing sessions to `adaptive` without inferring intent from disabled tools.
-- [ ] Remove Workflow from the generic configurable-tool surface.
-- [ ] Expose `subagent_orchestrator` and `workflow` mutually exclusively by session mode.
-- [ ] Add one main-owned typed workflow-capability result with exact unavailable reasons.
-- [ ] Add the two-section composer execution popover and non-color-only active indication.
-- [ ] Add `/workflow` mode activation without sending a model message.
-- [ ] Keep named saved-workflow launch independent from session mode.
+- [x] Persist `orchestrationMode: adaptive | workflow` for sessions and new-session drafts.
+- [x] Migrate existing sessions to `adaptive` without inferring intent from disabled tools.
+- [x] Remove Workflow from the generic configurable-tool surface.
+- [x] Expose `subagent_orchestrator` and `workflow` mutually exclusively by session mode.
+- [x] Add one main-owned typed workflow-capability result with exact unavailable reasons.
+- [x] Add the two-section composer execution popover and non-color-only active indication.
+- [x] Add `/workflow` mode activation without sending a model message.
+- [x] Keep named saved-workflow launch independent from session mode.
 - [ ] Move low-frequency generation overrides out of model selection without deleting session
   override capability or persisted values.
 - [ ] Render model-generated preparation as a native approval card with direct exact-ID launch.
@@ -519,3 +519,33 @@ Final cross-module review findings, ordered by severity:
 - [ ] Verify an active run survives session reasoning changes while later runs use the new value.
 - [ ] Complete a severity-ordered pre-commit review and focused validation for every slice.
 - [ ] Run final format, i18n, lint, typecheck, focused tests, build, and packaging checks.
+
+Mode/control-surface validation evidence (2026-08-01):
+
+- session schema version 57 persists `adaptive | workflow`, migrates every existing session to
+  `adaptive`, and removes the retired generic Workflow disabled-tool override without inferring
+  user intent;
+- runtime tool catalogs expose exactly one orchestrator by mode, include mode in the cache
+  fingerprint, reserve a same-name MCP Workflow tool only while the built-in is active, and add
+  Workflow prompt guidance only for the built-in Agent tool;
+- main-owned capability checks distinguish missing sessions and Agents, direct ACP, child
+  sessions, unavailable policy, and disabled Subagents; draft and active-session requests fence
+  stale completion across navigation;
+- the composer keeps reasoning effort and Workflow mode independent, uses icon plus semantic
+  accent and `aria-pressed`, and consumes bare or namespaced Workflow commands locally from both
+  keyboard and toolbar submission paths;
+- saved `workflow.js` remains reachable as `/workflow workflow`, existing `/name` launch remains
+  compatible, and Direct ACP retains its own command namespace.
+
+Mode/control-surface review findings, ordered by severity:
+
+- high, fixed before commit: an MCP tool named `workflow` could otherwise win name deduplication in
+  Workflow mode and receive generated source intended for the built-in approval boundary;
+- medium, fixed before commit: toolbar submission could send `/workflow` to the model, saved
+  `workflow.js` collided with the bare mode command, and stale async capability or mutation
+  receipts could update the wrong draft/session after navigation;
+- low, fixed before commit: unsupported reasoning models could render a misleading reasoning
+  section, the inactive/active icon changed trigger geometry, and same-revision local mode updates
+  were not covered against stale session reads;
+- remaining known work is limited to the unchecked native approval, model-picker separation, and
+  immutable execution-snapshot items below.

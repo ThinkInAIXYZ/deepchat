@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "İş akışı",
+      "description": "Kalıcı çoklu Agent orkestrasyonu. Çalıştırmalar daha uzun sürebilir ve daha fazla token kullanabilir.",
+      "reasons": {
+        "session_unavailable": "Bu oturum artık kullanılamıyor.",
+        "agent_unavailable": "Seçilen Agent kullanılamıyor.",
+        "deepchat_agent_required": "İş akışı modu bir DeepChat Agent gerektirir.",
+        "regular_parent_required": "İş akışı modu alt oturumlarda kullanılamaz.",
+        "agent_policy_unavailable": "İş akışı ilkesi yüklenemedi.",
+        "subagents_disabled": "İş akışı modunu kullanmak için bu Agent üzerinde Subagents özelliğini etkinleştirin."
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

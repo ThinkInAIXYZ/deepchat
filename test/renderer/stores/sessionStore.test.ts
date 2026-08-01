@@ -1301,6 +1301,35 @@ describe('sessionStore streaming cleanup', () => {
     )
   })
 
+  it('keeps a confirmed Workflow mode across active projections and stale same-revision reads', async () => {
+    const { store } = await setupStore()
+    const current = createSession({
+      id: 'session-workflow',
+      orchestrationMode: 'adaptive',
+      revision: 3,
+      updatedAt: 3
+    })
+    store.sessions.value = [current]
+    await store.applyBootstrapShell({
+      activeSessionId: 'session-workflow',
+      activeSession: current
+    })
+    store.applyRestoredSession(current)
+
+    store.applyConfirmedSessionOrchestrationMode('session-workflow', 'workflow')
+    store.applyRestoredSession(
+      createSession({
+        id: 'session-workflow',
+        orchestrationMode: 'adaptive',
+        revision: 3,
+        updatedAt: 3
+      })
+    )
+
+    expect(store.sessions.value[0]?.orchestrationMode).toBe('workflow')
+    expect(store.activeSession.value?.orchestrationMode).toBe('workflow')
+  })
+
   it('clears streaming when bootstrap shell switches the active session', async () => {
     const { store, clearStreamingState } = await setupStore()
     store.activeSessionId.value = 'session-a'

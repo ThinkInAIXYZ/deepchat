@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "Flujo de trabajo",
+      "description": "Orquestación persistente de varios Agents. Las ejecuciones pueden tardar más y usar más tokens.",
+      "reasons": {
+        "session_unavailable": "Esta sesión ya no está disponible.",
+        "agent_unavailable": "El Agent seleccionado no está disponible.",
+        "deepchat_agent_required": "El modo de flujo de trabajo requiere un DeepChat Agent.",
+        "regular_parent_required": "El modo de flujo de trabajo no está disponible en una sesión secundaria.",
+        "agent_policy_unavailable": "No se pudo cargar la política de flujo de trabajo.",
+        "subagents_disabled": "Activa Subagents para este Agent antes de usar el modo de flujo de trabajo."
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

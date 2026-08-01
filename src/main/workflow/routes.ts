@@ -1,5 +1,6 @@
 import {
   workflowCancelRoute,
+  workflowGetCapabilityRoute,
   workflowInspectRoute,
   workflowLaunchRoute,
   workflowListRoute,
@@ -10,6 +11,7 @@ import {
   workflowSavedPrepareLaunchRoute,
   workflowSavedReadRoute,
   workflowSavedSaveRoute,
+  workflowSetModeRoute,
   workflowSynthesizeRoute
 } from '@shared/contracts/routes'
 import type { WorkflowRun } from '@shared/workflow/domain'
@@ -19,6 +21,10 @@ import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import type { WorkflowService } from './service'
 import { projectWorkflowRunDetail, projectWorkflowRunSummaryWithCounts } from './projection'
 import { parseWorkflowSavedArgs } from './savedWorkflowArgs'
+import type {
+  SessionOrchestrationMode,
+  WorkflowCapability
+} from '@shared/workflow/orchestrationMode'
 
 export interface WorkflowSavedRoutePort {
   list(workspacePath: string | null): Promise<WorkflowSavedCatalog>
@@ -41,6 +47,16 @@ export interface WorkflowRouteOptions {
       workspacePath: string | null
       defaultAgentId: string
     }>
+  }
+  sessionMode?: {
+    resolveCapability(
+      target: { parentSessionId: string } | { agentId: string }
+    ): Promise<WorkflowCapability>
+    get(parentSessionId: string): Promise<SessionOrchestrationMode>
+    update(
+      parentSessionId: string,
+      mode: SessionOrchestrationMode
+    ): Promise<SessionOrchestrationMode>
   }
 }
 
@@ -71,7 +87,44 @@ export function createWorkflowRoutes(
     return options.savedWorkflows
   }
 
+  const requireSessionMode = () => {
+    if (!options.sessionMode) {
+      throw new Error('Workflow session mode is unavailable.')
+    }
+    return options.sessionMode
+  }
+
   return createRouteMap([
+    [
+      workflowGetCapabilityRoute.name,
+      async (rawInput) => {
+        const input = workflowGetCapabilityRoute.input.parse(rawInput)
+        const mode = requireSessionMode()
+        return workflowGetCapabilityRoute.output.parse({
+          capability: await mode.resolveCapability(input)
+        })
+      }
+    ],
+    [
+      workflowSetModeRoute.name,
+      async (rawInput) => {
+        const input = workflowSetModeRoute.input.parse(rawInput)
+        const mode = requireSessionMode()
+        const capability = await mode.resolveCapability({ parentSessionId: input.parentSessionId })
+        if (input.mode === 'workflow' && !capability.available) {
+          return workflowSetModeRoute.output.parse({
+            applied: false,
+            mode: await mode.get(input.parentSessionId),
+            capability
+          })
+        }
+        return workflowSetModeRoute.output.parse({
+          applied: true,
+          mode: await mode.update(input.parentSessionId, input.mode),
+          capability
+        })
+      }
+    ],
     [
       workflowPrepareLaunchRoute.name,
       async (rawInput) => {

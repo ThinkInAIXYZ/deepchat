@@ -313,6 +313,80 @@ describe('ChatInputBox attachments', () => {
     expect(wrapper.emitted('command-submit')).toBeUndefined()
   })
 
+  it('routes the built-in Workflow command to the local mode control', async () => {
+    const wrapper = await mountComponent()
+    const mentionOptions = useChatInputMentionsMock.mock.calls.at(-1)?.[0] as
+      | {
+          workflowModeCommandEnabled: { value: boolean }
+          onWorkflowModeToggle?: () => void
+        }
+      | undefined
+
+    expect(mentionOptions?.workflowModeCommandEnabled.value).toBe(false)
+    await wrapper.setProps({ workflowModeCommandEnabled: true })
+    expect(mentionOptions?.workflowModeCommandEnabled.value).toBe(true)
+
+    mentionOptions?.onWorkflowModeToggle?.()
+
+    expect(wrapper.emitted('workflow-mode-toggle')).toEqual([[]])
+    expect(wrapper.emitted('command-submit')).toBeUndefined()
+  })
+
+  it('handles typed Workflow commands locally without model submission', async () => {
+    const modeWrapper = await mountComponent()
+    await modeWrapper.setProps({
+      modelValue: '/workflow',
+      workflowModeCommandEnabled: true
+    })
+    await modeWrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
+      key: 'Enter'
+    })
+
+    expect(modeWrapper.emitted('workflow-mode-toggle')).toEqual([[]])
+    expect(modeWrapper.emitted('update:modelValue')).toContainEqual([''])
+    expect(modeWrapper.emitted('submit')).toBeUndefined()
+
+    const savedWrapper = await mountComponent()
+    await savedWrapper.setProps({
+      modelValue: '/workflow review {"target":"src"}',
+      workflowEnabled: true,
+      workflowModeCommandEnabled: true
+    })
+    await savedWrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
+      key: 'Enter'
+    })
+
+    expect(savedWrapper.emitted('workflow-submit')).toEqual([['review', '{"target":"src"}']])
+    expect(savedWrapper.emitted('workflow-mode-toggle')).toBeUndefined()
+    expect(savedWrapper.emitted('submit')).toBeUndefined()
+  })
+
+  it('exposes the same local Workflow command guard to toolbar submission', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({
+      modelValue: '/workflow',
+      workflowModeCommandEnabled: true
+    })
+
+    expect((wrapper.vm as any).consumeWorkflowSlashCommand()).toBe(true)
+    expect(wrapper.emitted('workflow-mode-toggle')).toEqual([[]])
+    expect(wrapper.emitted('update:modelValue')).toContainEqual([''])
+    expect(wrapper.emitted('submit')).toBeUndefined()
+  })
+
+  it('does not consume local Workflow commands while the editor is read-only', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({
+      modelValue: '/workflow',
+      workflowModeCommandEnabled: true,
+      editable: false
+    })
+
+    expect((wrapper.vm as any).consumeWorkflowSlashCommand()).toBe(false)
+    expect(wrapper.emitted('workflow-mode-toggle')).toBeUndefined()
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
+
   it('provides reactive attachment context and fails open when OCR status cannot be read', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     let attachmentContext: AttachmentNodeContext | undefined

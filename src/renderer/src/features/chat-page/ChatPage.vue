@@ -213,6 +213,7 @@
                     :workspace-path="sessionStore.activeSession?.projectDir ?? null"
                     :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
                     :workflow-enabled="supportsSavedWorkflows"
+                    :workflow-mode-command-enabled="supportsSavedWorkflows"
                     :supports-vision="composerSupportsVision"
                     :is-generating="isGenerating"
                     :submit-disabled="isInputSubmitDisabled"
@@ -222,6 +223,7 @@
                     @update:files="onFilesChange"
                     @command-submit="onCommandSubmit"
                     @workflow-submit="onWorkflowSubmit"
+                    @workflow-mode-toggle="onWorkflowModeToggle"
                     @draft-change="recordComposerDocumentChange"
                     @pending-skills-change="recordComposerSkillsChange"
                     @queue-submit="onQueueSubmit"
@@ -1096,6 +1098,7 @@ const chatInputRef = ref<{
   setPendingSkills?: (skillNames: string[]) => void
   getDocumentSnapshot?: () => JSONContent
   restoreDocumentSnapshot?: (document: JSONContent) => void
+  consumeWorkflowSlashCommand?: () => boolean
 } | null>(null)
 const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 
@@ -1182,7 +1185,7 @@ const {
   isQueueSubmitDisabled,
   isInputSubmitDisabled,
   disableQueueSteerAction,
-  onSubmit,
+  onSubmit: submitComposerInput,
   onCommandSubmit,
   onQueueSubmit,
   onSteer,
@@ -1225,6 +1228,14 @@ const {
   notify: notifyRenderer,
   t
 })
+
+function onSubmit(): void {
+  if (chatInputRef.value?.consumeWorkflowSlashCommand?.()) {
+    return
+  }
+  void submitComposerInput()
+}
+
 switchComposerSessionDraft = switchComposerSession
 
 function onWorkflowSubmit(name: string, argsText: string): void {
@@ -1232,6 +1243,10 @@ function onWorkflowSubmit(name: string, argsText: string): void {
     return
   }
   sidepanelStore.requestSavedWorkflow(props.sessionId, name, argsText)
+}
+
+function onWorkflowModeToggle(): void {
+  void chatStatusBarRef.value?.toggleWorkflowMode?.()
 }
 
 watch(

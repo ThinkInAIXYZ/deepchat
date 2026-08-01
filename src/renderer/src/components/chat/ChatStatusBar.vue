@@ -857,6 +857,92 @@
           />
           <span>{{ displayModelText }}</span>
         </Button>
+
+        <Popover v-if="showExecutionModeControl" v-model:open="isExecutionModePanelOpen">
+          <PopoverTrigger as-child>
+            <Button
+              data-testid="execution-mode-switcher"
+              variant="ghost"
+              size="sm"
+              :class="[
+                'h-6 gap-1 px-2 text-xs dc-blur-panel',
+                workflowModeEnabled
+                  ? 'bg-violet-500/10 text-violet-600 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/15 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200'
+                  : 'text-muted-foreground hover:text-foreground'
+              ]"
+              :title="executionModeControlTitle"
+              :aria-label="executionModeControlTitle"
+              :aria-pressed="workflowModeEnabled"
+            >
+              <span class="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                <Icon v-if="workflowModeEnabled" icon="lucide:git-fork" class="h-3.5 w-3.5" />
+              </span>
+              <span>{{ reasoningEffortDisplayLabel }}</span>
+              <Icon icon="lucide:chevron-down" class="h-3 w-3" />
+            </Button>
+          </PopoverTrigger>
+
+          <PopoverContent align="start" class="w-[19rem] overflow-hidden p-0">
+            <div class="px-2 py-2">
+              <div v-if="showReasoningEffort && effortOptions.length > 0">
+                <div class="px-2 pb-1 text-[11px] font-medium text-muted-foreground">
+                  {{ t('settings.model.modelConfig.reasoningEffort.label') }}
+                </div>
+                <div class="space-y-0.5">
+                  <button
+                    v-for="option in effortOptions"
+                    :key="option.value"
+                    type="button"
+                    :data-reasoning-effort="option.value"
+                    :class="[
+                      'flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition-colors',
+                      effectiveReasoningEffortValue === option.value
+                        ? 'bg-muted/60 text-foreground'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                    ]"
+                    @click="onReasoningEffortSelect(option.value)"
+                  >
+                    <span class="flex-1">{{ option.label }}</span>
+                    <Icon
+                      v-if="effectiveReasoningEffortValue === option.value"
+                      icon="lucide:check"
+                      class="h-3.5 w-3.5"
+                    />
+                  </button>
+                </div>
+              </div>
+              <div v-else class="px-2 py-1.5 text-xs text-muted-foreground">
+                {{ t('chat.advancedSettings.useDefault') }}
+              </div>
+            </div>
+
+            <div class="border-t px-3 py-3">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-2">
+                  <Icon icon="lucide:git-fork" class="h-4 w-4 shrink-0" />
+                  <span class="text-sm font-medium">{{ t('chat.workflow.mode.title') }}</span>
+                </div>
+                <Switch
+                  data-testid="workflow-mode-toggle"
+                  :model-value="workflowModeEnabled"
+                  :disabled="workflowSwitchDisabled"
+                  :aria-label="t('chat.workflow.mode.title')"
+                  @update:model-value="onWorkflowModeToggle(Boolean($event))"
+                />
+              </div>
+              <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                {{ t('chat.workflow.mode.description') }}
+              </p>
+              <p
+                v-if="workflowCapabilityMessage"
+                data-testid="workflow-capability-message"
+                class="mt-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400"
+              >
+                {{ workflowCapabilityMessage }}
+              </p>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div class="flex items-center gap-1">
@@ -1060,6 +1146,7 @@ import { createModelClient } from '@api/ModelClient'
 import { createOnboardingClient } from '@api/OnboardingClient'
 import { createProviderClient } from '@api/ProviderClient'
 import { createSessionClient } from '@api/SessionClient'
+import { createWorkflowClient } from '@api/WorkflowClient'
 import { requestGuidedOnboardingResume } from '@/lib/onboardingResume'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
@@ -1075,6 +1162,7 @@ import {
   useModelCapabilities,
   type RendererModelCapabilities
 } from '@/composables/useModelCapabilities'
+import type { WorkflowCapability } from '@shared/workflow/orchestrationMode'
 
 const props = withDefaults(
   defineProps<{
@@ -1134,6 +1222,7 @@ const modelClient = createModelClient()
 const onboardingClient = createOnboardingClient()
 const providerClient = createProviderClient()
 const sessionClient = createSessionClient()
+const workflowClient = createWorkflowClient()
 const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
@@ -1142,6 +1231,11 @@ const localSettings = ref<SessionGenerationSettings | null>(null)
 const loadedSettingsSelection = ref<ModelSelection | null>(null)
 const systemPromptList = ref<SystemPrompt[]>([])
 const isModelPanelOpen = ref(false)
+const isExecutionModePanelOpen = ref(false)
+const workflowCapability = ref<WorkflowCapability | null>(null)
+const isWorkflowCapabilityLoading = ref(false)
+const workflowCapabilityLoadFailed = ref(false)
+const isWorkflowModeSaving = ref(false)
 const isModelSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
 const modelSettingsSelection = ref<ModelSelection | null>(null)
@@ -1167,6 +1261,8 @@ let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
 let generationLocalRevision = 0
+let workflowCapabilityRequestToken = 0
+let workflowModeRequestToken = 0
 let unsubscribeAcpConfigOptionsReady: (() => void) | null = null
 let cancelAcpConfigSyncTask: (() => void) | null = null
 
@@ -1234,6 +1330,59 @@ const selectedDeepChatAgentId = computed(() => {
     return null
   }
   return agentStore.selectedAgentId ?? 'deepchat'
+})
+
+type WorkflowCapabilityTarget = { parentSessionId: string } | { agentId: string }
+
+const executionAgentType = computed(() => {
+  if (hasActiveSession.value) {
+    return inferAgentType(sessionStore.activeSession?.agentId)
+  }
+  return selectedAgentType.value
+})
+const showExecutionModeControl = computed(() => executionAgentType.value === 'deepchat')
+const workflowCapabilityTarget = computed<WorkflowCapabilityTarget | null>(() => {
+  if (!showExecutionModeControl.value) {
+    return null
+  }
+  const parentSessionId = sessionStore.activeSessionId?.trim()
+  if (parentSessionId) {
+    return { parentSessionId }
+  }
+  const agentId = selectedDeepChatAgentId.value?.trim()
+  return agentId ? { agentId } : null
+})
+const workflowCapabilityTargetKey = computed(() => {
+  const target = workflowCapabilityTarget.value
+  if (!target) {
+    return null
+  }
+  return 'parentSessionId' in target
+    ? `session:${target.parentSessionId}`
+    : `agent:${target.agentId}`
+})
+const workflowModeEnabled = computed(() =>
+  hasActiveSession.value
+    ? sessionStore.activeSession?.orchestrationMode === 'workflow'
+    : draftStore.orchestrationMode === 'workflow'
+)
+const workflowSwitchDisabled = computed(
+  () =>
+    isWorkflowModeSaving.value ||
+    (!workflowModeEnabled.value &&
+      (isWorkflowCapabilityLoading.value ||
+        workflowCapabilityLoadFailed.value ||
+        workflowCapability.value?.available !== true))
+)
+const workflowCapabilityMessage = computed(() => {
+  if (workflowCapabilityLoadFailed.value) {
+    return t('chat.workflow.states.unavailable')
+  }
+  const capability = workflowCapability.value
+  if (capability && !capability.available) {
+    return t(`chat.workflow.mode.reasons.${capability.reason}`)
+  }
+  return ''
 })
 
 const isAcpAgent = computed(() => {
@@ -1692,6 +1841,17 @@ const effectiveReasoningEffortValue = computed(
     ) ??
     effortOptions.value[0]?.value
 )
+const reasoningEffortDisplayLabel = computed(
+  () =>
+    effortOptions.value.find((option) => option.value === effectiveReasoningEffortValue.value)
+      ?.label ?? t('chat.advancedSettings.useDefault')
+)
+const executionModeControlTitle = computed(() => {
+  const effort = reasoningEffortDisplayLabel.value
+  return workflowModeEnabled.value
+    ? `${effort} · ${t('chat.workflow.mode.title')} ${t('common.enabled')}`
+    : effort
+})
 
 const verbosityOptions = computed(() => {
   return getVerbosityOptions(capabilityReasoningPortrait.value).map((value) => ({
@@ -2261,6 +2421,73 @@ const reloadSystemPrompts = async () => {
   }
 }
 
+async function resolveWorkflowCapability(
+  target: WorkflowCapabilityTarget,
+  targetKey: string
+): Promise<WorkflowCapability | null> {
+  const token = ++workflowCapabilityRequestToken
+  workflowCapability.value = null
+  workflowCapabilityLoadFailed.value = false
+  isWorkflowCapabilityLoading.value = true
+
+  try {
+    const capability = await workflowClient.getCapability(target)
+    if (
+      token !== workflowCapabilityRequestToken ||
+      workflowCapabilityTargetKey.value !== targetKey
+    ) {
+      return null
+    }
+    workflowCapability.value = capability
+    return capability
+  } catch (error) {
+    if (
+      token !== workflowCapabilityRequestToken ||
+      workflowCapabilityTargetKey.value !== targetKey
+    ) {
+      return null
+    }
+    workflowCapabilityLoadFailed.value = true
+    console.warn('[ChatStatusBar] Failed to load Workflow capability:', error)
+    return null
+  } finally {
+    if (token === workflowCapabilityRequestToken) {
+      isWorkflowCapabilityLoading.value = false
+    }
+  }
+}
+
+async function refreshWorkflowCapability(): Promise<WorkflowCapability | null> {
+  const target = workflowCapabilityTarget.value
+  const targetKey = workflowCapabilityTargetKey.value
+  if (!target || !targetKey) {
+    workflowCapabilityRequestToken += 1
+    workflowCapability.value = null
+    workflowCapabilityLoadFailed.value = false
+    isWorkflowCapabilityLoading.value = false
+    return null
+  }
+  return await resolveWorkflowCapability(target, targetKey)
+}
+
+watch(
+  workflowCapabilityTargetKey,
+  (targetKey, previousTargetKey) => {
+    if (previousTargetKey !== undefined && targetKey !== previousTargetKey) {
+      workflowModeRequestToken += 1
+      isWorkflowModeSaving.value = false
+    }
+    void refreshWorkflowCapability()
+  },
+  { immediate: true }
+)
+
+watch(isExecutionModePanelOpen, (open) => {
+  if (open) {
+    void refreshWorkflowCapability()
+  }
+})
+
 watch(
   [
     hasActiveSession,
@@ -2372,6 +2599,8 @@ watch(isModelPanelOpen, (open) => {
 })
 
 onBeforeUnmount(() => {
+  workflowCapabilityRequestToken += 1
+  workflowModeRequestToken += 1
   clearPendingGenerationPersist()
   invalidateGenerationPersistResponses()
   cancelAcpConfigSyncTask?.()
@@ -2931,6 +3160,78 @@ function onVideoGenerationSettingsUpdate(
   })
 }
 
+async function onWorkflowModeToggle(enabled: boolean): Promise<boolean> {
+  if (enabled === workflowModeEnabled.value) {
+    return true
+  }
+  if (isWorkflowModeSaving.value) {
+    return false
+  }
+
+  const target = workflowCapabilityTarget.value
+  const targetKey = workflowCapabilityTargetKey.value
+  if (!target || !targetKey) {
+    return false
+  }
+
+  const mode = enabled ? 'workflow' : 'adaptive'
+  const token = ++workflowModeRequestToken
+  isWorkflowModeSaving.value = true
+
+  try {
+    if (enabled) {
+      const capability = await resolveWorkflowCapability(target, targetKey)
+      if (
+        token !== workflowModeRequestToken ||
+        workflowCapabilityTargetKey.value !== targetKey ||
+        capability?.available !== true
+      ) {
+        return false
+      }
+    }
+
+    if ('agentId' in target) {
+      if (token === workflowModeRequestToken && workflowCapabilityTargetKey.value === targetKey) {
+        draftStore.orchestrationMode = mode
+        return true
+      }
+      return false
+    }
+
+    const receipt = await workflowClient.setMode(target.parentSessionId, mode)
+    if (
+      token !== workflowModeRequestToken ||
+      workflowCapabilityTargetKey.value !== targetKey ||
+      sessionStore.activeSessionId !== target.parentSessionId
+    ) {
+      return false
+    }
+    workflowCapability.value = receipt.capability
+    workflowCapabilityLoadFailed.value = false
+    sessionStore.applyConfirmedSessionOrchestrationMode(target.parentSessionId, receipt.mode)
+    return receipt.applied && receipt.mode === mode
+  } catch (error) {
+    if (token !== workflowModeRequestToken || workflowCapabilityTargetKey.value !== targetKey) {
+      return false
+    }
+    workflowCapabilityLoadFailed.value = true
+    console.warn('[ChatStatusBar] Failed to set Workflow mode:', error)
+    return false
+  } finally {
+    if (token === workflowModeRequestToken) {
+      isWorkflowModeSaving.value = false
+    }
+  }
+}
+
+async function toggleWorkflowMode(): Promise<boolean> {
+  const applied = await onWorkflowModeToggle(!workflowModeEnabled.value)
+  if (!applied) {
+    isExecutionModePanelOpen.value = true
+  }
+  return applied
+}
+
 async function selectPermissionMode(mode: PermissionMode) {
   if (!canSelectPermissionMode.value) return
   if (permissionMode.value === mode) return
@@ -2952,6 +3253,9 @@ defineExpose({
   acpConfigState,
   localSettings,
   permissionMode,
+  workflowCapability,
+  workflowModeEnabled,
+  showExecutionModeControl,
   showSystemPromptSection,
   showReasoningEffort,
   onTemperatureInput,
@@ -2970,6 +3274,8 @@ defineExpose({
   stepMaxTokens,
   stepTimeout,
   stepThinkingBudget,
+  onWorkflowModeToggle,
+  toggleWorkflowMode,
   selectModel: changeModelSelection,
   openModelPicker,
   openModelSettings,

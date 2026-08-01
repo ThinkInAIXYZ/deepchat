@@ -31,4 +31,17 @@ describe('draft store generation settings', () => {
 
     expect(draftStore.toCreateInput('hello').generationSettings).toBeUndefined()
   })
+
+  it('carries workflow mode into session creation and resets it to adaptive', async () => {
+    const { setActivePinia, createPinia } = await import('pinia')
+    setActivePinia(createPinia())
+    const { useDraftStore } = await import('@/stores/ui/draft')
+    const draftStore = useDraftStore()
+
+    draftStore.orchestrationMode = 'workflow'
+    expect(draftStore.toCreateInput('hello').orchestrationMode).toBe('workflow')
+
+    draftStore.reset()
+    expect(draftStore.orchestrationMode).toBe('adaptive')
+  })
 })

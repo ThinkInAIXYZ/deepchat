@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "Workflow",
+      "description": "Orchestration multi-Agent persistante. Les exécutions peuvent durer plus longtemps et utiliser davantage de tokens.",
+      "reasons": {
+        "session_unavailable": "Cette session n’est plus disponible.",
+        "agent_unavailable": "L’Agent sélectionné n’est pas disponible.",
+        "deepchat_agent_required": "Le mode Workflow nécessite un DeepChat Agent.",
+        "regular_parent_required": "Le mode Workflow n’est pas disponible dans une session enfant.",
+        "agent_policy_unavailable": "La politique Workflow n’a pas pu être chargée.",
+        "subagents_disabled": "Activez les Subagents pour cet Agent afin d’utiliser le mode Workflow."
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

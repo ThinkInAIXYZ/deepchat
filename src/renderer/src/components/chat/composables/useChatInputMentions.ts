@@ -19,7 +19,9 @@ import {
 import SuggestionList from '../mentions/SuggestionList.vue'
 import {
   buildCommandText,
+  buildSavedWorkflowSlashLabel,
   createManualCompactionSuggestion,
+  createWorkflowModeSuggestion,
   filterSlashSuggestionItems,
   flattenPromptResultToText,
   resolveSlashSelectionAction,
@@ -37,12 +39,15 @@ export interface UseChatInputMentionsOptions {
   agentId: Ref<string | null>
   isAcpSession: Ref<boolean>
   workflowEnabled?: Ref<boolean>
+  workflowModeCommandEnabled?: Ref<boolean>
   isGenerating?: Ref<boolean>
   compactCommandDescription?: Ref<string>
   workflowArgsLabel?: Ref<string>
   workflowPrepareText?: Ref<string>
+  workflowModeCommandDescription?: Ref<string>
   onCommandSubmit: (command: string) => void
   onWorkflowSubmit?: (name: string, argsText: string) => void
+  onWorkflowModeToggle?: () => Promise<void> | void
   onActivateSkill?: (skillName: string) => Promise<void> | void
   onPendingSkillsChange?: (skills: string[]) => void
 }
@@ -200,7 +205,15 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       items.push(createManualCompactionSuggestion(options.compactCommandDescription?.value ?? ''))
     }
 
+    const workflowModeCommandEnabled = options.workflowModeCommandEnabled?.value === true
+    if (workflowModeCommandEnabled) {
+      items.push(createWorkflowModeSuggestion(options.workflowModeCommandDescription?.value ?? ''))
+    }
+
     for (const command of acpCommands.value) {
+      if (workflowModeCommandEnabled && command.name.trim().toLowerCase() === 'workflow') {
+        continue
+      }
       items.push({
         id: `command:${command.name}`,
         category: 'command',
@@ -214,7 +227,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       items.push({
         id: `workflow:${workflow.name}`,
         category: 'workflow',
-        label: `/${workflow.name}`,
+        label: buildSavedWorkflowSlashLabel(workflow.name),
         description: workflow.relativePath,
         payload: workflow
       })
@@ -395,6 +408,12 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
           }
         ])
       })
+      return
+    }
+
+    if (action.kind === 'toggle-workflow-mode') {
+      editor.chain().focus().insertContentAt(range, '').run()
+      await options.onWorkflowModeToggle?.()
       return
     }
 

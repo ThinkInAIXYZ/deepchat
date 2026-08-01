@@ -7,6 +7,7 @@ import {
 } from '@shared/contracts/events'
 import {
   workflowCancelRoute,
+  workflowGetCapabilityRoute,
   workflowInspectRoute,
   workflowLaunchRoute,
   workflowListRoute,
@@ -16,11 +17,25 @@ import {
   workflowSavedPrepareLaunchRoute,
   workflowSavedReadRoute,
   workflowSavedSaveRoute,
+  workflowSetModeRoute,
   workflowSynthesizeRoute
 } from '@shared/contracts/routes'
+import type { SessionOrchestrationMode } from '@shared/workflow/orchestrationMode'
 import { getDeepchatBridge } from './core'
 
 export function createWorkflowClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function getCapability(target: { parentSessionId: string } | { agentId: string }) {
+    return workflowGetCapabilityRoute.output.parse(
+      await bridge.invoke(workflowGetCapabilityRoute.name, target)
+    ).capability
+  }
+
+  async function setMode(parentSessionId: string, mode: SessionOrchestrationMode) {
+    return workflowSetModeRoute.output.parse(
+      await bridge.invoke(workflowSetModeRoute.name, { parentSessionId, mode })
+    )
+  }
+
   async function list(parentSessionId: string, limit = 100) {
     return workflowListRoute.output.parse(
       await bridge.invoke(workflowListRoute.name, {
@@ -163,6 +178,8 @@ export function createWorkflowClient(bridge: DeepchatBridge = getDeepchatBridge(
   }
 
   return {
+    getCapability,
+    setMode,
     list,
     inspect,
     launch,

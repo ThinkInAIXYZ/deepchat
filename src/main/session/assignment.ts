@@ -25,6 +25,10 @@ import type {
 } from './contracts'
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
+import {
+  normalizeSessionOrchestrationMode,
+  type SessionOrchestrationMode
+} from '@shared/workflow/orchestrationMode'
 
 export interface SessionAgentAssignmentDependencies {
   sessions: SessionAssignmentStorePort
@@ -360,6 +364,30 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
   async getSessionDisabledAgentTools(sessionId: string): Promise<string[]> {
     this.requireSession(sessionId)
     return this.dependencies.sessions.getDisabledAgentTools(sessionId)
+  }
+
+  async getSessionOrchestrationMode(sessionId: string): Promise<SessionOrchestrationMode> {
+    this.requireSession(sessionId)
+    return this.dependencies.sessions.getOrchestrationMode(sessionId)
+  }
+
+  async updateSessionOrchestrationMode(
+    sessionId: string,
+    mode: SessionOrchestrationMode
+  ): Promise<SessionOrchestrationMode> {
+    const session = this.requireSession(sessionId)
+    const normalized = normalizeSessionOrchestrationMode(mode)
+    if (normalized === 'workflow') {
+      if (session.sessionKind !== 'regular') {
+        throw new Error('Workflow mode requires a regular parent session.')
+      }
+      if (this.dependencies.runtime.getSessionAgentKind(toAppSessionId(sessionId)) !== 'deepchat') {
+        throw new Error('Workflow mode requires a DeepChat session.')
+      }
+    }
+    this.dependencies.sessions.updateOrchestrationMode(sessionId, normalized)
+    this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
+    return normalized
   }
 
   async updateSessionDisabledAgentTools(

@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "워크플로",
+      "description": "지속적인 다중 Agent 오케스트레이션입니다. 실행 시간이 길어지고 더 많은 Token을 사용할 수 있습니다.",
+      "reasons": {
+        "session_unavailable": "이 세션은 더 이상 사용할 수 없습니다.",
+        "agent_unavailable": "선택한 Agent를 사용할 수 없습니다.",
+        "deepchat_agent_required": "워크플로 모드에는 DeepChat Agent가 필요합니다.",
+        "regular_parent_required": "하위 세션에서는 워크플로 모드를 사용할 수 없습니다.",
+        "agent_policy_unavailable": "워크플로 정책을 불러오지 못했습니다.",
+        "subagents_disabled": "워크플로 모드를 사용하려면 이 Agent의 Subagent를 활성화하세요."
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  workflowGetCapabilityRoute,
   workflowInspectRoute,
   workflowLaunchRoute,
   workflowListRoute,
@@ -9,6 +10,7 @@ import {
   workflowSavedPrepareLaunchRoute,
   workflowSavedReadRoute,
   workflowSavedSaveRoute,
+  workflowSetModeRoute,
   workflowSynthesizeRoute
 } from '@shared/contracts/routes'
 import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
@@ -146,6 +148,54 @@ function createService() {
 const context = { webContentsId: 1, windowId: 1 }
 
 describe('workflow routes', () => {
+  it('queries draft capability and applies session mode only when allowed', async () => {
+    const service = createService()
+    const resolveCapability = vi.fn().mockResolvedValue({
+      available: false,
+      reason: 'subagents_disabled'
+    })
+    const get = vi.fn().mockResolvedValue('adaptive')
+    const update = vi.fn(async (_parentSessionId: string, mode: string) => mode)
+    const routes = createWorkflowRoutes(service, {
+      sessionMode: { resolveCapability, get, update }
+    })
+    const capability = routes.get(workflowGetCapabilityRoute.name)!
+    const setMode = routes.get(workflowSetModeRoute.name)!
+
+    await expect(capability({ agentId: 'deepchat' }, context)).resolves.toEqual({
+      capability: { available: false, reason: 'subagents_disabled' }
+    })
+    expect(resolveCapability).toHaveBeenLastCalledWith({ agentId: 'deepchat' })
+
+    await expect(
+      setMode({ parentSessionId: 'parent-1', mode: 'workflow' }, context)
+    ).resolves.toEqual({
+      applied: false,
+      mode: 'adaptive',
+      capability: { available: false, reason: 'subagents_disabled' }
+    })
+    expect(update).not.toHaveBeenCalled()
+
+    await expect(
+      setMode({ parentSessionId: 'parent-1', mode: 'adaptive' }, context)
+    ).resolves.toEqual({
+      applied: true,
+      mode: 'adaptive',
+      capability: { available: false, reason: 'subagents_disabled' }
+    })
+    expect(update).toHaveBeenCalledWith('parent-1', 'adaptive')
+
+    resolveCapability.mockResolvedValueOnce({ available: true })
+    await expect(
+      setMode({ parentSessionId: 'parent-1', mode: 'workflow' }, context)
+    ).resolves.toEqual({
+      applied: true,
+      mode: 'workflow',
+      capability: { available: true }
+    })
+    expect(update).toHaveBeenLastCalledWith('parent-1', 'workflow')
+  })
+
   it('validates prepare and binds launch to the declared parent session', async () => {
     const service = createService()
     const routes = createWorkflowRoutes(service)

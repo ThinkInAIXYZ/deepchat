@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "Quy trình",
+      "description": "Điều phối nhiều Agent có trạng thái bền vững. Lượt chạy có thể lâu hơn và dùng nhiều token hơn.",
+      "reasons": {
+        "session_unavailable": "Phiên này không còn khả dụng.",
+        "agent_unavailable": "Agent đã chọn không khả dụng.",
+        "deepchat_agent_required": "Chế độ Quy trình yêu cầu một DeepChat Agent.",
+        "regular_parent_required": "Chế độ Quy trình không khả dụng trong phiên con.",
+        "agent_policy_unavailable": "Không thể tải chính sách Quy trình.",
+        "subagents_disabled": "Hãy bật Subagents cho Agent này để dùng chế độ Quy trình."
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

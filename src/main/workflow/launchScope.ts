@@ -1,10 +1,15 @@
 import path from 'node:path'
 import type { WorkflowRun } from '@shared/workflow/domain'
-import type { ChatMessageRecord, DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type {
+  AgentType,
+  ChatMessageRecord,
+  DeepChatAgentConfig
+} from '@shared/types/agent-interface'
 import type { AgentToolSessionPort, ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { WorkflowLaunchScopePort } from './service'
 import { canonicalizeWorkflowJson } from './domain/json'
+import type { WorkflowCapability } from '@shared/workflow/orchestrationMode'
 
 const WORKFLOW_CAPABILITY_SCOPE_MAX_BYTES = 512 * 1024
 
@@ -18,6 +23,49 @@ export interface WorkflowLaunchScopeResolverOptions {
 
 export class WorkflowLaunchScopeResolver implements WorkflowLaunchScopePort {
   constructor(private readonly options: WorkflowLaunchScopeResolverOptions) {}
+
+  async resolveCapability(parentSessionId: string): Promise<WorkflowCapability> {
+    const parent = await this.options.sessions.resolveConversationSessionInfo(parentSessionId)
+    if (!parent) {
+      return { available: false, reason: 'session_unavailable' }
+    }
+    if (parent.agentType !== 'deepchat') {
+      return { available: false, reason: 'deepchat_agent_required' }
+    }
+    if (parent.sessionKind !== 'regular') {
+      return { available: false, reason: 'regular_parent_required' }
+    }
+
+    return await this.resolveAgentCapability(parent.agentId)
+  }
+
+  async resolveDraftCapability(agentId: string): Promise<WorkflowCapability> {
+    let agentType: AgentType | null
+    try {
+      agentType = await this.options.agents.getAgentType(agentId)
+    } catch {
+      return { available: false, reason: 'agent_policy_unavailable' }
+    }
+    if (!agentType) {
+      return { available: false, reason: 'agent_unavailable' }
+    }
+    if (agentType !== 'deepchat') {
+      return { available: false, reason: 'deepchat_agent_required' }
+    }
+
+    return await this.resolveAgentCapability(agentId)
+  }
+
+  private async resolveAgentCapability(agentId: string): Promise<WorkflowCapability> {
+    try {
+      const parentConfig = await this.options.agents.resolveDeepChatAgentConfig(agentId)
+      return parentConfig.subagentEnabled === true
+        ? { available: true }
+        : { available: false, reason: 'subagents_disabled' }
+    } catch {
+      return { available: false, reason: 'agent_policy_unavailable' }
+    }
+  }
 
   async resolve(input: {
     parentSessionId: string

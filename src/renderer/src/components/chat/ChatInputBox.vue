@@ -65,6 +65,7 @@ import {
   getChatInputWorkspaceItemDragData
 } from '@/lib/chatInputWorkspaceReference'
 import { extractPlainUrlFromClipboard } from '@/lib/clipboardUrlPaste'
+import { parseWorkflowSlashCommand } from './mentions/utils'
 import { useChatInputMentions } from './composables/useChatInputMentions'
 import { useChatInputFiles } from './composables/useChatInputFiles'
 import { useSkillsData } from '@/components/chat-input/composables/useSkillsData'
@@ -91,6 +92,7 @@ const props = withDefaults(
     workspacePath?: string | null
     isAcpSession?: boolean
     workflowEnabled?: boolean
+    workflowModeCommandEnabled?: boolean
     supportsVision?: boolean | null
     isGenerating?: boolean
     editable?: boolean
@@ -109,6 +111,7 @@ const props = withDefaults(
     workspacePath: null,
     isAcpSession: false,
     workflowEnabled: false,
+    workflowModeCommandEnabled: false,
     supportsVision: null,
     isGenerating: false,
     editable: true,
@@ -128,6 +131,7 @@ const emit = defineEmits<{
   'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
   'workflow-submit': [name: string, argsText: string]
+  'workflow-mode-toggle': []
   'pending-skills-change': [skills: string[]]
   'switch-vision-model': []
   'draft-change': []
@@ -152,10 +156,12 @@ const mentions = useChatInputMentions({
   agentId: skillAgentId,
   isAcpSession: computed(() => props.isAcpSession),
   workflowEnabled: computed(() => props.workflowEnabled),
+  workflowModeCommandEnabled: computed(() => props.workflowModeCommandEnabled),
   isGenerating: computed(() => props.isGenerating),
   compactCommandDescription: computed(() => t('chat.compaction.commandDescription')),
   workflowArgsLabel: computed(() => t('chat.workflow.saved.fields.args')),
   workflowPrepareText: computed(() => t('chat.workflow.saved.actions.prepare')),
+  workflowModeCommandDescription: computed(() => t('chat.workflow.mode.description')),
   onCommandSubmit: (command) => {
     if (!props.editable) return
     emit('command-submit', command)
@@ -163,6 +169,10 @@ const mentions = useChatInputMentions({
   onWorkflowSubmit: (name, argsText) => {
     if (!props.editable) return
     emit('workflow-submit', name, argsText)
+  },
+  onWorkflowModeToggle: () => {
+    if (!props.editable) return
+    emit('workflow-mode-toggle')
   },
   onActivateSkill: async (skillName) => {
     if (!props.editable) return
@@ -642,6 +652,30 @@ function onCompositionEnd() {
   isComposing.value = false
 }
 
+function consumeWorkflowSlashCommand(): boolean {
+  if (!props.editable) {
+    return false
+  }
+  const workflowCommand = parseWorkflowSlashCommand(props.modelValue)
+  const canHandleWorkflowCommand =
+    workflowCommand?.kind === 'toggle-mode'
+      ? props.workflowModeCommandEnabled
+      : workflowCommand?.kind === 'prepare-saved'
+        ? props.workflowEnabled
+        : false
+  if (!workflowCommand || !canHandleWorkflowCommand) {
+    return false
+  }
+
+  emit('update:modelValue', '')
+  if (workflowCommand.kind === 'toggle-mode') {
+    emit('workflow-mode-toggle')
+  } else {
+    emit('workflow-submit', workflowCommand.name, workflowCommand.argsText)
+  }
+  return true
+}
+
 function handleKeydown(e: KeyboardEvent) {
   if (!props.editable) {
     const isCopyOrSelectAll = (e.metaKey || e.ctrlKey) && ['a', 'c'].includes(e.key.toLowerCase())
@@ -688,13 +722,18 @@ function handleKeydown(e: KeyboardEvent) {
     return
   }
 
-  if (props.submitDisabled) {
+  const isImeComposing = isComposing.value || e.isComposing || e.keyCode === 229
+  if (isImeComposing) {
+    return
+  }
+
+  if (consumeWorkflowSlashCommand()) {
     e.preventDefault()
     return
   }
 
-  const isImeComposing = isComposing.value || e.isComposing || e.keyCode === 229
-  if (isImeComposing) {
+  if (props.submitDisabled) {
+    e.preventDefault()
     return
   }
 
@@ -887,7 +926,8 @@ defineExpose({
   setPendingSkills,
   getDocumentSnapshot,
   restoreDocumentSnapshot,
-  focusInput
+  focusInput,
+  consumeWorkflowSlashCommand
 })
 </script>
 

@@ -8,6 +8,7 @@ import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAg
 import type { ProviderCatalogPort } from '@/provider/ports'
 import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from "./systemEnvPromptBuilder";
 import type { SkillSettingsPort } from "@/skill/settings";
+import { WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 export type AgentExtensionPolicy = {
   enabledMcpServerIds?: string[] | null;
@@ -256,6 +257,7 @@ export async function buildSystemPromptWithSkills(
     skillsMetadataPrompt,
     skillsPrompt,
     toolingPrompt,
+    buildWorkflowModePrompt(agentToolNames),
     buildPermissionRulesPrompt(agentToolNames),
     buildVerificationPolicyPrompt(workdir),
   ]);
@@ -263,6 +265,20 @@ export async function buildSystemPromptWithSkills(
 
   dependencies.assertCurrent(sessionId, resourceInstance);
   return composedPrompt;
+}
+
+function buildWorkflowModePrompt(agentToolNames: Set<string>): string {
+  if (!agentToolNames.has(WORKFLOW_AGENT_TOOL_NAME)) {
+    return ''
+  }
+
+  return [
+    '## Workflow Mode',
+    'The user explicitly selected persistent Workflow mode for this session.',
+    'For complex work that benefits from decomposition, durable progress, or parallel agents, generate the workflow JavaScript internally and call `workflow` with `operation=prepare_launch`.',
+    'Do not ask the user to author workflow JavaScript. Simple questions and necessary clarifications may still be answered directly.',
+    'Never call `operation=launch` until the exact prepared plan has received explicit user approval.'
+  ].join('\n')
 }
 
 function composePromptSections(sections: string[]): string {

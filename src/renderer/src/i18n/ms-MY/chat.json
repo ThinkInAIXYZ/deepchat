@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "Workflow",
+      "description": "Orkestrasi berbilang Agent yang berterusan. Proses mungkin mengambil masa lebih lama dan menggunakan lebih banyak token.",
+      "reasons": {
+        "session_unavailable": "Sesi ini tidak lagi tersedia.",
+        "agent_unavailable": "Agent yang dipilih tidak tersedia.",
+        "deepchat_agent_required": "Mod Workflow memerlukan DeepChat Agent.",
+        "regular_parent_required": "Mod Workflow tidak tersedia dalam sesi anak.",
+        "agent_policy_unavailable": "Dasar Workflow tidak dapat dimuatkan.",
+        "subagents_disabled": "Dayakan Subagents untuk Agent ini bagi menggunakan mod Workflow."
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

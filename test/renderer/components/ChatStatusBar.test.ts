@@ -6,6 +6,10 @@ import type { AcpConfigState } from '@shared/types/acp'
 import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
 import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 import type { ModelRequestPolicy } from '../../../src/shared/modelRequestPolicy'
+import type {
+  SessionOrchestrationMode,
+  WorkflowCapability
+} from '../../../src/shared/workflow/orchestrationMode'
 
 const TEST_TIMEOUT_MS = 20000
 
@@ -42,6 +46,7 @@ type ExtraModelGroup = {
 
 type SetupOptions = {
   agentId?: string
+  agentType?: 'deepchat' | 'acp'
   hasActiveSession?: boolean
   activeProviderId?: string
   activeModelId?: string
@@ -69,6 +74,11 @@ type SetupOptions = {
   modelStoreInitialized?: boolean
   modelStoreInitializationError?: Error | null
   initializeModels?: () => Promise<void>
+  activeOrchestrationMode?: SessionOrchestrationMode
+  draftOrchestrationMode?: SessionOrchestrationMode
+  workflowCapability?: WorkflowCapability
+  workflowCapabilityError?: Error
+  setWorkflowModeError?: Error
 }
 
 const createDeferred = <T>() => {
@@ -367,15 +377,17 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const agentId = options.agentId ?? 'deepchat'
+  const agentType = options.agentType ?? (agentId === 'deepchat' ? 'deepchat' : 'acp')
   const agentStore = reactive({
     selectedAgentId: agentId,
+    agents: [] as Array<{ id: string; agentType: 'deepchat' | 'acp' }>,
     selectedAgent:
       agentId === 'deepchat'
         ? null
         : {
             id: agentId,
             name: 'ACP Agent',
-            type: 'acp' as const,
+            type: agentType,
             enabled: true
           }
   })
@@ -392,17 +404,26 @@ const setup = async (options: SetupOptions = {}) => {
           modelId: options.activeModelId ?? 'gpt-4',
           projectDir: options.activeProjectDir ?? options.projectPath ?? null,
           status: 'idle',
-          sessionKind: 'regular'
+          sessionKind: 'regular',
+          orchestrationMode: options.activeOrchestrationMode ?? 'adaptive'
         }
       : null,
     setSessionModel: options.setSessionModelError
       ? vi.fn().mockRejectedValue(options.setSessionModelError)
-      : vi.fn().mockResolvedValue(undefined)
+      : vi.fn().mockResolvedValue(undefined),
+    applyConfirmedSessionOrchestrationMode: vi.fn(
+      (sessionId: string, mode: SessionOrchestrationMode) => {
+        if (sessionStore.activeSession?.id === sessionId) {
+          sessionStore.activeSession.orchestrationMode = mode
+        }
+      }
+    )
   })
 
   const draftStore = reactive({
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
+    orchestrationMode: options.draftOrchestrationMode ?? ('adaptive' as SessionOrchestrationMode),
     permissionMode: 'full_access' as PermissionMode,
     systemPrompt: undefined as string | undefined,
     temperature: undefined as number | undefined,
@@ -634,6 +655,20 @@ const setup = async (options: SetupOptions = {}) => {
       steps: []
     })
   }
+  const workflowClient = {
+    getCapability: options.workflowCapabilityError
+      ? vi.fn().mockRejectedValue(options.workflowCapabilityError)
+      : vi.fn().mockResolvedValue(options.workflowCapability ?? { available: true }),
+    setMode: options.setWorkflowModeError
+      ? vi.fn().mockRejectedValue(options.setWorkflowModeError)
+      : vi.fn().mockImplementation((_sessionId: string, mode: SessionOrchestrationMode) =>
+          Promise.resolve({
+            applied: true,
+            mode,
+            capability: options.workflowCapability ?? { available: true }
+          })
+        )
+  }
 
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
@@ -670,6 +705,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => agentSessionPresenter)
+  }))
+  vi.doMock('@api/WorkflowClient', () => ({
+    createWorkflowClient: vi.fn(() => workflowClient)
   }))
   vi.doMock('@/lib/startupDeferred', () => ({
     scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
@@ -752,6 +790,7 @@ const setup = async (options: SetupOptions = {}) => {
     draftStore,
     configService,
     projectStore,
+    workflowClient,
     emitAcpConfigOptionsReady,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
@@ -792,6 +831,80 @@ const commitNumericInput = async (
 }
 
 describe('ChatStatusBar model and session panels', () => {
+  it('keeps reasoning effort visible while toggling Workflow for a draft', async () => {
+    const { wrapper, draftStore, workflowClient } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      workflowCapability: { available: true }
+    })
+
+    const trigger = wrapper.get('[data-testid="execution-mode-switcher"]')
+    expect(trigger.text()).toContain('settings.model.modelConfig.reasoningEffort.options.medium')
+    expect(trigger.attributes('aria-pressed')).toBe('false')
+    expect(workflowClient.getCapability).toHaveBeenCalledWith({ agentId: 'deepchat' })
+
+    await wrapper.get('[data-testid="workflow-mode-toggle"]').trigger('click')
+    await flushPromises()
+
+    expect(draftStore.orchestrationMode).toBe('workflow')
+    expect(workflowClient.getCapability).toHaveBeenCalledTimes(2)
+    expect(trigger.attributes('aria-pressed')).toBe('true')
+    expect(
+      trigger
+        .findAll('.icon-stub')
+        .some((icon) => icon.attributes('data-icon') === 'lucide:git-fork')
+    ).toBe(true)
+  })
+
+  it('shows the main-owned reason when Workflow is unavailable', async () => {
+    const { wrapper } = await setup({
+      workflowCapability: { available: false, reason: 'subagents_disabled' }
+    })
+
+    expect(wrapper.get('[data-testid="workflow-mode-toggle"]').attributes()).toHaveProperty(
+      'disabled'
+    )
+    expect(wrapper.get('[data-testid="workflow-capability-message"]').text()).toBe(
+      'chat.workflow.mode.reasons.subagents_disabled'
+    )
+  })
+
+  it('persists Workflow mode through main for an active session', async () => {
+    const { wrapper, sessionStore, workflowClient } = await setup({
+      hasActiveSession: true,
+      activeOrchestrationMode: 'adaptive'
+    })
+
+    await wrapper.get('[data-testid="workflow-mode-toggle"]').trigger('click')
+    await flushPromises()
+
+    expect(workflowClient.setMode).toHaveBeenCalledWith('s1', 'workflow')
+    expect(sessionStore.applyConfirmedSessionOrchestrationMode).toHaveBeenCalledWith(
+      's1',
+      'workflow'
+    )
+    expect(sessionStore.activeSession?.orchestrationMode).toBe('workflow')
+  })
+
+  it('hides Workflow for direct ACP but keeps it for a DeepChat Agent using ACP provider mode', async () => {
+    const directAcp = await setup({ agentId: 'acp-agent' })
+    expect(directAcp.wrapper.find('[data-testid="execution-mode-switcher"]').exists()).toBe(false)
+
+    const compatibleDeepChat = await setup({
+      agentId: 'compatible-agent',
+      agentType: 'deepchat',
+      hasActiveSession: true,
+      activeProviderId: 'acp',
+      activeModelId: 'compatible-model'
+    })
+    expect(
+      compatibleDeepChat.wrapper.find('[data-testid="execution-mode-switcher"]').exists()
+    ).toBe(true)
+    expect(compatibleDeepChat.workflowClient.getCapability).toHaveBeenCalledWith({
+      parentSessionId: 's1'
+    })
+  })
+
   it(
     'passes system prompt section to the unified session panel in deepchat and hides it in ACP',
     async () => {

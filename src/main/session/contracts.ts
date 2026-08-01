@@ -43,6 +43,7 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
+import type { SessionOrchestrationMode } from '@shared/workflow/orchestrationMode'
 import type { WorkflowSubagentContext } from '@shared/workflow/subagent'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
@@ -396,10 +397,15 @@ export interface SessionAssignmentPolicyPort {
 export interface SessionAssignmentStorePort {
   get(sessionId: string): SessionRecord | null
   list(filters?: SessionListFilters): SessionRecord[]
-  update(sessionId: string, fields: Partial<Pick<SessionRecord, 'projectDir'>>): void
+  update(
+    sessionId: string,
+    fields: Partial<Pick<SessionRecord, 'projectDir' | 'orchestrationMode'>>
+  ): void
   updateAgentId(sessionId: string, agentId: string): void
   getDisabledAgentTools(sessionId: string): string[]
   updateDisabledAgentTools(sessionId: string, disabledAgentTools: string[]): void
+  getOrchestrationMode(sessionId: string): SessionOrchestrationMode
+  updateOrchestrationMode(sessionId: string, mode: SessionOrchestrationMode): void
 }
 
 export interface SessionAssignmentRuntimePort {
@@ -444,6 +450,7 @@ export interface SessionLifecycleStorePort {
     options?: {
       isDraft?: boolean
       disabledAgentTools?: string[]
+      orchestrationMode?: SessionOrchestrationMode
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
@@ -562,6 +569,11 @@ export interface SessionAgentAssignmentPort {
   setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<SessionWithState>
   getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
   getSessionDisabledAgentTools(sessionId: string): Promise<string[]>
+  getSessionOrchestrationMode(sessionId: string): Promise<SessionOrchestrationMode>
+  updateSessionOrchestrationMode(
+    sessionId: string,
+    mode: SessionOrchestrationMode
+  ): Promise<SessionOrchestrationMode>
   updateSessionDisabledAgentTools(
     sessionId: string,
     disabledAgentTools: string[]

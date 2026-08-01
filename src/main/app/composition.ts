@@ -930,15 +930,8 @@ export async function createMainProcessControl(dependencies: {
       subscribeSessionRuntimeUpdates: (listener) => sessionRuntimeEvents.subscribe(listener)
     },
     workflow: {
-      canUse: async (parentSessionId) => {
-        const parent =
-          await agentToolDependencies.sessions.resolveConversationSessionInfo(parentSessionId)
-        if (!parent || parent.agentType !== 'deepchat' || parent.sessionKind !== 'regular') {
-          return false
-        }
-        const config = await agentSettings.resolveDeepChatAgentConfig(parent.agentId)
-        return config.subagentEnabled === true
-      },
+      canUse: async (parentSessionId) =>
+        (await workflowLaunchScope.resolveCapability(parentSessionId)).available,
       prepareLaunch: async (parentSessionId, input) => {
         const parent =
           await agentToolDependencies.sessions.resolveConversationSessionInfo(parentSessionId)
@@ -2125,6 +2118,15 @@ export async function createMainProcessControl(dependencies: {
       {
         resolveWaitingInteractions: (childSessionId) =>
           projectWorkflowWaitingInteractions(sessionData.transcript, childSessionId),
+        sessionMode: {
+          resolveCapability: (target) =>
+            'parentSessionId' in target
+              ? workflowLaunchScope.resolveCapability(target.parentSessionId)
+              : workflowLaunchScope.resolveDraftCapability(target.agentId),
+          get: (parentSessionId) => sessionAssignment.getSessionOrchestrationMode(parentSessionId),
+          update: (parentSessionId, mode) =>
+            sessionAssignment.updateSessionOrchestrationMode(parentSessionId, mode)
+        },
         savedWorkflows: {
           store: workflowSavedStore,
           resolveContext: async (parentSessionId) => {

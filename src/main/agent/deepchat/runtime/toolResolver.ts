@@ -27,6 +27,10 @@ import { createToolCatalogPort } from './toolAdapters'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
+import {
+  normalizeSessionOrchestrationMode,
+  type SessionOrchestrationMode
+} from '@shared/workflow/orchestrationMode'
 
 type ToolResolverSkillPort = Pick<
   SkillServicePort,
@@ -82,6 +86,7 @@ export class DeepChatToolResolver {
           null
         const agentId = scopedAgentId ?? 'deepchat'
         const toolPolicy = await this.resolveAgentToolPolicy(sessionId, resourceInstance)
+        const orchestrationMode = toolPolicy.orchestrationMode
         const policy = toolPolicy.extensionPolicy
         const effectiveActiveSkillNames =
           activeSkillNamesOverride === undefined
@@ -93,6 +98,7 @@ export class DeepChatToolResolver {
           effectiveActiveSkillNames,
           policy,
           toolPolicy.subagentCapability,
+          orchestrationMode,
           resourceInstance
         )
         this.assertCurrent(sessionId, resourceInstance)
@@ -110,6 +116,7 @@ export class DeepChatToolResolver {
             agentWorkspacePath: projectDir,
             activeSkillNames: effectiveActiveSkillNames,
             subagentCapability: toolPolicy.subagentCapability,
+            orchestrationMode,
             ...(enabledMcpServerIds === undefined ? {} : { enabledMcpServerIds })
           }
         }
@@ -145,6 +152,7 @@ export class DeepChatToolResolver {
     activeSkillNamesOverride: string[],
     extensionPolicy: AgentExtensionPolicy,
     subagentCapability: DeepChatSubagentCapability,
+    orchestrationMode: SessionOrchestrationMode,
     resourceInstance?: DeepChatAgentInstance
   ): { kind: DeepChatToolProfileKind; fingerprint: string } {
     const normalizedProjectDir = projectDir?.trim() || null
@@ -174,7 +182,8 @@ export class DeepChatToolResolver {
         enabledMcpServerIds: this.normalizeNullablePolicyList(extensionPolicy.enabledMcpServerIds),
         skillsEnabled,
         activeSkillNames,
-        subagentCapability: subagentCapability.cacheKey
+        subagentCapability: subagentCapability.cacheKey,
+        orchestrationMode
       })
     }
   }
@@ -203,12 +212,14 @@ export class DeepChatToolResolver {
   ): Promise<{
     extensionPolicy: AgentExtensionPolicy
     subagentCapability: DeepChatSubagentCapability
+    orchestrationMode: SessionOrchestrationMode
   }> {
     const agentId =
       resourceInstance?.getAgentId()?.trim() ||
       this.dependencies.identity.getAgentId(sessionId) ||
       'deepchat'
     const sessionRow = this.dependencies.sqlitePresenter.newSessionsTable?.get?.(sessionId)
+    const orchestrationMode = normalizeSessionOrchestrationMode(sessionRow?.orchestration_mode)
     const resolveCapability = (agentType: AgentType | null, config?: DeepChatAgentConfig | null) =>
       resolveDeepChatSubagentCapability({
         agentType,
@@ -236,7 +247,8 @@ export class DeepChatToolResolver {
       )
       return {
         extensionPolicy: {},
-        subagentCapability: resolveCapability(agentType, null)
+        subagentCapability: resolveCapability(agentType, null),
+        orchestrationMode
       }
     }
 
@@ -247,7 +259,8 @@ export class DeepChatToolResolver {
             enabledMcpServerIds: config.enabledMcpServerIds
           }
         : {},
-      subagentCapability: resolveCapability(agentType, config)
+      subagentCapability: resolveCapability(agentType, config),
+      orchestrationMode
     }
   }
 

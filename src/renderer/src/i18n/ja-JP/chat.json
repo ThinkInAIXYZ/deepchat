@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "ワークフロー",
+      "description": "永続的なマルチ Agent オーケストレーションです。実行時間と Token 使用量が増える場合があります。",
+      "reasons": {
+        "session_unavailable": "このセッションは利用できなくなりました。",
+        "agent_unavailable": "選択した Agent は利用できません。",
+        "deepchat_agent_required": "ワークフローモードには DeepChat Agent が必要です。",
+        "regular_parent_required": "子セッションではワークフローモードを利用できません。",
+        "agent_policy_unavailable": "ワークフローポリシーを読み込めませんでした。",
+        "subagents_disabled": "ワークフローモードを使用するには、この Agent の Subagent を有効にしてください。"
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

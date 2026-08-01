@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "گردش‌کار",
+      "description": "هماهنگ‌سازی پایدار چند Agent. اجراها ممکن است زمان بیشتری ببرند و Token بیشتری مصرف کنند.",
+      "reasons": {
+        "session_unavailable": "این نشست دیگر در دسترس نیست.",
+        "agent_unavailable": "Agent انتخاب‌شده در دسترس نیست.",
+        "deepchat_agent_required": "حالت گردش‌کار به یک DeepChat Agent نیاز دارد.",
+        "regular_parent_required": "حالت گردش‌کار در نشست فرزند در دسترس نیست.",
+        "agent_policy_unavailable": "خط‌مشی گردش‌کار بارگیری نشد.",
+        "subagents_disabled": "برای استفاده از حالت گردش‌کار، Subagentها را برای این Agent فعال کنید."
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

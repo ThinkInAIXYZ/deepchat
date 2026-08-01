@@ -32,7 +32,7 @@ import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 
 const INDEPENDENT_AGENT_CONFIG_MIGRATION_VERSION = 3
-const UNIFIED_AGENTS_MIGRATION_VERSION = 4
+const MODE_CONTROLLED_WORKFLOW_MIGRATION_VERSION = 5
 const PENDING_AGENT_SKILL_CLEANUP_KEY = 'pendingAgentSkillCleanupIds'
 const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
 const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
@@ -220,9 +220,9 @@ export class AgentSettings implements AgentSettingsPort {
       }
     }
     try {
-      this.disableWorkflowToolByDefault()
+      this.removeModeControlledWorkflowToolOverrides()
     } catch (error) {
-      logger.warn('[AgentSettings] Failed to apply the Workflow tool default.', { error })
+      logger.warn('[AgentSettings] Failed to remove legacy Workflow tool overrides.', { error })
     }
     this.provider.setAcpProviderEnabled(this.acpCatalog.getGlobalEnabled())
     const previousAgents = this.registry.listAgents()
@@ -778,28 +778,29 @@ export class AgentSettings implements AgentSettingsPort {
     this.settings.set('unifiedAgentsMigrationVersion', INDEPENDENT_AGENT_CONFIG_MIGRATION_VERSION)
   }
 
-  private disableWorkflowToolByDefault(): void {
+  private removeModeControlledWorkflowToolOverrides(): void {
     const migratedVersion = this.settings.get<number>('unifiedAgentsMigrationVersion') ?? 0
     if (
       migratedVersion < INDEPENDENT_AGENT_CONFIG_MIGRATION_VERSION ||
-      migratedVersion >= UNIFIED_AGENTS_MIGRATION_VERSION
+      migratedVersion >= MODE_CONTROLLED_WORKFLOW_MIGRATION_VERSION
     ) {
       return
     }
     for (const agent of this.repository.listAgents({ agentType: 'deepchat' })) {
       const config = this.repository.getDeepChatAgentConfig(agent.id) ?? {}
       const disabledAgentTools = Array.isArray(config.disabledAgentTools)
-        ? [...config.disabledAgentTools]
+        ? config.disabledAgentTools.filter((toolName) => toolName !== WORKFLOW_AGENT_TOOL_NAME)
         : []
-      if (!disabledAgentTools.includes(WORKFLOW_AGENT_TOOL_NAME)) {
+      if (
+        Array.isArray(config.disabledAgentTools) &&
+        disabledAgentTools.length !== config.disabledAgentTools.length
+      ) {
         this.repository.updateDeepChatAgent(agent.id, {
-          config: {
-            disabledAgentTools: [...disabledAgentTools, WORKFLOW_AGENT_TOOL_NAME]
-          }
+          config: { disabledAgentTools }
         })
       }
     }
-    this.settings.set('unifiedAgentsMigrationVersion', UNIFIED_AGENTS_MIGRATION_VERSION)
+    this.settings.set('unifiedAgentsMigrationVersion', MODE_CONTROLLED_WORKFLOW_MIGRATION_VERSION)
   }
 
   private reconcileLegacyBuiltinAgentSelections(): void {

@@ -48,6 +48,16 @@ describe('WorkflowClient', () => {
           }
         }
       }
+      if (routeName === 'workflow.getCapability') {
+        return { capability: { available: true } }
+      }
+      if (routeName === 'workflow.setMode') {
+        return {
+          applied: true,
+          mode: 'workflow',
+          capability: { available: true }
+        }
+      }
       throw new Error(`Unexpected route: ${routeName}`)
     })
     const on = vi.fn(() => vi.fn())
@@ -72,6 +82,14 @@ describe('WorkflowClient', () => {
     ).resolves.toMatchObject({
       approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
     })
+    await expect(workflow.getCapability({ agentId: 'deepchat' })).resolves.toEqual({
+      available: true
+    })
+    await expect(workflow.setMode('parent-1', 'workflow')).resolves.toEqual({
+      applied: true,
+      mode: 'workflow',
+      capability: { available: true }
+    })
     const runListener = vi.fn()
     const invocationListener = vi.fn()
     const stopRun = workflow.onRunChanged(runListener)
@@ -93,6 +111,13 @@ describe('WorkflowClient', () => {
       name: 'review',
       argsText: '{"scope":"src"}',
       expectedSourceHash: 'd'.repeat(64)
+    })
+    expect(invoke).toHaveBeenNthCalledWith(5, 'workflow.getCapability', {
+      agentId: 'deepchat'
+    })
+    expect(invoke).toHaveBeenNthCalledWith(6, 'workflow.setMode', {
+      parentSessionId: 'parent-1',
+      mode: 'workflow'
     })
     expect(on).toHaveBeenCalledWith('workflow.run.changed', runListener)
     expect(on).toHaveBeenCalledWith('workflow.invocation.changed', invocationListener)

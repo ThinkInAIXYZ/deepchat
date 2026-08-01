@@ -32,6 +32,63 @@ const createScopeRegistry = (instance: unknown) =>
   }) as any
 
 describe('DeepChatToolResolver Subagent capability', () => {
+  it('invalidates the cached tool profile when orchestration mode changes', async () => {
+    let orchestrationMode: 'adaptive' | 'workflow' = 'adaptive'
+    const getAllToolDefinitions = vi.fn().mockResolvedValue([])
+    const resourceInstance = createResourceInstance()
+    const resolver = new DeepChatToolResolver({
+      agentSettings: {
+        getAgentType: vi.fn(async () => 'deepchat'),
+        resolveDeepChatAgentConfig: vi.fn(async () => ({ subagentEnabled: false }))
+      },
+      skillSettings: { isEnabled: vi.fn(() => false) },
+      skillService: { getActiveSkills: vi.fn(), validateSkillNames: vi.fn() },
+      sqlitePresenter: {
+        newSessionsTable: {
+          get: vi.fn(() => ({
+            session_kind: 'regular',
+            orchestration_mode: orchestrationMode
+          })),
+          getDisabledAgentTools: vi.fn(() => [])
+        }
+      },
+      toolService: { getAllToolDefinitions },
+      registry: createScopeRegistry(resourceInstance),
+      identity: {
+        getAgentId: vi.fn(() => 'deepchat'),
+        isAcpBackedSubagentSession: vi.fn(() => false)
+      }
+    } as any)
+
+    await resolver.loadToolDefinitionsForSession(
+      'session-1',
+      null,
+      undefined,
+      resourceInstance as any
+    )
+    await resolver.loadToolDefinitionsForSession(
+      'session-1',
+      null,
+      undefined,
+      resourceInstance as any
+    )
+    orchestrationMode = 'workflow'
+    await resolver.loadToolDefinitionsForSession(
+      'session-1',
+      null,
+      undefined,
+      resourceInstance as any
+    )
+
+    expect(getAllToolDefinitions).toHaveBeenCalledTimes(2)
+    expect(getAllToolDefinitions.mock.calls[0][0]).toMatchObject({
+      orchestrationMode: 'adaptive'
+    })
+    expect(getAllToolDefinitions.mock.calls[1][0]).toMatchObject({
+      orchestrationMode: 'workflow'
+    })
+  })
+
   it('refreshes the catalog from capability cache keys without event invalidation', async () => {
     let config: DeepChatAgentConfig = {
       subagentEnabled: true,

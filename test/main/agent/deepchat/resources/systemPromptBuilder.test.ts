@@ -55,11 +55,39 @@ describe('DeepChat system prompt builder', () => {
       toolDefinitions: [],
       resourceInstance: instance
     })
+    const workflow = await buildSystemPromptWithSkills(dependencies, {
+      sessionId: 'session-1',
+      basePrompt: '  BASE PROMPT  ',
+      toolDefinitions: [
+        {
+          source: 'agent',
+          server: { name: 'agent-workflows' },
+          function: { name: 'workflow' }
+        }
+      ] as any,
+      resourceInstance: instance
+    })
+    const sameNameMcp = await buildSystemPromptWithSkills(dependencies, {
+      sessionId: 'session-1',
+      basePrompt: '  BASE PROMPT  ',
+      toolDefinitions: [
+        {
+          source: 'mcp',
+          server: { name: 'third-party' },
+          function: { name: 'workflow' }
+        }
+      ] as any,
+      resourceInstance: instance
+    })
 
     expect(first).toContain('BASE PROMPT')
     expect(first).toContain('You are powered by the model named GPT-4o.')
     expect(first).toContain('## Verification Policy')
+    expect(first).not.toContain('## Workflow Mode')
     expect(second).toBe(first)
+    expect(workflow).toContain('## Workflow Mode')
+    expect(workflow).toContain('Do not ask the user to author workflow JavaScript')
+    expect(sameNameMcp).not.toContain('## Workflow Mode')
     expect(assertCurrent).toHaveBeenCalled()
   })
 

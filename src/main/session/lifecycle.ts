@@ -30,6 +30,10 @@ import type {
 } from './contracts'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 import { WorkflowSubagentContextSchema } from '@shared/workflow/subagent'
+import {
+  DEFAULT_SESSION_ORCHESTRATION_MODE,
+  normalizeSessionOrchestrationMode
+} from '@shared/workflow/orchestrationMode'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 
@@ -98,9 +102,14 @@ export class SessionLifecycle implements SessionLifecyclePort {
     logger.info(`[SessionLifecycle] resolved provider=${providerId} model=${modelId}`)
 
     const title = normalizedInput.text.slice(0, 50) || 'New Chat'
+    const orchestrationMode =
+      assignment.agentType === 'deepchat'
+        ? normalizeSessionOrchestrationMode(input.orchestrationMode)
+        : DEFAULT_SESSION_ORCHESTRATION_MODE
     const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
       isDraft: false,
-      disabledAgentTools
+      disabledAgentTools,
+      orchestrationMode
     })
     logger.info(`[SessionLifecycle] session created id=${sessionId}`)
 
@@ -142,6 +151,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
         sessionKind: 'regular',
         parentSessionId: null,
         subagentMeta: null,
+        orchestrationMode,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         status: state?.status ?? 'idle',
@@ -198,10 +208,15 @@ export class SessionLifecycle implements SessionLifecyclePort {
       generationSettings,
       disabledAgentTools
     } = assignment
+    const orchestrationMode =
+      assignment.agentType === 'deepchat'
+        ? normalizeSessionOrchestrationMode(input.orchestrationMode)
+        : DEFAULT_SESSION_ORCHESTRATION_MODE
 
     const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
       isDraft: false,
       disabledAgentTools,
+      orchestrationMode,
       metadata: input.metadata ?? null
     })
     try {
@@ -234,6 +249,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       sessionKind: 'regular',
       parentSessionId: null,
       subagentMeta: null,
+      orchestrationMode,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       ...(input.metadata ? { metadata: input.metadata } : {}),
@@ -300,6 +316,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
         {
           isDraft: false,
           disabledAgentTools: runtimeConfig.disabledAgentTools,
+          orchestrationMode: DEFAULT_SESSION_ORCHESTRATION_MODE,
           sessionKind: 'subagent',
           parentSessionId,
           subagentMeta
@@ -439,7 +456,11 @@ export class SessionLifecycle implements SessionLifecyclePort {
       sourceSession.agentId,
       title,
       sourceSession.projectDir ?? null,
-      { isDraft: false, disabledAgentTools }
+      {
+        isDraft: false,
+        disabledAgentTools,
+        orchestrationMode: sourceSession.orchestrationMode
+      }
     )
 
     try {

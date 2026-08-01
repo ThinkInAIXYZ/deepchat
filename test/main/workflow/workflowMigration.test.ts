@@ -15,7 +15,7 @@ const newSessionsModule = Database
   : null
 const MainDatabase = mainDatabaseModule?.MainDatabase
 const WORKFLOW_SCHEMA_VERSION = workflowRunsModule?.WORKFLOW_SCHEMA_VERSION
-const LATEST_SCHEMA_VERSION = newSessionsModule?.SESSION_WORKFLOW_TOOL_DEFAULT_SCHEMA_VERSION
+const LATEST_SCHEMA_VERSION = newSessionsModule?.SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION
 const DatabaseCtor = Database!
 const MainDatabaseCtor = MainDatabase!
 const describeIfSqlite = nativeSqliteDescribeIf(
@@ -44,6 +44,7 @@ describeIfSqlite('workflow schema migration', () => {
       DROP TRIGGER IF EXISTS trg_workflow_sessions_delete_references;
       DROP TABLE IF EXISTS workflow_invocations;
       DROP TABLE IF EXISTS workflow_runs;
+      ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
       DELETE FROM schema_versions;
       INSERT INTO schema_versions (version, applied_at) VALUES (52, 100);
     `)
@@ -104,6 +105,7 @@ describeIfSqlite('workflow schema migration', () => {
       DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot;
       ALTER TABLE workflow_runs DROP COLUMN workspace_path;
       ALTER TABLE workflow_runs DROP COLUMN capability_scope_hash;
+      ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
       DELETE FROM schema_versions;
       INSERT INTO schema_versions (version, applied_at) VALUES (53, 100);
     `)
@@ -155,6 +157,7 @@ describeIfSqlite('workflow schema migration', () => {
       DROP TRIGGER IF EXISTS trg_workflow_invocations_immutable_identity;
       DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_arm;
       DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_required;
+      ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
       CREATE TRIGGER trg_workflow_invocations_immutable_identity
       BEFORE UPDATE OF
         invocation_id,
@@ -280,7 +283,7 @@ describeIfSqlite('workflow schema migration', () => {
     migrated.close()
   })
 
-  it('disables workflow for existing sessions when upgrading v55', () => {
+  it('moves legacy workflow tool state to adaptive mode when upgrading v55', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workflow-tool-migration-'))
     tempDirectories.push(directory)
     const databasePath = path.join(directory, 'agent.db')
@@ -289,6 +292,8 @@ describeIfSqlite('workflow schema migration', () => {
 
     const bootstrap = new DatabaseCtor(databasePath)
     bootstrap.exec(`
+      ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
+
       INSERT INTO new_sessions (
         id,
         agent_id,
@@ -392,7 +397,7 @@ describeIfSqlite('workflow schema migration', () => {
     const migrated = new DatabaseCtor(databasePath)
     const sessions = migrated
       .prepare(
-        `SELECT id, disabled_agent_tools, updated_at, revision
+        `SELECT id, disabled_agent_tools, orchestration_mode, updated_at, revision
          FROM new_sessions
          WHERE id LIKE 'session-%'
          ORDER BY id`
@@ -401,25 +406,29 @@ describeIfSqlite('workflow schema migration', () => {
     expect(sessions).toEqual([
       {
         id: 'session-already-disabled',
-        disabled_agent_tools: '["workflow","cronjob"]',
+        disabled_agent_tools: '["cronjob"]',
+        orchestration_mode: 'adaptive',
         updated_at: 400,
         revision: 5
       },
       {
         id: 'session-existing-tools',
-        disabled_agent_tools: '["cronjob","custom-tool","workflow"]',
+        disabled_agent_tools: '["cronjob","custom-tool"]',
+        orchestration_mode: 'adaptive',
         updated_at: 200,
         revision: 3
       },
       {
         id: 'session-fallback-json',
-        disabled_agent_tools: '["custom-tool","workflow"]',
+        disabled_agent_tools: '["custom-tool"]',
+        orchestration_mode: 'adaptive',
         updated_at: 600,
         revision: 7
       },
       {
         id: 'session-malformed-json',
-        disabled_agent_tools: '["workflow"]',
+        disabled_agent_tools: '[]',
+        orchestration_mode: 'adaptive',
         updated_at: 800,
         revision: 9
       }
@@ -434,14 +443,10 @@ describeIfSqlite('workflow schema migration', () => {
       )
       .all()
     expect(normalizedTools).toEqual([
-      { session_id: 'session-already-disabled', ordinal: 0, tool_name: 'workflow' },
       { session_id: 'session-already-disabled', ordinal: 1, tool_name: 'cronjob' },
       { session_id: 'session-existing-tools', ordinal: 0, tool_name: 'cronjob' },
       { session_id: 'session-existing-tools', ordinal: 1, tool_name: 'custom-tool' },
-      { session_id: 'session-existing-tools', ordinal: 2, tool_name: 'workflow' },
-      { session_id: 'session-fallback-json', ordinal: 0, tool_name: 'custom-tool' },
-      { session_id: 'session-fallback-json', ordinal: 1, tool_name: 'workflow' },
-      { session_id: 'session-malformed-json', ordinal: 0, tool_name: 'workflow' }
+      { session_id: 'session-fallback-json', ordinal: 0, tool_name: 'custom-tool' }
     ])
     migrated.close()
   })

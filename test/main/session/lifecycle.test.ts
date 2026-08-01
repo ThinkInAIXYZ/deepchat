@@ -17,6 +17,7 @@ const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => 
   sessionKind: 'regular',
   parentSessionId: null,
   subagentMeta: null,
+  orchestrationMode: 'adaptive',
   createdAt: 100,
   updatedAt: 200,
   ...overrides
@@ -87,6 +88,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
         options: {
           isDraft?: boolean
           disabledAgentTools?: string[]
+          orchestrationMode?: SessionRecord['orchestrationMode']
           sessionKind?: SessionRecord['sessionKind']
           parentSessionId?: string | null
           subagentMeta?: SessionRecord['subagentMeta']
@@ -106,6 +108,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
             sessionKind: options.sessionKind ?? 'regular',
             parentSessionId: options.parentSessionId ?? null,
             subagentMeta: options.subagentMeta ?? null,
+            orchestrationMode: options.orchestrationMode ?? 'adaptive',
             metadata: options.metadata ?? null
           })
         )
@@ -268,6 +271,47 @@ function createHarness(initialSessions: SessionRecord[] = []) {
 }
 
 describe('SessionLifecycle', () => {
+  it('persists workflow mode only for regular DeepChat sessions', async () => {
+    const deepChatHarness = createHarness()
+
+    await expect(
+      deepChatHarness.coordinator.createSession(
+        { agentId: 'deepchat', message: 'Hello', orchestrationMode: 'workflow' },
+        42
+      )
+    ).resolves.toMatchObject({ orchestrationMode: 'workflow' })
+    expect(deepChatHarness.sessions.create).toHaveBeenCalledWith(
+      'deepchat',
+      'Hello',
+      '/default',
+      expect.objectContaining({ orchestrationMode: 'workflow' })
+    )
+
+    const acpHarness = createHarness()
+    acpHarness.assignmentPolicy.resolveCreateAssignment.mockResolvedValueOnce({
+      agentId: 'kimi',
+      agentType: 'acp',
+      providerId: 'acp',
+      modelId: 'kimi',
+      projectDir: '/repo',
+      permissionMode: 'full_access',
+      disabledAgentTools: []
+    })
+
+    await expect(
+      acpHarness.coordinator.createSession(
+        { agentId: 'kimi', message: 'Hello', orchestrationMode: 'workflow' },
+        42
+      )
+    ).resolves.toMatchObject({ orchestrationMode: 'adaptive' })
+    expect(acpHarness.sessions.create).toHaveBeenCalledWith(
+      'kimi',
+      'Hello',
+      '/repo',
+      expect.objectContaining({ orchestrationMode: 'adaptive' })
+    )
+  })
+
   it('gates session creation with the resolved canonical agent id', async () => {
     const harness = createHarness()
     harness.assignmentPolicy.resolveCreateAssignment.mockResolvedValueOnce({
@@ -363,6 +407,7 @@ describe('SessionLifecycle', () => {
       expect.objectContaining({
         sessionKind: 'subagent',
         parentSessionId: 'parent',
+        orchestrationMode: 'adaptive',
         subagentMeta: expect.objectContaining({
           workflow: {
             runId: 'run-1',
@@ -814,8 +859,10 @@ describe('SessionLifecycle', () => {
     warn.mockRestore()
   })
 
-  it('preserves disabled agent tools when forking a session', async () => {
-    const harness = createHarness([createRecord({ id: 'source', title: 'Source' })])
+  it('preserves mode and disabled Agent tools when forking a session', async () => {
+    const harness = createHarness([
+      createRecord({ id: 'source', title: 'Source', orchestrationMode: 'workflow' })
+    ])
     harness.getRuntime('source').snapshot.mockResolvedValue({
       status: 'idle',
       providerId: 'openai',
@@ -829,7 +876,8 @@ describe('SessionLifecycle', () => {
     expect(harness.sessions.getDisabledAgentTools).toHaveBeenCalledWith('source')
     expect(harness.sessions.create).toHaveBeenCalledWith('deepchat', 'Source - Fork', '/repo', {
       isDraft: false,
-      disabledAgentTools: ['cronjob', 'workflow']
+      disabledAgentTools: ['cronjob', 'workflow'],
+      orchestrationMode: 'workflow'
     })
   })
 

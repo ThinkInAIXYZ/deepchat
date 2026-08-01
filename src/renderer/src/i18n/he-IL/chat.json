@@ -557,6 +557,18 @@
     }
   },
   "workflow": {
+    "mode": {
+      "title": "תהליך עבודה",
+      "description": "תזמור מתמשך של מספר Agents. הפעלות עשויות להימשך יותר זמן ולהשתמש ביותר Tokens.",
+      "reasons": {
+        "session_unavailable": "ההפעלה הזו אינה זמינה עוד.",
+        "agent_unavailable": "ה-Agent שנבחר אינו זמין.",
+        "deepchat_agent_required": "מצב תהליך עבודה דורש DeepChat Agent.",
+        "regular_parent_required": "מצב תהליך עבודה אינו זמין בהפעלת משנה.",
+        "agent_policy_unavailable": "לא ניתן לטעון את מדיניות תהליך העבודה.",
+        "subagents_disabled": "יש להפעיל Subagents עבור Agent זה כדי להשתמש במצב תהליך עבודה."
+      }
+    },
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

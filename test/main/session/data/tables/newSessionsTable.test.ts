@@ -130,6 +130,23 @@ describeIfSqlite('NewSessionsTable', () => {
     })
   })
 
+  it('defaults orchestration to adaptive and persists explicit mode updates', () => {
+    table.create('adaptive', 'deepchat', 'Adaptive', null)
+    table.create('workflow', 'deepchat', 'Workflow', null, {
+      orchestrationMode: 'workflow'
+    })
+    const revision = table.get('adaptive')?.revision ?? 0
+
+    expect(table.getOrchestrationMode('adaptive')).toBe('adaptive')
+    expect(table.getOrchestrationMode('workflow')).toBe('workflow')
+
+    table.updateOrchestrationMode('adaptive', 'workflow')
+    expect(table.get('adaptive')).toMatchObject({
+      orchestration_mode: 'workflow',
+      revision: revision + 1
+    })
+  })
+
   it('reassigns matching agent sessions and advances only their revisions', () => {
     table.create('matching-1', 'legacy-agent', 'First matching session', null)
     table.create('matching-2', 'legacy-agent', 'Second matching session', null)
