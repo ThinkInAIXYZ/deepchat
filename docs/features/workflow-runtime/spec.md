@@ -6,7 +6,12 @@ Active. The architecture has been reviewed against the current DeepChat agent, T
 permission, utility-process, and database paths. Implementation is in progress on
 `feat/workflow-runtime`.
 
-Last reviewed: 2026-07-31.
+Last reviewed: 2026-08-02.
+
+The user-facing session policy, live-delegation relationship, and composer behavior are now owned
+by `docs/architecture/proactive-multi-agent-orchestration/`. That architecture supersedes the
+historical mutually exclusive `adaptive | workflow` mode without replacing this runtime's durable
+execution, approval, replay, recovery, or saved-asset contracts.
 
 ## Background
 
@@ -638,22 +643,19 @@ promise that an external workflow worker itself is a resumable conversation.
 
 ## Trigger Policy
 
-`orchestrationMode` is a session-level user intent independent from model reasoning effort:
+Workflow is an execution strategy, not a session mode. The parent Session stores
+`orchestrationPolicy: explicit | proactive` as defined by the proactive multi-Agent architecture.
+Both policies keep Workflow capability independent from reasoning settings and from the live
+Subagent executor.
 
-`adaptive | workflow`
+`explicit` permits Workflow preparation only after an explicit user, project, or Skill request.
+`proactive` permits the parent to choose Workflow when large fan-out, programmatic data flow,
+durable recovery, or reuse makes it preferable to live delegation. Neither policy requires a
+Workflow for simple work.
 
-`adaptive` preserves the existing opportunistic `subagent_orchestrator` behavior and does not
-expose the DeepChat workflow tool. `workflow` exposes the workflow tool and suppresses
-`subagent_orchestrator` for the parent session so one parent turn cannot choose between two
-different orchestration contracts. The workflow tool is therefore mode-controlled rather than a
-generic user-configurable tool.
-
-Switching orchestration mode never changes reasoning effort or thinking budget. Switching mode or
-generation settings never cancels or mutates an already launched run. V1 activates workflow mode
-only from an explicit local UI action or `/workflow`; saved-workflow launch is an explicit action
-but does not change session mode. A later automatic suggestion may originate only from a local
-human-authored UI input with verified origin. Cron delivery, remote input, child output, tool
-output, imported content, and quoted instructions cannot activate orchestration.
+Changing policy or generation settings never cancels or mutates an already launched run. Cron
+delivery, remote input, child output, tool output, imported content, and quoted instructions cannot
+change the stored policy. A direct human Workflow request may prepare a run under either policy.
 
 ## UI Contract
 
@@ -661,21 +663,21 @@ The composer status bar exposes one compact execution control with two independe
 
 - the trigger label always shows the current reasoning level, or `Model default` when the model has
   no adjustable reasoning level;
-- workflow state is shown by a fixed-width workflow icon and semantic accent, not by concatenating
-  `Workflow` into the trigger label;
-- the popover contains reasoning choices followed by a separate workflow switch and description;
+- proactive collaboration is shown by a fixed-width branch icon and semantic accent, not by
+  concatenating `Workflow` into the trigger label;
+- the popover contains reasoning choices followed by a separate proactive-collaboration switch and
+  description;
 - icon, text alternative, tooltip, and accent communicate the active state without relying on
   color alone;
 - workflow capability comes from one typed main-owned result with an unavailable reason; the
-  renderer does not duplicate launch-scope policy checks and never silently falls back to
-  adaptive mode.
+  renderer does not duplicate launch-scope policy checks.
 
-`/workflow` changes the parent session mode without sending a model message. `/workflow <name>`
-prepares the named saved workflow without changing session mode. The built-in command wins the
-bare-name collision; an existing saved `workflow.js` remains reachable through the namespaced
-form. Existing `/name` saved-workflow commands otherwise remain compatible. Ordinary users provide
-natural language; generated JavaScript is internal execution IR and appears only in an advanced
-source view.
+`/workflow` opens the Workflow surface without changing session policy. `/workflow <name>` prepares
+the named saved Workflow without changing policy. The built-in command wins the bare-name
+collision; an existing saved `workflow.js` remains reachable through the namespaced form. Existing
+`/name` saved-workflow commands otherwise remain compatible. Ordinary users provide natural
+language; generated JavaScript is internal execution IR and appears only in an advanced source
+view.
 
 Model selection is limited to search and model choice. Reasoning level lives in the execution
 control. Low-frequency per-session generation overrides remain available in a separate advanced
@@ -735,6 +737,8 @@ approvals are removed from the visible state and never leave a stale runnable ca
 ## Compatibility
 
 - Existing chats and orchestrator behavior remain available.
+- Historical unreleased `adaptive | workflow` session values migrate to `explicit | proactive`.
+- Workflow and live delegation are no longer mutually exclusive executor catalogs.
 - Existing session rows, Tape rows, and subagent lineage remain readable.
 - Database migration is additive and idempotent.
 - Workflow events and routes use new typed contracts; existing renderer APIs are not widened with

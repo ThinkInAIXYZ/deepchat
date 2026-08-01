@@ -504,6 +504,10 @@ Final cross-module review findings, ordered by severity:
 
 ## Session Workflow Mode And Native Launch UX
 
+> Historical implementation record. The mutually exclusive mode and bare `/workflow` activation
+> items below are superseded by `docs/architecture/proactive-multi-agent-orchestration/`. Checked
+> boxes record what landed at the time; they are not the retained product contract.
+
 - [x] Persist `orchestrationMode: adaptive | workflow` for sessions and new-session drafts.
 - [x] Migrate existing sessions to `adaptive` without inferring intent from disabled tools.
 - [x] Remove Workflow from the generic configurable-tool surface.

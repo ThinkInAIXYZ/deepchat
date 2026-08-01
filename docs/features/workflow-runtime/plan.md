@@ -132,13 +132,13 @@ testable solution.
   `subagent_orchestrator`.
 - Add typed main routes for list, inspect, launch, cancel, resume, retry, and parent synthesis.
 - Add typed workflow events as renderer projections.
-- Persist session-level `orchestrationMode: adaptive | workflow` independently from generation
+- Persist session-level `orchestrationPolicy: explicit | proactive` independently from generation
   settings, including the new-session draft path.
-- Make the workflow tool mode-controlled instead of user-configurable. Expose exactly one parent
-  orchestration tool: `subagent_orchestrator` in adaptive mode and `workflow` in workflow mode.
+- Resolve Workflow and live-delegation availability independently. Let the current developer-level
+  policy govern whether the parent may proactively select either executor.
 - Resolve workflow availability and its unavailable reason in main through one typed contract.
-- Ship V1 with explicit local activation only; `/workflow` changes mode while named workflow
-  launch does not.
+- Allow a direct human Workflow request under either policy; `/workflow` opens the Workflow surface
+  while named Workflow launch remains policy-neutral.
 - Bind remembered launch approval to script hash, workspace, declared target-agent allowlist, and
   capability summary.
 - Keep launch approval separate from child tool approval.
@@ -156,8 +156,9 @@ testable solution.
 ## 11. Add Workflow UI
 
 - Add one compact composer execution control whose text remains the current reasoning level and
-  whose icon/accent communicates workflow state.
-- Keep reasoning choices and the workflow switch as independent sections in the same popover.
+  whose icon/accent communicates proactive collaboration.
+- Keep reasoning choices and the proactive-collaboration switch as independent sections in the
+  same popover.
 - Keep icon geometry stable and provide tooltip, keyboard, and screen-reader state.
 - Simplify model selection to search and model choice while retaining low-frequency session
   overrides in a separate advanced surface.
@@ -180,8 +181,8 @@ testable solution.
 - Keep source editing and run history separate so editing cannot mutate historical execution.
 - Treat generated JavaScript as internal IR by default and keep manual source editing behind an
   advanced disclosure.
-- Make `/workflow` activate the current session mode and `/workflow <name>` prepare a saved source
-  without changing that mode.
+- Make `/workflow` open the Workflow surface and `/workflow <name>` prepare a saved source without
+  changing the session policy.
 - Defer automatic suggestions until explicit launch, resume, and recovery UX are validated.
 
 ## 12.1 Freeze Launch-Time Model Settings
