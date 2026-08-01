@@ -88,6 +88,17 @@ describe('WorkflowAgentTool', () => {
     ).toBeNull()
   })
 
+  it('publishes the versioned authoring contract with a valid parallel example', () => {
+    const scriptSource = tool.getToolDefinition().function.parameters.properties?.scriptSource as {
+      description?: string
+    }
+
+    expect(scriptSource.description).toContain('DeepChat Workflow JavaScript API v1')
+    expect(scriptSource.description).toContain('agent(prompt, { key, label?')
+    expect(scriptSource.description).toContain("parallel('review', [")
+    expect(scriptSource.description).toContain("run: (api) => api.agent('Review architecture'")
+  })
+
   it('routes only current-session actions and rechecks availability', async () => {
     await tool.call(
       {

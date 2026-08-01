@@ -494,6 +494,29 @@ describeIfSqlite('WorkflowService', () => {
     expect(hosts).toEqual([])
   })
 
+  it('rejects an invalid authoring contract before resolving parent execution state', async () => {
+    const launchScope = createLaunchScopePort(async (input) => ({
+      workspacePath: '/repo',
+      allowedAgentIds: input.allowedAgentIds,
+      capabilityScopeHash: 'a'.repeat(64),
+      executionSnapshot: TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+      capabilities: ['deepchat-child-sessions']
+    }))
+    const service = createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 1), {
+      launchScope
+    })
+
+    await expect(
+      service.prepareLaunch({
+        parentSessionId: 'parent',
+        scriptSource: "parallel([() => agent({ prompt: 'inspect' })])",
+        input: null,
+        allowedAgentIds: ['deepchat']
+      })
+    ).rejects.toThrow('Expected parallel(key, [{ key, run(api) }, ...])')
+    expect(launchScope.resolve).not.toHaveBeenCalled()
+  })
+
   it('invalidates approval when the effective child capability scope changes', async () => {
     let capabilityScopeHash = 'a'.repeat(64)
     const service = createService(succeedingChildExecutor(), new WorkflowRunAdmission(1, 1), {

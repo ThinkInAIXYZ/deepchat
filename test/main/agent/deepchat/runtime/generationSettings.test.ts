@@ -50,6 +50,18 @@ function createProviderSettings(): ProviderSettingsPort {
 }
 
 describe('generation settings policy', () => {
+  it('does not materialize an absent model topP as an explicit undefined property', async () => {
+    const result = await sanitizeGenerationSettings(
+      createProviderSettings(),
+      { getDefaultSystemPrompt: vi.fn().mockResolvedValue('default prompt') },
+      'openai',
+      'gpt-4o',
+      {}
+    )
+
+    expect(result).not.toHaveProperty('topP')
+  })
+
   it('sanitizes numeric values and removes unsupported reasoning fields', async () => {
     const providerSettings = createProviderSettings()
     const result = await sanitizeGenerationSettings(

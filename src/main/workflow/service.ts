@@ -44,6 +44,7 @@ import {
 } from './runtime/workflowUtilityProcessHost'
 import logger from '@shared/logger'
 import { canonicalizeWorkflowExecutionSnapshot } from './domain/executionSnapshot'
+import { validateWorkflowSource } from './runtime/workflowSourceValidator'
 
 const DEFAULT_CANCEL_GRACE_MS = 10_000
 const STOP_SETTLE_MS = 12_000
@@ -237,6 +238,7 @@ export class WorkflowService {
   ): Promise<WorkflowLaunchApproval> {
     this.requireAvailable()
     const parsedIntent = WorkflowLaunchIntentSchema.parse(intent)
+    validateWorkflowSource(parsedIntent.scriptSource)
     const requestedAgentIds = [...new Set(parsedIntent.allowedAgentIds)].sort()
     const resolved = await this.resolveLaunchScope({
       parentSessionId: parsedIntent.parentSessionId,

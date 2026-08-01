@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { JsonValueSchema } from '@shared/contracts/common'
 import { WORKFLOW_AGENT_TOOL_NAME, WORKFLOW_AGENT_TOOL_SERVER_NAME } from '@shared/agentTools'
+import { WORKFLOW_AUTHORING_GUIDE } from '@shared/workflow/authoringContract'
 import {
   WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES,
   WorkflowRuntimeLimitsSchema
@@ -99,8 +100,7 @@ export class WorkflowAgentTool {
             },
             scriptSource: {
               type: 'string',
-              description:
-                'Required for prepare_launch. Workflow JavaScript using agent, parallel, pipeline, phase, and log.'
+              description: `Required for prepare_launch.\n${WORKFLOW_AUTHORING_GUIDE}`
             },
             input: {
               description: 'Optional bounded JSON input exposed to the workflow as input.'

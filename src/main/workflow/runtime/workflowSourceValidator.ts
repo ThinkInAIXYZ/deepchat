@@ -1,4 +1,9 @@
 import { parse, type Node } from 'acorn'
+import {
+  WORKFLOW_AUTHORING_HELPERS,
+  isWorkflowAuthoringHelperName,
+  type WorkflowAuthoringHelperName
+} from '@shared/workflow/authoringContract'
 
 const STRICT_MODE_PREFIX = "'use strict';\n"
 
@@ -18,7 +23,14 @@ const INJECTED_GLOBALS = new Set([
 const UNSUPPORTED_PROMISE_METHODS = new Set(['then', 'catch', 'finally', 'race', 'any'])
 
 export class WorkflowSourceValidationError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly code: 'INVALID_JAVASCRIPT' | 'UNSUPPORTED_CONSTRUCT' | 'INVALID_HELPER_CALL' =
+      'UNSUPPORTED_CONSTRUCT',
+    readonly helper: WorkflowAuthoringHelperName | null = null,
+    readonly line: number | null = null,
+    readonly column: number | null = null
+  ) {
     super(message)
     this.name = 'WorkflowSourceValidationError'
   }
@@ -31,13 +43,15 @@ export function validateWorkflowSource(source: string): Node {
       ecmaVersion: 'latest',
       sourceType: 'script',
       allowAwaitOutsideFunction: true,
-      allowReturnOutsideFunction: true
+      allowReturnOutsideFunction: true,
+      locations: true
     })
   } catch (error) {
     throw new WorkflowSourceValidationError(
       error instanceof Error
         ? normalizeStrictModeLocation(error.message)
-        : 'Workflow source is not valid JavaScript.'
+        : 'Workflow source is not valid JavaScript.',
+      'INVALID_JAVASCRIPT'
     )
   }
 
@@ -80,7 +94,313 @@ export function validateWorkflowSource(source: string): Node {
       assertMutationTargetAllowed(readNode(node, 'argument'))
     }
   })
+  validateWorkflowHelperCalls(root)
   return root
+}
+
+function validateWorkflowHelperCalls(root: Node): void {
+  const shadowedGlobals = collectShadowedWorkflowGlobals(root)
+  walkNode(root, (node) => {
+    const helper = readDirectWorkflowHelperCall(node, shadowedGlobals)
+    if (!helper) {
+      return
+    }
+    const args = readNodeArray(node, 'arguments')
+    if (args.some((argument) => argument.type === 'SpreadElement')) {
+      return
+    }
+    const contract = WORKFLOW_AUTHORING_HELPERS[helper]
+    if (args.length < contract.minArgs || args.length > contract.maxArgs) {
+      rejectHelper(
+        node,
+        helper,
+        `expected ${contract.signature}, received ${args.length} argument${args.length === 1 ? '' : 's'}.`
+      )
+    }
+
+    switch (helper) {
+      case 'agent':
+        assertPotentialString(args[0], node, helper, 'prompt')
+        assertObjectWithProperties(args[1], node, helper, 'options', ['key'])
+        break
+      case 'parallel':
+        assertPotentialString(args[0], node, helper, 'key')
+        assertKeyedObjectArray(args[1], node, helper, 'tasks', ['key', 'run'])
+        break
+      case 'pipeline':
+        assertPotentialString(args[0], node, helper, 'key')
+        assertKeyedObjectArray(args[1], node, helper, 'items', ['key', 'value'])
+        assertKeyedObjectArray(args[2], node, helper, 'stages', ['key', 'run'])
+        break
+      case 'mapLimit':
+        assertPotentialString(args[0], node, helper, 'key')
+        assertKeyedObjectArray(args[1], node, helper, 'items', ['key', 'value'])
+        assertPositiveIntegerIfLiteral(args[2], node, helper, 'limit')
+        assertFunctionIfLiteral(args[3], node, helper, 'mapper')
+        break
+      case 'phase':
+        assertPotentialString(args[0], node, helper, 'key')
+        if (args[1]) {
+          assertObjectWithProperties(args[1], node, helper, 'options', [])
+        }
+        break
+      case 'log':
+        break
+    }
+  })
+}
+
+function readDirectWorkflowHelperCall(
+  node: Node,
+  shadowedGlobals: ReadonlySet<string>
+): WorkflowAuthoringHelperName | null {
+  if (node.type !== 'CallExpression') {
+    return null
+  }
+  const callee = readNode(node, 'callee')
+  if (!callee) {
+    return null
+  }
+  if (callee.type === 'Identifier') {
+    const name = readString(callee, 'name')
+    return isWorkflowAuthoringHelperName(name) && !shadowedGlobals.has(name) ? name : null
+  }
+  if (callee.type !== 'MemberExpression' || shadowedGlobals.has('globalThis')) {
+    return null
+  }
+  const object = readNode(callee, 'object')
+  const propertyName = readStaticPropertyName(callee)
+  return object?.type === 'Identifier' &&
+    readString(object, 'name') === 'globalThis' &&
+    isWorkflowAuthoringHelperName(propertyName)
+    ? propertyName
+    : null
+}
+
+function collectShadowedWorkflowGlobals(root: Node): Set<string> {
+  const shadowed = new Set<string>()
+  walkNode(root, (node) => {
+    if (node.type === 'VariableDeclarator') {
+      collectBindingNames(readNode(node, 'id'), shadowed)
+      return
+    }
+    if (
+      node.type === 'FunctionDeclaration' ||
+      node.type === 'FunctionExpression' ||
+      node.type === 'ArrowFunctionExpression'
+    ) {
+      collectBindingNames(readNode(node, 'id'), shadowed)
+      for (const parameter of readNodeArray(node, 'params')) {
+        collectBindingNames(parameter, shadowed)
+      }
+      return
+    }
+    if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+      collectBindingNames(readNode(node, 'id'), shadowed)
+      return
+    }
+    if (node.type === 'CatchClause') {
+      collectBindingNames(readNode(node, 'param'), shadowed)
+    }
+  })
+  return shadowed
+}
+
+function collectBindingNames(node: Node | null, result: Set<string>): void {
+  if (!node) {
+    return
+  }
+  if (node.type === 'Identifier') {
+    const name = readString(node, 'name')
+    if (isWorkflowAuthoringHelperName(name) || name === 'globalThis') {
+      result.add(name)
+    }
+    return
+  }
+  if (node.type === 'RestElement') {
+    collectBindingNames(readNode(node, 'argument'), result)
+    return
+  }
+  if (node.type === 'AssignmentPattern') {
+    collectBindingNames(readNode(node, 'left'), result)
+    return
+  }
+  if (node.type === 'ArrayPattern') {
+    for (const element of readNodeArray(node, 'elements')) {
+      collectBindingNames(element, result)
+    }
+    return
+  }
+  if (node.type === 'ObjectPattern') {
+    for (const property of readNodeArray(node, 'properties')) {
+      collectBindingNames(
+        readNode(property, property.type === 'Property' ? 'value' : 'argument'),
+        result
+      )
+    }
+  }
+}
+
+function assertPotentialString(
+  node: Node | undefined,
+  call: Node,
+  helper: WorkflowAuthoringHelperName,
+  label: string
+): void {
+  if (!node) {
+    return
+  }
+  if (node.type === 'Literal' && typeof readUnknown(node, 'value') !== 'string') {
+    rejectHelper(call, helper, `${label} must be a string.`)
+  }
+  if (node.type === 'ObjectExpression' || node.type === 'ArrayExpression') {
+    rejectHelper(call, helper, `${label} must be a string.`)
+  }
+}
+
+function assertObjectWithProperties(
+  node: Node | undefined,
+  call: Node,
+  helper: WorkflowAuthoringHelperName,
+  label: string,
+  requiredProperties: string[]
+): void {
+  if (!node) {
+    return
+  }
+  if (node.type !== 'ObjectExpression') {
+    if (node.type === 'Literal' || node.type === 'ArrayExpression') {
+      rejectHelper(call, helper, `${label} must be an object.`)
+    }
+    return
+  }
+  for (const propertyName of requiredProperties) {
+    if (!objectMayContainProperty(node, propertyName)) {
+      rejectHelper(call, helper, `${label} must contain ${propertyName}.`)
+    }
+  }
+}
+
+function assertKeyedObjectArray(
+  node: Node | undefined,
+  call: Node,
+  helper: WorkflowAuthoringHelperName,
+  label: string,
+  requiredProperties: string[]
+): void {
+  if (!node) {
+    return
+  }
+  if (node.type !== 'ArrayExpression') {
+    if (node.type === 'Literal' || node.type === 'ObjectExpression') {
+      rejectHelper(call, helper, `${label} must be an array.`)
+    }
+    return
+  }
+  const elements = readUnknown(node, 'elements')
+  if (!Array.isArray(elements)) {
+    return
+  }
+  for (const element of elements) {
+    if (!isNode(element) || element.type === 'SpreadElement') {
+      continue
+    }
+    if (element.type !== 'ObjectExpression') {
+      rejectHelper(call, helper, `${label} entries must be objects with ${requiredProperties.join(' and ')}.`)
+    }
+    for (const propertyName of requiredProperties) {
+      if (!objectMayContainProperty(element, propertyName)) {
+        rejectHelper(call, helper, `${label} entries must contain ${propertyName}.`)
+      }
+    }
+  }
+}
+
+function objectMayContainProperty(node: Node, propertyName: string): boolean {
+  for (const property of readNodeArray(node, 'properties')) {
+    if (property.type === 'SpreadElement') {
+      return true
+    }
+    if (property.type !== 'Property') {
+      continue
+    }
+    if (readBoolean(property, 'computed') && readStaticPropertyName(property) === null) {
+      return true
+    }
+    if (readStaticPropertyName(property) === propertyName) {
+      return true
+    }
+  }
+  return false
+}
+
+function assertPositiveIntegerIfLiteral(
+  node: Node | undefined,
+  call: Node,
+  helper: WorkflowAuthoringHelperName,
+  label: string
+): void {
+  if (node?.type !== 'Literal') {
+    return
+  }
+  const value = readUnknown(node, 'value')
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    rejectHelper(call, helper, `${label} must be a positive integer.`)
+  }
+}
+
+function assertFunctionIfLiteral(
+  node: Node | undefined,
+  call: Node,
+  helper: WorkflowAuthoringHelperName,
+  label: string
+): void {
+  if (!node) {
+    return
+  }
+  if (
+    node.type === 'ArrowFunctionExpression' ||
+    node.type === 'FunctionExpression' ||
+    node.type === 'Identifier' ||
+    node.type === 'MemberExpression'
+  ) {
+    return
+  }
+  if (node.type === 'Literal' || node.type === 'ObjectExpression' || node.type === 'ArrayExpression') {
+    rejectHelper(call, helper, `${label} must be a function.`)
+  }
+}
+
+function rejectHelper(
+  node: Node,
+  helper: WorkflowAuthoringHelperName,
+  detail: string
+): never {
+  const location = readSourceLocation(node)
+  const prefix = location ? `Workflow helper "${helper}" at ${location.line}:${location.column}` : `Workflow helper "${helper}"`
+  throw new WorkflowSourceValidationError(
+    `${prefix} is invalid: ${detail} Expected ${WORKFLOW_AUTHORING_HELPERS[helper].signature}`,
+    'INVALID_HELPER_CALL',
+    helper,
+    location?.line ?? null,
+    location?.column ?? null
+  )
+}
+
+function readSourceLocation(node: Node): { line: number; column: number } | null {
+  const loc = readUnknown(node, 'loc')
+  if (!loc || typeof loc !== 'object') {
+    return null
+  }
+  const start = (loc as { start?: unknown }).start
+  if (!start || typeof start !== 'object') {
+    return null
+  }
+  const line = (start as { line?: unknown }).line
+  const column = (start as { column?: unknown }).column
+  return typeof line === 'number' && typeof column === 'number'
+    ? { line: Math.max(1, line - 1), column }
+    : null
 }
 
 function walkNode(root: Node, visit: (node: Node) => void): void {
@@ -153,10 +473,10 @@ function readMemberRoot(node: Node): string | null {
 }
 
 function readStaticPropertyName(node: Node): string | null {
-  if (node.type !== 'MemberExpression') {
+  if (node.type !== 'MemberExpression' && node.type !== 'Property') {
     return null
   }
-  const property = readNode(node, 'property')
+  const property = readNode(node, node.type === 'Property' ? 'key' : 'property')
   if (!property) {
     return null
   }
@@ -164,11 +484,7 @@ function readStaticPropertyName(node: Node): string | null {
   if (!computed && property.type === 'Identifier') {
     return readString(property, 'name')
   }
-  if (
-    computed &&
-    property.type === 'Literal' &&
-    typeof readUnknown(property, 'value') === 'string'
-  ) {
+  if (property.type === 'Literal' && typeof readUnknown(property, 'value') === 'string') {
     return readString(property, 'value')
   }
   return null

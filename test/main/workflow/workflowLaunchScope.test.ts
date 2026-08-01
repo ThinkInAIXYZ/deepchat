@@ -145,6 +145,26 @@ describe('WorkflowLaunchScopeResolver', () => {
     })
   })
 
+  it('omits absent optional settings from the immutable execution snapshot', async () => {
+    parent = {
+      ...parent,
+      generationSettings: {
+        ...parent.generationSettings!,
+        topP: undefined,
+        imageGeneration: { size: undefined }
+      }
+    }
+
+    const resolved = await createResolver().resolve({
+      parentSessionId: 'parent-1',
+      parentMessageId: null,
+      allowedAgentIds: ['deepchat']
+    })
+
+    expect(resolved.executionSnapshot.generationSettings).not.toHaveProperty('topP')
+    expect(resolved.executionSnapshot.generationSettings.imageGeneration).toEqual({})
+  })
+
   it('separates mutable model settings from the continuously validated security scope', async () => {
     const resolver = createResolver()
     const first = await resolver.resolve({

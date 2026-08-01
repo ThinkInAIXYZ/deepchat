@@ -99,6 +99,26 @@ describe('WorkflowLaunchApprovalRegistry', () => {
     ).toThrow('Direct .race() promise scheduling is unavailable')
   })
 
+  it('normalizes explicit undefined optional settings before hashing an approval', () => {
+    const registry = new WorkflowLaunchApprovalRegistry()
+    const approval = registry.prepare({
+      ...draft(),
+      executionSnapshot: {
+        ...TEST_WORKFLOW_EXECUTION_SNAPSHOT,
+        generationSettings: {
+          ...TEST_WORKFLOW_EXECUTION_SNAPSHOT.generationSettings,
+          topP: undefined,
+          imageGeneration: { size: undefined }
+        }
+      }
+    })
+
+    expect(approval.summary.executionSnapshotHash).toMatch(/^[0-9a-f]{64}$/)
+    const request = registry.consume(approval.approvalId)
+    expect(request.executionSnapshot.generationSettings).not.toHaveProperty('topP')
+    expect(request.executionSnapshot.generationSettings.imageGeneration).toEqual({})
+  })
+
   it('applies a non-optional execution deadline when the draft omits one', () => {
     const registry = new WorkflowLaunchApprovalRegistry()
 

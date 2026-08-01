@@ -28,12 +28,37 @@ Architecture validation evidence:
 
 ## Workflow Preparation
 
-- [ ] Omit unsupported `undefined` values from execution snapshots.
-- [ ] Validate source before resolving launch scope.
-- [ ] Add a single versioned authoring contract with signatures and examples.
-- [ ] Add semantic helper-shape diagnostics before approval.
-- [ ] Add regression tests for host snapshot and foreign-dialect scripts.
-- [ ] Review, validate, and commit the preparation slice.
+- [x] Omit unsupported `undefined` values from execution snapshots.
+- [x] Validate source before resolving launch scope.
+- [x] Add a single versioned authoring contract with signatures and examples.
+- [x] Add semantic helper-shape diagnostics before approval.
+- [x] Add regression tests for host snapshot and foreign-dialect scripts.
+- [x] Review and validate the preparation slice.
+- [x] Commit the preparation slice.
+
+Preparation review findings, ordered by severity:
+
+- high, fixed before commit: the first AST property reader handled only member expressions, which
+  made ordinary helper option objects appear to omit required keys; property nodes and quoted
+  static keys now share the correct lookup path and have regression coverage;
+- high, fixed before commit: allowing a caller-supplied precomputed outline at the approval
+  boundary could let a future call site display a summary that did not describe the approved
+  source; the bounded source is deliberately revalidated and reprojected inside the registry;
+- medium, fixed before commit: the snapshot hash was normalized while the pending launch request
+  still retained explicit `undefined` values; the registry now retains the same normalized snapshot
+  that it hashes and later executes;
+- medium, fixed before commit: malformed foreign helper dialects previously reached parent-session
+  resolution and could be masked by an unrelated generation-setting error; source validation now
+  happens first and returns the exact supported signature with a source location;
+- low: no remaining preparation finding.
+
+Preparation validation evidence:
+
+- 160 Workflow, authoring, QuickJS, tool, and generation-setting tests passed under the current
+  Node ABI;
+- all 39 `WorkflowService` tests passed under Electron's Node ABI with native SQLite required;
+- `pnpm run typecheck:node` passed;
+- targeted Oxfmt, Oxlint, and `git diff --check` passed.
 
 ## Policy And Routing
 

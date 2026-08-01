@@ -624,16 +624,27 @@ return {
     })
   })
 
-  it('validates malformed parallel entries before reading their keys', async () => {
+  it('rejects malformed parallel entries before starting guest execution', async () => {
     const events: WorkflowRuntimeEvent[] = []
     const runtime = await createRuntime(events)
 
     await expect(runtime.start("return await parallel('bad', [null])", null)).rejects.toMatchObject(
       {
-        name: 'WorkflowSourceError',
-        message: 'parallel tasks must contain key and run.'
+        name: 'WorkflowSourceValidationError',
+        code: 'INVALID_HELPER_CALL',
+        helper: 'parallel',
+        message: expect.stringContaining('tasks entries must be objects with key and run')
       }
     )
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'FAILED',
+        error: expect.objectContaining({
+          code: 'WORKFLOW_SOURCE_INVALID',
+          retriable: false
+        })
+      })
+    ])
   })
 
   it('prevents phase options from replacing the scoped phase key', async () => {
