@@ -14,11 +14,15 @@ const workflowRunsModule = Database
 const newSessionsModule = Database
   ? await import('@/session/data/tables/newSessions').catch(() => null)
   : null
+const liveDelegationsModule = Database
+  ? await import('@/orchestration/data/tables/liveDelegations').catch(() => null)
+  : null
 const MainDatabase = mainDatabaseModule?.MainDatabase
 const WORKFLOW_SCHEMA_VERSION = workflowRunsModule?.WORKFLOW_SCHEMA_VERSION
 const LATEST_SCHEMA_VERSION = Math.max(
   WORKFLOW_SCHEMA_VERSION ?? 0,
-  newSessionsModule?.SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION ?? 0
+  newSessionsModule?.SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION ?? 0,
+  liveDelegationsModule?.LIVE_DELEGATION_DATABASE_SCHEMA_VERSION ?? 0
 )
 const DatabaseCtor = Database!
 const MainDatabaseCtor = MainDatabase!

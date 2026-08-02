@@ -46,6 +46,9 @@ import {
   WorkflowRunsTable
 } from '@/workflow/data/tables/workflowRuns'
 import { WorkflowInvocationsTable } from '@/workflow/data/tables/workflowInvocations'
+import { LiveDelegationEventsTable } from '@/orchestration/data/tables/liveDelegationEvents'
+import { LiveDelegationsTable } from '@/orchestration/data/tables/liveDelegations'
+import { LiveDelegationTurnsTable } from '@/orchestration/data/tables/liveDelegationTurns'
 import type { BaseTable } from '@/data/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
@@ -373,6 +376,21 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       new WorkflowInvocationsTable(db).createTable()
     },
     typeCheckedColumns: ['seq', 'attempt', 'execution_epoch', 'created_at', 'updated_at']
+  },
+  {
+    name: 'live_delegations',
+    createTable: (db) => new LiveDelegationsTable(db),
+    typeCheckedColumns: ['last_turn_seq', 'created_at', 'updated_at', 'revision']
+  },
+  {
+    name: 'live_delegation_turns',
+    createTable: (db) => new LiveDelegationTurnsTable(db),
+    typeCheckedColumns: ['seq', 'created_at', 'updated_at']
+  },
+  {
+    name: 'live_delegation_events',
+    createTable: (db) => new LiveDelegationEventsTable(db),
+    typeCheckedColumns: ['event_id', 'created_at']
   }
 ]
 
@@ -482,6 +500,9 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const cronJobDeliveries = new CronJobDeliveriesTable(db)
   const workflowRuns = new WorkflowRunsTable(db)
   const workflowInvocations = new WorkflowInvocationsTable(db)
+  const liveDelegations = new LiveDelegationsTable(db)
+  const liveDelegationTurns = new LiveDelegationTurnsTable(db)
+  const liveDelegationEvents = new LiveDelegationEventsTable(db)
 
   const createTables: BaseTable[] = [
     acpSessions,
@@ -521,7 +542,10 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     cronJobRuns,
     cronJobDeliveries,
     workflowRuns,
-    workflowInvocations
+    workflowInvocations,
+    liveDelegations,
+    liveDelegationTurns,
+    liveDelegationEvents
   ]
 
   return {

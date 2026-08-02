@@ -114,6 +114,29 @@ Policy validation evidence:
 - [ ] Add concurrency, cancellation, permission, Tape, and recovery tests.
 - [ ] Review, validate, and commit lifecycle slices.
 
+Persistence foundation review findings, ordered by severity:
+
+- high, fixed before commit: installing a child-ownership trigger before an old `new_sessions`
+  table had gained its Subagent columns made forward migration fail while altering that table; the
+  trigger is now installed conditionally during bootstrap and unconditionally only after v60;
+- high, fixed before commit: SQLite foreign-key enforcement is not globally enabled, so deleting a
+  parent Session could leave delegation, turn, and mailbox rows behind; explicit cleanup triggers
+  now preserve ownership semantics independently of connection pragmas;
+- medium, fixed before commit: a child ID could be bound without proving that it was a direct
+  Subagent of the recorded parent; the database now rejects unrelated or regular Sessions and the
+  repository keeps child binding immutable;
+- medium, fixed before commit: migration SQL initially embedded trigger bodies that the generic SQL
+  splitter cannot execute atomically; table/index creation and trigger finalization now follow the
+  established Workflow migration boundary;
+- low: no remaining persistence-foundation finding.
+
+Persistence foundation validation evidence:
+
+- 12 native repository, v60 migration, and retained Workflow migration tests passed under
+  Electron's Node ABI;
+- the legacy v20 missing-Subagent-column migration regression passed under Electron's Node ABI;
+- `pnpm run typecheck:node`, targeted Oxfmt, targeted Oxlint, and `git diff --check` passed.
+
 ## UX
 
 - [x] Rename Workflow mode copy to proactive collaboration.
