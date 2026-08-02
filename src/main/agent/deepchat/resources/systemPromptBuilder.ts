@@ -9,7 +9,7 @@ import type { ProviderCatalogPort } from '@/provider/ports'
 import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from "./systemEnvPromptBuilder";
 import type { SkillSettingsPort } from "@/skill/settings";
 import {
-  SUBAGENT_ORCHESTRATOR_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
   WORKFLOW_AGENT_TOOL_NAME
 } from '@shared/agentTools'
 import {
@@ -279,7 +279,7 @@ function buildOrchestrationPolicyPrompt(
   policy: OrchestrationPolicy | undefined,
   agentToolNames: Set<string>
 ): string {
-  const hasSubagents = agentToolNames.has(SUBAGENT_ORCHESTRATOR_TOOL_NAME)
+  const hasSubagents = agentToolNames.has(LIVE_DELEGATION_AGENT_TOOL_NAME)
   const hasWorkflow = agentToolNames.has(WORKFLOW_AGENT_TOOL_NAME)
   if (!hasSubagents && !hasWorkflow) {
     return ''
@@ -304,7 +304,7 @@ function buildOrchestrationPolicyPrompt(
   }
   if (hasSubagents) {
     lines.push(
-      `Use \`${SUBAGENT_ORCHESTRATOR_TOOL_NAME}\` for a small number of bounded independent tasks that the parent can synthesize.`
+      `Use \`${LIVE_DELEGATION_AGENT_TOOL_NAME}\` for a small number of adaptive bounded child tasks. Use \`spawn\` to start work, \`send\` for non-triggering context, and \`follow_up\` only to start another child turn.`
     )
   }
   if (hasWorkflow) {

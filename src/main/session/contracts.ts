@@ -45,6 +45,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { OrchestrationPolicy } from '@shared/workflow/orchestrationPolicy'
 import type { WorkflowSubagentContext } from '@shared/workflow/subagent'
+import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
 import type { DeepChatMessageRow } from '../session/data/tables/deepchatMessages'
@@ -518,6 +519,7 @@ export interface SessionLifecycleSubagentInput {
   disabledAgentTools?: string[]
   activeSkills?: string[]
   workflowContext?: WorkflowSubagentContext
+  liveDelegationContext?: LiveDelegationSubagentContext
 }
 
 export interface SessionLifecyclePort {

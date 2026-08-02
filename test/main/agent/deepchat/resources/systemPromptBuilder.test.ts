@@ -5,7 +5,7 @@ import fs from 'fs'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
 import {
-  SUBAGENT_ORCHESTRATOR_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
   WORKFLOW_AGENT_TOOL_NAME
 } from '@shared/agentTools'
 
@@ -71,7 +71,7 @@ describe('DeepChat system prompt builder', () => {
         {
           source: 'agent',
           server: { name: 'subagents' },
-          function: { name: SUBAGENT_ORCHESTRATOR_TOOL_NAME }
+          function: { name: LIVE_DELEGATION_AGENT_TOOL_NAME }
         }
       ] as any,
       orchestrationPolicy: 'explicit',
@@ -111,7 +111,8 @@ describe('DeepChat system prompt builder', () => {
     expect(explicit).toContain('## Multi-Agent Orchestration Policy')
     expect(explicit).toContain('explicit multi-Agent collaboration')
     expect(explicit).toContain('user, an active Skill, or project instructions explicitly request')
-    expect(explicit).toContain(`Use \`${SUBAGENT_ORCHESTRATOR_TOOL_NAME}\``)
+    expect(explicit).toContain(`Use \`${LIVE_DELEGATION_AGENT_TOOL_NAME}\``)
+    expect(explicit).toContain('`send` for non-triggering context')
     expect(explicit).toContain(`Use \`${WORKFLOW_AGENT_TOOL_NAME}\``)
     expect(proactive).toContain('enabled proactive multi-Agent collaboration')
     expect(proactive).toContain('Never delegate merely to demonstrate')

@@ -598,6 +598,7 @@ export interface DeepChatSubagentMeta {
   displayName: string
   targetAgentId?: string | null
   workflow?: import('../workflow/subagent').WorkflowSubagentContext
+  liveDelegation?: import('../orchestration/liveDelegation').LiveDelegationSubagentContext
 }
 
 export interface DeepChatAgentMemoryEmbedding {

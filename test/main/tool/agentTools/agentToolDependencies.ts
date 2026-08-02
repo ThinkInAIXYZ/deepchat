@@ -39,12 +39,22 @@ export const createAgentToolDependencies = (
   },
   subagents: {
     createSubagentSession: overrides.createSubagentSession ?? vi.fn(),
-    mergeSubagentTape: overrides.mergeSubagentTape ?? vi.fn(),
-    discardSubagentTape: overrides.discardSubagentTape ?? vi.fn(),
+    linkSubagentTape: overrides.linkSubagentTape ?? vi.fn(),
     sendConversationMessage: overrides.sendConversationMessage ?? vi.fn(),
     cancelConversation: overrides.cancelConversation ?? vi.fn(),
     subscribeSessionRuntimeUpdates: overrides.subscribeSessionRuntimeUpdates ?? vi.fn(() => vi.fn())
   },
+  liveDelegation:
+    overrides.liveDelegation ??
+    ({
+      spawn: vi.fn(),
+      send: vi.fn(),
+      followUp: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      inspect: vi.fn(),
+      wait: vi.fn().mockResolvedValue({ events: [], cursor: 0, timedOut: true }),
+      interrupt: vi.fn()
+    } as any),
   ...(overrides.workflow ? { workflow: overrides.workflow } : {}),
   skills:
     overrides.skillService ??

@@ -171,6 +171,9 @@ import {
 import { createWorkflowRoutes } from '@/workflow/routes'
 import { createOrchestrationRoutes } from '@/orchestration/routes'
 import { OrchestrationCapabilityResolver } from '@/orchestration/capability'
+import { LiveDelegationDatabase } from '@/orchestration/data/database'
+import { LiveDelegationRepository } from '@/orchestration/liveDelegationRepository'
+import { LiveDelegationService } from '@/orchestration/liveDelegationService'
 import type { WorkflowInvocation, WorkflowRun } from '@shared/workflow/domain'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
@@ -277,6 +280,9 @@ export async function createMainProcessControl(dependencies: {
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
   const mainDatabase = dependencies.database
   const workflowRepository = new WorkflowRepository(new WorkflowDatabase(mainDatabase))
+  const liveDelegationRepository = new LiveDelegationRepository(
+    new LiveDelegationDatabase(mainDatabase)
+  )
   const workflowInvocationContexts = new WorkflowInvocationContextRegistry()
   const workflowEffectObserver = new WorkflowToolEffectObserver(
     workflowRepository,
@@ -343,6 +349,7 @@ export async function createMainProcessControl(dependencies: {
   let agentSessionExportService: AgentSessionExportService
   let sessionTranslation: SessionTranslation
   let workflowService: WorkflowService
+  let liveDelegationService: LiveDelegationService
   let acpAsLlmProviderSessionControl: AcpAsLlmProviderSessionControlPort
   let acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
   let hasInitialized = false
@@ -871,7 +878,8 @@ export async function createMainProcessControl(dependencies: {
           sessionKind: session.sessionKind,
           parentSessionId: session.parentSessionId ?? null,
           subagentMeta: session.subagentMeta ?? null,
-          subagentCapability
+          subagentCapability,
+          status: session.status
         }
       }
     },
@@ -931,6 +939,7 @@ export async function createMainProcessControl(dependencies: {
       },
       subscribeSessionRuntimeUpdates: (listener) => sessionRuntimeEvents.subscribe(listener)
     },
+    liveDelegation: createLivePort(() => liveDelegationService),
     workflow: {
       canUse: async (parentSessionId) =>
         (await orchestrationCapabilityResolver.resolveSession(parentSessionId)).available,
@@ -1633,6 +1642,54 @@ export async function createMainProcessControl(dependencies: {
       onUpdate: publishWorkflowUpdate
     })
   workflowService = createWorkflowService()
+  const createLiveDelegationService = (): LiveDelegationService =>
+    new LiveDelegationService({
+      repository: liveDelegationRepository,
+      admission: agentInvocationAdmission,
+      sessions: {
+        ...agentToolDependencies.sessions,
+        ...agentToolDependencies.subagents,
+        findDelegationChild: async (parentSessionId, delegationId) => {
+          const matches = appSessionService
+            .list({ includeSubagents: true, parentSessionId })
+            .filter(
+              (session) => session.subagentMeta?.liveDelegation?.delegationId === delegationId
+            )
+          if (matches.length > 1) {
+            throw new Error(`Multiple child Sessions share live delegation ${delegationId}.`)
+          }
+          return matches[0]
+            ? await agentToolDependencies.sessions.resolveConversationSessionInfo(matches[0].id)
+            : null
+        },
+        getLatestAssistantResponse: async (sessionId) => {
+          const messages = await sessionQuery.getMessages(sessionId)
+          for (let index = messages.length - 1; index >= 0; index -= 1) {
+            const message = messages[index]
+            if (message?.role !== 'assistant') continue
+            try {
+              const blocks = JSON.parse(message.content) as Array<{
+                type?: unknown
+                content?: unknown
+              }>
+              if (!Array.isArray(blocks)) continue
+              const content = blocks
+                .filter((block) => block.type === 'content' && typeof block.content === 'string')
+                .map((block) => String(block.content))
+                .join('\n')
+                .trim()
+              if (content) return content
+            } catch {
+              if (message.content.trim()) return message.content.trim()
+            }
+          }
+          return null
+        }
+      },
+      onChanged: (parentSessionId) =>
+        sessionQuery.notify({ sessionIds: [parentSessionId], reason: 'updated' })
+    })
+  liveDelegationService = createLiveDelegationService()
   remoteService = new RemoteService({
     settings: dependencies.settingsStore,
     catalog: {
@@ -1709,6 +1766,7 @@ export async function createMainProcessControl(dependencies: {
     }
 
     workflowService.start()
+    liveDelegationService.start()
     hasInitialized = true
 
     const providers = providerSettings.getProviders()
@@ -1932,6 +1990,7 @@ export async function createMainProcessControl(dependencies: {
 
   async function destroy(): Promise<void> {
     await runDestroyStep('providerCatalog.unsubscribe', () => unsubscribeProviderDbCatalog())
+    await runDestroyStep('liveDelegationService.stop', () => liveDelegationService.stop())
     await runDestroyStep('workflowService.stop', () => workflowService.stop())
     await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
@@ -2543,6 +2602,7 @@ export async function createMainProcessControl(dependencies: {
     let operationResult: T | undefined
     let operationError: unknown
     try {
+      await liveDelegationService.stop()
       await workflowService.stop()
       await cronJobs.stop()
       await remoteService.destroy()
@@ -2587,6 +2647,8 @@ export async function createMainProcessControl(dependencies: {
       await remoteService.initialize()
       workflowService = createWorkflowService()
       workflowService.start()
+      liveDelegationService = createLiveDelegationService()
+      liveDelegationService.start()
       startupWorkloadCoordinator.createRun('main')
       scheduleBackgroundWork()
       databaseMaintenanceState = 'running'

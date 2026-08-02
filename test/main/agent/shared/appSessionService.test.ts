@@ -287,6 +287,52 @@ describe('AppSessionService', () => {
       })
     })
 
+    it('preserves live delegation identity and rejects ambiguous ownership metadata', () => {
+      const baseRow = {
+        id: 'child-1',
+        agent_id: 'deepchat',
+        title: 'Live child',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'subagent',
+        parent_session_id: 'parent-1',
+        created_at: 1000,
+        updated_at: 2000,
+        revision: 0
+      }
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'reviewer',
+          displayName: 'Live child',
+          liveDelegation: { delegationId: 'delegation-1' }
+        })
+      })
+
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'reviewer',
+        displayName: 'Live child',
+        targetAgentId: undefined,
+        liveDelegation: { delegationId: 'delegation-1' }
+      })
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'reviewer',
+          displayName: 'Ambiguous child',
+          workflow: {
+            runId: 'run-1',
+            invocationId: 'invocation-1',
+            correlationSlot: 'reviewer'
+          },
+          liveDelegation: { delegationId: 'delegation-1' }
+        })
+      })
+      expect(manager.get('child-1')?.subagentMeta).toBeNull()
+    })
+
     it('returns null when not found', () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
       expect(manager.get('missing')).toBeNull()

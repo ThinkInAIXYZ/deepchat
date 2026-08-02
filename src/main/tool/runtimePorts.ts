@@ -12,11 +12,18 @@ import type {
   PermissionMode,
   SendMessageInput,
   SessionGenerationSettings,
+  SessionStatus,
   SessionKind,
   SubagentTapeLinkInput,
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { WorkflowSubagentContext } from '@shared/workflow/subagent'
+import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
+import type {
+  LiveDelegationDetail,
+  LiveDelegationEventSummary,
+  LiveDelegationSummary
+} from '@shared/orchestration/liveDelegation'
 import type { WorkflowRunDetail, WorkflowRunSummary } from '@shared/workflow/projection'
 import type {
   WorkflowLaunchApproval,
@@ -54,6 +61,7 @@ export interface ConversationSessionInfo {
   parentSessionId: string | null
   subagentMeta: DeepChatSubagentMeta | null
   subagentCapability: DeepChatSubagentCapability
+  status: SessionStatus
 }
 
 export interface CreateSubagentSessionInput {
@@ -71,6 +79,7 @@ export interface CreateSubagentSessionInput {
   disabledAgentTools?: string[]
   activeSkills?: string[]
   workflowContext?: WorkflowSubagentContext
+  liveDelegationContext?: LiveDelegationSubagentContext
 }
 
 export interface AgentToolSessionPort {
@@ -157,6 +166,31 @@ export interface AgentWorkflowToolPort {
   ): Promise<WorkflowRunSummary>
 }
 
+export interface AgentLiveDelegationToolPort {
+  spawn(
+    parentSessionId: string,
+    input: { slotId: string; title: string; prompt: string }
+  ): Promise<LiveDelegationDetail>
+  send(parentSessionId: string, delegationId: string, message: string): LiveDelegationDetail
+  followUp(
+    parentSessionId: string,
+    delegationId: string,
+    task: string
+  ): Promise<LiveDelegationDetail>
+  list(parentSessionId: string, limit?: number): LiveDelegationSummary[]
+  inspect(parentSessionId: string, delegationId: string): LiveDelegationDetail
+  wait(
+    parentSessionId: string,
+    options?: {
+      after?: number
+      timeoutMs?: number
+      delegationIds?: string[]
+      signal?: AbortSignal
+    }
+  ): Promise<{ events: LiveDelegationEventSummary[]; cursor: number; timedOut: boolean }>
+  interrupt(parentSessionId: string, delegationId: string): Promise<LiveDelegationDetail>
+}
+
 export interface AgentBrowserToolPort {
   getToolDefinitions(): MCPToolDefinition[]
   callTool(
@@ -205,6 +239,7 @@ export interface AgentToolDependencies {
   memory: AgentMemoryToolPort
   cronJobs: AgentCronJobToolPort
   subagents: AgentSubagentToolPort
+  liveDelegation?: AgentLiveDelegationToolPort
   workflow?: AgentWorkflowToolPort
   agentInvocationAdmission: AgentInvocationAdmissionPort
   skills: SkillServicePort

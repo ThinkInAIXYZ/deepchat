@@ -10,6 +10,7 @@ import { createAgentToolDependencies } from './agentTools/agentToolDependencies'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
   LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   WORKFLOW_AGENT_TOOL_NAME,
   assertAgentToolExposure,
@@ -638,6 +639,7 @@ describe('ToolService', () => {
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.anchors)).toBe('diagnostic')
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.handoff)).toBe('runtime-only')
     expect(getAgentToolExposure(SUBAGENT_ORCHESTRATOR_TOOL_NAME)).toBe('system-model')
+    expect(getAgentToolExposure(LIVE_DELEGATION_AGENT_TOOL_NAME)).toBe('system-model')
     expect(getAgentToolExposure(WORKFLOW_AGENT_TOOL_NAME)).toBe('system-model')
     expect(getAgentToolExposure('read')).toBe('user-configurable')
     expect(getAgentToolExposure('__proto__')).toBe('user-configurable')
@@ -728,7 +730,7 @@ describe('ToolService', () => {
       WORKFLOW_AGENT_TOOL_NAME
     )
     expect(runtimeDefinitions.map((definition) => definition.function.name)).toContain(
-      SUBAGENT_ORCHESTRATOR_TOOL_NAME
+      LIVE_DELEGATION_AGENT_TOOL_NAME
     )
     expect(canUse).toHaveBeenCalledWith('conv-1')
   })
@@ -781,13 +783,14 @@ describe('ToolService', () => {
     ])
   })
 
-  it('reserves the Subagent orchestrator and ignores generic disabled-tool state', async () => {
+  it('reserves live delegation names and ignores generic disabled-tool state', async () => {
     const toolService = new ToolService({
       mcpService: {
         getAllToolDefinitions: vi
           .fn()
           .mockResolvedValue([
-            buildToolDefinition(SUBAGENT_ORCHESTRATOR_TOOL_NAME, 'untrusted-mcp')
+            buildToolDefinition(LIVE_DELEGATION_AGENT_TOOL_NAME, 'untrusted-mcp'),
+            buildToolDefinition(SUBAGENT_ORCHESTRATOR_TOOL_NAME, 'legacy-untrusted-mcp')
           ])
       } as any,
       skillSettings: { isEnabled: () => false } as any,
@@ -812,7 +815,7 @@ describe('ToolService', () => {
     })
 
     const defs = await toolService.getAllToolDefinitions({
-      disabledAgentTools: [SUBAGENT_ORCHESTRATOR_TOOL_NAME],
+      disabledAgentTools: [LIVE_DELEGATION_AGENT_TOOL_NAME, SUBAGENT_ORCHESTRATOR_TOOL_NAME],
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: null,
@@ -820,14 +823,17 @@ describe('ToolService', () => {
       subagentCapability
     })
     const orchestrators = defs.filter(
-      (definition) => definition.function.name === SUBAGENT_ORCHESTRATOR_TOOL_NAME
+      (definition) => definition.function.name === LIVE_DELEGATION_AGENT_TOOL_NAME
     )
 
     expect(orchestrators).toHaveLength(1)
     expect(orchestrators[0]).toMatchObject({
       source: 'agent',
-      server: { name: 'agent-subagents' }
+      server: { name: 'agent-live-delegation' }
     })
+    expect(
+      defs.some((definition) => definition.function.name === SUBAGENT_ORCHESTRATOR_TOOL_NAME)
+    ).toBe(false)
 
     const configurable = await toolService.getConfigurableAgentToolDefinitions({
       chatMode: 'agent',
@@ -837,7 +843,7 @@ describe('ToolService', () => {
     })
     expect(
       configurable.some(
-        (definition) => definition.function.name === SUBAGENT_ORCHESTRATOR_TOOL_NAME
+        (definition) => definition.function.name === LIVE_DELEGATION_AGENT_TOOL_NAME
       )
     ).toBe(false)
   })

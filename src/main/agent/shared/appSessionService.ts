@@ -12,6 +12,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SessionListPageCursor } from '@/session/data/tables/newSessions'
 import { parseWorkflowSubagentContext } from '@shared/workflow/subagent'
+import { parseLiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
 import {
   normalizeOrchestrationPolicy,
   normalizePersistedOrchestrationPolicy,
@@ -31,6 +32,8 @@ const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta
 
     const workflow = parseWorkflowSubagentContext(parsed.workflow)
     const correlatedWorkflow = workflow?.correlationSlot === parsed.slotId ? workflow : undefined
+    const liveDelegation = parseLiveDelegationSubagentContext(parsed.liveDelegation)
+    if (correlatedWorkflow && liveDelegation) return null
     return {
       slotId: parsed.slotId,
       displayName: typeof parsed.displayName === 'string' ? parsed.displayName : parsed.slotId,
@@ -38,7 +41,8 @@ const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta
         parsed.targetAgentId === null || typeof parsed.targetAgentId === 'string'
           ? parsed.targetAgentId
           : undefined,
-      ...(correlatedWorkflow ? { workflow: correlatedWorkflow } : {})
+      ...(correlatedWorkflow ? { workflow: correlatedWorkflow } : {}),
+      ...(liveDelegation ? { liveDelegation } : {})
     }
   } catch {
     return null

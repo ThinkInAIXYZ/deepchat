@@ -105,11 +105,11 @@ Policy validation evidence:
 
 ## Live Delegation V2
 
-- [ ] Add lifecycle spawn, message, follow-up, list, wait, and interrupt contracts.
-- [ ] Persist child thread and turn identity before handoff.
-- [ ] Add bounded parent mailbox completion.
-- [ ] Reconcile interrupted live delegation after restart.
-- [ ] Preserve compatibility for the batch orchestrator without duplicate model tools.
+- [x] Add lifecycle spawn, message, follow-up, list, wait, and interrupt contracts.
+- [x] Persist child thread and turn identity before handoff.
+- [x] Add bounded parent mailbox completion.
+- [x] Reconcile interrupted live delegation after restart.
+- [x] Preserve compatibility for the batch orchestrator without duplicate model tools.
 - [ ] Share child invocation capabilities without merging state machines.
 - [ ] Add concurrency, cancellation, permission, Tape, and recovery tests.
 - [ ] Review, validate, and commit lifecycle slices.
@@ -136,6 +136,48 @@ Persistence foundation validation evidence:
   Electron's Node ABI;
 - the legacy v20 missing-Subagent-column migration regression passed under Electron's Node ABI;
 - `pnpm run typecheck:node`, targeted Oxfmt, targeted Oxlint, and `git diff --check` passed.
+
+Lifecycle service and model-tool review findings, ordered by severity:
+
+- high, fixed before commit: the model catalog exposed `deepchat_subagents` while the dynamic
+  orchestration prompt still detected and instructed the hidden `subagent_orchestrator`; the prompt
+  now derives guidance from the actual model-facing tool and the legacy name remains call-routing
+  compatibility only;
+- high, fixed before commit: the new built-in name was not in ToolService's reserved-name set, so
+  an untrusted MCP definition could collide with a call that native routing would execute as a
+  built-in; both the current and legacy native names are now reserved and collision-tested;
+- high, fixed before commit: service shutdown did not await in-progress restart reconciliation,
+  allowing a late recovery continuation to touch a database after maintenance closed it; shutdown
+  now fences the reconciliation promise before settling active turns;
+- high, fixed before commit: `follow_up` could persist and schedule a second turn while the stable
+  child Session was already generating through another entry point; it now checks before mutation
+  and again before handoff, while still allowing an errored child to recover on a later turn;
+- medium, fixed before commit: one failed child lookup aborted reconciliation for every later
+  delegation; each active record now converges independently and persists a bounded interrupted
+  result on recovery failure;
+- medium, fixed before commit: mailbox waits could return fifty 16 KiB results and silently label
+  truncated text as complete `content`; model DTOs now expose bounded 2 KiB `contentPreview` plus
+  `contentTruncated`, while durable evidence remains intact;
+- medium, fixed before commit: runtime update failures could escape an event callback or become an
+  unhandled rejection, and arbitrary error text could exceed the repository contract; update paths
+  are contained and terminal errors are bounded before persistence;
+- medium, fixed before commit: persisted child metadata could ambiguously claim both Workflow and
+  live-delegation ownership; lifecycle creation, database parsing, and shared route contracts now
+  enforce exactly one orchestration owner;
+- medium, fixed before commit: child output lacked an explicit prompt-injection boundary; shared
+  model guidance now treats child results as untrusted evidence rather than instructions;
+- low: no remaining finding in the lifecycle service/model-tool slice. Shared effect evidence,
+  write safeguards, permission projection tests, and activity UI remain explicitly pending.
+
+Lifecycle service and model-tool validation evidence:
+
+- all 184 Agent-tool and ToolService tests passed;
+- 42 Session lifecycle, Session parsing, base prompt, and dynamic system-prompt tests passed;
+- 15 native live-delegation repository, migration, lifecycle, Tape, cancellation, mailbox, and
+  restart tests passed under Electron's Node ABI with native SQLite required;
+- the provider tool-snapshot harness regression passed;
+- `pnpm run typecheck:node`, `pnpm run typecheck:web`, targeted Oxfmt, targeted Oxlint, and
+  `git diff --check` passed.
 
 ## UX
 

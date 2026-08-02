@@ -46,6 +46,7 @@ import { AgentMemoryToolHandler } from './agentMemoryTools'
 import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
   WORKFLOW_AGENT_TOOL_NAME,
   WORKFLOW_AGENT_TOOL_SERVER_NAME,
   assertAgentToolExposure,
@@ -62,6 +63,7 @@ import type { SkillSettingsPort } from '@/skill/settings'
 import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import { WorkflowAgentTool } from './workflowTool'
+import { LiveDelegationAgentTool } from './liveDelegationTool'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -165,6 +167,7 @@ export class AgentToolManager {
   private skillExecutionService: SkillExecutionService | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
   private readonly subagentOrchestratorTool: SubagentOrchestratorTool
+  private readonly liveDelegationTool: LiveDelegationAgentTool | null
   private readonly imageGenerationTool: AgentImageGenerationTool
   private readonly planTool: AgentPlanTool
   private readonly tapeToolHandler: AgentTapeToolHandler
@@ -342,6 +345,9 @@ export class AgentToolManager {
       this.dependencies.subagents,
       this.dependencies.agentInvocationAdmission
     )
+    this.liveDelegationTool = this.dependencies.liveDelegation
+      ? new LiveDelegationAgentTool(this.dependencies.liveDelegation)
+      : null
     this.imageGenerationTool = new AgentImageGenerationTool({
       providerSettings: this.providerSettings,
       agentSettings: this.agentSettings,
@@ -486,10 +492,15 @@ export class AgentToolManager {
       appendDefinitions([this.cronJobToolHandler.getToolDefinition()], 'user-configurable')
     }
 
-    // 2.5. Live Subagent orchestration (regular DeepChat sessions only)
-    if (isAgentMode && acceptsExposure('system-model') && context.conversationId) {
+    // 2.5. Persistent live delegation (regular DeepChat sessions only)
+    if (
+      isAgentMode &&
+      acceptsExposure('system-model') &&
+      context.conversationId &&
+      this.liveDelegationTool
+    ) {
       try {
-        const subagentToolDefinition = this.subagentOrchestratorTool.getToolDefinition(
+        const subagentToolDefinition = this.liveDelegationTool.getToolDefinition(
           context.subagentCapability
         )
         if (subagentToolDefinition) {
@@ -606,6 +617,13 @@ export class AgentToolManager {
 
     if (toolName === SUBAGENT_ORCHESTRATOR_TOOL_NAME) {
       return await this.subagentOrchestratorTool.call(args, conversationId, options)
+    }
+
+    if (toolName === LIVE_DELEGATION_AGENT_TOOL_NAME) {
+      if (!this.liveDelegationTool) {
+        throw new Error('Live delegation is unavailable.')
+      }
+      return await this.liveDelegationTool.call(args, conversationId, options)
     }
 
     if (toolName === WORKFLOW_AGENT_TOOL_NAME) {

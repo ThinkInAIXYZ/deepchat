@@ -30,6 +30,7 @@ import type {
 } from './contracts'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 import { WorkflowSubagentContextSchema } from '@shared/workflow/subagent'
+import { LiveDelegationSubagentContextSchema } from '@shared/orchestration/liveDelegation'
 import {
   DEFAULT_ORCHESTRATION_POLICY,
   normalizeOrchestrationPolicy
@@ -297,6 +298,13 @@ export class SessionLifecycle implements SessionLifecyclePort {
       input.workflowContext === undefined
         ? undefined
         : WorkflowSubagentContextSchema.parse(input.workflowContext)
+    const liveDelegationContext =
+      input.liveDelegationContext === undefined
+        ? undefined
+        : LiveDelegationSubagentContextSchema.parse(input.liveDelegationContext)
+    if (workflowContext && liveDelegationContext) {
+      throw new Error('A subagent cannot belong to a Workflow and a live delegation.')
+    }
     if (workflowContext && workflowContext.correlationSlot !== slotId) {
       throw new Error('Workflow correlation slot must match the subagent slotId.')
     }
@@ -304,7 +312,8 @@ export class SessionLifecycle implements SessionLifecyclePort {
       slotId,
       displayName,
       targetAgentId: runtimeConfig.targetAgentId || null,
-      ...(workflowContext ? { workflow: workflowContext } : {})
+      ...(workflowContext ? { workflow: workflowContext } : {}),
+      ...(liveDelegationContext ? { liveDelegation: liveDelegationContext } : {})
     }
     let lastError: unknown = null
 

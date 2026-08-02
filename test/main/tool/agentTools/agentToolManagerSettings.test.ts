@@ -10,7 +10,7 @@ import {
   DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
   resolveDeepChatSubagentCapability
 } from '@shared/lib/deepchatSubagents'
-import { WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME, WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 vi.mock('electron', () => ({
   app: {
@@ -421,7 +421,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(resolveConversationWorkdir).toHaveBeenCalledWith('new-session-1')
   })
 
-  it('builds a stable slotId enum for subagent_orchestrator from the session config', async () => {
+  it('builds a stable slotId enum for persistent live delegation', async () => {
     skillService.getActiveSkills.mockResolvedValue([])
     skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
     const subagentCapability = resolveDeepChatSubagentCapability({
@@ -462,23 +462,17 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       subagentCapability
     })
 
-    const subagentDef = defs.find((def) => def.function.name === 'subagent_orchestrator')
-    const slotIdSchema = (subagentDef?.function.parameters as any)?.properties?.tasks?.items
-      ?.properties?.slotId
-    const promptSchema = (subagentDef?.function.parameters as any)?.properties?.tasks?.items
-      ?.properties?.prompt
+    const subagentDef = defs.find((def) => def.function.name === LIVE_DELEGATION_AGENT_TOOL_NAME)
+    const slotIdSchema = (subagentDef?.function.parameters as any)?.properties?.slotId
+    const promptSchema = (subagentDef?.function.parameters as any)?.properties?.prompt
 
     expect(slotIdSchema?.enum).toEqual(['reviewer', 'writer'])
-    expect(slotIdSchema?.description).toContain('reviewer: ACP Reviewer | target=acp-reviewer')
-    expect(slotIdSchema?.description).toContain('writer: Writer Clone | target=current agent')
-    expect(subagentDef?.function.description).toContain(
-      'inherits the same working directory as the parent session'
-    )
+    expect(slotIdSchema?.description).toContain('reviewer: ACP Reviewer — Review code changes.')
+    expect(slotIdSchema?.description).toContain('writer: Writer Clone — Handle drafting tasks.')
     expect(subagentDef?.function.description).toContain(DEEPCHAT_SUBAGENT_MODEL_GUIDANCE)
-    expect(promptSchema?.description).toContain(
-      'The child session uses the same working directory as the parent session'
-    )
-    expect(resolveConversationSessionInfo).toHaveBeenCalled()
+    expect(subagentDef?.function.description).toContain('send to leave a message without starting')
+    expect(promptSchema?.description).toContain('Bounded child task')
+    expect(defs.some((def) => def.function.name === 'subagent_orchestrator')).toBe(false)
   })
 
   it('exposes durable Workflow as a system tool without model-owned launch', async () => {

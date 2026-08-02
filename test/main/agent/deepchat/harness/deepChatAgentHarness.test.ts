@@ -53,7 +53,7 @@ import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { nanoid } from 'nanoid'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
-import { SubagentOrchestratorTool } from '@/tool/agentTools/subagentOrchestratorTool'
+import { LiveDelegationAgentTool } from '@/tool/agentTools/liveDelegationTool'
 import {
   WORKFLOW_RESULT_SYNTHESIS_PROMPT_PREFIX,
   WORKFLOW_RESULT_TEXT_SAFETY_RULE
@@ -4950,7 +4950,7 @@ describe('DeepChatAgentHarness', () => {
           }
         ]
       }
-      const subagentTool = new SubagentOrchestratorTool({} as any, {} as any)
+      const subagentTool = new LiveDelegationAgentTool({} as any)
 
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
@@ -4968,10 +4968,10 @@ describe('DeepChatAgentHarness', () => {
 
       const firstTools = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].run.resources
         .toolDefinitions
-      expect(firstTools.map((tool: any) => tool.function.name)).toEqual(['subagent_orchestrator'])
-      expect(
-        (firstTools[0].function.parameters as any).properties.tasks.items.properties.slotId.enum
-      ).toEqual(['reviewer'])
+      expect(firstTools.map((tool: any) => tool.function.name)).toEqual(['deepchat_subagents'])
+      expect((firstTools[0].function.parameters as any).properties.slotId.enum).toEqual([
+        'reviewer'
+      ])
 
       subagentConfig = { ...subagentConfig, subagentEnabled: false }
       await agent.processMessage('s1', 'Second turn')
@@ -4995,10 +4995,10 @@ describe('DeepChatAgentHarness', () => {
 
       const thirdTools = (processStream as ReturnType<typeof vi.fn>).mock.calls[2][0].run.resources
         .toolDefinitions
-      expect(thirdTools.map((tool: any) => tool.function.name)).toEqual(['subagent_orchestrator'])
-      expect(
-        (thirdTools[0].function.parameters as any).properties.tasks.items.properties.slotId.enum
-      ).toEqual(['explorer'])
+      expect(thirdTools.map((tool: any) => tool.function.name)).toEqual(['deepchat_subagents'])
+      expect((thirdTools[0].function.parameters as any).properties.slotId.enum).toEqual([
+        'explorer'
+      ])
       expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(3)
     })
 

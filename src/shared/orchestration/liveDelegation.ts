@@ -105,6 +105,30 @@ export type LiveDelegation = z.infer<typeof LiveDelegationSchema>
 export type LiveDelegationTurn = z.infer<typeof LiveDelegationTurnSchema>
 export type LiveDelegationEvent = z.infer<typeof LiveDelegationEventSchema>
 
+export type LiveDelegationSummary = Omit<LiveDelegation, 'lastSummary' | 'lastError'> & {
+  summaryPreview: string | null
+  errorPreview: string | null
+}
+
+export type LiveDelegationTurnSummary = Omit<
+  LiveDelegationTurn,
+  'prompt' | 'resultSummary' | 'error'
+> & {
+  promptPreview: string
+  resultPreview: string | null
+  errorPreview: string | null
+}
+
+export type LiveDelegationEventSummary = Omit<LiveDelegationEvent, 'content'> & {
+  contentPreview: string
+  contentTruncated: boolean
+}
+
+export interface LiveDelegationDetail {
+  delegation: LiveDelegationSummary
+  turns: LiveDelegationTurnSummary[]
+}
+
 export function parseLiveDelegationSubagentContext(
   value: unknown
 ): LiveDelegationSubagentContext | undefined {

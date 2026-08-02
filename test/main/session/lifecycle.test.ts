@@ -419,6 +419,58 @@ describe('SessionLifecycle', () => {
     )
   })
 
+  it('persists live delegation identity before runtime initialization', async () => {
+    const harness = createHarness()
+
+    await harness.coordinator.createSubagentSession({
+      parentSessionId: 'parent',
+      agentId: 'deepchat',
+      slotId: 'reviewer',
+      displayName: 'Live child',
+      providerId: 'openai',
+      modelId: 'model-1',
+      permissionMode: 'default',
+      liveDelegationContext: { delegationId: 'delegation-1' }
+    })
+
+    expect(harness.sessions.create).toHaveBeenCalledWith(
+      'deepchat',
+      'Live child',
+      null,
+      expect.objectContaining({
+        sessionKind: 'subagent',
+        parentSessionId: 'parent',
+        orchestrationPolicy: 'explicit',
+        subagentMeta: expect.objectContaining({
+          liveDelegation: { delegationId: 'delegation-1' }
+        })
+      })
+    )
+  })
+
+  it('rejects a Subagent with both Workflow and live delegation ownership', async () => {
+    const harness = createHarness()
+
+    await expect(
+      harness.coordinator.createSubagentSession({
+        parentSessionId: 'parent',
+        agentId: 'deepchat',
+        slotId: 'reviewer',
+        displayName: 'Ambiguous child',
+        providerId: 'openai',
+        modelId: 'model-1',
+        permissionMode: 'default',
+        workflowContext: {
+          runId: 'run-1',
+          invocationId: 'invocation-1',
+          correlationSlot: 'reviewer'
+        },
+        liveDelegationContext: { delegationId: 'delegation-1' }
+      })
+    ).rejects.toThrow('cannot belong to a Workflow and a live delegation')
+    expect(harness.sessions.create).not.toHaveBeenCalled()
+  })
+
   it('rejects workflow metadata whose correlation slot differs from the subagent slot', async () => {
     const harness = createHarness()
 

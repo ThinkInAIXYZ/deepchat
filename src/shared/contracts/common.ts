@@ -29,6 +29,8 @@ import {
   PDF_PAGE_COUNT_SANITY_LIMIT
 } from '../types/attachment'
 import { isValidDocumentOcrTextPageSpans } from '../utils/documentOcrText'
+import { LiveDelegationSubagentContextSchema } from '../orchestration/liveDelegation'
+import { WorkflowSubagentContextSchema } from '../workflow/subagent'
 
 export type JsonValue =
   | string
@@ -144,7 +146,12 @@ export const DeepChatSubagentMetaSchema = z
   .object({
     slotId: EntityIdSchema,
     displayName: z.string(),
-    targetAgentId: EntityIdSchema.nullable().optional()
+    targetAgentId: EntityIdSchema.nullable().optional(),
+    workflow: WorkflowSubagentContextSchema.optional(),
+    liveDelegation: LiveDelegationSubagentContextSchema.optional()
+  })
+  .refine((value) => !(value.workflow && value.liveDelegation), {
+    message: 'A Subagent cannot belong to a Workflow and a live delegation.'
   })
   .nullable()
 
