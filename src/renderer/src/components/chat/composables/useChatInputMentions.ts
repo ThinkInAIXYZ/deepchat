@@ -21,7 +21,7 @@ import {
   buildCommandText,
   buildSavedWorkflowSlashLabel,
   createManualCompactionSuggestion,
-  createWorkflowModeSuggestion,
+  createWorkflowCommandSuggestion,
   filterSlashSuggestionItems,
   flattenPromptResultToText,
   resolveSlashSelectionAction,
@@ -39,15 +39,15 @@ export interface UseChatInputMentionsOptions {
   agentId: Ref<string | null>
   isAcpSession: Ref<boolean>
   workflowEnabled?: Ref<boolean>
-  workflowModeCommandEnabled?: Ref<boolean>
+  workflowCommandEnabled?: Ref<boolean>
   isGenerating?: Ref<boolean>
   compactCommandDescription?: Ref<string>
   workflowArgsLabel?: Ref<string>
   workflowPrepareText?: Ref<string>
-  workflowModeCommandDescription?: Ref<string>
+  workflowCommandDescription?: Ref<string>
   onCommandSubmit: (command: string) => void
   onWorkflowSubmit?: (name: string, argsText: string) => void
-  onWorkflowModeToggle?: () => Promise<void> | void
+  onWorkflowOpen?: () => Promise<void> | void
   onActivateSkill?: (skillName: string) => Promise<void> | void
   onPendingSkillsChange?: (skills: string[]) => void
 }
@@ -205,13 +205,13 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       items.push(createManualCompactionSuggestion(options.compactCommandDescription?.value ?? ''))
     }
 
-    const workflowModeCommandEnabled = options.workflowModeCommandEnabled?.value === true
-    if (workflowModeCommandEnabled) {
-      items.push(createWorkflowModeSuggestion(options.workflowModeCommandDescription?.value ?? ''))
+    const workflowCommandEnabled = options.workflowCommandEnabled?.value === true
+    if (workflowCommandEnabled) {
+      items.push(createWorkflowCommandSuggestion(options.workflowCommandDescription?.value ?? ''))
     }
 
     for (const command of acpCommands.value) {
-      if (workflowModeCommandEnabled && command.name.trim().toLowerCase() === 'workflow') {
+      if (workflowCommandEnabled && command.name.trim().toLowerCase() === 'workflow') {
         continue
       }
       items.push({
@@ -411,9 +411,9 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       return
     }
 
-    if (action.kind === 'toggle-workflow-mode') {
+    if (action.kind === 'open-workflow') {
       editor.chain().focus().insertContentAt(range, '').run()
-      await options.onWorkflowModeToggle?.()
+      await options.onWorkflowOpen?.()
       return
     }
 

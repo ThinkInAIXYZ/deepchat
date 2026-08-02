@@ -78,16 +78,6 @@ describe('WorkflowClient', () => {
       if (routeName === 'workflow.revokeLaunchApproval') {
         return { revoked: true }
       }
-      if (routeName === 'workflow.getCapability') {
-        return { capability: { available: true } }
-      }
-      if (routeName === 'workflow.setMode') {
-        return {
-          applied: true,
-          mode: 'workflow',
-          capability: { available: true }
-        }
-      }
       throw new Error(`Unexpected route: ${routeName}`)
     })
     const on = vi.fn(() => vi.fn())
@@ -111,14 +101,6 @@ describe('WorkflowClient', () => {
       })
     ).resolves.toMatchObject({
       approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
-    })
-    await expect(workflow.getCapability({ agentId: 'deepchat' })).resolves.toEqual({
-      available: true
-    })
-    await expect(workflow.setMode('parent-1', 'workflow')).resolves.toEqual({
-      applied: true,
-      mode: 'workflow',
-      capability: { available: true }
     })
     await expect(
       workflow.validateLaunchApproval(
@@ -154,19 +136,12 @@ describe('WorkflowClient', () => {
       argsText: '{"scope":"src"}',
       expectedSourceHash: 'd'.repeat(64)
     })
-    expect(invoke).toHaveBeenNthCalledWith(5, 'workflow.getCapability', {
-      agentId: 'deepchat'
-    })
-    expect(invoke).toHaveBeenNthCalledWith(6, 'workflow.setMode', {
-      parentSessionId: 'parent-1',
-      mode: 'workflow'
-    })
-    expect(invoke).toHaveBeenNthCalledWith(7, 'workflow.validateLaunchApproval', {
+    expect(invoke).toHaveBeenNthCalledWith(5, 'workflow.validateLaunchApproval', {
       parentSessionId: 'parent-1',
       approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
       scriptSource: 'return null'
     })
-    expect(invoke).toHaveBeenNthCalledWith(8, 'workflow.revokeLaunchApproval', {
+    expect(invoke).toHaveBeenNthCalledWith(6, 'workflow.revokeLaunchApproval', {
       parentSessionId: 'parent-1',
       approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac'
     })

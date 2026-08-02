@@ -556,19 +556,21 @@
       "amendRestoreFailed": "編集に失敗し、元のメモリも復元できませんでした。"
     }
   },
-  "workflow": {
-    "mode": {
-      "title": "ワークフロー",
-      "description": "永続的なマルチ Agent オーケストレーションです。実行時間と Token 使用量が増える場合があります。",
+  "orchestration": {
+    "proactive": {
+      "title": "プロアクティブ連携",
+      "description": "独立または並列の作業に明確な効果がある場合、親 Agent が自律的に委任できます。時間、Token、システム資源の使用量が増える場合があります。",
       "reasons": {
         "session_unavailable": "このセッションは利用できなくなりました。",
         "agent_unavailable": "選択した Agent は利用できません。",
-        "deepchat_agent_required": "ワークフローモードには DeepChat Agent が必要です。",
-        "regular_parent_required": "子セッションではワークフローモードを利用できません。",
-        "agent_policy_unavailable": "ワークフローポリシーを読み込めませんでした。",
-        "subagents_disabled": "ワークフローモードを使用するには、この Agent の Subagent を有効にしてください。"
+        "deepchat_agent_required": "プロアクティブ連携には DeepChat Agent が必要です。",
+        "regular_parent_required": "子セッションではプロアクティブ連携を利用できません。",
+        "agent_policy_unavailable": "連携ポリシーを読み込めませんでした。",
+        "subagents_disabled": "プロアクティブ連携を使用するには、この Agent の Subagent を有効にしてください。"
       }
-    },
+    }
+  },
+  "workflow": {
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

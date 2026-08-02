@@ -32,8 +32,8 @@ const createScopeRegistry = (instance: unknown) =>
   }) as any
 
 describe('DeepChatToolResolver Subagent capability', () => {
-  it('invalidates the cached tool profile when orchestration mode changes', async () => {
-    let orchestrationMode: 'adaptive' | 'workflow' = 'adaptive'
+  it('keeps the executor catalog cached when only orchestration policy changes', async () => {
+    let orchestrationPolicy: 'explicit' | 'proactive' = 'explicit'
     const getAllToolDefinitions = vi.fn().mockResolvedValue([])
     const resourceInstance = createResourceInstance()
     const resolver = new DeepChatToolResolver({
@@ -47,7 +47,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
         newSessionsTable: {
           get: vi.fn(() => ({
             session_kind: 'regular',
-            orchestration_mode: orchestrationMode
+            orchestration_policy: orchestrationPolicy
           })),
           getDisabledAgentTools: vi.fn(() => [])
         }
@@ -72,7 +72,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
       undefined,
       resourceInstance as any
     )
-    orchestrationMode = 'workflow'
+    orchestrationPolicy = 'proactive'
     await resolver.loadToolDefinitionsForSession(
       'session-1',
       null,
@@ -80,13 +80,9 @@ describe('DeepChatToolResolver Subagent capability', () => {
       resourceInstance as any
     )
 
-    expect(getAllToolDefinitions).toHaveBeenCalledTimes(2)
-    expect(getAllToolDefinitions.mock.calls[0][0]).toMatchObject({
-      orchestrationMode: 'adaptive'
-    })
-    expect(getAllToolDefinitions.mock.calls[1][0]).toMatchObject({
-      orchestrationMode: 'workflow'
-    })
+    expect(resolver.resolveOrchestrationPolicy('session-1')).toBe('proactive')
+    expect(getAllToolDefinitions).toHaveBeenCalledOnce()
+    expect(getAllToolDefinitions.mock.calls[0][0]).not.toHaveProperty('orchestrationPolicy')
   })
 
   it('refreshes the catalog from capability cache keys without event invalidation', async () => {

@@ -1,6 +1,7 @@
 export const CRON_JOB_AGENT_TOOL_NAME = 'cronjob'
 export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
-export const WORKFLOW_AGENT_TOOL_NAME = 'workflow'
+export const WORKFLOW_AGENT_TOOL_NAME = 'deepchat_workflow'
+export const LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME = 'workflow'
 export const WORKFLOW_AGENT_TOOL_SERVER_NAME = 'agent-workflows'
 export const DEFAULT_DISABLED_AGENT_TOOLS = [CRON_JOB_AGENT_TOOL_NAME] as const
 
@@ -14,12 +15,7 @@ export const TAPE_TOOL_NAMES = Object.freeze({
 
 export type TapeToolName = (typeof TAPE_TOOL_NAMES)[keyof typeof TAPE_TOOL_NAMES]
 
-export type AgentToolExposure =
-  | 'user-configurable'
-  | 'mode-controlled'
-  | 'system-model'
-  | 'diagnostic'
-  | 'runtime-only'
+export type AgentToolExposure = 'user-configurable' | 'system-model' | 'diagnostic' | 'runtime-only'
 
 const AGENT_TOOL_EXPOSURE_BY_NAME: Readonly<Record<string, AgentToolExposure>> = Object.freeze({
   [TAPE_TOOL_NAMES.search]: 'system-model',
@@ -28,7 +24,7 @@ const AGENT_TOOL_EXPOSURE_BY_NAME: Readonly<Record<string, AgentToolExposure>> =
   [TAPE_TOOL_NAMES.anchors]: 'diagnostic',
   [TAPE_TOOL_NAMES.handoff]: 'runtime-only',
   [SUBAGENT_ORCHESTRATOR_TOOL_NAME]: 'system-model',
-  [WORKFLOW_AGENT_TOOL_NAME]: 'mode-controlled'
+  [WORKFLOW_AGENT_TOOL_NAME]: 'system-model'
 })
 
 const TAPE_TOOL_NAME_SET = new Set<string>(Object.values(TAPE_TOOL_NAMES))

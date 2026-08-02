@@ -18,7 +18,7 @@ const MainDatabase = mainDatabaseModule?.MainDatabase
 const WORKFLOW_SCHEMA_VERSION = workflowRunsModule?.WORKFLOW_SCHEMA_VERSION
 const LATEST_SCHEMA_VERSION = Math.max(
   WORKFLOW_SCHEMA_VERSION ?? 0,
-  newSessionsModule?.SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION ?? 0
+  newSessionsModule?.SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION ?? 0
 )
 const DatabaseCtor = Database!
 const MainDatabaseCtor = MainDatabase!
@@ -48,7 +48,7 @@ describeIfSqlite('workflow schema migration', () => {
       DROP TRIGGER IF EXISTS trg_workflow_sessions_delete_references;
       DROP TABLE IF EXISTS workflow_invocations;
       DROP TABLE IF EXISTS workflow_runs;
-      ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
+      ALTER TABLE new_sessions DROP COLUMN orchestration_policy;
       DELETE FROM schema_versions;
       INSERT INTO schema_versions (version, applied_at) VALUES (52, 100);
     `)
@@ -110,7 +110,7 @@ describeIfSqlite('workflow schema migration', () => {
       ALTER TABLE workflow_runs DROP COLUMN workspace_path;
       ALTER TABLE workflow_runs DROP COLUMN capability_scope_hash;
       ALTER TABLE workflow_runs DROP COLUMN execution_snapshot_json;
-      ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
+      ALTER TABLE new_sessions DROP COLUMN orchestration_policy;
       DELETE FROM schema_versions;
       INSERT INTO schema_versions (version, applied_at) VALUES (53, 100);
     `)
@@ -164,7 +164,7 @@ describeIfSqlite('workflow schema migration', () => {
       DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_arm;
       DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_required;
       ALTER TABLE workflow_runs DROP COLUMN execution_snapshot_json;
-      ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
+      ALTER TABLE new_sessions DROP COLUMN orchestration_policy;
       CREATE TRIGGER trg_workflow_invocations_immutable_identity
       BEFORE UPDATE OF
         invocation_id,
@@ -303,6 +303,10 @@ describeIfSqlite('workflow schema migration', () => {
     bootstrap.exec(`
       DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot;
       ALTER TABLE workflow_runs DROP COLUMN execution_snapshot_json;
+      ALTER TABLE new_sessions DROP COLUMN orchestration_policy;
+      ALTER TABLE new_sessions
+        ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'adaptive'
+        CHECK (orchestration_mode IN ('adaptive', 'workflow'));
 
       INSERT INTO new_sessions (
         id,
@@ -450,10 +454,15 @@ describeIfSqlite('workflow schema migration', () => {
         .prepare('UPDATE workflow_runs SET execution_snapshot_json = ? WHERE run_id = ?')
         .run(row.execution_snapshot_json, 'snapshot-run')
     ).toThrow('workflow run snapshot is immutable')
+    expect(
+      migrated
+        .prepare('SELECT orchestration_policy FROM new_sessions WHERE id = ?')
+        .get('snapshot-parent')
+    ).toEqual({ orchestration_policy: 'proactive' })
     migrated.close()
   })
 
-  it('moves legacy workflow tool state to adaptive mode when upgrading v55', () => {
+  it('moves legacy workflow tool state to explicit policy when upgrading v55', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workflow-tool-migration-'))
     tempDirectories.push(directory)
     const databasePath = path.join(directory, 'agent.db')
@@ -464,7 +473,7 @@ describeIfSqlite('workflow schema migration', () => {
     bootstrap.exec(`
       DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot;
       ALTER TABLE workflow_runs DROP COLUMN execution_snapshot_json;
-      ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
+      ALTER TABLE new_sessions DROP COLUMN orchestration_policy;
 
       INSERT INTO new_sessions (
         id,
@@ -569,7 +578,7 @@ describeIfSqlite('workflow schema migration', () => {
     const migrated = new DatabaseCtor(databasePath)
     const sessions = migrated
       .prepare(
-        `SELECT id, disabled_agent_tools, orchestration_mode, updated_at, revision
+        `SELECT id, disabled_agent_tools, orchestration_policy, updated_at, revision
          FROM new_sessions
          WHERE id LIKE 'session-%'
          ORDER BY id`
@@ -579,28 +588,28 @@ describeIfSqlite('workflow schema migration', () => {
       {
         id: 'session-already-disabled',
         disabled_agent_tools: '["cronjob"]',
-        orchestration_mode: 'adaptive',
+        orchestration_policy: 'explicit',
         updated_at: 400,
         revision: 5
       },
       {
         id: 'session-existing-tools',
         disabled_agent_tools: '["cronjob","custom-tool"]',
-        orchestration_mode: 'adaptive',
+        orchestration_policy: 'explicit',
         updated_at: 200,
         revision: 3
       },
       {
         id: 'session-fallback-json',
         disabled_agent_tools: '["custom-tool"]',
-        orchestration_mode: 'adaptive',
+        orchestration_policy: 'explicit',
         updated_at: 600,
         revision: 7
       },
       {
         id: 'session-malformed-json',
         disabled_agent_tools: '[]',
-        orchestration_mode: 'adaptive',
+        orchestration_policy: 'explicit',
         updated_at: 800,
         revision: 9
       }
@@ -620,6 +629,72 @@ describeIfSqlite('workflow schema migration', () => {
       { session_id: 'session-existing-tools', ordinal: 1, tool_name: 'custom-tool' },
       { session_id: 'session-fallback-json', ordinal: 0, tool_name: 'custom-tool' }
     ])
+    migrated.close()
+  })
+
+  it('maps legacy orchestration modes to explicit and proactive policies when upgrading v58', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-policy-migration-'))
+    tempDirectories.push(directory)
+    const databasePath = path.join(directory, 'agent.db')
+    const current = new MainDatabaseCtor(databasePath)
+    current.close()
+
+    const bootstrap = new DatabaseCtor(databasePath)
+    bootstrap.exec(`
+      ALTER TABLE new_sessions DROP COLUMN orchestration_policy;
+      ALTER TABLE new_sessions
+        ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'adaptive'
+        CHECK (orchestration_mode IN ('adaptive', 'workflow'));
+
+      INSERT INTO new_sessions (
+        id,
+        agent_id,
+        title,
+        project_dir,
+        is_pinned,
+        is_draft,
+        active_skills,
+        disabled_agent_tools,
+        subagent_enabled,
+        session_kind,
+        parent_session_id,
+        subagent_meta_json,
+        orchestration_mode,
+        created_at,
+        updated_at,
+        revision
+      ) VALUES
+        ('session-explicit', 'deepchat', 'Explicit', NULL, 0, 0, '[]', '[]', 1,
+          'regular', NULL, NULL, 'adaptive', 100, 100, 0),
+        ('session-proactive', 'deepchat', 'Proactive', NULL, 0, 0, '[]', '[]', 1,
+          'regular', NULL, NULL, 'workflow', 100, 100, 0);
+
+      DELETE FROM schema_versions;
+      INSERT INTO schema_versions (version, applied_at) VALUES (58, 100);
+    `)
+    bootstrap.close()
+
+    const database = new MainDatabaseCtor(databasePath)
+    database.close()
+
+    const migrated = new DatabaseCtor(databasePath)
+    expect(
+      migrated
+        .prepare(
+          `SELECT id, orchestration_policy
+           FROM new_sessions
+           WHERE id LIKE 'session-%'
+           ORDER BY id`
+        )
+        .all()
+    ).toEqual([
+      { id: 'session-explicit', orchestration_policy: 'explicit' },
+      { id: 'session-proactive', orchestration_policy: 'proactive' }
+    ])
+    const columns = migrated.prepare('PRAGMA table_info(new_sessions)').all() as Array<{
+      name: string
+    }>
+    expect(columns.some((column) => column.name === 'orchestration_mode')).toBe(false)
     migrated.close()
   })
 })

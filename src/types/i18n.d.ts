@@ -1276,8 +1276,8 @@ declare module 'vue-i18n' {
         }
       }
     }
-    workflow: {
-      mode: {
+    orchestration: {
+      proactive: {
         title: string
         description: string
         reasons: {
@@ -1289,6 +1289,8 @@ declare module 'vue-i18n' {
           subagents_disabled: string
         }
       }
+    }
+    workflow: {
       title: string
       loading: string
       runLabel: string

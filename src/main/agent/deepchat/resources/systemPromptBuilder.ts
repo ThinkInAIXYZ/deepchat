@@ -8,7 +8,14 @@ import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAg
 import type { ProviderCatalogPort } from '@/provider/ports'
 import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from "./systemEnvPromptBuilder";
 import type { SkillSettingsPort } from "@/skill/settings";
-import { WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
+import {
+  SUBAGENT_ORCHESTRATOR_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_NAME
+} from '@shared/agentTools'
+import {
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/workflow/orchestrationPolicy'
 
 export type AgentExtensionPolicy = {
   enabledMcpServerIds?: string[] | null;
@@ -41,6 +48,7 @@ export interface SystemPromptBuildInput {
   basePrompt: string;
   toolDefinitions: MCPToolDefinition[];
   activeSkillNamesOverride?: string[];
+  orchestrationPolicy?: OrchestrationPolicy
   resourceInstance: DeepChatAgentInstance;
 }
 
@@ -257,7 +265,7 @@ export async function buildSystemPromptWithSkills(
     skillsMetadataPrompt,
     skillsPrompt,
     toolingPrompt,
-    buildWorkflowModePrompt(agentToolNames),
+    buildOrchestrationPolicyPrompt(input.orchestrationPolicy, agentToolNames),
     buildPermissionRulesPrompt(agentToolNames),
     buildVerificationPolicyPrompt(workdir),
   ]);
@@ -267,18 +275,47 @@ export async function buildSystemPromptWithSkills(
   return composedPrompt;
 }
 
-function buildWorkflowModePrompt(agentToolNames: Set<string>): string {
-  if (!agentToolNames.has(WORKFLOW_AGENT_TOOL_NAME)) {
+function buildOrchestrationPolicyPrompt(
+  policy: OrchestrationPolicy | undefined,
+  agentToolNames: Set<string>
+): string {
+  const hasSubagents = agentToolNames.has(SUBAGENT_ORCHESTRATOR_TOOL_NAME)
+  const hasWorkflow = agentToolNames.has(WORKFLOW_AGENT_TOOL_NAME)
+  if (!hasSubagents && !hasWorkflow) {
     return ''
   }
 
-  return [
-    '## Workflow Mode',
-    'The user explicitly selected persistent Workflow mode for this session.',
-    'For complex work that benefits from decomposition, durable progress, or parallel agents, generate the workflow JavaScript internally and call `workflow` with `operation=prepare_launch`.',
-    'Do not ask the user to author workflow JavaScript. Simple questions and necessary clarifications may still be answered directly.',
-    'The native approval card owns explicit user approval and exact-ID launch. Never call `operation=launch` for a prepared plan.'
-  ].join('\n')
+  const normalizedPolicy = normalizeOrchestrationPolicy(policy)
+  const lines = [
+    '## Multi-Agent Orchestration Policy',
+    normalizedPolicy === 'proactive'
+      ? 'The user enabled proactive multi-Agent collaboration for this session.'
+      : 'The session uses explicit multi-Agent collaboration. This revokes any earlier instruction to delegate proactively.',
+    'Do the work directly when it is simple, tightly sequential, or cheaper than coordination.'
+  ]
+  if (normalizedPolicy === 'explicit') {
+    lines.push(
+      'Use Subagents or durable Workflow only when the user, an active Skill, or project instructions explicitly request multi-Agent orchestration.'
+    )
+  } else {
+    lines.push(
+      'Delegate only when independent context, isolation, parallelism, or durable recovery provides clear value. Never delegate merely to demonstrate that proactive collaboration is enabled.'
+    )
+  }
+  if (hasSubagents) {
+    lines.push(
+      `Use \`${SUBAGENT_ORCHESTRATOR_TOOL_NAME}\` for a small number of bounded independent tasks that the parent can synthesize.`
+    )
+  }
+  if (hasWorkflow) {
+    lines.push(
+      `Use \`${WORKFLOW_AGENT_TOOL_NAME}\` for large fan-out, programmatic data flow, durable recovery, or reusable orchestration. Generate Workflow JavaScript internally and call \`operation=prepare_launch\`; never ask the user to author it and never call \`operation=launch\`.`
+    )
+  }
+  lines.push(
+    'Do not run overlapping write-heavy children in the same workspace. The native Workflow approval card owns exact user approval and launch.'
+  )
+  return lines.join('\n')
 }
 
 function composePromptSections(sections: string[]): string {

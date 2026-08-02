@@ -213,7 +213,7 @@
                     :workspace-path="sessionStore.activeSession?.projectDir ?? null"
                     :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
                     :workflow-enabled="supportsSavedWorkflows"
-                    :workflow-mode-command-enabled="supportsSavedWorkflows"
+                    :workflow-command-enabled="supportsSavedWorkflows"
                     :supports-vision="composerSupportsVision"
                     :is-generating="isGenerating"
                     :submit-disabled="isInputSubmitDisabled"
@@ -223,7 +223,7 @@
                     @update:files="onFilesChange"
                     @command-submit="onCommandSubmit"
                     @workflow-submit="onWorkflowSubmit"
-                    @workflow-mode-toggle="onWorkflowModeToggle"
+                    @workflow-open="onWorkflowOpen"
                     @draft-change="recordComposerDocumentChange"
                     @pending-skills-change="recordComposerSkillsChange"
                     @queue-submit="onQueueSubmit"
@@ -1246,8 +1246,11 @@ function onWorkflowSubmit(name: string, argsText: string): void {
   sidepanelStore.requestSavedWorkflow(props.sessionId, name, argsText)
 }
 
-function onWorkflowModeToggle(): void {
-  void chatStatusBarRef.value?.toggleWorkflowMode?.()
+function onWorkflowOpen(): void {
+  if (!supportsSavedWorkflows.value) {
+    return
+  }
+  sidepanelStore.openWorkflow(props.sessionId)
 }
 
 watch(

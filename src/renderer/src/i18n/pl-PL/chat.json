@@ -556,19 +556,21 @@
       "amendRestoreFailed": "Edycja się nie powiodła i nie udało się przywrócić oryginalnej pamięci."
     }
   },
-  "workflow": {
-    "mode": {
-      "title": "Workflow",
-      "description": "Trwała orkiestracja wielu Agentów. Uruchomienia mogą trwać dłużej i zużywać więcej tokenów.",
+  "orchestration": {
+    "proactive": {
+      "title": "Proaktywna współpraca",
+      "description": "Pozwala nadrzędnemu Agentowi delegować zadania, gdy praca niezależna lub równoległa daje wyraźną korzyść. Może zużywać więcej czasu, tokenów i zasobów.",
       "reasons": {
         "session_unavailable": "Ta sesja nie jest już dostępna.",
         "agent_unavailable": "Wybrany Agent jest niedostępny.",
-        "deepchat_agent_required": "Tryb Workflow wymaga DeepChat Agenta.",
-        "regular_parent_required": "Tryb Workflow jest niedostępny w sesji podrzędnej.",
-        "agent_policy_unavailable": "Nie udało się wczytać zasad Workflow.",
-        "subagents_disabled": "Włącz Subagents dla tego Agenta, aby używać trybu Workflow."
+        "deepchat_agent_required": "Proaktywna współpraca wymaga DeepChat Agenta.",
+        "regular_parent_required": "Proaktywna współpraca jest niedostępna w sesji podrzędnej.",
+        "agent_policy_unavailable": "Nie udało się wczytać zasad współpracy.",
+        "subagents_disabled": "Włącz Subagents dla tego Agenta, aby używać proaktywnej współpracy."
       }
-    },
+    }
+  },
+  "workflow": {
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

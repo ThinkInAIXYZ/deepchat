@@ -14,6 +14,7 @@ import {
 import { buildContextCheckpoint } from './contextContributions'
 import { logSlowPreStreamStep } from './preStreamWatchdog'
 import type { SessionIdentityService } from './sessionIdentityService'
+import type { DeepChatToolResolver } from './toolResolver'
 
 export interface PromptAssemblyProjectDirPort {
   resolveProjectDir(
@@ -30,6 +31,7 @@ export interface PromptAssemblyServiceDependencies
   > {
   registry: SessionScopeRegistry
   identity: Pick<SessionIdentityService, 'isAcpBackedSubagentSession'>
+  orchestrationPolicy: Pick<DeepChatToolResolver, 'resolveOrchestrationPolicy'>
   projectDir: PromptAssemblyProjectDirPort
   memoryPromptContributor: MemoryPromptContributor
 }
@@ -66,6 +68,7 @@ export class PromptAssemblyService {
       basePrompt,
       toolDefinitions,
       activeSkillNamesOverride,
+      orchestrationPolicy: this.deps.orchestrationPolicy.resolveOrchestrationPolicy(sessionId),
       resourceInstance
     })
   }

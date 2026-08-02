@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { SessionOrchestrationModeSchema } from '../workflow/orchestrationMode'
+import { OrchestrationPolicySchema } from '../workflow/orchestrationPolicy'
 import { ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import type { Agent } from '../types/agent-interface'
 import {
@@ -401,7 +401,7 @@ export const SessionWithStateSchema = z.object({
   sessionKind: SessionKindSchema,
   parentSessionId: EntityIdSchema.nullable().optional(),
   subagentMeta: DeepChatSubagentMetaSchema.optional(),
-  orchestrationMode: SessionOrchestrationModeSchema,
+  orchestrationPolicy: OrchestrationPolicySchema,
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema,
   revision: RevisionSchema.optional(),

@@ -556,19 +556,21 @@
       "amendRestoreFailed": "Pengeditan gagal, dan memori asli tidak dapat dipulihkan."
     }
   },
-  "workflow": {
-    "mode": {
-      "title": "Workflow",
-      "description": "Orkestrasi multi-Agent persisten. Proses dapat berjalan lebih lama dan menggunakan lebih banyak token.",
+  "orchestration": {
+    "proactive": {
+      "title": "Kolaborasi proaktif",
+      "description": "Memungkinkan Agent induk mendelegasikan saat pekerjaan mandiri atau paralel jelas membantu. Dapat memakai lebih banyak waktu, token, dan sumber daya.",
       "reasons": {
         "session_unavailable": "Sesi ini sudah tidak tersedia.",
         "agent_unavailable": "Agent yang dipilih tidak tersedia.",
-        "deepchat_agent_required": "Mode Workflow memerlukan DeepChat Agent.",
-        "regular_parent_required": "Mode Workflow tidak tersedia di dalam sesi anak.",
-        "agent_policy_unavailable": "Kebijakan Workflow tidak dapat dimuat.",
-        "subagents_disabled": "Aktifkan Subagents untuk Agent ini agar dapat menggunakan mode Workflow."
+        "deepchat_agent_required": "Kolaborasi proaktif memerlukan DeepChat Agent.",
+        "regular_parent_required": "Kolaborasi proaktif tidak tersedia di dalam sesi anak.",
+        "agent_policy_unavailable": "Kebijakan kolaborasi tidak dapat dimuat.",
+        "subagents_disabled": "Aktifkan Subagents untuk Agent ini agar dapat menggunakan kolaborasi proaktif."
       }
-    },
+    }
+  },
+  "workflow": {
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

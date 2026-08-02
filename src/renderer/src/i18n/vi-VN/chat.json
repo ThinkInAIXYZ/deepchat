@@ -556,19 +556,21 @@
       "amendRestoreFailed": "Chỉnh sửa thất bại và không thể khôi phục ký ức ban đầu."
     }
   },
-  "workflow": {
-    "mode": {
-      "title": "Quy trình",
-      "description": "Điều phối nhiều Agent có trạng thái bền vững. Lượt chạy có thể lâu hơn và dùng nhiều token hơn.",
+  "orchestration": {
+    "proactive": {
+      "title": "Cộng tác chủ động",
+      "description": "Cho phép Agent chính ủy quyền khi công việc độc lập hoặc song song mang lại lợi ích rõ ràng. Có thể dùng thêm thời gian, token và tài nguyên.",
       "reasons": {
         "session_unavailable": "Phiên này không còn khả dụng.",
         "agent_unavailable": "Agent đã chọn không khả dụng.",
-        "deepchat_agent_required": "Chế độ Quy trình yêu cầu một DeepChat Agent.",
-        "regular_parent_required": "Chế độ Quy trình không khả dụng trong phiên con.",
-        "agent_policy_unavailable": "Không thể tải chính sách Quy trình.",
-        "subagents_disabled": "Hãy bật Subagents cho Agent này để dùng chế độ Quy trình."
+        "deepchat_agent_required": "Cộng tác chủ động yêu cầu một DeepChat Agent.",
+        "regular_parent_required": "Cộng tác chủ động không khả dụng trong phiên con.",
+        "agent_policy_unavailable": "Không thể tải chính sách cộng tác.",
+        "subagents_disabled": "Hãy bật Subagents cho Agent này để dùng cộng tác chủ động."
       }
-    },
+    }
+  },
+  "workflow": {
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

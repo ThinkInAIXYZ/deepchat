@@ -130,19 +130,19 @@ describeIfSqlite('NewSessionsTable', () => {
     })
   })
 
-  it('defaults orchestration to adaptive and persists explicit mode updates', () => {
-    table.create('adaptive', 'deepchat', 'Adaptive', null)
-    table.create('workflow', 'deepchat', 'Workflow', null, {
-      orchestrationMode: 'workflow'
+  it('defaults orchestration to explicit and persists proactive policy updates', () => {
+    table.create('explicit', 'deepchat', 'Explicit', null)
+    table.create('proactive', 'deepchat', 'Proactive', null, {
+      orchestrationPolicy: 'proactive'
     })
-    const revision = table.get('adaptive')?.revision ?? 0
+    const revision = table.get('explicit')?.revision ?? 0
 
-    expect(table.getOrchestrationMode('adaptive')).toBe('adaptive')
-    expect(table.getOrchestrationMode('workflow')).toBe('workflow')
+    expect(table.getOrchestrationPolicy('explicit')).toBe('explicit')
+    expect(table.getOrchestrationPolicy('proactive')).toBe('proactive')
 
-    table.updateOrchestrationMode('adaptive', 'workflow')
-    expect(table.get('adaptive')).toMatchObject({
-      orchestration_mode: 'workflow',
+    table.updateOrchestrationPolicy('explicit', 'proactive')
+    expect(table.get('explicit')).toMatchObject({
+      orchestration_policy: 'proactive',
       revision: revision + 1
     })
   })

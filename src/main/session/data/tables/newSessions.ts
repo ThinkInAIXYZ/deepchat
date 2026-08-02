@@ -1,16 +1,18 @@
 import Database from 'better-sqlite3-multiple-ciphers'
-import { WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME } from '@shared/agentTools'
 import {
-  DEFAULT_SESSION_ORCHESTRATION_MODE,
-  normalizeSessionOrchestrationMode,
-  type SessionOrchestrationMode
-} from '@shared/workflow/orchestrationMode'
+  DEFAULT_ORCHESTRATION_POLICY,
+  normalizeOrchestrationPolicy,
+  normalizePersistedOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/workflow/orchestrationPolicy'
 import { BaseTable } from '@/data/baseTable'
 
 const ADD_REVISION_COLUMN_SQL =
   'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
 export const SESSION_WORKFLOW_TOOL_DEFAULT_SCHEMA_VERSION = 56
-export const SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION = 57
+export const LEGACY_SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION = 57
+export const SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION = 59
 
 export interface NewSessionRow {
   id: string
@@ -25,7 +27,7 @@ export interface NewSessionRow {
   session_kind: 'regular' | 'subagent'
   parent_session_id: string | null
   subagent_meta_json: string | null
-  orchestration_mode: SessionOrchestrationMode
+  orchestration_policy: OrchestrationPolicy
   created_at: number
   updated_at: number
   revision: number
@@ -79,7 +81,11 @@ export class NewSessionsTable extends BaseTable {
     if (version >= 21) {
       columns.push('revision INTEGER NOT NULL DEFAULT 0')
     }
-    if (version >= SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION) {
+    if (version >= SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION) {
+      columns.push(
+        "orchestration_policy TEXT NOT NULL DEFAULT 'explicit' CHECK (orchestration_policy IN ('explicit', 'proactive'))"
+      )
+    } else if (version >= LEGACY_SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION) {
       columns.push(
         "orchestration_mode TEXT NOT NULL DEFAULT 'adaptive' CHECK (orchestration_mode IN ('adaptive', 'workflow'))"
       )
@@ -184,13 +190,13 @@ export class NewSessionsTable extends BaseTable {
             ),
             0
           ),
-          '${WORKFLOW_AGENT_TOOL_NAME}'
+          '${LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME}'
         FROM new_sessions
         WHERE NOT EXISTS (
           SELECT 1
           FROM workflow_disabled_agent_tools_migration AS existing
           WHERE existing.session_id = new_sessions.id
-            AND existing.tool_name = '${WORKFLOW_AGENT_TOOL_NAME}'
+            AND existing.tool_name = '${LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME}'
         );
 
         UPDATE new_sessions
@@ -221,14 +227,14 @@ export class NewSessionsTable extends BaseTable {
         DROP TABLE workflow_disabled_agent_tools_migration;
       `
     }
-    if (version === SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION) {
+    if (version === LEGACY_SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION) {
       return `
         ALTER TABLE new_sessions
           ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'adaptive'
           CHECK (orchestration_mode IN ('adaptive', 'workflow'));
 
         DELETE FROM new_session_disabled_agent_tools
-        WHERE tool_name = '${WORKFLOW_AGENT_TOOL_NAME}';
+        WHERE tool_name = '${LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME}';
 
         UPDATE new_sessions
         SET disabled_agent_tools = COALESCE(
@@ -245,11 +251,26 @@ export class NewSessionsTable extends BaseTable {
         );
       `
     }
+    if (version === SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION) {
+      return `
+        ALTER TABLE new_sessions
+          ADD COLUMN orchestration_policy TEXT NOT NULL DEFAULT 'explicit'
+          CHECK (orchestration_policy IN ('explicit', 'proactive'));
+
+        UPDATE new_sessions
+        SET orchestration_policy = CASE orchestration_mode
+          WHEN 'workflow' THEN 'proactive'
+          ELSE 'explicit'
+        END;
+
+        ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION
+    return SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION
   }
 
   create(
@@ -262,7 +283,7 @@ export class NewSessionsTable extends BaseTable {
       isPinned?: boolean
       activeSkills?: string[]
       disabledAgentTools?: string[]
-      orchestrationMode?: SessionOrchestrationMode
+      orchestrationPolicy?: OrchestrationPolicy
       sessionKind?: 'regular' | 'subagent'
       parentSessionId?: string | null
       subagentMetaJson?: string | null
@@ -287,7 +308,7 @@ export class NewSessionsTable extends BaseTable {
           session_kind,
           parent_session_id,
           subagent_meta_json,
-          orchestration_mode,
+          orchestration_policy,
           created_at,
           updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -304,7 +325,7 @@ export class NewSessionsTable extends BaseTable {
         options?.sessionKind === 'subagent' ? 'subagent' : 'regular',
         options?.parentSessionId ?? null,
         options?.subagentMetaJson ?? null,
-        normalizeSessionOrchestrationMode(options?.orchestrationMode),
+        normalizeOrchestrationPolicy(options?.orchestrationPolicy),
         createdAt,
         updatedAt
       )
@@ -428,7 +449,7 @@ export class NewSessionsTable extends BaseTable {
         | 'session_kind'
         | 'parent_session_id'
         | 'subagent_meta_json'
-        | 'orchestration_mode'
+        | 'orchestration_policy'
       >
     >
   ): void {
@@ -471,9 +492,9 @@ export class NewSessionsTable extends BaseTable {
       setClauses.push('subagent_meta_json = ?')
       params.push(fields.subagent_meta_json)
     }
-    if (fields.orchestration_mode !== undefined) {
-      setClauses.push('orchestration_mode = ?')
-      params.push(normalizeSessionOrchestrationMode(fields.orchestration_mode))
+    if (fields.orchestration_policy !== undefined) {
+      setClauses.push('orchestration_policy = ?')
+      params.push(normalizeOrchestrationPolicy(fields.orchestration_policy))
     }
 
     if (setClauses.length === 0) return
@@ -545,17 +566,17 @@ export class NewSessionsTable extends BaseTable {
     this.update(id, { disabled_agent_tools: JSON.stringify(disabledAgentTools) })
   }
 
-  getOrchestrationMode(id: string): SessionOrchestrationMode {
+  getOrchestrationPolicy(id: string): OrchestrationPolicy {
     const row = this.db
-      .prepare('SELECT orchestration_mode FROM new_sessions WHERE id = ?')
-      .get(id) as { orchestration_mode?: unknown } | undefined
-    return normalizeSessionOrchestrationMode(
-      row?.orchestration_mode ?? DEFAULT_SESSION_ORCHESTRATION_MODE
+      .prepare('SELECT orchestration_policy FROM new_sessions WHERE id = ?')
+      .get(id) as { orchestration_policy?: unknown } | undefined
+    return normalizePersistedOrchestrationPolicy(
+      row?.orchestration_policy ?? DEFAULT_ORCHESTRATION_POLICY
     )
   }
 
-  updateOrchestrationMode(id: string, mode: SessionOrchestrationMode): void {
-    this.update(id, { orchestration_mode: normalizeSessionOrchestrationMode(mode) })
+  updateOrchestrationPolicy(id: string, policy: OrchestrationPolicy): void {
+    this.update(id, { orchestration_policy: normalizeOrchestrationPolicy(policy) })
   }
 
   updateAgentId(id: string, agentId: string): void {

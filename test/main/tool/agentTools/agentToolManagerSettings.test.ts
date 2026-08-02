@@ -481,7 +481,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(resolveConversationSessionInfo).toHaveBeenCalled()
   })
 
-  it('exposes workflow only through its policy gate without model-owned launch', async () => {
+  it('exposes durable Workflow as a system tool without model-owned launch', async () => {
     skillService.getActiveSkills.mockResolvedValue([])
     skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
     const workflow = {
@@ -493,9 +493,9 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: null,
-      conversationId: 'conv-1',
-      orchestrationMode: 'workflow'
+      conversationId: 'conv-1'
     })
+
     expect(
       definitions.some((definition) => definition.function.name === WORKFLOW_AGENT_TOOL_NAME)
     ).toBe(true)

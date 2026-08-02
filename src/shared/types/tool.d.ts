@@ -5,7 +5,6 @@
 import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from '../core/mcp'
 import type { DeepChatSubagentCapability, PermissionMode } from '../agent-interface'
 import type { AgentPlanSnapshot } from '../agent-plan'
-import type { SessionOrchestrationMode } from '../workflow/orchestrationMode'
 
 export type AgentToolProgressUpdate =
   | {
@@ -31,7 +30,6 @@ export interface ToolDefinitionContext {
   conversationId?: string
   activeSkillNames?: string[]
   subagentCapability?: DeepChatSubagentCapability
-  orchestrationMode?: SessionOrchestrationMode
 }
 
 export interface ToolCallOptions {

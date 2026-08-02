@@ -11,8 +11,8 @@ function createMockSqlitePresenter() {
       list: vi.fn().mockReturnValue([]),
       getDisabledAgentTools: vi.fn().mockReturnValue([]),
       updateDisabledAgentTools: vi.fn(),
-      getOrchestrationMode: vi.fn().mockReturnValue('adaptive'),
-      updateOrchestrationMode: vi.fn(),
+      getOrchestrationPolicy: vi.fn().mockReturnValue('explicit'),
+      updateOrchestrationPolicy: vi.fn(),
       update: vi.fn(),
       delete: vi.fn()
     },
@@ -62,7 +62,7 @@ describe('AppSessionService', () => {
         {
           isDraft: undefined,
           disabledAgentTools: undefined,
-          orchestrationMode: undefined,
+          orchestrationPolicy: undefined,
           sessionKind: undefined,
           parentSessionId: undefined,
           subagentMetaJson: null
@@ -151,14 +151,14 @@ describe('AppSessionService', () => {
         sessionKind: 'regular',
         parentSessionId: null,
         subagentMeta: null,
-        orchestrationMode: 'adaptive',
+        orchestrationPolicy: 'explicit',
         createdAt: 1000,
         updatedAt: 2000
       })
       expect(record).not.toHaveProperty('subagentEnabled')
     })
 
-    it('maps an explicit workflow mode from durable session state', () => {
+    it('maps proactive policy from durable session state', () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
         agent_id: 'deepchat',
@@ -169,7 +169,7 @@ describe('AppSessionService', () => {
         session_kind: 'regular',
         parent_session_id: null,
         subagent_meta_json: null,
-        orchestration_mode: 'workflow',
+        orchestration_policy: 'proactive',
         created_at: 1000,
         updated_at: 2000,
         revision: 3
@@ -177,7 +177,7 @@ describe('AppSessionService', () => {
 
       expect(manager.get('s1')).toMatchObject({
         id: 's1',
-        orchestrationMode: 'workflow'
+        orchestrationPolicy: 'proactive'
       })
     })
 

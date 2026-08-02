@@ -556,19 +556,21 @@
       "amendRestoreFailed": "העריכה נכשלה, ולא ניתן היה לשחזר את הזיכרון המקורי."
     }
   },
-  "workflow": {
-    "mode": {
-      "title": "תהליך עבודה",
-      "description": "תזמור מתמשך של מספר Agents. הפעלות עשויות להימשך יותר זמן ולהשתמש ביותר Tokens.",
+  "orchestration": {
+    "proactive": {
+      "title": "שיתוף פעולה יזום",
+      "description": "מאפשר ל-Agent הראשי להאציל משימות כאשר עבודה עצמאית או מקבילית מועילה בבירור. עשוי לצרוך יותר זמן, Tokens ומשאבים.",
       "reasons": {
         "session_unavailable": "ההפעלה הזו אינה זמינה עוד.",
         "agent_unavailable": "ה-Agent שנבחר אינו זמין.",
-        "deepchat_agent_required": "מצב תהליך עבודה דורש DeepChat Agent.",
-        "regular_parent_required": "מצב תהליך עבודה אינו זמין בהפעלת משנה.",
-        "agent_policy_unavailable": "לא ניתן לטעון את מדיניות תהליך העבודה.",
-        "subagents_disabled": "יש להפעיל Subagents עבור Agent זה כדי להשתמש במצב תהליך עבודה."
+        "deepchat_agent_required": "שיתוף פעולה יזום דורש DeepChat Agent.",
+        "regular_parent_required": "שיתוף פעולה יזום אינו זמין בהפעלת משנה.",
+        "agent_policy_unavailable": "לא ניתן לטעון את מדיניות שיתוף הפעולה.",
+        "subagents_disabled": "יש להפעיל Subagents עבור Agent זה כדי להשתמש בשיתוף פעולה יזום."
       }
-    },
+    }
+  },
+  "workflow": {
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

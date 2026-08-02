@@ -28,7 +28,7 @@ const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord =>
   sessionKind: 'regular',
   parentSessionId: null,
   subagentMeta: null,
-  orchestrationMode: 'adaptive',
+  orchestrationPolicy: 'explicit',
   createdAt: 100,
   updatedAt: 200,
   ...overrides
@@ -110,13 +110,13 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
     }),
     getDisabledAgentTools: vi.fn(() => []),
     updateDisabledAgentTools: vi.fn(),
-    getOrchestrationMode: vi.fn(
-      (sessionId: string) => records.get(sessionId)?.orchestrationMode ?? 'adaptive'
+    getOrchestrationPolicy: vi.fn(
+      (sessionId: string) => records.get(sessionId)?.orchestrationPolicy ?? 'explicit'
     ),
-    updateOrchestrationMode: vi.fn(
-      (sessionId: string, orchestrationMode: 'adaptive' | 'workflow') => {
+    updateOrchestrationPolicy: vi.fn(
+      (sessionId: string, orchestrationPolicy: 'explicit' | 'proactive') => {
         const session = records.get(sessionId)
-        if (session) records.set(sessionId, { ...session, orchestrationMode })
+        if (session) records.set(sessionId, { ...session, orchestrationPolicy })
       }
     )
   }
@@ -404,10 +404,10 @@ describe('SessionAssignment', () => {
       harness.coordinator.updateSessionGenerationSettings('s1', { temperature: 0.2 })
     ).resolves.toEqual({ temperature: 0.2 })
     await expect(harness.coordinator.getSessionDisabledAgentTools('s1')).resolves.toEqual(['read'])
-    await expect(harness.coordinator.getSessionOrchestrationMode('s1')).resolves.toBe('adaptive')
-    await expect(
-      harness.coordinator.updateSessionOrchestrationMode('s1', 'workflow')
-    ).resolves.toBe('workflow')
+    await expect(harness.coordinator.getOrchestrationPolicy('s1')).resolves.toBe('explicit')
+    await expect(harness.coordinator.updateOrchestrationPolicy('s1', 'proactive')).resolves.toBe(
+      'proactive'
+    )
     await expect(
       harness.coordinator.updateSessionDisabledAgentTools('s1', ['find', 'write', 'write'])
     ).resolves.toEqual(['write'])
@@ -415,22 +415,22 @@ describe('SessionAssignment', () => {
     expect(harness.settings.setPermissionMode).toHaveBeenCalledWith('auto_approve')
     expect(harness.settings.updateGenerationSettings).toHaveBeenCalledWith({ temperature: 0.2 })
     expect(harness.sessions.updateDisabledAgentTools).toHaveBeenCalledWith('s1', ['write'])
-    expect(harness.sessions.updateOrchestrationMode).toHaveBeenCalledWith('s1', 'workflow')
+    expect(harness.sessions.updateOrchestrationPolicy).toHaveBeenCalledWith('s1', 'proactive')
   })
 
-  it('rejects workflow mode for direct ACP and subagent sessions', async () => {
+  it('rejects proactive collaboration for direct ACP and subagent sessions', async () => {
     const harness = createHarness([
       createSession({ id: 'direct', agentId: 'claude-acp' }),
       createSession({ id: 'child', sessionKind: 'subagent', parentSessionId: 'parent' })
     ])
 
     await expect(
-      harness.coordinator.updateSessionOrchestrationMode('direct', 'workflow')
+      harness.coordinator.updateOrchestrationPolicy('direct', 'proactive')
     ).rejects.toThrow('requires a DeepChat session')
     await expect(
-      harness.coordinator.updateSessionOrchestrationMode('child', 'workflow')
+      harness.coordinator.updateOrchestrationPolicy('child', 'proactive')
     ).rejects.toThrow('requires a regular parent session')
-    expect(harness.sessions.updateOrchestrationMode).not.toHaveBeenCalled()
+    expect(harness.sessions.updateOrchestrationPolicy).not.toHaveBeenCalled()
   })
 
   it('routes direct and compatibility ACP commands and config through narrow controls', async () => {

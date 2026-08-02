@@ -61,68 +61,6 @@ describe('WorkflowLaunchScopeResolver', () => {
       messages: { getMessage }
     })
 
-  it('reports session capability without constructing an execution scope', async () => {
-    const resolver = createResolver()
-
-    await expect(resolver.resolveCapability('parent-1')).resolves.toEqual({ available: true })
-    expect(getAgentType).not.toHaveBeenCalled()
-    expect(getMessage).not.toHaveBeenCalled()
-
-    resolveDeepChatAgentConfig.mockResolvedValueOnce({ subagentEnabled: false })
-    await expect(resolver.resolveCapability('parent-1')).resolves.toEqual({
-      available: false,
-      reason: 'subagents_disabled'
-    })
-
-    resolveDeepChatAgentConfig.mockRejectedValueOnce(new Error('config unavailable'))
-    await expect(resolver.resolveCapability('parent-1')).resolves.toEqual({
-      available: false,
-      reason: 'agent_policy_unavailable'
-    })
-  })
-
-  it('reports exact unavailable reasons for unsupported session and draft targets', async () => {
-    const resolver = createResolver()
-
-    resolveConversationSessionInfo.mockResolvedValueOnce(null)
-    await expect(resolver.resolveCapability('missing')).resolves.toEqual({
-      available: false,
-      reason: 'session_unavailable'
-    })
-
-    resolveConversationSessionInfo.mockResolvedValueOnce({
-      agentType: 'acp',
-      sessionKind: 'regular'
-    })
-    await expect(resolver.resolveCapability('acp-parent')).resolves.toEqual({
-      available: false,
-      reason: 'deepchat_agent_required'
-    })
-
-    resolveConversationSessionInfo.mockResolvedValueOnce({
-      agentType: 'deepchat',
-      sessionKind: 'subagent'
-    })
-    await expect(resolver.resolveCapability('child')).resolves.toEqual({
-      available: false,
-      reason: 'regular_parent_required'
-    })
-
-    getAgentType.mockResolvedValueOnce(null)
-    await expect(resolver.resolveDraftCapability('missing-agent')).resolves.toEqual({
-      available: false,
-      reason: 'agent_unavailable'
-    })
-
-    getAgentType.mockResolvedValueOnce('acp')
-    await expect(resolver.resolveDraftCapability('acp-agent')).resolves.toEqual({
-      available: false,
-      reason: 'deepchat_agent_required'
-    })
-
-    await expect(resolver.resolveDraftCapability('deepchat')).resolves.toEqual({ available: true })
-  })
-
   it('derives workspace and target policy from main-owned session state', async () => {
     const resolved = await createResolver().resolve({
       parentSessionId: 'parent-1',

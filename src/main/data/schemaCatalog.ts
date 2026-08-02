@@ -134,11 +134,11 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
         "ALTER TABLE new_sessions ADD COLUMN session_kind TEXT NOT NULL DEFAULT 'regular';",
       parent_session_id: 'ALTER TABLE new_sessions ADD COLUMN parent_session_id TEXT;',
       subagent_meta_json: 'ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;',
-      orchestration_mode:
-        "ALTER TABLE new_sessions ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'adaptive' CHECK (orchestration_mode IN ('adaptive', 'workflow'));",
+      orchestration_policy:
+        "ALTER TABLE new_sessions ADD COLUMN orchestration_policy TEXT NOT NULL DEFAULT 'explicit' CHECK (orchestration_policy IN ('explicit', 'proactive'));",
       revision: 'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
     },
-    typeCheckedColumns: ['subagent_enabled', 'session_kind', 'orchestration_mode', 'revision']
+    typeCheckedColumns: ['subagent_enabled', 'session_kind', 'orchestration_policy', 'revision']
   },
   {
     name: 'new_projects',

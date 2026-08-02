@@ -123,6 +123,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     providerCatalogPort: deps.providerCatalogPort,
     toolService,
     identity,
+    orchestrationPolicy: toolResolver,
     projectDir: sessionSettings,
     memoryPromptContributor: memory
   })

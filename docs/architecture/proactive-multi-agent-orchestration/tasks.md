@@ -62,13 +62,46 @@ Preparation validation evidence:
 
 ## Policy And Routing
 
-- [ ] Replace `adaptive | workflow` with `explicit | proactive`.
-- [ ] Add migration and compatibility normalization.
-- [ ] Remove live-delegation and Workflow mutual exclusion.
-- [ ] Add developer-level explicit/proactive policy instructions.
-- [ ] Keep reasoning settings independent in Session and draft flows.
-- [ ] Update typed routes, preload, renderer stores, commands, and tests.
-- [ ] Review, validate, and commit the policy slice.
+- [x] Replace `adaptive | workflow` with `explicit | proactive`.
+- [x] Add migration and compatibility normalization.
+- [x] Remove live-delegation and Workflow mutual exclusion.
+- [x] Add developer-level explicit/proactive policy instructions.
+- [x] Keep reasoning settings independent in Session and draft flows.
+- [x] Update typed routes, preload, renderer stores, commands, and tests.
+- [x] Review and validate the policy slice.
+- [x] Commit the policy slice.
+
+Policy review findings, ordered by severity:
+
+- high, fixed before commit: `/workflow` still toggled the former executor mode, which contradicted
+  the new policy contract and made a Workflow navigation command silently change future Agent
+  behavior; the exact command now opens the Workflow surface and named commands only prepare saved
+  Workflows;
+- medium, fixed before commit: generic policy capability and IPC ownership still depended on
+  `WorkflowLaunchScopeResolver`; capability resolution and routes now live in the orchestration
+  domain while Workflow retains only executor-specific launch scope;
+- medium, fixed before commit: a Session deleted during proactive-policy admission caused the
+  rejection path to read the missing Session again and throw instead of returning its typed
+  receipt; the route now returns a stable fail-closed `explicit` rejection for that exact race;
+- medium, fixed before commit: the existing Agent-config migration followed the renamed Workflow
+  constant and could leave the legacy built-in `workflow` override behind on a direct upgrade;
+  migration now removes both legacy and current DeepChat-only names;
+- medium, fixed before commit: orchestration policy remained in the tool-catalog context and cache
+  fingerprint even though it no longer selects an executor; policy now changes only the system
+  prompt, while catalogs invalidate only for actual capability or tool changes;
+- low, fixed before commit: a dead `mode-controlled` exposure value, an ambiguous legacy constant,
+  and an empty inactive icon slot preserved obsolete vocabulary or layout cost; all three were
+  removed;
+- low: no remaining policy-slice finding.
+
+Policy validation evidence:
+
+- 343 policy, route, prompt, tool, Session, settings, and Workflow scope tests passed;
+- 382 renderer client, composer, status bar, page, store, activity, and approval tests passed;
+- 12 native SQLite table and forward-migration tests passed under Electron's Node ABI;
+- `pnpm run typecheck:node`, `pnpm run typecheck:web`, `pnpm run lint`, and `pnpm run i18n`
+  passed;
+- targeted Oxfmt and `git diff --check` passed.
 
 ## Live Delegation V2
 
@@ -83,11 +116,11 @@ Preparation validation evidence:
 
 ## UX
 
-- [ ] Rename Workflow mode copy to proactive collaboration.
-- [ ] Preserve reasoning-only button text and branch-icon accent.
-- [ ] Change `/workflow` from a mode switch to Workflow navigation/preparation.
+- [x] Rename Workflow mode copy to proactive collaboration.
+- [x] Preserve reasoning-only button text and branch-icon accent.
+- [x] Change `/workflow` from a mode switch to Workflow navigation/preparation.
 - [ ] Project live and durable work in one activity surface.
-- [ ] Add i18n, accessibility, and renderer tests.
+- [x] Add policy-control i18n, accessibility, and renderer tests.
 - [ ] Review, validate, and commit UX slices.
 
 ## Final Validation

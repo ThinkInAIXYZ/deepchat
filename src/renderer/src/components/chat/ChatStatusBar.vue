@@ -221,25 +221,27 @@
           <span>{{ displayModelText }}</span>
         </Button>
 
-        <Popover v-if="showExecutionModeControl" v-model:open="isExecutionModePanelOpen">
+        <Popover v-if="showOrchestrationControl" v-model:open="isOrchestrationPanelOpen">
           <PopoverTrigger as-child>
             <Button
-              data-testid="execution-mode-switcher"
+              data-testid="orchestration-control"
               variant="ghost"
               size="sm"
               :class="[
                 'h-6 gap-1 px-2 text-xs dc-blur-panel',
-                workflowModeEnabled
+                proactiveCollaborationEnabled
                   ? 'bg-violet-500/10 text-violet-600 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/15 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200'
                   : 'text-muted-foreground hover:text-foreground'
               ]"
-              :title="executionModeControlTitle"
-              :aria-label="executionModeControlTitle"
-              :aria-pressed="workflowModeEnabled"
+              :title="orchestrationControlTitle"
+              :aria-label="orchestrationControlTitle"
+              :aria-pressed="proactiveCollaborationEnabled"
             >
-              <span class="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-                <Icon v-if="workflowModeEnabled" icon="lucide:git-fork" class="h-3.5 w-3.5" />
-              </span>
+              <Icon
+                v-if="proactiveCollaborationEnabled"
+                icon="lucide:git-fork"
+                class="h-3.5 w-3.5 shrink-0"
+              />
               <span>{{ reasoningEffortDisplayLabel }}</span>
               <Icon icon="lucide:chevron-down" class="h-3 w-3" />
             </Button>
@@ -283,25 +285,27 @@
               <div class="flex items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-2">
                   <Icon icon="lucide:git-fork" class="h-4 w-4 shrink-0" />
-                  <span class="text-sm font-medium">{{ t('chat.workflow.mode.title') }}</span>
+                  <span class="text-sm font-medium">{{
+                    t('chat.orchestration.proactive.title')
+                  }}</span>
                 </div>
                 <Switch
-                  data-testid="workflow-mode-toggle"
-                  :model-value="workflowModeEnabled"
-                  :disabled="workflowSwitchDisabled"
-                  :aria-label="t('chat.workflow.mode.title')"
-                  @update:model-value="onWorkflowModeToggle(Boolean($event))"
+                  data-testid="proactive-collaboration-toggle"
+                  :model-value="proactiveCollaborationEnabled"
+                  :disabled="proactiveSwitchDisabled"
+                  :aria-label="t('chat.orchestration.proactive.title')"
+                  @update:model-value="onProactiveCollaborationToggle(Boolean($event))"
                 />
               </div>
               <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                {{ t('chat.workflow.mode.description') }}
+                {{ t('chat.orchestration.proactive.description') }}
               </p>
               <p
-                v-if="workflowCapabilityMessage"
-                data-testid="workflow-capability-message"
+                v-if="orchestrationCapabilityMessage"
+                data-testid="orchestration-capability-message"
                 class="mt-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400"
               >
-                {{ workflowCapabilityMessage }}
+                {{ orchestrationCapabilityMessage }}
               </p>
             </div>
           </PopoverContent>
@@ -1110,7 +1114,7 @@ import { createModelClient } from '@api/ModelClient'
 import { createOnboardingClient } from '@api/OnboardingClient'
 import { createProviderClient } from '@api/ProviderClient'
 import { createSessionClient } from '@api/SessionClient'
-import { createWorkflowClient } from '@api/WorkflowClient'
+import { createOrchestrationClient } from '@api/OrchestrationClient'
 import { requestGuidedOnboardingResume } from '@/lib/onboardingResume'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
@@ -1126,7 +1130,7 @@ import {
   useModelCapabilities,
   type RendererModelCapabilities
 } from '@/composables/useModelCapabilities'
-import type { WorkflowCapability } from '@shared/workflow/orchestrationMode'
+import type { OrchestrationCapability } from '@shared/workflow/orchestrationPolicy'
 
 const props = withDefaults(
   defineProps<{
@@ -1186,7 +1190,7 @@ const modelClient = createModelClient()
 const onboardingClient = createOnboardingClient()
 const providerClient = createProviderClient()
 const sessionClient = createSessionClient()
-const workflowClient = createWorkflowClient()
+const orchestrationClient = createOrchestrationClient()
 const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
@@ -1195,11 +1199,11 @@ const localSettings = ref<SessionGenerationSettings | null>(null)
 const loadedSettingsSelection = ref<ModelSelection | null>(null)
 const systemPromptList = ref<SystemPrompt[]>([])
 const isModelPanelOpen = ref(false)
-const isExecutionModePanelOpen = ref(false)
-const workflowCapability = ref<WorkflowCapability | null>(null)
-const isWorkflowCapabilityLoading = ref(false)
-const workflowCapabilityLoadFailed = ref(false)
-const isWorkflowModeSaving = ref(false)
+const isOrchestrationPanelOpen = ref(false)
+const orchestrationCapability = ref<OrchestrationCapability | null>(null)
+const isOrchestrationCapabilityLoading = ref(false)
+const orchestrationCapabilityLoadFailed = ref(false)
+const isOrchestrationPolicySaving = ref(false)
 const isGenerationSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
 const generationSettingsModelConfigState = ref<ModelConfig | null>(null)
@@ -1224,8 +1228,8 @@ let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
 let generationLocalRevision = 0
-let workflowCapabilityRequestToken = 0
-let workflowModeRequestToken = 0
+let orchestrationCapabilityRequestToken = 0
+let orchestrationPolicyRequestToken = 0
 let unsubscribeAcpConfigOptionsReady: (() => void) | null = null
 let cancelAcpConfigSyncTask: (() => void) | null = null
 
@@ -1295,7 +1299,7 @@ const selectedDeepChatAgentId = computed(() => {
   return agentStore.selectedAgentId ?? 'deepchat'
 })
 
-type WorkflowCapabilityTarget = { parentSessionId: string } | { agentId: string }
+type OrchestrationCapabilityTarget = { sessionId: string } | { agentId: string }
 
 const executionAgentType = computed(() => {
   if (hasActiveSession.value) {
@@ -1303,47 +1307,45 @@ const executionAgentType = computed(() => {
   }
   return selectedAgentType.value
 })
-const showExecutionModeControl = computed(() => executionAgentType.value === 'deepchat')
-const workflowCapabilityTarget = computed<WorkflowCapabilityTarget | null>(() => {
-  if (!showExecutionModeControl.value) {
+const showOrchestrationControl = computed(() => executionAgentType.value === 'deepchat')
+const orchestrationCapabilityTarget = computed<OrchestrationCapabilityTarget | null>(() => {
+  if (!showOrchestrationControl.value) {
     return null
   }
-  const parentSessionId = sessionStore.activeSessionId?.trim()
-  if (parentSessionId) {
-    return { parentSessionId }
+  const sessionId = sessionStore.activeSessionId?.trim()
+  if (sessionId) {
+    return { sessionId }
   }
   const agentId = selectedDeepChatAgentId.value?.trim()
   return agentId ? { agentId } : null
 })
-const workflowCapabilityTargetKey = computed(() => {
-  const target = workflowCapabilityTarget.value
+const orchestrationCapabilityTargetKey = computed(() => {
+  const target = orchestrationCapabilityTarget.value
   if (!target) {
     return null
   }
-  return 'parentSessionId' in target
-    ? `session:${target.parentSessionId}`
-    : `agent:${target.agentId}`
+  return 'sessionId' in target ? `session:${target.sessionId}` : `agent:${target.agentId}`
 })
-const workflowModeEnabled = computed(() =>
+const proactiveCollaborationEnabled = computed(() =>
   hasActiveSession.value
-    ? sessionStore.activeSession?.orchestrationMode === 'workflow'
-    : draftStore.orchestrationMode === 'workflow'
+    ? sessionStore.activeSession?.orchestrationPolicy === 'proactive'
+    : draftStore.orchestrationPolicy === 'proactive'
 )
-const workflowSwitchDisabled = computed(
+const proactiveSwitchDisabled = computed(
   () =>
-    isWorkflowModeSaving.value ||
-    (!workflowModeEnabled.value &&
-      (isWorkflowCapabilityLoading.value ||
-        workflowCapabilityLoadFailed.value ||
-        workflowCapability.value?.available !== true))
+    isOrchestrationPolicySaving.value ||
+    (!proactiveCollaborationEnabled.value &&
+      (isOrchestrationCapabilityLoading.value ||
+        orchestrationCapabilityLoadFailed.value ||
+        orchestrationCapability.value?.available !== true))
 )
-const workflowCapabilityMessage = computed(() => {
-  if (workflowCapabilityLoadFailed.value) {
+const orchestrationCapabilityMessage = computed(() => {
+  if (orchestrationCapabilityLoadFailed.value) {
     return t('chat.workflow.states.unavailable')
   }
-  const capability = workflowCapability.value
+  const capability = orchestrationCapability.value
   if (capability && !capability.available) {
-    return t(`chat.workflow.mode.reasons.${capability.reason}`)
+    return t(`chat.orchestration.proactive.reasons.${capability.reason}`)
   }
   return ''
 })
@@ -1809,10 +1811,10 @@ const reasoningEffortDisplayLabel = computed(
     effortOptions.value.find((option) => option.value === effectiveReasoningEffortValue.value)
       ?.label ?? t('chat.advancedSettings.useDefault')
 )
-const executionModeControlTitle = computed(() => {
+const orchestrationControlTitle = computed(() => {
   const effort = reasoningEffortDisplayLabel.value
-  return workflowModeEnabled.value
-    ? `${effort} · ${t('chat.workflow.mode.title')} ${t('common.enabled')}`
+  return proactiveCollaborationEnabled.value
+    ? `${effort} · ${t('chat.orchestration.proactive.title')} ${t('common.enabled')}`
     : effort
 })
 
@@ -2374,70 +2376,70 @@ const reloadSystemPrompts = async () => {
   }
 }
 
-async function resolveWorkflowCapability(
-  target: WorkflowCapabilityTarget,
+async function resolveOrchestrationCapability(
+  target: OrchestrationCapabilityTarget,
   targetKey: string
-): Promise<WorkflowCapability | null> {
-  const token = ++workflowCapabilityRequestToken
-  workflowCapability.value = null
-  workflowCapabilityLoadFailed.value = false
-  isWorkflowCapabilityLoading.value = true
+): Promise<OrchestrationCapability | null> {
+  const token = ++orchestrationCapabilityRequestToken
+  orchestrationCapability.value = null
+  orchestrationCapabilityLoadFailed.value = false
+  isOrchestrationCapabilityLoading.value = true
 
   try {
-    const capability = await workflowClient.getCapability(target)
+    const capability = await orchestrationClient.getCapability(target)
     if (
-      token !== workflowCapabilityRequestToken ||
-      workflowCapabilityTargetKey.value !== targetKey
+      token !== orchestrationCapabilityRequestToken ||
+      orchestrationCapabilityTargetKey.value !== targetKey
     ) {
       return null
     }
-    workflowCapability.value = capability
+    orchestrationCapability.value = capability
     return capability
   } catch (error) {
     if (
-      token !== workflowCapabilityRequestToken ||
-      workflowCapabilityTargetKey.value !== targetKey
+      token !== orchestrationCapabilityRequestToken ||
+      orchestrationCapabilityTargetKey.value !== targetKey
     ) {
       return null
     }
-    workflowCapabilityLoadFailed.value = true
-    console.warn('[ChatStatusBar] Failed to load Workflow capability:', error)
+    orchestrationCapabilityLoadFailed.value = true
+    console.warn('[ChatStatusBar] Failed to load orchestration capability:', error)
     return null
   } finally {
-    if (token === workflowCapabilityRequestToken) {
-      isWorkflowCapabilityLoading.value = false
+    if (token === orchestrationCapabilityRequestToken) {
+      isOrchestrationCapabilityLoading.value = false
     }
   }
 }
 
-async function refreshWorkflowCapability(): Promise<WorkflowCapability | null> {
-  const target = workflowCapabilityTarget.value
-  const targetKey = workflowCapabilityTargetKey.value
+async function refreshOrchestrationCapability(): Promise<OrchestrationCapability | null> {
+  const target = orchestrationCapabilityTarget.value
+  const targetKey = orchestrationCapabilityTargetKey.value
   if (!target || !targetKey) {
-    workflowCapabilityRequestToken += 1
-    workflowCapability.value = null
-    workflowCapabilityLoadFailed.value = false
-    isWorkflowCapabilityLoading.value = false
+    orchestrationCapabilityRequestToken += 1
+    orchestrationCapability.value = null
+    orchestrationCapabilityLoadFailed.value = false
+    isOrchestrationCapabilityLoading.value = false
     return null
   }
-  return await resolveWorkflowCapability(target, targetKey)
+  return await resolveOrchestrationCapability(target, targetKey)
 }
 
 watch(
-  workflowCapabilityTargetKey,
+  orchestrationCapabilityTargetKey,
   (targetKey, previousTargetKey) => {
     if (previousTargetKey !== undefined && targetKey !== previousTargetKey) {
-      workflowModeRequestToken += 1
-      isWorkflowModeSaving.value = false
+      orchestrationPolicyRequestToken += 1
+      isOrchestrationPolicySaving.value = false
     }
-    void refreshWorkflowCapability()
+    void refreshOrchestrationCapability()
   },
   { immediate: true }
 )
 
-watch(isExecutionModePanelOpen, (open) => {
+watch(isOrchestrationPanelOpen, (open) => {
   if (open) {
-    void refreshWorkflowCapability()
+    void refreshOrchestrationCapability()
   }
 })
 
@@ -2548,8 +2550,8 @@ watch(isModelPanelOpen, (open) => {
 })
 
 onBeforeUnmount(() => {
-  workflowCapabilityRequestToken += 1
-  workflowModeRequestToken += 1
+  orchestrationCapabilityRequestToken += 1
+  orchestrationPolicyRequestToken += 1
   clearPendingGenerationPersist()
   invalidateGenerationPersistResponses()
   cancelAcpConfigSyncTask?.()
@@ -3086,30 +3088,30 @@ function onVideoGenerationSettingsUpdate(
   })
 }
 
-async function onWorkflowModeToggle(enabled: boolean): Promise<boolean> {
-  if (enabled === workflowModeEnabled.value) {
+async function onProactiveCollaborationToggle(enabled: boolean): Promise<boolean> {
+  if (enabled === proactiveCollaborationEnabled.value) {
     return true
   }
-  if (isWorkflowModeSaving.value) {
+  if (isOrchestrationPolicySaving.value) {
     return false
   }
 
-  const target = workflowCapabilityTarget.value
-  const targetKey = workflowCapabilityTargetKey.value
+  const target = orchestrationCapabilityTarget.value
+  const targetKey = orchestrationCapabilityTargetKey.value
   if (!target || !targetKey) {
     return false
   }
 
-  const mode = enabled ? 'workflow' : 'adaptive'
-  const token = ++workflowModeRequestToken
-  isWorkflowModeSaving.value = true
+  const policy = enabled ? 'proactive' : 'explicit'
+  const token = ++orchestrationPolicyRequestToken
+  isOrchestrationPolicySaving.value = true
 
   try {
     if (enabled) {
-      const capability = await resolveWorkflowCapability(target, targetKey)
+      const capability = await resolveOrchestrationCapability(target, targetKey)
       if (
-        token !== workflowModeRequestToken ||
-        workflowCapabilityTargetKey.value !== targetKey ||
+        token !== orchestrationPolicyRequestToken ||
+        orchestrationCapabilityTargetKey.value !== targetKey ||
         capability?.available !== true
       ) {
         return false
@@ -3117,45 +3119,43 @@ async function onWorkflowModeToggle(enabled: boolean): Promise<boolean> {
     }
 
     if ('agentId' in target) {
-      if (token === workflowModeRequestToken && workflowCapabilityTargetKey.value === targetKey) {
-        draftStore.orchestrationMode = mode
+      if (
+        token === orchestrationPolicyRequestToken &&
+        orchestrationCapabilityTargetKey.value === targetKey
+      ) {
+        draftStore.orchestrationPolicy = policy
         return true
       }
       return false
     }
 
-    const receipt = await workflowClient.setMode(target.parentSessionId, mode)
+    const receipt = await orchestrationClient.setPolicy(target.sessionId, policy)
     if (
-      token !== workflowModeRequestToken ||
-      workflowCapabilityTargetKey.value !== targetKey ||
-      sessionStore.activeSessionId !== target.parentSessionId
+      token !== orchestrationPolicyRequestToken ||
+      orchestrationCapabilityTargetKey.value !== targetKey ||
+      sessionStore.activeSessionId !== target.sessionId
     ) {
       return false
     }
-    workflowCapability.value = receipt.capability
-    workflowCapabilityLoadFailed.value = false
-    sessionStore.applyConfirmedSessionOrchestrationMode(target.parentSessionId, receipt.mode)
-    return receipt.applied && receipt.mode === mode
+    orchestrationCapability.value = receipt.capability
+    orchestrationCapabilityLoadFailed.value = false
+    sessionStore.applyConfirmedOrchestrationPolicy(target.sessionId, receipt.policy)
+    return receipt.applied && receipt.policy === policy
   } catch (error) {
-    if (token !== workflowModeRequestToken || workflowCapabilityTargetKey.value !== targetKey) {
+    if (
+      token !== orchestrationPolicyRequestToken ||
+      orchestrationCapabilityTargetKey.value !== targetKey
+    ) {
       return false
     }
-    workflowCapabilityLoadFailed.value = true
-    console.warn('[ChatStatusBar] Failed to set Workflow mode:', error)
+    orchestrationCapabilityLoadFailed.value = true
+    console.warn('[ChatStatusBar] Failed to set orchestration policy:', error)
     return false
   } finally {
-    if (token === workflowModeRequestToken) {
-      isWorkflowModeSaving.value = false
+    if (token === orchestrationPolicyRequestToken) {
+      isOrchestrationPolicySaving.value = false
     }
   }
-}
-
-async function toggleWorkflowMode(): Promise<boolean> {
-  const applied = await onWorkflowModeToggle(!workflowModeEnabled.value)
-  if (!applied) {
-    isExecutionModePanelOpen.value = true
-  }
-  return applied
 }
 
 async function selectPermissionMode(mode: PermissionMode) {
@@ -3179,9 +3179,9 @@ defineExpose({
   acpConfigState,
   localSettings,
   permissionMode,
-  workflowCapability,
-  workflowModeEnabled,
-  showExecutionModeControl,
+  orchestrationCapability,
+  proactiveCollaborationEnabled,
+  showOrchestrationControl,
   showSystemPromptSection,
   showReasoningEffort,
   onTemperatureInput,
@@ -3200,8 +3200,7 @@ defineExpose({
   stepMaxTokens,
   stepTimeout,
   stepThinkingBudget,
-  onWorkflowModeToggle,
-  toggleWorkflowMode,
+  onProactiveCollaborationToggle,
   selectModel: changeModelSelection,
   openModelPicker
 })

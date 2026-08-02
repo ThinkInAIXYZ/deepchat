@@ -15,10 +15,6 @@ import {
   WorkflowSavedNameSchema,
   WorkflowSavedSourceHashSchema
 } from '../../workflow/savedWorkflow'
-import {
-  SessionOrchestrationModeSchema,
-  WorkflowCapabilitySchema
-} from '../../workflow/orchestrationMode'
 
 const WorkflowRouteIdSchema = z.string().trim().min(1).max(256)
 const WorkflowRunRefSchema = z
@@ -27,46 +23,6 @@ const WorkflowRunRefSchema = z
     runId: WorkflowRouteIdSchema
   })
   .strict()
-
-const WorkflowCapabilityTargetSchema = z.union([
-  z
-    .object({
-      parentSessionId: WorkflowRouteIdSchema
-    })
-    .strict(),
-  z
-    .object({
-      agentId: WorkflowRouteIdSchema
-    })
-    .strict()
-])
-
-export const workflowGetCapabilityRoute = defineRouteContract({
-  name: 'workflow.getCapability',
-  input: WorkflowCapabilityTargetSchema,
-  output: z
-    .object({
-      capability: WorkflowCapabilitySchema
-    })
-    .strict()
-})
-
-export const workflowSetModeRoute = defineRouteContract({
-  name: 'workflow.setMode',
-  input: z
-    .object({
-      parentSessionId: WorkflowRouteIdSchema,
-      mode: SessionOrchestrationModeSchema
-    })
-    .strict(),
-  output: z
-    .object({
-      applied: z.boolean(),
-      mode: SessionOrchestrationModeSchema,
-      capability: WorkflowCapabilitySchema
-    })
-    .strict()
-})
 
 export const workflowPrepareLaunchRoute = defineRouteContract({
   name: 'workflow.prepareLaunch',

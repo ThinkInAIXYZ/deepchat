@@ -90,7 +90,7 @@ export class WorkflowAgentTool {
       function: {
         name: WORKFLOW_AGENT_TOOL_NAME,
         description:
-          'Prepare and manage durable JavaScript workflows that coordinate DeepChat child agents. Use only when the user explicitly asks for workflow orchestration. Call prepare_launch and let the native approval card launch the exact approved snapshot; do not call launch yourself. Use status operations to inspect or control existing runs.',
+          'Prepare and manage durable JavaScript workflows that coordinate DeepChat child agents. Choose this executor for large fan-out, programmatic data flow, recovery, or reusable orchestration when allowed by the current orchestration policy. Call prepare_launch and let the native approval card launch the exact approved snapshot; do not call launch yourself. Use status operations to inspect or control existing runs.',
         parameters: {
           type: 'object',
           properties: {

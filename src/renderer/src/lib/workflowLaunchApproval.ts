@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { WORKFLOW_AGENT_TOOL_NAME, WORKFLOW_AGENT_TOOL_SERVER_NAME } from '@shared/agentTools'
+import {
+  LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_SERVER_NAME
+} from '@shared/agentTools'
 import { WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES } from '@shared/workflow/runtimeProtocol'
 import {
   WorkflowPrepareLaunchToolResultSchema,
@@ -68,7 +72,8 @@ export function parseWorkflowLaunchApprovalBlock(
     block.type === 'tool_call' &&
     block.status === 'success' &&
     block.extra?.toolSource === 'agent' &&
-    toolCall?.name === WORKFLOW_AGENT_TOOL_NAME &&
+    (toolCall?.name === WORKFLOW_AGENT_TOOL_NAME ||
+      toolCall?.name === LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME) &&
     toolCall.server_name === WORKFLOW_AGENT_TOOL_SERVER_NAME
   ) {
     const parsedResult = WorkflowPrepareLaunchToolResultSchema.safeParse(

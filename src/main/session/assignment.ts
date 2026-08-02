@@ -26,9 +26,9 @@ import type {
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 import {
-  normalizeSessionOrchestrationMode,
-  type SessionOrchestrationMode
-} from '@shared/workflow/orchestrationMode'
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/workflow/orchestrationPolicy'
 
 export interface SessionAgentAssignmentDependencies {
   sessions: SessionAssignmentStorePort
@@ -366,26 +366,26 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
     return this.dependencies.sessions.getDisabledAgentTools(sessionId)
   }
 
-  async getSessionOrchestrationMode(sessionId: string): Promise<SessionOrchestrationMode> {
+  async getOrchestrationPolicy(sessionId: string): Promise<OrchestrationPolicy> {
     this.requireSession(sessionId)
-    return this.dependencies.sessions.getOrchestrationMode(sessionId)
+    return this.dependencies.sessions.getOrchestrationPolicy(sessionId)
   }
 
-  async updateSessionOrchestrationMode(
+  async updateOrchestrationPolicy(
     sessionId: string,
-    mode: SessionOrchestrationMode
-  ): Promise<SessionOrchestrationMode> {
+    policy: OrchestrationPolicy
+  ): Promise<OrchestrationPolicy> {
     const session = this.requireSession(sessionId)
-    const normalized = normalizeSessionOrchestrationMode(mode)
-    if (normalized === 'workflow') {
+    const normalized = normalizeOrchestrationPolicy(policy)
+    if (normalized === 'proactive') {
       if (session.sessionKind !== 'regular') {
-        throw new Error('Workflow mode requires a regular parent session.')
+        throw new Error('Proactive collaboration requires a regular parent session.')
       }
       if (this.dependencies.runtime.getSessionAgentKind(toAppSessionId(sessionId)) !== 'deepchat') {
-        throw new Error('Workflow mode requires a DeepChat session.')
+        throw new Error('Proactive collaboration requires a DeepChat session.')
       }
     }
-    this.dependencies.sessions.updateOrchestrationMode(sessionId, normalized)
+    this.dependencies.sessions.updateOrchestrationPolicy(sessionId, normalized)
     this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
     return normalized
   }

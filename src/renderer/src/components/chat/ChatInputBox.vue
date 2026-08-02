@@ -92,7 +92,7 @@ const props = withDefaults(
     workspacePath?: string | null
     isAcpSession?: boolean
     workflowEnabled?: boolean
-    workflowModeCommandEnabled?: boolean
+    workflowCommandEnabled?: boolean
     supportsVision?: boolean | null
     isGenerating?: boolean
     editable?: boolean
@@ -111,7 +111,7 @@ const props = withDefaults(
     workspacePath: null,
     isAcpSession: false,
     workflowEnabled: false,
-    workflowModeCommandEnabled: false,
+    workflowCommandEnabled: false,
     supportsVision: null,
     isGenerating: false,
     editable: true,
@@ -131,7 +131,7 @@ const emit = defineEmits<{
   'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
   'workflow-submit': [name: string, argsText: string]
-  'workflow-mode-toggle': []
+  'workflow-open': []
   'pending-skills-change': [skills: string[]]
   'switch-vision-model': []
   'draft-change': []
@@ -156,12 +156,12 @@ const mentions = useChatInputMentions({
   agentId: skillAgentId,
   isAcpSession: computed(() => props.isAcpSession),
   workflowEnabled: computed(() => props.workflowEnabled),
-  workflowModeCommandEnabled: computed(() => props.workflowModeCommandEnabled),
+  workflowCommandEnabled: computed(() => props.workflowCommandEnabled),
   isGenerating: computed(() => props.isGenerating),
   compactCommandDescription: computed(() => t('chat.compaction.commandDescription')),
   workflowArgsLabel: computed(() => t('chat.workflow.saved.fields.args')),
   workflowPrepareText: computed(() => t('chat.workflow.saved.actions.prepare')),
-  workflowModeCommandDescription: computed(() => t('chat.workflow.mode.description')),
+  workflowCommandDescription: computed(() => t('chat.workflow.title')),
   onCommandSubmit: (command) => {
     if (!props.editable) return
     emit('command-submit', command)
@@ -170,9 +170,9 @@ const mentions = useChatInputMentions({
     if (!props.editable) return
     emit('workflow-submit', name, argsText)
   },
-  onWorkflowModeToggle: () => {
+  onWorkflowOpen: () => {
     if (!props.editable) return
-    emit('workflow-mode-toggle')
+    emit('workflow-open')
   },
   onActivateSkill: async (skillName) => {
     if (!props.editable) return
@@ -658,8 +658,8 @@ function consumeWorkflowSlashCommand(): boolean {
   }
   const workflowCommand = parseWorkflowSlashCommand(props.modelValue)
   const canHandleWorkflowCommand =
-    workflowCommand?.kind === 'toggle-mode'
-      ? props.workflowModeCommandEnabled
+    workflowCommand?.kind === 'open'
+      ? props.workflowCommandEnabled
       : workflowCommand?.kind === 'prepare-saved'
         ? props.workflowEnabled
         : false
@@ -668,8 +668,8 @@ function consumeWorkflowSlashCommand(): boolean {
   }
 
   emit('update:modelValue', '')
-  if (workflowCommand.kind === 'toggle-mode') {
-    emit('workflow-mode-toggle')
+  if (workflowCommand.kind === 'open') {
+    emit('workflow-open')
   } else {
     emit('workflow-submit', workflowCommand.name, workflowCommand.argsText)
   }

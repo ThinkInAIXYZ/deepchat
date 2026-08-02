@@ -6,7 +6,7 @@ import {
   flattenPromptResultToText,
   MAX_FILTERED_SLASH_SUGGESTIONS,
   createManualCompactionSuggestion,
-  createWorkflowModeSuggestion,
+  createWorkflowCommandSuggestion,
   isManualCompactionCommand,
   parseWorkflowSlashCommand,
   resolveSlashSelectionAction,
@@ -55,15 +55,15 @@ describe('resolveSlashSelectionAction', () => {
     })
   })
 
-  it('routes the built-in Workflow command to the local mode control', () => {
-    const item = createWorkflowModeSuggestion('Toggle Workflow mode')
+  it('routes the built-in Workflow command to the local Workflow surface', () => {
+    const item = createWorkflowCommandSuggestion('Open Workflows')
 
     expect(item).toMatchObject({
-      id: 'command:workflow-mode',
+      id: 'command:workflow',
       category: 'command',
       label: '/workflow'
     })
-    expect(resolveSlashSelectionAction(item)).toEqual({ kind: 'toggle-workflow-mode' })
+    expect(resolveSlashSelectionAction(item)).toEqual({ kind: 'open-workflow' })
   })
 
   it('dispatches command directly when no input hint', () => {
@@ -246,8 +246,8 @@ describe('manual compaction slash visibility', () => {
 })
 
 describe('Workflow slash parsing', () => {
-  it('keeps mode activation and saved preparation as separate local actions', () => {
-    expect(parseWorkflowSlashCommand('/workflow')).toEqual({ kind: 'toggle-mode' })
+  it('keeps surface navigation and saved preparation as separate local actions', () => {
+    expect(parseWorkflowSlashCommand('/workflow')).toEqual({ kind: 'open' })
     expect(parseWorkflowSlashCommand(' /workflow review ')).toEqual({
       kind: 'prepare-saved',
       name: 'review',

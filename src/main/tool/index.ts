@@ -74,6 +74,7 @@ const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   UPDATE_PLAN_TOOL_NAME,
   CRON_JOB_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_NAME,
   ...Object.values(TAPE_TOOL_NAMES)
 ])
 
@@ -192,10 +193,6 @@ export class ToolService implements ToolServicePort {
       ).filter(
         (tool) =>
           !RESERVED_AGENT_TOOL_NAMES.has(tool.function.name) &&
-          !(
-            context.orchestrationMode === 'workflow' &&
-            tool.function.name === WORKFLOW_AGENT_TOOL_NAME
-          ) &&
           !activeSessionToolNames.has(tool.function.name)
       ),
       'mcp'
@@ -214,8 +211,7 @@ export class ToolService implements ToolServicePort {
           agentWorkspacePath,
           conversationId: context.conversationId,
           activeSkillNames: context.activeSkillNames,
-          subagentCapability: context.subagentCapability,
-          orchestrationMode: context.orchestrationMode
+          subagentCapability: context.subagentCapability
         }),
         'agent'
       )

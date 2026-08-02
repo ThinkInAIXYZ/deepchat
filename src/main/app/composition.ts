@@ -169,6 +169,8 @@ import {
   projectWorkflowRunSummaryWithCounts
 } from '@/workflow/projection'
 import { createWorkflowRoutes } from '@/workflow/routes'
+import { createOrchestrationRoutes } from '@/orchestration/routes'
+import { OrchestrationCapabilityResolver } from '@/orchestration/capability'
 import type { WorkflowInvocation, WorkflowRun } from '@shared/workflow/domain'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
@@ -931,7 +933,7 @@ export async function createMainProcessControl(dependencies: {
     },
     workflow: {
       canUse: async (parentSessionId) =>
-        (await workflowLaunchScope.resolveCapability(parentSessionId)).available,
+        (await orchestrationCapabilityResolver.resolveSession(parentSessionId)).available,
       prepareLaunch: async (parentSessionId, input) => {
         const parent =
           await agentToolDependencies.sessions.resolveConversationSessionInfo(parentSessionId)
@@ -1478,6 +1480,10 @@ export async function createMainProcessControl(dependencies: {
     providerRuntime: providerRuntime
   })
   const workflowRunAdmission = new WorkflowRunAdmission()
+  const orchestrationCapabilityResolver = new OrchestrationCapabilityResolver({
+    sessions: agentToolDependencies.sessions,
+    agents: agentSettings
+  })
   const workflowLaunchScope = new WorkflowLaunchScopeResolver({
     sessions: agentToolDependencies.sessions,
     agents: agentSettings,
@@ -2109,20 +2115,20 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const workspaceRoutes = createWorkspaceRoutes(workspaceService)
+    const orchestrationRoutes = createOrchestrationRoutes({
+      resolveCapability: (target) =>
+        'sessionId' in target
+          ? orchestrationCapabilityResolver.resolveSession(target.sessionId)
+          : orchestrationCapabilityResolver.resolveDraft(target.agentId),
+      getPolicy: (sessionId) => sessionAssignment.getOrchestrationPolicy(sessionId),
+      setPolicy: (sessionId, policy) =>
+        sessionAssignment.updateOrchestrationPolicy(sessionId, policy)
+    })
     const workflowRoutes = createWorkflowRoutes(
       createLivePort(() => workflowService),
       {
         resolveWaitingInteractions: (childSessionId) =>
           projectWorkflowWaitingInteractions(sessionData.transcript, childSessionId),
-        sessionMode: {
-          resolveCapability: (target) =>
-            'parentSessionId' in target
-              ? workflowLaunchScope.resolveCapability(target.parentSessionId)
-              : workflowLaunchScope.resolveDraftCapability(target.agentId),
-          get: (parentSessionId) => sessionAssignment.getSessionOrchestrationMode(parentSessionId),
-          update: (parentSessionId, mode) =>
-            sessionAssignment.updateSessionOrchestrationMode(parentSessionId, mode)
-        },
         savedWorkflows: {
           store: workflowSavedStore,
           resolveContext: async (parentSessionId) => {
@@ -2314,6 +2320,7 @@ export async function createMainProcessControl(dependencies: {
         ocrRoutes,
         knowledgeRoutes,
         workspaceRoutes,
+        orchestrationRoutes,
         workflowRoutes,
         projectRoutes,
         sessionRoutes,

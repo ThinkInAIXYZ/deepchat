@@ -43,7 +43,7 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
-import type { SessionOrchestrationMode } from '@shared/workflow/orchestrationMode'
+import type { OrchestrationPolicy } from '@shared/workflow/orchestrationPolicy'
 import type { WorkflowSubagentContext } from '@shared/workflow/subagent'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
@@ -399,13 +399,13 @@ export interface SessionAssignmentStorePort {
   list(filters?: SessionListFilters): SessionRecord[]
   update(
     sessionId: string,
-    fields: Partial<Pick<SessionRecord, 'projectDir' | 'orchestrationMode'>>
+    fields: Partial<Pick<SessionRecord, 'projectDir' | 'orchestrationPolicy'>>
   ): void
   updateAgentId(sessionId: string, agentId: string): void
   getDisabledAgentTools(sessionId: string): string[]
   updateDisabledAgentTools(sessionId: string, disabledAgentTools: string[]): void
-  getOrchestrationMode(sessionId: string): SessionOrchestrationMode
-  updateOrchestrationMode(sessionId: string, mode: SessionOrchestrationMode): void
+  getOrchestrationPolicy(sessionId: string): OrchestrationPolicy
+  updateOrchestrationPolicy(sessionId: string, policy: OrchestrationPolicy): void
 }
 
 export interface SessionAssignmentRuntimePort {
@@ -450,7 +450,7 @@ export interface SessionLifecycleStorePort {
     options?: {
       isDraft?: boolean
       disabledAgentTools?: string[]
-      orchestrationMode?: SessionOrchestrationMode
+      orchestrationPolicy?: OrchestrationPolicy
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
@@ -569,11 +569,11 @@ export interface SessionAgentAssignmentPort {
   setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<SessionWithState>
   getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
   getSessionDisabledAgentTools(sessionId: string): Promise<string[]>
-  getSessionOrchestrationMode(sessionId: string): Promise<SessionOrchestrationMode>
-  updateSessionOrchestrationMode(
+  getOrchestrationPolicy(sessionId: string): Promise<OrchestrationPolicy>
+  updateOrchestrationPolicy(
     sessionId: string,
-    mode: SessionOrchestrationMode
-  ): Promise<SessionOrchestrationMode>
+    policy: OrchestrationPolicy
+  ): Promise<OrchestrationPolicy>
   updateSessionDisabledAgentTools(
     sessionId: string,
     disabledAgentTools: string[]

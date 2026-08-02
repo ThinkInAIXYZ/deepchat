@@ -3,6 +3,7 @@ import { defineComponent, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import { WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 const { selectSessionMock } = vi.hoisted(() => ({
   selectSessionMock: vi.fn()
@@ -102,7 +103,7 @@ const createWorkflowApprovalBlock = (
     },
     tool_call: {
       id: 'workflow-approval',
-      name: 'workflow',
+      name: WORKFLOW_AGENT_TOOL_NAME,
       server_name: serverName,
       params: JSON.stringify({ operation: 'prepare_launch', scriptSource: 'return null' }),
       response: JSON.stringify({

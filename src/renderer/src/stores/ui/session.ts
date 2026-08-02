@@ -17,9 +17,9 @@ import type {
   SendMessageInput
 } from '@shared/types/agent-interface'
 import {
-  normalizeSessionOrchestrationMode,
-  type SessionOrchestrationMode
-} from '@shared/workflow/orchestrationMode'
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/workflow/orchestrationPolicy'
 import { downloadBlob } from '@/lib/download'
 import {
   readGuidedOnboardingResumeIntent,
@@ -46,7 +46,7 @@ export interface UISession {
   sessionKind: SessionKind
   parentSessionId: string | null
   subagentMeta: DeepChatSubagentMeta | null
-  orchestrationMode: SessionOrchestrationMode
+  orchestrationPolicy: OrchestrationPolicy
   metadata?: SessionMetadata | null
   createdAt: number
   updatedAt: number
@@ -118,7 +118,7 @@ function mapToUISession(session: SessionListItem | SessionWithState): UISession 
     sessionKind: session.sessionKind,
     parentSessionId: session.parentSessionId ?? null,
     subagentMeta: session.subagentMeta ?? null,
-    orchestrationMode: normalizeSessionOrchestrationMode(session.orchestrationMode),
+    orchestrationPolicy: normalizeOrchestrationPolicy(session.orchestrationPolicy),
     ...(metadata ? { metadata } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
@@ -635,24 +635,24 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  const applyConfirmedSessionOrchestrationMode = (
+  const applyConfirmedOrchestrationPolicy = (
     sessionId: string,
-    mode: SessionOrchestrationMode
+    policy: OrchestrationPolicy
   ): void => {
-    const orchestrationMode = normalizeSessionOrchestrationMode(mode)
+    const orchestrationPolicy = normalizeOrchestrationPolicy(policy)
     sessions.value = sessions.value.map((session) =>
-      session.id === sessionId ? { ...session, orchestrationMode } : session
+      session.id === sessionId ? { ...session, orchestrationPolicy } : session
     )
     if (bootstrapActiveSession.value?.id === sessionId) {
       bootstrapActiveSession.value = {
         ...bootstrapActiveSession.value,
-        orchestrationMode
+        orchestrationPolicy
       }
     }
     if (activeSessionSummary.value?.id === sessionId) {
       activeSessionSummary.value = {
         ...activeSessionSummary.value,
-        orchestrationMode
+        orchestrationPolicy
       }
     }
   }
@@ -1374,7 +1374,7 @@ export const useSessionStore = defineStore('session', () => {
     createSession,
     sendMessage,
     setSessionModel,
-    applyConfirmedSessionOrchestrationMode,
+    applyConfirmedOrchestrationPolicy,
     selectSession,
     closeSession,
     startNewConversation,

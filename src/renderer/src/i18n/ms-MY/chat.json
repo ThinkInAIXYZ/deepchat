@@ -556,19 +556,21 @@
       "amendRestoreFailed": "Suntingan gagal dan memori asal tidak dapat dipulihkan."
     }
   },
-  "workflow": {
-    "mode": {
-      "title": "Workflow",
-      "description": "Orkestrasi berbilang Agent yang berterusan. Proses mungkin mengambil masa lebih lama dan menggunakan lebih banyak token.",
+  "orchestration": {
+    "proactive": {
+      "title": "Kerjasama proaktif",
+      "description": "Membolehkan Agent induk mewakilkan tugas apabila kerja bebas atau selari jelas membantu. Mungkin menggunakan lebih banyak masa, token dan sumber.",
       "reasons": {
         "session_unavailable": "Sesi ini tidak lagi tersedia.",
         "agent_unavailable": "Agent yang dipilih tidak tersedia.",
-        "deepchat_agent_required": "Mod Workflow memerlukan DeepChat Agent.",
-        "regular_parent_required": "Mod Workflow tidak tersedia dalam sesi anak.",
-        "agent_policy_unavailable": "Dasar Workflow tidak dapat dimuatkan.",
-        "subagents_disabled": "Dayakan Subagents untuk Agent ini bagi menggunakan mod Workflow."
+        "deepchat_agent_required": "Kerjasama proaktif memerlukan DeepChat Agent.",
+        "regular_parent_required": "Kerjasama proaktif tidak tersedia dalam sesi anak.",
+        "agent_policy_unavailable": "Dasar kerjasama tidak dapat dimuatkan.",
+        "subagents_disabled": "Dayakan Subagents untuk Agent ini bagi menggunakan kerjasama proaktif."
       }
-    },
+    }
+  },
+  "workflow": {
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

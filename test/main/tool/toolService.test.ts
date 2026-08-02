@@ -9,6 +9,7 @@ import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 import { createAgentToolDependencies } from './agentTools/agentToolDependencies'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
+  LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   WORKFLOW_AGENT_TOOL_NAME,
   assertAgentToolExposure,
@@ -637,7 +638,7 @@ describe('ToolService', () => {
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.anchors)).toBe('diagnostic')
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.handoff)).toBe('runtime-only')
     expect(getAgentToolExposure(SUBAGENT_ORCHESTRATOR_TOOL_NAME)).toBe('system-model')
-    expect(getAgentToolExposure(WORKFLOW_AGENT_TOOL_NAME)).toBe('mode-controlled')
+    expect(getAgentToolExposure(WORKFLOW_AGENT_TOOL_NAME)).toBe('system-model')
     expect(getAgentToolExposure('read')).toBe('user-configurable')
     expect(getAgentToolExposure('__proto__')).toBe('user-configurable')
     expect(() => assertAgentToolExposure(TAPE_TOOL_NAMES.handoff, 'user-configurable')).toThrow(
@@ -645,12 +646,12 @@ describe('ToolService', () => {
     )
   })
 
-  it('keeps a same-name MCP workflow tool in adaptive mode', async () => {
+  it('keeps a generic MCP workflow tool beside the DeepChat Workflow tool', async () => {
     const toolService = new ToolService({
       mcpService: {
         getAllToolDefinitions: vi
           .fn()
-          .mockResolvedValue([buildToolDefinition(WORKFLOW_AGENT_TOOL_NAME, 'workflow-mcp')])
+          .mockResolvedValue([buildToolDefinition('workflow', 'workflow-mcp')])
       } as any,
       skillSettings: { isEnabled: () => false } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -670,9 +671,7 @@ describe('ToolService', () => {
       disabledAgentTools: [WORKFLOW_AGENT_TOOL_NAME]
     })
 
-    expect(
-      definitions.filter((definition) => definition.function.name === WORKFLOW_AGENT_TOOL_NAME)
-    ).toEqual([
+    expect(definitions.filter((definition) => definition.function.name === 'workflow')).toEqual([
       expect.objectContaining({
         source: 'mcp',
         server: expect.objectContaining({ name: 'workflow-mcp' })
@@ -680,7 +679,7 @@ describe('ToolService', () => {
     ])
   })
 
-  it('routes workflow and Subagent orchestration exclusively by session mode', async () => {
+  it('keeps Workflow and Subagent orchestration outside disabled catalog controls', async () => {
     const canUse = vi.fn().mockResolvedValue(true)
     const toolService = new ToolService({
       mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
@@ -717,45 +716,31 @@ describe('ToolService', () => {
         }
       ]
     })
-    const adaptive = await toolService.getAllToolDefinitions({
+    const runtimeDefinitions = await toolService.getAllToolDefinitions({
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: null,
-      conversationId: 'conv-adaptive',
+      conversationId: 'conv-1',
       disabledAgentTools: [WORKFLOW_AGENT_TOOL_NAME],
-      orchestrationMode: 'adaptive',
       subagentCapability
     })
-    expect(adaptive.map((definition) => definition.function.name)).not.toContain(
+    expect(runtimeDefinitions.map((definition) => definition.function.name)).toContain(
       WORKFLOW_AGENT_TOOL_NAME
     )
-    expect(adaptive.map((definition) => definition.function.name)).toContain(
+    expect(runtimeDefinitions.map((definition) => definition.function.name)).toContain(
       SUBAGENT_ORCHESTRATOR_TOOL_NAME
     )
-
-    const workflow = await toolService.getAllToolDefinitions({
-      chatMode: 'agent',
-      supportsVision: false,
-      agentWorkspacePath: null,
-      conversationId: 'conv-workflow',
-      disabledAgentTools: [WORKFLOW_AGENT_TOOL_NAME],
-      orchestrationMode: 'workflow',
-      subagentCapability
-    })
-    expect(workflow.map((definition) => definition.function.name)).toContain(
-      WORKFLOW_AGENT_TOOL_NAME
-    )
-    expect(workflow.map((definition) => definition.function.name)).not.toContain(
-      SUBAGENT_ORCHESTRATOR_TOOL_NAME
-    )
-    expect(canUse).toHaveBeenCalledWith('conv-workflow')
+    expect(canUse).toHaveBeenCalledWith('conv-1')
   })
 
-  it('reserves the built-in workflow name only while workflow mode is active', async () => {
+  it('reserves the DeepChat Workflow name without shadowing a generic MCP workflow', async () => {
     const mcpService = {
       getAllToolDefinitions: vi
         .fn()
-        .mockResolvedValue([buildToolDefinition(WORKFLOW_AGENT_TOOL_NAME, 'untrusted-mcp')])
+        .mockResolvedValue([
+          buildToolDefinition(WORKFLOW_AGENT_TOOL_NAME, 'untrusted-mcp'),
+          buildToolDefinition(LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME, 'generic-mcp')
+        ])
     }
     const toolService = new ToolService({
       mcpService: mcpService as any,
@@ -773,8 +758,7 @@ describe('ToolService', () => {
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: null,
-      conversationId: 'conv-workflow',
-      orchestrationMode: 'workflow'
+      conversationId: 'conv-1'
     })
 
     expect(
@@ -783,6 +767,16 @@ describe('ToolService', () => {
       expect.objectContaining({
         source: 'agent',
         server: expect.objectContaining({ name: 'agent-workflows' })
+      })
+    ])
+    expect(
+      definitions.filter(
+        (definition) => definition.function.name === LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME
+      )
+    ).toEqual([
+      expect.objectContaining({
+        source: 'mcp',
+        server: expect.objectContaining({ name: 'generic-mcp' })
       })
     ])
   })

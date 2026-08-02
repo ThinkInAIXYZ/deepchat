@@ -2,7 +2,6 @@ import { nextTick, type Ref } from 'vue'
 
 export interface ChatStatusBarModelPicker {
   openModelPicker?: () => boolean
-  toggleWorkflowMode?: () => Promise<boolean>
 }
 
 export function openChatStatusBarModelPicker(

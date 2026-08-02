@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import { WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
 import {
   type ActivityDurationLabels,
   buildAssistantRenderItems,
@@ -23,7 +24,7 @@ const createWorkflowApprovalBlock = (): DisplayAssistantMessageBlock =>
     },
     tool_call: {
       id: 'workflow-approval',
-      name: 'workflow',
+      name: WORKFLOW_AGENT_TOOL_NAME,
       server_name: 'agent-workflows',
       params: JSON.stringify({
         operation: 'prepare_launch',

@@ -17,7 +17,11 @@ import type {
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import { DEFAULT_DISABLED_AGENT_TOOLS, WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
+import {
+  DEFAULT_DISABLED_AGENT_TOOLS,
+  LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_NAME
+} from '@shared/agentTools'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { SettingsStore } from '@/config/settingsStore'
@@ -789,7 +793,11 @@ export class AgentSettings implements AgentSettingsPort {
     for (const agent of this.repository.listAgents({ agentType: 'deepchat' })) {
       const config = this.repository.getDeepChatAgentConfig(agent.id) ?? {}
       const disabledAgentTools = Array.isArray(config.disabledAgentTools)
-        ? config.disabledAgentTools.filter((toolName) => toolName !== WORKFLOW_AGENT_TOOL_NAME)
+        ? config.disabledAgentTools.filter(
+            (toolName) =>
+              toolName !== WORKFLOW_AGENT_TOOL_NAME &&
+              toolName !== LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME
+          )
         : []
       if (
         Array.isArray(config.disabledAgentTools) &&

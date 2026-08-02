@@ -316,51 +316,51 @@ describe('ChatInputBox attachments', () => {
     expect(wrapper.emitted('command-submit')).toBeUndefined()
   })
 
-  it('routes the built-in Workflow command to the local mode control', async () => {
+  it('routes the built-in Workflow command to the local Workflow surface', async () => {
     const wrapper = await mountComponent()
     const mentionOptions = useChatInputMentionsMock.mock.calls.at(-1)?.[0] as
       | {
-          workflowModeCommandEnabled: { value: boolean }
-          onWorkflowModeToggle?: () => void
+          workflowCommandEnabled: { value: boolean }
+          onWorkflowOpen?: () => void
         }
       | undefined
 
-    expect(mentionOptions?.workflowModeCommandEnabled.value).toBe(false)
-    await wrapper.setProps({ workflowModeCommandEnabled: true })
-    expect(mentionOptions?.workflowModeCommandEnabled.value).toBe(true)
+    expect(mentionOptions?.workflowCommandEnabled.value).toBe(false)
+    await wrapper.setProps({ workflowCommandEnabled: true })
+    expect(mentionOptions?.workflowCommandEnabled.value).toBe(true)
 
-    mentionOptions?.onWorkflowModeToggle?.()
+    mentionOptions?.onWorkflowOpen?.()
 
-    expect(wrapper.emitted('workflow-mode-toggle')).toEqual([[]])
+    expect(wrapper.emitted('workflow-open')).toEqual([[]])
     expect(wrapper.emitted('command-submit')).toBeUndefined()
   })
 
   it('handles typed Workflow commands locally without model submission', async () => {
-    const modeWrapper = await mountComponent()
-    await modeWrapper.setProps({
+    const openWrapper = await mountComponent()
+    await openWrapper.setProps({
       modelValue: '/workflow',
-      workflowModeCommandEnabled: true
+      workflowCommandEnabled: true
     })
-    await modeWrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
+    await openWrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
       key: 'Enter'
     })
 
-    expect(modeWrapper.emitted('workflow-mode-toggle')).toEqual([[]])
-    expect(modeWrapper.emitted('update:modelValue')).toContainEqual([''])
-    expect(modeWrapper.emitted('submit')).toBeUndefined()
+    expect(openWrapper.emitted('workflow-open')).toEqual([[]])
+    expect(openWrapper.emitted('update:modelValue')).toContainEqual([''])
+    expect(openWrapper.emitted('submit')).toBeUndefined()
 
     const savedWrapper = await mountComponent()
     await savedWrapper.setProps({
       modelValue: '/workflow review {"target":"src"}',
       workflowEnabled: true,
-      workflowModeCommandEnabled: true
+      workflowCommandEnabled: true
     })
     await savedWrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
       key: 'Enter'
     })
 
     expect(savedWrapper.emitted('workflow-submit')).toEqual([['review', '{"target":"src"}']])
-    expect(savedWrapper.emitted('workflow-mode-toggle')).toBeUndefined()
+    expect(savedWrapper.emitted('workflow-open')).toBeUndefined()
     expect(savedWrapper.emitted('submit')).toBeUndefined()
   })
 
@@ -368,11 +368,11 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     await wrapper.setProps({
       modelValue: '/workflow',
-      workflowModeCommandEnabled: true
+      workflowCommandEnabled: true
     })
 
     expect((wrapper.vm as any).consumeWorkflowSlashCommand()).toBe(true)
-    expect(wrapper.emitted('workflow-mode-toggle')).toEqual([[]])
+    expect(wrapper.emitted('workflow-open')).toEqual([[]])
     expect(wrapper.emitted('update:modelValue')).toContainEqual([''])
     expect(wrapper.emitted('submit')).toBeUndefined()
   })
@@ -381,12 +381,12 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     await wrapper.setProps({
       modelValue: '/workflow',
-      workflowModeCommandEnabled: true,
+      workflowCommandEnabled: true,
       editable: false
     })
 
     expect((wrapper.vm as any).consumeWorkflowSlashCommand()).toBe(false)
-    expect(wrapper.emitted('workflow-mode-toggle')).toBeUndefined()
+    expect(wrapper.emitted('workflow-open')).toBeUndefined()
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
 

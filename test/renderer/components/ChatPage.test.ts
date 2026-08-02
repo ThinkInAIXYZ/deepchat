@@ -112,7 +112,8 @@ const setup = async (options: SetupOptions = {}) => {
     ]
   })
   const sidepanelStore = {
-    requestSavedWorkflow: vi.fn()
+    requestSavedWorkflow: vi.fn(),
+    openWorkflow: vi.fn()
   }
 
   const messageStore = reactive({
@@ -292,7 +293,6 @@ const setup = async (options: SetupOptions = {}) => {
   const chatInputClearPendingSkills = vi.fn()
   const chatInputConsumeWorkflowSlashCommand = vi.fn(() => false)
   const chatStatusBarOpenModelPicker = vi.fn(() => true)
-  const chatStatusBarToggleWorkflowMode = vi.fn().mockResolvedValue(true)
   const attachmentPreparationStore = reactive({
     consumeInitialDraftRecovery: vi.fn(() => null),
     stageInitialDraftRecovery: vi.fn(),
@@ -473,7 +473,7 @@ const setup = async (options: SetupOptions = {}) => {
           type: Boolean,
           default: false
         },
-        workflowModeCommandEnabled: {
+        workflowCommandEnabled: {
           type: Boolean,
           default: false
         },
@@ -503,7 +503,7 @@ const setup = async (options: SetupOptions = {}) => {
         'update:files',
         'command-submit',
         'workflow-submit',
-        'workflow-mode-toggle',
+        'workflow-open',
         'queue-submit',
         'submit',
         'switch-vision-model'
@@ -592,8 +592,7 @@ const setup = async (options: SetupOptions = {}) => {
       name: 'ChatStatusBar',
       setup(_, { expose }) {
         expose({
-          openModelPicker: chatStatusBarOpenModelPicker,
-          toggleWorkflowMode: chatStatusBarToggleWorkflowMode
+          openModelPicker: chatStatusBarOpenModelPicker
         })
         return () => h('div', { class: 'chat-status-bar-stub' })
       }
@@ -717,7 +716,6 @@ const setup = async (options: SetupOptions = {}) => {
     chatInputClearPendingSkills,
     chatInputConsumeWorkflowSlashCommand,
     chatStatusBarOpenModelPicker,
-    chatStatusBarToggleWorkflowMode,
     recentMessageMeasurementCache,
     disposeChatSearch,
     emitPlanUpdated: (payload: any) => {
@@ -824,7 +822,7 @@ describe('ChatPage', () => {
     const input = wrapper.findComponent({ name: 'ChatInputBox' })
 
     expect(input.props('workflowEnabled')).toBe(true)
-    expect(input.props('workflowModeCommandEnabled')).toBe(true)
+    expect(input.props('workflowCommandEnabled')).toBe(true)
     input.vm.$emit('workflow-submit', 'review', '{"target":"src"}')
     await flushPromises()
 
@@ -835,14 +833,21 @@ describe('ChatPage', () => {
     )
   })
 
-  it('routes the built-in Workflow command through the shared status control', async () => {
-    const { wrapper, chatStatusBarToggleWorkflowMode } = await setup()
+  it('opens the Workflow surface for the built-in Workflow command', async () => {
+    const { wrapper, sidepanelStore } = await setup({
+      activeSessionPatch: {
+        agentId: 'deepchat',
+        providerId: 'acp',
+        sessionKind: 'regular'
+      }
+    })
     const input = wrapper.findComponent({ name: 'ChatInputBox' })
 
-    input.vm.$emit('workflow-mode-toggle')
+    expect(input.props('workflowCommandEnabled')).toBe(true)
+    input.vm.$emit('workflow-open')
     await flushPromises()
 
-    expect(chatStatusBarToggleWorkflowMode).toHaveBeenCalledOnce()
+    expect(sidepanelStore.openWorkflow).toHaveBeenCalledWith('s1')
   })
 
   it('consumes a local Workflow command before toolbar submission', async () => {
@@ -867,7 +872,7 @@ describe('ChatPage', () => {
     const input = wrapper.findComponent({ name: 'ChatInputBox' })
 
     expect(input.props('workflowEnabled')).toBe(false)
-    expect(input.props('workflowModeCommandEnabled')).toBe(false)
+    expect(input.props('workflowCommandEnabled')).toBe(false)
     input.vm.$emit('workflow-submit', 'review', '{}')
     await flushPromises()
 

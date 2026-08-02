@@ -17,7 +17,6 @@ const chatInputClearPendingSkillsMock = vi.fn(() => {
 const chatInputPendingSkillsSnapshotRef: { value: string[] } = { value: [] }
 const chatInputConsumeWorkflowSlashCommandMock = vi.fn(() => false)
 const chatStatusBarOpenModelPickerMock = vi.fn(() => true)
-const chatStatusBarToggleWorkflowModeMock = vi.fn().mockResolvedValue(true)
 
 const createChatInputBoxStub = () =>
   defineComponent({
@@ -28,7 +27,6 @@ const createChatInputBoxStub = () =>
       sessionId: { type: String, default: null },
       workspacePath: { type: String, default: null },
       isAcpSession: { type: Boolean, default: false },
-      workflowModeCommandEnabled: { type: Boolean, default: false },
       supportsVision: { type: Boolean, default: null },
       editable: { type: Boolean, default: true },
       submitDisabled: { type: Boolean, default: false }
@@ -38,7 +36,6 @@ const createChatInputBoxStub = () =>
       'update:files',
       'submit',
       'command-submit',
-      'workflow-mode-toggle',
       'pending-skills-change',
       'switch-vision-model'
     ],
@@ -99,7 +96,6 @@ const setup = async (options?: {
   chatInputConsumeWorkflowSlashCommandMock.mockReset()
   chatInputConsumeWorkflowSlashCommandMock.mockReturnValue(false)
   chatStatusBarOpenModelPickerMock.mockClear()
-  chatStatusBarToggleWorkflowModeMock.mockClear()
   const initialSelectedProject = Object.prototype.hasOwnProperty.call(
     options ?? {},
     'selectedProject'
@@ -326,8 +322,7 @@ const setup = async (options?: {
       name: 'ChatStatusBar',
       setup(_, { expose }) {
         expose({
-          openModelPicker: chatStatusBarOpenModelPickerMock,
-          toggleWorkflowMode: chatStatusBarToggleWorkflowModeMock
+          openModelPicker: chatStatusBarOpenModelPickerMock
         })
         return () => h('div', { 'data-testid': 'chat-status-bar' })
       }
@@ -368,7 +363,6 @@ const setup = async (options?: {
     sessionClient,
     chatClient,
     chatStatusBarOpenModelPickerMock,
-    chatStatusBarToggleWorkflowModeMock,
     chatInputConsumeWorkflowSlashCommandMock,
     isDirectoryMock,
     flushStartupDeferredTasks: async () => {
@@ -517,20 +511,6 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-supports-vision')).toBe(
       'true'
     )
-  })
-
-  it('routes the built-in Workflow command through the shared status control', async () => {
-    const { wrapper, chatStatusBarToggleWorkflowModeMock } = await setup({
-      selectedAgentId: 'deepchat',
-      selectedAgentType: 'deepchat'
-    })
-    const input = wrapper.findComponent({ name: 'ChatInputBox' })
-
-    expect(input.props('workflowModeCommandEnabled')).toBe(true)
-    input.vm.$emit('workflow-mode-toggle')
-    await flushPromises()
-
-    expect(chatStatusBarToggleWorkflowModeMock).toHaveBeenCalledOnce()
   })
 
   it('consumes a local Workflow command before creating a session', async () => {

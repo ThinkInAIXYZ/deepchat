@@ -62,7 +62,6 @@ import type { SkillSettingsPort } from '@/skill/settings'
 import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import { WorkflowAgentTool } from './workflowTool'
-import type { SessionOrchestrationMode } from '@shared/workflow/orchestrationMode'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -410,7 +409,6 @@ export class AgentToolManager {
     conversationId?: string
     activeSkillNames?: string[]
     subagentCapability?: DeepChatSubagentCapability
-    orchestrationMode?: SessionOrchestrationMode
     catalogPurpose?: 'runtime' | 'configurable'
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
@@ -488,13 +486,8 @@ export class AgentToolManager {
       appendDefinitions([this.cronJobToolHandler.getToolDefinition()], 'user-configurable')
     }
 
-    // 2.5. Subagent orchestration tool (deepchat regular sessions only)
-    if (
-      isAgentMode &&
-      context.orchestrationMode !== 'workflow' &&
-      acceptsExposure('system-model') &&
-      context.conversationId
-    ) {
+    // 2.5. Live Subagent orchestration (regular DeepChat sessions only)
+    if (isAgentMode && acceptsExposure('system-model') && context.conversationId) {
       try {
         const subagentToolDefinition = this.subagentOrchestratorTool.getToolDefinition(
           context.subagentCapability
@@ -507,17 +500,16 @@ export class AgentToolManager {
       }
     }
 
-    // 2.6. Durable workflows (regular DeepChat sessions with workflow policy enabled)
+    // 2.6. Durable workflows (regular DeepChat sessions only)
     if (
       isAgentMode &&
-      !isConfigurableCatalog &&
-      context.orchestrationMode === 'workflow' &&
+      acceptsExposure('system-model') &&
       this.workflowTool &&
       context.conversationId
     ) {
       try {
         if (await this.workflowTool.canUse(context.conversationId)) {
-          appendDefinitions([this.workflowTool.getToolDefinition()], 'mode-controlled')
+          appendDefinitions([this.workflowTool.getToolDefinition()], 'system-model')
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve workflow tool availability', { error })

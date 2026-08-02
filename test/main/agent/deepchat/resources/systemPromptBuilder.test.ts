@@ -4,6 +4,10 @@ import fs from 'fs'
 
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
+import {
+  SUBAGENT_ORCHESTRATOR_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_NAME
+} from '@shared/agentTools'
 
 describe('DeepChat system prompt builder', () => {
   it('assembles byte-identical prompts without a composed-prompt memo', async () => {
@@ -55,16 +59,35 @@ describe('DeepChat system prompt builder', () => {
       toolDefinitions: [],
       resourceInstance: instance
     })
-    const workflow = await buildSystemPromptWithSkills(dependencies, {
+    const explicit = await buildSystemPromptWithSkills(dependencies, {
       sessionId: 'session-1',
       basePrompt: '  BASE PROMPT  ',
       toolDefinitions: [
         {
           source: 'agent',
           server: { name: 'agent-workflows' },
-          function: { name: 'workflow' }
+          function: { name: WORKFLOW_AGENT_TOOL_NAME }
+        },
+        {
+          source: 'agent',
+          server: { name: 'subagents' },
+          function: { name: SUBAGENT_ORCHESTRATOR_TOOL_NAME }
         }
       ] as any,
+      orchestrationPolicy: 'explicit',
+      resourceInstance: instance
+    })
+    const proactive = await buildSystemPromptWithSkills(dependencies, {
+      sessionId: 'session-1',
+      basePrompt: '  BASE PROMPT  ',
+      toolDefinitions: [
+        {
+          source: 'agent',
+          server: { name: 'agent-workflows' },
+          function: { name: WORKFLOW_AGENT_TOOL_NAME }
+        }
+      ] as any,
+      orchestrationPolicy: 'proactive',
       resourceInstance: instance
     })
     const sameNameMcp = await buildSystemPromptWithSkills(dependencies, {
@@ -83,12 +106,18 @@ describe('DeepChat system prompt builder', () => {
     expect(first).toContain('BASE PROMPT')
     expect(first).toContain('You are powered by the model named GPT-4o.')
     expect(first).toContain('## Verification Policy')
-    expect(first).not.toContain('## Workflow Mode')
+    expect(first).not.toContain('## Multi-Agent Orchestration Policy')
     expect(second).toBe(first)
-    expect(workflow).toContain('## Workflow Mode')
-    expect(workflow).toContain('Do not ask the user to author workflow JavaScript')
-    expect(workflow).toContain('native approval card owns explicit user approval')
-    expect(sameNameMcp).not.toContain('## Workflow Mode')
+    expect(explicit).toContain('## Multi-Agent Orchestration Policy')
+    expect(explicit).toContain('explicit multi-Agent collaboration')
+    expect(explicit).toContain('user, an active Skill, or project instructions explicitly request')
+    expect(explicit).toContain(`Use \`${SUBAGENT_ORCHESTRATOR_TOOL_NAME}\``)
+    expect(explicit).toContain(`Use \`${WORKFLOW_AGENT_TOOL_NAME}\``)
+    expect(proactive).toContain('enabled proactive multi-Agent collaboration')
+    expect(proactive).toContain('Never delegate merely to demonstrate')
+    expect(proactive).toContain('never ask the user to author it')
+    expect(proactive).toContain('native Workflow approval card owns exact user approval')
+    expect(sameNameMcp).not.toContain('## Multi-Agent Orchestration Policy')
     expect(assertCurrent).toHaveBeenCalled()
   })
 

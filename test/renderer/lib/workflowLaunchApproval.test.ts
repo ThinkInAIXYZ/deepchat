@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { parseWorkflowLaunchApprovalBlock } from '@/lib/workflowLaunchApproval'
+import { LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME, WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 const source = "return await agent('review', { key: 'review' })"
 const sourceHash = createHash('sha256').update(source, 'utf8').digest('hex')
@@ -41,7 +42,7 @@ function createBlock(
     },
     tool_call: {
       id: 'tool-1',
-      name: 'workflow',
+      name: WORKFLOW_AGENT_TOOL_NAME,
       server_name: 'agent-workflows',
       params: JSON.stringify({ operation: 'prepare_launch', scriptSource: source }),
       response: JSON.stringify({
@@ -59,6 +60,9 @@ describe('workflowLaunchApproval', () => {
       approval,
       scriptSource: source
     })
+    expect(
+      parseWorkflowLaunchApprovalBlock(createBlock({ name: LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME }))
+    ).toEqual({ approval, scriptSource: source })
 
     expect(
       parseWorkflowLaunchApprovalBlock(createBlock({ server_name: 'untrusted-mcp' }))

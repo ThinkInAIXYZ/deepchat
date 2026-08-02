@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { SessionOrchestrationModeSchema } from '../../workflow/orchestrationMode'
+import { OrchestrationPolicySchema } from '../../workflow/orchestrationPolicy'
 import type { SearchResult } from '@shared/types/core/search'
 import type {
   Agent,
@@ -99,7 +99,7 @@ export const CreateSessionInputSchema = z.object({
   permissionMode: PermissionModeSchema.optional(),
   activeSkills: z.array(z.string()).optional(),
   disabledAgentTools: z.array(z.string()).optional(),
-  orchestrationMode: SessionOrchestrationModeSchema.optional(),
+  orchestrationPolicy: OrchestrationPolicySchema.optional(),
   generationSettings: SessionGenerationSettingsPatchSchema.optional()
 })
 

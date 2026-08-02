@@ -7,9 +7,9 @@ import type { ImageGenerationOptions } from '../../../src/shared/imageGeneration
 import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 import type { ModelRequestPolicy } from '../../../src/shared/modelRequestPolicy'
 import type {
-  SessionOrchestrationMode,
-  WorkflowCapability
-} from '../../../src/shared/workflow/orchestrationMode'
+  OrchestrationPolicy,
+  OrchestrationCapability
+} from '../../../src/shared/workflow/orchestrationPolicy'
 
 const TEST_TIMEOUT_MS = 20000
 
@@ -74,11 +74,11 @@ type SetupOptions = {
   modelStoreInitialized?: boolean
   modelStoreInitializationError?: Error | null
   initializeModels?: () => Promise<void>
-  activeOrchestrationMode?: SessionOrchestrationMode
-  draftOrchestrationMode?: SessionOrchestrationMode
-  workflowCapability?: WorkflowCapability
-  workflowCapabilityError?: Error
-  setWorkflowModeError?: Error
+  activeOrchestrationPolicy?: OrchestrationPolicy
+  draftOrchestrationPolicy?: OrchestrationPolicy
+  orchestrationCapability?: OrchestrationCapability
+  orchestrationCapabilityError?: Error
+  setOrchestrationPolicyError?: Error
 }
 
 const createDeferred = <T>() => {
@@ -405,25 +405,23 @@ const setup = async (options: SetupOptions = {}) => {
           projectDir: options.activeProjectDir ?? options.projectPath ?? null,
           status: 'idle',
           sessionKind: 'regular',
-          orchestrationMode: options.activeOrchestrationMode ?? 'adaptive'
+          orchestrationPolicy: options.activeOrchestrationPolicy ?? 'explicit'
         }
       : null,
     setSessionModel: options.setSessionModelError
       ? vi.fn().mockRejectedValue(options.setSessionModelError)
       : vi.fn().mockResolvedValue(undefined),
-    applyConfirmedSessionOrchestrationMode: vi.fn(
-      (sessionId: string, mode: SessionOrchestrationMode) => {
-        if (sessionStore.activeSession?.id === sessionId) {
-          sessionStore.activeSession.orchestrationMode = mode
-        }
+    applyConfirmedOrchestrationPolicy: vi.fn((sessionId: string, policy: OrchestrationPolicy) => {
+      if (sessionStore.activeSession?.id === sessionId) {
+        sessionStore.activeSession.orchestrationPolicy = policy
       }
-    )
+    })
   })
 
   const draftStore = reactive({
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
-    orchestrationMode: options.draftOrchestrationMode ?? ('adaptive' as SessionOrchestrationMode),
+    orchestrationPolicy: options.draftOrchestrationPolicy ?? ('explicit' as OrchestrationPolicy),
     permissionMode: 'full_access' as PermissionMode,
     systemPrompt: undefined as string | undefined,
     temperature: undefined as number | undefined,
@@ -655,17 +653,17 @@ const setup = async (options: SetupOptions = {}) => {
       steps: []
     })
   }
-  const workflowClient = {
-    getCapability: options.workflowCapabilityError
-      ? vi.fn().mockRejectedValue(options.workflowCapabilityError)
-      : vi.fn().mockResolvedValue(options.workflowCapability ?? { available: true }),
-    setMode: options.setWorkflowModeError
-      ? vi.fn().mockRejectedValue(options.setWorkflowModeError)
-      : vi.fn().mockImplementation((_sessionId: string, mode: SessionOrchestrationMode) =>
+  const orchestrationClient = {
+    getCapability: options.orchestrationCapabilityError
+      ? vi.fn().mockRejectedValue(options.orchestrationCapabilityError)
+      : vi.fn().mockResolvedValue(options.orchestrationCapability ?? { available: true }),
+    setPolicy: options.setOrchestrationPolicyError
+      ? vi.fn().mockRejectedValue(options.setOrchestrationPolicyError)
+      : vi.fn().mockImplementation((_sessionId: string, policy: OrchestrationPolicy) =>
           Promise.resolve({
             applied: true,
-            mode,
-            capability: options.workflowCapability ?? { available: true }
+            policy,
+            capability: options.orchestrationCapability ?? { available: true }
           })
         )
   }
@@ -706,8 +704,8 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => agentSessionPresenter)
   }))
-  vi.doMock('@api/WorkflowClient', () => ({
-    createWorkflowClient: vi.fn(() => workflowClient)
+  vi.doMock('@api/OrchestrationClient', () => ({
+    createOrchestrationClient: vi.fn(() => orchestrationClient)
   }))
   vi.doMock('@/lib/startupDeferred', () => ({
     scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
@@ -801,7 +799,7 @@ const setup = async (options: SetupOptions = {}) => {
     draftStore,
     configService,
     projectStore,
-    workflowClient,
+    orchestrationClient,
     emitAcpConfigOptionsReady,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
@@ -842,23 +840,23 @@ const commitNumericInput = async (
 }
 
 describe('ChatStatusBar model and session panels', () => {
-  it('keeps reasoning effort visible while toggling Workflow for a draft', async () => {
-    const { wrapper, draftStore, workflowClient } = await setup({
+  it('keeps reasoning effort visible while toggling proactive collaboration for a draft', async () => {
+    const { wrapper, draftStore, orchestrationClient } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false,
-      workflowCapability: { available: true }
+      orchestrationCapability: { available: true }
     })
 
-    const trigger = wrapper.get('[data-testid="execution-mode-switcher"]')
+    const trigger = wrapper.get('[data-testid="orchestration-control"]')
     expect(trigger.text()).toContain('settings.model.modelConfig.reasoningEffort.options.medium')
     expect(trigger.attributes('aria-pressed')).toBe('false')
-    expect(workflowClient.getCapability).toHaveBeenCalledWith({ agentId: 'deepchat' })
+    expect(orchestrationClient.getCapability).toHaveBeenCalledWith({ agentId: 'deepchat' })
 
-    await wrapper.get('[data-testid="workflow-mode-toggle"]').trigger('click')
+    await wrapper.get('[data-testid="proactive-collaboration-toggle"]').trigger('click')
     await flushPromises()
 
-    expect(draftStore.orchestrationMode).toBe('workflow')
-    expect(workflowClient.getCapability).toHaveBeenCalledTimes(2)
+    expect(draftStore.orchestrationPolicy).toBe('proactive')
+    expect(orchestrationClient.getCapability).toHaveBeenCalledTimes(2)
     expect(trigger.attributes('aria-pressed')).toBe('true')
     expect(
       trigger
@@ -867,39 +865,69 @@ describe('ChatStatusBar model and session panels', () => {
     ).toBe(true)
   })
 
-  it('shows the main-owned reason when Workflow is unavailable', async () => {
+  it('shows the main-owned reason when proactive collaboration is unavailable', async () => {
     const { wrapper } = await setup({
-      workflowCapability: { available: false, reason: 'subagents_disabled' }
+      orchestrationCapability: { available: false, reason: 'subagents_disabled' }
     })
 
-    expect(wrapper.get('[data-testid="workflow-mode-toggle"]').attributes()).toHaveProperty(
-      'disabled'
-    )
-    expect(wrapper.get('[data-testid="workflow-capability-message"]').text()).toBe(
-      'chat.workflow.mode.reasons.subagents_disabled'
+    expect(
+      wrapper.get('[data-testid="proactive-collaboration-toggle"]').attributes()
+    ).toHaveProperty('disabled')
+    expect(wrapper.get('[data-testid="orchestration-capability-message"]').text()).toBe(
+      'chat.orchestration.proactive.reasons.subagents_disabled'
     )
   })
 
-  it('persists Workflow mode through main for an active session', async () => {
-    const { wrapper, sessionStore, workflowClient } = await setup({
+  it('persists proactive policy through main for an active session', async () => {
+    const { wrapper, sessionStore, orchestrationClient } = await setup({
       hasActiveSession: true,
-      activeOrchestrationMode: 'adaptive'
+      activeOrchestrationPolicy: 'explicit'
     })
 
-    await wrapper.get('[data-testid="workflow-mode-toggle"]').trigger('click')
+    await wrapper.get('[data-testid="proactive-collaboration-toggle"]').trigger('click')
     await flushPromises()
 
-    expect(workflowClient.setMode).toHaveBeenCalledWith('s1', 'workflow')
-    expect(sessionStore.applyConfirmedSessionOrchestrationMode).toHaveBeenCalledWith(
-      's1',
-      'workflow'
-    )
-    expect(sessionStore.activeSession?.orchestrationMode).toBe('workflow')
+    expect(orchestrationClient.setPolicy).toHaveBeenCalledWith('s1', 'proactive')
+    expect(sessionStore.applyConfirmedOrchestrationPolicy).toHaveBeenCalledWith('s1', 'proactive')
+    expect(sessionStore.activeSession?.orchestrationPolicy).toBe('proactive')
   })
 
-  it('hides Workflow for direct ACP but keeps it for a DeepChat Agent using ACP provider mode', async () => {
+  it('keeps proactive policy unchanged when persistence fails', async () => {
+    const { wrapper, sessionStore } = await setup({
+      hasActiveSession: true,
+      activeOrchestrationPolicy: 'explicit',
+      setOrchestrationPolicyError: new Error('write failed')
+    })
+
+    await wrapper.get('[data-testid="proactive-collaboration-toggle"]').trigger('click')
+    await flushPromises()
+
+    expect(sessionStore.applyConfirmedOrchestrationPolicy).not.toHaveBeenCalled()
+    expect(sessionStore.activeSession?.orchestrationPolicy).toBe('explicit')
+    expect(wrapper.get('[data-testid="orchestration-capability-message"]').text()).toBe(
+      'chat.workflow.states.unavailable'
+    )
+  })
+
+  it('allows disabling proactive policy after capability becomes unavailable', async () => {
+    const { wrapper, sessionStore, orchestrationClient } = await setup({
+      hasActiveSession: true,
+      activeOrchestrationPolicy: 'proactive',
+      orchestrationCapability: { available: false, reason: 'subagents_disabled' }
+    })
+    const toggle = wrapper.get('[data-testid="proactive-collaboration-toggle"]')
+
+    expect(toggle.attributes()).not.toHaveProperty('disabled')
+    await toggle.trigger('click')
+    await flushPromises()
+
+    expect(orchestrationClient.setPolicy).toHaveBeenCalledWith('s1', 'explicit')
+    expect(sessionStore.activeSession?.orchestrationPolicy).toBe('explicit')
+  })
+
+  it('hides collaboration policy for direct ACP but keeps it for DeepChat over ACP', async () => {
     const directAcp = await setup({ agentId: 'acp-agent' })
-    expect(directAcp.wrapper.find('[data-testid="execution-mode-switcher"]').exists()).toBe(false)
+    expect(directAcp.wrapper.find('[data-testid="orchestration-control"]').exists()).toBe(false)
 
     const compatibleDeepChat = await setup({
       agentId: 'compatible-agent',
@@ -908,11 +936,11 @@ describe('ChatStatusBar model and session panels', () => {
       activeProviderId: 'acp',
       activeModelId: 'compatible-model'
     })
-    expect(
-      compatibleDeepChat.wrapper.find('[data-testid="execution-mode-switcher"]').exists()
-    ).toBe(true)
-    expect(compatibleDeepChat.workflowClient.getCapability).toHaveBeenCalledWith({
-      parentSessionId: 's1'
+    expect(compatibleDeepChat.wrapper.find('[data-testid="orchestration-control"]').exists()).toBe(
+      true
+    )
+    expect(compatibleDeepChat.orchestrationClient.getCapability).toHaveBeenCalledWith({
+      sessionId: 's1'
     })
   })
 

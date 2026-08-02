@@ -12,7 +12,7 @@ import type {
   AttachmentResolvedRepresentation,
   PdfEmbeddedTextCoverage
 } from './attachment'
-import type { SessionOrchestrationMode } from '../workflow/orchestrationMode'
+import type { OrchestrationPolicy } from '../workflow/orchestrationPolicy'
 
 export type {
   AttachmentFallbackPolicy,
@@ -707,7 +707,7 @@ export interface SessionRecord {
   sessionKind: SessionKind
   parentSessionId?: string | null
   subagentMeta?: DeepChatSubagentMeta | null
-  orchestrationMode: SessionOrchestrationMode
+  orchestrationPolicy: OrchestrationPolicy
   createdAt: number
   updatedAt: number
   /** Monotonic durable revision for ordering snapshots of one session. */
@@ -803,7 +803,7 @@ export interface CreateSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
-  orchestrationMode?: SessionOrchestrationMode
+  orchestrationPolicy?: OrchestrationPolicy
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
@@ -816,7 +816,7 @@ export interface CreateDetachedSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
-  orchestrationMode?: SessionOrchestrationMode
+  orchestrationPolicy?: OrchestrationPolicy
   generationSettings?: Partial<SessionGenerationSettings>
   metadata?: SessionMetadata | null
 }

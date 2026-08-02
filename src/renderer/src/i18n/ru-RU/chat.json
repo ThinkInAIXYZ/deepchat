@@ -556,19 +556,21 @@
       "amendRestoreFailed": "Изменение не удалось, и исходную память не удалось восстановить."
     }
   },
-  "workflow": {
-    "mode": {
-      "title": "Рабочий процесс",
-      "description": "Постоянная оркестрация нескольких Agents. Выполнение может занять больше времени и использовать больше токенов.",
+  "orchestration": {
+    "proactive": {
+      "title": "Проактивное сотрудничество",
+      "description": "Позволяет родительскому Agent делегировать задачи, когда независимая или параллельная работа явно полезна. Может потребовать больше времени, токенов и ресурсов.",
       "reasons": {
         "session_unavailable": "Этот сеанс больше недоступен.",
         "agent_unavailable": "Выбранный Agent недоступен.",
-        "deepchat_agent_required": "Для режима рабочего процесса требуется DeepChat Agent.",
-        "regular_parent_required": "Режим рабочего процесса недоступен в дочернем сеансе.",
-        "agent_policy_unavailable": "Не удалось загрузить политику рабочего процесса.",
-        "subagents_disabled": "Включите Subagents для этого Agent, чтобы использовать режим рабочего процесса."
+        "deepchat_agent_required": "Для проактивного сотрудничества требуется DeepChat Agent.",
+        "regular_parent_required": "Проактивное сотрудничество недоступно в дочернем сеансе.",
+        "agent_policy_unavailable": "Не удалось загрузить политику сотрудничества.",
+        "subagents_disabled": "Включите Subagents для этого Agent, чтобы использовать проактивное сотрудничество."
       }
-    },
+    }
+  },
+  "workflow": {
     "title": "Workflows",
     "loading": "Loading workflows...",
     "runLabel": "Run {id}",

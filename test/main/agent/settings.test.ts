@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentSettings } from '@/agent/settings'
 import { AgentLifecycleGate } from '@/agent/lifecycleGate'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
-import { CRON_JOB_AGENT_TOOL_NAME, WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
+import {
+  CRON_JOB_AGENT_TOOL_NAME,
+  LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME,
+  WORKFLOW_AGENT_TOOL_NAME
+} from '@shared/agentTools'
 import type { CreateDeepChatAgentInput } from '@shared/types/agent-interface'
 
 const createModelSelection = (providerId: string, modelId: string) => ({ providerId, modelId })
@@ -370,7 +374,9 @@ describe('AgentSettings migrations', () => {
       getDeepChatAgentConfig: vi.fn((agentId: string) =>
         agentId === 'writer'
           ? { disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME] }
-          : { disabledAgentTools: [WORKFLOW_AGENT_TOOL_NAME] }
+          : {
+              disabledAgentTools: [LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME, WORKFLOW_AGENT_TOOL_NAME]
+            }
       ),
       updateDeepChatAgent: vi.fn()
     }
