@@ -98,7 +98,9 @@ describeIfSqlite('LiveDelegationRepository', () => {
         id: 'turn-1',
         seq: 1,
         kind: 'initial',
-        status: 'queued'
+        status: 'queued',
+        effectState: 'none',
+        effectEvidence: null
       }
     })
     expect(repository.listActiveTurns()).toHaveLength(1)
@@ -170,6 +172,90 @@ describeIfSqlite('LiveDelegationRepository', () => {
     expect(() =>
       repository.createFollowUp('parent', 'delegation-1', 'turn-3', 'Overlap', 140)
     ).toThrow('already has an active turn')
+  })
+
+  it('persists monotonic tool effect evidence before child execution', () => {
+    createDelegation()
+    repository.markTurnStarted('turn-1', 110)
+
+    expect(
+      repository.recordEffectIntent(
+        'turn-1',
+        'read',
+        {
+          toolId: 'read',
+          toolCallId: 'call-read',
+          source: 'builtin',
+          basis: 'reviewed_contract',
+          classification: 'read',
+          reason: 'Reviewed read-only contract.'
+        },
+        120
+      )
+    ).toMatchObject({ turn: { effectState: 'read' } })
+    const readRevision = repository.require('delegation-1').revision
+    expect(
+      repository.recordEffectIntent(
+        'turn-1',
+        'read',
+        {
+          toolId: 'glob',
+          toolCallId: 'call-glob',
+          source: 'builtin',
+          basis: 'reviewed_contract',
+          classification: 'read',
+          reason: 'Reviewed read-only contract.'
+        },
+        130
+      )
+    ).toBeNull()
+    expect(repository.require('delegation-1').revision).toBe(readRevision)
+
+    repository.recordEffectIntent(
+      'turn-1',
+      'unknown',
+      {
+        toolId: 'future_tool',
+        toolCallId: 'call-unknown',
+        source: 'unknown',
+        basis: 'conservative_fallback',
+        classification: 'unknown',
+        reason: 'No reviewed execution contract.'
+      },
+      140
+    )
+    repository.recordEffectIntent(
+      'turn-1',
+      'write',
+      {
+        toolId: 'remote_mutation',
+        toolCallId: 'call-write',
+        source: 'mcp',
+        basis: 'conservative_fallback',
+        classification: 'write',
+        reason: 'Arbitrary MCP tools are conservatively classified as write.'
+      },
+      150
+    )
+
+    expect(repository.requireTurn('turn-1')).toMatchObject({
+      effectState: 'write',
+      effectEvidence: {
+        toolId: 'remote_mutation',
+        toolCallId: 'call-write',
+        classification: 'write'
+      }
+    })
+    repository.finishTurn({ turnId: 'turn-1', status: 'completed', now: 160 })
+    expect(() =>
+      repository.recordEffectIntent('turn-1', 'write', {
+        toolId: 'exec',
+        source: 'shell',
+        basis: 'reviewed_contract',
+        classification: 'write',
+        reason: 'Shell execution may change external state.'
+      })
+    ).toThrow('could not be persisted before tool execution')
   })
 
   it('settles once and exposes bounded child-to-parent mailbox events', () => {

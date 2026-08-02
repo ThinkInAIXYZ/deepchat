@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Agent activity",
     "proactive": {
       "title": "Proactive collaboration",
       "description": "Allows the parent Agent to delegate when independent or parallel work would clearly help. May use more time, tokens, and resources.",

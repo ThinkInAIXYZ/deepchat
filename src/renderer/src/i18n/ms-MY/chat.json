@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Aktiviti Agent",
     "proactive": {
       "title": "Kerjasama proaktif",
       "description": "Membolehkan Agent induk mewakilkan tugas apabila kerja bebas atau selari jelas membantu. Mungkin menggunakan lebih banyak masa, token dan sumber.",

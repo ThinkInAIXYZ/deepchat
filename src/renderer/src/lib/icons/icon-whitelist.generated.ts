@@ -247,6 +247,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'upload',
     'user',
     'user-key',
+    'users',
     'volume-2',
     'wand-2',
     'wand-sparkles',

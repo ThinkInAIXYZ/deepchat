@@ -4,7 +4,10 @@ import type {
   LiveDelegationEventDirection,
   LiveDelegationEventKind
 } from '@shared/orchestration/liveDelegation'
-import { LIVE_DELEGATION_DATABASE_SCHEMA_VERSION } from './liveDelegations'
+import {
+  LIVE_DELEGATION_DATABASE_SCHEMA_VERSION,
+  LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION
+} from './liveDelegations'
 
 export interface LiveDelegationEventRow {
   event_id: number
@@ -87,7 +90,7 @@ export class LiveDelegationEventsTable extends BaseTable {
   }
 
   getMigrationSQL(version: number): string | null {
-    return version === LIVE_DELEGATION_DATABASE_SCHEMA_VERSION
+    return version === LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION
       ? LIVE_DELEGATION_EVENTS_SCHEMA_SQL
       : null
   }
@@ -97,7 +100,7 @@ export class LiveDelegationEventsTable extends BaseTable {
   }
 
   finalizeMigration(version: number): void {
-    if (version === LIVE_DELEGATION_DATABASE_SCHEMA_VERSION) {
+    if (version === LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION) {
       this.db.exec(LIVE_DELEGATION_EVENTS_TRIGGER_SQL)
     }
   }

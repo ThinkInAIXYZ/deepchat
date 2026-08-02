@@ -11,6 +11,13 @@ import {
   type WorkflowGuestAgentRequest,
   type WorkflowRuntimeLimits
 } from './runtimeProtocol'
+import {
+  ORCHESTRATION_EFFECT_STATES,
+  OrchestrationEffectEvidenceSchema,
+  OrchestrationEffectStateSchema,
+  type OrchestrationEffectEvidence,
+  type OrchestrationEffectState
+} from '../orchestration/toolEffect'
 
 export const WORKFLOW_RUN_STATUSES = [
   'queued',
@@ -35,7 +42,7 @@ export const WORKFLOW_INVOCATION_STATUSES = [
   'interrupted'
 ] as const
 
-export const WORKFLOW_EFFECT_STATES = ['none', 'read', 'unknown', 'write'] as const
+export const WORKFLOW_EFFECT_STATES = ORCHESTRATION_EFFECT_STATES
 export const WORKFLOW_RESULT_DELIVERY_STATES = ['not_ready', 'pending', 'delivered'] as const
 export const WORKFLOW_STORED_METADATA_MAX_BYTES = 64 * 1024
 export const WORKFLOW_STORED_EVIDENCE_MAX_BYTES = 256 * 1024
@@ -45,12 +52,12 @@ export const WORKFLOW_UNAVAILABLE_EXECUTION_ID = '__deepchat_workflow_legacy_una
 
 export const WorkflowRunStatusSchema = z.enum(WORKFLOW_RUN_STATUSES)
 export const WorkflowInvocationStatusSchema = z.enum(WORKFLOW_INVOCATION_STATUSES)
-export const WorkflowEffectStateSchema = z.enum(WORKFLOW_EFFECT_STATES)
+export const WorkflowEffectStateSchema = OrchestrationEffectStateSchema
 export const WorkflowResultDeliveryStateSchema = z.enum(WORKFLOW_RESULT_DELIVERY_STATES)
 
 export type WorkflowRunStatus = z.infer<typeof WorkflowRunStatusSchema>
 export type WorkflowInvocationStatus = z.infer<typeof WorkflowInvocationStatusSchema>
-export type WorkflowEffectState = z.infer<typeof WorkflowEffectStateSchema>
+export type WorkflowEffectState = OrchestrationEffectState
 export type WorkflowResultDeliveryState = z.infer<typeof WorkflowResultDeliveryStateSchema>
 
 const StoredIdSchema = z.string().min(1).max(256)
@@ -112,37 +119,8 @@ export const WorkflowTapeLinkReceiptSchema = z
 
 export type WorkflowTapeLinkReceipt = z.infer<typeof WorkflowTapeLinkReceiptSchema>
 
-export const WorkflowEffectEvidenceSchema = z
-  .object({
-    toolId: z.string().trim().min(1).max(256),
-    toolCallId: z.string().trim().min(1).max(256).optional(),
-    source: z.enum(['builtin', 'mcp', 'plugin', 'shell', 'unknown']),
-    basis: z.enum(['reviewed_contract', 'conservative_fallback']),
-    classification: z.enum(['read', 'unknown', 'write']),
-    reason: z.string().trim().min(1).max(1_024)
-  })
-  .strict()
-  .superRefine((evidence, context) => {
-    if (
-      evidence.classification === 'read' &&
-      (evidence.source !== 'builtin' || evidence.basis !== 'reviewed_contract')
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['classification'],
-        message: 'Read-only recovery requires a reviewed built-in tool contract'
-      })
-    }
-    if (evidence.source === 'shell' && evidence.classification !== 'write') {
-      context.addIssue({
-        code: 'custom',
-        path: ['classification'],
-        message: 'Shell execution must be conservatively classified as write'
-      })
-    }
-  })
-
-export type WorkflowEffectEvidence = z.infer<typeof WorkflowEffectEvidenceSchema>
+export const WorkflowEffectEvidenceSchema = OrchestrationEffectEvidenceSchema
+export type WorkflowEffectEvidence = OrchestrationEffectEvidence
 
 export const WorkflowRunSchema = z
   .object({

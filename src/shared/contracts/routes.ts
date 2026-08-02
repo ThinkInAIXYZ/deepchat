@@ -536,6 +536,9 @@ import {
 } from './routes/workflow.routes'
 import {
   orchestrationGetCapabilityRoute,
+  orchestrationInspectLiveDelegationRoute,
+  orchestrationInterruptLiveDelegationRoute,
+  orchestrationListLiveDelegationsRoute,
   orchestrationSetPolicyRoute
 } from './routes/orchestration.routes'
 
@@ -1065,6 +1068,9 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [workflowValidateLaunchApprovalRoute.name]: workflowValidateLaunchApprovalRoute,
   [workflowRevokeLaunchApprovalRoute.name]: workflowRevokeLaunchApprovalRoute,
   [orchestrationSetPolicyRoute.name]: orchestrationSetPolicyRoute,
+  [orchestrationListLiveDelegationsRoute.name]: orchestrationListLiveDelegationsRoute,
+  [orchestrationInspectLiveDelegationRoute.name]: orchestrationInspectLiveDelegationRoute,
+  [orchestrationInterruptLiveDelegationRoute.name]: orchestrationInterruptLiveDelegationRoute,
   [workflowLaunchRoute.name]: workflowLaunchRoute,
   [workflowListRoute.name]: workflowListRoute,
   [workflowInspectRoute.name]: workflowInspectRoute,

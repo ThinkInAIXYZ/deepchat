@@ -6,15 +6,22 @@
       @click="emit('toggle')"
     >
       <Icon icon="lucide:git-fork" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <span class="flex-1 truncate">{{ t('chat.workflow.title') }}</span>
-      <span v-if="runs.length > 0" class="text-[11px] text-muted-foreground">
-        {{ runs.length }}
+      <span class="flex-1 truncate">{{ t('chat.orchestration.activityTitle') }}</span>
+      <span v-if="activityCount > 0" class="text-[11px] text-muted-foreground">
+        {{ activityCount }}
       </span>
       <Icon
         :icon="props.expanded ? 'lucide:chevron-down' : 'lucide:chevron-right'"
         class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
       />
     </button>
+
+    <div v-show="props.expanded" class="px-2 pb-2">
+      <LiveDelegationPanel
+        :session-id="props.sessionId"
+        @count-changed="liveDelegationCount = $event"
+      />
+    </div>
 
     <div v-if="props.expanded" class="space-y-2 px-2 pb-3">
       <SavedWorkflowPanel
@@ -46,7 +53,7 @@
       </div>
 
       <div
-        v-else-if="runs.length === 0"
+        v-else-if="runs.length === 0 && liveDelegationCount === 0"
         data-testid="workflow-empty"
         class="rounded-md border border-dashed px-3 py-4 text-center"
       >
@@ -57,7 +64,7 @@
         </p>
       </div>
 
-      <template v-else>
+      <template v-if="runs.length > 0">
         <div class="flex gap-1 overflow-x-auto pb-1" data-testid="workflow-run-list">
           <button
             v-for="run in runs"
@@ -514,6 +521,7 @@ import { useSessionStore } from '@/stores/ui/session'
 import type { SavedWorkflowInvocationRequest } from '@/stores/ui/sidepanel'
 import { formatWorkflowOutlineNode } from '@/lib/workflowOutline'
 import SavedWorkflowPanel from './SavedWorkflowPanel.vue'
+import LiveDelegationPanel from './LiveDelegationPanel.vue'
 
 const MAX_BUFFERED_INVOCATION_DELTAS = 256
 
@@ -535,6 +543,7 @@ const { t } = useI18n()
 const workflowClient = createWorkflowClient()
 const sessionStore = useSessionStore()
 const runs = shallowRef<WorkflowRunSummary[]>([])
+const liveDelegationCount = ref(0)
 const selectedRunId = ref<string | null>(props.selectedRunId?.trim() || null)
 const detail = shallowRef<WorkflowRunDetail | null>(null)
 const loadingRuns = ref(false)
@@ -558,6 +567,7 @@ let stopRunChanged: (() => void) | null = null
 let stopInvocationChanged: (() => void) | null = null
 const pendingInvocationDeltas = new Map<string, WorkflowInvocationProjection>()
 
+const activityCount = computed(() => runs.value.length + liveDelegationCount.value)
 const isRuntimeCompatible = computed(
   () => detail.value?.runtimeApiVersion === WORKFLOW_RUNTIME_API_VERSION
 )

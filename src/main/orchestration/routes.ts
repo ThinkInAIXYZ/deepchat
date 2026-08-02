@@ -1,5 +1,8 @@
 import {
   orchestrationGetCapabilityRoute,
+  orchestrationInspectLiveDelegationRoute,
+  orchestrationInterruptLiveDelegationRoute,
+  orchestrationListLiveDelegationsRoute,
   orchestrationSetPolicyRoute
 } from '@shared/contracts/routes'
 import {
@@ -7,6 +10,10 @@ import {
   type OrchestrationCapability,
   type OrchestrationPolicy
 } from '@shared/workflow/orchestrationPolicy'
+import type {
+  LiveDelegationDetail,
+  LiveDelegationSummary
+} from '@shared/orchestration/liveDelegation'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export interface OrchestrationRouteOptions {
@@ -15,6 +22,11 @@ export interface OrchestrationRouteOptions {
   ): Promise<OrchestrationCapability>
   getPolicy(sessionId: string): Promise<OrchestrationPolicy>
   setPolicy(sessionId: string, policy: OrchestrationPolicy): Promise<OrchestrationPolicy>
+  liveDelegations: {
+    list(parentSessionId: string, limit?: number): LiveDelegationSummary[]
+    inspect(parentSessionId: string, delegationId: string): LiveDelegationDetail
+    interrupt(parentSessionId: string, delegationId: string): Promise<LiveDelegationDetail>
+  }
 }
 
 export function createOrchestrationRoutes(options: OrchestrationRouteOptions): DeepchatRouteMap {
@@ -47,6 +59,36 @@ export function createOrchestrationRoutes(options: OrchestrationRouteOptions): D
           applied: true,
           policy: await options.setPolicy(input.sessionId, input.policy),
           capability
+        })
+      }
+    ],
+    [
+      orchestrationListLiveDelegationsRoute.name,
+      async (rawInput) => {
+        const input = orchestrationListLiveDelegationsRoute.input.parse(rawInput)
+        return orchestrationListLiveDelegationsRoute.output.parse({
+          delegations: options.liveDelegations.list(input.parentSessionId, input.limit)
+        })
+      }
+    ],
+    [
+      orchestrationInspectLiveDelegationRoute.name,
+      async (rawInput) => {
+        const input = orchestrationInspectLiveDelegationRoute.input.parse(rawInput)
+        return orchestrationInspectLiveDelegationRoute.output.parse({
+          delegation: options.liveDelegations.inspect(input.parentSessionId, input.delegationId)
+        })
+      }
+    ],
+    [
+      orchestrationInterruptLiveDelegationRoute.name,
+      async (rawInput) => {
+        const input = orchestrationInterruptLiveDelegationRoute.input.parse(rawInput)
+        return orchestrationInterruptLiveDelegationRoute.output.parse({
+          delegation: await options.liveDelegations.interrupt(
+            input.parentSessionId,
+            input.delegationId
+          )
         })
       }
     ]

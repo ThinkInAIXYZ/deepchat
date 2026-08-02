@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "פעילות Agent",
     "proactive": {
       "title": "שיתוף פעולה יזום",
       "description": "מאפשר ל-Agent הראשי להאציל משימות כאשר עבודה עצמאית או מקבילית מועילה בבירור. עשוי לצרוך יותר זמן, Tokens ומשאבים.",

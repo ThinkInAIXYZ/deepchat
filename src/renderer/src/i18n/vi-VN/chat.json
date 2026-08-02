@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Hoạt động của Agent",
     "proactive": {
       "title": "Cộng tác chủ động",
       "description": "Cho phép Agent chính ủy quyền khi công việc độc lập hoặc song song mang lại lợi ích rõ ràng. Có thể dùng thêm thời gian, token và tài nguyên.",

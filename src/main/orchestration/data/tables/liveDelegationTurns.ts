@@ -1,7 +1,14 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
-import type { LiveDelegationTurnStatus } from '@shared/orchestration/liveDelegation'
-import { LIVE_DELEGATION_DATABASE_SCHEMA_VERSION } from './liveDelegations'
+import {
+  LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES,
+  type LiveDelegationTurnStatus
+} from '@shared/orchestration/liveDelegation'
+import type { OrchestrationEffectState } from '@shared/orchestration/toolEffect'
+import {
+  LIVE_DELEGATION_DATABASE_SCHEMA_VERSION,
+  LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION
+} from './liveDelegations'
 
 export interface LiveDelegationTurnRow {
   turn_id: string
@@ -13,13 +20,30 @@ export interface LiveDelegationTurnRow {
   result_summary: string | null
   error: string | null
   tape_receipt_json: string | null
+  effect_state: OrchestrationEffectState
+  effect_evidence_json: string | null
   created_at: number
   started_at: number | null
   updated_at: number
   completed_at: number | null
 }
 
-const LIVE_DELEGATION_TURNS_SCHEMA_SQL = `
+const LIVE_DELEGATION_TURN_EFFECT_COLUMNS_SQL = `
+    effect_state TEXT NOT NULL DEFAULT 'none' CHECK (
+      effect_state IN ('none', 'read', 'unknown', 'write')
+    ),
+    effect_evidence_json TEXT CHECK (
+      (effect_state = 'none' AND effect_evidence_json IS NULL)
+      OR (
+        effect_state != 'none'
+        AND json_valid(effect_evidence_json)
+        AND json_type(effect_evidence_json) = 'object'
+        AND length(CAST(effect_evidence_json AS BLOB)) <= ${LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES}
+      )
+    ),
+`
+
+const createLiveDelegationTurnsSchemaSql = (includeEffectEvidence: boolean): string => `
   CREATE TABLE IF NOT EXISTS live_delegation_turns (
     turn_id TEXT PRIMARY KEY CHECK (length(turn_id) BETWEEN 1 AND 256),
     delegation_id TEXT NOT NULL CHECK (length(delegation_id) BETWEEN 1 AND 256),
@@ -43,6 +67,7 @@ const LIVE_DELEGATION_TURNS_SCHEMA_SQL = `
       tape_receipt_json IS NULL
       OR (json_valid(tape_receipt_json) AND json_type(tape_receipt_json) = 'object')
     ),
+${includeEffectEvidence ? LIVE_DELEGATION_TURN_EFFECT_COLUMNS_SQL : ''}
     created_at INTEGER NOT NULL CHECK (created_at >= 0),
     started_at INTEGER CHECK (started_at IS NULL OR started_at >= 0),
     updated_at INTEGER NOT NULL CHECK (updated_at >= 0),
@@ -55,6 +80,28 @@ const LIVE_DELEGATION_TURNS_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_live_delegation_turns_active
     ON live_delegation_turns(status, updated_at ASC, turn_id ASC)
     WHERE status IN ('queued', 'running', 'waiting_permission', 'waiting_question');
+`
+
+const LIVE_DELEGATION_TURNS_SCHEMA_SQL = createLiveDelegationTurnsSchemaSql(true)
+const LIVE_DELEGATION_TURNS_V60_SCHEMA_SQL = createLiveDelegationTurnsSchemaSql(false)
+
+const LIVE_DELEGATION_TURN_EFFECT_STATE_ADD_COLUMN_SQL = `
+  ALTER TABLE live_delegation_turns
+    ADD COLUMN effect_state TEXT NOT NULL DEFAULT 'none'
+      CHECK (effect_state IN ('none', 'read', 'unknown', 'write'));
+`
+
+const LIVE_DELEGATION_TURN_EFFECT_EVIDENCE_ADD_COLUMN_SQL = `
+  ALTER TABLE live_delegation_turns
+    ADD COLUMN effect_evidence_json TEXT CHECK (
+      (effect_state = 'none' AND effect_evidence_json IS NULL)
+      OR (
+        effect_state != 'none'
+        AND json_valid(effect_evidence_json)
+        AND json_type(effect_evidence_json) = 'object'
+        AND length(CAST(effect_evidence_json AS BLOB)) <= ${LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES}
+      )
+    );
 `
 
 const LIVE_DELEGATION_TURNS_TRIGGER_SQL = `
@@ -78,14 +125,35 @@ export class LiveDelegationTurnsTable extends BaseTable {
   }
 
   override createTable(): void {
-    super.createTable()
+    if (!this.tableExists()) {
+      const recordedVersion = this.getRecordedSchemaVersion()
+      this.db.exec(
+        recordedVersion > 0 && recordedVersion < LIVE_DELEGATION_DATABASE_SCHEMA_VERSION
+          ? LIVE_DELEGATION_TURNS_V60_SCHEMA_SQL
+          : LIVE_DELEGATION_TURNS_SCHEMA_SQL
+      )
+    }
     this.db.exec(LIVE_DELEGATION_TURNS_TRIGGER_SQL)
   }
 
   getMigrationSQL(version: number): string | null {
-    return version === LIVE_DELEGATION_DATABASE_SCHEMA_VERSION
-      ? LIVE_DELEGATION_TURNS_SCHEMA_SQL
-      : null
+    if (version === LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION) {
+      return LIVE_DELEGATION_TURNS_V60_SCHEMA_SQL
+    }
+    if (version === LIVE_DELEGATION_DATABASE_SCHEMA_VERSION) {
+      const statements = [
+        ...(this.hasColumn('effect_state')
+          ? []
+          : [LIVE_DELEGATION_TURN_EFFECT_STATE_ADD_COLUMN_SQL]),
+        ...(this.hasColumn('effect_evidence_json')
+          ? []
+          : [LIVE_DELEGATION_TURN_EFFECT_EVIDENCE_ADD_COLUMN_SQL])
+      ]
+      return statements.length > 0
+        ? statements.join('\n')
+        : 'SELECT 1 /* live delegation effect schema already present */;'
+    }
+    return null
   }
 
   getLatestVersion(): number {
@@ -93,7 +161,7 @@ export class LiveDelegationTurnsTable extends BaseTable {
   }
 
   finalizeMigration(version: number): void {
-    if (version === LIVE_DELEGATION_DATABASE_SCHEMA_VERSION) {
+    if (version === LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION) {
       this.db.exec(LIVE_DELEGATION_TURNS_TRIGGER_SQL)
     }
   }

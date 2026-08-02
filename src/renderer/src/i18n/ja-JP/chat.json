@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Agent のアクティビティ",
     "proactive": {
       "title": "プロアクティブ連携",
       "description": "独立または並列の作業に明確な効果がある場合、親 Agent が自律的に委任できます。時間、Token、システム資源の使用量が増える場合があります。",

@@ -46,6 +46,9 @@ describe('LiveDelegationAgentTool', () => {
       tool.call({ operation: 'spawn', slotId: 'reviewer', prompt: 'Inspect.' }, 'parent-1')
     ).rejects.toThrow('title is required')
     expect(port.spawn).not.toHaveBeenCalled()
+    await expect(tool.call({ operation: 'list', unsupported: true }, 'parent-1')).rejects.toThrow(
+      'Unrecognized key'
+    )
 
     await tool.call(
       {

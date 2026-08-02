@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Agent 活動",
     "proactive": {
       "title": "主動協作",
       "description": "允許主 Agent 在獨立或並行工作明顯有幫助時主動委派；可能使用更多時間、Token 與系統資源。",

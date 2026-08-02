@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Attività Agent",
     "proactive": {
       "title": "Collaborazione proattiva",
       "description": "Consente all’Agent principale di delegare quando il lavoro indipendente o parallelo offre un vantaggio chiaro. Può usare più tempo, token e risorse.",

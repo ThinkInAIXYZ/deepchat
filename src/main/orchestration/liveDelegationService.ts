@@ -24,6 +24,8 @@ import type {
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
+import { classifyToolEffect } from '@/tool/effectClassification'
+import type { ToolEffectObservation } from '@/tool/effectObserver'
 import type { ActiveLiveDelegationTurn, LiveDelegationRepository } from './liveDelegationRepository'
 
 const MAX_ACTIVE_DELEGATIONS_PER_PARENT = 5
@@ -96,6 +98,12 @@ export class LiveDelegationService {
 
   start(): void {
     if (this.started) return
+    const activeRecords = this.options.repository.listActiveTurns()
+    for (const record of activeRecords) {
+      if (record.delegation.childSessionId) {
+        this.childToTurn.set(record.delegation.childSessionId, record.turn.id)
+      }
+    }
     this.started = true
     this.unsubscribeRuntime = this.options.sessions.subscribeSessionRuntimeUpdates((update) => {
       try {
@@ -104,7 +112,7 @@ export class LiveDelegationService {
         console.error('[LiveDelegationService] Failed to apply child runtime update:', error)
       }
     })
-    this.reconcilePromise = this.reconcileActiveTurns().catch((error) => {
+    this.reconcilePromise = this.reconcileActiveTurns(activeRecords).catch((error) => {
       console.error('[LiveDelegationService] Failed to reconcile active turns:', error)
     })
   }
@@ -226,6 +234,36 @@ export class LiveDelegationService {
     }
   }
 
+  getSummary(parentSessionId: string, delegationId: string): LiveDelegationSummary {
+    return projectDelegationSummary(
+      this.options.repository.requireOwned(parentSessionId, delegationId)
+    )
+  }
+
+  beforeToolExecution(observation: ToolEffectObservation): void {
+    const mappedTurnId = this.childToTurn.get(observation.conversationId)
+    if (!mappedTurnId) return
+    const turn = this.options.repository.getTurn(mappedTurnId)
+    if (!turn) {
+      throw new Error(
+        `Live delegation effect context is unavailable for child ${observation.conversationId}.`
+      )
+    }
+    if (!this.started) {
+      throw new Error(
+        'Live delegation effect evidence is unavailable while the service is stopped.'
+      )
+    }
+    this.childToTurn.set(observation.conversationId, turn.id)
+    const evidence = classifyToolEffect(observation)
+    const changed = this.options.repository.recordEffectIntent(
+      turn.id,
+      evidence.classification,
+      evidence
+    )
+    if (changed) this.publishChanged(changed.delegation)
+  }
+
   async wait(
     parentSessionId: string,
     options?: {
@@ -296,12 +334,23 @@ export class LiveDelegationService {
     if (!active) {
       const turn = this.options.repository.listTurns(delegation.id, 1)[0]
       if (turn && isActiveTurnStatus(turn.status)) {
-        this.options.repository.finishTurn({
+        const settled = this.options.repository.finishTurn({
           turnId: turn.id,
           status: 'interrupted',
           error: 'Interrupted by the parent session.'
         })
+        this.publishChanged(settled.delegation)
         this.notifyMailbox(delegation.parentSessionId, delegation.id)
+        const childSessionId = delegation.childSessionId
+        if (childSessionId) {
+          await this.options.sessions.cancelConversation(childSessionId).catch((error) => {
+            console.warn('[LiveDelegationService] Failed to cancel child session:', {
+              childSessionId,
+              error
+            })
+          })
+          this.childToTurn.delete(childSessionId)
+        }
       }
       return this.inspect(parentSessionId, delegationId)
     }
@@ -562,8 +611,8 @@ export class LiveDelegationService {
     }
   }
 
-  private async reconcileActiveTurns(): Promise<void> {
-    for (const record of this.options.repository.listActiveTurns()) {
+  private async reconcileActiveTurns(records: ActiveLiveDelegationTurn[]): Promise<void> {
+    for (const record of records) {
       if (!this.started) return
       try {
         await this.reconcileActiveTurn(record)
@@ -574,13 +623,23 @@ export class LiveDelegationService {
   }
 
   private async reconcileActiveTurn(record: ActiveLiveDelegationTurn): Promise<void> {
-    const { delegation, turn } = record
-    const child = delegation.childSessionId
-      ? await this.options.sessions.resolveConversationSessionInfo(delegation.childSessionId)
-      : await this.options.sessions.findDelegationChild(delegation.parentSessionId, delegation.id)
+    const child = record.delegation.childSessionId
+      ? await this.options.sessions.resolveConversationSessionInfo(record.delegation.childSessionId)
+      : await this.options.sessions.findDelegationChild(
+          record.delegation.parentSessionId,
+          record.delegation.id
+        )
     if (!this.started) return
+    const turn = this.options.repository.getTurn(record.turn.id)
+    if (!turn || !isActiveTurnStatus(turn.status)) {
+      if (record.delegation.childSessionId) {
+        this.childToTurn.delete(record.delegation.childSessionId)
+      }
+      return
+    }
+    let delegation = this.options.repository.require(record.delegation.id)
     if (child && !delegation.childSessionId) {
-      this.options.repository.bindChild(delegation.id, child.sessionId)
+      delegation = this.options.repository.bindChild(delegation.id, child.sessionId)
     }
     if (!child) {
       const settled = this.options.repository.finishTurn({
@@ -590,10 +649,11 @@ export class LiveDelegationService {
       })
       this.publishChanged(settled.delegation)
       this.notifyMailbox(settled.delegation.parentSessionId, settled.delegation.id)
+      if (delegation.childSessionId) this.childToTurn.delete(delegation.childSessionId)
       return
     }
 
-    const active = this.createActiveTurn(this.options.repository.require(delegation.id), turn)
+    const active = this.createActiveTurn(delegation, turn)
     active.childSessionId = child.sessionId
     active.started = turn.startedAt !== null || child.status === 'generating'
     active.runtimeStatus = child.status
@@ -640,7 +700,12 @@ export class LiveDelegationService {
     if (!this.started) return
     try {
       const current = this.options.repository.getTurn(record.turn.id)
-      if (!current || !isActiveTurnStatus(current.status)) return
+      if (!current || !isActiveTurnStatus(current.status)) {
+        if (record.delegation.childSessionId) {
+          this.childToTurn.delete(record.delegation.childSessionId)
+        }
+        return
+      }
       const settled = this.options.repository.finishTurn({
         turnId: current.id,
         status: 'interrupted',
@@ -649,6 +714,9 @@ export class LiveDelegationService {
           LIVE_DELEGATION_MAX_SUMMARY_BYTES
         )
       })
+      if (record.delegation.childSessionId) {
+        this.childToTurn.delete(record.delegation.childSessionId)
+      }
       this.publishChanged(settled.delegation)
       this.notifyMailbox(settled.delegation.parentSessionId, settled.delegation.id)
     } catch (settleError) {

@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
-import { sessionsUpdatedEvent } from '@shared/contracts/events'
+import { liveDelegationChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
 import { performance } from 'node:perf_hooks'
 import path from 'path'
 import { DialogService } from '../desktop/dialog'
@@ -1070,7 +1070,12 @@ export async function createMainProcessControl(dependencies: {
     desktopSettings,
     commandPermissionHandler,
     agentTools: agentToolDependencies,
-    effectObserver: workflowEffectObserver,
+    effectObserver: {
+      beforeToolExecution: async (observation) => {
+        await workflowEffectObserver.beforeToolExecution(observation)
+        await liveDelegationService.beforeToolExecution(observation)
+      }
+    },
     sessionTools: workflowStructuredOutput
   })
 
@@ -1686,8 +1691,18 @@ export async function createMainProcessControl(dependencies: {
           return null
         }
       },
-      onChanged: (parentSessionId) =>
+      onChanged: (parentSessionId, delegationId) => {
         sessionQuery.notify({ sessionIds: [parentSessionId], reason: 'updated' })
+        try {
+          publishDeepchatEvent(liveDelegationChangedEvent.name, {
+            schemaVersion: 1,
+            parentSessionId,
+            delegation: liveDelegationService.getSummary(parentSessionId, delegationId)
+          })
+        } catch (error) {
+          logger.warn('[LiveDelegationService] Failed to publish delegation projection', { error })
+        }
+      }
     })
   liveDelegationService = createLiveDelegationService()
   remoteService = new RemoteService({
@@ -2181,7 +2196,8 @@ export async function createMainProcessControl(dependencies: {
           : orchestrationCapabilityResolver.resolveDraft(target.agentId),
       getPolicy: (sessionId) => sessionAssignment.getOrchestrationPolicy(sessionId),
       setPolicy: (sessionId, policy) =>
-        sessionAssignment.updateOrchestrationPolicy(sessionId, policy)
+        sessionAssignment.updateOrchestrationPolicy(sessionId, policy),
+      liveDelegations: createLivePort(() => liveDelegationService)
     })
     const workflowRoutes = createWorkflowRoutes(
       createLivePort(() => workflowService),
@@ -2581,6 +2597,7 @@ export async function createMainProcessControl(dependencies: {
     if (
       routeName.startsWith('chat.') ||
       routeName.startsWith('sessions.') ||
+      routeName.startsWith('orchestration.') ||
       routeName.startsWith('workflow.') ||
       routeName.startsWith('remoteControl.') ||
       routeName.startsWith('cronJobs.')

@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Agent-Aktivität",
     "proactive": {
       "title": "Proaktive Zusammenarbeit",
       "description": "Erlaubt dem übergeordneten Agent, Aufgaben zu delegieren, wenn unabhängige oder parallele Arbeit klar hilft. Kann mehr Zeit, Tokens und Ressourcen benötigen.",

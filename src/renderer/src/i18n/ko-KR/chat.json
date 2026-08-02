@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Agent 활동",
     "proactive": {
       "title": "능동형 협업",
       "description": "독립 또는 병렬 작업이 분명히 도움이 될 때 상위 Agent가 작업을 위임할 수 있습니다. 시간, Token, 시스템 리소스를 더 사용할 수 있습니다.",

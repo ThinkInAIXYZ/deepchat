@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
+import { TOOL_EXECUTION } from '@shared/types/mcp'
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
@@ -148,6 +149,55 @@ describeIfSqlite('LiveDelegationService', () => {
     expect(repository.listEvents('parent', { after: 0 })[0]?.content).toBe(fullResult)
   })
 
+  it('records child effect intent before tool dispatch', async () => {
+    const detail = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Inspect implementation',
+      prompt: 'Read the implementation and report risks.'
+    })
+    await vi.waitFor(() =>
+      expect(repository.listTurns(detail.delegation.id, 1)[0]?.status).toBe('running')
+    )
+    const childId = repository.require(detail.delegation.id).childSessionId!
+
+    service.beforeToolExecution({
+      conversationId: childId,
+      toolCallId: 'call-read',
+      toolName: 'read',
+      source: 'agent',
+      reviewedExecution: TOOL_EXECUTION.read.parallel
+    })
+    expect(repository.listTurns(detail.delegation.id, 1)[0]).toMatchObject({
+      effectState: 'read',
+      effectEvidence: {
+        toolId: 'read',
+        toolCallId: 'call-read',
+        classification: 'read'
+      }
+    })
+
+    service.beforeToolExecution({
+      conversationId: childId,
+      toolCallId: 'call-mcp',
+      toolName: 'remote_search',
+      source: 'mcp',
+      reviewedExecution: null
+    })
+    expect(repository.listTurns(detail.delegation.id, 1)[0]?.effectState).toBe('write')
+    expect(() =>
+      service.beforeToolExecution({
+        conversationId: 'parent',
+        toolCallId: 'ordinary-call',
+        toolName: 'read',
+        source: 'agent',
+        reviewedExecution: TOOL_EXECUTION.read.parallel
+      })
+    ).not.toThrow()
+
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 200, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(detail.delegation.id).status).toBe('idle'))
+  })
+
   it('keeps send non-triggering and consumes messages only in follow_up', async () => {
     const spawned = await service.spawn('parent', {
       slotId: 'reviewer',
@@ -173,6 +223,65 @@ describeIfSqlite('LiveDelegationService', () => {
     const secondHandoff = harness.sessions.sendConversationMessage.mock.calls[1]?.[1]
     expect(secondHandoff).toContain('Also inspect cache invalidation.')
     expect(secondHandoff).toContain('Re-evaluate and return the revised conclusion.')
+  })
+
+  it('projects child permission and question waits without settling the turn', async () => {
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Review guarded files',
+      prompt: 'Inspect files that may require permission.'
+    })
+    await vi.waitFor(() =>
+      expect(repository.listTurns(spawned.delegation.id, 1)[0]?.status).toBe('running')
+    )
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 200, status: 'generating' })
+    harness.publish({
+      sessionId: childId,
+      kind: 'blocks',
+      updatedAt: 210,
+      waitingInteraction: {
+        type: 'permission',
+        messageId: 'message-1',
+        toolCallId: 'tool-1',
+        actionBlock: {
+          type: 'action',
+          content: 'permission',
+          status: 'pending',
+          timestamp: 210
+        }
+      }
+    })
+    expect(service.inspect('parent', spawned.delegation.id)).toMatchObject({
+      delegation: { status: 'waiting_permission' },
+      turns: [expect.objectContaining({ status: 'waiting_permission' })]
+    })
+
+    harness.publish({
+      sessionId: childId,
+      kind: 'blocks',
+      updatedAt: 220,
+      waitingInteraction: null
+    })
+    expect(repository.listTurns(spawned.delegation.id, 1)[0]?.status).toBe('running')
+
+    harness.publish({
+      sessionId: childId,
+      kind: 'blocks',
+      updatedAt: 230,
+      waitingInteraction: {
+        type: 'question',
+        messageId: 'message-2',
+        toolCallId: 'tool-2',
+        actionBlock: {
+          type: 'action',
+          content: 'question',
+          status: 'pending',
+          timestamp: 230
+        }
+      }
+    })
+    expect(repository.listTurns(spawned.delegation.id, 1)[0]?.status).toBe('waiting_question')
   })
 
   it('rejects follow_up while the persistent child is already generating', async () => {
@@ -269,6 +378,94 @@ describeIfSqlite('LiveDelegationService', () => {
       })
     ])
     expect(repository.require(created.delegation.id).status).toBe('idle')
+  })
+
+  it('indexes active child effects synchronously before restart reconciliation', async () => {
+    await service.stop()
+    const created = repository.create({
+      id: 'delegation-effect-recovery',
+      initialTurnId: 'turn-effect-recovery',
+      parentSessionId: 'parent',
+      slotId: 'reviewer',
+      targetAgentId: 'agent-1',
+      title: 'Recover effect boundary',
+      prompt: 'Continue after restart.',
+      now: 100
+    })
+    harness.addChild('child-effect-recovery', created.delegation.id, 'generating')
+    repository.bindChild(created.delegation.id, 'child-effect-recovery', 110)
+    repository.markTurnStarted(created.turn.id, 120)
+
+    service = new LiveDelegationServiceCtor({
+      repository,
+      sessions: harness.sessions,
+      admission: new AgentInvocationAdmission(2, 10)
+    })
+    service.start()
+    service.beforeToolExecution({
+      conversationId: 'child-effect-recovery',
+      toolCallId: 'call-after-restart',
+      toolName: 'read',
+      source: 'agent',
+      reviewedExecution: TOOL_EXECUTION.read.parallel
+    })
+
+    expect(repository.requireTurn(created.turn.id).effectState).toBe('read')
+  })
+
+  it('does not revive a turn interrupted while restart reconciliation is awaiting the child', async () => {
+    await service.stop()
+    const created = repository.create({
+      id: 'delegation-interrupt-recovery',
+      initialTurnId: 'turn-interrupt-recovery',
+      parentSessionId: 'parent',
+      slotId: 'reviewer',
+      targetAgentId: 'agent-1',
+      title: 'Interrupt recovery',
+      prompt: 'Remain stopped after interruption.',
+      now: 100
+    })
+    harness.addChild('child-interrupt-recovery', created.delegation.id, 'generating')
+    repository.bindChild(created.delegation.id, 'child-interrupt-recovery', 110)
+    repository.markTurnStarted(created.turn.id, 120)
+    let resolveLookup: ((child: ConversationSessionInfo | null) => void) | null = null
+    harness.sessions.resolveConversationSessionInfo.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveLookup = resolve
+        })
+    )
+    const onChanged = vi.fn()
+
+    service = new LiveDelegationServiceCtor({
+      repository,
+      sessions: harness.sessions,
+      admission: new AgentInvocationAdmission(2, 10),
+      onChanged
+    })
+    service.start()
+    await expect(service.interrupt('parent', created.delegation.id)).resolves.toMatchObject({
+      delegation: { status: 'interrupted' }
+    })
+    resolveLookup?.(
+      await harness.sessions.resolveConversationSessionInfo('child-interrupt-recovery')
+    )
+    await vi.waitFor(() =>
+      expect(repository.requireTurn(created.turn.id).status).toBe('interrupted')
+    )
+
+    expect(onChanged).toHaveBeenCalledWith('parent', created.delegation.id)
+    expect(harness.sessions.cancelConversation).toHaveBeenCalledWith('child-interrupt-recovery')
+    expect(() =>
+      service.beforeToolExecution({
+        conversationId: 'child-interrupt-recovery',
+        toolCallId: 'call-after-interrupt',
+        toolName: 'read',
+        source: 'agent',
+        reviewedExecution: TOOL_EXECUTION.read.parallel
+      })
+    ).not.toThrow()
+    expect(repository.requireTurn(created.turn.id).effectState).toBe('none')
   })
 
   it('treats an idle child without accepted handoff evidence as interrupted', async () => {

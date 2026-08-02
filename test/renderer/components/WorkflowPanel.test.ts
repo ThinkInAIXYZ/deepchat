@@ -71,6 +71,14 @@ vi.mock('@/components/sidepanel/SavedWorkflowPanel.vue', () => ({
   })
 }))
 
+vi.mock('@/components/sidepanel/LiveDelegationPanel.vue', () => ({
+  default: defineComponent({
+    name: 'LiveDelegationPanel',
+    emits: ['countChanged'],
+    template: '<div data-testid="live-delegation-panel-stub" />'
+  })
+}))
+
 vi.mock('@/stores/ui/session', () => ({
   useSessionStore: () => ({
     selectSession: client.selectSession
@@ -487,6 +495,10 @@ describe('WorkflowPanel', () => {
 
     expect(client.list).toHaveBeenCalledOnce()
     expect(client.inspect).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('chat.orchestration.activityTitle')
+    wrapper.getComponent({ name: 'LiveDelegationPanel' }).vm.$emit('countChanged', 3)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="workflow-panel"] > button').text()).toContain('4')
 
     client.emitRunChanged({ ...summary, revision: 2, updatedAt: 4 })
     client.emitInvocationChanged(invocation({ status: 'succeeded', updatedAt: 5 }))

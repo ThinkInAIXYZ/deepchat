@@ -23,6 +23,7 @@ const liveDelegationSchema = z
     timeoutMs: z.number().int().min(0).max(60_000).optional(),
     limit: z.number().int().min(1).max(100).optional()
   })
+  .strict()
   .superRefine((value, ctx) => {
     const required: Partial<Record<(typeof value)['operation'], Array<keyof typeof value>>> = {
       spawn: ['slotId', 'title', 'prompt'],

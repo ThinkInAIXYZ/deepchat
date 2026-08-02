@@ -4,6 +4,10 @@ import {
   OrchestrationCapabilitySchema,
   OrchestrationPolicySchema
 } from '../../workflow/orchestrationPolicy'
+import {
+  LiveDelegationDetailSchema,
+  LiveDelegationSummarySchema
+} from '../../orchestration/liveDelegation'
 
 const OrchestrationRouteIdSchema = z.string().trim().min(1).max(256)
 
@@ -31,4 +35,41 @@ export const orchestrationSetPolicyRoute = defineRouteContract({
       capability: OrchestrationCapabilitySchema
     })
     .strict()
+})
+
+export const orchestrationListLiveDelegationsRoute = defineRouteContract({
+  name: 'orchestration.liveDelegation.list',
+  input: z
+    .object({
+      parentSessionId: OrchestrationRouteIdSchema,
+      limit: z.number().int().min(1).max(100)
+    })
+    .strict(),
+  output: z
+    .object({
+      delegations: z.array(LiveDelegationSummarySchema).max(100)
+    })
+    .strict()
+})
+
+export const orchestrationInspectLiveDelegationRoute = defineRouteContract({
+  name: 'orchestration.liveDelegation.inspect',
+  input: z
+    .object({
+      parentSessionId: OrchestrationRouteIdSchema,
+      delegationId: OrchestrationRouteIdSchema
+    })
+    .strict(),
+  output: z.object({ delegation: LiveDelegationDetailSchema }).strict()
+})
+
+export const orchestrationInterruptLiveDelegationRoute = defineRouteContract({
+  name: 'orchestration.liveDelegation.interrupt',
+  input: z
+    .object({
+      parentSessionId: OrchestrationRouteIdSchema,
+      delegationId: OrchestrationRouteIdSchema
+    })
+    .strict(),
+  output: z.object({ delegation: LiveDelegationDetailSchema }).strict()
 })

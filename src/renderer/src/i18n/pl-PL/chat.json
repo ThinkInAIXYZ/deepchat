@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Aktywność Agentów",
     "proactive": {
       "title": "Proaktywna współpraca",
       "description": "Pozwala nadrzędnemu Agentowi delegować zadania, gdy praca niezależna lub równoległa daje wyraźną korzyść. Może zużywać więcej czasu, tokenów i zasobów.",

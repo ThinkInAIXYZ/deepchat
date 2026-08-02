@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Activité des Agents",
     "proactive": {
       "title": "Collaboration proactive",
       "description": "Permet à l’Agent parent de déléguer lorsque le travail indépendant ou parallèle apporte un bénéfice clair. Peut utiliser plus de temps, de tokens et de ressources.",

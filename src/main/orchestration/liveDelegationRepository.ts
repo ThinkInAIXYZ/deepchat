@@ -3,11 +3,13 @@ import { z } from 'zod'
 import type { SubagentTapeLinkReceipt } from '@shared/types/agent-interface'
 import {
   LIVE_DELEGATION_MAX_EVENTS_PER_PARENT,
+  LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES,
   LIVE_DELEGATION_MAX_MESSAGE_BYTES,
   LIVE_DELEGATION_MAX_PROMPT_BYTES,
   LIVE_DELEGATION_MAX_SUMMARY_BYTES,
   LiveDelegationEventSchema,
   LiveDelegationSchema,
+  LiveDelegationTapeReceiptSchema,
   LiveDelegationTurnSchema,
   type LiveDelegation,
   type LiveDelegationEvent,
@@ -16,6 +18,12 @@ import {
   type LiveDelegationTurn,
   type LiveDelegationTurnStatus
 } from '@shared/orchestration/liveDelegation'
+import {
+  OrchestrationEffectEvidenceSchema,
+  OrchestrationEffectStateSchema,
+  type OrchestrationEffectEvidence,
+  type OrchestrationEffectState
+} from '@shared/orchestration/toolEffect'
 import type { LiveDelegationDatabase } from './data/database'
 import type { LiveDelegationEventRow } from './data/tables/liveDelegationEvents'
 import type { LiveDelegationRow } from './data/tables/liveDelegations'
@@ -32,6 +40,12 @@ const ACTIVE_TURN_STATUSES = [
   'waiting_permission',
   'waiting_question'
 ] as const
+const EFFECT_RANK: Record<OrchestrationEffectState, number> = {
+  none: 0,
+  read: 1,
+  unknown: 2,
+  write: 3
+}
 
 export interface CreateLiveDelegationInput {
   id: string
@@ -336,6 +350,82 @@ export class LiveDelegationRepository {
     return this.updateActiveTurn(turnId, status, now)
   }
 
+  recordEffectIntent(
+    turnId: string,
+    effectState: Exclude<OrchestrationEffectState, 'none'>,
+    evidence: OrchestrationEffectEvidence,
+    now = Date.now()
+  ): LiveDelegationWithTurn | null {
+    const normalizedTurnId = StoredIdSchema.parse(turnId)
+    const requested = OrchestrationEffectStateSchema.exclude(['none']).parse(effectState)
+    const parsedEvidence = OrchestrationEffectEvidenceSchema.parse(evidence)
+    if (parsedEvidence.classification !== requested) {
+      throw new Error(
+        'Live delegation effect evidence classification does not match its requested state.'
+      )
+    }
+    const evidenceJson = JSON.stringify(parsedEvidence)
+    if (Buffer.byteLength(evidenceJson, 'utf8') > LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES) {
+      throw new Error('Live delegation effect evidence exceeds its storage limit.')
+    }
+    const requestedTimestamp = validateTimestamp(now)
+    const db = this.database.getDatabase()
+    const changed = db.transaction(() => {
+      const current = db
+        .prepare(
+          `SELECT t.delegation_id, t.status, t.effect_state, t.updated_at,
+                  d.updated_at AS delegation_updated_at
+           FROM live_delegation_turns AS t
+           INNER JOIN live_delegations AS d ON d.delegation_id = t.delegation_id
+           WHERE t.turn_id = ?`
+        )
+        .get(normalizedTurnId) as
+        | {
+            delegation_id: string
+            status: LiveDelegationTurnStatus
+            effect_state: OrchestrationEffectState
+            updated_at: number
+            delegation_updated_at: number
+          }
+        | undefined
+      if (!current || !isActiveTurnStatus(current.status)) {
+        throw new Error(
+          `Live delegation effect intent could not be persisted before tool execution: ${normalizedTurnId}`
+        )
+      }
+      if (EFFECT_RANK[current.effect_state] >= EFFECT_RANK[requested]) return false
+
+      const timestamp = Math.max(
+        requestedTimestamp,
+        current.updated_at,
+        current.delegation_updated_at
+      )
+      const updated = db
+        .prepare(
+          `UPDATE live_delegation_turns
+           SET effect_state = ?, effect_evidence_json = ?, updated_at = ?
+           WHERE turn_id = ?
+             AND status IN ('queued', 'running', 'waiting_permission', 'waiting_question')`
+        )
+        .run(requested, evidenceJson, timestamp, normalizedTurnId)
+      if (updated.changes !== 1) {
+        throw new Error(
+          `Live delegation effect intent could not be persisted before tool execution: ${normalizedTurnId}`
+        )
+      }
+      db.prepare(
+        `UPDATE live_delegations
+         SET updated_at = ?, revision = revision + 1
+         WHERE delegation_id = ?`
+      ).run(timestamp, current.delegation_id)
+      return true
+    })()
+
+    if (!changed) return null
+    const turn = this.requireTurn(normalizedTurnId)
+    return { delegation: this.require(turn.delegationId), turn }
+  }
+
   finishTurn(input: {
     turnId: string
     status: 'completed' | 'failed' | 'cancelled' | 'interrupted'
@@ -374,7 +464,9 @@ export class LiveDelegationRepository {
             ? 'turn_interrupted'
             : 'turn_failed'
     const eventContent = summary || error || defaultEventContent(eventKind)
-    const tapeReceiptJson = input.tapeReceipt ? JSON.stringify(input.tapeReceipt) : null
+    const tapeReceiptJson = input.tapeReceipt
+      ? JSON.stringify(LiveDelegationTapeReceiptSchema.parse(input.tapeReceipt))
+      : null
     const db = this.database.getDatabase()
 
     db.transaction(() => {
@@ -569,7 +661,9 @@ function toTurn(row: LiveDelegationTurnRow): LiveDelegationTurn {
     status: row.status,
     resultSummary: row.result_summary,
     error: row.error,
-    tapeReceipt: parseObject(row.tape_receipt_json),
+    tapeReceipt: parseTapeReceipt(row.tape_receipt_json),
+    effectState: row.effect_state,
+    effectEvidence: parseEffectEvidence(row.effect_evidence_json),
     createdAt: row.created_at,
     startedAt: row.started_at,
     updatedAt: row.updated_at,
@@ -632,16 +726,16 @@ function validateTimestamp(value: number): number {
   return value
 }
 
-function parseObject(value: string | null): Record<string, unknown> | null {
-  if (!value) return null
-  try {
-    const parsed = JSON.parse(value) as unknown
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null
-  } catch {
-    return null
-  }
+function parseTapeReceipt(value: string | null) {
+  return value ? LiveDelegationTapeReceiptSchema.parse(JSON.parse(value)) : null
+}
+
+function parseEffectEvidence(value: string | null): OrchestrationEffectEvidence | null {
+  return value ? OrchestrationEffectEvidenceSchema.parse(JSON.parse(value)) : null
+}
+
+function isActiveTurnStatus(status: LiveDelegationTurnStatus): boolean {
+  return ACTIVE_TURN_STATUSES.includes(status as (typeof ACTIVE_TURN_STATUSES)[number])
 }
 
 function defaultEventContent(kind: LiveDelegationEventKind): string {

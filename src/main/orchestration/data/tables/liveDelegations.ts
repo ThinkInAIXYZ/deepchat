@@ -2,7 +2,8 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 import type { LiveDelegationStatus } from '@shared/orchestration/liveDelegation'
 
-export const LIVE_DELEGATION_DATABASE_SCHEMA_VERSION = 60
+export const LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION = 60
+export const LIVE_DELEGATION_DATABASE_SCHEMA_VERSION = 61
 
 export interface LiveDelegationRow {
   delegation_id: string
@@ -100,13 +101,13 @@ export class LiveDelegationsTable extends BaseTable {
   }
 
   getMigrationSQL(version: number): string | null {
-    return version === LIVE_DELEGATION_DATABASE_SCHEMA_VERSION
+    return version === LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION
       ? LIVE_DELEGATIONS_BASE_SCHEMA_SQL
       : null
   }
 
   finalizeMigration(version: number): void {
-    if (version === LIVE_DELEGATION_DATABASE_SCHEMA_VERSION) {
+    if (version === LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION) {
       this.db.exec(LIVE_DELEGATIONS_TRIGGER_SQL)
     }
   }

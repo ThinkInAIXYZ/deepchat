@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Aktivitas Agent",
     "proactive": {
       "title": "Kolaborasi proaktif",
       "description": "Memungkinkan Agent induk mendelegasikan saat pekerjaan mandiri atau paralel jelas membantu. Dapat memakai lebih banyak waktu, token, dan sumber daya.",

@@ -110,9 +110,9 @@ Policy validation evidence:
 - [x] Add bounded parent mailbox completion.
 - [x] Reconcile interrupted live delegation after restart.
 - [x] Preserve compatibility for the batch orchestrator without duplicate model tools.
-- [ ] Share child invocation capabilities without merging state machines.
-- [ ] Add concurrency, cancellation, permission, Tape, and recovery tests.
-- [ ] Review, validate, and commit lifecycle slices.
+- [x] Share child invocation capabilities without merging state machines.
+- [x] Add concurrency, cancellation, permission, Tape, and recovery tests.
+- [x] Review, validate, and commit lifecycle slices.
 
 Persistence foundation review findings, ordered by severity:
 
@@ -179,22 +179,74 @@ Lifecycle service and model-tool validation evidence:
 - `pnpm run typecheck:node`, `pnpm run typecheck:web`, targeted Oxfmt, targeted Oxlint, and
   `git diff --check` passed.
 
+Shared effect boundary and activity completion review findings, ordered by severity:
+
+- high, fixed before commit: restart reconciliation could await child lookup, race with a direct
+  interrupt that terminally persisted the turn, and then register the stale active-turn snapshot
+  again; that direct path also failed to send cancellation to the physical child. Interruption now
+  terminally persists first while retaining its effect guard, requests child cancellation, and
+  reconciliation re-reads persistent state after the asynchronous boundary; a dedicated regression
+  proves interrupted turns cannot be revived or left without a cancellation request;
+- high, fixed before commit: active child-to-turn effect indexes were rebuilt only as asynchronous
+  reconciliation progressed, leaving early post-restart tool calls without write-ahead evidence;
+  startup now indexes every persisted active child synchronously before subscribing or yielding;
+- high, fixed before commit: reusing `chat.workflow.title` for the combined activity surface would
+  also rename the `/workflow` command and durable Workflow cards; Agent activity now has a separate
+  i18n key while retained Workflow surfaces keep their established contract;
+- medium, fixed before commit: `orchestration.*` routes remained callable while database
+  maintenance had stopped the live service and could close the main database; the application
+  maintenance gate now rejects the whole orchestration route domain consistently with Workflow;
+- medium, fixed before commit: Live change events initially projected full inspection details,
+  repeatedly parsing and truncating twenty turns for updates that require only one summary; event
+  publication now uses the bounded single-delegation projection;
+- medium, fixed before commit: generic persisted Tape objects and loosely bounded effect data made
+  IPC size and audit meaning dependent on unvalidated JSON; strict shared schemas now bound IDs,
+  previews, evidence, Tape receipts, detail arrays, and event/list outputs;
+- medium, fixed before commit: collapsing the activity surface destroyed its subscription, and
+  list or interrupt responses could overwrite newer event state, including an A -> B -> A Session
+  switch; the subscription remains mounted and revision plus request-generation fences reject stale
+  responses;
+- medium, fixed before commit: finishing an active persisted turn before recovery registered its
+  in-memory controller did not publish the unified change event; direct persistent interruption now
+  publishes the same projection as ordinary settlement;
+- low, fixed before commit: unknown model-tool fields were silently stripped, the activity title
+  remained English in non-English locales, and a route test name claimed an ownership assertion it
+  did not perform; strict parsing, localized copy, and accurate test naming remove those misleading
+  contracts;
+- low: no unresolved completion-slice finding. V1 still deliberately does not promise exactly-once
+  external effects or automatic parallel-writer isolation.
+
 ## UX
 
 - [x] Rename Workflow mode copy to proactive collaboration.
 - [x] Preserve reasoning-only button text and branch-icon accent.
 - [x] Change `/workflow` from a mode switch to Workflow navigation/preparation.
-- [ ] Project live and durable work in one activity surface.
+- [x] Project live and durable work in one activity surface.
 - [x] Add policy-control i18n, accessibility, and renderer tests.
-- [ ] Review, validate, and commit UX slices.
+- [x] Review, validate, and commit UX slices.
 
 ## Final Validation
 
-- [ ] Run affected main and renderer suites.
-- [ ] Run `pnpm run format`.
-- [ ] Run `pnpm run i18n`.
-- [ ] Run `pnpm run lint`.
-- [ ] Run `pnpm run typecheck`.
-- [ ] Run `pnpm run build`.
-- [ ] Perform the final cross-module review and record findings by severity.
-- [ ] Confirm all commits remain local and the branch was not pushed.
+- [x] Run affected main and renderer suites.
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run `pnpm run typecheck`.
+- [x] Run `pnpm run build`.
+- [x] Perform the final cross-module review and record findings by severity.
+- [x] Confirm all commits remain local and the branch was not pushed.
+
+Final validation evidence:
+
+- 84 portable main-process tests passed and 21 native-ABI tests were explicitly skipped by the
+  portable harness;
+- all 92 orchestration and retained Workflow persistence, migration, service, effect, and recovery
+  tests passed under Electron's Node ABI with native SQLite required;
+- all 17 orchestration client, Live Delegation panel, and combined activity-panel renderer tests
+  passed;
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`, `pnpm run build`, and
+  `git diff --check` passed;
+- the production build retained only the repository's existing Rollup chunk-size and Iconify
+  import-shape warnings; provider refresh stopped at its configured 5 MB download guard without
+  overwriting the retained generated catalog;
+- all implementation commits are local to `feat/workflow-runtime`; no push was performed.

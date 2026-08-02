@@ -557,6 +557,7 @@
     }
   },
   "orchestration": {
+    "activityTitle": "Agentaktivitet",
     "proactive": {
       "title": "Proaktivt samarbejde",
       "description": "Lader den overordnede Agent uddelegere, når uafhængigt eller parallelt arbejde tydeligt hjælper. Kan bruge mere tid, flere tokens og flere ressourcer.",
