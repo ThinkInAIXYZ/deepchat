@@ -28,6 +28,7 @@ import type {
 import type {
   AgentSubagentToolPort,
   AgentToolSessionPort,
+  CreateSubagentSessionInput,
   ConversationSessionInfo
 } from '@/tool/runtimePorts'
 import type {
@@ -108,6 +109,8 @@ type ActiveTurn = {
   turnId: string
   parentSessionId: string
   childSessionId: string | null
+  childAcquisition: Promise<AcquiredChild> | null
+  childHandoff: Promise<void> | null
   controller: AbortController
   completion: ReturnType<typeof createDeferred>
   answerMarkdown: string
@@ -115,6 +118,11 @@ type ActiveTurn = {
   runtimeStatus: 'idle' | 'generating' | 'error' | null
   started: boolean
   settling: boolean
+}
+
+type AcquiredChild = {
+  child: ConversationSessionInfo
+  delegation: LiveDelegation
 }
 
 type MailboxWaiter = {
@@ -169,16 +177,22 @@ export class LiveDelegationService {
     for (const turn of active) {
       turn.controller.abort('Live delegation service stopped.')
     }
+    const pendingChildWork = active.flatMap((turn) =>
+      [turn.childAcquisition, turn.childHandoff].filter(
+        (work): work is Promise<AcquiredChild> | Promise<void> => work !== null
+      )
+    )
+    const cancellationWork = active
+      .filter((turn) => turn.childSessionId)
+      .map((turn) => this.cancelActiveChild(turn, 'service stop'))
+    await Promise.allSettled([...cancellationWork, ...pendingChildWork])
     await Promise.allSettled(
-      active.map(async (turn) => {
-        if (turn.childSessionId) {
-          await this.options.sessions.cancelConversation(turn.childSessionId).catch(() => undefined)
-        }
-        await this.settle(turn, {
+      active.map((turn) =>
+        this.settle(turn, {
           status: 'interrupted',
           error: 'Live delegation service stopped.'
         })
-      })
+      )
     )
     this.activeTurns.clear()
     this.childToTurn.clear()
@@ -433,6 +447,13 @@ export class LiveDelegationService {
       this.waiters.add(waiter)
       options?.signal?.addEventListener('abort', onAbort, { once: true })
       if (options?.signal?.aborted) onAbort()
+      if (!settled) {
+        try {
+          if (readEvents().length > 0) finish()
+        } catch (error) {
+          finish(error)
+        }
+      }
     })
     const events = readEvents()
     return createWaitResult(events, after, timedOut && events.length === 0)
@@ -469,14 +490,16 @@ export class LiveDelegationService {
     }
 
     active.controller.abort('Interrupted by the parent session.')
-    if (active.childSessionId) {
-      await this.options.sessions.cancelConversation(active.childSessionId).catch((error) => {
-        console.warn('[LiveDelegationService] Failed to cancel child session:', {
-          childSessionId: active.childSessionId,
-          error
-        })
-      })
-    }
+    const pendingChildAcquisition = active.childAcquisition
+    const pendingChildHandoff = active.childHandoff
+    const cancellation = active.childSessionId
+      ? this.cancelActiveChild(active, 'parent interruption')
+      : null
+    await Promise.allSettled(
+      [pendingChildAcquisition, pendingChildHandoff, cancellation].filter(
+        (work): work is Promise<AcquiredChild> | Promise<void> => work !== null
+      )
+    )
     await this.settle(active, {
       status: 'interrupted',
       error: 'Interrupted by the parent session.'
@@ -488,7 +511,7 @@ export class LiveDelegationService {
   private scheduleTurn(
     delegation: LiveDelegation,
     turn: LiveDelegationTurn,
-    parentSnapshot?: ConversationSessionInfo
+    parentSnapshot?: CapableParent
   ): void {
     const active = this.createActiveTurn(delegation, turn)
     void this.options.admission
@@ -511,6 +534,8 @@ export class LiveDelegationService {
       turnId: turn.id,
       parentSessionId: delegation.parentSessionId,
       childSessionId: delegation.childSessionId,
+      childAcquisition: null,
+      childHandoff: null,
       controller: new AbortController(),
       completion: createDeferred(),
       answerMarkdown: '',
@@ -532,62 +557,24 @@ export class LiveDelegationService {
     }
   }
 
-  private async executeTurn(
-    active: ActiveTurn,
-    parentSnapshot?: ConversationSessionInfo
-  ): Promise<void> {
+  private async executeTurn(active: ActiveTurn, parentSnapshot?: CapableParent): Promise<void> {
     active.controller.signal.throwIfAborted()
     const delegation = this.options.repository.require(active.delegationId)
     const turn = this.options.repository.requireTurn(active.turnId)
     const parent = parentSnapshot ?? (await this.requireCapableParent(delegation.parentSessionId))
-    let child = delegation.childSessionId
-      ? await this.options.sessions.resolveConversationSessionInfo(delegation.childSessionId)
-      : await this.options.sessions.findDelegationChild(delegation.parentSessionId, delegation.id)
-
-    if (!child) {
-      const inheritedWorkspace =
-        (await this.options.sessions.resolveConversationWorkdir(parent.sessionId))?.trim() ||
-        parent.projectDir?.trim() ||
-        null
-      child = await this.options.sessions.createSubagentSession({
-        parentSessionId: parent.sessionId,
-        agentId: delegation.targetAgentId,
-        parentAgentId: parent.agentId,
-        slotId: delegation.slotId,
-        displayName: delegation.title,
-        targetAgentId: delegation.targetAgentId,
-        projectDir: inheritedWorkspace,
-        providerId: parent.providerId,
-        modelId: parent.modelId,
-        permissionMode: parent.permissionMode,
-        generationSettings: parent.generationSettings ?? undefined,
-        disabledAgentTools: parent.disabledAgentTools,
-        activeSkills: parent.activeSkills,
-        liveDelegationContext: { delegationId: delegation.id }
-      })
-    }
-    if (!child) throw new Error(`Failed to create child session for delegation ${delegation.id}.`)
     active.controller.signal.throwIfAborted()
+    const acquired = await this.acquireAndBindChild(active, delegation, parent)
+    const { child, delegation: bound } = acquired
     if (turn.kind === 'follow_up' && child.status === 'generating') {
       throw new Error(
         `Cannot continue delegation ${delegation.id} while child session is ${child.status}.`
       )
     }
-    const bound = this.options.repository.bindChild(delegation.id, child.sessionId)
-    active.childSessionId = child.sessionId
     this.childToTurn.set(child.sessionId, active.turnId)
-    this.publishChanged(bound)
     active.controller.signal.throwIfAborted()
 
-    await this.options.sessions.sendConversationMessage(
-      child.sessionId,
-      buildTurnHandoff(bound, turn)
-    )
-    this.options.repository.markTurnStarted(turn.id)
-    active.started = true
-    this.publishChanged(this.options.repository.require(active.delegationId))
+    await this.sendChildHandoff(active, turn, child.sessionId, buildTurnHandoff(bound, turn))
     if (active.controller.signal.aborted) {
-      await this.options.sessions.cancelConversation(child.sessionId).catch(() => undefined)
       await this.settle(active, {
         status: 'interrupted',
         error: abortReason(active.controller.signal)
@@ -596,6 +583,101 @@ export class LiveDelegationService {
     }
     await this.applyRuntimeStatus(active)
     await active.completion.promise
+  }
+
+  private async acquireAndBindChild(
+    active: ActiveTurn,
+    delegation: LiveDelegation,
+    parent: CapableParent
+  ): Promise<AcquiredChild> {
+    const acquisition = (async () => {
+      let child = delegation.childSessionId
+        ? await this.options.sessions.resolveConversationSessionInfo(delegation.childSessionId)
+        : await this.options.sessions.findDelegationChild(delegation.parentSessionId, delegation.id)
+      if (!child) {
+        active.controller.signal.throwIfAborted()
+        const inheritedWorkspace =
+          (await this.options.sessions.resolveConversationWorkdir(parent.sessionId))?.trim() ||
+          parent.projectDir?.trim() ||
+          null
+        active.controller.signal.throwIfAborted()
+        const input: CreateSubagentSessionInput = {
+          parentSessionId: parent.sessionId,
+          agentId: delegation.targetAgentId,
+          parentAgentId: parent.agentId,
+          slotId: delegation.slotId,
+          displayName: delegation.title,
+          targetAgentId: delegation.targetAgentId,
+          projectDir: inheritedWorkspace,
+          providerId: parent.providerId,
+          modelId: parent.modelId,
+          permissionMode: parent.permissionMode,
+          generationSettings: parent.generationSettings ?? undefined,
+          disabledAgentTools: parent.disabledAgentTools,
+          activeSkills: parent.activeSkills,
+          liveDelegationContext: { delegationId: delegation.id }
+        }
+        child = await this.options.sessions.createSubagentSession(input)
+      }
+      if (!child) {
+        throw new Error(`Failed to create child session for delegation ${delegation.id}.`)
+      }
+      active.childSessionId = child.sessionId
+      let bound: LiveDelegation
+      try {
+        bound = this.options.repository.bindChild(delegation.id, child.sessionId)
+      } catch (error) {
+        await this.cancelActiveChild(active, 'child binding failure')
+        throw error
+      }
+      this.publishChanged(bound)
+      if (active.controller.signal.aborted) {
+        await this.cancelActiveChild(active, 'aborted child acquisition')
+        active.controller.signal.throwIfAborted()
+      }
+      return { child, delegation: bound }
+    })()
+    active.childAcquisition = acquisition
+    try {
+      return await acquisition
+    } finally {
+      if (active.childAcquisition === acquisition) active.childAcquisition = null
+    }
+  }
+
+  private async sendChildHandoff(
+    active: ActiveTurn,
+    turn: LiveDelegationTurn,
+    childSessionId: string,
+    handoff: string
+  ): Promise<void> {
+    const delivery = (async () => {
+      await this.options.sessions.sendConversationMessage(childSessionId, handoff)
+      this.options.repository.markTurnStarted(turn.id)
+      active.started = true
+      this.publishChanged(this.options.repository.require(active.delegationId))
+      if (active.controller.signal.aborted) {
+        await this.cancelActiveChild(active, 'aborted child handoff')
+      }
+    })()
+    active.childHandoff = delivery
+    try {
+      await delivery
+    } finally {
+      if (active.childHandoff === delivery) active.childHandoff = null
+    }
+  }
+
+  private async cancelActiveChild(active: ActiveTurn, reason: string): Promise<void> {
+    const childSessionId = active.childSessionId
+    if (!childSessionId) return
+    await this.options.sessions.cancelConversation(childSessionId).catch((error) => {
+      console.warn('[LiveDelegationService] Failed to cancel active child session:', {
+        childSessionId,
+        reason,
+        error
+      })
+    })
   }
 
   private handleRuntimeUpdate(update: SessionRuntimeUpdate): void {
@@ -687,6 +769,10 @@ export class LiveDelegationService {
           : null
       let status = active.controller.signal.aborted ? 'interrupted' : outcome.status
       let error = outcome.error?.trim() || null
+      if (status === 'completed' && !answer) {
+        status = 'failed'
+        error = 'Child session completed without a final answer.'
+      }
       let tapeReceipt: SubagentTapeLinkReceipt | null = null
       if (active.childSessionId && active.started) {
         try {

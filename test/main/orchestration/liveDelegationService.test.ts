@@ -349,6 +349,7 @@ describeIfSqlite('LiveDelegationService', () => {
       })
     ).not.toThrow()
 
+    harness.publishAnswer(childId, '## Handoff\nThe implementation evidence is recorded.', 199)
     harness.publish({ sessionId: childId, kind: 'status', updatedAt: 200, status: 'idle' })
     await vi.waitFor(() => expect(repository.require(detail.delegation.id).status).toBe('idle'))
   })
@@ -361,6 +362,7 @@ describeIfSqlite('LiveDelegationService', () => {
     })
     await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
     const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.publishAnswer(childId, '## Handoff\nThe first review is complete.', 199)
     harness.publish({ sessionId: childId, kind: 'status', updatedAt: 200, status: 'idle' })
     await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
 
@@ -378,6 +380,9 @@ describeIfSqlite('LiveDelegationService', () => {
     const secondHandoff = harness.sessions.sendConversationMessage.mock.calls[1]?.[1]
     expect(secondHandoff).toContain('Also inspect cache invalidation.')
     expect(secondHandoff).toContain('Re-evaluate and return the revised conclusion.')
+    harness.publishAnswer(childId, '## Handoff\nThe revised review is complete.', 299)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 300, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
   })
 
   it('projects child permission and question waits without settling the turn', async () => {
@@ -447,6 +452,7 @@ describeIfSqlite('LiveDelegationService', () => {
     })
     await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
     const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.publishAnswer(childId, '## Handoff\nThe first review is complete.', 199)
     harness.publish({ sessionId: childId, kind: 'status', updatedAt: 200, status: 'idle' })
     await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
 
@@ -498,6 +504,227 @@ describeIfSqlite('LiveDelegationService', () => {
     expect(harness.sessions.linkSubagentTape).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: 'cancelled' })
     )
+  })
+
+  it('drains an in-flight child handoff before interrupt returns', async () => {
+    let resolveHandoff!: () => void
+    harness.sessions.sendConversationMessage.mockImplementationOnce(
+      async () =>
+        await new Promise<void>((resolve) => {
+          resolveHandoff = resolve
+        })
+    )
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Interrupt child handoff',
+      prompt: 'Do not start after the parent interruption.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+
+    let interruptResolved = false
+    const interrupted = service.interrupt('parent', spawned.delegation.id).then((detail) => {
+      interruptResolved = true
+      return detail
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(interruptResolved).toBe(false)
+
+    resolveHandoff()
+    await expect(interrupted).resolves.toMatchObject({
+      delegation: { status: 'interrupted' },
+      turns: [expect.objectContaining({ status: 'interrupted' })]
+    })
+    expect(repository.requireTurn(spawned.turns[0]!.id).startedAt).not.toBeNull()
+    expect(harness.sessions.cancelConversation).toHaveBeenCalledWith(childId)
+    expect(harness.sessions.linkSubagentTape).toHaveBeenCalledWith(
+      expect.objectContaining({ childSessionId: childId, outcome: 'cancelled' })
+    )
+  })
+
+  it('binds and cancels a child that finishes creation after interrupt', async () => {
+    let resolveCreation!: (child: ConversationSessionInfo | null) => void
+    harness.sessions.createSubagentSession.mockImplementationOnce(
+      async () =>
+        await new Promise<ConversationSessionInfo | null>((resolve) => {
+          resolveCreation = resolve
+        })
+    )
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Interrupt child creation',
+      prompt: 'Do not outlive this interrupted turn.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.createSubagentSession).toHaveBeenCalledOnce())
+
+    let interruptResolved = false
+    const interrupted = service.interrupt('parent', spawned.delegation.id).then((detail) => {
+      interruptResolved = true
+      return detail
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(interruptResolved).toBe(false)
+
+    const child = harness.addChild('child-created-after-interrupt', spawned.delegation.id, 'idle')
+    resolveCreation(child)
+
+    await expect(interrupted).resolves.toMatchObject({
+      delegation: {
+        childSessionId: child.sessionId,
+        status: 'interrupted'
+      },
+      turns: [expect.objectContaining({ status: 'interrupted' })]
+    })
+    expect(harness.sessions.cancelConversation).toHaveBeenCalledWith(child.sessionId)
+    expect(harness.sessions.sendConversationMessage).not.toHaveBeenCalled()
+  })
+
+  it('binds and cancels a recovered child when interrupt races child lookup', async () => {
+    let resolveLookup!: (child: ConversationSessionInfo | null) => void
+    harness.sessions.findDelegationChild.mockImplementationOnce(
+      async () =>
+        await new Promise<ConversationSessionInfo | null>((resolve) => {
+          resolveLookup = resolve
+        })
+    )
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Interrupt child lookup',
+      prompt: 'Recover an existing child without leaving it active.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.findDelegationChild).toHaveBeenCalledOnce())
+
+    let interruptResolved = false
+    const interrupted = service.interrupt('parent', spawned.delegation.id).then((detail) => {
+      interruptResolved = true
+      return detail
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(interruptResolved).toBe(false)
+
+    const child = harness.addChild('child-found-after-interrupt', spawned.delegation.id, 'idle')
+    resolveLookup(child)
+
+    await expect(interrupted).resolves.toMatchObject({
+      delegation: {
+        childSessionId: child.sessionId,
+        status: 'interrupted'
+      },
+      turns: [expect.objectContaining({ status: 'interrupted' })]
+    })
+    expect(harness.sessions.cancelConversation).toHaveBeenCalledWith(child.sessionId)
+    expect(harness.sessions.createSubagentSession).not.toHaveBeenCalled()
+    expect(harness.sessions.sendConversationMessage).not.toHaveBeenCalled()
+  })
+
+  it('drains and cancels child creation before service stop returns', async () => {
+    let resolveCreation!: (child: ConversationSessionInfo | null) => void
+    harness.sessions.createSubagentSession.mockImplementationOnce(
+      async () =>
+        await new Promise<ConversationSessionInfo | null>((resolve) => {
+          resolveCreation = resolve
+        })
+    )
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Stop during child creation',
+      prompt: 'Do not outlive service shutdown.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.createSubagentSession).toHaveBeenCalledOnce())
+
+    let stopResolved = false
+    const stopping = service.stop().then(() => {
+      stopResolved = true
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(stopResolved).toBe(false)
+
+    const child = harness.addChild('child-created-during-stop', spawned.delegation.id, 'idle')
+    resolveCreation(child)
+    await stopping
+
+    expect(repository.require(spawned.delegation.id)).toMatchObject({
+      childSessionId: child.sessionId,
+      status: 'interrupted'
+    })
+    expect(harness.sessions.cancelConversation).toHaveBeenCalledWith(child.sessionId)
+    expect(harness.sessions.sendConversationMessage).not.toHaveBeenCalled()
+  })
+
+  it('rechecks durable mailbox events after registering a waiter', async () => {
+    const created = repository.create({
+      id: 'delegation-wait-race',
+      initialTurnId: 'turn-wait-race',
+      parentSessionId: 'parent',
+      slotId: 'reviewer',
+      targetAgentId: 'agent-1',
+      title: 'Close waiter race',
+      prompt: 'Complete between the first read and waiter registration.',
+      now: 100
+    })
+    const listEvents = repository.listEvents.bind(repository)
+    let injected = false
+    vi.spyOn(repository, 'listEvents').mockImplementation((parentSessionId, options) => {
+      const events = listEvents(parentSessionId, options)
+      if (!injected) {
+        injected = true
+        repository.finishTurn({
+          turnId: created.turn.id,
+          status: 'completed',
+          summary: 'Committed before waiter registration.',
+          now: 110
+        })
+      }
+      return events
+    })
+
+    let resolved = false
+    const waiting = service.wait('parent', { after: 0, timeoutMs: 1_000 }).then((result) => {
+      resolved = true
+      return result
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect(resolved).toBe(true)
+    await expect(waiting).resolves.toMatchObject({
+      timedOut: false,
+      events: [
+        expect.objectContaining({
+          kind: 'turn_completed',
+          contentPreview: 'Committed before waiter registration.'
+        })
+      ]
+    })
+  })
+
+  it('fails a completed child turn that has no final answer', async () => {
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Require final answer',
+      prompt: 'Return a canonical conclusion.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 200, status: 'idle' })
+
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('failed'))
+    expect(repository.requireTurn(spawned.turns[0]!.id)).toMatchObject({
+      status: 'failed',
+      resultSummary: null,
+      resultRef: null,
+      error: 'Child session completed without a final answer.'
+    })
+    expect(harness.sessions.linkSubagentTape).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'error', resultSummary: null })
+    )
+    await expect(service.wait('parent', { after: 0, timeoutMs: 0 })).resolves.toMatchObject({
+      events: [
+        expect.objectContaining({
+          kind: 'turn_failed',
+          contentPreview: 'Child session completed without a final answer.'
+        })
+      ]
+    })
   })
 
   it('reconciles an accepted idle child after restart', async () => {
@@ -559,11 +786,13 @@ describeIfSqlite('LiveDelegationService', () => {
       admission: new AgentInvocationAdmission(2, 10)
     })
     service.start()
-    await vi.waitFor(() => expect(repository.require(created.delegation.id).status).toBe('idle'))
+    await vi.waitFor(() => expect(repository.require(created.delegation.id).status).toBe('failed'))
 
     expect(repository.requireTurn(created.turn.id)).toMatchObject({
+      status: 'failed',
       resultSummary: null,
-      resultRef: null
+      resultRef: null,
+      error: 'Child session completed without a final answer.'
     })
     expect(warnSpy).toHaveBeenCalledWith(
       '[LiveDelegationService] Ignored a stale recovered child result:',

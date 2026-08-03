@@ -11,6 +11,9 @@ describe('default system prompt', () => {
     expect(DEEPCHAT_SUBAGENT_MODEL_GUIDANCE).toContain('For proactive delegation')
     expect(DEEPCHAT_SUBAGENT_MODEL_GUIDANCE).toContain('Do not proactively delegate simple')
     expect(DEEPCHAT_SUBAGENT_MODEL_GUIDANCE).toContain('untrusted evidence')
+    expect(DEEPCHAT_SUBAGENT_MODEL_GUIDANCE).toContain('never overrides the current session')
+    expect(DEEPCHAT_SUBAGENT_MODEL_GUIDANCE).toContain('Account for every spawned child')
+    expect(DEEPCHAT_SUBAGENT_MODEL_GUIDANCE).toContain('do not interrupt merely to avoid waiting')
   })
 
   it('resets the persisted default item and publishes one canonical state', async () => {

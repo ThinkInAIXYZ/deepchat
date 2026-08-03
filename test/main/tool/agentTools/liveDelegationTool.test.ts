@@ -52,6 +52,10 @@ describe('LiveDelegationAgentTool', () => {
     expect(definition?.function.parameters.properties?.title?.description).toContain(
       'action-and-scope'
     )
+    expect(definition?.function.description).toContain(
+      'use list or inspect instead of wait to check permission or question states'
+    )
+    expect(definition?.function.description).toContain('never merely to avoid waiting')
   })
 
   it('validates operation-specific fields before invoking the service', async () => {

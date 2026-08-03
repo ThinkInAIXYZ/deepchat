@@ -89,9 +89,11 @@ export class LiveDelegationAgentTool {
           DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
           'Use spawn for one bounded task, send to leave a message without starting a turn,',
           'follow_up to start a later child turn, wait for bounded completion mailbox events,',
+          'use list or inspect instead of wait to check permission or question states,',
           'read_result to page through a referenced complete child answer when its Handoff is',
           'insufficient,',
-          'and interrupt only when active work should stop. Use deepchat_workflow instead for',
+          'and interrupt only for explicit cancellation or definitively superseded work, never',
+          'merely to avoid waiting. Use deepchat_workflow instead for',
           'large programmatic fan-out, reusable data flow, approval, or replay.'
         ].join(' '),
         parameters: {
