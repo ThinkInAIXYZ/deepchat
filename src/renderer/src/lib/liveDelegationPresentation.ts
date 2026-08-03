@@ -7,18 +7,21 @@ type LiveDelegationStatusPresentation = Readonly<{
   dotClass: string
   badgeClass: string
   active: boolean
+  actionRequired: boolean
 }>
 
 const ACTIVE_PRESENTATION = {
   dotClass: 'bg-blue-500',
   badgeClass: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
-  active: true
+  active: true,
+  actionRequired: false
 } as const
 
 const WAITING_PRESENTATION = {
   dotClass: 'bg-amber-500',
   badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  active: true
+  active: true,
+  actionRequired: true
 } as const
 
 const STATUS_PRESENTATIONS: Record<LiveDelegationDisplayStatus, LiveDelegationStatusPresentation> =
@@ -43,25 +46,29 @@ const STATUS_PRESENTATIONS: Record<LiveDelegationDisplayStatus, LiveDelegationSt
       labelKey: 'chat.toolCall.subagents.status.completed',
       dotClass: 'bg-emerald-500',
       badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-      active: false
+      active: false,
+      actionRequired: false
     },
     failed: {
       labelKey: 'chat.toolCall.subagents.status.error',
       dotClass: 'bg-destructive',
       badgeClass: 'bg-destructive/10 text-destructive',
-      active: false
+      active: false,
+      actionRequired: false
     },
     interrupted: {
       labelKey: 'chat.toolCall.subagents.status.cancelled',
       dotClass: 'bg-amber-500',
       badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-      active: false
+      active: false,
+      actionRequired: false
     },
     tool_error: {
       labelKey: 'chat.toolCall.subagents.status.error',
       dotClass: 'bg-destructive',
       badgeClass: 'bg-destructive/10 text-destructive',
-      active: false
+      active: false,
+      actionRequired: false
     }
   }
 

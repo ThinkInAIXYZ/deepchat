@@ -1371,6 +1371,10 @@ export async function createMainProcessControl(dependencies: {
   }
   sessionDeletion = new SessionDeletion({
     sessions: appSessionService,
+    orchestration: {
+      prepareSessionDeletion: async (sessionId) =>
+        await liveDelegationService.prepareSessionDeletion(sessionId)
+    },
     runtime: {
       cleanupSessionBackends: async (sessionId) =>
         await agentManager.cleanupSessionBackends(sessionId)

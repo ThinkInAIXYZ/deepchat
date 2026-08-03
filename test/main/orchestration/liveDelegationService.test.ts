@@ -525,6 +525,103 @@ describeIfSqlite('LiveDelegationService', () => {
     )
   })
 
+  it('interrupts active work before deleting its parent or bound child Session', async () => {
+    const childDeletion = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Delete child review',
+      prompt: 'Remain active until the child is deleted.'
+    })
+    await vi.waitFor(() =>
+      expect(harness.sessions.sendConversationMessage).toHaveBeenCalledTimes(1)
+    )
+    const firstChildId = repository.require(childDeletion.delegation.id).childSessionId!
+
+    await service.prepareSessionDeletion(firstChildId)
+
+    expect(repository.require(childDeletion.delegation.id)).toMatchObject({
+      status: 'interrupted',
+      lastError: 'Interrupted because a related Session was deleted.'
+    })
+    expect(harness.sessions.cancelConversation).toHaveBeenCalledWith(firstChildId)
+
+    const parentDeletion = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Delete parent review',
+      prompt: 'Remain active until the parent is deleted.'
+    })
+    await vi.waitFor(() =>
+      expect(harness.sessions.sendConversationMessage).toHaveBeenCalledTimes(2)
+    )
+    const secondChildId = repository.require(parentDeletion.delegation.id).childSessionId!
+
+    await service.prepareSessionDeletion('parent')
+
+    expect(repository.require(parentDeletion.delegation.id)).toMatchObject({
+      status: 'interrupted',
+      lastError: 'Interrupted because a related Session was deleted.'
+    })
+    expect(harness.sessions.cancelConversation).toHaveBeenCalledWith(secondChildId)
+    expect(repository.countActiveByParent('parent')).toBe(0)
+  })
+
+  it('publishes write-ahead running state before handoff delivery resolves', async () => {
+    await service.stop()
+    let resolveHandoff!: () => void
+    harness.sessions.sendConversationMessage.mockImplementationOnce(
+      async () =>
+        await new Promise<void>((resolve) => {
+          resolveHandoff = resolve
+        })
+    )
+    const publishedStatuses: string[] = []
+    service = new LiveDelegationServiceCtor({
+      repository,
+      sessions: harness.sessions,
+      admission: new AgentInvocationAdmission(2, 10),
+      onChanged: (_parentSessionId, delegationId) => {
+        publishedStatuses.push(repository.require(delegationId).status)
+      }
+    })
+    service.start()
+
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Slow handoff',
+      prompt: 'Wait for delivery.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+
+    expect(repository.require(spawned.delegation.id).status).toBe('running')
+    expect(publishedStatuses.filter((status) => status === 'running')).toHaveLength(1)
+
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.publishAnswer(childId, 'Delivered result.', 300)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 301, status: 'idle' })
+    expect(repository.require(spawned.delegation.id).status).toBe('running')
+
+    resolveHandoff()
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+    expect(publishedStatuses.filter((status) => status === 'running')).toHaveLength(1)
+  })
+
+  it('settles a write-ahead turn when handoff delivery fails', async () => {
+    harness.sessions.sendConversationMessage.mockRejectedValueOnce(new Error('handoff failed'))
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Failed handoff',
+      prompt: 'Fail before child execution starts.'
+    })
+
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('failed'))
+
+    expect(repository.requireTurn(spawned.turns[0]!.id)).toMatchObject({
+      status: 'failed',
+      error: 'handoff failed'
+    })
+    expect(repository.countActiveByParent('parent')).toBe(0)
+    expect(harness.sessions.linkSubagentTape).not.toHaveBeenCalled()
+  })
+
   it('drains an in-flight child handoff before interrupt returns', async () => {
     let resolveHandoff!: () => void
     harness.sessions.sendConversationMessage.mockImplementationOnce(

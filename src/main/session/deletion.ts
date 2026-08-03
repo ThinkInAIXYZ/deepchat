@@ -1,6 +1,7 @@
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type {
   SessionDeletionPermissionPort,
+  SessionDeletionOrchestrationPort,
   SessionDeletionRuntimePort,
   SessionDeletionSkillPort,
   SessionDeletionStatePort,
@@ -10,6 +11,7 @@ import type {
 
 export interface SessionDeletionDependencies {
   sessions: SessionDeletionStorePort
+  orchestration: SessionDeletionOrchestrationPort
   runtime: SessionDeletionRuntimePort
   state: SessionDeletionStatePort
   permissions: SessionDeletionPermissionPort
@@ -23,6 +25,14 @@ export class SessionDeletion implements SessionLifecycleDeletionPort {
     const session = this.dependencies.sessions.get(sessionId)
     if (!session) return []
 
+    const stageErrors: Array<{ stage: string; error: unknown }> = []
+    try {
+      await this.dependencies.orchestration.prepareSessionDeletion(sessionId)
+    } catch (error) {
+      stageErrors.push({ stage: 'orchestration', error })
+      console.warn(`[SessionDeletion] orchestration cleanup failed for ${sessionId}:`, error)
+    }
+
     const deletedSessionIds: string[] = []
     if (session.sessionKind === 'regular') {
       const children = this.dependencies.sessions.list({
@@ -35,7 +45,6 @@ export class SessionDeletion implements SessionLifecycleDeletionPort {
     }
 
     // Best-effort staged cleanup: never leave a zombie session row when later stages still work.
-    const stageErrors: Array<{ stage: string; error: unknown }> = []
     try {
       await this.dependencies.runtime.cleanupSessionBackends(toAppSessionId(sessionId))
     } catch (error) {

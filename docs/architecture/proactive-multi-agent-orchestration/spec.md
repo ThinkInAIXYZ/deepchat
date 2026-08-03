@@ -259,7 +259,16 @@ mutable status store. Ordinary Session lists continue to hide child Sessions so 
 does not pollute the user's top-level chat history. The child view remains read-only for ordinary
 conversation mutation and exposes a back-to-parent action. A pending child permission or question
 is the sole exception: the child view renders the existing typed interaction response surface so
-the user can unblock work without enabling composition, editing, retry, or deletion.
+the user can unblock work without enabling composition, editing, retry, or deletion. While input is
+required, parent projections promote their existing child-navigation control to the primary action;
+they do not duplicate the child interaction or become another response authority.
+
+Session deletion coordinates with live delegation before runtime and Session storage cleanup. A
+parent or bound child being deleted interrupts and drains every related active turn through the
+same lifecycle path used by an explicit parent interruption. Cleanup remains best-effort so an
+orchestration failure cannot leave the user-visible Session row undeletable. The write-ahead
+dispatch transition is projected immediately; delivery acceptance remains a distinct in-memory
+fact used by terminal and Tape settlement.
 
 ## Compatibility And Safety
 
@@ -273,6 +282,8 @@ the user can unblock work without enabling composition, editing, retry, or delet
 - A policy change affects subsequent parent turns only. Active children and launched Workflows use
   their immutable execution snapshot.
 - One process-wide admission layer applies to both execution strategies, with strategy-local caps.
+- Session deletion interrupts related active delegation work before removing runtime or durable
+  Session state, without making orchestration cleanup a deletion gate.
 - V1 does not promise exactly-once external effects or automatic parallel-writer isolation.
 
 ## Acceptance Criteria
@@ -308,6 +319,10 @@ the user can unblock work without enabling composition, editing, retry, or delet
     unrelated parents, mutable later child messages, and forged cursors cannot be read.
 15. A waiting child permission or question can be answered from the read-only child view without
     broadening the child's conversation-mutation or permission policy.
+16. Parent projections make a waiting child's navigation action prominent without persisting or
+    routing another copy of the interaction.
+17. Deleting a parent or bound child drains related live delegation work before Session cleanup,
+    and write-ahead running state is visible before handoff delivery resolves.
 
 ## Non-Goals
 

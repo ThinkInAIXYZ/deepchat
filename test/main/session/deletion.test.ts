@@ -36,6 +36,11 @@ function createHarness() {
         records.delete(sessionId)
       })
     },
+    orchestration: {
+      prepareSessionDeletion: vi.fn(async (sessionId: string) => {
+        order.push(`orchestration:${sessionId}`)
+      })
+    },
     runtime: {
       cleanupSessionBackends: vi.fn(async (sessionId: string) => {
         order.push(`runtime:${sessionId}`)
@@ -66,6 +71,8 @@ describe('SessionDeletion', () => {
       'parent'
     ])
     expect(harness.order).toEqual([
+      'orchestration:parent',
+      'orchestration:child',
       'runtime:child',
       'state:child',
       'delete:child',
@@ -81,12 +88,16 @@ describe('SessionDeletion', () => {
     const harness = createHarness()
     harness.records.delete('child')
     const backendError = new Error('backend failed')
+    harness.dependencies.orchestration.prepareSessionDeletion.mockRejectedValue(
+      new Error('orchestration failed')
+    )
     harness.dependencies.runtime.cleanupSessionBackends.mockRejectedValue(backendError)
     harness.dependencies.state.destroySession.mockRejectedValue(new Error('state failed'))
 
     await expect(harness.transaction.deleteSessionTree('parent')).resolves.toEqual(['parent'])
     expect(harness.dependencies.state.destroySession).toHaveBeenCalledWith('parent')
     expect(harness.dependencies.sessions.delete).toHaveBeenCalledWith('parent')
+    expect(harness.dependencies.orchestration.prepareSessionDeletion).toHaveBeenCalledWith('parent')
     expect(harness.dependencies.permissions.clearSessionPermissions).toHaveBeenCalledWith('parent')
   })
 })

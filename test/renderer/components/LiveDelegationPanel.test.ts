@@ -108,6 +108,20 @@ describe('LiveDelegationPanel', () => {
     expect(wrapper.get('[data-testid="live-delegation-delegation-1"]').text()).toContain(
       'Review architecture'
     )
+    expect(
+      wrapper
+        .get('[data-testid="live-delegation-open-delegation-1"]')
+        .attributes('data-action-required')
+    ).toBeUndefined()
+
+    client.emitChanged(summary({ status: 'waiting_question', revision: 2, updatedAt: 30 }))
+    await flushPromises()
+    expect(
+      wrapper
+        .get('[data-testid="live-delegation-open-delegation-1"]')
+        .attributes('data-action-required')
+    ).toBe('true')
+
     await wrapper.get('[data-testid="live-delegation-open-delegation-1"]').trigger('click')
     expect(client.selectSession).toHaveBeenCalledWith('child-1')
 

@@ -60,10 +60,11 @@
             <div class="mt-1.5 flex flex-wrap gap-1">
               <Button
                 v-if="delegation.childSessionId"
-                variant="ghost"
+                :variant="requiresInteraction(delegation.status) ? 'default' : 'ghost'"
                 size="sm"
                 class="h-6 px-2 text-[10px]"
                 :data-testid="`live-delegation-open-${delegation.id}`"
+                :data-action-required="requiresInteraction(delegation.status) ? 'true' : undefined"
                 :disabled="openingId === delegation.id"
                 @click="openChild(delegation)"
               >
@@ -169,6 +170,10 @@ async function openChild(delegation: LiveDelegationSummary): Promise<void> {
 
 function isActive(status: LiveDelegationStatus): boolean {
   return getLiveDelegationStatusPresentation(status).active
+}
+
+function requiresInteraction(status: LiveDelegationStatus): boolean {
+  return getLiveDelegationStatusPresentation(status).actionRequired
 }
 
 function statusLabel(status: LiveDelegationStatus): string {

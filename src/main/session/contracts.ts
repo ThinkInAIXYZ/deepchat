@@ -596,6 +596,10 @@ export interface SessionDeletionRuntimePort {
   cleanupSessionBackends(sessionId: AppSessionId): Promise<void>
 }
 
+export interface SessionDeletionOrchestrationPort {
+  prepareSessionDeletion(sessionId: string): Promise<void>
+}
+
 export type SessionDeletionStatePort = Pick<SessionStatePort, 'destroySession'>
 
 export interface SessionDeletionPermissionPort {

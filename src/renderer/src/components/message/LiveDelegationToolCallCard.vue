@@ -23,10 +23,11 @@
       </span>
       <Button
         v-if="delegationId && (childSessionId || !authoritative)"
-        variant="ghost"
+        :variant="statusPresentation.actionRequired ? 'default' : 'ghost'"
         size="sm"
         class="h-7 px-2 text-[10px]"
         :data-testid="`live-delegation-tool-open-${delegationId}`"
+        :data-action-required="statusPresentation.actionRequired ? 'true' : undefined"
         :disabled="opening || (authoritative && !childSessionId)"
         @click="openChild"
       >

@@ -113,6 +113,28 @@ describe('LiveDelegationToolCallCard', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('chat.toolCall.subagents.status.running')
+    expect(
+      wrapper
+        .get('[data-testid="live-delegation-tool-open-delegation-1"]')
+        .attributes('data-action-required')
+    ).toBeUndefined()
+
+    client.emitChanged(
+      summary({
+        childSessionId: 'child-1',
+        status: 'waiting_permission',
+        revision: 3,
+        updatedAt: 40
+      })
+    )
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('chat.toolCall.subagents.status.waiting_permission')
+    expect(
+      wrapper
+        .get('[data-testid="live-delegation-tool-open-delegation-1"]')
+        .attributes('data-action-required')
+    ).toBe('true')
     await wrapper.get('[data-testid="live-delegation-tool-open-delegation-1"]').trigger('click')
     expect(selectSession).toHaveBeenCalledWith('child-1')
 

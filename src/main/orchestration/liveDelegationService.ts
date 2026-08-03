@@ -367,6 +367,50 @@ export class LiveDelegationService {
     )
   }
 
+  async prepareSessionDeletion(sessionId: string): Promise<void> {
+    const normalizedSessionId = sessionId.trim()
+    if (!normalizedSessionId) throw new Error('Session deletion requires a Session ID.')
+    if (!this.started) return
+
+    const delegationIds = new Set<string>()
+    for (const record of this.options.repository.listActiveTurns()) {
+      if (
+        record.delegation.parentSessionId === normalizedSessionId ||
+        record.delegation.childSessionId === normalizedSessionId
+      ) {
+        delegationIds.add(record.delegation.id)
+      }
+    }
+    for (const active of this.activeTurns.values()) {
+      if (
+        active.parentSessionId === normalizedSessionId ||
+        active.childSessionId === normalizedSessionId
+      ) {
+        delegationIds.add(active.delegationId)
+      }
+    }
+
+    const failures: unknown[] = []
+    for (const delegationId of delegationIds) {
+      const delegation = this.options.repository.get(delegationId)
+      if (!delegation) continue
+      try {
+        await this.interruptDelegation(
+          delegation,
+          'Interrupted because a related Session was deleted.'
+        )
+      } catch (error) {
+        failures.push(error)
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `Failed to interrupt ${failures.length} live delegation(s) before Session deletion.`
+      )
+    }
+  }
+
   beforeToolExecution(observation: ToolEffectObservation): void {
     const mappedTurnId = this.childToTurn.get(observation.conversationId)
     if (!mappedTurnId) return
@@ -462,6 +506,13 @@ export class LiveDelegationService {
   async interrupt(parentSessionId: string, delegationId: string): Promise<LiveDelegationDetail> {
     this.assertStarted()
     const delegation = this.options.repository.requireOwned(parentSessionId, delegationId)
+    return await this.interruptDelegation(delegation, 'Interrupted by the parent session.')
+  }
+
+  private async interruptDelegation(
+    delegation: LiveDelegation,
+    reason: string
+  ): Promise<LiveDelegationDetail> {
     const active = [...this.activeTurns.values()].find(
       (candidate) => candidate.delegationId === delegation.id
     )
@@ -471,7 +522,7 @@ export class LiveDelegationService {
         const settled = this.options.repository.finishTurn({
           turnId: turn.id,
           status: 'interrupted',
-          error: 'Interrupted by the parent session.'
+          error: reason
         })
         this.publishChanged(settled.delegation)
         this.notifyMailbox(delegation.parentSessionId, delegation.id)
@@ -486,15 +537,13 @@ export class LiveDelegationService {
           this.childToTurn.delete(childSessionId)
         }
       }
-      return this.inspect(parentSessionId, delegationId)
+      return this.inspect(delegation.parentSessionId, delegation.id)
     }
 
-    active.controller.abort('Interrupted by the parent session.')
+    active.controller.abort(reason)
     const pendingChildAcquisition = active.childAcquisition
     const pendingChildHandoff = active.childHandoff
-    const cancellation = active.childSessionId
-      ? this.cancelActiveChild(active, 'parent interruption')
-      : null
+    const cancellation = active.childSessionId ? this.cancelActiveChild(active, reason) : null
     await Promise.allSettled(
       [pendingChildAcquisition, pendingChildHandoff, cancellation].filter(
         (work): work is Promise<AcquiredChild> | Promise<void> => work !== null
@@ -502,10 +551,10 @@ export class LiveDelegationService {
     )
     await this.settle(active, {
       status: 'interrupted',
-      error: 'Interrupted by the parent session.'
+      error: reason
     })
     await active.completion.promise
-    return this.inspect(parentSessionId, delegationId)
+    return this.inspect(delegation.parentSessionId, delegation.id)
   }
 
   private scheduleTurn(
@@ -653,11 +702,11 @@ export class LiveDelegationService {
   ): Promise<void> {
     // Write the dispatch intent before crossing the delivery boundary so restart recovery can
     // correlate a child answer even if the host exits immediately after the child accepts it.
-    this.options.repository.markTurnStarted(turn.id)
+    const started = this.options.repository.markTurnStarted(turn.id)
+    this.publishChanged(started.delegation)
     const delivery = (async () => {
       await this.options.sessions.sendConversationMessage(childSessionId, handoff)
       active.started = true
-      this.publishChanged(this.options.repository.require(active.delegationId))
       if (active.controller.signal.aborted) {
         await this.cancelActiveChild(active, 'aborted child handoff')
       }
