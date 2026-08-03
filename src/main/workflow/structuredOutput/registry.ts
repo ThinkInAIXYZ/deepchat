@@ -60,7 +60,13 @@ export class WorkflowStructuredOutputRegistry
   }
 
   getToolDefinitions(conversationId: string): MCPToolDefinition[] {
-    const lease = this.toolLeases.get(normalizeConversationId(conversationId))
+    let normalizedConversationId: string
+    try {
+      normalizedConversationId = normalizeConversationId(conversationId)
+    } catch {
+      return []
+    }
+    const lease = this.toolLeases.get(normalizedConversationId)
     return lease ? [lease.toolDefinition] : []
   }
 

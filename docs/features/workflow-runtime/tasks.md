@@ -45,6 +45,10 @@ Validation evidence (2026-07-31):
 
 - [x] Add schema version 53.
 - [x] Add schema version 54 for the durable workspace and capability scope.
+- [x] Add schema version 55 for one-time invocation deadline arming.
+- [x] Add schema version 57 for the legacy session-mode bridge.
+- [x] Add schema version 58 for immutable execution snapshots.
+- [x] Add schema version 59 for the final `explicit | proactive` session policy.
 - [x] Add `workflow_runs`.
 - [x] Add `workflow_invocations`.
 - [x] Store immutable source, hashes, statuses, attempts, effects, usage, and delivery state.
@@ -68,7 +72,8 @@ Validation evidence (2026-07-31):
 ## Shared Admission
 
 - [x] Add cancellation-aware owner-fair `AgentInvocationAdmission`.
-- [x] Apply the process-wide default limit of four active children.
+- [x] Apply the process-wide default limit of six active children, with a workflow owner limit of
+  four and an orchestrator owner limit of five.
 - [x] Add a separate bounded workflow utility-process admission gate.
 - [x] Gate both workflow and `subagent_orchestrator` child starts.
 - [x] Gate `subagent_orchestrator` child lifetimes through the shared admission layer.
@@ -346,9 +351,9 @@ Shared-admission compatibility evidence (2026-07-31):
 
 Policy/retry validation evidence (2026-07-31):
 
-- schema version 56 adds `workflow` to the effective disabled-tool state of existing sessions while
-  preserving the runtime-authoritative normalized rows, other disabled tools, revisions, and
-  session ordering timestamps;
+- schema version 57 reconciles legacy disabled-tool JSON into the normalized rows when needed and
+  removes the retired generic `workflow` override while preserving other tools, revisions, and
+  session ordering timestamps; version 56 intentionally has no Workflow migration;
 - Agent config migration version 4 applies the same default to new sessions, and forks preserve
   explicit per-session tool choices;
 - configurable/runtime catalogs, same-name MCP precedence, and changed-input effect confirmation
@@ -585,12 +590,12 @@ Native launch approval review findings, ordered by severity:
 
 Mode/control-surface validation evidence (2026-08-01):
 
-- session schema version 57 persists `adaptive | workflow`, migrates every existing session to
-  `adaptive`, and removes the retired generic Workflow disabled-tool override without inferring
-  user intent;
-- runtime tool catalogs expose exactly one orchestrator by mode, include mode in the cache
-  fingerprint, reserve a same-name MCP Workflow tool only while the built-in is active, and add
-  Workflow prompt guidance only for the built-in Agent tool;
+- session schema version 57 provides the unreleased `adaptive | workflow` compatibility bridge;
+  version 59 replaces it with `explicit | proactive`, defaulting existing sessions to `explicit`
+  unless the bridge recorded an intentional Workflow selection;
+- runtime tool catalogs expose DeepChat-specific live-delegation and Workflow tools when their
+  capabilities are available; policy changes model guidance, while generic MCP names remain
+  independent and unreserved;
 - main-owned capability checks distinguish missing sessions and Agents, direct ACP, child
   sessions, unavailable policy, and disabled Subagents; draft and active-session requests fence
   stale completion across navigation;

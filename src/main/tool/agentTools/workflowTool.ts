@@ -17,6 +17,14 @@ import type { AgentToolCallResult } from './agentToolManager'
 export { WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 const WorkflowToolIdSchema = z.string().trim().min(1).max(256)
+const WorkflowScriptSourceSchema = z
+  .string()
+  .min(1)
+  .max(WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES)
+  .refine(
+    (value) => Buffer.byteLength(value, 'utf8') <= WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES,
+    `Workflow source must not exceed ${WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES} UTF-8 bytes.`
+  )
 const WorkflowRuntimeLimitOverridesSchema = z
   .object(WorkflowRuntimeLimitsSchema.shape)
   .partial()
@@ -25,17 +33,9 @@ const WorkflowRuntimeLimitOverridesSchema = z
 export const workflowAgentToolSchema = z
   .object({
     operation: z.enum(['prepare_launch', 'list', 'inspect', 'cancel', 'resume', 'retry']),
-    scriptSource: z.string().min(1).max(WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES).optional(),
+    scriptSource: WorkflowScriptSourceSchema.optional(),
     input: JsonValueSchema.optional(),
     parentMessageId: WorkflowToolIdSchema.nullable().optional(),
-    namedWorkflowPath: z
-      .string()
-      .trim()
-      .min(1)
-      .max(4_096)
-      .refine((value) => !value.includes('\0'), 'Workflow path cannot contain NUL')
-      .nullable()
-      .optional(),
     allowedAgentIds: z.array(WorkflowToolIdSchema).min(1).max(32).optional(),
     limits: WorkflowRuntimeLimitOverridesSchema.optional(),
     budget: WorkflowRunBudgetSchema.nullable().optional(),
@@ -219,7 +219,6 @@ export class WorkflowAgentTool {
             scriptSource: requireValue(args.scriptSource, 'scriptSource'),
             input: args.input ?? null,
             parentMessageId: args.parentMessageId,
-            namedWorkflowPath: args.namedWorkflowPath,
             allowedAgentIds: args.allowedAgentIds,
             limits: args.limits,
             budget: args.budget

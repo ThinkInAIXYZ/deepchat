@@ -83,6 +83,18 @@ describe('WorkflowLaunchScopeResolver', () => {
     })
   })
 
+  it('rejects a relative persisted workspace path', async () => {
+    parent = { ...parent, projectDir: 'relative/repo' }
+
+    await expect(
+      createResolver().resolve({
+        parentSessionId: 'parent-1',
+        parentMessageId: null,
+        allowedAgentIds: ['deepchat']
+      })
+    ).rejects.toThrow('workspace must be stored as an absolute path')
+  })
+
   it('omits absent optional settings from the immutable execution snapshot', async () => {
     parent = {
       ...parent,

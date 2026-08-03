@@ -306,7 +306,14 @@ function assertKeyedObjectArray(
       continue
     }
     if (element.type !== 'ObjectExpression') {
-      rejectHelper(call, helper, `${label} entries must be objects with ${requiredProperties.join(' and ')}.`)
+      if (element.type === 'Literal' || element.type === 'ArrayExpression') {
+        rejectHelper(
+          call,
+          helper,
+          `${label} entries must be objects with ${requiredProperties.join(' and ')}.`
+        )
+      }
+      continue
     }
     for (const propertyName of requiredProperties) {
       if (!objectMayContainProperty(element, propertyName)) {

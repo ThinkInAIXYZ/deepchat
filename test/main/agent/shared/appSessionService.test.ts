@@ -287,7 +287,7 @@ describe('AppSessionService', () => {
       })
     })
 
-    it('preserves live delegation identity and rejects ambiguous ownership metadata', () => {
+    it('preserves child identity while dropping ambiguous ownership metadata', () => {
       const baseRow = {
         id: 'child-1',
         agent_id: 'deepchat',
@@ -330,7 +330,11 @@ describe('AppSessionService', () => {
           liveDelegation: { delegationId: 'delegation-1' }
         })
       })
-      expect(manager.get('child-1')?.subagentMeta).toBeNull()
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'reviewer',
+        displayName: 'Ambiguous child',
+        targetAgentId: undefined
+      })
     })
 
     it('returns null when not found', () => {

@@ -24,6 +24,14 @@ const WAITING_PRESENTATION = {
   actionRequired: true
 } as const
 
+const UNKNOWN_PRESENTATION: LiveDelegationStatusPresentation = {
+  labelKey: 'chat.toolCall.subagents.status.error',
+  dotClass: 'bg-muted-foreground',
+  badgeClass: 'bg-muted text-muted-foreground',
+  active: false,
+  actionRequired: false
+}
+
 const STATUS_PRESENTATIONS: Record<LiveDelegationDisplayStatus, LiveDelegationStatusPresentation> =
   {
     queued: {
@@ -75,5 +83,5 @@ const STATUS_PRESENTATIONS: Record<LiveDelegationDisplayStatus, LiveDelegationSt
 export function getLiveDelegationStatusPresentation(
   status: LiveDelegationDisplayStatus
 ): LiveDelegationStatusPresentation {
-  return STATUS_PRESENTATIONS[status]
+  return STATUS_PRESENTATIONS[status] ?? UNKNOWN_PRESENTATION
 }

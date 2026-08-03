@@ -355,7 +355,7 @@ vi.mock('@/components/sidepanel/WorkflowPanel.vue', () => ({
         required: true
       }
     },
-    emits: ['toggle', 'select-run', 'consume-saved-invocation'],
+    emits: ['toggle', 'selectRun', 'consumeSavedInvocation'],
     template:
       '<button data-testid="workflow-panel-stub" @click="$emit(\'toggle\')">Workflow</button>'
   })
@@ -477,7 +477,7 @@ describe('WorkspacePanel', () => {
     expect(workflowPanel.props('savedWorkflowsEnabled')).toBe(true)
     await wrapper.get('[data-testid="workflow-panel-stub"]').trigger('click')
     expect(toggleSectionMock).toHaveBeenCalledWith('s1', 'workflows')
-    workflowPanel.vm.$emit('select-run', 'run-2')
+    workflowPanel.vm.$emit('selectRun', 'run-2')
     expect(sidepanelStore.selectWorkflowRun).toHaveBeenCalledWith('s1', 'run-2')
 
     sessionState.savedWorkflowInvocationRequest = {
@@ -489,7 +489,7 @@ describe('WorkspacePanel', () => {
     expect(workflowPanel.props('savedInvocationRequest')).toEqual(
       sessionState.savedWorkflowInvocationRequest
     )
-    workflowPanel.vm.$emit('consume-saved-invocation', 17)
+    workflowPanel.vm.$emit('consumeSavedInvocation', 17)
     expect(sidepanelStore.consumeSavedWorkflowRequest).toHaveBeenCalledWith('s1', 17)
 
     wrapper.unmount()

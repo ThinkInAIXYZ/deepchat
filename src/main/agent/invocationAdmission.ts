@@ -76,8 +76,14 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
   }
 
   acquire(options: AgentInvocationAdmissionOptions): Promise<AgentInvocationPermit> {
-    const ownerId = normalizeOwnerId(options.ownerId)
-    const maxActiveForOwner = normalizeOwnerLimit(options.maxActiveForOwner, this.capacity)
+    let ownerId: string
+    let maxActiveForOwner: number
+    try {
+      ownerId = normalizeOwnerId(options.ownerId)
+      maxActiveForOwner = normalizeOwnerLimit(options.maxActiveForOwner, this.capacity)
+    } catch (error) {
+      return Promise.reject(error)
+    }
     if (this.closedError) {
       return Promise.reject(this.closedError)
     }

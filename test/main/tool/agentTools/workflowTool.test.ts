@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkflowAgentTool, workflowAgentToolSchema } from '@/tool/agentTools/workflowTool'
 import type { AgentWorkflowToolPort } from '@/tool/runtimePorts'
+import { WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES } from '@shared/workflow/runtimeProtocol'
 
 describe('WorkflowAgentTool', () => {
   let port: AgentWorkflowToolPort
@@ -77,6 +78,22 @@ describe('WorkflowAgentTool', () => {
       enum?: string[]
     }
     expect(operationSchema.enum).not.toContain('launch')
+  })
+
+  it('rejects byte-oversized source and model-supplied saved-workflow provenance', () => {
+    expect(
+      workflowAgentToolSchema.safeParse({
+        operation: 'prepare_launch',
+        scriptSource: '界'.repeat(Math.floor(WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES / 3) + 1)
+      }).success
+    ).toBe(false)
+    expect(
+      workflowAgentToolSchema.safeParse({
+        operation: 'prepare_launch',
+        scriptSource: 'return null',
+        namedWorkflowPath: '/repo/.deepchat/workflows/review.js'
+      }).success
+    ).toBe(false)
   })
 
   it('keeps launch out of the model-facing operation contract', async () => {

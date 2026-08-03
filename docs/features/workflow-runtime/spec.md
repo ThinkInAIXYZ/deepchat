@@ -586,12 +586,13 @@ summary describes write-capable scope, not a claim that static inspection can pr
 a model will call. Editing the source or input, changing scope, or expanding the allowlist
 invalidates a remembered launch approval.
 
-The model-facing `workflow` tool is controlled by the parent session's orchestration mode rather
-than by the generic configurable-tool list. It is not shown as an ordinary tool toggle. Saved
-workflow and manual side-panel launches remain available without changing the parent session mode.
-An MCP server may use the same tool name while the DeepChat workflow tool is not exposed; name
-collision is resolved by the existing configured-tool precedence rules rather than by a global
-reserved-name ban.
+The parent session stores an `explicit | proactive` orchestration policy. Policy controls when the
+model may initiate multi-Agent work; it does not make Workflow and live delegation mutually
+exclusive. Their availability is resolved independently from the current DeepChat Agent and session
+capabilities. Built-ins use DeepChat-specific names (`deepchat_workflow` and `deepchat_subagents`),
+so generic names such as `workflow` remain available to MCP servers without precedence tricks or a
+global reserved-name ban. Saved Workflow and manual side-panel launches remain available under
+either policy.
 
 The approved workspace, provider/model identity, and bounded generation settings are persisted in
 the immutable run execution snapshot. Each child uses the launch-time generation settings by

@@ -375,19 +375,23 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
     sessionId: string,
     policy: OrchestrationPolicy
   ): Promise<OrchestrationPolicy> {
-    const session = this.requireSession(sessionId)
-    const normalized = normalizeOrchestrationPolicy(policy)
-    if (normalized === 'proactive') {
-      if (session.sessionKind !== 'regular') {
-        throw new Error('Proactive collaboration requires a regular parent session.')
+    return await this.runWithSessionOperationGate(sessionId, async () => {
+      const session = this.requireSession(sessionId)
+      const normalized = normalizeOrchestrationPolicy(policy)
+      if (normalized === 'proactive') {
+        if (session.sessionKind !== 'regular') {
+          throw new Error('Proactive collaboration requires a regular parent session.')
+        }
+        if (
+          this.dependencies.runtime.getSessionAgentKind(toAppSessionId(sessionId)) !== 'deepchat'
+        ) {
+          throw new Error('Proactive collaboration requires a DeepChat session.')
+        }
       }
-      if (this.dependencies.runtime.getSessionAgentKind(toAppSessionId(sessionId)) !== 'deepchat') {
-        throw new Error('Proactive collaboration requires a DeepChat session.')
-      }
-    }
-    this.dependencies.sessions.updateOrchestrationPolicy(sessionId, normalized)
-    this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
-    return normalized
+      this.dependencies.sessions.updateOrchestrationPolicy(sessionId, normalized)
+      this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
+      return normalized
+    })
   }
 
   async updateSessionDisabledAgentTools(

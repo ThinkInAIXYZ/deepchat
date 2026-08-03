@@ -10,7 +10,6 @@ import { BaseTable } from '@/data/baseTable'
 
 const ADD_REVISION_COLUMN_SQL =
   'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
-export const SESSION_WORKFLOW_TOOL_DEFAULT_SCHEMA_VERSION = 56
 export const LEGACY_SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION = 57
 export const SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION = 59
 
@@ -128,33 +127,13 @@ export class NewSessionsTable extends BaseTable {
       // that global version, so they need a forward recovery migration.
       return ADD_REVISION_COLUMN_SQL
     }
-    if (version === SESSION_WORKFLOW_TOOL_DEFAULT_SCHEMA_VERSION) {
+    if (version === LEGACY_SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION) {
       return `
-        CREATE TEMP TABLE workflow_disabled_agent_tools_migration (
-          session_id TEXT NOT NULL,
-          ordinal INTEGER NOT NULL,
-          tool_name TEXT NOT NULL,
-          PRIMARY KEY (session_id, ordinal)
-        );
+        ALTER TABLE new_sessions
+          ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'adaptive'
+          CHECK (orchestration_mode IN ('adaptive', 'workflow'));
 
-        INSERT INTO workflow_disabled_agent_tools_migration (
-          session_id,
-          ordinal,
-          tool_name
-        )
-        SELECT
-          normalized.session_id,
-          normalized.ordinal,
-          normalized.tool_name
-        FROM new_session_disabled_agent_tools AS normalized
-        INNER JOIN new_sessions
-          ON new_sessions.id = normalized.session_id;
-
-        INSERT INTO workflow_disabled_agent_tools_migration (
-          session_id,
-          ordinal,
-          tool_name
-        )
+        INSERT INTO new_session_disabled_agent_tools (session_id, ordinal, tool_name)
         SELECT
           new_sessions.id,
           CAST(json_each.key AS INTEGER),
@@ -174,64 +153,6 @@ export class NewSessionsTable extends BaseTable {
             FROM new_session_disabled_agent_tools AS normalized
             WHERE normalized.session_id = new_sessions.id
           );
-
-        INSERT INTO workflow_disabled_agent_tools_migration (
-          session_id,
-          ordinal,
-          tool_name
-        )
-        SELECT
-          new_sessions.id,
-          COALESCE(
-            (
-              SELECT MAX(existing.ordinal) + 1
-              FROM workflow_disabled_agent_tools_migration AS existing
-              WHERE existing.session_id = new_sessions.id
-            ),
-            0
-          ),
-          '${LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME}'
-        FROM new_sessions
-        WHERE NOT EXISTS (
-          SELECT 1
-          FROM workflow_disabled_agent_tools_migration AS existing
-          WHERE existing.session_id = new_sessions.id
-            AND existing.tool_name = '${LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME}'
-        );
-
-        UPDATE new_sessions
-        SET disabled_agent_tools = (
-          SELECT json_group_array(ordered.tool_name)
-          FROM (
-            SELECT migrated.tool_name
-            FROM workflow_disabled_agent_tools_migration AS migrated
-            WHERE migrated.session_id = new_sessions.id
-            ORDER BY migrated.ordinal
-          ) AS ordered
-        );
-
-        DELETE FROM new_session_disabled_agent_tools;
-
-        INSERT INTO new_session_disabled_agent_tools (
-          session_id,
-          ordinal,
-          tool_name
-        )
-        SELECT
-          migrated.session_id,
-          migrated.ordinal,
-          migrated.tool_name
-        FROM workflow_disabled_agent_tools_migration AS migrated
-        ORDER BY migrated.session_id, migrated.ordinal;
-
-        DROP TABLE workflow_disabled_agent_tools_migration;
-      `
-    }
-    if (version === LEGACY_SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION) {
-      return `
-        ALTER TABLE new_sessions
-          ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'adaptive'
-          CHECK (orchestration_mode IN ('adaptive', 'workflow'));
 
         DELETE FROM new_session_disabled_agent_tools
         WHERE tool_name = '${LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME}';

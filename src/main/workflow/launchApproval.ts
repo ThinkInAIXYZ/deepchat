@@ -77,7 +77,11 @@ export class WorkflowLaunchApprovalRegistry {
       sourceBytes > WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES ||
       sourceBytes > request.limits.maxScriptBytes
     ) {
-      throw new Error(`Workflow source exceeds its ${request.limits.maxScriptBytes}-byte limit.`)
+      const effectiveLimit = Math.min(
+        WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES,
+        request.limits.maxScriptBytes
+      )
+      throw new Error(`Workflow source exceeds its ${effectiveLimit}-byte limit.`)
     }
     const sourceAst = validateWorkflowSource(request.scriptSource)
     const outline = deriveWorkflowSourceOutlineFromAst(sourceAst)

@@ -33,7 +33,7 @@ const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta
     const workflow = parseWorkflowSubagentContext(parsed.workflow)
     const correlatedWorkflow = workflow?.correlationSlot === parsed.slotId ? workflow : undefined
     const liveDelegation = parseLiveDelegationSubagentContext(parsed.liveDelegation)
-    if (correlatedWorkflow && liveDelegation) return null
+    const hasConflictingOwners = Boolean(correlatedWorkflow && liveDelegation)
     return {
       slotId: parsed.slotId,
       displayName: typeof parsed.displayName === 'string' ? parsed.displayName : parsed.slotId,
@@ -41,8 +41,8 @@ const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta
         parsed.targetAgentId === null || typeof parsed.targetAgentId === 'string'
           ? parsed.targetAgentId
           : undefined,
-      ...(correlatedWorkflow ? { workflow: correlatedWorkflow } : {}),
-      ...(liveDelegation ? { liveDelegation } : {})
+      ...(!hasConflictingOwners && correlatedWorkflow ? { workflow: correlatedWorkflow } : {}),
+      ...(!hasConflictingOwners && liveDelegation ? { liveDelegation } : {})
     }
   } catch {
     return null

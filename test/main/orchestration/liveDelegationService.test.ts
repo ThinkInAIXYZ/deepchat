@@ -54,6 +54,7 @@ describeIfSqlite('LiveDelegationService', () => {
   beforeEach(() => {
     db = new DatabaseCtor(':memory:')
     db.exec(`
+      PRAGMA foreign_keys = ON;
       CREATE TABLE new_sessions (
         id TEXT PRIMARY KEY,
         session_kind TEXT NOT NULL DEFAULT 'regular',

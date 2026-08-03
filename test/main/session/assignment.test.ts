@@ -433,6 +433,27 @@ describe('SessionAssignment', () => {
     expect(harness.sessions.updateOrchestrationPolicy).not.toHaveBeenCalled()
   })
 
+  it('revalidates proactive policy after an admitted Session mutation', async () => {
+    const harness = createHarness()
+    const mutationStarted = createDeferred<void>()
+    const mutationRelease = createDeferred<void>()
+    const mutation = harness.coordinator.runWithSessionOperationGate('s1', async () => {
+      mutationStarted.resolve(undefined)
+      await mutationRelease.promise
+      harness.records.set('s1', { ...harness.records.get('s1')!, agentId: 'claude-acp' })
+    })
+    await mutationStarted.promise
+
+    const policyUpdate = harness.coordinator.updateOrchestrationPolicy('s1', 'proactive')
+    await Promise.resolve()
+    expect(harness.sessions.updateOrchestrationPolicy).not.toHaveBeenCalled()
+
+    mutationRelease.resolve(undefined)
+    await mutation
+    await expect(policyUpdate).rejects.toThrow('requires a DeepChat session')
+    expect(harness.sessions.updateOrchestrationPolicy).not.toHaveBeenCalled()
+  })
+
   it('routes direct and compatibility ACP commands and config through narrow controls', async () => {
     const harness = createHarness([
       createSession({ id: 'direct', agentId: 'claude-acp' }),

@@ -34,6 +34,20 @@ return await pipeline(
     ).not.toThrow()
   })
 
+  it('allows dynamically constructed entries in keyed helper arrays', () => {
+    expect(() =>
+      validateWorkflowSource(`
+const task = createTask(input)
+const tasks = [task, createTask(input)]
+const items = [createItem(input)]
+const stages = [createStage(input)]
+await parallel('review', tasks)
+await pipeline('pipe', items, stages)
+return await mapLimit('map', [createItem(input)], 2, async (item) => item)
+`)
+    ).not.toThrow()
+  })
+
   it.each([
     {
       source: "parallel([() => agent({ prompt: 'inspect' })])",

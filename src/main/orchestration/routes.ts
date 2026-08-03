@@ -45,13 +45,17 @@ export function createOrchestrationRoutes(options: OrchestrationRouteOptions): D
       async (rawInput) => {
         const input = orchestrationSetPolicyRoute.input.parse(rawInput)
         const capability = await options.resolveCapability({ sessionId: input.sessionId })
+        if (!capability.available && capability.reason === 'session_unavailable') {
+          return orchestrationSetPolicyRoute.output.parse({
+            applied: false,
+            policy: DEFAULT_ORCHESTRATION_POLICY,
+            capability
+          })
+        }
         if (input.policy === 'proactive' && !capability.available) {
           return orchestrationSetPolicyRoute.output.parse({
             applied: false,
-            policy:
-              capability.reason === 'session_unavailable'
-                ? DEFAULT_ORCHESTRATION_POLICY
-                : await options.getPolicy(input.sessionId),
+            policy: await options.getPolicy(input.sessionId),
             capability
           })
         }

@@ -15,6 +15,16 @@ describe('AgentInvocationAdmission', () => {
     })
   })
 
+  it('reports invalid acquire options through the promised rejection contract', async () => {
+    const admission = new AgentInvocationAdmission()
+    let acquirePromise!: Promise<unknown>
+
+    expect(() => {
+      acquirePromise = admission.acquire({ ownerId: '   ' })
+    }).not.toThrow()
+    await expect(acquirePromise).rejects.toThrow('ownerId must contain 1 to 256 characters')
+  })
+
   it('enforces capacity and schedules queued owners round-robin', async () => {
     const admission = new AgentInvocationAdmission(1, 10)
     const first = await admission.acquire({ ownerId: 'owner-a' })

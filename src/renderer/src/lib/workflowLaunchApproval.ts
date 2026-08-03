@@ -13,11 +13,13 @@ import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/di
 
 const MAX_PREPARE_PARAMS_CHARS = 16 * 1024 * 1024
 const MAX_PREPARE_RESPONSE_CHARS = 512 * 1024
+// Main validates the authoritative UTF-8 byte limit. This is only a defensive renderer ceiling.
+const MAX_RENDERED_SCRIPT_CHARS = WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES
 
 const WorkflowPrepareLaunchParamsSchema = z
   .object({
     operation: z.literal('prepare_launch'),
-    scriptSource: z.string().min(1).max(WORKFLOW_RUNTIME_MAX_SCRIPT_BYTES)
+    scriptSource: z.string().min(1).max(MAX_RENDERED_SCRIPT_CHARS)
   })
   .passthrough()
 

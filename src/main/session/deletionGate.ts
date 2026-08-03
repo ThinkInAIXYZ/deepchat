@@ -3,10 +3,20 @@ export interface SessionDeletionGatePort {
   runWithSessionDeletion<T>(sessionId: string, deletion: () => Promise<T>): Promise<T>
 }
 
+export const SESSION_OPERATION_DRAIN_TIMEOUT_MS = 30_000
+
 export class SessionDeletionGate implements SessionDeletionGatePort {
   private readonly activeOperations = new Map<string, number>()
   private readonly deletingSessionIds = new Set<string>()
   private readonly drainWaiters = new Map<string, Set<() => void>>()
+
+  constructor(
+    private readonly operationDrainTimeoutMs: number = SESSION_OPERATION_DRAIN_TIMEOUT_MS
+  ) {
+    if (!Number.isFinite(operationDrainTimeoutMs) || operationDrainTimeoutMs <= 0) {
+      throw new Error('Session operation drain timeout must be a positive finite number.')
+    }
+  }
 
   async runWithSessionOperation<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {
     const normalizedSessionId = this.normalizeSessionId(sessionId)
@@ -61,13 +71,31 @@ export class SessionDeletionGate implements SessionDeletionGatePort {
 
   private async waitForSessionOperations(sessionId: string): Promise<void> {
     if ((this.activeOperations.get(sessionId) ?? 0) === 0) return
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       let waiters = this.drainWaiters.get(sessionId)
       if (!waiters) {
         waiters = new Set()
         this.drainWaiters.set(sessionId, waiters)
       }
-      waiters.add(resolve)
+
+      const waiter = (): void => {
+        clearTimeout(timeout)
+        resolve()
+      }
+      const timeout = setTimeout(() => {
+        const currentWaiters = this.drainWaiters.get(sessionId)
+        currentWaiters?.delete(waiter)
+        if (currentWaiters?.size === 0 && this.drainWaiters.get(sessionId) === currentWaiters) {
+          this.drainWaiters.delete(sessionId)
+        }
+        reject(
+          new Error(
+            `Timed out waiting for active Session operations to drain: ${sessionId} ` +
+              `(${this.operationDrainTimeoutMs}ms)`
+          )
+        )
+      }, this.operationDrainTimeoutMs)
+      waiters.add(waiter)
     })
   }
 }

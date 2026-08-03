@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { SessionDeletionGate } from '@/session/deletionGate'
 
 describe('SessionDeletionGate', () => {
@@ -42,5 +42,38 @@ describe('SessionDeletionGate', () => {
     await expect(gate.runWithSessionOperation('parent', async () => 'available')).resolves.toBe(
       'available'
     )
+  })
+
+  it('bounds drain waits and removes the timed-out deletion fence', async () => {
+    vi.useFakeTimers()
+    try {
+      const gate = new SessionDeletionGate(25)
+      let releaseOperation!: () => void
+      const operation = gate.runWithSessionOperation(
+        'parent',
+        async () =>
+          await new Promise<void>((resolve) => {
+            releaseOperation = resolve
+          })
+      )
+      const deletion = gate.runWithSessionDeletion('parent', async () => undefined)
+      const rejection = expect(deletion).rejects.toThrow(
+        'Timed out waiting for active Session operations to drain: parent (25ms)'
+      )
+
+      await vi.advanceTimersByTimeAsync(25)
+      await rejection
+      await expect(gate.runWithSessionOperation('parent', async () => 'available')).resolves.toBe(
+        'available'
+      )
+
+      releaseOperation()
+      await operation
+      await expect(gate.runWithSessionDeletion('parent', async () => 'deleted')).resolves.toBe(
+        'deleted'
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

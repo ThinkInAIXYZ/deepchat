@@ -171,7 +171,13 @@ export class WorkflowCapabilityScopeChangedError extends Error {
 
 function normalizeWorkspacePath(projectDir: string | null): string | null {
   const normalized = projectDir?.trim()
-  return normalized ? path.resolve(normalized) : null
+  if (!normalized) {
+    return null
+  }
+  if (!path.isAbsolute(normalized)) {
+    throw new Error('Workflow parent workspace must be stored as an absolute path.')
+  }
+  return path.normalize(normalized)
 }
 
 function projectParentPolicy(

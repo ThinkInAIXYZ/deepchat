@@ -552,9 +552,11 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
   })
 
   it('shows a warning and blocks ACP draft/send when the selected workdir is invalid', async () => {
-    const { wrapper, sessionClient, sessionStore } = await setup({
-      isDirectory: false
-    })
+    const { wrapper, sessionClient, sessionStore, chatInputConsumeWorkflowSlashCommandMock } =
+      await setup({
+        isDirectory: false
+      })
+    chatInputConsumeWorkflowSlashCommandMock.mockReturnValue(true)
 
     expect(wrapper.find('[data-testid="new-thread-project-missing-warning"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
@@ -568,6 +570,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
 
     expect(sessionStore.createSession).not.toHaveBeenCalled()
     expect(sessionStore.sendMessage).not.toHaveBeenCalled()
+    expect(chatInputConsumeWorkflowSlashCommandMock).not.toHaveBeenCalled()
   })
 
   it('shows the same invalid-directory warning for DeepChat without blocking send', async () => {

@@ -146,6 +146,8 @@ export function resolveWorkflowLaunchRequest(draft: WorkflowLaunchDraft): Workfl
     ...WORKFLOW_RUNTIME_DEFAULT_LIMITS,
     ...parsed.limits
   })
+  // A null or omitted draft budget requests the bounded default; launched runs never inherit an
+  // unbounded execution lifetime implicitly.
   const budget = WorkflowRunBudgetSchema.parse({
     ...(parsed.budget ?? {}),
     maxExecutionMs: parsed.budget?.maxExecutionMs ?? WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS

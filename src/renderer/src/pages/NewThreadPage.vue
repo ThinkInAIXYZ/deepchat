@@ -853,8 +853,8 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
 }
 
 async function onSubmit() {
-  if (chatInputRef.value?.consumeWorkflowSlashCommand?.()) return
   if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
+  if (chatInputRef.value?.consumeWorkflowSlashCommand?.()) return
 
   const text = message.value.trim()
   if (!text && (isAcpSelectedAgent.value || attachedFiles.value.length === 0)) return

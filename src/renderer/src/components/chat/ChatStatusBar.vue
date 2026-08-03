@@ -350,6 +350,7 @@
                   <SelectTrigger
                     :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
                     class="h-8 w-[9rem] text-xs"
+                    :aria-label="option.label"
                   >
                     <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
                   </SelectTrigger>
@@ -371,6 +372,7 @@
                   size="sm"
                   class="h-8 min-w-[6rem] text-xs"
                   :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+                  :aria-label="option.label"
                   @click="onAcpBooleanOption(option.id, !Boolean(option.currentValue))"
                 >
                   <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>

@@ -42,6 +42,13 @@ function toolCall(argumentsJson: string, id = 'call-1') {
 }
 
 describe('WorkflowStructuredOutputRegistry', () => {
+  it('returns an empty catalog for invalid conversation identifiers', () => {
+    const registry = new WorkflowStructuredOutputRegistry({ onCatalogChanged: vi.fn() })
+
+    expect(registry.getToolDefinitions('   ')).toEqual([])
+    expect(registry.getToolDefinitions('x'.repeat(257))).toEqual([])
+  })
+
   it('publishes one invocation-scoped tool and accepts a validated result', async () => {
     const onCatalogChanged = vi.fn()
     const registry = new WorkflowStructuredOutputRegistry({ onCatalogChanged })

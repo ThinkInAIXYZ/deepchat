@@ -41,9 +41,10 @@ testable solution.
 
 ## 3. Add Durable Run And Invocation Storage
 
-- Add schema version 53 with `workflow_runs` and `workflow_invocations`, then additive version 54
-  for the immutable workspace/capability scope snapshot, and version 55 for one-time invocation
-  deadline arming at admission.
+- Add schema version 53 with `workflow_runs` and `workflow_invocations`, version 54 for the immutable
+  workspace/capability scope, version 55 for one-time invocation deadline arming, version 57 for
+  the legacy mode bridge, version 58 for immutable execution snapshots, and version 59 for the
+  final `explicit | proactive` session policy. Version 56 intentionally has no Workflow migration.
 - Store the exact immutable executed script source and hash in the run row.
 - Enforce status checks, foreign keys, uniqueness, JSON bounds, and timestamps.
 - Implement domain mapping and Zod parsing at repository boundaries.
@@ -52,14 +53,16 @@ testable solution.
 - Persist a stable child correlation slot for crash-safe session reattachment.
 - Add startup reconciliation and utility-exit reconciliation transactions.
 - Add idempotent parent-result delivery state.
-- Test new database creation, v52-to-v54 and v53-to-v54 migration, constraints, replay lookup,
-  restart reconciliation, and duplicate delivery prevention.
+- Test new database creation, upgrades from pre-Workflow and intermediate schemas through the
+  current version, constraints, replay lookup, restart reconciliation, and duplicate delivery
+  prevention.
 
 ## 4. Introduce Shared Child-Agent Admission
 
 - Replace direct child starts in workflow and orchestrator paths with one
   `AgentInvocationAdmission` port.
-- Default to four active child invocations process-wide.
+- Default to six active child invocations process-wide so the existing orchestrator's five-way
+  owner limit remains usable; retain a workflow owner limit of four.
 - Use owner-aware fair queues so a large run cannot starve other work.
 - Support `AbortSignal` while queued and release permits exactly once.
 - Bound queued work before child-session allocation.

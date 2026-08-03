@@ -111,6 +111,13 @@ describe('orchestration routes', () => {
       policy: 'explicit',
       capability: { available: false, reason: 'session_unavailable' }
     })
+    await expect(
+      updatePolicy({ sessionId: 'deleted-session', policy: 'explicit' }, context)
+    ).resolves.toEqual({
+      applied: false,
+      policy: 'explicit',
+      capability: { available: false, reason: 'session_unavailable' }
+    })
     expect(getPolicy).not.toHaveBeenCalled()
     expect(setPolicy).not.toHaveBeenCalled()
   })

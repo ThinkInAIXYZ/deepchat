@@ -6,6 +6,10 @@ export const WORKFLOW_SAVED_MAX_FILES = 200
 export const WORKFLOW_SAVED_MAX_SOURCE_BYTES = WORKFLOW_RUNTIME_DEFAULT_LIMITS.maxScriptBytes
 export const WORKFLOW_SAVED_MAX_ARGS_BYTES = 256 * 1024
 
+const UTF8_ENCODER = new TextEncoder()
+const fitsUtf8ByteLimit = (value: string, maxBytes: number): boolean =>
+  UTF8_ENCODER.encode(value).byteLength <= maxBytes
+
 export const WorkflowSavedNameSchema = z
   .string()
   .trim()
@@ -33,7 +37,14 @@ export const WorkflowSavedSummarySchema = z
 export const WorkflowSavedDocumentSchema = WorkflowSavedSummarySchema.extend({
   absolutePath: z.string().min(1).max(4_096),
   sourceHash: WorkflowSavedSourceHashSchema,
-  source: z.string().min(1).max(WORKFLOW_SAVED_MAX_SOURCE_BYTES)
+  source: z
+    .string()
+    .min(1)
+    .max(WORKFLOW_SAVED_MAX_SOURCE_BYTES)
+    .refine(
+      (value) => fitsUtf8ByteLimit(value, WORKFLOW_SAVED_MAX_SOURCE_BYTES),
+      `Workflow source must not exceed ${WORKFLOW_SAVED_MAX_SOURCE_BYTES} UTF-8 bytes.`
+    )
 }).strict()
 
 export const WorkflowSavedCatalogSchema = z
@@ -43,7 +54,13 @@ export const WorkflowSavedCatalogSchema = z
   })
   .strict()
 
-export const WorkflowSavedArgsTextSchema = z.string().max(WORKFLOW_SAVED_MAX_ARGS_BYTES)
+export const WorkflowSavedArgsTextSchema = z
+  .string()
+  .max(WORKFLOW_SAVED_MAX_ARGS_BYTES)
+  .refine(
+    (value) => fitsUtf8ByteLimit(value, WORKFLOW_SAVED_MAX_ARGS_BYTES),
+    `Workflow arguments must not exceed ${WORKFLOW_SAVED_MAX_ARGS_BYTES} UTF-8 bytes.`
+  )
 
 export type WorkflowSavedSummary = z.infer<typeof WorkflowSavedSummarySchema>
 export type WorkflowSavedDocument = z.infer<typeof WorkflowSavedDocumentSchema>
