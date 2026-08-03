@@ -576,79 +576,79 @@
     }
   },
   "workflow": {
-    "title": "Workflows",
-    "loading": "Loading workflows...",
-    "runLabel": "Run {id}",
+    "title": "תהליכי עבודה",
+    "loading": "תהליכי העבודה נטענים...",
+    "runLabel": "הרצה {id}",
     "empty": {
-      "title": "No workflows yet",
-      "description": "Explicit workflow runs for this conversation will appear here."
+      "title": "עדיין אין תהליכי עבודה",
+      "description": "הרצות מפורשות של תהליכי עבודה לשיחה זו יופיעו כאן."
     },
     "status": {
-      "queued": "Queued",
-      "running": "Running",
-      "waiting_interaction": "Needs input",
-      "cancelling": "Cancelling",
-      "succeeded": "Succeeded",
-      "failed": "Failed",
-      "cancelled": "Cancelled",
-      "interrupted": "Interrupted"
+      "queued": "בתור",
+      "running": "פועל",
+      "waiting_interaction": "נדרש קלט",
+      "cancelling": "מתבטל",
+      "succeeded": "הושלם בהצלחה",
+      "failed": "נכשל",
+      "cancelled": "בוטל",
+      "interrupted": "הופסק"
     },
     "fields": {
-      "duration": "Duration",
-      "usage": "Usage",
-      "phase": "Phase",
-      "budget": "Budget",
-      "reason": "Reason",
-      "result": "Result preview"
+      "duration": "משך",
+      "usage": "שימוש",
+      "phase": "שלב",
+      "budget": "תקציב",
+      "reason": "סיבה",
+      "result": "תצוגה מקדימה של התוצאה"
     },
     "actions": {
-      "refresh": "Refresh workflow",
-      "resume": "Resume",
-      "synthesize": "Ask parent Agent to synthesize",
-      "openChild": "Open child",
-      "retryFromHere": "Retry from here"
+      "refresh": "רענון תהליך העבודה",
+      "resume": "המשך",
+      "synthesize": "בקשה מה-Agent האב לסכם",
+      "openChild": "פתיחת Agent ילד",
+      "retryFromHere": "ניסיון חוזר מכאן"
     },
     "states": {
-      "incompatible": "Runtime API v{version} cannot resume in this build (current v{current}). History remains inspectable.",
-      "partialResult": "This run ended before every invocation completed. Successful child results remain available below.",
-      "unknownReason": "No reason was recorded.",
-      "unavailable": "Unavailable",
-      "previewTruncated": "Preview truncated",
-      "synthesisQueued": "Parent synthesis was queued behind the active turn.",
-      "synthesisStarted": "Parent synthesis started."
+      "incompatible": "לא ניתן להמשיך את Runtime API v{version} בגרסה זו (הנוכחית v{current}). ההיסטוריה נשארת זמינה לצפייה.",
+      "partialResult": "הרצה זו הסתיימה לפני שכל הקריאות הושלמו. תוצאות מוצלחות של Agents ילדים עדיין זמינות למטה.",
+      "unknownReason": "לא נרשמה סיבה.",
+      "unavailable": "לא זמין",
+      "previewTruncated": "התצוגה המקדימה קוצרה",
+      "synthesisQueued": "הסיכום של ה-Agent האב הוכנס לתור אחרי התור הפעיל.",
+      "synthesisStarted": "הסיכום של ה-Agent האב התחיל."
     },
     "invocations": {
-      "title": "Invocations",
-      "empty": "No child invocations yet",
-      "defaultPhase": "Workflow",
-      "attempt": "Attempt {attempt}",
-      "timedOut": "The host-owned timeout expired."
+      "title": "קריאות",
+      "empty": "עדיין אין קריאות ל-Agents ילדים",
+      "defaultPhase": "תהליך עבודה",
+      "attempt": "ניסיון {attempt}",
+      "timedOut": "תם הזמן שהוגדר על ידי המארח."
     },
     "interactions": {
-      "generic": "This child is waiting for a permission or question response.",
-      "permission": "Permission required",
-      "question": "Question requires an answer"
+      "generic": "Agent ילד זה ממתין להרשאה או לתשובה לשאלה.",
+      "permission": "נדרשת הרשאה",
+      "question": "השאלה דורשת תשובה"
     },
     "effects": {
-      "none": "No effects",
-      "read": "Read",
-      "unknown": "Unknown effect",
-      "write": "Write effect"
+      "none": "ללא השפעות",
+      "read": "קריאה",
+      "unknown": "השפעה לא ידועה",
+      "write": "השפעת כתיבה"
     },
     "effectWarning": {
-      "title": "This retry may repeat external effects",
-      "retry": "This child already performed or may have performed a write. Retrying can repeat changes outside DeepChat.",
-      "retryFromHere": "This invocation or a downstream child already performed or may have performed a write. Retrying from here can repeat changes outside DeepChat.",
-      "confirm": "Retry with effects"
+      "title": "הניסיון החוזר עשוי לחזור על השפעות חיצוניות",
+      "retry": "Agent ילד זה כבר ביצע, או אולי ביצע, פעולת כתיבה. ניסיון חוזר עלול לחזור על שינויים מחוץ ל-DeepChat.",
+      "retryFromHere": "קריאה זו או Agent ילד בהמשך כבר ביצעו, או אולי ביצעו, פעולת כתיבה. ניסיון חוזר מכאן עלול לחזור על שינויים מחוץ ל-DeepChat.",
+      "confirm": "ניסיון חוזר עם השפעות"
     },
     "duration": {
-      "seconds": "{count}s",
-      "minutes": "{minutes}m {seconds}s",
-      "hours": "{hours}h {minutes}m"
+      "seconds": "{count} שנ׳",
+      "minutes": "{minutes} דק׳ {seconds} שנ׳",
+      "hours": "{hours} שע׳ {minutes} דק׳"
     },
     "budget": {
-      "tokens": "{count} tokens",
-      "duration": "{duration} maximum"
+      "tokens": "{count} טוקנים",
+      "duration": "עד {duration}"
     },
     "approval": {
       "checking": "האישור נבדק…",
@@ -665,36 +665,36 @@
       "revisionPrompt": "יש לתקן את תוכנית תהליך העבודה הממתינה עם גיבוב המקור {sourceHash} לפי המשוב שלהלן. יש לקרוא שוב ל-workflow עם operation=prepare_launch ולא להפעיל אותו.\n\nמשוב:\n{feedback}"
     },
     "saved": {
-      "title": "Saved workflows",
-      "workspaceRequired": "Open a project workspace to create and run saved workflows.",
-      "selectPlaceholder": "Select a workflow",
-      "empty": "No saved workflows in this workspace.",
-      "unsaved": "Save changes before preparing a run.",
-      "runTitle": "Run saved workflow",
-      "agentPlaceholder": "Optional agent IDs, separated by commas",
+      "title": "תהליכי עבודה שמורים",
+      "workspaceRequired": "יש לפתוח סביבת עבודה של פרויקט כדי ליצור ולהריץ תהליכים שמורים.",
+      "selectPlaceholder": "בחירת תהליך עבודה",
+      "empty": "אין תהליכי עבודה שמורים בסביבת עבודה זו.",
+      "unsaved": "יש לשמור את השינויים לפני הכנת הרצה.",
+      "runTitle": "הרצת תהליך עבודה שמור",
+      "agentPlaceholder": "מזהי Agent אופציונליים, מופרדים בפסיקים",
       "fields": {
-        "name": "Name",
-        "source": "JavaScript source",
-        "args": "JSON args",
-        "agents": "Allowed agents"
+        "name": "שם",
+        "source": "קוד מקור JavaScript",
+        "args": "ארגומנטים של JSON",
+        "agents": "Agents מורשים"
       },
       "actions": {
-        "refresh": "Refresh saved workflows",
-        "new": "New",
-        "save": "Save",
-        "reload": "Reload",
-        "prepare": "Review launch",
-        "launch": "Launch workflow"
+        "refresh": "רענון תהליכי עבודה שמורים",
+        "new": "חדש",
+        "save": "שמירה",
+        "reload": "טעינה מחדש",
+        "prepare": "בדיקת ההפעלה",
+        "launch": "הפעלת תהליך העבודה"
       },
       "approval": {
-        "title": "Confirm this exact workflow snapshot",
-        "sourceHash": "Source hash",
-        "workspace": "Workspace",
-        "agents": "Allowed agents",
-        "maxInvocations": "Maximum invocations",
-        "maxPendingInvocations": "Maximum pending invocations",
-        "warning": "Child agents may use their existing write-capable tools. Their individual permission prompts still apply.",
-        "expired": "Approval expired"
+        "title": "אישור תמונת המצב המדויקת של תהליך העבודה",
+        "sourceHash": "גיבוב המקור",
+        "workspace": "סביבת עבודה",
+        "agents": "Agents מורשים",
+        "maxInvocations": "מספר קריאות מרבי",
+        "maxPendingInvocations": "מספר קריאות ממתינות מרבי",
+        "warning": "Agents ילדים יכולים להשתמש בכלים הקיימים שלהם שמסוגלים לכתוב. בקשות ההרשאה הנפרדות שלהם עדיין חלות.",
+        "expired": "האישור פג"
       }
     }
   }

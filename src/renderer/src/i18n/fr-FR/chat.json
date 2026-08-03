@@ -577,74 +577,74 @@
   },
   "workflow": {
     "title": "Workflows",
-    "loading": "Loading workflows...",
-    "runLabel": "Run {id}",
+    "loading": "Chargement des workflows...",
+    "runLabel": "Exécution {id}",
     "empty": {
-      "title": "No workflows yet",
-      "description": "Explicit workflow runs for this conversation will appear here."
+      "title": "Aucun workflow pour le moment",
+      "description": "Les exécutions explicites de workflow de cette conversation apparaîtront ici."
     },
     "status": {
-      "queued": "Queued",
-      "running": "Running",
-      "waiting_interaction": "Needs input",
-      "cancelling": "Cancelling",
-      "succeeded": "Succeeded",
-      "failed": "Failed",
-      "cancelled": "Cancelled",
-      "interrupted": "Interrupted"
+      "queued": "En attente",
+      "running": "En cours",
+      "waiting_interaction": "Intervention requise",
+      "cancelling": "Annulation",
+      "succeeded": "Réussi",
+      "failed": "Échoué",
+      "cancelled": "Annulé",
+      "interrupted": "Interrompu"
     },
     "fields": {
-      "duration": "Duration",
-      "usage": "Usage",
+      "duration": "Durée",
+      "usage": "Utilisation",
       "phase": "Phase",
       "budget": "Budget",
-      "reason": "Reason",
-      "result": "Result preview"
+      "reason": "Motif",
+      "result": "Aperçu du résultat"
     },
     "actions": {
-      "refresh": "Refresh workflow",
-      "resume": "Resume",
-      "synthesize": "Ask parent Agent to synthesize",
-      "openChild": "Open child",
-      "retryFromHere": "Retry from here"
+      "refresh": "Actualiser le workflow",
+      "resume": "Reprendre",
+      "synthesize": "Demander à l’Agent parent de synthétiser",
+      "openChild": "Ouvrir l’Agent enfant",
+      "retryFromHere": "Réessayer à partir d’ici"
     },
     "states": {
-      "incompatible": "Runtime API v{version} cannot resume in this build (current v{current}). History remains inspectable.",
-      "partialResult": "This run ended before every invocation completed. Successful child results remain available below.",
-      "unknownReason": "No reason was recorded.",
-      "unavailable": "Unavailable",
-      "previewTruncated": "Preview truncated",
-      "synthesisQueued": "Parent synthesis was queued behind the active turn.",
-      "synthesisStarted": "Parent synthesis started."
+      "incompatible": "La Runtime API v{version} ne peut pas reprendre dans cette version (actuelle v{current}). L’historique reste consultable.",
+      "partialResult": "Cette exécution s’est terminée avant la fin de toutes les invocations. Les résultats réussis des Agents enfants restent disponibles ci-dessous.",
+      "unknownReason": "Aucun motif n’a été enregistré.",
+      "unavailable": "Indisponible",
+      "previewTruncated": "Aperçu tronqué",
+      "synthesisQueued": "La synthèse de l’Agent parent a été mise en attente après le tour actif.",
+      "synthesisStarted": "La synthèse de l’Agent parent a commencé."
     },
     "invocations": {
       "title": "Invocations",
-      "empty": "No child invocations yet",
+      "empty": "Aucune invocation d’Agent enfant pour le moment",
       "defaultPhase": "Workflow",
-      "attempt": "Attempt {attempt}",
-      "timedOut": "The host-owned timeout expired."
+      "attempt": "Tentative {attempt}",
+      "timedOut": "Le délai géré par l’hôte a expiré."
     },
     "interactions": {
-      "generic": "This child is waiting for a permission or question response.",
-      "permission": "Permission required",
-      "question": "Question requires an answer"
+      "generic": "Cet Agent enfant attend une autorisation ou une réponse à une question.",
+      "permission": "Autorisation requise",
+      "question": "La question nécessite une réponse"
     },
     "effects": {
-      "none": "No effects",
-      "read": "Read",
-      "unknown": "Unknown effect",
-      "write": "Write effect"
+      "none": "Aucun effet",
+      "read": "Lecture",
+      "unknown": "Effet inconnu",
+      "write": "Effet d’écriture"
     },
     "effectWarning": {
-      "title": "This retry may repeat external effects",
-      "retry": "This child already performed or may have performed a write. Retrying can repeat changes outside DeepChat.",
-      "retryFromHere": "This invocation or a downstream child already performed or may have performed a write. Retrying from here can repeat changes outside DeepChat.",
-      "confirm": "Retry with effects"
+      "title": "Cette nouvelle tentative peut répéter des effets externes",
+      "retry": "Cet Agent enfant a déjà effectué, ou a peut-être effectué, une écriture. Réessayer peut répéter des modifications hors de DeepChat.",
+      "retryFromHere": "Cette invocation ou un Agent enfant en aval a déjà effectué, ou a peut-être effectué, une écriture. Réessayer à partir d’ici peut répéter des modifications hors de DeepChat.",
+      "confirm": "Réessayer avec les effets"
     },
     "duration": {
-      "seconds": "{count}s",
-      "minutes": "{minutes}m {seconds}s",
-      "hours": "{hours}h {minutes}m"
+      "seconds": "{count} s",
+      "minutes": "{minutes} min {seconds} s",
+      "hours": "{hours} h {minutes} min"
     },
     "budget": {
       "tokens": "{count} tokens",
@@ -665,36 +665,36 @@
       "revisionPrompt": "Révisez le plan de workflow en attente dont le hachage source est {sourceHash} selon le retour ci-dessous. Appelez de nouveau workflow avec operation=prepare_launch, sans le lancer.\n\nRetour :\n{feedback}"
     },
     "saved": {
-      "title": "Saved workflows",
-      "workspaceRequired": "Open a project workspace to create and run saved workflows.",
-      "selectPlaceholder": "Select a workflow",
-      "empty": "No saved workflows in this workspace.",
-      "unsaved": "Save changes before preparing a run.",
-      "runTitle": "Run saved workflow",
-      "agentPlaceholder": "Optional agent IDs, separated by commas",
+      "title": "Workflows enregistrés",
+      "workspaceRequired": "Ouvrez un espace de travail de projet pour créer et exécuter des workflows enregistrés.",
+      "selectPlaceholder": "Sélectionner un workflow",
+      "empty": "Aucun workflow enregistré dans cet espace de travail.",
+      "unsaved": "Enregistrez les modifications avant de préparer une exécution.",
+      "runTitle": "Exécuter le workflow enregistré",
+      "agentPlaceholder": "ID d’Agent facultatifs, séparés par des virgules",
       "fields": {
-        "name": "Name",
-        "source": "JavaScript source",
-        "args": "JSON args",
-        "agents": "Allowed agents"
+        "name": "Nom",
+        "source": "Code source JavaScript",
+        "args": "Arguments JSON",
+        "agents": "Agents autorisés"
       },
       "actions": {
-        "refresh": "Refresh saved workflows",
-        "new": "New",
-        "save": "Save",
-        "reload": "Reload",
-        "prepare": "Review launch",
-        "launch": "Launch workflow"
+        "refresh": "Actualiser les workflows enregistrés",
+        "new": "Nouveau",
+        "save": "Enregistrer",
+        "reload": "Recharger",
+        "prepare": "Vérifier le lancement",
+        "launch": "Lancer le workflow"
       },
       "approval": {
-        "title": "Confirm this exact workflow snapshot",
-        "sourceHash": "Source hash",
-        "workspace": "Workspace",
-        "agents": "Allowed agents",
-        "maxInvocations": "Maximum invocations",
-        "maxPendingInvocations": "Maximum pending invocations",
-        "warning": "Child agents may use their existing write-capable tools. Their individual permission prompts still apply.",
-        "expired": "Approval expired"
+        "title": "Confirmer cet instantané exact du workflow",
+        "sourceHash": "Empreinte de la source",
+        "workspace": "Espace de travail",
+        "agents": "Agents autorisés",
+        "maxInvocations": "Nombre maximal d’invocations",
+        "maxPendingInvocations": "Nombre maximal d’invocations en attente",
+        "warning": "Les Agents enfants peuvent utiliser leurs outils d’écriture existants. Leurs demandes d’autorisation individuelles restent applicables.",
+        "expired": "Approbation expirée"
       }
     }
   }

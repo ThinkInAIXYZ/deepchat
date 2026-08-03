@@ -576,79 +576,79 @@
     }
   },
   "workflow": {
-    "title": "Workflows",
-    "loading": "Loading workflows...",
-    "runLabel": "Run {id}",
+    "title": "ワークフロー",
+    "loading": "ワークフローを読み込んでいます...",
+    "runLabel": "実行 {id}",
     "empty": {
-      "title": "No workflows yet",
-      "description": "Explicit workflow runs for this conversation will appear here."
+      "title": "ワークフローはまだありません",
+      "description": "この会話で明示的に実行したワークフローがここに表示されます。"
     },
     "status": {
-      "queued": "Queued",
-      "running": "Running",
-      "waiting_interaction": "Needs input",
-      "cancelling": "Cancelling",
-      "succeeded": "Succeeded",
-      "failed": "Failed",
-      "cancelled": "Cancelled",
-      "interrupted": "Interrupted"
+      "queued": "待機中",
+      "running": "実行中",
+      "waiting_interaction": "入力が必要",
+      "cancelling": "キャンセル中",
+      "succeeded": "成功",
+      "failed": "失敗",
+      "cancelled": "キャンセル済み",
+      "interrupted": "中断済み"
     },
     "fields": {
-      "duration": "Duration",
-      "usage": "Usage",
-      "phase": "Phase",
-      "budget": "Budget",
-      "reason": "Reason",
-      "result": "Result preview"
+      "duration": "所要時間",
+      "usage": "使用量",
+      "phase": "フェーズ",
+      "budget": "予算",
+      "reason": "理由",
+      "result": "結果のプレビュー"
     },
     "actions": {
-      "refresh": "Refresh workflow",
-      "resume": "Resume",
-      "synthesize": "Ask parent Agent to synthesize",
-      "openChild": "Open child",
-      "retryFromHere": "Retry from here"
+      "refresh": "ワークフローを更新",
+      "resume": "再開",
+      "synthesize": "親 Agent に統合を依頼",
+      "openChild": "子 Agent を開く",
+      "retryFromHere": "ここから再試行"
     },
     "states": {
-      "incompatible": "Runtime API v{version} cannot resume in this build (current v{current}). History remains inspectable.",
-      "partialResult": "This run ended before every invocation completed. Successful child results remain available below.",
-      "unknownReason": "No reason was recorded.",
-      "unavailable": "Unavailable",
-      "previewTruncated": "Preview truncated",
-      "synthesisQueued": "Parent synthesis was queued behind the active turn.",
-      "synthesisStarted": "Parent synthesis started."
+      "incompatible": "Runtime API v{version} はこのビルドでは再開できません（現在は v{current}）。履歴は引き続き確認できます。",
+      "partialResult": "すべての呼び出しが完了する前に実行が終了しました。成功した子 Agent の結果は下に残っています。",
+      "unknownReason": "理由は記録されていません。",
+      "unavailable": "利用できません",
+      "previewTruncated": "プレビューは省略されています",
+      "synthesisQueued": "親 Agent の統合はアクティブなターンの後にキューへ追加されました。",
+      "synthesisStarted": "親 Agent の統合を開始しました。"
     },
     "invocations": {
-      "title": "Invocations",
-      "empty": "No child invocations yet",
-      "defaultPhase": "Workflow",
-      "attempt": "Attempt {attempt}",
-      "timedOut": "The host-owned timeout expired."
+      "title": "呼び出し",
+      "empty": "子 Agent の呼び出しはまだありません",
+      "defaultPhase": "ワークフロー",
+      "attempt": "試行 {attempt}",
+      "timedOut": "ホスト側で管理されているタイムアウトが発生しました。"
     },
     "interactions": {
-      "generic": "This child is waiting for a permission or question response.",
-      "permission": "Permission required",
-      "question": "Question requires an answer"
+      "generic": "この子 Agent は権限の承認または質問への回答を待っています。",
+      "permission": "権限が必要です",
+      "question": "質問への回答が必要です"
     },
     "effects": {
-      "none": "No effects",
-      "read": "Read",
-      "unknown": "Unknown effect",
-      "write": "Write effect"
+      "none": "影響なし",
+      "read": "読み取り",
+      "unknown": "不明な影響",
+      "write": "書き込みの影響"
     },
     "effectWarning": {
-      "title": "This retry may repeat external effects",
-      "retry": "This child already performed or may have performed a write. Retrying can repeat changes outside DeepChat.",
-      "retryFromHere": "This invocation or a downstream child already performed or may have performed a write. Retrying from here can repeat changes outside DeepChat.",
-      "confirm": "Retry with effects"
+      "title": "再試行により外部への影響が繰り返される可能性があります",
+      "retry": "この子 Agent はすでに書き込みを実行したか、その可能性があります。再試行すると DeepChat 外の変更が繰り返される場合があります。",
+      "retryFromHere": "この呼び出しまたは後続の子 Agent はすでに書き込みを実行したか、その可能性があります。ここから再試行すると DeepChat 外の変更が繰り返される場合があります。",
+      "confirm": "影響を承知して再試行"
     },
     "duration": {
-      "seconds": "{count}s",
-      "minutes": "{minutes}m {seconds}s",
-      "hours": "{hours}h {minutes}m"
+      "seconds": "{count}秒",
+      "minutes": "{minutes}分{seconds}秒",
+      "hours": "{hours}時間{minutes}分"
     },
     "budget": {
-      "tokens": "{count} tokens",
-      "duration": "{duration} maximum"
+      "tokens": "{count}トークン",
+      "duration": "最大{duration}"
     },
     "approval": {
       "checking": "承認を確認しています…",
@@ -665,36 +665,36 @@
       "revisionPrompt": "以下のフィードバックに基づき、ソースハッシュ {sourceHash} の承認待ちワークフロープランを修正してください。workflow を operation=prepare_launch でもう一度呼び出し、起動はしないでください。\n\nフィードバック：\n{feedback}"
     },
     "saved": {
-      "title": "Saved workflows",
-      "workspaceRequired": "Open a project workspace to create and run saved workflows.",
-      "selectPlaceholder": "Select a workflow",
-      "empty": "No saved workflows in this workspace.",
-      "unsaved": "Save changes before preparing a run.",
-      "runTitle": "Run saved workflow",
-      "agentPlaceholder": "Optional agent IDs, separated by commas",
+      "title": "保存済みワークフロー",
+      "workspaceRequired": "保存済みワークフローを作成・実行するには、プロジェクトワークスペースを開いてください。",
+      "selectPlaceholder": "ワークフローを選択",
+      "empty": "このワークスペースに保存済みワークフローはありません。",
+      "unsaved": "実行を準備する前に変更を保存してください。",
+      "runTitle": "保存済みワークフローを実行",
+      "agentPlaceholder": "任意の Agent ID（カンマ区切り）",
       "fields": {
-        "name": "Name",
-        "source": "JavaScript source",
-        "args": "JSON args",
-        "agents": "Allowed agents"
+        "name": "名前",
+        "source": "JavaScript ソース",
+        "args": "JSON 引数",
+        "agents": "許可する Agent"
       },
       "actions": {
-        "refresh": "Refresh saved workflows",
-        "new": "New",
-        "save": "Save",
-        "reload": "Reload",
-        "prepare": "Review launch",
-        "launch": "Launch workflow"
+        "refresh": "保存済みワークフローを更新",
+        "new": "新規",
+        "save": "保存",
+        "reload": "再読み込み",
+        "prepare": "起動内容を確認",
+        "launch": "ワークフローを起動"
       },
       "approval": {
-        "title": "Confirm this exact workflow snapshot",
-        "sourceHash": "Source hash",
-        "workspace": "Workspace",
-        "agents": "Allowed agents",
-        "maxInvocations": "Maximum invocations",
-        "maxPendingInvocations": "Maximum pending invocations",
-        "warning": "Child agents may use their existing write-capable tools. Their individual permission prompts still apply.",
-        "expired": "Approval expired"
+        "title": "このワークフローの正確なスナップショットを確認",
+        "sourceHash": "ソースハッシュ",
+        "workspace": "ワークスペース",
+        "agents": "許可する Agent",
+        "maxInvocations": "最大呼び出し数",
+        "maxPendingInvocations": "最大保留呼び出し数",
+        "warning": "子 Agent は既存の書き込み可能なツールを使用できます。個別の権限確認は引き続き適用されます。",
+        "expired": "承認の有効期限が切れました"
       }
     }
   }

@@ -576,79 +576,79 @@
     }
   },
   "workflow": {
-    "title": "Workflows",
-    "loading": "Loading workflows...",
-    "runLabel": "Run {id}",
+    "title": "Alur kerja",
+    "loading": "Memuat alur kerja...",
+    "runLabel": "Proses {id}",
     "empty": {
-      "title": "No workflows yet",
-      "description": "Explicit workflow runs for this conversation will appear here."
+      "title": "Belum ada alur kerja",
+      "description": "Proses alur kerja eksplisit untuk percakapan ini akan muncul di sini."
     },
     "status": {
-      "queued": "Queued",
-      "running": "Running",
-      "waiting_interaction": "Needs input",
-      "cancelling": "Cancelling",
-      "succeeded": "Succeeded",
-      "failed": "Failed",
-      "cancelled": "Cancelled",
-      "interrupted": "Interrupted"
+      "queued": "Dalam antrean",
+      "running": "Berjalan",
+      "waiting_interaction": "Memerlukan input",
+      "cancelling": "Membatalkan",
+      "succeeded": "Berhasil",
+      "failed": "Gagal",
+      "cancelled": "Dibatalkan",
+      "interrupted": "Terputus"
     },
     "fields": {
-      "duration": "Duration",
-      "usage": "Usage",
-      "phase": "Phase",
-      "budget": "Budget",
-      "reason": "Reason",
-      "result": "Result preview"
+      "duration": "Durasi",
+      "usage": "Penggunaan",
+      "phase": "Fase",
+      "budget": "Anggaran",
+      "reason": "Alasan",
+      "result": "Pratinjau hasil"
     },
     "actions": {
-      "refresh": "Refresh workflow",
-      "resume": "Resume",
-      "synthesize": "Ask parent Agent to synthesize",
-      "openChild": "Open child",
-      "retryFromHere": "Retry from here"
+      "refresh": "Segarkan alur kerja",
+      "resume": "Lanjutkan",
+      "synthesize": "Minta Agent induk merangkum",
+      "openChild": "Buka Agent anak",
+      "retryFromHere": "Coba lagi dari sini"
     },
     "states": {
-      "incompatible": "Runtime API v{version} cannot resume in this build (current v{current}). History remains inspectable.",
-      "partialResult": "This run ended before every invocation completed. Successful child results remain available below.",
-      "unknownReason": "No reason was recorded.",
-      "unavailable": "Unavailable",
-      "previewTruncated": "Preview truncated",
-      "synthesisQueued": "Parent synthesis was queued behind the active turn.",
-      "synthesisStarted": "Parent synthesis started."
+      "incompatible": "Runtime API v{version} tidak dapat dilanjutkan dalam build ini (saat ini v{current}). Riwayat tetap dapat ditinjau.",
+      "partialResult": "Proses ini berakhir sebelum semua pemanggilan selesai. Hasil Agent anak yang berhasil tetap tersedia di bawah.",
+      "unknownReason": "Tidak ada alasan yang dicatat.",
+      "unavailable": "Tidak tersedia",
+      "previewTruncated": "Pratinjau dipotong",
+      "synthesisQueued": "Rangkuman Agent induk diantrekan setelah giliran aktif.",
+      "synthesisStarted": "Rangkuman Agent induk dimulai."
     },
     "invocations": {
-      "title": "Invocations",
-      "empty": "No child invocations yet",
-      "defaultPhase": "Workflow",
-      "attempt": "Attempt {attempt}",
-      "timedOut": "The host-owned timeout expired."
+      "title": "Pemanggilan",
+      "empty": "Belum ada pemanggilan Agent anak",
+      "defaultPhase": "Alur kerja",
+      "attempt": "Percobaan {attempt}",
+      "timedOut": "Batas waktu yang dikelola host telah berakhir."
     },
     "interactions": {
-      "generic": "This child is waiting for a permission or question response.",
-      "permission": "Permission required",
-      "question": "Question requires an answer"
+      "generic": "Agent anak ini menunggu izin atau jawaban atas pertanyaan.",
+      "permission": "Izin diperlukan",
+      "question": "Pertanyaan memerlukan jawaban"
     },
     "effects": {
-      "none": "No effects",
-      "read": "Read",
-      "unknown": "Unknown effect",
-      "write": "Write effect"
+      "none": "Tanpa efek",
+      "read": "Baca",
+      "unknown": "Efek tidak diketahui",
+      "write": "Efek tulis"
     },
     "effectWarning": {
-      "title": "This retry may repeat external effects",
-      "retry": "This child already performed or may have performed a write. Retrying can repeat changes outside DeepChat.",
-      "retryFromHere": "This invocation or a downstream child already performed or may have performed a write. Retrying from here can repeat changes outside DeepChat.",
-      "confirm": "Retry with effects"
+      "title": "Percobaan ulang ini dapat mengulangi efek eksternal",
+      "retry": "Agent anak ini sudah atau mungkin telah melakukan penulisan. Mencoba lagi dapat mengulangi perubahan di luar DeepChat.",
+      "retryFromHere": "Pemanggilan ini atau Agent anak berikutnya sudah atau mungkin telah melakukan penulisan. Mencoba lagi dari sini dapat mengulangi perubahan di luar DeepChat.",
+      "confirm": "Coba lagi dengan efek"
     },
     "duration": {
-      "seconds": "{count}s",
-      "minutes": "{minutes}m {seconds}s",
-      "hours": "{hours}h {minutes}m"
+      "seconds": "{count} dtk",
+      "minutes": "{minutes} mnt {seconds} dtk",
+      "hours": "{hours} jam {minutes} mnt"
     },
     "budget": {
-      "tokens": "{count} tokens",
-      "duration": "{duration} maximum"
+      "tokens": "{count} token",
+      "duration": "Maksimum {duration}"
     },
     "approval": {
       "checking": "Memeriksa persetujuan…",
@@ -665,36 +665,36 @@
       "revisionPrompt": "Revisi rencana workflow tertunda dengan hash sumber {sourceHash} berdasarkan masukan berikut. Panggil workflow lagi dengan operation=prepare_launch dan jangan jalankan.\n\nMasukan:\n{feedback}"
     },
     "saved": {
-      "title": "Saved workflows",
-      "workspaceRequired": "Open a project workspace to create and run saved workflows.",
-      "selectPlaceholder": "Select a workflow",
-      "empty": "No saved workflows in this workspace.",
-      "unsaved": "Save changes before preparing a run.",
-      "runTitle": "Run saved workflow",
-      "agentPlaceholder": "Optional agent IDs, separated by commas",
+      "title": "Alur kerja tersimpan",
+      "workspaceRequired": "Buka ruang kerja proyek untuk membuat dan menjalankan alur kerja tersimpan.",
+      "selectPlaceholder": "Pilih alur kerja",
+      "empty": "Tidak ada alur kerja tersimpan di ruang kerja ini.",
+      "unsaved": "Simpan perubahan sebelum menyiapkan proses.",
+      "runTitle": "Jalankan alur kerja tersimpan",
+      "agentPlaceholder": "ID Agent opsional, dipisahkan koma",
       "fields": {
-        "name": "Name",
-        "source": "JavaScript source",
-        "args": "JSON args",
-        "agents": "Allowed agents"
+        "name": "Nama",
+        "source": "Kode sumber JavaScript",
+        "args": "Argumen JSON",
+        "agents": "Agent yang diizinkan"
       },
       "actions": {
-        "refresh": "Refresh saved workflows",
-        "new": "New",
-        "save": "Save",
-        "reload": "Reload",
-        "prepare": "Review launch",
-        "launch": "Launch workflow"
+        "refresh": "Segarkan alur kerja tersimpan",
+        "new": "Baru",
+        "save": "Simpan",
+        "reload": "Muat ulang",
+        "prepare": "Tinjau peluncuran",
+        "launch": "Luncurkan alur kerja"
       },
       "approval": {
-        "title": "Confirm this exact workflow snapshot",
-        "sourceHash": "Source hash",
-        "workspace": "Workspace",
-        "agents": "Allowed agents",
-        "maxInvocations": "Maximum invocations",
-        "maxPendingInvocations": "Maximum pending invocations",
-        "warning": "Child agents may use their existing write-capable tools. Their individual permission prompts still apply.",
-        "expired": "Approval expired"
+        "title": "Konfirmasikan snapshot alur kerja yang tepat ini",
+        "sourceHash": "Hash sumber",
+        "workspace": "Ruang kerja",
+        "agents": "Agent yang diizinkan",
+        "maxInvocations": "Pemanggilan maksimum",
+        "maxPendingInvocations": "Pemanggilan tertunda maksimum",
+        "warning": "Agent anak dapat menggunakan alat berkemampuan tulis yang sudah tersedia. Permintaan izin masing-masing tetap berlaku.",
+        "expired": "Persetujuan kedaluwarsa"
       }
     }
   }

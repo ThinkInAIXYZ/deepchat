@@ -576,79 +576,79 @@
     }
   },
   "workflow": {
-    "title": "Workflows",
-    "loading": "Loading workflows...",
-    "runLabel": "Run {id}",
+    "title": "워크플로",
+    "loading": "워크플로를 불러오는 중...",
+    "runLabel": "실행 {id}",
     "empty": {
-      "title": "No workflows yet",
-      "description": "Explicit workflow runs for this conversation will appear here."
+      "title": "아직 워크플로가 없습니다",
+      "description": "이 대화에서 명시적으로 실행한 워크플로가 여기에 표시됩니다."
     },
     "status": {
-      "queued": "Queued",
-      "running": "Running",
-      "waiting_interaction": "Needs input",
-      "cancelling": "Cancelling",
-      "succeeded": "Succeeded",
-      "failed": "Failed",
-      "cancelled": "Cancelled",
-      "interrupted": "Interrupted"
+      "queued": "대기 중",
+      "running": "실행 중",
+      "waiting_interaction": "입력 필요",
+      "cancelling": "취소 중",
+      "succeeded": "성공",
+      "failed": "실패",
+      "cancelled": "취소됨",
+      "interrupted": "중단됨"
     },
     "fields": {
-      "duration": "Duration",
-      "usage": "Usage",
-      "phase": "Phase",
-      "budget": "Budget",
-      "reason": "Reason",
-      "result": "Result preview"
+      "duration": "소요 시간",
+      "usage": "사용량",
+      "phase": "단계",
+      "budget": "예산",
+      "reason": "이유",
+      "result": "결과 미리보기"
     },
     "actions": {
-      "refresh": "Refresh workflow",
-      "resume": "Resume",
-      "synthesize": "Ask parent Agent to synthesize",
-      "openChild": "Open child",
-      "retryFromHere": "Retry from here"
+      "refresh": "워크플로 새로 고침",
+      "resume": "재개",
+      "synthesize": "상위 Agent에게 종합 요청",
+      "openChild": "하위 Agent 열기",
+      "retryFromHere": "여기서 다시 시도"
     },
     "states": {
-      "incompatible": "Runtime API v{version} cannot resume in this build (current v{current}). History remains inspectable.",
-      "partialResult": "This run ended before every invocation completed. Successful child results remain available below.",
-      "unknownReason": "No reason was recorded.",
-      "unavailable": "Unavailable",
-      "previewTruncated": "Preview truncated",
-      "synthesisQueued": "Parent synthesis was queued behind the active turn.",
-      "synthesisStarted": "Parent synthesis started."
+      "incompatible": "Runtime API v{version}은 이 빌드에서 재개할 수 없습니다(현재 v{current}). 기록은 계속 확인할 수 있습니다.",
+      "partialResult": "모든 호출이 완료되기 전에 실행이 끝났습니다. 성공한 하위 Agent 결과는 아래에서 계속 확인할 수 있습니다.",
+      "unknownReason": "기록된 이유가 없습니다.",
+      "unavailable": "사용할 수 없음",
+      "previewTruncated": "미리보기가 잘렸습니다",
+      "synthesisQueued": "상위 Agent 종합 작업이 활성 턴 뒤에 대기열에 추가되었습니다.",
+      "synthesisStarted": "상위 Agent 종합 작업이 시작되었습니다."
     },
     "invocations": {
-      "title": "Invocations",
-      "empty": "No child invocations yet",
-      "defaultPhase": "Workflow",
-      "attempt": "Attempt {attempt}",
-      "timedOut": "The host-owned timeout expired."
+      "title": "호출",
+      "empty": "아직 하위 Agent 호출이 없습니다",
+      "defaultPhase": "워크플로",
+      "attempt": "시도 {attempt}",
+      "timedOut": "호스트가 관리하는 시간 제한이 만료되었습니다."
     },
     "interactions": {
-      "generic": "This child is waiting for a permission or question response.",
-      "permission": "Permission required",
-      "question": "Question requires an answer"
+      "generic": "이 하위 Agent는 권한 승인 또는 질문에 대한 답변을 기다리고 있습니다.",
+      "permission": "권한 필요",
+      "question": "질문에 답변이 필요합니다"
     },
     "effects": {
-      "none": "No effects",
-      "read": "Read",
-      "unknown": "Unknown effect",
-      "write": "Write effect"
+      "none": "영향 없음",
+      "read": "읽기",
+      "unknown": "알 수 없는 영향",
+      "write": "쓰기 영향"
     },
     "effectWarning": {
-      "title": "This retry may repeat external effects",
-      "retry": "This child already performed or may have performed a write. Retrying can repeat changes outside DeepChat.",
-      "retryFromHere": "This invocation or a downstream child already performed or may have performed a write. Retrying from here can repeat changes outside DeepChat.",
-      "confirm": "Retry with effects"
+      "title": "다시 시도하면 외부 영향이 반복될 수 있습니다",
+      "retry": "이 하위 Agent는 이미 쓰기를 수행했거나 수행했을 수 있습니다. 다시 시도하면 DeepChat 외부의 변경이 반복될 수 있습니다.",
+      "retryFromHere": "이 호출 또는 이후 하위 Agent가 이미 쓰기를 수행했거나 수행했을 수 있습니다. 여기서 다시 시도하면 DeepChat 외부의 변경이 반복될 수 있습니다.",
+      "confirm": "영향을 포함해 다시 시도"
     },
     "duration": {
-      "seconds": "{count}s",
-      "minutes": "{minutes}m {seconds}s",
-      "hours": "{hours}h {minutes}m"
+      "seconds": "{count}초",
+      "minutes": "{minutes}분 {seconds}초",
+      "hours": "{hours}시간 {minutes}분"
     },
     "budget": {
-      "tokens": "{count} tokens",
-      "duration": "{duration} maximum"
+      "tokens": "{count}토큰",
+      "duration": "최대 {duration}"
     },
     "approval": {
       "checking": "승인을 확인하는 중…",
@@ -665,36 +665,36 @@
       "revisionPrompt": "아래 피드백에 따라 소스 해시가 {sourceHash}인 승인 대기 워크플로 계획을 수정하세요. workflow를 operation=prepare_launch로 다시 호출하고 시작하지 마세요.\n\n피드백:\n{feedback}"
     },
     "saved": {
-      "title": "Saved workflows",
-      "workspaceRequired": "Open a project workspace to create and run saved workflows.",
-      "selectPlaceholder": "Select a workflow",
-      "empty": "No saved workflows in this workspace.",
-      "unsaved": "Save changes before preparing a run.",
-      "runTitle": "Run saved workflow",
-      "agentPlaceholder": "Optional agent IDs, separated by commas",
+      "title": "저장된 워크플로",
+      "workspaceRequired": "저장된 워크플로를 만들고 실행하려면 프로젝트 워크스페이스를 여세요.",
+      "selectPlaceholder": "워크플로 선택",
+      "empty": "이 워크스페이스에 저장된 워크플로가 없습니다.",
+      "unsaved": "실행을 준비하기 전에 변경 사항을 저장하세요.",
+      "runTitle": "저장된 워크플로 실행",
+      "agentPlaceholder": "선택적 Agent ID, 쉼표로 구분",
       "fields": {
-        "name": "Name",
-        "source": "JavaScript source",
-        "args": "JSON args",
-        "agents": "Allowed agents"
+        "name": "이름",
+        "source": "JavaScript 소스",
+        "args": "JSON 인수",
+        "agents": "허용된 Agent"
       },
       "actions": {
-        "refresh": "Refresh saved workflows",
-        "new": "New",
-        "save": "Save",
-        "reload": "Reload",
-        "prepare": "Review launch",
-        "launch": "Launch workflow"
+        "refresh": "저장된 워크플로 새로 고침",
+        "new": "새로 만들기",
+        "save": "저장",
+        "reload": "다시 불러오기",
+        "prepare": "실행 검토",
+        "launch": "워크플로 실행"
       },
       "approval": {
-        "title": "Confirm this exact workflow snapshot",
-        "sourceHash": "Source hash",
-        "workspace": "Workspace",
-        "agents": "Allowed agents",
-        "maxInvocations": "Maximum invocations",
-        "maxPendingInvocations": "Maximum pending invocations",
-        "warning": "Child agents may use their existing write-capable tools. Their individual permission prompts still apply.",
-        "expired": "Approval expired"
+        "title": "이 워크플로의 정확한 스냅샷 확인",
+        "sourceHash": "소스 해시",
+        "workspace": "워크스페이스",
+        "agents": "허용된 Agent",
+        "maxInvocations": "최대 호출 수",
+        "maxPendingInvocations": "최대 대기 호출 수",
+        "warning": "하위 Agent는 기존 쓰기 가능 도구를 사용할 수 있습니다. 개별 권한 요청은 계속 적용됩니다.",
+        "expired": "승인이 만료되었습니다"
       }
     }
   }

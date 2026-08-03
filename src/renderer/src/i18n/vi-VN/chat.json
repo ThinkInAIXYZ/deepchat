@@ -576,79 +576,79 @@
     }
   },
   "workflow": {
-    "title": "Workflows",
-    "loading": "Loading workflows...",
-    "runLabel": "Run {id}",
+    "title": "Quy trình",
+    "loading": "Đang tải quy trình...",
+    "runLabel": "Lần chạy {id}",
     "empty": {
-      "title": "No workflows yet",
-      "description": "Explicit workflow runs for this conversation will appear here."
+      "title": "Chưa có quy trình",
+      "description": "Các lần chạy quy trình rõ ràng cho cuộc trò chuyện này sẽ xuất hiện tại đây."
     },
     "status": {
-      "queued": "Queued",
-      "running": "Running",
-      "waiting_interaction": "Needs input",
-      "cancelling": "Cancelling",
-      "succeeded": "Succeeded",
-      "failed": "Failed",
-      "cancelled": "Cancelled",
-      "interrupted": "Interrupted"
+      "queued": "Đang xếp hàng",
+      "running": "Đang chạy",
+      "waiting_interaction": "Cần nhập liệu",
+      "cancelling": "Đang hủy",
+      "succeeded": "Thành công",
+      "failed": "Thất bại",
+      "cancelled": "Đã hủy",
+      "interrupted": "Bị gián đoạn"
     },
     "fields": {
-      "duration": "Duration",
-      "usage": "Usage",
-      "phase": "Phase",
-      "budget": "Budget",
-      "reason": "Reason",
-      "result": "Result preview"
+      "duration": "Thời lượng",
+      "usage": "Mức sử dụng",
+      "phase": "Giai đoạn",
+      "budget": "Ngân sách",
+      "reason": "Lý do",
+      "result": "Xem trước kết quả"
     },
     "actions": {
-      "refresh": "Refresh workflow",
-      "resume": "Resume",
-      "synthesize": "Ask parent Agent to synthesize",
-      "openChild": "Open child",
-      "retryFromHere": "Retry from here"
+      "refresh": "Làm mới quy trình",
+      "resume": "Tiếp tục",
+      "synthesize": "Yêu cầu Agent chính tổng hợp",
+      "openChild": "Mở Agent con",
+      "retryFromHere": "Thử lại từ đây"
     },
     "states": {
-      "incompatible": "Runtime API v{version} cannot resume in this build (current v{current}). History remains inspectable.",
-      "partialResult": "This run ended before every invocation completed. Successful child results remain available below.",
-      "unknownReason": "No reason was recorded.",
-      "unavailable": "Unavailable",
-      "previewTruncated": "Preview truncated",
-      "synthesisQueued": "Parent synthesis was queued behind the active turn.",
-      "synthesisStarted": "Parent synthesis started."
+      "incompatible": "Không thể tiếp tục Runtime API v{version} trong bản dựng này (hiện tại v{current}). Lịch sử vẫn có thể xem được.",
+      "partialResult": "Lần chạy này kết thúc trước khi mọi lời gọi hoàn tất. Kết quả thành công của Agent con vẫn có sẵn bên dưới.",
+      "unknownReason": "Không có lý do nào được ghi lại.",
+      "unavailable": "Không khả dụng",
+      "previewTruncated": "Bản xem trước đã được rút gọn",
+      "synthesisQueued": "Phần tổng hợp của Agent chính đã được xếp sau lượt đang hoạt động.",
+      "synthesisStarted": "Đã bắt đầu tổng hợp bởi Agent chính."
     },
     "invocations": {
-      "title": "Invocations",
-      "empty": "No child invocations yet",
-      "defaultPhase": "Workflow",
-      "attempt": "Attempt {attempt}",
-      "timedOut": "The host-owned timeout expired."
+      "title": "Lời gọi",
+      "empty": "Chưa có lời gọi Agent con",
+      "defaultPhase": "Quy trình",
+      "attempt": "Lần thử {attempt}",
+      "timedOut": "Đã hết thời gian chờ do máy chủ quản lý."
     },
     "interactions": {
-      "generic": "This child is waiting for a permission or question response.",
-      "permission": "Permission required",
-      "question": "Question requires an answer"
+      "generic": "Agent con này đang chờ quyền hoặc câu trả lời cho một câu hỏi.",
+      "permission": "Cần quyền",
+      "question": "Câu hỏi cần được trả lời"
     },
     "effects": {
-      "none": "No effects",
-      "read": "Read",
-      "unknown": "Unknown effect",
-      "write": "Write effect"
+      "none": "Không có tác động",
+      "read": "Đọc",
+      "unknown": "Tác động không xác định",
+      "write": "Tác động ghi"
     },
     "effectWarning": {
-      "title": "This retry may repeat external effects",
-      "retry": "This child already performed or may have performed a write. Retrying can repeat changes outside DeepChat.",
-      "retryFromHere": "This invocation or a downstream child already performed or may have performed a write. Retrying from here can repeat changes outside DeepChat.",
-      "confirm": "Retry with effects"
+      "title": "Lần thử lại này có thể lặp lại tác động bên ngoài",
+      "retry": "Agent con này đã hoặc có thể đã thực hiện thao tác ghi. Thử lại có thể lặp lại thay đổi bên ngoài DeepChat.",
+      "retryFromHere": "Lời gọi này hoặc một Agent con phía sau đã hoặc có thể đã thực hiện thao tác ghi. Thử lại từ đây có thể lặp lại thay đổi bên ngoài DeepChat.",
+      "confirm": "Thử lại với tác động"
     },
     "duration": {
-      "seconds": "{count}s",
-      "minutes": "{minutes}m {seconds}s",
-      "hours": "{hours}h {minutes}m"
+      "seconds": "{count} giây",
+      "minutes": "{minutes} phút {seconds} giây",
+      "hours": "{hours} giờ {minutes} phút"
     },
     "budget": {
-      "tokens": "{count} tokens",
-      "duration": "{duration} maximum"
+      "tokens": "{count} token",
+      "duration": "Tối đa {duration}"
     },
     "approval": {
       "checking": "Đang kiểm tra phê duyệt…",
@@ -665,36 +665,36 @@
       "revisionPrompt": "Hãy sửa kế hoạch quy trình đang chờ duyệt có mã băm nguồn {sourceHash} theo phản hồi bên dưới. Gọi lại workflow với operation=prepare_launch và không khởi chạy.\n\nPhản hồi:\n{feedback}"
     },
     "saved": {
-      "title": "Saved workflows",
-      "workspaceRequired": "Open a project workspace to create and run saved workflows.",
-      "selectPlaceholder": "Select a workflow",
-      "empty": "No saved workflows in this workspace.",
-      "unsaved": "Save changes before preparing a run.",
-      "runTitle": "Run saved workflow",
-      "agentPlaceholder": "Optional agent IDs, separated by commas",
+      "title": "Quy trình đã lưu",
+      "workspaceRequired": "Mở không gian làm việc dự án để tạo và chạy quy trình đã lưu.",
+      "selectPlaceholder": "Chọn một quy trình",
+      "empty": "Không có quy trình đã lưu trong không gian làm việc này.",
+      "unsaved": "Lưu thay đổi trước khi chuẩn bị chạy.",
+      "runTitle": "Chạy quy trình đã lưu",
+      "agentPlaceholder": "ID Agent tùy chọn, phân tách bằng dấu phẩy",
       "fields": {
-        "name": "Name",
-        "source": "JavaScript source",
-        "args": "JSON args",
-        "agents": "Allowed agents"
+        "name": "Tên",
+        "source": "Mã nguồn JavaScript",
+        "args": "Đối số JSON",
+        "agents": "Agent được phép"
       },
       "actions": {
-        "refresh": "Refresh saved workflows",
-        "new": "New",
-        "save": "Save",
-        "reload": "Reload",
-        "prepare": "Review launch",
-        "launch": "Launch workflow"
+        "refresh": "Làm mới quy trình đã lưu",
+        "new": "Mới",
+        "save": "Lưu",
+        "reload": "Tải lại",
+        "prepare": "Xem lại lần chạy",
+        "launch": "Khởi chạy quy trình"
       },
       "approval": {
-        "title": "Confirm this exact workflow snapshot",
-        "sourceHash": "Source hash",
-        "workspace": "Workspace",
-        "agents": "Allowed agents",
-        "maxInvocations": "Maximum invocations",
-        "maxPendingInvocations": "Maximum pending invocations",
-        "warning": "Child agents may use their existing write-capable tools. Their individual permission prompts still apply.",
-        "expired": "Approval expired"
+        "title": "Xác nhận chính xác ảnh chụp quy trình này",
+        "sourceHash": "Mã băm nguồn",
+        "workspace": "Không gian làm việc",
+        "agents": "Agent được phép",
+        "maxInvocations": "Số lời gọi tối đa",
+        "maxPendingInvocations": "Số lời gọi đang chờ tối đa",
+        "warning": "Agent con có thể dùng các công cụ hiện có với khả năng ghi. Yêu cầu quyền riêng của từng Agent vẫn được áp dụng.",
+        "expired": "Phê duyệt đã hết hạn"
       }
     }
   }

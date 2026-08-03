@@ -576,79 +576,79 @@
     }
   },
   "workflow": {
-    "title": "Workflows",
-    "loading": "Loading workflows...",
-    "runLabel": "Run {id}",
+    "title": "Рабочие процессы",
+    "loading": "Загрузка рабочих процессов...",
+    "runLabel": "Запуск {id}",
     "empty": {
-      "title": "No workflows yet",
-      "description": "Explicit workflow runs for this conversation will appear here."
+      "title": "Рабочих процессов пока нет",
+      "description": "Явные запуски рабочих процессов для этого разговора появятся здесь."
     },
     "status": {
-      "queued": "Queued",
-      "running": "Running",
-      "waiting_interaction": "Needs input",
-      "cancelling": "Cancelling",
-      "succeeded": "Succeeded",
-      "failed": "Failed",
-      "cancelled": "Cancelled",
-      "interrupted": "Interrupted"
+      "queued": "В очереди",
+      "running": "Выполняется",
+      "waiting_interaction": "Требуется ввод",
+      "cancelling": "Отменяется",
+      "succeeded": "Успешно",
+      "failed": "Ошибка",
+      "cancelled": "Отменено",
+      "interrupted": "Прервано"
     },
     "fields": {
-      "duration": "Duration",
-      "usage": "Usage",
-      "phase": "Phase",
-      "budget": "Budget",
-      "reason": "Reason",
-      "result": "Result preview"
+      "duration": "Длительность",
+      "usage": "Использование",
+      "phase": "Этап",
+      "budget": "Бюджет",
+      "reason": "Причина",
+      "result": "Предпросмотр результата"
     },
     "actions": {
-      "refresh": "Refresh workflow",
-      "resume": "Resume",
-      "synthesize": "Ask parent Agent to synthesize",
-      "openChild": "Open child",
-      "retryFromHere": "Retry from here"
+      "refresh": "Обновить рабочий процесс",
+      "resume": "Продолжить",
+      "synthesize": "Попросить родительского Agent обобщить результаты",
+      "openChild": "Открыть дочерний Agent",
+      "retryFromHere": "Повторить отсюда"
     },
     "states": {
-      "incompatible": "Runtime API v{version} cannot resume in this build (current v{current}). History remains inspectable.",
-      "partialResult": "This run ended before every invocation completed. Successful child results remain available below.",
-      "unknownReason": "No reason was recorded.",
-      "unavailable": "Unavailable",
-      "previewTruncated": "Preview truncated",
-      "synthesisQueued": "Parent synthesis was queued behind the active turn.",
-      "synthesisStarted": "Parent synthesis started."
+      "incompatible": "Runtime API v{version} нельзя продолжить в этой сборке (текущая v{current}). История по-прежнему доступна для просмотра.",
+      "partialResult": "Этот запуск завершился до окончания всех вызовов. Успешные результаты дочерних Agents доступны ниже.",
+      "unknownReason": "Причина не была записана.",
+      "unavailable": "Недоступно",
+      "previewTruncated": "Предпросмотр сокращён",
+      "synthesisQueued": "Обобщение родительского Agent поставлено в очередь после активного хода.",
+      "synthesisStarted": "Обобщение родительского Agent запущено."
     },
     "invocations": {
-      "title": "Invocations",
-      "empty": "No child invocations yet",
-      "defaultPhase": "Workflow",
-      "attempt": "Attempt {attempt}",
-      "timedOut": "The host-owned timeout expired."
+      "title": "Вызовы",
+      "empty": "Вызовов дочерних Agents пока нет",
+      "defaultPhase": "Рабочий процесс",
+      "attempt": "Попытка {attempt}",
+      "timedOut": "Истекло ограничение времени, заданное хостом."
     },
     "interactions": {
-      "generic": "This child is waiting for a permission or question response.",
-      "permission": "Permission required",
-      "question": "Question requires an answer"
+      "generic": "Этот дочерний Agent ожидает разрешения или ответа на вопрос.",
+      "permission": "Требуется разрешение",
+      "question": "На вопрос требуется ответ"
     },
     "effects": {
-      "none": "No effects",
-      "read": "Read",
-      "unknown": "Unknown effect",
-      "write": "Write effect"
+      "none": "Без эффектов",
+      "read": "Чтение",
+      "unknown": "Неизвестный эффект",
+      "write": "Эффект записи"
     },
     "effectWarning": {
-      "title": "This retry may repeat external effects",
-      "retry": "This child already performed or may have performed a write. Retrying can repeat changes outside DeepChat.",
-      "retryFromHere": "This invocation or a downstream child already performed or may have performed a write. Retrying from here can repeat changes outside DeepChat.",
-      "confirm": "Retry with effects"
+      "title": "Повторная попытка может повторить внешние эффекты",
+      "retry": "Этот дочерний Agent уже выполнил или мог выполнить запись. Повторная попытка может повторить изменения вне DeepChat.",
+      "retryFromHere": "Этот вызов или последующий дочерний Agent уже выполнил или мог выполнить запись. Повторная попытка отсюда может повторить изменения вне DeepChat.",
+      "confirm": "Повторить с эффектами"
     },
     "duration": {
-      "seconds": "{count}s",
-      "minutes": "{minutes}m {seconds}s",
-      "hours": "{hours}h {minutes}m"
+      "seconds": "{count} с",
+      "minutes": "{minutes} мин {seconds} с",
+      "hours": "{hours} ч {minutes} мин"
     },
     "budget": {
-      "tokens": "{count} tokens",
-      "duration": "{duration} maximum"
+      "tokens": "{count} токенов",
+      "duration": "Не более {duration}"
     },
     "approval": {
       "checking": "Проверка подтверждения…",
@@ -665,36 +665,36 @@
       "revisionPrompt": "Измените ожидающий подтверждения план workflow с хешем исходника {sourceHash} согласно отзыву ниже. Снова вызовите workflow с operation=prepare_launch и не запускайте его.\n\nОтзыв:\n{feedback}"
     },
     "saved": {
-      "title": "Saved workflows",
-      "workspaceRequired": "Open a project workspace to create and run saved workflows.",
-      "selectPlaceholder": "Select a workflow",
-      "empty": "No saved workflows in this workspace.",
-      "unsaved": "Save changes before preparing a run.",
-      "runTitle": "Run saved workflow",
-      "agentPlaceholder": "Optional agent IDs, separated by commas",
+      "title": "Сохранённые рабочие процессы",
+      "workspaceRequired": "Откройте рабочую область проекта, чтобы создавать и запускать сохранённые процессы.",
+      "selectPlaceholder": "Выберите рабочий процесс",
+      "empty": "В этой рабочей области нет сохранённых процессов.",
+      "unsaved": "Сохраните изменения перед подготовкой запуска.",
+      "runTitle": "Запустить сохранённый рабочий процесс",
+      "agentPlaceholder": "Необязательные ID Agents через запятую",
       "fields": {
-        "name": "Name",
-        "source": "JavaScript source",
-        "args": "JSON args",
-        "agents": "Allowed agents"
+        "name": "Название",
+        "source": "Исходный код JavaScript",
+        "args": "Аргументы JSON",
+        "agents": "Разрешённые Agents"
       },
       "actions": {
-        "refresh": "Refresh saved workflows",
-        "new": "New",
-        "save": "Save",
-        "reload": "Reload",
-        "prepare": "Review launch",
-        "launch": "Launch workflow"
+        "refresh": "Обновить сохранённые процессы",
+        "new": "Новый",
+        "save": "Сохранить",
+        "reload": "Перезагрузить",
+        "prepare": "Проверить запуск",
+        "launch": "Запустить рабочий процесс"
       },
       "approval": {
-        "title": "Confirm this exact workflow snapshot",
-        "sourceHash": "Source hash",
-        "workspace": "Workspace",
-        "agents": "Allowed agents",
-        "maxInvocations": "Maximum invocations",
-        "maxPendingInvocations": "Maximum pending invocations",
-        "warning": "Child agents may use their existing write-capable tools. Their individual permission prompts still apply.",
-        "expired": "Approval expired"
+        "title": "Подтвердить этот точный снимок рабочего процесса",
+        "sourceHash": "Хеш исходного кода",
+        "workspace": "Рабочая область",
+        "agents": "Разрешённые Agents",
+        "maxInvocations": "Максимум вызовов",
+        "maxPendingInvocations": "Максимум ожидающих вызовов",
+        "warning": "Дочерние Agents могут использовать имеющиеся инструменты с возможностью записи. Их отдельные запросы разрешений по-прежнему применяются.",
+        "expired": "Срок подтверждения истёк"
       }
     }
   }
