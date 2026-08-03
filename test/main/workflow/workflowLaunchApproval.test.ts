@@ -149,6 +149,43 @@ describe('WorkflowLaunchApprovalRegistry', () => {
     )
   })
 
+  it('counts all retained approval metadata toward the pending byte limit', () => {
+    const registry = new WorkflowLaunchApprovalRegistry(Date.now, 60_000, 4, 8_192)
+    const capabilities = Array.from({ length: 16 }, (_, index) =>
+      `capability-${index}`.padEnd(256, 'x')
+    )
+    const allowedAgentIds = Array.from({ length: 32 }, (_, index) =>
+      `agent-${index}`.padEnd(256, 'x')
+    )
+
+    expect(() =>
+      registry.prepare({
+        ...draft(),
+        capabilities,
+        allowedAgentIds
+      })
+    ).toThrow('pending limit')
+  })
+
+  it('does not expose the retained approval object to callers', () => {
+    const registry = new WorkflowLaunchApprovalRegistry(() => 1_000)
+    const approval = registry.prepare(draft())
+    const approvalId = approval.approvalId
+    const expiresAt = approval.expiresAt
+
+    approval.expiresAt = 0
+    approval.summary.allowedAgentIds[0] = 'mutated-agent'
+    approval.summary.capabilities[0] = 'mutated-capability'
+
+    expect(registry.get(approvalId)).toMatchObject({
+      expiresAt,
+      summary: {
+        allowedAgentIds: ['deepchat', 'reviewer'],
+        capabilities: ['Delegate with the current parent permission policy']
+      }
+    })
+  })
+
   it('hashes large bounded input without copying it into the approval scope payload', () => {
     const registry = new WorkflowLaunchApprovalRegistry()
 
@@ -187,7 +224,7 @@ describe('WorkflowLaunchApprovalRegistry', () => {
   })
 
   it('releases bounded approval bytes when a token is consumed', () => {
-    const registry = new WorkflowLaunchApprovalRegistry(Date.now, 60_000, 4, 4_096)
+    const registry = new WorkflowLaunchApprovalRegistry(Date.now, 60_000, 4, 8_192)
     const first = registry.prepare(draft({ payload: 'x'.repeat(3_000) }))
 
     expect(() => registry.prepare(draft({ payload: 'y'.repeat(3_000) }))).toThrow('pending limit')

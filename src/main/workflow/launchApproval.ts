@@ -94,17 +94,6 @@ export class WorkflowLaunchApprovalRegistry {
       ...request,
       executionSnapshot: executionSnapshot.snapshot
     }
-    const outlineBytes = Buffer.byteLength(JSON.stringify(outline), 'utf8')
-    const approvalBytes =
-      sourceBytes + canonicalInput.byteLength + executionSnapshot.byteLength + outlineBytes
-    if (
-      approvalBytes > this.maxPendingBytes ||
-      this.pendingBytes + approvalBytes > this.maxPendingBytes
-    ) {
-      throw new Error(
-        `Workflow launch approvals exceed the ${this.maxPendingBytes}-byte pending limit.`
-      )
-    }
     const scopeHash = canonicalizeWorkflowJson(
       {
         sourceHash,
@@ -138,13 +127,25 @@ export class WorkflowLaunchApprovalRegistry {
         outline
       }
     })
-    this.pending.set(approval.approvalId, {
+    const pendingPayload = {
       approval,
-      request: normalizedRequest,
+      request: normalizedRequest
+    }
+    const approvalBytes = Buffer.byteLength(JSON.stringify(pendingPayload), 'utf8')
+    if (
+      approvalBytes > this.maxPendingBytes ||
+      this.pendingBytes + approvalBytes > this.maxPendingBytes
+    ) {
+      throw new Error(
+        `Workflow launch approvals exceed the ${this.maxPendingBytes}-byte pending limit.`
+      )
+    }
+    this.pending.set(approval.approvalId, {
+      ...pendingPayload,
       byteLength: approvalBytes
     })
     this.pendingBytes += approvalBytes
-    return approval
+    return WorkflowLaunchApprovalSchema.parse(approval)
   }
 
   get(approvalId: string, expectedParentSessionId?: string): WorkflowLaunchApproval {
