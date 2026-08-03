@@ -402,6 +402,10 @@
       "caption": "El foco permanece en el cuadro de entrada hasta que envíes el primer mensaje."
     }
   },
+  "messageReceipt": {
+    "unread": "No leído",
+    "read": "Leído"
+  },
   "attachments": {
     "chooseRepresentation": "Elige cómo enviar {name}",
     "representation": "Representación del archivo adjunto",

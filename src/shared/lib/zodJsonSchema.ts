@@ -1,10 +1,12 @@
 import { z } from 'zod'
+import type { JsonValue } from '../contracts/common'
 
 export interface DeepChatJsonSchemaObject {
+  [key: string]: unknown
   type: 'object'
-  properties: Record<string, unknown>
+  properties: Record<string, JsonValue>
   required?: string[]
-  additionalProperties?: boolean | Record<string, unknown>
+  additionalProperties?: boolean | Record<string, JsonValue>
   description?: string
 }
 
@@ -142,9 +144,13 @@ const buildObjectSchema = (
   description?: string
 ): DeepChatJsonSchemaObject => ({
   type: 'object',
-  properties,
+  properties: properties as Record<string, JsonValue>,
   ...(required?.length ? { required } : {}),
-  ...(additionalProperties !== undefined ? { additionalProperties } : {}),
+  ...(additionalProperties !== undefined
+    ? {
+        additionalProperties: additionalProperties as boolean | Record<string, JsonValue>
+      }
+    : {}),
   ...(description ? { description } : {})
 })
 

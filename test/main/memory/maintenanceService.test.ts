@@ -65,7 +65,7 @@ describe('MemoryService archiving (T-B3)', () => {
     const recalled = await presenter.recall('a', 'redis')
     expect(recalled.some((item) => item.id === id)).toBe(false)
 
-    expect(presenter.restoreMemory('a', id)).toBe(true)
+    expect(presenter.restoreMemory('a', id)).toEqual({ action: 'applied' })
     expect(repo.getById(id)?.status).toBe('pending_embedding')
   })
 })
@@ -269,9 +269,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         expect(edit.action).not.toBe('noop')
         editedId = edit.memoryId
       } else if (mutation === 'archive') {
-        expect(await presenter.archiveUserMemory('a', currentId)).toBe(true)
+        expect(await presenter.archiveUserMemory('a', currentId)).toEqual({ action: 'applied' })
       } else {
-        expect(await presenter.deleteMemory('a', currentId)).toBe(true)
+        expect(await presenter.deleteMemory('a', currentId)).toEqual({ action: 'applied' })
       }
       resolveDecision(
         '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"stale maintenance truth"}'

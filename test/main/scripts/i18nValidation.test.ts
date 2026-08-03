@@ -92,6 +92,30 @@ describe('i18n namespace validation', () => {
 })
 
 describe('i18n message contract validation', () => {
+  it('reports missing and extra messages against the baseline locale', () => {
+    const root = createFixture({
+      'en-US': {
+        'common.json': JSON.stringify({ present: 'Present', missing: 'Missing' })
+      },
+      'fr-FR': {
+        'common.json': JSON.stringify({ present: 'Présent', extra: 'En trop' })
+      }
+    })
+
+    expect(validateLocaleMessageContracts(root).issues).toEqual([
+      {
+        kind: 'missing-message',
+        locale: 'fr-FR',
+        key: 'common.missing'
+      },
+      {
+        kind: 'extra-message',
+        locale: 'fr-FR',
+        key: 'common.extra'
+      }
+    ])
+  })
+
   it('reports named and list parameter mismatches', () => {
     const root = createFixture({
       'en-US': {

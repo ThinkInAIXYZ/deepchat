@@ -18,7 +18,8 @@ describe('ChatSidePanel', () => {
 
   const setup = async (options?: {
     open?: boolean
-    activeTab?: 'workspace' | 'browser'
+    activeTab?: 'workspace' | 'browser' | 'mcp-app'
+    mcpAppPreviewOwnerId?: string | null
     sessionId?: string | null
     savedWorkflowsEnabled?: boolean
   }) => {
@@ -28,6 +29,7 @@ describe('ChatSidePanel', () => {
     const sidepanelStore = reactive({
       open: options?.open ?? true,
       activeTab: options?.activeTab ?? 'workspace',
+      mcpAppPreviewOwnerId: options?.mcpAppPreviewOwnerId ?? null,
       width: 520,
       openWorkspace: vi.fn(),
       openWorkflow: vi.fn((_sessionId: string, _runId?: string) => {
@@ -36,6 +38,11 @@ describe('ChatSidePanel', () => {
       }),
       openBrowser: vi.fn(() => {
         sidepanelStore.activeTab = 'browser'
+        sidepanelStore.open = true
+      }),
+      openMcpAppPreview: vi.fn((ownerId: string) => {
+        sidepanelStore.mcpAppPreviewOwnerId = ownerId
+        sidepanelStore.activeTab = 'mcp-app'
         sidepanelStore.open = true
       }),
       closePanel: vi.fn(() => {
@@ -235,5 +242,20 @@ describe('ChatSidePanel', () => {
 
     expect(sidepanelStore.openWorkflow).toHaveBeenCalledTimes(1)
     expect(sidepanelStore.openWorkflow).toHaveBeenCalledWith('session-1', 'run-1')
+  })
+
+  it('hosts the selected MCP App in the existing sidepanel', async () => {
+    const { wrapper, sidepanelStore } = await setup({
+      activeTab: 'mcp-app',
+      mcpAppPreviewOwnerId: 'conversation:message:block'
+    })
+
+    expect(wrapper.find('[data-testid="workspace-panel-stub"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="browser-panel-stub"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="mcp-app-sidepanel-outlet"]').isVisible()).toBe(true)
+
+    await wrapper.get('[data-testid="mcp-app-sidepanel-tab"]').trigger('click')
+
+    expect(sidepanelStore.openMcpAppPreview).toHaveBeenCalledWith('conversation:message:block')
   })
 })

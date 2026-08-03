@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.1.0-beta.11 (2026-07-31)
+- Tolerated invalid MCP tool output schemas without rejecting otherwise usable tools
+- 容忍无效的 MCP 工具输出 Schema，避免拒绝其他可用工具
+
+## v1.1.0-beta.10 (2026-07-31)
+- Improved alert confirmations and notification feedback so user actions report reliable results
+- Added MCP v2 ecosystem support and a built-in McDonald's server
+- Upgraded Light OCR to 0.5.6 and moved OCR management into Plugins Hub
+- Redesigned Steer messages as IM-style conversations
+- Deferred automatic updates until active tasks finish
+- Fixed provider image inputs by sending file parts where required
+- Removed dashboard usage cost figures and hardened locale resolution
+- Restored scheduled package regression checks
+- Upgraded the bundled Computer Use driver to v0.14.1
+- 改进提醒确认与通知反馈，确保用户操作能够可靠地显示结果
+- 支持 MCP v2 生态，并新增 McDonald's 内置服务器
+- 将 Light OCR 升级至 0.5.6，并将 OCR 管理移至 Plugins Hub
+- 将 Steer 消息重做为类似即时通讯的对话形式
+- 延迟自动更新安装，避免打断正在执行的任务
+- 修复部分 Provider 的图片输入，按要求改用文件分片发送
+- 移除 Dashboard 费用估算，并强化语言环境解析
+- 恢复定时软件包回归检查
+- 内置 Computer Use 驱动升级至 v0.14.1
+
 ## v1.1.0-beta.9 (2026-07-29)
 - Added Directives to Agent Memory: instructions you write take effect immediately, instructions the model suggests stay as drafts until you approve them, and suppression directives keep a topic out of recalled memory. Clearing memories now keeps your directives
 - Made Agent Memory time-aware: it records when a fact was true, so expired plans and outdated states are no longer recalled as current; corrections and deletions now stick instead of reappearing in the next conversation; and memory maintenance runs incrementally instead of rescanning everything

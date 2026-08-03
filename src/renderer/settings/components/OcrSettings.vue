@@ -269,13 +269,18 @@
           <AlertDialogCancel :disabled="cacheClearInFlight">
             {{ t('common.cancel') }}
           </AlertDialogCancel>
-          <AlertDialogAction
+          <AlertDialogAsyncAction
             data-testid="ocr-clear-cache-confirm"
-            :disabled="cacheClearInFlight"
-            @click.prevent="clearCache"
+            :disabled="!canClearCache"
+            @click="clearCache"
           >
+            <Spinner
+              v-if="cacheClearInFlight"
+              data-testid="ocr-clear-cache-spinner"
+              class="mr-2 size-4"
+            />
             {{ t('settings.ocr.clearCacheConfirm') }}
-          </AlertDialogAction>
+          </AlertDialogAsyncAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -294,7 +299,7 @@ import { createOcrClient } from '@api/OcrClient'
 import { createSettingsClient } from '@api/SettingsClient'
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,

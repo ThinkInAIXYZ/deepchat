@@ -263,9 +263,15 @@
             <Icon v-else icon="lucide:archive" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('settings.memory.redesign.archive') }}
           </Button>
-          <AlertDialog v-model:open="deleteDialogOpen">
+          <AlertDialog :open="deleteDialogOpen" @update:open="handleDeleteDialogOpenChange">
             <AlertDialogTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive" :disabled="busy">
+              <Button
+                data-testid="memory-inline-delete-trigger"
+                variant="ghost"
+                size="icon"
+                class="h-8 w-8 text-destructive"
+                :disabled="busy"
+              >
                 <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
               </Button>
             </AlertDialogTrigger>
@@ -278,16 +284,28 @@
                   {{ t('settings.deepchatAgents.memoryManager.deleteConfirmBody') }}
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              <MemoryInlineFeedback
+                v-if="deleteFeedback"
+                :feedback="deleteFeedback"
+                @clear="clearDeleteFeedback"
+              />
               <AlertDialogFooter>
-                <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                <AlertDialogAction
+                <AlertDialogCancel data-testid="memory-inline-delete-cancel" :disabled="busy">
+                  {{ t('common.cancel') }}
+                </AlertDialogCancel>
+                <AlertDialogAsyncAction
+                  data-testid="memory-inline-delete-confirm"
                   class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   :disabled="busy"
                   @click="remove"
                 >
-                  <Spinner v-if="pendingMutation === 'remove'" class="mr-1.5 size-3.5" />
+                  <Spinner
+                    v-if="pendingMutation === 'remove'"
+                    data-testid="memory-inline-delete-spinner"
+                    class="mr-1.5 size-3.5"
+                  />
                   {{ t('settings.deepchatAgents.memoryManager.deletePermanent') }}
-                </AlertDialogAction>
+                </AlertDialogAsyncAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -344,7 +362,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -371,12 +389,14 @@ import { createMemoryClient } from '@api/MemoryClient'
 import { AGENT_MEMORY_CATEGORIES, type AgentMemoryCategory } from '@shared/types/agent-memory'
 import type {
   MemoryAddResult,
+  MemoryCommandRejectionReason,
   MemoryItem,
   MemoryLifecycle,
   MemorySourceSpan,
   MemoryUpdateResult
 } from '@shared/contracts/routes'
 import {
+  shouldReconcileMemoryCommandRejection,
   useMemoryInlineFeedback,
   type MemoryInlineFeedbackState
 } from '../lib/useMemoryInlineFeedback'
@@ -403,8 +423,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   edit: []
-  changed: []
   saved: [memory?: MemoryItem]
+  reconcile: []
   feedback: [feedback: MemoryInlineFeedbackState]
   busy: [value: boolean]
   dirty: [value: boolean]
@@ -417,6 +437,9 @@ const memoryClient = createMemoryClient()
 const panelFeedback = useMemoryInlineFeedback('MemoryInlinePanel')
 const feedback = panelFeedback.feedback
 const clearFeedback = panelFeedback.clear
+const deleteOperationFeedback = useMemoryInlineFeedback('MemoryInlinePanel.delete')
+const deleteFeedback = deleteOperationFeedback.feedback
+const clearDeleteFeedback = deleteOperationFeedback.clear
 
 const saving = ref(false)
 const pendingMutation = ref<'archive' | 'restore' | 'remove' | null>(null)
@@ -489,6 +512,15 @@ function seed(): void {
   lifecycleError.value = null
   deleteDialogOpen.value = false
   clearFeedback()
+  clearDeleteFeedback()
+}
+
+function reportReconciledCommandRejection(reason: MemoryCommandRejectionReason): void {
+  panelFeedback.rejectCommand(reason)
+  const nextFeedback = feedback.value
+  if (nextFeedback) emit('feedback', nextFeedback)
+  clearFeedback()
+  emit('reconcile')
 }
 
 function setImportance(value: unknown): void {
@@ -556,7 +588,6 @@ async function save(): Promise<void> {
       if (!isCurrentOperation(agentId, memoryId, mode)) return
       notifyAddOutcome(result)
       if (result.action === 'noop') return
-      emit('changed')
       const next = await selectResultMemory(agentId, result.memoryId)
       if (!isCurrentOperation(agentId, memoryId, mode)) return
       emit('saved', next)
@@ -583,7 +614,6 @@ async function save(): Promise<void> {
             importance: patch.importance ?? memory.importance
           }
     if (!isCurrentOperation(agentId, memoryId, mode)) return
-    emit('changed')
     emit('saved', next)
   } catch (error) {
     if (isCurrentOperation(agentId, memoryId, mode)) panelFeedback.fail(error)
@@ -599,13 +629,16 @@ async function archive(): Promise<void> {
   clearFeedback()
   pendingMutation.value = 'archive'
   try {
-    const ok = await memoryClient.archive(agentId, memory.id)
+    const result = await memoryClient.archive(agentId, memory.id)
     if (props.agentId !== agentId || props.memory?.id !== memory.id) return
-    if (!ok) {
-      panelFeedback.fail()
+    if (result.action === 'rejected') {
+      if (shouldReconcileMemoryCommandRejection(result.reason)) {
+        reportReconciledCommandRejection(result.reason)
+      } else {
+        panelFeedback.rejectCommand(result.reason)
+      }
       return
     }
-    emit('changed')
     emit('close')
   } catch (error) {
     if (props.agentId === agentId && props.memory?.id === memory.id) panelFeedback.fail(error)
@@ -621,13 +654,16 @@ async function restore(): Promise<void> {
   clearFeedback()
   pendingMutation.value = 'restore'
   try {
-    const ok = await memoryClient.restore(agentId, memory.id)
+    const result = await memoryClient.restore(agentId, memory.id)
     if (props.agentId !== agentId || props.memory?.id !== memory.id) return
-    if (!ok) {
-      panelFeedback.fail()
+    if (result.action === 'rejected') {
+      if (shouldReconcileMemoryCommandRejection(result.reason)) {
+        reportReconciledCommandRejection(result.reason)
+      } else {
+        panelFeedback.rejectCommand(result.reason)
+      }
       return
     }
-    emit('changed')
   } catch (error) {
     if (props.agentId === agentId && props.memory?.id === memory.id) panelFeedback.fail(error)
   } finally {
@@ -639,25 +675,35 @@ async function remove(): Promise<void> {
   const memory = props.memory
   if (!memory || busy.value) return
   const agentId = props.agentId
-  clearFeedback()
+  clearDeleteFeedback()
   pendingMutation.value = 'remove'
   try {
-    const ok = await memoryClient.remove(agentId, memory.id)
+    const result = await memoryClient.remove(agentId, memory.id)
     if (props.agentId !== agentId || props.memory?.id !== memory.id) return
-    if (!ok) {
-      panelFeedback.fail()
+    if (result.action === 'rejected') {
+      if (shouldReconcileMemoryCommandRejection(result.reason)) {
+        deleteDialogOpen.value = false
+        reportReconciledCommandRejection(result.reason)
+      } else {
+        deleteOperationFeedback.rejectCommand(result.reason)
+      }
       return
     }
-    emit('changed')
+    deleteDialogOpen.value = false
     emit('close')
   } catch (error) {
-    if (props.agentId === agentId && props.memory?.id === memory.id) panelFeedback.fail(error)
+    if (props.agentId === agentId && props.memory?.id === memory.id) {
+      deleteOperationFeedback.fail(error)
+    }
   } finally {
     pendingMutation.value = null
-    if (props.agentId === agentId && props.memory?.id === memory.id) {
-      deleteDialogOpen.value = false
-    }
   }
+}
+
+function handleDeleteDialogOpenChange(open: boolean): void {
+  if (pendingMutation.value === 'remove') return
+  if (open !== deleteDialogOpen.value) clearDeleteFeedback()
+  deleteDialogOpen.value = open
 }
 
 async function loadSource(): Promise<void> {

@@ -212,60 +212,77 @@
                 </Button>
               </template>
 
-              <AlertDialog>
-                <AlertDialogTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-8 w-8 text-destructive"
-                    :disabled="pendingIds.has(directive.id)"
-                    :aria-label="t('common.delete')"
-                  >
-                    <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {{ t('settings.memory.redesign.directiveDeleteTitle') }}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {{ t('settings.memory.redesign.directiveDeleteDescription') }}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                    <AlertDialogAction
-                      class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      @click="remove(directive.id)"
-                    >
-                      {{ t('common.delete') }}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="h-8 w-8 text-destructive"
+                :disabled="pendingIds.has(directive.id)"
+                :aria-label="t('common.delete')"
+                data-testid="memory-directive-delete-trigger"
+                @click="requestDelete(directive)"
+              >
+                <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
         </li>
       </ol>
     </ScrollArea>
+
+    <AlertDialog :open="deleteDialogOpen" @update:open="handleDeleteDialogOpenChange">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {{ t('settings.memory.redesign.directiveDeleteTitle') }}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ t('settings.memory.redesign.directiveDeleteDescription') }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <MemoryInlineFeedback
+          v-if="deleteFeedback"
+          :feedback="deleteFeedback"
+          @clear="clearDeleteFeedback"
+        />
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            data-testid="memory-directive-delete-cancel"
+            :disabled="deleteRequest.status === 'pending'"
+          >
+            {{ t('common.cancel') }}
+          </AlertDialogCancel>
+          <AlertDialogAsyncAction
+            data-testid="memory-directive-delete-confirm"
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            :disabled="deleteRequest.status === 'pending'"
+            @click="confirmDelete"
+          >
+            <Spinner
+              v-if="deleteRequest.status === 'pending'"
+              data-testid="memory-directive-delete-spinner"
+              class="mr-1.5 size-3.5"
+            />
+            {{ t('common.delete') }}
+          </AlertDialogAsyncAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
+  AlertDialogTitle
 } from '@shadcn/components/ui/alert-dialog'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
@@ -285,6 +302,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { createMemoryClient } from '@api/MemoryClient'
 import {
@@ -300,7 +318,10 @@ import { isMemoryDirectiveTopicSpecificEnough } from '@shared/lib/memoryDirectiv
 import { unicodeCodePointLength } from '@shared/lib/unicodeText'
 import { shortDate } from './memoryRedesignUtils'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
-import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
+import {
+  shouldReconcileMemoryCommandRejection,
+  useMemoryInlineFeedback
+} from '../lib/useMemoryInlineFeedback'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const props = defineProps<{
@@ -314,11 +335,19 @@ const memoryClient = createMemoryClient()
 const panelFeedback = useMemoryInlineFeedback('MemoryDirectivesPanel')
 const feedback = panelFeedback.feedback
 const clearFeedback = panelFeedback.clear
+const deleteOperationFeedback = useMemoryInlineFeedback('MemoryDirectivesPanel.delete')
+const deleteFeedback = deleteOperationFeedback.feedback
+const clearDeleteFeedback = deleteOperationFeedback.clear
 
 const loading = ref(false)
 const creating = ref(false)
 const directives = ref<MemoryDirectiveItem[]>([])
 const pendingIds = ref<ReadonlySet<string>>(new Set())
+type DirectiveDeleteRequest =
+  | { status: 'idle' }
+  | { status: 'confirming'; target: MemoryDirectiveItem }
+  | { status: 'pending'; target: MemoryDirectiveItem; agentId: string }
+const deleteRequest = shallowRef<DirectiveDeleteRequest>({ status: 'idle' })
 const form = reactive<{
   kind: AgentMemoryDirectiveKind
   content: string
@@ -365,6 +394,7 @@ const activeCount = computed(
 const draftCount = computed(
   () => directives.value.filter((directive) => directive.status === 'draft').length
 )
+const deleteDialogOpen = computed(() => deleteRequest.value.status !== 'idle')
 
 const statusPriority: Record<AgentMemoryDirectiveStatus, number> = {
   active: 0,
@@ -498,16 +528,21 @@ async function transition(
       if (props.agentId !== agentId) return
       if (result.action === 'rejected') {
         panelFeedback.rejectDirective(result.reason)
+        shouldReload =
+          result.reason !== 'capacity' && shouldReconcileMemoryCommandRejection(result.reason)
         return
       }
       updated = result.directive
     } else {
-      updated = await memoryClient.rejectDirective(agentId, directiveId)
+      const result = await memoryClient.rejectDirective(agentId, directiveId)
       if (props.agentId !== agentId) return
-      if (!updated) {
-        panelFeedback.fail()
+      if (result.action === 'rejected') {
+        panelFeedback.rejectDirective(result.reason)
+        shouldReload =
+          result.reason !== 'capacity' && shouldReconcileMemoryCommandRejection(result.reason)
         return
       }
+      updated = result.directive
     }
     upsertDirective(updated)
   } catch (error) {
@@ -524,30 +559,63 @@ async function transition(
   }
 }
 
-async function remove(directiveId: string): Promise<void> {
-  if (pendingIds.value.has(directiveId)) return
-  const agentId = props.agentId
+function requestDelete(directive: MemoryDirectiveItem): void {
+  if (deleteRequest.value.status !== 'idle' || pendingIds.value.has(directive.id)) return
+  clearDeleteFeedback()
+  deleteRequest.value = { status: 'confirming', target: directive }
+}
+
+function handleDeleteDialogOpenChange(open: boolean): void {
+  if (open || deleteRequest.value.status !== 'confirming') return
+  deleteRequest.value = { status: 'idle' }
+  clearDeleteFeedback()
+}
+
+async function confirmDelete(): Promise<void> {
+  const request = deleteRequest.value
+  if (request.status !== 'confirming' || pendingIds.value.has(request.target.id)) return
+  const pendingRequest = {
+    status: 'pending' as const,
+    target: request.target,
+    agentId: props.agentId
+  }
+  deleteRequest.value = pendingRequest
   directiveRevision += 1
-  clearFeedback()
-  setPending(directiveId, true)
+  clearDeleteFeedback()
+  setPending(request.target.id, true)
   let shouldReload = false
   try {
-    const removed = await memoryClient.deleteDirective(agentId, directiveId)
-    if (props.agentId !== agentId) return
-    if (!removed) {
-      panelFeedback.fail()
+    const result = await memoryClient.deleteDirective(
+      pendingRequest.agentId,
+      pendingRequest.target.id
+    )
+    if (props.agentId !== pendingRequest.agentId || deleteRequest.value !== pendingRequest) {
       return
     }
-    directives.value = directives.value.filter((directive) => directive.id !== directiveId)
+    if (result.action === 'rejected') {
+      if (shouldReconcileMemoryCommandRejection(result.reason)) {
+        deleteRequest.value = { status: 'idle' }
+        panelFeedback.rejectCommand(result.reason)
+        shouldReload = true
+      } else {
+        deleteRequest.value = { status: 'confirming', target: pendingRequest.target }
+        deleteOperationFeedback.rejectCommand(result.reason)
+      }
+      return
+    }
+    deleteRequest.value = { status: 'idle' }
+    directives.value = directives.value.filter(
+      (directive) => directive.id !== pendingRequest.target.id
+    )
   } catch (error) {
-    if (props.agentId === agentId) {
-      shouldReload = true
-      panelFeedback.fail(error)
+    if (props.agentId === pendingRequest.agentId && deleteRequest.value === pendingRequest) {
+      deleteRequest.value = { status: 'confirming', target: pendingRequest.target }
+      deleteOperationFeedback.fail(error)
     }
   } finally {
-    if (props.agentId === agentId) {
+    if (props.agentId === pendingRequest.agentId) {
       directiveRevision += 1
-      setPending(directiveId, false)
+      setPending(pendingRequest.target.id, false)
       if (shouldReload) void load()
     }
   }
@@ -563,6 +631,8 @@ watch(
     creating.value = false
     directives.value = []
     pendingIds.value = new Set()
+    deleteRequest.value = { status: 'idle' }
+    clearDeleteFeedback()
     resetForm()
     void load()
   },

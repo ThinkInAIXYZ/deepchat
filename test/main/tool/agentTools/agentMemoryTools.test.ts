@@ -31,7 +31,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
     isMemoryEnabled: vi.fn().mockReturnValue(true),
     rememberMemory: vi.fn(),
     recallMemory: vi.fn(),
-    forgetMemory: vi.fn().mockResolvedValue(true),
+    forgetMemory: vi.fn().mockResolvedValue({ action: 'applied' }),
     ...overrides
   }) as any
 
@@ -154,5 +154,22 @@ describe('Agent memory tools', () => {
     expect(JSON.stringify(result.rawData)).toContain('Archived the memory.')
     expect(JSON.stringify(result.rawData)).toContain('retained locally')
     expect(JSON.stringify(result.rawData)).not.toContain('Deleted the memory.')
+  })
+
+  it('does not expose internal rejection details when memory_forget cannot archive the target', async () => {
+    const runtimePort = buildRuntimePort({
+      forgetMemory: vi.fn().mockResolvedValue({ action: 'rejected', reason: 'unavailable' })
+    })
+    const handler = new AgentMemoryToolHandler(runtimePort, runtimePort)
+
+    const result = await handler.call(
+      MEMORY_TOOL_NAMES.forget,
+      { memoryId: 'mem-conflicted' },
+      'conv-1'
+    )
+
+    expect(JSON.parse(result.content)).toEqual({ ok: false })
+    expect(JSON.stringify(result.rawData)).toContain('Memory could not be archived.')
+    expect(JSON.stringify(result.rawData)).not.toContain('unavailable')
   })
 })

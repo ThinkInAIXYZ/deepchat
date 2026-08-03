@@ -17,6 +17,12 @@ interface ApprovedServerInfo {
 
 // Session timeout: 30 minutes
 const SESSION_TIMEOUT = 30 * 60 * 1000
+const MAX_PENDING_SAMPLING_REQUESTS = 32
+
+const approvalBindingKey = (request: McpSamplingRequestPayload): string =>
+  request.serverId && request.configGeneration && request.bindingHash
+    ? `${request.serverId}:${request.configGeneration}:${request.bindingHash}`
+    : `legacy:${request.serverName}`
 
 export const resolveSamplingDefaultModel = (input: {
   modelGroups: Array<{ providerId: string; models: RENDERER_MODEL_META[] }>
@@ -49,6 +55,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const selectedModel = ref<RENDERER_MODEL_META | null>(null)
   const isPreparingModels = ref(false)
   const modelPreparationError = ref<Error | null>(null)
+  const queuedRequests = ref<McpSamplingRequestPayload[]>([])
   const eventCleanups: Array<() => void> = []
 
   // Session tracking for auto-approval
@@ -137,8 +144,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const isActiveSession = computed(() => {
     if (!request.value) return false
 
-    const serverName = request.value.serverName
-    const approvedInfo = approvedServers.value.get(serverName)
+    const approvedInfo = approvedServers.value.get(approvalBindingKey(request.value))
 
     if (!approvedInfo) return false
 
@@ -151,22 +157,25 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const activeSessionInfo = computed(() => {
     if (!request.value) return null
 
-    const serverName = request.value.serverName
-    return approvedServers.value.get(serverName) || null
+    return approvedServers.value.get(approvalBindingKey(request.value)) || null
   })
 
   // Session management methods
   const cleanExpiredSessions = () => {
     const now = Date.now()
-    for (const [serverName, info] of approvedServers.value.entries()) {
+    for (const [bindingKey, info] of approvedServers.value.entries()) {
       if (now - info.timestamp >= SESSION_TIMEOUT) {
-        approvedServers.value.delete(serverName)
+        approvedServers.value.delete(bindingKey)
       }
     }
   }
 
-  const recordServerApproval = (serverName: string, providerId: string, modelId: string) => {
-    approvedServers.value.set(serverName, {
+  const recordServerApproval = (
+    requestPayload: McpSamplingRequestPayload,
+    providerId: string,
+    modelId: string
+  ) => {
+    approvedServers.value.set(approvalBindingKey(requestPayload), {
       providerId,
       modelId,
       timestamp: Date.now()
@@ -186,12 +195,12 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
 
     const match = modelStore.findChatSelectableModel(sessionInfo.providerId, sessionInfo.modelId)
     if (!match) {
-      approvedServers.value.delete(request.value.serverName)
+      approvedServers.value.delete(approvalBindingKey(request.value))
       return false
     }
 
     if (requiresVision.value && !match.model.vision) {
-      approvedServers.value.delete(request.value.serverName)
+      approvedServers.value.delete(approvalBindingKey(request.value))
       return false
     }
 
@@ -210,7 +219,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
       return false
     }
 
-    recordServerApproval(request.value.serverName, selectedProviderId.value, selectedModel.value.id)
+    recordServerApproval(request.value, selectedProviderId.value, selectedModel.value.id)
 
     await submitDecision({
       requestId: request.value.requestId,
@@ -275,7 +284,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     resetSelection()
   }
 
-  const clearRequest = () => {
+  const clearCurrentRequest = () => {
     isOpen.value = false
     isSubmitting.value = false
     request.value = null
@@ -283,6 +292,44 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     selectedModel.value = null
     isPreparingModels.value = false
     modelPreparationError.value = null
+  }
+
+  const openNextRequest = () => {
+    const next = queuedRequests.value.shift()
+    if (next) {
+      openRequest(next)
+    }
+  }
+
+  const finishRequest = (requestId: string) => {
+    if (request.value?.requestId === requestId) {
+      clearCurrentRequest()
+      openNextRequest()
+      return
+    }
+    queuedRequests.value = queuedRequests.value.filter((queued) => queued.requestId !== requestId)
+  }
+
+  const queueOrOpenRequest = (payload: McpSamplingRequestPayload) => {
+    if (
+      request.value?.requestId === payload.requestId ||
+      queuedRequests.value.some((queued) => queued.requestId === payload.requestId)
+    ) {
+      return
+    }
+    if (!request.value) {
+      openRequest(payload)
+      return
+    }
+    if (queuedRequests.value.length >= MAX_PENDING_SAMPLING_REQUESTS - 1) {
+      void mcpClient
+        .cancelSamplingRequest(payload.requestId, 'Too many pending sampling requests')
+        .catch((error) => {
+          console.error('[MCP Sampling] Failed to reject queued sampling request:', error)
+        })
+      return
+    }
+    queuedRequests.value.push(payload)
   }
 
   const selectModel = (model: RENDERER_MODEL_META, providerId: string) => {
@@ -295,7 +342,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   }
 
   const submitDecision = async (decision: McpSamplingDecision) => {
-    if (!request.value) {
+    if (!request.value || request.value.requestId !== decision.requestId || isSubmitting.value) {
       return
     }
 
@@ -304,7 +351,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     isSubmitting.value = true
     try {
       await mcpClient.submitSamplingDecision(decision)
-      clearRequest()
+      finishRequest(activeRequestId)
     } catch (error) {
       console.error('[MCP Sampling] Failed to submit decision:', error)
 
@@ -317,7 +364,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
         console.error('[MCP Sampling] Failed to cancel sampling request:', cancelError)
       }
 
-      clearRequest()
+      finishRequest(activeRequestId)
     }
   }
 
@@ -332,7 +379,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     }
 
     // Record this server approval for future auto-approval
-    recordServerApproval(request.value.serverName, selectedProviderId.value, selectedModel.value.id)
+    recordServerApproval(request.value, selectedProviderId.value, selectedModel.value.id)
 
     await submitDecision({
       requestId: request.value.requestId,
@@ -356,7 +403,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
 
   const dismissRequest = async () => {
     if (!request.value) {
-      clearRequest()
+      clearCurrentRequest()
       return
     }
 
@@ -372,19 +419,17 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
       return
     }
 
-    openRequest(payload.request as McpSamplingRequestPayload)
+    queueOrOpenRequest(payload.request as McpSamplingRequestPayload)
   }
 
   const handleSamplingCancelled = (payload: { requestId: string }) => {
-    if (request.value && payload.requestId === request.value.requestId) {
-      clearRequest()
-    }
+    finishRequest(payload.requestId)
   }
 
   const handleSamplingDecision = (payload: { decision: unknown }) => {
     const decision = payload.decision as McpSamplingDecision | undefined
-    if (request.value && decision?.requestId === request.value.requestId) {
-      clearRequest()
+    if (decision?.requestId) {
+      finishRequest(decision.requestId)
     }
   }
 

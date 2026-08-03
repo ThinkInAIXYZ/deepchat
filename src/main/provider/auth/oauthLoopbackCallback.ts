@@ -6,7 +6,7 @@ export const OAUTH_CALLBACK_COMPLETE_TEXT =
 
 export type OAuthLoopbackCallbackResolution =
   | { kind: 'not-found' }
-  | { kind: 'success'; code: string; state: string; url: string }
+  | { kind: 'success'; code: string; state: string; iss?: string; url: string }
   | { kind: 'failure'; error: Error; url: string }
 
 export type OAuthLoopbackCallbackSessionOptions = {
@@ -17,6 +17,7 @@ export type OAuthLoopbackCallbackSessionOptions = {
   listenHost?: string
   redirectHost?: string
   invalidCallbackMessage?: string
+  validateParameters?: (parameters: URLSearchParams) => void
 }
 
 type ListenOptions = {
@@ -27,17 +28,24 @@ type ListenOptions = {
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000
 
-function writeCallbackPage(response: http.ServerResponse): void {
-  response.writeHead(200, {
+function writeCallbackPage(response: http.ServerResponse, success: boolean): void {
+  const title = success ? 'Authentication complete' : 'Authentication failed'
+  const message = success
+    ? OAUTH_CALLBACK_COMPLETE_TEXT
+    : 'DeepChat rejected this authentication callback. Return to DeepChat and try again.'
+  response.writeHead(success ? 200 : 400, {
     'Content-Type': 'text/html; charset=utf-8',
-    'Cache-Control': 'no-store'
+    'Cache-Control': 'no-store',
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'",
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff'
   })
   response.end(`<!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Authentication complete</title></head>
+<head><meta charset="utf-8"><title>${title}</title></head>
 <body style="font-family: system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; line-height: 1.5; margin: 48px;">
-  <h1>Authentication complete</h1>
-  <p>${OAUTH_CALLBACK_COMPLETE_TEXT}</p>
+  <h1>${title}</h1>
+  <p>${message}</p>
 </body>
 </html>`)
 }
@@ -64,7 +72,8 @@ export function resolveOAuthLoopbackCallbackUrl(
   rawUrl: string | undefined,
   expectedState: string,
   redirectUri: string,
-  invalidCallbackMessage = 'Invalid OAuth callback'
+  invalidCallbackMessage = 'Invalid OAuth callback',
+  validateParameters?: (parameters: URLSearchParams) => void
 ): OAuthLoopbackCallbackResolution {
   const redirect = new URL(redirectUri)
   const url = new URL(rawUrl || '/', redirect)
@@ -72,24 +81,45 @@ export function resolveOAuthLoopbackCallbackUrl(
     url.protocol !== redirect.protocol ||
     url.hostname !== redirect.hostname ||
     url.port !== redirect.port ||
-    url.pathname !== redirect.pathname
+    url.pathname !== redirect.pathname ||
+    url.username ||
+    url.password ||
+    url.hash
   ) {
     return { kind: 'not-found' }
   }
 
-  const error = url.searchParams.get('error')
-  const errorDescription = url.searchParams.get('error_description')
-  if (error) {
+  const state = url.searchParams.get('state')
+  if (state !== expectedState) {
     return {
       kind: 'failure',
-      error: new Error(errorDescription ? `${error}: ${errorDescription}` : error),
+      error: new Error(invalidCallbackMessage),
+      url: url.toString()
+    }
+  }
+
+  try {
+    validateParameters?.(url.searchParams)
+  } catch (error) {
+    return {
+      kind: 'failure',
+      error: error instanceof Error ? error : new Error(invalidCallbackMessage),
+      url: url.toString()
+    }
+  }
+
+  const oauthError = url.searchParams.get('error')
+  const errorDescription = url.searchParams.get('error_description')
+  if (oauthError) {
+    return {
+      kind: 'failure',
+      error: new Error(errorDescription ? `${oauthError}: ${errorDescription}` : oauthError),
       url: url.toString()
     }
   }
 
   const code = url.searchParams.get('code')
-  const state = url.searchParams.get('state')
-  if (!code || state !== expectedState) {
+  if (!code) {
     return {
       kind: 'failure',
       error: new Error(invalidCallbackMessage),
@@ -101,6 +131,7 @@ export function resolveOAuthLoopbackCallbackUrl(
     kind: 'success',
     code,
     state,
+    iss: url.searchParams.get('iss') || undefined,
     url: url.toString()
   }
 }
@@ -112,6 +143,7 @@ export class OAuthLoopbackCallbackSession {
   private readonly expectedState: string
   private readonly timeout: NodeJS.Timeout
   private readonly invalidCallbackMessage: string
+  private readonly validateParameters?: (parameters: URLSearchParams) => void
   private settled = false
   private resolveResult!: (
     result: Extract<OAuthLoopbackCallbackResolution, { kind: 'success' }>
@@ -126,12 +158,14 @@ export class OAuthLoopbackCallbackSession {
     redirectUri: string,
     expectedState: string,
     timeoutMs: number,
-    invalidCallbackMessage: string
+    invalidCallbackMessage: string,
+    validateParameters?: (parameters: URLSearchParams) => void
   ) {
     this.server = server
     this.redirectUri = redirectUri
     this.expectedState = expectedState
     this.invalidCallbackMessage = invalidCallbackMessage
+    this.validateParameters = validateParameters
     this.callbackPromise = new Promise((resolve, reject) => {
       this.resolveResult = resolve
       this.rejectResult = reject
@@ -150,7 +184,8 @@ export class OAuthLoopbackCallbackSession {
       rawUrl,
       this.expectedState,
       this.redirectUri,
-      this.invalidCallbackMessage
+      this.invalidCallbackMessage,
+      this.validateParameters
     )
 
     if (resolution.kind === 'success') {
@@ -196,7 +231,18 @@ export async function startOAuthLoopbackCallbackSession(
   const path = options.path.startsWith('/') ? options.path : `/${options.path}`
   let session: OAuthLoopbackCallbackSession | null = null
   const server = http.createServer((request, response) => {
-    const url = new URL(request.url || '/', `http://${request.headers.host || redirectHost}`)
+    let url: URL
+    try {
+      url = new URL(request.url || '/', `http://${request.headers.host || redirectHost}`)
+    } catch {
+      response.writeHead(400, {
+        'Cache-Control': 'no-store',
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff'
+      })
+      response.end('Invalid request')
+      return
+    }
     if (request.method !== 'GET') {
       response.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' })
       response.end('Method not allowed')
@@ -209,8 +255,21 @@ export async function startOAuthLoopbackCallbackSession(
       return
     }
 
-    writeCallbackPage(response)
-    session?.resolveCallbackUrl(url.toString())
+    const resolution = session?.resolveCallbackUrl(url.toString())
+    if (resolution?.kind === 'success') {
+      writeCallbackPage(response, true)
+      return
+    }
+    if (resolution?.kind === 'failure') {
+      writeCallbackPage(response, false)
+      return
+    }
+    response.writeHead(404, {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff'
+    })
+    response.end('Not found')
   })
 
   let port: number
@@ -233,7 +292,8 @@ export async function startOAuthLoopbackCallbackSession(
     redirectUri,
     options.expectedState,
     options.timeoutMs || DEFAULT_TIMEOUT_MS,
-    options.invalidCallbackMessage || 'Invalid OAuth callback'
+    options.invalidCallbackMessage || 'Invalid OAuth callback',
+    options.validateParameters
   )
 
   return session

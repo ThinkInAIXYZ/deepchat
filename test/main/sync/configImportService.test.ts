@@ -637,7 +637,6 @@ function mcpServer(command: string, enabled: boolean): MCPServerConfig {
     env: {},
     descriptions: '',
     icons: '',
-    autoApprove: [],
     enabled,
     type: 'stdio'
   }

@@ -62,35 +62,18 @@
                     : t('settings.deepchatAgents.memoryManager.anchor')
                 }}
               </Button>
-              <AlertDialog v-if="!isActive(version)">
-                <AlertDialogTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="h-8 text-xs"
-                    :disabled="pendingIds.has(version.id)"
-                  >
-                    <Icon icon="lucide:rotate-ccw" class="mr-1.5 h-3.5 w-3.5" />
-                    {{ t('settings.deepchatAgents.memoryManager.rollback') }}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {{ t('settings.deepchatAgents.memoryManager.rollbackConfirmTitle') }}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {{ t('settings.deepchatAgents.memoryManager.rollbackConfirmBody') }}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                    <AlertDialogAction @click="rollback(version.id)">
-                      {{ t('settings.deepchatAgents.memoryManager.rollback') }}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button
+                v-if="!isActive(version)"
+                variant="ghost"
+                size="sm"
+                class="h-8 text-xs"
+                :disabled="pendingIds.has(version.id)"
+                data-testid="memory-persona-rollback-trigger"
+                @click="requestRollback(version)"
+              >
+                <Icon icon="lucide:rotate-ccw" class="mr-1.5 h-3.5 w-3.5" />
+                {{ t('settings.deepchatAgents.memoryManager.rollback') }}
+              </Button>
             </div>
           </div>
           <p class="whitespace-pre-wrap wrap-break-word text-sm text-muted-foreground">
@@ -99,32 +82,73 @@
         </li>
       </ol>
     </ScrollArea>
+
+    <AlertDialog :open="rollbackDialogOpen" @update:open="handleRollbackDialogOpenChange">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {{ t('settings.deepchatAgents.memoryManager.rollbackConfirmTitle') }}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ t('settings.deepchatAgents.memoryManager.rollbackConfirmBody') }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <MemoryInlineFeedback
+          v-if="rollbackFeedback"
+          :feedback="rollbackFeedback"
+          @clear="clearRollbackFeedback"
+        />
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            data-testid="memory-persona-rollback-cancel"
+            :disabled="rollbackRequest.status === 'pending'"
+          >
+            {{ t('common.cancel') }}
+          </AlertDialogCancel>
+          <AlertDialogAsyncAction
+            data-testid="memory-persona-rollback-confirm"
+            :disabled="rollbackRequest.status === 'pending'"
+            @click="confirmRollback"
+          >
+            <Spinner
+              v-if="rollbackRequest.status === 'pending'"
+              data-testid="memory-persona-rollback-spinner"
+              class="mr-1.5 size-3.5"
+            />
+            {{ t('settings.deepchatAgents.memoryManager.rollback') }}
+          </AlertDialogAsyncAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
+  AlertDialogTitle
 } from '@shadcn/components/ui/alert-dialog'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { createMemoryClient } from '@api/MemoryClient'
 import type { MemoryItem } from '@shared/contracts/routes'
 import { formatRelativeTime } from './memoryRedesignUtils'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
-import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
+import {
+  shouldReconcileMemoryCommandRejection,
+  useMemoryInlineFeedback
+} from '../lib/useMemoryInlineFeedback'
 
 const props = defineProps<{
   agentId: string
@@ -137,10 +161,18 @@ const memoryClient = createMemoryClient()
 const panelFeedback = useMemoryInlineFeedback('MemoryPersonaPanel')
 const feedback = panelFeedback.feedback
 const clearFeedback = panelFeedback.clear
+const rollbackOperationFeedback = useMemoryInlineFeedback('MemoryPersonaPanel.rollback')
+const rollbackFeedback = rollbackOperationFeedback.feedback
+const clearRollbackFeedback = rollbackOperationFeedback.clear
 
 const loading = ref(false)
 const versions = ref<MemoryItem[]>([])
 const pendingIds = ref<ReadonlySet<string>>(new Set())
+type RollbackRequest =
+  | { status: 'idle' }
+  | { status: 'confirming'; target: MemoryItem }
+  | { status: 'pending'; target: MemoryItem; agentId: string }
+const rollbackRequest = shallowRef<RollbackRequest>({ status: 'idle' })
 let requestId = 0
 
 const activeId = computed<string | null>(() => {
@@ -157,6 +189,7 @@ const timeline = computed(() =>
     (version) => version.personaState !== 'draft' && version.personaState !== 'rejected'
   )
 )
+const rollbackDialogOpen = computed(() => rollbackRequest.value.status !== 'idle')
 
 function isActive(version: MemoryItem): boolean {
   return version.id === activeId.value
@@ -186,19 +219,61 @@ async function load(): Promise<void> {
   }
 }
 
-async function rollback(versionId: string): Promise<void> {
-  if (pendingIds.value.has(versionId)) return
-  const agentId = props.agentId
-  clearFeedback()
-  setPending(versionId, true)
+function requestRollback(version: MemoryItem): void {
+  if (rollbackRequest.value.status !== 'idle' || pendingIds.value.has(version.id)) return
+  clearRollbackFeedback()
+  rollbackRequest.value = { status: 'confirming', target: version }
+}
+
+function handleRollbackDialogOpenChange(open: boolean): void {
+  if (open || rollbackRequest.value.status !== 'confirming') return
+  rollbackRequest.value = { status: 'idle' }
+  clearRollbackFeedback()
+}
+
+async function confirmRollback(): Promise<void> {
+  const request = rollbackRequest.value
+  if (request.status !== 'confirming' || pendingIds.value.has(request.target.id)) return
+  const pendingRequest = {
+    status: 'pending' as const,
+    target: request.target,
+    agentId: props.agentId
+  }
+  rollbackRequest.value = pendingRequest
+  clearRollbackFeedback()
+  setPending(pendingRequest.target.id, true)
+  let shouldReload = false
   try {
-    // Main broadcasts memory.updated for this mutation, which bumps
-    // refreshToken and reloads this panel; no need to also reload locally.
-    await memoryClient.rollbackPersona(agentId, versionId)
+    const result = await memoryClient.rollbackPersona(
+      pendingRequest.agentId,
+      pendingRequest.target.id
+    )
+    if (props.agentId !== pendingRequest.agentId || rollbackRequest.value !== pendingRequest) {
+      return
+    }
+    if (result.action === 'rejected') {
+      if (shouldReconcileMemoryCommandRejection(result.reason)) {
+        rollbackRequest.value = { status: 'idle' }
+        panelFeedback.rejectCommand(result.reason)
+        shouldReload = true
+      } else {
+        rollbackRequest.value = { status: 'confirming', target: pendingRequest.target }
+        rollbackOperationFeedback.rejectCommand(result.reason)
+      }
+      return
+    }
+    // Main broadcasts memory.updated for applied mutations.
+    rollbackRequest.value = { status: 'idle' }
   } catch (error) {
-    if (props.agentId === agentId) panelFeedback.fail(error)
+    if (props.agentId === pendingRequest.agentId && rollbackRequest.value === pendingRequest) {
+      rollbackRequest.value = { status: 'confirming', target: pendingRequest.target }
+      rollbackOperationFeedback.fail(error)
+    }
   } finally {
-    if (props.agentId === agentId) setPending(versionId, false)
+    if (props.agentId === pendingRequest.agentId) {
+      setPending(pendingRequest.target.id, false)
+      if (shouldReload) void load()
+    }
   }
 }
 
@@ -207,12 +282,20 @@ async function setAnchor(versionId: string, anchored: boolean): Promise<void> {
   const agentId = props.agentId
   clearFeedback()
   setPending(versionId, true)
+  let shouldReload = false
   try {
-    await memoryClient.setPersonaAnchor(agentId, versionId, anchored)
+    const result = await memoryClient.setPersonaAnchor(agentId, versionId, anchored)
+    if (props.agentId === agentId && result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+      shouldReload = shouldReconcileMemoryCommandRejection(result.reason)
+    }
   } catch (error) {
     if (props.agentId === agentId) panelFeedback.fail(error)
   } finally {
-    if (props.agentId === agentId) setPending(versionId, false)
+    if (props.agentId === agentId) {
+      setPending(versionId, false)
+      if (shouldReload) void load()
+    }
   }
 }
 
@@ -220,6 +303,8 @@ watch(
   () => props.agentId,
   () => {
     clearFeedback()
+    clearRollbackFeedback()
+    rollbackRequest.value = { status: 'idle' }
     pendingIds.value = new Set()
   }
 )

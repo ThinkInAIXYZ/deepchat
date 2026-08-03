@@ -1,8 +1,6 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { Server, Transport } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type { MCPTextContent } from '@shared/types/mcp'
 import type { KnowledgeConfigPort } from '@/knowledge/ports'
 import type {
@@ -44,7 +42,7 @@ export class BuiltinKnowledgeServer {
   }
 
   private setupRequestHandlers(): void {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler('tools/list', async () => {
       const enabledConfigs = this.getEnabledConfigs()
       const tools = enabledConfigs.map((config, index) => {
         const suffix = enabledConfigs.length > 1 ? `_${index + 1}` : ''
@@ -60,7 +58,7 @@ export class BuiltinKnowledgeServer {
       })
       return { tools }
     })
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request) => {
       const { name, arguments: parameters } = request.params
       if (name.startsWith('builtin_knowledge_search')) {
         try {

@@ -378,7 +378,9 @@ describe('MemoryService.updateMemory', () => {
       [{ kind: 'semantic', content: 'Project Saffron uses Rust.' }],
       { agentId: 'deepchat' }
     )
-    await expect(presenter.deleteMemory('deepchat', forgottenId)).resolves.toBe(true)
+    await expect(presenter.deleteMemory('deepchat', forgottenId)).resolves.toEqual({
+      action: 'applied'
+    })
     insertMemory(repo, { id: 'editable', content: 'Project Saffron uses Go.' })
 
     expect(

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
 const passthrough = (name: string, tag = 'div') =>
   defineComponent({
@@ -46,18 +46,36 @@ const checkboxStub = defineComponent({
     '<input type="checkbox" data-testid="checkbox" :checked="checked" :disabled="disabled" @click="$emit(\'update:checked\', !checked)" />'
 })
 
+const selectStub = defineComponent({
+  name: 'Select',
+  props: {
+    modelValue: { type: String, default: '' }
+  },
+  emits: ['update:modelValue'],
+  template: '<div><slot /></div>'
+})
+
 const loadMcpServerForm = async () => {
   vi.resetModules()
-
   vi.doMock('@api/DeviceClient', () => ({
     createDeviceClient: () => ({
       selectDirectory: vi.fn()
+    })
+  }))
+  vi.doMock('@api/McpClient', () => ({
+    createMcpClient: () => ({
+      listEnterpriseProfiles: vi.fn().mockResolvedValue([]),
+      getCredentialStatus: vi.fn().mockResolvedValue([]),
+      removeCredential: vi.fn()
     })
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       t: (key: string) => key
     })
+  }))
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer: vi.fn()
   }))
   vi.doMock('@/components/emoji-picker', () => ({
     EmojiPicker: defineComponent({
@@ -86,18 +104,18 @@ const globalStubs = {
   Label: passthrough('Label', 'label'),
   Textarea: textareaStub,
   ScrollArea: passthrough('ScrollArea'),
-  Select: passthrough('Select'),
+  Select: selectStub,
   SelectContent: passthrough('SelectContent'),
   SelectItem: passthrough('SelectItem'),
   SelectTrigger: passthrough('SelectTrigger'),
   SelectValue: passthrough('SelectValue'),
+  Badge: passthrough('Badge', 'span'),
   Checkbox: checkboxStub
 }
 
 describe('McpServerForm', () => {
-  it('renders editable permissions and submission feedback', async () => {
+  it('omits auto-approve policy and renders submission feedback', async () => {
     const McpServerForm = await loadMcpServerForm()
-
     const wrapper = mount(McpServerForm, {
       props: {
         serverName: 'test-server',
@@ -109,8 +127,7 @@ describe('McpServerForm', () => {
           env: {},
           descriptions: 'Test server',
           icons: 'folder',
-          enabled: true,
-          autoApprove: []
+          enabled: true
         }
       },
       global: {
@@ -119,17 +136,12 @@ describe('McpServerForm', () => {
     })
 
     const checkboxes = wrapper.findAll('[data-testid="checkbox"]')
-    expect(checkboxes).toHaveLength(3)
-
-    await checkboxes[1].trigger('click')
-    await checkboxes[2].trigger('click')
+    expect(checkboxes).toHaveLength(0)
     await wrapper.find('form').trigger('submit')
 
     const submitEvent = wrapper.emitted('submit')?.[0]
     expect(submitEvent?.[0]).toBe('test-server')
-    expect(submitEvent?.[1]).toMatchObject({
-      autoApprove: ['read', 'write']
-    })
+    expect(submitEvent?.[1]).not.toHaveProperty('autoApprove')
 
     await wrapper.setProps({
       submitting: true,
@@ -140,6 +152,25 @@ describe('McpServerForm', () => {
     expect(wrapper.get('form').attributes('inert')).toBeDefined()
     expect(wrapper.get('form').attributes('aria-busy')).toBe('true')
     expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('keeps SSE available as a compatibility transport when adding a server', async () => {
+    const McpServerForm = await loadMcpServerForm()
+    const wrapper = mount(McpServerForm, {
+      global: {
+        stubs: globalStubs
+      }
+    })
+
+    const manualButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'settings.mcp.serverForm.skipToManual')
+    expect(manualButton).toBeDefined()
+    await manualButton?.trigger('click')
+
+    const sseOption = wrapper.find('[value="sse"]')
+    expect(sseOption.exists()).toBe(true)
+    expect(sseOption.text()).toContain('settings.mcp.serverForm.sseCompatibilityBadge')
   })
 
   it('keeps invalid JSON feedback beside the configuration input', async () => {
@@ -172,5 +203,49 @@ describe('McpServerForm', () => {
     expect(wrapper.find('#json-config-error').exists()).toBe(false)
     expect(wrapper.find('#server-name').exists()).toBe(true)
     consoleError.mockRestore()
+  })
+
+  it('accepts IPv6 loopback URLs and validates credentials for the selected mode', async () => {
+    const McpServerForm = await loadMcpServerForm()
+    const wrapper = mount(McpServerForm, {
+      props: {
+        serverName: 'loopback-server',
+        editMode: true,
+        initialConfig: {
+          type: 'http',
+          command: '',
+          args: [],
+          env: {},
+          descriptions: '',
+          icons: '',
+          enabled: true,
+          baseUrl: 'http://[::1]:3000/mcp',
+          authorization: {
+            mode: 'client_credentials',
+            protectedResourceUrl: 'http://[::1]:3000/mcp',
+            authorizationServerIssuer: 'http://[::1]:3001',
+            clientId: 'machine-client'
+          }
+        }
+      },
+      global: {
+        stubs: globalStubs
+      }
+    })
+    await flushPromises()
+
+    await wrapper.get('#credential-input').setValue('client-secret')
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+    await wrapper.find('form').trigger('submit')
+    expect(wrapper.emitted('submit')?.[0]?.[2]).toEqual({
+      kind: 'client_secret',
+      secret: 'client-secret'
+    })
+
+    const authorizationSelect = wrapper.findAllComponents({ name: 'Select' })[1]
+    authorizationSelect.vm.$emit('update:modelValue', 'private_key_jwt')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
   })
 })

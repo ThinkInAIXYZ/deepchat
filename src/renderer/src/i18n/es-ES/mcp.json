@@ -57,7 +57,7 @@
     "typeStdio": "Entrada y salida estándar",
     "typeSse": "Eventos enviados por el servidor (SSE)",
     "typeInMemory": "Memoria",
-    "baseUrl": "Base URL",
+    "baseUrl": "URL base",
     "baseUrlPlaceholder": "Ingrese el servidor básico URL (por ejemplo: http://localhost:3000)",
     "command": "Comando",
     "commandPlaceholder": "Introduzca un comando",
@@ -78,11 +78,6 @@
     "iconPlaceholder": "Ingresar icono",
     "icons": "Iconos",
     "iconsPlaceholder": "Introducir iconos",
-    "autoApprove": "Aprobar automáticamente",
-    "autoApproveAll": "Todos",
-    "autoApproveRead": "leer",
-    "autoApproveWrite": "escribir",
-    "autoApproveHelp": "Seleccione el tipo de operación que requiere autorización automática y ejecútela sin confirmación del usuario",
     "submit": "Enviar",
     "add": "Añadir",
     "update": "Actualizar",
@@ -305,5 +300,51 @@
     "autoApproveIn": "Aprobación automática en {seconds}s usando {model}",
     "reviewRequest": "Revisión",
     "sessionActive": "Sesión activa: las solicitudes se aprobarán automáticamente"
+  },
+  "elicitation": {
+    "title": "Solicitud de entrada de MCP",
+    "accept": "Enviar",
+    "decline": "Rechazar",
+    "noFields": "Esta solicitud no contiene campos de formulario.",
+    "openLink": "Abrir enlace seguro",
+    "selectValue": "Seleccionar un valor",
+    "error": {
+      "required": "Este campo es obligatorio.",
+      "number": "Introduce un número válido.",
+      "integer": "Introduce un número entero.",
+      "boolean": "Selecciona verdadero o falso.",
+      "range": "El valor está fuera del intervalo permitido.",
+      "selection": "Selecciona una opción válida.",
+      "length": "La longitud del texto está fuera del intervalo permitido.",
+      "format": "Introduce un valor con el formato solicitado."
+    }
+  },
+  "apps": {
+    "title": "Aplicación MCP",
+    "interactiveContent": "Contenido interactivo de un servidor MCP",
+    "loadError": "No se pudo cargar esta aplicación MCP.",
+    "retry": "Reintentar",
+    "fullscreen": "Abrir en pantalla completa",
+    "pictureInPicture": "Abrir en imagen en imagen",
+    "returnInline": "Volver a la vista integrada",
+    "securityDetails": "Detalles de seguridad",
+    "allowedOrigins": "Orígenes de red declarados",
+    "requestedPermissions": "Permisos de dispositivo solicitados",
+    "noneDeclared": "No se declaró ninguno",
+    "advisoryDomain": "Dominio orientativo",
+    "toolAccessSuspended": "El acceso a herramientas se suspendió tras rechazar una solicitud.",
+    "retryAccess": "Reintentar el acceso",
+    "permissions": {
+      "camera": "Cámara",
+      "microphone": "Micrófono",
+      "geolocation": "Ubicación",
+      "clipboardWrite": "Escribir en el portapapeles"
+    },
+    "consent": {
+      "title": "Solicitud de la aplicación MCP",
+      "description": "Revisa esta acción solicitada por el contenido interactivo de MCP.",
+      "allowOnce": "Permitir una vez",
+      "deny": "Denegar"
+    }
   }
 }

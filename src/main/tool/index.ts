@@ -2,6 +2,7 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   type McpServicePort,
+  type McpExpectedToolTarget,
   type MCPToolCall,
   type MCPToolDefinition,
   type MCPToolDefinitionBase,
@@ -42,17 +43,16 @@ import {
 } from '@shared/lib/agentToolResultEnvelope'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from './permission'
+import { ToolPermissionBroker } from './permission'
 import { YO_BROWSER_TOOL_NAMES } from './browser/definitions'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { ToolEffectObserver } from './effectObserver'
 import type { SessionToolProvider } from './sessionToolProvider'
+import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 
-type McpToolPort = Pick<
-  McpServicePort,
-  'getAllToolDefinitions' | 'callTool' | 'preCheckToolPermission'
->
+type McpToolPort = Pick<McpServicePort, 'getAllToolDefinitions' | 'callTool'>
 
 interface ToolServiceOptions {
   mcpService: McpToolPort
@@ -62,6 +62,7 @@ interface ToolServiceOptions {
   skillSettings: SkillSettingsPort
   desktopSettings: AgentDisplaySettingsPort
   commandPermissionHandler: CommandPermissionService
+  permissionBroker?: ToolPermissionBroker
   agentTools: AgentToolDependencies
   effectObserver?: ToolEffectObserver
   sessionTools?: SessionToolProvider
@@ -125,11 +126,15 @@ export class ToolService implements ToolServicePort {
     Map<string, ToolExecutionContract>
   >()
   private readonly options: ToolServiceOptions
+  private readonly permissionBroker: ToolPermissionBroker
+  private readonly conversationMcpDefinitions = new Map<string, Map<string, MCPToolDefinition>>()
+  private globalMcpDefinitions = new Map<string, MCPToolDefinition>()
   private agentToolManager: AgentToolManager | null = null
   private globalReviewedExecutions = new Map<string, ToolExecutionContract>()
 
   constructor(options: ToolServiceOptions) {
     this.options = options
+    this.permissionBroker = options.permissionBroker ?? new ToolPermissionBroker()
     this.mapper = new ToolMapper()
     this.conversationMappers = new Map()
   }
@@ -201,6 +206,7 @@ export class ToolService implements ToolServicePort {
     )
     defs.push(...mcpDefs)
     mapper.registerTools(mcpDefs, 'mcp')
+    this.rememberMcpDefinitions(context.conversationId, mcpDefs)
 
     // 2. Get Agent tools (always load in agent or acp agent mode)
     const agentToolManager = this.ensureAgentToolManager(agentWorkspacePath)
@@ -305,6 +311,8 @@ export class ToolService implements ToolServicePort {
     this.conversationMappers.delete(normalizedConversationId)
     this.conversationReviewedExecutions.delete(normalizedConversationId)
     this.conversationMcpAccessContexts.delete(normalizedConversationId)
+    this.conversationMcpDefinitions.delete(normalizedConversationId)
+    this.permissionBroker.cancelConversation(normalizedConversationId)
     this.clearAgentPlanState(normalizedConversationId)
   }
 
@@ -339,21 +347,11 @@ export class ToolService implements ToolServicePort {
       return await this.options.sessionTools.callTool(request, options)
     }
 
-    const normalizedConversationId = request.conversationId?.trim()
-    if (normalizedConversationId && this.options.effectObserver) {
-      await this.options.effectObserver.beforeToolExecution({
-        conversationId: normalizedConversationId,
-        toolCallId: request.id,
-        toolName,
-        source,
-        reviewedExecution: this.getReviewedExecution(toolName, normalizedConversationId)
-      })
-    }
-
     if (source === 'agent') {
       if (!this.agentToolManager) {
         throw new Error(`Agent tool manager not initialized for tool ${toolName}`)
       }
+      await this.observeToolExecution(request, source)
       // Route to Agent tool manager
       let args: Record<string, unknown> = {}
       const argsString = request.function.arguments || ''
@@ -414,11 +412,39 @@ export class ToolService implements ToolServicePort {
 
     // Route to MCP (default)
     const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
+    const definition = this.getMcpDefinition(toolName, request.conversationId)
+    const expectedTarget = this.createExpectedMcpTarget(toolName, definition)
+    const permissionContext = this.createMcpPermissionContext(
+      request,
+      definition,
+      options?.permissionMode
+    )
+    if (permissionContext && this.shouldBrokerMcpTool(definition)) {
+      const authorization = this.permissionBroker.authorizeExecution(
+        permissionContext,
+        options?.signal
+      )
+      if (!authorization.allowed) {
+        return {
+          content: authorization.request.description,
+          rawData: {
+            toolCallId: request.id,
+            content: authorization.request.description,
+            isError: false,
+            requiresPermission: true,
+            permissionRequest: authorization.request
+          }
+        }
+      }
+    }
+
+    await this.observeToolExecution(request, source)
     return await this.options.mcpService.callTool(request, {
       agentId: options?.agentId ?? storedAccess?.agentId,
       enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds,
       runId: options?.runId,
-      signal: options?.signal
+      signal: options?.signal,
+      expectedTarget
     })
   }
 
@@ -483,13 +509,19 @@ export class ToolService implements ToolServicePort {
       return result
     }
 
-    // Route to MCP for permission pre-check
-    const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
-    return await this.options.mcpService.preCheckToolPermission(request, {
-      agentId: storedAccess?.agentId,
-      enabledServerIds: storedAccess?.enabledMcpServerIds,
-      signal: options?.signal
-    })
+    const definition = this.getMcpDefinition(toolName, request.conversationId)
+    this.createExpectedMcpTarget(toolName, definition)
+    if (!this.shouldBrokerMcpTool(definition)) {
+      return null
+    }
+    const permissionContext = this.createMcpPermissionContext(
+      request,
+      definition,
+      options?.permissionMode
+    )
+    return permissionContext
+      ? this.permissionBroker.evaluateModel(permissionContext, options?.signal)
+      : null
   }
 
   private resolveAgentToolResponse(response: AgentToolCallResult | string): AgentToolCallResult {
@@ -497,6 +529,21 @@ export class ToolService implements ToolServicePort {
       return { content: response }
     }
     return response
+  }
+
+  private async observeToolExecution(request: MCPToolCall, source: ToolSource): Promise<void> {
+    const conversationId = request.conversationId?.trim()
+    if (!conversationId || !this.options.effectObserver) {
+      return
+    }
+
+    await this.options.effectObserver.beforeToolExecution({
+      conversationId,
+      toolCallId: request.id,
+      toolName: request.function.name,
+      source,
+      reviewedExecution: this.getReviewedExecution(request.function.name, conversationId)
+    })
   }
 
   private rememberConversationMcpAccessContext(
@@ -545,6 +592,118 @@ export class ToolService implements ToolServicePort {
     }
     this.globalMapperConversationId = normalizedConversationId || null
     this.globalReviewedExecutions = reviewedExecutions
+  }
+
+  private rememberMcpDefinitions(
+    conversationId: string | undefined,
+    definitions: MCPToolDefinition[]
+  ): void {
+    const byName = new Map(definitions.map((definition) => [definition.function.name, definition]))
+    const normalizedConversationId = conversationId?.trim()
+    if (normalizedConversationId) {
+      this.conversationMcpDefinitions.set(normalizedConversationId, byName)
+    }
+    this.globalMcpDefinitions = byName
+  }
+
+  private getMcpDefinition(
+    toolName: string,
+    conversationId?: string
+  ): MCPToolDefinition | undefined {
+    const normalizedConversationId = conversationId?.trim()
+    if (normalizedConversationId) {
+      const definitions = this.conversationMcpDefinitions.get(normalizedConversationId)
+      if (definitions) {
+        return definitions.get(toolName)
+      }
+      if (this.globalMapperConversationId !== null) {
+        return undefined
+      }
+    }
+    return this.globalMcpDefinitions.get(toolName)
+  }
+
+  private createExpectedMcpTarget(
+    finalName: string,
+    definition: MCPToolDefinition | undefined
+  ): McpExpectedToolTarget {
+    const serverId = definition?.server.id
+    const configGeneration = definition?.server.configGeneration
+    const bindingHash = definition?.server.bindingHash
+    const originalName = definition?.raw?.name
+    if (
+      !definition ||
+      !serverId ||
+      !configGeneration ||
+      !bindingHash ||
+      !originalName ||
+      definition.function.name !== finalName
+    ) {
+      throw new Error(`MCP tool '${finalName}' has no stable execution binding; refresh tools`)
+    }
+    return {
+      finalName,
+      serverName: definition.server.name,
+      serverId,
+      configGeneration,
+      bindingHash,
+      originalName
+    }
+  }
+
+  private shouldBrokerMcpTool(definition?: MCPToolDefinition): boolean {
+    const serverName = definition?.server.name
+    if (!serverName) {
+      return true
+    }
+    const policy = resolvePluginToolPolicy(
+      serverName,
+      definition.raw?.name ?? definition.function.name
+    )
+    return !policy.managed || policy.decision === 'ask'
+  }
+
+  private createMcpPermissionContext(
+    request: MCPToolCall,
+    definition: MCPToolDefinition | undefined,
+    permissionMode: PermissionMode | undefined
+  ) {
+    const conversationId = request.conversationId?.trim()
+    if (!conversationId) {
+      return null
+    }
+
+    let parsedArguments: unknown = {}
+    try {
+      parsedArguments = request.function.arguments ? JSON.parse(request.function.arguments) : {}
+    } catch {
+      try {
+        parsedArguments = JSON.parse(jsonrepair(request.function.arguments))
+      } catch {
+        parsedArguments = request.function.arguments
+      }
+    }
+
+    const policy = definition
+      ? resolvePluginToolPolicy(
+          definition.server.name,
+          definition.raw?.name ?? definition.function.name
+        )
+      : undefined
+
+    return {
+      conversationId,
+      serverId: definition?.server.id ?? definition?.server.name ?? 'unknown',
+      configGeneration: definition?.server.configGeneration,
+      bindingHash: definition?.server.bindingHash,
+      serverName: definition?.server.name ?? request.server?.name ?? 'MCP',
+      toolName: definition?.raw?.name ?? request.function.name,
+      arguments: parsedArguments,
+      source: 'model' as const,
+      // Remote MCP annotations are not trusted to downgrade host permission checks.
+      permissionType: 'write' as const,
+      permissionMode: policy?.managed && policy.decision === 'ask' ? undefined : permissionMode
+    }
   }
 
   private getToolSource(toolName: string, conversationId?: string): ToolSource | undefined {

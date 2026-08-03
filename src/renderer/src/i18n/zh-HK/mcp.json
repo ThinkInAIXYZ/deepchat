@@ -88,11 +88,6 @@
     "addArg": "添加參數",
     "argPlaceholder": "輸入參數值",
     "argsRequired": "參數不能為空",
-    "autoApprove": "自動授權",
-    "autoApproveAll": "全部",
-    "autoApproveHelp": "選擇需要自動授權的操作類型，無需用戶確認即可執行",
-    "autoApproveRead": "讀取",
-    "autoApproveWrite": "寫入",
     "baseUrl": "基礎URL",
     "baseUrlPlaceholder": "輸入服務器基礎URL（如：http://localhost:3000）",
     "cancel": "取消",
@@ -264,7 +259,7 @@
     "keyHelpText": "請先到",
     "loadMore": "加載更多",
     "noMore": "沒有更多了",
-    "poweredBy": "Powered by MCPRouter",
+    "poweredBy": "由 MCPRouter 提供支援",
     "pullDownToLoad": "繼續下拉加載更多"
   },
   "sampling": {
@@ -305,5 +300,51 @@
     "selectModel": "選擇模型",
     "sendResponse": "發送響應",
     "sessionActive": "會話活躍 - 請求將被自動批准"
+  },
+  "elicitation": {
+    "title": "MCP 輸入請求",
+    "accept": "提交",
+    "decline": "拒絕",
+    "noFields": "此請求不包含表單欄位。",
+    "openLink": "開啟安全連結",
+    "selectValue": "選擇一個值",
+    "error": {
+      "required": "此項為必填項。",
+      "number": "請輸入有效數字。",
+      "integer": "請輸入整數。",
+      "boolean": "請選擇有效的布林值。",
+      "range": "該值超出允許範圍。",
+      "selection": "請選擇有效選項。",
+      "length": "文字長度超出允許範圍。",
+      "format": "請按要求的格式輸入。"
+    }
+  },
+  "apps": {
+    "title": "MCP App",
+    "interactiveContent": "來自 MCP 伺服器的互動內容",
+    "loadError": "無法載入此 MCP App。",
+    "retry": "重試",
+    "fullscreen": "全螢幕開啟",
+    "pictureInPicture": "子母畫面開啟",
+    "returnInline": "返回內嵌檢視",
+    "securityDetails": "安全詳情",
+    "allowedOrigins": "宣告的網路來源",
+    "requestedPermissions": "要求的裝置權限",
+    "noneDeclared": "未宣告",
+    "advisoryDomain": "建議網域",
+    "toolAccessSuspended": "一次請求被拒絕後，工具存取已暫停。",
+    "retryAccess": "重試存取",
+    "permissions": {
+      "camera": "相機",
+      "microphone": "麥克風",
+      "geolocation": "位置",
+      "clipboardWrite": "寫入剪貼簿"
+    },
+    "consent": {
+      "title": "MCP App 請求",
+      "description": "請檢查 MCP 互動內容要求執行的操作。",
+      "allowOnce": "僅允許一次",
+      "deny": "拒絕"
+    }
   }
 }

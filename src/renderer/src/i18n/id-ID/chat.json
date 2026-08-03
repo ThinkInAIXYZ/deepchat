@@ -402,6 +402,10 @@
       "caption": "Sorotan akan tetap berada di kotak masukan hingga Anda benar-benar mengirim pesan pertama."
     }
   },
+  "messageReceipt": {
+    "unread": "Belum dibaca",
+    "read": "Dibaca"
+  },
   "attachments": {
     "chooseRepresentation": "Pilih cara mengirim {name}",
     "representation": "Representasi lampiran",

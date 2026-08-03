@@ -4,7 +4,7 @@ import {
   type AgentPlanDisplayItem,
   type AgentPlanTerminalReason
 } from '@shared/types/agent-plan'
-import type { ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { PersistedMcpToolResult, ToolCallImagePreview } from '@shared/types/core/mcp'
 
 export type DisplayMessageUsage = {
   context_usage: number
@@ -72,6 +72,11 @@ export type DisplayUserMessageContent = {
     | DisplayUserMessageMentionBlock
     | DisplayUserMessageCodeBlock
   )[]
+}
+
+export type DisplayInputReceipt = {
+  mode: 'steer'
+  readAt: number | null
 }
 
 export type DisplayAssistantMessageExtra = Record<string, string | number | object[] | boolean> & {
@@ -168,6 +173,7 @@ export type DisplayAssistantMessageBlock = {
     server_name?: string
     server_icons?: string
     server_description?: string
+    mcpResult?: PersistedMcpToolResult
   }
   action_type?:
     | 'tool_call_permission'
@@ -215,6 +221,7 @@ type DisplayMessageBase = {
 export type DisplayUserMessage = DisplayMessageBase & {
   role: 'user'
   content: DisplayUserMessageContent
+  inputReceipt?: DisplayInputReceipt
 }
 
 export type DisplayAssistantMessage = DisplayMessageBase & {

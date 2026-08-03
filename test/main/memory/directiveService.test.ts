@@ -67,7 +67,15 @@ describe('DirectiveService', () => {
     }
     const draft = presenter.suggestDirective('a', input)
     expect(draft).not.toBeNull()
-    expect(presenter.rejectDirective('a', draft!.id)).toMatchObject({ status: 'rejected' })
+    expect(presenter.rejectDirectiveResult('a', draft!.id)).toMatchObject({
+      action: 'applied',
+      directive: { status: 'rejected' }
+    })
+    expect(presenter.rejectDirectiveResult('a', draft!.id)).toEqual({
+      action: 'rejected',
+      directive: null,
+      reason: 'not-found'
+    })
 
     expect(presenter.suggestDirective('a', input)).toBeNull()
     expect(presenter.listDirectives('a')).toEqual([
@@ -110,8 +118,12 @@ describe('DirectiveService', () => {
     expect(active).not.toBeNull()
     expect(presenter.listDirectives('b')).toEqual([])
     expect(presenter.approveDirective('b', active!.id)).toBeNull()
+    expect(presenter.deleteDirectiveResult('b', active!.id)).toEqual({
+      action: 'rejected',
+      reason: 'not-found'
+    })
     expect(presenter.deleteDirective('b', active!.id)).toBe(false)
-    expect(presenter.deleteDirective('a', active!.id)).toBe(true)
+    expect(presenter.deleteDirectiveResult('a', active!.id)).toEqual({ action: 'applied' })
     expect(presenter.listDirectives('a')).toEqual([])
 
     expect(() =>

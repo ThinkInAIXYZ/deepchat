@@ -9,6 +9,7 @@ import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinato
 import { createMainProcessControl, type MainProcessControl } from './composition'
 import { DatabaseInitializer } from './databaseInitializer'
 import { registerProtocols } from './protocols'
+import { McpAppSandboxRegistry } from '@/mcp/apps/sandboxRegistry'
 import { SplashWindow } from './splashWindow'
 import { PrivacySettings } from './privacy'
 import { ProxySettings } from '@/platform/proxySettings'
@@ -40,6 +41,7 @@ export async function startMainProcess(
     const privacySettings = new PrivacySettings(settingsStore)
     const proxySettings = new ProxySettings(settingsStore)
     const mcpSettings = new McpSettings()
+    const mcpAppSandboxRegistry = new McpAppSandboxRegistry()
     const acpCatalogSettings = new AcpCatalogSettings({ mcpSettings })
     const databaseSecurityService = new DatabaseSecurityService()
     const securityStatus = databaseSecurityService.getStatus()
@@ -83,7 +85,7 @@ export async function startMainProcess(
     }
     setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
-    await registerProtocols()
+    await registerProtocols(mcpAppSandboxRegistry)
 
     mainProcess = await createMainProcessControl({
       previousAppVersion: configMigration.previousAppVersion,
@@ -92,6 +94,7 @@ export async function startMainProcess(
       privacySettings,
       proxySettings,
       mcpSettings,
+      mcpAppSandboxRegistry,
       acpCatalogSettings,
       database,
       settingsDatabase,

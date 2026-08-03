@@ -70,9 +70,7 @@ describe('ToolManager', () => {
         throw new Error('input_chatMode should not be read')
       }),
       getMcpServers: vi.fn().mockResolvedValue({
-        [serverName]: {
-          autoApprove: ['all']
-        }
+        [serverName]: {}
       }),
       getAcpAgents: vi.fn().mockResolvedValue([]),
       getAgentMcpSelections: vi.fn().mockResolvedValue([])
@@ -382,69 +380,6 @@ describe('ToolManager', () => {
       serverName,
       expect.stringContaining('missing')
     )
-  })
-
-  it('requires exact session approval for closed plugin ask policies', async () => {
-    const serverName = 'closed-policy-server'
-    const client = createClient(serverName, [
-      {
-        name: 'type_text',
-        description: 'Type text',
-        inputSchema: { type: 'object', properties: {}, required: [] }
-      },
-      {
-        name: 'press_key',
-        description: 'Press key',
-        inputSchema: { type: 'object', properties: {}, required: [] }
-      }
-    ])
-    const manager = createToolManager(
-      createProviderSettings(serverName),
-      createServerManager([client]),
-      { [serverName]: TOOL_POLICY_PLUGIN_ID },
-      { ensureRunning: vi.fn().mockResolvedValue(undefined) }
-    )
-    const conversationId = 'closed-policy-conversation'
-
-    // Simulate a coarse grant cached before the plugin policy was registered.
-    await manager.grantPermission(serverName, 'write', false, conversationId)
-    registerPluginToolPolicy({
-      pluginId: TOOL_POLICY_PLUGIN_ID,
-      serverId: serverName,
-      tools: {
-        type_text: 'ask',
-        press_key: 'ask'
-      },
-      enabled: true
-    })
-
-    const beforeExactGrant = await manager.callTool({
-      id: 'type-text-before-grant',
-      type: 'function',
-      function: { name: 'type_text', arguments: '{}' },
-      conversationId
-    })
-    expect(beforeExactGrant.requiresPermission).toBe(true)
-    expect(client.callTool).not.toHaveBeenCalled()
-
-    await manager.grantPermission(serverName, 'write', false, conversationId, 'type_text')
-    const approved = await manager.callTool({
-      id: 'type-text-approved',
-      type: 'function',
-      function: { name: 'type_text', arguments: '{}' },
-      conversationId
-    })
-    const differentTool = await manager.callTool({
-      id: 'press-key-not-approved',
-      type: 'function',
-      function: { name: 'press_key', arguments: '{}' },
-      conversationId
-    })
-
-    expect(approved.isError).toBe(false)
-    expect(client.callTool).toHaveBeenCalledOnce()
-    expect(client.callTool).toHaveBeenCalledWith('type_text', {})
-    expect(differentTool.requiresPermission).toBe(true)
   })
 
   it('fails closed for tools absent from an enabled plugin policy', async () => {
@@ -873,7 +808,6 @@ describe('ToolManager', () => {
     const providerSettings = createProviderSettings('plugin-source-server')
     providerSettings.getMcpServers.mockResolvedValue({
       'plugin-source-server': {
-        autoApprove: ['all'],
         source: 'plugin',
         sourceId: 'plugin-b'
       }
@@ -1004,7 +938,13 @@ describe('ToolManager', () => {
 
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
-    expect(client.callTool).toHaveBeenCalledWith('echo', {})
+    expect(client.callTool).toHaveBeenCalledWith(
+      'echo',
+      {},
+      expect.objectContaining({
+        toolDefinition: expect.objectContaining({ name: 'echo' })
+      })
+    )
     expect(providerSettings.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 
@@ -1043,7 +983,14 @@ describe('ToolManager', () => {
     )
 
     await vi.waitFor(() => {
-      expect(client.callTool).toHaveBeenCalledWith('echo', {}, { signal: abortController.signal })
+      expect(client.callTool).toHaveBeenCalledWith(
+        'echo',
+        {},
+        expect.objectContaining({
+          signal: abortController.signal,
+          toolDefinition: expect.objectContaining({ name: 'echo' })
+        })
+      )
     })
     abortController.abort()
 
@@ -1155,6 +1102,53 @@ describe('ToolManager', () => {
     expect((manager as any).toolNameToTargetMap.has('stale_tool')).toBe(false)
   })
 
+  it('cancels dispatch when the authorized server binding changes', async () => {
+    const serverName = 'bound-server'
+    const client = createClient(serverName)
+    const providerSettings = createProviderSettings(serverName)
+    const originalConfig = {
+      serverId: '11111111-1111-4111-8111-111111111111',
+      configGeneration: 1,
+      bindingHash: 'binding-a'
+    }
+    providerSettings.getMcpServers.mockResolvedValue({
+      [serverName]: originalConfig
+    })
+    const manager = createToolManager(providerSettings, createServerManager([client]))
+    const [definition] = await manager.getAllToolDefinitions()
+
+    providerSettings.getMcpServers.mockResolvedValue({
+      [serverName]: {
+        ...originalConfig,
+        configGeneration: 2,
+        bindingHash: 'binding-b'
+      }
+    })
+    const result = await manager.callTool(
+      {
+        id: 'bound-call',
+        type: 'function',
+        function: { name: 'echo', arguments: '{}' }
+      },
+      {
+        expectedTarget: {
+          finalName: definition.function.name,
+          serverName: definition.server.name,
+          serverId: definition.server.id!,
+          configGeneration: definition.server.configGeneration!,
+          bindingHash: definition.server.bindingHash!,
+          originalName: definition.raw!.name
+        }
+      }
+    )
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: expect.stringContaining('server binding changed before dispatch')
+    })
+    expect(client.callTool).not.toHaveBeenCalled()
+  })
+
   it('wakes refresh waiters when configuration invalidates a blocked refresh', async () => {
     const staleClient = createClient('stale-server')
     const currentClient = createClient('current-server', [
@@ -1254,62 +1248,6 @@ describe('ToolManager', () => {
     expect(client.callTool).not.toHaveBeenCalled()
   })
 
-  it('rejects permission pre-check promptly during tool-definition refresh', async () => {
-    const client = createClient('open-server')
-    const manager = createToolManager(
-      createProviderSettings('open-server') as never,
-      createServerManager([client]) as never
-    )
-    const definitions = deferred<Awaited<ReturnType<ToolManager['getAllToolDefinitions']>>>()
-    const loadDefinitions = vi
-      .spyOn(manager, 'getAllToolDefinitions')
-      .mockReturnValue(definitions.promise)
-    const abortController = new AbortController()
-
-    const checking = manager.preCheckToolPermission(
-      {
-        id: 'permission-preflight-cancel',
-        type: 'function',
-        function: { name: 'echo', arguments: '{}' }
-      },
-      { signal: abortController.signal }
-    )
-    await vi.waitFor(() => expect(loadDefinitions).toHaveBeenCalledOnce())
-
-    abortController.abort()
-
-    await expect(checking).rejects.toMatchObject({ name: 'AbortError' })
-    definitions.resolve([])
-  })
-
-  it('rejects permission pre-check promptly while server config is loading', async () => {
-    const client = createClient('open-server')
-    const providerSettings = createProviderSettings('open-server')
-    const manager = createToolManager(
-      providerSettings as never,
-      createServerManager([client]) as never
-    )
-    await manager.getAllToolDefinitions()
-    const servers = deferred<Awaited<ReturnType<typeof providerSettings.getMcpServers>>>()
-    providerSettings.getMcpServers.mockReturnValue(servers.promise)
-    const abortController = new AbortController()
-
-    const checking = manager.preCheckToolPermission(
-      {
-        id: 'permission-config-cancel',
-        type: 'function',
-        function: { name: 'echo', arguments: '{}' }
-      },
-      { signal: abortController.signal }
-    )
-    await vi.waitFor(() => expect(providerSettings.getMcpServers).toHaveBeenCalledOnce())
-
-    abortController.abort()
-
-    await expect(checking).rejects.toMatchObject({ name: 'AbortError' })
-    servers.resolve({ 'open-server': { autoApprove: ['all'] } })
-  })
-
   it('skips ACP selection gating for non-ACP sessions', async () => {
     const client = createClient('open-server')
     const providerSettings = createProviderSettings('open-server')
@@ -1331,7 +1269,13 @@ describe('ToolManager', () => {
 
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
-    expect(client.callTool).toHaveBeenCalledWith('echo', {})
+    expect(client.callTool).toHaveBeenCalledWith(
+      'echo',
+      {},
+      expect.objectContaining({
+        toolDefinition: expect.objectContaining({ name: 'echo' })
+      })
+    )
     expect(providerSettings.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 
@@ -1376,13 +1320,19 @@ describe('ToolManager', () => {
     })
 
     expect(result.isError).toBe(false)
-    expect(client.callTool).toHaveBeenCalledWith('click', {
-      element_index: 2,
-      x: 0,
-      y: 0,
-      modifier: [],
-      from_zoom: false
-    })
+    expect(client.callTool).toHaveBeenCalledWith(
+      'click',
+      {
+        element_index: 2,
+        x: 0,
+        y: 0,
+        modifier: [],
+        from_zoom: false
+      },
+      expect.objectContaining({
+        toolDefinition: expect.objectContaining({ name: 'click' })
+      })
+    )
   })
 
   it('preserves raw CUA structured content and appends reviewed projections', async () => {
@@ -1582,10 +1532,16 @@ describe('ToolManager', () => {
 
     const result = await manager.callTool(toolCall, { runId: 'run-1' })
 
-    expect(client.callTool).toHaveBeenCalledWith('get_window_state', {
-      pid: 12,
-      window_id: 34
-    })
+    expect(client.callTool).toHaveBeenCalledWith(
+      'get_window_state',
+      {
+        pid: 12,
+        window_id: 34
+      },
+      expect.objectContaining({
+        toolDefinition: expect.objectContaining({ name: 'get_window_state' })
+      })
+    )
     expect(observer.started).toHaveBeenCalledWith({
       conversationId: 'session-1',
       runId: 'run-1',
@@ -1711,12 +1667,19 @@ describe('ToolManager', () => {
       isError: false,
       ownerPluginId: CUA_PLUGIN_ID
     })
-    expect(client.callTool).toHaveBeenNthCalledWith(1, 'click', {
-      pid: 12,
-      window_id: 34,
-      x: 10,
-      y: 20
-    })
+    expect(client.callTool).toHaveBeenNthCalledWith(
+      1,
+      'click',
+      {
+        pid: 12,
+        window_id: 34,
+        x: 10,
+        y: 20
+      },
+      expect.objectContaining({
+        toolDefinition: expect.objectContaining({ name: 'click' })
+      })
+    )
     await vi.waitFor(() => expect(client.callTool).toHaveBeenCalledTimes(2))
     expect(client.callTool).toHaveBeenNthCalledWith(2, 'get_window_state', {
       pid: 12,
@@ -1915,12 +1878,18 @@ describe('ToolManager', () => {
     expect(result.content).toBe('clicked')
     await vi.waitFor(() => expect(observer.failed).toHaveBeenCalledOnce())
     expect(client.callTool).toHaveBeenCalledOnce()
-    expect(client.callTool).toHaveBeenCalledWith('click', {
-      pid: 12,
-      window_id: 34,
-      x: 10,
-      y: 20
-    })
+    expect(client.callTool).toHaveBeenCalledWith(
+      'click',
+      {
+        pid: 12,
+        window_id: 34,
+        x: 10,
+        y: 20
+      },
+      expect.objectContaining({
+        toolDefinition: expect.objectContaining({ name: 'click' })
+      })
+    )
     expect(observer.completed).not.toHaveBeenCalled()
     expect(observer.failed).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2049,63 +2018,6 @@ describe('ToolManager', () => {
     expect(untrustedClient.callTool).toHaveBeenCalledOnce()
     expect(untrustedObserver.shouldCaptureAfterClick).not.toHaveBeenCalled()
     expect(untrustedObserver.started).not.toHaveBeenCalled()
-  })
-
-  it('does not observe a CUA permission response before actual invocation', async () => {
-    const client = createClient(
-      'cua-driver',
-      [
-        {
-          name: 'get_window_state',
-          description: 'Read the current window',
-          inputSchema: {
-            properties: {},
-            required: []
-          }
-        }
-      ],
-      {
-        source: 'plugin',
-        ownerPluginId: CUA_PLUGIN_ID
-      }
-    )
-    const providerSettings = createProviderSettings('cua-driver')
-    providerSettings.getMcpServers.mockResolvedValue({
-      'cua-driver': {
-        autoApprove: []
-      }
-    })
-    const observer = {
-      started: vi.fn(),
-      completed: vi.fn(),
-      failed: vi.fn()
-    }
-    const manager = createToolManager(
-      providerSettings,
-      createServerManager([client]),
-      { 'cua-driver': CUA_PLUGIN_ID },
-      { ensureRunning: vi.fn().mockResolvedValue(undefined) },
-      observer
-    )
-
-    const result = await manager.callTool(
-      {
-        id: 'cua-state-permission',
-        type: 'function',
-        function: {
-          name: 'get_window_state',
-          arguments: '{"pid":12,"window_id":34}'
-        },
-        conversationId: 'session-1'
-      },
-      { runId: 'run-1' }
-    )
-
-    expect(result.requiresPermission).toBe(true)
-    expect(client.callTool).not.toHaveBeenCalled()
-    expect(observer.started).not.toHaveBeenCalled()
-    expect(observer.completed).not.toHaveBeenCalled()
-    expect(observer.failed).not.toHaveBeenCalled()
   })
 
   it('does not trust a non-plugin server that spoofs the CUA source id', async () => {
@@ -2331,7 +2243,13 @@ describe('ToolManager', () => {
 
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
-    expect(client.callTool).toHaveBeenCalledWith('echo', {})
+    expect(client.callTool).toHaveBeenCalledWith(
+      'echo',
+      {},
+      expect.objectContaining({
+        toolDefinition: expect.objectContaining({ name: 'echo' })
+      })
+    )
     expect(providerSettings.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 })

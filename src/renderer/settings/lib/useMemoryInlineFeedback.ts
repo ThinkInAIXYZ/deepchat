@@ -1,7 +1,10 @@
 import { readonly, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@shared/types/agent-memory'
-import type { MemoryDirectiveCommandResult } from '@shared/contracts/routes'
+import type {
+  MemoryCommandRejectionReason,
+  MemoryDirectiveCommandResult
+} from '@shared/contracts/routes'
 
 export type MemoryInlineFeedbackTone = 'error' | 'warning' | 'info'
 
@@ -10,6 +13,21 @@ export type MemoryInlineFeedbackState = Readonly<{
   title: string
   description?: string
 }>
+
+const commandRejectionKeys = {
+  unavailable: 'settings.deepchatAgents.memoryManager.commandRejected.unavailable',
+  'not-found': 'settings.deepchatAgents.memoryManager.commandRejected.notFound',
+  'invalid-state': 'settings.deepchatAgents.memoryManager.commandRejected.invalidState',
+  conflict: 'settings.deepchatAgents.memoryManager.commandRejected.conflict',
+  stale: 'settings.deepchatAgents.memoryManager.commandRejected.stale',
+  anchored: 'settings.deepchatAgents.memoryManager.commandRejected.anchored'
+} as const satisfies Record<MemoryCommandRejectionReason, string>
+
+export function shouldReconcileMemoryCommandRejection(
+  reason: MemoryCommandRejectionReason
+): boolean {
+  return reason === 'not-found' || reason === 'invalid-state' || reason === 'stale'
+}
 
 export function useMemoryInlineFeedback(scope: string) {
   const { t } = useI18n()
@@ -41,7 +59,7 @@ export function useMemoryInlineFeedback(scope: string) {
     reason: Extract<MemoryDirectiveCommandResult, { action: 'rejected' }>['reason']
   ): void => {
     if (reason !== 'capacity') {
-      fail()
+      rejectCommand(reason)
       return
     }
     show(
@@ -53,11 +71,17 @@ export function useMemoryInlineFeedback(scope: string) {
     )
   }
 
+  const rejectCommand = (reason: MemoryCommandRejectionReason): void => {
+    console.warn(`[${diagnosticScope}] Command rejected`, { reason })
+    show('error', t(commandRejectionKeys[reason]))
+  }
+
   return Object.freeze({
     feedback: readonly(feedback),
     show,
     clear,
     fail,
+    rejectCommand,
     rejectDirective
   })
 }

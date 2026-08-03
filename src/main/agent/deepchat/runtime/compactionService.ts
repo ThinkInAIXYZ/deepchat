@@ -18,6 +18,7 @@ import {
   createUserChatMessage,
   estimateMessagesTokens,
   formatAssistantErrorSummary,
+  formatApprovedMcpAppModelContext,
   isContextHistoryRecord,
   normalizeUserInput,
   type HistoryTurn
@@ -221,6 +222,10 @@ function serializeAssistantRecord(record: ChatMessageRecord): string {
       lines.push(toolHeader)
       if (block.tool_call.response) {
         lines.push(`[ToolResult]\n${block.tool_call.response}`)
+      }
+      const approvedAppContext = formatApprovedMcpAppModelContext(block)
+      if (approvedAppContext) {
+        lines.push(`[MCP App approved context]\n${approvedAppContext}`)
       }
       continue
     }

@@ -69,17 +69,17 @@ const deferred = <T>() => {
   return { promise, resolve }
 }
 
-const globalOptions = () => ({
+const globalOptions = (realAlertDialog = false) => ({
   plugins: [createPinia()],
   stubs: {
-    AlertDialog: passthrough('AlertDialog'),
-    AlertDialogAction: ButtonStub,
-    AlertDialogCancel: ButtonStub,
-    AlertDialogContent: passthrough('AlertDialogContent'),
-    AlertDialogDescription: passthrough('AlertDialogDescription'),
-    AlertDialogFooter: passthrough('AlertDialogFooter'),
-    AlertDialogHeader: passthrough('AlertDialogHeader'),
-    AlertDialogTitle: passthrough('AlertDialogTitle'),
+    AlertDialog: realAlertDialog ? false : passthrough('AlertDialog'),
+    AlertDialogAction: realAlertDialog ? false : ButtonStub,
+    AlertDialogCancel: realAlertDialog ? false : ButtonStub,
+    AlertDialogContent: realAlertDialog ? false : passthrough('AlertDialogContent'),
+    AlertDialogDescription: realAlertDialog ? false : passthrough('AlertDialogDescription'),
+    AlertDialogFooter: realAlertDialog ? false : passthrough('AlertDialogFooter'),
+    AlertDialogHeader: realAlertDialog ? false : passthrough('AlertDialogHeader'),
+    AlertDialogTitle: realAlertDialog ? false : passthrough('AlertDialogTitle'),
     Badge: passthrough('Badge'),
     Button: ButtonStub,
     Checkbox: passthrough('Checkbox'),
@@ -305,6 +305,7 @@ describe('Agent-scoped Skill install dialogs', () => {
   })
 
   it('settles the conflict attempt before starting an overwrite install', async () => {
+    const overwrite = deferred<{ success: boolean; skillName: string }>()
     mocks.deviceClient.selectDirectory.mockResolvedValue({
       canceled: false,
       filePaths: ['/skills/source']
@@ -315,21 +316,16 @@ describe('Agent-scoped Skill install dialogs', () => {
         errorCode: 'conflict',
         existingSkillName: 'source'
       })
-      .mockResolvedValueOnce({
-        success: true,
-        skillName: 'source'
-      })
+      .mockReturnValueOnce(overwrite.promise)
     const wrapper = mount(SkillInstallDialog, {
+      attachTo: document.body,
       props: { open: true, agentId: 'agent-a' },
-      global: globalOptions()
+      global: globalOptions(true)
     })
 
     await wrapper.get('.border-dashed').trigger('click')
     await flushPromises()
-    const overwriteButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('settings.skills.conflict.overwrite'))
-    await overwriteButton?.trigger('click')
+    document.querySelector<HTMLButtonElement>('[data-testid="skill-conflict-overwrite"]')!.click()
     await flushPromises()
 
     expect(mocks.skillClient.installFromFolder).toHaveBeenNthCalledWith(
@@ -344,6 +340,19 @@ describe('Agent-scoped Skill install dialogs', () => {
       { overwrite: true },
       'agent-a'
     )
+    expect(wrapper.findComponent({ name: 'Spinner' }).exists()).toBe(true)
+    await wrapper.get('.border-dashed').trigger('click')
+    expect(mocks.deviceClient.selectDirectory).toHaveBeenCalledOnce()
+    expect(mocks.skillClient.installFromFolder).toHaveBeenCalledTimes(2)
+
+    overwrite.resolve({
+      success: true,
+      skillName: 'source'
+    })
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'Spinner' }).exists()).toBe(false)
     expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
+    wrapper.unmount()
   })
 })

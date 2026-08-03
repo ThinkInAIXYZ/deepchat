@@ -24,6 +24,7 @@ export interface Resource {
   mimeType?: string
   text?: string
   blob?: string
+  _meta?: Record<string, unknown>
 }
 
 export interface PromptListEntry {
@@ -43,24 +44,44 @@ export interface PromptListEntry {
 
 export interface ToolCallResult {
   isError?: boolean
-  content: Array<{
-    type: string
-    text: string
-  }>
+  content: MCPContentItem[]
   structuredContent?: unknown
+  _meta?: Record<string, unknown>
+}
+
+export interface McpToolAnnotations {
+  title?: string
+  readOnlyHint?: boolean
+  destructiveHint?: boolean
+  idempotentHint?: boolean
+  openWorldHint?: boolean
+  [key: string]: unknown
 }
 
 export interface Tool {
   name: string
-  description: string
+  title?: string
+  description?: string
+  icons?: Array<{
+    src: string
+    mimeType?: string
+    sizes?: string[]
+    theme?: 'light' | 'dark'
+  }>
   inputSchema: Record<string, unknown>
-  annotations?: {
-    title?: string
-    readOnlyHint?: boolean
-    destructiveHint?: boolean
-    idempotentHint?: boolean
-    openWorldHint?: boolean
-  }
+  outputSchema?: Record<string, unknown>
+  annotations?: McpToolAnnotations
+  _meta?: Record<string, unknown>
+  execution?: Record<string, unknown>
+}
+
+export interface McpExpectedToolTarget {
+  finalName: string
+  serverName: string
+  serverId: string
+  configGeneration: number
+  bindingHash: string
+  originalName: string
 }
 
 export interface ResourceListEntry {
@@ -78,7 +99,6 @@ export interface MCPServerConfig {
   env: Record<string, unknown>
   descriptions: string
   icons: string
-  autoApprove: string[]
   enabled: boolean
   disable?: boolean
   baseUrl?: string
@@ -89,6 +109,94 @@ export interface MCPServerConfig {
   sourceId?: string
   ownerPluginId?: string
   inheritEnv?: 'legacy' | 'minimal'
+  /**
+   * Host-owned identity. Importers must not use a mutable display name as durable identity.
+   */
+  serverId?: string
+  configGeneration?: number
+  bindingHash?: string
+  authorization?: McpAuthorizationConfig
+  /**
+   * Temporary compatibility diagnostic. It must not be exposed as a new-server setting.
+   */
+  forceLegacyWire?: boolean
+}
+
+export type McpAuthorizationMode =
+  | 'none'
+  | 'interactive'
+  | 'client_credentials'
+  | 'private_key_jwt'
+  | 'cross_app_access'
+
+export interface McpAuthorizationConfig {
+  mode: McpAuthorizationMode
+  protectedResourceUrl?: string
+  authorizationServerIssuer?: string
+  clientMetadataUrl?: string
+  clientId?: string
+  scopes?: string[]
+  identityProfileId?: string
+  keyAlgorithm?: 'RS256' | 'ES256'
+}
+
+export interface McpServerIdentity {
+  serverId: string
+  configGeneration: number
+  bindingHash: string
+}
+
+export type McpCredentialKind = 'client_secret' | 'private_key' | 'enterprise_resource_secret'
+
+export interface McpCredentialBinding extends McpServerIdentity {
+  endpoint: string
+  protectedResourceUrl?: string
+  authorizationServerIssuer?: string
+  clientId?: string
+}
+
+export interface McpCredentialStatus {
+  serverId: string
+  kind: McpCredentialKind
+  configured: boolean
+  persistent: boolean
+  updatedAt?: number
+  fingerprint?: string
+}
+
+export type McpCredentialInput =
+  | {
+      kind: 'client_secret'
+      secret: string
+    }
+  | {
+      kind: 'private_key'
+      privateKey: string
+      algorithm: 'RS256' | 'ES256'
+    }
+  | {
+      kind: 'enterprise_resource_secret'
+      secret: string
+    }
+
+export interface McpEnterpriseIdentityProfile {
+  id: string
+  label: string
+  issuer: string
+  clientId: string
+  scopes: string[]
+  clientAuthentication: 'none' | 'client_secret'
+}
+
+export interface McpEnterpriseIdentityStatus {
+  profileId: string
+  state: 'signed_out' | 'authenticating' | 'authenticated' | 'error'
+  authenticated: boolean
+  persistent: boolean
+  clientSecretConfigured: boolean
+  subjectLabel?: string
+  error?: string
+  updatedAt?: number
 }
 
 export interface MCPConfig {
@@ -107,11 +215,15 @@ export type McpServerAuthState =
 
 export interface McpServerAuthStatus {
   serverName: string
+  serverId?: string
   state: McpServerAuthState
   authenticated: boolean
   error?: string
   updatedAt?: number
-  storage?: 'safeStorage' | 'file' | 'none'
+  storage?: 'safeStorage' | 'memory' | 'none'
+  persistent?: boolean
+  mode?: McpAuthorizationMode
+  credential?: McpCredentialStatus
 }
 
 export type MCPToolDefinition = CoreMCPToolDefinition
@@ -138,6 +250,7 @@ export interface MCPToolResponse {
   _meta?: Record<string, any>
   isError?: boolean
   structuredContent?: unknown
+  mcpResult?: PersistedMcpToolResult
   ownerPluginId?: string
   toolResult?: unknown
   imagePreviews?: import('./core/mcp').ToolCallImagePreview[]
@@ -160,33 +273,269 @@ export interface MCPToolResponse {
   }
 }
 
+export type McpAppDescriptor = import('./core/mcp').McpAppDescriptor
+export type PersistedMcpToolResult = import('./core/mcp').PersistedMcpToolResult
+
+export interface McpAppCsp {
+  connectDomains?: string[]
+  resourceDomains?: string[]
+  frameDomains?: string[]
+  baseUriDomains?: string[]
+}
+
+export interface McpAppPermissions {
+  camera?: Record<string, never>
+  microphone?: Record<string, never>
+  geolocation?: Record<string, never>
+  clipboardWrite?: Record<string, never>
+}
+
+export interface McpAppPreparedView {
+  instanceId: string
+  sandboxUrl: string
+  html: string
+  sandbox: string
+  tool: Tool
+  csp?: McpAppCsp
+  permissions?: McpAppPermissions
+  prefersBorder?: boolean
+  advisoryDomain?: string
+  expiresAt: number
+}
+
+export type McpAppConsentKind =
+  | 'tool-call'
+  | 'open-link'
+  | 'send-message'
+  | 'update-model-context'
+  | 'camera'
+  | 'microphone'
+  | 'geolocation'
+  | 'clipboard-write'
+
+export interface McpAppConsentRequestPayload {
+  requestId: string
+  kind: McpAppConsentKind
+  serverName: string
+  title: string
+  detail: string
+  argumentsPreview?: string
+  url?: string
+}
+
+export interface McpAppCallToolResult {
+  result: ToolCallResult
+  toolAccessSuspended: boolean
+}
+
+export interface McpAppServerToolListResult {
+  tools: Tool[]
+  nextCursor?: string
+  _meta?: Record<string, unknown>
+}
+
+export interface McpAppServerResource {
+  uri: string
+  name: string
+  title?: string
+  description?: string
+  mimeType?: string
+  size?: number
+  icons?: Tool['icons']
+  annotations?: Record<string, unknown>
+  _meta?: Record<string, unknown>
+}
+
+export interface McpAppServerResourceTemplate {
+  uriTemplate: string
+  name: string
+  title?: string
+  description?: string
+  mimeType?: string
+  icons?: Tool['icons']
+  annotations?: Record<string, unknown>
+  _meta?: Record<string, unknown>
+}
+
+export interface McpAppServerPrompt {
+  name: string
+  title?: string
+  description?: string
+  arguments?: Array<{
+    name: string
+    description?: string
+    required?: boolean
+  }>
+  icons?: Tool['icons']
+  _meta?: Record<string, unknown>
+}
+
+export interface McpAppServerResourceListResult {
+  resources: McpAppServerResource[]
+  nextCursor?: string
+  _meta?: Record<string, unknown>
+}
+
+export interface McpAppServerResourceTemplateListResult {
+  resourceTemplates: McpAppServerResourceTemplate[]
+  nextCursor?: string
+  _meta?: Record<string, unknown>
+}
+
+export interface McpAppServerPromptListResult {
+  prompts: McpAppServerPrompt[]
+  nextCursor?: string
+  _meta?: Record<string, unknown>
+}
+
+export interface McpAppHostPort {
+  prepareView(
+    input: {
+      descriptor: McpAppDescriptor
+      conversationId: string
+      messageId: string
+      blockId: string
+      toolInput: Record<string, unknown>
+    },
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<McpAppPreparedView>
+  releaseView(
+    instanceId: string,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<void>
+  callTool(
+    instanceId: string,
+    name: string,
+    args: Record<string, unknown>,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<McpAppCallToolResult>
+  listTools(
+    instanceId: string,
+    cursor: string | undefined,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<McpAppServerToolListResult>
+  readResource(
+    instanceId: string,
+    uri: string,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<{ contents: Resource[] }>
+  listResources(
+    instanceId: string,
+    cursor: string | undefined,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<McpAppServerResourceListResult>
+  listResourceTemplates(
+    instanceId: string,
+    cursor: string | undefined,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<McpAppServerResourceTemplateListResult>
+  listPrompts(
+    instanceId: string,
+    cursor: string | undefined,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<McpAppServerPromptListResult>
+  openLink(
+    instanceId: string,
+    url: string,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<boolean>
+  authorizeMessage(
+    instanceId: string,
+    text: string,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<boolean>
+  updateModelContext(
+    instanceId: string,
+    input: {
+      content?: MCPContentItem[]
+      structuredContent?: Record<string, unknown>
+    },
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<{ approved: boolean; approvedHash?: string }>
+  retryToolAccess(
+    instanceId: string,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<void>
+  submitConsent(
+    requestId: string,
+    approved: boolean,
+    context: { webContentsId: number; windowId: number | null }
+  ): Promise<void>
+}
+
+export type McpProtocolEra = 'modern' | 'legacy' | 'unknown'
+
+export type McpProbeReasonCode =
+  | 'modern-accepted'
+  | 'valid-legacy-signal'
+  | 'authentication-required'
+  | 'http-server-error'
+  | 'transport-error'
+  | 'timeout'
+
+export interface McpServerDiagnostics {
+  serverId: string
+  serverName: string
+  owner: 'deepchat' | 'plugin'
+  transport: MCPServerConfig['type']
+  connectionState: 'stopped' | 'starting' | 'running' | 'error'
+  era: McpProtocolEra
+  protocolVersion?: string
+  serverImplementation?: {
+    name: string
+    version: string
+  }
+  probe: {
+    outcome: 'modern' | 'legacy-fallback' | 'failed' | 'not-run'
+    reasonCode?: McpProbeReasonCode
+  }
+  extensions: string[]
+  clientExtensions: Array<{
+    id: string
+    revision?: string
+  }>
+  cacheState: 'active' | 'unknown'
+  subscriptions: Array<
+    | 'tools-list-changed'
+    | 'prompts-list-changed'
+    | 'resources-list-changed'
+    | 'resource-updated'
+    | 'modern-listen'
+  >
+  auth: {
+    state: McpServerAuthState
+    persistent?: boolean
+    mode?: McpAuthorizationMode
+  }
+  updatedAt: number
+}
+
+export interface McpElicitationRequestPayload {
+  requestId: string
+  serverName: string
+  mode: 'form' | 'url'
+  message: string
+  requestedSchema?: Record<string, unknown>
+  url?: string
+}
+
+export interface McpElicitationDecision {
+  requestId: string
+  action: 'accept' | 'decline' | 'cancel'
+  content?: Record<string, unknown>
+}
+
 export type McpSamplingMessage = import('./core/mcp').McpSamplingMessage
 export type McpSamplingRequestPayload = import('./core/mcp').McpSamplingRequestPayload
 export type McpSamplingDecision = import('./core/mcp').McpSamplingDecision
 export type McpSamplingModelPreferences = import('./core/mcp').McpSamplingModelPreferences
 
-export type MCPContentItem = MCPTextContent | MCPImageContent | MCPResourceContent
-
-export interface MCPTextContent {
-  type: 'text'
-  text: string
-}
-
-export interface MCPImageContent {
-  type: 'image'
-  data: string
-  mimeType: string
-}
-
-export interface MCPResourceContent {
-  type: 'resource'
-  resource: {
-    uri: string
-    mimeType?: string
-    text?: string
-    blob?: string
-  }
-}
+export type MCPContentItem = import('./core/mcp').MCPContentItem
+export type MCPTextContent = import('./core/mcp').MCPTextContent
+export type MCPImageContent = import('./core/mcp').MCPImageContent
+export type MCPAudioContent = import('./core/mcp').MCPAudioContent
+export type MCPResourceContent = import('./core/mcp').MCPResourceContent
+export type MCPResourceLinkContent = import('./core/mcp').MCPResourceLinkContent
 
 export type McpAddServerResult = Readonly<{ status: 'added' }> | Readonly<{ status: 'duplicate' }>
 
@@ -207,13 +556,39 @@ export interface McpServicePort {
   stopServer(serverName: string): Promise<void>
   stopServerDuringShutdownByName(serverName: string): Promise<void>
   getServerLastError(serverName: string): string | undefined
-  getMcpServerAuthStatus(serverName: string): Promise<McpServerAuthStatus>
-  startMcpServerAuth(serverName: string): Promise<McpServerAuthStatus>
+  getMcpServerAuthStatus(serverId: string): Promise<McpServerAuthStatus>
+  startMcpServerAuth(serverId: string): Promise<McpServerAuthStatus>
   completeMcpServerAuthFromCallbackUrl(
-    serverName: string,
+    serverId: string,
     callbackUrl: string
   ): Promise<McpServerAuthStatus>
-  logoutMcpServerAuth(serverName: string): Promise<McpServerAuthStatus>
+  logoutMcpServerAuth(serverId: string): Promise<McpServerAuthStatus>
+  getMcpCredentialStatus(serverId: string): Promise<McpCredentialStatus[]>
+  setMcpCredential(
+    binding: McpCredentialBinding,
+    credential: McpCredentialInput
+  ): Promise<McpCredentialStatus>
+  removeMcpCredential(
+    binding: McpCredentialBinding,
+    kind: McpCredentialKind
+  ): Promise<McpCredentialStatus>
+  listMcpEnterpriseProfiles(): Promise<McpEnterpriseIdentityProfile[]>
+  saveMcpEnterpriseProfile(
+    profile: McpEnterpriseIdentityProfile
+  ): Promise<McpEnterpriseIdentityProfile>
+  removeMcpEnterpriseProfile(profileId: string): Promise<void>
+  setMcpEnterpriseProfileClientSecret(
+    profileId: string,
+    secret: string
+  ): Promise<McpEnterpriseIdentityStatus>
+  getMcpEnterpriseProfileStatus(profileId: string): Promise<McpEnterpriseIdentityStatus>
+  startMcpEnterpriseProfileAuth(profileId: string): Promise<McpEnterpriseIdentityStatus>
+  completeMcpEnterpriseProfileAuthFromCallbackUrl(
+    profileId: string,
+    callbackUrl: string
+  ): Promise<McpEnterpriseIdentityStatus>
+  logoutMcpEnterpriseProfile(profileId: string): Promise<McpEnterpriseIdentityStatus>
+  getServerDiagnostics(serverId: string): Promise<McpServerDiagnostics>
   getAllToolDefinitions(
     enabledMcpTools?:
       | string[]
@@ -241,44 +616,17 @@ export interface McpServicePort {
       agentId?: string
       enabledServerIds?: string[]
       runId?: string
+      expectedTarget?: McpExpectedToolTarget
     }
   ): Promise<{ content: string; rawData: MCPToolResponse }>
-  preCheckToolPermission(
-    request: MCPToolCall,
-    options?: {
-      signal?: AbortSignal
-      agentId?: string
-      enabledServerIds?: string[]
-    }
-  ): Promise<{
-    needsPermission: true
-    toolName: string
-    serverName: string
-    permissionType: 'read' | 'write' | 'all' | 'command'
-    description: string
-    command?: string
-    commandSignature?: string
-    commandInfo?: {
-      command: string
-      riskLevel: 'low' | 'medium' | 'high' | 'critical'
-      suggestion: string
-      signature?: string
-      baseCommand?: string
-    }
-  } | null>
   handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision>
   submitSamplingDecision(decision: McpSamplingDecision): Promise<void>
   cancelSamplingRequest(requestId: string, reason?: string): Promise<void>
+  handleElicitationRequest(request: McpElicitationRequestPayload): Promise<McpElicitationDecision>
+  submitElicitationDecision(decision: McpElicitationDecision): Promise<void>
+  cancelElicitationRequest(requestId: string, reason?: string): Promise<void>
   setMcpEnabled(enabled: boolean): Promise<void>
   getMcpEnabled(): Promise<boolean>
-  grantPermission(
-    serverName: string,
-    permissionType: 'read' | 'write' | 'all',
-    remember?: boolean,
-    conversationId?: string,
-    toolName?: string
-  ): Promise<void>
-  clearSessionPermissions(conversationId: string): void
   getNpmRegistryStatus(): Promise<{
     currentRegistry: string | null
     isFromCache: boolean

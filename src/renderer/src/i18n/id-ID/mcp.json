@@ -57,7 +57,7 @@
     "typeStdio": "standar masukan dan keluaran",
     "typeSse": "acara terkirim server",
     "typeInMemory": "memori",
-    "baseUrl": "Base URL",
+    "baseUrl": "URL dasar",
     "baseUrlPlaceholder": "Masukkan Base URL server (misalnya: http://localhost:3000)",
     "command": "perintah",
     "commandPlaceholder": "Masukkan perintah",
@@ -78,11 +78,6 @@
     "iconPlaceholder": "ikon masukan",
     "icons": "ikon",
     "iconsPlaceholder": "ikon masukan",
-    "autoApprove": "Otorisasi otomatis",
-    "autoApproveAll": "Semua",
-    "autoApproveRead": "membaca",
-    "autoApproveWrite": "menulis",
-    "autoApproveHelp": "Pilih jenis operasi yang memerlukan otorisasi otomatis dan dapat dilakukan tanpa konfirmasi pengguna",
     "submit": "Kirim",
     "add": "tambahkan",
     "update": "memperbarui",
@@ -294,7 +289,7 @@
     "preferencesTitle": "Preferensi model",
     "reject": "menolak",
     "selectedModelLabel": "Tanggapi dengan {model} ({provider})",
-    "systemPrompt": "System prompt",
+    "systemPrompt": "Prompt sistem",
     "title": "Contoh permintaan dari {server}",
     "unknownHint": "Prompt tanpa nama",
     "unknownMime": "Jenis MIME tidak dikenal",
@@ -305,5 +300,51 @@
     "autoApproveIn": "Secara otomatis digunakan setelah {seconds} detik {model} disetujui",
     "reviewRequest": "Lihat detailnya",
     "sessionActive": "Sesi aktif - permintaan akan disetujui secara otomatis"
+  },
+  "elicitation": {
+    "title": "Permintaan input MCP",
+    "accept": "Kirim",
+    "decline": "Tolak",
+    "noFields": "Permintaan ini tidak memiliki kolom formulir.",
+    "openLink": "Buka tautan aman",
+    "selectValue": "Pilih nilai",
+    "error": {
+      "required": "Kolom ini wajib diisi.",
+      "number": "Masukkan angka yang valid.",
+      "integer": "Masukkan bilangan bulat.",
+      "boolean": "Pilih nilai benar atau salah.",
+      "range": "Nilai berada di luar rentang yang diizinkan.",
+      "selection": "Pilih opsi yang valid.",
+      "length": "Panjang teks berada di luar rentang yang diizinkan.",
+      "format": "Masukkan nilai dalam format yang diminta."
+    }
+  },
+  "apps": {
+    "title": "Aplikasi MCP",
+    "interactiveContent": "Konten interaktif dari server MCP",
+    "loadError": "Aplikasi MCP ini tidak dapat dimuat.",
+    "retry": "Coba lagi",
+    "fullscreen": "Buka layar penuh",
+    "pictureInPicture": "Buka gambar-dalam-gambar",
+    "returnInline": "Kembali ke tampilan dalam halaman",
+    "securityDetails": "Detail keamanan",
+    "allowedOrigins": "Asal jaringan yang dideklarasikan",
+    "requestedPermissions": "Izin perangkat yang diminta",
+    "noneDeclared": "Tidak ada yang dideklarasikan",
+    "advisoryDomain": "Domain informatif",
+    "toolAccessSuspended": "Akses alat ditangguhkan setelah permintaan ditolak.",
+    "retryAccess": "Coba akses lagi",
+    "permissions": {
+      "camera": "Kamera",
+      "microphone": "Mikrofon",
+      "geolocation": "Lokasi",
+      "clipboardWrite": "Tulis ke papan klip"
+    },
+    "consent": {
+      "title": "Permintaan aplikasi MCP",
+      "description": "Tinjau tindakan yang diminta oleh konten interaktif MCP ini.",
+      "allowOnce": "Izinkan sekali",
+      "deny": "Tolak"
+    }
   }
 }

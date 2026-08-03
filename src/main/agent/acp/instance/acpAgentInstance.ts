@@ -13,6 +13,7 @@ import type {
   AcpAgentSessionHandle,
   AcpAgentSnapshot,
   AcpAgentStatus,
+  AcpCancelCause,
   AcpCompatibilityProjectionPort,
   AcpCompatibilityPromptPort,
   AcpDebugPort,
@@ -20,6 +21,7 @@ import type {
   AcpObserverPort,
   AcpPermissionFacet,
   AcpProjectionHandle,
+  AcpProjectionContext,
   AcpPromptResourcePort,
   AcpRateGatePort,
   AcpRequestTracePort,
@@ -31,6 +33,7 @@ import type {
 
 interface ActivePrompt {
   controller: AbortController
+  cancelCause: AcpCancelCause
   settled: Promise<void>
   settle(): void
   projection?: AcpProjectionHandle
@@ -117,13 +120,17 @@ export class AcpAgentInstance
     })
   }
 
-  async send(content: SendMessageInput): Promise<MessageStartResult> {
+  async send(
+    content: SendMessageInput,
+    projectionContext?: AcpProjectionContext
+  ): Promise<MessageStartResult> {
     if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
     if (this.active) throw new Error(`ACP session ${this.sessionId} is already generating`)
 
     let settleActive!: () => void
     const active: ActivePrompt = {
       controller: new AbortController(),
+      cancelCause: 'user_stop',
       settled: new Promise<void>((resolve) => {
         settleActive = resolve
       }),
@@ -158,7 +165,8 @@ export class AcpAgentInstance
       })
       active.projection = this.dependencies.projection.begin({
         sessionId: this.sessionId,
-        userContent: resources.userContent
+        userContent: resources.userContent,
+        ...(projectionContext ? { projectionContext } : {})
       })
       projectionResult = active.projection
       this.dependencies.observer.userPromptSubmitted({
@@ -298,7 +306,7 @@ export class AcpAgentInstance
         let settlement
         try {
           settlement = aborted
-            ? this.dependencies.projection.cancel(failedProjection)
+            ? this.dependencies.projection.cancel(failedProjection, active.cancelCause)
             : this.dependencies.projection.fail(failedProjection, error)
         } catch (projectionError) {
           console.warn('[ACP] Failed to settle projection:', projectionError)
@@ -336,10 +344,13 @@ export class AcpAgentInstance
     }
   }
 
-  async cancel(): Promise<void> {
+  async cancel(cause: AcpCancelCause = 'user_stop'): Promise<void> {
     const active = this.active
     if (!active) return
-    active.controller.abort()
+    if (!active.controller.signal.aborted) {
+      active.cancelCause = cause
+      active.controller.abort()
+    }
     if (active.session) {
       this.permissionBridge.cancelSession(active.session.sessionId)
       try {

@@ -81,9 +81,13 @@
           <AlertDialogCancel :disabled="saving" @click="cancelDisableRateLimit">
             {{ t('common.cancel') }}
           </AlertDialogCancel>
-          <AlertDialogAction :disabled="saving" @click="confirmDisableRateLimit">
+          <AlertDialogAsyncAction
+            data-testid="rate-limit-disable-confirm"
+            :disabled="saving"
+            @click="confirmDisableRateLimit"
+          >
             {{ t('settings.rateLimit.confirmDisable') }}
-          </AlertDialogAction>
+          </AlertDialogAsyncAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -106,7 +110,7 @@ import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,

@@ -312,6 +312,30 @@ export const MemoryDirectiveInputSchema = z.discriminatedUnion('kind', [
     .strict()
 ])
 
+export const MemoryCommandRejectionReasonSchema = z.enum([
+  'unavailable',
+  'not-found',
+  'invalid-state',
+  'conflict',
+  'stale',
+  'anchored'
+])
+
+export const MemoryCommandResultSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('applied')
+  }),
+  z.object({
+    action: z.literal('rejected'),
+    reason: MemoryCommandRejectionReasonSchema
+  })
+])
+
+export const MemoryDirectiveCommandRejectionReasonSchema = z.union([
+  z.literal('capacity'),
+  MemoryCommandRejectionReasonSchema.extract(['not-found', 'unavailable'])
+])
+
 export const MemoryDirectiveCommandResultSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('applied'),
@@ -320,7 +344,7 @@ export const MemoryDirectiveCommandResultSchema = z.discriminatedUnion('action',
   z.object({
     action: z.literal('rejected'),
     directive: z.null(),
-    reason: z.enum(['capacity', 'not-found', 'unavailable'])
+    reason: MemoryDirectiveCommandRejectionReasonSchema
   })
 ])
 
@@ -970,13 +994,13 @@ export const memoryListViewManifestsRoute = defineRouteContract({
 export const memoryDeleteRoute = defineRouteContract({
   name: 'memory.delete',
   input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
-  output: z.object({ ok: z.boolean() })
+  output: MemoryCommandResultSchema
 })
 
 export const memoryArchiveRoute = defineRouteContract({
   name: 'memory.archive',
   input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
-  output: z.object({ ok: z.boolean() })
+  output: MemoryCommandResultSchema
 })
 
 export const memoryClearRoute = defineRouteContract({
@@ -988,7 +1012,7 @@ export const memoryClearRoute = defineRouteContract({
 export const memoryRestoreRoute = defineRouteContract({
   name: 'memory.restore',
   input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
-  output: z.object({ ok: z.boolean() })
+  output: MemoryCommandResultSchema
 })
 
 export const memoryGetSourceSpanRoute = defineRouteContract({
@@ -1026,7 +1050,7 @@ export const memoryResolveConflictRoute = defineRouteContract({
     challengerId: z.string(),
     outcome: z.enum(['keep_target', 'keep_challenger', 'keep_both'])
   }),
-  output: z.object({ ok: z.boolean() })
+  output: MemoryCommandResultSchema
 })
 
 export const memoryListPersonaVersionsRoute = defineRouteContract({
@@ -1038,7 +1062,7 @@ export const memoryListPersonaVersionsRoute = defineRouteContract({
 export const memoryRollbackPersonaRoute = defineRouteContract({
   name: 'memory.rollbackPersona',
   input: z.object({ agentId: AgentIdSchema, versionId: z.string() }),
-  output: z.object({ ok: z.boolean() })
+  output: MemoryCommandResultSchema
 })
 
 export const memoryListPersonaDraftsRoute = defineRouteContract({
@@ -1050,19 +1074,19 @@ export const memoryListPersonaDraftsRoute = defineRouteContract({
 export const memoryApprovePersonaDraftRoute = defineRouteContract({
   name: 'memory.approvePersonaDraft',
   input: z.object({ agentId: AgentIdSchema, draftId: z.string() }),
-  output: z.object({ ok: z.boolean() })
+  output: MemoryCommandResultSchema
 })
 
 export const memoryRejectPersonaDraftRoute = defineRouteContract({
   name: 'memory.rejectPersonaDraft',
   input: z.object({ agentId: AgentIdSchema, draftId: z.string() }),
-  output: z.object({ ok: z.boolean() })
+  output: MemoryCommandResultSchema
 })
 
 export const memorySetPersonaAnchorRoute = defineRouteContract({
   name: 'memory.setPersonaAnchor',
   input: z.object({ agentId: AgentIdSchema, versionId: z.string(), anchored: z.boolean() }),
-  output: z.object({ ok: z.boolean() })
+  output: MemoryCommandResultSchema
 })
 
 export const memoryListDirectivesRoute = defineRouteContract({
@@ -1093,13 +1117,13 @@ export const memoryApproveDirectiveRoute = defineRouteContract({
 export const memoryRejectDirectiveRoute = defineRouteContract({
   name: 'memory.rejectDirective',
   input: z.object({ agentId: AgentIdSchema, directiveId: z.string().trim().min(1).max(128) }),
-  output: z.object({ directive: MemoryDirectiveItemSchema.nullable() })
+  output: MemoryDirectiveCommandResultSchema
 })
 
 export const memoryDeleteDirectiveRoute = defineRouteContract({
   name: 'memory.deleteDirective',
   input: z.object({ agentId: AgentIdSchema, directiveId: z.string().trim().min(1).max(128) }),
-  output: z.object({ ok: z.boolean() })
+  output: MemoryCommandResultSchema
 })
 
 export type MemoryItem = z.infer<typeof MemoryItemSchema>
@@ -1109,6 +1133,8 @@ export type MemoryPage = z.infer<typeof memoryPageRoute.output>
 export type MemorySearchResult = z.infer<typeof MemorySearchResultSchema>
 export type MemoryAddResult = z.infer<typeof MemoryAddResultSchema>
 export type MemoryUpdateResult = z.infer<typeof MemoryUpdateResultSchema>
+export type MemoryCommandRejectionReason = z.infer<typeof MemoryCommandRejectionReasonSchema>
+export type MemoryCommandResult = z.infer<typeof MemoryCommandResultSchema>
 export type MemoryStatusDto = z.infer<typeof MemoryStatusSchema>
 export type MemoryAuditEvent = z.infer<typeof MemoryAuditEventSchema>
 export type MemoryViewManifest = z.infer<typeof MemoryViewManifestSchema>

@@ -872,7 +872,7 @@
                 <InlineOperationFeedback v-if="!isResetDialogOpen" :snapshot="resetFeedback" />
               </div>
             </div>
-            <AlertDialog v-model:open="isResetDialogOpen">
+            <AlertDialog :open="isResetDialogOpen" @update:open="handleResetDialogOpenChange">
               <Button
                 variant="outline"
                 class="w-full shrink-0 justify-center border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive lg:w-40"
@@ -893,12 +893,16 @@
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div class="p-4">
-                  <RadioGroup v-model="resetType" class="flex flex-col gap-3">
+                  <RadioGroup
+                    v-model="resetType"
+                    class="flex flex-col gap-3"
+                    :disabled="isResetting"
+                  >
                     <div
                       class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
                       :class="resetType === 'chat' ? 'border-destructive/25 bg-destructive/5' : ''"
                       data-testid="danger-zone-reset-option-chat"
-                      @click="resetType = 'chat'"
+                      @click="selectResetType('chat')"
                     >
                       <RadioGroupItem value="chat" id="reset-chat" class="mt-1" />
                       <div class="flex flex-col">
@@ -916,7 +920,7 @@
                         resetType === 'knowledge' ? 'border-destructive/25 bg-destructive/5' : ''
                       "
                       data-testid="danger-zone-reset-option-knowledge"
-                      @click="resetType = 'knowledge'"
+                      @click="selectResetType('knowledge')"
                     >
                       <RadioGroupItem value="knowledge" id="reset-knowledge" class="mt-1" />
                       <div class="flex flex-col">
@@ -934,7 +938,7 @@
                         resetType === 'config' ? 'border-destructive/25 bg-destructive/5' : ''
                       "
                       data-testid="danger-zone-reset-option-config"
-                      @click="resetType = 'config'"
+                      @click="selectResetType('config')"
                     >
                       <RadioGroupItem value="config" id="reset-config" class="mt-1" />
                       <div class="flex flex-col">
@@ -950,7 +954,7 @@
                       class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
                       :class="resetType === 'all' ? 'border-destructive/25 bg-destructive/5' : ''"
                       data-testid="danger-zone-reset-option-all"
-                      @click="resetType = 'all'"
+                      @click="selectResetType('all')"
                     >
                       <RadioGroupItem value="all" id="reset-all" class="mt-1" />
                       <div class="flex flex-col">
@@ -969,19 +973,20 @@
                   <AlertDialogCancel :disabled="isResetting" @click="closeResetDialog">
                     {{ t('dialog.cancel') }}
                   </AlertDialogCancel>
-                  <AlertDialogAction
+                  <AlertDialogAsyncAction
+                    data-testid="danger-zone-reset-confirm"
                     :class="
                       cn(
                         'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90'
                       )
                     "
                     :disabled="isResetActionDisabled"
-                    @click.prevent="handleReset"
+                    @click="handleReset"
                   >
                     {{
                       isResetting ? t('settings.data.resetting') : t('settings.data.confirmReset')
                     }}
-                  </AlertDialogAction>
+                  </AlertDialogAsyncAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -1003,7 +1008,10 @@
             </div>
             <div class="flex w-full shrink-0 flex-col gap-2 lg:w-56">
               <BrowserDataImportDialog />
-              <AlertDialog v-model:open="isClearSandboxDialogOpen">
+              <AlertDialog
+                :open="isClearSandboxDialogOpen"
+                @update:open="handleClearSandboxDialogOpenChange"
+              >
                 <AlertDialogTrigger as-child>
                   <Button
                     data-testid="yobrowser-clear-sandbox-button"
@@ -1036,22 +1044,20 @@
                     {{ t('settings.data.yoBrowser.clearFailedTitle') }}
                   </p>
                   <AlertDialogFooter>
-                    <AlertDialogCancel
-                      :disabled="isClearingSandbox"
-                      @click="isClearSandboxDialogOpen = false"
-                    >
+                    <AlertDialogCancel :disabled="isClearingSandbox">
                       {{ t('dialog.cancel') }}
                     </AlertDialogCancel>
-                    <AlertDialogAction
+                    <AlertDialogAsyncAction
+                      data-testid="yobrowser-clear-sandbox-confirm"
                       :disabled="isClearingSandbox"
-                      @click.prevent="handleClearSandboxData"
+                      @click="handleClearSandboxData"
                     >
                       {{
                         isClearingSandbox
                           ? t('settings.data.yoBrowser.clearing')
                           : t('settings.data.yoBrowser.confirmAction')
                       }}
-                    </AlertDialogAction>
+                    </AlertDialogAsyncAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
@@ -1107,6 +1113,7 @@ import {
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -2262,6 +2269,15 @@ const closeResetDialog = () => {
   resetType.value = 'chat'
 }
 
+const handleResetDialogOpenChange = (open: boolean) => {
+  if (isResetting.value) return
+  if (open) {
+    isResetDialogOpen.value = true
+    return
+  }
+  closeResetDialog()
+}
+
 const openResetDialog = () => {
   if (isResetActionDisabled.value) {
     return
@@ -2271,13 +2287,19 @@ const openResetDialog = () => {
   isResetDialogOpen.value = true
 }
 
+const selectResetType = (type: typeof resetType.value) => {
+  if (isResetting.value) return
+  resetType.value = type
+}
+
 const handleReset = async () => {
   if (isResetActionDisabled.value) return
 
+  const selectedResetType = resetType.value
   isResetting.value = true
   resetOperation.controller.begin(resetOperation.operationId, t('settings.data.resetting'))
   try {
-    await deviceClient.resetDataByType(resetType.value)
+    await deviceClient.resetDataByType(selectedResetType)
     resetOperation.controller.succeed({
       code: 'settings.data.reset.completed',
       title: t('settings.data.resetData')
@@ -2316,5 +2338,10 @@ const handleClearSandboxData = async () => {
   } finally {
     isClearingSandbox.value = false
   }
+}
+
+const handleClearSandboxDialogOpenChange = (open: boolean) => {
+  if (isClearingSandbox.value) return
+  isClearSandboxDialogOpen.value = open
 }
 </script>

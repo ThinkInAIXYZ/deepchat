@@ -38,7 +38,17 @@ const buildToolDefinition = (name: string, serverName: string): MCPToolDefinitio
   server: {
     name: serverName,
     icons: '',
-    description: `${serverName} server`
+    description: `${serverName} server`,
+    id: '11111111-1111-4111-8111-111111111111',
+    configGeneration: 1,
+    bindingHash: 'binding-hash'
+  },
+  raw: {
+    name,
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    }
   }
 })
 
@@ -192,11 +202,14 @@ describe('ToolService', () => {
     expect(mcpService.preCheckToolPermission).not.toHaveBeenCalled()
 
     await expect(
-      toolService.callTool({
-        ...request,
-        id: 'mcp-call',
-        conversationId: 'ordinary-conversation'
-      })
+      toolService.callTool(
+        {
+          ...request,
+          id: 'mcp-call',
+          conversationId: 'ordinary-conversation'
+        },
+        { permissionMode: 'full_access' }
+      )
     ).resolves.toMatchObject({
       content: 'ordinary MCP result'
     })
@@ -259,7 +272,9 @@ describe('ToolService', () => {
       conversationId: 'workflow-child'
     }
 
-    await expect(toolService.callTool(request)).resolves.toMatchObject({ content: 'ok' })
+    await expect(
+      toolService.callTool(request, { permissionMode: 'full_access' })
+    ).resolves.toMatchObject({ content: 'ok' })
     expect(order).toEqual(['effect', 'tool'])
     expect(effectObserver.beforeToolExecution).toHaveBeenCalledWith({
       conversationId: 'workflow-child',
@@ -272,7 +287,9 @@ describe('ToolService', () => {
     order.length = 0
     mcpService.callTool.mockClear()
     effectObserver.beforeToolExecution.mockRejectedValueOnce(new Error('intent write failed'))
-    await expect(toolService.callTool(request)).rejects.toThrow('intent write failed')
+    await expect(toolService.callTool(request, { permissionMode: 'full_access' })).rejects.toThrow(
+      'intent write failed'
+    )
     expect(mcpService.callTool).not.toHaveBeenCalled()
 
     effectObserver.beforeToolExecution.mockClear()
@@ -284,6 +301,16 @@ describe('ToolService', () => {
       name: 'AbortError'
     })
     expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+
+    mcpService.callTool.mockClear()
+    await expect(toolService.callTool(request)).resolves.toMatchObject({
+      rawData: {
+        requiresPermission: true
+      }
+    })
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+    toolService.clearConversationToolMapping('workflow-child')
   })
 
   it('reserves image_generate for the built-in agent tool when MCP exposes the same name', async () => {
@@ -940,7 +967,7 @@ describe('ToolService', () => {
         function: { name: 'mcp_only', arguments: '{}' },
         conversationId: 'conv-1'
       },
-      { runId: 'run-1' }
+      { runId: 'run-1', permissionMode: 'full_access' }
     )
 
     expect(mcpService.callTool).toHaveBeenCalledWith(
@@ -948,7 +975,15 @@ describe('ToolService', () => {
       expect.objectContaining({
         agentId: 'agent-1',
         enabledServerIds: ['mcp-server'],
-        runId: 'run-1'
+        runId: 'run-1',
+        expectedTarget: {
+          finalName: 'mcp_only',
+          serverName: 'mcp-server',
+          serverId: '11111111-1111-4111-8111-111111111111',
+          configGeneration: 1,
+          bindingHash: 'binding-hash',
+          originalName: 'mcp_only'
+        }
       })
     )
   })
@@ -1274,13 +1309,12 @@ describe('ToolService', () => {
     )
   })
 
-  it('forwards cancellation and stored access context to MCP permission pre-checks', async () => {
+  it('evaluates MCP permission at the shared broker boundary', async () => {
     const mcpService = {
       getAllToolDefinitions: vi
         .fn()
         .mockResolvedValue([buildToolDefinition('mcp_only', 'server-a')]),
-      callTool: vi.fn(),
-      preCheckToolPermission: vi.fn().mockResolvedValue(null)
+      callTool: vi.fn()
     } as any
     const toolService = new ToolService({
       skillSettings: { isEnabled: () => false } as any,
@@ -1307,16 +1341,66 @@ describe('ToolService', () => {
       conversationId: 'session-1'
     }
 
-    await toolService.preCheckToolPermission(request, {
+    const result = await toolService.preCheckToolPermission(request, {
       permissionMode: 'default',
       signal: abortController.signal
     })
 
-    expect(mcpService.preCheckToolPermission).toHaveBeenCalledWith(request, {
-      agentId: 'agent-1',
-      enabledServerIds: ['server-a'],
-      signal: abortController.signal
+    expect(result).toMatchObject({
+      needsPermission: true,
+      conversationId: 'session-1',
+      serverId: '11111111-1111-4111-8111-111111111111',
+      serverName: 'server-a',
+      toolName: 'mcp_only',
+      source: 'model',
+      permissionType: 'write'
     })
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unstable MCP target during pre-check and execution', async () => {
+    const definition = buildToolDefinition('mcp_only', 'server-a')
+    definition.server.id = undefined
+    const mcpService = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([definition]),
+      callTool: vi.fn()
+    } as any
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => false } as any,
+      mcpService,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: {
+        getModelConfig: vi.fn()
+      } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'session-1'
+    })
+    const authorizeExecution = vi.spyOn(
+      (toolService as unknown as { permissionBroker: { authorizeExecution(): unknown } })
+        .permissionBroker,
+      'authorizeExecution'
+    )
+    const request = {
+      id: 'permission-1',
+      type: 'function' as const,
+      function: { name: 'mcp_only', arguments: '{}' },
+      conversationId: 'session-1'
+    }
+
+    await expect(
+      toolService.preCheckToolPermission(request, { permissionMode: 'default' })
+    ).rejects.toThrow('no stable execution binding')
+    await expect(toolService.callTool(request, { permissionMode: 'default' })).rejects.toThrow(
+      'no stable execution binding'
+    )
+
+    expect(authorizeExecution).not.toHaveBeenCalled()
+    expect(mcpService.callTool).not.toHaveBeenCalled()
   })
 
   it('observes a late agent permission failure after pre-check synchronously cancels', async () => {
@@ -1418,7 +1502,7 @@ describe('ToolService', () => {
         },
         conversationId: 'session-unrestricted'
       } as any,
-      { signal: abortController.signal }
+      { signal: abortController.signal, permissionMode: 'full_access' }
     )
 
     expect(mcpService.callTool).toHaveBeenCalledWith(

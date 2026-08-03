@@ -45,10 +45,34 @@ sequenceDiagram
 route 只做 schema 和 transport adapter。所有入口在进入 `SessionTurn` 前必须得到同一种 canonical
 send input；Remote、Scheduler 和 renderer 不得各自维护不同的默认值或 permission 语义。
 
+## Queue 与 Steer
+
+Queue 和 Steer 共用 pending-input persistence，但产品语义不同：
+
+```text
+Queue: bottom draft lane -> claim -> user message -> assistant message
+Steer: user message (Unread) -> claim (Read) -> new assistant message
+```
+
+- Queue 在 claim 前不是 transcript fact，可编辑、排序、删除；容量只计算 active Queue。
+- Steer 接受时由 `SessionPendingInputs` 在一个 SQLite transaction 中同时写入 user message 和
+  pending batch。快速连续 Steer 各有独立 user message，但复用当前 pending batch 的合并 payload。
+- Steer claim 是不可回退的读取边界：同一 transaction 更新 batch、写入所有 linked message 的
+  `readAt`，并预留新的 assistant message ID。claim 后不允许走 Queue 的 release/retry 语义。
+- DeepChat 在现有安全 yield boundary 结束旧 assistant；ACP 使用 `pending_input` cancel cause
+  结束旧 projection。两个 backend 都把后续输出写入 claim 预留的新 assistant message。
+- renderer 只把 Queue 渲染在 `PendingInputLane`。Steer 通过 typed route result 和
+  `sessions.messages.changed` 进入正常 message list；event 是 cache update，SQLite transcript
+  仍是 source of truth。
+- receipt 只由持久化 `readAt` 派生为 `Unread` 或 `Read`。`Read` 的短时显示和淡出属于 renderer，
+  不产生延迟数据库写入。
+
 ## 恢复与查询
 
 - `sessions.restore` 返回最近一页，`sessions.listMessagesPage` 使用 keyset pagination 拉取旧历史。
 - 普通 list/history/binding query 不 hydrate Agent instance。
+- active session 的 pending-input restore 若发现 `pending` Steer，会唤醒对应 backend 的正常 drain；
+  这是重启前已发送 `Unread` 消息的执行恢复点，不改变普通 transcript/history query。
 - Session status 不持久化：已载入时来自 backend snapshot，未载入为 `idle`。
 - structured transcript 是当前 read model；legacy conversations/messages 仅用于一次性 import 和明确的
   export conversion。

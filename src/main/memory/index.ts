@@ -34,6 +34,7 @@ import type {
 } from './types'
 import type {
   MemoryArchiveCandidateLifecyclePreview,
+  MemoryCommandResult,
   MemoryHealthDto,
   MemoryLifecycle,
   MemoryUpdateResult
@@ -461,15 +462,15 @@ export class MemoryService implements MemoryRuntimePort {
     return this.maintenance.archiveStale(agentId, now)
   }
 
-  restoreMemory(agentId: string, memoryId: string): boolean {
+  restoreMemory(agentId: string, memoryId: string): MemoryCommandResult {
     return this.management.restoreMemory(agentId, memoryId)
   }
 
-  async forgetMemory(agentId: string, memoryId: string): Promise<boolean> {
+  async forgetMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
     return this.management.forgetMemory(agentId, memoryId)
   }
 
-  async archiveUserMemory(agentId: string, memoryId: string): Promise<boolean> {
+  async archiveUserMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
     return this.management.archiveUserMemory(agentId, memoryId)
   }
 
@@ -483,7 +484,7 @@ export class MemoryService implements MemoryRuntimePort {
     outcome: MemoryConflictResolution,
     actorType: 'scheduler' | 'user' = 'user',
     model?: { providerId: string; modelId: string } | null
-  ): Promise<boolean> {
+  ): Promise<MemoryCommandResult> {
     return this.conflict.resolveConflict(agentId, challengerId, outcome, actorType, model)
   }
 
@@ -615,11 +616,11 @@ export class MemoryService implements MemoryRuntimePort {
     return this.persona.maybeEvolvePersona(agentId, model, sourceSession)
   }
 
-  async approvePersonaDraft(agentId: string, draftId: string): Promise<boolean> {
+  async approvePersonaDraft(agentId: string, draftId: string): Promise<MemoryCommandResult> {
     return this.persona.approvePersonaDraft(agentId, draftId)
   }
 
-  async rejectPersonaDraft(agentId: string, draftId: string): Promise<boolean> {
+  async rejectPersonaDraft(agentId: string, draftId: string): Promise<MemoryCommandResult> {
     return this.persona.rejectPersonaDraft(agentId, draftId)
   }
 
@@ -663,11 +664,23 @@ export class MemoryService implements MemoryRuntimePort {
     return this.directives.rejectDirective(agentId, directiveId)
   }
 
+  rejectDirectiveResult(agentId: string, directiveId: string): MemoryDirectiveCommandResult {
+    return this.directives.rejectDirectiveResult(agentId, directiveId)
+  }
+
   deleteDirective(agentId: string, directiveId: string): boolean {
     return this.directives.deleteDirective(agentId, directiveId)
   }
 
-  async setPersonaAnchor(agentId: string, versionId: string, anchored: boolean): Promise<boolean> {
+  deleteDirectiveResult(agentId: string, directiveId: string): MemoryCommandResult {
+    return this.directives.deleteDirectiveResult(agentId, directiveId)
+  }
+
+  async setPersonaAnchor(
+    agentId: string,
+    versionId: string,
+    anchored: boolean
+  ): Promise<MemoryCommandResult> {
     return this.persona.setPersonaAnchor(agentId, versionId, anchored)
   }
 
@@ -679,7 +692,7 @@ export class MemoryService implements MemoryRuntimePort {
     return this.persona.listPersonaDrafts(agentId)
   }
 
-  async rollbackPersona(agentId: string, versionId: string): Promise<boolean> {
+  async rollbackPersona(agentId: string, versionId: string): Promise<MemoryCommandResult> {
     return this.persona.rollbackPersona(agentId, versionId)
   }
 
@@ -712,7 +725,7 @@ export class MemoryService implements MemoryRuntimePort {
     return this.management.getHealth(agentId)
   }
 
-  async deleteMemory(agentId: string, memoryId: string): Promise<boolean> {
+  async deleteMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
     return this.management.deleteMemory(agentId, memoryId)
   }
 

@@ -33,6 +33,7 @@ import type {
 import type { AgentInvocationAdmissionPort } from '@/agent/invocationAdmission'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
+import type { MemoryCommandResult } from '@shared/contracts/routes/memory.routes'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type { MemoryScopeContext, MemoryWriteOutcome } from '../memory/types'
 import type {
@@ -119,7 +120,7 @@ export interface AgentMemoryToolPort {
     query: string,
     scopeContext?: MemoryScopeContext
   ): Promise<Array<{ id: string; kind: string; content: string }>>
-  forgetMemory(agentId: string, memoryId: string): Promise<boolean>
+  forgetMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult>
 }
 
 export interface AgentCronJobToolPort {

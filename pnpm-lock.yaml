@@ -40,8 +40,8 @@ importers:
         specifier: ^4.0.3
         version: 4.0.3
       '@arcships/light-ocr':
-        specifier: 0.5.5
-        version: 0.5.5
+        specifier: 0.5.6
+        version: 0.5.6
       '@aws-sdk/client-bedrock':
         specifier: ^3.1057.0
         version: 3.1093.0
@@ -66,9 +66,18 @@ importers:
       '@larksuiteoapi/node-sdk':
         specifier: ^1.64.0
         version: 1.71.1
+      '@modelcontextprotocol/client':
+        specifier: 2.0.0
+        version: 2.0.0
+      '@modelcontextprotocol/ext-apps':
+        specifier: 1.7.5
+        version: 1.7.5(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.4.3)
       '@modelcontextprotocol/sdk':
-        specifier: ^1.29.0
-        version: 1.29.0(zod@4.4.3)
+        specifier: 1.30.0
+        version: 1.30.0(zod@4.4.3)
+      '@modelcontextprotocol/server':
+        specifier: 2.0.0
+        version: 2.0.0
       '@parcel/watcher':
         specifier: ^2.5.6
         version: 2.6.0
@@ -544,27 +553,27 @@ packages:
   '@antv/util@3.3.11':
     resolution: {integrity: sha512-FII08DFM4ABh2q5rPYdr0hMtKXRgeZazvXaFYCs7J7uTcWDHUhczab2qOCJLNDugoj8jFag1djb7wS9ehaRYBg==}
 
-  '@arcships/light-ocr-darwin-arm64@0.5.5':
-    resolution: {integrity: sha512-JthToOGzdM4wW3YJ+vLwX6pXL0i5nljgmMYkMVBuuauV6JHQByewQIzmGWqkQxz9CDnbovb0OX863QV/w36Clw==}
+  '@arcships/light-ocr-darwin-arm64@0.5.6':
+    resolution: {integrity: sha512-cZ3EpnHKPfZ55lMzZ0MrRm4bttyijnR/1SONaEp3gJDwtLMhZDA/dc0l7GAk1ocPcrHHfUApBe7SCODlcdkudA==}
     engines: {node: ^22.0.0 || ^24.0.0}
     cpu: [arm64]
     os: [darwin]
 
-  '@arcships/light-ocr-darwin-x64@0.5.5':
-    resolution: {integrity: sha512-ShS6SslVeIJCsQEmfxq15ICorGpEbxw5DiFmjK1yenprEhLKDa88lAMqkIdlOTAL0ZoZ7h/cELM6Pz2kG6UZJQ==}
+  '@arcships/light-ocr-darwin-x64@0.5.6':
+    resolution: {integrity: sha512-zs7wCFpjw6oX9P/BRQfSd6pl+Vp+ZQX9rYUHVRopOAXPz+ldJrjNv9YyMWNrTWdYeD47bTkTji96WDHo4hGB2w==}
     engines: {node: ^22.0.0 || ^24.0.0}
     cpu: [x64]
     os: [darwin]
 
-  '@arcships/light-ocr-linux-arm64-gnu@0.5.5':
-    resolution: {integrity: sha512-29q7qssTa+Wx3lT9TTZiURdm2al7Aa78P7Whdiy+ISi18qTogcYd1tGjpze23JOGfvSHEcJo9vwWEsrm7T1HnQ==}
+  '@arcships/light-ocr-linux-arm64-gnu@0.5.6':
+    resolution: {integrity: sha512-x/ZIeDDiaFk6cvF/zeputYadMYGMCyvosknjfDhyxfj6TCI+zM2PpFmwADXaai33b8nUJ52EVemg7dM+OaO3Uw==}
     engines: {node: ^22.0.0 || ^24.0.0}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@arcships/light-ocr-linux-x64-gnu@0.5.5':
-    resolution: {integrity: sha512-XfNe1gKs3kegvNd5NpJHBh+YGUEBi0iZar+okroP3ubQJOqiHHyctM8Hr6yNLbnQyOJuDsaF2Gmj/BFw+UAr+A==}
+  '@arcships/light-ocr-linux-x64-gnu@0.5.6':
+    resolution: {integrity: sha512-EKuy1RPtQVvkrIk2162Xy5+6lF5IQikDP9rOz6m1kTyM7eBhsNA7CxOFFDvJoWfYZYLuQl2/6caHxToQ0DfCjA==}
     engines: {node: ^22.0.0 || ^24.0.0}
     cpu: [x64]
     os: [linux]
@@ -573,24 +582,24 @@ packages:
   '@arcships/light-ocr-model-ppocrv6-small@0.3.4':
     resolution: {integrity: sha512-F2Rjx3xoiKw1eUc/DW5k5/t1AlvWfReUDTdpRdQKNCDz5Y8YYif+15CHdPz7Wdt/Nza7drDOM3NTGUIuA20ERw==}
 
-  '@arcships/light-ocr-runtime@0.1.5':
-    resolution: {integrity: sha512-/InQ1wgg1H6eRnkaTHvI/p+MWGNfEKJzZ+uPH9RM3sSL32QRvhRxWvjOUCZA8Fz7JfhsqhPIVVVjmK6INuXylg==}
+  '@arcships/light-ocr-runtime@0.1.6':
+    resolution: {integrity: sha512-1ItPTTVVrMm1edjDOAibZ40wAEA20ZqNKgWK3ygseg5N+V1JbzszUxGY5/MOwcH88scznRTR7LNgGcQPonQkDg==}
     engines: {node: ^22.0.0 || ^24.0.0}
 
-  '@arcships/light-ocr-win32-arm64@0.5.5':
-    resolution: {integrity: sha512-UgqOLwg2Z66qaJ3Uxy6mAj35Rg7wPSuzSu/DJPIV7/EX854fTjZ6x9FZoEyyogwR4D97uTrZmxM4LNgI6lG9dw==}
+  '@arcships/light-ocr-win32-arm64@0.5.6':
+    resolution: {integrity: sha512-cc85gWqowcNwx4TmuQIpevFYZxc5R/oj5rkQNrreA5VRHvW524PbIavFWSZiFLcIQkAnIuHawxsLGyYjUvEgzg==}
     engines: {node: ^22.0.0 || ^24.0.0}
     cpu: [arm64]
     os: [win32]
 
-  '@arcships/light-ocr-win32-x64@0.5.5':
-    resolution: {integrity: sha512-9rvg8E2V+GGS8DXwzwpmPcK7TizTshFKyd7Gw24EN/csheP7Ll/Im1mqaTRsAgJcvD0iKig0LIUnpq+i1Ie9Yg==}
+  '@arcships/light-ocr-win32-x64@0.5.6':
+    resolution: {integrity: sha512-sBGDgjkvY9ll6rVAp3le7Dpr22XyvYO0q2P6UMivHbSw1A8w9dwqu4urrhgqakqqjDMuVhEobmJFuNnaU6e/Ng==}
     engines: {node: ^22.0.0 || ^24.0.0}
     cpu: [x64]
     os: [win32]
 
-  '@arcships/light-ocr@0.5.5':
-    resolution: {integrity: sha512-FXeNhNXjjW8nEVmPKPPaPS3mtA52O4zSdPtPdSyxSBgxmjPTGpZAI0RvVD2s+I3MGP/YCC0qsC1H6MJOBv/8iA==}
+  '@arcships/light-ocr@0.5.6':
+    resolution: {integrity: sha512-WDK6S1fsNB34SaMm88x2Ps0G3QhZ5P+ZJR7vp+blJtCbTxLgztZlQ3ULVyabwiU3Yoa0jFU9yxByR22i48PY4Q==}
     engines: {node: ^22.0.0 || ^24.0.0}
     hasBin: true
 
@@ -1857,8 +1866,30 @@ packages:
   '@mixmark-io/domino@2.2.0':
     resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
 
-  '@modelcontextprotocol/sdk@1.29.0':
-    resolution: {integrity: sha512-zo37mZA9hJWpULgkRpowewez1y6ML5GsXJPY8FI0tBBCd77HEvza4jDqRKOXgHNn867PVGCyTdzqpz0izu5ZjQ==}
+  '@modelcontextprotocol/client@2.0.0':
+    resolution: {integrity: sha512-8f1OghQ2rjzIOfqgUCP+8GiUWqRs89njoWLNqAe8kWmDePv3s1fZXseej+QXemssEuuOvLLmLO/kqM3IQHtISw==}
+    engines: {node: '>=20'}
+
+  '@modelcontextprotocol/core@2.0.0':
+    resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
+    engines: {node: '>=20'}
+
+  '@modelcontextprotocol/ext-apps@1.7.5':
+    resolution: {integrity: sha512-TjPH2S2y5UEGKhmI6+XGFuqfqOV4ppe1x6DA3txnUaEWkgtA4G5vo14jGKFZmegdkZ1H4QMLyujLvoU1BEdnAg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@modelcontextprotocol/sdk': ^1.29.0
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^17.0.0 || ^18.0.0 || ^19.0.0
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
+
+  '@modelcontextprotocol/sdk@1.30.0':
+    resolution: {integrity: sha512-xKd8OIzlqNzcqcNumGAa6g+PW2kjD5vrpcKOnfldAUPP3j7lnqMPwlTXQm8gF+UwH72z0lqaRbjr9hqGz0eITA==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -1866,6 +1897,10 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
+
+  '@modelcontextprotocol/server@2.0.0':
+    resolution: {integrity: sha512-YhHWdHfpFMQfd0prsEnxKeS3Qz3ytIGmsS0sth4KDjnacIT7hxk6hXHkJ9KysxlkvTM+WZAtQbbcUhdoP4Hvtw==}
+    engines: {node: '>=20'}
 
   '@noble/hashes@1.4.0':
     resolution: {integrity: sha512-V1JJ1WTRUqHHrOSh597hURcMqVKVGL/ea3kv0gSnEdsEZ0/+VyPghM1lMNGc00z7CIQorSvbKpuJkxvuHbvdbg==}
@@ -7261,39 +7296,39 @@ snapshots:
       gl-matrix: 3.4.4
       tslib: 2.8.1
 
-  '@arcships/light-ocr-darwin-arm64@0.5.5':
+  '@arcships/light-ocr-darwin-arm64@0.5.6':
     optional: true
 
-  '@arcships/light-ocr-darwin-x64@0.5.5':
+  '@arcships/light-ocr-darwin-x64@0.5.6':
     optional: true
 
-  '@arcships/light-ocr-linux-arm64-gnu@0.5.5':
+  '@arcships/light-ocr-linux-arm64-gnu@0.5.6':
     optional: true
 
-  '@arcships/light-ocr-linux-x64-gnu@0.5.5':
+  '@arcships/light-ocr-linux-x64-gnu@0.5.6':
     optional: true
 
   '@arcships/light-ocr-model-ppocrv6-small@0.3.4': {}
 
-  '@arcships/light-ocr-runtime@0.1.5':
+  '@arcships/light-ocr-runtime@0.1.6':
     optionalDependencies:
-      '@arcships/light-ocr-darwin-arm64': 0.5.5
-      '@arcships/light-ocr-darwin-x64': 0.5.5
-      '@arcships/light-ocr-linux-arm64-gnu': 0.5.5
-      '@arcships/light-ocr-linux-x64-gnu': 0.5.5
-      '@arcships/light-ocr-win32-arm64': 0.5.5
-      '@arcships/light-ocr-win32-x64': 0.5.5
+      '@arcships/light-ocr-darwin-arm64': 0.5.6
+      '@arcships/light-ocr-darwin-x64': 0.5.6
+      '@arcships/light-ocr-linux-arm64-gnu': 0.5.6
+      '@arcships/light-ocr-linux-x64-gnu': 0.5.6
+      '@arcships/light-ocr-win32-arm64': 0.5.6
+      '@arcships/light-ocr-win32-x64': 0.5.6
 
-  '@arcships/light-ocr-win32-arm64@0.5.5':
+  '@arcships/light-ocr-win32-arm64@0.5.6':
     optional: true
 
-  '@arcships/light-ocr-win32-x64@0.5.5':
+  '@arcships/light-ocr-win32-x64@0.5.6':
     optional: true
 
-  '@arcships/light-ocr@0.5.5':
+  '@arcships/light-ocr@0.5.6':
     dependencies:
       '@arcships/light-ocr-model-ppocrv6-small': 0.3.4
-      '@arcships/light-ocr-runtime': 0.1.5
+      '@arcships/light-ocr-runtime': 0.1.6
 
   '@asamuzakjp/css-color@3.2.0':
     dependencies:
@@ -8617,7 +8652,30 @@ snapshots:
 
   '@mixmark-io/domino@2.2.0': {}
 
-  '@modelcontextprotocol/sdk@1.29.0(zod@4.4.3)':
+  '@modelcontextprotocol/client@2.0.0':
+    dependencies:
+      '@modelcontextprotocol/core': 2.0.0
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.1.0
+      jose: 6.2.4
+      pkce-challenge: 5.0.1
+      zod: 4.4.3
+
+  '@modelcontextprotocol/core@2.0.0':
+    dependencies:
+      zod: 4.4.3
+
+  '@modelcontextprotocol/ext-apps@1.7.5(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(zod@4.4.3)':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.30.0(zod@4.4.3)
+      '@standard-schema/spec': 1.1.0
+      zod: 4.4.3
+    optionalDependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+
+  '@modelcontextprotocol/sdk@1.30.0(zod@4.4.3)':
     dependencies:
       '@hono/node-server': 1.19.14(hono@4.12.31)
       ajv: 8.20.0
@@ -8638,6 +8696,11 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@4.4.3)
     transitivePeerDependencies:
       - supports-color
+
+  '@modelcontextprotocol/server@2.0.0':
+    dependencies:
+      '@modelcontextprotocol/core': 2.0.0
+      zod: 4.4.3
 
   '@noble/hashes@1.4.0': {}
 

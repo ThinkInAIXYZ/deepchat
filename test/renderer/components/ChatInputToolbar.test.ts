@@ -167,26 +167,6 @@ describe('ChatInputToolbar', () => {
     expect(wrapper.emitted('steer')).toBeUndefined()
   })
 
-  it('renders progress and blocks repeated steer clicks while pending', async () => {
-    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
-    const wrapper = mount(ChatInputToolbar, {
-      props: {
-        isGenerating: true,
-        hasInput: true,
-        isSteering: true
-      }
-    })
-
-    const steerButton = wrapper.get('[data-testid="chat-steer-button"]')
-    expect(steerButton.attributes('disabled')).toBeDefined()
-    expect(steerButton.attributes('aria-busy')).toBe('true')
-    expect(steerButton.find('[role="status"]').exists()).toBe(true)
-    expect(wrapper.find('[data-icon="lucide:compass"]').exists()).toBe(false)
-
-    await steerButton.trigger('click')
-    expect(wrapper.emitted('steer')).toBeUndefined()
-  })
-
   it('renders progress and blocks repeated stop clicks while pending', async () => {
     const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
     const wrapper = mount(ChatInputToolbar, {

@@ -402,6 +402,10 @@
       "caption": "Der Fokus bleibt auf dem Eingabefeld, bis Sie die erste Nachricht wirklich senden."
     }
   },
+  "messageReceipt": {
+    "unread": "Ungelesen",
+    "read": "Gelesen"
+  },
   "attachments": {
     "chooseRepresentation": "Auswählen, wie {name} gesendet werden soll",
     "representation": "Darstellung des Anhangs",

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -20,9 +20,20 @@ const passthroughStub = (name: string) =>
     template: '<div><slot /></div>'
   })
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
+    resolve = next
+    reject = fail
+  })
+  return { promise, resolve, reject }
+}
+
 const setup = async (
   options: {
     databaseSecurityGetStatus?: ReturnType<typeof vi.fn>
+    realAlertDialog?: boolean
     syncInitialize?: ReturnType<typeof vi.fn>
   } = {}
 ) => {
@@ -228,6 +239,7 @@ const setup = async (
     .default
 
   const wrapper = mount(DataSettings, {
+    ...(options.realAlertDialog ? { attachTo: document.body } : {}),
     global: {
       stubs: {
         ScrollArea: passthroughStub('ScrollArea'),
@@ -239,15 +251,18 @@ const setup = async (
         DialogHeader: passthroughStub('DialogHeader'),
         DialogTitle: passthroughStub('DialogTitle'),
         DialogTrigger: passthroughStub('DialogTrigger'),
-        AlertDialog: passthroughStub('AlertDialog'),
-        AlertDialogAction: buttonStub,
-        AlertDialogCancel: buttonStub,
-        AlertDialogContent: passthroughStub('AlertDialogContent'),
-        AlertDialogDescription: passthroughStub('AlertDialogDescription'),
-        AlertDialogFooter: passthroughStub('AlertDialogFooter'),
-        AlertDialogHeader: passthroughStub('AlertDialogHeader'),
-        AlertDialogTitle: passthroughStub('AlertDialogTitle'),
-        AlertDialogTrigger: passthroughStub('AlertDialogTrigger'),
+        AlertDialog: options.realAlertDialog ? false : passthroughStub('AlertDialog'),
+        AlertDialogAction: options.realAlertDialog ? false : buttonStub,
+        AlertDialogAsyncAction: options.realAlertDialog ? false : buttonStub,
+        AlertDialogCancel: options.realAlertDialog ? false : buttonStub,
+        AlertDialogContent: options.realAlertDialog ? false : passthroughStub('AlertDialogContent'),
+        AlertDialogDescription: options.realAlertDialog
+          ? false
+          : passthroughStub('AlertDialogDescription'),
+        AlertDialogFooter: options.realAlertDialog ? false : passthroughStub('AlertDialogFooter'),
+        AlertDialogHeader: options.realAlertDialog ? false : passthroughStub('AlertDialogHeader'),
+        AlertDialogTitle: options.realAlertDialog ? false : passthroughStub('AlertDialogTitle'),
+        AlertDialogTrigger: options.realAlertDialog ? false : passthroughStub('AlertDialogTrigger'),
         Button: buttonStub,
         Input: defineComponent({
           name: 'Input',
@@ -336,6 +351,10 @@ const findClearSandboxConfirmButton = (wrapper: ReturnType<typeof mount>) =>
 describe('DataSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
   })
 
   it('renders the consolidated sync and operations sections', async () => {
@@ -861,25 +880,39 @@ describe('DataSettings', () => {
   })
 
   it('keeps the sandbox confirmation open when clearing fails', async () => {
-    const { wrapper, browserClient, notifyRenderer } = await setup()
+    const { wrapper, browserClient, notifyRenderer } = await setup({ realAlertDialog: true })
     browserClient.clearSandboxData.mockRejectedValueOnce(
       new Error('Failed to delete /private/sandbox/session')
     )
-    const sandboxState = wrapper.vm as unknown as {
-      isClearSandboxDialogOpen: boolean
-    }
-    sandboxState.isClearSandboxDialogOpen = true
-    await nextTick()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    await findClearSandboxConfirmButton(wrapper).trigger('click')
+    await wrapper.get('[data-testid="yobrowser-clear-sandbox-button"]').trigger('click')
+    await flushPromises()
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="yobrowser-clear-sandbox-confirm"]')!
+      .click()
     await flushPromises()
 
-    expect(wrapper.get('[role="alert"]').text()).toContain(
+    const sandboxConfirm = document.querySelector('[data-testid="yobrowser-clear-sandbox-confirm"]')
+    expect(sandboxConfirm?.closest('[data-slot="alert-dialog-content"]')?.textContent).toContain(
       'settings.data.yoBrowser.clearFailedTitle'
     )
     expect(notifyRenderer).not.toHaveBeenCalled()
-    expect(wrapper.text()).not.toContain('/private/sandbox/session')
-    expect(sandboxState.isClearSandboxDialogOpen).toBe(true)
+    expect(document.body.textContent).not.toContain('/private/sandbox/session')
+    expect(document.querySelector('[data-testid="yobrowser-clear-sandbox-confirm"]')).not.toBeNull()
+
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="yobrowser-clear-sandbox-confirm"]')!
+      .click()
+    await flushPromises()
+
+    expect(browserClient.clearSandboxData).toHaveBeenCalledTimes(2)
+    expect(
+      (wrapper.vm as unknown as { isClearSandboxDialogOpen: boolean }).isClearSandboxDialogOpen
+    ).toBe(false)
+    expect(notifyRenderer).toHaveBeenCalledOnce()
+    consoleError.mockRestore()
+    wrapper.unmount()
   })
 
   it('renders the PublicProviderConf link and opens it externally when clicked', async () => {
@@ -943,20 +976,52 @@ describe('DataSettings', () => {
   })
 
   it('keeps reset failures in the confirmation surface without exposing details', async () => {
-    const { wrapper, deviceClient } = await setup()
-    deviceClient.resetDataByType.mockRejectedValueOnce(
-      new Error('Unable to reset /private/deepchat.db')
-    )
+    const { wrapper, deviceClient } = await setup({ realAlertDialog: true })
+    const pending = deferred<{ reset: boolean }>()
+    deviceClient.resetDataByType.mockReturnValueOnce(pending.promise)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     await findResetEntryButton(wrapper).trigger('click')
-    await findResetConfirmButton(wrapper).trigger('click')
+    await flushPromises()
+    const resetConfirm = wrapper
+      .findAllComponents({ name: 'AlertDialogAsyncAction' })
+      .find((candidate) => candidate.attributes('data-testid') === 'danger-zone-reset-confirm')
+    if (!resetConfirm) throw new Error('Reset confirmation button not found')
+    await resetConfirm.trigger('click')
+    const resetContent = resetConfirm.element.closest('[data-slot="alert-dialog-content"]')
+    await vi.waitFor(() => {
+      expect(deviceClient.resetDataByType).toHaveBeenCalledOnce()
+      expect(resetConfirm.attributes('disabled')).toBeDefined()
+    })
+    resetContent
+      ?.querySelector<HTMLElement>('[data-testid="danger-zone-reset-option-knowledge"]')
+      ?.click()
+    expect((wrapper.vm as unknown as { resetType: string }).resetType).toBe('chat')
+
+    pending.reject(new Error('Unable to reset /private/deepchat.db'))
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('Operation failed')
-    expect(wrapper.text()).not.toContain('/private/deepchat.db')
+    await vi.waitFor(() => {
+      expect(
+        resetContent
+          ?.querySelector('[data-testid="inline-operation-feedback"]')
+          ?.getAttribute('data-status')
+      ).toBe('error')
+    })
+    const feedback = resetContent?.querySelector('[data-testid="inline-operation-feedback"]')
+    expect(feedback?.textContent).toContain('Operation failed')
+    expect(document.body.textContent).not.toContain('/private/deepchat.db')
     expect((wrapper.vm as unknown as { isResetDialogOpen: boolean }).isResetDialogOpen).toBe(true)
+    expect(resetConfirm.element.isConnected).toBe(true)
+
+    await resetConfirm.trigger('click')
+    await vi.waitFor(() => {
+      expect(deviceClient.resetDataByType).toHaveBeenCalledTimes(2)
+    })
+
+    expect((wrapper.vm as unknown as { isResetDialogOpen: boolean }).isResetDialogOpen).toBe(false)
+    consoleError.mockRestore()
+    wrapper.unmount()
   })
 
   it('keeps sync persistence failures inline without changing the visible setting', async () => {

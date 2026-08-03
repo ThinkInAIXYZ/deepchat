@@ -83,35 +83,15 @@
                 >
                   <Icon icon="lucide:edit" class="h-4 w-4" />
                 </button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <button
-                      type="button"
-                      :disabled="operationPending"
-                      class="text-muted-foreground hover:text-destructive"
-                    >
-                      <Icon icon="lucide:trash-2" class="h-4 w-4" />
-                    </button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>{{
-                        t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmTitle', {
-                          name: config.description
-                        })
-                      }}</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {{ t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmDesc') }}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                      <AlertDialogAction @click="removeBuiltinConfig(index)">{{
-                        t('common.confirm')
-                      }}</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <button
+                  type="button"
+                  :disabled="operationPending"
+                  class="text-muted-foreground hover:text-destructive"
+                  data-testid="builtin-knowledge-remove-trigger"
+                  @click="requestRemoveBuiltinConfig(config)"
+                >
+                  <Icon icon="lucide:trash-2" class="h-4 w-4" />
+                </button>
               </div>
               <div class="grid gap-2">
                 <div class="flex items-center">
@@ -149,6 +129,46 @@
         </div>
       </CollapsibleContent>
     </Collapsible>
+    <AlertDialog :open="removeDialogOpen" @update:open="handleRemoveDialogOpenChange">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{{
+            t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmTitle', {
+              name: removeTargetDescription
+            })
+          }}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmDesc') }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <InlineOperationFeedback
+          v-if="knowledgeOperation.source.value === 'confirmation'"
+          :snapshot="knowledgeOperation.snapshot.value"
+          :retry-label="t('common.retry')"
+          @retry="knowledgeOperation.retry"
+        />
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            data-testid="builtin-knowledge-remove-cancel"
+            :disabled="operationPending"
+          >
+            {{ t('common.cancel') }}
+          </AlertDialogCancel>
+          <AlertDialogAsyncAction
+            data-testid="builtin-knowledge-remove-confirm"
+            :disabled="operationPending"
+            @click="removeBuiltinConfig"
+          >
+            <Spinner
+              v-if="operationPending"
+              data-testid="builtin-knowledge-remove-spinner"
+              data-icon="inline-start"
+            />
+            {{ t('common.confirm') }}
+          </AlertDialogAsyncAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <Dialog :open="isBuiltinConfigDialogOpen" @update:open="handleDialogOpenChange">
       <DialogContent>
         <DialogHeader>
@@ -588,7 +608,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -605,14 +625,13 @@ import {
 import { Slider } from '@shadcn/components/ui/slider'
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
+  AlertDialogTitle
 } from '@shadcn/components/ui/alert-dialog'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
@@ -685,6 +704,14 @@ const clearRerankModel = () => {
   rerankModelSelectOpen.value = false
 }
 const builtinConfigs = ref<Array<BuiltinKnowledgeConfig>>([])
+type BuiltinRemoveRequest =
+  | { status: 'idle' }
+  | { status: 'confirming'; target: BuiltinKnowledgeConfig }
+const removeRequest = shallowRef<BuiltinRemoveRequest>({ status: 'idle' })
+const removeDialogOpen = computed(() => removeRequest.value.status === 'confirming')
+const removeTargetDescription = computed(() =>
+  removeRequest.value.status === 'confirming' ? removeRequest.value.target.description : ''
+)
 
 const cloneBuiltinConfig = (config: BuiltinKnowledgeConfig): BuiltinKnowledgeConfig => ({
   ...config,
@@ -941,13 +968,34 @@ const saveBuiltinConfig = async () => {
   })
 }
 
+const requestRemoveBuiltinConfig = (config: BuiltinKnowledgeConfig) => {
+  if (operationPending.value || removeRequest.value.status !== 'idle') return
+  removeRequest.value = { status: 'confirming', target: config }
+}
+
+const handleRemoveDialogOpenChange = (open: boolean) => {
+  if (open || operationPending.value || removeRequest.value.status !== 'confirming') return
+  removeRequest.value = { status: 'idle' }
+  if (knowledgeOperation.source.value === 'confirmation') {
+    knowledgeOperation.clear()
+  }
+}
+
 // 移除配置
-const removeBuiltinConfig = async (index: number) => {
-  if (operationPending.value || index < 0 || index >= builtinConfigs.value.length) return
-  const nextConfigs = builtinConfigs.value.filter((_, configIndex) => configIndex !== index)
+const removeBuiltinConfig = async () => {
+  const request = removeRequest.value
+  if (operationPending.value || request.status !== 'confirming') return
+  const index = builtinConfigs.value.findIndex((config) => config === request.target)
+  if (index < 0) {
+    removeRequest.value = { status: 'idle' }
+    panelError.value = { title: t('common.error.operationFailed') }
+    return
+  }
+  const nextConfigs = builtinConfigs.value.map(cloneBuiltinConfig)
+  nextConfigs.splice(index, 1)
   await knowledgeOperation.run({
     code: 'settings.knowledgeBase.builtin.remove',
-    source: 'panel',
+    source: 'confirmation',
     label: t('common.saving'),
     perform: async () => {
       await configClient.setKnowledgeConfigs(nextConfigs)
@@ -956,6 +1004,7 @@ const removeBuiltinConfig = async (index: number) => {
     commit: () => {
       builtinConfigs.value = nextConfigs.map(cloneBuiltinConfig)
       panelError.value = null
+      removeRequest.value = { status: 'idle' }
     }
   })
 }

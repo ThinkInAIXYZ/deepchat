@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { MemoryCommandResult } from '@shared/contracts/routes'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
@@ -677,8 +678,8 @@ describe('memoryActivity store', () => {
     const { store, memoryClient, emitMemoryUpdated } = await setupStore()
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     memoryClient.getByIds.mockResolvedValue([makeMemory('m1')])
-    memoryClient.archive.mockResolvedValue(true)
-    memoryClient.restore.mockResolvedValue(true)
+    memoryClient.archive.mockResolvedValue({ action: 'applied' })
+    memoryClient.restore.mockResolvedValue({ action: 'applied' })
     memoryClient.add.mockRejectedValueOnce(new Error('add failed')).mockResolvedValueOnce({
       action: 'created',
       memoryId: 'm2'
@@ -724,7 +725,7 @@ describe('memoryActivity store', () => {
         importance: 0.9
       })
     ])
-    memoryClient.archive.mockResolvedValue(true)
+    memoryClient.archive.mockResolvedValue({ action: 'applied' })
     memoryClient.add.mockResolvedValue({
       action: 'updated',
       memoryId: 'm2'
@@ -757,8 +758,8 @@ describe('memoryActivity store', () => {
   it('keeps the chip editable when amend resolves to noop and restores the original memory', async () => {
     const { store, memoryClient, emitMemoryUpdated } = await setupStore()
     memoryClient.getByIds.mockResolvedValue([makeMemory('m1')])
-    memoryClient.archive.mockResolvedValue(true)
-    memoryClient.restore.mockResolvedValue(true)
+    memoryClient.archive.mockResolvedValue({ action: 'applied' })
+    memoryClient.restore.mockResolvedValue({ action: 'applied' })
     memoryClient.add.mockResolvedValue({
       action: 'noop',
       reason: 'duplicate'
@@ -785,7 +786,7 @@ describe('memoryActivity store', () => {
     const { store, memoryClient, emitMemoryUpdated } = await setupStore()
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     memoryClient.getByIds.mockResolvedValue([makeMemory('m1')])
-    memoryClient.archive.mockResolvedValue(true)
+    memoryClient.archive.mockResolvedValue({ action: 'applied' })
     memoryClient.add.mockRejectedValue(new Error('add failed'))
     memoryClient.restore.mockRejectedValue(new Error('restore failed'))
 
@@ -805,15 +806,15 @@ describe('memoryActivity store', () => {
     warnSpy.mockRestore()
   })
 
-  it('marks amend as unrecovered when noop restoration returns false', async () => {
+  it('marks amend as unrecovered when noop restoration is rejected', async () => {
     const { store, memoryClient, emitMemoryUpdated } = await setupStore()
     memoryClient.getByIds.mockResolvedValue([makeMemory('m1')])
-    memoryClient.archive.mockResolvedValue(true)
+    memoryClient.archive.mockResolvedValue({ action: 'applied' })
     memoryClient.add.mockResolvedValue({
       action: 'noop',
       reason: 'duplicate'
     })
-    memoryClient.restore.mockResolvedValue(false)
+    memoryClient.restore.mockResolvedValue({ action: 'rejected', reason: 'stale' })
 
     emitMemoryUpdated({
       agentId: 'deepchat',
@@ -831,13 +832,13 @@ describe('memoryActivity store', () => {
     expect(store.chipItems[0].error).toBe('amend_restore_failed')
   })
 
-  it('marks amend as unrecovered when restore returns false after a failed add', async () => {
+  it('marks amend as unrecovered when restore is rejected after a failed add', async () => {
     const { store, memoryClient, emitMemoryUpdated } = await setupStore()
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     memoryClient.getByIds.mockResolvedValue([makeMemory('m1')])
-    memoryClient.archive.mockResolvedValue(true)
+    memoryClient.archive.mockResolvedValue({ action: 'applied' })
     memoryClient.add.mockRejectedValue(new Error('add failed'))
-    memoryClient.restore.mockResolvedValue(false)
+    memoryClient.restore.mockResolvedValue({ action: 'rejected', reason: 'stale' })
 
     emitMemoryUpdated({
       agentId: 'deepchat',
@@ -859,7 +860,7 @@ describe('memoryActivity store', () => {
   it('preserves forget errors and does not clear them while clearing busy state', async () => {
     const { store, memoryClient, emitMemoryUpdated } = await setupStore()
     memoryClient.getByIds.mockResolvedValue([makeMemory('m1')])
-    memoryClient.archive.mockResolvedValue(false)
+    memoryClient.archive.mockResolvedValue({ action: 'rejected', reason: 'stale' })
 
     emitMemoryUpdated({
       agentId: 'deepchat',
@@ -923,7 +924,7 @@ describe('memoryActivity store', () => {
 
   it('short-circuits concurrent amend calls for the same memory', async () => {
     const { store, memoryClient, emitMemoryUpdated } = await setupStore()
-    const archive = deferred<boolean>()
+    const archive = deferred<MemoryCommandResult>()
     memoryClient.getByIds.mockResolvedValue([makeMemory('m1')])
     memoryClient.archive.mockReturnValueOnce(archive.promise)
     memoryClient.add.mockResolvedValue({
@@ -946,7 +947,7 @@ describe('memoryActivity store', () => {
     expect(memoryClient.add).not.toHaveBeenCalled()
     expect(memoryClient.restore).not.toHaveBeenCalled()
 
-    archive.resolve(true)
+    archive.resolve({ action: 'applied' })
     await expect(firstAmend).resolves.toEqual({
       action: 'created',
       memoryId: 'm2'
@@ -978,7 +979,7 @@ describe('memoryActivity store', () => {
     memoryClient.getByIds
       .mockResolvedValueOnce([makeMemory('m1')])
       .mockResolvedValueOnce([makeMemory('m1', { status: 'archived' })])
-    memoryClient.archive.mockResolvedValue(true)
+    memoryClient.archive.mockResolvedValue({ action: 'applied' })
 
     await store.openTurnMemories('assistant-1')
     await expect(store.forget('m1')).resolves.toBe(true)
@@ -1074,7 +1075,7 @@ describe('memoryActivity store', () => {
   it('removes only the deleted chip item when a delete echo carries memoryId', async () => {
     const { store, memoryClient, emitMemoryUpdated } = await setupStore()
     memoryClient.getByIds.mockResolvedValue([makeMemory('m1'), makeMemory('m2'), makeMemory('m3')])
-    memoryClient.remove.mockResolvedValue(true)
+    memoryClient.remove.mockResolvedValue({ action: 'applied' })
 
     emitMemoryUpdated({
       agentId: 'deepchat',

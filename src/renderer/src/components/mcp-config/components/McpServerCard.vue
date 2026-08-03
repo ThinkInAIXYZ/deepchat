@@ -58,6 +58,7 @@ interface Emits {
   (e: 'viewPrompts'): void
   (e: 'viewResources'): void
   (e: 'authenticate'): void
+  (e: 'diagnostics'): void
 }
 
 const props = defineProps<Props>()
@@ -87,9 +88,13 @@ const serverStatus = computed(() => {
   return 'stopped'
 })
 
-const showAuthenticateButton = computed(() =>
-  ['required', 'error', 'authenticating'].includes(props.server.authStatus?.state || '')
-)
+const showAuthenticateButton = computed(() => {
+  const auth = props.server.authStatus
+  if (!auth || !['required', 'error', 'authenticating'].includes(auth.state)) {
+    return false
+  }
+  return auth.mode === 'interactive' || auth.credential?.configured === true
+})
 
 const isAuthenticating = computed(() => props.server.authStatus?.state === 'authenticating')
 
@@ -143,7 +148,6 @@ const fullDescription = computed(() => {
 })
 
 const canEdit = computed(() => !props.isManaged)
-const hasMenuActions = computed(() => canEdit.value || !props.isBuiltIn)
 
 // 检查文本是否溢出
 const checkTextOverflow = async () => {
@@ -185,7 +189,7 @@ watch(watchDescription, () => {
         </div>
 
         <!-- 操作菜单 -->
-        <DropdownMenu v-if="hasMenuActions">
+        <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button
               variant="ghost"
@@ -197,6 +201,11 @@ watch(watchDescription, () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem @click.stop="$emit('diagnostics')">
+              <Icon icon="lucide:activity" class="h-4 w-4 mr-2" />
+              {{ t('settings.mcp.diagnostics.title') }}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator v-if="canEdit || !isBuiltIn" />
             <DropdownMenuItem v-if="canEdit" :disabled="disabled" @click.stop="$emit('edit')">
               <Icon icon="lucide:edit-3" class="h-4 w-4 mr-2" />
               {{ t('settings.mcp.editServer') }}

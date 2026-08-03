@@ -139,7 +139,7 @@
         <AlertDialogCancel @click="handleConflictCancel">
           {{ t('common.cancel') }}
         </AlertDialogCancel>
-        <AlertDialogAction @click="handleConflictOverwrite">
+        <AlertDialogAction data-testid="skill-conflict-overwrite" @click="handleConflictOverwrite">
           {{ t('settings.skills.conflict.overwrite') }}
         </AlertDialogAction>
       </AlertDialogFooter>
@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
@@ -218,10 +218,17 @@ const validationError = ref('')
 // Drag and drop state: which zone is currently being dragged over
 const dragActive = ref<'folder' | 'zip' | null>(null)
 
-// Conflict handling
-const conflictDialogOpen = ref(false)
-const conflictSkillName = ref('')
-const pendingInstallAction = ref<(() => Promise<void>) | null>(null)
+type ConflictRequest =
+  | { status: 'idle' }
+  | { status: 'confirming'; skillName: string; overwrite: () => Promise<void> }
+  | { status: 'pending'; skillName: string; overwrite: () => Promise<void> }
+
+// Preserve request identity so a settled overwrite cannot clear a newer conflict.
+const conflictRequest = shallowRef<ConflictRequest>({ status: 'idle' })
+const conflictDialogOpen = computed(() => conflictRequest.value.status === 'confirming')
+const conflictSkillName = computed(() =>
+  conflictRequest.value.status === 'idle' ? '' : conflictRequest.value.skillName
+)
 const contextVersion = ref(0)
 const feedbackContextVersion = ref<number | null>(null)
 const feedbackAgentId = ref<string | undefined>()
@@ -288,9 +295,7 @@ watch([() => props.open, () => currentAgentId()], ([open, agentId], previous) =>
   if (!open || agentChanged) {
     contextVersion.value += 1
     pickerRequestId += 1
-    pendingInstallAction.value = null
-    conflictDialogOpen.value = false
-    conflictSkillName.value = ''
+    conflictRequest.value = { status: 'idle' }
     dragActive.value = null
     validationError.value = ''
   }
@@ -511,9 +516,11 @@ const handleInstallResult = (
       return
     }
     installController.cancelPending()
-    conflictSkillName.value = result.existingSkillName || result.skillName || ''
-    pendingInstallAction.value = retryWithOverwrite
-    conflictDialogOpen.value = true
+    conflictRequest.value = {
+      status: 'confirming',
+      skillName: result.existingSkillName || result.skillName || '',
+      overwrite: retryWithOverwrite
+    }
   } else {
     console.error('[SkillInstallDialog] Skill installation was rejected', {
       errorCode: result.errorCode ?? 'UnknownError'
@@ -527,25 +534,36 @@ const handleInstallResult = (
 }
 
 const handleConflictCancel = () => {
-  conflictDialogOpen.value = false
-  pendingInstallAction.value = null
-  conflictSkillName.value = ''
+  if (conflictRequest.value.status === 'confirming') {
+    conflictRequest.value = { status: 'idle' }
+  }
 }
 
 const handleConflictOpenChange = (open: boolean) => {
-  if (open) {
-    conflictDialogOpen.value = true
-    return
-  }
-  handleConflictCancel()
+  if (!open) handleConflictCancel()
 }
 
-const handleConflictOverwrite = async () => {
-  const action = pendingInstallAction.value
-  pendingInstallAction.value = null
-  conflictDialogOpen.value = false
-  conflictSkillName.value = ''
-  if (action) await action()
+const runConflictOverwrite = async (
+  request: Extract<ConflictRequest, { status: 'confirming' }>,
+  pendingRequest: Extract<ConflictRequest, { status: 'pending' }>
+): Promise<void> => {
+  try {
+    await request.overwrite()
+  } catch (error) {
+    showError(error)
+  } finally {
+    if (conflictRequest.value === pendingRequest) {
+      conflictRequest.value = { status: 'idle' }
+    }
+  }
+}
+
+const handleConflictOverwrite = () => {
+  const request = conflictRequest.value
+  if (request.status !== 'confirming') return
+  const pendingRequest = { ...request, status: 'pending' as const }
+  conflictRequest.value = pendingRequest
+  void runConflictOverwrite(request, pendingRequest)
 }
 
 const showError = (error: unknown) => {

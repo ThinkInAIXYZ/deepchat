@@ -402,6 +402,10 @@
       "caption": "Đèn chiếu vẫn ở trên hộp nhập cho đến khi bạn gửi tin nhắn đầu tiên."
     }
   },
+  "messageReceipt": {
+    "unread": "Chưa đọc",
+    "read": "Đã đọc"
+  },
   "attachments": {
     "chooseRepresentation": "Chọn cách gửi {name}",
     "representation": "Dạng biểu diễn tệp đính kèm",

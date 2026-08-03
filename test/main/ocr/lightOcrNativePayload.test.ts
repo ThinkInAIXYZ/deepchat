@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
@@ -21,6 +21,7 @@ describe('Light OCR encoded native payload', () => {
     await Promise.all([
       mkdir(path.join(nativePackageDir, 'native'), { recursive: true }),
       mkdir(path.join(nativePackageDir, 'pdfium'), { recursive: true }),
+      mkdir(path.join(nativePackageDir, 'pdfium', 'fonts'), { recursive: true }),
       mkdir(runtimeTempRoot, { mode: 0o700 })
     ])
   })
@@ -35,6 +36,8 @@ describe('Light OCR encoded native payload', () => {
     const pdfiumLoader = Buffer.from('module.exports = require("./pdfium.node")')
     const pdfiumAddon = Buffer.from('qualified-pdfium-addon')
     const pdfiumLibrary = Buffer.from('qualified-pdfium-library')
+    const fallbackFont = Buffer.from('qualified-font')
+    const fontLicense = Buffer.from('font-license')
     const addonArtifact = {
       path: 'native/light_ocr_node.node',
       bytes: addon.byteLength,
@@ -68,6 +71,16 @@ describe('Light OCR encoded native payload', () => {
       bytes: pdfiumLibrary.byteLength,
       sha256: sha256(pdfiumLibrary)
     }
+    const fallbackFontArtifact = {
+      path: 'pdfium/fonts/NotoSansSC-Regular.otf',
+      bytes: fallbackFont.byteLength,
+      sha256: sha256(fallbackFont)
+    }
+    const fontLicenseArtifact = {
+      path: 'pdfium/fonts/OFL.txt',
+      bytes: fontLicense.byteLength,
+      sha256: sha256(fontLicense)
+    }
     await Promise.all([
       writeFile(
         path.join(nativePackageDir, `${addonArtifact.path}.gz.b64`),
@@ -85,6 +98,8 @@ describe('Light OCR encoded native payload', () => {
         path.join(nativePackageDir, `${pdfiumLibraryArtifact.path}.gz.b64`),
         gzipSync(pdfiumLibrary).toString('base64')
       ),
+      writeFile(path.join(nativePackageDir, fallbackFontArtifact.path), fallbackFont),
+      writeFile(path.join(nativePackageDir, fontLicenseArtifact.path), fontLicense),
       writeFile(path.join(nativePackageDir, descriptorArtifact.path), descriptor),
       writeFile(path.join(nativePackageDir, pdfiumLoaderArtifact.path), pdfiumLoader),
       writeFile(
@@ -96,7 +111,9 @@ describe('Light OCR encoded native payload', () => {
             descriptorArtifact,
             pdfiumLoaderArtifact,
             pdfiumAddonArtifact,
-            pdfiumLibraryArtifact
+            pdfiumLibraryArtifact,
+            fallbackFontArtifact,
+            fontLicenseArtifact
           ]
         })
       )
@@ -107,8 +124,11 @@ describe('Light OCR encoded native payload', () => {
       pdfiumLoader,
       pdfiumAddon,
       pdfiumLibrary,
+      fallbackFont,
+      fontLicense,
       addonArtifact,
-      runtimeArtifact
+      runtimeArtifact,
+      fallbackFontArtifact
     }
   }
 
@@ -131,6 +151,14 @@ describe('Light OCR encoded native payload', () => {
     await expect(
       readFile(path.join(path.dirname(override.pdfiumModulePath), 'libpdfium.dylib'))
     ).resolves.toEqual(seeded.pdfiumLibrary)
+    await expect(
+      readFile(
+        path.join(path.dirname(override.pdfiumModulePath), 'fonts', 'NotoSansSC-Regular.otf')
+      )
+    ).resolves.toEqual(seeded.fallbackFont)
+    await expect(
+      readFile(path.join(path.dirname(override.pdfiumModulePath), 'fonts', 'OFL.txt'))
+    ).resolves.toEqual(seeded.fontLicense)
     expect(path.dirname(override.pdfiumModulePath)).toContain(`${path.sep}pdfium`)
     if (process.platform !== 'win32') {
       expect((await stat(override.nodeBinaryPath)).mode & 0o777).toBe(0o600)
@@ -154,6 +182,49 @@ describe('Light OCR encoded native payload', () => {
     await expect(
       materializeLightOcrNativePayload({ nativePackageDir, tempRoot: runtimeTempRoot })
     ).rejects.toThrow(/still contains raw native code/)
+  })
+
+  it('rejects corrupt PDFium fallback font bytes', async () => {
+    const seeded = await seedEncodedPackage()
+    await writeFile(
+      path.join(nativePackageDir, seeded.fallbackFontArtifact.path),
+      Buffer.alloc(seeded.fallbackFont.byteLength, 0x78)
+    )
+
+    await expect(
+      materializeLightOcrNativePayload({ nativePackageDir, tempRoot: runtimeTempRoot })
+    ).rejects.toThrow(/integrity mismatch/)
+  })
+
+  it.skipIf(process.platform === 'win32')('rejects a symlinked PDFium fallback font', async () => {
+    const seeded = await seedEncodedPackage()
+    const fallbackFontPath = path.join(nativePackageDir, seeded.fallbackFontArtifact.path)
+    const symlinkTarget = path.join(tempDir, 'fallback-font.otf')
+    await writeFile(symlinkTarget, seeded.fallbackFont)
+    await rm(fallbackFontPath)
+    await symlink(symlinkTarget, fallbackFontPath)
+
+    await expect(
+      materializeLightOcrNativePayload({ nativePackageDir, tempRoot: runtimeTempRoot })
+    ).rejects.toThrow(/not a bounded regular file/)
+  })
+
+  it('rejects PDFium resources above the aggregate materialization limit', async () => {
+    await seedEncodedPackage()
+    const manifestPath = path.join(nativePackageDir, 'artifact-hashes.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
+      files: Array<{ path: string; bytes: number }>
+    }
+    const fallbackFont = manifest.files.find(
+      (entry) => entry.path === 'pdfium/fonts/NotoSansSC-Regular.otf'
+    )
+    expect(fallbackFont).toBeDefined()
+    fallbackFont!.bytes = 16 * 1024 * 1024
+    await writeFile(manifestPath, JSON.stringify(manifest))
+
+    await expect(
+      materializeLightOcrNativePayload({ nativePackageDir, tempRoot: runtimeTempRoot })
+    ).rejects.toThrow(/PDFium resources exceed their materialized size limit/)
   })
 
   it('rejects artifact paths that escape the native package', async () => {

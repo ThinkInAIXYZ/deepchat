@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { gunzipSync } from 'zlib'
@@ -117,12 +117,12 @@ const testRuntimeVersions = {
     ])
   ),
   lightOcr: {
-    facadeVersion: '0.5.5',
+    facadeVersion: '0.5.6',
     runtimePackage: '@arcships/light-ocr-runtime',
-    runtimeVersion: '0.1.5',
+    runtimeVersion: '0.1.6',
     modelPackage: '@arcships/light-ocr-model-ppocrv6-small',
     modelVersion: '0.3.4',
-    nativeVersion: '0.5.5',
+    nativeVersion: '0.5.6',
     bundleId: 'ppocrv6-small-native-20260719.1',
     nativePackages: {
       'darwin-arm64': '@arcships/light-ocr-darwin-arm64',
@@ -163,7 +163,7 @@ const seedLightOcrPrerequisites = async (
   await mkdir(projectDir, { recursive: true })
   await writeFile(
     path.join(projectDir, 'package.json'),
-    JSON.stringify({ dependencies: { '@arcships/light-ocr': '0.5.5' } })
+    JSON.stringify({ dependencies: { '@arcships/light-ocr': '0.5.6' } })
   )
   await writeTestRuntimeVersions(projectDir)
   const virtualNodeModules = path.join(projectDir, 'node_modules', '.pnpm', 'node_modules')
@@ -181,6 +181,8 @@ const seedLightOcrPrerequisites = async (
   const nativeDescriptor = '{}'
   const pdfiumLoader = 'module.exports = require("./pdfium.node")'
   const pdfiumAddon = 'pdfium-addon'
+  const fallbackFont = 'noto-sans-sc'
+  const fontLicense = 'font license'
   const pdfiumLibraryName =
     platform === 'darwin'
       ? 'libpdfium.dylib'
@@ -190,7 +192,7 @@ const seedLightOcrPrerequisites = async (
   const pdfiumLibrary = 'pdfium-library'
   const nativePackageJson = `${JSON.stringify({
     name: nativePackage,
-    version: '0.5.5',
+    version: '0.5.6',
     main: 'native/addon.node',
     exports: {
       '.': './native/addon.node',
@@ -201,10 +203,10 @@ const seedLightOcrPrerequisites = async (
   await writeVirtualPackage(projectDir, '@arcships/light-ocr', {
     'package.json': JSON.stringify({
       name: '@arcships/light-ocr',
-      version: '0.5.5',
+      version: '0.5.6',
       main: 'src/index.cjs',
       dependencies: {
-        '@arcships/light-ocr-runtime': '0.1.5',
+        '@arcships/light-ocr-runtime': '0.1.6',
         [modelPackage]: '0.3.4'
       }
     }),
@@ -215,9 +217,9 @@ const seedLightOcrPrerequisites = async (
   await writeVirtualPackage(projectDir, '@arcships/light-ocr-runtime', {
     'package.json': JSON.stringify({
       name: '@arcships/light-ocr-runtime',
-      version: '0.1.5',
+      version: '0.1.6',
       main: 'src/index.cjs',
-      optionalDependencies: { [nativePackage]: '0.5.5' }
+      optionalDependencies: { [nativePackage]: '0.5.6' }
     }),
     LICENSE: 'runtime license',
     NOTICE: 'runtime notice',
@@ -238,8 +240,11 @@ const seedLightOcrPrerequisites = async (
     LICENSE: 'native license',
     NOTICE: 'native notice',
     'licenses/dependency.txt': 'dependency license',
+    'licenses/noto-sans-sc-OFL-1.1.txt': fontLicense,
     'native/addon.node': nativePayload,
     'native/runtime-descriptor.json': nativeDescriptor,
+    'pdfium/fonts/NotoSansSC-Regular.otf': fallbackFont,
+    'pdfium/fonts/OFL.txt': fontLicense,
     'pdfium/index.cjs': pdfiumLoader,
     'pdfium/pdfium.node': pdfiumAddon,
     [`pdfium/${pdfiumLibraryName}`]: pdfiumLibrary,
@@ -259,6 +264,16 @@ const seedLightOcrPrerequisites = async (
           path: 'pdfium/index.cjs',
           bytes: Buffer.byteLength(pdfiumLoader),
           sha256: sha256(pdfiumLoader)
+        },
+        {
+          path: 'pdfium/fonts/NotoSansSC-Regular.otf',
+          bytes: Buffer.byteLength(fallbackFont),
+          sha256: sha256(fallbackFont)
+        },
+        {
+          path: 'pdfium/fonts/OFL.txt',
+          bytes: Buffer.byteLength(fontLicense),
+          sha256: sha256(fontLicense)
         },
         {
           path: `pdfium/${pdfiumLibraryName}`,
@@ -526,10 +541,10 @@ describe('afterPack', () => {
     expect(manifest).toMatchObject({
       schemaVersion: 3,
       supported: true,
-      facadeVersion: '0.5.5',
-      runtimeVersion: '0.1.5',
+      facadeVersion: '0.5.6',
+      runtimeVersion: '0.1.6',
       modelVersion: '0.3.4',
-      nativeVersion: '0.5.5',
+      nativeVersion: '0.5.6',
       pdfSupport: true,
       nodeVersion: 'v24.14.1',
       nodeSha256: sha256('node'),
@@ -549,6 +564,15 @@ describe('afterPack', () => {
     await expect(
       readFile(path.join(lightOcrNativeDir, 'pdfium', 'index.cjs'), 'utf8')
     ).resolves.toContain('pdfium.node')
+    await expect(
+      readFile(
+        path.join(lightOcrNativeDir, 'pdfium', 'fonts', 'NotoSansSC-Regular.otf'),
+        'utf8'
+      )
+    ).resolves.toBe('noto-sans-sc')
+    await expect(
+      readFile(path.join(lightOcrNativeDir, 'pdfium', 'fonts', 'OFL.txt'), 'utf8')
+    ).resolves.toBe('font license')
     if (process.platform !== 'win32') {
       expect((await stat(`${rawAddonPath}.gz.b64`)).mode & 0o777).toBe(0o644)
     }
@@ -952,14 +976,63 @@ describe('afterPack', () => {
     ).rejects.toThrow('OCR native PDFium directory mismatch for linux')
   })
 
-  it('fails packaging when the facade dependency is not exactly pinned', async () => {
+  it('rejects unmanifested files in the copied PDFium font directory', async () => {
     const packageLightOcrAssets = await loadPackageLightOcrAssets()
     const projectDir = path.join(tmpDir, 'project')
     const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
-    await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'linux', 'x64')
+    const { nativeSourceDir } = await seedLightOcrPrerequisites(
+      projectDir,
+      nodeModulesDir,
+      'linux',
+      'x64'
+    )
+    await writeFile(path.join(nativeSourceDir, 'pdfium', 'fonts', 'unexpected.otf'), 'unmanifested')
+
+    await expect(
+      packageLightOcrAssets({
+        appOutDir: tmpDir,
+        electronPlatformName: 'linux',
+        arch: 'x64',
+        packager: { projectDir }
+      })
+    ).rejects.toThrow('OCR native PDFium directory mismatch for linux')
+  })
+
+  it('rejects a missing PDFium fallback font', async () => {
+    const packageLightOcrAssets = await loadPackageLightOcrAssets()
+    const projectDir = path.join(tmpDir, 'project')
+    const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+    const { nativeSourceDir } = await seedLightOcrPrerequisites(
+      projectDir,
+      nodeModulesDir,
+      'linux',
+      'x64'
+    )
+    await rm(path.join(nativeSourceDir, 'pdfium', 'fonts', 'NotoSansSC-Regular.otf'))
+
+    await expect(
+      packageLightOcrAssets({
+        appOutDir: tmpDir,
+        electronPlatformName: 'linux',
+        arch: 'x64',
+        packager: { projectDir }
+      })
+    ).rejects.toThrow()
+  })
+
+  it('rejects a corrupt PDFium fallback font', async () => {
+    const packageLightOcrAssets = await loadPackageLightOcrAssets()
+    const projectDir = path.join(tmpDir, 'project')
+    const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+    const { nativeSourceDir } = await seedLightOcrPrerequisites(
+      projectDir,
+      nodeModulesDir,
+      'linux',
+      'x64'
+    )
     await writeFile(
-      path.join(projectDir, 'package.json'),
-      JSON.stringify({ dependencies: { '@arcships/light-ocr': '^0.5.5' } })
+      path.join(nativeSourceDir, 'pdfium', 'fonts', 'NotoSansSC-Regular.otf'),
+      'corrupt-font'
     )
 
     await expect(
@@ -969,6 +1042,62 @@ describe('afterPack', () => {
         arch: 'x64',
         packager: { projectDir }
       })
-    ).rejects.toThrow('DeepChat must depend on exactly @arcships/light-ocr@0.5.5')
+    ).rejects.toThrow('OCR native artifact checksum mismatch for pdfium/fonts/NotoSansSC-Regular.otf')
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects a symlinked PDFium fallback font',
+    async () => {
+      const packageLightOcrAssets = await loadPackageLightOcrAssets()
+      const projectDir = path.join(tmpDir, 'project')
+      const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+      const { nativeSourceDir } = await seedLightOcrPrerequisites(
+        projectDir,
+        nodeModulesDir,
+        'linux',
+        'x64'
+      )
+      const fallbackFont = path.join(
+        nativeSourceDir,
+        'pdfium',
+        'fonts',
+        'NotoSansSC-Regular.otf'
+      )
+      const symlinkTarget = path.join(nativeSourceDir, 'fallback-font.otf')
+      await writeFile(symlinkTarget, 'noto-sans-sc')
+      await rm(fallbackFont)
+      await symlink(symlinkTarget, fallbackFont)
+
+      await expect(
+        packageLightOcrAssets({
+          appOutDir: tmpDir,
+          electronPlatformName: 'linux',
+          arch: 'x64',
+          packager: { projectDir }
+        })
+      ).rejects.toThrow(
+        'OCR native artifact is not a regular file: pdfium/fonts/NotoSansSC-Regular.otf'
+      )
+    }
+  )
+
+  it('fails packaging when the facade dependency is not exactly pinned', async () => {
+    const packageLightOcrAssets = await loadPackageLightOcrAssets()
+    const projectDir = path.join(tmpDir, 'project')
+    const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+    await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'linux', 'x64')
+    await writeFile(
+      path.join(projectDir, 'package.json'),
+      JSON.stringify({ dependencies: { '@arcships/light-ocr': '^0.5.6' } })
+    )
+
+    await expect(
+      packageLightOcrAssets({
+        appOutDir: tmpDir,
+        electronPlatformName: 'linux',
+        arch: 'x64',
+        packager: { projectDir }
+      })
+    ).rejects.toThrow('DeepChat must depend on exactly @arcships/light-ocr@0.5.6')
   })
 })

@@ -320,8 +320,13 @@ describe('memory.restore route contract round-trip', () => {
   it('round-trips a valid restore input and output', () => {
     const input = memoryRestoreRoute.input.parse({ agentId: 'deepchat-abc123', memoryId: 'mem-1' })
     expect(input).toEqual({ agentId: 'deepchat-abc123', memoryId: 'mem-1' })
-    expect(memoryRestoreRoute.output.parse({ ok: true })).toEqual({ ok: true })
-    expect(memoryRestoreRoute.output.parse({ ok: false })).toEqual({ ok: false })
+    expect(memoryRestoreRoute.output.parse({ action: 'applied' })).toEqual({ action: 'applied' })
+    expect(
+      memoryRestoreRoute.output.parse({ action: 'rejected', reason: 'invalid-state' })
+    ).toEqual({ action: 'rejected', reason: 'invalid-state' })
+    expect(
+      memoryRestoreRoute.output.safeParse({ action: 'rejected', reason: 'unexpected' }).success
+    ).toBe(false)
   })
 
   it('rejects an illegal agentId at the contract layer', () => {
@@ -893,8 +898,11 @@ describe('memory.archive route contract', () => {
       agentId: 'deepchat',
       memoryId: 'm1'
     })
-    expect(memoryArchiveRoute.output.parse({ ok: true })).toEqual({ ok: true })
-    expect(memoryArchiveRoute.output.parse({ ok: false })).toEqual({ ok: false })
+    expect(memoryArchiveRoute.output.parse({ action: 'applied' })).toEqual({ action: 'applied' })
+    expect(memoryArchiveRoute.output.parse({ action: 'rejected', reason: 'not-found' })).toEqual({
+      action: 'rejected',
+      reason: 'not-found'
+    })
     expect(memoryArchiveRoute.input.safeParse({ agentId: 'bad/id', memoryId: 'm1' }).success).toBe(
       false
     )
@@ -1046,6 +1054,13 @@ describe('memory directive route contracts', () => {
         reason: 'not-found'
       })
     ).toEqual({ action: 'rejected', directive: null, reason: 'not-found' })
+    expect(
+      memoryRejectDirectiveRoute.output.parse({
+        action: 'rejected',
+        directive: null,
+        reason: 'unavailable'
+      })
+    ).toEqual({ action: 'rejected', directive: null, reason: 'unavailable' })
     expect(
       memoryCreateDirectiveRoute.output.safeParse({
         action: 'applied',

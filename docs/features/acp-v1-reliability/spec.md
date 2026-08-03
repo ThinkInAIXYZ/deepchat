@@ -87,6 +87,8 @@ DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`s
 - 不在本目标内实现 ACP v2 或未发布协议。
 - 不为某个单独 agent 写硬编码行为；DimCode、Claude Code ACP、Codex ACP 只作为兼容样本。
 - 不改变非 ACP provider 的现有 prompt、MCP、权限或 terminal 行为。
+- DeepChat host 侧的 MCP v2 negotiation、Apps、Tasks 和 authorization extensions 不包装或重新解释
+  ACP agent 自己管理的 MCP 连接；ACP 仍只按自身声明的 `mcpCapabilities` 接收 transport。
 - 不默认扩大文件系统权限；ACP fs/terminal 继续受 session workdir 和 DeepChat 安全策略约束。
 - 不做远端 session 的主动批量写入或双向同步；远端 session catalog 是可导入资源，DeepChat conversation 才是本地事实源。
 

@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { OcrRuntimeAssetResolver } from '../../../src/main/ocr/ocrRuntimeAssetResolver'
 
-const lightOcrVersion = '0.5.5'
-const runtimeVersion = '0.1.5'
+const lightOcrVersion = '0.5.6'
+const runtimeVersion = '0.1.6'
 const modelVersion = '0.3.4'
-const nativeVersion = '0.5.5'
+const nativeVersion = '0.5.6'
 const bundleId = 'ppocrv6-small-native-20260719.1'
 const runtimePackage = '@arcships/light-ocr-runtime'
 const modelPackage = '@arcships/light-ocr-model-ppocrv6-small'
@@ -17,7 +17,11 @@ const nativeArtifactInventory = {
   nativeCode: ['native/light_ocr_node.node'],
   pdfiumCode: ['pdfium/libpdfium.dylib', 'pdfium/pdfium.node'],
   pdfiumLoader: ['pdfium/index.cjs'],
-  other: ['native/runtime-descriptor.json']
+  other: [
+    'native/runtime-descriptor.json',
+    'pdfium/fonts/NotoSansSC-Regular.otf',
+    'pdfium/fonts/OFL.txt'
+  ]
 }
 
 async function writeJson(filePath: string, value: unknown) {
@@ -67,6 +71,8 @@ async function seedAssetIdentity(root: string) {
     files: [
       { path: 'native/light_ocr_node.node' },
       { path: 'native/runtime-descriptor.json' },
+      { path: 'pdfium/fonts/NotoSansSC-Regular.otf' },
+      { path: 'pdfium/fonts/OFL.txt' },
       { path: 'pdfium/index.cjs' },
       { path: 'pdfium/libpdfium.dylib' },
       { path: 'pdfium/pdfium.node' }
@@ -74,6 +80,8 @@ async function seedAssetIdentity(root: string) {
   })
   await writeText(path.join(nativeDir, 'native', 'light_ocr_node.node'))
   await writeJson(path.join(nativeDir, 'native', 'runtime-descriptor.json'), {})
+  await writeText(path.join(nativeDir, 'pdfium', 'fonts', 'NotoSansSC-Regular.otf'))
+  await writeText(path.join(nativeDir, 'pdfium', 'fonts', 'OFL.txt'))
   await writeText(path.join(nativeDir, 'pdfium', 'index.cjs'))
   await writeText(path.join(nativeDir, 'pdfium', 'libpdfium.dylib'))
   await writeText(path.join(nativeDir, 'pdfium', 'libpdfium.dylib.gz.b64'))
@@ -144,6 +152,16 @@ describe('OcrRuntimeAssetResolver', () => {
         bundleId
       }
     })
+
+    await rm(path.join(nativeDir, 'pdfium', 'fonts', 'NotoSansSC-Regular.otf'))
+    await expect(
+      new OcrRuntimeAssetResolver({
+        appPath,
+        isPackaged: true,
+        platform: 'darwin',
+        arch: 'arm64'
+      }).resolve()
+    ).resolves.toMatchObject({ status: 'unavailable', reason: 'assets_missing' })
   })
 
   it.each(['..', '../../outside'])(

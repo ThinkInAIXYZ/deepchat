@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type {
+  MemoryCommandResult,
   MemoryDirectiveCommandResult,
   MemoryDirectiveItem
 } from '../../../src/shared/contracts/routes'
@@ -22,9 +23,16 @@ const modelStub = (name: string, tag = 'div') =>
     template: tag === 'input' ? '<input />' : `<${tag}><slot /></${tag}>`
   })
 
+const AlertDialogStub = defineComponent({
+  name: 'AlertDialog',
+  props: { open: { type: Boolean, default: false } },
+  template: '<div v-if="open"><slot /></div>'
+})
+
 const stubs = {
-  AlertDialog: passthrough('AlertDialog'),
+  AlertDialog: AlertDialogStub,
   AlertDialogAction: passthrough('AlertDialogAction', 'button'),
+  AlertDialogAsyncAction: passthrough('AlertDialogAsyncAction', 'button'),
   AlertDialogCancel: passthrough('AlertDialogCancel', 'button'),
   AlertDialogContent: passthrough('AlertDialogContent'),
   AlertDialogDescription: passthrough('AlertDialogDescription'),
@@ -51,6 +59,7 @@ const stubs = {
   SelectItem: passthrough('SelectItem'),
   SelectTrigger: passthrough('SelectTrigger'),
   SelectValue: passthrough('SelectValue'),
+  Spinner: passthrough('Spinner'),
   Textarea: modelStub('Textarea', 'textarea')
 }
 
@@ -110,10 +119,12 @@ function buttonContaining(wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((next) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
     resolve = next
+    reject = fail
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 describe('MemoryDirectivesPanel', () => {
@@ -310,7 +321,7 @@ describe('MemoryDirectivesPanel', () => {
     const active = { ...draft, status: 'active' as const, updatedAt: 2 }
     const { wrapper, memoryClient } = await setup([draft])
     memoryClient.approveDirective.mockResolvedValue({ action: 'applied', directive: active })
-    memoryClient.deleteDirective.mockResolvedValue(true)
+    memoryClient.deleteDirective.mockResolvedValue({ action: 'applied' })
 
     await buttonContaining(wrapper, 'settings.deepchatAgents.memoryManager.approve').trigger(
       'click'
@@ -321,20 +332,80 @@ describe('MemoryDirectivesPanel', () => {
       'settings.memory.redesign.directiveStatus.active'
     )
 
-    const deleteButtons = wrapper
-      .findAll('button')
-      .filter((button) => button.text() === 'common.delete')
-    await deleteButtons.at(-1)!.trigger('click')
+    await wrapper.get('[data-testid="memory-directive-delete-trigger"]').trigger('click')
+    await wrapper.get('[data-testid="memory-directive-delete-confirm"]').trigger('click')
     await flushPromises()
     expect(memoryClient.deleteDirective).toHaveBeenCalledWith('deepchat', 'draft')
     expect(wrapper.find('[data-testid="memory-directive-draft"]').exists()).toBe(false)
+  })
+
+  it('keeps directive deletion pending and failure feedback inside its confirmation', async () => {
+    const pending = deferred<MemoryCommandResult>()
+    const { wrapper, memoryClient } = await setup([directive('active')])
+    memoryClient.deleteDirective.mockReturnValueOnce(pending.promise)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await wrapper.get('[data-testid="memory-directive-delete-trigger"]').trigger('click')
+    await wrapper.get('[data-testid="memory-directive-delete-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="memory-directive-delete-confirm"]').attributes('disabled')
+    ).toBeDefined()
+    expect(
+      wrapper.get('[data-testid="memory-directive-delete-cancel"]').attributes('disabled')
+    ).toBeDefined()
+    expect(wrapper.find('[data-testid="memory-directive-delete-spinner"]').exists()).toBe(true)
+
+    pending.reject(new Error('secret directive failure'))
+    await flushPromises()
+
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('error')
+    expect(feedback.text()).toContain('settings.deepchatAgents.memoryManager.actionFailed')
+    expect(wrapper.find('[data-testid="memory-directive-delete-confirm"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="memory-directive-active"]').exists()).toBe(true)
+
+    memoryClient.deleteDirective.mockResolvedValueOnce({ action: 'applied' })
+    await wrapper.get('[data-testid="memory-directive-delete-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.deleteDirective).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="memory-directive-delete-confirm"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="memory-directive-active"]').exists()).toBe(false)
+    consoleError.mockRestore()
+  })
+
+  it('reconciles the directive list after a not-found deletion result', async () => {
+    const { wrapper, memoryClient } = await setup([directive('stale')])
+    memoryClient.deleteDirective.mockResolvedValueOnce({
+      action: 'rejected',
+      reason: 'not-found'
+    })
+    memoryClient.listDirectives.mockResolvedValue([])
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await wrapper.get('[data-testid="memory-directive-delete-trigger"]').trigger('click')
+    await wrapper.get('[data-testid="memory-directive-delete-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.listDirectives).toHaveBeenCalledTimes(4)
+    expect(wrapper.find('[data-testid="memory-directive-stale"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="memory-directive-delete-confirm"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.notFound'
+    )
+    consoleWarn.mockRestore()
   })
 
   it('rejects a draft without activating it', async () => {
     const draft = directive('draft', 'draft')
     const rejected = { ...draft, status: 'rejected' as const, updatedAt: 2 }
     const { wrapper, memoryClient } = await setup([draft])
-    memoryClient.rejectDirective.mockResolvedValue(rejected)
+    memoryClient.rejectDirective.mockResolvedValue({
+      action: 'applied',
+      directive: rejected
+    })
 
     await buttonContaining(wrapper, 'settings.deepchatAgents.memoryManager.reject').trigger('click')
     await flushPromises()
@@ -344,6 +415,30 @@ describe('MemoryDirectivesPanel', () => {
       'settings.memory.redesign.directiveStatus.rejected'
     )
     expect(memoryClient.approveDirective).not.toHaveBeenCalled()
+  })
+
+  it('keeps a draft visible and explains an unavailable rejection', async () => {
+    const draft = directive('draft', 'draft')
+    const { wrapper, memoryClient } = await setup([draft])
+    const listCallCount = memoryClient.listDirectives.mock.calls.length
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    memoryClient.rejectDirective.mockResolvedValue({
+      action: 'rejected',
+      directive: null,
+      reason: 'unavailable'
+    })
+
+    await buttonContaining(wrapper, 'settings.deepchatAgents.memoryManager.reject').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="memory-directive-draft"]').text()).toContain(
+      'settings.memory.redesign.directiveStatus.draft'
+    )
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.unavailable'
+    )
+    expect(memoryClient.listDirectives).toHaveBeenCalledTimes(listCallCount)
+    consoleWarn.mockRestore()
   })
 
   it('explains active-capacity rejection for create and approval', async () => {

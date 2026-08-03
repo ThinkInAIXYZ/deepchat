@@ -17,7 +17,8 @@ describe('messageStore reactivity', () => {
         messages: [],
         nextCursor: null,
         hasMore: false
-      })
+      }),
+      onMessagesChanged: vi.fn(() => () => undefined)
     }
     const streamListeners = {
       updated: [] as Array<(payload: any) => void>,

@@ -138,7 +138,9 @@ describe('agent memory behavior fixture v1', () => {
         })
       }
       for (const id of scenario.deleteIds ?? []) {
-        await expect(presenter.deleteMemory('behavior-agent', id)).resolves.toBe(true)
+        await expect(presenter.deleteMemory('behavior-agent', id)).resolves.toEqual({
+          action: 'applied'
+        })
       }
       for (const { state, ...directive } of scenario.directives ?? []) {
         if (state === 'active') {

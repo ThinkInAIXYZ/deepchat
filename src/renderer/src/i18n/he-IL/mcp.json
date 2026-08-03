@@ -88,11 +88,6 @@
     "addArg": "הוסף ארגומנט",
     "argPlaceholder": "הזן ערך ארגומנט",
     "argsRequired": "הפרמטרים לא יכולים להיות ריקים",
-    "autoApprove": "אישור אוטומטי",
-    "autoApproveAll": "הכל",
-    "autoApproveHelp": "בחר את סוג הפעולה הדורש אישור אוטומטי ובצע ללא אישור משתמש",
-    "autoApproveRead": "קריאה",
-    "autoApproveWrite": "כתיבה",
     "baseUrl": "כתובת בסיס (Base URL)",
     "baseUrlPlaceholder": "הזן את כתובת הבסיס של השרת (לדוגמה: http://localhost:3000)",
     "cancel": "ביטול",
@@ -305,5 +300,51 @@
     "empty": "אין שירותים",
     "loadMore": "טען עוד",
     "pullDownToLoad": "המשך למשוך למטה כדי לטעון עוד"
+  },
+  "elicitation": {
+    "title": "בקשת קלט של MCP",
+    "accept": "שליחה",
+    "decline": "דחייה",
+    "noFields": "לבקשה זו אין שדות טופס.",
+    "openLink": "פתיחת קישור מאובטח",
+    "selectValue": "בחירת ערך",
+    "error": {
+      "required": "שדה זה נדרש.",
+      "number": "יש להזין מספר תקין.",
+      "integer": "יש להזין מספר שלם.",
+      "boolean": "יש לבחור אמת או שקר.",
+      "range": "הערך מחוץ לטווח המותר.",
+      "selection": "יש לבחור אפשרות תקינה.",
+      "length": "אורך הטקסט מחוץ לטווח המותר.",
+      "format": "יש להזין ערך בתבנית המבוקשת."
+    }
+  },
+  "apps": {
+    "title": "אפליקציית MCP",
+    "interactiveContent": "תוכן אינטראקטיבי משרת MCP",
+    "loadError": "לא ניתן לטעון את אפליקציית MCP הזו.",
+    "retry": "ניסיון חוזר",
+    "fullscreen": "פתיחה במסך מלא",
+    "pictureInPicture": "פתיחה בתמונה בתוך תמונה",
+    "returnInline": "חזרה לתצוגה משולבת",
+    "securityDetails": "פרטי אבטחה",
+    "allowedOrigins": "מקורות רשת מוצהרים",
+    "requestedPermissions": "הרשאות מכשיר מבוקשות",
+    "noneDeclared": "לא הוצהר דבר",
+    "advisoryDomain": "דומיין מנחה",
+    "toolAccessSuspended": "הגישה לכלים הושעתה לאחר דחיית בקשה.",
+    "retryAccess": "ניסיון חוזר לגישה",
+    "permissions": {
+      "camera": "מצלמה",
+      "microphone": "מיקרופון",
+      "geolocation": "מיקום",
+      "clipboardWrite": "כתיבה ללוח"
+    },
+    "consent": {
+      "title": "בקשת אפליקציית MCP",
+      "description": "יש לבדוק את הפעולה שהתוכן האינטראקטיבי של MCP ביקש.",
+      "allowOnce": "אישור חד-פעמי",
+      "deny": "דחייה"
+    }
   }
 }

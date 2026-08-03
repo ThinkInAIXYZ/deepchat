@@ -402,6 +402,10 @@
       "caption": "L'evidenziazione resterà sul campo di input finché non invii il primo messaggio."
     }
   },
+  "messageReceipt": {
+    "unread": "Non letto",
+    "read": "Letto"
+  },
   "attachments": {
     "chooseRepresentation": "Scegli come inviare {name}",
     "representation": "Rappresentazione dell’allegato",

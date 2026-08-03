@@ -90,6 +90,7 @@ describe('ModelIcon', () => {
     const daoxeIcon = (await import('@/assets/llm-icons/daoxe.png?url')).default
     const greenptIcon = (await import('@/assets/llm-icons/greenpt.svg?url')).default
     const modelsellIcon = (await import('@/assets/llm-icons/modelsell.png?url')).default
+    const orcarouterIcon = (await import('@/assets/llm-icons/orcarouter.svg?url')).default
 
     const nvidia = mount(ModelIcon, {
       props: {
@@ -126,6 +127,11 @@ describe('ModelIcon', () => {
         modelId: 'modelsell'
       }
     })
+    const orcarouter = mount(ModelIcon, {
+      props: {
+        modelId: 'orcarouter'
+      }
+    })
 
     expect(nvidia.get('img').attributes('src')).toBe(nvidiaIcon)
     expect(huggingface.get('img').attributes('src')).toBe(huggingFaceIcon)
@@ -134,6 +140,7 @@ describe('ModelIcon', () => {
     expect(daoxe.get('img').attributes('src')).toBe(daoxeIcon)
     expect(greenpt.get('img').attributes('src')).toBe(greenptIcon)
     expect(modelsell.get('img').attributes('src')).toBe(modelsellIcon)
+    expect(orcarouter.get('img').attributes('src')).toBe(orcarouterIcon)
   })
 
   it('keeps fuzzy matching for common model ids and provider apiType fallback', async () => {

@@ -97,6 +97,8 @@ interface AcpSessionLink {
 - 在 diagnostics 中显示实际 command、args count、distribution type、registry version、local/global version hint。
 - 每个初始化、认证、list/resume/close probe 都必须带 timeout；timeout 后清理子进程和其子进程树。
 - MCP transport 继续按 `mcpCapabilities` 过滤：`stdio` 默认可用，`http`/`sse` 仅 agent 声明后启用。
+- Host-owned MCP v2 probing 和 extension adapter 在 ACP 边界停止：不为 ACP agent 自己管理的 MCP
+  连接创建第二个 client、不协商 wire era、不持久化 Tasks，也不渲染 Apps。
 - 对 Claude/Codex 这种可能拉起二级 CLI 的 wrapper，E2E probe 需要固定短超时和 cleanup 审计，避免残留进程。
 
 ### 2. Initialization and Capability Snapshot

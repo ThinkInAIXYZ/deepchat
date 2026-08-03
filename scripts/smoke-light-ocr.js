@@ -23,8 +23,11 @@ import { createGzip, deflateSync, gunzip } from 'node:zlib'
 import {
   classifyLightOcrArtifact,
   getRequiredPdfiumArtifactPaths,
+  getRequiredPdfiumDirectoryPaths,
+  getRequiredPdfiumResourcePaths,
   groupLightOcrArtifactPaths,
   hasSameLightOcrArtifactInventory,
+  inspectRegularArtifactTree,
   isEncodedMacLightOcrArtifact
 } from './light-ocr-artifacts.mjs'
 
@@ -33,6 +36,7 @@ export const PACKAGED_LIGHT_OCR_MAX_PROTOCOL_LINE_BYTES = 4 * 1024 * 1024
 const DEFAULT_OPERATION_TIMEOUT_MS = 120_000
 const DEFAULT_PEAK_RSS_LIMIT_BYTES = 768 * 1024 * 1024
 const MAX_ENCODED_OVERHEAD_BYTES = 1024 * 1024
+const MAX_MATERIALIZED_PDFIUM_RESOURCE_BYTES = 16 * 1024 * 1024
 const MIB = 1024 * 1024
 const PDF_FIXTURE_PAGE_WIDTH = 700
 const PDF_FIXTURE_PAGE_HEIGHT = 260
@@ -476,11 +480,7 @@ async function assertExactPackagedPdfiumDirectory(
   platform,
   nativePayloadEncoding
 ) {
-  const entries = await readdir(path.join(nativePackageDir, 'pdfium'), { withFileTypes: true })
-  if (entries.some((entry) => !entry.isFile())) {
-    throw new Error(`Packaged OCR PDFium directory contains a non-file entry for ${platform}`)
-  }
-  const actualPaths = entries.map((entry) => `pdfium/${entry.name}`).sort()
+  const actual = await inspectRegularArtifactTree(nativePackageDir, 'pdfium')
   const expectedPaths = getRequiredPdfiumArtifactPaths(platform)
     .map((relativePath) =>
       nativePayloadEncoding === 'gzip-base64-v1' &&
@@ -489,9 +489,14 @@ async function assertExactPackagedPdfiumDirectory(
         : relativePath
     )
     .sort()
+  const expectedDirectories = getRequiredPdfiumDirectoryPaths().sort()
   if (
-    actualPaths.length !== expectedPaths.length ||
-    actualPaths.some((relativePath, index) => relativePath !== expectedPaths[index])
+    actual.files.length !== expectedPaths.length ||
+    actual.files.some((relativePath, index) => relativePath !== expectedPaths[index]) ||
+    actual.directories.length !== expectedDirectories.length ||
+    actual.directories.some(
+      (relativePath, index) => relativePath !== expectedDirectories[index]
+    )
   ) {
     throw new Error(
       `Packaged OCR PDFium directory mismatch for ${platform}: expected ${expectedPaths.join(', ')}`
@@ -838,6 +843,20 @@ export function assertDocumentFixtureRecognized(pages) {
   }
 }
 
+export function assertChineseDocumentFixtureRecognized(pages) {
+  if (
+    !Array.isArray(pages) ||
+    !pages.some((page) => {
+      if (!Array.isArray(page?.lines) || !page.lines.every((line) => typeof line === 'string')) {
+        return false
+      }
+      return page.lines.join('').replace(/\s/gu, '').includes('中文测试')
+    })
+  ) {
+    throw new Error('Packaged PDF OCR did not recognize the non-embedded Chinese font fixture')
+  }
+}
+
 function fixtureSvg() {
   return Buffer.from(`
     <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="520">
@@ -848,6 +867,39 @@ function fixtureSvg() {
         font-size="135" font-weight="700" fill="black">OCR TEST 2026</text>
     </svg>
   `)
+}
+
+function buildPdfFixture(objects) {
+  if (!Array.isArray(objects) || objects.length === 0 || !objects.every(Buffer.isBuffer)) {
+    throw new Error('Invalid PDF smoke fixture objects')
+  }
+  const chunks = [Buffer.from('%PDF-1.4\n%\xe2\xe3\xcf\xd3\n', 'binary')]
+  const offsets = [0]
+  let byteOffset = chunks[0].byteLength
+
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(byteOffset)
+    const object = Buffer.concat([
+      Buffer.from(`${index + 1} 0 obj\n`, 'ascii'),
+      objects[index],
+      Buffer.from('\nendobj\n', 'ascii')
+    ])
+    chunks.push(object)
+    byteOffset += object.byteLength
+  }
+
+  const xrefOffset = byteOffset
+  const xrefEntries = offsets
+    .slice(1)
+    .map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`)
+    .join('')
+  chunks.push(
+    Buffer.from(
+      `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${xrefEntries}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`,
+      'ascii'
+    )
+  )
+  return Buffer.concat(chunks)
 }
 
 export function buildRasterPdfFixture(compressedRgb, width, height) {
@@ -886,36 +938,41 @@ export function buildRasterPdfFixture(compressedRgb, width, height) {
       Buffer.from('endstream', 'ascii')
     ])
   ]
-  const chunks = [Buffer.from('%PDF-1.4\n%\xe2\xe3\xcf\xd3\n', 'binary')]
-  const offsets = [0]
-  let byteOffset = chunks[0].byteLength
-
-  for (let index = 0; index < objects.length; index += 1) {
-    offsets.push(byteOffset)
-    const object = Buffer.concat([
-      Buffer.from(`${index + 1} 0 obj\n`, 'ascii'),
-      objects[index],
-      Buffer.from('\nendobj\n', 'ascii')
-    ])
-    chunks.push(object)
-    byteOffset += object.byteLength
-  }
-
-  const xrefOffset = byteOffset
-  const xrefEntries = offsets
-    .slice(1)
-    .map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`)
-    .join('')
-  chunks.push(
-    Buffer.from(
-      `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${xrefEntries}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`,
-      'ascii'
-    )
-  )
-  return Buffer.concat(chunks)
+  return buildPdfFixture(objects)
 }
 
-async function createFixtures(imagePath, documentPath) {
+export function buildNonEmbeddedChinesePdfFixture() {
+  const content = Buffer.from('BT /F1 36 Tf 30 35 Td <4E2D65876D4B8BD5> Tj ET', 'ascii')
+  const fontDescriptor =
+    '<< /Type /FontDescriptor /FontName /STSong-Light /Flags 6 ' +
+    '/FontBBox [-25 -254 1000 880] /ItalicAngle 0 /Ascent 752 /Descent -271 ' +
+    '/CapHeight 737 /StemV 58 /MissingWidth 500 >>'
+  const descendantFont =
+    '<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light ' +
+    '/CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 0 >> ' +
+    `/DW 1000 /FontDescriptor ${fontDescriptor} >>`
+  const font =
+    '<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light /Encoding /UniGB-UCS2-H ' +
+    `/DescendantFonts [${descendantFont}] >>`
+
+  return buildPdfFixture([
+    Buffer.from('<< /Type /Catalog /Pages 2 0 R >>', 'ascii'),
+    Buffer.from('<< /Type /Pages /Kids [3 0 R] /Count 1 >>', 'ascii'),
+    Buffer.from(
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 100] ' +
+        '/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+      'ascii'
+    ),
+    Buffer.concat([
+      Buffer.from(`<< /Length ${content.byteLength} >>\nstream\n`, 'ascii'),
+      content,
+      Buffer.from('\nendstream', 'ascii')
+    ]),
+    Buffer.from(font, 'ascii')
+  ])
+}
+
+async function createFixtures(imagePath, documentPath, chineseDocumentPath) {
   const sharpModule = await import('sharp')
   const source = sharpModule.default(fixtureSvg(), { density: 144 })
   const [, raster] = await Promise.all([
@@ -930,10 +987,16 @@ async function createFixtures(imagePath, documentPath) {
     raster.info.width,
     raster.info.height
   )
-  await writeFile(documentPath, pdf, { flag: 'wx', mode: 0o600 })
+  await Promise.all([
+    writeFile(documentPath, pdf, { flag: 'wx', mode: 0o600 }),
+    writeFile(chineseDocumentPath, buildNonEmbeddedChinesePdfFixture(), {
+      flag: 'wx',
+      mode: 0o600
+    })
+  ])
 }
 
-async function materializePackagedNativeRuntime(layout, tempRoot) {
+export async function materializePackagedNativeRuntime(layout, tempRoot) {
   if (layout.nativePayloadEncoding === 'direct') return undefined
   if (layout.nativePayloadEncoding !== 'gzip-base64-v1') {
     throw new Error('Packaged OCR native payload encoding is unsupported')
@@ -964,10 +1027,19 @@ async function materializePackagedNativeRuntime(layout, tempRoot) {
       typeof entry.path === 'string' &&
       classifyLightOcrArtifact(entry.path) === 'pdfium-code'
   )
+  const pdfiumResourceEntries = getRequiredPdfiumResourcePaths().map((resourcePath) =>
+    manifest.files.find((entry) => entry?.path === resourcePath)
+  )
+  const totalPdfiumResourceBytes = pdfiumResourceEntries.reduce(
+    (total, entry) => total + (Number.isSafeInteger(entry?.bytes) ? entry.bytes : 0),
+    0
+  )
   if (
     !descriptorEntry ||
     nativeCodeEntries.length === 0 ||
     !pdfiumLoaderEntry ||
+    pdfiumResourceEntries.some((entry) => !entry) ||
+    totalPdfiumResourceBytes > MAX_MATERIALIZED_PDFIUM_RESOURCE_BYTES ||
     declaredPdfiumPaths.length !== requiredPdfiumPaths.length ||
     declaredPdfiumPaths.some((entry, index) => entry !== requiredPdfiumPaths[index])
   ) {
@@ -1039,6 +1111,26 @@ async function materializePackagedNativeRuntime(layout, tempRoot) {
     flag: 'wx',
     mode: 0o600
   })
+  for (const entry of pdfiumResourceEntries) {
+    const source = resolveContainedPath(
+      layout.nativePackageDir,
+      entry.path,
+      'OCR PDFium resource path'
+    )
+    await assertPackagedArtifactIntegrity({
+      filePath: source,
+      expectedBytes: entry.bytes,
+      expectedSha256: entry.sha256,
+      label: `Packaged OCR PDFium resource ${entry.path}`
+    })
+    const destination = resolveContainedPath(
+      materializedRoot,
+      entry.path,
+      'materialized OCR PDFium resource path'
+    )
+    await mkdir(path.dirname(destination), { recursive: true, mode: 0o700 })
+    await writeFile(destination, await readFile(source), { flag: 'wx', mode: 0o600 })
+  }
   for (const entry of [...nativeCodeEntries, ...pdfiumCodeEntries]) {
     const decoded = await readEncodedNativeArtifact(layout.nativePackageDir, entry)
     const destination = resolveContainedPath(
@@ -1114,7 +1206,8 @@ async function recognizeDocument(
   fixturePath,
   expectedBundleId,
   backend,
-  timeoutMs
+  timeoutMs,
+  assertRecognized = assertDocumentFixtureRecognized
 ) {
   const startedAt = performance.now()
   const deadline = startedAt + timeoutMs
@@ -1149,7 +1242,7 @@ async function recognizeDocument(
       if (message.emittedPages !== pages.length || pages.length === 0) {
         throw new Error('Packaged OCR helper returned an invalid PDF completion')
       }
-      assertDocumentFixtureRecognized(pages)
+      assertRecognized(pages)
       return { pages, durationMs: performance.now() - startedAt }
     }
 
@@ -1178,13 +1271,14 @@ export async function runPackagedLightOcr(layout, options = {}) {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'deepchat-light-ocr-smoke-'))
   const fixturePath = path.join(tempRoot, 'fixture.png')
   const documentFixturePath = path.join(tempRoot, 'fixture.pdf')
+  const chineseDocumentFixturePath = path.join(tempRoot, 'fixture-cjk.pdf')
   let child = null
   let sampler = null
   let rssSampling = null
   let peakRssBytes = 0
 
   try {
-    await createFixtures(fixturePath, documentFixturePath)
+    await createFixtures(fixturePath, documentFixturePath, chineseDocumentFixturePath)
     const nativeRuntimeOverride = await materializePackagedNativeRuntime(layout, tempRoot)
     child = spawn(
       layout.nodeExecutable,
@@ -1256,6 +1350,15 @@ export async function runPackagedLightOcr(layout, options = {}) {
       layout.bundleId,
       backend,
       timeoutMs
+    )
+    await recognizeDocument(
+      client,
+      'recognize-cjk-document',
+      chineseDocumentFixturePath,
+      layout.bundleId,
+      backend,
+      timeoutMs,
+      assertChineseDocumentFixtureRecognized
     )
     await sampleRss()
 

@@ -573,6 +573,9 @@ function createMockSqlitePresenter() {
           mode: row.mode,
           state: row.state ?? 'pending',
           payload_json: row.payloadJson,
+          message_ids_json: row.messageIdsJson ?? '[]',
+          assistant_message_id: row.assistantMessageId ?? null,
+          blocking_json: row.blockingJson ?? null,
           queue_order: row.queueOrder ?? null,
           claimed_at: row.claimedAt ?? null,
           consumed_at: row.consumedAt ?? null,
@@ -586,9 +589,9 @@ function createMockSqlitePresenter() {
           .filter((row) => row.session_id === sessionId)
           .sort((left, right) => left.created_at - right.created_at)
       ),
-      listClaimed: vi.fn(() =>
+      listActive: vi.fn(() =>
         Array.from(pendingInputsStore.values())
-          .filter((row) => row.state === 'claimed')
+          .filter((row) => row.state !== 'consumed')
           .sort((left, right) => left.created_at - right.created_at)
       ),
       listActiveBySession: vi.fn((sessionId: string) =>
@@ -866,7 +869,8 @@ describe('Integration: createSession end-to-end', () => {
     providerSettings = createMockProviderSettings()
     toolService = createMockToolService()
     const sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
-      publishPendingInputsChanged: vi.fn()
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
     })
 
     const deepchatAgent = createDeepChatAgentHarness({
@@ -1049,7 +1053,8 @@ describe('Integration: ACP hook observer', () => {
     providerSettings.getAcpAgents.mockResolvedValue([{ id: 'coder', name: 'Coder' }])
     hookDispatcher = { dispatchEvent: vi.fn() }
     const sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
-      publishPendingInputsChanged: vi.fn()
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
     })
 
     const deepchatAgent = createDeepChatAgentHarness({
@@ -1159,7 +1164,8 @@ describe('Integration: multi-turn context', () => {
     llmProvider = createMockProviderRuntime()
     providerSettings = createMockProviderSettings()
     const sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
-      publishPendingInputsChanged: vi.fn()
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
     })
 
     deepchatAgent = createDeepChatAgentHarness({
@@ -1749,7 +1755,8 @@ describe('Integration: multi-turn context', () => {
 describe('Integration: Session Tape boundary', () => {
   it('keeps linked reads free of readiness writes while preparing current reads', async () => {
     const sessionData = createSessionDataFromDatabase(createMockSqlitePresenter() as never, {
-      publishPendingInputsChanged: vi.fn()
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
     })
     const ensureTapeReady = vi
       .spyOn(sessionData.tapeStore, 'ensureSessionTapeReady')
@@ -1790,7 +1797,8 @@ describe('Integration: Session Tape boundary', () => {
 
   it('rejects an empty handoff summary before preparing or appending Tape state', () => {
     const sessionData = createSessionDataFromDatabase(createMockSqlitePresenter() as never, {
-      publishPendingInputsChanged: vi.fn()
+      publishPendingInputsChanged: vi.fn(),
+      publishMessagesChanged: vi.fn()
     })
     const ensureTapeReady = vi.spyOn(sessionData.tapeStore, 'ensureSessionTapeReady')
     const handoff = vi.spyOn(sessionData.tapeStore, 'handoff')
@@ -1832,7 +1840,8 @@ describe('Integration: crash recovery', () => {
       agentSettings: providerSettings,
       database: sqlitePresenter,
       sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
-        publishPendingInputsChanged: vi.fn()
+        publishPendingInputsChanged: vi.fn(),
+        publishMessagesChanged: vi.fn()
       }),
       toolService: createMockToolService(),
       hookObserver: noopHookObserver

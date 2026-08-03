@@ -74,7 +74,9 @@ describe('persona evolution eval probes (US-6)', () => {
 
     const draft = await presenter.maybeEvolvePersona('a', MODEL)
     expect(draft).not.toBeNull()
-    expect(await presenter.approvePersonaDraft('a', draft!.draftId)).toBe(true)
+    expect(await presenter.approvePersonaDraft('a', draft!.draftId)).toEqual({
+      action: 'applied'
+    })
 
     // Two independent injections (distinct queries ~ distinct sessions) must read the same active
     // version — the version the user approved, never a stale or draft one.
@@ -95,7 +97,9 @@ describe('persona evolution eval probes (US-6)', () => {
     seedUnits(repo, 'a', 6)
 
     const draft = await presenter.maybeEvolvePersona('a', MODEL)
-    expect(await presenter.approvePersonaDraft('a', draft!.draftId)).toBe(true)
+    expect(await presenter.approvePersonaDraft('a', draft!.draftId)).toEqual({
+      action: 'applied'
+    })
 
     // Re-asking the preference several turns later still recalls it, alongside the evolved self-model.
     const payload = await presenter.buildInjection('a', 'redis')
@@ -106,7 +110,9 @@ describe('persona evolution eval probes (US-6)', () => {
   it('AC-6.2 never drifts the active self-model across evolution rounds without approval', async () => {
     const { presenter, repo } = makeAgent(distiller('a brand new distilled self-model'))
     const baselineId = presenter.evolvePersona('a', 'the approved baseline self-model', null)
-    expect(await presenter.approvePersonaDraft('a', baselineId!)).toBe(true)
+    expect(await presenter.approvePersonaDraft('a', baselineId!)).toEqual({
+      action: 'applied'
+    })
     const baseline = (await presenter.buildInjection('a', 'q'))?.payload.selfModel
     expect(baseline).toBe('the approved baseline self-model')
 

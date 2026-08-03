@@ -402,6 +402,10 @@
       "caption": "O destaque permanece na caixa de entrada até você enviar sua primeira mensagem."
     }
   },
+  "messageReceipt": {
+    "unread": "Não lida",
+    "read": "Lida"
+  },
   "attachments": {
     "chooseRepresentation": "Escolha como enviar {name}",
     "representation": "Representação do anexo",

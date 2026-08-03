@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { lstat, readdir } from 'node:fs/promises'
 
 export const LIGHT_OCR_ARTIFACT_KINDS = Object.freeze({
   nativeCode: 'native-code',
@@ -22,6 +23,11 @@ const PDFIUM_ARTIFACTS_BY_PLATFORM = Object.freeze({
   linux: Object.freeze(['pdfium/index.cjs', 'pdfium/libpdfium.so', 'pdfium/pdfium.node']),
   win32: Object.freeze(['pdfium/index.cjs', 'pdfium/pdfium.dll', 'pdfium/pdfium.node'])
 })
+const PDFIUM_RESOURCE_ARTIFACTS = Object.freeze([
+  'pdfium/fonts/NotoSansSC-Regular.otf',
+  'pdfium/fonts/OFL.txt'
+])
+const PDFIUM_DIRECTORIES = Object.freeze(['pdfium', 'pdfium/fonts'])
 
 const CODE_EXTENSIONS = new Set(['.dll', '.dylib', '.node', '.so'])
 const MAC_CODE_EXTENSIONS = new Set(['.dylib', '.node'])
@@ -61,7 +67,65 @@ export function isEncodedMacLightOcrArtifact(relativePath) {
 export function getRequiredPdfiumArtifactPaths(platform) {
   const paths = PDFIUM_ARTIFACTS_BY_PLATFORM[platform]
   if (!paths) throw new Error(`Unsupported Light OCR PDFium platform: ${String(platform)}`)
-  return [...paths]
+  return [...paths, ...PDFIUM_RESOURCE_ARTIFACTS]
+}
+
+export function getRequiredPdfiumResourcePaths() {
+  return [...PDFIUM_RESOURCE_ARTIFACTS]
+}
+
+export function getRequiredPdfiumDirectoryPaths() {
+  return [...PDFIUM_DIRECTORIES]
+}
+
+export async function inspectRegularArtifactTree(rootDir, relativeRoot) {
+  if (
+    typeof relativeRoot !== 'string' ||
+    relativeRoot.length === 0 ||
+    relativeRoot.includes('\\') ||
+    path.posix.isAbsolute(relativeRoot) ||
+    relativeRoot.split('/').some((part) => part === '' || part === '.' || part === '..')
+  ) {
+    throw new Error(`Invalid Light OCR artifact tree root: ${String(relativeRoot)}`)
+  }
+
+  const resolvedRoot = path.resolve(rootDir)
+  const files = []
+  const directories = []
+  const visit = async (relativePath) => {
+    const absolutePath = path.resolve(resolvedRoot, ...relativePath.split('/'))
+    const relative = path.relative(resolvedRoot, absolutePath)
+    if (
+      !relative ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative)
+    ) {
+      throw new Error(`Light OCR artifact tree escapes its package: ${relativePath}`)
+    }
+
+    const entryStat = await lstat(absolutePath)
+    if (entryStat.isSymbolicLink()) {
+      throw new Error(`Light OCR artifact tree contains a symbolic link: ${relativePath}`)
+    }
+    if (entryStat.isFile()) {
+      files.push(relativePath)
+      return
+    }
+    if (!entryStat.isDirectory()) {
+      throw new Error(`Light OCR artifact tree contains an unsupported entry: ${relativePath}`)
+    }
+
+    directories.push(relativePath)
+    const entries = await readdir(absolutePath)
+    for (const entry of entries) {
+      await visit(`${relativePath}/${entry}`)
+    }
+  }
+
+  await visit(relativeRoot)
+  files.sort()
+  directories.sort()
+  return { files, directories }
 }
 
 export function groupLightOcrArtifactPaths(relativePaths, platform) {

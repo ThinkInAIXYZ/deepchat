@@ -10,8 +10,13 @@ const MAX_NATIVE_ARTIFACTS = 8
 const MAX_ARTIFACT_BYTES = 512 * 1024 * 1024
 const MAX_RUNTIME_METADATA_BYTES = 1024 * 1024
 const MAX_MATERIALIZED_CODE_BYTES = 512 * 1024 * 1024
+const MAX_MATERIALIZED_PDFIUM_RESOURCE_BYTES = 16 * 1024 * 1024
 const MAX_ENCODED_OVERHEAD_BYTES = 1024 * 1024
 const SHA256_PATTERN = /^[a-f0-9]{64}$/
+const PDFIUM_RESOURCE_PATHS = [
+  'pdfium/fonts/NotoSansSC-Regular.otf',
+  'pdfium/fonts/OFL.txt'
+] as const
 
 export type LightOcrNativePayloadEncoding = 'direct' | 'gzip-base64-v1'
 export type LightOcrArtifactKind = 'native-code' | 'pdfium-code' | 'pdfium-loader' | 'other'
@@ -84,6 +89,13 @@ export async function materializeLightOcrNativePayload(options: {
   if (totalCodeBytes > MAX_MATERIALIZED_CODE_BYTES) {
     throw new Error('Light OCR encoded native payload exceeds its materialized size limit')
   }
+  const totalResourceBytes = pdfiumArtifacts.resources.reduce(
+    (total, artifact) => total + artifact.bytes,
+    0
+  )
+  if (totalResourceBytes > MAX_MATERIALIZED_PDFIUM_RESOURCE_BYTES) {
+    throw new Error('Light OCR PDFium resources exceed their materialized size limit')
+  }
 
   const materializedRoot = await mkdtemp(path.join(options.tempRoot, 'native-runtime-'))
   try {
@@ -101,6 +113,13 @@ export async function materializeLightOcrNativePayload(options: {
     )
     await mkdir(path.dirname(destinationPdfiumLoader), { recursive: true, mode: 0o700 })
     await writeFile(destinationPdfiumLoader, pdfiumLoaderBytes, { flag: 'wx', mode: 0o600 })
+
+    for (const artifact of pdfiumArtifacts.resources) {
+      const resourceBytes = await readVerifiedArtifact(options.nativePackageDir, artifact)
+      const destination = resolveContainedPath(materializedRoot, artifact.path)
+      await mkdir(path.dirname(destination), { recursive: true, mode: 0o700 })
+      await writeFile(destination, resourceBytes, { flag: 'wx', mode: 0o600 })
+    }
 
     for (const artifact of codeArtifacts) {
       await assertRawArtifactAbsent(options.nativePackageDir, artifact.path)
@@ -195,7 +214,7 @@ function collectNativeCodeArtifacts(
 function collectPdfiumArtifacts(
   manifest: NativeArtifactManifest,
   artifactByPath: Map<string, NativeArtifact>
-): { code: NativeArtifact[]; loader: NativeArtifact } {
+): { code: NativeArtifact[]; loader: NativeArtifact; resources: NativeArtifact[] } {
   const expectedPaths = [...getRequiredPdfiumArtifactPaths('darwin')].sort()
   const declaredPaths = manifest.files
     .filter((artifact) => artifact.path.startsWith('pdfium/'))
@@ -210,16 +229,26 @@ function collectPdfiumArtifacts(
 
   const loader = artifactByPath.get('pdfium/index.cjs')
   const code = expectedPaths
-    .filter((artifactPath) => artifactPath !== 'pdfium/index.cjs')
+    .filter((artifactPath) => classifyLightOcrArtifact(artifactPath) === 'pdfium-code')
     .map((artifactPath) => artifactByPath.get(artifactPath))
+  const resources = getRequiredPdfiumResourcePaths().map((artifactPath) =>
+    artifactByPath.get(artifactPath)
+  )
   if (
     !loader ||
     classifyLightOcrArtifact(loader.path) !== 'pdfium-loader' ||
-    code.some((artifact) => !artifact || classifyLightOcrArtifact(artifact.path) !== 'pdfium-code')
+    code.some(
+      (artifact) => !artifact || classifyLightOcrArtifact(artifact.path) !== 'pdfium-code'
+    ) ||
+    resources.some((artifact) => !artifact || classifyLightOcrArtifact(artifact.path) !== 'other')
   ) {
     throw new Error('Light OCR PDFium artifact inventory has invalid classifications')
   }
-  return { code: code as NativeArtifact[], loader }
+  return {
+    code: code as NativeArtifact[],
+    loader,
+    resources: resources as NativeArtifact[]
+  }
 }
 
 function parseArtifact(value: unknown): NativeArtifact {
@@ -250,15 +279,29 @@ export function classifyLightOcrArtifact(relativePath: string): LightOcrArtifact
 
 export function getRequiredPdfiumArtifactPaths(platform: NodeJS.Platform): readonly string[] {
   if (platform === 'darwin') {
-    return ['pdfium/index.cjs', 'pdfium/libpdfium.dylib', 'pdfium/pdfium.node']
+    return [
+      'pdfium/index.cjs',
+      'pdfium/libpdfium.dylib',
+      'pdfium/pdfium.node',
+      ...PDFIUM_RESOURCE_PATHS
+    ]
   }
   if (platform === 'linux') {
-    return ['pdfium/index.cjs', 'pdfium/libpdfium.so', 'pdfium/pdfium.node']
+    return [
+      'pdfium/index.cjs',
+      'pdfium/libpdfium.so',
+      'pdfium/pdfium.node',
+      ...PDFIUM_RESOURCE_PATHS
+    ]
   }
   if (platform === 'win32') {
-    return ['pdfium/index.cjs', 'pdfium/pdfium.dll', 'pdfium/pdfium.node']
+    return ['pdfium/index.cjs', 'pdfium/pdfium.dll', 'pdfium/pdfium.node', ...PDFIUM_RESOURCE_PATHS]
   }
   throw new Error(`Unsupported Light OCR PDFium platform: ${platform}`)
+}
+
+export function getRequiredPdfiumResourcePaths(): readonly string[] {
+  return [...PDFIUM_RESOURCE_PATHS]
 }
 
 async function readVerifiedArtifact(packageDir: string, artifact: NativeArtifact): Promise<Buffer> {

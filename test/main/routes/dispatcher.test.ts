@@ -457,7 +457,22 @@ function createRuntime() {
       requestId: 'message-2',
       messageId: 'message-2'
     }),
-    steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
+    steerActiveTurn: vi.fn().mockResolvedValue({
+      requestId: null,
+      messageId: null,
+      userMessage: {
+        id: 'steer-user-message',
+        sessionId: 'session-1',
+        orderSeq: 2,
+        role: 'user' as const,
+        content: '{"text":"refine the active answer"}',
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}',
+        createdAt: 2,
+        updatedAt: 2
+      }
+    }),
     listPendingInputs: vi.fn().mockResolvedValue([]),
     queuePendingInput: vi.fn().mockResolvedValue({}),
     updateQueuedInput: vi.fn().mockResolvedValue({}),
@@ -1550,6 +1565,8 @@ function createRuntime() {
   })
   const mcpRoutes = createMcpRoutes({
     mcpService,
+    mcpAppHost: {} as any,
+    isSettingsWindow: () => true,
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
   const remoteRoutes = createRemoteRoutes(remoteService)
@@ -2294,14 +2311,17 @@ describe('dispatchDeepchatRoute', () => {
       action: 'applied',
       directive: { ...row, status: 'active' }
     })
-    const rejectDirective = vi.fn().mockReturnValue({ ...row, status: 'rejected' })
-    const deleteDirective = vi.fn().mockReturnValue(true)
+    const rejectDirectiveResult = vi.fn().mockReturnValue({
+      action: 'applied',
+      directive: { ...row, status: 'rejected' }
+    })
+    const deleteDirectiveResult = vi.fn().mockReturnValue({ action: 'applied' })
     ;(runtime as any).memoryService = {
       listDirectives,
       createDirectiveResult,
       approveDirectiveResult,
-      rejectDirective,
-      deleteDirective
+      rejectDirectiveResult,
+      deleteDirectiveResult
     }
 
     const context = { webContentsId: 42, windowId: 7 }
@@ -2360,8 +2380,12 @@ describe('dispatchDeepchatRoute', () => {
       action: 'applied',
       directive: { status: 'active' }
     })
-    expect(rejected.directive).toMatchObject({ status: 'rejected' })
-    expect(deleted).toEqual({ ok: true })
+    expect(rejectDirectiveResult).toHaveBeenCalledWith('deepchat', 'directive-1')
+    expect(rejected).toMatchObject({
+      action: 'applied',
+      directive: { status: 'rejected' }
+    })
+    expect(deleted).toEqual({ action: 'applied' })
     expect(listed.directives[0]).not.toHaveProperty('identityHash')
     expect(listed.directives[0]).not.toHaveProperty('identity_hash')
     expect(created).toMatchObject({
@@ -2374,8 +2398,13 @@ describe('dispatchDeepchatRoute', () => {
     const { runtime, providerSettings } = createRuntime()
     vi.mocked(providerSettings.getAgentType).mockResolvedValue('acp')
     const createDirectiveResult = vi.fn()
-    const deleteDirective = vi.fn()
-    ;(runtime as any).memoryService = { createDirectiveResult, deleteDirective }
+    const rejectDirectiveResult = vi.fn()
+    const deleteDirectiveResult = vi.fn()
+    ;(runtime as any).memoryService = {
+      createDirectiveResult,
+      rejectDirectiveResult,
+      deleteDirectiveResult
+    }
     const context = { webContentsId: 42, windowId: 7 }
 
     await expect(
@@ -2392,13 +2421,26 @@ describe('dispatchDeepchatRoute', () => {
     await expect(
       dispatchDeepchatRoute(
         runtime,
+        'memory.rejectDirective',
+        { agentId: 'acp-agent', directiveId: 'directive-1' },
+        context
+      )
+    ).resolves.toEqual({
+      action: 'rejected',
+      directive: null,
+      reason: 'unavailable'
+    })
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
         'memory.deleteDirective',
         { agentId: 'acp-agent', directiveId: 'directive-1' },
         context
       )
-    ).resolves.toEqual({ ok: false })
+    ).resolves.toEqual({ action: 'rejected', reason: 'unavailable' })
     expect(createDirectiveResult).not.toHaveBeenCalled()
-    expect(deleteDirective).not.toHaveBeenCalled()
+    expect(rejectDirectiveResult).not.toHaveBeenCalled()
+    expect(deleteDirectiveResult).not.toHaveBeenCalled()
   })
 
   it('dispatches memory health with deepchat guard and zero fallback', async () => {
@@ -2796,7 +2838,7 @@ describe('dispatchDeepchatRoute', () => {
 
   it('dispatches memory.archive with deepchat guard', async () => {
     const { runtime } = createRuntime()
-    const archiveUserMemory = vi.fn().mockResolvedValue(true)
+    const archiveUserMemory = vi.fn().mockResolvedValue({ action: 'applied' })
     ;(runtime as any).memoryService = { archiveUserMemory }
 
     await expect(
@@ -2806,7 +2848,7 @@ describe('dispatchDeepchatRoute', () => {
         { agentId: 'other', memoryId: 'm1' },
         { webContentsId: 42, windowId: 7 }
       )
-    ).resolves.toEqual({ ok: false })
+    ).resolves.toEqual({ action: 'rejected', reason: 'unavailable' })
     expect(archiveUserMemory).not.toHaveBeenCalled()
 
     await expect(
@@ -2816,7 +2858,7 @@ describe('dispatchDeepchatRoute', () => {
         { agentId: 'deepchat', memoryId: 'm1' },
         { webContentsId: 42, windowId: 7 }
       )
-    ).resolves.toEqual({ ok: true })
+    ).resolves.toEqual({ action: 'applied' })
     expect(archiveUserMemory).toHaveBeenCalledWith('deepchat', 'm1')
   })
 
@@ -3681,7 +3723,15 @@ describe('dispatchDeepchatRoute', () => {
   it('returns typed MCP add results and records only persisted additions', async () => {
     const { runtime, mcpService, sqlitePresenter } = createRuntime()
     const context = { webContentsId: 42, windowId: 7 }
-    const config = { type: 'stdio', command: 'node' } as const
+    const config = {
+      type: 'stdio',
+      command: 'node',
+      args: [],
+      env: {},
+      descriptions: '',
+      icons: '',
+      enabled: false
+    } as const
 
     const added = await dispatchDeepchatRoute(
       runtime,

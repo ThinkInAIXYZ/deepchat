@@ -234,12 +234,12 @@ describe('working-memory L1 (T5)', () => {
       'stale redis preference'
     )
 
-    expect(await presenter.forgetMemory('deepchat', 's1')).toBe(true)
+    expect(await presenter.forgetMemory('deepchat', 's1')).toEqual({ action: 'applied' })
     expect((await presenter.buildInjection('deepchat', ''))?.payload.working ?? '').not.toContain(
       'stale redis preference'
     )
 
-    expect(presenter.restoreMemory('deepchat', 's1')).toBe(true)
+    expect(presenter.restoreMemory('deepchat', 's1')).toEqual({ action: 'applied' })
     expect((await presenter.buildInjection('deepchat', ''))?.payload.working).toContain(
       'stale redis preference'
     )
@@ -260,7 +260,7 @@ describe('working-memory L1 (T5)', () => {
       'delete me from working memory'
     )
 
-    expect(await presenter.deleteMemory('deepchat', 's1')).toBe(true)
+    expect(await presenter.deleteMemory('deepchat', 's1')).toEqual({ action: 'applied' })
     expect((await presenter.buildInjection('deepchat', ''))?.payload.working ?? '').not.toContain(
       'delete me from working memory'
     )
@@ -338,7 +338,9 @@ describe('working-memory L1 (T5)', () => {
     seedConflicted(repo, 'c1', targetId, 'user dislikes redis')
     expect((await presenter.buildInjection('a', ''))?.payload.working).toContain('user likes redis')
 
-    expect(await presenter.resolveConflict('a', 'c1', 'keep_challenger')).toBe(true)
+    expect(await presenter.resolveConflict('a', 'c1', 'keep_challenger')).toEqual({
+      action: 'applied'
+    })
     const resolvedWorking = (await presenter.buildInjection('a', ''))?.payload.working ?? ''
     expect(repo.getById(targetId)?.status).toBe('archived')
     expect(resolvedWorking).toContain('user dislikes redis')
@@ -368,7 +370,7 @@ describe('working-memory L1 (T5)', () => {
     expect([...repo.rows.values()].some((row) => row.kind === 'working')).toBe(true)
 
     config = { memoryEnabled: false }
-    expect(await presenter.forgetMemory('a', 's1')).toBe(true)
+    expect(await presenter.forgetMemory('a', 's1')).toEqual({ action: 'applied' })
     await waitForMemoryCondition(
       () => ![...repo.rows.values()].some((row) => row.kind === 'working')
     )

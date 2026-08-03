@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
-import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Textarea } from '@shadcn/components/ui/textarea'
@@ -14,15 +13,27 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import type { MCPServerConfig } from '@shared/types/mcp'
+import { Badge } from '@shadcn/components/ui/badge'
+import type {
+  MCPServerConfig,
+  McpAuthorizationMode,
+  McpCredentialBinding,
+  McpCredentialInput,
+  McpCredentialKind,
+  McpCredentialStatus,
+  McpEnterpriseIdentityProfile
+} from '@shared/types/mcp'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { Icon } from '@iconify/vue'
 import { X } from '@lucide/vue'
 import { createDeviceClient } from '@api/DeviceClient'
+import { createMcpClient } from '@api/McpClient'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
 const deviceClient = createDeviceClient()
+const mcpClient = createMcpClient()
 const props = defineProps<{
   serverName?: string
   initialConfig?: MCPServerConfig
@@ -34,7 +45,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  submit: [serverName: string, config: MCPServerConfig]
+  submit: [serverName: string, config: MCPServerConfig, credential?: McpCredentialInput]
   'input-change': []
   'name-change': []
 }>()
@@ -56,6 +67,25 @@ const customHeaders = ref('')
 const customHeadersFocused = ref(false)
 const customHeadersDisplayValue = ref('')
 const npmRegistry = ref(props.initialConfig?.customNpmRegistry || '')
+const authorizationMode = ref<McpAuthorizationMode>(
+  props.initialConfig?.authorization?.mode || 'interactive'
+)
+const protectedResourceUrl = ref(props.initialConfig?.authorization?.protectedResourceUrl || '')
+const authorizationServerIssuer = ref(
+  props.initialConfig?.authorization?.authorizationServerIssuer || ''
+)
+const clientMetadataUrl = ref(props.initialConfig?.authorization?.clientMetadataUrl || '')
+const authorizationClientId = ref(props.initialConfig?.authorization?.clientId || '')
+const authorizationScopes = ref(props.initialConfig?.authorization?.scopes?.join(' ') || '')
+const identityProfileId = ref(props.initialConfig?.authorization?.identityProfileId || '')
+const keyAlgorithm = ref<'RS256' | 'ES256'>(
+  props.initialConfig?.authorization?.keyAlgorithm || 'RS256'
+)
+const credentialSecret = ref('')
+const privateKey = ref('')
+const credentialStatuses = ref<McpCredentialStatus[]>([])
+const enterpriseProfiles = ref<McpEnterpriseIdentityProfile[]>([])
+const isAuthorizationMetadataLoading = ref(false)
 
 watch(name, () => {
   emit('name-change')
@@ -69,6 +99,25 @@ const isBuildInFileSystem = computed(
 )
 const isHttpTransportType = computed(() => type.value === 'http')
 const isRemoteType = computed(() => type.value === 'sse' || isHttpTransportType.value)
+const isMachineAuthorization = computed(() =>
+  ['client_credentials', 'private_key_jwt', 'cross_app_access'].includes(authorizationMode.value)
+)
+const selectedCredentialKind = computed<McpCredentialKind | null>(() => {
+  if (authorizationMode.value === 'client_credentials') return 'client_secret'
+  if (authorizationMode.value === 'private_key_jwt') return 'private_key'
+  if (authorizationMode.value === 'cross_app_access') {
+    return 'enterprise_resource_secret'
+  }
+  return null
+})
+const selectedCredentialStatus = computed(() =>
+  credentialStatuses.value.find((status) => status.kind === selectedCredentialKind.value)
+)
+const hasStaticAuthorizationHeader = computed(() =>
+  customHeaders.value
+    .split(/\r?\n/)
+    .some((line) => line.trim().toLowerCase().startsWith('authorization='))
+)
 // 判断字段是否只读(inmemory类型除了args和env外都是只读的)
 const isFieldReadOnly = computed(() => props.editMode && isInMemoryType.value)
 
@@ -95,19 +144,6 @@ const getLocalizedDesc = computed(() => {
   return descriptions.value
 })
 
-// 权限设置
-const autoApproveAll = ref(props.initialConfig?.autoApprove?.includes('all') || false)
-const autoApproveRead = ref(
-  props.initialConfig?.autoApprove?.includes('read') ||
-    props.initialConfig?.autoApprove?.includes('all') ||
-    false
-)
-const autoApproveWrite = ref(
-  props.initialConfig?.autoApprove?.includes('write') ||
-    props.initialConfig?.autoApprove?.includes('all') ||
-    false
-)
-
 // 简单表单状态
 const currentStep = ref(props.editMode ? 'detailed' : 'simple')
 const jsonConfig = ref('')
@@ -130,14 +166,6 @@ const showFolderSelector = computed(() => isBuildInFileSystem.value)
 const showNpmRegistryInput = computed(() => {
   return type.value === 'stdio' && ['npx', 'node'].includes(command.value.toLowerCase())
 })
-
-// 当选择 all 时，自动选中其他权限
-const handleAutoApproveAllChange = (checked: boolean): void => {
-  if (checked) {
-    autoApproveRead.value = true
-    autoApproveWrite.value = true
-  }
-}
 
 // JSON配置解析
 const parseJsonConfig = (): void => {
@@ -169,7 +197,6 @@ const parseJsonConfig = (): void => {
     const fallbackType: MCPServerTypeOption = baseUrl.value ? 'http' : 'stdio'
     type.value =
       incomingType && VALID_MCP_TYPES.includes(incomingType) ? incomingType : fallbackType
-    console.log('type', type.value, baseUrl.value)
     // 根据类型填充参数
     if (isBuildInFileSystem.value) {
       foldersList.value = incomingArgs
@@ -188,16 +215,14 @@ const parseJsonConfig = (): void => {
       customHeaders.value = '' // 默认空字符串
     }
 
-    // 权限设置
-    autoApproveAll.value = serverConfig.autoApprove?.includes('all') || false
-    autoApproveRead.value =
-      serverConfig.autoApprove?.includes('read') ||
-      serverConfig.autoApprove?.includes('all') ||
-      false
-    autoApproveWrite.value =
-      serverConfig.autoApprove?.includes('write') ||
-      serverConfig.autoApprove?.includes('all') ||
-      false
+    authorizationMode.value = serverConfig.authorization?.mode || 'interactive'
+    protectedResourceUrl.value = serverConfig.authorization?.protectedResourceUrl || ''
+    authorizationServerIssuer.value = serverConfig.authorization?.authorizationServerIssuer || ''
+    clientMetadataUrl.value = serverConfig.authorization?.clientMetadataUrl || ''
+    authorizationClientId.value = serverConfig.authorization?.clientId || ''
+    authorizationScopes.value = serverConfig.authorization?.scopes?.join(' ') || ''
+    identityProfileId.value = serverConfig.authorization?.identityProfileId || ''
+    keyAlgorithm.value = serverConfig.authorization?.keyAlgorithm || 'RS256'
 
     // 切换到详细表单
     currentStep.value = 'detailed'
@@ -237,6 +262,40 @@ const isBaseUrlValid = computed(() => {
   return baseUrl.value.trim().length > 0
 })
 
+const isSecureOrLoopbackUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value)
+    return (
+      url.protocol === 'https:' ||
+      (url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+    )
+  } catch {
+    return false
+  }
+}
+
+const isAuthorizationValid = computed(() => {
+  if (!isHttpTransportType.value) return true
+  if (authorizationMode.value === 'none') return true
+  if (clientMetadataUrl.value.trim() && !clientMetadataUrl.value.trim().startsWith('https://')) {
+    return false
+  }
+  if (!isMachineAuthorization.value) return true
+  if (
+    !authorizationClientId.value.trim() ||
+    !isSecureOrLoopbackUrl(authorizationServerIssuer.value.trim()) ||
+    !isSecureOrLoopbackUrl(protectedResourceUrl.value.trim())
+  ) {
+    return false
+  }
+  if (authorizationMode.value === 'cross_app_access' && !identityProfileId.value) {
+    return false
+  }
+  if (selectedCredentialStatus.value?.configured) return true
+  if (authorizationMode.value === 'private_key_jwt') return Boolean(privateKey.value)
+  return Boolean(credentialSecret.value)
+})
+
 // 新增：验证 Key=Value 格式的函数
 const validateKeyValueHeaders = (text: string): boolean => {
   if (!text.trim()) return true // 允许为空
@@ -265,7 +324,12 @@ const isFormValid = computed(() => {
 
   // 对于SSE类型，只需要名称和baseUrl有效
   if (isRemoteType.value) {
-    return isNameValid.value && isBaseUrlValid.value && isCustomHeadersFormatValid.value
+    return (
+      isNameValid.value &&
+      isBaseUrlValid.value &&
+      isCustomHeadersFormatValid.value &&
+      isAuthorizationValid.value
+    )
   }
 
   // 对于STDIO类型，需要名称和命令有效，以及环境变量格式正确
@@ -366,6 +430,61 @@ watch(
   { deep: true }
 )
 
+const getCredentialBinding = (
+  config: MCPServerConfig = props.initialConfig as MCPServerConfig
+): McpCredentialBinding | null => {
+  if (!config?.serverId || !config.configGeneration || !config.bindingHash || !config.baseUrl) {
+    return null
+  }
+  return {
+    serverId: config.serverId,
+    configGeneration: config.configGeneration,
+    bindingHash: config.bindingHash,
+    endpoint: config.baseUrl,
+    protectedResourceUrl: config.authorization?.protectedResourceUrl,
+    authorizationServerIssuer: config.authorization?.authorizationServerIssuer,
+    clientId: config.authorization?.clientId
+  }
+}
+
+const loadAuthorizationMetadata = async (): Promise<void> => {
+  if (isAuthorizationMetadataLoading.value) return
+  isAuthorizationMetadataLoading.value = true
+  try {
+    enterpriseProfiles.value = await mcpClient.listEnterpriseProfiles()
+    const serverId = props.initialConfig?.serverId
+    credentialStatuses.value = serverId ? await mcpClient.getCredentialStatus(serverId) : []
+  } catch (error) {
+    console.error('Failed to load MCP authorization metadata:', error)
+  } finally {
+    isAuthorizationMetadataLoading.value = false
+  }
+}
+
+const removeStoredCredential = async (): Promise<void> => {
+  const binding = getCredentialBinding()
+  const kind = selectedCredentialKind.value
+  if (!binding || !kind) return
+  try {
+    const status = await mcpClient.removeCredential(binding, kind)
+    credentialStatuses.value = [
+      ...credentialStatuses.value.filter((item) => item.kind !== kind),
+      status
+    ]
+  } catch (error) {
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.mcp.serverForm.credentialRemoveError',
+      title: t('settings.mcp.serverForm.credentialRemoveError'),
+      description: error instanceof Error ? error.message : String(error)
+    })
+  }
+}
+
+onMounted(() => {
+  void loadAuthorizationMetadata()
+})
+
 watch(
   [
     name,
@@ -378,9 +497,16 @@ watch(
     baseUrl,
     customHeaders,
     npmRegistry,
-    autoApproveAll,
-    autoApproveRead,
-    autoApproveWrite
+    authorizationMode,
+    protectedResourceUrl,
+    authorizationServerIssuer,
+    clientMetadataUrl,
+    authorizationClientId,
+    authorizationScopes,
+    identityProfileId,
+    keyAlgorithm,
+    credentialSecret,
+    privateKey
   ],
   () => {
     emit('input-change')
@@ -391,20 +517,10 @@ watch(
 const handleSubmit = (): void => {
   if (!isFormValid.value) return
 
-  // 处理自动授权设置
-  const autoApprove: string[] = []
-  if (autoApproveAll.value) {
-    autoApprove.push('all')
-  } else {
-    if (autoApproveRead.value) autoApprove.push('read')
-    if (autoApproveWrite.value) autoApprove.push('write')
-  }
-
   // 创建基本配置（必需的字段）
   const baseConfig = {
     descriptions: descriptions.value.trim(),
     icons: icons.value.trim(),
-    autoApprove,
     type: type.value,
     enabled: props.initialConfig?.enabled ?? false
   }
@@ -436,7 +552,27 @@ const handleSubmit = (): void => {
       args: [], // 提供空数组作为默认值
       env: {}, // 提供空对象作为默认值
       baseUrl: baseUrl.value.trim(),
-      customHeaders: parsedCustomHeaders // 使用解析后的 Key=Value
+      customHeaders: parsedCustomHeaders, // 使用解析后的 Key=Value
+      authorization:
+        type.value === 'http'
+          ? {
+              mode: authorizationMode.value,
+              protectedResourceUrl: protectedResourceUrl.value.trim() || undefined,
+              authorizationServerIssuer: authorizationServerIssuer.value.trim() || undefined,
+              clientMetadataUrl: clientMetadataUrl.value.trim() || undefined,
+              clientId: authorizationClientId.value.trim() || undefined,
+              scopes:
+                authorizationScopes.value.trim().length > 0
+                  ? authorizationScopes.value
+                      .split(/[\s,]+/)
+                      .map((scope) => scope.trim())
+                      .filter(Boolean)
+                  : undefined,
+              identityProfileId: identityProfileId.value || undefined,
+              keyAlgorithm:
+                authorizationMode.value === 'private_key_jwt' ? keyAlgorithm.value : undefined
+            }
+          : props.initialConfig?.authorization
     }
   } else {
     // STDIO 或 inmemory 类型的服务器
@@ -466,7 +602,23 @@ const handleSubmit = (): void => {
     serverConfig.customNpmRegistry = ''
   }
 
-  emit('submit', name.value.trim(), serverConfig)
+  let credential: McpCredentialInput | undefined
+  if (authorizationMode.value === 'client_credentials' && credentialSecret.value) {
+    credential = { kind: 'client_secret', secret: credentialSecret.value }
+  } else if (authorizationMode.value === 'private_key_jwt' && privateKey.value) {
+    credential = {
+      kind: 'private_key',
+      privateKey: privateKey.value,
+      algorithm: keyAlgorithm.value
+    }
+  } else if (authorizationMode.value === 'cross_app_access' && credentialSecret.value) {
+    credential = {
+      kind: 'enterprise_resource_secret',
+      secret: credentialSecret.value
+    }
+  }
+
+  emit('submit', name.value.trim(), serverConfig, credential)
 }
 
 const placeholder = `mcp配置示例
@@ -479,8 +631,9 @@ const placeholder = `mcp配置示例
         ...
       ]
     },
-    "sseServer":{
-      "url": "https://your-sse-server-url"
+    "remoteServer":{
+      "type": "http",
+      "url": "https://your-mcp-server-url"
     }
   },
 
@@ -567,9 +720,7 @@ watch(
   (newConfig) => {
     // Check if we are in edit mode and have a new valid config, but avoid overwriting if defaultJsonConfig was also provided and parsed
     if (newConfig && props.editMode && !props.defaultJsonConfig) {
-      console.log('Applying initialConfig in edit mode:', newConfig)
       // Reset fields based on initialConfig
-      // name.value = props.serverName || ''; // Name is usually passed separately and kept disabled
       command.value = newConfig.command || 'npx'
       const incomingArgs = Array.isArray(newConfig.args) ? newConfig.args : []
       env.value = JSON.stringify(newConfig.env || {}, null, 2)
@@ -592,12 +743,17 @@ watch(
         customHeaders.value = ''
       }
 
-      // Set autoApprove based on initialConfig
-      autoApproveAll.value = newConfig.autoApprove?.includes('all') || false
-      autoApproveRead.value =
-        newConfig.autoApprove?.includes('read') || newConfig.autoApprove?.includes('all') || false
-      autoApproveWrite.value =
-        newConfig.autoApprove?.includes('write') || newConfig.autoApprove?.includes('all') || false
+      authorizationMode.value = newConfig.authorization?.mode || 'interactive'
+      protectedResourceUrl.value = newConfig.authorization?.protectedResourceUrl || ''
+      authorizationServerIssuer.value = newConfig.authorization?.authorizationServerIssuer || ''
+      clientMetadataUrl.value = newConfig.authorization?.clientMetadataUrl || ''
+      authorizationClientId.value = newConfig.authorization?.clientId || ''
+      authorizationScopes.value = newConfig.authorization?.scopes?.join(' ') || ''
+      identityProfileId.value = newConfig.authorization?.identityProfileId || ''
+      keyAlgorithm.value = newConfig.authorization?.keyAlgorithm || 'RS256'
+      credentialSecret.value = ''
+      privateKey.value = ''
+      void loadAuthorizationMetadata()
 
       // Ensure we are in the detailed view for edit mode
       currentStep.value = 'detailed'
@@ -738,7 +894,15 @@ HTTP-Referer=deepchatai.cn`
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="stdio">{{ t('settings.mcp.serverForm.typeStdio') }}</SelectItem>
-              <SelectItem value="sse">{{ t('settings.mcp.serverForm.typeSse') }}</SelectItem>
+              <SelectItem value="sse">
+                <span>{{ t('settings.mcp.serverForm.typeSse') }}</span>
+                <Badge
+                  variant="outline"
+                  class="border-amber-500/50 px-1.5 py-0 text-[10px] font-normal text-amber-700 dark:text-amber-400"
+                >
+                  {{ t('settings.mcp.serverForm.sseCompatibilityBadge') }}
+                </Badge>
+              </SelectItem>
               <SelectItem value="http">{{ t('settings.mcp.serverForm.typeHttp') }}</SelectItem>
               <SelectItem
                 v-if="props.editMode && props.initialConfig?.type === 'inmemory'"
@@ -747,6 +911,9 @@ HTTP-Referer=deepchatai.cn`
               >
             </SelectContent>
           </Select>
+          <p v-if="type === 'sse'" class="text-xs text-amber-600 dark:text-amber-400">
+            {{ t('settings.mcp.serverForm.sseMigrationHint') }}
+          </p>
         </div>
 
         <!-- 基础URL，仅在类型为SSE或HTTP时显示 -->
@@ -761,6 +928,194 @@ HTTP-Referer=deepchatai.cn`
             :disabled="isFieldReadOnly"
             required
           />
+        </div>
+
+        <div v-if="isHttpTransportType" class="space-y-3 rounded-md border p-3">
+          <div class="space-y-2">
+            <Label class="text-xs text-muted-foreground" for="authorization-mode">
+              {{ t('settings.mcp.serverForm.authorizationMode') }}
+            </Label>
+            <Select v-model="authorizationMode">
+              <SelectTrigger id="authorization-mode" class="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="interactive">
+                  {{ t('settings.mcp.serverForm.authorizationInteractive') }}
+                </SelectItem>
+                <SelectItem value="none">
+                  {{ t('settings.mcp.serverForm.authorizationNone') }}
+                </SelectItem>
+                <SelectItem value="client_credentials">
+                  {{ t('settings.mcp.serverForm.authorizationClientCredentials') }}
+                </SelectItem>
+                <SelectItem value="private_key_jwt">
+                  {{ t('settings.mcp.serverForm.authorizationPrivateKeyJwt') }}
+                </SelectItem>
+                <SelectItem value="cross_app_access">
+                  {{ t('settings.mcp.serverForm.authorizationEnterprise') }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t(`settings.mcp.serverForm.authorizationHelp.${authorizationMode}`) }}
+            </p>
+          </div>
+
+          <div
+            v-if="hasStaticAuthorizationHeader"
+            class="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs"
+          >
+            {{ t('settings.mcp.serverForm.authorizationHeaderOverride') }}
+          </div>
+
+          <template v-if="authorizationMode !== 'none'">
+            <div class="space-y-2">
+              <Label class="text-xs text-muted-foreground" for="protected-resource-url">
+                {{ t('settings.mcp.serverForm.protectedResourceUrl') }}
+              </Label>
+              <Input
+                id="protected-resource-url"
+                v-model="protectedResourceUrl"
+                :required="isMachineAuthorization"
+                :placeholder="t('settings.mcp.serverForm.protectedResourceUrlPlaceholder')"
+              />
+            </div>
+
+            <div class="space-y-2">
+              <Label class="text-xs text-muted-foreground" for="authorization-server-issuer">
+                {{ t('settings.mcp.serverForm.authorizationServerIssuer') }}
+              </Label>
+              <Input
+                id="authorization-server-issuer"
+                v-model="authorizationServerIssuer"
+                :required="isMachineAuthorization"
+                :placeholder="t('settings.mcp.serverForm.authorizationServerIssuerPlaceholder')"
+              />
+            </div>
+
+            <div v-if="authorizationMode === 'interactive'" class="space-y-2">
+              <Label class="text-xs text-muted-foreground" for="client-metadata-url">
+                {{ t('settings.mcp.serverForm.clientMetadataUrl') }}
+              </Label>
+              <Input
+                id="client-metadata-url"
+                v-model="clientMetadataUrl"
+                placeholder="https://client.example/.well-known/oauth-client"
+              />
+            </div>
+
+            <div v-if="isMachineAuthorization" class="space-y-2">
+              <Label class="text-xs text-muted-foreground" for="authorization-client-id">
+                {{ t('settings.mcp.serverForm.authorizationClientId') }}
+              </Label>
+              <Input id="authorization-client-id" v-model="authorizationClientId" required />
+            </div>
+
+            <div class="space-y-2">
+              <Label class="text-xs text-muted-foreground" for="authorization-scopes">
+                {{ t('settings.mcp.serverForm.authorizationScopes') }}
+              </Label>
+              <Input
+                id="authorization-scopes"
+                v-model="authorizationScopes"
+                :placeholder="t('settings.mcp.serverForm.authorizationScopesPlaceholder')"
+              />
+            </div>
+
+            <div v-if="authorizationMode === 'private_key_jwt'" class="space-y-2">
+              <Label class="text-xs text-muted-foreground" for="key-algorithm">
+                {{ t('settings.mcp.serverForm.keyAlgorithm') }}
+              </Label>
+              <Select v-model="keyAlgorithm">
+                <SelectTrigger id="key-algorithm" class="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="RS256">RS256</SelectItem>
+                  <SelectItem value="ES256">ES256</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div v-if="authorizationMode === 'cross_app_access'" class="space-y-2">
+              <Label class="text-xs text-muted-foreground" for="identity-profile">
+                {{ t('settings.mcp.serverForm.identityProfile') }}
+              </Label>
+              <Select v-model="identityProfileId">
+                <SelectTrigger id="identity-profile" class="w-full">
+                  <SelectValue
+                    :placeholder="t('settings.mcp.serverForm.identityProfilePlaceholder')"
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="profile in enterpriseProfiles"
+                    :key="profile.id"
+                    :value="profile.id"
+                  >
+                    {{ profile.label }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div v-if="isMachineAuthorization" class="space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <Label class="text-xs text-muted-foreground" for="credential-input">
+                  {{
+                    authorizationMode === 'private_key_jwt'
+                      ? t('settings.mcp.serverForm.privateKey')
+                      : t('settings.mcp.serverForm.clientSecret')
+                  }}
+                </Label>
+                <Button
+                  v-if="selectedCredentialStatus?.configured"
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  @click="removeStoredCredential"
+                >
+                  {{ t('settings.mcp.serverForm.removeCredential') }}
+                </Button>
+              </div>
+              <Textarea
+                v-if="authorizationMode === 'private_key_jwt'"
+                id="credential-input"
+                v-model="privateKey"
+                rows="5"
+                :placeholder="
+                  selectedCredentialStatus?.configured
+                    ? t('settings.mcp.serverForm.credentialConfiguredPlaceholder')
+                    : '-----BEGIN PRIVATE KEY-----'
+                "
+              />
+              <Input
+                v-else
+                id="credential-input"
+                v-model="credentialSecret"
+                type="password"
+                autocomplete="new-password"
+                :placeholder="
+                  selectedCredentialStatus?.configured
+                    ? t('settings.mcp.serverForm.credentialConfiguredPlaceholder')
+                    : ''
+                "
+              />
+              <p v-if="selectedCredentialStatus?.configured" class="text-xs text-muted-foreground">
+                {{ t('settings.mcp.serverForm.credentialConfigured') }}
+                <span v-if="selectedCredentialStatus.fingerprint">
+                  · {{ selectedCredentialStatus.fingerprint }}
+                </span>
+              </p>
+              <p
+                v-if="selectedCredentialStatus && !selectedCredentialStatus.persistent"
+                class="text-xs text-amber-700 dark:text-amber-300"
+              >
+                {{ t('settings.mcp.serverForm.credentialMemoryOnly') }}
+              </p>
+            </div>
+          </template>
         </div>
 
         <!-- 命令 -->
@@ -780,7 +1135,7 @@ HTTP-Referer=deepchatai.cn`
         <!-- 文件夹选择 (特殊处理 buildInFileSystem) -->
         <div v-if="showFolderSelector" class="space-y-2">
           <Label class="text-xs text-muted-foreground">
-            {{ t('settings.mcp.serverForm.folders') || '可访问的文件夹' }}
+            {{ t('settings.mcp.serverForm.folders') }}
           </Label>
           <div class="space-y-2">
             <!-- 文件夹列表 -->
@@ -810,7 +1165,7 @@ HTTP-Referer=deepchatai.cn`
               @click="addFolder"
             >
               <Icon icon="lucide:folder-plus" class="h-4 w-4" />
-              {{ t('settings.mcp.serverForm.addFolder') || '添加文件夹' }}
+              {{ t('settings.mcp.serverForm.addFolder') }}
             </Button>
             <p v-if="folderSelectionError" role="alert" class="text-xs text-destructive">
               {{ folderSelectionError }}
@@ -821,7 +1176,7 @@ HTTP-Referer=deepchatai.cn`
               v-if="foldersList.length === 0"
               class="text-xs text-muted-foreground text-center py-4"
             >
-              {{ t('settings.mcp.serverForm.noFoldersSelected') || '未选择任何文件夹' }}
+              {{ t('settings.mcp.serverForm.noFoldersSelected') }}
             </div>
           </div>
         </div>
@@ -832,7 +1187,7 @@ HTTP-Referer=deepchatai.cn`
               {{ t('settings.mcp.serverForm.args') }}
             </Label>
             <Button type="button" variant="ghost" size="sm" @click="addArgsRow">
-              {{ t('settings.mcp.serverForm.addArg') || '添加参数' }}
+              {{ t('settings.mcp.serverForm.addArg') }}
             </Button>
           </div>
           <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -840,7 +1195,7 @@ HTTP-Referer=deepchatai.cn`
               <Input
                 v-model="row.value"
                 class="col-span-11"
-                :placeholder="t('settings.mcp.serverForm.argPlaceholder') || '输入参数值'"
+                :placeholder="t('settings.mcp.serverForm.argPlaceholder')"
               />
               <Button
                 type="button"
@@ -905,67 +1260,14 @@ HTTP-Referer=deepchatai.cn`
         <!-- NPM Registry 自定义设置 (仅在命令为 npx 或 node 时显示) -->
         <div v-if="showNpmRegistryInput" class="space-y-2">
           <Label class="text-xs text-muted-foreground" for="npm-registry">
-            {{ t('settings.mcp.serverForm.npmRegistry') || '自定义npm Registry' }}
+            {{ t('settings.mcp.serverForm.npmRegistry') }}
           </Label>
           <Input
             id="npm-registry"
             v-model="npmRegistry"
-            :placeholder="
-              t('settings.mcp.serverForm.npmRegistryPlaceholder') ||
-              '设置自定义 npm registry，留空系统会自动选择最快的'
-            "
+            :placeholder="t('settings.mcp.serverForm.npmRegistryPlaceholder')"
           />
         </div>
-        <!-- 自动授权选项 -->
-        <div class="space-y-3">
-          <Label class="text-xs text-muted-foreground">{{
-            t('settings.mcp.serverForm.autoApprove')
-          }}</Label>
-          <div class="flex flex-col space-y-2">
-            <div class="flex items-center space-x-2">
-              <Checkbox
-                id="auto-approve-all"
-                v-model:checked="autoApproveAll"
-                @update:checked="handleAutoApproveAllChange"
-              />
-              <label
-                for="auto-approve-all"
-                class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                {{ t('settings.mcp.serverForm.autoApproveAll') }}
-              </label>
-            </div>
-
-            <div class="flex items-center space-x-2">
-              <Checkbox
-                id="auto-approve-read"
-                v-model:checked="autoApproveRead"
-                :disabled="autoApproveAll"
-              />
-              <label
-                for="auto-approve-read"
-                class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                {{ t('settings.mcp.serverForm.autoApproveRead') }}
-              </label>
-            </div>
-
-            <div class="flex items-center space-x-2">
-              <Checkbox
-                id="auto-approve-write"
-                v-model:checked="autoApproveWrite"
-                :disabled="autoApproveAll"
-              />
-              <label
-                for="auto-approve-write"
-                class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                {{ t('settings.mcp.serverForm.autoApproveWrite') }}
-              </label>
-            </div>
-          </div>
-        </div>
-
         <!-- Custom Headers，仅在类型为SSE或HTTP时显示 -->
         <div v-if="showBaseUrl" class="space-y-2">
           <Label class="text-xs text-muted-foreground" for="server-custom-headers">{{
@@ -1006,7 +1308,7 @@ HTTP-Referer=deepchatai.cn`
             v-if="!customHeadersFocused && customHeaders.trim()"
             class="text-xs text-muted-foreground"
           >
-            {{ t('settings.mcp.serverForm.clickToEdit') || '点击编辑以查看完整内容' }}
+            {{ t('settings.mcp.serverForm.clickToEdit') }}
           </p>
         </div>
       </div>

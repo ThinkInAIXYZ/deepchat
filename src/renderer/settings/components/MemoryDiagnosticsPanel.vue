@@ -296,56 +296,76 @@
           <p class="mt-1 text-xs text-muted-foreground">
             {{ t('settings.memory.redesign.dangerZoneDescription') }}
           </p>
-          <AlertDialog>
-            <AlertDialogTrigger as-child>
-              <Button variant="destructive" size="sm" class="mt-3 h-8 text-xs">
-                <Icon icon="lucide:trash-2" class="mr-1.5 h-3.5 w-3.5" />
-                {{ t('settings.deepchatAgents.memoryManager.clearAll') }}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  {{ t('settings.deepchatAgents.memoryManager.clearConfirmTitle') }}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {{ t('settings.deepchatAgents.memoryManager.clearConfirmBody') }}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                <AlertDialogAction
-                  class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  @click="clearAll"
-                >
-                  {{ t('settings.deepchatAgents.memoryManager.clearAll') }}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Button
+            variant="destructive"
+            size="sm"
+            class="mt-3 h-8 text-xs"
+            :disabled="loading || clearing"
+            data-testid="memory-clear-all-trigger"
+            @click="requestClearAll"
+          >
+            <Icon icon="lucide:trash-2" class="mr-1.5 h-3.5 w-3.5" />
+            {{ t('settings.deepchatAgents.memoryManager.clearAll') }}
+          </Button>
         </section>
       </aside>
     </div>
+
+    <AlertDialog :open="clearDialogOpen" @update:open="handleClearDialogOpenChange">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {{ t('settings.deepchatAgents.memoryManager.clearConfirmTitle') }}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ t('settings.deepchatAgents.memoryManager.clearConfirmBody') }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <MemoryInlineFeedback
+          v-if="clearOperationFeedbackState"
+          :feedback="clearOperationFeedbackState"
+          @clear="clearClearAllFeedback"
+        />
+        <AlertDialogFooter>
+          <AlertDialogCancel data-testid="memory-clear-all-cancel" :disabled="clearing">
+            {{ t('common.cancel') }}
+          </AlertDialogCancel>
+          <AlertDialogAsyncAction
+            data-testid="memory-clear-all-confirm"
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            :disabled="loading || clearing"
+            @click="clearAll"
+          >
+            <Spinner
+              v-if="clearing"
+              data-testid="memory-clear-all-spinner"
+              class="mr-1.5 size-3.5"
+            />
+            {{ t('settings.deepchatAgents.memoryManager.clearAll') }}
+          </AlertDialogAsyncAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, ref, watch } from 'vue'
+import { computed, defineComponent, h, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogAsyncAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
+  AlertDialogTitle
 } from '@shadcn/components/ui/alert-dialog'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { createMemoryClient } from '@api/MemoryClient'
 import type {
   MemoryArchiveCandidateLifecyclePreview,
@@ -368,9 +388,17 @@ const memoryClient = createMemoryClient()
 const panelFeedback = useMemoryInlineFeedback('MemoryDiagnosticsPanel')
 const feedback = panelFeedback.feedback
 const clearFeedback = panelFeedback.clear
+const clearOperationFeedback = useMemoryInlineFeedback('MemoryDiagnosticsPanel.clearAll')
+const clearOperationFeedbackState = clearOperationFeedback.feedback
+const clearClearAllFeedback = clearOperationFeedback.clear
 
 const loading = ref(false)
 const reindexPending = ref(false)
+type ClearRequest =
+  | { status: 'idle' }
+  | { status: 'confirming' }
+  | { status: 'pending'; agentId: string }
+const clearRequest = shallowRef<ClearRequest>({ status: 'idle' })
 const health = ref<MemoryHealthDto | null>(null)
 const archivePreview = ref<MemoryArchiveCandidateLifecyclePreview | null>(null)
 const auditEvents = ref<MemoryAuditEvent[]>([])
@@ -382,6 +410,8 @@ let statusEpoch = 0
 let pendingStartEpoch: number | null = null
 
 const reindexing = computed(() => reindexPending.value || props.status?.reindexing === true)
+const clearDialogOpen = computed(() => clearRequest.value.status !== 'idle')
+const clearing = computed(() => clearRequest.value.status === 'pending')
 const showReindexFailure = computed(
   () =>
     !reindexing.value &&
@@ -535,14 +565,28 @@ async function reindex(): Promise<void> {
   }
 }
 
+function requestClearAll(): void {
+  if (!props.agentId || loading.value || clearRequest.value.status !== 'idle') return
+  clearClearAllFeedback()
+  clearRequest.value = { status: 'confirming' }
+}
+
+function handleClearDialogOpenChange(open: boolean): void {
+  if (open || clearRequest.value.status !== 'confirming') return
+  clearRequest.value = { status: 'idle' }
+  clearClearAllFeedback()
+}
+
 async function clearAll(): Promise<void> {
-  const agentId = props.agentId
-  if (!agentId || loading.value) return
-  clearFeedback()
-  loading.value = true
+  if (loading.value || clearRequest.value.status !== 'confirming') return
+  const pendingRequest = { status: 'pending' as const, agentId: props.agentId }
+  clearRequest.value = pendingRequest
+  clearClearAllFeedback()
   try {
-    const result = await memoryClient.clear(agentId)
-    if (props.agentId !== agentId) return
+    const result = await memoryClient.clear(pendingRequest.agentId)
+    if (props.agentId !== pendingRequest.agentId || clearRequest.value !== pendingRequest) {
+      return
+    }
     if (result.cleanupPendingRestart) {
       panelFeedback.show(
         'warning',
@@ -550,11 +594,15 @@ async function clearAll(): Promise<void> {
       )
     }
     await load()
+    if (props.agentId !== pendingRequest.agentId || clearRequest.value !== pendingRequest) {
+      return
+    }
+    clearRequest.value = { status: 'idle' }
   } catch (error) {
-    if (props.agentId !== agentId) return
-    panelFeedback.fail(error)
-  } finally {
-    if (props.agentId === agentId) loading.value = false
+    if (props.agentId === pendingRequest.agentId && clearRequest.value === pendingRequest) {
+      clearRequest.value = { status: 'confirming' }
+      clearOperationFeedback.fail(error)
+    }
   }
 }
 
@@ -568,6 +616,8 @@ watch(
   () => props.agentId,
   () => {
     clearFeedback()
+    clearClearAllFeedback()
+    clearRequest.value = { status: 'idle' }
     reindexPending.value = false
     pendingStartEpoch = null
   }

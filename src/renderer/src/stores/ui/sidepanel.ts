@@ -61,6 +61,7 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
 
   const open = ref(false)
   const activeTab = ref<SidePanelTab>('workspace')
+  const mcpAppPreviewOwnerId = ref<string | null>(null)
   const width = useStorage('chat-sidepanel-width', 520)
   const sessionStates = reactive<Record<string, WorkspaceSessionState>>({})
 
@@ -172,6 +173,27 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     }
   }
 
+  const openMcpAppPreview = (ownerId: string) => {
+    const normalizedOwnerId = ownerId.trim()
+    if (!normalizedOwnerId) {
+      return
+    }
+    mcpAppPreviewOwnerId.value = normalizedOwnerId
+    open.value = true
+    activeTab.value = 'mcp-app'
+  }
+
+  const closeMcpAppPreview = (ownerId: string) => {
+    if (mcpAppPreviewOwnerId.value !== ownerId) {
+      return
+    }
+    mcpAppPreviewOwnerId.value = null
+    if (activeTab.value === 'mcp-app') {
+      activeTab.value = 'workspace'
+      open.value = false
+    }
+  }
+
   const closePanel = () => {
     open.value = false
   }
@@ -269,6 +291,7 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
   return {
     open,
     activeTab,
+    mcpAppPreviewOwnerId,
     width: normalizedWidth,
     navCollapsed,
     navWidth,
@@ -285,6 +308,8 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     requestSavedWorkflow,
     consumeSavedWorkflowRequest,
     selectWorkflowRun,
+    openMcpAppPreview,
+    closeMcpAppPreview,
     closePanel,
     toggleWorkspace,
     setViewMode,

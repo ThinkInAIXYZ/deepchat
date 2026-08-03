@@ -27,15 +27,20 @@ import { useI18n } from 'vue-i18n'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useRouter } from 'vue-router'
 import McpServerCard from './McpServerCard.vue'
+import McpEnterpriseProfiles from './McpEnterpriseProfiles.vue'
 import McpServerForm from '../McpServerForm.vue'
 import McpToolPanel from './McpToolPanel.vue'
 import McpPromptPanel from './McpPromptPanel.vue'
 import McpResourceViewer from './McpResourceViewer.vue'
-import type { MCPServerConfig } from '@shared/types/mcp'
+import type { MCPServerConfig, McpCredentialBinding, McpCredentialInput } from '@shared/types/mcp'
+import { createMcpClient } from '@api/McpClient'
+import { createDeviceClient } from '@api/DeviceClient'
 
 const mcpStore = useMcpStore()
 const { t } = useI18n()
 const router = useRouter()
+const mcpClient = createMcpClient()
+const deviceClient = createDeviceClient()
 const props = withDefaults(
   defineProps<{
     showFooterAddButton?: boolean
@@ -70,6 +75,11 @@ const isRemovingServer = ref(false)
 const isToolPanelOpen = ref(false)
 const isPromptPanelOpen = ref(false)
 const isResourceViewerOpen = ref(false)
+const isDiagnosticsOpen = ref(false)
+const diagnosticsServerName = ref('')
+const diagnostics = ref<Awaited<ReturnType<typeof mcpClient.getServerDiagnostics>> | null>(null)
+const diagnosticsError = ref('')
+const isDiagnosticsLoading = ref(false)
 const selectedServer = ref<string>('')
 const selectedServerForTools = ref<string>('')
 const selectedServerForPrompts = ref<string>('')
@@ -84,6 +94,7 @@ const activeFilter = ref<'all' | 'running' | 'stopped'>('all')
 const MCP_FILTERS = ['all', 'running', 'stopped'] as const
 let addServerDialogGeneration = 0
 let editServerDialogGeneration = 0
+let diagnosticsRequestGeneration = 0
 
 watch(
   () => mcpStore.mcpInstallCache,
@@ -167,7 +178,33 @@ const getServerResourcesCount = (serverName: string) => {
 const getServerEnabled = (serverName: string, fallback: boolean) =>
   props.serverEnabledOverrides[serverName] ?? fallback
 
-const handleAddServer = async (serverName: string, serverConfig: MCPServerConfig) => {
+const saveSubmittedCredential = async (
+  serverName: string,
+  credential?: McpCredentialInput
+): Promise<void> => {
+  if (!credential) return
+  const servers = await mcpClient.getMcpServers()
+  const config = servers[serverName]
+  if (!config?.serverId || !config.configGeneration || !config.bindingHash || !config.baseUrl) {
+    throw new Error('MCP server credential binding is unavailable')
+  }
+  const binding: McpCredentialBinding = {
+    serverId: config.serverId,
+    configGeneration: config.configGeneration,
+    bindingHash: config.bindingHash,
+    endpoint: config.baseUrl,
+    protectedResourceUrl: config.authorization?.protectedResourceUrl,
+    authorizationServerIssuer: config.authorization?.authorizationServerIssuer,
+    clientId: config.authorization?.clientId
+  }
+  await mcpClient.setCredential(binding, credential)
+}
+
+const handleAddServer = async (
+  serverName: string,
+  serverConfig: MCPServerConfig,
+  credential?: McpCredentialInput
+) => {
   if (isAddingServer.value) return
 
   isAddingServer.value = true
@@ -179,6 +216,20 @@ const handleAddServer = async (serverName: string, serverConfig: MCPServerConfig
       return
     }
     if (result.status === 'added') {
+      try {
+        await saveSubmittedCredential(serverName, credential)
+      } catch (error) {
+        console.error('[McpServers] Failed to save server credential:', serverName, error)
+        notifyRenderer({
+          kind: 'error',
+          code: 'settings.mcp.serverForm.credentialSaveError',
+          title: t('settings.mcp.serverForm.credentialSaveError'),
+          description: t('settings.mcp.serverForm.credentialSaveError')
+        })
+      }
+      if (dialogGeneration !== addServerDialogGeneration || !isAddServerDialogOpen.value) {
+        return
+      }
       isAddServerDialogOpen.value = false
       return
     }
@@ -232,7 +283,11 @@ const refreshSelectedServerAuthStatus = async () => {
 
 useEventListener(window, 'focus', refreshSelectedServerAuthStatus)
 
-const handleEditServer = async (serverName: string, serverConfig: Partial<MCPServerConfig>) => {
+const handleEditServer = async (
+  serverName: string,
+  serverConfig: Partial<MCPServerConfig>,
+  credential?: McpCredentialInput
+) => {
   if (isEditingServer.value) return
 
   isEditingServer.value = true
@@ -253,12 +308,32 @@ const handleEditServer = async (serverName: string, serverConfig: Partial<MCPSer
     return
   }
 
-  isEditingServer.value = false
-  if (success) {
-    isEditServerDialogOpen.value = false
-  } else {
+  if (!success) {
+    isEditingServer.value = false
     editServerError.value = t('common.error.requestFailed')
+    return
   }
+
+  try {
+    await saveSubmittedCredential(serverName, credential)
+  } catch (error) {
+    console.error('[McpServers] Failed to save server credential:', serverName, error)
+    isEditingServer.value = false
+    editServerError.value = t('settings.mcp.serverForm.credentialSaveError')
+    return
+  }
+
+  if (
+    dialogGeneration !== editServerDialogGeneration ||
+    !isEditServerDialogOpen.value ||
+    selectedServer.value !== serverName
+  ) {
+    isEditingServer.value = false
+    return
+  }
+
+  isEditingServer.value = false
+  isEditServerDialogOpen.value = false
 }
 
 const handleRemoveServer = async (serverName: string) => {
@@ -275,6 +350,7 @@ const confirmRemoveServer = async () => {
   if (isRemovingServer.value) return
 
   const serverName = selectedServer.value
+  isRemoveConfirmDialogOpen.value = false
   isRemovingServer.value = true
   removeServerError.value = null
   let success = false
@@ -285,10 +361,9 @@ const confirmRemoveServer = async () => {
   }
   isRemovingServer.value = false
 
-  if (success) {
-    isRemoveConfirmDialogOpen.value = false
-  } else {
+  if (!success) {
     removeServerError.value = t('common.error.requestFailed')
+    isRemoveConfirmDialogOpen.value = true
   }
 }
 
@@ -443,6 +518,63 @@ const handleViewResources = async (serverName: string) => {
   isResourceViewerOpen.value = true
 }
 
+const refreshDiagnostics = async () => {
+  if (!diagnosticsServerName.value) {
+    return
+  }
+  const serverName = diagnosticsServerName.value
+  const requestGeneration = ++diagnosticsRequestGeneration
+  isDiagnosticsLoading.value = true
+  diagnosticsError.value = ''
+  diagnostics.value = null
+  try {
+    const nextDiagnostics = await mcpClient.getServerDiagnostics(serverName)
+    if (
+      requestGeneration === diagnosticsRequestGeneration &&
+      serverName === diagnosticsServerName.value
+    ) {
+      diagnostics.value = nextDiagnostics
+    }
+  } catch (error) {
+    if (
+      requestGeneration === diagnosticsRequestGeneration &&
+      serverName === diagnosticsServerName.value
+    ) {
+      diagnostics.value = null
+      diagnosticsError.value = error instanceof Error ? error.message : String(error)
+    }
+  } finally {
+    if (requestGeneration === diagnosticsRequestGeneration) {
+      isDiagnosticsLoading.value = false
+    }
+  }
+}
+
+const openDiagnostics = (serverName: string) => {
+  diagnosticsServerName.value = serverName
+  isDiagnosticsOpen.value = true
+  void refreshDiagnostics()
+}
+
+const copyDiagnostics = () => {
+  if (diagnostics.value) {
+    deviceClient.copyText(JSON.stringify(diagnostics.value, null, 2))
+  }
+}
+
+watch(
+  () =>
+    [
+      diagnosticsServerName.value,
+      mcpStore.serverList.find((server) => server.name === diagnosticsServerName.value)?.isRunning
+    ] as const,
+  ([serverName, isRunning], [previousServerName, wasRunning]) => {
+    if (isDiagnosticsOpen.value && serverName === previousServerName && isRunning !== wasRunning) {
+      void refreshDiagnostics()
+    }
+  }
+)
+
 const openDetail = (serverName: string) => {
   selectedDetailServerName.value = serverName
 }
@@ -528,6 +660,7 @@ defineExpose({
             @view-prompts="handleViewPrompts(server.name)"
             @view-resources="handleViewResources(server.name)"
             @authenticate="handleAuthenticateServer(server.name)"
+            @diagnostics="openDiagnostics(server.name)"
           />
         </div>
 
@@ -564,6 +697,7 @@ defineExpose({
 
         <!-- Action buttons -->
         <div class="flex space-x-2">
+          <McpEnterpriseProfiles v-if="!props.agentScopedToggle" />
           <Dialog :open="isAddServerDialogOpen" @update:open="handleAddDialogOpenChange">
             <DialogTrigger v-if="props.showFooterAddButton" as-child>
               <Button size="sm" class="h-8 px-3 text-xs">
@@ -703,7 +837,7 @@ defineExpose({
           :edit-mode="true"
           :submitting="isEditingServer"
           :submission-error="editServerError || undefined"
-          @submit="(name, config) => handleEditServer(name, config)"
+          @submit="handleEditServer"
           @input-change="clearEditServerError"
         />
       </DialogContent>
@@ -790,6 +924,92 @@ defineExpose({
               {{ t('settings.mcp.completeAuthentication') }}
             </Button>
           </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isDiagnosticsOpen">
+      <DialogContent class="w-[92vw] max-w-[620px]">
+        <DialogHeader>
+          <DialogTitle>{{ t('settings.mcp.diagnostics.title') }}</DialogTitle>
+          <DialogDescription>{{ diagnosticsServerName }}</DialogDescription>
+        </DialogHeader>
+        <div class="max-h-[60vh] overflow-auto">
+          <div v-if="isDiagnosticsLoading" class="flex justify-center py-10">
+            <Spinner class="size-5" />
+          </div>
+          <div v-else-if="diagnosticsError" class="text-sm text-destructive">
+            {{ diagnosticsError }}
+          </div>
+          <dl v-else-if="diagnostics" class="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-2 text-sm">
+            <dt class="text-muted-foreground">{{ t('settings.mcp.diagnostics.serverId') }}</dt>
+            <dd class="break-all font-mono text-xs">{{ diagnostics.serverId }}</dd>
+            <dt class="text-muted-foreground">{{ t('settings.mcp.diagnostics.owner') }}</dt>
+            <dd>{{ diagnostics.owner }}</dd>
+            <dt class="text-muted-foreground">{{ t('settings.mcp.diagnostics.transport') }}</dt>
+            <dd>{{ diagnostics.transport }}</dd>
+            <dt class="text-muted-foreground">
+              {{ t('settings.mcp.diagnostics.connectionState') }}
+            </dt>
+            <dd>{{ diagnostics.connectionState }}</dd>
+            <dt class="text-muted-foreground">{{ t('settings.mcp.diagnostics.era') }}</dt>
+            <dd>{{ diagnostics.era }} {{ diagnostics.protocolVersion || '' }}</dd>
+            <dt class="text-muted-foreground">
+              {{ t('settings.mcp.diagnostics.serverImplementation') }}
+            </dt>
+            <dd>
+              {{
+                diagnostics.serverImplementation
+                  ? `${diagnostics.serverImplementation.name} ${diagnostics.serverImplementation.version}`
+                  : '-'
+              }}
+            </dd>
+            <dt class="text-muted-foreground">{{ t('settings.mcp.diagnostics.probe') }}</dt>
+            <dd>
+              {{ diagnostics.probe.outcome }}
+              {{ diagnostics.probe.reasonCode ? `· ${diagnostics.probe.reasonCode}` : '' }}
+            </dd>
+            <dt class="text-muted-foreground">{{ t('settings.mcp.diagnostics.extensions') }}</dt>
+            <dd class="break-all">{{ diagnostics.extensions.join(', ') || '-' }}</dd>
+            <dt class="text-muted-foreground">
+              {{ t('settings.mcp.diagnostics.clientExtensions') }}
+            </dt>
+            <dd class="break-all">
+              {{
+                diagnostics.clientExtensions
+                  .map((extension) =>
+                    extension.revision ? `${extension.id}@${extension.revision}` : extension.id
+                  )
+                  .join(', ') || '-'
+              }}
+            </dd>
+            <dt class="text-muted-foreground">{{ t('settings.mcp.diagnostics.cache') }}</dt>
+            <dd>{{ diagnostics.cacheState }}</dd>
+            <dt class="text-muted-foreground">
+              {{ t('settings.mcp.diagnostics.subscriptions') }}
+            </dt>
+            <dd>{{ diagnostics.subscriptions.join(', ') || '-' }}</dd>
+            <dt class="text-muted-foreground">{{ t('settings.mcp.diagnostics.auth') }}</dt>
+            <dd>
+              {{ diagnostics.auth.state }}
+              {{ diagnostics.auth.mode ? `· ${diagnostics.auth.mode}` : '' }}
+              {{
+                diagnostics.auth.persistent === undefined
+                  ? ''
+                  : `· persistent=${diagnostics.auth.persistent}`
+              }}
+            </dd>
+          </dl>
+        </div>
+        <div class="flex justify-end gap-2">
+          <Button variant="outline" :disabled="isDiagnosticsLoading" @click="refreshDiagnostics">
+            <Icon icon="lucide:refresh-cw" class="size-4" />
+            {{ t('mcp.tools.refresh') }}
+          </Button>
+          <Button :disabled="!diagnostics" @click="copyDiagnostics">
+            <Icon icon="lucide:copy" class="size-4" />
+            {{ t('settings.mcp.diagnostics.copy') }}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

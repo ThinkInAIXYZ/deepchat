@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type {
+  MemoryConflictItem,
   MemoryDirectiveCommandResult,
   MemoryDirectiveItem,
   MemoryItem
@@ -60,6 +61,27 @@ function personaDraft(): MemoryItem {
   }
 }
 
+function conflict(): MemoryConflictItem {
+  return {
+    challenger: {
+      ...personaDraft(),
+      id: 'challenger',
+      kind: 'semantic',
+      content: 'New claim',
+      personaState: null,
+      status: 'conflicted'
+    },
+    target: {
+      ...personaDraft(),
+      id: 'target',
+      kind: 'semantic',
+      content: 'Existing claim',
+      personaState: null,
+      status: 'embedded'
+    }
+  }
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((next) => {
@@ -76,14 +98,17 @@ async function setup() {
     listPersonaDrafts: vi.fn().mockResolvedValue([]),
     listPersonaVersions: vi.fn().mockResolvedValue([]),
     listDirectives: vi.fn().mockResolvedValue([draft]),
-    resolveConflict: vi.fn(),
-    approvePersonaDraft: vi.fn(),
-    rejectPersonaDraft: vi.fn(),
+    resolveConflict: vi.fn().mockResolvedValue({ action: 'applied' }),
+    approvePersonaDraft: vi.fn().mockResolvedValue({ action: 'applied' }),
+    rejectPersonaDraft: vi.fn().mockResolvedValue({ action: 'applied' }),
     approveDirective: vi.fn().mockResolvedValue({
       action: 'applied',
       directive: { ...draft, status: 'active' }
     }),
-    rejectDirective: vi.fn().mockResolvedValue({ ...draft, status: 'rejected' })
+    rejectDirective: vi.fn().mockResolvedValue({
+      action: 'applied',
+      directive: { ...draft, status: 'rejected' }
+    })
   }
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
   vi.doMock('vue-i18n', () => ({
@@ -178,6 +203,32 @@ describe('MemoryInboxBar directives', () => {
     expect(feedback.text()).toContain(String(AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT))
   })
 
+  it('explains and reconciles a draft that vanished before rejection', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.rejectDirective.mockResolvedValueOnce({
+      action: 'rejected',
+      directive: null,
+      reason: 'not-found'
+    })
+    memoryClient.listDirectives.mockResolvedValueOnce([])
+    const reject = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.deepchatAgents.memoryManager.reject'))
+    if (!reject) throw new Error('Reject button not found')
+
+    await reject.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.rejectDirective).toHaveBeenCalledWith('deepchat', 'directive-draft')
+    expect(memoryClient.listDirectives).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('Do not proactively mention Project X.')
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.notFound'
+    )
+    consoleWarn.mockRestore()
+  })
+
   it('keeps persona results available when directive loading fails', async () => {
     const { wrapper, memoryClient } = await setup()
     memoryClient.listPersonaDrafts.mockResolvedValueOnce([personaDraft()])
@@ -194,5 +245,69 @@ describe('MemoryInboxBar directives', () => {
     expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
       'error'
     )
+  })
+
+  it('shows inline feedback when conflict resolution is rejected without an event', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.listConflicts.mockResolvedValueOnce([conflict()])
+    memoryClient.resolveConflict.mockResolvedValueOnce({
+      action: 'rejected',
+      reason: 'stale'
+    })
+    await wrapper.setProps({ conflictCount: 1, refreshToken: 1 })
+    await flushPromises()
+    const keepTarget = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.deepchatAgents.memoryManager.keepTarget'))
+    if (!keepTarget) throw new Error('Keep target button not found')
+
+    await keepTarget.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
+      'error'
+    )
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.stale'
+    )
+    expect(memoryClient.listConflicts).toHaveBeenCalledTimes(3)
+    expect(consoleWarn).toHaveBeenCalledWith('[MemoryInboxBar] Command rejected', {
+      reason: 'stale'
+    })
+  })
+
+  it('shows inline feedback when persona approval is rejected without an event', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.listPersonaDrafts.mockResolvedValueOnce([personaDraft()])
+    memoryClient.approvePersonaDraft.mockResolvedValueOnce({
+      action: 'rejected',
+      reason: 'invalid-state'
+    })
+    await wrapper.setProps({ draftCount: 1, refreshToken: 1 })
+    await flushPromises()
+    const approve = wrapper
+      .findAll('button')
+      .find(
+        (button) =>
+          button.text().includes('settings.deepchatAgents.memoryManager.approve') &&
+          button.element.closest('article')?.textContent?.includes('Proposed persona content')
+      )
+    if (!approve) throw new Error('Persona approve button not found')
+
+    await approve.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').attributes('data-tone')).toBe(
+      'error'
+    )
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.invalidState'
+    )
+    expect(memoryClient.listPersonaDrafts).toHaveBeenCalledTimes(3)
+    expect(consoleWarn).toHaveBeenCalledWith('[MemoryInboxBar] Command rejected', {
+      reason: 'invalid-state'
+    })
   })
 })

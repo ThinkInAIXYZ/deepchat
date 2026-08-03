@@ -1,7 +1,12 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import type { MCPContentItem } from '@shared/types/mcp'
 import {
+  mcpAppConsentRequestEvent,
   mcpConfigChangedEvent,
+  mcpElicitationCancelledEvent,
+  mcpElicitationDecisionEvent,
+  mcpElicitationRequestEvent,
+  mcpEnterpriseAuthChangedEvent,
   mcpSamplingCancelledEvent,
   mcpSamplingDecisionEvent,
   mcpSamplingRequestEvent,
@@ -13,15 +18,41 @@ import {
 } from '@shared/contracts/events'
 import {
   mcpAddServerRoute,
+  mcpAppsAuthorizeMessageRoute,
+  mcpAppsCallToolRoute,
+  mcpAppsListPromptsRoute,
+  mcpAppsListResourcesRoute,
+  mcpAppsListResourceTemplatesRoute,
+  mcpAppsListToolsRoute,
+  mcpAppsOpenLinkRoute,
+  mcpAppsPrepareViewRoute,
+  mcpAppsReadResourceRoute,
+  mcpAppsReleaseViewRoute,
+  mcpAppsRetryToolAccessRoute,
+  mcpAppsSubmitConsentRoute,
+  mcpAppsUpdateModelContextRoute,
   mcpCallToolRoute,
+  mcpCancelElicitationRequestRoute,
   mcpCancelSamplingRequestRoute,
   mcpClearNpmRegistryCacheRoute,
   mcpCompleteServerAuthFromCallbackUrlRoute,
+  mcpCredentialsGetStatusRoute,
+  mcpCredentialsRemoveRoute,
+  mcpCredentialsSetRoute,
+  mcpEnterpriseProfilesCompleteAuthRoute,
+  mcpEnterpriseProfilesGetStatusRoute,
+  mcpEnterpriseProfilesListRoute,
+  mcpEnterpriseProfilesLogoutRoute,
+  mcpEnterpriseProfilesRemoveRoute,
+  mcpEnterpriseProfilesSaveRoute,
+  mcpEnterpriseProfilesSetClientSecretRoute,
+  mcpEnterpriseProfilesStartAuthRoute,
   mcpGetClientsRoute,
   mcpGetEnabledRoute,
   mcpGetNpmRegistryStatusRoute,
   mcpGetPromptRoute,
   mcpGetServerAuthStatusRoute,
+  mcpGetServerDiagnosticsRoute,
   mcpGetServersRoute,
   mcpIsServerRunningRoute,
   mcpListPromptsRoute,
@@ -45,11 +76,21 @@ import {
   mcpStartServerRoute,
   mcpStopServerRoute,
   mcpSubmitSamplingDecisionRoute,
+  mcpSubmitElicitationDecisionRoute,
   mcpUpdateServerRoute
 } from '@shared/contracts/routes'
 import type {
   MCPServerConfig,
   MCPToolCall,
+  McpAppConsentRequestPayload,
+  McpAppDescriptor,
+  McpCredentialBinding,
+  McpCredentialInput,
+  McpCredentialKind,
+  McpElicitationDecision,
+  McpElicitationRequestPayload,
+  McpEnterpriseIdentityProfile,
+  McpEnterpriseIdentityStatus,
   McpSamplingDecision,
   PromptListEntry,
   ResourceListEntry
@@ -132,26 +173,111 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     await bridge.invoke(mcpStopServerRoute.name, { serverName })
   }
 
+  async function resolveServerId(serverName: string): Promise<string> {
+    const servers = await getMcpServers()
+    const serverId = servers[serverName]?.serverId
+    if (!serverId) {
+      throw new Error(`MCP server identity is unavailable for ${serverName}`)
+    }
+    return serverId
+  }
+
   async function getServerAuthStatus(serverName: string) {
-    const result = await bridge.invoke(mcpGetServerAuthStatusRoute.name, { serverName })
+    const result = await bridge.invoke(mcpGetServerAuthStatusRoute.name, {
+      serverId: await resolveServerId(serverName)
+    })
     return result.status
   }
 
+  async function getServerDiagnostics(serverName: string) {
+    const result = await bridge.invoke(mcpGetServerDiagnosticsRoute.name, {
+      serverId: await resolveServerId(serverName)
+    })
+    return result.diagnostics
+  }
+
   async function startServerAuth(serverName: string) {
-    const result = await bridge.invoke(mcpStartServerAuthRoute.name, { serverName })
+    const result = await bridge.invoke(mcpStartServerAuthRoute.name, {
+      serverId: await resolveServerId(serverName)
+    })
     return result.status
   }
 
   async function completeServerAuthFromCallbackUrl(serverName: string, callbackUrl: string) {
     const result = await bridge.invoke(mcpCompleteServerAuthFromCallbackUrlRoute.name, {
-      serverName,
+      serverId: await resolveServerId(serverName),
       callbackUrl
     })
     return result.status
   }
 
   async function logoutServerAuth(serverName: string) {
-    const result = await bridge.invoke(mcpLogoutServerAuthRoute.name, { serverName })
+    const result = await bridge.invoke(mcpLogoutServerAuthRoute.name, {
+      serverId: await resolveServerId(serverName)
+    })
+    return result.status
+  }
+
+  async function getCredentialStatus(serverId: string) {
+    const result = await bridge.invoke(mcpCredentialsGetStatusRoute.name, { serverId })
+    return result.credentials
+  }
+
+  async function setCredential(binding: McpCredentialBinding, credential: McpCredentialInput) {
+    const result = await bridge.invoke(mcpCredentialsSetRoute.name, {
+      binding,
+      credential
+    })
+    return result.status
+  }
+
+  async function removeCredential(binding: McpCredentialBinding, kind: McpCredentialKind) {
+    const result = await bridge.invoke(mcpCredentialsRemoveRoute.name, { binding, kind })
+    return result.status
+  }
+
+  async function listEnterpriseProfiles() {
+    const result = await bridge.invoke(mcpEnterpriseProfilesListRoute.name, {})
+    return result.profiles
+  }
+
+  async function saveEnterpriseProfile(profile: McpEnterpriseIdentityProfile) {
+    const result = await bridge.invoke(mcpEnterpriseProfilesSaveRoute.name, { profile })
+    return result.profile
+  }
+
+  async function removeEnterpriseProfile(profileId: string) {
+    await bridge.invoke(mcpEnterpriseProfilesRemoveRoute.name, { profileId })
+  }
+
+  async function setEnterpriseProfileClientSecret(profileId: string, secret: string) {
+    const result = await bridge.invoke(mcpEnterpriseProfilesSetClientSecretRoute.name, {
+      profileId,
+      secret
+    })
+    return result.status
+  }
+
+  async function getEnterpriseProfileStatus(profileId: string) {
+    const result = await bridge.invoke(mcpEnterpriseProfilesGetStatusRoute.name, { profileId })
+    return result.status
+  }
+
+  async function startEnterpriseProfileAuth(profileId: string) {
+    const result = await bridge.invoke(mcpEnterpriseProfilesStartAuthRoute.name, { profileId })
+    return result.status
+  }
+
+  async function completeEnterpriseProfileAuth(profileId: string, callbackUrl: string) {
+    const result = await bridge.invoke(mcpEnterpriseProfilesCompleteAuthRoute.name, {
+      profileId,
+      callbackUrl
+    })
+    return result.status
+  }
+
+  async function logoutEnterpriseProfile(profileId: string) {
+    const result = await bridge.invoke(mcpEnterpriseProfilesLogoutRoute.name, { profileId })
     return result.status
   }
 
@@ -171,6 +297,92 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
 
   async function cancelSamplingRequest(requestId: string, reason?: string) {
     await bridge.invoke(mcpCancelSamplingRequestRoute.name, { requestId, reason })
+  }
+
+  async function submitElicitationDecision(decision: McpElicitationDecision) {
+    await bridge.invoke(mcpSubmitElicitationDecisionRoute.name, { decision })
+  }
+
+  async function cancelElicitationRequest(requestId: string, reason?: string) {
+    await bridge.invoke(mcpCancelElicitationRequestRoute.name, { requestId, reason })
+  }
+
+  async function prepareAppView(input: {
+    descriptor: McpAppDescriptor
+    conversationId: string
+    messageId: string
+    blockId: string
+    toolInput: Record<string, unknown>
+  }) {
+    const result = await bridge.invoke(mcpAppsPrepareViewRoute.name, input)
+    return result.view
+  }
+
+  async function releaseAppView(instanceId: string) {
+    await bridge.invoke(mcpAppsReleaseViewRoute.name, { instanceId })
+  }
+
+  async function callAppTool(instanceId: string, name: string, args: Record<string, unknown>) {
+    const result = await bridge.invoke(mcpAppsCallToolRoute.name, {
+      instanceId,
+      name,
+      arguments: args
+    })
+    return result.call
+  }
+
+  async function readAppResource(instanceId: string, uri: string) {
+    return await bridge.invoke(mcpAppsReadResourceRoute.name, { instanceId, uri })
+  }
+
+  async function listAppTools(instanceId: string, cursor?: string) {
+    return await bridge.invoke(mcpAppsListToolsRoute.name, { instanceId, cursor })
+  }
+
+  async function listAppResources(instanceId: string, cursor?: string) {
+    return await bridge.invoke(mcpAppsListResourcesRoute.name, { instanceId, cursor })
+  }
+
+  async function listAppResourceTemplates(instanceId: string, cursor?: string) {
+    return await bridge.invoke(mcpAppsListResourceTemplatesRoute.name, {
+      instanceId,
+      cursor
+    })
+  }
+
+  async function listAppPrompts(instanceId: string, cursor?: string) {
+    return await bridge.invoke(mcpAppsListPromptsRoute.name, { instanceId, cursor })
+  }
+
+  async function openAppLink(instanceId: string, url: string) {
+    const result = await bridge.invoke(mcpAppsOpenLinkRoute.name, { instanceId, url })
+    return result.opened
+  }
+
+  async function authorizeAppMessage(instanceId: string, text: string) {
+    const result = await bridge.invoke(mcpAppsAuthorizeMessageRoute.name, { instanceId, text })
+    return result.approved
+  }
+
+  async function updateAppModelContext(
+    instanceId: string,
+    input: {
+      content?: MCPContentItem[]
+      structuredContent?: Record<string, unknown>
+    }
+  ) {
+    return await bridge.invoke(mcpAppsUpdateModelContextRoute.name, {
+      instanceId,
+      ...input
+    })
+  }
+
+  async function retryAppToolAccess(instanceId: string) {
+    await bridge.invoke(mcpAppsRetryToolAccessRoute.name, { instanceId })
+  }
+
+  async function submitAppConsent(requestId: string, approved: boolean) {
+    await bridge.invoke(mcpAppsSubmitConsentRoute.name, { requestId, approved })
   }
 
   async function getNpmRegistryStatus() {
@@ -288,6 +500,36 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return bridge.on(mcpSamplingCancelledEvent.name, listener)
   }
 
+  function onElicitationRequest(
+    listener: (payload: { request: McpElicitationRequestPayload; version: number }) => void
+  ) {
+    return bridge.on(mcpElicitationRequestEvent.name, listener)
+  }
+
+  function onElicitationDecision(
+    listener: (payload: { decision: McpElicitationDecision; version: number }) => void
+  ) {
+    return bridge.on(mcpElicitationDecisionEvent.name, listener)
+  }
+
+  function onElicitationCancelled(
+    listener: (payload: { requestId: string; reason?: string; version: number }) => void
+  ) {
+    return bridge.on(mcpElicitationCancelledEvent.name, listener)
+  }
+
+  function onAppConsentRequest(
+    listener: (payload: { request: McpAppConsentRequestPayload; version: number }) => void
+  ) {
+    return bridge.on(mcpAppConsentRequestEvent.name, listener)
+  }
+
+  function onEnterpriseAuthChanged(
+    listener: (payload: { status: McpEnterpriseIdentityStatus; version: number }) => void
+  ) {
+    return bridge.on(mcpEnterpriseAuthChangedEvent.name, listener)
+  }
+
   return {
     getMcpServers,
     getMcpEnabled,
@@ -305,13 +547,40 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     startServer,
     stopServer,
     getServerAuthStatus,
+    getServerDiagnostics,
     startServerAuth,
     completeServerAuthFromCallbackUrl,
     logoutServerAuth,
+    getCredentialStatus,
+    setCredential,
+    removeCredential,
+    listEnterpriseProfiles,
+    saveEnterpriseProfile,
+    removeEnterpriseProfile,
+    setEnterpriseProfileClientSecret,
+    getEnterpriseProfileStatus,
+    startEnterpriseProfileAuth,
+    completeEnterpriseProfileAuth,
+    logoutEnterpriseProfile,
     getPrompt,
     readResource,
     submitSamplingDecision,
     cancelSamplingRequest,
+    submitElicitationDecision,
+    cancelElicitationRequest,
+    prepareAppView,
+    releaseAppView,
+    callAppTool,
+    listAppTools,
+    readAppResource,
+    listAppResources,
+    listAppResourceTemplates,
+    listAppPrompts,
+    openAppLink,
+    authorizeAppMessage,
+    updateAppModelContext,
+    retryAppToolAccess,
+    submitAppConsent,
     getNpmRegistryStatus,
     refreshNpmRegistry,
     setCustomNpmRegistry,
@@ -331,7 +600,12 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     onToolCallResult,
     onSamplingRequest,
     onSamplingDecision,
-    onSamplingCancelled
+    onSamplingCancelled,
+    onElicitationRequest,
+    onElicitationDecision,
+    onElicitationCancelled,
+    onAppConsentRequest,
+    onEnterpriseAuthChanged
   }
 }
 

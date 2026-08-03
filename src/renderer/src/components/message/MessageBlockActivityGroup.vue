@@ -50,6 +50,7 @@
             :message-id="messageId"
             :thread-id="threadId"
             :read-only="readOnly"
+            render-mode="tool-only"
           />
         </template>
       </div>

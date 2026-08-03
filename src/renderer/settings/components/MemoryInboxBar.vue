@@ -211,7 +211,10 @@ import { createMemoryClient } from '@api/MemoryClient'
 import type { MemoryConflictItem, MemoryDirectiveItem, MemoryItem } from '@shared/contracts/routes'
 import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@shared/types/agent-memory'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
-import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
+import {
+  shouldReconcileMemoryCommandRejection,
+  useMemoryInlineFeedback
+} from '../lib/useMemoryInlineFeedback'
 
 const props = defineProps<{
   agentId: string
@@ -334,14 +337,22 @@ async function resolveConflict(
   const agentId = props.agentId
   clearFeedback()
   setPending(pendingConflictIds, challengerId, true)
+  let shouldReload = false
   try {
     // Main broadcasts memory.updated for this mutation, which bumps
     // refreshToken and reloads this panel; no need to also reload locally.
-    await memoryClient.resolveConflict(agentId, challengerId, outcome)
+    const result = await memoryClient.resolveConflict(agentId, challengerId, outcome)
+    if (props.agentId === agentId && result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+      shouldReload = shouldReconcileMemoryCommandRejection(result.reason)
+    }
   } catch (error) {
     if (props.agentId === agentId) panelFeedback.fail(error)
   } finally {
-    if (props.agentId === agentId) setPending(pendingConflictIds, challengerId, false)
+    if (props.agentId === agentId) {
+      setPending(pendingConflictIds, challengerId, false)
+      if (shouldReload) void load()
+    }
   }
 }
 
@@ -350,12 +361,20 @@ async function approveDraft(draftId: string): Promise<void> {
   const agentId = props.agentId
   clearFeedback()
   setPending(pendingPersonaIds, draftId, true)
+  let shouldReload = false
   try {
-    await memoryClient.approvePersonaDraft(agentId, draftId)
+    const result = await memoryClient.approvePersonaDraft(agentId, draftId)
+    if (props.agentId === agentId && result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+      shouldReload = shouldReconcileMemoryCommandRejection(result.reason)
+    }
   } catch (error) {
     if (props.agentId === agentId) panelFeedback.fail(error)
   } finally {
-    if (props.agentId === agentId) setPending(pendingPersonaIds, draftId, false)
+    if (props.agentId === agentId) {
+      setPending(pendingPersonaIds, draftId, false)
+      if (shouldReload) void load()
+    }
   }
 }
 
@@ -364,12 +383,20 @@ async function rejectDraft(draftId: string): Promise<void> {
   const agentId = props.agentId
   clearFeedback()
   setPending(pendingPersonaIds, draftId, true)
+  let shouldReload = false
   try {
-    await memoryClient.rejectPersonaDraft(agentId, draftId)
+    const result = await memoryClient.rejectPersonaDraft(agentId, draftId)
+    if (props.agentId === agentId && result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+      shouldReload = shouldReconcileMemoryCommandRejection(result.reason)
+    }
   } catch (error) {
     if (props.agentId === agentId) panelFeedback.fail(error)
   } finally {
-    if (props.agentId === agentId) setPending(pendingPersonaIds, draftId, false)
+    if (props.agentId === agentId) {
+      setPending(pendingPersonaIds, draftId, false)
+      if (shouldReload) void load()
+    }
   }
 }
 
@@ -392,6 +419,8 @@ async function approveDirective(directiveId: string): Promise<void> {
     if (props.agentId !== agentId) return
     if (result.action === 'rejected') {
       panelFeedback.rejectDirective(result.reason)
+      shouldReload =
+        result.reason !== 'capacity' && shouldReconcileMemoryCommandRejection(result.reason)
       return
     }
     directiveDrafts.value = directiveDrafts.value.filter(
@@ -419,10 +448,12 @@ async function rejectDirective(directiveId: string): Promise<void> {
   setDirectivePending(directiveId, true)
   let shouldReload = false
   try {
-    const rejected = await memoryClient.rejectDirective(agentId, directiveId)
+    const result = await memoryClient.rejectDirective(agentId, directiveId)
     if (props.agentId !== agentId) return
-    if (!rejected) {
-      panelFeedback.fail()
+    if (result.action === 'rejected') {
+      panelFeedback.rejectDirective(result.reason)
+      shouldReload =
+        result.reason !== 'capacity' && shouldReconcileMemoryCommandRejection(result.reason)
       return
     }
     directiveDrafts.value = directiveDrafts.value.filter(

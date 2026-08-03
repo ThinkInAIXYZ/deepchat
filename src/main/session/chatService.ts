@@ -137,10 +137,18 @@ export class ChatService {
     sessionId: string,
     content: string | SendMessageInput,
     options?: { signal?: AbortSignal }
-  ): Promise<{
-    accepted: boolean
-    attachmentPreparation?: MessageStartResult['attachmentPreparation']
-  }> {
+  ): Promise<
+    | {
+        accepted: true
+        message: ChatMessageRecord
+        attachmentPreparation?: MessageStartResult['attachmentPreparation']
+      }
+    | {
+        accepted: false
+        message: null
+        attachmentPreparation?: MessageStartResult['attachmentPreparation']
+      }
+  > {
     const controller = new AbortController()
     const removeParentAbortListener = relayAbort(options?.signal, controller)
     const controllers = this.acceptControllers.get(sessionId) ?? new Set<AbortController>()
@@ -166,8 +174,21 @@ export class ChatService {
         signal: controller.signal
       })
 
+      if (result.attachmentPreparation?.status === 'needs_user_action') {
+        return {
+          accepted: false,
+          message: null,
+          attachmentPreparation: result.attachmentPreparation
+        }
+      }
+
+      if (!result.userMessage) {
+        throw new Error(`Steer accepted without a persisted user message: ${sessionId}`)
+      }
+
       return {
-        accepted: result.attachmentPreparation?.status !== 'needs_user_action',
+        accepted: true,
+        message: result.userMessage,
         ...(result.attachmentPreparation
           ? { attachmentPreparation: result.attachmentPreparation }
           : {})

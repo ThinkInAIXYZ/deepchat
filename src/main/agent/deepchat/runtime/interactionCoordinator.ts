@@ -377,6 +377,9 @@ export class InteractionCoordinator {
             shouldDispatchResolvedToolHook = true
           }
         } else {
+          if (requestId) {
+            await this.ports.sessionPermissionPort.denyPermission?.(sessionId, requestId)
+          }
           markPermissionResolved(actionBlock, false, permissionType)
           updateToolCallResponse(blocks, toolCall.id, 'User denied the request.', true)
           instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
@@ -672,7 +675,8 @@ export class InteractionCoordinator {
       await sessionPermissionPort.approvePermission(sessionId, {
         permissionType,
         serverName,
-        toolName
+        toolName,
+        requestId: payload.requestId
       })
     }
   }

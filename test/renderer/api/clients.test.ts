@@ -969,8 +969,15 @@ describe('renderer api clients', () => {
                   createdAt: 1000 + index
                 }))
               }
+            case 'memory.delete':
             case 'memory.archive':
-              return { ok: true }
+            case 'memory.restore':
+            case 'memory.resolveConflict':
+            case 'memory.rollbackPersona':
+            case 'memory.approvePersonaDraft':
+            case 'memory.rejectPersonaDraft':
+            case 'memory.setPersonaAnchor':
+              return { action: 'applied' }
             case 'memory.reindex':
               return { started: true }
             case 'memory.listDirectives':
@@ -1010,6 +1017,7 @@ describe('renderer api clients', () => {
               }
             case 'memory.rejectDirective':
               return {
+                action: 'applied',
                 directive: {
                   id: payload?.directiveId ?? 'directive-rejected',
                   agentId: payload?.agentId ?? 'agent-1',
@@ -1023,7 +1031,7 @@ describe('renderer api clients', () => {
                 }
               }
             case 'memory.deleteDirective':
-              return { ok: true }
+              return { action: 'applied' }
             case 'memory.getHealth':
               return {
                 health: {
@@ -1593,7 +1601,7 @@ describe('renderer api clients', () => {
       agentId: 'agent-1',
       memoryId: 'mem-added'
     })
-    expect(archived).toBe(true)
+    expect(archived).toEqual({ action: 'applied' })
     expect(bridge.invoke).toHaveBeenNthCalledWith(17, 'memory.reindex', { agentId: 'agent-1' })
     expect(reindex.started).toBe(true)
     expect(bridge.invoke).toHaveBeenNthCalledWith(18, 'memory.getHealth', { agentId: 'agent-1' })
@@ -1661,8 +1669,8 @@ describe('renderer api clients', () => {
     expect(listed[0]).toMatchObject({ id: 'directive-1', status: 'active' })
     expect(created.directive.id).toBe('directive-created')
     expect(approved.directive?.status).toBe('active')
-    expect(rejected?.status).toBe('rejected')
-    expect(deleted).toBe(true)
+    expect(rejected.directive?.status).toBe('rejected')
+    expect(deleted).toEqual({ action: 'applied' })
   })
 
   it('routes agent dashboard calls through the shared registry names', async () => {

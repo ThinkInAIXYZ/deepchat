@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { deflateSync, gzipSync } from 'node:zlib'
@@ -21,12 +21,15 @@ vi.mock('node:fs', async () => {
 })
 
 import {
-  assertSupportExpectation,
+  assertChineseDocumentFixtureRecognized,
   assertDocumentFixtureRecognized,
   assertFixtureRecognized,
+  assertSupportExpectation,
+  buildNonEmbeddedChinesePdfFixture,
   buildRasterPdfFixture,
   createPackagedLightOcrEnvironment,
   DOCUMENT_SMOKE_OPTIONS,
+  materializePackagedNativeRuntime,
   measurePackagedComponents,
   normalizeArch,
   normalizePlatform,
@@ -49,13 +52,13 @@ const runtimeVersions = {
     }
   },
   lightOcr: {
-    facadeVersion: '0.5.5',
+    facadeVersion: '0.5.6',
     runtimePackage: '@arcships/light-ocr-runtime',
-    runtimeVersion: '0.1.5',
+    runtimeVersion: '0.1.6',
     bundleId: 'ppocrv6-small-native-20260719.1',
     modelPackage: '@arcships/light-ocr-model-ppocrv6-small',
     modelVersion: '0.3.4',
-    nativeVersion: '0.5.5',
+    nativeVersion: '0.5.6',
     nativePackages: {
       'darwin-arm64': '@arcships/light-ocr-darwin-arm64',
       'darwin-x64': '@arcships/light-ocr-darwin-x64',
@@ -71,14 +74,22 @@ const darwinNativeInventory = {
   nativeCode: ['native/addon.node'],
   pdfiumCode: ['pdfium/libpdfium.dylib', 'pdfium/pdfium.node'],
   pdfiumLoader: ['pdfium/index.cjs'],
-  other: ['native/runtime-descriptor.json']
+  other: [
+    'native/runtime-descriptor.json',
+    'pdfium/fonts/NotoSansSC-Regular.otf',
+    'pdfium/fonts/OFL.txt'
+  ]
 }
 
 const linuxNativeInventory = {
   nativeCode: ['native/addon.node'],
   pdfiumCode: ['pdfium/libpdfium.so', 'pdfium/pdfium.node'],
   pdfiumLoader: ['pdfium/index.cjs'],
-  other: ['native/runtime-descriptor.json']
+  other: [
+    'native/runtime-descriptor.json',
+    'pdfium/fonts/NotoSansSC-Regular.otf',
+    'pdfium/fonts/OFL.txt'
+  ]
 }
 
 async function writeTree(root: string, files: Record<string, string>) {
@@ -197,28 +208,38 @@ describe('smoke-light-ocr', () => {
     const modelManifest = JSON.stringify({ bundleId: runtimeVersions.lightOcr.bundleId })
     const modelPayload = 'model-payload'
     const nativePayload = 'native-payload'
-    const nativeDescriptor = '{}'
+    const nativeArtifact = {
+      path: 'native/addon.node',
+      bytes: Buffer.byteLength(nativePayload),
+      sha256: sha256(nativePayload)
+    }
+    const nativeDescriptor = JSON.stringify({
+      addon: nativeArtifact,
+      runtime: { artifacts: [] }
+    })
     const pdfiumLoader = 'module.exports = require("./pdfium.node")'
     const pdfiumAddon = 'pdfium-addon'
     const pdfiumLibrary = 'pdfium-library'
+    const fallbackFont = 'noto-sans-sc'
+    const fontLicense = 'font-license'
 
     await writeTree(unpackedRoot, {
       'runtime/node/bin/node': 'node',
       'out/main/lightOcrHelper.js': 'helper',
       'node_modules/@arcships/light-ocr/package.json': JSON.stringify({
         name: '@arcships/light-ocr',
-        version: '0.5.5',
+        version: '0.5.6',
         dependencies: {
-          '@arcships/light-ocr-runtime': '0.1.5',
+          '@arcships/light-ocr-runtime': '0.1.6',
           '@arcships/light-ocr-model-ppocrv6-small': '0.3.4'
         }
       }),
       'node_modules/@arcships/light-ocr/src/index.cjs': 'module.exports = {}',
       'node_modules/@arcships/light-ocr-runtime/package.json': JSON.stringify({
         name: '@arcships/light-ocr-runtime',
-        version: '0.1.5',
+        version: '0.1.6',
         optionalDependencies: {
-          '@arcships/light-ocr-darwin-arm64': '0.5.5'
+          '@arcships/light-ocr-darwin-arm64': '0.5.6'
         }
       }),
       'node_modules/@arcships/light-ocr-runtime/src/index.cjs': 'module.exports = {}',
@@ -234,13 +255,16 @@ describe('smoke-light-ocr', () => {
       ].join('\n'),
       'node_modules/@arcships/light-ocr-darwin-arm64/package.json': JSON.stringify({
         name: '@arcships/light-ocr-darwin-arm64',
-        version: '0.5.5'
+        version: '0.5.6'
       }),
       'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node.gz.b64': gzipSync(
         nativePayload
       ).toString('base64'),
       'node_modules/@arcships/light-ocr-darwin-arm64/native/runtime-descriptor.json':
         nativeDescriptor,
+      'node_modules/@arcships/light-ocr-darwin-arm64/pdfium/fonts/NotoSansSC-Regular.otf':
+        fallbackFont,
+      'node_modules/@arcships/light-ocr-darwin-arm64/pdfium/fonts/OFL.txt': fontLicense,
       'node_modules/@arcships/light-ocr-darwin-arm64/pdfium/index.cjs': pdfiumLoader,
       'node_modules/@arcships/light-ocr-darwin-arm64/pdfium/pdfium.node.gz.b64': gzipSync(
         pdfiumAddon
@@ -249,11 +273,7 @@ describe('smoke-light-ocr', () => {
         gzipSync(pdfiumLibrary).toString('base64'),
       'node_modules/@arcships/light-ocr-darwin-arm64/artifact-hashes.json': JSON.stringify({
         files: [
-          {
-            path: 'native/addon.node',
-            bytes: Buffer.byteLength(nativePayload),
-            sha256: sha256(nativePayload)
-          },
+          nativeArtifact,
           {
             path: 'native/runtime-descriptor.json',
             bytes: Buffer.byteLength(nativeDescriptor),
@@ -263,6 +283,16 @@ describe('smoke-light-ocr', () => {
             path: 'pdfium/index.cjs',
             bytes: Buffer.byteLength(pdfiumLoader),
             sha256: sha256(pdfiumLoader)
+          },
+          {
+            path: 'pdfium/fonts/NotoSansSC-Regular.otf',
+            bytes: Buffer.byteLength(fallbackFont),
+            sha256: sha256(fallbackFont)
+          },
+          {
+            path: 'pdfium/fonts/OFL.txt',
+            bytes: Buffer.byteLength(fontLicense),
+            sha256: sha256(fontLicense)
           },
           {
             path: 'pdfium/libpdfium.dylib',
@@ -281,10 +311,10 @@ describe('smoke-light-ocr', () => {
         supported: true,
         platform: 'darwin',
         arch: 'arm64',
-        facadeVersion: '0.5.5',
-        runtimeVersion: '0.1.5',
+        facadeVersion: '0.5.6',
+        runtimeVersion: '0.1.6',
         modelVersion: '0.3.4',
-        nativeVersion: '0.5.5',
+        nativeVersion: '0.5.6',
         pdfSupport: true,
         bundleId: runtimeVersions.lightOcr.bundleId,
         nodeVersion: runtimeVersions.node,
@@ -319,6 +349,20 @@ describe('smoke-light-ocr', () => {
       nativePayloadEncoding: 'gzip-base64-v1',
       nativePackage: '@arcships/light-ocr-darwin-arm64'
     })
+    const materialized = await materializePackagedNativeRuntime(layout, tempDir)
+    await expect(
+      readFile(
+        path.join(
+          path.dirname(materialized.pdfiumModulePath),
+          'fonts',
+          'NotoSansSC-Regular.otf'
+        ),
+        'utf8'
+      )
+    ).resolves.toBe(fallbackFont)
+    await expect(
+      readFile(path.join(path.dirname(materialized.pdfiumModulePath), 'fonts', 'OFL.txt'), 'utf8')
+    ).resolves.toBe(fontLicense)
 
     await writeTree(unpackedRoot, {
       'runtime/uv/uv': 'uv-runtime',
@@ -454,23 +498,25 @@ describe('smoke-light-ocr', () => {
     const pdfiumLoader = 'module.exports = require("./pdfium.node")'
     const pdfiumAddon = 'pdfium-addon'
     const pdfiumLibrary = 'pdfium-library'
+    const fallbackFont = 'noto-sans-sc'
+    const fontLicense = 'font-license'
 
     await writeTree(unpackedRoot, {
       'runtime/node/bin/node': 'node',
       'out/main/lightOcrHelper.js': 'helper',
       'node_modules/@arcships/light-ocr/package.json': JSON.stringify({
         name: '@arcships/light-ocr',
-        version: '0.5.5',
+        version: '0.5.6',
         dependencies: {
-          '@arcships/light-ocr-runtime': '0.1.5',
+          '@arcships/light-ocr-runtime': '0.1.6',
           '@arcships/light-ocr-model-ppocrv6-small': '0.3.4'
         }
       }),
       'node_modules/@arcships/light-ocr/src/index.cjs': 'module.exports = {}',
       'node_modules/@arcships/light-ocr-runtime/package.json': JSON.stringify({
         name: '@arcships/light-ocr-runtime',
-        version: '0.1.5',
-        optionalDependencies: { [nativePackage]: '0.5.5' }
+        version: '0.1.6',
+        optionalDependencies: { [nativePackage]: '0.5.6' }
       }),
       'node_modules/@arcships/light-ocr-runtime/src/index.cjs': 'module.exports = {}',
       'node_modules/@arcships/light-ocr-model-ppocrv6-small/package.json': JSON.stringify({
@@ -485,10 +531,12 @@ describe('smoke-light-ocr', () => {
       ].join('\n'),
       [`node_modules/${nativePackage}/package.json`]: JSON.stringify({
         name: nativePackage,
-        version: '0.5.5'
+        version: '0.5.6'
       }),
       [`node_modules/${nativePackage}/native/addon.node`]: nativePayload,
       [`node_modules/${nativePackage}/native/runtime-descriptor.json`]: nativeDescriptor,
+      [`node_modules/${nativePackage}/pdfium/fonts/NotoSansSC-Regular.otf`]: fallbackFont,
+      [`node_modules/${nativePackage}/pdfium/fonts/OFL.txt`]: fontLicense,
       [`node_modules/${nativePackage}/pdfium/index.cjs`]: pdfiumLoader,
       [`node_modules/${nativePackage}/pdfium/pdfium.node`]: pdfiumAddon,
       [`node_modules/${nativePackage}/pdfium/libpdfium.so`]: pdfiumLibrary,
@@ -510,6 +558,16 @@ describe('smoke-light-ocr', () => {
             sha256: sha256(pdfiumLoader)
           },
           {
+            path: 'pdfium/fonts/NotoSansSC-Regular.otf',
+            bytes: Buffer.byteLength(fallbackFont),
+            sha256: sha256(fallbackFont)
+          },
+          {
+            path: 'pdfium/fonts/OFL.txt',
+            bytes: Buffer.byteLength(fontLicense),
+            sha256: sha256(fontLicense)
+          },
+          {
             path: 'pdfium/libpdfium.so',
             bytes: Buffer.byteLength(pdfiumLibrary),
             sha256: sha256(pdfiumLibrary)
@@ -526,10 +584,10 @@ describe('smoke-light-ocr', () => {
         supported: true,
         platform: 'linux',
         arch: 'arm64',
-        facadeVersion: '0.5.5',
-        runtimeVersion: '0.1.5',
+        facadeVersion: '0.5.6',
+        runtimeVersion: '0.1.6',
         modelVersion: '0.3.4',
-        nativeVersion: '0.5.5',
+        nativeVersion: '0.5.6',
         pdfSupport: true,
         bundleId: runtimeVersions.lightOcr.bundleId,
         nodeVersion: runtimeVersions.node,
@@ -569,10 +627,10 @@ describe('smoke-light-ocr', () => {
         supported: true,
         platform: 'darwin',
         arch: 'arm64',
-        facadeVersion: '0.5.5',
-        runtimeVersion: '0.1.5',
+        facadeVersion: '0.5.6',
+        runtimeVersion: '0.1.6',
         modelVersion: '0.3.4',
-        nativeVersion: '0.5.5',
+        nativeVersion: '0.5.6',
         pdfSupport: true,
         bundleId: runtimeVersions.lightOcr.bundleId,
         nodeVersion: runtimeVersions.node,
@@ -609,10 +667,10 @@ describe('smoke-light-ocr', () => {
         reason: 'unsupported_platform',
         platform: 'win32',
         arch: 'ia32',
-        facadeVersion: '0.5.5',
-        runtimeVersion: '0.1.5',
+        facadeVersion: '0.5.6',
+        runtimeVersion: '0.1.6',
         modelVersion: '0.3.4',
-        nativeVersion: '0.5.5',
+        nativeVersion: '0.5.6',
         pdfSupport: false,
         bundleId: runtimeVersions.lightOcr.bundleId
       })
@@ -656,6 +714,17 @@ describe('smoke-light-ocr', () => {
         { index: 1, lines: ['2026'] }
       ])
     ).toThrow(/PDF OCR did not recognize/)
+    expect(() =>
+      assertChineseDocumentFixtureRecognized([
+        { index: 0, lines: ['中文', '测 试'] }
+      ])
+    ).not.toThrow()
+    expect(() =>
+      assertChineseDocumentFixtureRecognized([
+        { index: 0, lines: ['中文'] },
+        { index: 1, lines: ['测试'] }
+      ])
+    ).toThrow(/non-embedded Chinese font/)
   })
 
   it('builds a one-page image-only PDF fixture', async () => {
@@ -666,5 +735,16 @@ describe('smoke-light-ocr', () => {
       numpages: 1,
       text: expect.stringMatching(/^\s*$/)
     })
+  })
+
+  it('builds a one-page PDF with a non-embedded Chinese font', async () => {
+    const pdf = buildNonEmbeddedChinesePdfFixture()
+    const source = pdf.toString('latin1')
+
+    expect(source).toContain('/BaseFont /STSong-Light')
+    expect(source).toContain('/Encoding /UniGB-UCS2-H')
+    expect(source).toContain('<4E2D65876D4B8BD5>')
+    expect(source).not.toContain('/FontFile')
+    await expect(pdfParse(pdf)).resolves.toMatchObject({ numpages: 1 })
   })
 })

@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import {
   classifyLightOcrArtifact as classifyRuntimeArtifact,
-  getRequiredPdfiumArtifactPaths as getRuntimePdfiumPaths
+  getRequiredPdfiumArtifactPaths as getRuntimePdfiumPaths,
+  getRequiredPdfiumResourcePaths as getRuntimePdfiumResourcePaths
 } from '../../../src/main/ocr/lightOcrNativePayload'
 import {
   classifyLightOcrArtifact as classifyScriptArtifact,
   getRequiredPdfiumArtifactPaths as getScriptPdfiumPaths,
+  getRequiredPdfiumResourcePaths as getScriptPdfiumResourcePaths,
   groupLightOcrArtifactPaths,
   hasSameLightOcrArtifactInventory
 } from '../../../scripts/light-ocr-artifacts.mjs'
@@ -23,6 +25,8 @@ describe('Light OCR artifact contract', () => {
     ['pdfium/libpdfium.dylib', 'pdfium-code'],
     ['pdfium/libpdfium.so', 'pdfium-code'],
     ['pdfium/pdfium.dll', 'pdfium-code'],
+    ['pdfium/fonts/NotoSansSC-Regular.otf', 'other'],
+    ['pdfium/fonts/OFL.txt', 'other'],
     ['licenses/pdfium-native-MIT.txt', 'other'],
     ['pdfium/README.md', 'other']
   ] as const)('classifies %s identically as %s', (relativePath, expected) => {
@@ -36,6 +40,32 @@ describe('Light OCR artifact contract', () => {
       expect(getScriptPdfiumPaths(platform)).toEqual(getRuntimePdfiumPaths(platform))
     }
   )
+
+  it('keeps PDFium resource paths identical across build boundaries', () => {
+    expect(getScriptPdfiumResourcePaths()).toEqual(getRuntimePdfiumResourcePaths())
+  })
+
+  it('accepts the exact PDFium code and font-resource inventory', () => {
+    expect(
+      groupLightOcrArtifactPaths(
+        [
+          'native/light_ocr_node.node',
+          'native/runtime-descriptor.json',
+          ...getScriptPdfiumPaths('darwin')
+        ],
+        'darwin'
+      )
+    ).toEqual({
+      nativeCode: ['native/light_ocr_node.node'],
+      pdfiumCode: ['pdfium/libpdfium.dylib', 'pdfium/pdfium.node'],
+      pdfiumLoader: ['pdfium/index.cjs'],
+      other: [
+        'native/runtime-descriptor.json',
+        'pdfium/fonts/NotoSansSC-Regular.otf',
+        'pdfium/fonts/OFL.txt'
+      ]
+    })
+  })
 
   it('rejects a partial PDFium inventory', () => {
     expect(() =>
