@@ -1,4 +1,4 @@
-import { computed, ref, type ComputedRef } from 'vue'
+import { computed, ref } from 'vue'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { useMessageStore } from '@/stores/ui/message'
 import type { ToolInteractionResponse } from '@shared/types/agent-interface'
@@ -39,7 +39,6 @@ type ChatClientLike = {
 type UseToolInteractionOptions = {
   sessionId: () => string
   messageStore: MessageStore
-  isReadOnlySession: ComputedRef<boolean>
   chatClient: ChatClientLike
   loadMessagesForSession: (sessionId: string) => Promise<unknown>
   applyRestoredSessionSummary: (session: unknown) => void
@@ -137,10 +136,6 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
   const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
 
   async function onToolInteractionRespond(response: ToolInteractionResponse) {
-    if (options.isReadOnlySession.value) {
-      return
-    }
-
     const interaction = activePendingInteraction.value
     if (!interaction || isHandlingInteraction.value) {
       return

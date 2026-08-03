@@ -651,9 +651,11 @@ export class LiveDelegationService {
     childSessionId: string,
     handoff: string
   ): Promise<void> {
+    // Write the dispatch intent before crossing the delivery boundary so restart recovery can
+    // correlate a child answer even if the host exits immediately after the child accepts it.
+    this.options.repository.markTurnStarted(turn.id)
     const delivery = (async () => {
       await this.options.sessions.sendConversationMessage(childSessionId, handoff)
-      this.options.repository.markTurnStarted(turn.id)
       active.started = true
       this.publishChanged(this.options.repository.require(active.delegationId))
       if (active.controller.signal.aborted) {
@@ -691,16 +693,18 @@ export class LiveDelegationService {
       if (update.deliverySegments) {
         active.answerMarkdown = projectFinalAnswerFromDeliverySegments(update.deliverySegments)
       }
-      if (update.waitingInteraction?.type === 'permission') {
-        this.options.repository.markTurnWaiting(
-          active.turnId,
-          'waiting_permission',
-          update.updatedAt
-        )
-        this.publishChanged(this.options.repository.require(active.delegationId))
-      } else if (update.waitingInteraction?.type === 'question') {
-        this.options.repository.markTurnWaiting(active.turnId, 'waiting_question', update.updatedAt)
-        this.publishChanged(this.options.repository.require(active.delegationId))
+      const waitingStatus =
+        update.waitingInteraction?.type === 'permission'
+          ? 'waiting_permission'
+          : update.waitingInteraction?.type === 'question'
+            ? 'waiting_question'
+            : null
+      if (waitingStatus) {
+        const turn = this.options.repository.requireTurn(active.turnId)
+        if (turn.status !== waitingStatus) {
+          this.options.repository.markTurnWaiting(active.turnId, waitingStatus, update.updatedAt)
+          this.publishChanged(this.options.repository.require(active.delegationId))
+        }
       } else if (active.started && active.runtimeStatus === 'generating') {
         const turn = this.options.repository.requireTurn(active.turnId)
         if (turn.status === 'waiting_permission' || turn.status === 'waiting_question') {
@@ -968,7 +972,7 @@ export class LiveDelegationService {
       const settled = this.options.repository.finishTurn({
         turnId: turn.id,
         status: 'interrupted',
-        error: 'Host restarted before child handoff acceptance was recorded.'
+        error: 'Host restarted before child handoff dispatch was recorded.'
       })
       this.publishChanged(settled.delegation)
       this.notifyMailbox(settled.delegation.parentSessionId, settled.delegation.id)

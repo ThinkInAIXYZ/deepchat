@@ -3706,8 +3706,8 @@ describe('ChatPage', () => {
     }
   })
 
-  it('renders subagent sessions as read-only display mode', async () => {
-    const { wrapper } = await setup({
+  it('keeps subagent sessions read-only while allowing their pending interaction', async () => {
+    const { wrapper, chatClient, messageStore } = await setup({
       sessionKind: 'subagent',
       messages: [
         buildAssistantMessage([
@@ -3738,8 +3738,24 @@ describe('ChatPage', () => {
     expect(wrapper.find('.message-list-stub').attributes('data-read-only')).toBe('true')
     expect(wrapper.find('.chat-input-box-stub').exists()).toBe(false)
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(false)
-    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="chat-composer-region"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="chat-read-only-interaction-region"]').exists()).toBe(true)
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'ChatStatusBar' }).exists()).toBe(false)
+
+    await wrapper.find('.chat-tool-interaction-overlay-stub').trigger('click')
+    await flushPromises()
+
+    expect(chatClient.respondToolInteraction).toHaveBeenCalledWith({
+      sessionId: 's1',
+      messageId: 'm1',
+      toolCallId: 'tool-1',
+      response: {
+        kind: 'permission',
+        granted: true
+      }
+    })
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
   })
 
   it('consumes pending spotlight message jumps after loading the target session', async () => {

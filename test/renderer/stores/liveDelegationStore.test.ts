@@ -98,6 +98,32 @@ describe('liveDelegation store', () => {
     expect(store.getDelegation('parent-1', 'delegation-1')?.summaryPreview).toBe('Newest result.')
   })
 
+  it('prunes missing authoritative summaries without dropping a concurrent newer event', async () => {
+    client.listLiveDelegations.mockResolvedValueOnce([
+      summary(),
+      summary({ id: 'delegation-stale', childSessionId: 'child-stale' })
+    ])
+    const store = useLiveDelegationStore()
+    await store.ensureLoaded('parent-1')
+
+    let resolveList: ((items: LiveDelegationSummary[]) => void) | null = null
+    client.listLiveDelegations.mockReturnValueOnce(
+      new Promise<LiveDelegationSummary[]>((resolve) => {
+        resolveList = resolve
+      })
+    )
+    const refreshing = store.refresh('parent-1')
+    client.emitChanged(summary({ revision: 2, updatedAt: 30, summaryPreview: 'Still active.' }))
+    resolveList?.([])
+    await refreshing
+
+    expect(store.getDelegation('parent-1', 'delegation-1')).toMatchObject({
+      revision: 2,
+      summaryPreview: 'Still active.'
+    })
+    expect(store.getDelegation('parent-1', 'delegation-stale')).toBeNull()
+  })
+
   it('deduplicates interrupts and merges the returned revision', async () => {
     let resolveInterrupt: ((detail: LiveDelegationDetail) => void) | null = null
     client.interruptLiveDelegation.mockReturnValue(

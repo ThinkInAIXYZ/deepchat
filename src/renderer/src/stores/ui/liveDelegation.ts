@@ -150,9 +150,22 @@ export const useLiveDelegationStore = defineStore('liveDelegation', () => {
       projection.loading = true
       projection.loadFailed = false
       try {
+        const beforeRefresh = new Map(projection.byId)
         const loaded = await client.listLiveDelegations(normalized, 100)
         for (const delegation of loaded) assertRelation(delegation, normalized)
         for (const delegation of loaded) upsert(delegation, true)
+        const loadedIds = new Set(loaded.map((delegation) => delegation.id))
+        for (const [delegationId, previous] of beforeRefresh) {
+          // Reference identity preserves an authoritative event that replaced this entry while the
+          // bounded list request was in flight. Transcript seeds remain until host confirmation.
+          if (
+            previous.authoritative &&
+            !loadedIds.has(delegationId) &&
+            projection.byId.get(delegationId) === previous
+          ) {
+            projection.byId.delete(delegationId)
+          }
+        }
         projection.loaded = true
         return true
       } catch (error) {

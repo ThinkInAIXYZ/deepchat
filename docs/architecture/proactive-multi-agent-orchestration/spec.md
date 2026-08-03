@@ -256,8 +256,10 @@ The inline card and Agent activity surface consume one renderer-side projection 
 typed list route and live change event. The main-process repository remains the only authority;
 transcript blocks provide immutable delegation correlation and an initial snapshot, not a second
 mutable status store. Ordinary Session lists continue to hide child Sessions so background work
-does not pollute the user's top-level chat history. The child view remains read-only and exposes a
-back-to-parent action.
+does not pollute the user's top-level chat history. The child view remains read-only for ordinary
+conversation mutation and exposes a back-to-parent action. A pending child permission or question
+is the sole exception: the child view renders the existing typed interaction response surface so
+the user can unblock work without enabling composition, editing, retry, or deletion.
 
 ## Compatibility And Safety
 
@@ -304,6 +306,8 @@ back-to-parent action.
     explicitly truncated handoff with a stable result reference.
 14. An authorized parent can page through the frozen result without starting another child turn;
     unrelated parents, mutable later child messages, and forged cursors cannot be read.
+15. A waiting child permission or question can be answered from the read-only child view without
+    broadening the child's conversation-mutation or permission policy.
 
 ## Non-Goals
 

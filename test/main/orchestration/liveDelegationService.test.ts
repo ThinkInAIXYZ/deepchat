@@ -416,6 +416,25 @@ describeIfSqlite('LiveDelegationService', () => {
       delegation: { status: 'waiting_permission' },
       turns: [expect.objectContaining({ status: 'waiting_permission' })]
     })
+    const waitingPermissionRevision = repository.require(spawned.delegation.id).revision
+
+    harness.publish({
+      sessionId: childId,
+      kind: 'blocks',
+      updatedAt: 215,
+      waitingInteraction: {
+        type: 'permission',
+        messageId: 'message-1',
+        toolCallId: 'tool-1',
+        actionBlock: {
+          type: 'action',
+          content: 'permission',
+          status: 'pending',
+          timestamp: 215
+        }
+      }
+    })
+    expect(repository.require(spawned.delegation.id).revision).toBe(waitingPermissionRevision)
 
     harness.publish({
       sessionId: childId,
@@ -521,6 +540,7 @@ describeIfSqlite('LiveDelegationService', () => {
     })
     await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
     const childId = repository.require(spawned.delegation.id).childSessionId!
+    expect(repository.requireTurn(spawned.turns[0]!.id).startedAt).not.toBeNull()
 
     let interruptResolved = false
     const interrupted = service.interrupt('parent', spawned.delegation.id).then((detail) => {
