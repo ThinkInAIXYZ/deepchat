@@ -13,6 +13,13 @@ describe('LiveDelegationAgentTool', () => {
       followUp: vi.fn().mockResolvedValue({ delegation: { id: 'delegation-1' }, turns: [] }),
       list: vi.fn().mockReturnValue([]),
       inspect: vi.fn().mockReturnValue({ delegation: { id: 'delegation-1' }, turns: [] }),
+      readResult: vi.fn().mockResolvedValue({
+        schemaVersion: 1,
+        delegationId: 'delegation-1',
+        turnId: 'turn-1',
+        text: 'result',
+        done: true
+      }),
       wait: vi.fn().mockResolvedValue({ events: [], cursor: 0, timedOut: true }),
       interrupt: vi.fn().mockResolvedValue({ delegation: { id: 'delegation-1' }, turns: [] })
     } as unknown as AgentLiveDelegationToolPort
@@ -127,5 +134,25 @@ describe('LiveDelegationAgentTool', () => {
       timeoutMs: 500,
       signal: controller.signal
     })
+  })
+
+  it('forwards bounded full-result page requests without starting another child turn', async () => {
+    await tool.call(
+      {
+        operation: 'read_result',
+        delegationId: 'delegation-1',
+        turnId: 'turn-1',
+        cursor: 'cursor-1',
+        maxTokens: 3_000
+      },
+      'parent-1'
+    )
+
+    expect(port.readResult).toHaveBeenCalledWith('parent-1', 'delegation-1', {
+      turnId: 'turn-1',
+      cursor: 'cursor-1',
+      maxTokens: 3_000
+    })
+    expect(port.followUp).not.toHaveBeenCalled()
   })
 })

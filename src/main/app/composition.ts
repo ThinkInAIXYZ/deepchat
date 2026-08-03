@@ -14,6 +14,8 @@ import { ShortcutPresenter } from '../desktop/shortcut'
 import type { FileServicePort } from '@shared/types/file'
 import type { WorkspaceServicePort } from '@shared/types/workspace'
 import type { ToolServicePort } from '@shared/types/tool'
+import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegments'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { SkillSyncServicePort } from '@shared/types/skillSync'
 import type { IConversationExporter } from '../exporter/interface'
@@ -1667,28 +1669,55 @@ export async function createMainProcessControl(dependencies: {
             ? await agentToolDependencies.sessions.resolveConversationSessionInfo(matches[0].id)
             : null
         },
-        getLatestAssistantResponse: async (sessionId) => {
-          const messages = await sessionQuery.getMessages(sessionId)
-          for (let index = messages.length - 1; index >= 0; index -= 1) {
-            const message = messages[index]
-            if (message?.role !== 'assistant') continue
-            try {
-              const blocks = JSON.parse(message.content) as Array<{
-                type?: unknown
-                content?: unknown
-              }>
-              if (!Array.isArray(blocks)) continue
-              const content = blocks
-                .filter((block) => block.type === 'content' && typeof block.content === 'string')
-                .map((block) => String(block.content))
-                .join('\n')
-                .trim()
-              if (content) return content
-            } catch {
-              if (message.content.trim()) return message.content.trim()
-            }
+        getAssistantResult: async (sessionId, messageId) => {
+          const messages = sessionData.database.deepchatMessagesTable
+          const identity = messageId
+            ? messages.getAssistantIdentity(messageId)
+            : messages.getLatestAssistantIdentity(sessionId)
+          if (!identity || identity.session_id !== sessionId) return null
+
+          const resultRows =
+            sessionData.database.deepchatAssistantBlocksTable.listResultProjectionByMessageId(
+              identity.id
+            )
+          if (resultRows.length > 0) {
+            const answer = projectFinalAssistantAnswer(
+              resultRows.map(
+                (row): AssistantMessageBlock => ({
+                  type: row.block_type,
+                  status: row.status,
+                  timestamp: row.updated_at,
+                  content: row.text_content ?? undefined
+                })
+              )
+            )
+            return answer
+              ? {
+                  messageId: identity.id,
+                  answerMarkdown: answer,
+                  updatedAt: identity.updated_at
+                }
+              : null
           }
-          return null
+
+          const legacyMessage = await sessionQuery.getMessage(identity.id)
+          if (!legacyMessage || legacyMessage.sessionId !== sessionId) return null
+          try {
+            const parsed = JSON.parse(legacyMessage.content) as AssistantMessageBlock[] | string
+            const answer = Array.isArray(parsed)
+              ? projectFinalAssistantAnswer(parsed)
+              : typeof parsed === 'string'
+                ? parsed.trim()
+                : ''
+            return answer
+              ? { messageId: identity.id, answerMarkdown: answer, updatedAt: identity.updated_at }
+              : null
+          } catch {
+            const answer = legacyMessage.content.trim()
+            return answer
+              ? { messageId: identity.id, answerMarkdown: answer, updatedAt: identity.updated_at }
+              : null
+          }
         }
       },
       onChanged: (parentSessionId, delegationId) => {

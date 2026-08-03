@@ -48,7 +48,10 @@ import {
 import { WorkflowInvocationsTable } from '@/workflow/data/tables/workflowInvocations'
 import { LiveDelegationEventsTable } from '@/orchestration/data/tables/liveDelegationEvents'
 import { LiveDelegationsTable } from '@/orchestration/data/tables/liveDelegations'
-import { LiveDelegationTurnsTable } from '@/orchestration/data/tables/liveDelegationTurns'
+import {
+  LIVE_DELEGATION_TURN_RESULT_REF_ADD_COLUMN_SQL,
+  LiveDelegationTurnsTable
+} from '@/orchestration/data/tables/liveDelegationTurns'
 import type { BaseTable } from '@/data/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
@@ -385,6 +388,9 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'live_delegation_turns',
     createTable: (db) => new LiveDelegationTurnsTable(db),
+    repairableColumns: {
+      result_ref_json: `${LIVE_DELEGATION_TURN_RESULT_REF_ADD_COLUMN_SQL};`
+    },
     typeCheckedColumns: ['seq', 'created_at', 'updated_at']
   },
   {

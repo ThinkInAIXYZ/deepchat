@@ -83,6 +83,22 @@
 - Run focused tests after each slice, then format, i18n, lint, typecheck, build, and affected main
   and renderer suites before handoff.
 
+## 9. Add Referenced Result Handoff
+
+- Project the final trailing assistant answer through one shared content-only helper; never use the
+  combined response/tool markdown as a child result.
+- Keep the complete answer solely in the persisted child message and frozen child Tape.
+- Persist an additive typed result reference with child message identity, content hash, byte/token
+  size, handoff source, and explicit truncation state.
+- Replace the ambiguous summary constant with separate semantic handoff, protocol byte, UI preview,
+  and result-page budgets.
+- Add a parent-owned `read_result` operation with an opaque hash-bound cursor and bounded pages;
+  keep `follow_up` reserved for new child work.
+- Preserve legacy rows without fabricating immutable message references and keep current UI cards
+  readable through the existing preview projection.
+- Cover long process output followed by a short final answer, oversized multilingual answers,
+  paging, forged cursors, restart reconciliation, and forward migration.
+
 ## Commit Discipline
 
 Each commit is preceded by a review ordered by severity covering hidden side effects,

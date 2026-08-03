@@ -5,10 +5,17 @@ export const LIVE_DELEGATION_SCHEMA_VERSION = 1
 export const LIVE_DELEGATION_MAX_TITLE_LENGTH = 160
 export const LIVE_DELEGATION_MAX_PROMPT_BYTES = 64 * 1024
 export const LIVE_DELEGATION_MAX_MESSAGE_BYTES = 8 * 1024
-export const LIVE_DELEGATION_MAX_SUMMARY_BYTES = 16 * 1024
+export const LIVE_DELEGATION_MAX_HANDOFF_BYTES = 16 * 1024
+export const LIVE_DELEGATION_HANDOFF_TOKEN_BUDGET = 2_000
+export const LIVE_DELEGATION_MAX_RESULT_REF_BYTES = 4 * 1024
+export const LIVE_DELEGATION_RESULT_PAGE_DEFAULT_TOKENS = 2_000
+export const LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS = 4_000
+export const LIVE_DELEGATION_RESULT_PAGE_MAX_BYTES = 16 * 1024
+export const LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH = 512
 export const LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES = 8 * 1024
 export const LIVE_DELEGATION_MAX_EVENTS_PER_PARENT = 500
 export const LIVE_DELEGATION_MAX_PREVIEW_CHARACTERS = 2 * 1024
+export const LIVE_DELEGATION_MAX_EVENT_PREVIEW_CHARACTERS = 16 * 1024
 
 const LiveDelegationIdSchema = z.string().trim().min(1).max(256)
 
@@ -67,6 +74,19 @@ export const LiveDelegationTapeReceiptSchema = z
     message: 'Child Tape entry count cannot exceed its frozen head'
   })
 
+export const LiveDelegationResultRefSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    childSessionId: LiveDelegationIdSchema,
+    childMessageId: LiveDelegationIdSchema,
+    answerSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+    answerBytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    answerEstimatedTokens: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    handoffSource: z.enum(['handoff_section', 'result_section', 'final_answer']),
+    handoffTruncated: z.boolean()
+  })
+  .strict()
+
 export const LiveDelegationSchema = z
   .object({
     schemaVersion: z.literal(LIVE_DELEGATION_SCHEMA_VERSION),
@@ -96,6 +116,7 @@ const LiveDelegationTurnBaseSchema = z
     status: LiveDelegationTurnStatusSchema,
     resultSummary: z.string().nullable(),
     error: z.string().nullable(),
+    resultRef: LiveDelegationResultRefSchema.nullable().default(null),
     tapeReceipt: LiveDelegationTapeReceiptSchema.nullable(),
     effectState: OrchestrationEffectStateSchema,
     effectEvidence: OrchestrationEffectEvidenceSchema.nullable(),
@@ -130,6 +151,7 @@ export type LiveDelegationEventDirection = z.infer<typeof LiveDelegationEventDir
 export type LiveDelegationEventKind = z.infer<typeof LiveDelegationEventKindSchema>
 export type LiveDelegationSubagentContext = z.infer<typeof LiveDelegationSubagentContextSchema>
 export type LiveDelegationTapeReceipt = z.infer<typeof LiveDelegationTapeReceiptSchema>
+export type LiveDelegationResultRef = z.infer<typeof LiveDelegationResultRefSchema>
 export type LiveDelegation = z.infer<typeof LiveDelegationSchema>
 export type LiveDelegationTurn = z.infer<typeof LiveDelegationTurnSchema>
 export type LiveDelegationEvent = z.infer<typeof LiveDelegationEventSchema>
@@ -159,8 +181,25 @@ export const LiveDelegationTurnSummarySchema = LiveDelegationTurnBaseSchema.omit
 
 export const LiveDelegationEventSummarySchema = LiveDelegationEventSchema.omit({ content: true })
   .extend({
-    contentPreview: z.string().max(LIVE_DELEGATION_MAX_PREVIEW_CHARACTERS),
+    contentPreview: z.string().max(LIVE_DELEGATION_MAX_EVENT_PREVIEW_CHARACTERS),
     contentTruncated: z.boolean()
+  })
+  .strict()
+
+export const LiveDelegationResultPageSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    delegationId: LiveDelegationIdSchema,
+    turnId: LiveDelegationIdSchema,
+    turnSeq: z.number().int().positive(),
+    childSessionId: LiveDelegationIdSchema,
+    childMessageId: LiveDelegationIdSchema,
+    answerSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+    answerBytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    answerEstimatedTokens: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    text: z.string(),
+    nextCursor: z.string().max(LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH).nullable(),
+    done: z.boolean()
   })
   .strict()
 
@@ -174,6 +213,7 @@ export const LiveDelegationDetailSchema = z
 export type LiveDelegationSummary = z.infer<typeof LiveDelegationSummarySchema>
 export type LiveDelegationTurnSummary = z.infer<typeof LiveDelegationTurnSummarySchema>
 export type LiveDelegationEventSummary = z.infer<typeof LiveDelegationEventSummarySchema>
+export type LiveDelegationResultPage = z.infer<typeof LiveDelegationResultPageSchema>
 export type LiveDelegationDetail = z.infer<typeof LiveDelegationDetailSchema>
 
 export function parseLiveDelegationSubagentContext(

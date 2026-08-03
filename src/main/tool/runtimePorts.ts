@@ -22,6 +22,7 @@ import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDe
 import type {
   LiveDelegationDetail,
   LiveDelegationEventSummary,
+  LiveDelegationResultPage,
   LiveDelegationSummary
 } from '@shared/orchestration/liveDelegation'
 import type { WorkflowRunDetail, WorkflowRunSummary } from '@shared/workflow/projection'
@@ -179,6 +180,11 @@ export interface AgentLiveDelegationToolPort {
   ): Promise<LiveDelegationDetail>
   list(parentSessionId: string, limit?: number): LiveDelegationSummary[]
   inspect(parentSessionId: string, delegationId: string): LiveDelegationDetail
+  readResult(
+    parentSessionId: string,
+    delegationId: string,
+    options?: { turnId?: string; cursor?: string; maxTokens?: number }
+  ): Promise<LiveDelegationResultPage>
   wait(
     parentSessionId: string,
     options?: {

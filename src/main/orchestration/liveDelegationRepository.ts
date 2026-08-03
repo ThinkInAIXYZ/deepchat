@@ -4,16 +4,19 @@ import type { SubagentTapeLinkReceipt } from '@shared/types/agent-interface'
 import {
   LIVE_DELEGATION_MAX_EVENTS_PER_PARENT,
   LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES,
+  LIVE_DELEGATION_MAX_HANDOFF_BYTES,
   LIVE_DELEGATION_MAX_MESSAGE_BYTES,
   LIVE_DELEGATION_MAX_PROMPT_BYTES,
-  LIVE_DELEGATION_MAX_SUMMARY_BYTES,
+  LIVE_DELEGATION_MAX_RESULT_REF_BYTES,
   LiveDelegationEventSchema,
+  LiveDelegationResultRefSchema,
   LiveDelegationSchema,
   LiveDelegationTapeReceiptSchema,
   LiveDelegationTurnSchema,
   type LiveDelegation,
   type LiveDelegationEvent,
   type LiveDelegationEventKind,
+  type LiveDelegationResultRef,
   type LiveDelegationStatus,
   type LiveDelegationTurn,
   type LiveDelegationTurnStatus
@@ -431,6 +434,7 @@ export class LiveDelegationRepository {
     status: 'completed' | 'failed' | 'cancelled' | 'interrupted'
     summary?: string | null
     error?: string | null
+    resultRef?: LiveDelegationResultRef | null
     tapeReceipt?: SubagentTapeLinkReceipt | null
     now?: number
   }): LiveDelegationWithTurn {
@@ -440,12 +444,12 @@ export class LiveDelegationRepository {
     }
     const summary = normalizeOptionalBytes(
       input.summary,
-      LIVE_DELEGATION_MAX_SUMMARY_BYTES,
-      'Live delegation summary'
+      LIVE_DELEGATION_MAX_HANDOFF_BYTES,
+      'Live delegation handoff'
     )
     const error = normalizeOptionalBytes(
       input.error,
-      LIVE_DELEGATION_MAX_SUMMARY_BYTES,
+      LIVE_DELEGATION_MAX_HANDOFF_BYTES,
       'Live delegation error'
     )
     const now = validateTimestamp(input.now ?? Date.now())
@@ -467,6 +471,18 @@ export class LiveDelegationRepository {
     const tapeReceiptJson = input.tapeReceipt
       ? JSON.stringify(LiveDelegationTapeReceiptSchema.parse(input.tapeReceipt))
       : null
+    const resultRef = input.resultRef ? LiveDelegationResultRefSchema.parse(input.resultRef) : null
+    const delegation = this.require(turn.delegationId)
+    if (resultRef && resultRef.childSessionId !== delegation.childSessionId) {
+      throw new Error('Live delegation result reference does not match its bound child Session.')
+    }
+    const resultRefJson = resultRef ? JSON.stringify(resultRef) : null
+    if (
+      resultRefJson &&
+      Buffer.byteLength(resultRefJson, 'utf8') > LIVE_DELEGATION_MAX_RESULT_REF_BYTES
+    ) {
+      throw new Error('Live delegation result reference exceeds its storage limit.')
+    }
     const db = this.database.getDatabase()
 
     db.transaction(() => {
@@ -474,11 +490,12 @@ export class LiveDelegationRepository {
         .prepare(
           `UPDATE live_delegation_turns
            SET status = ?, result_summary = ?, error = ?, tape_receipt_json = ?,
+               result_ref_json = ?,
                updated_at = ?, completed_at = ?
            WHERE turn_id = ?
              AND status IN ('queued', 'running', 'waiting_permission', 'waiting_question')`
         )
-        .run(input.status, summary, error, tapeReceiptJson, now, now, turn.id)
+        .run(input.status, summary, error, tapeReceiptJson, resultRefJson, now, now, turn.id)
       if (result.changes === 0) return
       db.prepare(
         `UPDATE live_delegations
@@ -487,7 +504,7 @@ export class LiveDelegationRepository {
       ).run(threadStatus, summary, error, now, turn.delegationId)
       this.insertEventRow({
         delegationId: turn.delegationId,
-        parentSessionId: this.require(turn.delegationId).parentSessionId,
+        parentSessionId: delegation.parentSessionId,
         direction: 'child_to_parent',
         kind: eventKind,
         content: eventContent,
@@ -495,9 +512,9 @@ export class LiveDelegationRepository {
         now
       })
     })()
-    const delegation = this.require(turn.delegationId)
-    this.pruneEvents(delegation.parentSessionId)
-    return { delegation, turn: this.requireTurn(turn.id) }
+    const settledDelegation = this.require(turn.delegationId)
+    this.pruneEvents(settledDelegation.parentSessionId)
+    return { delegation: settledDelegation, turn: this.requireTurn(turn.id) }
   }
 
   listEvents(
@@ -661,6 +678,7 @@ function toTurn(row: LiveDelegationTurnRow): LiveDelegationTurn {
     status: row.status,
     resultSummary: row.result_summary,
     error: row.error,
+    resultRef: parseResultRef(row.result_ref_json),
     tapeReceipt: parseTapeReceipt(row.tape_receipt_json),
     effectState: row.effect_state,
     effectEvidence: parseEffectEvidence(row.effect_evidence_json),
@@ -728,6 +746,10 @@ function validateTimestamp(value: number): number {
 
 function parseTapeReceipt(value: string | null) {
   return value ? LiveDelegationTapeReceiptSchema.parse(JSON.parse(value)) : null
+}
+
+function parseResultRef(value: string | null): LiveDelegationResultRef | null {
+  return value ? LiveDelegationResultRefSchema.parse(JSON.parse(value)) : null
 }
 
 function parseEffectEvidence(value: string | null): OrchestrationEffectEvidence | null {

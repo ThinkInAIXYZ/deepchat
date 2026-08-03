@@ -1,4 +1,5 @@
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
+import { projectFinalAnswerFromDeliverySegments } from '@shared/lib/assistantDeliverySegments'
 import type { WorkflowInvocation } from '@shared/workflow/domain'
 import { WorkflowUsageSchema, type WorkflowUsage } from '@shared/workflow/serviceContracts'
 
@@ -97,12 +98,9 @@ export class ChildRuntimeTracker {
     try {
       if (update.kind === 'blocks') {
         this.responseMarkdown = update.responseMarkdown?.trim() || this.responseMarkdown
-        const answerMarkdown = update.deliverySegments
-          ?.filter((segment) => segment.kind === 'answer')
-          .map((segment) => segment.text.trim())
-          .filter(Boolean)
-          .join('\n\n')
-        this.answerMarkdown = answerMarkdown || this.answerMarkdown
+        if (update.deliverySegments) {
+          this.answerMarkdown = projectFinalAnswerFromDeliverySegments(update.deliverySegments)
+        }
         this.applyWaitingState(
           update.waitingInteraction !== null && update.waitingInteraction !== undefined
         )

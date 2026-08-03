@@ -93,12 +93,7 @@ describeIfSqlite('LiveDelegationService', () => {
     const delegationId = detail.delegation.id
     const childId = repository.require(delegationId).childSessionId!
     const waiting = service.wait('parent', { after: 0, timeoutMs: 1_000 })
-    harness.publish({
-      sessionId: childId,
-      kind: 'blocks',
-      updatedAt: 200,
-      responseMarkdown: '## Result\nThe boundary is sound.'
-    })
+    harness.publishAnswer(childId, '## Handoff\nThe boundary is sound.\0', 200)
     harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
 
     await expect(waiting).resolves.toMatchObject({
@@ -107,7 +102,7 @@ describeIfSqlite('LiveDelegationService', () => {
         expect.objectContaining({
           delegationId,
           kind: 'turn_completed',
-          contentPreview: '## Result\nThe boundary is sound.',
+          contentPreview: '## Handoff\nThe boundary is sound.�',
           contentTruncated: false
         })
       ]
@@ -123,7 +118,7 @@ describeIfSqlite('LiveDelegationService', () => {
     )
   })
 
-  it('bounds mailbox output without truncating durable completion evidence', async () => {
+  it('bounds the Handoff while retaining a durable reference to the full answer', async () => {
     const detail = await service.spawn('parent', {
       slotId: 'reviewer',
       title: 'Review architecture',
@@ -132,21 +127,181 @@ describeIfSqlite('LiveDelegationService', () => {
     await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
     const childId = repository.require(detail.delegation.id).childSessionId!
     const fullResult = '证'.repeat(4_000)
-    harness.publish({
-      sessionId: childId,
-      kind: 'blocks',
-      updatedAt: 200,
-      responseMarkdown: fullResult
-    })
+    harness.publishAnswer(childId, fullResult, 200)
     harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
 
     const result = await service.wait('parent', { after: 0, timeoutMs: 1_000 })
 
     expect(Buffer.byteLength(result.events[0]!.contentPreview, 'utf8')).toBeLessThanOrEqual(
-      2 * 1024
+      16 * 1024
     )
-    expect(result.events[0]?.contentTruncated).toBe(true)
-    expect(repository.listEvents('parent', { after: 0 })[0]?.content).toBe(fullResult)
+    expect(result.events[0]?.contentPreview).toContain('Handoff truncated')
+    const turn = repository.listTurns(detail.delegation.id, 1)[0]!
+    expect(turn.resultRef).toMatchObject({
+      childSessionId: childId,
+      handoffSource: 'final_answer',
+      handoffTruncated: true
+    })
+    const page = await service.readResult('parent', detail.delegation.id, {
+      turnId: turn.id,
+      maxTokens: 4_000
+    })
+    expect(page.text).toBe(fullResult)
+    expect(page.done).toBe(true)
+  })
+
+  it('settles as failed when durable result persistence rejects the reference', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const finishTurn = repository.finishTurn.bind(repository)
+    vi.spyOn(repository, 'finishTurn').mockImplementation((input) => {
+      if (input.resultRef) throw new Error('result reference storage failed')
+      return finishTurn(input)
+    })
+    const detail = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Review persistence failure',
+      prompt: 'Return a result whose reference cannot be stored.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(detail.delegation.id).childSessionId!
+    harness.publishAnswer(childId, '## Handoff\nKeep this bounded conclusion.', 200)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
+
+    await vi.waitFor(() => expect(repository.require(detail.delegation.id).status).toBe('failed'))
+    const turn = repository.listTurns(detail.delegation.id, 1)[0]!
+    expect(turn).toMatchObject({
+      status: 'failed',
+      resultSummary: '## Handoff\nKeep this bounded conclusion.',
+      resultRef: null,
+      error: expect.stringContaining('Failed to persist child result')
+    })
+    expect(turn.tapeReceipt).not.toBeNull()
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[LiveDelegationService] Failed to settle child turn:',
+      expect.objectContaining({ turnId: turn.id })
+    )
+  })
+
+  it('pages the complete verified answer without exposing process output', async () => {
+    const detail = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Review full evidence',
+      prompt: 'Inspect the complete evidence set.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(detail.delegation.id).childSessionId!
+    const fullAnswer = [
+      '```markdown',
+      '## Handoff',
+      'This fenced example is not the actual Handoff.',
+      '```not-a-closing-fence',
+      '## Handoff',
+      'This heading is still inside the fenced example.',
+      '```',
+      '## Handoff',
+      'The parent should use the verified conclusion.',
+      '## Result',
+      `Detailed evidence ${'界😀result '.repeat(3_000)}`
+    ]
+      .join('\n')
+      .trimEnd()
+    harness.publishAnswer(childId, fullAnswer, 200, 'message-full-result')
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(detail.delegation.id).status).toBe('idle'))
+
+    const turn = repository.listTurns(detail.delegation.id, 1)[0]!
+    expect(turn.resultSummary).toBe('## Handoff\nThe parent should use the verified conclusion.')
+    expect(turn.resultSummary).not.toContain('Detailed evidence')
+
+    let cursor: string | undefined
+    let completeAnswer = ''
+    for (let pageIndex = 0; pageIndex < 20; pageIndex += 1) {
+      const page = await service.readResult('parent', detail.delegation.id, {
+        turnId: turn.id,
+        ...(cursor ? { cursor } : {}),
+        maxTokens: 4_000
+      })
+      expect(Buffer.byteLength(page.text, 'utf8')).toBeLessThanOrEqual(16 * 1024)
+      expect(page.text).not.toContain('\uFFFD')
+      completeAnswer += page.text
+      if (page.done) {
+        cursor = undefined
+        break
+      }
+      cursor = page.nextCursor ?? undefined
+    }
+    expect(cursor).toBeUndefined()
+    expect(completeAnswer).toBe(fullAnswer)
+
+    await expect(
+      service.readResult('another-parent', detail.delegation.id, { turnId: turn.id })
+    ).rejects.toThrow('does not belong to the current session')
+    await expect(
+      service.readResult('parent', detail.delegation.id, {
+        turnId: turn.id,
+        cursor: 'not-a-valid-cursor'
+      })
+    ).rejects.toThrow('Invalid live delegation result cursor')
+    const forgedCursor = Buffer.from(
+      JSON.stringify({
+        v: 1,
+        turnId: turn.id,
+        answerSha256: '0'.repeat(64),
+        offset: 1
+      }),
+      'utf8'
+    ).toString('base64url')
+    await expect(
+      service.readResult('parent', detail.delegation.id, {
+        turnId: turn.id,
+        cursor: forgedCursor
+      })
+    ).rejects.toThrow('no longer matches the stored result')
+
+    harness.sessions.getAssistantResult.mockResolvedValueOnce({
+      messageId: 'message-full-result',
+      answerMarkdown: 'mutated answer',
+      updatedAt: 400
+    })
+    await expect(
+      service.readResult('parent', detail.delegation.id, { turnId: turn.id })
+    ).rejects.toThrow('failed integrity verification')
+  })
+
+  it('bounds the combined mailbox payload when several children finish together', async () => {
+    for (let index = 0; index < 5; index += 1) {
+      const detail = await service.spawn('parent', {
+        slotId: 'reviewer',
+        title: `Review area ${index}`,
+        prompt: `Inspect area ${index}.`
+      })
+      await vi.waitFor(() =>
+        expect(harness.sessions.sendConversationMessage).toHaveBeenCalledTimes(index + 1)
+      )
+      const childId = repository.require(detail.delegation.id).childSessionId!
+      harness.publishAnswer(
+        childId,
+        `## Handoff\n${String.fromCharCode(97 + index).repeat(10_000)}`,
+        200 + index
+      )
+      harness.publish({
+        sessionId: childId,
+        kind: 'status',
+        updatedAt: 300 + index,
+        status: 'idle'
+      })
+      await vi.waitFor(() => expect(repository.require(detail.delegation.id).status).toBe('idle'))
+    }
+
+    const result = await service.wait('parent', { after: 0, timeoutMs: 0 })
+    expect(result.events).toHaveLength(5)
+    expect(
+      result.events.reduce(
+        (total, event) => total + Buffer.byteLength(event.contentPreview, 'utf8'),
+        0
+      )
+    ).toBeLessThanOrEqual(32 * 1024)
+    expect(result.events.every((event) => event.contentTruncated)).toBe(true)
   })
 
   it('records child effect intent before tool dispatch', async () => {
@@ -360,7 +515,7 @@ describeIfSqlite('LiveDelegationService', () => {
     harness.addChild('child-recovery', created.delegation.id, 'idle')
     repository.bindChild(created.delegation.id, 'child-recovery', 110)
     repository.markTurnStarted(created.turn.id, 120)
-    harness.sessions.getLatestAssistantResponse.mockResolvedValueOnce('Recovered result.')
+    harness.setAssistantResult('child-recovery', 'Recovered result.', 'recovered-message')
 
     service = new LiveDelegationServiceCtor({
       repository,
@@ -378,6 +533,42 @@ describeIfSqlite('LiveDelegationService', () => {
       })
     ])
     expect(repository.require(created.delegation.id).status).toBe('idle')
+  })
+
+  it('does not reuse an older child answer while recovering a later turn', async () => {
+    await service.stop()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const created = repository.create({
+      id: 'delegation-stale-result',
+      initialTurnId: 'turn-stale-result',
+      parentSessionId: 'parent',
+      slotId: 'reviewer',
+      targetAgentId: 'agent-1',
+      title: 'Recover without answer',
+      prompt: 'Complete after an older child answer.',
+      now: 100
+    })
+    harness.addChild('child-stale-result', created.delegation.id, 'idle')
+    repository.bindChild(created.delegation.id, 'child-stale-result', 110)
+    repository.markTurnStarted(created.turn.id, 200)
+    harness.setAssistantResult('child-stale-result', 'Older answer.', 'older-message', 150)
+
+    service = new LiveDelegationServiceCtor({
+      repository,
+      sessions: harness.sessions,
+      admission: new AgentInvocationAdmission(2, 10)
+    })
+    service.start()
+    await vi.waitFor(() => expect(repository.require(created.delegation.id).status).toBe('idle'))
+
+    expect(repository.requireTurn(created.turn.id)).toMatchObject({
+      resultSummary: null,
+      resultRef: null
+    })
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[LiveDelegationService] Ignored a stale recovered child result:',
+      expect.objectContaining({ turnId: created.turn.id })
+    )
   })
 
   it('indexes active child effects synchronously before restart reconciliation', async () => {
@@ -531,7 +722,11 @@ describeIfSqlite('LiveDelegationService', () => {
         return await resolveSessionInfo(sessionId)
       }
     )
-    harness.sessions.getLatestAssistantResponse.mockResolvedValue('Recovered healthy result.')
+    harness.setAssistantResult(
+      'child-recovery-healthy',
+      'Recovered healthy result.',
+      'healthy-message'
+    )
 
     service = new LiveDelegationServiceCtor({
       repository,
@@ -565,6 +760,10 @@ describeIfSqlite('LiveDelegationService', () => {
 function createSessionHarness(db: InstanceType<typeof DatabaseCtor>) {
   const listeners = new Set<(update: SessionRuntimeUpdate) => void>()
   const children = new Map<string, ConversationSessionInfo>()
+  const assistantResults = new Map<
+    string,
+    Map<string, { messageId: string; answerMarkdown: string; updatedAt: number }>
+  >()
   const parent = createSessionInfo({
     sessionId: 'parent',
     sessionKind: 'regular',
@@ -631,19 +830,67 @@ function createSessionHarness(db: InstanceType<typeof DatabaseCtor>) {
           (child) => child.subagentMeta?.liveDelegation?.delegationId === delegationId
         ) ?? null
     ),
-    getLatestAssistantResponse: vi.fn().mockResolvedValue(null)
+    getAssistantResult: vi.fn(async (sessionId: string, messageId?: string) => {
+      const results = assistantResults.get(sessionId)
+      if (!results) return null
+      if (messageId) return results.get(messageId) ?? null
+      return [...results.values()].at(-1) ?? null
+    })
+  }
+
+  const setAssistantResult = (
+    childId: string,
+    answerMarkdown: string,
+    messageId: string,
+    updatedAt = Date.now()
+  ) => {
+    const results = assistantResults.get(childId) ?? new Map()
+    results.set(messageId, { messageId, answerMarkdown, updatedAt })
+    assistantResults.set(childId, results)
+  }
+
+  const publish = (update: SessionRuntimeUpdate) => {
+    if (update.kind === 'status' && update.status) {
+      const child = children.get(update.sessionId)
+      if (child) child.status = update.status
+    }
+    for (const listener of listeners) listener(update)
   }
 
   return {
     sessions,
     addChild,
-    publish(update: SessionRuntimeUpdate) {
-      if (update.kind === 'status' && update.status) {
-        const child = children.get(update.sessionId)
-        if (child) child.status = update.status
-      }
-      for (const listener of listeners) listener(update)
-    }
+    setAssistantResult,
+    publishAnswer(
+      childId: string,
+      answerMarkdown: string,
+      updatedAt: number,
+      messageId = `message-${updatedAt}`
+    ) {
+      setAssistantResult(childId, answerMarkdown, messageId, updatedAt)
+      publish({
+        sessionId: childId,
+        kind: 'blocks',
+        updatedAt,
+        messageId,
+        responseMarkdown: `tool trace that must not become the result\n${answerMarkdown}`,
+        deliverySegments: [
+          {
+            key: `${messageId}:process`,
+            kind: 'process',
+            text: 'read: tool trace that must not become the result',
+            sourceMessageId: messageId
+          },
+          {
+            key: `${messageId}:answer`,
+            kind: 'answer',
+            text: answerMarkdown,
+            sourceMessageId: messageId
+          }
+        ]
+      })
+    },
+    publish
   }
 }
 

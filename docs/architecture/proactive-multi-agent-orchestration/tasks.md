@@ -292,3 +292,55 @@ Inline visibility validation evidence:
   `git diff --check` passed;
 - the production build retained only existing Rollup chunk/import warnings; provider refresh stopped
   at its 5 MB guard, and the unrelated ACP registry refresh was excluded from this change.
+
+## Referenced Result Handoff
+
+- [x] Define the canonical final-answer projection and result-reference contract.
+- [x] Add the additive live-delegation result-reference migration and compatibility parsing.
+- [x] Persist bounded, explicitly truncated Handoffs without copying process/tool output.
+- [x] Add parent-authorized cursor-based `read_result` retrieval.
+- [x] Separate model mailbox Handoff bounds from UI preview bounds.
+- [x] Add long-output, multilingual, cursor, ownership, migration, and recovery regressions.
+- [x] Review findings by severity, fix material issues, validate, and commit locally without push.
+
+Referenced-result review findings, ordered by severity:
+
+- high, fixed before commit: live delegation treated combined response/tool markdown as the child
+  result, so a large process trace could displace the actual conclusion at the 16 KiB storage
+  boundary; final answers now use one trailing content-only projection, while the child message is
+  canonical and the parent receives a bounded Handoff plus a typed reference;
+- high, fixed before commit: restart recovery and missing exact-message lookups could bind an older
+  child answer to a later turn; exact references never fall back to another message, and recovered
+  latest-message candidates must be at least as new as the accepted turn;
+- high, fixed before commit: an exception while storing a result reference could remove the active
+  runtime entry while leaving its database turn active forever; settlement now retries without the
+  result reference and, if necessary, without optional artifacts so the turn converges to failed;
+- medium, fixed before commit: every result page initially loaded and parsed full serialized tool
+  responses and reasoning text; the Session tables now expose identity and answer projections that
+  omit those potentially large columns, retaining a legacy-only fallback;
+- medium, fixed before commit: a fence line with trailing text could be mistaken for a Markdown
+  closing fence and expose a fake `## Handoff` from untrusted code examples; closing fences now
+  require only the matching marker and whitespace;
+- medium, fixed before commit: old serialized task cards and v61 databases lacked `resultRef`; the
+  schema defaults historical values to null, migrates additively to v62, and supports explicit
+  repair when an already-current database is missing the column;
+- low, fixed before commit: aggregate completion events, unavailable references, malformed cursors,
+  Unicode page boundaries, and NUL-containing Handoffs had ambiguous or unsafe edge behavior; model
+  mailbox content now has a 32 KiB aggregate bound, notices describe the actual recovery path,
+  cursors are hash-bound, pages preserve code points, and stored Handoff/error text is sanitized;
+- low: no unresolved referenced-result finding. The canonical answer remains subject only to the
+  selected model's generation limit; Handoffs and `read_result` pages are bounded transport views,
+  not a second full-answer limit.
+
+Referenced-result validation evidence:
+
+- 58 affected orchestration, migration, repository, Session projection, Workflow child, effect,
+  and recovery tests passed under Electron's Node ABI with native SQLite required;
+- 29 affected portable main-process tests and 17 retained live-delegation renderer tests passed;
+- `pnpm run format:check`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`,
+  `pnpm run build`, and `git diff --check` passed;
+- the broader legacy `mainDatabase.test.ts` run retained 8 pre-existing failures in removed
+  presenter APIs and historical schema-version fixtures; 71 tests in that run passed, including all
+  changed live-delegation migrations and catalog metadata checks;
+- the production build retained only existing Rollup chunk/import warnings; provider refresh
+  stopped at its 5 MB guard, and the normal ACP registry refresh was retained.

@@ -5,6 +5,10 @@ import {
   extractWaitingInteraction
 } from '@/agent/deepchat/runtime/sessionUpdates'
 import { SessionRuntimeEvents } from '@/session/runtimeEvents'
+import {
+  projectFinalAnswerFromDeliverySegments,
+  projectFinalAssistantAnswer
+} from '@shared/lib/assistantDeliverySegments'
 
 describe('SessionRuntimeEvents', () => {
   afterEach(() => {
@@ -138,5 +142,52 @@ describe('SessionRuntimeEvents', () => {
         text: 'Final answer'
       })
     ])
+  })
+
+  it('projects only the trailing answer after process blocks', () => {
+    const answer = projectFinalAssistantAnswer([
+      {
+        type: 'content',
+        status: 'success',
+        timestamp: 1,
+        content: 'I will inspect the repository first.'
+      },
+      {
+        type: 'tool_call',
+        status: 'success',
+        timestamp: 2,
+        tool_call: {
+          id: 'tool-1',
+          name: 'exec',
+          params: '{"command":"inspect"}',
+          response: 'large process output that must not become the result'.repeat(4_096)
+        },
+        extra: { toolCallArgsComplete: true }
+      },
+      {
+        type: 'content',
+        status: 'success',
+        timestamp: 3,
+        content: '## Handoff\nThe final conclusion.'
+      }
+    ])
+
+    expect(answer).toBe('## Handoff\nThe final conclusion.')
+    expect(
+      projectFinalAnswerFromDeliverySegments([
+        {
+          key: 'answer',
+          kind: 'answer',
+          text: 'I will inspect first.',
+          sourceMessageId: 'message-1'
+        },
+        {
+          key: 'process',
+          kind: 'process',
+          text: 'exec: inspect',
+          sourceMessageId: 'message-1'
+        }
+      ])
+    ).toBe('')
   })
 })

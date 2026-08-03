@@ -104,6 +104,19 @@ parent receives bounded summaries and completion notifications instead of comple
 transcripts. V1 keeps Subagent recursion disabled and does not allow parallel writers with
 overlapping workspace ownership.
 
+The completed child assistant message is the only canonical copy of a live-delegation answer.
+Runtime process logs, reasoning, tool responses, and action blocks are not result content. A
+completed turn persists a typed result reference to the immutable child message and frozen Tape
+head plus a bounded semantic handoff for the parent. It never copies the full answer into the
+delegation repository or mailbox.
+
+The handoff is a child-authored `## Handoff` section when present, with legacy `## Result` and the
+final answer as deterministic fallbacks. It has an approximate 2,000-token semantic budget and a
+16 KiB protocol ceiling. Truncation is explicit metadata, never silent. The complete answer remains
+available through the stable child Session and a parent-authorized, cursor-based `read_result`
+operation. Reading an existing result is distinct from `follow_up`, which always starts new model
+work.
+
 Each live delegation separates technical identity, execution role, and human presentation:
 
 - `childSessionId` is the durable child identity;
@@ -144,6 +157,11 @@ narrow child invocation kernel responsible for:
 - write-ahead effect classification;
 - frozen-head Tape lineage;
 - bounded parent result delivery.
+
+Final-answer projection is one shared runtime primitive. It selects the trailing assistant content
+after the last process/tool boundary and excludes reasoning, tool responses, plans, actions, and
+errors. Live delegation and durable Workflow child tracking must not maintain incompatible notions
+of a child answer.
 
 The shared kernel must not decide orchestration topology, replay identity, Workflow call paths, or
 live follow-up policy.
@@ -229,6 +247,11 @@ configured role, live status, bounded result or error preview, and an explicit e
 child Session as soon as that Session is bound. Active work may be interrupted from the same card.
 Raw tool parameters and responses remain available through a secondary disclosure.
 
+UI preview, model handoff, and full answer are separate projections. Cards keep a short preview;
+mailbox completion carries a bounded handoff; opening the child Session shows the canonical full
+answer. Context pressure may reduce a mailbox response to a result reference, but must not turn a
+successfully persisted child result into a failed turn.
+
 The inline card and Agent activity surface consume one renderer-side projection backed by the
 typed list route and live change event. The main-process repository remains the only authority;
 transcript blocks provide immutable delegation correlation and an initial snapshot, not a second
@@ -276,6 +299,11 @@ back-to-parent action.
     ordinary reasoning/tool activity is collapsed.
 12. Live-delegation task titles follow the task-first naming contract without introducing another
     routing identity or decorative nickname.
+13. Child process output and tool responses never contaminate the live-delegation result; the
+    canonical full answer remains in the child Session and the parent receives a bounded,
+    explicitly truncated handoff with a stable result reference.
+14. An authorized parent can page through the frozen result without starting another child turn;
+    unrelated parents, mutable later child messages, and forged cursors cannot be read.
 
 ## Non-Goals
 
@@ -288,3 +316,5 @@ back-to-parent action.
 - Treating Tape as the mutable run-state database.
 - Adding human persona names, canonical task paths, or nested Agent routing before recursive
   Subagents and cross-Agent addressing exist.
+- Running a second model call merely to summarize a completed child answer.
+- Treating an unbounded child answer as an ordinary parent tool result.

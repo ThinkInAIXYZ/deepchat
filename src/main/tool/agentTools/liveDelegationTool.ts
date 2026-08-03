@@ -8,6 +8,10 @@ import {
   DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
   DEEPCHAT_SUBAGENT_TASK_TITLE_LIMIT
 } from '@shared/lib/deepchatSubagents'
+import {
+  LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH,
+  LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS
+} from '@shared/orchestration/liveDelegation'
 import type {
   DeepChatSubagentCapability,
   DeepChatSubagentSlot
@@ -17,7 +21,16 @@ import type { AgentLiveDelegationToolPort } from '../runtimePorts'
 
 const liveDelegationSchema = z
   .object({
-    operation: z.enum(['spawn', 'send', 'follow_up', 'list', 'inspect', 'wait', 'interrupt']),
+    operation: z.enum([
+      'spawn',
+      'send',
+      'follow_up',
+      'list',
+      'inspect',
+      'read_result',
+      'wait',
+      'interrupt'
+    ]),
     slotId: z.string().trim().min(1).max(256).optional(),
     title: z
       .string()
@@ -30,6 +43,9 @@ const liveDelegationSchema = z
       .optional(),
     prompt: z.string().trim().min(1).max(65_536).optional(),
     delegationId: z.string().trim().min(1).max(256).optional(),
+    turnId: z.string().trim().min(1).max(256).optional(),
+    cursor: z.string().trim().min(1).max(LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH).optional(),
+    maxTokens: z.number().int().min(1).max(LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS).optional(),
     message: z.string().trim().min(1).max(8_192).optional(),
     task: z.string().trim().min(1).max(65_536).optional(),
     delegationIds: z.array(z.string().trim().min(1).max(256)).max(20).optional(),
@@ -44,6 +60,7 @@ const liveDelegationSchema = z
       send: ['delegationId', 'message'],
       follow_up: ['delegationId', 'task'],
       inspect: ['delegationId'],
+      read_result: ['delegationId'],
       interrupt: ['delegationId']
     }
     for (const key of required[value.operation] ?? []) {
@@ -72,6 +89,8 @@ export class LiveDelegationAgentTool {
           DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
           'Use spawn for one bounded task, send to leave a message without starting a turn,',
           'follow_up to start a later child turn, wait for bounded completion mailbox events,',
+          'read_result to page through a referenced complete child answer when its Handoff is',
+          'insufficient,',
           'and interrupt only when active work should stop. Use deepchat_workflow instead for',
           'large programmatic fan-out, reusable data flow, approval, or replay.'
         ].join(' '),
@@ -80,7 +99,16 @@ export class LiveDelegationAgentTool {
           properties: {
             operation: {
               type: 'string',
-              enum: ['spawn', 'send', 'follow_up', 'list', 'inspect', 'wait', 'interrupt']
+              enum: [
+                'spawn',
+                'send',
+                'follow_up',
+                'list',
+                'inspect',
+                'read_result',
+                'wait',
+                'interrupt'
+              ]
             },
             slotId: buildSlotIdParameter(capability.slots),
             title: {
@@ -96,7 +124,25 @@ export class LiveDelegationAgentTool {
             },
             delegationId: {
               type: 'string',
-              description: 'Stable delegation ID for send, follow_up, inspect, or interrupt.'
+              description:
+                'Stable delegation ID for send, follow_up, inspect, read_result, or interrupt.'
+            },
+            turnId: {
+              type: 'string',
+              description:
+                'Optional terminal turn ID for read_result. Omit to read the latest turn.'
+            },
+            cursor: {
+              type: 'string',
+              maxLength: LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH,
+              description:
+                'Opaque nextCursor from an earlier read_result page. Do not construct it.'
+            },
+            maxTokens: {
+              type: 'number',
+              minimum: 1,
+              maximum: LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS,
+              description: 'Approximate read_result page budget. Defaults to 2000 tokens.'
             },
             message: {
               type: 'string',
@@ -170,6 +216,13 @@ export class LiveDelegationAgentTool {
         break
       case 'inspect':
         result = this.service.inspect(conversationId, args.delegationId!)
+        break
+      case 'read_result':
+        result = await this.service.readResult(conversationId, args.delegationId!, {
+          ...(args.turnId === undefined ? {} : { turnId: args.turnId }),
+          ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+          ...(args.maxTokens === undefined ? {} : { maxTokens: args.maxTokens })
+        })
         break
       case 'wait':
         result = await this.service.wait(conversationId, {

@@ -3,7 +3,8 @@ import { BaseTable } from '@/data/baseTable'
 import type { LiveDelegationStatus } from '@shared/orchestration/liveDelegation'
 
 export const LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION = 60
-export const LIVE_DELEGATION_DATABASE_SCHEMA_VERSION = 61
+export const LIVE_DELEGATION_EFFECT_DATABASE_SCHEMA_VERSION = 61
+export const LIVE_DELEGATION_DATABASE_SCHEMA_VERSION = 62
 
 export interface LiveDelegationRow {
   delegation_id: string

@@ -1,15 +1,26 @@
 import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
 import { nanoid } from 'nanoid'
+import { approximateTokenSize } from 'tokenx'
+import { z } from 'zod'
 import {
-  LIVE_DELEGATION_MAX_SUMMARY_BYTES,
+  LIVE_DELEGATION_HANDOFF_TOKEN_BUDGET,
+  LIVE_DELEGATION_MAX_HANDOFF_BYTES,
+  LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH,
+  LIVE_DELEGATION_RESULT_PAGE_DEFAULT_TOKENS,
+  LIVE_DELEGATION_RESULT_PAGE_MAX_BYTES,
+  LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS,
   type LiveDelegation,
   type LiveDelegationDetail,
   type LiveDelegationEvent,
   type LiveDelegationEventSummary,
+  type LiveDelegationResultPage,
+  type LiveDelegationResultRef,
   type LiveDelegationSummary,
   type LiveDelegationTurn,
   type LiveDelegationTurnSummary
 } from '@shared/orchestration/liveDelegation'
+import { projectFinalAnswerFromDeliverySegments } from '@shared/lib/assistantDeliverySegments'
 import type {
   AgentInvocationAdmissionPort,
   AgentInvocationAdmissionOptions
@@ -33,7 +44,27 @@ const MAX_WAITERS = 32
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000
 const MAX_WAIT_TIMEOUT_MS = 60_000
 const MAX_MODEL_PREVIEW_BYTES = 2 * 1024
+const MAX_MODEL_EVENT_BYTES = 16 * 1024
+const MAX_MODEL_WAIT_BYTES = 32 * 1024
 const LIVE_DELEGATION_OWNER_LIMIT = 5
+const HANDOFF_TRUNCATION_NOTICE =
+  '[Handoff truncated. Use deepchat_subagents read_result for the complete child answer.]'
+const UNREFERENCED_HANDOFF_TRUNCATION_NOTICE =
+  '[Handoff truncated. The complete answer is available only in the child Session.]'
+
+const ResultCursorSchema = z
+  .object({
+    v: z.literal(1),
+    turnId: z.string().trim().min(1).max(256),
+    answerSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+    offset: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
+  })
+  .strict()
+const ResultPageTokenBudgetSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS)
 
 export interface SpawnLiveDelegationInput {
   slotId: string
@@ -47,13 +78,22 @@ export interface LiveDelegationWaitResult {
   timedOut: boolean
 }
 
+export interface LiveDelegationAssistantResult {
+  messageId: string
+  answerMarkdown: string
+  updatedAt: number
+}
+
 export interface LiveDelegationServiceSessionPort
   extends AgentToolSessionPort, AgentSubagentToolPort {
   findDelegationChild(
     parentSessionId: string,
     delegationId: string
   ): Promise<ConversationSessionInfo | null>
-  getLatestAssistantResponse(sessionId: string): Promise<string | null>
+  getAssistantResult(
+    sessionId: string,
+    messageId?: string
+  ): Promise<LiveDelegationAssistantResult | null>
 }
 
 export interface LiveDelegationServiceOptions {
@@ -70,7 +110,8 @@ type ActiveTurn = {
   childSessionId: string | null
   controller: AbortController
   completion: ReturnType<typeof createDeferred>
-  responseMarkdown: string
+  answerMarkdown: string
+  childMessageId: string | null
   runtimeStatus: 'idle' | 'generating' | 'error' | null
   started: boolean
   settling: boolean
@@ -231,6 +272,78 @@ export class LiveDelegationService {
     return {
       delegation: projectDelegationSummary(delegation),
       turns: this.options.repository.listTurns(delegation.id, 20).map(projectTurnSummary)
+    }
+  }
+
+  async readResult(
+    parentSessionId: string,
+    delegationId: string,
+    options?: { turnId?: string; cursor?: string; maxTokens?: number }
+  ): Promise<LiveDelegationResultPage> {
+    this.assertStarted()
+    const delegation = this.options.repository.requireOwned(parentSessionId, delegationId)
+    const cursor = options?.cursor ? decodeResultCursor(options.cursor) : null
+    const requestedTurnId = options?.turnId?.trim() || null
+    if (requestedTurnId && cursor && requestedTurnId !== cursor.turnId) {
+      throw new Error('Live delegation result cursor belongs to another turn.')
+    }
+    const turnId = requestedTurnId ?? cursor?.turnId ?? null
+    const turn = turnId
+      ? this.options.repository.getTurn(turnId)
+      : this.options.repository.listTurns(delegation.id, 1)[0]
+    if (!turn || turn.delegationId !== delegation.id) {
+      throw new Error('Live delegation result turn does not belong to the requested delegation.')
+    }
+    const resultRef = turn.resultRef
+    if (!resultRef) {
+      throw new Error(
+        `Turn ${turn.id} has no durable full-result reference. Use its bounded result preview instead.`
+      )
+    }
+    if (cursor && cursor.answerSha256 !== resultRef.answerSha256) {
+      throw new Error('Live delegation result cursor no longer matches the stored result.')
+    }
+
+    const result = await this.options.sessions.getAssistantResult(
+      resultRef.childSessionId,
+      resultRef.childMessageId
+    )
+    if (!result || result.messageId !== resultRef.childMessageId) {
+      throw new Error(`Referenced child result is unavailable for turn ${turn.id}.`)
+    }
+    const answer = result.answerMarkdown.trim()
+    const answerSha256 = hashAnswer(answer)
+    const answerBytes = Buffer.byteLength(answer, 'utf8')
+    if (answerSha256 !== resultRef.answerSha256 || answerBytes !== resultRef.answerBytes) {
+      throw new Error(`Referenced child result failed integrity verification for turn ${turn.id}.`)
+    }
+
+    const maxTokens = ResultPageTokenBudgetSchema.parse(
+      options?.maxTokens ?? LIVE_DELEGATION_RESULT_PAGE_DEFAULT_TOKENS
+    )
+    const offset = cursor?.offset ?? 0
+    const page = takeResultPage(answer, offset, maxTokens)
+    return {
+      schemaVersion: 1,
+      delegationId: delegation.id,
+      turnId: turn.id,
+      turnSeq: turn.seq,
+      childSessionId: resultRef.childSessionId,
+      childMessageId: resultRef.childMessageId,
+      answerSha256,
+      answerBytes,
+      answerEstimatedTokens: resultRef.answerEstimatedTokens,
+      text: page.text,
+      nextCursor:
+        page.nextOffset === null
+          ? null
+          : encodeResultCursor({
+              v: 1,
+              turnId: turn.id,
+              answerSha256,
+              offset: page.nextOffset
+            }),
+      done: page.nextOffset === null
     }
   }
 
@@ -400,7 +513,8 @@ export class LiveDelegationService {
       childSessionId: delegation.childSessionId,
       controller: new AbortController(),
       completion: createDeferred(),
-      responseMarkdown: '',
+      answerMarkdown: '',
+      childMessageId: null,
       runtimeStatus: null,
       started: false,
       settling: false
@@ -491,11 +605,9 @@ export class LiveDelegationService {
     if (!active || active.settling) return
 
     if (update.kind === 'blocks') {
-      if (update.responseMarkdown?.trim()) {
-        active.responseMarkdown = truncateUtf8(
-          update.responseMarkdown.trim(),
-          LIVE_DELEGATION_MAX_SUMMARY_BYTES
-        )
+      if (update.messageId?.trim()) active.childMessageId = update.messageId.trim()
+      if (update.deliverySegments) {
+        active.answerMarkdown = projectFinalAnswerFromDeliverySegments(update.deliverySegments)
       }
       if (update.waitingInteraction?.type === 'permission') {
         this.options.repository.markTurnWaiting(
@@ -558,15 +670,21 @@ export class LiveDelegationService {
   ): Promise<void> {
     if (active.settling) return await active.completion.promise
     active.settling = true
+    let fallbackSummary: string | null = null
+    let fallbackTapeReceipt: SubagentTapeLinkReceipt | null = null
     try {
       const delegation = this.options.repository.require(active.delegationId)
-      let summary = active.responseMarkdown.trim()
-      if (!summary && active.childSessionId) {
-        summary =
-          (await this.options.sessions.getLatestAssistantResponse(active.childSessionId))?.trim() ||
-          ''
-      }
-      summary = truncateUtf8(summary, LIVE_DELEGATION_MAX_SUMMARY_BYTES)
+      const persistedResult = await this.resolvePersistedResult(active)
+      const answer = persistedResult?.answerMarkdown.trim() || active.answerMarkdown.trim()
+      const handoff = answer
+        ? buildResultHandoff(answer, Boolean(persistedResult && active.childSessionId))
+        : null
+      const summary = handoff?.text ?? ''
+      fallbackSummary = summary || null
+      const resultRef =
+        persistedResult && answer && active.childSessionId && handoff
+          ? createResultRef(active.childSessionId, persistedResult, answer, handoff)
+          : null
       let status = active.controller.signal.aborted ? 'interrupted' : outcome.status
       let error = outcome.error?.trim() || null
       let tapeReceipt: SubagentTapeLinkReceipt | null = null
@@ -588,12 +706,16 @@ export class LiveDelegationService {
           error = `Failed to freeze child Tape lineage: ${errorMessage(tapeError)}`
         }
       }
-      error = error ? truncateUtf8(error, LIVE_DELEGATION_MAX_SUMMARY_BYTES) : null
+      fallbackTapeReceipt = tapeReceipt
+      error = error
+        ? truncateUtf8(sanitizeDelegationText(error), LIVE_DELEGATION_MAX_HANDOFF_BYTES)
+        : null
       const settled = this.options.repository.finishTurn({
         turnId: active.turnId,
         status,
         summary: summary || null,
         error,
+        resultRef,
         tapeReceipt
       })
       this.publishChanged(settled.delegation)
@@ -604,10 +726,94 @@ export class LiveDelegationService {
         turnId: active.turnId,
         error
       })
+      try {
+        const turn = this.options.repository.getTurn(active.turnId)
+        if (turn && isActiveTurnStatus(turn.status)) {
+          const settled = this.options.repository.finishTurn({
+            turnId: active.turnId,
+            status: 'failed',
+            summary: fallbackSummary,
+            error: truncateUtf8(
+              sanitizeDelegationText(`Failed to persist child result: ${errorMessage(error)}`),
+              LIVE_DELEGATION_MAX_HANDOFF_BYTES
+            ),
+            tapeReceipt: fallbackTapeReceipt
+          })
+          this.publishChanged(settled.delegation)
+          this.notifyMailbox(settled.delegation.parentSessionId, settled.delegation.id)
+        }
+      } catch (fallbackError) {
+        console.error('[LiveDelegationService] Failed to persist terminal settlement error:', {
+          delegationId: active.delegationId,
+          turnId: active.turnId,
+          error: fallbackError
+        })
+        try {
+          const turn = this.options.repository.getTurn(active.turnId)
+          if (turn && isActiveTurnStatus(turn.status)) {
+            const settled = this.options.repository.finishTurn({
+              turnId: active.turnId,
+              status: 'failed',
+              error: truncateUtf8(
+                sanitizeDelegationText(
+                  `Failed to persist child result: ${errorMessage(error)}; ` +
+                    `artifact fallback failed: ${errorMessage(fallbackError)}`
+                ),
+                LIVE_DELEGATION_MAX_HANDOFF_BYTES
+              )
+            })
+            this.publishChanged(settled.delegation)
+            this.notifyMailbox(settled.delegation.parentSessionId, settled.delegation.id)
+          }
+        } catch (terminalError) {
+          console.error('[LiveDelegationService] Failed to persist bare terminal state:', {
+            delegationId: active.delegationId,
+            turnId: active.turnId,
+            error: terminalError
+          })
+        }
+      }
     } finally {
       if (active.childSessionId) this.childToTurn.delete(active.childSessionId)
       this.activeTurns.delete(active.turnId)
       active.completion.resolve()
+    }
+  }
+
+  private async resolvePersistedResult(
+    active: ActiveTurn
+  ): Promise<LiveDelegationAssistantResult | null> {
+    if (!active.childSessionId) return null
+    try {
+      const result = await this.options.sessions.getAssistantResult(
+        active.childSessionId,
+        active.childMessageId ?? undefined
+      )
+      if (!result || active.childMessageId) return result
+      const turn = this.options.repository.getTurn(active.turnId)
+      if (
+        turn?.startedAt !== null &&
+        turn?.startedAt !== undefined &&
+        result.updatedAt < turn.startedAt
+      ) {
+        console.warn('[LiveDelegationService] Ignored a stale recovered child result:', {
+          delegationId: active.delegationId,
+          turnId: active.turnId,
+          childSessionId: active.childSessionId,
+          childMessageId: result.messageId
+        })
+        return null
+      }
+      return result
+    } catch (error) {
+      console.warn('[LiveDelegationService] Failed to resolve persisted child result:', {
+        delegationId: active.delegationId,
+        turnId: active.turnId,
+        childSessionId: active.childSessionId,
+        childMessageId: active.childMessageId,
+        error
+      })
+      return null
     }
   }
 
@@ -710,8 +916,8 @@ export class LiveDelegationService {
         turnId: current.id,
         status: 'interrupted',
         error: truncateUtf8(
-          `Failed to reconcile after restart: ${errorMessage(error)}`,
-          LIVE_DELEGATION_MAX_SUMMARY_BYTES
+          sanitizeDelegationText(`Failed to reconcile after restart: ${errorMessage(error)}`),
+          LIVE_DELEGATION_MAX_HANDOFF_BYTES
         )
       })
       if (record.delegation.childSessionId) {
@@ -778,7 +984,10 @@ function buildTurnHandoff(delegation: LiveDelegation, turn: LiveDelegationTurn):
     '',
     turn.prompt,
     '',
-    'Return concise markdown with these sections:',
+    'Return markdown with these sections in this order:',
+    '## Handoff',
+    'A self-contained conclusion for the parent Agent, limited to about 2,000 tokens. Include the',
+    'decision, critical evidence, changed files, validation, and unresolved risks needed next.',
     '## Result',
     '## Evidence',
     '## Changed Files',
@@ -791,8 +1000,250 @@ function buildTurnHandoff(delegation: LiveDelegation, turn: LiveDelegationTurn):
     '- Do not assume access to the parent transcript.',
     '- Do not create additional Subagents.',
     '- Avoid writing files unless the delegated task requires it.',
-    '- Ask for permission or clarification through the normal tool flow.'
+    '- Ask for permission or clarification through the normal tool flow.',
+    '- Put supporting detail after Handoff; the complete answer remains available in this child.'
   ].join('\n')
+}
+
+function createResultRef(
+  childSessionId: string,
+  result: LiveDelegationAssistantResult,
+  answer: string,
+  handoff: ReturnType<typeof buildResultHandoff>
+): LiveDelegationResultRef {
+  return {
+    schemaVersion: 1,
+    childSessionId,
+    childMessageId: result.messageId,
+    answerSha256: hashAnswer(answer),
+    answerBytes: Buffer.byteLength(answer, 'utf8'),
+    answerEstimatedTokens: estimateTokens(answer),
+    handoffSource: handoff.source,
+    handoffTruncated: handoff.truncated
+  }
+}
+
+function buildResultHandoff(
+  answer: string,
+  resultIsReferenced: boolean
+): {
+  text: string
+  source: LiveDelegationResultRef['handoffSource']
+  truncated: boolean
+} {
+  const normalized = sanitizeDelegationText(answer.trim())
+  const handoffSection = extractMarkdownSection(normalized, 'Handoff')
+  const resultSection = handoffSection ? null : extractMarkdownSection(normalized, 'Result')
+  const source: LiveDelegationResultRef['handoffSource'] = handoffSection
+    ? 'handoff_section'
+    : resultSection
+      ? 'result_section'
+      : 'final_answer'
+  const selected = handoffSection ?? resultSection ?? normalized
+  const bounded = truncateToBudgets(
+    selected,
+    LIVE_DELEGATION_MAX_HANDOFF_BYTES,
+    LIVE_DELEGATION_HANDOFF_TOKEN_BUDGET,
+    resultIsReferenced ? HANDOFF_TRUNCATION_NOTICE : UNREFERENCED_HANDOFF_TRUNCATION_NOTICE
+  )
+  return { text: bounded.text, source, truncated: bounded.truncated }
+}
+
+function extractMarkdownSection(markdown: string, title: string): string | null {
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n')
+  const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+  const target = new RegExp(`^ {0,3}##\\s+${escapedTitle}\\s*#*\\s*$`, 'iu')
+  const nextSection = /^ {0,3}#{1,2}\s+\S/u
+  const fencePattern = /^ {0,3}(`{3,}|~{3,})/u
+  let fence: { marker: '`' | '~'; length: number } | null = null
+  let start = -1
+  let end = lines.length
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? ''
+    if (fence) {
+      if (isClosingFence(line, fence)) fence = null
+      continue
+    }
+    const fenceMatch = line.match(fencePattern)?.[1]
+    if (fenceMatch) {
+      const marker = fenceMatch[0] as '`' | '~'
+      fence = { marker, length: fenceMatch.length }
+      continue
+    }
+    if (start < 0) {
+      if (target.test(line)) start = index
+      continue
+    }
+    if (nextSection.test(line)) {
+      end = index
+      break
+    }
+  }
+  if (start < 0) return null
+  const body = lines
+    .slice(start + 1, end)
+    .join('\n')
+    .trim()
+  return body ? lines.slice(start, end).join('\n').trim() : null
+}
+
+function isClosingFence(line: string, fence: { marker: '`' | '~'; length: number }): boolean {
+  const candidate = line.replace(/^ {0,3}/u, '').trimEnd()
+  return (
+    candidate.length >= fence.length &&
+    [...candidate].every((character) => character === fence.marker)
+  )
+}
+
+function truncateToBudgets(
+  value: string,
+  maxBytes: number,
+  maxTokens: number,
+  notice: string
+): { text: string; truncated: boolean } {
+  if (fitsBudgets(value, maxBytes, maxTokens)) return { text: value, truncated: false }
+
+  const suffix = `\n\n${notice}`
+  let low = 0
+  let high = value.length
+  let best = 0
+  while (low <= high) {
+    const midpoint = Math.floor((low + high) / 2)
+    const end = previousCodePointBoundary(value, midpoint, 0)
+    const candidate = `${value.slice(0, end).trimEnd()}${suffix}`
+    if (fitsBudgets(candidate, maxBytes, maxTokens)) {
+      best = Math.max(best, end)
+      low = midpoint + 1
+    } else {
+      high = midpoint - 1
+    }
+  }
+  return { text: `${value.slice(0, best).trimEnd()}${suffix}`.trim(), truncated: true }
+}
+
+function takeResultPage(
+  answer: string,
+  offset: number,
+  maxTokens: number
+): { text: string; nextOffset: number | null } {
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > answer.length) {
+    throw new Error('Live delegation result cursor has an invalid offset.')
+  }
+  if (
+    offset > 0 &&
+    offset < answer.length &&
+    isLowSurrogate(answer.charCodeAt(offset)) &&
+    isHighSurrogate(answer.charCodeAt(offset - 1))
+  ) {
+    throw new Error('Live delegation result cursor splits a Unicode code point.')
+  }
+  if (offset === answer.length) return { text: '', nextOffset: null }
+
+  let low = offset + 1
+  let high = Math.min(answer.length, offset + LIVE_DELEGATION_RESULT_PAGE_MAX_BYTES)
+  let best = offset
+  while (low <= high) {
+    const midpoint = Math.floor((low + high) / 2)
+    const end = previousCodePointBoundary(answer, midpoint, offset)
+    const candidate = answer.slice(offset, end)
+    if (
+      Buffer.byteLength(candidate, 'utf8') <= LIVE_DELEGATION_RESULT_PAGE_MAX_BYTES &&
+      estimateTokens(candidate) <= maxTokens
+    ) {
+      best = Math.max(best, end)
+      low = midpoint + 1
+    } else {
+      high = midpoint - 1
+    }
+  }
+  if (best === offset) {
+    best = nextCodePointBoundary(answer, offset)
+  }
+  return {
+    text: answer.slice(offset, best),
+    nextOffset: best < answer.length ? best : null
+  }
+}
+
+function fitsBudgets(value: string, maxBytes: number, maxTokens: number): boolean {
+  return Buffer.byteLength(value, 'utf8') <= maxBytes && estimateTokens(value) <= maxTokens
+}
+
+function sanitizeDelegationText(value: string): string {
+  return value.replaceAll('\0', '\uFFFD')
+}
+
+function estimateTokens(value: string): number {
+  try {
+    const estimated = approximateTokenSize(value)
+    if (Number.isFinite(estimated) && estimated >= 0) {
+      return Math.min(Number.MAX_SAFE_INTEGER, Math.ceil(estimated))
+    }
+  } catch {
+    // Byte-based fallback keeps result delivery available if token estimation fails.
+  }
+  return Math.ceil(Buffer.byteLength(value, 'utf8') / 4)
+}
+
+function previousCodePointBoundary(value: string, offset: number, floor: number): number {
+  if (
+    offset > floor &&
+    offset < value.length &&
+    isLowSurrogate(value.charCodeAt(offset)) &&
+    isHighSurrogate(value.charCodeAt(offset - 1))
+  ) {
+    return offset - 1
+  }
+  return offset
+}
+
+function nextCodePointBoundary(value: string, offset: number): number {
+  const first = value.charCodeAt(offset)
+  return isHighSurrogate(first) && isLowSurrogate(value.charCodeAt(offset + 1))
+    ? offset + 2
+    : offset + 1
+}
+
+function isHighSurrogate(value: number): boolean {
+  return value >= 0xd800 && value <= 0xdbff
+}
+
+function isLowSurrogate(value: number): boolean {
+  return value >= 0xdc00 && value <= 0xdfff
+}
+
+function hashAnswer(answer: string): string {
+  return createHash('sha256').update(answer, 'utf8').digest('hex')
+}
+
+function encodeResultCursor(cursor: z.infer<typeof ResultCursorSchema>): string {
+  const encoded = Buffer.from(JSON.stringify(ResultCursorSchema.parse(cursor)), 'utf8').toString(
+    'base64url'
+  )
+  if (encoded.length > LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH) {
+    throw new Error('Live delegation result cursor exceeds its encoded limit.')
+  }
+  return encoded
+}
+
+function decodeResultCursor(value: string): z.infer<typeof ResultCursorSchema> {
+  const normalized = value.trim()
+  if (
+    !normalized ||
+    normalized.length > LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH ||
+    !/^[A-Za-z0-9_-]+$/u.test(normalized)
+  ) {
+    throw new Error('Invalid live delegation result cursor.')
+  }
+  try {
+    const decoded = Buffer.from(normalized, 'base64url')
+    if (decoded.toString('base64url') !== normalized) {
+      throw new Error('Non-canonical cursor encoding.')
+    }
+    return ResultCursorSchema.parse(JSON.parse(decoded.toString('utf8')))
+  } catch {
+    throw new Error('Invalid live delegation result cursor.')
+  }
 }
 
 function createDeferred(): { promise: Promise<void>; resolve: () => void } {
@@ -808,19 +1259,26 @@ function createWaitResult(
   priorCursor: number,
   timedOut: boolean
 ): LiveDelegationWaitResult {
+  const maxBytesPerEvent = Math.min(
+    MAX_MODEL_EVENT_BYTES,
+    Math.max(1, Math.floor(MAX_MODEL_WAIT_BYTES / Math.max(1, events.length)))
+  )
   return {
-    events: events.map(projectEventSummary),
+    events: events.map((event) => projectEventSummary(event, maxBytesPerEvent)),
     cursor: events.at(-1)?.id ?? priorCursor,
     timedOut
   }
 }
 
-function projectEventSummary(event: LiveDelegationEvent): LiveDelegationEventSummary {
+function projectEventSummary(
+  event: LiveDelegationEvent,
+  maxBytes: number
+): LiveDelegationEventSummary {
   const { content, ...identity } = event
   return {
     ...identity,
-    contentPreview: truncateUtf8(content, MAX_MODEL_PREVIEW_BYTES),
-    contentTruncated: Buffer.byteLength(content, 'utf8') > MAX_MODEL_PREVIEW_BYTES
+    contentPreview: truncateUtf8(content, maxBytes),
+    contentTruncated: Buffer.byteLength(content, 'utf8') > maxBytes
   }
 }
 

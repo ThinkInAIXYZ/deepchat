@@ -147,3 +147,23 @@ export function buildAssistantDeliverySegments(
   flushCurrent()
   return segments
 }
+
+export function projectFinalAnswerFromDeliverySegments(
+  segments: readonly AssistantDeliverySegment[] | undefined
+): string {
+  if (!segments) return ''
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index]
+    if (!segment) continue
+    const text = normalizeText(segment.text)
+    if (!text) continue
+    return segment.kind === 'answer' ? text : ''
+  }
+  return ''
+}
+
+export function projectFinalAssistantAnswer(blocks: AssistantMessageBlock[]): string {
+  return projectFinalAnswerFromDeliverySegments(
+    buildAssistantDeliverySegments('assistant-result-projection', blocks)
+  )
+}

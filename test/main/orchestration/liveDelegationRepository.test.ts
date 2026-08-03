@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
@@ -260,6 +261,8 @@ describeIfSqlite('LiveDelegationRepository', () => {
 
   it('settles once and exposes bounded child-to-parent mailbox events', () => {
     createDelegation()
+    addSession('child-1', 'parent')
+    repository.bindChild('delegation-1', 'child-1', 105)
     repository.markTurnStarted('turn-1', 110)
     const receipt = {
       linkEntry: { sessionId: 'parent', entryId: 3 },
@@ -272,6 +275,16 @@ describeIfSqlite('LiveDelegationRepository', () => {
       turnId: 'turn-1',
       status: 'completed',
       summary: 'Architecture is sound.',
+      resultRef: {
+        schemaVersion: 1,
+        childSessionId: 'child-1',
+        childMessageId: 'message-1',
+        answerSha256: createHash('sha256').update('Architecture is sound.').digest('hex'),
+        answerBytes: Buffer.byteLength('Architecture is sound.', 'utf8'),
+        answerEstimatedTokens: 5,
+        handoffSource: 'final_answer',
+        handoffTruncated: false
+      },
       tapeReceipt: receipt,
       now: 120
     })
@@ -283,6 +296,10 @@ describeIfSqlite('LiveDelegationRepository', () => {
     })
 
     expect(first.delegation.status).toBe('idle')
+    expect(first.turn.resultRef).toMatchObject({
+      childSessionId: 'child-1',
+      childMessageId: 'message-1'
+    })
     expect(first.turn.tapeReceipt).toEqual(receipt)
     expect(retry.turn.status).toBe('completed')
     expect(repository.listEvents('parent', { after: 0 })).toEqual([
