@@ -140,7 +140,7 @@ function seedReadyEmbedding(
 }
 
 describeIfNative('Memory native SQLite migration', () => {
-  it('migrates a genuine v45 memory table through every evolution schema exactly once', () => {
+  it('migrates a genuine v45 memory table through every declared evolution schema exactly once', () => {
     withTemporaryDatabase((databasePath) => {
       const seeded = new MainDatabaseCtor(databasePath)
       seeded.close()
@@ -160,13 +160,16 @@ describeIfNative('Memory native SQLite migration', () => {
       expect(db.prepare('SELECT MAX(version) AS version FROM schema_versions').get()).toEqual({
         version: latestSchemaVersion
       })
+      const expectedAppliedVersions = Array.from(
+        { length: latestSchemaVersion - 45 },
+        (_, index) => index + 46
+      )
+        // Version 56 was never released and intentionally has no migration SQL.
+        .filter((version) => version !== 56)
+        .map((version) => ({ version }))
       expect(
         db.prepare('SELECT version FROM schema_versions WHERE version >= 46 ORDER BY version').all()
-      ).toEqual(
-        Array.from({ length: latestSchemaVersion - 45 }, (_, index) => ({
-          version: index + 46
-        }))
-      )
+      ).toEqual(expectedAppliedVersions)
       expect(
         db
           .prepare(
