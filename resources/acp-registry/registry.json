@@ -108,7 +108,7 @@
     {
       "id": "claude-acp",
       "name": "Claude Agent",
-      "version": "0.64.0",
+      "version": "0.64.2",
       "description": "ACP wrapper for Anthropic's Claude",
       "repository": "https://github.com/agentclientprotocol/claude-agent-acp",
       "authors": [
@@ -119,7 +119,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/claude-agent-acp@0.64.0"
+          "package": "@agentclientprotocol/claude-agent-acp@0.64.2"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/claude-acp.svg"
@@ -127,7 +127,7 @@
     {
       "id": "cline",
       "name": "Cline",
-      "version": "3.0.48",
+      "version": "3.0.49",
       "description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
       "repository": "https://github.com/cline/cline",
       "website": "https://cline.bot/cli",
@@ -138,7 +138,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/cline.svg",
       "distribution": {
         "npx": {
-          "package": "cline@3.0.48",
+          "package": "cline@3.0.49",
           "args": [
             "--acp"
           ]
@@ -168,7 +168,7 @@
     {
       "id": "codex-acp",
       "name": "Codex",
-      "version": "1.1.8",
+      "version": "1.1.9",
       "description": "ACP adapter for OpenAI's coding assistant",
       "repository": "https://github.com/agentclientprotocol/codex-acp",
       "authors": [
@@ -179,7 +179,7 @@
       "license": "Apache-2.0",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/codex-acp@1.1.8"
+          "package": "@agentclientprotocol/codex-acp@1.1.9"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/codex-acp.svg"
@@ -492,7 +492,7 @@
     {
       "id": "dirac",
       "name": "Dirac",
-      "version": "0.4.31",
+      "version": "0.4.32",
       "description": "Reduces API costs by more than 50%, produces better and faster work. Uses Hash anchored parallel edits, AST manipulation and a whole lot of neat optimizations. Fully Open Source.",
       "repository": "https://github.com/dirac-run/dirac",
       "website": "https://dirac.run",
@@ -503,7 +503,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/dirac.svg",
       "distribution": {
         "npx": {
-          "package": "dirac-cli@0.4.31",
+          "package": "dirac-cli@0.4.32",
           "args": [
             "--acp"
           ]
@@ -676,7 +676,7 @@
     {
       "id": "grok-build",
       "name": "Grok Build",
-      "version": "0.2.118",
+      "version": "0.2.119",
       "description": "xAI's coding agent and CLI",
       "website": "https://x.ai/cli",
       "authors": [
@@ -685,7 +685,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@xai-official/grok@0.2.118",
+          "package": "@xai-official/grok@0.2.119",
           "args": [
             "agent",
             "stdio"
@@ -697,7 +697,7 @@
     {
       "id": "harn",
       "name": "Harn",
-      "version": "0.10.50",
+      "version": "0.10.52",
       "description": "Harn runs .harn agent pipelines as a native ACP coding agent over stdio.",
       "repository": "https://github.com/burin-labs/harn",
       "website": "https://harnlang.com",
@@ -708,49 +708,49 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.50/harn-aarch64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.52/harn-aarch64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "5426ac304575146378a461e5f5919cb557de4a4a34caf5e4479b7721f9c00e05"
+            "sha256": "3a895f18773cae88fc33aa038b6e24e9766be2aea760e47f05088b5317ab3df2"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.50/harn-x86_64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.52/harn-x86_64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "6754311042f3bb1baef77d001c662277a3ca1fcec8afff46a8d9ad772cc1137f"
+            "sha256": "cbbe646735848ab72de2590567a4b3a7fb3c7c8206a41790bfd1d03fc6c99a7b"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.50/harn-aarch64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.52/harn-aarch64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "b208a2edd69a90501bdbb7d8f8de93dda1563eac6f5713fee2b64d939b588815"
+            "sha256": "4d0b98dd6a40c4ee3061572527ce65a76a86d44846e55340d262d71087337624"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.50/harn-x86_64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.52/harn-x86_64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "09f2618b722fa7b4ba9458e5d6b2b89f828667b59ed30fdd48e3799a11300754"
+            "sha256": "aaf517a9c6be0a0daea04171396ba6fe1e06f20f47ae3adc4cf13cf45eae1e56"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.50/harn-x86_64-pc-windows-msvc.zip",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.52/harn-x86_64-pc-windows-msvc.zip",
             "cmd": "harn.exe",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "13f89a6cb6f614a8d3d0b157b25df0d79a41bd9fde46cdeabf0252a18ddcd243"
+            "sha256": "206ce39b5a51e63bc953c1d9286b4315e7859fcfaedb2e91afad5c065b104aab"
           }
         }
       },
@@ -1000,7 +1000,7 @@
     {
       "id": "nova",
       "name": "Nova",
-      "version": "1.1.30",
+      "version": "1.1.31",
       "description": "Nova by Compass AI - a fully-fledged software engineer at your command",
       "repository": "https://github.com/Compass-Agentic-Platform/nova",
       "website": "https://www.compassap.ai/portfolio/nova.html",
@@ -1011,7 +1011,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/nova.svg",
       "distribution": {
         "npx": {
-          "package": "@compass-ai/nova@1.1.30",
+          "package": "@compass-ai/nova@1.1.31",
           "args": [
             "acp"
           ]
