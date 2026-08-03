@@ -318,6 +318,63 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.xhigh')
   })
 
+  it('uses the resolved New API route for GPT-5.6 defaults until the route is edited', async () => {
+    const { wrapper, modelClient } = await setup({
+      providerId: 'new-api',
+      modelId: 'gpt-5.6-sol',
+      modelName: 'GPT-5.6 Sol',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'gpt-5.6-sol',
+          name: 'GPT-5.6 Sol',
+          type: ModelType.Chat,
+          endpointType: 'openai',
+          supportedEndpointTypes: ['openai', 'openai-response'],
+          ownedBy: 'openai'
+        }
+      ],
+      modelConfig: {
+        endpointType: 'openai',
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        effort: 'medium',
+        effortOptions: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+    expect(modelClient.getCapabilities).toHaveBeenCalledWith({
+      providerId: 'new-api',
+      modelId: 'gpt-5.6-sol',
+      reasoningEnabled: true
+    })
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.none')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.max')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.verbosity.label')
+
+    ;(wrapper.vm as any).config.endpointType = 'openai-response'
+    await vi.waitFor(() => expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2))
+
+    expect(modelClient.getCapabilities).toHaveBeenLastCalledWith({
+      providerId: 'new-api',
+      modelId: 'gpt-5.6-sol',
+      routeOverride: {
+        endpointType: 'openai-response',
+        type: ModelType.Chat
+      },
+      reasoningEnabled: true
+    })
+  })
+
   it('shows effort-based reasoning support as a disabled capability indicator', async () => {
     const { wrapper } = await setup({
       providerId: 'openai',

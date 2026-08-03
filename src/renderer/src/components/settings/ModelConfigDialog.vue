@@ -724,6 +724,7 @@ const isLoadingModelConfig = ref(false)
 const modelConfigIsUserDefined = ref(false)
 const modelConfigHasExplicitType = ref(false)
 const hasManualModelTypeSelection = ref(false)
+const capabilityRouteWasEdited = ref(false)
 const topPDraft = ref('')
 const modelNameField = ref(props.modelName ?? '')
 const modelIdField = ref(props.modelId ?? '')
@@ -963,6 +964,12 @@ const isThinkingBudgetSentinel = (
 const currentModelLookupId = computed(() =>
   (canEditModelIdentity.value ? modelIdField.value : props.modelId || modelIdField.value).trim()
 )
+const shouldUseDraftCapabilityRoute = computed(
+  () =>
+    isCreateMode.value ||
+    capabilityRouteWasEdited.value ||
+    (canEditModelIdentity.value && currentModelLookupId.value !== originalModelId.value)
+)
 
 const fetchCapabilities = async () => {
   const targetModelId = currentModelLookupId.value
@@ -972,17 +979,19 @@ const fetchCapabilities = async () => {
     return
   }
 
+  const routeOverride = shouldUseDraftCapabilityRoute.value
+    ? {
+        endpointType: isNewApiEndpointType(config.value.endpointType)
+          ? config.value.endpointType
+          : providerModelMeta.value?.endpointType,
+        type: effectiveNewApiModelType.value
+      }
+    : undefined
+
   await modelCapabilities.load({
     providerId: props.providerId,
     modelId: targetModelId,
-    routeOverride: {
-      endpointType: isNewApiEndpointType(config.value.endpointType)
-        ? config.value.endpointType
-        : providerModelMeta.value?.endpointType,
-      supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
-      type: effectiveNewApiModelType.value,
-      ownedBy: providerModelMeta.value?.ownedBy
-    },
+    ...(routeOverride ? { routeOverride } : {}),
     reasoningEnabled: config.value.reasoning
   })
 }
@@ -1302,6 +1311,7 @@ const loadConfig = async () => {
   isLoadingModelConfig.value = true
   modelCapabilities.beginLoading()
   hasManualModelTypeSelection.value = false
+  capabilityRouteWasEdited.value = false
   modelConfigIsUserDefined.value = false
   modelConfigHasExplicitType.value = false
   initializeIdentityFields()
@@ -1651,7 +1661,14 @@ watch(
       showEndpointTypeSelector.value,
       availableEndpointTypes.value.join('|')
     ] as const,
-  ([, nextType], [, previousType]) => {
+  ([nextEndpointType, nextType], [previousEndpointType, previousType]) => {
+    if (
+      !isLoadingModelConfig.value &&
+      (nextEndpointType !== previousEndpointType || nextType !== previousType)
+    ) {
+      capabilityRouteWasEdited.value = true
+    }
+
     if (!isLoadingModelConfig.value && nextType !== previousType) {
       hasManualModelTypeSelection.value = true
     }
