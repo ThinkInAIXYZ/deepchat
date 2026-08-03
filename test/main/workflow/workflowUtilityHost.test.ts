@@ -7,18 +7,27 @@ import {
 } from '@shared/workflow/runtimeProtocol'
 import { WorkflowUtilityHost } from '@/workflow/runtime/workflowUtilityHost'
 
+const WORKFLOW_EVENT_TIMEOUT_MS = 5000
+const WORKFLOW_EVENT_POLL_INTERVAL_MS = 10
+
 async function waitForEvent(
   events: WorkflowRuntimeEvent[],
   type: WorkflowRuntimeEvent['type']
 ): Promise<WorkflowRuntimeEvent> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  const deadline = Date.now() + WORKFLOW_EVENT_TIMEOUT_MS
+  for (;;) {
     const event = events.find((candidate) => candidate.type === type)
     if (event) {
       return event
     }
-    await new Promise<void>((resolve) => setImmediate(resolve))
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) {
+      throw new Error(`Timed out waiting for workflow event ${type}.`)
+    }
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, Math.min(WORKFLOW_EVENT_POLL_INTERVAL_MS, remainingMs))
+    )
   }
-  throw new Error(`Timed out waiting for workflow event ${type}.`)
 }
 
 describe('WorkflowUtilityHost', () => {

@@ -100,6 +100,8 @@ jobs:
 
       - name: Test renderer
         run: pnpm run test:renderer
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
 
   build:
     runs-on: ubuntu-24.04

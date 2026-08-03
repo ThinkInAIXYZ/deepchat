@@ -156,6 +156,9 @@ describe('PR Check workflow contracts', () => {
       'pnpm install --frozen-lockfile',
       'pnpm run test:renderer'
     ])
+    expect(getStep(workflow.jobs['test-renderer'], 'Test renderer').env).toEqual({
+      NODE_OPTIONS: '--max-old-space-size=8192'
+    })
     expect(getRunCommands(workflow.jobs.build)).toEqual([
       'pnpm install --frozen-lockfile',
       'pnpm run build'
