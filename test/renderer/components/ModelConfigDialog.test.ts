@@ -571,7 +571,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.thinkingBudget.label')
   })
 
-  it('hides temperature controls when the model capability disables temperature', async () => {
+  it('keeps model defaults visible when the model capability disables sampling', async () => {
     const { wrapper } = await setup({
       providerId: 'anthropic',
       modelId: 'claude-opus-4-7',
@@ -589,12 +589,20 @@ describe('ModelConfigDialog reasoning portraits', () => {
 
     expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
     expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
-    expect((wrapper.vm as any).showTopPControl).toBe(false)
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.topP.label')
+    expect((wrapper.vm as any).showTemperatureControl).toBe(true)
+    expect((wrapper.vm as any).showTopPControl).toBe(true)
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(true)
+    expect((wrapper.vm as any).topPSettingReadOnly).toBe(true)
+    expect(wrapper.find('#temperature').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('#topP').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.topP.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.maxTokens.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.contextLength.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.timeout.label')
   })
 
-  it('hides sampling controls for new-api anthropic routes when temperature is disabled', async () => {
+  it('keeps model defaults visible for new-api anthropic routes', async () => {
     const { wrapper } = await setup({
       providerId: 'new-api',
       modelId: 'claude-opus-4-8',
@@ -623,9 +631,12 @@ describe('ModelConfigDialog reasoning portraits', () => {
 
     expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
     expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
-    expect((wrapper.vm as any).showTopPControl).toBe(false)
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.topP.label')
+    expect((wrapper.vm as any).showTemperatureControl).toBe(true)
+    expect((wrapper.vm as any).showTopPControl).toBe(true)
+    expect(wrapper.find('#temperature').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('#topP').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.topP.label')
   })
 
   it('renders fixed temperature policy without rewriting stored intent', async () => {
@@ -744,8 +755,10 @@ describe('ModelConfigDialog reasoning portraits', () => {
       }
     })
 
-    expect((wrapper.vm as any).showTemperatureControl).toBe(false)
-    expect((wrapper.vm as any).showTopPControl).toBe(false)
+    expect((wrapper.vm as any).showTemperatureControl).toBe(true)
+    expect((wrapper.vm as any).showTopPControl).toBe(true)
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(true)
+    expect((wrapper.vm as any).topPSettingReadOnly).toBe(true)
     expect((wrapper.vm as any).reasoningToggleMode).toBe('indicator')
     expect((wrapper.vm as any).reasoningToggleValue).toBe(true)
     expect((wrapper.vm as any).config.reasoning).toBe(false)
@@ -773,7 +786,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
     )
   })
 
-  it('hides Aihubmix K3 temperature when catalog support is unknown but policy omits it', async () => {
+  it('shows Aihubmix K3 defaults as read-only when policy omits them', async () => {
     const { wrapper } = await setup({
       providerId: 'aihubmix',
       capabilityProviderId: 'aihubmix',
@@ -789,8 +802,10 @@ describe('ModelConfigDialog reasoning portraits', () => {
     })
 
     expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
-    expect((wrapper.vm as any).showTemperatureControl).toBe(false)
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
+    expect((wrapper.vm as any).showTemperatureControl).toBe(true)
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(true)
+    expect(wrapper.find('#temperature').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
   })
 
   it('shows temperature for effort models when effective policy permits it', async () => {
@@ -814,7 +829,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
   })
 
-  it('renders a stable placeholder instead of an editable temperature while loading', async () => {
+  it('keeps model defaults stable and read-only while capability policy loads', async () => {
     const pending = createDeferred<Record<string, unknown>>()
     const options: SetupOptions = {
       providerId: 'aihubmix',
@@ -825,8 +840,9 @@ describe('ModelConfigDialog reasoning portraits', () => {
     const { wrapper } = await setup(options)
 
     expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'loading' })
-    expect(wrapper.find('[data-testid="generation-parameter-loading"]').exists()).toBe(true)
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(true)
+    expect(wrapper.find('#temperature').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
 
     pending.resolve(
       createCapabilityResult({
@@ -842,10 +858,11 @@ describe('ModelConfigDialog reasoning portraits', () => {
     await flushPromises()
 
     expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
-    expect(wrapper.find('[data-testid="generation-parameter-loading"]').exists()).toBe(false)
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(true)
+    expect(wrapper.find('#temperature').attributes('disabled')).toBeDefined()
   })
 
-  it('silently hides failed capability controls without blocking unrelated configuration', async () => {
+  it('keeps model defaults editable when capability resolution fails', async () => {
     const options: SetupOptions = {
       providerId: 'aihubmix',
       modelId: 'kimi-k3',
@@ -870,17 +887,21 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect((wrapper.vm as any).topPControl).toEqual({ mode: 'hidden' })
     expect((wrapper.vm as any).capabilityResolutionSettledForCurrentModel).toBe(true)
     expect((wrapper.vm as any).isValid).toBe(true)
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.topP.label')
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(false)
+    expect((wrapper.vm as any).topPSettingReadOnly).toBe(false)
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.topP.label')
 
+    ;(wrapper.vm as any).temperatureInputValue = 0.9
+    ;(wrapper.vm as any).topPInputValue = '0.6'
     await (wrapper.vm as any).handleSave()
 
     expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
       'kimi-k3',
       'aihubmix',
       expect.objectContaining({
-        temperature: 0.6,
-        topP: 0.4
+        temperature: 0.9,
+        topP: 0.6
       })
     )
 
@@ -937,7 +958,10 @@ describe('ModelConfigDialog OpenAI image generation settings', () => {
       providerId: 'openai',
       modelId: 'gpt-image-2',
       modelName: 'GPT Image 2',
-      providerApiType: 'openai'
+      providerApiType: 'openai',
+      modelConfig: {
+        topP: 0.4
+      }
     })
 
     ;(wrapper.vm as any).config.imageGeneration = {
@@ -954,6 +978,7 @@ describe('ModelConfigDialog OpenAI image generation settings', () => {
       'gpt-image-2',
       'openai',
       expect.objectContaining({
+        topP: 0.4,
         imageGeneration: {
           size: '1792x1024',
           quality: 'high',

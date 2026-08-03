@@ -131,13 +131,8 @@
 
           <TtsSettingsFields v-if="showTtsSettings" v-model="config.tts" />
 
-          <GenerationParameterLoadingSkeleton v-if="temperatureControl.mode === 'loading'" />
-
           <!-- 温度 -->
-          <div
-            v-if="!showOpenAIMediaGenerationSettings && showTemperatureControl"
-            class="space-y-2"
-          >
+          <div v-if="showTemperatureControl" class="space-y-2">
             <Label for="temperature">{{ t('settings.model.modelConfig.temperature.label') }}</Label>
             <Input
               id="temperature"
@@ -148,7 +143,7 @@
               :max="2"
               :placeholder="t('settings.model.modelConfig.temperature.label')"
               :class="{ 'border-destructive': errors.temperature }"
-              :disabled="temperatureControl.mode === 'fixed'"
+              :disabled="temperatureSettingReadOnly"
             />
             <p class="text-xs text-muted-foreground">
               {{ t('settings.model.modelConfig.temperature.description') }}
@@ -169,7 +164,7 @@
               type="text"
               :placeholder="t('settings.model.modelConfig.useModelDefault')"
               :class="{ 'border-destructive': errors.topP }"
-              :disabled="topPControl.mode === 'fixed'"
+              :disabled="topPSettingReadOnly"
               @blur="clampTopPDraft"
             />
             <p class="text-xs text-muted-foreground">
@@ -598,7 +593,6 @@ import { useProviderStore } from '@/stores/providerStore'
 import OpenAIImageGenerationSettingsFields from './OpenAIImageGenerationSettingsFields.vue'
 import OpenAIVideoGenerationSettingsFields from './OpenAIVideoGenerationSettingsFields.vue'
 import TtsSettingsFields from './TtsSettingsFields.vue'
-import GenerationParameterLoadingSkeleton from '../GenerationParameterLoadingSkeleton.vue'
 import {
   useModelCapabilities,
   type GenerationParameterControl
@@ -794,7 +788,7 @@ const parseTopPDraft = (): number | undefined => {
 }
 
 const clampTopPDraft = () => {
-  if (topPControl.value.mode !== 'editable') return
+  if (topPSettingReadOnly.value) return
 
   const raw = topPDraft.value.trim()
   if (!raw) return
@@ -1107,13 +1101,21 @@ const topPPolicyHint = computed(() =>
       })
     : ''
 )
+const isGenerationSettingReadOnly = (control: GenerationParameterControl) =>
+  control.mode === 'fixed' ||
+  control.mode === 'loading' ||
+  (control.mode === 'hidden' && modelCapabilities.status.value === 'ready')
+const temperatureSettingReadOnly = computed(() =>
+  isGenerationSettingReadOnly(temperatureControl.value)
+)
+const topPSettingReadOnly = computed(() => isGenerationSettingReadOnly(topPControl.value))
 const temperatureInputValue = computed<number | undefined>({
   get: () =>
     temperatureControl.value.mode === 'fixed'
       ? temperatureControl.value.value
       : config.value.temperature,
   set: (value) => {
-    if (temperatureControl.value.mode === 'editable') {
+    if (!temperatureSettingReadOnly.value) {
       config.value.temperature = value
     }
   }
@@ -1122,7 +1124,7 @@ const topPInputValue = computed<string>({
   get: () =>
     topPControl.value.mode === 'fixed' ? String(topPControl.value.value) : topPDraft.value,
   set: (value) => {
-    if (topPControl.value.mode === 'editable') {
+    if (!topPSettingReadOnly.value) {
       topPDraft.value = value
     }
   }
@@ -1457,8 +1459,8 @@ const validateForm = () => {
 
   // 验证温度 (仅对显示 temperature 控件的模型)
   if (
-    !showOpenAIMediaGenerationSettings.value &&
-    temperatureControl.value.mode === 'editable' &&
+    showTemperatureControl.value &&
+    !temperatureSettingReadOnly.value &&
     config.value.temperature !== undefined
   ) {
     if (config.value.temperature < 0) {
@@ -1468,7 +1470,7 @@ const validateForm = () => {
     }
   }
 
-  if (topPControl.value.mode === 'editable') {
+  if (showTopPControl.value && !topPSettingReadOnly.value) {
     const parsedTopP = parseTopPDraft()
     if (parsedTopP !== undefined) {
       if (!Number.isFinite(parsedTopP)) {
@@ -1521,10 +1523,9 @@ const handleSave = async () => {
     ...config.value,
     ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
     topP:
-      topPControl.value.mode !== 'editable'
+      !showTopPControl.value || topPSettingReadOnly.value
         ? config.value.topP
-        : showTopPControl.value &&
-            typeof parsedTopP === 'number' &&
+        : typeof parsedTopP === 'number' &&
             Number.isFinite(parsedTopP) &&
             parsedTopP >= 0.1 &&
             parsedTopP <= 1
@@ -1721,12 +1722,10 @@ const showReasoningVisibility = computed(
   () => supportsReasoningVisibility.value && effectiveReasoningEnabled.value
 )
 const showTemperatureControl = computed(
-  () => temperatureControl.value.mode === 'editable' || temperatureControl.value.mode === 'fixed'
+  () => !showOpenAIMediaGenerationSettings.value && config.value.type === ModelType.Chat
 )
 const showTopPControl = computed(
-  () =>
-    !showOpenAIMediaGenerationSettings.value &&
-    (topPControl.value.mode === 'editable' || topPControl.value.mode === 'fixed')
+  () => !showOpenAIMediaGenerationSettings.value && config.value.type === ModelType.Chat
 )
 const reasoningToggleMode = computed(() => {
   if (capabilityRequestPolicy.value?.reasoning.mode === 'fixed') {
