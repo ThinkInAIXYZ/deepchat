@@ -1,7 +1,13 @@
 import { z } from 'zod'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
-import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
-import { DEEPCHAT_SUBAGENT_MODEL_GUIDANCE } from '@shared/lib/deepchatSubagents'
+import {
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
+} from '@shared/agentTools'
+import {
+  DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
+  DEEPCHAT_SUBAGENT_TASK_TITLE_LIMIT
+} from '@shared/lib/deepchatSubagents'
 import type {
   DeepChatSubagentCapability,
   DeepChatSubagentSlot
@@ -13,7 +19,15 @@ const liveDelegationSchema = z
   .object({
     operation: z.enum(['spawn', 'send', 'follow_up', 'list', 'inspect', 'wait', 'interrupt']),
     slotId: z.string().trim().min(1).max(256).optional(),
-    title: z.string().trim().min(1).max(160).optional(),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(DEEPCHAT_SUBAGENT_TASK_TITLE_LIMIT)
+      .refine((value) => !hasControlCharacters(value), {
+        message: 'Task title cannot contain control characters.'
+      })
+      .optional(),
     prompt: z.string().trim().min(1).max(65_536).optional(),
     delegationId: z.string().trim().min(1).max(256).optional(),
     message: z.string().trim().min(1).max(8_192).optional(),
@@ -69,7 +83,12 @@ export class LiveDelegationAgentTool {
               enum: ['spawn', 'send', 'follow_up', 'list', 'inspect', 'wait', 'interrupt']
             },
             slotId: buildSlotIdParameter(capability.slots),
-            title: { type: 'string', description: 'Short visible label for operation=spawn.' },
+            title: {
+              type: 'string',
+              maxLength: DEEPCHAT_SUBAGENT_TASK_TITLE_LIMIT,
+              description:
+                'Concise user-language action-and-scope title for operation=spawn. Keep sibling titles distinct; do not use a role, ordinal, or person name.'
+            },
             prompt: {
               type: 'string',
               description:
@@ -116,7 +135,7 @@ export class LiveDelegationAgentTool {
         }
       },
       server: {
-        name: 'agent-live-delegation',
+        name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
         icons: '⑂',
         description: 'DeepChat persistent live Subagents'
       }
@@ -183,4 +202,13 @@ function buildSlotIdParameter(slots: DeepChatSubagentSlot[]) {
       )
     ].join('\n')
   }
+}
+
+function hasControlCharacters(value: string): boolean {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)
+    if (codePoint === undefined) continue
+    if (codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)) return true
+  }
+  return false
 }

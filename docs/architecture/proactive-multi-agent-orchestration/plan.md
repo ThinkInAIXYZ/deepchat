@@ -64,6 +64,13 @@
 - Change `/workflow` to open or prepare Workflow functionality without changing policy.
 - Project live delegation into the existing activity surface without conflating legal Workflow
   actions with child-thread actions.
+- Keep trusted live-delegation spawn cards visible in the parent transcript with semantic task
+  titles, live status, bounded previews, interrupt controls, child navigation, and raw tool
+  disclosure.
+- Share one revision-aware renderer projection between inline cards and the Agent activity panel;
+  seed it from validated tool results and reconcile it through typed list/change contracts.
+- Tighten model-facing task-title guidance while retaining opaque delegation and Session IDs as the
+  only routing identities.
 - Add accessibility and i18n coverage.
 
 ## 8. Validation And Compatibility

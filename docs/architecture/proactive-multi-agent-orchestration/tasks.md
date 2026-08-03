@@ -250,3 +250,45 @@ Final validation evidence:
   import-shape warnings; provider refresh stopped at its configured 5 MB download guard without
   overwriting the retained generated catalog;
 - all implementation commits are local to `feat/workflow-runtime`; no push was performed.
+
+## Inline Live Delegation Visibility
+
+- [x] Define task-first naming and inline visibility contracts without adding another identity.
+- [x] Add one revision-aware renderer projection shared by inline and side-panel consumers.
+- [x] Render trusted live-delegation spawns as persistent task cards with child navigation.
+- [x] Preserve raw tool disclosure and exclude the task cards from generic activity collapse.
+- [x] Add naming, trust-boundary, stale-response, navigation, and rendering regressions.
+- [x] Review findings by severity, fix material issues, validate, and commit locally without push.
+
+Inline visibility review findings, ordered by severity:
+
+- high, fixed before commit: transcript snapshots initially carried executable child navigation and
+  interruption data without re-establishing ownership through the main-process repository; inline
+  actions now confirm the parent/delegation relationship, immutable task metadata, and child binding
+  before acting, while authoritative host data always replaces transcript revisions;
+- medium, fixed before commit: transcript-seeded entries could appear in Agent activity and affect
+  its count even though they were not host-confirmed; the side panel now consumes only authoritative
+  projections while historical inline cards retain a non-authoritative display fallback;
+- medium, fixed before commit: concurrent consumers could observe an incomplete initial load, and
+  list, event, inspect, or interrupt responses lacked one shared relationship/revision merge path;
+  loads and actions are deduplicated and every authoritative response is correlated before merge;
+- medium, fixed before commit: tightening new task titles to 80 characters would have hidden earlier
+  81-160 character transcript cards; new spawns use the concise limit while the renderer retains the
+  persisted 160-character compatibility bound;
+- low, fixed before commit: string-keyed object projections and a control-character regular
+  expression created avoidable prototype-key and lint ambiguity; reactive Maps/Sets and explicit
+  code-point validation make both boundaries unambiguous;
+- low: no unresolved inline-visibility finding. V1 intentionally keeps opaque IDs for routing and
+  does not add persona nicknames, canonical Agent paths, or nested Subagent addressing.
+
+Inline visibility validation evidence:
+
+- 58 affected portable main-process tests passed; 21 native SQLite tests were skipped by the
+  portable harness, unchanged from the existing suite configuration;
+- 107 orchestration client, shared projection, task-card, message-grouping, side-panel, and retained
+  Workflow renderer tests passed;
+- `pnpm run format`, `pnpm run format:check`, `pnpm run i18n`, `pnpm run lint`,
+  `pnpm run typecheck`, `pnpm run architecture:renderer-baseline:check`, `pnpm run build`, and
+  `git diff --check` passed;
+- the production build retained only existing Rollup chunk/import warnings; provider refresh stopped
+  at its 5 MB guard, and the unrelated ACP registry refresh was excluded from this change.

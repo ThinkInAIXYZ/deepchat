@@ -1,7 +1,10 @@
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LiveDelegationSummary } from '@shared/orchestration/liveDelegation'
+
+vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
 const client = vi.hoisted(() => {
   let changed:
@@ -84,6 +87,7 @@ describe('LiveDelegationPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     client.reset()
+    setActivePinia(createPinia())
   })
 
   it('projects live status, opens the stable child, and interrupts active work', async () => {
@@ -116,7 +120,7 @@ describe('LiveDelegationPanel', () => {
     )
   })
 
-  it('accepts only current-parent events and unsubscribes on unmount', async () => {
+  it('accepts only current-parent events through the shared projection', async () => {
     client.listLiveDelegations.mockResolvedValue([])
     const wrapper = mount(LiveDelegationPanel, { props: { sessionId: 'parent-1' } })
     await flushPromises()
@@ -130,7 +134,6 @@ describe('LiveDelegationPanel', () => {
     )
     expect(wrapper.find('[data-testid="live-delegation-ignored"]').exists()).toBe(false)
     wrapper.unmount()
-    expect(client.stop).toHaveBeenCalledOnce()
   })
 
   it('does not let a stale list response overwrite a newer event', async () => {
@@ -152,11 +155,13 @@ describe('LiveDelegationPanel', () => {
     expect(wrapper.text()).not.toContain('Stale result.')
   })
 
-  it('ignores an interrupt result after the session changes away and back', async () => {
+  it('retains an interrupt result after the session changes away and back', async () => {
     let resolveInterrupt:
       | ((detail: { delegation: LiveDelegationSummary; turns: never[] }) => void)
       | null = null
-    client.listLiveDelegations.mockResolvedValue([summary()])
+    client.listLiveDelegations.mockImplementation(async (parentSessionId: string) =>
+      parentSessionId === 'parent-1' ? [summary()] : []
+    )
     client.interruptLiveDelegation.mockReturnValue(
       new Promise((resolve) => {
         resolveInterrupt = resolve
@@ -175,15 +180,12 @@ describe('LiveDelegationPanel', () => {
         status: 'interrupted',
         revision: 2,
         updatedAt: 30,
-        errorPreview: 'Stale interrupt result.'
+        errorPreview: 'Interrupted result.'
       }),
       turns: []
     })
     await flushPromises()
 
-    expect(wrapper.text()).not.toContain('Stale interrupt result.')
-    expect(wrapper.get('[data-testid="live-delegation-delegation-1"]').text()).toContain(
-      'Review architecture'
-    )
+    expect(wrapper.text()).toContain('Interrupted result.')
   })
 })

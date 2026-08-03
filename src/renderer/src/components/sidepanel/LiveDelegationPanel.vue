@@ -47,8 +47,8 @@
                 {{ statusLabel(delegation.status) }}
               </span>
             </div>
-            <p class="mt-0.5 truncate font-mono text-[9px] text-muted-foreground">
-              {{ delegation.slotId }} · {{ delegation.id }}
+            <p class="mt-0.5 truncate text-[9px] text-muted-foreground">
+              {{ delegation.slotId }}
             </p>
             <p
               v-if="delegation.errorPreview || delegation.summaryPreview"
@@ -64,7 +64,8 @@
                 size="sm"
                 class="h-6 px-2 text-[10px]"
                 :data-testid="`live-delegation-open-${delegation.id}`"
-                @click="openChild(delegation.childSessionId)"
+                :disabled="openingId === delegation.id"
+                @click="openChild(delegation)"
               >
                 <Icon icon="lucide:external-link" class="mr-1 h-3 w-3" />
                 {{ t('chat.workflow.actions.openChild') }}
@@ -75,7 +76,7 @@
                 size="sm"
                 class="h-6 px-2 text-[10px] text-destructive hover:text-destructive"
                 :data-testid="`live-delegation-interrupt-${delegation.id}`"
-                :disabled="interruptingId !== null"
+                :disabled="liveDelegationStore.isInterrupting(props.sessionId, delegation.id)"
                 @click="interrupt(delegation.id)"
               >
                 <Icon icon="lucide:square" class="mr-1 h-3 w-3" />
@@ -90,155 +91,103 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
-import { createOrchestrationClient } from '@api/OrchestrationClient'
 import type {
   LiveDelegationStatus,
   LiveDelegationSummary
 } from '@shared/orchestration/liveDelegation'
+import { getLiveDelegationStatusPresentation } from '@/lib/liveDelegationPresentation'
+import { useLiveDelegationStore } from '@/stores/ui/liveDelegation'
 import { useSessionStore } from '@/stores/ui/session'
 
 const props = defineProps<{ sessionId: string }>()
 const emit = defineEmits<{ countChanged: [count: number] }>()
 const { t } = useI18n()
-const orchestrationClient = createOrchestrationClient()
 const sessionStore = useSessionStore()
-const delegations = shallowRef<LiveDelegationSummary[]>([])
-const loading = ref(false)
-const loadError = ref<string | null>(null)
-const interruptingId = ref<string | null>(null)
+const liveDelegationStore = useLiveDelegationStore()
+const actionError = ref<string | null>(null)
+const openingId = ref<string | null>(null)
 const MAX_VISIBLE_DELEGATIONS = 100
 
-let disposed = false
-let requestId = 0
-let interruptRequestId = 0
-let stopChanged: (() => void) | null = null
-
-function sortDelegations(items: readonly LiveDelegationSummary[]): LiveDelegationSummary[] {
-  return [...items].sort(
-    (left, right) => right.updatedAt - left.updatedAt || right.id.localeCompare(left.id)
-  )
-}
-
-function replaceDelegations(items: readonly LiveDelegationSummary[]): void {
-  delegations.value = sortDelegations(items).slice(0, MAX_VISIBLE_DELEGATIONS)
-  emit('countChanged', delegations.value.length)
-}
-
-function mergeRefreshedDelegations(items: readonly LiveDelegationSummary[]): void {
-  const merged = new Map(items.map((delegation) => [delegation.id, delegation]))
-  for (const current of delegations.value) {
-    const loaded = merged.get(current.id)
-    if (!loaded || current.revision >= loaded.revision) merged.set(current.id, current)
-  }
-  replaceDelegations([...merged.values()])
-}
-
-function upsertDelegation(delegation: LiveDelegationSummary): void {
-  const current = delegations.value.find((candidate) => candidate.id === delegation.id)
-  if (current && current.revision > delegation.revision) return
-  replaceDelegations([
-    delegation,
-    ...delegations.value.filter((candidate) => candidate.id !== delegation.id)
-  ])
-}
+const delegations = computed<LiveDelegationSummary[]>(() =>
+  liveDelegationStore.listAuthoritative(props.sessionId).slice(0, MAX_VISIBLE_DELEGATIONS)
+)
+const loadState = computed(() => liveDelegationStore.getLoadState(props.sessionId))
+const loading = computed(() => loadState.value.loading)
+const loadError = computed(
+  () => actionError.value || (loadState.value.loadFailed ? t('common.error.requestFailed') : null)
+)
 
 async function refresh(): Promise<void> {
-  const currentRequest = ++requestId
-  const sessionId = props.sessionId
-  loading.value = true
-  loadError.value = null
-  try {
-    const loaded = await orchestrationClient.listLiveDelegations(sessionId, 100)
-    if (disposed || currentRequest !== requestId || sessionId !== props.sessionId) return
-    mergeRefreshedDelegations(loaded)
-  } catch (error) {
-    if (!disposed && currentRequest === requestId && sessionId === props.sessionId) {
-      console.warn('[LiveDelegationPanel] Failed to list delegations:', error)
-      loadError.value = t('common.error.requestFailed')
-    }
-  } finally {
-    if (!disposed && currentRequest === requestId && sessionId === props.sessionId) {
-      loading.value = false
-    }
-  }
+  actionError.value = null
+  await liveDelegationStore.refresh(props.sessionId)
 }
 
 async function interrupt(delegationId: string): Promise<void> {
-  if (interruptingId.value) return
-  const currentRequest = ++interruptRequestId
   const sessionId = props.sessionId
-  interruptingId.value = delegationId
-  loadError.value = null
+  if (liveDelegationStore.isInterrupting(sessionId, delegationId)) return
+  actionError.value = null
   try {
-    const detail = await orchestrationClient.interruptLiveDelegation(sessionId, delegationId)
-    if (!disposed && currentRequest === interruptRequestId && sessionId === props.sessionId) {
-      upsertDelegation(detail.delegation)
-    }
+    const delegation = liveDelegationStore.getDelegation(sessionId, delegationId)
+    if (!delegation) throw new Error('The delegation is no longer available.')
+    await liveDelegationStore.interrupt(sessionId, delegationId, {
+      slotId: delegation.slotId,
+      title: delegation.title
+    })
   } catch (error) {
-    if (!disposed && currentRequest === interruptRequestId && sessionId === props.sessionId) {
+    if (sessionId === props.sessionId) {
       console.warn('[LiveDelegationPanel] Failed to interrupt delegation:', error)
-      loadError.value = t('common.error.operationFailed')
+      actionError.value = t('common.error.operationFailed')
     }
-  } finally {
-    if (currentRequest === interruptRequestId) interruptingId.value = null
   }
 }
 
-function openChild(childSessionId: string): void {
-  void sessionStore.selectSession(childSessionId)
+async function openChild(delegation: LiveDelegationSummary): Promise<void> {
+  if (openingId.value) return
+  const sessionId = props.sessionId
+  openingId.value = delegation.id
+  actionError.value = null
+  try {
+    const confirmed = await liveDelegationStore.confirm(sessionId, delegation.id)
+    if (confirmed.slotId !== delegation.slotId || confirmed.title !== delegation.title) {
+      throw new Error('The delegation no longer matches the displayed task.')
+    }
+    if (!confirmed.childSessionId) throw new Error('The child Session is not available yet.')
+    if (sessionId === props.sessionId) await sessionStore.selectSession(confirmed.childSessionId)
+  } catch (error) {
+    if (sessionId === props.sessionId) {
+      console.warn('[LiveDelegationPanel] Failed to open child Session:', error)
+      actionError.value = t('common.error.operationFailed')
+    }
+  } finally {
+    if (openingId.value === delegation.id) openingId.value = null
+  }
 }
 
 function isActive(status: LiveDelegationStatus): boolean {
-  return (
-    status === 'queued' ||
-    status === 'running' ||
-    status === 'waiting_permission' ||
-    status === 'waiting_question'
-  )
+  return getLiveDelegationStatusPresentation(status).active
 }
 
 function statusLabel(status: LiveDelegationStatus): string {
-  if (status === 'idle') return t('chat.workspace.subagents.status.idle')
-  if (status === 'failed') return t('chat.workspace.subagents.status.error')
-  if (status === 'interrupted') return t('chat.workflow.status.interrupted')
-  if (status === 'queued') return t('chat.workflow.status.queued')
-  if (status.startsWith('waiting_')) return t('chat.workflow.status.waiting_interaction')
-  return t('chat.workspace.subagents.status.working')
+  return t(getLiveDelegationStatusPresentation(status).labelKey)
 }
 
 function statusDotClass(status: LiveDelegationStatus): string {
-  if (status === 'idle') return 'bg-emerald-500'
-  if (status === 'failed') return 'bg-destructive'
-  if (status === 'interrupted' || status.startsWith('waiting_')) return 'bg-amber-500'
-  return 'bg-blue-500'
+  return getLiveDelegationStatusPresentation(status).dotClass
 }
 
 watch(
   () => props.sessionId,
   () => {
-    requestId += 1
-    interruptRequestId += 1
-    interruptingId.value = null
-    replaceDelegations([])
-    void refresh()
-  }
+    actionError.value = null
+    openingId.value = null
+    void liveDelegationStore.ensureLoaded(props.sessionId)
+  },
+  { immediate: true }
 )
 
-onMounted(() => {
-  stopChanged = orchestrationClient.onLiveDelegationChanged((payload) => {
-    if (payload.parentSessionId === props.sessionId) upsertDelegation(payload.delegation)
-  })
-  void refresh()
-})
-
-onBeforeUnmount(() => {
-  disposed = true
-  requestId += 1
-  stopChanged?.()
-  stopChanged = null
-})
+watch(delegations, (items) => emit('countChanged', items.length), { immediate: true })
 </script>

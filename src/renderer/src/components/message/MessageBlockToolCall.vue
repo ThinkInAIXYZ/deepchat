@@ -7,7 +7,18 @@
     :read-only="readOnly"
   />
   <div v-else class="flex flex-col w-full">
+    <LiveDelegationToolCallCard
+      v-if="liveDelegationSpawn && threadId"
+      :parent-session-id="threadId"
+      :spawn="liveDelegationSpawn"
+      :tool-status="block.status"
+      :details-id="detailsId"
+      :details-expanded="isExpanded"
+      :read-only="readOnly"
+      @toggle-details="toggleExpanded"
+    />
     <button
+      v-else
       type="button"
       data-testid="tool-call-trigger"
       class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-left text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none overflow-hidden bg-accent hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -223,6 +234,8 @@ import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { createDeviceClient } from '@api/DeviceClient'
 import { parseWorkflowLaunchApprovalBlock } from '@/lib/workflowLaunchApproval'
+import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
+import LiveDelegationToolCallCard from './LiveDelegationToolCallCard.vue'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
 import WorkflowLaunchApprovalCard from './WorkflowLaunchApprovalCard.vue'
 
@@ -265,6 +278,12 @@ const DETAILS_UNMOUNT_DELAY_MS = 240
 let detailsUnmountTimer: number | null = null
 
 const workflowApproval = computed(() => parseWorkflowLaunchApprovalBlock(props.block))
+const liveDelegationSpawn = computed(() => {
+  const parsed = parseLiveDelegationSpawnBlock(props.block)
+  if (!parsed || !props.threadId) return null
+  if (parsed.delegation && parsed.delegation.parentSessionId !== props.threadId) return null
+  return parsed
+})
 
 const statusVariant = computed(() => {
   if (props.block.status === 'error') return 'error'

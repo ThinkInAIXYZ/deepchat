@@ -1,6 +1,7 @@
 export const CRON_JOB_AGENT_TOOL_NAME = 'cronjob'
 export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
 export const LIVE_DELEGATION_AGENT_TOOL_NAME = 'deepchat_subagents'
+export const LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME = 'agent-live-delegation'
 export const WORKFLOW_AGENT_TOOL_NAME = 'deepchat_workflow'
 export const LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME = 'workflow'
 export const WORKFLOW_AGENT_TOOL_SERVER_NAME = 'agent-workflows'

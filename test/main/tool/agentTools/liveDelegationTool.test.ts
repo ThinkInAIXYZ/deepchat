@@ -39,6 +39,12 @@ describe('LiveDelegationAgentTool', () => {
     expect(definition?.function.parameters.properties?.slotId).toMatchObject({
       enum: ['reviewer']
     })
+    expect(definition?.function.parameters.properties?.title).toMatchObject({
+      maxLength: 80
+    })
+    expect(definition?.function.parameters.properties?.title?.description).toContain(
+      'action-and-scope'
+    )
   })
 
   it('validates operation-specific fields before invoking the service', async () => {
@@ -49,6 +55,28 @@ describe('LiveDelegationAgentTool', () => {
     await expect(tool.call({ operation: 'list', unsupported: true }, 'parent-1')).rejects.toThrow(
       'Unrecognized key'
     )
+    await expect(
+      tool.call(
+        {
+          operation: 'spawn',
+          slotId: 'reviewer',
+          title: 'Review\narchitecture',
+          prompt: 'Inspect.'
+        },
+        'parent-1'
+      )
+    ).rejects.toThrow('control characters')
+    await expect(
+      tool.call(
+        {
+          operation: 'spawn',
+          slotId: 'reviewer',
+          title: 'x'.repeat(81),
+          prompt: 'Inspect.'
+        },
+        'parent-1'
+      )
+    ).rejects.toThrow('80')
 
     await tool.call(
       {
