@@ -3,6 +3,7 @@ import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 import { TOOL_EXECUTION } from '@shared/types/mcp'
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
+import { SessionDeletionGate } from '@/session/deletionGate'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const databaseModule = Database
@@ -48,6 +49,7 @@ describeIfSqlite('LiveDelegationService', () => {
   let repository: InstanceType<typeof LiveDelegationRepositoryCtor>
   let service: InstanceType<typeof LiveDelegationServiceCtor>
   let harness: ReturnType<typeof createSessionHarness>
+  let deletionGate: SessionDeletionGate
 
   beforeEach(() => {
     db = new DatabaseCtor(':memory:')
@@ -66,10 +68,12 @@ describeIfSqlite('LiveDelegationService', () => {
       new LiveDelegationDatabaseCtor({ getDatabase: () => db! })
     )
     harness = createSessionHarness(db)
+    deletionGate = new SessionDeletionGate()
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
-      admission: new AgentInvocationAdmission(2, 10)
+      admission: new AgentInvocationAdmission(2, 10),
+      deletionGate
     })
     service.start()
   })
@@ -484,6 +488,36 @@ describeIfSqlite('LiveDelegationService', () => {
     expect(harness.sessions.sendConversationMessage).toHaveBeenCalledTimes(1)
   })
 
+  it('rejects follow_up after the bound child enters deletion', async () => {
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Review architecture',
+      prompt: 'Inspect the first design.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.publishAnswer(childId, '## Handoff\nThe first review is complete.', 199)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 200, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+
+    let releaseDeletion!: () => void
+    const deleting = deletionGate.runWithSessionDeletion(
+      childId,
+      async () =>
+        await new Promise<void>((resolve) => {
+          releaseDeletion = resolve
+        })
+    )
+
+    await expect(
+      service.followUp('parent', spawned.delegation.id, 'Start a task during child deletion.')
+    ).rejects.toThrow(`Session is being deleted: ${childId}`)
+    expect(repository.listTurns(spawned.delegation.id, 10)).toHaveLength(1)
+
+    releaseDeletion()
+    await deleting
+  })
+
   it('allows a later follow_up to recover a child Session from an error state', async () => {
     const spawned = await service.spawn('parent', {
       slotId: 'reviewer',
@@ -564,6 +598,62 @@ describeIfSqlite('LiveDelegationService', () => {
     expect(repository.countActiveByParent('parent')).toBe(0)
   })
 
+  it('fences post-drain spawns while deleting a parent Session', async () => {
+    const resolveSessionInfo =
+      harness.sessions.resolveConversationSessionInfo.getMockImplementation()!
+    let resolveParent!: (parent: ConversationSessionInfo | null) => void
+    harness.sessions.resolveConversationSessionInfo.mockImplementationOnce(
+      async () =>
+        await new Promise<ConversationSessionInfo | null>((resolve) => {
+          resolveParent = resolve
+        })
+    )
+    const spawning = service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Race parent deletion',
+      prompt: 'Do not create work after the parent deletion fence.'
+    })
+    await vi.waitFor(() =>
+      expect(harness.sessions.resolveConversationSessionInfo).toHaveBeenCalledWith('parent')
+    )
+
+    let notifyDeletionEntered!: () => void
+    const deletionEntered = new Promise<void>((resolve) => {
+      notifyDeletionEntered = resolve
+    })
+    let releaseDeletion!: () => void
+    let didEnterDeletion = false
+    const deleting = deletionGate.runWithSessionDeletion('parent', async () => {
+      didEnterDeletion = true
+      notifyDeletionEntered()
+      await service.prepareSessionDeletion('parent')
+      await new Promise<void>((resolve) => {
+        releaseDeletion = resolve
+      })
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(didEnterDeletion).toBe(false)
+
+    resolveParent(await resolveSessionInfo('parent'))
+    const spawned = await spawning
+    await deletionEntered
+    await vi.waitFor(() =>
+      expect(repository.require(spawned.delegation.id).status).toBe('interrupted')
+    )
+    await expect(
+      service.spawn('parent', {
+        slotId: 'reviewer',
+        title: 'Late spawn',
+        prompt: 'This must be rejected.'
+      })
+    ).rejects.toThrow('Session is being deleted: parent')
+    expect(repository.countActiveByParent('parent')).toBe(0)
+
+    await vi.waitFor(() => expect(releaseDeletion).toBeTypeOf('function'))
+    releaseDeletion()
+    await deleting
+  })
+
   it('publishes write-ahead running state before handoff delivery resolves', async () => {
     await service.stop()
     let resolveHandoff!: () => void
@@ -578,6 +668,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       admission: new AgentInvocationAdmission(2, 10),
+      deletionGate,
       onChanged: (_parentSessionId, delegationId) => {
         publishedStatuses.push(repository.require(delegationId).status)
       }
@@ -864,7 +955,8 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
-      admission: new AgentInvocationAdmission(2, 10)
+      admission: new AgentInvocationAdmission(2, 10),
+      deletionGate
     })
     service.start()
     const result = await service.wait('parent', { after: 0, timeoutMs: 1_000 })
@@ -900,7 +992,8 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
-      admission: new AgentInvocationAdmission(2, 10)
+      admission: new AgentInvocationAdmission(2, 10),
+      deletionGate
     })
     service.start()
     await vi.waitFor(() => expect(repository.require(created.delegation.id).status).toBe('failed'))
@@ -936,7 +1029,8 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
-      admission: new AgentInvocationAdmission(2, 10)
+      admission: new AgentInvocationAdmission(2, 10),
+      deletionGate
     })
     service.start()
     service.beforeToolExecution({
@@ -978,6 +1072,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       admission: new AgentInvocationAdmission(2, 10),
+      deletionGate,
       onChanged
     })
     service.start()
@@ -1022,7 +1117,8 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
-      admission: new AgentInvocationAdmission(2, 10)
+      admission: new AgentInvocationAdmission(2, 10),
+      deletionGate
     })
     service.start()
     const result = await service.wait('parent', { after: 0, timeoutMs: 1_000 })
@@ -1077,7 +1173,8 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
-      admission: new AgentInvocationAdmission(2, 10)
+      admission: new AgentInvocationAdmission(2, 10),
+      deletionGate
     })
     service.start()
     await vi.waitFor(() => {

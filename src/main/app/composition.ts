@@ -92,6 +92,7 @@ import { KnowledgeSettings } from '@/knowledge/settings'
 import { PromptSettings } from '@/agent/promptSettings'
 import { AgentSettings } from '@/agent/settings'
 import { AgentLifecycleGate } from '@/agent/lifecycleGate'
+import { SessionDeletionGate } from '@/session/deletionGate'
 import { emitAcpAgentModelsChanged, emitAgentCatalogChanged } from '@/app/agentEvents'
 import { emitModelsChanged } from '@/provider/eventPublishers'
 import { createWorkspaceRoutes } from '../workspace/routes'
@@ -453,6 +454,7 @@ export async function createMainProcessControl(dependencies: {
   const appDatabase = new AppDatabase(mainDatabase)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
   const agentLifecycle = new AgentLifecycleGate()
+  const sessionDeletionGate = new SessionDeletionGate()
   const promptSettings = new PromptSettings(dependencies.settingsStore, {
     publishCustomPromptsChanged: (prompts) =>
       publishDeepchatEvent('config.customPrompts.changed', {
@@ -1371,6 +1373,7 @@ export async function createMainProcessControl(dependencies: {
   }
   sessionDeletion = new SessionDeletion({
     sessions: appSessionService,
+    gate: sessionDeletionGate,
     orchestration: {
       prepareSessionDeletion: async (sessionId) =>
         await liveDelegationService.prepareSessionDeletion(sessionId)
@@ -1484,6 +1487,7 @@ export async function createMainProcessControl(dependencies: {
     projection: sessionQuery,
     desktop: desktopSessionBinding,
     deletion: sessionDeletion,
+    deletionGate: sessionDeletionGate,
     permissions: sessionPermissionPort,
     agentLifecycle
   })
@@ -1657,6 +1661,7 @@ export async function createMainProcessControl(dependencies: {
     new LiveDelegationService({
       repository: liveDelegationRepository,
       admission: agentInvocationAdmission,
+      deletionGate: sessionDeletionGate,
       sessions: {
         ...agentToolDependencies.sessions,
         ...agentToolDependencies.subagents,

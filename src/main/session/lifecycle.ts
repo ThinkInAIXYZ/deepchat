@@ -35,6 +35,7 @@ import {
   DEFAULT_ORCHESTRATION_POLICY,
   normalizeOrchestrationPolicy
 } from '@shared/workflow/orchestrationPolicy'
+import type { SessionDeletionGatePort } from './deletionGate'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 
@@ -53,6 +54,7 @@ export interface SessionLifecycleDependencies {
   projection: SessionLifecycleProjectionPort
   desktop: SessionLifecycleDesktopPort
   deletion: SessionLifecycleDeletionPort
+  deletionGate: SessionDeletionGatePort
   permissions?: SessionLifecyclePermissionPort
   agentLifecycle: AgentLifecycleGatePort
 }
@@ -261,6 +263,23 @@ export class SessionLifecycle implements SessionLifecyclePort {
   }
 
   async createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState> {
+    const parentSessionId = input.parentSessionId?.trim()
+    if (!parentSessionId) throw new Error('Subagent session requires a parentSessionId.')
+
+    return await this.dependencies.deletionGate.runWithSessionOperation(
+      parentSessionId,
+      async () => {
+        if (!this.dependencies.sessions.get(parentSessionId)) {
+          throw new Error(`Subagent parent Session does not exist: ${parentSessionId}`)
+        }
+        return await this.createSubagentSessionUnderParentGate(input)
+      }
+    )
+  }
+
+  private async createSubagentSessionUnderParentGate(
+    input: SessionLifecycleSubagentInput
+  ): Promise<SessionWithState> {
     const agentId = input.agentId?.trim()
     if (!agentId) throw new Error('Subagent session requires an agentId.')
     const projectDir = input.projectDir?.trim() || null

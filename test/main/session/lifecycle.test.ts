@@ -6,6 +6,7 @@ import type {
   SessionWithState
 } from '@shared/types/agent-interface'
 import { SessionLifecycle, type SessionLifecycleDependencies } from '@/session/lifecycle'
+import { SessionDeletionGate } from '@/session/deletionGate'
 
 const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 'existing',
@@ -24,7 +25,10 @@ const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => 
 })
 
 function createHarness(initialSessions: SessionRecord[] = []) {
-  const records = new Map(initialSessions.map((session) => [session.id, session]))
+  const records = new Map<string, SessionRecord>([
+    ['parent', createRecord({ id: 'parent' })],
+    ...initialSessions.map((session): [string, SessionRecord] => [session.id, session])
+  ])
   const runtimeSessions = new Map<
     string,
     {
@@ -227,6 +231,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
   }
   const deletion = { deleteSessionTree: vi.fn().mockResolvedValue([]) }
   const permissions = { cloneSessionPermissions: vi.fn() }
+  const deletionGate = new SessionDeletionGate()
   const agentLifecycle = {
     runWithAgentOperation: vi.fn(
       async (_agentId: string, operation: () => Promise<unknown>) => await operation()
@@ -246,6 +251,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     projection,
     desktop,
     deletion,
+    deletionGate,
     permissions,
     agentLifecycle
   } as unknown as SessionLifecycleDependencies
@@ -266,6 +272,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     projection,
     desktop,
     deletion,
+    deletionGate,
     permissions
   }
 }
@@ -380,6 +387,58 @@ describe('SessionLifecycle', () => {
       expect.any(Function)
     )
     expect(harness.assignmentPolicy.resolveSubagentAssignment).toHaveBeenCalledOnce()
+  })
+
+  it('rejects subagent creation after its parent enters deletion', async () => {
+    const harness = createHarness()
+    let releaseDeletion!: () => void
+    let deletionEntered!: () => void
+    const entered = new Promise<void>((resolve) => {
+      deletionEntered = resolve
+    })
+    const deletion = harness.deletionGate.runWithSessionDeletion(
+      'parent',
+      async () =>
+        await new Promise<void>((resolve) => {
+          releaseDeletion = resolve
+          deletionEntered()
+        })
+    )
+    await entered
+
+    await expect(
+      harness.coordinator.createSubagentSession({
+        parentSessionId: 'parent',
+        agentId: 'deepchat',
+        slotId: 'reviewer',
+        displayName: 'Late child',
+        providerId: 'openai',
+        modelId: 'model-1',
+        permissionMode: 'default'
+      })
+    ).rejects.toThrow('Session is being deleted: parent')
+    expect(harness.sessions.create).not.toHaveBeenCalled()
+
+    releaseDeletion()
+    await deletion
+  })
+
+  it('rejects subagent creation when its parent has already been deleted', async () => {
+    const harness = createHarness()
+    harness.records.delete('parent')
+
+    await expect(
+      harness.coordinator.createSubagentSession({
+        parentSessionId: 'parent',
+        agentId: 'deepchat',
+        slotId: 'reviewer',
+        displayName: 'Orphan child',
+        providerId: 'openai',
+        modelId: 'model-1',
+        permissionMode: 'default'
+      })
+    ).rejects.toThrow('Subagent parent Session does not exist: parent')
+    expect(harness.sessions.create).not.toHaveBeenCalled()
   })
 
   it('persists validated workflow correlation metadata before runtime initialization', async () => {

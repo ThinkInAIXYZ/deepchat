@@ -263,10 +263,11 @@ the user can unblock work without enabling composition, editing, retry, or delet
 required, parent projections promote their existing child-navigation control to the primary action;
 they do not duplicate the child interaction or become another response authority.
 
-Session deletion coordinates with live delegation before runtime and Session storage cleanup. A
-parent or bound child being deleted interrupts and drains every related active turn through the
-same lifecycle path used by an explicit parent interruption. Cleanup remains best-effort so an
-orchestration failure cannot leave the user-visible Session row undeletable. The write-ahead
+Session deletion first establishes a process-local fence shared by live-delegation entry points and
+the subagent Session factory. The fence rejects new related work and waits for creation that already
+entered; deletion then cancels the Session runtime, drains related active turns through the explicit
+interruption path, and enumerates the now-stable child set. Orchestration cleanup remains
+best-effort so a failure cannot leave the user-visible Session row undeletable. The write-ahead
 dispatch transition is projected immediately; delivery acceptance remains a distinct in-memory
 fact used by terminal and Tape settlement.
 
@@ -282,8 +283,8 @@ fact used by terminal and Tape settlement.
 - A policy change affects subsequent parent turns only. Active children and launched Workflows use
   their immutable execution snapshot.
 - One process-wide admission layer applies to both execution strategies, with strategy-local caps.
-- Session deletion interrupts related active delegation work before removing runtime or durable
-  Session state, without making orchestration cleanup a deletion gate.
+- Session deletion fences new delegation and child-creation operations before runtime cleanup,
+  then drains active work before removing durable Session state.
 - V1 does not promise exactly-once external effects or automatic parallel-writer isolation.
 
 ## Acceptance Criteria
@@ -321,8 +322,9 @@ fact used by terminal and Tape settlement.
     broadening the child's conversation-mutation or permission policy.
 16. Parent projections make a waiting child's navigation action prominent without persisting or
     routing another copy of the interaction.
-17. Deleting a parent or bound child drains related live delegation work before Session cleanup,
-    and write-ahead running state is visible before handoff delivery resolves.
+17. Deleting a parent or bound child atomically fences new related work, waits admitted creation,
+    cancels runtime production, drains active delegation, and only then enumerates and removes the
+    stable Session tree; write-ahead running state is visible before handoff delivery resolves.
 
 ## Non-Goals
 

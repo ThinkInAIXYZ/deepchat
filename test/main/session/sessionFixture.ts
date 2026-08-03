@@ -18,6 +18,7 @@ import { SessionTurn } from '@/session/turn'
 import { SessionLifecycle } from '@/session/lifecycle'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { AgentLifecycleGate } from '@/agent/lifecycleGate'
+import { SessionDeletionGate } from '@/session/deletionGate'
 
 export const createSessionFixture = (input: {
   agentManager: AgentManager
@@ -43,6 +44,7 @@ export const createSessionFixture = (input: {
 } => {
   const desktop = new DesktopSessionBinding(input.projection)
   const agentLifecycle = new AgentLifecycleGate()
+  const sessionDeletionGate = new SessionDeletionGate()
   const policy = new SessionAssignmentPolicy(
     {
       resolveAgent: (agentId) => {
@@ -61,6 +63,8 @@ export const createSessionFixture = (input: {
   )
   const deletion = new SessionDeletion({
     sessions: input.appSessionService,
+    gate: sessionDeletionGate,
+    orchestration: { prepareSessionDeletion: async () => undefined },
     runtime: {
       cleanupSessionBackends: async (sessionId) =>
         await input.agentManager.cleanupSessionBackends(sessionId)
@@ -170,6 +174,7 @@ export const createSessionFixture = (input: {
     projection: input.projection,
     desktop,
     deletion,
+    deletionGate: sessionDeletionGate,
     agentLifecycle
   })
 

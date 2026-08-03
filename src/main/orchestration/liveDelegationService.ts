@@ -36,6 +36,7 @@ import type {
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
+import type { SessionDeletionGatePort } from '@/session/deletionGate'
 import { classifyToolEffect } from '@/tool/effectClassification'
 import type { ToolEffectObservation } from '@/tool/effectObserver'
 import type { ActiveLiveDelegationTurn, LiveDelegationRepository } from './liveDelegationRepository'
@@ -101,6 +102,7 @@ export interface LiveDelegationServiceOptions {
   repository: LiveDelegationRepository
   sessions: LiveDelegationServiceSessionPort
   admission: AgentInvocationAdmissionPort
+  deletionGate: Pick<SessionDeletionGatePort, 'runWithSessionOperation'>
   onChanged?: (parentSessionId: string, delegationId: string) => void
 }
 
@@ -204,6 +206,16 @@ export class LiveDelegationService {
     parentSessionId: string,
     input: SpawnLiveDelegationInput
   ): Promise<LiveDelegationDetail> {
+    return await this.options.deletionGate.runWithSessionOperation(
+      parentSessionId,
+      async () => await this.spawnUnderDeletionGate(parentSessionId, input)
+    )
+  }
+
+  private async spawnUnderDeletionGate(
+    parentSessionId: string,
+    input: SpawnLiveDelegationInput
+  ): Promise<LiveDelegationDetail> {
     this.assertStarted()
     const parent = await this.requireCapableParent(parentSessionId)
     if (
@@ -248,6 +260,17 @@ export class LiveDelegationService {
     delegationId: string,
     task: string
   ): Promise<LiveDelegationDetail> {
+    return await this.options.deletionGate.runWithSessionOperation(
+      parentSessionId,
+      async () => await this.followUpUnderParentGate(parentSessionId, delegationId, task)
+    )
+  }
+
+  private async followUpUnderParentGate(
+    parentSessionId: string,
+    delegationId: string,
+    task: string
+  ): Promise<LiveDelegationDetail> {
     this.assertStarted()
     const parent = await this.requireCapableParent(parentSessionId)
     const delegation = this.options.repository.requireOwned(parent.sessionId, delegationId)
@@ -259,20 +282,22 @@ export class LiveDelegationService {
         `Cannot continue delegation ${delegation.id} because its child is unavailable.`
       )
     }
-    if (child.status === 'generating') {
-      throw new Error(
-        `Cannot continue delegation ${delegation.id} while child session is ${child.status}.`
+    return await this.options.deletionGate.runWithSessionOperation(child.sessionId, async () => {
+      if (child.status === 'generating') {
+        throw new Error(
+          `Cannot continue delegation ${delegation.id} while child session is ${child.status}.`
+        )
+      }
+      const created = this.options.repository.createFollowUp(
+        parent.sessionId,
+        delegation.id,
+        nanoid(),
+        task
       )
-    }
-    const created = this.options.repository.createFollowUp(
-      parent.sessionId,
-      delegation.id,
-      nanoid(),
-      task
-    )
-    this.publishChanged(created.delegation)
-    this.scheduleTurn(created.delegation, created.turn, parent)
-    return this.inspect(parent.sessionId, delegationId)
+      this.publishChanged(created.delegation)
+      this.scheduleTurn(created.delegation, created.turn, parent)
+      return this.inspect(parent.sessionId, delegationId)
+    })
   }
 
   list(parentSessionId: string, limit = 20): LiveDelegationSummary[] {
