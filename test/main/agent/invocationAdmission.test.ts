@@ -150,4 +150,59 @@ describe('AgentInvocationAdmission', () => {
     expect(task).not.toHaveBeenCalled()
     expect(admission.snapshot().active).toBe(0)
   })
+
+  it('suspends and fairly reacquires a state-aware lease', async () => {
+    const admission = new AgentInvocationAdmission(1, 10)
+    const lease = admission.createLease({ ownerId: 'child-a' })
+
+    expect(lease.state).toBe('suspended')
+    await lease.resume()
+    expect(lease.state).toBe('active')
+    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
+
+    const other = admission.acquire({ ownerId: 'child-b' })
+    lease.suspend()
+    const otherPermit = await other
+    expect(lease.state).toBe('suspended')
+    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
+
+    const resumed = lease.resume()
+    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 1 })
+    otherPermit.release()
+    await resumed
+    expect(lease.state).toBe('active')
+    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
+
+    lease.release()
+    lease.release()
+    expect(lease.state).toBe('released')
+    expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
+  })
+
+  it('cancels a queued lease when it is suspended or its owner is aborted', async () => {
+    const admission = new AgentInvocationAdmission(1, 10)
+    const active = await admission.acquire({ ownerId: 'active' })
+    const suspendedLease = admission.createLease({ ownerId: 'suspended' })
+    const suspendedResume = suspendedLease.resume()
+
+    suspendedLease.suspend()
+    const retriedResume = suspendedLease.resume()
+    await expect(suspendedResume).rejects.toBeInstanceOf(AgentInvocationAdmissionAbortedError)
+    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 1 })
+
+    active.release()
+    await retriedResume
+    expect(suspendedLease.state).toBe('active')
+    suspendedLease.suspend()
+
+    const controller = new AbortController()
+    const abortedLease = admission.createLease({ ownerId: 'aborted', signal: controller.signal })
+    const abortedResume = abortedLease.resume()
+    controller.abort()
+    await expect(abortedResume).rejects.toBeInstanceOf(AgentInvocationAdmissionAbortedError)
+    expect(abortedLease.state).toBe('suspended')
+    abortedLease.release()
+
+    expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
+  })
 })

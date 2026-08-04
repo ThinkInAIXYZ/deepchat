@@ -50,6 +50,7 @@ describeIfSqlite('LiveDelegationService', () => {
   let service: InstanceType<typeof LiveDelegationServiceCtor>
   let harness: ReturnType<typeof createSessionHarness>
   let deletionGate: SessionDeletionGate
+  let admission: AgentInvocationAdmission
 
   beforeEach(() => {
     db = new DatabaseCtor(':memory:')
@@ -70,10 +71,11 @@ describeIfSqlite('LiveDelegationService', () => {
     )
     harness = createSessionHarness(db)
     deletionGate = new SessionDeletionGate()
+    admission = new AgentInvocationAdmission(2, 10)
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission,
       deletionGate
     })
     service.start()
@@ -320,7 +322,7 @@ describeIfSqlite('LiveDelegationService', () => {
     )
     const childId = repository.require(detail.delegation.id).childSessionId!
 
-    service.beforeToolExecution({
+    await service.beforeToolExecution({
       conversationId: childId,
       toolCallId: 'call-read',
       toolName: 'read',
@@ -336,7 +338,7 @@ describeIfSqlite('LiveDelegationService', () => {
       }
     })
 
-    service.beforeToolExecution({
+    await service.beforeToolExecution({
       conversationId: childId,
       toolCallId: 'call-mcp',
       toolName: 'remote_search',
@@ -344,7 +346,7 @@ describeIfSqlite('LiveDelegationService', () => {
       reviewedExecution: null
     })
     expect(repository.listTurns(detail.delegation.id, 1)[0]?.effectState).toBe('write')
-    expect(() =>
+    await expect(
       service.beforeToolExecution({
         conversationId: 'parent',
         toolCallId: 'ordinary-call',
@@ -352,7 +354,7 @@ describeIfSqlite('LiveDelegationService', () => {
         source: 'agent',
         reviewedExecution: TOOL_EXECUTION.read.parallel
       })
-    ).not.toThrow()
+    ).resolves.toBeUndefined()
 
     harness.publishAnswer(childId, '## Handoff\nThe implementation evidence is recorded.', 199)
     harness.publish({ sessionId: childId, kind: 'status', updatedAt: 200, status: 'idle' })
@@ -441,6 +443,7 @@ describeIfSqlite('LiveDelegationService', () => {
     })
     expect(repository.require(spawned.delegation.id).revision).toBe(waitingPermissionRevision)
 
+    await expect(service.beforeInteractionContinuation(childId)).resolves.toBe(true)
     harness.publish({
       sessionId: childId,
       kind: 'blocks',
@@ -466,6 +469,149 @@ describeIfSqlite('LiveDelegationService', () => {
       }
     })
     expect(repository.listTurns(spawned.delegation.id, 1)[0]?.status).toBe('waiting_question')
+  })
+
+  it('releases a waiting child permit and reacquires before continuation', async () => {
+    await service.stop()
+    admission = new AgentInvocationAdmission(1, 10)
+    service = new LiveDelegationServiceCtor({
+      repository,
+      sessions: harness.sessions,
+      admission,
+      deletionGate
+    })
+    service.start()
+
+    const first = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'First review',
+      prompt: 'Wait for permission.'
+    })
+    await vi.waitFor(() =>
+      expect(repository.listTurns(first.delegation.id, 1)[0]?.status).toBe('running')
+    )
+    const firstChildId = repository.require(first.delegation.id).childSessionId!
+    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
+    harness.publish({
+      sessionId: firstChildId,
+      kind: 'status',
+      updatedAt: 200,
+      status: 'generating'
+    })
+
+    harness.publish({
+      sessionId: firstChildId,
+      kind: 'blocks',
+      updatedAt: 210,
+      waitingInteraction: {
+        type: 'permission',
+        messageId: 'message-first',
+        toolCallId: 'tool-first',
+        actionBlock: {
+          type: 'action',
+          content: 'permission',
+          status: 'pending',
+          timestamp: 210
+        }
+      }
+    })
+    expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
+
+    const second = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Second review',
+      prompt: 'Use the released permit.'
+    })
+    await vi.waitFor(() =>
+      expect(repository.listTurns(second.delegation.id, 1)[0]?.status).toBe('running')
+    )
+    const secondChildId = repository.require(second.delegation.id).childSessionId!
+    const continuation = service.beforeInteractionContinuation(firstChildId)
+    await vi.waitFor(() => expect(admission.snapshot().pending).toBe(1))
+
+    harness.publishAnswer(secondChildId, 'Second result.', 220)
+    harness.publish({
+      sessionId: secondChildId,
+      kind: 'status',
+      updatedAt: 221,
+      status: 'idle'
+    })
+    await expect(continuation).resolves.toBe(true)
+    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
+
+    harness.publish({
+      sessionId: firstChildId,
+      kind: 'blocks',
+      updatedAt: 230,
+      waitingInteraction: null
+    })
+    expect(repository.requireTurn(first.turns[0]!.id).status).toBe('running')
+    harness.publishAnswer(firstChildId, 'First result.', 240)
+    harness.publish({ sessionId: firstChildId, kind: 'status', updatedAt: 241, status: 'idle' })
+    await vi.waitFor(() => expect(admission.snapshot().active).toBe(0))
+  })
+
+  it('keeps a recovered turn live when waiting suspends a queued lease', async () => {
+    await service.stop()
+    const created = repository.create({
+      id: 'delegation-recovered-wait',
+      initialTurnId: 'turn-recovered-wait',
+      parentSessionId: 'parent',
+      slotId: 'reviewer',
+      targetAgentId: 'agent-1',
+      title: 'Recovered wait',
+      prompt: 'Wait while admission is occupied.',
+      now: 100
+    })
+    harness.addChild('child-recovered-wait', created.delegation.id, 'generating')
+    repository.bindChild(created.delegation.id, 'child-recovered-wait', 110)
+    repository.markTurnStarted(created.turn.id, 120)
+    admission = new AgentInvocationAdmission(1, 10)
+    const blocker = await admission.acquire({ ownerId: 'other-session' })
+    service = new LiveDelegationServiceCtor({
+      repository,
+      sessions: harness.sessions,
+      admission,
+      deletionGate
+    })
+    service.start()
+    await vi.waitFor(() => expect(admission.snapshot().pending).toBe(1))
+
+    harness.publish({
+      sessionId: 'child-recovered-wait',
+      kind: 'blocks',
+      updatedAt: 130,
+      waitingInteraction: {
+        type: 'question',
+        messageId: 'message-recovered',
+        toolCallId: 'tool-recovered',
+        actionBlock: {
+          type: 'action',
+          content: 'question',
+          status: 'pending',
+          timestamp: 130
+        }
+      }
+    })
+    await vi.waitFor(() => expect(admission.snapshot().pending).toBe(0))
+    expect(repository.requireTurn(created.turn.id).status).toBe('waiting_question')
+
+    blocker.release()
+    await expect(service.beforeInteractionContinuation('child-recovered-wait')).resolves.toBe(true)
+    harness.publish({
+      sessionId: 'child-recovered-wait',
+      kind: 'blocks',
+      updatedAt: 140,
+      waitingInteraction: null
+    })
+    harness.publishAnswer('child-recovered-wait', 'Recovered result.', 150)
+    harness.publish({
+      sessionId: 'child-recovered-wait',
+      kind: 'status',
+      updatedAt: 151,
+      status: 'idle'
+    })
+    await vi.waitFor(() => expect(repository.require(created.delegation.id).status).toBe('idle'))
   })
 
   it('rejects follow_up while the persistent child is already generating', async () => {
@@ -1034,7 +1180,7 @@ describeIfSqlite('LiveDelegationService', () => {
       deletionGate
     })
     service.start()
-    service.beforeToolExecution({
+    await service.beforeToolExecution({
       conversationId: 'child-effect-recovery',
       toolCallId: 'call-after-restart',
       toolName: 'read',
@@ -1089,7 +1235,7 @@ describeIfSqlite('LiveDelegationService', () => {
 
     expect(onChanged).toHaveBeenCalledWith('parent', created.delegation.id)
     expect(harness.sessions.cancelConversation).toHaveBeenCalledWith('child-interrupt-recovery')
-    expect(() =>
+    await expect(
       service.beforeToolExecution({
         conversationId: 'child-interrupt-recovery',
         toolCallId: 'call-after-interrupt',
@@ -1097,7 +1243,7 @@ describeIfSqlite('LiveDelegationService', () => {
         source: 'agent',
         reviewedExecution: TOOL_EXECUTION.read.parallel
       })
-    ).not.toThrow()
+    ).resolves.toBeUndefined()
     expect(repository.requireTurn(created.turn.id).effectState).toBe('none')
   })
 

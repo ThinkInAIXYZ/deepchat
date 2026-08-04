@@ -354,8 +354,8 @@ Referenced-result validation evidence:
 - [x] Remove the QuickJS Workflow runtime, tool, host, routes, UI, tests, and four dependencies.
 - [x] Simplify the unreleased policy migration and add the version-64 cleanup migration.
 - [x] Enforce policy-aware consent and untrusted child-result handling.
-- [ ] Bound pending follow-up messages and make overflow recovery convergent.
-- [ ] Make global admission state-aware for waiting children.
+- [x] Bound pending follow-up messages and make overflow recovery convergent.
+- [x] Make global admission state-aware for waiting children.
 - [ ] Separate per-turn generation snapshots from continuously validated safety state.
 - [x] Remove the dead batch orchestrator while retaining historical transcript rendering.
 - [ ] Evict stale renderer projections and decouple reasoning capability from orchestration UI.

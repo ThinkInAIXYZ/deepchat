@@ -726,6 +726,10 @@ function createRuntimeDependencies(
     getMemoryIngestionProjection?: () => any
     promptSettings?: { getDefaultSystemPrompt(): Promise<string> }
     memoryPort?: MemoryRuntimePort
+    interactionContinuationAdmission?: {
+      resume: ReturnType<typeof vi.fn>
+      suspend: ReturnType<typeof vi.fn>
+    }
   } = {}
 ): DeepChatHarnessDependencies & {
   attachmentRouter: { prepare: ReturnType<typeof vi.fn> }
@@ -763,6 +767,10 @@ function createRuntimeDependencies(
         content,
         summary: { status: 'ready' as const, issues: [], suggestedActions: [] }
       }))
+    },
+    interactionContinuationAdmission: options.interactionContinuationAdmission ?? {
+      resume: vi.fn().mockResolvedValue(false),
+      suspend: vi.fn()
     }
   }
 }
@@ -9981,7 +9989,32 @@ describe('DeepChatAgentHarness', () => {
           signal: expect.any(AbortSignal)
         })
       )
+      expect(runtimeDependencies.interactionContinuationAdmission.resume).toHaveBeenCalledWith(
+        's1',
+        expect.any(AbortSignal)
+      )
       expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not resume child computation before continuation admission', async () => {
+      const admitted = deferred<void>()
+      runtimeDependencies.interactionContinuationAdmission.resume = vi.fn(async () => {
+        await admitted.promise
+        return true
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingQuestion()
+
+      const response = answerPendingQuestion()
+      await vi.waitFor(() =>
+        expect(runtimeDependencies.interactionContinuationAdmission.resume).toHaveBeenCalledOnce()
+      )
+      expect(processStream).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).not.toHaveBeenCalled()
+
+      admitted.resolve()
+      await expect(response).resolves.toEqual({ resumed: true })
+      expect(processStream).toHaveBeenCalledOnce()
     })
 
     it('inserts resume compaction indicators before the assistant message being resumed', async () => {

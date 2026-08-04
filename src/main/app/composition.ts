@@ -1188,7 +1188,12 @@ export async function createMainProcessControl(dependencies: {
     skillSettings,
     traceSettings,
     promptSettings,
-    attachmentRouter
+    attachmentRouter,
+    interactionContinuationAdmission: {
+      resume: async (sessionId, signal) =>
+        await liveDelegationService.beforeInteractionContinuation(sessionId, signal),
+      suspend: (sessionId) => liveDelegationService.suspendInteractionContinuation(sessionId)
+    }
   })
   const sessionTranscriptMutations = new SessionTranscriptMutations({
     transcript: sessionData.transcript,

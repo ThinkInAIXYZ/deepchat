@@ -23,8 +23,9 @@ import {
 import { projectFinalAnswerFromDeliverySegments } from '@shared/lib/assistantDeliverySegments'
 import type {
   AgentInvocationAdmissionPort,
-  AgentInvocationAdmissionOptions
+  AgentInvocationLease
 } from '@/agent/invocationAdmission'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
   AgentSubagentToolPort,
   AgentToolSessionPort,
@@ -114,6 +115,7 @@ type ActiveTurn = {
   childAcquisition: Promise<AcquiredChild> | null
   childHandoff: Promise<void> | null
   controller: AbortController
+  admissionLease: AgentInvocationLease
   completion: ReturnType<typeof createDeferred>
   answerMarkdown: string
   childMessageId: string | null
@@ -436,9 +438,15 @@ export class LiveDelegationService {
     }
   }
 
-  beforeToolExecution(observation: ToolEffectObservation): void {
+  async beforeToolExecution(observation: ToolEffectObservation): Promise<void> {
     const mappedTurnId = this.childToTurn.get(observation.conversationId)
     if (!mappedTurnId) return
+    const admission = await this.resumeChildAdmission(observation.conversationId)
+    if (!admission) {
+      throw new Error(
+        `Live delegation admission context is unavailable for child ${observation.conversationId}.`
+      )
+    }
     const turn = this.options.repository.getTurn(mappedTurnId)
     if (!turn) {
       throw new Error(
@@ -450,6 +458,11 @@ export class LiveDelegationService {
         'Live delegation effect evidence is unavailable while the service is stopped.'
       )
     }
+    if (admission.active.admissionLease.state !== 'active') {
+      throw new Error(
+        `Live delegation child ${observation.conversationId} has no active invocation permit.`
+      )
+    }
     this.childToTurn.set(observation.conversationId, turn.id)
     const evidence = classifyToolEffect(observation)
     const changed = this.options.repository.recordEffectIntent(
@@ -458,6 +471,24 @@ export class LiveDelegationService {
       evidence
     )
     if (changed) this.publishChanged(changed.delegation)
+  }
+
+  async beforeInteractionContinuation(
+    childSessionId: string,
+    signal?: AbortSignal
+  ): Promise<boolean> {
+    const admission = await this.resumeChildAdmission(childSessionId, signal)
+    return admission?.resumed === true
+  }
+
+  suspendInteractionContinuation(childSessionId: string): void {
+    const turnId = this.childToTurn.get(childSessionId)
+    const active = turnId ? this.activeTurns.get(turnId) : null
+    if (!active || active.settling) return
+    const turn = this.options.repository.getTurn(active.turnId)
+    if (turn?.status === 'waiting_permission' || turn?.status === 'waiting_question') {
+      active.admissionLease.suspend()
+    }
   }
 
   async wait(
@@ -588,21 +619,34 @@ export class LiveDelegationService {
     parentSnapshot?: CapableParent
   ): void {
     const active = this.createActiveTurn(delegation, turn)
-    void this.options.admission
-      .run(this.admissionOptions(active), async () => {
-        await this.executeTurn(active, parentSnapshot)
+    void this.runWithAdmission(active, async () => {
+      await this.executeTurn(active, parentSnapshot)
+    })
+  }
+
+  private async runWithAdmission(active: ActiveTurn, task: () => Promise<void>): Promise<void> {
+    try {
+      await active.admissionLease.resume()
+      await task()
+    } catch (error) {
+      if (
+        active.admissionLease.state === 'suspended' &&
+        !active.controller.signal.aborted &&
+        !active.settling
+      ) {
+        return
+      }
+      await this.settle(active, {
+        status: active.controller.signal.aborted ? 'interrupted' : 'failed',
+        error: errorMessage(error)
       })
-      .catch(async (error) => {
-        await this.settle(active, {
-          status: active.controller.signal.aborted ? 'interrupted' : 'failed',
-          error: errorMessage(error)
-        })
-      })
+    }
   }
 
   private createActiveTurn(delegation: LiveDelegation, turn: LiveDelegationTurn): ActiveTurn {
     const existing = this.activeTurns.get(turn.id)
     if (existing) return existing
+    const controller = new AbortController()
     const active: ActiveTurn = {
       delegationId: delegation.id,
       turnId: turn.id,
@@ -610,7 +654,12 @@ export class LiveDelegationService {
       childSessionId: delegation.childSessionId,
       childAcquisition: null,
       childHandoff: null,
-      controller: new AbortController(),
+      controller,
+      admissionLease: this.options.admission.createLease({
+        ownerId: `live-delegation:${delegation.parentSessionId}`,
+        maxActiveForOwner: LIVE_DELEGATION_OWNER_LIMIT,
+        signal: controller.signal
+      }),
       completion: createDeferred(),
       answerMarkdown: '',
       childMessageId: null,
@@ -621,14 +670,6 @@ export class LiveDelegationService {
     this.activeTurns.set(turn.id, active)
     if (active.childSessionId) this.childToTurn.set(active.childSessionId, turn.id)
     return active
-  }
-
-  private admissionOptions(active: ActiveTurn): AgentInvocationAdmissionOptions {
-    return {
-      ownerId: `live-delegation:${active.parentSessionId}`,
-      maxActiveForOwner: LIVE_DELEGATION_OWNER_LIMIT,
-      signal: active.controller.signal
-    }
   }
 
   private async executeTurn(active: ActiveTurn, parentSnapshot?: CapableParent): Promise<void> {
@@ -774,12 +815,17 @@ export class LiveDelegationService {
             ? 'waiting_question'
             : null
       if (waitingStatus) {
+        active.admissionLease.suspend()
         const turn = this.options.repository.requireTurn(active.turnId)
         if (turn.status !== waitingStatus) {
           this.options.repository.markTurnWaiting(active.turnId, waitingStatus, update.updatedAt)
           this.publishChanged(this.options.repository.require(active.delegationId))
         }
-      } else if (active.started && active.runtimeStatus === 'generating') {
+      } else if (
+        active.started &&
+        active.runtimeStatus === 'generating' &&
+        active.admissionLease.state === 'active'
+      ) {
         const turn = this.options.repository.requireTurn(active.turnId)
         if (turn.status === 'waiting_permission' || turn.status === 'waiting_question') {
           this.options.repository.markTurnStarted(active.turnId, update.updatedAt)
@@ -821,6 +867,33 @@ export class LiveDelegationService {
     }
   }
 
+  private async resumeChildAdmission(
+    childSessionId: string,
+    signal?: AbortSignal
+  ): Promise<{ active: ActiveTurn; resumed: boolean } | null> {
+    let turnId = this.childToTurn.get(childSessionId)
+    if (!turnId) return null
+    let active = this.activeTurns.get(turnId)
+    if (!active && this.reconcilePromise) {
+      await awaitWithAbort(this.reconcilePromise, signal)
+      turnId = this.childToTurn.get(childSessionId)
+      active = turnId ? this.activeTurns.get(turnId) : undefined
+    }
+    if (!active || active.settling) return null
+    signal?.throwIfAborted()
+    active.controller.signal.throwIfAborted()
+    const previousState = active.admissionLease.state
+    await active.admissionLease.resume({ signal })
+    signal?.throwIfAborted()
+    active.controller.signal.throwIfAborted()
+    const turn = this.options.repository.getTurn(active.turnId)
+    if (!turn || !isActiveTurnStatus(turn.status) || active.settling) {
+      active.admissionLease.release()
+      return null
+    }
+    return { active, resumed: previousState !== 'active' }
+  }
+
   private async settle(
     active: ActiveTurn,
     outcome: {
@@ -830,6 +903,7 @@ export class LiveDelegationService {
   ): Promise<void> {
     if (active.settling) return await active.completion.promise
     active.settling = true
+    active.admissionLease.release()
     let fallbackSummary: string | null = null
     let fallbackTapeReceipt: SubagentTapeLinkReceipt | null = null
     try {
@@ -938,6 +1012,7 @@ export class LiveDelegationService {
         }
       }
     } finally {
+      active.admissionLease.release()
       if (active.childSessionId) this.childToTurn.delete(active.childSessionId)
       this.activeTurns.delete(active.turnId)
       active.completion.resolve()
@@ -1029,17 +1104,11 @@ export class LiveDelegationService {
     active.runtimeStatus = child.status
     this.childToTurn.set(child.sessionId, turn.id)
     if (child.status === 'generating') {
+      if (turn.status === 'waiting_permission' || turn.status === 'waiting_question') return
       if (turn.startedAt === null) {
         this.options.repository.markTurnStarted(turn.id)
       }
-      void this.options.admission
-        .run(this.admissionOptions(active), async () => await active.completion.promise)
-        .catch(async (error) => {
-          await this.settle(active, {
-            status: active.controller.signal.aborted ? 'interrupted' : 'failed',
-            error: errorMessage(error)
-          })
-        })
+      void this.runWithAdmission(active, async () => await active.completion.promise)
       return
     }
     if (turn.startedAt === null) {
