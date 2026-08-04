@@ -9,11 +9,15 @@ vi.mock('../../../src/main/data/connectionConfig', () => ({
 }))
 
 async function getTablesInOrder(
-  rows: Array<{ name: string; sql: string | null }>
+  rows: Array<{ name: string; sql: string | null }>,
+  foreignKeys: Record<string, string[]> = {}
 ): Promise<string[]> {
   const { DataImporter } = await import('../../../src/main/sync/dataImporter')
   const importer = Object.create(DataImporter.prototype) as {
     sourceDb: {
+      prepare: ReturnType<typeof vi.fn>
+    }
+    targetDb: {
       prepare: ReturnType<typeof vi.fn>
     }
     getTablesInOrder: () => string[]
@@ -22,6 +26,14 @@ async function getTablesInOrder(
     prepare: vi.fn(() => ({
       all: vi.fn(() => rows)
     }))
+  }
+  importer.targetDb = {
+    prepare: vi.fn((sql: string) => {
+      const tableName = sql.match(/foreign_key_list\("([^"]+)"\)/u)?.[1] ?? ''
+      return {
+        all: vi.fn(() => (foreignKeys[tableName] ?? []).map((table) => ({ table })))
+      }
+    })
   }
   return importer.getTablesInOrder()
 }
@@ -78,5 +90,33 @@ describe('DataImporter table filtering', () => {
     expect(tables).toContain('deepchat_tape_search_projection')
     expect(tables).toContain('deepchat_tape_search_projection_meta')
     expect(tables).not.toContain('deepchat_tape_search_fts_meta')
+  })
+
+  it('orders trigger-enforced delegation parents before child tables', async () => {
+    const tables = await getTablesInOrder(
+      [
+        {
+          name: 'live_delegation_events',
+          sql: 'CREATE TABLE live_delegation_events (id INTEGER)'
+        },
+        {
+          name: 'live_delegation_turns',
+          sql: 'CREATE TABLE live_delegation_turns (id INTEGER)'
+        },
+        { name: 'live_delegations', sql: 'CREATE TABLE live_delegations (id INTEGER)' },
+        { name: 'new_sessions', sql: 'CREATE TABLE new_sessions (id TEXT)' }
+      ],
+      {
+        live_delegation_turns: ['live_delegations'],
+        live_delegation_events: ['live_delegations', 'live_delegation_turns']
+      }
+    )
+
+    expect(tables).toEqual([
+      'new_sessions',
+      'live_delegations',
+      'live_delegation_turns',
+      'live_delegation_events'
+    ])
   })
 })

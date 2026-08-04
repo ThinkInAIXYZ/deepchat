@@ -175,6 +175,37 @@ describeIfSqlite('LiveDelegationRepository', () => {
     ).toThrow('already has an active turn')
   })
 
+  it('never prunes durable child completion events before a parent reads them', () => {
+    createDelegation()
+    repository.markTurnStarted('turn-1', 110)
+    const insert = db!.prepare(
+      `INSERT INTO live_delegation_events (
+         delegation_id, parent_session_id, direction, kind, content, related_turn_id,
+         consumed_by_turn_id, created_at
+       ) VALUES ('delegation-1', 'parent', 'child_to_parent', 'turn_completed', ?, NULL, NULL, ?)`
+    )
+    for (let index = 0; index < 500; index += 1) {
+      insert.run(`historical completion ${index}`, index)
+    }
+
+    repository.finishTurn({
+      turnId: 'turn-1',
+      status: 'completed',
+      summary: 'Current completion',
+      now: 620
+    })
+
+    expect(
+      db!
+        .prepare(
+          `SELECT COUNT(*) AS count, MIN(event_id) AS firstEventId
+           FROM live_delegation_events
+           WHERE parent_session_id = 'parent' AND direction = 'child_to_parent'`
+        )
+        .get()
+    ).toEqual({ count: 501, firstEventId: 1 })
+  })
+
   it('applies atomic UTF-8 backpressure to the pending mailbox', () => {
     createDelegation()
     repository.finishTurn({ turnId: 'turn-1', status: 'completed', summary: 'Done', now: 110 })

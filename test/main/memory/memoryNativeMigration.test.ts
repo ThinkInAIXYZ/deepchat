@@ -163,10 +163,7 @@ describeIfNative('Memory native SQLite migration', () => {
       const expectedAppliedVersions = Array.from(
         { length: latestSchemaVersion - 45 },
         (_, index) => index + 46
-      )
-        // Version 56 was never released and intentionally has no migration SQL.
-        .filter((version) => version !== 56)
-        .map((version) => ({ version }))
+      ).map((version) => ({ version }))
       expect(
         db.prepare('SELECT version FROM schema_versions WHERE version >= 46 ORDER BY version').all()
       ).toEqual(expectedAppliedVersions)

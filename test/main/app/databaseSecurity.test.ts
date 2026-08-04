@@ -70,14 +70,20 @@ const enabledMetadata = (overrides: Record<string, unknown> = {}) => ({
 })
 
 async function listMigratableTableNames(
-  rows: Array<{ type: string; name: string; sql: string }>
+  rows: Array<{ type: string; name: string; sql: string }>,
+  foreignKeys: Record<string, string[]> = {}
 ): Promise<string[]> {
   const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
   const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
   const db = {
-    prepare: vi.fn(() => ({
-      all: vi.fn(() => rows)
-    }))
+    prepare: vi.fn((sql: string) => {
+      const tableName = sql.match(/foreign_key_list\("([^"]+)"\)/u)?.[1]
+      return {
+        all: vi.fn(() =>
+          tableName ? (foreignKeys[tableName] ?? []).map((table) => ({ table })) : rows
+        )
+      }
+    })
   }
   const tables = (
     presenter as unknown as {
@@ -278,6 +284,33 @@ describe('DatabaseSecurityService', () => {
     expect(names).toContain('deepchat_tape_search_projection')
     expect(names).toContain('deepchat_tape_search_projection_meta')
     expect(names).not.toContain('deepchat_tape_search_fts_meta')
+  })
+
+  it('uses dependency order for encryption database copies', async () => {
+    const table = (name: string) => ({
+      type: 'table',
+      name,
+      sql: `CREATE TABLE ${name} (id TEXT)`
+    })
+    const names = await listMigratableTableNames(
+      [
+        table('live_delegation_events'),
+        table('live_delegation_turns'),
+        table('live_delegations'),
+        table('new_sessions')
+      ],
+      {
+        live_delegation_turns: ['live_delegations'],
+        live_delegation_events: ['live_delegations', 'live_delegation_turns']
+      }
+    )
+
+    expect(names).toEqual([
+      'new_sessions',
+      'live_delegations',
+      'live_delegation_turns',
+      'live_delegation_events'
+    ])
   })
 
   it('rebuilds memory dirty work while preserving durable lineage during database copies', () => {

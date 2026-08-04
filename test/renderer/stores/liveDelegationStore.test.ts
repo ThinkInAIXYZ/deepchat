@@ -81,6 +81,25 @@ describe('liveDelegation store', () => {
     expect(store.listAuthoritative('parent-1')).toHaveLength(1)
   })
 
+  it('revalidates a loaded projection when the activity surface remounts', async () => {
+    client.listLiveDelegations
+      .mockResolvedValueOnce([summary()])
+      .mockResolvedValueOnce([
+        summary({ status: 'idle', revision: 2, updatedAt: 30, summaryPreview: 'Done.' })
+      ])
+    const store = useLiveDelegationStore()
+
+    await store.ensureLoaded('parent-1')
+    await store.ensureLoaded('parent-1', { revalidate: true })
+
+    expect(client.listLiveDelegations).toHaveBeenCalledTimes(2)
+    expect(store.getDelegation('parent-1', 'delegation-1')).toMatchObject({
+      status: 'idle',
+      revision: 2,
+      summaryPreview: 'Done.'
+    })
+  })
+
   it('keeps a newer event projection ahead of a stale list response', async () => {
     let resolveList: ((items: LiveDelegationSummary[]) => void) | null = null
     client.listLiveDelegations.mockReturnValue(

@@ -133,6 +133,7 @@ const sessionState = reactive({
   selectedDiffPath: null,
   viewMode: 'preview',
   sections: {
+    subagents: true,
     files: true,
     git: true,
     artifacts: true
@@ -325,6 +326,17 @@ vi.mock('@/components/sidepanel/WorkspaceViewer.vue', () => ({
   })
 }))
 
+vi.mock('@/components/sidepanel/LiveDelegationPanel.vue', () => ({
+  default: defineComponent({
+    name: 'LiveDelegationPanel',
+    emits: ['countChanged'],
+    mounted() {
+      this.$emit('countChanged', 2)
+    },
+    template: '<div data-testid="live-delegation-panel-stub" />'
+  })
+}))
+
 describe('WorkspacePanel', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -335,6 +347,7 @@ describe('WorkspacePanel', () => {
     sessionState.selectedArtifactContext = null
     sessionState.selectedFilePath = null
     sessionState.selectedDiffPath = null
+    sessionState.sections.subagents = true
     sessionState.sections.files = true
     sessionState.sections.git = true
     sessionState.sections.artifacts = true
@@ -369,6 +382,25 @@ describe('WorkspacePanel', () => {
     isDirectoryMock.mockReset().mockResolvedValue(true)
     getPathForFileMock.mockReset().mockReturnValue('')
     setSessionProjectDirMock.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('mounts the live Agent activity projection in the workspace surface', async () => {
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="agent-activity-panel"]').text()).toContain(
+      'chat.orchestration.activityTitle'
+    )
+    expect(wrapper.find('[data-testid="agent-activity-panel"]').text()).toContain('2')
+    expect(wrapper.find('[data-testid="live-delegation-panel-stub"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="agent-activity-panel"] button').trigger('click')
+    expect(toggleSectionMock).toHaveBeenCalledWith('s1', 'subagents')
   })
 
   it('extracts artifact items from assistant blocks and opens preview context', async () => {

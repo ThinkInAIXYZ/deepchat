@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { configureSQLiteConnection } from '@/data/connectionConfig'
 import { shouldExcludeFromSqliteCopy } from '@/data/sqliteCopyExclusions'
+import { orderSqliteTablesForCopy } from '@/data/sqliteCopyOrder'
 import {
   isAgentMemoryEmbeddingState,
   isAgentMemoryKind,
@@ -163,24 +164,7 @@ export class DataImporter {
       (table) => !isVirtualOrShadow(table.name) && !shouldExcludeFromSqliteCopy(table.name)
     )
 
-    const preferredOrder = ['conversations', 'messages', 'attachments', 'message_attachments']
-    const preferredSet = new Set(preferredOrder)
-
-    const preferredTables: string[] = []
-    const remainingTables: string[] = []
-
-    for (const { name } of tables) {
-      if (preferredSet.has(name)) {
-        preferredTables.push(name)
-      } else {
-        remainingTables.push(name)
-      }
-    }
-
-    preferredTables.sort((a, b) => preferredOrder.indexOf(a) - preferredOrder.indexOf(b))
-    remainingTables.sort()
-
-    return [...preferredTables, ...remainingTables]
+    return orderSqliteTablesForCopy(this.targetDb, tables).map((table) => table.name)
   }
 
   private importTable(tableName: string): {

@@ -454,3 +454,56 @@ Turn snapshot and live-safety validation evidence:
   registry refresh produced no tracked diff, and source scans found Workflow table names only in
   the version-64 cleanup migration and its regression test;
 - all changes remain local to `feat/workflow-runtime`; no push was performed.
+
+## Post-Decommission Integration Review
+
+- [x] Replace duplicated lexical copy order with one foreign-key-aware import/encryption planner.
+- [x] Treat empty schema versions as consumed monotonic migration milestones.
+- [x] Preserve unread child terminal events while compacting only consumed parent messages.
+- [x] Intersect cross-Agent permission with parent authority.
+- [x] Restore the durable Agent activity surface and revalidate it on mount.
+- [x] Complete focused and full validation.
+- [x] Perform the final severity-ordered review and commit locally without pushing.
+
+Review triage, ordered by severity:
+
+- critical, confirmed: lexical database-copy order inserted live-delegation children before their
+  parents in both incremental import and encryption migration; one dependency planner now orders
+  real foreign keys plus trigger-enforced Session ownership for both paths;
+- critical, confirmed: the migration test exposed a real contract mismatch around abandoned
+  versions; upgrades now record every traversed version as a high-water mark instead of teaching
+  each test a growing exception list;
+- high, confirmed: a cross-Agent target with no permission default resolved to `full_access` and
+  could elevate a restrictive parent; parent and target modes now form an explicit least-authority
+  intersection;
+- high, confirmed with corrected impact: row-count pruning could lose durable completion signals,
+  although authoritative delegation rows did not remain permanently `running`; terminal events are
+  now retained and only consumed parent messages are compacted;
+- high, confirmed with corrected impact: inline task cards remained visible, but deleting the
+  Workflow panel orphaned the promised Agent activity surface; the live projection is mounted again
+  and performs authoritative revalidation when shown;
+- medium, not a defect: Session deletion already catches orchestration `AggregateError`, fences new
+  work, and completes best-effort cleanup, so the review's undeletable-Session claim described an
+  earlier implementation rather than this branch;
+- medium, retained by design: inability to revalidate permission, workdir, lineage, or capability
+  terminates the current child turn fail-closed. The diagnostic now says the turn could not continue
+  safely rather than falsely asserting that state definitely changed;
+- low, not reproduced: explicit `spawn` and `follow_up` confirmations are already one-shot and
+  execution-ID-bound, while Tape recall remains under the shared untrusted-child-output policy.
+
+Post-decommission validation evidence:
+
+- the six focused portable suites passed all 52 tests covering copy topology, import and encryption
+  wiring, permission intersection, authoritative UI revalidation, and the Agent activity surface;
+- native SQLite passed all 40 targeted import, durable event, and monotonic migration tests under
+  Electron's Node ABI; the wider orchestration-native run passed all 51 repository, migration, and
+  service tests;
+- the complete portable run passed 741 files and 7,825 tests, with 25 files and 340 tests skipped by
+  their existing environment gates;
+- `pnpm install --frozen-lockfile`, `pnpm run format`, `pnpm run i18n`, `pnpm run lint`,
+  `pnpm run typecheck`, `pnpm run build`, and `git diff --check` passed;
+- the standalone native `mainDatabase` suite retains eight pre-existing presenter/schema-guard
+  failures unrelated to this change; its migration contract is covered by the passing native
+  memory migration suite above;
+- the production build retained only its existing Rollup annotation/import and chunk warnings, and
+  no provider or ACP registry refresh produced an unexpected tracked change.

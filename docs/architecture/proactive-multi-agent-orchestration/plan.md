@@ -77,6 +77,8 @@
 
 - Run focused migration, tool-policy, permission, mailbox, admission, deletion, restart, and result
   handoff tests after each slice.
+- Exercise database import and encryption-copy ordering against the live-delegation foreign-key
+  graph, not only isolated table migrations.
 - Run complete main and renderer suites, format, i18n, lint, typecheck, and production build.
 - Run a clean `pnpm install --frozen-lockfile` path before final handoff.
 - Check exact retired identifiers and dependencies rather than generic uses of the word

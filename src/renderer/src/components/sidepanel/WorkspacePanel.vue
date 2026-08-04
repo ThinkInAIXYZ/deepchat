@@ -6,6 +6,32 @@
     >
       <div class="flex h-full min-h-0 flex-col">
         <div class="dc-overscroll-contain min-h-0 flex-1 overflow-auto pb-2">
+          <section data-testid="agent-activity-panel">
+            <button
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
+              type="button"
+              @click="sidepanelStore.toggleSection(props.sessionId, 'subagents')"
+            >
+              <Icon icon="lucide:git-fork" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span class="flex-1 truncate">{{ t('chat.orchestration.activityTitle') }}</span>
+              <span v-if="liveDelegationCount > 0" class="text-[11px] text-muted-foreground">
+                {{ liveDelegationCount }}
+              </span>
+              <Icon
+                :icon="
+                  sessionState.sections.subagents ? 'lucide:chevron-down' : 'lucide:chevron-right'
+                "
+                class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              />
+            </button>
+            <div v-show="sessionState.sections.subagents" class="px-2 pb-2">
+              <LiveDelegationPanel
+                :session-id="props.sessionId"
+                @count-changed="liveDelegationCount = $event"
+              />
+            </div>
+          </section>
+
           <section>
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
@@ -172,6 +198,7 @@ import { createProjectClient } from '@api/ProjectClient'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { extractArtifactsFromContent } from '@/composables/useArtifacts'
 import WorkspaceFileNode from '@/components/workspace/WorkspaceFileNode.vue'
+import LiveDelegationPanel from './LiveDelegationPanel.vue'
 import WorkspaceViewer from './WorkspaceViewer.vue'
 import { useWorkspaceSync } from './composables/useWorkspaceSync'
 import { useArtifactStore } from '@/stores/artifact'
@@ -211,6 +238,7 @@ const sessionStore = useSessionStore()
 const workspaceClient = createWorkspaceClient()
 const projectClient = createProjectClient()
 const fileClient = createFileClient()
+const liveDelegationCount = ref(0)
 
 const sessionState = computed(() => sidepanelStore.getSessionState(props.sessionId))
 const {

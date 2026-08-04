@@ -104,6 +104,9 @@ Host enforcement, not prompt wording, owns delegation consent.
   not require orchestration confirmation.
 - Every child tool call still follows the ordinary DeepChat permission broker. Proactive mode does
   not grant filesystem, network, shell, or external-service permissions.
+- A cross-Agent child receives the intersection of the parent's live permission mode and the
+  target Agent's configured mode. An omitted or broader target default can never elevate the
+  parent Session's authority.
 
 Generation settings and safety state have different lifetimes:
 
@@ -142,6 +145,10 @@ backpressure before a message can make the pending mailbox exceed its bounded ca
 for malformed or oversized unreleased rows must converge instead of repeatedly rolling back on the
 same data. Character-count validation must not claim to enforce a byte limit.
 
+Child-to-parent terminal events are a durable cursor stream and remain available until their parent
+Session is deleted. Only already-consumed parent-to-child messages may be compacted without a
+persisted reader cursor; an arbitrary row-count window must not discard unread completion events.
+
 ## Persistence And Migration
 
 The live execution plane owns:
@@ -166,6 +173,11 @@ Databases that ran the feature branch may already record version 63. Version 64 
 decommission migration that removes Workflow artifacts and preserves monotonic schema history. The
 code must never lower the latest schema version below a version already observed by those databases.
 
+Schema version numbers are monotonic high-water marks. Upgrade paths record intentionally empty
+versions so abandoned numbers cannot be reused later. Database import and encryption migration use
+the same dependency-aware table-copy planner, including trigger-enforced dependencies that SQLite
+does not expose through foreign-key metadata.
+
 ## UI Contract
 
 The compact composer control continues to display reasoning effort. Proactive collaboration is
@@ -177,7 +189,9 @@ are gated by model capability, not by orchestration capability or DeepChat execu
 
 The Agent activity surface and inline cards project the same revision-aware live-delegation state.
 They show title, role, status, bounded preview, child navigation, interruption, and interaction
-discovery. The main-process repository is the only mutable authority.
+discovery. The activity surface revalidates from the durable repository when mounted or when its
+Session changes; IPC events are an optimization, not a second authority or the sole terminal-state
+delivery path.
 
 Workflow panels, saved Workflow commands, launch approvals, and `/workflow` are removed.
 

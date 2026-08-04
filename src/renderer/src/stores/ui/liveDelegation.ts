@@ -183,12 +183,15 @@ export const useLiveDelegationStore = defineStore('liveDelegation', () => {
     return request
   }
 
-  async function ensureLoaded(parentSessionId: string): Promise<boolean> {
+  async function ensureLoaded(
+    parentSessionId: string,
+    options?: { revalidate?: boolean }
+  ): Promise<boolean> {
     const normalized = normalizeId(parentSessionId)
     if (!normalized) return false
     ensureStarted()
     const projection = requireProjection(normalized)
-    if (projection.loaded) return true
+    if (projection.loaded && !options?.revalidate) return true
     return await refresh(normalized)
   }
 

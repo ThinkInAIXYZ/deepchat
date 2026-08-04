@@ -2,7 +2,6 @@ import { Buffer } from 'node:buffer'
 import { z } from 'zod'
 import type { SubagentTapeLinkReceipt } from '@shared/types/agent-interface'
 import {
-  LIVE_DELEGATION_MAX_EVENTS_PER_PARENT,
   LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES,
   LIVE_DELEGATION_MAX_HANDOFF_BYTES,
   LIVE_DELEGATION_MAX_MESSAGE_BYTES,
@@ -33,6 +32,7 @@ import type { LiveDelegationEventRow } from './data/tables/liveDelegationEvents'
 import type { LiveDelegationRow } from './data/tables/liveDelegations'
 import type { LiveDelegationTurnRow } from './data/tables/liveDelegationTurns'
 
+const MAX_RETAINED_CONSUMED_MESSAGES_PER_PARENT = 500
 const MAX_LIST_LIMIT = 100
 const MAX_PENDING_MESSAGES = 16
 const MAILBOX_RECOVERY_NOTICE =
@@ -632,15 +632,18 @@ export class LiveDelegationRepository {
       .prepare(
         `DELETE FROM live_delegation_events
          WHERE parent_session_id = ?
+           AND direction = 'parent_to_child'
+           AND consumed_by_turn_id IS NOT NULL
            AND event_id NOT IN (
              SELECT event_id FROM live_delegation_events
              WHERE parent_session_id = ?
+               AND direction = 'parent_to_child'
+               AND consumed_by_turn_id IS NOT NULL
              ORDER BY event_id DESC
              LIMIT ?
-           )
-           AND (direction = 'child_to_parent' OR consumed_by_turn_id IS NOT NULL)`
+           )`
       )
-      .run(parentSessionId, parentSessionId, LIVE_DELEGATION_MAX_EVENTS_PER_PARENT)
+      .run(parentSessionId, parentSessionId, MAX_RETAINED_CONSUMED_MESSAGES_PER_PARENT)
   }
 }
 

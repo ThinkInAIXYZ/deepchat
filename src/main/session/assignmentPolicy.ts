@@ -22,6 +22,21 @@ import {
 const resolveAssignmentPermissionMode = (mode?: PermissionMode | null): PermissionMode =>
   mode ?? 'full_access'
 
+const PERMISSION_MODE_RANK: Readonly<Record<PermissionMode, number>> = {
+  default: 0,
+  auto_approve: 1,
+  full_access: 2
+}
+
+function resolveCrossAgentPermissionMode(
+  parentMode: PermissionMode | undefined,
+  targetMode: PermissionMode | null | undefined
+): PermissionMode {
+  const parent = resolveAssignmentPermissionMode(parentMode)
+  if (!targetMode) return parent
+  return PERMISSION_MODE_RANK[targetMode] < PERMISSION_MODE_RANK[parent] ? targetMode : parent
+}
+
 export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
   constructor(
     private readonly catalog: SessionAssignmentCatalogPort,
@@ -130,7 +145,8 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
       }
     }
 
-    // Cross-agent child: keep parent workdir/model, apply target host security policy.
+    // Cross-agent child: keep the parent workdir/model and intersect its live authority with the
+    // target Agent policy. A target default may restrict the parent but can never elevate it.
     const agentConfig = await this.config.resolveDeepChatAgentConfig(descriptor.id)
     const parentGeneration = input.generationSettings ?? {}
     const generationSettings = this.mergeDefaultGenerationSettings(agentConfig, {
@@ -146,7 +162,10 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
       targetAgentId,
       providerId: input.providerId,
       modelId: input.modelId,
-      permissionMode: resolveAssignmentPermissionMode(agentConfig?.permissionMode),
+      permissionMode: resolveCrossAgentPermissionMode(
+        input.permissionMode,
+        agentConfig?.permissionMode
+      ),
       generationSettings,
       disabledAgentTools: normalizeDisabledAgentTools(agentConfig?.disabledAgentTools),
       activeSkills: normalizeActiveSkills(input.activeSkills)

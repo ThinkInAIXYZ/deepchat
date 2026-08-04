@@ -10,6 +10,7 @@ import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 import { configureSQLCipherCompatibility } from '@/data/connectionConfig'
 import { shouldExcludeFromSqliteCopy } from '@/data/sqliteCopyExclusions'
+import { orderSqliteTablesForCopy } from '@/data/sqliteCopyOrder'
 
 type DatabaseSecurityMetadata = {
   version: 1
@@ -444,7 +445,7 @@ export class DatabaseSecurityService {
       rows.filter((row) => /^CREATE\s+VIRTUAL\s+TABLE\s+/i.test(row.sql)).map((row) => row.name)
     )
 
-    return rows.filter((row) => {
+    const tables = rows.filter((row) => {
       if (shouldExcludeFromSqliteCopy(row.name)) {
         return false
       }
@@ -455,6 +456,7 @@ export class DatabaseSecurityService {
       }
       return !/^CREATE\s+VIRTUAL\s+TABLE\s+/i.test(row.sql)
     })
+    return orderSqliteTablesForCopy(db, tables)
   }
 
   private qualifyCreateTableSql(sql: string): string {

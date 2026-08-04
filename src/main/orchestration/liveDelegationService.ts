@@ -482,7 +482,7 @@ export class LiveDelegationService {
       const error = new Error(
         `Permission mode changed before tool dispatch for child ${observation.conversationId}.`
       )
-      await this.interruptUnsafeTurn(admission.active, error)
+      await this.interruptUnverifiedTurn(admission.active, error)
       throw error
     }
     const turn = this.options.repository.getTurn(mappedTurnId)
@@ -921,7 +921,7 @@ export class LiveDelegationService {
           this.options.repository.require(active.delegationId)
         )
       } catch (error) {
-        await this.interruptUnsafeTurn(active, error)
+        await this.interruptUnverifiedTurn(active, error)
         return
       }
       await this.settle(active, { status: 'completed' })
@@ -962,14 +962,14 @@ export class LiveDelegationService {
       admission.active.controller.signal.throwIfAborted()
       return { ...admission, child }
     } catch (error) {
-      await this.interruptUnsafeTurn(candidate, error)
+      await this.interruptUnverifiedTurn(candidate, error)
       throw error
     }
   }
 
-  private async interruptUnsafeTurn(active: ActiveTurn, error: unknown): Promise<void> {
+  private async interruptUnverifiedTurn(active: ActiveTurn, error: unknown): Promise<void> {
     if (active.settling) return await active.completion.promise
-    const reason = `Live delegation safety state changed: ${errorMessage(error)}`
+    const reason = `Live delegation could not continue safely: ${errorMessage(error)}`
     active.controller.abort(reason)
     await this.cancelActiveChild(active, reason)
     await this.settle(active, { status: 'interrupted', error: reason })

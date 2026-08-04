@@ -189,7 +189,9 @@ watch(
   () => {
     actionError.value = null
     openingId.value = null
-    void liveDelegationStore.ensureLoaded(props.sessionId)
+    // Reconcile with the durable repository whenever the activity surface is mounted or switches
+    // Session. IPC events are an optimization, not the sole terminal-state delivery path.
+    void liveDelegationStore.ensureLoaded(props.sessionId, { revalidate: true })
   },
   { immediate: true }
 )

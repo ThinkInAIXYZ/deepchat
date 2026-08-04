@@ -227,6 +227,48 @@ describe('SessionAssignmentPolicy', () => {
     })
   })
 
+  it('never elevates parent authority for cross-agent subagents', async () => {
+    const { policy, configs } = createHarness()
+
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'reviewer',
+        parentAgentId: 'deepchat',
+        targetAgentId: 'reviewer',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+    ).resolves.toMatchObject({ permissionMode: 'default' })
+
+    configs.set('reviewer', { permissionMode: 'full_access' })
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'reviewer',
+        parentAgentId: 'deepchat',
+        targetAgentId: 'reviewer',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'auto_approve'
+      })
+    ).resolves.toMatchObject({ permissionMode: 'auto_approve' })
+
+    configs.set('reviewer', { permissionMode: 'default' })
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'reviewer',
+        parentAgentId: 'deepchat',
+        targetAgentId: 'reviewer',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+    ).resolves.toMatchObject({ permissionMode: 'default' })
+  })
+
   it('rejects DeepChat transfer targets backed by ACP defaults', async () => {
     const { policy, configs } = createHarness()
     configs.set('reviewer', {
