@@ -5,7 +5,7 @@ import {
 } from '@/orchestration/liveDelegationConsent'
 
 describe('LiveDelegationConsentAuthority', () => {
-  it('binds one opaque receipt to one parent operation and consumes it once', () => {
+  it('binds one opaque receipt to one successful parent mutation', () => {
     const authority = new LiveDelegationConsentAuthority()
     const receipt = authority.issue({
       parentSessionId: 'parent-1',
@@ -19,18 +19,48 @@ describe('LiveDelegationConsentAuthority', () => {
     expect(
       authority.isValid(receipt, { parentSessionId: 'parent-1', operation: 'follow_up' })
     ).toBe(false)
-    expect(authority.consume(receipt, { parentSessionId: 'parent-1', operation: 'spawn' })).toBe(
-      true
+    const committed = authority.runAuthorizedMutation(
+      receipt,
+      { parentSessionId: 'parent-1', operation: 'spawn' },
+      () => 'created'
     )
-    expect(authority.consume(receipt, { parentSessionId: 'parent-1', operation: 'spawn' })).toBe(
-      false
-    )
+    expect(committed).toEqual({ authorized: true, value: 'created' })
     expect(
-      authority.consume({} as LiveDelegationConsentReceipt, {
-        parentSessionId: 'parent-1',
-        operation: 'spawn'
+      authority.runAuthorizedMutation(
+        receipt,
+        { parentSessionId: 'parent-1', operation: 'spawn' },
+        () => 'duplicate'
+      )
+    ).toEqual({ authorized: false })
+    expect(
+      authority.runAuthorizedMutation(
+        {} as LiveDelegationConsentReceipt,
+        { parentSessionId: 'parent-1', operation: 'spawn' },
+        () => 'forged'
+      )
+    ).toEqual({ authorized: false })
+  })
+
+  it('releases a claimed receipt when the durable mutation fails', () => {
+    const authority = new LiveDelegationConsentAuthority()
+    const receipt = authority.issue({
+      parentSessionId: 'parent-1',
+      operation: 'spawn',
+      executionId: 'tool-call-1'
+    })
+    const expectation = { parentSessionId: 'parent-1', operation: 'spawn' } as const
+
+    expect(() =>
+      authority.runAuthorizedMutation(receipt, expectation, () => {
+        expect(authority.isValid(receipt, expectation)).toBe(false)
+        throw new Error('database unavailable')
       })
-    ).toBe(false)
+    ).toThrow('database unavailable')
+    expect(authority.isValid(receipt, expectation)).toBe(true)
+    expect(authority.runAuthorizedMutation(receipt, expectation, () => 'created')).toEqual({
+      authorized: true,
+      value: 'created'
+    })
   })
 
   it('rejects receipts without stable parent or execution identity', () => {

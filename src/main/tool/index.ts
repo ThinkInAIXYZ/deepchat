@@ -15,7 +15,7 @@ import type {
   ToolPermissionPreCheckResult,
   ToolServicePort
 } from '@shared/types/tool'
-import type { PermissionMode } from '@shared/types/agent-interface'
+import type { PermissionMode, SessionKind } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/agent/shared/storage/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
@@ -54,11 +54,9 @@ import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { ToolEffectObserver } from './effectObserver'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
-import {
-  intersectSubagentMcpAllowLists,
-  mergeSubagentToolRestrictions
-} from '@/session/subagentAuthority'
+import { composeSubagentAuthority } from '@/session/subagentAuthority'
 import type { LiveDelegationConsentIssuer } from '@/orchestration/liveDelegationConsent'
+import { parseChildAgentResultEnvelopeText } from '@shared/orchestration/resultSafety'
 
 type McpToolPort = Pick<McpServicePort, 'getAllToolDefinitions' | 'callTool'>
 
@@ -118,6 +116,7 @@ const allowsExternalFileAccess = (mode?: PermissionMode): boolean =>
 type StoredMcpAccessContext = {
   agentId?: string
   enabledMcpServerIds?: string[]
+  sessionKind?: SessionKind
 }
 
 type SubagentExecutionToolPolicy = {
@@ -140,7 +139,6 @@ export class ToolService implements ToolServicePort {
   private readonly options: ToolServiceOptions
   private readonly permissionBroker: ToolPermissionBroker
   private readonly conversationMcpDefinitions = new Map<string, Map<string, MCPToolDefinition>>()
-  private readonly knownRegularSessions = new Set<string>()
   private globalMcpDefinitions = new Map<string, MCPToolDefinition>()
   private agentToolManager: AgentToolManager | null = null
   private globalReviewedExecutions = new Map<string, ToolExecutionContract>()
@@ -186,7 +184,8 @@ export class ToolService implements ToolServicePort {
     const agentWorkspacePath = context.agentWorkspacePath || null
     this.rememberConversationMcpAccessContext(context.conversationId, {
       agentId: context.agentId,
-      enabledMcpServerIds: context.enabledMcpServerIds
+      enabledMcpServerIds: context.enabledMcpServerIds,
+      sessionKind: context.sessionKind
     })
     // 1. Get MCP tools
     const mcpDefs = withToolSource(
@@ -296,7 +295,6 @@ export class ToolService implements ToolServicePort {
     this.conversationReviewedExecutions.delete(normalizedConversationId)
     this.conversationMcpAccessContexts.delete(normalizedConversationId)
     this.conversationMcpDefinitions.delete(normalizedConversationId)
-    this.knownRegularSessions.delete(normalizedConversationId)
     this.permissionBroker.cancelConversation(normalizedConversationId)
     this.clearAgentPlanState(normalizedConversationId)
   }
@@ -333,6 +331,12 @@ export class ToolService implements ToolServicePort {
         throw new Error(`Agent tool manager not initialized for tool ${toolName}`)
       }
       const args = this.parseAgentToolArguments(request.function.arguments)
+      const preflightPolicy = await this.resolveSubagentExecutionToolPolicy(
+        request.conversationId,
+        options?.signal
+      )
+      this.assertSubagentAgentToolAllowed(preflightPolicy, toolName)
+
       let liveDelegationAuthorization: LiveDelegationStartAuthorization | undefined
       if (toolName === LIVE_DELEGATION_AGENT_TOOL_NAME) {
         const preChecked = await awaitWithAbort(
@@ -371,17 +375,11 @@ export class ToolService implements ToolServicePort {
       }
 
       await this.observeToolExecution(request, source, permissionMode, options?.signal)
-      const subagentPolicy = await this.resolveSubagentExecutionToolPolicy(
+      const dispatchPolicy = await this.resolveSubagentExecutionToolPolicy(
         request.conversationId,
         options?.signal
       )
-      if (
-        subagentPolicy &&
-        isUserConfigurableAgentTool(toolName) &&
-        subagentPolicy.disabledAgentTools.includes(toolName)
-      ) {
-        throw new Error(`Tool '${toolName}' is disabled by the current Subagent authority.`)
-      }
+      this.assertSubagentAgentToolAllowed(dispatchPolicy, toolName)
       // Route to Agent tool manager
       const response = await this.agentToolManager.callTool(
         toolName,
@@ -400,6 +398,12 @@ export class ToolService implements ToolServicePort {
       const resolvedResponse = this.resolveAgentToolResponse(response)
       const rawData = resolvedResponse.rawData ?? {}
       const content = rawData.content ?? resolvedResponse.content
+      if (
+        toolName === LIVE_DELEGATION_AGENT_TOOL_NAME &&
+        !parseChildAgentResultEnvelopeText(content)
+      ) {
+        throw new Error('Live delegation returned an invalid child-result envelope.')
+      }
       return {
         content,
         rawData: {
@@ -430,6 +434,13 @@ export class ToolService implements ToolServicePort {
     const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
     const definition = this.getMcpDefinition(toolName, request.conversationId)
     const expectedTarget = this.createExpectedMcpTarget(toolName, definition)
+    const configuredServerIds = options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds
+    const preflightPolicy = await this.resolveSubagentExecutionToolPolicy(
+      request.conversationId,
+      options?.signal
+    )
+    this.resolveAllowedMcpServerIds(preflightPolicy, configuredServerIds, definition, toolName)
+
     const permissionContext = this.createMcpPermissionContext(request, definition, permissionMode)
     if (permissionContext && this.shouldBrokerMcpTool(definition)) {
       const authorization = this.permissionBroker.authorizeExecution(
@@ -442,22 +453,16 @@ export class ToolService implements ToolServicePort {
     }
 
     await this.observeToolExecution(request, source, permissionMode, options?.signal)
-    const subagentPolicy = await this.resolveSubagentExecutionToolPolicy(
+    const dispatchPolicy = await this.resolveSubagentExecutionToolPolicy(
       request.conversationId,
       options?.signal
     )
-    const enabledServerIds = subagentPolicy
-      ? intersectSubagentMcpAllowLists(
-          subagentPolicy.enabledMcpServerIds,
-          options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds
-        )
-      : (options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds)
-    if (subagentPolicy && enabledServerIds !== undefined) {
-      const serverId = definition?.server.id?.trim()
-      if (!serverId || !enabledServerIds.includes(serverId)) {
-        throw new Error(`MCP tool '${toolName}' is disabled by the current Subagent authority.`)
-      }
-    }
+    const enabledServerIds = this.resolveAllowedMcpServerIds(
+      dispatchPolicy,
+      configuredServerIds,
+      definition,
+      toolName
+    )
     return await this.options.mcpService.callTool(request, {
       agentId: options?.agentId ?? storedAccess?.agentId,
       enabledServerIds,
@@ -649,15 +654,24 @@ export class ToolService implements ToolServicePort {
   ): Promise<SubagentExecutionToolPolicy | null> {
     const childSessionId = conversationId?.trim()
     if (!childSessionId) return null
-    if (this.knownRegularSessions.has(childSessionId)) return null
+    const catalogContext = this.getConversationMcpAccessContext(childSessionId)
+    if (catalogContext?.sessionKind === 'regular') return null
     const child = await awaitWithAbort(
       this.options.agentTools.sessions.resolveConversationSessionInfo(childSessionId),
       signal
     )
-    if (!child) return null
-    if (child.sessionKind !== 'subagent') {
-      this.knownRegularSessions.add(childSessionId)
+    if (!child) {
+      throw new Error(`Session ${childSessionId} execution identity is unavailable.`)
+    }
+    if (child.sessionKind === 'regular') {
+      if (catalogContext?.sessionKind === 'subagent') {
+        throw new Error(`Session ${childSessionId} execution identity changed unexpectedly.`)
+      }
+      this.rememberResolvedRegularSession(childSessionId)
       return null
+    }
+    if (child.sessionKind !== 'subagent') {
+      throw new Error(`Session ${childSessionId} execution identity is invalid.`)
     }
 
     const parentSessionId = child.parentSessionId?.trim()
@@ -690,18 +704,48 @@ export class ToolService implements ToolServicePort {
     }
     const [parentConfig, childConfig] = configs
 
-    return {
-      disabledAgentTools: mergeSubagentToolRestrictions(
-        parent.disabledAgentTools,
-        child.disabledAgentTools,
-        parentConfig.disabledAgentTools ?? [],
-        childConfig.disabledAgentTools ?? []
-      ),
-      enabledMcpServerIds: intersectSubagentMcpAllowLists(
-        parentConfig.enabledMcpServerIds,
-        childConfig.enabledMcpServerIds
-      )
+    return composeSubagentAuthority(parent, child, parentConfig, childConfig)
+  }
+
+  private assertSubagentAgentToolAllowed(
+    policy: SubagentExecutionToolPolicy | null,
+    toolName: string
+  ): void {
+    if (
+      policy &&
+      isUserConfigurableAgentTool(toolName) &&
+      policy.disabledAgentTools.includes(toolName)
+    ) {
+      throw new Error(`Tool '${toolName}' is disabled by the current Subagent authority.`)
     }
+  }
+
+  private resolveAllowedMcpServerIds(
+    policy: SubagentExecutionToolPolicy | null,
+    configuredServerIds: string[] | undefined,
+    definition: MCPToolDefinition | undefined,
+    toolName: string
+  ): string[] | undefined {
+    if (!policy) return configuredServerIds
+
+    const enabledServerIds = composeSubagentAuthority(policy, {
+      enabledMcpServerIds: configuredServerIds
+    }).enabledMcpServerIds
+    if (enabledServerIds !== undefined) {
+      const serverId = definition?.server.id?.trim()
+      if (!serverId || !enabledServerIds.includes(serverId)) {
+        throw new Error(`MCP tool '${toolName}' is disabled by the current Subagent authority.`)
+      }
+    }
+    return enabledServerIds
+  }
+
+  private rememberResolvedRegularSession(conversationId: string): void {
+    const current = this.conversationMcpAccessContexts.get(conversationId)
+    this.conversationMcpAccessContexts.set(conversationId, {
+      ...current,
+      sessionKind: 'regular'
+    })
   }
 
   private rememberConversationMcpAccessContext(
@@ -715,7 +759,8 @@ export class ToolService implements ToolServicePort {
 
     this.conversationMcpAccessContexts.set(normalizedConversationId, {
       agentId: context.agentId?.trim() || undefined,
-      enabledMcpServerIds: normalizeOptionalToolNames(context.enabledMcpServerIds)
+      enabledMcpServerIds: normalizeOptionalToolNames(context.enabledMcpServerIds),
+      sessionKind: context.sessionKind
     })
   }
 

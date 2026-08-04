@@ -4,7 +4,8 @@ import type { ToolServicePort } from '@shared/types/tool'
 import type {
   AgentType,
   DeepChatAgentConfig,
-  DeepChatSubagentCapability
+  DeepChatSubagentCapability,
+  SessionKind
 } from '@shared/types/agent-interface'
 import type { SessionDatabase } from '@/session/data/database'
 import type {
@@ -31,10 +32,7 @@ import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
 } from '@shared/orchestration/policy'
-import {
-  intersectSubagentMcpAllowLists,
-  mergeSubagentToolRestrictions
-} from '@/session/subagentAuthority'
+import { composeSubagentAuthority } from '@/session/subagentAuthority'
 
 type ToolResolverSkillPort = Pick<
   SkillServicePort,
@@ -121,6 +119,7 @@ export class DeepChatToolResolver {
             disabledAgentTools: toolPolicy.disabledAgentTools,
             chatMode: 'agent',
             conversationId: sessionId,
+            sessionKind: toolPolicy.sessionKind,
             agentWorkspacePath: projectDir,
             activeSkillNames: effectiveActiveSkillNames,
             subagentCapability: toolPolicy.subagentCapability,
@@ -218,6 +217,7 @@ export class DeepChatToolResolver {
     extensionPolicy: AgentExtensionPolicy
     disabledAgentTools: string[]
     subagentCapability: DeepChatSubagentCapability
+    sessionKind: SessionKind | undefined
   }> {
     const agentId =
       resourceInstance?.getAgentId()?.trim() ||
@@ -256,7 +256,8 @@ export class DeepChatToolResolver {
       return {
         extensionPolicy: {},
         disabledAgentTools: persistedDisabledAgentTools,
-        subagentCapability: resolveCapability(agentType, null)
+        subagentCapability: resolveCapability(agentType, null),
+        sessionKind: sessionRow?.session_kind
       }
     }
 
@@ -284,19 +285,18 @@ export class DeepChatToolResolver {
         throw new Error(`Subagent Session ${sessionId} parent tool policy is unavailable.`)
       }
 
+      const authority = composeSubagentAuthority(
+        { disabledAgentTools: persistedDisabledAgentTools },
+        parentConfig,
+        config
+      )
       return {
         extensionPolicy: {
-          enabledMcpServerIds: intersectSubagentMcpAllowLists(
-            parentConfig.enabledMcpServerIds,
-            config.enabledMcpServerIds
-          )
+          enabledMcpServerIds: authority.enabledMcpServerIds
         },
-        disabledAgentTools: mergeSubagentToolRestrictions(
-          persistedDisabledAgentTools,
-          parentConfig.disabledAgentTools ?? [],
-          config.disabledAgentTools ?? []
-        ),
-        subagentCapability: resolveCapability(agentType, config)
+        disabledAgentTools: authority.disabledAgentTools,
+        subagentCapability: resolveCapability(agentType, config),
+        sessionKind: sessionRow.session_kind
       }
     }
 
@@ -307,7 +307,8 @@ export class DeepChatToolResolver {
           }
         : {},
       disabledAgentTools: persistedDisabledAgentTools,
-      subagentCapability: resolveCapability(agentType, config)
+      subagentCapability: resolveCapability(agentType, config),
+      sessionKind: sessionRow?.session_kind
     }
   }
 
@@ -377,9 +378,13 @@ export class DeepChatToolResolver {
     const sessionRow = sessions.get(sessionId)
     const parentSessionId =
       sessionRow?.session_kind === 'subagent' ? sessionRow.parent_session_id?.trim() : null
-    return mergeSubagentToolRestrictions(
-      sessions.getDisabledAgentTools(sessionId),
-      parentSessionId ? sessions.getDisabledAgentTools(parentSessionId) : []
-    )
+    return composeSubagentAuthority(
+      { disabledAgentTools: sessions.getDisabledAgentTools(sessionId) },
+      {
+        disabledAgentTools: parentSessionId
+          ? sessions.getDisabledAgentTools(parentSessionId)
+          : undefined
+      }
+    ).disabledAgentTools
   }
 }

@@ -66,3 +66,13 @@ export function parseChildAgentResultEnvelope(value: unknown): ChildAgentResultE
   const actualBytes = new TextEncoder().encode(JSON.stringify(parsed.data.payload.value)).byteLength
   return actualBytes === parsed.data.payload.utf8Bytes ? parsed.data : null
 }
+
+export function parseChildAgentResultEnvelopeText(value: unknown): ChildAgentResultEnvelope | null {
+  if (typeof value !== 'string') return null
+
+  try {
+    return parseChildAgentResultEnvelope(JSON.parse(value) as unknown)
+  } catch {
+    return null
+  }
+}

@@ -243,7 +243,7 @@ export class LiveDelegationService {
   ): Promise<LiveDelegationDetail> {
     this.assertStarted()
     const parent = await this.requireCapableParent(parentSessionId)
-    this.assertStartAuthorized(parent, 'spawn', authorization, true)
+    this.assertStartAuthorized(parent, 'spawn', authorization)
     const slot = parent.subagentCapability.slots.find((candidate) => candidate.id === input.slotId)
     if (!slot) throw new Error(`Subagent slot not found or not enabled: ${input.slotId}`)
     const targetAgentId =
@@ -253,15 +253,17 @@ export class LiveDelegationService {
     const delegationId = nanoid()
     const turnId = nanoid()
     const executionSnapshot = createTurnExecutionSnapshot(parent)
-    const created = this.options.repository.create({
-      id: delegationId,
-      initialTurnId: turnId,
-      parentSessionId: parent.sessionId,
-      slotId: slot.id,
-      targetAgentId,
-      title: input.title,
-      prompt: input.prompt
-    })
+    const created = this.runAuthorizedStartMutation(parent, 'spawn', authorization, () =>
+      this.options.repository.create({
+        id: delegationId,
+        initialTurnId: turnId,
+        parentSessionId: parent.sessionId,
+        slotId: slot.id,
+        targetAgentId,
+        title: input.title,
+        prompt: input.prompt
+      })
+    )
     this.publishChanged(created.delegation)
     this.scheduleTurn(created.delegation, created.turn, executionSnapshot)
     return this.inspect(parent.sessionId, delegationId)
@@ -295,7 +297,7 @@ export class LiveDelegationService {
   ): Promise<LiveDelegationDetail> {
     this.assertStarted()
     const parent = await this.requireCapableParent(parentSessionId)
-    this.assertStartAuthorized(parent, 'follow_up', authorization, false)
+    this.assertStartAuthorized(parent, 'follow_up', authorization)
     const delegation = this.options.repository.requireOwned(parent.sessionId, delegationId)
     const discoveredChild = delegation.childSessionId
       ? await this.options.sessions.resolveConversationSessionInfo(delegation.childSessionId)
@@ -324,12 +326,17 @@ export class LiveDelegationService {
           )
         }
         const currentParent = await this.requireCapableParent(parent.sessionId)
-        this.assertStartAuthorized(currentParent, 'follow_up', authorization, true)
-        const created = this.options.repository.createFollowUp(
-          currentParent.sessionId,
-          delegation.id,
-          nanoid(),
-          task
+        const created = this.runAuthorizedStartMutation(
+          currentParent,
+          'follow_up',
+          authorization,
+          () =>
+            this.options.repository.createFollowUp(
+              currentParent.sessionId,
+              delegation.id,
+              nanoid(),
+              task
+            )
         )
         this.publishChanged(created.delegation)
         this.scheduleTurn(created.delegation, created.turn, createTurnExecutionSnapshot(child))
@@ -341,18 +348,38 @@ export class LiveDelegationService {
   private assertStartAuthorized(
     parent: CapableParent,
     operation: 'spawn' | 'follow_up',
-    authorization: LiveDelegationConsentReceipt | undefined,
-    consume: boolean
+    authorization: LiveDelegationConsentReceipt | undefined
   ): void {
     const expectation = { parentSessionId: parent.sessionId, operation }
     if (authorization) {
-      const valid = consume
-        ? this.options.consent.consume(authorization, expectation)
-        : this.options.consent.isValid(authorization, expectation)
-      if (valid) return
+      if (this.options.consent.isValid(authorization, expectation)) return
       throw new Error(`Live delegation authorization is invalid for ${operation}.`)
     }
     if (normalizeOrchestrationPolicy(parent.orchestrationPolicy) === 'proactive') return
+    throw new Error(
+      `Explicit collaboration requires current user confirmation before ${operation}.`
+    )
+  }
+
+  private runAuthorizedStartMutation<T>(
+    parent: CapableParent,
+    operation: 'spawn' | 'follow_up',
+    authorization: LiveDelegationConsentReceipt | undefined,
+    mutation: () => T
+  ): T {
+    const expectation = { parentSessionId: parent.sessionId, operation }
+    if (authorization) {
+      const result = this.options.consent.runAuthorizedMutation(
+        authorization,
+        expectation,
+        mutation
+      )
+      if (result.authorized) return result.value
+      throw new Error(`Live delegation authorization is invalid for ${operation}.`)
+    }
+    if (normalizeOrchestrationPolicy(parent.orchestrationPolicy) === 'proactive') {
+      return mutation()
+    }
     throw new Error(
       `Explicit collaboration requires current user confirmation before ${operation}.`
     )

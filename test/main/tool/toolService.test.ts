@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { ToolService } from '@/tool'
 import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
-import { CronJobToolHandler, TAPE_TOOL_NAMES, UPDATE_PLAN_TOOL_NAME } from '@/tool/agentTools'
+import {
+  AgentToolManager,
+  CronJobToolHandler,
+  TAPE_TOOL_NAMES,
+  UPDATE_PLAN_TOOL_NAME
+} from '@/tool/agentTools'
 import { CommandPermissionService, ToolPermissionBroker } from '@/tool/permission'
 import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
@@ -53,7 +58,13 @@ const buildToolDefinition = (name: string, serverName: string): MCPToolDefinitio
 })
 
 const buildAgentToolRuntimeMock = (overrides: Record<string, unknown> = {}) =>
-  createAgentToolDependencies(overrides)
+  createAgentToolDependencies({
+    resolveConversationSessionInfo: vi.fn(async (sessionId: string) => ({
+      sessionId,
+      sessionKind: 'regular'
+    })),
+    ...overrides
+  })
 
 const cronJobFixture = {
   id: 'job-1',
@@ -704,7 +715,11 @@ describe('ToolService', () => {
       permissionBroker,
       liveDelegationConsent,
       agentTools: buildAgentToolRuntimeMock({
-        resolveConversationSessionInfo: vi.fn(async () => ({ orchestrationPolicy })),
+        resolveConversationSessionInfo: vi.fn(async (sessionId: string) => ({
+          sessionId,
+          sessionKind: 'regular',
+          orchestrationPolicy
+        })),
         liveDelegation: {
           spawn,
           send: vi.fn(),
@@ -797,6 +812,7 @@ describe('ToolService', () => {
 
   it('revalidates Subagent built-in and MCP authority at execution time', async () => {
     const mcpDefinition = buildToolDefinition('remote_write', 'remote-server')
+    let parentMcpServerIds = [mcpDefinition.server.id!]
     const mcpService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([mcpDefinition]),
       callTool: vi.fn()
@@ -815,17 +831,24 @@ describe('ToolService', () => {
       agentId: 'reviewer',
       disabledAgentTools: []
     }
+    const effectObserver = {
+      beforeToolExecution: vi.fn(async () => {
+        parentMcpServerIds = []
+      })
+    }
     const toolService = new ToolService({
       mcpService: mcpService as any,
       skillSettings: { isEnabled: () => false } as any,
       agentSettings: {
         resolveDeepChatAgentConfig: vi.fn(async (agentId: string) => ({
-          enabledMcpServerIds: agentId === 'parent-agent' ? [] : [mcpDefinition.server.id!]
+          enabledMcpServerIds:
+            agentId === 'parent-agent' ? parentMcpServerIds : [mcpDefinition.server.id!]
         }))
       } as any,
       providerSettings: { getModelConfig: vi.fn() } as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
+      effectObserver,
       agentTools: buildAgentToolRuntimeMock({
         resolveConversationSessionInfo: vi.fn(async (sessionId: string) =>
           sessionId === 'child-1' ? child : sessionId === 'parent-1' ? parent : null
@@ -851,6 +874,7 @@ describe('ToolService', () => {
         { permissionMode: 'full_access' }
       )
     ).rejects.toThrow("Tool 'read' is disabled by the current Subagent authority")
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
     await expect(
       toolService.callTool(
         {
@@ -863,6 +887,103 @@ describe('ToolService', () => {
       )
     ).rejects.toThrow("MCP tool 'remote_write' is disabled by the current Subagent authority")
     expect(mcpService.callTool).not.toHaveBeenCalled()
+    expect(effectObserver.beforeToolExecution).toHaveBeenCalledOnce()
+  })
+
+  it('fails closed before effect evidence when a mapped Session identity disappears', async () => {
+    const mcpDefinition = buildToolDefinition('remote_write', 'remote-server')
+    const mcpService = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([mcpDefinition]),
+      callTool: vi.fn()
+    }
+    const effectObserver = {
+      beforeToolExecution: vi.fn()
+    }
+    const toolService = new ToolService({
+      mcpService: mcpService as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      effectObserver,
+      agentTools: buildAgentToolRuntimeMock({
+        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null)
+      })
+    })
+
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'missing-child',
+      sessionKind: 'subagent',
+      agentWorkspacePath: '/repo',
+      enabledMcpServerIds: [mcpDefinition.server.id!]
+    })
+
+    await expect(
+      toolService.callTool(
+        {
+          id: 'mcp-missing-child',
+          type: 'function',
+          function: { name: 'remote_write', arguments: '{}' },
+          conversationId: 'missing-child'
+        },
+        { permissionMode: 'full_access' }
+      )
+    ).rejects.toThrow('Session missing-child execution identity is unavailable')
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed live-delegation results at the model-facing boundary', async () => {
+    const toolService = new ToolService({
+      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+    const subagentCapability = resolveDeepChatSubagentCapability({
+      agentType: 'deepchat',
+      sessionKind: 'regular',
+      agentPolicyEnabled: true,
+      slots: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review the result.'
+        }
+      ]
+    })
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'conv-1',
+      sessionKind: 'regular',
+      agentWorkspacePath: '/repo',
+      subagentCapability
+    })
+    const callToolSpy = vi.spyOn(AgentToolManager.prototype, 'callTool').mockResolvedValueOnce({
+      content: 'raw child output'
+    })
+
+    await expect(
+      toolService.callTool(
+        {
+          id: 'list-1',
+          type: 'function',
+          function: {
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            arguments: JSON.stringify({ operation: 'list' })
+          },
+          conversationId: 'conv-1'
+        },
+        { permissionMode: 'full_access' }
+      )
+    ).rejects.toThrow('invalid child-result envelope')
+    callToolSpy.mockRestore()
   })
 
   it('keeps the recall pair in the runtime catalog despite stale disabled values', async () => {
@@ -876,7 +997,11 @@ describe('ToolService', () => {
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentTools: buildAgentToolRuntimeMock({
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue({ agentType: 'deepchat' }),
+        resolveConversationSessionInfo: vi.fn(async (sessionId: string) => ({
+          sessionId,
+          sessionKind: 'regular',
+          agentType: 'deepchat'
+        })),
         getTapeInfo: vi.fn(),
         searchTape: vi.fn(),
         getTapeContext: vi.fn(),
@@ -915,7 +1040,11 @@ describe('ToolService', () => {
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentTools: buildAgentToolRuntimeMock({
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue({ agentType: 'deepchat' }),
+        resolveConversationSessionInfo: vi.fn(async (sessionId: string) => ({
+          sessionId,
+          sessionKind: 'regular',
+          agentType: 'deepchat'
+        })),
         getTapeInfo: vi.fn(),
         searchTape: vi.fn(),
         getTapeContext: vi.fn(),

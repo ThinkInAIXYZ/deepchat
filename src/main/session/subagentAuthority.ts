@@ -1,11 +1,28 @@
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
 
-export function mergeSubagentToolRestrictions(...disabledToolLists: string[][]): string[] {
-  return normalizeDisabledAgentTools(disabledToolLists.flat())
+export interface SubagentAuthoritySource {
+  disabledAgentTools?: readonly string[] | null
+  enabledMcpServerIds?: readonly string[] | null
 }
 
-export function intersectSubagentMcpAllowLists(
-  ...allowLists: Array<string[] | null | undefined>
+export interface ComposedSubagentAuthority {
+  disabledAgentTools: string[]
+  enabledMcpServerIds: string[] | undefined
+}
+
+export function composeSubagentAuthority(
+  ...sources: readonly SubagentAuthoritySource[]
+): ComposedSubagentAuthority {
+  return {
+    disabledAgentTools: normalizeDisabledAgentTools(
+      sources.flatMap((source) => source.disabledAgentTools ?? [])
+    ),
+    enabledMcpServerIds: intersectMcpAllowLists(sources.map((source) => source.enabledMcpServerIds))
+  }
+}
+
+function intersectMcpAllowLists(
+  allowLists: ReadonlyArray<readonly string[] | null | undefined>
 ): string[] | undefined {
   let intersection: Set<string> | null = null
 

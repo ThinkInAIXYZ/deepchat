@@ -93,6 +93,11 @@ shared orchestration envelope that:
 The safety rule is injected at the higher-priority prompt boundary and is not implemented only as
 text inside a tool result.
 
+The host also validates the locally produced envelope immediately before returning the tool result
+to the model runtime. A malformed envelope is a host-contract failure and is rejected instead of
+falling back to raw child text. This structural validation preserves the trust boundary; it does not
+sanitize or reinterpret valid child payload text, which remains untrusted evidence.
+
 ## Consent And Permissions
 
 Host enforcement, not prompt wording, owns delegation consent.
@@ -108,12 +113,22 @@ Host enforcement, not prompt wording, owns delegation consent.
   Agent policies: permission modes are intersected, disabled built-in tools are unioned, and MCP
   allowlists are intersected with a missing list treated as unrestricted. The host applies the
   same composition to catalog construction and execution-time MCP dispatch, and a missing parent
-  or unreadable child policy fails closed.
+  or unreadable child policy fails closed. Assignment, catalog, and execution use one pure authority
+  composer; each boundary supplies every persisted and configured parent/child source it owns.
+- Tool-catalog context records the immutable Session kind. A successfully identified regular
+  Session may bypass Subagent composition until that context is cleared, but an unknown or known
+  Subagent identity that can no longer be resolved fails closed. Execution checks current authority
+  before recording effect intent and again immediately before dispatch, so an already-disabled tool
+  does not create false write evidence while concurrent revocation remains conservative.
 - The tool permission broker issues an execution-bound confirmation receipt after an explicit
   approval. `spawn` and `follow_up` pass that receipt into the live-delegation service, which
   re-reads the current Session policy before mutation. An `explicit` Session rejects a missing,
   mismatched, or stale receipt even when a caller bypasses the model-tool adapter; a `proactive`
-  Session needs no per-call receipt because its Session policy is the standing authorization.
+  Session needs no per-call receipt because its Session policy is the standing authorization. The
+  receipt is claimed around the synchronous repository mutation, consumed only when persistence
+  succeeds, and released when persistence rejects. Creation returns its persisted projection from
+  the same transaction, so a post-commit projection read cannot be misclassified as a retryable
+  failed mutation.
 
 Generation settings and safety state have different lifetimes:
 

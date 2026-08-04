@@ -86,7 +86,7 @@ export class LiveDelegationRepository {
     const now = validateTimestamp(input.now ?? Date.now())
     const db = this.database.getDatabase()
 
-    db.transaction(() => {
+    return db.transaction(() => {
       this.assertParentHasActiveCapacity(parentSessionId)
       db.prepare(
         `INSERT INTO live_delegations (
@@ -100,12 +100,11 @@ export class LiveDelegationRepository {
            tape_receipt_json, created_at, started_at, updated_at, completed_at
          ) VALUES (?, ?, 1, 'initial', ?, 'queued', NULL, NULL, NULL, ?, NULL, ?, NULL)`
       ).run(initialTurnId, id, prompt, now, now)
+      return {
+        delegation: this.require(id),
+        turn: this.requireTurn(initialTurnId)
+      }
     })()
-
-    return {
-      delegation: this.require(id),
-      turn: this.requireTurn(initialTurnId)
-    }
   }
 
   get(id: string): LiveDelegation | null {
@@ -301,7 +300,7 @@ export class LiveDelegationRepository {
     const timestamp = validateTimestamp(now)
     const db = this.database.getDatabase()
 
-    db.transaction(() => {
+    return db.transaction(() => {
       const active = db
         .prepare(
           `SELECT 1 FROM live_delegation_turns
@@ -347,12 +346,11 @@ export class LiveDelegationRepository {
              updated_at = ?, revision = revision + 1
          WHERE delegation_id = ?`
       ).run(nextSeq, timestamp, delegation.id)
+      return {
+        delegation: this.require(delegation.id),
+        turn: this.requireTurn(normalizedTurnId)
+      }
     })()
-
-    return {
-      delegation: this.require(delegation.id),
-      turn: this.requireTurn(normalizedTurnId)
-    }
   }
 
   markTurnStarted(turnId: string, now = Date.now()): LiveDelegationWithTurn {

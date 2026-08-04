@@ -567,3 +567,45 @@ Validation evidence:
 - `pnpm run build` passed. Prebuild retained the existing provider-database download-size guard, and
   Vite retained its existing third-party annotation, mixed-import, and chunk-size warnings; generated
   provider and ACP resources produced no unexpected tracked changes.
+
+## Authority Boundary Follow-Up
+
+- [x] Fail closed when execution cannot resolve an unproven Session identity.
+- [x] Replace the standalone regular-Session cache with catalog-owned immutable Session-kind state.
+- [x] Route assignment, catalog, and execution through one authority composer.
+- [x] Reject already-disabled Subagent tools before recording effect intent and revalidate before
+  dispatch.
+- [x] Validate the locally generated child-result envelope at the model-facing ToolService boundary.
+- [x] Consume explicit consent only when the synchronous repository mutation succeeds.
+- [x] Run focused and full validation, complete a severity-ordered review, and commit locally.
+
+Follow-up review triage, ordered by severity:
+
+- high, confirmed: an unresolved conversation returned `null` authority and could dispatch through a
+  stale Subagent tool mapping without least-authority checks;
+- medium, confirmed: an authority denial occurred after effect intent was recorded, creating false
+  write evidence for an action the host never dispatched;
+- medium, confirmed as maintenance risk: the union/intersection primitives were shared, but three
+  boundaries still assembled their authority inputs independently without a parity contract;
+- medium, partially confirmed: child results were always created through the strict envelope helper,
+  so parsing alone cannot remove semantic prompt injection. A final host assertion is still valuable
+  to prevent future adapters from falling back to raw child text;
+- medium, confirmed as contract quality: receipt consumption preceded repository persistence. This
+  remained fail-closed, but did not model successful mutation as the consumption boundary;
+- medium, retained by design: V1 does not promise automatic parallel-writer isolation, and proactive
+  remains explicit Session-level standing authorization;
+- low, retained by design: unread terminal events require a durable reader cursor before safe
+  compaction; service decomposition, historical naming, and hypothetical ACP local-tool authority are
+  follow-up architecture work rather than defects in the current execution path.
+
+Follow-up validation evidence:
+
+- focused portable authority, resolver, assignment, consent, repository, service, and ToolService
+  suites passed: 61 tests passed and 52 native-only tests skipped under Node;
+- native repository and service suites passed under Electron's ABI: 2 files and 52 tests;
+- the complete portable suite passed: 743 files and 7,836 tests, with 25 files and 346 tests skipped
+  by their existing environment guards;
+- `pnpm run format:check`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`, and
+  `pnpm run build` passed. The build retained only its existing provider-database size guard and Vite
+  third-party annotation, mixed-import, and chunk-size warnings; generated resources produced no
+  unexpected tracked changes.

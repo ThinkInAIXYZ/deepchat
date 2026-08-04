@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 import { TOOL_EXECUTION } from '@shared/types/mcp'
+import { LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT } from '@shared/orchestration/liveDelegation'
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import { SessionDeletionGate } from '@/session/deletionGate'
@@ -165,6 +166,42 @@ describeIfSqlite('LiveDelegationService', () => {
         })
       )
     ).resolves.toMatchObject({ delegation: { status: 'queued' } })
+  })
+
+  it('retains explicit consent when parent capacity rejects persistence', async () => {
+    harness.parent.orchestrationPolicy = 'explicit'
+    for (let index = 0; index < LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT; index += 1) {
+      repository.create({
+        id: `occupied-${index}`,
+        initialTurnId: `occupied-turn-${index}`,
+        parentSessionId: 'parent',
+        slotId: 'reviewer',
+        targetAgentId: 'deepchat',
+        title: `Occupied slot ${index}`,
+        prompt: 'Keep this capacity slot occupied.'
+      })
+    }
+    const receipt = consentAuthority.issue({
+      parentSessionId: 'parent',
+      operation: 'spawn',
+      executionId: 'spawn-retry'
+    })
+    const input = {
+      slotId: 'reviewer',
+      title: 'Review persistence retry',
+      prompt: 'Inspect whether the consent boundary supports a safe retry.'
+    }
+
+    await expect(service.spawn('parent', input, receipt)).rejects.toThrow(
+      `at most ${LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT} active live delegations`
+    )
+    expect(
+      consentAuthority.isValid(receipt, { parentSessionId: 'parent', operation: 'spawn' })
+    ).toBe(true)
+    repository.finishTurn({ turnId: 'occupied-turn-0', status: 'completed' })
+    await expect(service.spawn('parent', input, receipt)).resolves.toMatchObject({
+      delegation: { status: 'queued' }
+    })
   })
 
   it('revalidates consent after follow-up safety work and before persistence', async () => {

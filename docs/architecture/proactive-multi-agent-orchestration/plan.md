@@ -49,8 +49,18 @@
   proactive policy is standing authorization; non-generating operations remain confirmation-free.
 - Carry an execution-bound explicit-user receipt from the permission broker to the service and
   revalidate the current policy at the mutation boundary.
-- Compose cross-Agent authority once for both catalog and execution dispatch: union disabled tools,
-  intersect MCP allowlists, and fail closed when child lineage policy cannot be resolved.
+- Compose cross-Agent authority through one pure function for assignment, catalog, and execution:
+  union disabled tools, intersect MCP allowlists, and fail closed when child lineage policy cannot
+  be resolved.
+- Persist immutable Session-kind context with the ToolService catalog state, remove the standalone
+  regular-Session cache, and reject an unresolved identity unless it was already proven regular.
+- Run an authority preflight before effect evidence and revalidate after the observer before actual
+  dispatch.
+- Validate the host-generated child-result envelope at the ToolService boundary before it can enter
+  model-facing normalization.
+- Claim explicit consent around repository mutation so a failed transaction releases rather than
+  consumes the one-shot receipt, and return the created projection from that same transaction to
+  avoid ambiguous post-commit failures.
 - Enforce UTF-8 pending-message capacity at `send` and make legacy overflow recovery convergent.
 - Reject an over-budget follow-up transaction without consuming pending messages when neither the
   messages nor a recovery notice can fit beside the complete task.

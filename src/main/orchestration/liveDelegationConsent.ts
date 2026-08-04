@@ -17,6 +17,10 @@ export interface LiveDelegationConsentExpectation {
   operation: LiveDelegationStartOperation
 }
 
+export type LiveDelegationAuthorizedMutation<T> =
+  | { authorized: true; value: T }
+  | { authorized: false }
+
 export interface LiveDelegationConsentIssuer {
   issue(binding: LiveDelegationConsentBinding): LiveDelegationConsentReceipt
 }
@@ -26,24 +30,30 @@ export interface LiveDelegationConsentVerifier {
     receipt: LiveDelegationConsentReceipt,
     expectation: LiveDelegationConsentExpectation
   ): boolean
-  consume(
+  runAuthorizedMutation<T>(
     receipt: LiveDelegationConsentReceipt,
-    expectation: LiveDelegationConsentExpectation
-  ): boolean
+    expectation: LiveDelegationConsentExpectation,
+    mutation: () => T
+  ): LiveDelegationAuthorizedMutation<T>
+}
+
+interface LiveDelegationConsentState {
+  binding: LiveDelegationConsentBinding
+  claimed: boolean
 }
 
 export class LiveDelegationConsentAuthority
   implements LiveDelegationConsentIssuer, LiveDelegationConsentVerifier
 {
-  private readonly bindings = new WeakMap<
+  private readonly receiptStates = new WeakMap<
     LiveDelegationConsentReceipt,
-    LiveDelegationConsentBinding
+    LiveDelegationConsentState
   >()
 
   issue(binding: LiveDelegationConsentBinding): LiveDelegationConsentReceipt {
     const normalized = normalizeBinding(binding)
     const receipt = Object.freeze({ [RECEIPT_BRAND]: true }) as LiveDelegationConsentReceipt
-    this.bindings.set(receipt, normalized)
+    this.receiptStates.set(receipt, { binding: normalized, claimed: false })
     return receipt
   }
 
@@ -51,22 +61,40 @@ export class LiveDelegationConsentAuthority
     receipt: LiveDelegationConsentReceipt,
     expectation: LiveDelegationConsentExpectation
   ): boolean {
-    const binding = this.bindings.get(receipt)
-    return Boolean(
-      binding &&
-      binding.parentSessionId === expectation.parentSessionId.trim() &&
-      binding.operation === expectation.operation
-    )
+    const state = this.receiptStates.get(receipt)
+    return Boolean(state && !state.claimed && matchesExpectation(state.binding, expectation))
   }
 
-  consume(
+  runAuthorizedMutation<T>(
     receipt: LiveDelegationConsentReceipt,
-    expectation: LiveDelegationConsentExpectation
-  ): boolean {
-    if (!this.isValid(receipt, expectation)) return false
-    this.bindings.delete(receipt)
-    return true
+    expectation: LiveDelegationConsentExpectation,
+    mutation: () => T
+  ): LiveDelegationAuthorizedMutation<T> {
+    const state = this.receiptStates.get(receipt)
+    if (!state || state.claimed || !matchesExpectation(state.binding, expectation)) {
+      return { authorized: false }
+    }
+
+    state.claimed = true
+    try {
+      const value = mutation()
+      this.receiptStates.delete(receipt)
+      return { authorized: true, value }
+    } catch (error) {
+      state.claimed = false
+      throw error
+    }
   }
+}
+
+function matchesExpectation(
+  binding: LiveDelegationConsentBinding,
+  expectation: LiveDelegationConsentExpectation
+): boolean {
+  return (
+    binding.parentSessionId === expectation.parentSessionId.trim() &&
+    binding.operation === expectation.operation
+  )
 }
 
 function normalizeBinding(binding: LiveDelegationConsentBinding): LiveDelegationConsentBinding {

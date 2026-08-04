@@ -82,6 +82,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
 
     expect(resolver.resolveOrchestrationPolicy('session-1')).toBe('proactive')
     expect(getAllToolDefinitions).toHaveBeenCalledOnce()
+    expect(getAllToolDefinitions.mock.calls[0][0]).toMatchObject({ sessionKind: 'regular' })
     expect(getAllToolDefinitions.mock.calls[0][0]).not.toHaveProperty('orchestrationPolicy')
   })
 
@@ -304,6 +305,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
 
     expect(getAllToolDefinitions).toHaveBeenCalledWith(
       expect.objectContaining({
+        sessionKind: 'subagent',
         disabledAgentTools: ['edit', 'exec', 'read', 'write'],
         enabledMcpServerIds: ['mcp-b']
       })
