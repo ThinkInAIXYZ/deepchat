@@ -2,340 +2,239 @@
 
 ## Status
 
-Active. This architecture supersedes the session-level `adaptive | workflow` executor switch in
-the Workflow Runtime feature. The durable Workflow runtime remains an execution strategy; it is no
-longer the user-visible orchestration mode.
+Active. DeepChat has one Subagent execution plane: durable live delegation through child Sessions.
+The unreleased QuickJS-based durable Workflow runtime is retired before merge.
 
-Last reviewed: 2026-08-03.
+Last reviewed: 2026-08-04.
 
-## Problem
+## Decision
 
-DeepChat currently models orchestration as a mutually exclusive session choice:
+DeepChat's user goal is adaptive multi-Agent collaboration: the parent Agent may decompose a task,
+start bounded child work, steer or follow up with those children, inspect durable results, and
+synthesize the answer. That goal does not require a second JavaScript program executor.
 
-- `adaptive` exposes `subagent_orchestrator`;
-- `workflow` hides `subagent_orchestrator` and exposes the durable `workflow` tool.
+The product therefore keeps:
 
-That state conflates two different questions:
+- the session-level `explicit | proactive` orchestration policy;
+- the `deepchat_subagents` model tool and durable live-delegation repository;
+- first-class child Sessions, Tape lineage, result references, and bounded Handoffs;
+- process-wide owner-fair admission, effect evidence, and Session deletion fencing;
+- the inline and activity projections for live child work.
 
-1. whether the parent Agent may proactively delegate work;
-2. whether a particular task should use live delegation or a durable Workflow program.
+The product retires before release:
 
-It also makes the enabled state behave unlike the product contract it communicates: enabling the
-purple orchestration indicator removes the direct Subagent capability that is best suited to most
-small and medium multi-Agent tasks.
+- the `deepchat_workflow` model tool and JavaScript authoring contract;
+- QuickJS/WASM execution and its Electron utility process;
+- saved Workflows, Workflow launch approvals, replay, retry, and synthesis;
+- Workflow runs, invocations, routes, events, panels, and persisted tables.
 
-The existing `subagent_orchestrator` is a bounded batch runner, not a complete live orchestration
-control plane. Its run registry is process memory, it cannot steer an existing child with a
-follow-up turn, and its orchestration state cannot be reconstructed after restart even though the
-child Session and Tape survive.
+`Ultra` may be used as a product label for proactive collaboration. It is not a persisted state or
+runtime type. Internal state continues to describe stable behavior as `explicit | proactive`.
 
 ## Product Contract
 
-DeepChat exposes one user-facing **proactive collaboration** switch. The switch controls policy,
-not an executor.
+DeepChat exposes one user-facing proactive-collaboration control. It changes delegation policy,
+not model depth or generation settings.
 
-- `explicit`: the parent may delegate only when the user, an applicable project instruction, or an
-  applicable Skill explicitly requests Subagents, parallel Agent work, or a Workflow.
-- `proactive`: the parent may independently delegate when bounded parallel or isolated work would
-  materially improve speed or quality.
+- `explicit`: starting new child model work requires current user confirmation. Read-only control
+  and cancellation operations remain available without another confirmation.
+- `proactive`: enabling the control is standing Session authorization for the parent to start and
+  follow up with bounded children when independent work materially improves quality or latency.
 
-Both policies keep reasoning and generation settings independent. Changing collaboration policy
-must not change reasoning effort, model, temperature, Top P, token limits, permissions, or enabled
-tools.
+Both policies allow direct parent execution. Proactive mode does not require delegation for simple,
+latency-sensitive, or strongly sequential work.
 
-The parent chooses one of three paths for each turn:
+Reasoning effort, model selection, temperature, Top P, output limits, and reasoning visibility are
+independent of orchestration policy. Changing one must not silently mutate the other.
 
-1. complete simple or strongly sequential work directly;
-2. use live delegation for a few adaptive tasks that benefit from steering or follow-up;
-3. prepare a durable Workflow for large fan-out, programmatic data flow, repeatability, explicit
-   approval, or recovery.
+## Single Execution Plane
 
-Proactive collaboration grants permission to choose these paths; it does not require a Subagent or
-Workflow for every request.
+The parent orchestrates direct child Sessions through `deepchat_subagents` operations:
 
-## Terminology And State
+- `spawn`: create and start one bounded child task;
+- `send`: persist a non-triggering message for an existing child;
+- `follow_up`: start a later child turn;
+- `list` and `inspect`: read durable state;
+- `read_result`: page through a referenced canonical child answer;
+- `wait`: receive bounded mailbox updates;
+- `interrupt`: explicitly stop active work.
 
-The canonical session field is:
+V1 keeps recursion disabled. A child cannot start another Subagent. Child Sessions remain hidden
+from ordinary top-level Session lists but are navigable from trusted parent projections.
 
-```ts
-type OrchestrationPolicy = 'explicit' | 'proactive'
-```
+The legacy `subagent_orchestrator` implementation is not a second execution plane. Its model-facing
+definition and runtime state machine are removed. Historical transcript rendering remains readable,
+and its name stays reserved as a tombstone while native rendering still recognizes name-only legacy
+blocks so an MCP tool cannot spoof that trusted presentation path.
 
-`workflow` is not a policy value. It remains:
+## Identity And Results
 
-- a durable execution strategy;
-- a model-facing capability;
-- a saved user-owned asset;
-- an activity and recovery surface.
-
-The current `adaptive | workflow` persisted state migrates as follows:
-
-- `adaptive` -> `explicit`;
-- `workflow` -> `proactive`.
-
-New Sessions default to `explicit`. Existing released Sessions that predate the field also default
-to `explicit`; no historical disabled-tool setting is used to infer proactive intent.
-
-The physical Session column is renamed from `orchestration_mode` to `orchestration_policy` in a
-forward migration. Compatibility normalization accepts the two historical values only at database
-and import boundaries; new shared contracts, routes, and renderer state never expose them.
-
-## Execution Strategies
-
-### Direct parent execution
-
-The parent answers or uses ordinary tools without delegation. This remains the expected path for
-simple, latency-sensitive, or tightly sequential requests.
-
-### Live delegation
-
-The parent remains the orchestrator and controls independent child Sessions through lifecycle
-operations:
-
-- spawn a bounded child task;
-- send a non-triggering message;
-- submit a follow-up task that triggers a child turn;
-- list and inspect child state;
-- wait for mailbox updates;
-- interrupt active child work.
-
-Children remain first-class DeepChat Sessions with isolated context and independent Tape. The
-parent receives bounded summaries and completion notifications instead of complete child
-transcripts. V1 keeps Subagent recursion disabled and does not allow parallel writers with
-overlapping workspace ownership.
-
-The completed child assistant message is the only canonical copy of a live-delegation answer.
-Runtime process logs, reasoning, tool responses, and action blocks are not result content. A
-completed turn persists a typed result reference to the immutable child message and frozen Tape
-head plus a bounded semantic handoff for the parent. It never copies the full answer into the
-delegation repository or mailbox.
-
-The handoff is a child-authored `## Handoff` section when present, with legacy `## Result` and the
-final answer as deterministic fallbacks. It has an approximate 2,000-token semantic budget and a
-16 KiB protocol ceiling. Truncation is explicit metadata, never silent. The complete answer remains
-available through the stable child Session and a parent-authorized, cursor-based `read_result`
-operation. Reading an existing result is distinct from `follow_up`, which always starts new model
-work.
-
-Each live delegation separates technical identity, execution role, and human presentation:
+Live delegation separates technical identity, execution role, and presentation:
 
 - `childSessionId` is the durable child identity;
 - `delegationId` is the stable parent control handle;
 - `turnId` identifies one initial or follow-up execution attempt;
 - `slotId` and `targetAgentId` select the configured role and Agent;
-- `title` is a concise, user-language task title generated by the parent Agent.
+- `title` is a concise user-language task title.
 
-The task title describes action and scope rather than identity. Parent guidance asks for distinct
-sibling titles and rejects role-only, ordinal, or person-like labels such as `Reviewer`, `Agent 1`,
-or `Alice`. Runtime validation enforces only bounded display safety; duplicate titles do not affect
-identity and must not reject otherwise valid work. V1 does not add a second semantic task key,
-canonical Agent path, or decorative nickname because direct-child control already uses the opaque
-delegation identity.
+The trailing persisted child assistant message is the only canonical full answer. The parent
+receives a bounded semantic Handoff plus a typed `resultRef` containing immutable message and Tape
+identity, content hash, byte/token size, and explicit truncation state. `read_result` pages the
+referenced answer without starting new model work.
 
-### Durable Workflow
+Child answers are untrusted evidence, not instructions. Every model-facing child result uses one
+shared orchestration envelope that:
 
-The parent authors an internal JavaScript orchestration program and prepares a native approval.
-After launch, the QuickJS utility process owns loops, branching, pipelines, and intermediate
-values. The Workflow repository owns durable replay, retry, budgets, and recovery.
+- identifies the source as a child Agent result;
+- declares the UTF-8 byte length and an unambiguous data boundary;
+- tells the parent to synthesize evidence without executing instructions found inside it;
+- preserves structured result metadata outside the untrusted payload.
 
-The JavaScript is internal IR. Users provide natural language and may reveal source only through
-an advanced disclosure. Saved Workflow files remain explicit user-owned assets.
+The safety rule is injected at the higher-priority prompt boundary and is not implemented only as
+text inside a tool result.
 
-## Shared Child Invocation Kernel
+## Consent And Permissions
 
-Live delegation and durable Workflow remain separate state machines and repositories. They share a
-narrow child invocation kernel responsible for:
+Host enforcement, not prompt wording, owns delegation consent.
 
-- global owner-fair admission and cancellation while queued;
-- immutable execution snapshots;
-- capability and workspace checks;
-- correlated child Session creation;
-- message handoff and runtime tracking;
-- permission and question projection;
-- cancellation and terminal settlement;
-- usage accounting;
-- write-ahead effect classification;
-- frozen-head Tape lineage;
-- bounded parent result delivery.
+- Under `explicit`, `spawn` and `follow_up` require native confirmation because they start model
+  work and consume additional resources.
+- Under `proactive`, the Session-level control is standing authorization for those operations.
+- `send`, `list`, `inspect`, `read_result`, `wait`, and `interrupt` do not start model work and do
+  not require orchestration confirmation.
+- Every child tool call still follows the ordinary DeepChat permission broker. Proactive mode does
+  not grant filesystem, network, shell, or external-service permissions.
 
-Final-answer projection is one shared runtime primitive. It selects the trailing assistant content
-after the last process/tool boundary and excludes reasoning, tool responses, plans, actions, and
-errors. Live delegation and durable Workflow child tracking must not maintain incompatible notions
-of a child answer.
+Generation settings and safety state have different lifetimes:
 
-The shared kernel must not decide orchestration topology, replay identity, Workflow call paths, or
-live follow-up policy.
+- model and generation settings are frozen when each child turn starts;
+- permission mode, workspace authority, Session deletion, and capability revocation are checked
+  continuously and take effect for active work;
+- changing proactive policy controls future `spawn` and `follow_up` operations. Existing work
+  remains visible and explicitly interruptible.
 
-## Tape Boundary
+## Admission And Waiting
 
-Tape is the append-only execution evidence layer, not the scheduler.
+Process-wide admission limits actively running child computation, not durable lifecycle occupancy.
+A child waiting for permission or a user answer must not hold a global running permit indefinitely.
 
-Each child owns an independent Tape. Parent lineage records a frozen child head; child entries are
-not copied into the parent. The parent may read only authorized direct-child evidence through
-existing Tape view rules.
+Admission therefore exposes a state-aware lease:
 
-The orchestration repositories remain authoritative for mutable run state, queues, deadlines,
-budgets, retry decisions, and UI projections. Tape evidence supports audit and recovery decisions
-but cannot prove that an external side effect did not occur before a crash. Write-ahead effect
-classification therefore remains mandatory before a bound child tool executes.
+- dispatch acquires a permit with cancellation support;
+- transition to a host-owned waiting state suspends the lease;
+- continuation reacquires before computation or a protected tool action resumes;
+- interruption and terminal settlement release the lease exactly once;
+- per-parent active-child limits remain separate from the process-wide running limit.
 
-## Model-Facing Policy
+Owner fairness prevents one Session from monopolizing queued capacity. It does not replace correct
+lease suspension.
 
-When multi-Agent capabilities are available, the parent receives a developer-level policy message
-for the current Session:
+## Follow-Up Mailbox
 
-- `explicit` revokes any earlier proactive delegation instruction and requires explicit intent;
-- `proactive` permits delegation only when it has clear independent, isolated, or parallel value.
+Non-triggering messages use UTF-8 byte budgets at the repository boundary. `send` applies atomic
+backpressure before a message can make the pending mailbox exceed its bounded capacity.
 
-The model may see both the live-delegation and durable-Workflow capabilities. Tool availability
-must not encode which executor the parent is required to choose.
+`follow_up` consumes only repository state that already satisfies the bound. Compatibility handling
+for malformed or oversized unreleased rows must converge instead of repeatedly rolling back on the
+same data. Character-count validation must not claim to enforce a byte limit.
 
-Built-in orchestration functions use DeepChat-specific model-facing names so enabling both
-capabilities does not globally shadow an unrelated MCP function named `workflow`, `spawn_agent`, or
-another generic lifecycle verb. Presentation may still call the feature Workflow or Subagents.
-Legacy tool blocks produced by the unreleased branch remain readable by the native renderer parser.
+## Persistence And Migration
 
-The policy prompt includes a stable decision contract:
+The live execution plane owns:
 
-- direct work for simple or sequential tasks;
-- live delegation for a few adaptive tasks;
-- durable Workflow for large, programmatic, recoverable, or reusable orchestration;
-- never delegate merely to demonstrate that proactive mode is enabled;
-- never run overlapping write-heavy children in a shared workspace.
+- `live_delegations`;
+- `live_delegation_turns`;
+- `live_delegation_events`.
 
-## Workflow Authoring Contract
+The Workflow tables are removed:
 
-JavaScript remains the single durable Workflow IR. DeepChat does not introduce a second persisted
-JSON graph in this architecture.
+- `workflow_invocations` is dropped before `workflow_runs`;
+- every `trg_workflow_*` trigger is removed before its referenced table;
+- the Workflow definitions are removed from the schema catalog only after the forward cleanup is
+  defined.
 
-The runtime API is versioned and has one canonical definition that generates or verifies:
+The commits that introduced schema versions 57 and 59 exist only on `feat/workflow-runtime`; they
+are absent from every tag and from `origin/dev` and `origin/main`. The unreleased history may
+therefore be simplified so version 59 adds `orchestration_policy` directly without creating the
+short-lived `orchestration_mode` column.
 
-- runtime Zod contracts;
-- model-facing JSON Schema and concise signatures;
-- authoring examples;
-- source semantic validation;
-- runtime bindings.
-
-Preparation is split into two conceptual phases:
-
-1. compile and validate source without resolving a Session or generation snapshot;
-2. bind the compiled source to a main-resolved workspace, capability scope, execution snapshot,
-   limits, and budget.
-
-Source diagnostics must identify the helper, expected shape, and source location when possible.
-Invalid source must fail before a native approval is registered. Host-owned generation snapshots
-must be normalized to bounded JSON and must not contain explicit `undefined` values.
+Databases that ran the feature branch may already record version 63. Version 64 is a forward-only
+decommission migration that removes Workflow artifacts and preserves monotonic schema history. The
+code must never lower the latest schema version below a version already observed by those databases.
 
 ## UI Contract
 
-The composer continues to show the current reasoning label. Proactive collaboration is represented
-by the branch icon and accent color, with an accessible label and tooltip. The compact button does
-not concatenate `Workflow` with the reasoning label.
+The compact composer control continues to display reasoning effort. Proactive collaboration is
+communicated through the branch icon, accent, tooltip, and accessible pressed state without adding
+`Workflow` to the button label.
 
-The popover contains independent sections for reasoning and proactive collaboration. User-facing
-copy describes additional Agent, latency, token, and resource use.
+The popover contains independent reasoning and proactive-collaboration sections. Reasoning controls
+are gated by model capability, not by orchestration capability or DeepChat executor ownership.
 
-`/workflow` opens or explicitly prepares Workflow functionality; it does not change session
-policy. `/workflow <name>` prepares a saved Workflow without changing the policy.
+The Agent activity surface and inline cards project the same revision-aware live-delegation state.
+They show title, role, status, bounded preview, child navigation, interruption, and interaction
+discovery. The main-process repository is the only mutable authority.
 
-One Agent activity surface projects live delegation and durable Workflow runs while preserving
-their distinct legal controls.
-
-Every trusted `deepchat_subagents` spawn remains visible at the point of delegation instead of
-being collapsed into generic tool history. Its inline projection shows the semantic task title,
-configured role, live status, bounded result or error preview, and an explicit entry to the stable
-child Session as soon as that Session is bound. Active work may be interrupted from the same card.
-Raw tool parameters and responses remain available through a secondary disclosure.
-
-UI preview, model handoff, and full answer are separate projections. Cards keep a short preview;
-mailbox completion carries a bounded handoff; opening the child Session shows the canonical full
-answer. Context pressure may reduce a mailbox response to a result reference, but must not turn a
-successfully persisted child result into a failed turn.
-
-The inline card and Agent activity surface consume one renderer-side projection backed by the
-typed list route and live change event. The main-process repository remains the only authority;
-transcript blocks provide immutable delegation correlation and an initial snapshot, not a second
-mutable status store. Ordinary Session lists continue to hide child Sessions so background work
-does not pollute the user's top-level chat history. The child view remains read-only for ordinary
-conversation mutation and exposes a back-to-parent action. A pending child permission or question
-is the sole exception: the child view renders the existing typed interaction response surface so
-the user can unblock work without enabling composition, editing, retry, or deletion. While input is
-required, parent projections promote their existing child-navigation control to the primary action;
-they do not duplicate the child interaction or become another response authority.
-
-Session deletion first establishes a process-local fence shared by live-delegation entry points and
-the subagent Session factory. The fence rejects new related work and waits for creation that already
-entered; deletion then cancels the Session runtime, drains related active turns through the explicit
-interruption path, and enumerates the now-stable child set. Orchestration cleanup remains
-best-effort so a failure cannot leave the user-visible Session row undeletable. The write-ahead
-dispatch transition is projected immediately; delivery acceptance remains a distinct in-memory
-fact used by terminal and Tape settlement.
+Workflow panels, saved Workflow commands, launch approvals, and `/workflow` are removed.
 
 ## Compatibility And Safety
 
 - Direct ACP Sessions and child Sessions cannot enable proactive collaboration.
-- Existing DeepChat regular Sessions migrate without inferring intent from disabled tools.
-- Existing `subagent_orchestrator` callers retain a compatibility path until lifecycle controls are
-  stable; the model must not see both overlapping live-delegation surfaces in the same turn.
-- Generic same-name MCP tools remain reachable because built-in orchestration functions use
-  DeepChat-specific names instead of global reservation.
-- Existing Workflow run rows, immutable source snapshots, approvals, and recovery remain readable.
-- A policy change affects subsequent parent turns only. Active children and launched Workflows use
-  their immutable execution snapshot.
-- One process-wide admission layer applies to both execution strategies, with strategy-local caps.
-- Session deletion fences new delegation and child-creation operations before runtime cleanup,
-  then drains active work before removing durable Session state.
+- Existing released Sessions default to `explicit`; intent is never inferred from disabled tools.
+- Existing feature-branch databases migrate forward through version 64.
+- Historical `subagent_orchestrator` transcript blocks remain renderable but cannot start the old
+  in-memory batch executor. The legacy name remains reserved only as a renderer trust tombstone.
+- Generic MCP tools remain reachable unless their names collide with an active native tool or an
+  explicitly documented historical-renderer tombstone.
+- Session deletion fences new delegation and child creation before runtime cleanup, drains active
+  work, and then removes the stable child tree.
 - V1 does not promise exactly-once external effects or automatic parallel-writer isolation.
 
 ## Acceptance Criteria
 
-1. The persisted session contract is `explicit | proactive`, defaults to `explicit`, and migrates
-   the unreleased `adaptive | workflow` values deterministically.
-2. Reasoning changes and orchestration-policy changes remain independent in state, IPC, UI, and
-   execution snapshots.
-3. A regular parent can access live delegation and durable Workflow capabilities without mutually
-   exclusive executor routing.
-4. Explicit policy prevents proactive delegation through a developer-level instruction while
-   honoring explicit user, project, and Skill requests.
-5. Proactive policy allows the parent to choose direct work, live delegation, or Workflow based on
-   task shape.
-6. Live child work can be listed, followed up, waited on, interrupted, and reconciled after restart
-   through durable parent-child identities.
-7. Both execution strategies use shared admission, immutable settings, permission boundaries,
-   effect evidence, and Tape lineage.
-8. Invalid Workflow helper shapes and non-JSON execution snapshots fail before approval with
-   actionable diagnostics.
-9. The composer displays reasoning independently and communicates proactive collaboration through
-   icon, accent, tooltip, and accessible state.
-10. Existing saved Workflows and durable Workflow history remain usable.
-11. Every trusted live-delegation spawn has a persistent inline task projection that follows live
-    status, opens its stable child Session, preserves raw tool disclosure, and remains visible after
-    ordinary reasoning/tool activity is collapsed.
-12. Live-delegation task titles follow the task-first naming contract without introducing another
-    routing identity or decorative nickname.
-13. Child process output and tool responses never contaminate the live-delegation result; the
-    canonical full answer remains in the child Session and the parent receives a bounded,
-    explicitly truncated handoff with a stable result reference.
-14. An authorized parent can page through the frozen result without starting another child turn;
-    unrelated parents, mutable later child messages, and forged cursors cannot be read.
-15. A waiting child permission or question can be answered from the read-only child view without
-    broadening the child's conversation-mutation or permission policy.
-16. Parent projections make a waiting child's navigation action prominent without persisting or
-    routing another copy of the interaction.
-17. Deleting a parent or bound child atomically fences new related work, waits admitted creation,
-    cancels runtime production, drains active delegation, and only then enumerates and removes the
-    stable Session tree; write-ahead running state is visible before handoff delivery resolves.
+1. The persisted policy is `explicit | proactive`, defaults to `explicit`, and is independent of
+   all generation settings.
+2. `deepchat_subagents` is the only model-facing Subagent execution tool.
+3. No QuickJS, Workflow runtime, saved Workflow, Workflow route/event, or Workflow UI surface ships.
+4. Schema version 64 removes Workflow triggers and tables without regressing released or
+   feature-branch databases.
+5. Explicit policy requires host confirmation for `spawn` and `follow_up`; proactive policy is
+   standing authorization for those operations.
+6. Child tool permissions remain governed by ordinary permission mode and live safety state.
+7. Child answers reach the parent only through the shared untrusted-result boundary and typed
+   result-reference contract.
+8. Pending follow-up messages cannot exceed their UTF-8 repository budget or permanently poison a
+   delegation.
+9. Waiting children do not indefinitely consume process-wide running permits and reacquire before
+   protected work resumes.
+10. Live child work remains durable, restart-reconciled, inspectable, interruptible, and navigable.
+11. The old `subagent_orchestrator` executor is removed while historical transcript rendering stays
+    compatible.
+12. Reasoning controls remain available whenever the selected model supports them, independently
+    of proactive-collaboration availability.
 
 ## Non-Goals
 
+- Executing model-authored arbitrary JavaScript.
+- Deterministic script replay, saved Workflows, or programmatic pipeline persistence.
 - Binding proactive collaboration to maximum reasoning effort.
-- Requiring delegation or a Workflow for every substantive task.
-- Replacing the Workflow JavaScript IR with another persisted graph language.
+- Requiring delegation for every substantive task.
 - Automatically merging parallel code edits or creating Git worktrees.
 - Allowing recursive Subagent trees in V1.
 - Making direct ACP backends participate in DeepChat-owned local orchestration.
-- Treating Tape as the mutable run-state database.
-- Adding human persona names, canonical task paths, or nested Agent routing before recursive
-  Subagents and cross-Agent addressing exist.
-- Running a second model call merely to summarize a completed child answer.
-- Treating an unbounded child answer as an ordinary parent tool result.
+- Treating Tape as the mutable scheduler or promising exactly-once side effects.
+- Adding a batch/fan-out DSL before ordinary multi-call spawning proves insufficient.
+
+## Reconsideration Triggers
+
+Durable declarative automation should be reconsidered only after observed product demand for at
+least one of these capabilities:
+
+- unattended recurring execution outside an active conversation;
+- resumable topology across application restarts;
+- user-owned reusable automation exposed through an API or scheduler;
+- programmatic data flow that cannot be represented by adaptive parent/child turns.
+
+If that demand appears, prefer a bounded typed host-owned graph before reintroducing a
+Turing-complete guest runtime. QuickJS is justified only when arbitrary control flow is itself a
+validated product requirement.

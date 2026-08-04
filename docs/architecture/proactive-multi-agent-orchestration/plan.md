@@ -1,107 +1,96 @@
 # Proactive Multi-Agent Orchestration Implementation Plan
 
-## 1. Correct The Workflow Preparation Boundary
+## 1. Establish The Single-Plane Contract
 
-- Normalize execution snapshots so optional settings are omitted rather than stored as
-  `undefined`.
-- Introduce source compilation before Session binding and approval registration.
-- Add semantic validation for statically visible Workflow helper calls.
-- Generate concise model-facing Workflow signatures and examples from the versioned runtime API
-  contract.
-- Return bounded structured diagnostics and retain runtime validation for dynamic shapes.
+- Replace the dual-executor architecture text with the live-delegation-only contract.
+- Record the verified release fact: versions 57 and 59 never reached a tag, `dev`, or `main`.
+- Define Workflow JavaScript, replay, saved assets, and pipeline persistence as non-goals.
+- Keep `explicit | proactive` as internal policy and reserve `Ultra` for optional presentation.
 
-## 2. Replace Executor Mode With Orchestration Policy
+## 2. Extract Retained Orchestration Contracts
 
-- Replace `SessionOrchestrationMode` with `OrchestrationPolicy` across shared schemas, Session
-  records, drafts, lifecycle, assignment, routes, preload clients, renderer stores, and tests.
-- Add a forward-only database migration that maps `adaptive` to `explicit` and `workflow` to
-  `proactive` and renames the physical column to `orchestration_policy`.
-- Keep the default `explicit` and never infer proactive intent from disabled-tool configuration.
-- Keep generation settings and policy writes independent.
+- Move orchestration policy and capability schemas from `shared/workflow` to
+  `shared/orchestration`.
+- Move the useful untrusted-result safety rule into a Workflow-independent orchestration module.
+- Remove Workflow child metadata and ports while retaining live-delegation metadata.
+- Update Session, runtime, route, preload, renderer, and test imports before deleting the old
+  namespace.
 
-## 3. Route Capabilities By Availability, Not Executor Choice
+## 3. Remove The Durable Workflow Execution Plane
 
-- Remove the mutually exclusive Subagent/Workflow catalog conditions.
-- Expose the live-delegation surface whenever the regular DeepChat parent has a valid Subagent
-  capability.
-- Expose durable Workflow whenever its typed capability is available.
-- Use DeepChat-specific function names and keep legacy native parsing so always-available built-ins
-  do not shadow generic same-name MCP tools.
-- Inject one explicit/proactive policy section that also explains when to select each executor.
-- Make Workflow tool copy policy-neutral and provide the complete authoring contract.
+- Remove `src/main/workflow`, the Workflow utility entry point, Workflow Agent tool, and Workflow
+  composition wiring.
+- Remove shared Workflow domains, routes, events, authoring/runtime contracts, and saved assets.
+- Remove Workflow renderer clients, panels, approval cards, commands, mentions, and stores.
+- Remove Workflow-specific tests and feature SDD documents.
+- Remove `@jitl/quickjs-wasmfile-release-sync`, `quickjs-emscripten-core`, `acorn`, and `ajv`, then
+  regenerate the pnpm lockfile through a clean install.
+- Remove Workflow utility build input, ASAR unpacking, and CI memory changes that are no longer
+  justified after the deleted test load.
 
-## 4. Add Live Delegation Lifecycle Control
+## 4. Preserve Forward Database Compatibility
 
-- Add typed lifecycle operations for spawn, message, follow-up, list, wait, and interrupt.
-- Keep child Sessions as the stable identity and expose bounded child status/result DTOs.
-- Deliver completion into a parent mailbox without forcing a turn.
-- Preserve the existing batch orchestrator as a compatibility adapter while hiding overlapping
-  model-facing definitions.
-- Keep recursion disabled and apply shared-workspace writer safeguards.
+- Remove the unreleased version-57 `orchestration_mode` migration.
+- Make version 59 add `orchestration_policy` directly with the `explicit | proactive` constraint.
+- Keep live-delegation versions 60 through 62 unchanged.
+- Add version 64 as the Workflow decommission migration.
+- At version 64, drop every `trg_workflow_*` trigger, then `workflow_invocations`, then
+  `workflow_runs`.
+- Remove Workflow catalog definitions and table implementations while retaining the version-64
+  migration owner in the orchestration domain.
+- Cover fresh databases from released version 52, intermediate feature fixtures, and already-63
+  feature databases.
 
-## 5. Persist And Reconcile Live Delegation
+## 5. Enforce The Live Delegation Safety Contract
 
-- Add durable live-delegation thread/turn records through the main database migration framework.
-- Persist correlation before child handoff and terminal Tape receipts before declaring replayable
-  completion.
-- Reconcile queued/running records on startup against child Session and Tape evidence.
-- Preserve child Sessions after terminal runs and allow later explicit continuation.
-- Bound retained summaries, mailbox events, active runs, waiters, and history projections.
+- Add one shared untrusted child-result envelope and inject its interpretation rule at the parent
+  system/developer prompt boundary.
+- Enforce orchestration consent in the host: explicit `spawn`/`follow_up` require confirmation;
+  proactive policy is standing authorization; non-generating operations remain confirmation-free.
+- Enforce UTF-8 pending-message capacity at `send` and make legacy overflow recovery convergent.
+- Replace character-only bounds where the repository promises byte limits.
+- Separate per-turn generation snapshots from continuously validated permissions, workspace,
+  deletion, and capability state.
 
-## 6. Extract Shared Child Invocation Capabilities
+## 6. Make Admission State-Aware
 
-- Move common child creation, tracking, cancellation, settings snapshot, usage, effect, and Tape
-  lineage behavior behind narrow ports.
-- Keep live and Workflow orchestration repositories and state machines separate.
-- Route both paths through the existing owner-fair global admission service.
-- Add regression coverage for concurrency, cancellation, crash windows, late events, and permission
-  interactions.
+- Change the global admission lease so host-owned permission/question waiting suspends capacity.
+- Reacquire with cancellation before protected continuation resumes.
+- Make suspend, resume, interruption, shutdown, and terminal settlement idempotent under late
+  events.
+- Keep the parent active-child limit distinct from global running capacity.
+- Add cross-Session starvation, cancellation, restart, and rapid waiting/resume regressions.
 
-## 7. Update Composer And Activity UX
+## 7. Remove The Second Subagent Executor And UI Coupling
 
-- Rename user copy from Workflow mode to proactive multi-Agent collaboration.
-- Keep the reasoning label unchanged and use the branch icon/accent for policy state.
-- Change `/workflow` to open or prepare Workflow functionality without changing policy.
-- Project live delegation into the existing activity surface without conflating legal Workflow
-  actions with child-thread actions.
-- Keep trusted live-delegation spawn cards visible in the parent transcript with semantic task
-  titles, live status, bounded previews, interrupt controls, child navigation, and raw tool
-  disclosure.
-- Share one revision-aware renderer projection between inline cards and the Agent activity panel;
-  seed it from validated tool results and reconcile it through typed list/change contracts.
-- Tighten model-facing task-title guidance while retaining opaque delegation and Session IDs as the
-  only routing identities.
-- Add accessibility and i18n coverage.
+- Delete the unreachable `SubagentOrchestratorTool` runtime and its state-machine tests.
+- Retain only historical `subagent_orchestrator` transcript parsing/rendering needed for released
+  data.
+- Remove stale native call routing, but keep the legacy name reserved as a documented trust
+  tombstone while name-only historical rendering remains.
+- Evict live-delegation renderer projections when their parent Session is removed.
+- Gate reasoning controls by model reasoning capability rather than orchestration availability.
+- Remove the Workflow-dependent composition closure; this also removes its initialization-order
+  hazard.
 
-## 8. Validation And Compatibility
+## 8. Validate The Net Product
 
-- Add migration tests from databases before and after the unreleased Workflow mode schema.
-- Add policy and catalog tests for explicit/proactive sessions, unavailable capabilities, direct
-  ACP, child Sessions, and MCP name collisions.
-- Add Workflow preparation tests for optional generation settings and invalid helper shapes.
-- Add lifecycle, restart, Tape lineage, effect, budget, and result-delivery tests.
-- Run focused tests after each slice, then format, i18n, lint, typecheck, build, and affected main
-  and renderer suites before handoff.
+- Run focused migration, tool-policy, permission, mailbox, admission, deletion, restart, and result
+  handoff tests after each slice.
+- Run complete main and renderer suites, format, i18n, lint, typecheck, and production build.
+- Run a clean `pnpm install --frozen-lockfile` path before final handoff.
+- Check exact retired identifiers and dependencies rather than generic uses of the word
+  `workflow`.
+- Review each commit for side effects, compatibility, boundaries, performance, security, naming,
+  test sufficiency, and maintenance cost before committing.
+- Keep all commits local until the user separately authorizes a push.
 
-## 9. Add Referenced Result Handoff
+## PR Strategy
 
-- Project the final trailing assistant answer through one shared content-only helper; never use the
-  combined response/tool markdown as a child result.
-- Keep the complete answer solely in the persisted child message and frozen child Tape.
-- Persist an additive typed result reference with child message identity, content hash, byte/token
-  size, handoff source, and explicit truncation state.
-- Replace the ambiguous summary constant with separate semantic handoff, protocol byte, UI preview,
-  and result-page budgets.
-- Add a parent-owned `read_result` operation with an opaque hash-bound cursor and bounded pages;
-  keep `follow_up` reserved for new child work.
-- Preserve legacy rows without fabricating immutable message references and keep current UI cards
-  readable through the existing preview projection.
-- Cover long process output followed by a short final answer, oversized multilingual answers,
-  paging, forged cursors, restart reconciliation, and forward migration.
+Continue using PR #2082 and remove the obsolete subsystem from the current HEAD by final ownership,
+not by reverting historical commits. GitHub's files view will show the live-only net diff, and the
+normal squash merge keeps deleted implementation history out of `dev`.
 
-## Commit Discipline
-
-Each commit is preceded by a review ordered by severity covering hidden side effects,
-compatibility, boundary conditions, performance, security, naming, test sufficiency, and future
-maintenance cost. Material findings are fixed before committing. Commit subjects describe the
-behavioral change and never describe the commit as a review fix. The branch is not pushed.
+Before merge, retitle and rewrite the PR around proactive multi-Agent orchestration. If the PR will
+not be squash-merged, create a clean live-only branch from `dev` instead of preserving the temporary
+QuickJS commit history.

@@ -344,3 +344,28 @@ Referenced-result validation evidence:
   changed live-delegation migrations and catalog metadata checks;
 - the production build retained only existing Rollup chunk/import warnings; provider refresh
   stopped at its 5 MB guard, and the normal ACP registry refresh was retained.
+
+## Durable Workflow Decommission
+
+- [x] Verify versions 57 and 59 were never included in a tag, `dev`, or `main`.
+- [x] Replace the dual-executor specification with a single live-delegation execution plane.
+- [x] Define the version-64 forward decommission and protected live-delegation assets.
+- [ ] Move retained policy and result-safety contracts out of `shared/workflow`.
+- [ ] Remove the QuickJS Workflow runtime, tool, host, routes, UI, tests, and four dependencies.
+- [ ] Simplify the unreleased policy migration and add the version-64 cleanup migration.
+- [ ] Enforce policy-aware consent and untrusted child-result handling.
+- [ ] Bound pending follow-up messages and make overflow recovery convergent.
+- [ ] Make global admission state-aware for waiting children.
+- [ ] Separate per-turn generation snapshots from continuously validated safety state.
+- [ ] Remove the dead batch orchestrator while retaining historical transcript rendering.
+- [ ] Evict stale renderer projections and decouple reasoning capability from orchestration UI.
+- [ ] Complete full validation and the final severity-ordered review.
+
+Decommission facts established before implementation:
+
+- commit `f9ff9056d8b3988a0ea73e7b2e67c4b1dd8f6d09` introduced both version 57 and
+  version 59 and is contained only by `feat/workflow-runtime` and its remote-tracking branch;
+- no Git tag contains that commit, and it is not an ancestor of `origin/dev` or `origin/main`;
+- `acorn` and `ajv` have no source consumers outside the Workflow runtime;
+- current feature databases can already record schema version 63, so deletion must advance to 64
+  rather than lowering the application's latest version.
