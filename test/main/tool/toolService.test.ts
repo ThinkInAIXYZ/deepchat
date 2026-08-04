@@ -16,6 +16,7 @@ import {
 } from '@shared/agentTools'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
+import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 
 vi.mock('electron', () => ({
   app: {
@@ -692,6 +693,7 @@ describe('ToolService', () => {
     let orchestrationPolicy: 'explicit' | 'proactive' = 'explicit'
     const spawn = vi.fn().mockResolvedValue({ delegation: { id: 'delegation-1' }, turns: [] })
     const permissionBroker = new ToolPermissionBroker()
+    const liveDelegationConsent = new LiveDelegationConsentAuthority()
     const toolService = new ToolService({
       mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
       skillSettings: { isEnabled: () => false } as any,
@@ -700,6 +702,7 @@ describe('ToolService', () => {
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       permissionBroker,
+      liveDelegationConsent,
       agentTools: buildAgentToolRuntimeMock({
         resolveConversationSessionInfo: vi.fn(async () => ({ orchestrationPolicy })),
         liveDelegation: {
@@ -767,6 +770,14 @@ describe('ToolService', () => {
     expect(permissionBroker.approve(preChecked!.requestId!, 'conv-1')).toBe(true)
     const approved = await toolService.callTool(request, { permissionMode: 'full_access' })
     expect(spawn).toHaveBeenCalledTimes(1)
+    const receipt = spawn.mock.calls[0]?.[2]
+    expect(receipt).toBeDefined()
+    expect(
+      liveDelegationConsent.isValid(receipt, {
+        parentSessionId: 'conv-1',
+        operation: 'spawn'
+      })
+    ).toBe(true)
     expect(parseChildAgentResultEnvelope(JSON.parse(String(approved.content)))).toMatchObject({
       kind: 'child_agent_result',
       trust: 'untrusted',
@@ -780,7 +791,78 @@ describe('ToolService', () => {
     orchestrationPolicy = 'proactive'
     await toolService.callTool(request, { permissionMode: 'default' })
     expect(spawn).toHaveBeenCalledTimes(2)
+    expect(spawn.mock.calls[1]?.[2]).toBeUndefined()
     permissionBroker.clear()
+  })
+
+  it('revalidates Subagent built-in and MCP authority at execution time', async () => {
+    const mcpDefinition = buildToolDefinition('remote_write', 'remote-server')
+    const mcpService = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([mcpDefinition]),
+      callTool: vi.fn()
+    }
+    const parent = {
+      sessionId: 'parent-1',
+      sessionKind: 'regular',
+      parentSessionId: null,
+      agentId: 'parent-agent',
+      disabledAgentTools: ['read']
+    }
+    const child = {
+      sessionId: 'child-1',
+      sessionKind: 'subagent',
+      parentSessionId: 'parent-1',
+      agentId: 'reviewer',
+      disabledAgentTools: []
+    }
+    const toolService = new ToolService({
+      mcpService: mcpService as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: {
+        resolveDeepChatAgentConfig: vi.fn(async (agentId: string) => ({
+          enabledMcpServerIds: agentId === 'parent-agent' ? [] : [mcpDefinition.server.id!]
+        }))
+      } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock({
+        resolveConversationSessionInfo: vi.fn(async (sessionId: string) =>
+          sessionId === 'child-1' ? child : sessionId === 'parent-1' ? parent : null
+        )
+      })
+    })
+
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'child-1',
+      agentWorkspacePath: '/repo',
+      enabledMcpServerIds: [mcpDefinition.server.id!]
+    })
+
+    await expect(
+      toolService.callTool(
+        {
+          id: 'read-1',
+          type: 'function',
+          function: { name: 'read', arguments: JSON.stringify({ path: '/repo/file.ts' }) },
+          conversationId: 'child-1'
+        },
+        { permissionMode: 'full_access' }
+      )
+    ).rejects.toThrow("Tool 'read' is disabled by the current Subagent authority")
+    await expect(
+      toolService.callTool(
+        {
+          id: 'mcp-1',
+          type: 'function',
+          function: { name: 'remote_write', arguments: '{}' },
+          conversationId: 'child-1'
+        },
+        { permissionMode: 'full_access', enabledMcpServerIds: [mcpDefinition.server.id!] }
+      )
+    ).rejects.toThrow("MCP tool 'remote_write' is disabled by the current Subagent authority")
+    expect(mcpService.callTool).not.toHaveBeenCalled()
   })
 
   it('keeps the recall pair in the runtime catalog despite stale disabled values', async () => {

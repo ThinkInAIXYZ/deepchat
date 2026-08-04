@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LiveDelegationAgentTool } from '@/tool/agentTools/liveDelegationTool'
 import type { AgentLiveDelegationToolPort } from '@/tool/runtimePorts'
 import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
+import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 
 describe('LiveDelegationAgentTool', () => {
   let port: AgentLiveDelegationToolPort
@@ -99,11 +100,41 @@ describe('LiveDelegationAgentTool', () => {
       },
       'parent-1'
     )
-    expect(port.spawn).toHaveBeenCalledWith('parent-1', {
-      slotId: 'reviewer',
-      title: 'Review',
-      prompt: 'Inspect the boundary.'
+    expect(port.spawn).toHaveBeenCalledWith(
+      'parent-1',
+      {
+        slotId: 'reviewer',
+        title: 'Review',
+        prompt: 'Inspect the boundary.'
+      },
+      undefined
+    )
+  })
+
+  it('forwards an execution-bound start authorization only to model-starting operations', async () => {
+    const consent = new LiveDelegationConsentAuthority()
+    const authorization = consent.issue({
+      parentSessionId: 'parent-1',
+      operation: 'spawn',
+      executionId: 'tool-call-1'
     })
+
+    await tool.call(
+      {
+        operation: 'spawn',
+        slotId: 'reviewer',
+        title: 'Review authority',
+        prompt: 'Inspect the boundary.'
+      },
+      'parent-1',
+      { liveDelegationAuthorization: authorization }
+    )
+
+    expect(port.spawn).toHaveBeenCalledWith(
+      'parent-1',
+      expect.objectContaining({ title: 'Review authority' }),
+      authorization
+    )
   })
 
   it('keeps send non-triggering and returns a structured tool result', async () => {

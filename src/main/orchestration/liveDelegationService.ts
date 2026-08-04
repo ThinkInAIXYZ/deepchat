@@ -5,6 +5,7 @@ import { approximateTokenSize } from 'tokenx'
 import { z } from 'zod'
 import {
   LIVE_DELEGATION_HANDOFF_TOKEN_BUDGET,
+  LIVE_DELEGATION_MAX_WAITS_PER_PARENT,
   LIVE_DELEGATION_MAX_HANDOFF_BYTES,
   LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH,
   LIVE_DELEGATION_RESULT_PAGE_DEFAULT_TOKENS,
@@ -47,8 +48,12 @@ import type {
   LiveDelegationSafetyPort,
   LiveDelegationTurnExecutionSnapshot
 } from './liveDelegationSafety'
+import { normalizeOrchestrationPolicy } from '@shared/orchestration/policy'
+import type {
+  LiveDelegationConsentReceipt,
+  LiveDelegationConsentVerifier
+} from './liveDelegationConsent'
 
-const MAX_ACTIVE_DELEGATIONS_PER_PARENT = 5
 const MAX_WAITERS = 32
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000
 const MAX_WAIT_TIMEOUT_MS = 60_000
@@ -111,6 +116,7 @@ export interface LiveDelegationServiceOptions {
   admission: AgentInvocationAdmissionPort
   deletionGate: Pick<SessionDeletionGatePort, 'runWithSessionOperation'>
   safety: LiveDelegationSafetyPort
+  consent: LiveDelegationConsentVerifier
   onChanged?: (parentSessionId: string, delegationId: string) => void
 }
 
@@ -221,28 +227,23 @@ export class LiveDelegationService {
 
   async spawn(
     parentSessionId: string,
-    input: SpawnLiveDelegationInput
+    input: SpawnLiveDelegationInput,
+    authorization?: LiveDelegationConsentReceipt
   ): Promise<LiveDelegationDetail> {
     return await this.options.deletionGate.runWithSessionOperation(
       parentSessionId,
-      async () => await this.spawnUnderDeletionGate(parentSessionId, input)
+      async () => await this.spawnUnderDeletionGate(parentSessionId, input, authorization)
     )
   }
 
   private async spawnUnderDeletionGate(
     parentSessionId: string,
-    input: SpawnLiveDelegationInput
+    input: SpawnLiveDelegationInput,
+    authorization?: LiveDelegationConsentReceipt
   ): Promise<LiveDelegationDetail> {
     this.assertStarted()
     const parent = await this.requireCapableParent(parentSessionId)
-    if (
-      this.options.repository.countActiveByParent(parent.sessionId) >=
-      MAX_ACTIVE_DELEGATIONS_PER_PARENT
-    ) {
-      throw new Error(
-        `A parent session can have at most ${MAX_ACTIVE_DELEGATIONS_PER_PARENT} active live delegations.`
-      )
-    }
+    this.assertStartAuthorized(parent, 'spawn', authorization, true)
     const slot = parent.subagentCapability.slots.find((candidate) => candidate.id === input.slotId)
     if (!slot) throw new Error(`Subagent slot not found or not enabled: ${input.slotId}`)
     const targetAgentId =
@@ -276,21 +277,25 @@ export class LiveDelegationService {
   async followUp(
     parentSessionId: string,
     delegationId: string,
-    task: string
+    task: string,
+    authorization?: LiveDelegationConsentReceipt
   ): Promise<LiveDelegationDetail> {
     return await this.options.deletionGate.runWithSessionOperation(
       parentSessionId,
-      async () => await this.followUpUnderParentGate(parentSessionId, delegationId, task)
+      async () =>
+        await this.followUpUnderParentGate(parentSessionId, delegationId, task, authorization)
     )
   }
 
   private async followUpUnderParentGate(
     parentSessionId: string,
     delegationId: string,
-    task: string
+    task: string,
+    authorization?: LiveDelegationConsentReceipt
   ): Promise<LiveDelegationDetail> {
     this.assertStarted()
     const parent = await this.requireCapableParent(parentSessionId)
+    this.assertStartAuthorized(parent, 'follow_up', authorization, false)
     const delegation = this.options.repository.requireOwned(parent.sessionId, delegationId)
     const discoveredChild = delegation.childSessionId
       ? await this.options.sessions.resolveConversationSessionInfo(delegation.childSessionId)
@@ -318,8 +323,10 @@ export class LiveDelegationService {
             `Cannot continue delegation ${delegation.id} while child session is ${child.status}.`
           )
         }
+        const currentParent = await this.requireCapableParent(parent.sessionId)
+        this.assertStartAuthorized(currentParent, 'follow_up', authorization, true)
         const created = this.options.repository.createFollowUp(
-          parent.sessionId,
+          currentParent.sessionId,
           delegation.id,
           nanoid(),
           task
@@ -328,6 +335,26 @@ export class LiveDelegationService {
         this.scheduleTurn(created.delegation, created.turn, createTurnExecutionSnapshot(child))
         return this.inspect(parent.sessionId, delegationId)
       }
+    )
+  }
+
+  private assertStartAuthorized(
+    parent: CapableParent,
+    operation: 'spawn' | 'follow_up',
+    authorization: LiveDelegationConsentReceipt | undefined,
+    consume: boolean
+  ): void {
+    const expectation = { parentSessionId: parent.sessionId, operation }
+    if (authorization) {
+      const valid = consume
+        ? this.options.consent.consume(authorization, expectation)
+        : this.options.consent.isValid(authorization, expectation)
+      if (valid) return
+      throw new Error(`Live delegation authorization is invalid for ${operation}.`)
+    }
+    if (normalizeOrchestrationPolicy(parent.orchestrationPolicy) === 'proactive') return
+    throw new Error(
+      `Explicit collaboration requires current user confirmation before ${operation}.`
     )
   }
 
@@ -560,15 +587,21 @@ export class LiveDelegationService {
     const existing = readEvents()
     if (existing.length > 0) return createWaitResult(existing, after, false)
 
-    if (this.waiters.size >= MAX_WAITERS) {
-      throw new Error('Too many live delegation waits are active.')
-    }
     const timeoutMs = Math.min(
       Math.max(0, Math.floor(options?.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS)),
       MAX_WAIT_TIMEOUT_MS
     )
     if (timeoutMs === 0) return createWaitResult([], after, true)
     options?.signal?.throwIfAborted()
+    if (this.waiters.size >= MAX_WAITERS) {
+      throw new Error('Too many live delegation waits are active.')
+    }
+    const parentWaiters = [...this.waiters].filter(
+      (waiter) => waiter.parentSessionId === parentSessionId
+    ).length
+    if (parentWaiters >= LIVE_DELEGATION_MAX_WAITS_PER_PARENT) {
+      throw new Error('Too many live delegation waits are active for this session.')
+    }
 
     let timedOut = false
     await new Promise<void>((resolve, reject) => {

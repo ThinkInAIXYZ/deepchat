@@ -209,7 +209,7 @@ describe('SessionAssignmentPolicy', () => {
         modelId: 'gpt-4',
         permissionMode: 'full_access',
         generationSettings: { systemPrompt: 'parent prompt', temperature: 0.4 },
-        disabledAgentTools: [],
+        disabledAgentTools: ['read'],
         activeSkills: ['skill-a', 'skill-b', 'skill-c']
       })
     ).resolves.toEqual({
@@ -222,7 +222,7 @@ describe('SessionAssignmentPolicy', () => {
         systemPrompt: 'Reviewer prompt',
         temperature: 0.4
       },
-      disabledAgentTools: ['exec', 'write'],
+      disabledAgentTools: ['exec', 'read', 'write'],
       activeSkills: ['skill-a', 'skill-b', 'skill-c']
     })
   })

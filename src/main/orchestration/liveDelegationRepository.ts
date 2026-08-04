@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { SubagentTapeLinkReceipt } from '@shared/types/agent-interface'
 import {
   LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES,
+  LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT,
   LIVE_DELEGATION_MAX_HANDOFF_BYTES,
   LIVE_DELEGATION_MAX_MESSAGE_BYTES,
   LIVE_DELEGATION_MAX_PENDING_MESSAGE_BYTES,
@@ -86,6 +87,7 @@ export class LiveDelegationRepository {
     const db = this.database.getDatabase()
 
     db.transaction(() => {
+      this.assertParentHasActiveCapacity(parentSessionId)
       db.prepare(
         `INSERT INTO live_delegations (
            delegation_id, parent_session_id, child_session_id, slot_id, target_agent_id, title,
@@ -215,15 +217,7 @@ export class LiveDelegationRepository {
   }
 
   countActiveByParent(parentSessionId: string): number {
-    const row = this.database
-      .getDatabase()
-      .prepare(
-        `SELECT COUNT(*) AS count FROM live_delegations
-         WHERE parent_session_id = ?
-           AND status IN ('queued', 'running', 'waiting_permission', 'waiting_question')`
-      )
-      .get(StoredIdSchema.parse(parentSessionId)) as { count: number }
-    return row.count
+    return this.readActiveCount(StoredIdSchema.parse(parentSessionId))
   }
 
   bindChild(id: string, childSessionId: string, now = Date.now()): LiveDelegation {
@@ -318,6 +312,7 @@ export class LiveDelegationRepository {
       if (active) {
         throw new Error(`Live delegation ${delegation.id} already has an active turn.`)
       }
+      this.assertParentHasActiveCapacity(delegation.parentSessionId)
 
       const messageRows = db
         .prepare(
@@ -597,6 +592,29 @@ export class LiveDelegationRepository {
     return { delegation: this.require(turn.delegationId), turn: this.requireTurn(turn.id) }
   }
 
+  private assertParentHasActiveCapacity(parentSessionId: string): void {
+    if (
+      this.readActiveCount(StoredIdSchema.parse(parentSessionId)) >=
+      LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT
+    ) {
+      throw new Error(
+        `A parent session can have at most ${LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT} active live delegations.`
+      )
+    }
+  }
+
+  private readActiveCount(parentSessionId: string): number {
+    const row = this.database
+      .getDatabase()
+      .prepare(
+        `SELECT COUNT(*) AS count FROM live_delegations
+         WHERE parent_session_id = ?
+           AND status IN ('queued', 'running', 'waiting_permission', 'waiting_question')`
+      )
+      .get(parentSessionId) as { count: number }
+    return row.count
+  }
+
   private insertEventRow(input: {
     delegationId: string
     parentSessionId: string
@@ -733,10 +751,9 @@ function buildBoundedFollowUpPrompt(task: string, storedMessages: string[]): str
     if (Buffer.byteLength(prompt, 'utf8') <= LIVE_DELEGATION_MAX_PROMPT_BYTES) return prompt
   }
 
-  // The task was already validated independently. If it consumes the complete prompt budget,
-  // consume legacy mailbox rows and prefer the explicit follow-up instead of creating a poison row
-  // that fails every retry.
-  return task
+  throw new Error(
+    'Follow-up task leaves no room for queued messages or their recovery notice. Shorten the task and retry.'
+  )
 }
 
 function buildFollowUpPrompt(task: string, messages: string[], recovered: boolean): string {

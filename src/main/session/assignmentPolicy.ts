@@ -18,6 +18,7 @@ import {
   normalizeActiveSkills,
   normalizeDisabledAgentTools
 } from '@/agent/shared/agentSessionNormalization'
+import { mergeSubagentToolRestrictions } from './subagentAuthority'
 
 const resolveAssignmentPermissionMode = (mode?: PermissionMode | null): PermissionMode =>
   mode ?? 'full_access'
@@ -167,7 +168,10 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
         agentConfig?.permissionMode
       ),
       generationSettings,
-      disabledAgentTools: normalizeDisabledAgentTools(agentConfig?.disabledAgentTools),
+      disabledAgentTools: mergeSubagentToolRestrictions(
+        normalizeDisabledAgentTools(input.disabledAgentTools),
+        normalizeDisabledAgentTools(agentConfig?.disabledAgentTools)
+      ),
       activeSkills: normalizeActiveSkills(input.activeSkills)
     }
   }

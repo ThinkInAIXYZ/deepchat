@@ -47,7 +47,13 @@
   system/developer prompt boundary.
 - Enforce orchestration consent in the host: explicit `spawn`/`follow_up` require confirmation;
   proactive policy is standing authorization; non-generating operations remain confirmation-free.
+- Carry an execution-bound explicit-user receipt from the permission broker to the service and
+  revalidate the current policy at the mutation boundary.
+- Compose cross-Agent authority once for both catalog and execution dispatch: union disabled tools,
+  intersect MCP allowlists, and fail closed when child lineage policy cannot be resolved.
 - Enforce UTF-8 pending-message capacity at `send` and make legacy overflow recovery convergent.
+- Reject an over-budget follow-up transaction without consuming pending messages when neither the
+  messages nor a recovery notice can fit beside the complete task.
 - Replace character-only bounds where the repository promises byte limits.
 - Separate per-turn generation snapshots from continuously validated permissions, workspace,
   deletion, and capability state.
@@ -58,7 +64,9 @@
 - Reacquire with cancellation before protected continuation resumes.
 - Make suspend, resume, interruption, shutdown, and terminal settlement idempotent under late
   events.
-- Keep the parent active-child limit distinct from global running capacity.
+- Keep the parent active-child limit distinct from global running capacity and enforce it inside
+  the repository transaction for both `spawn` and `follow_up`.
+- Add a per-parent mailbox-wait ceiling beneath the process-wide safety ceiling.
 - Add cross-Session starvation, cancellation, restart, and rapid waiting/resume regressions.
 
 ## 7. Remove The Second Subagent Executor And UI Coupling

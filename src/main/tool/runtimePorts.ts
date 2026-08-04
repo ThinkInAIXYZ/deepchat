@@ -39,6 +39,7 @@ import type {
 } from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { z } from 'zod'
+import type { LiveDelegationConsentReceipt } from '@/orchestration/liveDelegationConsent'
 
 export type AgentToolCronJobUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
 
@@ -140,16 +141,20 @@ export interface AgentSubagentToolPort {
   subscribeSessionRuntimeUpdates(listener: (update: SessionRuntimeUpdate) => void): () => void
 }
 
+export type LiveDelegationStartAuthorization = LiveDelegationConsentReceipt
+
 export interface AgentLiveDelegationToolPort {
   spawn(
     parentSessionId: string,
-    input: { slotId: string; title: string; prompt: string }
+    input: { slotId: string; title: string; prompt: string },
+    authorization?: LiveDelegationStartAuthorization
   ): Promise<LiveDelegationDetail>
   send(parentSessionId: string, delegationId: string, message: string): LiveDelegationDetail
   followUp(
     parentSessionId: string,
     delegationId: string,
-    task: string
+    task: string,
+    authorization?: LiveDelegationStartAuthorization
   ): Promise<LiveDelegationDetail>
   list(parentSessionId: string, limit?: number): LiveDelegationSummary[]
   inspect(parentSessionId: string, delegationId: string): LiveDelegationDetail

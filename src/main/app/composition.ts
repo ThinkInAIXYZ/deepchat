@@ -161,6 +161,7 @@ import { LiveDelegationDatabase } from '@/orchestration/data/database'
 import { LiveDelegationRepository } from '@/orchestration/liveDelegationRepository'
 import { LiveDelegationService } from '@/orchestration/liveDelegationService'
 import { LiveDelegationSafetyCoordinator } from '@/orchestration/liveDelegationSafety'
+import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -619,6 +620,7 @@ export async function createMainProcessControl(dependencies: {
   filePermissionService = new FilePermissionService()
   settingsPermissionService = new SettingsPermissionService()
   toolPermissionBroker = new ToolPermissionBroker()
+  const liveDelegationConsent = new LiveDelegationConsentAuthority()
   deviceService = new DeviceService()
   const loggingService = new LoggingService(
     dependencies.settingsStore,
@@ -1014,6 +1016,7 @@ export async function createMainProcessControl(dependencies: {
     desktopSettings,
     commandPermissionHandler,
     permissionBroker: toolPermissionBroker,
+    liveDelegationConsent,
     agentTools: agentToolDependencies,
     effectObserver: {
       beforeToolAuthorization: async (observation, signal) => {
@@ -1470,6 +1473,7 @@ export async function createMainProcessControl(dependencies: {
       admission: agentInvocationAdmission,
       deletionGate: sessionDeletionGate,
       safety: liveDelegationSafety,
+      consent: liveDelegationConsent,
       sessions: {
         ...agentToolDependencies.sessions,
         ...agentToolDependencies.subagents,

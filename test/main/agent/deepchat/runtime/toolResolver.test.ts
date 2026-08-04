@@ -52,7 +52,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
           getDisabledAgentTools: vi.fn(() => [])
         }
       },
-      toolService: { getAllToolDefinitions },
+      toolService: { getAllToolDefinitions, syncAgentToolContext: vi.fn() },
       registry: createScopeRegistry(resourceInstance),
       identity: {
         getAgentId: vi.fn(() => 'deepchat'),
@@ -207,7 +207,16 @@ describe('DeepChatToolResolver Subagent capability', () => {
       skillService: { getActiveSkills: vi.fn(), setActiveSkills: vi.fn() },
       sqlitePresenter: {
         newSessionsTable: {
-          get: vi.fn(() => ({ session_kind: 'subagent', subagent_enabled: 1 })),
+          get: vi.fn((sessionId: string) =>
+            sessionId === 'child-1'
+              ? {
+                  agent_id: 'deepchat',
+                  session_kind: 'subagent',
+                  parent_session_id: 'parent-1',
+                  subagent_enabled: 1
+                }
+              : { agent_id: 'deepchat', session_kind: 'regular' }
+          ),
           getDisabledAgentTools: vi.fn(() => [])
         }
       },
@@ -234,6 +243,74 @@ describe('DeepChatToolResolver Subagent capability', () => {
         })
       })
     )
+  })
+
+  it('intersects parent and target tool authority for Subagent catalog and dispatch', async () => {
+    const getAllToolDefinitions = vi.fn().mockResolvedValue([])
+    const resourceInstance = createResourceInstance('reviewer')
+    const resolveDeepChatAgentConfig = vi.fn(async (agentId: string) =>
+      agentId === 'parent-agent'
+        ? {
+            disabledAgentTools: ['read'],
+            enabledMcpServerIds: ['mcp-a', 'mcp-b']
+          }
+        : {
+            disabledAgentTools: ['edit'],
+            enabledMcpServerIds: ['mcp-b', 'mcp-c']
+          }
+    )
+    const resolver = new DeepChatToolResolver({
+      agentSettings: {
+        getAgentType: vi.fn(async () => 'deepchat'),
+        resolveDeepChatAgentConfig
+      },
+      skillSettings: { isEnabled: vi.fn(() => false) },
+      skillService: { getActiveSkills: vi.fn(), validateSkillNames: vi.fn() },
+      sqlitePresenter: {
+        newSessionsTable: {
+          get: vi.fn((sessionId: string) =>
+            sessionId === 'child-1'
+              ? {
+                  agent_id: 'reviewer',
+                  session_kind: 'subagent',
+                  parent_session_id: 'parent-1'
+                }
+              : { agent_id: 'parent-agent', session_kind: 'regular' }
+          ),
+          getDisabledAgentTools: vi.fn((sessionId: string) =>
+            sessionId === 'child-1' ? ['write'] : ['exec']
+          )
+        }
+      },
+      toolService: {
+        getAllToolDefinitions,
+        syncAgentToolContext: vi.fn()
+      },
+      registry: createScopeRegistry(resourceInstance),
+      identity: {
+        getAgentId: vi.fn((sessionId: string) =>
+          sessionId === 'child-1' ? 'reviewer' : 'parent-agent'
+        ),
+        isAcpBackedSubagentSession: vi.fn(() => false)
+      }
+    } as any)
+
+    await resolver.loadToolDefinitionsForSession(
+      'child-1',
+      '/repo',
+      undefined,
+      resourceInstance as any
+    )
+
+    expect(getAllToolDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        disabledAgentTools: ['edit', 'exec', 'read', 'write'],
+        enabledMcpServerIds: ['mcp-b']
+      })
+    )
+    await expect(
+      resolver.resolveAgentExtensionPolicy('child-1', resourceInstance as any)
+    ).resolves.toEqual({ enabledMcpServerIds: ['mcp-b'] })
   })
 
   it('does not expose Subagents to regular non-DeepChat compatibility sessions', async () => {

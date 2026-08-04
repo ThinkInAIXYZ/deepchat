@@ -36,7 +36,11 @@ import {
   CRON_JOB_TOOL_SERVER_NAME,
   type AgentToolCallResult
 } from './agentTools'
-import type { AgentDisplaySettingsPort, AgentToolDependencies } from './runtimePorts'
+import type {
+  AgentDisplaySettingsPort,
+  AgentToolDependencies,
+  LiveDelegationStartAuthorization
+} from './runtimePorts'
 import {
   createAgentToolErrorResult,
   createAgentToolSuccessResult
@@ -50,6 +54,11 @@ import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { ToolEffectObserver } from './effectObserver'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
+import {
+  intersectSubagentMcpAllowLists,
+  mergeSubagentToolRestrictions
+} from '@/session/subagentAuthority'
+import type { LiveDelegationConsentIssuer } from '@/orchestration/liveDelegationConsent'
 
 type McpToolPort = Pick<McpServicePort, 'getAllToolDefinitions' | 'callTool'>
 
@@ -62,6 +71,7 @@ interface ToolServiceOptions {
   desktopSettings: AgentDisplaySettingsPort
   commandPermissionHandler: CommandPermissionService
   permissionBroker?: ToolPermissionBroker
+  liveDelegationConsent?: LiveDelegationConsentIssuer
   agentTools: AgentToolDependencies
   effectObserver?: ToolEffectObserver
 }
@@ -110,6 +120,11 @@ type StoredMcpAccessContext = {
   enabledMcpServerIds?: string[]
 }
 
+type SubagentExecutionToolPolicy = {
+  disabledAgentTools: string[]
+  enabledMcpServerIds: string[] | undefined
+}
+
 /**
  * Owns the merged Tool catalog and routes calls to MCP or built-in handlers.
  */
@@ -125,6 +140,7 @@ export class ToolService implements ToolServicePort {
   private readonly options: ToolServiceOptions
   private readonly permissionBroker: ToolPermissionBroker
   private readonly conversationMcpDefinitions = new Map<string, Map<string, MCPToolDefinition>>()
+  private readonly knownRegularSessions = new Set<string>()
   private globalMcpDefinitions = new Map<string, MCPToolDefinition>()
   private agentToolManager: AgentToolManager | null = null
   private globalReviewedExecutions = new Map<string, ToolExecutionContract>()
@@ -280,6 +296,7 @@ export class ToolService implements ToolServicePort {
     this.conversationReviewedExecutions.delete(normalizedConversationId)
     this.conversationMcpAccessContexts.delete(normalizedConversationId)
     this.conversationMcpDefinitions.delete(normalizedConversationId)
+    this.knownRegularSessions.delete(normalizedConversationId)
     this.permissionBroker.cancelConversation(normalizedConversationId)
     this.clearAgentPlanState(normalizedConversationId)
   }
@@ -316,6 +333,7 @@ export class ToolService implements ToolServicePort {
         throw new Error(`Agent tool manager not initialized for tool ${toolName}`)
       }
       const args = this.parseAgentToolArguments(request.function.arguments)
+      let liveDelegationAuthorization: LiveDelegationStartAuthorization | undefined
       if (toolName === LIVE_DELEGATION_AGENT_TOOL_NAME) {
         const preChecked = await awaitWithAbort(
           this.agentToolManager.preCheckToolPermission(toolName, args, request.conversationId, {
@@ -337,10 +355,33 @@ export class ToolService implements ToolServicePort {
           if (!authorization.allowed) {
             return this.createPermissionRequiredResponse(request.id, authorization.request)
           }
+          const operation = resolveLiveDelegationStartOperation(args.operation)
+          const parentSessionId = request.conversationId?.trim()
+          if (operation && parentSessionId) {
+            if (!this.options.liveDelegationConsent) {
+              throw new Error('Live delegation consent authority is unavailable.')
+            }
+            liveDelegationAuthorization = this.options.liveDelegationConsent.issue({
+              parentSessionId,
+              operation,
+              executionId: request.id
+            })
+          }
         }
       }
 
       await this.observeToolExecution(request, source, permissionMode, options?.signal)
+      const subagentPolicy = await this.resolveSubagentExecutionToolPolicy(
+        request.conversationId,
+        options?.signal
+      )
+      if (
+        subagentPolicy &&
+        isUserConfigurableAgentTool(toolName) &&
+        subagentPolicy.disabledAgentTools.includes(toolName)
+      ) {
+        throw new Error(`Tool '${toolName}' is disabled by the current Subagent authority.`)
+      }
       // Route to Agent tool manager
       const response = await this.agentToolManager.callTool(
         toolName,
@@ -352,7 +393,8 @@ export class ToolService implements ToolServicePort {
           onProgress: options?.onProgress,
           signal: options?.signal,
           allowExternalFileAccess: allowsExternalFileAccess(permissionMode),
-          activeSkillNames: options?.activeSkillNames
+          activeSkillNames: options?.activeSkillNames,
+          liveDelegationAuthorization
         }
       )
       const resolvedResponse = this.resolveAgentToolResponse(response)
@@ -400,9 +442,25 @@ export class ToolService implements ToolServicePort {
     }
 
     await this.observeToolExecution(request, source, permissionMode, options?.signal)
+    const subagentPolicy = await this.resolveSubagentExecutionToolPolicy(
+      request.conversationId,
+      options?.signal
+    )
+    const enabledServerIds = subagentPolicy
+      ? intersectSubagentMcpAllowLists(
+          subagentPolicy.enabledMcpServerIds,
+          options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds
+        )
+      : (options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds)
+    if (subagentPolicy && enabledServerIds !== undefined) {
+      const serverId = definition?.server.id?.trim()
+      if (!serverId || !enabledServerIds.includes(serverId)) {
+        throw new Error(`MCP tool '${toolName}' is disabled by the current Subagent authority.`)
+      }
+    }
     return await this.options.mcpService.callTool(request, {
       agentId: options?.agentId ?? storedAccess?.agentId,
-      enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds,
+      enabledServerIds,
       runId: options?.runId,
       signal: options?.signal,
       expectedTarget
@@ -583,6 +641,67 @@ export class ToolService implements ToolServicePort {
       },
       signal
     )
+  }
+
+  private async resolveSubagentExecutionToolPolicy(
+    conversationId: string | undefined,
+    signal?: AbortSignal
+  ): Promise<SubagentExecutionToolPolicy | null> {
+    const childSessionId = conversationId?.trim()
+    if (!childSessionId) return null
+    if (this.knownRegularSessions.has(childSessionId)) return null
+    const child = await awaitWithAbort(
+      this.options.agentTools.sessions.resolveConversationSessionInfo(childSessionId),
+      signal
+    )
+    if (!child) return null
+    if (child.sessionKind !== 'subagent') {
+      this.knownRegularSessions.add(childSessionId)
+      return null
+    }
+
+    const parentSessionId = child.parentSessionId?.trim()
+    if (!parentSessionId) {
+      throw new Error(`Subagent Session ${childSessionId} has no parent authority.`)
+    }
+    const parent = await awaitWithAbort(
+      this.options.agentTools.sessions.resolveConversationSessionInfo(parentSessionId),
+      signal
+    )
+    if (!parent || parent.sessionKind !== 'regular') {
+      throw new Error(`Subagent Session ${childSessionId} parent authority is unavailable.`)
+    }
+
+    let configs
+    try {
+      configs = await awaitWithAbort(
+        Promise.all([
+          this.options.agentSettings.resolveDeepChatAgentConfig(parent.agentId),
+          this.options.agentSettings.resolveDeepChatAgentConfig(child.agentId)
+        ]),
+        signal
+      )
+    } catch (error) {
+      console.warn(
+        `[Tool] Failed to resolve execution authority for subagent ${childSessionId}:`,
+        error
+      )
+      throw new Error(`Subagent Session ${childSessionId} tool authority is unavailable.`)
+    }
+    const [parentConfig, childConfig] = configs
+
+    return {
+      disabledAgentTools: mergeSubagentToolRestrictions(
+        parent.disabledAgentTools,
+        child.disabledAgentTools,
+        parentConfig.disabledAgentTools ?? [],
+        childConfig.disabledAgentTools ?? []
+      ),
+      enabledMcpServerIds: intersectSubagentMcpAllowLists(
+        parentConfig.enabledMcpServerIds,
+        childConfig.enabledMcpServerIds
+      )
+    }
   }
 
   private rememberConversationMcpAccessContext(
@@ -1079,4 +1198,8 @@ export class ToolService implements ToolServicePort {
 
     return lines.join('\n')
   }
+}
+
+function resolveLiveDelegationStartOperation(value: unknown): 'spawn' | 'follow_up' | null {
+  return value === 'spawn' || value === 'follow_up' ? value : null
 }

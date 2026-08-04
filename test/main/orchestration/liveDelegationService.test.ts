@@ -4,6 +4,7 @@ import { TOOL_EXECUTION } from '@shared/types/mcp'
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import { SessionDeletionGate } from '@/session/deletionGate'
+import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const databaseModule = Database
@@ -51,6 +52,7 @@ describeIfSqlite('LiveDelegationService', () => {
   let harness: ReturnType<typeof createSessionHarness>
   let deletionGate: SessionDeletionGate
   let admission: AgentInvocationAdmission
+  let consentAuthority: LiveDelegationConsentAuthority
 
   beforeEach(() => {
     db = new DatabaseCtor(':memory:')
@@ -72,10 +74,12 @@ describeIfSqlite('LiveDelegationService', () => {
     harness = createSessionHarness(db)
     deletionGate = new SessionDeletionGate()
     admission = new AgentInvocationAdmission(2, 10)
+    consentAuthority = new LiveDelegationConsentAuthority()
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission,
       deletionGate
     })
@@ -123,6 +127,107 @@ describeIfSqlite('LiveDelegationService', () => {
         runId: delegationId,
         outcome: 'completed'
       })
+    )
+  })
+
+  it('requires a matching explicit-user receipt at the service boundary', async () => {
+    harness.parent.orchestrationPolicy = 'explicit'
+    const input = {
+      slotId: 'reviewer',
+      title: 'Review authorization',
+      prompt: 'Inspect the authorization boundary.'
+    }
+
+    await expect(service.spawn('parent', input)).rejects.toThrow(
+      'requires current user confirmation before spawn'
+    )
+    await expect(
+      service.spawn(
+        'parent',
+        input,
+        consentAuthority.issue({
+          parentSessionId: 'another-parent',
+          operation: 'spawn',
+          executionId: 'spawn-1'
+        })
+      )
+    ).rejects.toThrow('authorization is invalid for spawn')
+    expect(repository.listByParent('parent')).toEqual([])
+
+    await expect(
+      service.spawn(
+        'parent',
+        input,
+        consentAuthority.issue({
+          parentSessionId: 'parent',
+          operation: 'spawn',
+          executionId: 'spawn-1'
+        })
+      )
+    ).resolves.toMatchObject({ delegation: { status: 'queued' } })
+  })
+
+  it('revalidates consent after follow-up safety work and before persistence', async () => {
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Review policy race',
+      prompt: 'Inspect the policy race.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.publishAnswer(childId, 'Initial result.', 200)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+
+    const resolveSessionInfo =
+      harness.sessions.resolveConversationSessionInfo.getMockImplementation()!
+    harness.sessions.resolveConversationSessionInfo.mockImplementation(
+      async (sessionId: string) => {
+        const result = await resolveSessionInfo(sessionId)
+        if (sessionId === childId) harness.parent.orchestrationPolicy = 'explicit'
+        return result
+      }
+    )
+
+    await expect(
+      service.followUp('parent', spawned.delegation.id, 'Continue after the policy change.')
+    ).rejects.toThrow('requires current user confirmation before follow_up')
+    expect(repository.listTurns(spawned.delegation.id)).toHaveLength(1)
+
+    await expect(
+      service.followUp(
+        'parent',
+        spawned.delegation.id,
+        'Continue with explicit confirmation.',
+        consentAuthority.issue({
+          parentSessionId: 'parent',
+          operation: 'follow_up',
+          executionId: 'follow-up-1'
+        })
+      )
+    ).resolves.toMatchObject({ delegation: { status: 'queued' } })
+  })
+
+  it('limits mailbox waits per parent without exhausting process-wide capacity', async () => {
+    const parentControllers = Array.from({ length: 5 }, () => new AbortController())
+    const parentWaits = parentControllers.map((controller) =>
+      service.wait('parent', { timeoutMs: 60_000, signal: controller.signal })
+    )
+
+    await expect(service.wait('parent', { timeoutMs: 60_000 })).rejects.toThrow(
+      'Too many live delegation waits are active for this session.'
+    )
+    const otherController = new AbortController()
+    const otherWait = service.wait('other-parent', {
+      timeoutMs: 60_000,
+      signal: otherController.signal
+    })
+
+    for (const controller of parentControllers) controller.abort()
+    otherController.abort()
+    const outcomes = await Promise.allSettled([...parentWaits, otherWait])
+    expect(outcomes).toEqual(
+      Array.from({ length: 6 }, () => expect.objectContaining({ status: 'rejected' }))
     )
   })
 
@@ -401,6 +506,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission,
       deletionGate
     })
@@ -695,6 +801,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission,
       deletionGate
     })
@@ -826,6 +933,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission,
       deletionGate
     })
@@ -921,6 +1029,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission,
       deletionGate
     })
@@ -1165,6 +1274,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate,
       onChanged: (_parentSessionId, delegationId) => {
@@ -1454,6 +1564,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate
     })
@@ -1492,6 +1603,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate
     })
@@ -1530,6 +1642,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate
     })
@@ -1573,6 +1686,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate,
       onChanged
@@ -1620,6 +1734,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate
     })
@@ -1677,6 +1792,7 @@ describeIfSqlite('LiveDelegationService', () => {
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
+      consent: consentAuthority,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate
     })
@@ -1715,6 +1831,7 @@ function createSessionHarness(db: InstanceType<typeof DatabaseCtor>) {
     sessionId: 'parent',
     sessionKind: 'regular',
     parentSessionId: null,
+    orchestrationPolicy: 'proactive',
     status: 'idle'
   })
   db.prepare(

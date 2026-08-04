@@ -22,7 +22,7 @@ import type {
   DeepChatSubagentSlot
 } from '@shared/types/agent-interface'
 import type { AgentToolCallResult } from './agentToolManager'
-import type { AgentLiveDelegationToolPort } from '../runtimePorts'
+import type { AgentLiveDelegationToolPort, LiveDelegationStartAuthorization } from '../runtimePorts'
 
 const liveDelegationSchema = z
   .object({
@@ -179,7 +179,10 @@ export class LiveDelegationAgentTool {
   async call(
     rawArgs: Record<string, unknown>,
     conversationId: string | undefined,
-    options?: { signal?: AbortSignal }
+    options?: {
+      signal?: AbortSignal
+      liveDelegationAuthorization?: LiveDelegationStartAuthorization
+    }
   ): Promise<AgentToolCallResult> {
     if (!conversationId)
       throw new Error(`${LIVE_DELEGATION_AGENT_TOOL_NAME} requires a conversationId.`)
@@ -187,17 +190,26 @@ export class LiveDelegationAgentTool {
     let result: unknown
     switch (args.operation) {
       case 'spawn':
-        result = await this.service.spawn(conversationId, {
-          slotId: args.slotId!,
-          title: args.title!,
-          prompt: args.prompt!
-        })
+        result = await this.service.spawn(
+          conversationId,
+          {
+            slotId: args.slotId!,
+            title: args.title!,
+            prompt: args.prompt!
+          },
+          options?.liveDelegationAuthorization
+        )
         break
       case 'send':
         result = this.service.send(conversationId, args.delegationId!, args.message!)
         break
       case 'follow_up':
-        result = await this.service.followUp(conversationId, args.delegationId!, args.task!)
+        result = await this.service.followUp(
+          conversationId,
+          args.delegationId!,
+          args.task!,
+          options?.liveDelegationAuthorization
+        )
         break
       case 'list':
         result = this.service.list(conversationId, args.limit)

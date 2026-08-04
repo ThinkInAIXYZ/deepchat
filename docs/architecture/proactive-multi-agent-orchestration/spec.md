@@ -104,9 +104,16 @@ Host enforcement, not prompt wording, owns delegation consent.
   not require orchestration confirmation.
 - Every child tool call still follows the ordinary DeepChat permission broker. Proactive mode does
   not grant filesystem, network, shell, or external-service permissions.
-- A cross-Agent child receives the intersection of the parent's live permission mode and the
-  target Agent's configured mode. An omitted or broader target default can never elevate the
-  parent Session's authority.
+- A cross-Agent child receives the least-authority composition of the parent Session and target
+  Agent policies: permission modes are intersected, disabled built-in tools are unioned, and MCP
+  allowlists are intersected with a missing list treated as unrestricted. The host applies the
+  same composition to catalog construction and execution-time MCP dispatch, and a missing parent
+  or unreadable child policy fails closed.
+- The tool permission broker issues an execution-bound confirmation receipt after an explicit
+  approval. `spawn` and `follow_up` pass that receipt into the live-delegation service, which
+  re-reads the current Session policy before mutation. An `explicit` Session rejects a missing,
+  mismatched, or stale receipt even when a caller bypasses the model-tool adapter; a `proactive`
+  Session needs no per-call receipt because its Session policy is the standing authorization.
 
 Generation settings and safety state have different lifetimes:
 
@@ -131,7 +138,10 @@ Admission therefore exposes a state-aware lease:
 - transition to a host-owned waiting state suspends the lease;
 - continuation reacquires before computation or a protected tool action resumes;
 - interruption and terminal settlement release the lease exactly once;
-- per-parent active-child limits remain separate from the process-wide running limit.
+- per-parent active-child limits remain separate from the process-wide running limit and are
+  enforced atomically with both initial-turn and follow-up persistence;
+- mailbox waits retain a process-wide safety ceiling plus a per-parent fairness ceiling, so one
+  Session cannot exhaust every waiter slot.
 
 Owner fairness prevents one Session from monopolizing queued capacity. It does not replace correct
 lease suspension.
@@ -141,9 +151,12 @@ lease suspension.
 Non-triggering messages use UTF-8 byte budgets at the repository boundary. `send` applies atomic
 backpressure before a message can make the pending mailbox exceed its bounded capacity.
 
-`follow_up` consumes only repository state that already satisfies the bound. Compatibility handling
-for malformed or oversized unreleased rows must converge instead of repeatedly rolling back on the
-same data. Character-count validation must not claim to enforce a byte limit.
+`follow_up` consumes pending messages only in the same transaction that persists a prompt containing
+those messages or an explicit recovery notice. If the follow-up task leaves no room for either, the
+transaction rejects and keeps every pending message unread; the host never silently consumes data.
+Compatibility handling for malformed or oversized unreleased rows must otherwise converge instead
+of repeatedly rolling back on the same data. Character-count validation must not claim to enforce a
+byte limit.
 
 Child-to-parent terminal events are a durable cursor stream and remain available until their parent
 Session is deleted. Only already-consumed parent-to-child messages may be compacted without a

@@ -118,6 +118,44 @@ describeIfSqlite('LiveDelegationRepository', () => {
     ).toThrow('parent session does not exist')
   })
 
+  it('enforces parent active capacity atomically for initial and follow-up turns', () => {
+    const createActive = (index: number) =>
+      repository.create({
+        id: `delegation-${index}`,
+        initialTurnId: `turn-${index}`,
+        parentSessionId: 'parent',
+        slotId: 'reviewer',
+        targetAgentId: 'agent-1',
+        title: `Review ${index}`,
+        prompt: `Inspect boundary ${index}.`,
+        now: 100 + index
+      })
+
+    for (let index = 1; index <= 5; index += 1) createActive(index)
+    expect(() => createActive(6)).toThrow('at most 5 active live delegations')
+    expect(db!.prepare('SELECT COUNT(*) AS count FROM live_delegations').get()).toEqual({
+      count: 5
+    })
+    expect(db!.prepare('SELECT COUNT(*) AS count FROM live_delegation_turns').get()).toEqual({
+      count: 5
+    })
+
+    repository.finishTurn({ turnId: 'turn-1', status: 'completed', now: 120 })
+    const replacement = createActive(6)
+    repository.finishTurn({ turnId: replacement.turn.id, status: 'completed', now: 130 })
+    createActive(7)
+    expect(() =>
+      repository.createFollowUp(
+        'parent',
+        replacement.delegation.id,
+        'turn-follow-up',
+        'Continue the review.',
+        140
+      )
+    ).toThrow('at most 5 active live delegations')
+    expect(repository.listTurns(replacement.delegation.id)).toHaveLength(1)
+  })
+
   it('binds a child exactly once', () => {
     createDelegation()
     addSession('child-1', 'parent')
@@ -262,6 +300,25 @@ describeIfSqlite('LiveDelegationRepository', () => {
         )
         .get()
     ).toEqual({ count: 0 })
+  })
+
+  it('preserves queued messages when the full follow-up task leaves no notice budget', () => {
+    createDelegation()
+    repository.finishTurn({ turnId: 'turn-1', status: 'completed', summary: 'Done', now: 110 })
+    repository.createMessage('parent', 'delegation-1', 'Keep this evidence.')
+
+    expect(() =>
+      repository.createFollowUp('parent', 'delegation-1', 'turn-2', 'x'.repeat(64 * 1024), 120)
+    ).toThrow('leaves no room for queued messages or their recovery notice')
+    expect(repository.listTurns('delegation-1')).toHaveLength(1)
+    expect(
+      db!
+        .prepare(
+          `SELECT COUNT(*) AS count FROM live_delegation_events
+           WHERE direction = 'parent_to_child' AND consumed_by_turn_id IS NULL`
+        )
+        .get()
+    ).toEqual({ count: 1 })
   })
 
   it('persists monotonic tool effect evidence before child execution', () => {

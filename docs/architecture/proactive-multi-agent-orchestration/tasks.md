@@ -507,3 +507,63 @@ Post-decommission validation evidence:
   memory migration suite above;
 - the production build retained only its existing Rollup annotation/import and chunk warnings, and
   no provider or ACP registry refresh produced an unexpected tracked change.
+
+## Least-Authority Integration Hardening
+
+- [x] Compose cross-Agent built-in and MCP authority without capability elevation.
+- [x] Require execution-bound explicit consent at the live-delegation service boundary.
+- [x] Make parent active-turn capacity transactional for initial and follow-up turns.
+- [x] Preserve pending mailbox messages when a complete follow-up task exhausts the prompt budget.
+- [x] Add per-parent waiter fairness without weakening the process-wide resource ceiling.
+- [x] Run focused and full validation, then complete a severity-ordered pre-commit review.
+
+Review triage, ordered by severity:
+
+- high, confirmed: cross-Agent assignment intersected only permission mode; target defaults could
+  re-enable a parent-disabled built-in tool or widen the parent's MCP allowlist;
+- high, confirmed: delegation consent was brokered in the model-tool adapter but not represented in
+  the service contract, so a policy race or future direct caller could bypass explicit intent;
+- medium, confirmed: the active-parent check and insert were separate, and `follow_up` did not
+  participate in the limit at all;
+- medium, confirmed: a maximum-sized legal follow-up task could cause pending messages to be marked
+  consumed even though neither the messages nor a recovery notice reached the child;
+- medium, confirmed: the global waiter ceiling bounded resources but allowed one parent to occupy
+  every slot;
+- medium, retained by design: unread terminal events cannot be compacted safely without a persisted
+  reader cursor, and V1 does not promise automatic isolation for parallel workspace writers;
+- medium, not actionable as described: child payloads already cross a typed, locally produced
+  untrusted-result envelope. Semantic prompt-injection elimination is not achievable by parsing the
+  same valid envelope or filtering child text at the host boundary;
+- low, deferred: splitting the tested live-delegation facade and renaming the historical branch are
+  maintenance work, not correctness fixes for this integration slice.
+
+Pre-commit review findings, ordered by severity:
+
+- high, fixed: a structural authorization object would have been forgeable by any in-process caller;
+  explicit confirmation now crosses the adapter as an opaque, one-shot receipt backed by a private
+  `WeakMap` binding;
+- high, fixed: an optional service verifier would have left the host contract dependent on runtime
+  wiring; the live-delegation service now requires the verifier at construction time and still
+  rejects missing, mismatched, or already-consumed receipts;
+- high, fixed: catalog filtering alone would not cover stale tool definitions or deferred execution;
+  current parent and child restrictions are re-resolved immediately before built-in or MCP dispatch;
+- medium, fixed: regular Sessions avoid repeated authority lookups, while immutable Session-kind
+  cache entries are cleared with their ToolService conversation mapping;
+- medium, accepted: effect intent is recorded before final Subagent authority rejection. This is a
+  conservative retry-safety fact for an attempted tool action, not evidence that the external effect
+  completed, and it avoids moving the continuously validated authority check earlier than dispatch;
+- low: no unresolved correctness, compatibility, performance, security, naming, test, or maintenance
+  issue was found inside this hardening slice.
+
+Validation evidence:
+
+- `pnpm run format:check`, `pnpm run i18n`, `pnpm run lint`, and `pnpm run typecheck` passed;
+- focused portable authority, resolver, assignment, ToolService, and delegation-tool suites passed:
+  6 files, 64 tests;
+- native repository, service, safety, and migration suites passed: 4 files, 63 tests. Vitest emitted
+  its known post-success Electron close-timeout diagnostic after all assertions passed;
+- the complete portable suite passed: 743 files and 7,832 tests passed, with 25 files and 345 tests
+  skipped by their existing environment guards;
+- `pnpm run build` passed. Prebuild retained the existing provider-database download-size guard, and
+  Vite retained its existing third-party annotation, mixed-import, and chunk-size warnings; generated
+  provider and ACP resources produced no unexpected tracked changes.

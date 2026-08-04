@@ -32,7 +32,11 @@ import {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
-import type { AgentDisplaySettingsPort, AgentToolDependencies } from '../runtimePorts'
+import type {
+  AgentDisplaySettingsPort,
+  AgentToolDependencies,
+  LiveDelegationStartAuthorization
+} from '../runtimePorts'
 import { YO_BROWSER_TOOL_NAMES } from '../browser/definitions'
 import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import { AgentImageGenerationTool, IMAGE_GENERATE_TOOL_NAME } from './agentImageGenerationTool'
@@ -122,6 +126,7 @@ interface AgentToolExecutionOptions {
   signal?: AbortSignal
   allowExternalFileAccess?: boolean
   activeSkillNames?: string[]
+  liveDelegationAuthorization?: LiveDelegationStartAuthorization
 }
 
 interface AgentToolPermissionCheckOptions {
