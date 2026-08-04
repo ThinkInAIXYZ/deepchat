@@ -1464,6 +1464,7 @@ declare module 'vue-i18n' {
         read: string
         write: string
         all: string
+        subagentStart: string
         command: string
         commandWithRisk: string
       }

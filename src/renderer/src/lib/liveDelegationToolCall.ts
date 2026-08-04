@@ -8,6 +8,7 @@ import {
   LiveDelegationDetailSchema,
   type LiveDelegationSummary
 } from '@shared/orchestration/liveDelegation'
+import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 
 const MAX_SPAWN_PARAMS_CHARACTERS = 512 * 1024
@@ -78,8 +79,10 @@ export function parseLiveDelegationSpawnBlock(
     )
     if (params.success) {
       if (block.status === 'success') {
+        const response = parseBoundedJson(toolCall.response, MAX_SPAWN_RESPONSE_CHARACTERS)
+        const envelope = parseChildAgentResultEnvelope(response)
         const detail = LiveDelegationDetailSchema.safeParse(
-          parseBoundedJson(toolCall.response, MAX_SPAWN_RESPONSE_CHARACTERS)
+          envelope?.source.operation === 'spawn' ? envelope.payload.value : response
         )
         if (
           detail.success &&

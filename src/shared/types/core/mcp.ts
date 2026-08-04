@@ -259,6 +259,9 @@ export interface MCPToolResponse {
       baseCommand?: string
     }
     conversationId?: string
+    requestId?: string
+    rememberable?: boolean
+    requiresUserConfirmation?: boolean
   }
 }
 

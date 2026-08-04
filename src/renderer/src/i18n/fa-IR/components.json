@@ -32,6 +32,7 @@
       "read": "به '{toolName}' از '{serverName}' اجازه می‌دهید عملیات خواندن انجام دهد؟",
       "write": "به '{toolName}' از '{serverName}' اجازه می‌دهید عملیات نوشتن انجام دهد؟",
       "all": "به '{toolName}' از '{serverName}' اجازه می‌دهید بخواند و بنویسد؟",
+      "subagentStart": "این وظیفهٔ زیرعامل شروع شود؟ ممکن است توکن، زمان و منابع سیستمی بیشتری مصرف کند.",
       "command": "اجرای دستور: {command}",
       "commandWithRisk": "اجرای دستور: {command}\n\nسطح ریسک: {riskLevel}\n\nپیشنهاد: {suggestion}"
     },

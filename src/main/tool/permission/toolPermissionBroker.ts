@@ -18,10 +18,13 @@ export interface ToolPermissionContext {
   bindingHash?: string
   serverName: string
   toolName: string
+  executionId?: string
   arguments: unknown
   source: ToolPermissionSource
   permissionType: 'read' | 'write'
   permissionMode?: PermissionMode
+  approvalMode?: 'permission_mode' | 'explicit_user'
+  description?: string
 }
 
 export interface ToolPermissionDecision {
@@ -37,10 +40,13 @@ type PendingPermission = {
   bindingHash?: string
   serverName: string
   toolName: string
+  executionId?: string
   argumentsHash: string
   argumentsPreview: string
   source: ToolPermissionSource
   permissionType: 'read' | 'write'
+  approvalMode: 'permission_mode' | 'explicit_user'
+  description?: string
   status: 'pending' | 'approved'
   expiresAt: number
   timeout: NodeJS.Timeout
@@ -130,7 +136,7 @@ export class ToolPermissionBroker {
     context: ToolPermissionContext,
     signal?: AbortSignal
   ): ToolPermissionPreCheckResult | null {
-    if (context.permissionMode === 'full_access') {
+    if (context.permissionMode === 'full_access' && context.approvalMode !== 'explicit_user') {
       return null
     }
 
@@ -143,7 +149,11 @@ export class ToolPermissionBroker {
     signal?: AbortSignal
   ): { allowed: true } | { allowed: false; request: ToolPermissionPreCheckResult } {
     signal?.throwIfAborted()
-    if (context.source === 'model' && context.permissionMode === 'full_access') {
+    if (
+      context.source === 'model' &&
+      context.permissionMode === 'full_access' &&
+      context.approvalMode !== 'explicit_user'
+    ) {
       return { allowed: true }
     }
 
@@ -156,9 +166,11 @@ export class ToolPermissionBroker {
         entry.configGeneration === context.configGeneration &&
         entry.bindingHash === context.bindingHash &&
         entry.toolName === context.toolName &&
+        entry.executionId === context.executionId &&
         entry.argumentsHash === hash &&
         entry.source === context.source &&
-        entry.permissionType === context.permissionType
+        entry.permissionType === context.permissionType &&
+        entry.approvalMode === (context.approvalMode ?? 'permission_mode')
     )
 
     if (approved) {
@@ -174,7 +186,10 @@ export class ToolPermissionBroker {
     context: Omit<ToolPermissionContext, 'source'>,
     onRequest: (request: ToolPermissionPreCheckResult) => void
   ): Promise<ToolPermissionDecision> {
-    if (context.permissionMode === 'full_access' || context.permissionMode === 'auto_approve') {
+    if (
+      context.approvalMode !== 'explicit_user' &&
+      (context.permissionMode === 'full_access' || context.permissionMode === 'auto_approve')
+    ) {
       return { allowed: true }
     }
     const pending = this.createPending({ ...context, source: 'mcp-app' })
@@ -246,9 +261,11 @@ export class ToolPermissionBroker {
         entry.configGeneration === context.configGeneration &&
         entry.bindingHash === context.bindingHash &&
         entry.toolName === context.toolName &&
+        entry.executionId === context.executionId &&
         entry.argumentsHash === hash &&
         entry.source === context.source &&
-        entry.permissionType === context.permissionType
+        entry.permissionType === context.permissionType &&
+        entry.approvalMode === (context.approvalMode ?? 'permission_mode')
     )
     if (existing) {
       this.attachAbort(existing, signal)
@@ -271,10 +288,13 @@ export class ToolPermissionBroker {
       bindingHash: context.bindingHash,
       serverName: context.serverName,
       toolName: context.toolName,
+      executionId: context.executionId,
       argumentsHash: hash,
       argumentsPreview: preview,
       source: context.source,
       permissionType: context.permissionType,
+      approvalMode: context.approvalMode ?? 'permission_mode',
+      description: context.description,
       status: 'pending',
       expiresAt,
       settlers: new Set(),
@@ -301,8 +321,11 @@ export class ToolPermissionBroker {
       toolName: pending.toolName,
       serverName: pending.serverName,
       permissionType: pending.permissionType,
-      description: `components.messageBlockPermissionRequest.description.${pending.permissionType}`,
+      description:
+        pending.description ??
+        `components.messageBlockPermissionRequest.description.${pending.permissionType}`,
       rememberable: false,
+      ...(pending.approvalMode === 'explicit_user' ? { requiresUserConfirmation: true } : {}),
       source: pending.source,
       serverId: pending.serverId,
       configGeneration: pending.configGeneration,

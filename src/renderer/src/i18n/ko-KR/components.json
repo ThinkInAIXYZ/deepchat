@@ -32,6 +32,7 @@
       "all": "읽기 및 쓰기 작업을 수행하려면 '{serverName}'의 '{toolName}'을 허용합니까?",
       "read": "읽기 작업을 수행하려면 '{serverName}'의 '{toolName}'을 허용합니까?",
       "write": "쓰기 작업을 수행하려면 '{serverName}'의 '{toolName}'을 허용합니까?",
+      "subagentStart": "이 Subagent 작업을 시작할까요? 추가 토큰, 시간 및 시스템 리소스를 사용할 수 있습니다.",
       "command": "명령 실행: {command}",
       "commandWithRisk": "명령 실행: {command}\n\n위험 등급: {riskLevel}\n\n제안: {suggestion}"
     },

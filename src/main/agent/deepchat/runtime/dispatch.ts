@@ -133,6 +133,7 @@ type PermissionRequestLike = {
   providerId?: string
   requestId?: string
   rememberable?: boolean
+  requiresUserConfirmation?: boolean
   paths?: string[]
 }
 
@@ -1001,6 +1002,7 @@ function normalizePermissionRequest(
     providerId: typeof request?.providerId === 'string' ? request.providerId : undefined,
     requestId: typeof request?.requestId === 'string' ? request.requestId : undefined,
     rememberable: request?.rememberable === false ? false : true,
+    requiresUserConfirmation: request?.requiresUserConfirmation === true,
     command: typeof request?.command === 'string' ? request.command : undefined,
     commandSignature:
       typeof request?.commandSignature === 'string' ? request.commandSignature : undefined,
@@ -1511,6 +1513,13 @@ async function runToolCall(params: {
       )
 
       if (pendingPermission) {
+        if (pendingPermission.requiresUserConfirmation) {
+          return {
+            kind: 'permission',
+            permission: pendingPermission,
+            toolContext
+          }
+        }
         if (permissionMode === 'full_access') {
           await autoGrantPermission(controls, io.sessionId, pendingPermission)
           toolCallResult = await callTool()
@@ -1851,6 +1860,13 @@ export async function settleToolBatch(
                 description: `Permission required for ${execution.toolContext.name}`
               })
               if (permission) {
+                if (permission.requiresUserConfirmation) {
+                  return {
+                    kind: 'permission' as const,
+                    permission,
+                    toolContext: execution.toolContext
+                  }
+                }
                 await autoGrantPermission(controls, io.sessionId, permission)
                 io.abortSignal.throwIfAborted()
               }
@@ -2034,10 +2050,11 @@ export async function settleToolBatch(
       }
 
       if (preCheckedPermission) {
-        if (permissionMode === 'full_access') {
+        let shouldAskUser = preCheckedPermission.requiresUserConfirmation === true
+        if (!shouldAskUser && permissionMode === 'full_access') {
           await autoGrantPermission(controls, io.sessionId, preCheckedPermission)
           io.abortSignal.throwIfAborted()
-        } else if (permissionMode === 'auto_approve') {
+        } else if (!shouldAskUser && permissionMode === 'auto_approve') {
           const review = await reviewAutoApproveAction({
             controls,
             io,
@@ -2052,29 +2069,13 @@ export async function settleToolBatch(
             await autoGrantPermission(controls, io.sessionId, preCheckedPermission)
             io.abortSignal.throwIfAborted()
           } else {
-            emitDeepChatLoopNotification(notificationObserver, {
-              event: 'PermissionRequest',
-              permission: preCheckedPermission,
-              tool: {
-                callId: tc.id,
-                name: tc.name,
-                params: tc.arguments
-              }
-            })
-            const interaction = appendPermissionActionBlock(
-              state,
-              io,
-              toolContext,
-              preCheckedPermission,
-              'pre-check-permission',
-              takeInteractionOrder()
-            )
-            pendingInteractions.push(interaction)
-            updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
-            rescheduleRendererFlush(state, rendererFlushHandle)
-            continue
+            shouldAskUser = true
           }
-        } else {
+        } else if (!shouldAskUser) {
+          shouldAskUser = true
+        }
+
+        if (shouldAskUser) {
           emitDeepChatLoopNotification(notificationObserver, {
             event: 'PermissionRequest',
             permission: preCheckedPermission,

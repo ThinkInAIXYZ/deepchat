@@ -5,6 +5,27 @@ import {
 } from '@shared/agentTools'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
+import { createChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
+
+const createDetail = () => ({
+  delegation: {
+    schemaVersion: 1 as const,
+    id: 'delegation-1',
+    parentSessionId: 'parent-1',
+    childSessionId: 'child-1',
+    slotId: 'reviewer',
+    targetAgentId: 'deepchat',
+    title: 'Review architecture',
+    status: 'running' as const,
+    lastTurnSeq: 1,
+    createdAt: 10,
+    updatedAt: 20,
+    revision: 2,
+    summaryPreview: null,
+    errorPreview: null
+  },
+  turns: []
+})
 
 const createBlock = (
   overrides: Partial<DisplayAssistantMessageBlock> = {}
@@ -24,25 +45,7 @@ const createBlock = (
       title: 'Review architecture',
       prompt: 'Inspect module boundaries.'
     }),
-    response: JSON.stringify({
-      delegation: {
-        schemaVersion: 1,
-        id: 'delegation-1',
-        parentSessionId: 'parent-1',
-        childSessionId: 'child-1',
-        slotId: 'reviewer',
-        targetAgentId: 'deepchat',
-        title: 'Review architecture',
-        status: 'running',
-        lastTurnSeq: 1,
-        createdAt: 10,
-        updatedAt: 20,
-        revision: 2,
-        summaryPreview: null,
-        errorPreview: null
-      },
-      turns: []
-    }),
+    response: JSON.stringify(createChildAgentResultEnvelope('spawn', createDetail())),
     ...(overrides.tool_call ?? {})
   }
 })
@@ -77,7 +80,10 @@ describe('parseLiveDelegationSpawnBlock', () => {
     ).toBeNull()
 
     const response = JSON.parse(createBlock().tool_call!.response!)
-    response.delegation.title = 'Different task'
+    response.payload.value.delegation.title = 'Different task'
+    response.payload.utf8Bytes = new TextEncoder().encode(
+      JSON.stringify(response.payload.value)
+    ).byteLength
     expect(
       parseLiveDelegationSpawnBlock(
         createBlock({ tool_call: { response: JSON.stringify(response) } })
@@ -95,8 +101,8 @@ describe('parseLiveDelegationSpawnBlock', () => {
     const legacyTitle = 'x'.repeat(100)
     const block = createBlock()
     const params = JSON.parse(block.tool_call!.params!)
-    const response = JSON.parse(block.tool_call!.response!)
     params.title = legacyTitle
+    const response = createDetail()
     response.delegation.title = legacyTitle
     block.tool_call!.params = JSON.stringify(params)
     block.tool_call!.response = JSON.stringify(response)

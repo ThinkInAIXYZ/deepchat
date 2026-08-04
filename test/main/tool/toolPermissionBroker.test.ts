@@ -79,6 +79,74 @@ describe('ToolPermissionBroker', () => {
     ).toEqual({ allowed: true })
   })
 
+  it('requires an exact one-shot user confirmation even in full access mode', () => {
+    const broker = new ToolPermissionBroker()
+    const ordinaryContext = {
+      conversationId: 'conversation',
+      serverId: 'agent-live-delegation',
+      serverName: 'agent-live-delegation',
+      toolName: 'deepchat_subagents',
+      arguments: { operation: 'spawn', slotId: 'reviewer' },
+      source: 'model' as const,
+      permissionType: 'write' as const,
+      permissionMode: 'default' as const
+    }
+    const ordinaryRequest = broker.evaluateModel(ordinaryContext)
+    expect(broker.approve(ordinaryRequest!.requestId, ordinaryContext.conversationId)).toBe(true)
+
+    const explicitContext = {
+      ...ordinaryContext,
+      executionId: 'tool-call-1',
+      permissionMode: 'full_access' as const,
+      approvalMode: 'explicit_user' as const,
+      description: 'Start this Subagent task?'
+    }
+    const firstAuthorization = broker.authorizeExecution(explicitContext)
+    expect(firstAuthorization).toMatchObject({
+      allowed: false,
+      request: {
+        description: 'Start this Subagent task?',
+        requiresUserConfirmation: true,
+        rememberable: false
+      }
+    })
+    if (firstAuthorization.allowed) throw new Error('Expected user confirmation')
+
+    expect(
+      broker.approve(firstAuthorization.request.requestId!, ordinaryContext.conversationId)
+    ).toBe(true)
+    expect(broker.authorizeExecution(explicitContext)).toEqual({ allowed: true })
+    expect(broker.authorizeExecution(explicitContext).allowed).toBe(false)
+    broker.clear()
+  })
+
+  it('keeps identical arguments isolated by execution ID', () => {
+    const broker = new ToolPermissionBroker()
+    const context = {
+      conversationId: 'conversation',
+      serverId: 'agent-live-delegation',
+      serverName: 'agent-live-delegation',
+      toolName: 'deepchat_subagents',
+      arguments: { operation: 'spawn', slotId: 'reviewer' },
+      source: 'model' as const,
+      permissionType: 'write' as const,
+      permissionMode: 'full_access' as const,
+      approvalMode: 'explicit_user' as const
+    }
+    const first = broker.evaluateModel({ ...context, executionId: 'tool-call-1' })
+    const second = broker.evaluateModel({ ...context, executionId: 'tool-call-2' })
+
+    expect(first?.requestId).not.toBe(second?.requestId)
+    expect(broker.approve(first!.requestId!, context.conversationId)).toBe(true)
+    expect(broker.authorizeExecution({ ...context, executionId: 'tool-call-2' }).allowed).toBe(
+      false
+    )
+    expect(broker.authorizeExecution({ ...context, executionId: 'tool-call-1' })).toEqual({
+      allowed: true
+    })
+    broker.clear()
+  })
+
   it.each([
     ['generation', { configGeneration: 2 }],
     ['binding', { bindingHash: 'binding-b' }],

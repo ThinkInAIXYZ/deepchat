@@ -350,14 +350,14 @@ Referenced-result validation evidence:
 - [x] Verify versions 57 and 59 were never included in a tag, `dev`, or `main`.
 - [x] Replace the dual-executor specification with a single live-delegation execution plane.
 - [x] Define the version-64 forward decommission and protected live-delegation assets.
-- [ ] Move retained policy and result-safety contracts out of `shared/workflow`.
-- [ ] Remove the QuickJS Workflow runtime, tool, host, routes, UI, tests, and four dependencies.
-- [ ] Simplify the unreleased policy migration and add the version-64 cleanup migration.
-- [ ] Enforce policy-aware consent and untrusted child-result handling.
+- [x] Move retained policy and result-safety contracts out of `shared/workflow`.
+- [x] Remove the QuickJS Workflow runtime, tool, host, routes, UI, tests, and four dependencies.
+- [x] Simplify the unreleased policy migration and add the version-64 cleanup migration.
+- [x] Enforce policy-aware consent and untrusted child-result handling.
 - [ ] Bound pending follow-up messages and make overflow recovery convergent.
 - [ ] Make global admission state-aware for waiting children.
 - [ ] Separate per-turn generation snapshots from continuously validated safety state.
-- [ ] Remove the dead batch orchestrator while retaining historical transcript rendering.
+- [x] Remove the dead batch orchestrator while retaining historical transcript rendering.
 - [ ] Evict stale renderer projections and decouple reasoning capability from orchestration UI.
 - [ ] Complete full validation and the final severity-ordered review.
 
@@ -369,3 +369,26 @@ Decommission facts established before implementation:
 - `acorn` and `ajv` have no source consumers outside the Workflow runtime;
 - current feature databases can already record schema version 63, so deletion must advance to 64
   rather than lowering the application's latest version.
+
+Consent and child-result review findings, ordered by severity:
+
+- high, fixed before commit: `full_access` and `auto_approve` could bypass an explicit Session's
+  delegation intent because consent existed only in prompt guidance and the model-loop pre-check;
+  ToolService now re-evaluates policy immediately before execution and consumes an exact one-shot
+  host confirmation for `spawn` and `follow_up`;
+- high, fixed before commit: child Handoffs and paged answers returned as ordinary tool JSON, so
+  prompt-injected instructions had no machine-readable trust boundary; every live-delegation result
+  now uses one versioned untrusted envelope while renderer parsing retains the unreleased legacy
+  shape;
+- medium, fixed before commit: identical child starts in one batch shared a broker request because
+  approvals were bound only to canonical arguments; explicit-user approvals now also bind to the
+  stable tool-call execution ID;
+- low: no unresolved consent or result-boundary finding. Ordinary child tool permissions remain
+  independent from orchestration consent.
+
+Consent and child-result validation evidence:
+
+- 133 affected main-process permission, dispatch, tool, and live-delegation tests passed;
+- 43 affected renderer parsing and tool-card tests passed;
+- `pnpm run typecheck`, `pnpm run i18n`, `pnpm run lint`, `pnpm run format:check`, and
+  `git diff --check` passed.

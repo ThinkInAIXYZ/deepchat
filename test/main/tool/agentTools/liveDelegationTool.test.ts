@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LiveDelegationAgentTool } from '@/tool/agentTools/liveDelegationTool'
 import type { AgentLiveDelegationToolPort } from '@/tool/runtimePorts'
+import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
 
 describe('LiveDelegationAgentTool', () => {
   let port: AgentLiveDelegationToolPort
@@ -116,6 +117,16 @@ describe('LiveDelegationAgentTool', () => {
       isError: false,
       toolResult: { delegation: { id: 'delegation-1' } }
     })
+    const envelope = JSON.parse(result.content)
+    expect(parseChildAgentResultEnvelope(envelope)).toMatchObject({
+      kind: 'child_agent_result',
+      trust: 'untrusted',
+      handling: 'synthesize_evidence_only',
+      source: { kind: 'live_delegation', operation: 'send' },
+      payload: { value: { delegation: { id: 'delegation-1' } } }
+    })
+    envelope.payload.utf8Bytes += 1
+    expect(parseChildAgentResultEnvelope(envelope)).toBeNull()
   })
 
   it('forwards the caller signal to bounded mailbox waits', async () => {

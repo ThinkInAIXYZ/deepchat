@@ -22,6 +22,7 @@ import { ToolMapper, type ToolSource } from './toolMapper'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   TAPE_TOOL_NAMES,
   getAgentToolExposure,
@@ -42,7 +43,7 @@ import {
 } from '@shared/lib/agentToolResultEnvelope'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from './permission'
-import { ToolPermissionBroker } from './permission'
+import { ToolPermissionBroker, type ToolPermissionContext } from './permission'
 import { YO_BROWSER_TOOL_NAMES } from './browser/definitions'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
@@ -311,23 +312,33 @@ export class ToolService implements ToolServicePort {
       if (!this.agentToolManager) {
         throw new Error(`Agent tool manager not initialized for tool ${toolName}`)
       }
-      await this.observeToolExecution(request, source)
-      // Route to Agent tool manager
-      let args: Record<string, unknown> = {}
-      const argsString = request.function.arguments || ''
-      if (argsString.trim().length > 0) {
-        try {
-          args = JSON.parse(argsString) as Record<string, unknown>
-        } catch (error) {
-          console.warn('[Tool] Failed to parse tool arguments, trying jsonrepair:', error)
-          try {
-            args = JSON.parse(jsonrepair(argsString)) as Record<string, unknown>
-          } catch (error) {
-            console.warn('[Tool] Failed to repair tool arguments, using empty args.', error)
-            args = {}
+      const args = this.parseAgentToolArguments(request.function.arguments)
+      if (toolName === LIVE_DELEGATION_AGENT_TOOL_NAME) {
+        const preChecked = await awaitWithAbort(
+          this.agentToolManager.preCheckToolPermission(toolName, args, request.conversationId, {
+            allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode)
+          }),
+          options?.signal
+        )
+        const permissionContext = this.createRequiredAgentApprovalContext(
+          request,
+          args,
+          preChecked,
+          options?.permissionMode
+        )
+        if (permissionContext) {
+          const authorization = this.permissionBroker.authorizeExecution(
+            permissionContext,
+            options?.signal
+          )
+          if (!authorization.allowed) {
+            return this.createPermissionRequiredResponse(request.id, authorization.request)
           }
         }
       }
+
+      await this.observeToolExecution(request, source)
+      // Route to Agent tool manager
       const response = await this.agentToolManager.callTool(
         toolName,
         args,
@@ -385,16 +396,7 @@ export class ToolService implements ToolServicePort {
         options?.signal
       )
       if (!authorization.allowed) {
-        return {
-          content: authorization.request.description,
-          rawData: {
-            toolCallId: request.id,
-            content: authorization.request.description,
-            isError: false,
-            requiresPermission: true,
-            permissionRequest: authorization.request
-          }
-        }
+        return this.createPermissionRequiredResponse(request.id, authorization.request)
       }
     }
 
@@ -431,27 +433,7 @@ export class ToolService implements ToolServicePort {
         return null
       }
 
-      let args: Record<string, unknown> = {}
-      const argsString = request.function.arguments || ''
-      if (argsString.trim().length > 0) {
-        try {
-          args = JSON.parse(argsString) as Record<string, unknown>
-        } catch (error) {
-          console.warn(
-            '[Tool] Failed to parse tool arguments for pre-check, trying jsonrepair:',
-            error
-          )
-          try {
-            args = JSON.parse(jsonrepair(argsString)) as Record<string, unknown>
-          } catch (error) {
-            console.warn(
-              '[Tool] Failed to repair tool arguments for pre-check, using empty args.',
-              error
-            )
-            args = {}
-          }
-        }
-      }
+      const args = this.parseAgentToolArguments(request.function.arguments)
 
       const result = await awaitWithAbort(
         this.agentToolManager.preCheckToolPermission(toolName, args, request.conversationId, {
@@ -461,6 +443,15 @@ export class ToolService implements ToolServicePort {
       )
       if (!result) {
         return null
+      }
+      const permissionContext = this.createRequiredAgentApprovalContext(
+        request,
+        args,
+        result,
+        options?.permissionMode
+      )
+      if (permissionContext) {
+        return this.permissionBroker.evaluateModel(permissionContext, options?.signal)
       }
       return result
     }
@@ -485,6 +476,70 @@ export class ToolService implements ToolServicePort {
       return { content: response }
     }
     return response
+  }
+
+  private parseAgentToolArguments(argumentsText: string | undefined): Record<string, unknown> {
+    const raw = argumentsText ?? ''
+    if (!raw.trim()) return {}
+
+    try {
+      return JSON.parse(raw) as Record<string, unknown>
+    } catch (error) {
+      console.warn('[Tool] Failed to parse Agent tool arguments, trying jsonrepair:', error)
+      try {
+        return JSON.parse(jsonrepair(raw)) as Record<string, unknown>
+      } catch (repairError) {
+        console.warn(
+          '[Tool] Failed to repair Agent tool arguments, using empty arguments.',
+          repairError
+        )
+        return {}
+      }
+    }
+  }
+
+  private createRequiredAgentApprovalContext(
+    request: MCPToolCall,
+    args: Record<string, unknown>,
+    permission: ToolPermissionPreCheckResult | null,
+    permissionMode: PermissionMode | undefined
+  ): ToolPermissionContext | null {
+    if (!permission?.requiresUserConfirmation) return null
+
+    const conversationId = request.conversationId?.trim()
+    if (!conversationId) {
+      throw new Error(`${request.function.name} requires a conversationId for user confirmation.`)
+    }
+
+    return {
+      conversationId,
+      serverId: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+      serverName: permission.serverName,
+      toolName: permission.toolName,
+      executionId: request.id,
+      arguments: args,
+      source: 'model',
+      permissionType: 'write',
+      permissionMode,
+      approvalMode: 'explicit_user',
+      description: permission.description
+    }
+  }
+
+  private createPermissionRequiredResponse(
+    toolCallId: string,
+    request: ToolPermissionPreCheckResult
+  ): { content: string; rawData: MCPToolResponse } {
+    return {
+      content: request.description,
+      rawData: {
+        toolCallId,
+        content: request.description,
+        isError: false,
+        requiresPermission: true,
+        permissionRequest: request
+      }
+    }
   }
 
   private async observeToolExecution(request: MCPToolCall, source: ToolSource): Promise<void> {

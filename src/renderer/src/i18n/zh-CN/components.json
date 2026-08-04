@@ -37,6 +37,7 @@
       "read": "允许 '{serverName}' 的 '{toolName}' 执行读取操作？",
       "write": "允许 '{serverName}' 的 '{toolName}' 执行写入操作？",
       "all": "允许 '{serverName}' 的 '{toolName}' 执行读取和写入操作？",
+      "subagentStart": "启动这次 Subagent 任务？这可能消耗额外的 Token、时间和系统资源。",
       "command": "执行命令: {command}",
       "commandWithRisk": "执行命令: {command}\n\n风险等级: {riskLevel}\n\n建议: {suggestion}"
     },

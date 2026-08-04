@@ -3,7 +3,7 @@ import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { ToolService } from '@/tool'
 import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
 import { CronJobToolHandler, TAPE_TOOL_NAMES, UPDATE_PLAN_TOOL_NAME } from '@/tool/agentTools'
-import { CommandPermissionService } from '@/tool/permission'
+import { CommandPermissionService, ToolPermissionBroker } from '@/tool/permission'
 import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 import { createAgentToolDependencies } from './agentTools/agentToolDependencies'
@@ -15,6 +15,7 @@ import {
   getAgentToolExposure
 } from '@shared/agentTools'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
+import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
 
 vi.mock('electron', () => ({
   app: {
@@ -673,6 +674,101 @@ describe('ToolService', () => {
         (definition) => definition.function.name === LIVE_DELEGATION_AGENT_TOOL_NAME
       )
     ).toBe(false)
+  })
+
+  it('host-enforces explicit Subagent starts and treats proactive policy as authorization', async () => {
+    let orchestrationPolicy: 'explicit' | 'proactive' = 'explicit'
+    const spawn = vi.fn().mockResolvedValue({ delegation: { id: 'delegation-1' }, turns: [] })
+    const permissionBroker = new ToolPermissionBroker()
+    const toolService = new ToolService({
+      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      permissionBroker,
+      agentTools: buildAgentToolRuntimeMock({
+        resolveConversationSessionInfo: vi.fn(async () => ({ orchestrationPolicy })),
+        liveDelegation: {
+          spawn,
+          send: vi.fn(),
+          followUp: vi.fn(),
+          list: vi.fn().mockReturnValue([]),
+          inspect: vi.fn(),
+          readResult: vi.fn(),
+          wait: vi.fn(),
+          interrupt: vi.fn()
+        }
+      })
+    })
+    const subagentCapability = resolveDeepChatSubagentCapability({
+      agentType: 'deepchat',
+      sessionKind: 'regular',
+      agentPolicyEnabled: true,
+      slots: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review the result.'
+        }
+      ]
+    })
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1',
+      subagentCapability
+    })
+    const request = {
+      id: 'spawn-1',
+      type: 'function' as const,
+      function: {
+        name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+        arguments: JSON.stringify({
+          operation: 'spawn',
+          slotId: 'reviewer',
+          title: 'Review architecture',
+          prompt: 'Inspect module boundaries.'
+        })
+      },
+      conversationId: 'conv-1'
+    }
+
+    const preChecked = await toolService.preCheckToolPermission(request, {
+      permissionMode: 'full_access'
+    })
+    expect(preChecked).toMatchObject({
+      needsPermission: true,
+      requiresUserConfirmation: true,
+      rememberable: false
+    })
+    const blocked = await toolService.callTool(request, { permissionMode: 'full_access' })
+    expect(blocked.rawData).toMatchObject({
+      requiresPermission: true,
+      permissionRequest: { requestId: preChecked?.requestId }
+    })
+    expect(spawn).not.toHaveBeenCalled()
+
+    expect(permissionBroker.approve(preChecked!.requestId!, 'conv-1')).toBe(true)
+    const approved = await toolService.callTool(request, { permissionMode: 'full_access' })
+    expect(spawn).toHaveBeenCalledTimes(1)
+    expect(parseChildAgentResultEnvelope(JSON.parse(String(approved.content)))).toMatchObject({
+      kind: 'child_agent_result',
+      trust: 'untrusted',
+      source: { operation: 'spawn' }
+    })
+
+    const oneShot = await toolService.callTool(request, { permissionMode: 'full_access' })
+    expect(oneShot.rawData.requiresPermission).toBe(true)
+    expect(spawn).toHaveBeenCalledTimes(1)
+
+    orchestrationPolicy = 'proactive'
+    await toolService.callTool(request, { permissionMode: 'default' })
+    expect(spawn).toHaveBeenCalledTimes(2)
+    permissionBroker.clear()
   })
 
   it('keeps the recall pair in the runtime catalog despite stale disabled values', async () => {

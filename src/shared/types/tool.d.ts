@@ -65,6 +65,7 @@ export interface ToolPermissionPreCheckResult {
   agentName?: string
   conversationId?: string
   rememberable?: boolean
+  requiresUserConfirmation?: boolean
   [key: string]: unknown
 }
 

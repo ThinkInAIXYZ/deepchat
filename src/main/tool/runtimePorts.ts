@@ -18,6 +18,7 @@ import type {
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
+import type { OrchestrationPolicy } from '@shared/orchestration/policy'
 import type {
   LiveDelegationDetail,
   LiveDelegationEventSummary,
@@ -50,6 +51,7 @@ export interface ConversationSessionInfo {
   modelId: string
   projectDir: string | null
   permissionMode: PermissionMode
+  orchestrationPolicy: OrchestrationPolicy
   generationSettings: SessionGenerationSettings | null
   disabledAgentTools: string[]
   activeSkills: string[]

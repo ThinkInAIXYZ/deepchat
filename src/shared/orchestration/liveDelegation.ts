@@ -17,6 +17,19 @@ export const LIVE_DELEGATION_MAX_EVENTS_PER_PARENT = 500
 export const LIVE_DELEGATION_MAX_PREVIEW_CHARACTERS = 2 * 1024
 export const LIVE_DELEGATION_MAX_EVENT_PREVIEW_CHARACTERS = 16 * 1024
 
+export const LIVE_DELEGATION_OPERATIONS = [
+  'spawn',
+  'send',
+  'follow_up',
+  'list',
+  'inspect',
+  'read_result',
+  'wait',
+  'interrupt'
+] as const
+
+export const LiveDelegationOperationSchema = z.enum(LIVE_DELEGATION_OPERATIONS)
+
 const LiveDelegationIdSchema = z.string().trim().min(1).max(256)
 
 export const LiveDelegationStatusSchema = z.enum([
@@ -146,6 +159,7 @@ export const LiveDelegationEventSchema = z
   .strict()
 
 export type LiveDelegationStatus = z.infer<typeof LiveDelegationStatusSchema>
+export type LiveDelegationOperation = z.infer<typeof LiveDelegationOperationSchema>
 export type LiveDelegationTurnStatus = z.infer<typeof LiveDelegationTurnStatusSchema>
 export type LiveDelegationEventDirection = z.infer<typeof LiveDelegationEventDirectionSchema>
 export type LiveDelegationEventKind = z.infer<typeof LiveDelegationEventKindSchema>

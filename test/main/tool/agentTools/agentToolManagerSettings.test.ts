@@ -473,4 +473,41 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(promptSchema?.description).toContain('Bounded child task')
     expect(defs.some((def) => def.function.name === 'subagent_orchestrator')).toBe(false)
   })
+
+  it('requires confirmation only when explicit policy starts child work', async () => {
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
+    const manager = buildManager()
+    resolveConversationSessionInfo.mockResolvedValue({ orchestrationPolicy: 'explicit' })
+
+    await expect(
+      manager.preCheckToolPermission(
+        LIVE_DELEGATION_AGENT_TOOL_NAME,
+        { operation: 'spawn' },
+        'conv-1'
+      )
+    ).resolves.toMatchObject({
+      needsPermission: true,
+      permissionType: 'write',
+      description: 'components.messageBlockPermissionRequest.description.subagentStart',
+      rememberable: false,
+      requiresUserConfirmation: true
+    })
+    await expect(
+      manager.preCheckToolPermission(
+        LIVE_DELEGATION_AGENT_TOOL_NAME,
+        { operation: 'send' },
+        'conv-1'
+      )
+    ).resolves.toBeNull()
+
+    resolveConversationSessionInfo.mockResolvedValue({ orchestrationPolicy: 'proactive' })
+    await expect(
+      manager.preCheckToolPermission(
+        LIVE_DELEGATION_AGENT_TOOL_NAME,
+        { operation: 'follow_up' },
+        'conv-1'
+      )
+    ).resolves.toBeNull()
+  })
 })

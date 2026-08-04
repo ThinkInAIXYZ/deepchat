@@ -9,9 +9,11 @@ import {
   DEEPCHAT_SUBAGENT_TASK_TITLE_LIMIT
 } from '@shared/lib/deepchatSubagents'
 import {
+  LIVE_DELEGATION_OPERATIONS,
   LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH,
   LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS
 } from '@shared/orchestration/liveDelegation'
+import { createChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
 import type {
   DeepChatSubagentCapability,
   DeepChatSubagentSlot
@@ -21,16 +23,7 @@ import type { AgentLiveDelegationToolPort } from '../runtimePorts'
 
 const liveDelegationSchema = z
   .object({
-    operation: z.enum([
-      'spawn',
-      'send',
-      'follow_up',
-      'list',
-      'inspect',
-      'read_result',
-      'wait',
-      'interrupt'
-    ]),
+    operation: z.enum(LIVE_DELEGATION_OPERATIONS),
     slotId: z.string().trim().min(1).max(256).optional(),
     title: z
       .string()
@@ -100,16 +93,7 @@ export class LiveDelegationAgentTool {
           properties: {
             operation: {
               type: 'string',
-              enum: [
-                'spawn',
-                'send',
-                'follow_up',
-                'list',
-                'inspect',
-                'read_result',
-                'wait',
-                'interrupt'
-              ]
+              enum: [...LIVE_DELEGATION_OPERATIONS]
             },
             slotId: buildSlotIdParameter(capability.slots),
             title: {
@@ -237,9 +221,10 @@ export class LiveDelegationAgentTool {
         result = await this.service.interrupt(conversationId, args.delegationId!)
         break
     }
+    const content = JSON.stringify(createChildAgentResultEnvelope(args.operation, result))
     return {
-      content: JSON.stringify(result),
-      rawData: { content: JSON.stringify(result), isError: false, toolResult: result }
+      content,
+      rawData: { content, isError: false, toolResult: result }
     }
   }
 }

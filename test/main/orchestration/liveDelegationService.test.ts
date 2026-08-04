@@ -1350,6 +1350,7 @@ function createSessionInfo(
     modelId: 'model-1',
     projectDir: '/repo',
     permissionMode: 'default',
+    orchestrationPolicy: 'explicit',
     generationSettings: null,
     disabledAgentTools: [],
     activeSkills: [],

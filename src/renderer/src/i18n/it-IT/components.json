@@ -37,6 +37,7 @@
       "read": "Consentire a '{toolName}' di '{serverName}' di eseguire operazioni di lettura?",
       "write": "Consentire a '{toolName}' di '{serverName}' di eseguire operazioni di scrittura?",
       "all": "Consentire a '{toolName}' di '{serverName}' di eseguire operazioni di lettura e scrittura?",
+      "subagentStart": "Avviare questa attività Subagent? Potrebbe usare token, tempo e risorse di sistema aggiuntivi.",
       "command": "Esegui comando: {command}",
       "commandWithRisk": "Esegui comando: {command}\n\nLivello di rischio: {riskLevel}\n\nSuggerimento: {suggestion}"
     },

@@ -43,6 +43,7 @@ import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
   assertAgentToolExposure,
   isTapeToolName,
   type AgentToolExposure
@@ -57,6 +58,7 @@ import type { SkillSettingsPort } from '@/skill/settings'
 import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import { LiveDelegationAgentTool } from './liveDelegationTool'
+import { normalizeOrchestrationPolicy } from '@shared/orchestration/policy'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -97,6 +99,7 @@ export interface AgentToolCallResult {
       }
       conversationId?: string
       rememberable?: boolean
+      requiresUserConfirmation?: boolean
     }
   }
 }
@@ -2113,6 +2116,7 @@ export class AgentToolManager {
     }
     conversationId?: string
     rememberable?: boolean
+    requiresUserConfirmation?: boolean
   } | null> {
     const writeTools = ['write', 'edit']
     const readTools = ['read', GLOB_TOOL_NAME, GREP_TOOL_NAME]
@@ -2126,6 +2130,34 @@ export class AgentToolManager {
         permissionType: 'write',
         description: 'Scheduled task changes require approval.',
         conversationId
+      }
+    }
+
+    if (
+      toolName === LIVE_DELEGATION_AGENT_TOOL_NAME &&
+      (args.operation === 'spawn' || args.operation === 'follow_up')
+    ) {
+      if (!conversationId) {
+        throw new Error(`${LIVE_DELEGATION_AGENT_TOOL_NAME} requires a conversationId.`)
+      }
+      const session =
+        await this.dependencies.sessions.resolveConversationSessionInfo(conversationId)
+      if (!session) {
+        throw new Error(`Conversation ${conversationId} is unavailable.`)
+      }
+      if (normalizeOrchestrationPolicy(session.orchestrationPolicy) === 'proactive') {
+        return null
+      }
+
+      return {
+        needsPermission: true,
+        toolName,
+        serverName: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+        permissionType: 'write',
+        description: 'components.messageBlockPermissionRequest.description.subagentStart',
+        conversationId,
+        rememberable: false,
+        requiresUserConfirmation: true
       }
     }
 

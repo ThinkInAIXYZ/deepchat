@@ -889,6 +889,7 @@ export async function createMainProcessControl(dependencies: {
           modelId: session.modelId,
           projectDir: session.projectDir ?? null,
           permissionMode,
+          orchestrationPolicy: session.orchestrationPolicy,
           generationSettings,
           disabledAgentTools,
           activeSkills,
