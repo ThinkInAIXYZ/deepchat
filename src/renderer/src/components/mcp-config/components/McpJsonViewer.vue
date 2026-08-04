@@ -4,6 +4,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
+import { DcCopyButton } from '@dc-ui/components/copy-button'
 
 interface Props {
   content: string
@@ -121,15 +122,6 @@ const getJsonPartClass = (type: string): string => {
       return ''
   }
 }
-
-// Keep writeText for a reliable Electron/Chromium failure contract.
-const copyToClipboard = async () => {
-  try {
-    await navigator.clipboard.writeText(props.content)
-  } catch (err) {
-    console.error('复制失败:', err)
-  }
-}
 </script>
 
 <template>
@@ -148,10 +140,13 @@ const copyToClipboard = async () => {
           <Icon icon="lucide:align-left" class="mr-1 h-3 w-3" />
           {{ t('common.format') }}
         </Button>
-        <Button variant="ghost" size="sm" class="h-7 text-xs" @click="copyToClipboard">
-          <Icon icon="lucide:copy" class="mr-1 h-3 w-3" />
-          {{ t('common.copy') }}
-        </Button>
+        <DcCopyButton
+          variant="ghost"
+          size="sm"
+          class="h-7 text-xs"
+          :copy-text="props.content"
+          :label="t('common.copy')"
+        />
       </div>
     </div>
 

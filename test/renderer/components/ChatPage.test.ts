@@ -371,6 +371,7 @@ const setup = async (options: SetupOptions = {}) => {
       template: '<div v-if="open" class="alert-dialog-stub"><slot /></div>'
     }),
     AlertDialogAction: clickStub('AlertDialogAction'),
+    AlertDialogAsyncAction: clickStub('AlertDialogAsyncAction'),
     AlertDialogCancel: clickStub('AlertDialogCancel'),
     AlertDialogContent: passthrough('AlertDialogContent'),
     AlertDialogDescription: passthrough('AlertDialogDescription'),
@@ -2542,7 +2543,7 @@ describe('ChatPage', () => {
     expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true)
     expect(wrapper.text()).toContain('dialog.deleteMessage.title')
 
-    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await wrapper.findComponent({ name: 'AlertDialogAsyncAction' }).trigger('click')
     await flushPromises()
 
     expect(messageStore.clearStreamingState).toHaveBeenCalled()
@@ -2564,7 +2565,7 @@ describe('ChatPage', () => {
 
     messageList.vm.$emit('delete', 'm1')
     await flushPromises()
-    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await wrapper.findComponent({ name: 'AlertDialogAsyncAction' }).trigger('click')
     await flushPromises()
 
     expect(agentPlanStore.clearSnapshot).toHaveBeenCalledWith('s1')
@@ -2584,7 +2585,7 @@ describe('ChatPage', () => {
 
     messageList.vm.$emit('delete', 'm1')
     await flushPromises()
-    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await wrapper.findComponent({ name: 'AlertDialogAsyncAction' }).trigger('click')
     await flushPromises()
 
     expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
@@ -2626,7 +2627,7 @@ describe('ChatPage', () => {
     sessionStore.activeSession.sessionKind = 'subagent'
     await flushPromises()
 
-    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await wrapper.findComponent({ name: 'AlertDialogAsyncAction' }).trigger('click')
     await flushPromises()
 
     expect(sessionClient.deleteMessage).not.toHaveBeenCalled()

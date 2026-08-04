@@ -5,12 +5,13 @@
       <span>{{ t('settings.common.autoCompaction.title') }}</span>
     </div>
 
-    <div class="rounded-lg border border-border bg-card/30 px-4 py-4">
+    <DcSectionCard>
       <div class="flex flex-col gap-3">
-        <SettingToggleRow
+        <DcToggleRow
           id="auto-compaction-switch"
           icon="lucide:scaling"
           :label="t('settings.common.autoCompaction.enabled')"
+          label-min-width="220px"
           :model-value="autoCompactionEnabled"
           @update:model-value="handleEnabledChange"
         />
@@ -95,7 +96,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </DcSectionCard>
   </section>
 </template>
 
@@ -103,6 +104,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { DcSectionCard } from '@dc-ui/components/section-card'
+import { DcToggleRow } from '@dc-ui/components/toggle-row'
 import { Input } from '@shadcn/components/ui/input'
 import { Slider } from '@shadcn/components/ui/slider'
 import {
@@ -113,7 +116,6 @@ import {
   AUTO_COMPACTION_TRIGGER_THRESHOLD_STEP,
   useUiSettingsStore
 } from '@/stores/uiSettingsStore'
-import SettingToggleRow from './SettingToggleRow.vue'
 
 const { t } = useI18n()
 const uiSettingsStore = useUiSettingsStore()

@@ -1,20 +1,16 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@shadcn/components/ui/tooltip'
+import { DcStatusPill } from '@dc-ui/components/status-pill'
+import { DcTooltip } from '@dc-ui/components/tooltip'
 import { Switch } from '@shadcn/components/ui/switch'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { useI18n } from 'vue-i18n'
 import { computed, ref, nextTick, onMounted, watch } from 'vue'
 import { Separator } from '@shadcn/components/ui/separator'
@@ -201,25 +197,28 @@ watch(watchDescription, () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem @click.stop="$emit('diagnostics')">
-              <Icon icon="lucide:activity" class="h-4 w-4 mr-2" />
-              {{ t('settings.mcp.diagnostics.title') }}
-            </DropdownMenuItem>
+            <DcDropdownActionItem
+              icon="lucide:activity"
+              :label="t('settings.mcp.diagnostics.title')"
+              @select="$emit('diagnostics')"
+            />
             <DropdownMenuSeparator v-if="canEdit || !isBuiltIn" />
-            <DropdownMenuItem v-if="canEdit" :disabled="disabled" @click.stop="$emit('edit')">
-              <Icon icon="lucide:edit-3" class="h-4 w-4 mr-2" />
-              {{ t('settings.mcp.editServer') }}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator v-if="canEdit && !isBuiltIn" />
-            <DropdownMenuItem
-              v-if="!isBuiltIn"
+            <DcDropdownActionItem
+              v-if="canEdit"
+              icon="lucide:edit-3"
+              :label="t('settings.mcp.editServer')"
               :disabled="disabled"
-              class="text-red-600 dark:text-red-400/90 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950/40 dark:focus:text-red-300 [&_svg]:text-current"
-              @click.stop="$emit('remove')"
-            >
-              <Icon icon="lucide:trash-2" class="h-4 w-4 mr-2" />
-              {{ t('settings.mcp.removeServer') }}
-            </DropdownMenuItem>
+              @select="$emit('edit')"
+            />
+            <DropdownMenuSeparator v-if="canEdit && !isBuiltIn" />
+            <DcDropdownActionItem
+              v-if="!isBuiltIn"
+              icon="lucide:trash-2"
+              :label="t('settings.mcp.removeServer')"
+              :disabled="disabled"
+              danger
+              @select="$emit('remove')"
+            />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -242,33 +241,20 @@ watch(watchDescription, () => {
       <div class="flex items-center justify-between">
         <!-- 状态 -->
         <div class="flex items-center space-x-1.5">
-          <div :class="['w-2 h-2 rounded-full', statusConfig.dot]" />
-          <span :class="['text-xs', statusConfig.color]">
-            {{ statusConfig.text }}
-          </span>
+          <DcStatusPill
+            :status="serverStatus"
+            :label="statusConfig.text"
+            :pulse="serverStatus === 'loading'"
+          />
 
           <!-- 错误提示 -->
-          <TooltipProvider v-if="server.errorMessage">
-            <Tooltip>
-              <TooltipTrigger>
-                <Icon icon="lucide:alert-circle" class="w-3 h-3 text-red-500" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p class="text-xs max-w-xs">{{ server.errorMessage }}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <DcTooltip v-if="server.errorMessage" :content="server.errorMessage" side="top">
+            <Icon icon="lucide:alert-circle" class="w-3 h-3 text-red-500" />
+          </DcTooltip>
 
-          <TooltipProvider v-if="server.authStatus?.error">
-            <Tooltip>
-              <TooltipTrigger>
-                <Icon icon="lucide:key-round" class="w-3 h-3 text-yellow-500" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p class="text-xs max-w-xs">{{ server.authStatus.error }}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <DcTooltip v-if="server.authStatus?.error" :content="server.authStatus.error" side="top">
+            <Icon icon="lucide:key-round" class="w-3 h-3 text-yellow-500" />
+          </DcTooltip>
         </div>
 
         <!-- 开关 -->

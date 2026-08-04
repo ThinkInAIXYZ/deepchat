@@ -226,69 +226,61 @@
                   </span>
                 </label>
 
-                <section class="space-y-3 rounded-lg border border-border p-3">
-                  <div class="flex items-center justify-between gap-3">
-                    <div>
-                      <div class="text-sm font-semibold">
-                        {{ t('settings.memory.config.retrievalTitle') }}
-                      </div>
-                      <p class="mt-1 text-xs text-muted-foreground">
-                        {{ t('settings.memory.config.retrievalHint') }}
-                      </p>
-                    </div>
+                <DcSectionCard
+                  :title="t('settings.memory.config.retrievalTitle')"
+                  :description="t('settings.memory.config.retrievalHint')"
+                >
+                  <template #actions>
                     <Switch
                       :model-value="form.overrideRetrieval"
                       :aria-label="t('settings.memory.config.retrievalOverride')"
                       @update:model-value="submitRetrievalOverride"
                     />
+                  </template>
+                  <div class="space-y-3">
+                    <p class="text-[11px] text-muted-foreground">
+                      {{ t('settings.memory.redesign.relativeWeightsHint') }}
+                    </p>
+                    <div
+                      class="grid gap-3 sm:grid-cols-2"
+                      :class="form.overrideRetrieval ? '' : 'pointer-events-none opacity-50'"
+                    >
+                      <label v-for="field in retrievalFields" :key="field.key" class="space-y-1">
+                        <span class="text-[11px] font-medium text-muted-foreground">
+                          {{ t(field.labelKey) }}
+                        </span>
+                        <Input
+                          v-model="form.retrieval[field.key]"
+                          :disabled="!form.overrideRetrieval"
+                          :inputmode="field.decimal ? 'decimal' : 'numeric'"
+                          class="h-8 text-xs"
+                          :placeholder="String(field.placeholder)"
+                          @blur="submitRetrieval"
+                          @keydown.enter.prevent="submitRetrieval"
+                        />
+                      </label>
+                    </div>
                   </div>
-                  <p class="text-[11px] text-muted-foreground">
-                    {{ t('settings.memory.redesign.relativeWeightsHint') }}
-                  </p>
-                  <div
-                    class="grid gap-3 sm:grid-cols-2"
-                    :class="form.overrideRetrieval ? '' : 'pointer-events-none opacity-50'"
-                  >
-                    <label v-for="field in retrievalFields" :key="field.key" class="space-y-1">
-                      <span class="text-[11px] font-medium text-muted-foreground">
-                        {{ t(field.labelKey) }}
-                      </span>
-                      <Input
-                        v-model="form.retrieval[field.key]"
-                        :disabled="!form.overrideRetrieval"
-                        :inputmode="field.decimal ? 'decimal' : 'numeric'"
-                        class="h-8 text-xs"
-                        :placeholder="String(field.placeholder)"
-                        @blur="submitRetrieval"
-                        @keydown.enter.prevent="submitRetrieval"
-                      />
-                    </label>
-                  </div>
-                </section>
+                </DcSectionCard>
               </CollapsibleContent>
             </Collapsible>
           </section>
 
-          <section class="space-y-2 rounded-lg border border-border p-4">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <div class="text-sm font-semibold">
-                  {{ t('settings.deepchatAgents.personaEvolutionTitle') }}
-                </div>
-                <p class="mt-1 text-xs text-muted-foreground">
-                  {{ t('settings.deepchatAgents.personaEvolutionDescription') }}
-                </p>
-              </div>
+          <DcSectionCard
+            :title="t('settings.deepchatAgents.personaEvolutionTitle')"
+            :description="t('settings.deepchatAgents.personaEvolutionDescription')"
+          >
+            <template #actions>
               <Switch
                 :model-value="form.personaEvolutionEnabled"
                 :aria-label="t('settings.deepchatAgents.personaEvolutionTitle')"
                 @update:model-value="submitBoolean('personaEvolutionEnabled', $event)"
               />
-            </div>
+            </template>
             <p class="rounded-lg bg-muted px-2.5 py-1.5 text-[11px] text-muted-foreground">
               {{ t('settings.deepchatAgents.personaEvolutionWarning') }}
             </p>
-          </section>
+          </DcSectionCard>
         </template>
       </div>
     </div>
@@ -299,6 +291,7 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { DcSectionCard } from '@dc-ui/components/section-card'
 import { Button } from '@shadcn/components/ui/button'
 import {
   Collapsible,

@@ -1,18 +1,15 @@
 <template>
-  <Tooltip v-if="shouldShowVoiceCall">
-    <TooltipTrigger as-child>
-      <Button
-        variant="outline"
-        size="icon"
-        class="w-7 h-7 text-xs rounded-lg"
-        :disabled="isStreaming || isCallActive"
-        @click="startVoiceCall"
-      >
-        <Icon icon="lucide:phone-call" class="w-4 h-4" />
-      </Button>
-    </TooltipTrigger>
-    <TooltipContent>{{ t('chat.call.start') }}</TooltipContent>
-  </Tooltip>
+  <DcButton
+    v-if="shouldShowVoiceCall"
+    icon="lucide:phone-call"
+    size="icon-sm"
+    variant="outline"
+    class="rounded-lg"
+    :label="t('chat.call.start')"
+    :tooltip="t('chat.call.start')"
+    :disabled="isStreaming || isCallActive"
+    @click="startVoiceCall"
+  />
 
   <Dialog v-model:open="callDialogOpen">
     <DialogContent class="w-105 p-4">
@@ -44,8 +41,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -53,7 +48,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
+import { DcButton } from '@dc-ui/components/button'
 import { useProviderStore } from '@/stores/providerStore'
 
 const props = withDefaults(

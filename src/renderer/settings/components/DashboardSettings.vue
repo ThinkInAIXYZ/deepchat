@@ -347,13 +347,13 @@
                 </CardDescription>
               </div>
               <div class="flex flex-wrap items-center gap-2">
-                <Badge
+                <DcBadge
                   data-testid="rtk-status-badge"
                   variant="secondary"
                   :class="rtkStatusBadgeClass"
                 >
                   {{ rtkStatusLabel }}
-                </Badge>
+                </DcBadge>
                 <Button
                   v-if="dashboard.rtk.health === 'unhealthy'"
                   data-testid="rtk-retry-button"
@@ -551,7 +551,7 @@ import { useDocumentVisibility, useTimeoutFn, useWindowFocus } from '@vueuse/cor
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import {
   Card,
   CardContent,

@@ -12,7 +12,7 @@
 
       <Select
         :model-value="selectedSystemPromptId"
-        :disabled="systemWriteBlocked || currentPromptDirty || !loaded"
+        :disabled="currentPromptDirty || !loaded"
         @update:model-value="handleSystemPromptChange"
       >
         <SelectTrigger class="w-32 border-border hover:bg-accent h-8!">
@@ -24,14 +24,14 @@
           </SelectItem>
         </SelectContent>
       </Select>
-      <Button
-        variant="outline"
+      <DcButton
+        icon="lucide:plus"
         size="icon-sm"
-        :disabled="systemWriteBlocked || currentPromptDirty || !loaded"
+        :label="t('promptSetting.addSystemPrompt')"
+        :tooltip="t('promptSetting.addSystemPrompt')"
+        :disabled="currentPromptDirty || !loaded"
         @click="openCreatePrompt"
-      >
-        <Icon icon="lucide:plus" class="w-4 h-4" />
-      </Button>
+      />
     </div>
 
     <div
@@ -40,15 +40,9 @@
       class="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
     >
       <span>{{ t('common.error.requestFailed') }}</span>
-      <Button
-        variant="link"
-        size="sm"
-        class="h-auto p-0 text-xs"
-        :disabled="systemWriteBlocked"
-        @click="loadSystemPrompts"
-      >
+      <DcButton variant="link" size="sm" class="h-auto p-0 text-xs" @click="loadSystemPrompts">
         {{ t('common.retry') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div v-if="isEmptyPromptSelected" class="rounded-md border border-dashed border-border p-3">
@@ -60,84 +54,55 @@
     <div v-else-if="currentSystemPrompt" class="space-y-2">
       <Textarea
         :model-value="currentSystemPrompt.content"
-        :disabled="operationPending"
         class="w-full h-48"
         :placeholder="t('promptSetting.contentPlaceholder')"
         @update:model-value="updateCurrentPromptContent"
         @blur="saveCurrentSystemPrompt"
       />
       <div class="flex items-center gap-2">
-        <Button
-          v-if="currentPromptDirty && feedback.status === 'error'"
-          variant="outline"
-          size="sm"
-          :disabled="systemWriteBlocked"
-          @click="saveCurrentSystemPrompt"
-        >
-          {{ t('common.retry') }}
-        </Button>
-        <Button
+        <DcButton
           v-if="currentSystemPrompt.id === 'default'"
           variant="outline"
           size="sm"
-          :disabled="systemWriteBlocked || currentPromptDirty"
+          icon="lucide:rotate-ccw"
+          :disabled="currentPromptDirty"
           @click="resetDefaultSystemPrompt"
         >
-          <Icon icon="lucide:rotate-ccw" class="w-3.5 h-3.5 mr-1" />
           {{ t('promptSetting.resetToDefault') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           v-else
           variant="outline"
           size="sm"
+          icon="lucide:trash-2"
           class="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-          :disabled="systemWriteBlocked || currentPromptDirty"
+          :disabled="currentPromptDirty"
           @click="requestDeleteSystemPrompt(currentSystemPrompt.id)"
         >
-          <Icon icon="lucide:trash-2" class="w-3.5 h-3.5 mr-1" />
           {{ t('common.delete') }}
-        </Button>
+        </DcButton>
       </div>
     </div>
 
     <SystemPromptEditorSheet
       :open="systemPromptEditorOpen"
       :prompt="editingSystemPrompt"
-      :pending="operationPending"
-      :feedback="feedback"
       @update:open="handleEditorOpenChange"
       @save="handleSaveSystemPrompt"
     />
 
-    <Dialog :open="deleteDialogOpen" @update:open="handleDeleteDialogOpenChange">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {{
-              t('promptSetting.confirmDeleteSystemPrompt', {
-                name: pendingDeleteSystemPrompt?.name ?? ''
-              })
-            }}
-          </DialogTitle>
-          <DialogDescription>
-            {{ t('promptSetting.confirmDeleteSystemPromptDescription') }}
-          </DialogDescription>
-        </DialogHeader>
-        <InlineOperationFeedback :snapshot="feedback" />
-        <DialogFooter>
-          <Button
-            variant="outline"
-            :disabled="operationPending"
-            @click="handleDeleteDialogOpenChange(false)"
-          >
-            {{ t('common.cancel') }}
-          </Button>
-          <Button variant="destructive" :disabled="operationPending" @click="deleteSystemPrompt">
-            {{ t('common.confirm') }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <DcConfirmDialog
+      :open="deleteDialogOpen"
+      icon="lucide:trash-2"
+      :title="
+        t('promptSetting.confirmDeleteSystemPrompt', {
+          name: pendingDeleteSystemPrompt?.name ?? ''
+        })
+      "
+      :description="t('promptSetting.confirmDeleteSystemPromptDescription')"
+      @update:open="handleDeleteDialogOpenChange"
+      @confirm="deleteSystemPrompt"
+    />
   </div>
 </template>
 
@@ -145,8 +110,8 @@
 import { nanoid } from 'nanoid'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { Label } from '@shadcn/components/ui/label'
 import {
@@ -156,48 +121,21 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@shadcn/components/ui/dialog'
 import type { AcceptableValue } from 'reka-ui'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import type {
-  SurfaceFeedbackController,
-  SurfaceFeedbackSnapshot
-} from '@renderer-notifications/surfaceFeedbackController'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import SystemPromptEditorSheet from './SystemPromptEditorSheet.vue'
 import { useSystemPromptStore } from '@/stores/systemPromptStore'
 import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 import type { SystemPrompt } from '@shared/types/prompt'
 
-const props = defineProps<{
-  feedbackController: SurfaceFeedbackController
-  feedback: SurfaceFeedbackSnapshot
-  blocked: boolean
-}>()
-
 const emit = defineEmits<{
   (e: 'dirty-change', value: boolean): void
-  (e: 'feedback-surface', value: boolean): void
 }>()
 
 const { t } = useI18n()
 const systemPromptStore = useSystemPromptStore()
 
 const EMPTY_SYSTEM_PROMPT_ID = 'empty'
-const operationScope = nanoid(8)
-const operationIds = Object.freeze({
-  change: `settings.systemPrompts.change:${operationScope}`,
-  save: `settings.systemPrompts.save:${operationScope}`,
-  reset: `settings.systemPrompts.reset:${operationScope}`,
-  delete: `settings.systemPrompts.delete:${operationScope}`,
-  editorSave: `settings.systemPrompts.editorSave:${operationScope}`
-})
 
 const systemPrompts = ref<SystemPrompt[]>([])
 const selectedSystemPromptId = ref('')
@@ -225,8 +163,6 @@ const selectableSystemPrompts = computed(() => [
 const isEmptyPromptSelected = computed(
   () => selectedSystemPromptId.value === EMPTY_SYSTEM_PROMPT_ID
 )
-const operationPending = computed(() => props.feedback.status === 'pending')
-const systemWriteBlocked = computed(() => operationPending.value || props.blocked)
 const currentPromptDirty = computed(() => {
   const prompt = currentSystemPrompt.value
   if (!prompt) return false
@@ -237,10 +173,6 @@ const pendingDeleteSystemPrompt = computed(
     systemPrompts.value.find((prompt) => prompt.id === pendingDeleteSystemPromptId.value) ?? null
 )
 const deleteDialogOpen = computed(() => pendingDeleteSystemPromptId.value !== null)
-const contextualFeedbackSurface = computed(
-  () => systemPromptEditorOpen.value || deleteDialogOpen.value
-)
-const getFeedback = () => props.feedbackController.getSnapshot()
 
 const clonePrompt = (prompt: SystemPrompt): SystemPrompt => ({ ...prompt })
 
@@ -254,17 +186,9 @@ const logFailure = (operation: string, error: unknown) => {
   )
 }
 
-const beginOperation = (operationId: string, label: string): boolean => {
-  if (props.blocked || getFeedback().status === 'pending') {
-    return false
-  }
-  props.feedbackController.begin(operationId, label)
-  return true
-}
-
-const failOperation = (operation: string, code: string, title: string, error: unknown) => {
+const notifyError = (operation: string, code: string, title: string, error: unknown) => {
   logFailure(operation, error)
-  props.feedbackController.fail({ code, title })
+  notifyRenderer({ kind: 'error', code, title })
 }
 
 const applySystemPromptState = (state: { prompts: SystemPrompt[]; defaultPromptId: string }) => {
@@ -309,33 +233,27 @@ const updateCurrentSystemPrompt = () => {
 }
 
 const updateCurrentPromptContent = (value: string | number) => {
-  if (props.blocked || !currentSystemPrompt.value) return
+  if (!currentSystemPrompt.value) return
   currentSystemPrompt.value.content = String(value)
-  const feedback = getFeedback()
-  if (feedback.status === 'error' && feedback.operationId === operationIds.save) {
-    props.feedbackController.clearSettled()
-  }
 }
 
 const handleSystemPromptChange = async (promptId: AcceptableValue) => {
   const id = String(promptId)
   if (
     currentPromptDirty.value ||
-    props.blocked ||
-    !selectableSystemPrompts.value.some((prompt) => prompt.id === id) ||
-    !beginOperation(operationIds.change, t('common.saving'))
+    !selectableSystemPrompts.value.some((prompt) => prompt.id === id)
   ) {
     return
   }
   try {
     applySystemPromptState(await systemPromptStore.setDefaultSystemPromptId(id))
-    props.feedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.systemPrompts.changed',
       title: t('promptSetting.systemPromptChanged')
     })
-    props.feedbackController.clearSettled()
   } catch (error) {
-    failOperation(
+    notifyError(
       'change',
       'settings.systemPrompts.changeFailed',
       t('promptSetting.systemPromptChangeFailed'),
@@ -346,11 +264,7 @@ const handleSystemPromptChange = async (promptId: AcceptableValue) => {
 
 const saveCurrentSystemPrompt = async () => {
   const prompt = currentSystemPrompt.value
-  if (
-    !prompt ||
-    !currentPromptDirty.value ||
-    !beginOperation(operationIds.save, t('common.saving'))
-  ) {
+  if (!prompt || !currentPromptDirty.value) {
     return
   }
 
@@ -361,12 +275,13 @@ const saveCurrentSystemPrompt = async () => {
         updatedAt: Date.now()
       })
     )
-    props.feedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.systemPrompts.updated',
       title: t('promptSetting.systemPromptUpdated')
     })
   } catch (error) {
-    failOperation(
+    notifyError(
       'save',
       'settings.systemPrompts.saveFailed',
       t('promptSetting.systemPromptSaveFailed'),
@@ -376,22 +291,19 @@ const saveCurrentSystemPrompt = async () => {
 }
 
 const resetDefaultSystemPrompt = async () => {
-  if (
-    currentPromptDirty.value ||
-    currentSystemPrompt.value?.id !== 'default' ||
-    !beginOperation(operationIds.reset, t('common.saving'))
-  ) {
+  if (currentPromptDirty.value || currentSystemPrompt.value?.id !== 'default') {
     return
   }
 
   try {
     applySystemPromptState(await systemPromptStore.resetToDefaultPrompt())
-    props.feedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.systemPrompts.reset',
       title: t('promptSetting.resetToDefaultSuccess')
     })
   } catch (error) {
-    failOperation(
+    notifyError(
       'reset',
       'settings.systemPrompts.resetFailed',
       t('promptSetting.resetToDefaultFailed'),
@@ -401,46 +313,35 @@ const resetDefaultSystemPrompt = async () => {
 }
 
 const requestDeleteSystemPrompt = (promptId: string) => {
-  if (
-    props.blocked ||
-    currentPromptDirty.value ||
-    getFeedback().status === 'pending' ||
-    !systemPrompts.value.some((prompt) => prompt.id === promptId)
-  ) {
+  if (currentPromptDirty.value || !systemPrompts.value.some((prompt) => prompt.id === promptId)) {
     return
-  }
-  if (getFeedback().status !== 'idle') {
-    props.feedbackController.clearSettled()
   }
   pendingDeleteSystemPromptId.value = promptId
 }
 
 const handleDeleteDialogOpenChange = (open: boolean) => {
-  if (open || getFeedback().status === 'pending') {
+  if (open) {
     return
   }
   pendingDeleteSystemPromptId.value = null
-  if (getFeedback().status !== 'idle') {
-    props.feedbackController.clearSettled()
-  }
 }
 
 const deleteSystemPrompt = async () => {
   const prompt = pendingDeleteSystemPrompt.value
-  if (!prompt || !beginOperation(operationIds.delete, t('common.saving'))) {
+  if (!prompt) {
     return
   }
 
   try {
     applySystemPromptState(await systemPromptStore.deleteSystemPrompt(prompt.id))
-    props.feedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.systemPrompts.deleted',
       title: t('promptSetting.systemPromptDeleted')
     })
-    props.feedbackController.clearSettled()
     pendingDeleteSystemPromptId.value = null
   } catch (error) {
-    failOperation(
+    notifyError(
       'delete',
       'settings.systemPrompts.deleteFailed',
       t('promptSetting.systemPromptDeleteFailed'),
@@ -450,31 +351,17 @@ const deleteSystemPrompt = async () => {
 }
 
 const openCreatePrompt = () => {
-  if (
-    !loaded.value ||
-    props.blocked ||
-    currentPromptDirty.value ||
-    getFeedback().status === 'pending'
-  ) {
+  if (!loaded.value || currentPromptDirty.value) {
     return
-  }
-  if (getFeedback().status !== 'idle') {
-    props.feedbackController.clearSettled()
   }
   editingSystemPrompt.value = null
   systemPromptEditorOpen.value = true
 }
 
 const handleEditorOpenChange = (open: boolean) => {
-  if (!open && getFeedback().status === 'pending') {
-    return
-  }
   systemPromptEditorOpen.value = open
   if (!open) {
     editingSystemPrompt.value = null
-    if (getFeedback().status !== 'idle') {
-      props.feedbackController.clearSettled()
-    }
   }
 }
 
@@ -487,9 +374,6 @@ const handleSaveSystemPrompt = async ({
   name: string
   content: string
 }) => {
-  if (!beginOperation(operationIds.editorSave, t('common.saving'))) {
-    return
-  }
   const timestamp = Date.now()
 
   try {
@@ -518,7 +402,7 @@ const handleSaveSystemPrompt = async ({
       } catch (error) {
         systemPromptEditorOpen.value = false
         editingSystemPrompt.value = null
-        failOperation(
+        notifyError(
           'activate-created',
           'settings.systemPrompts.changeFailed',
           t('promptSetting.systemPromptChangeFailed'),
@@ -530,14 +414,15 @@ const handleSaveSystemPrompt = async ({
 
     systemPromptEditorOpen.value = false
     editingSystemPrompt.value = null
-    props.feedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: id ? 'settings.systemPrompts.updated' : 'settings.systemPrompts.added',
       title: id
         ? t('promptSetting.systemPromptUpdated')
         : t('promptSetting.systemPromptAddedAndSwitched')
     })
   } catch (error) {
-    failOperation(
+    notifyError(
       'editor-save',
       'settings.systemPrompts.saveFailed',
       t('promptSetting.systemPromptSaveFailed'),
@@ -552,14 +437,10 @@ const restoreCurrentPrompt = () => {
     const persisted = persistedPrompts.get(currentId)
     currentSystemPrompt.value = persisted ? clonePrompt(persisted) : null
   }
-  const feedback = getFeedback()
-  if (feedback.status === 'error' && feedback.operationId === operationIds.save) {
-    props.feedbackController.clearSettled()
-  }
 }
 
 const leaveGuardLease = settingsLeaveGuard.register({
-  id: operationIds.save,
+  id: 'settings.systemPrompts.save',
   onDiscard: restoreCurrentPrompt
 })
 const stopDirtySync = watch(
@@ -567,13 +448,6 @@ const stopDirtySync = watch(
   (dirty) => {
     leaveGuardLease.setRisk(dirty ? 'dirty' : 'clean')
     emit('dirty-change', dirty)
-  },
-  { immediate: true, flush: 'sync' }
-)
-const stopFeedbackSurfaceSync = watch(
-  contextualFeedbackSurface,
-  (active) => {
-    emit('feedback-surface', active)
   },
   { immediate: true, flush: 'sync' }
 )
@@ -586,9 +460,7 @@ onBeforeUnmount(() => {
   disposed = true
   loadGeneration += 1
   stopDirtySync()
-  stopFeedbackSurfaceSync()
   leaveGuardLease.release()
   emit('dirty-change', false)
-  emit('feedback-surface', false)
 })
 </script>

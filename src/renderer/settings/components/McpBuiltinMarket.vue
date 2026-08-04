@@ -36,19 +36,14 @@
             :aria-invalid="Boolean(apiKeyLoadError || apiKeyRequirementError)"
             @update:model-value="handleApiKeyInputUpdate"
           />
-          <Button
+          <DcSubmitButton
             size="sm"
+            :status="saveApiKeyStatus"
             :disabled="apiKeyLoading || Boolean(apiKeyLoadError) || marketMutationInProgress"
             @click="saveApiKey"
           >
-            <Spinner v-if="savingApiKey" class="mr-1 size-3.5" data-icon="inline-start" />
             {{ t('common.save') }}
-          </Button>
-          <InlineOperationFeedback
-            :snapshot="apiKeyFeedback"
-            :retry-label="t('common.retry')"
-            @retry="saveApiKey"
-          />
+          </DcSubmitButton>
         </div>
       </div>
     </div>
@@ -75,9 +70,12 @@
           {{ t('common.retry') }}
         </Button>
       </div>
-      <p v-else-if="apiKeyRequirementError" role="alert" class="mt-2 text-destructive">
-        {{ apiKeyRequirementError }}
-      </p>
+      <DcInlineError
+        v-else-if="apiKeyRequirementError"
+        :error="apiKeyRequirementError"
+        class="mt-2"
+      />
+      <DcInlineError v-if="apiKeySaveError" :error="apiKeySaveError" class="mt-2" />
       <Separator class="mt-4" />
     </div>
 
@@ -146,13 +144,11 @@
               }}
             </Button>
           </div>
-          <p
+          <DcInlineError
             v-if="installErrors[item.server_key]"
-            role="alert"
-            class="mt-2 text-xs text-destructive"
-          >
-            {{ installErrors[item.server_key] }}
-          </p>
+            :error="installErrors[item.server_key]"
+            class="mt-2"
+          />
         </div>
       </div>
 
@@ -196,10 +192,8 @@ import { Input } from '@shadcn/components/ui/input'
 import { createMcpClient } from '@api/McpClient'
 import { Separator } from '@shadcn/components/ui/separator'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import { nanoid } from 'nanoid'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 
 withDefaults(
   defineProps<{
@@ -216,9 +210,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const mcpClient = createMcpClient()
-const apiKeyFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: apiKeyFeedback } = useSurfaceFeedback(apiKeyFeedbackController)
-const apiKeyOperationId = `settings.mcpMarket.apiKey.save:${nanoid(8)}`
 
 type MarketItem = {
   uuid: string
@@ -250,7 +241,9 @@ const apiKeyInputRef = ref<{ $el?: HTMLInputElement } | HTMLInputElement | null>
 const apiKeyLoading = ref(false)
 const apiKeyLoadError = ref<string | null>(null)
 const apiKeyRequirementError = ref<string | null>(null)
-const savingApiKey = computed(() => apiKeyFeedback.value.status === 'pending')
+const apiKeySaveError = ref<string | null>(null)
+const { status: saveApiKeyStatus, run: runSaveApiKey } = useDcFormSubmit()
+const savingApiKey = computed(() => saveApiKeyStatus.value === 'submitting')
 const installInProgress = computed(() => installingServerKeys.value.size > 0)
 const marketMutationInProgress = computed(() => savingApiKey.value || installInProgress.value)
 
@@ -275,29 +268,20 @@ const synchronizeApiKey = async (apiKey: string) => {
 
 const saveApiKey = async () => {
   if (apiKeyLoading.value || apiKeyLoadError.value || marketMutationInProgress.value) return
-  apiKeyFeedbackController.begin(apiKeyOperationId, t('common.saving'))
+  apiKeySaveError.value = null
   try {
-    await synchronizeApiKey(apiKeyInput.value)
-
-    apiKeyFeedbackController.succeed({
-      code: 'settings.mcpMarket.apiKey.saved',
-      title: t('common.saved')
+    await runSaveApiKey(async () => {
+      await synchronizeApiKey(apiKeyInput.value)
     })
   } catch (error) {
     console.error('[McpBuiltinMarket] Failed to save API key:', error)
-    apiKeyFeedbackController.fail({
-      code: 'settings.mcpMarket.apiKey.saveFailed',
-      title: t('common.error.operationFailed'),
-      description: t('common.error.requestFailed')
-    })
+    apiKeySaveError.value = t('common.error.requestFailed')
   }
 }
 
 const handleApiKeyInputUpdate = () => {
   apiKeyRequirementError.value = null
-  if (apiKeyFeedback.value.status === 'success' || apiKeyFeedback.value.status === 'error') {
-    apiKeyFeedbackController.clearSettled()
-  }
+  apiKeySaveError.value = null
 }
 
 const openHowToGetKey = () => {

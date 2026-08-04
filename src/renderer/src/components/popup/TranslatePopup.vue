@@ -14,9 +14,14 @@
         @pointerdown="startDrag"
       >
         <h3 class="text-lg font-semibold">{{ t('contextMenu.translate.title') }}</h3>
-        <Button variant="ghost" size="icon" @click="close">
-          <Icon icon="lucide:x" class="h-4 w-4" />
-        </Button>
+        <DcButton
+          variant="ghost"
+          size="icon"
+          icon="lucide:x"
+          :label="t('common.close')"
+          :tooltip="t('common.close')"
+          @click="close"
+        />
       </div>
       <div class="p-4">
         <div class="mb-4">
@@ -44,9 +49,8 @@ import { useEventListener } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { createSessionClient } from '@api/SessionClient'
 import { useAgentStore } from '@/stores/ui/agent'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import { Icon } from '@iconify/vue'
 
 const { t, locale } = useI18n()
 const sessionClient = createSessionClient()

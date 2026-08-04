@@ -32,9 +32,9 @@
               <div class="space-y-1">
                 <div class="text-sm font-semibold flex items-center gap-2">
                   <span>{{ profile.name }}</span>
-                  <Badge v-if="profile.id === agent.activeProfileId" variant="secondary">
+                  <DcBadge v-if="profile.id === agent.activeProfileId" variant="secondary">
                     {{ t('settings.acp.profileManager.active') }}
-                  </Badge>
+                  </DcBadge>
                 </div>
                 <p class="text-xs text-muted-foreground break-words">
                   {{ profile.command }}
@@ -96,7 +96,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 
 defineProps<{
   open: boolean

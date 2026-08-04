@@ -56,7 +56,7 @@
                   class="rounded-md border p-3"
                 >
                   <div class="mb-2 flex items-center justify-between">
-                    <Badge variant="outline" class="capitalize">{{ message.role }}</Badge>
+                    <DcBadge variant="outline" class="capitalize">{{ message.role }}</DcBadge>
                     <span class="text-xs text-muted-foreground">
                       {{ t(`mcp.sampling.contentType.${message.type}`) }}
                     </span>
@@ -253,7 +253,7 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   Collapsible,

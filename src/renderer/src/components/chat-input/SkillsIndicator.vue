@@ -1,58 +1,44 @@
 <template>
-  <TooltipProvider>
-    <Popover v-model:open="panelOpen">
-      <PopoverTrigger>
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              id="skills-btn"
-              variant="outline"
-              :class="[
-                'flex text-accent-foreground rounded-lg shadow-sm items-center gap-1.5 h-7 text-xs px-1.5 w-auto',
-                composerActiveCount > 0 ? 'text-primary border-primary/50' : ''
-              ]"
-              size="icon"
-            >
-              <Spinner v-if="loading" class="size-4" />
-              <Icon v-else icon="lucide:sparkles" class="size-4" />
-              <span v-if="composerActiveCount > 0" class="text-sm">{{ composerActiveCount }}</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p v-if="composerActiveCount > 0">
-              {{ t('chat.skills.indicator.active', { count: composerActiveCount }) }}
-            </p>
-            <p v-else>{{ t('chat.skills.indicator.none') }}</p>
-          </TooltipContent>
-        </Tooltip>
-      </PopoverTrigger>
+  <Popover v-model:open="panelOpen">
+    <PopoverTrigger>
+      <DcButton
+        id="skills-btn"
+        variant="outline"
+        size="icon-sm"
+        icon="lucide:sparkles"
+        icon-size="4"
+        :loading="loading"
+        :tooltip="
+          composerActiveCount > 0
+            ? t('chat.skills.indicator.active', { count: composerActiveCount })
+            : t('chat.skills.indicator.none')
+        "
+        :class="[
+          'flex items-center gap-1.5 w-auto rounded-lg shadow-sm px-1.5 text-xs text-accent-foreground hover:text-accent-foreground',
+          composerActiveCount > 0 ? 'text-primary border-primary/50' : ''
+        ]"
+      >
+        <span v-if="composerActiveCount > 0" class="text-sm">{{ composerActiveCount }}</span>
+      </DcButton>
+    </PopoverTrigger>
 
-      <PopoverContent class="w-72 p-0" align="start">
-        <SkillsPanel
-          :skills="skills"
-          :active-skills="composerActiveSkills"
-          @toggle="handleToggle"
-          @manage="openSettings"
-        />
-      </PopoverContent>
-    </Popover>
-  </TooltipProvider>
+    <PopoverContent class="w-72 p-0" align="start">
+      <SkillsPanel
+        :skills="skills"
+        :active-skills="composerActiveSkills"
+        @toggle="handleToggle"
+        @manage="openSettings"
+      />
+    </PopoverContent>
+  </Popover>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { Icon } from '@iconify/vue'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@shadcn/components/ui/tooltip'
+import { DcButton } from '@dc-ui/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
-import { Button } from '@shadcn/components/ui/button'
-import { Spinner } from '@shadcn/components/ui/spinner'
 import { useSkillsData } from './composables/useSkillsData'
 import SkillsPanel from './SkillsPanel.vue'
 

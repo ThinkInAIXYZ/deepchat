@@ -9,12 +9,12 @@
         }}</span>
       </span>
       <div v-if="isPreviewable" class="flex items-center space-x-2">
-        <button
-          class="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-          @click="handleCopy"
-        >
-          {{ copyText }}
-        </button>
+        <DcCopyButton
+          variant="ghost"
+          size="xs"
+          :copy-text="props.block.content"
+          :label="t('common.copy')"
+        />
         <button
           class="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
           @click="previewCode"
@@ -22,13 +22,13 @@
           {{ t('artifacts.preview') }}
         </button>
       </div>
-      <button
+      <DcCopyButton
         v-else
-        class="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-        @click="handleCopy"
-      >
-        {{ copyText }}
-      </button>
+        variant="ghost"
+        size="xs"
+        :copy-text="props.block.content"
+        :label="t('common.copy')"
+      />
     </div>
     <div
       ref="codeEditor"
@@ -43,7 +43,7 @@ import { useI18n } from 'vue-i18n'
 import { useThrottleFn } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { MermaidBlockNode } from 'markstream-vue'
-import { createDeviceClient } from '@api/DeviceClient'
+import { DcCopyButton } from '@dc-ui/components/copy-button'
 import { useArtifactStore } from '@/stores/artifact'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { getLanguageIcon } from 'markstream-vue'
@@ -65,7 +65,6 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const deviceClient = createDeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { createEditor, updateCode, getEditorView } = useMonaco({
   wordWrap: 'on',
@@ -73,7 +72,6 @@ const { createEditor, updateCode, getEditorView } = useMonaco({
   fontFamily: uiSettingsStore.formattedCodeFontFamily
 })
 const artifactStore = useArtifactStore()
-const copyText = ref(t('common.copy'))
 const codeEditor = ref<HTMLElement>()
 
 const sanitizeLanguage = (language?: string | null) => {
@@ -177,18 +175,6 @@ const displayLanguage = computed(() => {
   }
   return displayNames[lang] || lang.charAt(0).toUpperCase() + lang.slice(1)
 })
-
-const handleCopy = async () => {
-  try {
-    deviceClient.copyText(props.block.content)
-    copyText.value = t('common.copySuccess')
-    setTimeout(() => {
-      copyText.value = t('common.copy')
-    }, 2000)
-  } catch (err) {
-    console.error('Failed to copy:', err)
-  }
-}
 
 // 预览HTML/SVG代码
 const previewCode = () => {

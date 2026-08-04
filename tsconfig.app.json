@@ -20,6 +20,8 @@
     "src/renderer/services/**/*",
     "src/shared/**/*",
     "src/shadcn/**/*",
+    "src/dc-ui/**/*",
+    "src/dc-ui/**/*.vue",
     "src/renderer/settings/**/*",
     "src/renderer/settings/**/*.vue"
   ],
@@ -48,6 +50,9 @@
       ],
       "@shadcn/*": [
         "./src/shadcn/*"
+      ],
+      "@dc-ui/*": [
+        "./src/dc-ui/*"
       ]
     }
   }

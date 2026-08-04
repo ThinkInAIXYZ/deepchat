@@ -116,7 +116,7 @@
               {{ formatDate(activity.createdAt) }}
             </TableCell>
             <TableCell>
-              <Badge variant="outline">{{ getActivityCategoryLabel(activity.category) }}</Badge>
+              <DcBadge variant="outline">{{ getActivityCategoryLabel(activity.category) }}</DcBadge>
             </TableCell>
             <TableCell class="min-w-0">
               <span class="line-clamp-2 text-sm">
@@ -126,14 +126,11 @@
           </TableRow>
         </TableBody>
       </Table>
-      <Empty v-else>
-        <EmptyHeader>
-          <EmptyTitle>{{ t('settings.controlCenter.activity.empty') }}</EmptyTitle>
-          <EmptyDescription>
-            {{ t('settings.controlCenter.activity.emptyDescription') }}
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <DcEmpty
+        v-else
+        :title="t('settings.controlCenter.activity.empty')"
+        :description="t('settings.controlCenter.activity.emptyDescription')"
+      />
     </SettingsSectionCard>
   </SettingsPageShell>
 </template>
@@ -143,10 +140,10 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader } from '@shadcn/components/ui/card'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@shadcn/components/ui/empty'
+import { DcEmpty } from '@dc-ui/components/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@shadcn/components/ui/input-group'
 import {
   Table,

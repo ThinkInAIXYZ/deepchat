@@ -43,17 +43,6 @@
           </div>
         </div>
 
-        <InlineOperationFeedback
-          v-if="visibleChannelFeedback.status !== 'idle'"
-          :snapshot="visibleChannelFeedback"
-          :retry-label="
-            visibleChannelFeedback.status === 'error' && visibleChannelFeedbackSource === 'save'
-              ? t('common.retry')
-              : undefined
-          "
-          @retry="retryActiveChannelSave"
-        />
-
         <Tabs v-model="activeChannel" class="space-y-4">
           <TabsList
             v-if="!singleChannelMode"
@@ -83,14 +72,10 @@
                 <div class="space-y-1">
                   <div class="flex flex-wrap items-center gap-2">
                     <div class="text-base font-medium">{{ channelTitle('telegram') }}</div>
-                    <span
-                      :class="[
-                        'inline-flex rounded-full px-2 py-1 text-[11px]',
-                        statusDotClass(telegramStatus.state)
-                      ]"
-                    >
-                      {{ formatStatusLine(telegramStatus) }}
-                    </span>
+                    <DcStatusPill
+                      :status="statusPillStatus(telegramStatus.state)"
+                      :label="formatStatusLine(telegramStatus)"
+                    />
                   </div>
                   <p class="text-sm text-muted-foreground">
                     {{ t('settings.remote.telegram.description') }}
@@ -243,27 +228,19 @@
                           />
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          class="gap-2 px-2 py-1.5 text-xs"
+                        <DcDropdownActionItem
+                          icon="lucide:folder-open"
+                          :label="t('common.project.openFolder')"
+                          class="text-xs"
                           @select="pickDefaultWorkdir('telegram')"
-                        >
-                          <Icon
-                            icon="lucide:folder-open"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.project.openFolder') }}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
+                        />
+                        <DcDropdownActionItem
                           v-if="telegramSettings.defaultWorkdir"
-                          class="gap-2 px-2 py-1.5 text-xs"
+                          icon="lucide:x"
+                          :label="t('common.clear')"
+                          class="text-xs"
                           @select="clearDefaultWorkdir('telegram')"
-                        >
-                          <Icon
-                            icon="lucide:x"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.clear') }}</span>
-                        </DropdownMenuItem>
+                        />
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <p class="text-xs text-muted-foreground">
@@ -307,14 +284,10 @@
                 <div class="space-y-1">
                   <div class="flex flex-wrap items-center gap-2">
                     <div class="text-base font-medium">{{ channelTitle('feishu') }}</div>
-                    <span
-                      :class="[
-                        'inline-flex rounded-full px-2 py-1 text-[11px]',
-                        statusDotClass(feishuStatus.state)
-                      ]"
-                    >
-                      {{ formatStatusLine(feishuStatus) }}
-                    </span>
+                    <DcStatusPill
+                      :status="statusPillStatus(feishuStatus.state)"
+                      :label="formatStatusLine(feishuStatus)"
+                    />
                   </div>
                   <p class="text-sm text-muted-foreground">
                     {{ t('settings.remote.feishu.description') }}
@@ -720,27 +693,19 @@
                           />
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          class="gap-2 px-2 py-1.5 text-xs"
+                        <DcDropdownActionItem
+                          icon="lucide:folder-open"
+                          :label="t('common.project.openFolder')"
+                          class="text-xs"
                           @select="pickDefaultWorkdir('feishu')"
-                        >
-                          <Icon
-                            icon="lucide:folder-open"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.project.openFolder') }}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
+                        />
+                        <DcDropdownActionItem
                           v-if="feishuSettings.defaultWorkdir"
-                          class="gap-2 px-2 py-1.5 text-xs"
+                          icon="lucide:x"
+                          :label="t('common.clear')"
+                          class="text-xs"
                           @select="clearDefaultWorkdir('feishu')"
-                        >
-                          <Icon
-                            icon="lucide:x"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.clear') }}</span>
-                        </DropdownMenuItem>
+                        />
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <p class="text-xs text-muted-foreground">
@@ -770,14 +735,10 @@
                 <div class="space-y-1">
                   <div class="flex flex-wrap items-center gap-2">
                     <div class="text-base font-medium">{{ channelTitle('qqbot') }}</div>
-                    <span
-                      :class="[
-                        'inline-flex rounded-full px-2 py-1 text-[11px]',
-                        statusDotClass(qqbotStatus.state)
-                      ]"
-                    >
-                      {{ formatStatusLine(qqbotStatus) }}
-                    </span>
+                    <DcStatusPill
+                      :status="statusPillStatus(qqbotStatus.state)"
+                      :label="formatStatusLine(qqbotStatus)"
+                    />
                   </div>
                   <p class="text-sm text-muted-foreground">
                     {{ t('settings.remote.qqbot.description') }}
@@ -926,27 +887,19 @@
                           />
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          class="gap-2 px-2 py-1.5 text-xs"
+                        <DcDropdownActionItem
+                          icon="lucide:folder-open"
+                          :label="t('common.project.openFolder')"
+                          class="text-xs"
                           @select="pickDefaultWorkdir('qqbot')"
-                        >
-                          <Icon
-                            icon="lucide:folder-open"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.project.openFolder') }}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
+                        />
+                        <DcDropdownActionItem
                           v-if="qqbotSettings.defaultWorkdir"
-                          class="gap-2 px-2 py-1.5 text-xs"
+                          icon="lucide:x"
+                          :label="t('common.clear')"
+                          class="text-xs"
                           @select="clearDefaultWorkdir('qqbot')"
-                        >
-                          <Icon
-                            icon="lucide:x"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.clear') }}</span>
-                        </DropdownMenuItem>
+                        />
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <p class="text-xs text-muted-foreground">
@@ -988,14 +941,10 @@
                 <div class="space-y-1">
                   <div class="flex flex-wrap items-center gap-2">
                     <div class="text-base font-medium">{{ channelTitle('discord') }}</div>
-                    <span
-                      :class="[
-                        'inline-flex rounded-full px-2 py-1 text-[11px]',
-                        statusDotClass(discordStatus.state)
-                      ]"
-                    >
-                      {{ formatStatusLine(discordStatus) }}
-                    </span>
+                    <DcStatusPill
+                      :status="statusPillStatus(discordStatus.state)"
+                      :label="formatStatusLine(discordStatus)"
+                    />
                   </div>
                   <p class="text-sm text-muted-foreground">
                     {{ t('settings.remote.discord.description') }}
@@ -1152,27 +1101,19 @@
                           />
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          class="gap-2 px-2 py-1.5 text-xs"
+                        <DcDropdownActionItem
+                          icon="lucide:folder-open"
+                          :label="t('common.project.openFolder')"
+                          class="text-xs"
                           @select="pickDefaultWorkdir('discord')"
-                        >
-                          <Icon
-                            icon="lucide:folder-open"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.project.openFolder') }}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
+                        />
+                        <DcDropdownActionItem
                           v-if="discordSettings.defaultWorkdir"
-                          class="gap-2 px-2 py-1.5 text-xs"
+                          icon="lucide:x"
+                          :label="t('common.clear')"
+                          class="text-xs"
                           @select="clearDefaultWorkdir('discord')"
-                        >
-                          <Icon
-                            icon="lucide:x"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.clear') }}</span>
-                        </DropdownMenuItem>
+                        />
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <p class="text-xs text-muted-foreground">
@@ -1216,14 +1157,10 @@
                 <div class="space-y-1">
                   <div class="flex flex-wrap items-center gap-2">
                     <div class="text-base font-medium">{{ channelTitle('weixin-ilink') }}</div>
-                    <span
-                      :class="[
-                        'inline-flex rounded-full px-2 py-1 text-[11px]',
-                        statusDotClass(weixinIlinkStatus.state)
-                      ]"
-                    >
-                      {{ formatStatusLine(weixinIlinkStatus) }}
-                    </span>
+                    <DcStatusPill
+                      :status="statusPillStatus(weixinIlinkStatus.state)"
+                      :label="formatStatusLine(weixinIlinkStatus)"
+                    />
                   </div>
                   <p class="text-sm text-muted-foreground">
                     {{ t('settings.remote.weixinIlink.description') }}
@@ -1488,27 +1425,19 @@
                           />
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          class="gap-2 px-2 py-1.5 text-xs"
+                        <DcDropdownActionItem
+                          icon="lucide:folder-open"
+                          :label="t('common.project.openFolder')"
+                          class="text-xs"
                           @select="pickDefaultWorkdir('weixin-ilink')"
-                        >
-                          <Icon
-                            icon="lucide:folder-open"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.project.openFolder') }}</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
+                        />
+                        <DcDropdownActionItem
                           v-if="weixinIlinkSettings.defaultWorkdir"
-                          class="gap-2 px-2 py-1.5 text-xs"
+                          icon="lucide:x"
+                          :label="t('common.clear')"
+                          class="text-xs"
                           @select="clearDefaultWorkdir('weixin-ilink')"
-                        >
-                          <Icon
-                            icon="lucide:x"
-                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span>{{ t('common.clear') }}</span>
-                        </DropdownMenuItem>
+                        />
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <p class="text-xs text-muted-foreground">
@@ -1588,9 +1517,7 @@
               /pair {{ pairDialogCode || '------' }}
             </div>
           </div>
-          <div v-if="pairDialogError" role="alert" class="text-xs text-destructive">
-            {{ pairDialogError }}
-          </div>
+          <DcInlineError v-if="pairDialogError" :error="pairDialogError" />
         </div>
 
         <div class="flex justify-end">
@@ -1853,11 +1780,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as QRCode from 'qrcode'
 import { Icon } from '@iconify/vue'
-import { nanoid } from 'nanoid'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
@@ -1867,10 +1793,13 @@ import { Skeleton } from '@shadcn/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
+import { DcStatusPill } from '@dc-ui/components/status-pill'
+import type { DcStatus } from '@dc-ui/components/status-pill'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import {
   Dialog,
   DialogContent,
@@ -1891,9 +1820,7 @@ import { createProjectClient } from '@api/ProjectClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { createSessionClient } from '@api/SessionClient'
 import { openRuntimeExternal } from '@api/runtime'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { isAcpDefaultWorkdirRequiredError } from '@shared/contracts/remoteControlErrors'
 import { RemoteChannelSaveCoordinator } from '../lib/remoteChannelSaveCoordinator'
@@ -1988,41 +1915,13 @@ const showDiscordBotToken = ref(false)
 const availableAgents = ref<Agent[]>([])
 const recentProjects = ref<Project[]>([])
 const activeChannel = ref<RemoteChannel>('telegram')
-const createChannelFeedbackBinding = () => {
-  const controller = createRendererSurfaceFeedbackController('settings')
-  return {
-    controller,
-    ...useSurfaceFeedback(controller)
-  }
-}
-const channelSaveFeedback = {
-  telegram: createChannelFeedbackBinding(),
-  feishu: createChannelFeedbackBinding(),
-  qqbot: createChannelFeedbackBinding(),
-  discord: createChannelFeedbackBinding(),
-  'weixin-ilink': createChannelFeedbackBinding()
-} satisfies Record<RemoteChannel, ReturnType<typeof createChannelFeedbackBinding>>
-const channelActionFeedback = {
-  telegram: createChannelFeedbackBinding(),
-  feishu: createChannelFeedbackBinding(),
-  qqbot: createChannelFeedbackBinding(),
-  discord: createChannelFeedbackBinding(),
-  'weixin-ilink': createChannelFeedbackBinding()
-} satisfies Record<RemoteChannel, ReturnType<typeof createChannelFeedbackBinding>>
-const channelSaveOperationIds = Object.freeze({
-  telegram: `settings.remote.telegram.save:${nanoid(8)}`,
-  feishu: `settings.remote.feishu.save:${nanoid(8)}`,
-  qqbot: `settings.remote.qqbot.save:${nanoid(8)}`,
-  discord: `settings.remote.discord.save:${nanoid(8)}`,
-  'weixin-ilink': `settings.remote.weixinIlink.save:${nanoid(8)}`
-}) satisfies Record<RemoteChannel, string>
-const channelActionOperationIds = Object.freeze({
-  telegram: `settings.remote.telegram.action:${nanoid(8)}`,
-  feishu: `settings.remote.feishu.action:${nanoid(8)}`,
-  qqbot: `settings.remote.qqbot.action:${nanoid(8)}`,
-  discord: `settings.remote.discord.action:${nanoid(8)}`,
-  'weixin-ilink': `settings.remote.weixinIlink.action:${nanoid(8)}`
-}) satisfies Record<RemoteChannel, string>
+const pendingChannelActionIds = ref<Record<RemoteChannel, string | null>>({
+  telegram: null,
+  feishu: null,
+  qqbot: null,
+  discord: null,
+  'weixin-ilink': null
+})
 const pairDialogChannel = ref<PairableRemoteChannel | null>(null)
 const pairDialogOpen = ref(false)
 const pairDialogCode = ref<string | null>(null)
@@ -2351,17 +2250,8 @@ const syncActiveChannelFromProps = () => {
   }
 }
 const isAnySaving = computed(() => REMOTE_CHANNELS.some((channel) => saving[channel]))
-const visibleChannelFeedbackSource = computed<'action' | 'save'>(() =>
-  channelActionFeedback[activeChannel.value].snapshot.value.status === 'idle' ? 'save' : 'action'
-)
-const visibleChannelFeedback = computed(() => {
-  const channel = activeChannel.value
-  return visibleChannelFeedbackSource.value === 'action'
-    ? channelActionFeedback[channel].snapshot.value
-    : channelSaveFeedback[channel].snapshot.value
-})
 const isChannelActionPending = (channel: RemoteChannel) =>
-  channelActionFeedback[channel].snapshot.value.status === 'pending'
+  pendingChannelActionIds.value[channel] !== null
 const bindingsDialogMutating = computed(
   () => bindingRemovingKey.value !== null || principalRemovingId.value !== null
 )
@@ -3194,28 +3084,16 @@ const createSaveCoordinator = <Settings>(
     commit: (settings, { draft }) => reconcilePersisted(settings, draft),
     onStarted: () => {
       saving[channel] = true
-      const actionController = channelActionFeedback[channel].controller
-      if (
-        actionController.getSnapshot().status !== 'idle' &&
-        actionController.getSnapshot().status !== 'pending'
-      ) {
-        actionController.clearSettled()
-      }
-      channelSaveFeedback[channel].controller.begin(
-        channelSaveOperationIds[channel],
-        t('common.saving')
-      )
     },
     onSucceeded: ({ isCurrentDraftPersisted }) => {
       saving[channel] = false
-      const controller = channelSaveFeedback[channel].controller
-      controller.succeed({
-        code: `settings.remote.${channelI18nKeyMap[channel]}.saveSucceeded`,
-        title: t('common.saved'),
-        description: channelTitle(channel)
-      })
-      if (!isCurrentDraftPersisted) {
-        controller.clearSettled()
+      if (isCurrentDraftPersisted) {
+        notifyRenderer({
+          kind: 'success',
+          code: `settings.remote.${channelI18nKeyMap[channel]}.saveSucceeded`,
+          title: t('common.saved'),
+          description: channelTitle(channel)
+        })
       }
       if (!remoteSettingsUnmounted) {
         void refreshAfterChannelSave(channel)
@@ -3230,7 +3108,8 @@ const createSaveCoordinator = <Settings>(
         },
         error
       )
-      channelSaveFeedback[channel].controller.fail({
+      notifyRenderer({
+        kind: 'error',
         code: `settings.remote.${channelI18nKeyMap[channel]}.saveFailed`,
         ...resolveSaveFailure(channel, error)
       })
@@ -3271,9 +3150,8 @@ const saveCoordinators: Record<RemoteChannel, ChannelSaveCoordinatorPort> = {
 }
 
 const beginChannelAction = (channel: RemoteChannel, label = t('common.loading')): boolean => {
-  const controller = channelActionFeedback[channel].controller
-  if (controller.getSnapshot().status === 'pending') return false
-  controller.begin(channelActionOperationIds[channel], label)
+  if (pendingChannelActionIds.value[channel] !== null) return false
+  pendingChannelActionIds.value[channel] = label
   return true
 }
 
@@ -3283,28 +3161,23 @@ const failChannelAction = (
   title = t('common.error.operationFailed'),
   description = channelTitle(channel)
 ) => {
-  channelActionFeedback[channel].controller.fail({
+  pendingChannelActionIds.value[channel] = null
+  notifyRenderer({
+    kind: 'error',
     code,
     title,
     description
   })
 }
 
-const completeObservedChannelAction = (
-  channel: RemoteChannel,
-  code: string,
-  title: string,
-  surfaceTransitionVisible = false
-) => {
-  const controller = channelActionFeedback[channel].controller
-  controller.succeed({
+const completeObservedChannelAction = (channel: RemoteChannel, code: string, title: string) => {
+  pendingChannelActionIds.value[channel] = null
+  notifyRenderer({
+    kind: 'success',
     code,
     title,
     description: channelTitle(channel)
   })
-  if (!remoteSettingsUnmounted && (surfaceTransitionVisible || activeChannel.value === channel)) {
-    controller.clearSettled()
-  }
 }
 
 const persistChannelSettings = async (channel: RemoteChannel): Promise<boolean> =>
@@ -3334,11 +3207,6 @@ const queueDiscordSettingsPersist = () => {
 
 const queueWeixinIlinkSettingsPersist = () => {
   void persistWeixinIlinkSettings()
-}
-
-const retryActiveChannelSave = () => {
-  if (visibleChannelFeedbackSource.value !== 'save' || saving[activeChannel.value]) return
-  void persistChannelSettings(activeChannel.value)
 }
 
 const updateTelegramRemoteEnabled = (value: boolean) => {
@@ -3976,8 +3844,7 @@ const generatePairCodeAndOpenDialog = async (channel: PairableRemoteChannel) => 
     const pairCode = await createChannelPairCodeCompat(channel)
     if (remoteSettingsUnmounted) {
       await clearChannelPairCodeCompat(channel).catch(() => undefined)
-      const controller = channelActionFeedback[channel].controller
-      if (controller.getSnapshot().status === 'pending') controller.cancelPending()
+      pendingChannelActionIds.value[channel] = null
       return
     }
 
@@ -3993,8 +3860,7 @@ const generatePairCodeAndOpenDialog = async (channel: PairableRemoteChannel) => 
     completeObservedChannelAction(
       channel,
       `settings.remote.${channelI18nKeyMap[channel]}.pairCodeCreated`,
-      t('settings.remote.remoteControl.pairCode'),
-      true
+      t('settings.remote.remoteControl.pairCode')
     )
   } catch (error) {
     console.error(
@@ -4004,8 +3870,7 @@ const generatePairCodeAndOpenDialog = async (channel: PairableRemoteChannel) => 
       },
       error
     )
-    const controller = channelActionFeedback[channel].controller
-    if (controller.getSnapshot().status === 'pending') {
+    if (pendingChannelActionIds.value[channel] !== null) {
       failChannelAction(
         channel,
         `settings.remote.${channelI18nKeyMap[channel]}.pairCodeCreateFailed`
@@ -4179,6 +4044,13 @@ const formatTimestamp = (value: number) => new Date(value).toLocaleString()
 const formatStatusLine = (value: RemoteChannelStatus) =>
   t(`settings.remote.status.states.${value.state}`)
 
+const statusPillStatus = (state: RemoteRuntimeState): DcStatus => {
+  if (state === 'running') return 'success'
+  if (state === 'starting' || state === 'backoff') return 'warning'
+  if (state === 'error') return 'danger'
+  return 'neutral'
+}
+
 const statusDotClass = (state: RemoteRuntimeState, dotOnly = false) => {
   if (state === 'running') {
     return dotOnly ? 'bg-emerald-500' : 'bg-emerald-500/10 text-emerald-600'
@@ -4339,20 +4211,6 @@ const isAnyChannelActionPending = computed(() =>
   REMOTE_CHANNELS.some((channel) => isChannelActionPending(channel))
 )
 
-const syncChannelFeedbackSurfaces = () => {
-  for (const channel of REMOTE_CHANNELS) {
-    const active = channel === activeChannel.value
-    channelSaveFeedback[channel].setActive(active)
-    channelActionFeedback[channel].setActive(active)
-  }
-}
-
-const stopChannelFeedbackSurfaceSync = watch(activeChannel, syncChannelFeedbackSurfaces, {
-  immediate: true,
-  flush: 'sync'
-})
-onActivated(syncChannelFeedbackSurfaces)
-
 const discardChannelDrafts = () => {
   if (persistedTelegramSettings.value) {
     acceptPersistedTelegramSettings(persistedTelegramSettings.value)
@@ -4369,16 +4227,10 @@ const discardChannelDrafts = () => {
   if (persistedWeixinIlinkSettings.value) {
     acceptPersistedWeixinIlinkSettings(persistedWeixinIlinkSettings.value)
   }
-  for (const channel of REMOTE_CHANNELS) {
-    const saveController = channelSaveFeedback[channel].controller
-    if (saveController.getSnapshot().status !== 'idle') saveController.clearSettled()
-    const actionController = channelActionFeedback[channel].controller
-    if (actionController.getSnapshot().status !== 'idle') actionController.clearSettled()
-  }
 }
 
 const leaveGuardLease = settingsLeaveGuard.register({
-  id: `settings.remote.operation:${nanoid(8)}`,
+  id: 'settings-remote',
   onDiscard: discardChannelDrafts
 })
 const stopLeaveRiskSync = watch(
@@ -4413,7 +4265,6 @@ onUnmounted(() => {
   bindingsLoadRequestId += 1
   pairDialogGeneration += 1
   document.removeEventListener('visibilitychange', handleRemoteSettingsVisibilityChange)
-  stopChannelFeedbackSurfaceSync()
   stopLeaveRiskSync()
   leaveGuardLease.release()
   clearStatusRefreshTimer()

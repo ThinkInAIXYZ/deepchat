@@ -92,9 +92,7 @@
             </p>
           </div>
 
-          <p v-if="errorKey" role="alert" class="text-xs text-destructive">
-            {{ t(errorKey) }}
-          </p>
+          <DcInlineError v-if="errorKey" :error="t(errorKey)" />
         </template>
 
         <div v-else class="rounded-lg border bg-muted/20 p-4 text-sm">
@@ -131,6 +129,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import {

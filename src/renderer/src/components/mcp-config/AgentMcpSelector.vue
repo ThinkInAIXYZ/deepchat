@@ -4,10 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { createConfigClient } from '@api/ConfigClient'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { Button } from '@shadcn/components/ui/button'
-import { nanoid } from 'nanoid'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 const emit = defineEmits<{
   'update:selections': [selections: string[]]
@@ -16,9 +13,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const configClient = createConfigClient()
-const saveFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: saveFeedback } = useSurfaceFeedback(saveFeedbackController)
-const saveOperationId = `settings.agentMcpSelections.save:${nanoid(8)}`
 
 type AgentMcpServerConfig = {
   type?: string
@@ -80,12 +74,12 @@ const persist = async (
 ) => {
   if (saving.value) return false
   saving.value = true
-  saveFeedbackController.begin(saveOperationId, t('common.saving'))
   try {
     await configClient.setAcpSharedMcpSelections(nextSelections)
     retrySelections.value = null
     emit('update:selections', nextSelections)
-    saveFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.agentMcpSelections.saved',
       title: t('common.saved')
     })
@@ -95,7 +89,8 @@ const persist = async (
     selections.value = previousSelections
     retrySelections.value = [...nextSelections]
     emit('update:selections', previousSelections)
-    saveFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.agentMcpSelections.saveFailed',
       title: t('common.error.operationFailed'),
       description: t('common.error.requestFailed')
@@ -116,20 +111,8 @@ const toggleServer = async (serverName: string, checked: boolean) => {
   await persist(next, prev)
 }
 
-const retrySave = async () => {
-  const next = retrySelections.value
-  if (!next || saving.value) return
-  const previous = [...selections.value]
-  selections.value = [...next]
-  await persist(next, previous)
-}
-
 const discardRetryIntent = () => {
-  if (!retrySelections.value) return
   retrySelections.value = null
-  if (saveFeedback.value.status === 'success' || saveFeedback.value.status === 'error') {
-    saveFeedbackController.clearSettled()
-  }
 }
 
 defineExpose({ discardRetryIntent })
@@ -154,15 +137,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="space-y-2">
-    <div class="flex min-w-0 items-center justify-between gap-3">
-      <div class="text-xs font-semibold text-muted-foreground">
-        {{ t('settings.acp.mcpAccessTitle') }}
-      </div>
-      <InlineOperationFeedback
-        :snapshot="saveFeedback"
-        :retry-label="t('common.retry')"
-        @retry="retrySave"
-      />
+    <div class="text-xs font-semibold text-muted-foreground">
+      {{ t('settings.acp.mcpAccessTitle') }}
     </div>
 
     <div v-if="loading" class="text-xs text-muted-foreground">

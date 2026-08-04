@@ -85,13 +85,12 @@
                 :title="selectedProjectUnavailableTooltip"
               />
             </DropdownMenuItem>
-            <DropdownMenuItem
-              class="gap-2 text-xs py-1.5 px-2"
-              @click="projectStore.openFolderPicker()"
-            >
-              <Icon icon="lucide:folder-open" class="w-3.5 h-3.5 text-muted-foreground" />
-              <span>{{ t('common.project.openFolder') }}</span>
-            </DropdownMenuItem>
+            <DcDropdownActionItem
+              icon="lucide:folder-open"
+              :label="t('common.project.openFolder')"
+              class="text-xs py-1.5 px-2"
+              @select="projectStore.openFolderPicker()"
+            />
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -178,6 +177,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'

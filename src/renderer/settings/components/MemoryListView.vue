@@ -40,7 +40,7 @@
       </div>
     </div>
 
-    <p v-if="searchError" role="alert" class="text-xs text-destructive">{{ searchError }}</p>
+    <DcInlineError v-if="searchError" :error="searchError" />
     <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
 
     <div
@@ -175,44 +175,24 @@
       </Button>
     </div>
 
-    <AlertDialog :open="deleteDialogOpen" @update:open="onDeleteDialogOpen">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {{ t('settings.deepchatAgents.memoryManager.deleteConfirmTitle') }}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('settings.deepchatAgents.memoryManager.deleteConfirmBody') }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <MemoryInlineFeedback
-          v-if="deleteFeedback"
-          :feedback="deleteFeedback"
-          @clear="clearDeleteFeedback"
-        />
-        <AlertDialogFooter>
-          <AlertDialogCancel
-            data-testid="memory-list-delete-cancel"
-            :disabled="deleteRequest.status === 'pending'"
-          >
-            {{ t('common.cancel') }}
-          </AlertDialogCancel>
-          <AlertDialogAsyncAction
-            data-testid="memory-list-delete-confirm"
-            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            :disabled="deleteRequest.status === 'pending'"
-            @click="confirmRemove"
-          >
-            <Spinner
-              v-if="deleteRequest.status === 'pending'"
-              data-testid="memory-list-delete-spinner"
-              class="mr-1.5 size-3.5"
-            />
-            {{ t('settings.deepchatAgents.memoryManager.deletePermanent') }}
-          </AlertDialogAsyncAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DcConfirmDialog
+      :open="deleteDialogOpen"
+      :title="t('settings.deepchatAgents.memoryManager.deleteConfirmTitle')"
+      :description="t('settings.deepchatAgents.memoryManager.deleteConfirmBody')"
+      :confirm-label="t('settings.deepchatAgents.memoryManager.deletePermanent')"
+      :busy="deleteRequest.status === 'pending'"
+      :confirm-attrs="{ 'data-testid': 'memory-list-delete-confirm' }"
+      :cancel-attrs="{ 'data-testid': 'memory-list-delete-cancel' }"
+      busy-data-testid="memory-list-delete-spinner"
+      @update:open="onDeleteDialogOpen"
+      @confirm="confirmRemove"
+    >
+      <MemoryInlineFeedback
+        v-if="deleteFeedback"
+        :feedback="deleteFeedback"
+        @clear="clearDeleteFeedback"
+      />
+    </DcConfirmDialog>
   </div>
 </template>
 
@@ -230,21 +210,12 @@ import {
 import { useDebounceFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import { Button } from '@shadcn/components/ui/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
-import {
-  AlertDialog,
-  AlertDialogAsyncAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { Input } from '@shadcn/components/ui/input'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   Select,
   SelectContent,

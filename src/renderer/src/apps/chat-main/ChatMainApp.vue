@@ -50,6 +50,7 @@ import {
   RENDERER_PERFORMANCE_REPORTER,
   RendererPerformanceReporter
 } from '@/platform/performance/rendererPerformance'
+import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
@@ -532,40 +533,42 @@ onBeforeUnmount(() => {
     class="flex flex-col h-screen"
     :class="isWinMacOS ? 'bg-window-background' : 'bg-background'"
   >
-    <AppBar />
-    <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
-      <div class="flex flex-row w-full h-full">
-        <WindowSideBar></WindowSideBar>
+    <TooltipProvider :delay-duration="200" :ignore-non-keyboard-focus="true">
+      <AppBar />
+      <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
+        <div class="flex flex-row w-full h-full">
+          <WindowSideBar></WindowSideBar>
 
-        <!-- Main content area -->
-        <div
-          data-testid="app-main"
-          class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-tl-xl border-l border-t border-black/20 bg-background dark:border-white/10"
-        >
-          <div class="min-h-0 flex-1">
-            <RouterView v-if="isStartupRouteReady" />
+          <!-- Main content area -->
+          <div
+            data-testid="app-main"
+            class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-tl-xl border-l border-t border-black/20 bg-background dark:border-white/10"
+          >
+            <div class="min-h-0 flex-1">
+              <RouterView v-if="isStartupRouteReady" />
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <!-- Global message dialog -->
-    <MessageDialog />
-    <McpSamplingDialog />
-    <McpElicitationDialog />
-    <McpAppConsentDialog />
-    <NotificationHost surface="main" :theme="toasterTheme" :dir="langStore.dir" />
-    <SelectedTextContextMenu />
-    <TranslatePopup />
-    <SpotlightOverlay />
-    <!-- Global model check dialog -->
-    <ModelCheckDialog
-      :open="modelCheckStore.isDialogOpen"
-      :provider-id="modelCheckStore.currentProviderId"
-      @update:open="
-        (open) => {
-          if (!open) modelCheckStore.closeDialog()
-        }
-      "
-    />
+      <!-- Global message dialog -->
+      <MessageDialog />
+      <McpSamplingDialog />
+      <McpElicitationDialog />
+      <McpAppConsentDialog />
+      <NotificationHost surface="main" :theme="toasterTheme" :dir="langStore.dir" />
+      <SelectedTextContextMenu />
+      <TranslatePopup />
+      <SpotlightOverlay />
+      <!-- Global model check dialog -->
+      <ModelCheckDialog
+        :open="modelCheckStore.isDialogOpen"
+        :provider-id="modelCheckStore.currentProviderId"
+        @update:open="
+          (open) => {
+            if (!open) modelCheckStore.closeDialog()
+          }
+        "
+      />
+    </TooltipProvider>
   </div>
 </template>

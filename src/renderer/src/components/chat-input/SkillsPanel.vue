@@ -3,9 +3,9 @@
     <!-- Header -->
     <div class="p-2 flex items-center justify-between">
       <span class="text-sm font-medium">{{ t('chat.skills.panel.title') }}</span>
-      <Button variant="ghost" size="sm" class="h-6 px-2 text-xs" @click="$emit('manage')">
+      <DcButton variant="ghost" size="sm" class="h-6 px-2 text-xs" @click="$emit('manage')">
         {{ t('chat.skills.panel.manage') }}
-      </Button>
+      </DcButton>
     </div>
 
     <!-- Skills List -->
@@ -44,7 +44,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Tooltip,

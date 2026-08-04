@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import type {
   InstalledSkillAgent,
   InstalledSkillAgentDetail,
   NewDiscovery
 } from '@shared/types/skillSync'
+
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: vi.fn()
+}))
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -76,6 +81,10 @@ const discovery: NewDiscovery = {
 }
 
 describe('skill sync settings components', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   async function setupPromptDialog() {
     vi.resetModules()
 
@@ -752,9 +761,11 @@ describe('skill sync settings components', () => {
       strategy: 'rename'
     })
     expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
+    // 成功反馈走按钮 ✅，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
   })
 
-  it('keeps a partially failed Git install open with inline feedback', async () => {
+  it('keeps a partially failed Git install open and reports the failure inline', async () => {
     vi.resetModules()
 
     const skillClient = {
@@ -834,7 +845,10 @@ describe('skill sync settings components', () => {
 
     expect(wrapper.emitted('update:open')).toBeUndefined()
     expect(Array.from((wrapper.vm as any).selectedNames)).toEqual(['failed-skill'])
-    expect(wrapper.get('[data-status="error"]').text()).toContain('settings.skills.git.failed')
+    // 部分失败走按钮 ⚠ + 内联错误，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).installStatus).toBe('error')
+    expect(wrapper.text()).toContain('settings.skills.git.successMessage')
     expect(wrapper.text()).not.toContain('/private/source')
   })
 
@@ -1031,9 +1045,10 @@ describe('skill sync settings components', () => {
     await (wrapper.vm as any).executeExport()
     await flushPromises()
     expect((wrapper.vm as any).exportConfirmOpen).toBe(true)
-    expect(wrapper.get('[data-status="error"]').text()).toContain(
-      'settings.skills.sync.exportPartial'
-    )
+    // 部分失败走按钮 ⚠ + 内联错误，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).exportStatus).toBe('error')
+    expect(wrapper.text()).toContain('settings.skills.importExport.result')
     expect((wrapper.vm as any).retryExportNames).toEqual(['disabled-skill'])
     expect(wrapper.text()).not.toContain('/private/sync')
 

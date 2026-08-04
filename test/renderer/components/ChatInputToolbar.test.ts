@@ -42,6 +42,10 @@ vi.mock('@shadcn/components/ui/button', () => ({
 }))
 
 vi.mock('@shadcn/components/ui/tooltip', () => ({
+  TooltipProvider: defineComponent({
+    name: 'TooltipProvider',
+    template: '<div><slot /></div>'
+  }),
   Tooltip: defineComponent({
     name: 'Tooltip',
     template: '<div><slot /></div>'

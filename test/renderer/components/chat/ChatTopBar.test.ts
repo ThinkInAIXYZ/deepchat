@@ -131,6 +131,34 @@ vi.mock('@shadcn/components/ui/dialog', () => {
     DialogTitle: passthrough('DialogTitle')
   }
 })
+vi.mock('@shadcn/components/ui/alert-dialog', () => {
+  const passthrough = (name: string) => ({
+    name,
+    template: '<div><slot /></div>'
+  })
+  return {
+    AlertDialog: {
+      name: 'AlertDialog',
+      props: {
+        open: {
+          type: Boolean,
+          default: false
+        }
+      },
+      emits: ['update:open'],
+      template: '<div v-if="open"><slot /></div>'
+    },
+    AlertDialogAction: passthrough('AlertDialogAction'),
+    AlertDialogAsyncAction: passthrough('AlertDialogAsyncAction'),
+    AlertDialogCancel: passthrough('AlertDialogCancel'),
+    AlertDialogContent: passthrough('AlertDialogContent'),
+    AlertDialogDescription: passthrough('AlertDialogDescription'),
+    AlertDialogFooter: passthrough('AlertDialogFooter'),
+    AlertDialogHeader: passthrough('AlertDialogHeader'),
+    AlertDialogTitle: passthrough('AlertDialogTitle'),
+    AlertDialogTrigger: passthrough('AlertDialogTrigger')
+  }
+})
 
 const mountTopBar = () =>
   mount(ChatTopBar, {

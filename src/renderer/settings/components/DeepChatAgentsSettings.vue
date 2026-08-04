@@ -51,9 +51,9 @@
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <div class="truncate text-sm font-semibold">{{ agent.name }}</div>
-                <Badge v-if="agent.protected" variant="secondary">
+                <DcBadge v-if="agent.protected" variant="secondary">
                   {{ t('settings.deepchatAgents.builtIn') }}
-                </Badge>
+                </DcBadge>
               </div>
               <div class="mt-1 text-xs text-muted-foreground">
                 {{ agent.enabled ? t('common.enabled') : t('common.disabled') }}
@@ -99,11 +99,6 @@
           <div
             class="agent-header-actions flex w-full min-w-0 flex-wrap items-center justify-end gap-2"
           >
-            <InlineOperationFeedback
-              :snapshot="saveFeedback"
-              :retry-label="t('settings.deepchatAgents.saveFeedback.retry')"
-              @retry="saveAgent"
-            />
             <Button variant="outline" :disabled="saving" @click="resetEditor">
               {{ t('common.reset') }}
             </Button>
@@ -116,16 +111,17 @@
             >
               {{ t('common.delete') }}
             </Button>
-            <Button
+            <DcSubmitButton
               data-testid="deepchat-agent-save-button"
-              :disabled="saving || !isDirty || !form.name.trim()"
+              :status="saveStatus"
+              :disabled="!isDirty || !form.name.trim()"
               :aria-busy="saving"
               @click="saveAgent"
             >
-              <Spinner v-if="saving" class="mr-1 size-4" />
               {{ t('common.save') }}
-            </Button>
+            </DcSubmitButton>
           </div>
+          <DcInlineError v-if="saveError" :error="saveError" class="mt-2" />
         </div>
       </div>
 
@@ -346,24 +342,19 @@
                     />
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    class="gap-2 px-2 py-1.5 text-xs"
+                  <DcDropdownActionItem
+                    icon="lucide:folder-open"
+                    :label="t('common.project.openFolder')"
+                    class="text-xs"
                     @select="pickDefaultProjectPath"
-                  >
-                    <Icon
-                      icon="lucide:folder-open"
-                      class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                    />
-                    <span>{{ t('common.project.openFolder') }}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
+                  />
+                  <DcDropdownActionItem
                     v-if="form.defaultProjectPath"
-                    class="gap-2 px-2 py-1.5 text-xs"
+                    icon="lucide:x"
+                    :label="t('common.clear')"
+                    class="text-xs"
                     @select="clearDefaultProjectPath"
-                  >
-                    <Icon icon="lucide:x" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span>{{ t('common.clear') }}</span>
-                  </DropdownMenuItem>
+                  />
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -703,27 +694,24 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { nanoid } from 'nanoid'
 import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Spinner } from '@shadcn/components/ui/spinner'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { Input } from '@shadcn/components/ui/input'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { useRouter } from 'vue-router'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
@@ -817,9 +805,6 @@ const AUTO_COMPACTION_TRIGGER_THRESHOLD_MAX = 95
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT = 2
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MIN = 1
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX = 10
-const SAVE_OPERATION_ID = 'settings.deepchatAgent.save'
-const SAVE_SUCCESS_CODE = 'settings.deepchatAgent.saved'
-const SAVE_FAILURE_CODE = 'settings.deepchatAgent.saveFailed'
 const CONFIG_DIFF_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
   'defaultModelPreset',
   'assistantModel',
@@ -852,14 +837,13 @@ const toolClient = createToolClient()
 const modelStore = useModelStore()
 const uiSettingsStore = useUiSettingsStore()
 const subagentSlotLimit = DEEPCHAT_SUBAGENT_SLOT_LIMIT
-const saveFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: saveFeedback } = useSurfaceFeedback(saveFeedbackController)
-const saveOperationId = `${SAVE_OPERATION_ID}:${nanoid(8)}`
 
 const allAgents = ref<Agent[]>([])
 const tools = ref<MCPToolDefinition[]>([])
 const recentProjects = ref<Project[]>([])
-const saving = computed(() => saveFeedback.value.status === 'pending')
+const saveError = ref<string | null>(null)
+const { status: saveStatus, run: runSave } = useDcFormSubmit()
+const saving = computed(() => saveStatus.value === 'submitting')
 const deleting = ref(false)
 const selectedAgentId = ref<string | null>(null)
 const chatOpen = ref(false)
@@ -877,7 +861,6 @@ const transferImpact = ref<AgentTransferImpact | null>(null)
 const pendingDeleteAgent = ref<{ id: string; name: string } | null>(null)
 const originalForm = ref<FormState | null>(null)
 const originalFormSignature = ref<string | null>(null)
-const feedbackSourceSignature = ref<string | null>(null)
 
 const form = reactive<FormState>({
   id: null,
@@ -1298,22 +1281,6 @@ const isDirty = computed(
     originalFormSignature.value !== null &&
     currentFormSignature.value !== originalFormSignature.value
 )
-const clearSettledSaveFeedback = () => {
-  if (saveFeedback.value.status === 'success' || saveFeedback.value.status === 'error') {
-    saveFeedbackController.clearSettled()
-  }
-  feedbackSourceSignature.value = null
-}
-
-watch(currentFormSignature, (signature) => {
-  if (
-    feedbackSourceSignature.value &&
-    signature !== feedbackSourceSignature.value &&
-    (saveFeedback.value.status === 'success' || saveFeedback.value.status === 'error')
-  ) {
-    clearSettledSaveFeedback()
-  }
-})
 const fromAgent = (agent?: Agent | null): FormState => {
   if (!agent) return emptyForm()
   const config = agent.config ?? {}
@@ -1581,7 +1548,6 @@ const applyPersistedFormFallback = (savedAgent: Agent, submittedForm: FormState)
   assignForm(persistedForm)
 }
 const activateDraft = () => {
-  clearSettledSaveFeedback()
   selectedAgentId.value = DRAFT_AGENT_ID
   assignForm(emptyForm())
 }
@@ -1591,7 +1557,6 @@ const activateAgent = (agentId: string) => {
     return
   }
 
-  clearSettledSaveFeedback()
   selectedAgentId.value = agentId
   assignForm(fromAgent(deepchatAgents.value.find((agent) => agent.id === agentId) ?? null))
 }
@@ -1617,16 +1582,15 @@ const resetEditor = () => {
 
   activateAgent(agentId)
 }
-const saveAgent = async () => {
+const saveAgent = () => {
   if (saving.value || !isDirty.value || !form.name.trim()) return
 
-  const submittedForm = cloneForm(form)
-  const submittedSignature = serializeCanonicalForm(submittedForm)
-  saveFeedbackController.begin(saveOperationId, t('settings.deepchatAgents.saveFeedback.saving'))
-  let savedAgent: Agent
-  try {
+  saveError.value = null
+  void runSave(async () => {
+    const submittedForm = cloneForm(form)
     const canonicalInput = buildCanonicalAgentInput(submittedForm)
     const { config, ...basePayload } = canonicalInput
+    let savedAgent: Agent
     if (submittedForm.id) {
       const configPatch = buildUpdateConfigPatch(submittedForm)
       const payload: UpdateDeepChatAgentInput = {
@@ -1645,30 +1609,19 @@ const saveAgent = async () => {
       }
       savedAgent = await configClient.createDeepChatAgent(payload)
     }
-  } catch (error) {
-    console.error('[DeepChatAgents] Save failed', error)
-    feedbackSourceSignature.value = submittedSignature
-    saveFeedbackController.fail({
-      code: SAVE_FAILURE_CODE,
-      title: t('settings.deepchatAgents.saveFeedback.saveFailed')
-    })
-    return
-  }
-
-  try {
-    applySavedAgent(savedAgent)
-  } catch (error) {
-    console.error('[DeepChatAgents] Failed to project saved agent', error)
     try {
-      applyPersistedFormFallback(savedAgent, submittedForm)
-    } catch (fallbackError) {
-      console.error('[DeepChatAgents] Failed to apply persisted form fallback', fallbackError)
+      applySavedAgent(savedAgent)
+    } catch (error) {
+      console.error('[DeepChatAgents] Failed to project saved agent', error)
+      try {
+        applyPersistedFormFallback(savedAgent, submittedForm)
+      } catch (fallbackError) {
+        console.error('[DeepChatAgents] Failed to apply persisted form fallback', fallbackError)
+      }
     }
-  }
-  feedbackSourceSignature.value = currentFormSignature.value
-  saveFeedbackController.succeed({
-    code: SAVE_SUCCESS_CODE,
-    title: t('settings.deepchatAgents.saveFeedback.saved')
+  }).catch((error: unknown) => {
+    console.error('[DeepChatAgents] Save failed', error)
+    saveError.value = t('settings.deepchatAgents.saveFeedback.saveFailed')
   })
 }
 const removeAgent = async () => {
@@ -1770,8 +1723,14 @@ const stopLeaveRiskSync = watch(
   { immediate: true, flush: 'sync' }
 )
 
+// 失败的内联错误随下一次表单编辑清除
+const stopSaveErrorSync = watch(currentFormSignature, () => {
+  saveError.value = null
+})
+
 onBeforeUnmount(() => {
   stopLeaveRiskSync()
+  stopSaveErrorSync()
   leaveGuardLease.release()
 })
 

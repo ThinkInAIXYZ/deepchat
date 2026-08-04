@@ -4,23 +4,9 @@
       <div v-if="isLoading" class="text-sm text-muted-foreground">
         {{ t('common.loading') }}
       </div>
-      <div v-else-if="!config">
-        <InlineOperationFeedback
-          :snapshot="configFeedback"
-          :retry-label="t('common.retry')"
-          @retry="loadConfig"
-        />
-      </div>
-      <template v-else>
+      <template v-else-if="config">
         <div class="space-y-1">
-          <div class="flex items-center gap-2">
-            <div class="text-base font-medium">{{ t('settings.notificationsHooks.title') }}</div>
-            <InlineOperationFeedback
-              :snapshot="configFeedback"
-              :retry-label="t('common.retry')"
-              @retry="persistConfig"
-            />
-          </div>
+          <div class="text-base font-medium">{{ t('settings.notificationsHooks.title') }}</div>
           <div class="text-sm text-muted-foreground">
             {{ t('settings.notificationsHooks.commands.description') }}
           </div>
@@ -347,7 +333,6 @@
 </template>
 
 <script setup lang="ts">
-import { nanoid } from 'nanoid'
 import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
@@ -364,9 +349,7 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { createConfigClient } from '@api/ConfigClient'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 import type {
   HookCommandItem,
@@ -392,27 +375,13 @@ type HookDocField =
 
 const { t } = useI18n()
 const configClient = createConfigClient()
-const configFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: configFeedback } = useSurfaceFeedback(configFeedbackController)
-const operationIds = Object.freeze({
-  load: `settings.notificationsHooks.load:${nanoid(8)}`,
-  save: `settings.notificationsHooks.save:${nanoid(8)}`
-})
 
 const config = ref<HooksNotificationsSettings | null>(null)
 const guideOpen = ref(false)
 const testing = ref<Record<string, boolean>>({})
 const testResults = ref<Record<string, HookTestResult | null>>({})
-const isLoading = computed(
-  () =>
-    configFeedback.value.status === 'pending' &&
-    configFeedback.value.operationId === operationIds.load
-)
-const isSaving = computed(
-  () =>
-    configFeedback.value.status === 'pending' &&
-    configFeedback.value.operationId === operationIds.save
-)
+const isLoading = ref(false)
+const isSaving = ref(false)
 const draftRevision = ref(0)
 const persistedRevision = ref(0)
 let requestedSaveRevision = 0
@@ -488,7 +457,7 @@ const loadConfig = async () => {
     return
   }
 
-  configFeedbackController.begin(operationIds.load, t('common.loading'))
+  isLoading.value = true
   try {
     const loaded = await configClient.getHooksNotificationsConfig()
     persistedConfig = cloneConfig(loaded)
@@ -496,18 +465,21 @@ const loadConfig = async () => {
     draftRevision.value = 0
     persistedRevision.value = 0
     requestedSaveRevision = 0
-    configFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.notificationsHooks.loaded',
       title: t('common.saved')
     })
-    configFeedbackController.clearSettled()
   } catch (error) {
     console.error('[NotificationsHooksSettings] Failed to load configuration', error)
-    configFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.notificationsHooks.loadFailed',
       title: t('common.error.operationFailed'),
       description: t('common.error.requestFailed')
     })
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -516,13 +488,10 @@ const cloneConfig = (value: HooksNotificationsSettings): HooksNotificationsSetti
 
 const markDraftChanged = () => {
   draftRevision.value += 1
-  if (configFeedback.value.status === 'success' || configFeedback.value.status === 'error') {
-    configFeedbackController.clearSettled()
-  }
 }
 
 const flushSaveQueue = async (): Promise<boolean> => {
-  configFeedbackController.begin(operationIds.save, t('common.saving'))
+  isSaving.value = true
   try {
     while (persistedRevision.value < requestedSaveRevision) {
       if (!config.value) {
@@ -538,21 +507,22 @@ const flushSaveQueue = async (): Promise<boolean> => {
         config.value = cloneConfig(updated)
       }
     }
-    configFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.notificationsHooks.saved',
       title: t('common.saved')
     })
-    if (persistedRevision.value < draftRevision.value) {
-      configFeedbackController.clearSettled()
-    }
     return true
   } catch (error) {
     console.error('[NotificationsHooksSettings] Failed to save configuration', error)
-    configFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.notificationsHooks.saveFailed',
       title: t('common.error.operationFailed')
     })
     return false
+  } finally {
+    isSaving.value = false
   }
 }
 
@@ -690,13 +660,10 @@ const discardDraft = () => {
   config.value = cloneConfig(persistedConfig)
   draftRevision.value = persistedRevision.value
   requestedSaveRevision = persistedRevision.value
-  if (configFeedback.value.status === 'error') {
-    configFeedbackController.clearSettled()
-  }
 }
 
 const leaveGuardLease = settingsLeaveGuard.register({
-  id: operationIds.save,
+  id: 'settings.notificationsHooks.save',
   onDiscard: discardDraft
 })
 const stopLeaveRiskSync = watch(

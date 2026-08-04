@@ -7,12 +7,6 @@
     :description="t('settings.cronJobs.description')"
   >
     <template #actions>
-      <InlineOperationFeedback
-        v-if="hasLoaded && !deleteDialogOpen"
-        :snapshot="pageFeedback"
-        :retry-label="feedbackRetryable ? t('common.retry') : undefined"
-        @retry="retryFeedback"
-      />
       <Button
         variant="outline"
         size="sm"
@@ -40,13 +34,13 @@
 
     <div
       v-else-if="loadUnavailable"
-      class="max-w-5xl rounded-md border border-destructive/30 bg-destructive/5 p-4"
+      role="alert"
+      class="flex max-w-5xl items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4"
     >
-      <InlineOperationFeedback
-        :snapshot="pageFeedback"
-        :retry-label="t('common.retry')"
-        @retry="loadJobs"
-      />
+      <span class="text-sm text-destructive">{{ t('common.error.operationFailed') }}</span>
+      <Button size="sm" variant="outline" :disabled="isLoading" @click="loadJobs">
+        {{ t('common.retry') }}
+      </Button>
     </div>
 
     <template v-else>
@@ -54,9 +48,9 @@
         <div class="min-w-0">
           <div class="text-xs text-muted-foreground">{{ t('settings.cronJobs.status.state') }}</div>
           <div class="mt-1 flex items-center gap-2">
-            <Badge :variant="schedulerBadgeVariant">
+            <DcBadge :variant="schedulerBadgeVariant">
               {{ t(`settings.cronJobs.status.${schedulerStatus?.state ?? 'stopped'}`) }}
-            </Badge>
+            </DcBadge>
             <span class="truncate text-xs text-muted-foreground">
               {{
                 schedulerStatus?.pid ? `PID ${schedulerStatus.pid}` : t('settings.cronJobs.none')
@@ -248,7 +242,7 @@
               @blur="commitJob(job.id)"
             />
             <div class="flex flex-wrap gap-1.5">
-              <Badge
+              <DcBadge
                 v-for="example in CRON_REFERENCE_EXAMPLES"
                 :key="example.cronExpr"
                 variant="outline"
@@ -258,7 +252,7 @@
                 <span class="text-[11px] text-muted-foreground">
                   {{ t(example.labelKey) }}
                 </span>
-              </Badge>
+              </DcBadge>
             </div>
           </div>
 
@@ -365,18 +359,18 @@
           </div>
           <div class="mt-3 flex flex-wrap items-center gap-2 lg:pl-11">
             <Icon icon="lucide:calendar-range" class="h-4 w-4 text-muted-foreground" />
-            <Badge v-if="previewLoadingByJobId[job.id]" variant="outline">
+            <DcBadge v-if="previewLoadingByJobId[job.id]" variant="outline">
               {{ t('common.loading') }}
-            </Badge>
+            </DcBadge>
             <template v-else-if="previewRunsByJobId[job.id]?.length">
-              <Badge
+              <DcBadge
                 v-for="runAt in previewRunsByJobId[job.id]"
                 :key="runAt"
                 variant="outline"
                 class="font-normal"
               >
                 {{ formatTimestamp(runAt) }}
-              </Badge>
+              </DcBadge>
             </template>
             <span v-else class="text-xs text-muted-foreground">
               {{ t('settings.cronJobs.none') }}
@@ -386,17 +380,17 @@
           <div class="mt-3 flex flex-wrap items-center gap-2 lg:pl-11">
             <Icon icon="lucide:history" class="h-4 w-4 text-muted-foreground" />
             <span class="text-xs text-muted-foreground">{{ t('common.history') }}</span>
-            <Badge v-if="runsLoadingByJobId[job.id]" variant="outline">
+            <DcBadge v-if="runsLoadingByJobId[job.id]" variant="outline">
               {{ t('common.loading') }}
-            </Badge>
+            </DcBadge>
             <template v-else-if="getLatestRun(job.id)">
-              <Badge variant="outline" class="font-normal">
+              <DcBadge variant="outline" class="font-normal">
                 {{
                   formatTimestamp(
                     getLatestRun(job.id)?.startedAt ?? getLatestRun(job.id)?.queuedAt ?? null
                   )
                 }}
-              </Badge>
+              </DcBadge>
             </template>
             <span v-else-if="!runsErrorsByJobId[job.id]" class="text-xs text-muted-foreground">
               {{ t('settings.cronJobs.none') }}
@@ -414,14 +408,14 @@
             <span class="text-xs text-muted-foreground">
               {{ t('settings.cronJobs.fields.delivery') }}
             </span>
-            <Badge
+            <DcBadge
               v-for="receipt in getLatestRunDeliveries(job.id)"
               :key="receipt.id"
               :variant="receipt.status === 'failed' ? 'destructive' : 'secondary'"
               class="font-normal"
             >
               {{ formatDeliveryReceipt(receipt) }}
-            </Badge>
+            </DcBadge>
             <span v-if="getLatestRunDeliveryError(job.id)" class="text-xs text-destructive">
               {{ t('common.error.requestFailed') }}
             </span>
@@ -437,7 +431,6 @@
         <DialogTitle>{{ t('common.delete') }}</DialogTitle>
         <DialogDescription>{{ pendingDeleteJob?.name }}</DialogDescription>
       </DialogHeader>
-      <InlineOperationFeedback :snapshot="pageFeedback" />
       <DialogFooter>
         <Button
           variant="outline"
@@ -456,11 +449,10 @@
 </template>
 
 <script setup lang="ts">
-import { nanoid } from 'nanoid'
 import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Button } from '@shadcn/components/ui/button'
 import {
   Dialog,
@@ -482,10 +474,7 @@ import {
 import { Switch } from '@shadcn/components/ui/switch'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 import { createConfigClient } from '@api/ConfigClient'
 import { createCronJobsClient } from '@api/CronJobsClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
@@ -509,15 +498,13 @@ const { t } = useI18n()
 const client = createCronJobsClient()
 const configClient = createConfigClient()
 const remoteControlClient = createRemoteControlClient()
-const pageFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: pageFeedback } = useSurfaceFeedback(pageFeedbackController)
-const operationInstanceId = nanoid(8)
+const pendingPageOperationId = ref<string | null>(null)
 const operationIds = Object.freeze({
-  load: `settings.cronJobs.load:${operationInstanceId}`,
-  save: `settings.cronJobs.save:${operationInstanceId}`,
-  add: `settings.cronJobs.add:${operationInstanceId}`,
-  toggle: `settings.cronJobs.toggle:${operationInstanceId}`,
-  delete: `settings.cronJobs.delete:${operationInstanceId}`
+  load: 'settings.cronJobs.load',
+  save: 'settings.cronJobs.save',
+  add: 'settings.cronJobs.add',
+  toggle: 'settings.cronJobs.toggle',
+  delete: 'settings.cronJobs.delete'
 })
 const persistentOperationIds = new Set<string>([
   operationIds.save,
@@ -547,7 +534,6 @@ const remoteDeliveryLoadFailed = ref(false)
 const schedulerStatusStale = ref(false)
 const dirtyJobIds = ref<Set<string>>(new Set())
 const pendingDeleteJobId = ref<string | null>(null)
-const retryRequest = ref<RetryRequest | null>(null)
 const NO_AGENT_ID = '__none__'
 const SCHEDULER_STATUS_REFRESH_MS = 5_000
 const SCHEDULER_STATUS_FAILURE_THRESHOLD = 2
@@ -576,33 +562,15 @@ type RemoteDeliveryOption = {
   binding: RemoteBindingSummary
 }
 
-type RetryRequest = Readonly<
-  | {
-      kind: 'load'
-    }
-  | {
-      kind: 'save'
-      jobId: string
-    }
->
-
-const pageOperationPending = computed(() => pageFeedback.value.status === 'pending')
-const isLoading = computed(
-  () =>
-    pageFeedback.value.status === 'pending' && pageFeedback.value.operationId === operationIds.load
-)
+const pageOperationPending = computed(() => pendingPageOperationId.value !== null)
+const isLoading = computed(() => pendingPageOperationId.value === operationIds.load)
 const persistentMutationPending = computed(
   () =>
-    pageFeedback.value.status === 'pending' &&
-    persistentOperationIds.has(pageFeedback.value.operationId)
+    pendingPageOperationId.value !== null &&
+    persistentOperationIds.has(pendingPageOperationId.value)
 )
 const loadUnavailable = computed(() => !hasLoaded.value && !isLoading.value)
-const feedbackRetryable = computed(() => retryRequest.value !== null)
-const deleting = computed(
-  () =>
-    pageFeedback.value.status === 'pending' &&
-    pageFeedback.value.operationId === operationIds.delete
-)
+const deleting = computed(() => pendingPageOperationId.value === operationIds.delete)
 const pendingDeleteJob = computed(
   () => jobs.value.find((job) => job.id === pendingDeleteJobId.value) ?? null
 )
@@ -613,9 +581,6 @@ const deleteDialogOpen = computed({
       return
     }
     pendingDeleteJobId.value = null
-    if (pageFeedback.value.status !== 'idle') {
-      pageFeedbackController.clearSettled()
-    }
   }
 })
 const hasDirtyJobs = computed(() => dirtyJobIds.value.size > 0)
@@ -782,10 +747,6 @@ const setDirty = (jobId: string, dirty: boolean) => {
 
 const markJobDirty = (jobId: string) => {
   setDirty(jobId, true)
-  retryRequest.value = null
-  if (pageFeedback.value.status === 'success' || pageFeedback.value.status === 'error') {
-    pageFeedbackController.clearSettled()
-  }
 }
 
 const applyPersistedJob = (job: CronJob) => {
@@ -817,20 +778,20 @@ const logFailure = (
 
 const failPageOperation = (scope: string, code: string, error: unknown, description?: string) => {
   logFailure(scope, error)
-  pageFeedbackController.fail({
+  notifyRenderer({
+    kind: 'error',
     code,
     title: t('common.error.operationFailed'),
     description
   })
 }
 
-const beginPageOperation = (operationId: string, label: string): boolean => {
+const beginPageOperation = (operationId: string): boolean => {
   if (pageOperationPending.value) {
     return false
   }
   schedulerStatusGeneration += 1
-  retryRequest.value = null
-  pageFeedbackController.begin(operationId, label)
+  pendingPageOperationId.value = operationId
   return true
 }
 
@@ -894,7 +855,7 @@ const refreshRemoteDeliveryOptions = async () => {
 
 const loadJobs = async () => {
   loadAttempted.value = true
-  if (!beginPageOperation(operationIds.load, t('common.loading'))) {
+  if (!beginPageOperation(operationIds.load)) {
     return
   }
   try {
@@ -921,11 +882,6 @@ const loadJobs = async () => {
       void refreshJobPreview(job)
       void refreshJobRuns(job.id)
     }
-    pageFeedbackController.succeed({
-      code: 'settings.cronJobs.loaded',
-      title: t('common.saved')
-    })
-    pageFeedbackController.clearSettled()
   } catch (error) {
     failPageOperation(
       'Failed to load jobs',
@@ -933,7 +889,8 @@ const loadJobs = async () => {
       error,
       t('common.error.requestFailed')
     )
-    retryRequest.value = { kind: 'load' }
+  } finally {
+    pendingPageOperationId.value = null
   }
 }
 
@@ -1229,7 +1186,7 @@ const commitJob = async (id: string): Promise<boolean> => {
   }
 
   const draft = cloneJob(job)
-  if (!beginPageOperation(operationIds.save, t('common.saving'))) {
+  if (!beginPageOperation(operationIds.save)) {
     return false
   }
   void refreshJobPreview(draft)
@@ -1255,15 +1212,17 @@ const commitJob = async (id: string): Promise<boolean> => {
     })
     applyPersistedJob(response.job)
     setSchedulerStatus(response.schedulerStatus)
-    pageFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.cronJobs.saved',
       title: t('common.saved')
     })
     return true
   } catch (error) {
     failPageOperation('Failed to save job', 'settings.cronJobs.saveFailed', error)
-    retryRequest.value = { kind: 'save', jobId: id }
     return false
+  } finally {
+    pendingPageOperationId.value = null
   }
 }
 
@@ -1271,7 +1230,7 @@ const addJob = async () => {
   if (hasDirtyJobs.value) {
     return
   }
-  if (!beginPageOperation(operationIds.add, t('common.saving'))) {
+  if (!beginPageOperation(operationIds.add)) {
     return
   }
   try {
@@ -1293,13 +1252,10 @@ const addJob = async () => {
     })
     applyPersistedJob(response.job)
     setSchedulerStatus(response.schedulerStatus)
-    pageFeedbackController.succeed({
-      code: 'settings.cronJobs.added',
-      title: t('common.saved')
-    })
-    pageFeedbackController.clearSettled()
   } catch (error) {
     failPageOperation('Failed to add job', 'settings.cronJobs.addFailed', error)
+  } finally {
+    pendingPageOperationId.value = null
   }
 }
 
@@ -1310,29 +1266,23 @@ const toggleJob = async (id: string, enabled: boolean) => {
   if (dirtyJobIds.value.has(id) && !(await commitJob(id))) {
     return
   }
-  if (!beginPageOperation(operationIds.toggle, t('common.saving'))) {
+  if (!beginPageOperation(operationIds.toggle)) {
     return
   }
   try {
     const response = await client.toggle(id, enabled)
     applyPersistedJob(response.job)
     setSchedulerStatus(response.schedulerStatus)
-    pageFeedbackController.succeed({
-      code: 'settings.cronJobs.toggled',
-      title: t('common.saved')
-    })
-    pageFeedbackController.clearSettled()
   } catch (error) {
     failPageOperation('Failed to toggle job', 'settings.cronJobs.toggleFailed', error)
+  } finally {
+    pendingPageOperationId.value = null
   }
 }
 
 const requestDeleteJob = (id: string) => {
   if (jobInteractionDisabled(id) || !jobs.value.some((job) => job.id === id)) {
     return
-  }
-  if (pageFeedback.value.status !== 'idle') {
-    pageFeedbackController.clearSettled()
   }
   pendingDeleteJobId.value = id
 }
@@ -1375,20 +1325,17 @@ const removeJobState = (id: string) => {
 
 const confirmDeleteJob = async () => {
   const id = pendingDeleteJobId.value
-  if (!id || !beginPageOperation(operationIds.delete, t('common.saving'))) {
+  if (!id || !beginPageOperation(operationIds.delete)) {
     return
   }
   try {
     setSchedulerStatus(await client.remove(id))
     removeJobState(id)
-    pageFeedbackController.succeed({
-      code: 'settings.cronJobs.deleted',
-      title: t('common.saved')
-    })
-    pageFeedbackController.clearSettled()
     pendingDeleteJobId.value = null
   } catch (error) {
     failPageOperation('Failed to delete job', 'settings.cronJobs.deleteFailed', error)
+  } finally {
+    pendingPageOperationId.value = null
   }
 }
 
@@ -1459,18 +1406,6 @@ const restartScheduler = async () => {
   }
 }
 
-const retryFeedback = () => {
-  const request = retryRequest.value
-  if (!request) {
-    return
-  }
-  if (request.kind === 'load') {
-    void loadJobs()
-    return
-  }
-  void commitJob(request.jobId)
-}
-
 const discardDirtyJobs = () => {
   const dirtyIds = Array.from(dirtyJobIds.value)
   if (dirtyIds.length === 0) {
@@ -1487,10 +1422,6 @@ const discardDirtyJobs = () => {
     .filter((job) => persistedJobs.has(job.id))
   jobs.value = sortJobs(restoredJobs)
   dirtyJobIds.value = new Set()
-  retryRequest.value = null
-  if (pageFeedback.value.status === 'error') {
-    pageFeedbackController.clearSettled()
-  }
   for (const id of dirtyIds) {
     const restored = persistedJobs.get(id)
     if (restored) {
@@ -1500,7 +1431,7 @@ const discardDirtyJobs = () => {
 }
 
 const leaveGuardLease = settingsLeaveGuard.register({
-  id: operationIds.save,
+  id: 'settings-cron-jobs',
   onDiscard: discardDirtyJobs
 })
 const stopLeaveRiskSync = watch(

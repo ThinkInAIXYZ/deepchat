@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
+import { DcEmpty } from '@dc-ui/components/empty'
 import { Button } from '@shadcn/components/ui/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
@@ -13,15 +14,11 @@ import {
   DialogTrigger,
   DialogDescription
 } from '@shadcn/components/ui/dialog'
-import { Badge } from '@shadcn/components/ui/badge'
 import { Input } from '@shadcn/components/ui/input'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle
-} from '@shadcn/components/ui/sheet'
+import { DcButton } from '@dc-ui/components/button'
+import { DcCopyButton } from '@dc-ui/components/copy-button'
+import { DcSheetPanel } from '@dc-ui/components/sheet-panel'
+import { DcStatusPill } from '@dc-ui/components/status-pill'
 import { useMcpStore } from '@/stores/mcp'
 import { useI18n } from 'vue-i18n'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
@@ -34,13 +31,11 @@ import McpPromptPanel from './McpPromptPanel.vue'
 import McpResourceViewer from './McpResourceViewer.vue'
 import type { MCPServerConfig, McpCredentialBinding, McpCredentialInput } from '@shared/types/mcp'
 import { createMcpClient } from '@api/McpClient'
-import { createDeviceClient } from '@api/DeviceClient'
 
 const mcpStore = useMcpStore()
 const { t } = useI18n()
 const router = useRouter()
 const mcpClient = createMcpClient()
-const deviceClient = createDeviceClient()
 const props = withDefaults(
   defineProps<{
     showFooterAddButton?: boolean
@@ -556,11 +551,9 @@ const openDiagnostics = (serverName: string) => {
   void refreshDiagnostics()
 }
 
-const copyDiagnostics = () => {
-  if (diagnostics.value) {
-    deviceClient.copyText(JSON.stringify(diagnostics.value, null, 2))
-  }
-}
+const diagnosticsText = computed(() =>
+  diagnostics.value ? JSON.stringify(diagnostics.value, null, 2) : ''
+)
 
 watch(
   () =>
@@ -601,19 +594,13 @@ defineExpose({
         </div>
       </div>
 
-      <div v-else-if="mcpStore.serverList.length === 0" class="text-center py-8">
-        <div
-          class="mx-auto w-16 h-16 bg-muted/30 rounded-full flex items-center justify-center mb-3"
-        >
-          <Icon icon="lucide:server-off" class="h-6 w-6 text-muted-foreground" />
-        </div>
-        <h3 class="text-base font-medium text-foreground mb-2">
-          {{ t('settings.mcp.noServersFound') }}
-        </h3>
-        <p class="text-xs text-muted-foreground mb-3 px-4">
-          {{ t('settings.mcp.noServersDescription') }}
-        </p>
-      </div>
+      <DcEmpty
+        v-else-if="mcpStore.serverList.length === 0"
+        icon="lucide:server-off"
+        :title="t('settings.mcp.noServersFound')"
+        :description="t('settings.mcp.noServersDescription')"
+        class="border-0 py-8"
+      />
 
       <div v-else class="flex flex-col gap-3 py-3">
         <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -736,88 +723,86 @@ defineExpose({
       </div>
     </div>
 
-    <Sheet :open="Boolean(selectedDetailServer)" @update:open="closeDetail">
-      <SheetContent class="flex w-full flex-col sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle>{{ selectedDetailServer?.name }}</SheetTitle>
-          <SheetDescription>
-            {{ selectedDetailServer?.descriptions }}
-          </SheetDescription>
-        </SheetHeader>
-        <div
-          v-if="selectedDetailServer"
-          class="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4"
-        >
-          <div class="flex flex-wrap gap-2">
-            <Badge variant="secondary">
-              {{
-                selectedDetailServer.isRunning
-                  ? t('settings.mcp.running')
-                  : t('settings.mcp.stopped')
-              }}
-            </Badge>
-            <Badge variant="outline">
-              {{
-                isBuiltInServer(selectedDetailServer.name)
-                  ? t('settings.mcp.builtInServers')
-                  : t('settings.mcp.customServers')
-              }}
-            </Badge>
-          </div>
+    <DcSheetPanel
+      appearance="plain"
+      :open="Boolean(selectedDetailServer)"
+      :title="selectedDetailServer?.name ?? ''"
+      :description="selectedDetailServer?.descriptions ?? ''"
+      @update:open="closeDetail"
+    >
+      <div v-if="selectedDetailServer" class="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
+        <div class="flex flex-wrap gap-2">
+          <DcStatusPill
+            :status="selectedDetailServer.isRunning ? 'running' : 'stopped'"
+            :label="
+              selectedDetailServer.isRunning ? t('settings.mcp.running') : t('settings.mcp.stopped')
+            "
+          />
+          <DcStatusPill
+            status="neutral"
+            :label="
+              isBuiltInServer(selectedDetailServer.name)
+                ? t('settings.mcp.builtInServers')
+                : t('settings.mcp.customServers')
+            "
+          />
+        </div>
 
-          <div class="grid gap-2 sm:grid-cols-3">
-            <Button
-              variant="outline"
-              :disabled="getServerToolsCount(selectedDetailServer.name) === 0"
-              @click="handleViewTools(selectedDetailServer.name)"
-            >
-              <Icon icon="lucide:wrench" class="size-4" />
-              {{ getServerToolsCount(selectedDetailServer.name) }}
-            </Button>
-            <Button
-              variant="outline"
-              :disabled="getServerPromptsCount(selectedDetailServer.name) === 0"
-              @click="handleViewPrompts(selectedDetailServer.name)"
-            >
-              <Icon icon="lucide:message-square-quote" class="size-4" />
-              {{ getServerPromptsCount(selectedDetailServer.name) }}
-            </Button>
-            <Button
-              variant="outline"
-              :disabled="getServerResourcesCount(selectedDetailServer.name) === 0"
-              @click="handleViewResources(selectedDetailServer.name)"
-            >
-              <Icon icon="lucide:folder" class="size-4" />
-              {{ getServerResourcesCount(selectedDetailServer.name) }}
-            </Button>
-          </div>
+        <div class="grid gap-2 sm:grid-cols-3">
+          <Button
+            variant="outline"
+            :disabled="getServerToolsCount(selectedDetailServer.name) === 0"
+            @click="handleViewTools(selectedDetailServer.name)"
+          >
+            <Icon icon="lucide:wrench" class="size-4" />
+            {{ getServerToolsCount(selectedDetailServer.name) }}
+          </Button>
+          <Button
+            variant="outline"
+            :disabled="getServerPromptsCount(selectedDetailServer.name) === 0"
+            @click="handleViewPrompts(selectedDetailServer.name)"
+          >
+            <Icon icon="lucide:message-square-quote" class="size-4" />
+            {{ getServerPromptsCount(selectedDetailServer.name) }}
+          </Button>
+          <Button
+            variant="outline"
+            :disabled="getServerResourcesCount(selectedDetailServer.name) === 0"
+            @click="handleViewResources(selectedDetailServer.name)"
+          >
+            <Icon icon="lucide:folder" class="size-4" />
+            {{ getServerResourcesCount(selectedDetailServer.name) }}
+          </Button>
+        </div>
 
-          <div class="rounded-lg border border-border p-3">
-            <div class="text-xs font-medium text-muted-foreground">
-              {{ t('settings.mcp.center.command') }}
-            </div>
-            <div class="mt-1 break-all font-mono text-xs">
-              {{ selectedDetailServer.command || '-' }}
-            </div>
+        <div class="rounded-lg border border-border p-3">
+          <div class="text-xs font-medium text-muted-foreground">
+            {{ t('settings.mcp.center.command') }}
           </div>
-
-          <div class="flex flex-wrap gap-2">
-            <Button variant="outline" @click="openEditServerDialog(selectedDetailServer.name)">
-              <Icon icon="lucide:settings" class="size-4" />
-              {{ t('settings.mcp.editServer') }}
-            </Button>
-            <Button
-              v-if="!isBuiltInServer(selectedDetailServer.name)"
-              variant="destructive"
-              @click="handleRemoveServer(selectedDetailServer.name)"
-            >
-              <Icon icon="lucide:trash-2" class="size-4" />
-              {{ t('settings.mcp.removeServer') }}
-            </Button>
+          <div class="mt-1 break-all font-mono text-xs">
+            {{ selectedDetailServer.command || '-' }}
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+
+        <div class="flex flex-wrap gap-2">
+          <DcButton
+            variant="outline"
+            icon="lucide:settings"
+            @click="openEditServerDialog(selectedDetailServer.name)"
+          >
+            {{ t('settings.mcp.editServer') }}
+          </DcButton>
+          <DcButton
+            v-if="!isBuiltInServer(selectedDetailServer.name)"
+            variant="destructive"
+            icon="lucide:trash-2"
+            @click="handleRemoveServer(selectedDetailServer.name)"
+          >
+            {{ t('settings.mcp.removeServer') }}
+          </DcButton>
+        </div>
+      </div>
+    </DcSheetPanel>
 
     <!-- Edit server dialog -->
     <Dialog :open="isEditServerDialogOpen" @update:open="handleEditDialogOpenChange">
@@ -1006,10 +991,11 @@ defineExpose({
             <Icon icon="lucide:refresh-cw" class="size-4" />
             {{ t('mcp.tools.refresh') }}
           </Button>
-          <Button :disabled="!diagnostics" @click="copyDiagnostics">
-            <Icon icon="lucide:copy" class="size-4" />
-            {{ t('settings.mcp.diagnostics.copy') }}
-          </Button>
+          <DcCopyButton
+            :disabled="!diagnostics"
+            :copy-text="diagnosticsText"
+            :label="t('settings.mcp.diagnostics.copy')"
+          />
         </div>
       </DialogContent>
     </Dialog>

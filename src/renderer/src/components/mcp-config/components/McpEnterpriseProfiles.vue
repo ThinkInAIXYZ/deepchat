@@ -3,6 +3,8 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { nanoid } from 'nanoid'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
+import { DcForm } from '@dc-ui/components/form'
+import { DcFormActions } from '@dc-ui/components/form-actions'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
@@ -31,7 +33,6 @@ const mcpClient = createMcpClient()
 
 const isOpen = ref(false)
 const isLoading = ref(false)
-const isSaving = ref(false)
 const profiles = ref<McpEnterpriseIdentityProfile[]>([])
 const statuses = ref<Record<string, McpEnterpriseIdentityStatus>>({})
 const editingProfile = ref<McpEnterpriseIdentityProfile | null>(null)
@@ -86,10 +87,9 @@ const startEdit = (profile: McpEnterpriseIdentityProfile): void => {
   clientSecret.value = ''
 }
 
-const saveProfile = async (): Promise<void> => {
+const handleProfileSubmit = async (): Promise<void> => {
   const draft = editingProfile.value
-  if (!draft || isSaving.value) return
-  isSaving.value = true
+  if (!draft) return
   try {
     const saved = await mcpClient.saveEnterpriseProfile({
       ...draft,
@@ -108,9 +108,12 @@ const saveProfile = async (): Promise<void> => {
         clientSecret.value
       )
     }
-    editingProfile.value = null
-    clientSecret.value = ''
     await loadProfiles()
+    clientSecret.value = ''
+    // 让提交按钮展示成功 ✅ 后再退出编辑态
+    setTimeout(() => {
+      editingProfile.value = null
+    }, 600)
   } catch (error) {
     notifyRenderer({
       kind: 'error',
@@ -118,8 +121,7 @@ const saveProfile = async (): Promise<void> => {
       title: t('settings.mcp.enterpriseProfiles.saveError'),
       description: error instanceof Error ? error.message : String(error)
     })
-  } finally {
-    isSaving.value = false
+    throw error
   }
 }
 
@@ -215,10 +217,11 @@ onBeforeUnmount(() => {
         <Spinner class="size-5" />
       </div>
 
-      <form
+      <DcForm
         v-else-if="editingProfile"
         class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto"
-        @submit.prevent="saveProfile"
+        :success-duration="1600"
+        @submit="handleProfileSubmit"
       >
         <div class="space-y-2">
           <Label for="enterprise-profile-label">
@@ -287,16 +290,12 @@ onBeforeUnmount(() => {
             "
           />
         </div>
-        <div class="mt-auto flex justify-end gap-2 border-t pt-3">
-          <Button type="button" variant="outline" @click="editingProfile = null">
-            {{ t('common.cancel') }}
-          </Button>
-          <Button type="submit" :disabled="isSaving">
-            <Spinner v-if="isSaving" data-icon="inline-start" />
-            {{ t('common.save') }}
-          </Button>
-        </div>
-      </form>
+        <DcFormActions
+          class="mt-auto border-t pt-3"
+          :submit-label="t('common.save')"
+          @cancel="editingProfile = null"
+        />
+      </DcForm>
 
       <div v-else class="flex min-h-0 flex-1 flex-col gap-3">
         <div class="flex justify-end">

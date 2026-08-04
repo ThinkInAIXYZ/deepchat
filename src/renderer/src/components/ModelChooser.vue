@@ -9,12 +9,12 @@
       <ScrollArea class="h-72 pr-2">
         <div class="flex flex-col gap-5">
           <div v-for="provider in filteredProviders" :key="provider.id" class="flex flex-col gap-2">
-            <Badge
-              variant="outline"
-              class="w-fit uppercase tracking-[0.18em] text-[10px] font-semibold text-muted-foreground"
+            <DcBadge
+              variant="neutral"
+              class="w-fit uppercase tracking-[0.18em] text-[10px] font-semibold"
             >
               {{ provider.name }}
-            </Badge>
+            </DcBadge>
             <div class="flex flex-col gap-1.5" role="listbox" aria-orientation="vertical">
               <Button
                 v-for="model in provider.models"
@@ -64,7 +64,7 @@
 <script setup lang="ts">
 import { computed, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { Card, CardContent } from '@shadcn/components/ui/card'
 import { Input } from '@shadcn/components/ui/input'

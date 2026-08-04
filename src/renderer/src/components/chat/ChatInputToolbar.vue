@@ -2,194 +2,175 @@
   <div class="flex items-center justify-between px-3 py-2">
     <div class="flex items-center gap-1">
       <!-- Attach button -->
-      <Tooltip>
-        <TooltipTrigger as-child>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-            :disabled="isPreparingAttachments"
-            @click="$emit('attach')"
-          >
-            <Icon icon="lucide:plus" class="w-4 h-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{{ t('chat.input.attach') }}</p>
-        </TooltipContent>
-      </Tooltip>
+      <DcButton
+        variant="ghost"
+        size="icon-sm"
+        icon="lucide:plus"
+        :label="t('chat.input.attach')"
+        :tooltip="t('chat.input.attach')"
+        :tooltip-delay-duration="200"
+        class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+        :disabled="isPreparingAttachments"
+        @click="$emit('attach')"
+      />
     </div>
 
     <div class="flex items-center gap-1">
       <!-- Mic button -->
-      <Tooltip v-if="showVoiceInput">
-        <TooltipTrigger as-child>
-          <Button
-            data-testid="chat-voice-input-button"
-            variant="ghost"
-            size="icon"
-            :class="voiceInputButtonClass"
-            :aria-pressed="isVoiceInputListening || isVoiceInputTranscribing"
-            :aria-busy="isVoiceInputTranscribing || undefined"
-            :disabled="
-              isPreparingAttachments && !isVoiceInputListening && !isVoiceInputTranscribing
-            "
-            @click="emit('voice-input')"
-          >
-            <span
-              v-if="isVoiceInputListening"
-              aria-hidden="true"
-              class="absolute inset-0 rounded-lg bg-cyan-500/14 animate-pulse"
-            />
-            <svg
-              v-if="isVoiceInputListening"
-              data-testid="chat-voice-recording-wave"
-              class="voice-wave absolute inset-0 m-auto z-10 transition-opacity duration-150 group-hover:opacity-0"
-              viewBox="0 0 36 18"
-              role="img"
-              aria-hidden="true"
-            >
-              <line class="voice-wave-guide" x1="1" y1="9" x2="10" y2="9" />
-              <line class="voice-wave-guide" x1="26" y1="9" x2="35" y2="9" />
-              <rect
-                class="voice-wave-bar voice-wave-bar-1"
-                x="11"
-                y="6"
-                width="2.3"
-                height="6"
-                rx="1"
-              />
-              <rect
-                class="voice-wave-bar voice-wave-bar-2"
-                x="14.3"
-                y="4"
-                width="2.3"
-                height="10"
-                rx="1"
-              />
-              <rect
-                class="voice-wave-bar voice-wave-bar-3"
-                x="17.6"
-                y="2"
-                width="2.3"
-                height="14"
-                rx="1"
-              />
-              <rect
-                class="voice-wave-bar voice-wave-bar-4"
-                x="20.9"
-                y="4"
-                width="2.3"
-                height="10"
-                rx="1"
-              />
-              <rect
-                class="voice-wave-bar voice-wave-bar-5"
-                x="24.2"
-                y="6"
-                width="2.3"
-                height="6"
-                rx="1"
-              />
-            </svg>
-            <Icon
-              v-if="isVoiceInputListening"
-              icon="lucide:square"
-              class="absolute inset-0 m-auto z-10 hidden w-4 h-4 text-red-500 group-hover:block"
-            />
-            <Spinner v-else-if="isVoiceInputTranscribing" class="relative z-10 size-4" />
-            <Icon v-else icon="lucide:mic" class="relative z-10 size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{{ voiceInputTooltip }}</p>
-        </TooltipContent>
-      </Tooltip>
+      <DcButton
+        v-if="showVoiceInput"
+        data-testid="chat-voice-input-button"
+        variant="ghost"
+        size="icon-sm"
+        :label="voiceInputTooltip"
+        :tooltip="voiceInputTooltip"
+        :tooltip-delay-duration="200"
+        :class="voiceInputButtonClass"
+        :aria-pressed="isVoiceInputListening || isVoiceInputTranscribing"
+        :aria-busy="isVoiceInputTranscribing || undefined"
+        :disabled="isPreparingAttachments && !isVoiceInputListening && !isVoiceInputTranscribing"
+        @click="emit('voice-input')"
+      >
+        <span
+          v-if="isVoiceInputListening"
+          aria-hidden="true"
+          class="absolute inset-0 rounded-lg bg-cyan-500/14 animate-pulse"
+        />
+        <svg
+          v-if="isVoiceInputListening"
+          data-testid="chat-voice-recording-wave"
+          class="voice-wave absolute inset-0 m-auto z-10 transition-opacity duration-150 group-hover:opacity-0"
+          viewBox="0 0 36 18"
+          role="img"
+          aria-hidden="true"
+        >
+          <line class="voice-wave-guide" x1="1" y1="9" x2="10" y2="9" />
+          <line class="voice-wave-guide" x1="26" y1="9" x2="35" y2="9" />
+          <rect
+            class="voice-wave-bar voice-wave-bar-1"
+            x="11"
+            y="6"
+            width="2.3"
+            height="6"
+            rx="1"
+          />
+          <rect
+            class="voice-wave-bar voice-wave-bar-2"
+            x="14.3"
+            y="4"
+            width="2.3"
+            height="10"
+            rx="1"
+          />
+          <rect
+            class="voice-wave-bar voice-wave-bar-3"
+            x="17.6"
+            y="2"
+            width="2.3"
+            height="14"
+            rx="1"
+          />
+          <rect
+            class="voice-wave-bar voice-wave-bar-4"
+            x="20.9"
+            y="4"
+            width="2.3"
+            height="10"
+            rx="1"
+          />
+          <rect
+            class="voice-wave-bar voice-wave-bar-5"
+            x="24.2"
+            y="6"
+            width="2.3"
+            height="6"
+            rx="1"
+          />
+        </svg>
+        <Icon
+          v-if="isVoiceInputListening"
+          icon="lucide:square"
+          class="absolute inset-0 m-auto z-10 hidden w-4 h-4 text-red-500 group-hover:block"
+        />
+        <Spinner v-else-if="isVoiceInputTranscribing" class="relative z-10 size-4" />
+        <Icon v-else icon="lucide:mic" class="relative z-10 size-4" />
+      </DcButton>
 
-      <Tooltip v-if="isGenerating && hasActiveInput">
-        <TooltipTrigger as-child>
-          <Button
-            data-testid="chat-steer-button"
-            variant="outline"
-            size="sm"
-            class="h-7 gap-1.5 rounded-lg px-2.5 text-foreground"
-            :disabled="isPreparingAttachments || steerDisabled"
-            @click="emit('steer')"
-          >
-            <Icon icon="lucide:compass" class="w-4 h-4" />
-            <span class="text-xs font-medium">{{ t('chat.input.steer') }}</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>
-            {{ steerDisabled ? t('chat.pendingInput.steerUnavailable') : t('chat.input.steer') }}
-          </p>
-        </TooltipContent>
-      </Tooltip>
+      <DcButton
+        v-if="isGenerating && hasActiveInput"
+        data-testid="chat-steer-button"
+        variant="outline"
+        size="sm"
+        icon="lucide:compass"
+        :label="t('chat.input.steer')"
+        :tooltip="steerDisabled ? t('chat.pendingInput.steerUnavailable') : t('chat.input.steer')"
+        :tooltip-delay-duration="200"
+        class="h-7 gap-1.5 rounded-lg px-2.5 text-foreground"
+        :disabled="isPreparingAttachments || steerDisabled"
+        @click="emit('steer')"
+      >
+        <span class="text-xs font-medium">{{ t('chat.input.steer') }}</span>
+      </DcButton>
 
       <!-- Primary action button -->
-      <Tooltip :key="buttonMode">
-        <TooltipTrigger as-child>
-          <Button
-            :data-testid="
-              buttonMode === 'cancel-preparation'
-                ? 'chat-cancel-preparation-button'
-                : buttonMode === 'stop'
-                  ? 'chat-stop-button'
-                  : buttonMode === 'queue'
-                    ? 'chat-queue-button'
-                    : 'chat-send-button'
-            "
-            :data-mode="buttonMode"
-            :variant="
-              buttonMode === 'stop' || buttonMode === 'cancel-preparation' ? 'outline' : 'default'
-            "
-            size="icon"
-            class="h-7 w-7 rounded-full"
-            :disabled="
-              buttonMode === 'cancel-preparation'
-                ? false
-                : buttonMode === 'stop'
-                  ? isStopping
-                  : buttonMode === 'send'
-                    ? sendDisabled
-                    : queueDisabled
-            "
-            :aria-busy="buttonMode === 'stop' && isStopping ? true : undefined"
-            @click="handlePrimaryAction"
-          >
-            <Spinner v-if="buttonMode === 'stop' && isStopping" class="size-4 text-red-500" />
-            <Icon
-              v-else
-              :icon="
-                buttonMode === 'stop' || buttonMode === 'cancel-preparation'
-                  ? 'lucide:square'
-                  : buttonMode === 'queue'
-                    ? 'lucide:list-plus'
-                    : 'lucide:arrow-up'
-              "
-              :class="
-                buttonMode === 'stop' || buttonMode === 'cancel-preparation'
-                  ? 'w-4 h-4 text-red-500'
-                  : 'w-4 h-4'
-              "
-            />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{{ primaryTooltip }}</p>
-        </TooltipContent>
-      </Tooltip>
+      <DcButton
+        :key="buttonMode"
+        :data-testid="
+          buttonMode === 'cancel-preparation'
+            ? 'chat-cancel-preparation-button'
+            : buttonMode === 'stop'
+              ? 'chat-stop-button'
+              : buttonMode === 'queue'
+                ? 'chat-queue-button'
+                : 'chat-send-button'
+        "
+        :data-mode="buttonMode"
+        :variant="
+          buttonMode === 'stop' || buttonMode === 'cancel-preparation' ? 'outline' : 'default'
+        "
+        size="icon-sm"
+        :label="primaryTooltip"
+        :tooltip="primaryTooltip"
+        :tooltip-delay-duration="200"
+        class="rounded-full"
+        :disabled="
+          buttonMode === 'cancel-preparation'
+            ? false
+            : buttonMode === 'stop'
+              ? isStopping
+              : buttonMode === 'send'
+                ? sendDisabled
+                : queueDisabled
+        "
+        :aria-busy="buttonMode === 'stop' && isStopping ? true : undefined"
+        @click="handlePrimaryAction"
+      >
+        <Spinner v-if="buttonMode === 'stop' && isStopping" class="size-4 text-red-500" />
+        <Icon
+          v-else
+          :icon="
+            buttonMode === 'stop' || buttonMode === 'cancel-preparation'
+              ? 'lucide:square'
+              : buttonMode === 'queue'
+                ? 'lucide:list-plus'
+                : 'lucide:arrow-up'
+          "
+          :class="
+            buttonMode === 'stop' || buttonMode === 'cancel-preparation'
+              ? 'w-4 h-4 text-red-500'
+              : 'w-4 h-4'
+          "
+        />
+      </DcButton>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Button } from '@shadcn/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
+import { DcButton } from '@dc-ui/components/button'
 import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(

@@ -131,23 +131,23 @@
             </TabsTrigger>
             <TabsTrigger v-if="personaTabVisible" value="persona">
               {{ t('settings.memory.redesign.tabPersona') }}
-              <Badge
+              <DcBadge
                 v-if="(status?.personaDraftCount ?? 0) > 0"
                 variant="secondary"
                 class="ml-1.5 text-[10px]"
               >
                 {{ status?.personaDraftCount }}
-              </Badge>
+              </DcBadge>
             </TabsTrigger>
             <TabsTrigger value="directives">
               {{ t('settings.memory.redesign.tabDirectives') }}
-              <Badge
+              <DcBadge
                 v-if="(status?.directiveDraftCount ?? 0) > 0"
                 variant="secondary"
                 class="ml-1.5 text-[10px]"
               >
                 {{ status?.directiveDraftCount }}
-              </Badge>
+              </DcBadge>
             </TabsTrigger>
             <TabsTrigger value="diagnostics">
               {{ t('settings.memory.redesign.tabDiagnostics') }}
@@ -198,7 +198,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import {
   Select,
   SelectContent,

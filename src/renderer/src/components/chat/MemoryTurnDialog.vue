@@ -119,17 +119,23 @@
                   <div class="min-w-0 flex-1">
                     <p class="line-clamp-4 text-sm leading-5">{{ detail.memory.content }}</p>
                     <div class="mt-1.5 flex flex-wrap gap-1.5">
-                      <Badge variant="outline" class="text-[10px]">{{ detail.memory.kind }}</Badge>
-                      <Badge v-if="detail.memory.category" variant="secondary" class="text-[10px]">
+                      <DcBadge variant="outline" class="text-[10px]">{{
+                        detail.memory.kind
+                      }}</DcBadge>
+                      <DcBadge
+                        v-if="detail.memory.category"
+                        variant="secondary"
+                        class="text-[10px]"
+                      >
                         {{ detail.memory.category }}
-                      </Badge>
-                      <Badge
+                      </DcBadge>
+                      <DcBadge
                         v-if="detail.memory.status === 'archived'"
                         variant="secondary"
                         class="text-[10px]"
                       >
                         {{ t('chat.memory.status.archived') }}
-                      </Badge>
+                      </DcBadge>
                     </div>
                   </div>
                   <Button
@@ -147,13 +153,11 @@
                     <Icon icon="lucide:archive" class="h-3.5 w-3.5" />
                   </Button>
                 </div>
-                <p
+                <DcInlineError
                   v-if="forgetErrors[detail.id]"
-                  role="alert"
-                  class="mt-2 text-xs text-destructive"
-                >
-                  {{ forgetErrors[detail.id] }}
-                </p>
+                  :error="forgetErrors[detail.id]"
+                  class="mt-2"
+                />
               </template>
               <p v-else class="text-sm text-muted-foreground">
                 {{ t('chat.memory.turn.unavailable') }}
@@ -173,7 +177,8 @@
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import { Button } from '@shadcn/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { useMemoryActivityStore } from '@/stores/ui/memoryActivity'

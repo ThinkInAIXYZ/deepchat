@@ -11,9 +11,9 @@
     </div>
     <div v-else class="space-y-3">
       <div class="flex flex-wrap items-center gap-2">
-        <Badge :variant="tierVariant" class="text-[10px]">
+        <DcBadge :variant="tierVariant" class="text-[10px]">
           {{ tierLabel }}
-        </Badge>
+        </DcBadge>
         <span class="text-[11px] text-muted-foreground">
           {{ t('settings.deepchatAgents.memoryManager.lifecycle.modelNote') }}
         </span>
@@ -149,7 +149,7 @@
 import { computed, defineComponent, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import type { MemoryLifecycle } from '@shared/contracts/routes'
 
 const props = defineProps<{

@@ -13,7 +13,8 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import type {
   MCPServerConfig,
   McpAuthorizationMode,
@@ -812,14 +813,7 @@ HTTP-Referer=deepchatai.cn`
             :aria-invalid="Boolean(jsonConfigError)"
             :aria-describedby="jsonConfigError ? 'json-config-error' : undefined"
           />
-          <p
-            v-if="jsonConfigError"
-            id="json-config-error"
-            role="alert"
-            class="text-xs text-destructive"
-          >
-            {{ jsonConfigError }}
-          </p>
+          <DcInlineError id="json-config-error" :error="jsonConfigError ?? undefined" />
         </div>
       </div>
     </ScrollArea>
@@ -869,9 +863,7 @@ HTTP-Referer=deepchatai.cn`
             required
           />
         </div>
-        <p v-if="nameError" role="alert" class="text-xs text-destructive">
-          {{ nameError }}
-        </p>
+        <DcInlineError v-if="nameError" :error="nameError" />
 
         <!-- 图标 -->
         <div class="space-y-2">
@@ -896,12 +888,9 @@ HTTP-Referer=deepchatai.cn`
               <SelectItem value="stdio">{{ t('settings.mcp.serverForm.typeStdio') }}</SelectItem>
               <SelectItem value="sse">
                 <span>{{ t('settings.mcp.serverForm.typeSse') }}</span>
-                <Badge
-                  variant="outline"
-                  class="border-amber-500/50 px-1.5 py-0 text-[10px] font-normal text-amber-700 dark:text-amber-400"
-                >
+                <DcBadge variant="warning" class="px-1.5 py-0 text-[10px] font-normal">
                   {{ t('settings.mcp.serverForm.sseCompatibilityBadge') }}
-                </Badge>
+                </DcBadge>
               </SelectItem>
               <SelectItem value="http">{{ t('settings.mcp.serverForm.typeHttp') }}</SelectItem>
               <SelectItem
@@ -1167,9 +1156,7 @@ HTTP-Referer=deepchatai.cn`
               <Icon icon="lucide:folder-plus" class="h-4 w-4" />
               {{ t('settings.mcp.serverForm.addFolder') }}
             </Button>
-            <p v-if="folderSelectionError" role="alert" class="text-xs text-destructive">
-              {{ folderSelectionError }}
-            </p>
+            <DcInlineError v-if="folderSelectionError" :error="folderSelectionError" />
 
             <!-- 空状态提示 -->
             <div
@@ -1226,9 +1213,11 @@ HTTP-Referer=deepchatai.cn`
             :aria-invalid="!isEnvValid"
             :aria-describedby="!isEnvValid ? 'server-env-error' : undefined"
           />
-          <p v-if="!isEnvValid" id="server-env-error" role="alert" class="text-xs text-destructive">
-            {{ t('settings.mcp.serverForm.envInvalid') }}
-          </p>
+          <DcInlineError
+            v-if="!isEnvValid"
+            id="server-env-error"
+            :error="t('settings.mcp.serverForm.envInvalid')"
+          />
         </div>
 
         <!-- 描述 -->
@@ -1316,9 +1305,7 @@ HTTP-Referer=deepchatai.cn`
 
     <!-- 提交按钮 -->
     <div class="flex items-center justify-between gap-3 pt-2 border-t px-4">
-      <p v-if="submissionError" role="alert" class="min-w-0 text-xs text-destructive">
-        {{ submissionError }}
-      </p>
+      <DcInlineError class="min-w-0" :error="submissionError" />
       <Button type="submit" size="sm" class="ml-auto" :disabled="!isFormValid || submitting">
         <Icon
           v-if="submitting"

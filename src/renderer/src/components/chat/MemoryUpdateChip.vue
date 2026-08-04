@@ -43,17 +43,17 @@
               <div class="min-w-0 flex-1">
                 <p class="line-clamp-3 text-sm leading-5">{{ item.memory.content }}</p>
                 <div class="mt-1.5 flex flex-wrap gap-1.5">
-                  <Badge variant="outline" class="text-[10px]">{{ item.memory.kind }}</Badge>
-                  <Badge v-if="item.memory.category" variant="secondary" class="text-[10px]">
+                  <DcBadge variant="outline" class="text-[10px]">{{ item.memory.kind }}</DcBadge>
+                  <DcBadge v-if="item.memory.category" variant="secondary" class="text-[10px]">
                     {{ item.memory.category }}
-                  </Badge>
-                  <Badge
+                  </DcBadge>
+                  <DcBadge
                     v-if="item.memory.status === 'archived'"
                     variant="secondary"
                     class="text-[10px]"
                   >
                     {{ t('chat.memory.status.archived') }}
-                  </Badge>
+                  </DcBadge>
                 </div>
               </div>
               <div class="flex shrink-0 items-center gap-1">
@@ -130,7 +130,7 @@
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Textarea } from '@shadcn/components/ui/textarea'

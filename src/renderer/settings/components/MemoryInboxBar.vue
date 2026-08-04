@@ -5,19 +5,19 @@
         <div class="flex flex-wrap items-center gap-2">
           <Icon icon="lucide:inbox" class="h-4 w-4 text-amber-600" />
           <h2 class="text-sm font-semibold">{{ t('settings.memory.redesign.inboxTitle') }}</h2>
-          <Badge v-if="conflictCount > 0" variant="destructive" class="text-[10px]">
+          <DcBadge v-if="conflictCount > 0" variant="destructive" class="text-[10px]">
             {{ t('settings.memory.redesign.conflictBadge', { count: conflictCount }) }}
-          </Badge>
-          <Badge v-if="draftCount > 0" variant="secondary" class="text-[10px]">
+          </DcBadge>
+          <DcBadge v-if="draftCount > 0" variant="secondary" class="text-[10px]">
             {{ t('settings.memory.redesign.personaDraftBadge', { count: draftCount }) }}
-          </Badge>
-          <Badge v-if="directiveDraftCount > 0" variant="secondary" class="text-[10px]">
+          </DcBadge>
+          <DcBadge v-if="directiveDraftCount > 0" variant="secondary" class="text-[10px]">
             {{
               t('settings.memory.redesign.directiveDraftBadge', {
                 count: directiveDraftCount
               })
             }}
-          </Badge>
+          </DcBadge>
         </div>
         <p class="mt-1 text-xs text-muted-foreground">
           {{ t('settings.memory.redesign.inboxDescription') }}
@@ -164,9 +164,9 @@
           class="rounded-lg border border-border bg-background p-3"
         >
           <div class="mb-2 flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline" class="text-[10px]">
+            <DcBadge variant="outline" class="text-[10px]">
               {{ t(`settings.memory.redesign.directiveKind.${directive.kind}`) }}
-            </Badge>
+            </DcBadge>
             <span v-if="directive.topic" class="wrap-break-word text-[11px] text-muted-foreground">
               {{
                 t('settings.memory.redesign.directiveTopicValue', {
@@ -205,7 +205,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { createMemoryClient } from '@api/MemoryClient'
 import type { MemoryConflictItem, MemoryDirectiveItem, MemoryItem } from '@shared/contracts/routes'

@@ -28,9 +28,9 @@
             <span class="text-sm">{{ ownerLabel(skill.owner) }}</span>
           </TableCell>
           <TableCell>
-            <Badge variant="outline" :class="statusBadgeClass(skill.status)">
+            <DcBadge variant="outline" :class="statusBadgeClass(skill.status)">
               {{ statusLabel(skill.status) }}
-            </Badge>
+            </DcBadge>
           </TableCell>
           <TableCell>
             <Button
@@ -67,7 +67,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Button } from '@shadcn/components/ui/button'
 import {
   Table,

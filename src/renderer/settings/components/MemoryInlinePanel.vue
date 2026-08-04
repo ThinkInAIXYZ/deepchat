@@ -263,52 +263,35 @@
             <Icon v-else icon="lucide:archive" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('settings.memory.redesign.archive') }}
           </Button>
-          <AlertDialog :open="deleteDialogOpen" @update:open="handleDeleteDialogOpenChange">
-            <AlertDialogTrigger as-child>
-              <Button
-                data-testid="memory-inline-delete-trigger"
-                variant="ghost"
-                size="icon"
-                class="h-8 w-8 text-destructive"
-                :disabled="busy"
-              >
-                <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  {{ t('settings.deepchatAgents.memoryManager.deleteConfirmTitle') }}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {{ t('settings.deepchatAgents.memoryManager.deleteConfirmBody') }}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <MemoryInlineFeedback
-                v-if="deleteFeedback"
-                :feedback="deleteFeedback"
-                @clear="clearDeleteFeedback"
-              />
-              <AlertDialogFooter>
-                <AlertDialogCancel data-testid="memory-inline-delete-cancel" :disabled="busy">
-                  {{ t('common.cancel') }}
-                </AlertDialogCancel>
-                <AlertDialogAsyncAction
-                  data-testid="memory-inline-delete-confirm"
-                  class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  :disabled="busy"
-                  @click="remove"
-                >
-                  <Spinner
-                    v-if="pendingMutation === 'remove'"
-                    data-testid="memory-inline-delete-spinner"
-                    class="mr-1.5 size-3.5"
-                  />
-                  {{ t('settings.deepchatAgents.memoryManager.deletePermanent') }}
-                </AlertDialogAsyncAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <DcButton
+            icon="lucide:trash-2"
+            size="icon-sm"
+            :label="t('common.delete')"
+            :tooltip="t('common.delete')"
+            data-testid="memory-inline-delete-trigger"
+            class="text-destructive"
+            :disabled="busy"
+            @click="deleteDialogOpen = true"
+          />
+
+          <DcConfirmDialog
+            :open="deleteDialogOpen"
+            :title="t('settings.deepchatAgents.memoryManager.deleteConfirmTitle')"
+            :description="t('settings.deepchatAgents.memoryManager.deleteConfirmBody')"
+            :confirm-label="t('settings.deepchatAgents.memoryManager.deletePermanent')"
+            :busy="busy"
+            :confirm-attrs="{ 'data-testid': 'memory-inline-delete-confirm' }"
+            :cancel-attrs="{ 'data-testid': 'memory-inline-delete-cancel' }"
+            busy-data-testid="memory-inline-delete-spinner"
+            @update:open="handleDeleteDialogOpenChange"
+            @confirm="remove"
+          >
+            <MemoryInlineFeedback
+              v-if="deleteFeedback"
+              :feedback="deleteFeedback"
+              @clear="clearDeleteFeedback"
+            />
+          </DcConfirmDialog>
         </div>
 
         <div class="ml-auto flex items-center gap-2">
@@ -360,17 +343,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAsyncAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from '@shadcn/components/ui/alert-dialog'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Collapsible,
   CollapsibleContent,

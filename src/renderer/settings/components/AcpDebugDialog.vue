@@ -14,22 +14,14 @@
           </DialogDescription>
         </DialogHeader>
         <div class="flex items-center gap-3">
-          <div
-            class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
-            :class="processReady ? 'border-emerald-500/50 text-emerald-600' : 'border-border'"
-          >
-            <span
-              class="size-2 rounded-full"
-              :class="processReady ? 'bg-emerald-500' : 'bg-muted-foreground/60'"
-            ></span>
-            <span>
-              {{
-                processReady
-                  ? t('settings.acp.debug.processReady')
-                  : t('settings.acp.debug.processNotReady')
-              }}
-            </span>
-          </div>
+          <DcStatusPill
+            :status="processReady ? 'success' : 'neutral'"
+            :label="
+              processReady
+                ? t('settings.acp.debug.processReady')
+                : t('settings.acp.debug.processNotReady')
+            "
+          />
           <Button
             size="sm"
             variant="outline"
@@ -127,7 +119,7 @@
               >
                 <div class="flex items-center justify-between gap-2">
                   <div class="flex items-center gap-2">
-                    <Badge variant="outline">{{ eventLabel(event.kind) }}</Badge>
+                    <DcBadge variant="outline">{{ eventLabel(event.kind) }}</DcBadge>
                     <span class="font-mono text-[11px] text-muted-foreground">
                       {{ formatTime(event.timestamp) }}
                     </span>
@@ -168,15 +160,16 @@
                 <span class="truncate max-w-[240px]" :title="workdirPath || undefined">
                   {{ workdirLabel }}
                 </span>
-                <Button
+                <DcButton
                   size="icon"
                   variant="ghost"
+                  icon="lucide:folder-open"
+                  :label="t('mcp.selectFolder')"
+                  :tooltip="t('mcp.selectFolder')"
                   class="h-9 w-9"
                   :disabled="loading"
                   @click="handleSelectWorkdir"
-                >
-                  <Icon icon="lucide:folder-open" class="h-4 w-4" />
-                </Button>
+                />
                 <Button
                   v-if="workdirPath"
                   size="sm"
@@ -227,6 +220,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { DcButton } from '@dc-ui/components/button'
+import { DcStatusPill } from '@dc-ui/components/status-pill'
 import { Button } from '@shadcn/components/ui/button'
 import {
   Dialog,
@@ -236,7 +231,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { Input } from '@shadcn/components/ui/input'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Empty, EmptyDescription, EmptyHeader } from '@shadcn/components/ui/empty'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'

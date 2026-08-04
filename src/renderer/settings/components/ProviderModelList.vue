@@ -21,9 +21,9 @@
             >
               <Icon icon="lucide:funnel" class="mr-2 h-4 w-4 text-muted-foreground" />
               {{ t('model.filter.label') }}
-              <Badge v-if="activeAdvancedFilterCount" variant="secondary" class="ml-2">
+              <DcBadge v-if="activeAdvancedFilterCount" variant="secondary" class="ml-2">
                 {{ activeAdvancedFilterCount }}
-              </Badge>
+              </DcBadge>
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" class="w-[320px] p-4">
@@ -303,7 +303,7 @@ import { useI18n } from 'vue-i18n'
 import { computed, reactive, ref, watch } from 'vue'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Icon } from '@iconify/vue'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'

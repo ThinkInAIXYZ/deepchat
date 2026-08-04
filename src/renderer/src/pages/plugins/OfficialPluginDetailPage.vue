@@ -201,9 +201,8 @@
           </AlertDescription>
         </Alert>
 
-        <section class="rounded-lg border border-border p-4">
-          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div class="text-sm font-semibold">{{ t('settings.plugins.runtime') }}</div>
+        <DcSectionCard :title="t('settings.plugins.runtime')">
+          <template #actions>
             <div v-if="showCuaRuntimeActions" class="flex flex-wrap gap-2">
               <Button
                 v-if="cuaRuntimeQuarantined && !cuaRuntimeIntegrityError"
@@ -228,7 +227,7 @@
                 {{ t('settings.plugins.testRuntime') }}
               </Button>
             </div>
-          </div>
+          </template>
           <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
             <dt class="text-muted-foreground">{{ t('settings.plugins.runtimeState') }}</dt>
             <dd>{{ formatRuntimeState(plugin.runtime?.state) }}</dd>
@@ -240,10 +239,9 @@
           <p v-if="plugin.runtime?.lastError" class="mt-3 break-all text-xs text-destructive">
             {{ plugin.runtime.lastError }}
           </p>
-        </section>
+        </DcSectionCard>
 
-        <section v-if="plugin.mcpServers?.length" class="rounded-lg border border-border p-4">
-          <div class="mb-3 text-sm font-semibold">{{ t('routes.settings-mcp') }}</div>
+        <DcSectionCard v-if="plugin.mcpServers?.length" :title="t('routes.settings-mcp')">
           <div class="divide-y divide-border/70">
             <div
               v-for="server in plugin.mcpServers"
@@ -261,7 +259,7 @@
               </span>
             </div>
           </div>
-        </section>
+        </DcSectionCard>
 
         <RemoteSettings
           v-if="isFeishuPlugin"
@@ -273,12 +271,11 @@
           single-channel
         />
 
-        <section v-if="lastActionData" class="rounded-lg border border-border p-4">
-          <div class="mb-3 text-sm font-semibold">{{ t('settings.pluginsHub.actionResult') }}</div>
+        <DcSectionCard v-if="lastActionData" :title="t('settings.pluginsHub.actionResult')">
           <pre class="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">{{
             lastActionData
           }}</pre>
-        </section>
+        </DcSectionCard>
       </template>
     </div>
   </ScrollArea>
@@ -289,6 +286,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { DcSectionCard } from '@dc-ui/components/section-card'
 import { Alert, AlertDescription, AlertTitle } from '@shadcn/components/ui/alert'
 import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
