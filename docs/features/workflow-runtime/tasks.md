@@ -391,8 +391,9 @@ Aggregate-token cutoff validation evidence (2026-08-04):
 - schema version 63 removes only `maxTotalTokens`, preserves explicit execution deadlines, gives
   token-only legacy budgets the frozen historical two-hour default, and restores the immutable-run
   trigger in the migration transaction;
-- the launch, persisted run, projection, and model-facing tool contracts accept only the bounded
-  host-owned `maxExecutionMs`; legacy token fields fail at the typed boundary instead of silently
+- after v63 normalizes valid token-only legacy budgets to the frozen historical two-hour deadline,
+  the launch, persisted run, projection, and model-facing tool contracts accept only bounded
+  host-owned `maxExecutionMs`; token fields that reach these typed boundaries fail instead of
   influencing scheduling;
 - prior durable usage no longer rejects later invocations, while per-invocation usage and successful
   run aggregates remain available for UI and audit projections;
