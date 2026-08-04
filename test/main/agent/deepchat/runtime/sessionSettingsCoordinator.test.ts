@@ -237,4 +237,96 @@ describe('SessionSettingsCoordinator', () => {
     )
     expect(harness.sessionStore.updateGenerationSettings).not.toHaveBeenCalled()
   })
+
+  it('atomically applies the model and generation snapshot for an idle turn', async () => {
+    const harness = createHarness()
+    const generationSettings = {
+      ...BASE_SETTINGS,
+      systemPrompt: 'Frozen child prompt',
+      temperature: 0.2,
+      maxTokens: 8192
+    }
+
+    await harness.coordinator.applyTurnExecutionSnapshot(SESSION_ID, {
+      providerId: 'anthropic',
+      modelId: 'claude-3-5-sonnet',
+      generationSettings
+    })
+
+    expect(harness.sessionStore.updateSessionConfiguration).toHaveBeenCalledWith(
+      SESSION_ID,
+      'anthropic',
+      'claude-3-5-sonnet',
+      expect.objectContaining(generationSettings)
+    )
+    expect(harness.instance.getRuntimeState()).toEqual({
+      status: 'idle',
+      providerId: 'anthropic',
+      modelId: 'claude-3-5-sonnet',
+      permissionMode: 'default'
+    })
+    expect(harness.instance.getGenerationSettings()).toMatchObject(generationSettings)
+  })
+
+  it('refuses to apply a turn snapshot after generation has started', async () => {
+    const harness = createHarness()
+    harness.instance.setRuntimeState({
+      status: 'generating',
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      permissionMode: 'default'
+    })
+
+    await expect(
+      harness.coordinator.applyTurnExecutionSnapshot(SESSION_ID, {
+        providerId: 'anthropic',
+        modelId: 'claude-3-5-sonnet',
+        generationSettings: BASE_SETTINGS
+      })
+    ).rejects.toThrow('while session is generating')
+    expect(harness.sessionStore.updateSessionConfiguration).not.toHaveBeenCalled()
+  })
+
+  it('does not apply a turn snapshot after the runtime instance is replaced', async () => {
+    const harness = createHarness()
+    const prompt = deferred<string>()
+    harness.getDefaultSystemPrompt.mockReturnValueOnce(prompt.promise)
+
+    const update = harness.coordinator.applyTurnExecutionSnapshot(SESSION_ID, {
+      providerId: 'anthropic',
+      modelId: 'claude-3-5-sonnet',
+      generationSettings: { ...BASE_SETTINGS, systemPrompt: '' }
+    })
+    await vi.waitFor(() => expect(harness.getDefaultSystemPrompt).toHaveBeenCalledOnce())
+    const replacement = harness.replaceInstance()
+    prompt.resolve('Target default prompt')
+
+    await expect(update).rejects.toMatchObject({ name: 'StaleDeepChatAgentInstanceError' })
+    expect(harness.sessionStore.updateSessionConfiguration).not.toHaveBeenCalled()
+    expect(replacement.getRuntimeState()?.providerId).toBe('replacement-provider')
+  })
+
+  it('preserves a permission downgrade while a turn snapshot is being sanitized', async () => {
+    const harness = createHarness()
+    const prompt = deferred<string>()
+    harness.getDefaultSystemPrompt.mockReturnValueOnce(prompt.promise)
+    harness.instance.getRuntimeState()!.permissionMode = 'full_access'
+
+    const update = harness.coordinator.applyTurnExecutionSnapshot(SESSION_ID, {
+      providerId: 'anthropic',
+      modelId: 'claude-3-5-sonnet',
+      generationSettings: { ...BASE_SETTINGS, systemPrompt: '' }
+    })
+    await vi.waitFor(() => expect(harness.getDefaultSystemPrompt).toHaveBeenCalledOnce())
+    harness.instance.getRuntimeState()!.permissionMode = 'default'
+    prompt.resolve('Target default prompt')
+
+    await update
+    expect(harness.instance.getRuntimeState()).toEqual({
+      status: 'idle',
+      providerId: 'anthropic',
+      modelId: 'claude-3-5-sonnet',
+      permissionMode: 'default'
+    })
+  })
 })

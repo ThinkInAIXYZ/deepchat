@@ -1,4 +1,5 @@
 import type { ToolExecutionContract } from '@shared/types/mcp'
+import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ToolSource } from './toolMapper'
 
 export interface ToolEffectObservation {
@@ -7,8 +8,16 @@ export interface ToolEffectObservation {
   toolName: string
   source: ToolSource
   reviewedExecution: ToolExecutionContract | null
+  authorizedPermissionMode?: PermissionMode
 }
 
 export interface ToolEffectObserver {
-  beforeToolExecution(observation: ToolEffectObservation): Promise<void> | void
+  beforeToolAuthorization?(
+    observation: ToolEffectObservation,
+    signal?: AbortSignal
+  ): Promise<{ permissionMode: PermissionMode } | null> | { permissionMode: PermissionMode } | null
+  beforeToolExecution(
+    observation: ToolEffectObservation,
+    signal?: AbortSignal
+  ): Promise<void> | void
 }

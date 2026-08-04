@@ -110,6 +110,10 @@ Generation settings and safety state have different lifetimes:
 - model and generation settings are frozen when each child turn starts;
 - permission mode, workspace authority, Session deletion, and capability revocation are checked
   continuously and take effect for active work;
+- the host revalidates safety before authorization, immediately before tool dispatch, and before a
+  suspended child resumes; a permission change between authorization and dispatch fails closed;
+- changing a child workdir clears remembered grants and stages `default` permission before crossing
+  the boundary, so a partial update cannot retain broad authority over either workdir;
 - changing proactive policy controls future `spawn` and `follow_up` operations. Existing work
   remains visible and explicitly interruptible.
 

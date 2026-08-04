@@ -160,6 +160,7 @@ import { OrchestrationCapabilityResolver } from '@/orchestration/capability'
 import { LiveDelegationDatabase } from '@/orchestration/data/database'
 import { LiveDelegationRepository } from '@/orchestration/liveDelegationRepository'
 import { LiveDelegationService } from '@/orchestration/liveDelegationService'
+import { LiveDelegationSafetyCoordinator } from '@/orchestration/liveDelegationSafety'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -1015,8 +1016,15 @@ export async function createMainProcessControl(dependencies: {
     permissionBroker: toolPermissionBroker,
     agentTools: agentToolDependencies,
     effectObserver: {
-      beforeToolExecution: async (observation) => {
-        await liveDelegationService.beforeToolExecution(observation)
+      beforeToolAuthorization: async (observation, signal) => {
+        const permissionMode = await liveDelegationService.beforeToolAuthorization(
+          observation,
+          signal
+        )
+        return permissionMode ? { permissionMode } : null
+      },
+      beforeToolExecution: async (observation, signal) => {
+        await liveDelegationService.beforeToolExecution(observation, signal)
       }
     }
   })
@@ -1449,11 +1457,19 @@ export async function createMainProcessControl(dependencies: {
     sessions: agentToolDependencies.sessions,
     agents: agentSettings
   })
+  const liveDelegationSafety = new LiveDelegationSafetyCoordinator({
+    sessions: agentToolDependencies.sessions,
+    assignmentPolicy: sessionAssignmentPolicy,
+    assignment: sessionAssignment,
+    permissions: sessionPermissionPort,
+    executionSnapshots: deepChatAgentHarness
+  })
   const createLiveDelegationService = (): LiveDelegationService =>
     new LiveDelegationService({
       repository: liveDelegationRepository,
       admission: agentInvocationAdmission,
       deletionGate: sessionDeletionGate,
+      safety: liveDelegationSafety,
       sessions: {
         ...agentToolDependencies.sessions,
         ...agentToolDependencies.subagents,

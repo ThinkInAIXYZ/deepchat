@@ -214,6 +214,17 @@ export class DeepChatAgentHarness
     return await this.services.sessionSettings.updateGenerationSettings(sessionId, settings)
   }
 
+  async applyTurnExecutionSnapshot(
+    sessionId: string,
+    snapshot: {
+      providerId: string
+      modelId: string
+      generationSettings: SessionGenerationSettings
+    }
+  ): Promise<void> {
+    await this.services.sessionSettings.applyTurnExecutionSnapshot(sessionId, snapshot)
+  }
+
   async cancelGeneration(sessionId: string): Promise<void> {
     await this.services.runLifecycle.cancel(sessionId)
   }

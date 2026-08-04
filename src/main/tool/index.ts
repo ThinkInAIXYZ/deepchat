@@ -307,6 +307,9 @@ export class ToolService implements ToolServicePort {
     if (!source) {
       throw new Error(`Tool ${toolName} not found in any source`)
     }
+    const permissionMode =
+      (await this.observeToolAuthorization(request, source, options?.signal))?.permissionMode ??
+      options?.permissionMode
 
     if (source === 'agent') {
       if (!this.agentToolManager) {
@@ -316,7 +319,7 @@ export class ToolService implements ToolServicePort {
       if (toolName === LIVE_DELEGATION_AGENT_TOOL_NAME) {
         const preChecked = await awaitWithAbort(
           this.agentToolManager.preCheckToolPermission(toolName, args, request.conversationId, {
-            allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode)
+            allowExternalFileAccess: allowsExternalFileAccess(permissionMode)
           }),
           options?.signal
         )
@@ -324,7 +327,7 @@ export class ToolService implements ToolServicePort {
           request,
           args,
           preChecked,
-          options?.permissionMode
+          permissionMode
         )
         if (permissionContext) {
           const authorization = this.permissionBroker.authorizeExecution(
@@ -337,7 +340,7 @@ export class ToolService implements ToolServicePort {
         }
       }
 
-      await this.observeToolExecution(request, source)
+      await this.observeToolExecution(request, source, permissionMode, options?.signal)
       // Route to Agent tool manager
       const response = await this.agentToolManager.callTool(
         toolName,
@@ -348,7 +351,7 @@ export class ToolService implements ToolServicePort {
           runId: options?.runId,
           onProgress: options?.onProgress,
           signal: options?.signal,
-          allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode),
+          allowExternalFileAccess: allowsExternalFileAccess(permissionMode),
           activeSkillNames: options?.activeSkillNames
         }
       )
@@ -385,11 +388,7 @@ export class ToolService implements ToolServicePort {
     const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
     const definition = this.getMcpDefinition(toolName, request.conversationId)
     const expectedTarget = this.createExpectedMcpTarget(toolName, definition)
-    const permissionContext = this.createMcpPermissionContext(
-      request,
-      definition,
-      options?.permissionMode
-    )
+    const permissionContext = this.createMcpPermissionContext(request, definition, permissionMode)
     if (permissionContext && this.shouldBrokerMcpTool(definition)) {
       const authorization = this.permissionBroker.authorizeExecution(
         permissionContext,
@@ -400,7 +399,7 @@ export class ToolService implements ToolServicePort {
       }
     }
 
-    await this.observeToolExecution(request, source)
+    await this.observeToolExecution(request, source, permissionMode, options?.signal)
     return await this.options.mcpService.callTool(request, {
       agentId: options?.agentId ?? storedAccess?.agentId,
       enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds,
@@ -426,6 +425,9 @@ export class ToolService implements ToolServicePort {
       console.warn(`[Tool] Tool ${toolName} not found for permission check`)
       return null
     }
+    const permissionMode =
+      (await this.observeToolAuthorization(request, source, options?.signal))?.permissionMode ??
+      options?.permissionMode
 
     if (source === 'agent') {
       // Agent tools: delegate to AgentToolManager for pre-check
@@ -437,7 +439,7 @@ export class ToolService implements ToolServicePort {
 
       const result = await awaitWithAbort(
         this.agentToolManager.preCheckToolPermission(toolName, args, request.conversationId, {
-          allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode)
+          allowExternalFileAccess: allowsExternalFileAccess(permissionMode)
         }),
         options?.signal
       )
@@ -448,7 +450,7 @@ export class ToolService implements ToolServicePort {
         request,
         args,
         result,
-        options?.permissionMode
+        permissionMode
       )
       if (permissionContext) {
         return this.permissionBroker.evaluateModel(permissionContext, options?.signal)
@@ -461,11 +463,7 @@ export class ToolService implements ToolServicePort {
     if (!this.shouldBrokerMcpTool(definition)) {
       return null
     }
-    const permissionContext = this.createMcpPermissionContext(
-      request,
-      definition,
-      options?.permissionMode
-    )
+    const permissionContext = this.createMcpPermissionContext(request, definition, permissionMode)
     return permissionContext
       ? this.permissionBroker.evaluateModel(permissionContext, options?.signal)
       : null
@@ -542,19 +540,49 @@ export class ToolService implements ToolServicePort {
     }
   }
 
-  private async observeToolExecution(request: MCPToolCall, source: ToolSource): Promise<void> {
+  private async observeToolExecution(
+    request: MCPToolCall,
+    source: ToolSource,
+    authorizedPermissionMode?: PermissionMode,
+    signal?: AbortSignal
+  ): Promise<void> {
     const conversationId = request.conversationId?.trim()
     if (!conversationId || !this.options.effectObserver) {
       return
     }
 
-    await this.options.effectObserver.beforeToolExecution({
-      conversationId,
-      toolCallId: request.id,
-      toolName: request.function.name,
-      source,
-      reviewedExecution: this.getReviewedExecution(request.function.name, conversationId)
-    })
+    await this.options.effectObserver.beforeToolExecution(
+      {
+        conversationId,
+        toolCallId: request.id,
+        toolName: request.function.name,
+        source,
+        reviewedExecution: this.getReviewedExecution(request.function.name, conversationId),
+        authorizedPermissionMode
+      },
+      signal
+    )
+  }
+
+  private async observeToolAuthorization(
+    request: MCPToolCall,
+    source: ToolSource,
+    signal?: AbortSignal
+  ): Promise<{ permissionMode: PermissionMode } | null> {
+    const conversationId = request.conversationId?.trim()
+    if (!conversationId || !this.options.effectObserver?.beforeToolAuthorization) {
+      return null
+    }
+    return await this.options.effectObserver.beforeToolAuthorization(
+      {
+        conversationId,
+        toolCallId: request.id,
+        toolName: request.function.name,
+        source,
+        reviewedExecution: this.getReviewedExecution(request.function.name, conversationId)
+      },
+      signal
+    )
   }
 
   private rememberConversationMcpAccessContext(

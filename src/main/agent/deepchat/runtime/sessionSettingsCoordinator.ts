@@ -137,6 +137,68 @@ export class SessionSettingsCoordinator {
     scope.instance.invalidateToolProfileCache()
   }
 
+  async applyTurnExecutionSnapshot(
+    sessionId: string,
+    snapshot: {
+      providerId: string
+      modelId: string
+      generationSettings: SessionGenerationSettings
+    }
+  ): Promise<void> {
+    const providerId = snapshot.providerId.trim()
+    const modelId = snapshot.modelId.trim()
+    if (!providerId || !modelId) {
+      throw new Error('Turn execution snapshot requires providerId and modelId.')
+    }
+
+    const { scope, dbSession } = this.resolveUpdateScope(sessionId)
+    const state = scope.state()
+    const permissionMode = state?.permissionMode ?? dbSession?.permission_mode
+    if (!permissionMode) {
+      throw new Error(`Session ${sessionId} permission mode is missing`)
+    }
+    if (state?.status === 'generating') {
+      throw new Error('Cannot apply a turn execution snapshot while session is generating.')
+    }
+
+    const generationSettings = await sanitizeGenerationSettings(
+      this.deps.providerSettings,
+      this.deps.promptSettings,
+      providerId,
+      modelId,
+      snapshot.generationSettings
+    )
+    scope.assertCurrent()
+    const currentState = scope.state()
+    if (currentState?.status === 'generating') {
+      throw new Error('Cannot apply a turn execution snapshot while session is generating.')
+    }
+    const currentPermissionMode =
+      currentState?.permissionMode ?? this.deps.sessionStore.get(sessionId)?.permission_mode
+    if (!currentPermissionMode) {
+      throw new Error(`Session ${sessionId} permission mode is missing`)
+    }
+    this.deps.sessionStore.updateSessionConfiguration(
+      sessionId,
+      providerId,
+      modelId,
+      buildPersistedGenerationSettingsReplacement(generationSettings)
+    )
+    if (currentState) {
+      currentState.providerId = providerId
+      currentState.modelId = modelId
+    } else {
+      scope.instance.setRuntimeState({
+        status: 'idle',
+        providerId,
+        modelId,
+        permissionMode: currentPermissionMode
+      })
+    }
+    scope.instance.setGenerationSettings(generationSettings)
+    scope.instance.invalidateToolProfileCache()
+  }
+
   async setAgentContext(sessionId: string, config: SessionAgentContextUpdate): Promise<void> {
     const nextProviderId = config.providerId?.trim()
     const nextModelId = config.modelId?.trim()

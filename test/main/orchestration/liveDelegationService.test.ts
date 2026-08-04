@@ -75,6 +75,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
+      safety: harness.safety,
       admission,
       deletionGate
     })
@@ -392,6 +393,353 @@ describeIfSqlite('LiveDelegationService', () => {
     await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
   })
 
+  it('freezes generation settings while applying live permission and workspace safety', async () => {
+    await service.stop()
+    admission = new AgentInvocationAdmission(1, 10)
+    const blocker = await admission.acquire({ ownerId: 'other-session' })
+    service = new LiveDelegationServiceCtor({
+      repository,
+      sessions: harness.sessions,
+      safety: harness.safety,
+      admission,
+      deletionGate
+    })
+    service.start()
+    harness.parent.providerId = 'openai'
+    harness.parent.modelId = 'model-frozen'
+    harness.parent.generationSettings = {
+      systemPrompt: 'Frozen prompt',
+      temperature: 0.2,
+      contextLength: 32_000,
+      maxTokens: 4096,
+      timeout: 30_000
+    }
+
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Freeze execution settings',
+      prompt: 'Use the accepted execution configuration.'
+    })
+    harness.parent.providerId = 'anthropic'
+    harness.parent.modelId = 'model-later'
+    harness.parent.generationSettings!.systemPrompt = 'Changed after scheduling'
+    harness.parent.permissionMode = 'full_access'
+    harness.parent.projectDir = '/repo-later'
+    harness.sessions.resolveConversationWorkdir.mockResolvedValue('/repo-later')
+    blocker.release()
+
+    await vi.waitFor(() => expect(harness.sessions.createSubagentSession).toHaveBeenCalledOnce())
+    expect(harness.sessions.createSubagentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'openai',
+        modelId: 'model-frozen',
+        permissionMode: 'full_access',
+        projectDir: '/repo-later',
+        generationSettings: expect.objectContaining({ systemPrompt: 'Frozen prompt' })
+      })
+    )
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    await expect(
+      service.beforeToolAuthorization({
+        conversationId: childId,
+        toolCallId: 'call-live-safety',
+        toolName: 'read',
+        source: 'agent',
+        reviewedExecution: TOOL_EXECUTION.read.parallel
+      })
+    ).resolves.toBe('full_access')
+    expect(harness.safety.prepareTurn).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        parentPermissionMode: 'full_access',
+        projectDir: '/repo-later'
+      })
+    )
+
+    harness.publishAnswer(childId, 'Frozen settings were used.', 200)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+  })
+
+  it('restores the child execution snapshot before a queued follow-up starts', async () => {
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Continue with frozen settings',
+      prompt: 'Complete the first turn.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.publishAnswer(childId, 'First turn complete.', 200)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+
+    const child = await harness.sessions.resolveConversationSessionInfo(childId)
+    child!.generationSettings = {
+      systemPrompt: 'Follow-up snapshot',
+      temperature: 0.3,
+      contextLength: 64_000,
+      maxTokens: 8192,
+      timeout: 60_000
+    }
+    const firstBlocker = await admission.acquire({ ownerId: 'other-session-1' })
+    const secondBlocker = await admission.acquire({ ownerId: 'other-session-2' })
+    const followUp = await service.followUp(
+      'parent',
+      spawned.delegation.id,
+      'Start after admission becomes available.'
+    )
+    child!.generationSettings!.systemPrompt = 'Changed while queued'
+    firstBlocker.release()
+
+    await vi.waitFor(() =>
+      expect(harness.safety.prepareTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          childSessionId: childId,
+          executionSnapshot: expect.objectContaining({
+            generationSettings: expect.objectContaining({ systemPrompt: 'Follow-up snapshot' })
+          })
+        })
+      )
+    )
+    expect(followUp.delegation.status).toBe('queued')
+    secondBlocker.release()
+    harness.publishAnswer(childId, 'Follow-up complete.', 300)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 301, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+  })
+
+  it('captures follow-up settings from the child inside its acceptance gate', async () => {
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Capture accepted settings',
+      prompt: 'Complete the first turn.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.publishAnswer(childId, 'First turn complete.', 200)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+
+    const child = await harness.sessions.resolveConversationSessionInfo(childId)
+    child!.generationSettings = {
+      systemPrompt: 'Accepted prompt',
+      temperature: 0.4,
+      contextLength: 64_000,
+      maxTokens: 8192,
+      timeout: 60_000
+    }
+    const resolveSessionInfo =
+      harness.sessions.resolveConversationSessionInfo.getMockImplementation()!
+    let childReads = 0
+    harness.sessions.resolveConversationSessionInfo.mockImplementation(async (sessionId) => {
+      if (sessionId === childId && childReads++ === 0) {
+        return {
+          ...child!,
+          generationSettings: { ...child!.generationSettings!, systemPrompt: 'Stale prompt' }
+        }
+      }
+      return await resolveSessionInfo(sessionId)
+    })
+    const firstBlocker = await admission.acquire({ ownerId: 'other-session-1' })
+    const secondBlocker = await admission.acquire({ ownerId: 'other-session-2' })
+    harness.safety.prepareTurn.mockClear()
+
+    await service.followUp('parent', spawned.delegation.id, 'Use the settings accepted now.')
+    harness.sessions.resolveConversationSessionInfo.mockImplementation(resolveSessionInfo)
+    firstBlocker.release()
+
+    await vi.waitFor(() =>
+      expect(harness.safety.prepareTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionSnapshot: expect.objectContaining({
+            generationSettings: expect.objectContaining({ systemPrompt: 'Accepted prompt' })
+          })
+        })
+      )
+    )
+    secondBlocker.release()
+    harness.publishAnswer(childId, 'Follow-up complete.', 300)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 301, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+  })
+
+  it('interrupts active work when its configured subagent capability is revoked', async () => {
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Observe capability revocation',
+      prompt: 'Remain active until capability changes.'
+    })
+    await vi.waitFor(() =>
+      expect(repository.listTurns(spawned.delegation.id, 1)[0]?.status).toBe('running')
+    )
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.parent.subagentCapability = {
+      available: false,
+      reason: 'subagents_disabled'
+    }
+
+    await expect(
+      service.beforeToolAuthorization({
+        conversationId: childId,
+        toolCallId: 'call-after-revocation',
+        toolName: 'read',
+        source: 'agent',
+        reviewedExecution: TOOL_EXECUTION.read.parallel
+      })
+    ).rejects.toThrow('unavailable')
+    await vi.waitFor(() =>
+      expect(repository.require(spawned.delegation.id).status).toBe('interrupted')
+    )
+    expect(harness.sessions.cancelConversation).toHaveBeenCalledWith(childId)
+  })
+
+  it('rejects a tool when permission changes after authorization', async () => {
+    harness.parent.permissionMode = 'auto_approve'
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Fence permission revocation',
+      prompt: 'Attempt one protected tool call.'
+    })
+    await vi.waitFor(() =>
+      expect(repository.listTurns(spawned.delegation.id, 1)[0]?.status).toBe('running')
+    )
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    await expect(
+      service.beforeToolAuthorization({
+        conversationId: childId,
+        toolCallId: 'permission-race',
+        toolName: 'exec',
+        source: 'agent',
+        reviewedExecution: TOOL_EXECUTION.write
+      })
+    ).resolves.toBe('full_access')
+    harness.parent.permissionMode = 'default'
+
+    await expect(
+      service.beforeToolExecution({
+        conversationId: childId,
+        toolCallId: 'permission-race',
+        toolName: 'exec',
+        source: 'agent',
+        reviewedExecution: TOOL_EXECUTION.write,
+        authorizedPermissionMode: 'full_access'
+      })
+    ).rejects.toThrow('Permission mode changed before tool dispatch')
+    await vi.waitFor(() =>
+      expect(repository.require(spawned.delegation.id).status).toBe('interrupted')
+    )
+    expect(repository.listTurns(spawned.delegation.id, 1)[0]?.effectState).toBe('none')
+    expect(harness.sessions.cancelConversation).toHaveBeenCalledWith(childId)
+  })
+
+  it('serializes child safety so the latest parent authority converges last', async () => {
+    harness.parent.permissionMode = 'full_access'
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Serialize live safety',
+      prompt: 'Remain active while authority changes.'
+    })
+    await vi.waitFor(() =>
+      expect(repository.listTurns(spawned.delegation.id, 1)[0]?.status).toBe('running')
+    )
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    const prepareTurn = harness.safety.prepareTurn.getMockImplementation()!
+    let releaseFirst!: () => void
+    let notifyFirstEntered!: () => void
+    const firstEntered = new Promise<void>((resolve) => {
+      notifyFirstEntered = resolve
+    })
+    harness.safety.prepareTurn.mockClear()
+    harness.safety.prepareTurn.mockImplementationOnce(async (input) => {
+      notifyFirstEntered()
+      await new Promise<void>((resolve) => {
+        releaseFirst = resolve
+      })
+      return await prepareTurn(input)
+    })
+
+    const firstAuthorization = service.beforeToolAuthorization({
+      conversationId: childId,
+      toolCallId: 'first-safety-call',
+      toolName: 'read',
+      source: 'agent',
+      reviewedExecution: TOOL_EXECUTION.read.parallel
+    })
+    await firstEntered
+    harness.parent.permissionMode = 'default'
+    const secondAuthorization = service.beforeToolAuthorization({
+      conversationId: childId,
+      toolCallId: 'second-safety-call',
+      toolName: 'read',
+      source: 'agent',
+      reviewedExecution: TOOL_EXECUTION.read.parallel
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(harness.safety.prepareTurn).toHaveBeenCalledOnce()
+
+    releaseFirst()
+    await expect(firstAuthorization).resolves.toBe('full_access')
+    await expect(secondAuthorization).resolves.toBe('default')
+    expect(harness.safety.prepareTurn).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ parentPermissionMode: 'default' })
+    )
+    expect(await harness.sessions.resolveConversationSessionInfo(childId)).toMatchObject({
+      permissionMode: 'default'
+    })
+  })
+
+  it('rejects revoked waiting work before it queues for another permit', async () => {
+    await service.stop()
+    admission = new AgentInvocationAdmission(1, 10)
+    service = new LiveDelegationServiceCtor({
+      repository,
+      sessions: harness.sessions,
+      safety: harness.safety,
+      admission,
+      deletionGate
+    })
+    service.start()
+
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Recheck suspended safety',
+      prompt: 'Wait for a user interaction before continuing.'
+    })
+    await vi.waitFor(() =>
+      expect(repository.listTurns(spawned.delegation.id, 1)[0]?.status).toBe('running')
+    )
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.publish({
+      sessionId: childId,
+      kind: 'blocks',
+      updatedAt: 200,
+      waitingInteraction: {
+        type: 'permission',
+        messageId: 'message-revoked',
+        toolCallId: 'permission-call',
+        actionBlock: {
+          type: 'action',
+          content: 'permission',
+          status: 'pending',
+          timestamp: 200
+        }
+      }
+    })
+    await vi.waitFor(() => expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 }))
+    const blocker = await admission.acquire({ ownerId: 'other-session' })
+    harness.parent.subagentCapability = {
+      available: false,
+      reason: 'subagents_disabled'
+    }
+
+    await expect(service.beforeInteractionContinuation(childId)).rejects.toThrow('unavailable')
+    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
+    await vi.waitFor(() =>
+      expect(repository.require(spawned.delegation.id).status).toBe('interrupted')
+    )
+    blocker.release()
+  })
+
   it('projects child permission and question waits without settling the turn', async () => {
     const spawned = await service.spawn('parent', {
       slotId: 'reviewer',
@@ -477,6 +825,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
+      safety: harness.safety,
       admission,
       deletionGate
     })
@@ -571,6 +920,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
+      safety: harness.safety,
       admission,
       deletionGate
     })
@@ -814,6 +1164,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
+      safety: harness.safety,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate,
       onChanged: (_parentSessionId, delegationId) => {
@@ -1102,6 +1453,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
+      safety: harness.safety,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate
     })
@@ -1139,6 +1491,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
+      safety: harness.safety,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate
     })
@@ -1176,6 +1529,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
+      safety: harness.safety,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate
     })
@@ -1218,6 +1572,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
+      safety: harness.safety,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate,
       onChanged
@@ -1264,6 +1619,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
+      safety: harness.safety,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate
     })
@@ -1320,6 +1676,7 @@ describeIfSqlite('LiveDelegationService', () => {
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
+      safety: harness.safety,
       admission: new AgentInvocationAdmission(2, 10),
       deletionGate
     })
@@ -1428,6 +1785,34 @@ function createSessionHarness(db: InstanceType<typeof DatabaseCtor>) {
     })
   }
 
+  const safety = {
+    prepareTurn: vi.fn(
+      async (input: {
+        childSessionId: string
+        parentPermissionMode: ConversationSessionInfo['permissionMode']
+        projectDir: string | null
+        executionSnapshot: {
+          providerId: string
+          modelId: string
+          generationSettings: ConversationSessionInfo['generationSettings']
+        } | null
+      }) => {
+        const child = children.get(input.childSessionId)
+        if (!child) return null
+        if (input.executionSnapshot) {
+          child.providerId = input.executionSnapshot.providerId
+          child.modelId = input.executionSnapshot.modelId
+          child.generationSettings = input.executionSnapshot.generationSettings
+            ? structuredClone(input.executionSnapshot.generationSettings)
+            : null
+        }
+        child.permissionMode = input.parentPermissionMode
+        child.projectDir = input.projectDir
+        return child
+      }
+    )
+  }
+
   const setAssistantResult = (
     childId: string,
     answerMarkdown: string,
@@ -1449,6 +1834,8 @@ function createSessionHarness(db: InstanceType<typeof DatabaseCtor>) {
 
   return {
     sessions,
+    safety,
+    parent,
     addChild,
     setAssistantResult,
     publishAnswer(

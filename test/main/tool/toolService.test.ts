@@ -118,6 +118,7 @@ describe('ToolService', () => {
   it('records effect intent before dispatch and blocks execution when it cannot persist', async () => {
     const order: string[] = []
     const effectObserver = {
+      beforeToolAuthorization: vi.fn().mockResolvedValue(null),
       beforeToolExecution: vi.fn(async () => {
         order.push('effect')
       })
@@ -167,13 +168,17 @@ describe('ToolService', () => {
       toolService.callTool(request, { permissionMode: 'full_access' })
     ).resolves.toMatchObject({ content: 'ok' })
     expect(order).toEqual(['effect', 'tool'])
-    expect(effectObserver.beforeToolExecution).toHaveBeenCalledWith({
-      conversationId: 'child-session',
-      toolCallId: 'call-1',
-      toolName: 'remote_read',
-      source: 'mcp',
-      reviewedExecution: null
-    })
+    expect(effectObserver.beforeToolExecution).toHaveBeenCalledWith(
+      {
+        conversationId: 'child-session',
+        toolCallId: 'call-1',
+        toolName: 'remote_read',
+        source: 'mcp',
+        reviewedExecution: null,
+        authorizedPermissionMode: 'full_access'
+      },
+      undefined
+    )
 
     order.length = 0
     mcpService.callTool.mockClear()
@@ -194,6 +199,13 @@ describe('ToolService', () => {
     expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
 
     mcpService.callTool.mockClear()
+    effectObserver.beforeToolAuthorization.mockResolvedValueOnce({ permissionMode: 'default' })
+    await expect(
+      toolService.callTool(request, { permissionMode: 'full_access' })
+    ).resolves.toMatchObject({ rawData: { requiresPermission: true } })
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+
     await expect(toolService.callTool(request)).resolves.toMatchObject({
       rawData: {
         requiresPermission: true

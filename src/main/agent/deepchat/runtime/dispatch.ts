@@ -53,6 +53,7 @@ import {
 } from './sessionUpdates'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import { selectToolBatchExecutionMode } from './toolExecutionPolicy'
+import { resolveToolPermissionMode } from '@/tool/permission/permissionMode'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -1023,10 +1024,6 @@ async function autoGrantPermission(
   }
 }
 
-function getToolCapabilityPermissionMode(permissionMode: PermissionMode): PermissionMode {
-  return permissionMode === 'auto_approve' ? 'full_access' : permissionMode
-}
-
 function collectStringValues(value: unknown, keys: Set<string>, results: string[]): void {
   if (!value || typeof value !== 'object') return
   if (Array.isArray(value)) {
@@ -1831,7 +1828,7 @@ export async function settleToolBatch(
     })
   }
 
-  const toolPermissionMode = getToolCapabilityPermissionMode(permissionMode)
+  const toolPermissionMode = resolveToolPermissionMode(permissionMode)
 
   const batchExecutionMode = selectToolBatchExecutionMode({
     permissionMode,

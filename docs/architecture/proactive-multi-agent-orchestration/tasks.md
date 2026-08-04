@@ -356,10 +356,10 @@ Referenced-result validation evidence:
 - [x] Enforce policy-aware consent and untrusted child-result handling.
 - [x] Bound pending follow-up messages and make overflow recovery convergent.
 - [x] Make global admission state-aware for waiting children.
-- [ ] Separate per-turn generation snapshots from continuously validated safety state.
+- [x] Separate per-turn generation snapshots from continuously validated safety state.
 - [x] Remove the dead batch orchestrator while retaining historical transcript rendering.
 - [x] Evict stale renderer projections and decouple reasoning capability from orchestration UI.
-- [ ] Complete full validation and the final severity-ordered review.
+- [x] Complete full validation and the final severity-ordered review.
 
 Decommission facts established before implementation:
 
@@ -408,3 +408,49 @@ Renderer cleanup validation evidence:
 
 - 83 focused live-delegation store and status-bar tests passed;
 - `pnpm run typecheck:web`, `pnpm run lint`, and `git diff --check` passed.
+
+Turn snapshot and live-safety review findings, ordered by severity:
+
+- high, fixed before commit: restoring a queued child turn rebuilt runtime state from an earlier
+  permission value and could undo a concurrent downgrade; execution snapshots now atomically
+  replace only provider, model, and generation settings while preserving the latest permission and
+  rejecting runtime-instance or generation races;
+- high, fixed before commit: permission could change after a tool was authorized but before its
+  effect intent and actual dispatch; ToolService now binds the effective authorization mode to the
+  dispatch boundary, which revalidates live safety and interrupts instead of executing with stale
+  authority;
+- high, fixed before commit: the composition-layer adapter could mutate a bound Session before the
+  service verified its complete parent, slot, and delegation lineage; one testable safety
+  coordinator now validates the full identity before any snapshot or security-state write;
+- high, fixed before commit: parallel tool boundaries could resolve different parent safety states
+  and let an older read converge last; child safety now serializes the complete live re-read and
+  mutation boundary, and shutdown drains that boundary before disposing runtime state;
+- medium, fixed before commit: a revoked suspended child first queued for a global permit and only
+  discovered revocation after reacquisition; safety is now checked before queuing and again after
+  the permit is granted;
+- medium, fixed before commit: `follow_up` captured settings from a child object read before its
+  acceptance gate, and target mismatch was discovered only after restoring that snapshot; the gate
+  now re-resolves lineage and capability immediately before capture, while target policy is checked
+  both before and after asynchronous restoration;
+- medium, fixed before commit: a failed workdir change could leave broad permission on one side of
+  the boundary, and `auto_approve` had two different tool-level interpretations; workdir changes
+  stage restrictive permission before mutation, while one shared mapper defines effective tool
+  authority;
+- low: no unresolved turn-snapshot or live-safety finding. Direct ACP children keep their native
+  execution target and fail closed if it drifts because DeepChat cannot restore ACP model state.
+
+Turn snapshot and live-safety validation evidence:
+
+- 425 affected portable DeepChat harness, dispatch, settings, ToolService, assignment, policy, and
+  orchestration-tool tests passed;
+- all 62 orchestration safety, service, repository, route, capability, and migration tests passed
+  under Electron's Node ABI with native SQLite required;
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`, `pnpm run build`, and
+  `git diff --check` passed;
+- the native Vitest process reported its existing post-success close timeout but exited zero after
+  every test passed; the production build retained only existing Rollup annotation/import and chunk
+  size warnings;
+- the provider refresh retained its existing catalog after the 5 MB download guard, the normal ACP
+  registry refresh produced no tracked diff, and source scans found Workflow table names only in
+  the version-64 cleanup migration and its regression test;
+- all changes remain local to `feat/workflow-runtime`; no push was performed.
