@@ -24,7 +24,6 @@ import {
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   TAPE_TOOL_NAMES,
-  WORKFLOW_AGENT_TOOL_NAME,
   getAgentToolExposure,
   isUserConfigurableAgentTool
 } from '@shared/agentTools'
@@ -49,7 +48,6 @@ import type { SkillSettingsPort } from '@/skill/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { ToolEffectObserver } from './effectObserver'
-import type { SessionToolProvider } from './sessionToolProvider'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 
 type McpToolPort = Pick<McpServicePort, 'getAllToolDefinitions' | 'callTool'>
@@ -65,7 +63,6 @@ interface ToolServiceOptions {
   permissionBroker?: ToolPermissionBroker
   agentTools: AgentToolDependencies
   effectObserver?: ToolEffectObserver
-  sessionTools?: SessionToolProvider
 }
 
 const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'glob', 'grep', 'exec', 'process']
@@ -77,7 +74,6 @@ const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   CRON_JOB_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
-  WORKFLOW_AGENT_TOOL_NAME,
   ...Object.values(TAPE_TOOL_NAMES)
 ])
 
@@ -175,19 +171,6 @@ export class ToolService implements ToolServicePort {
       agentId: context.agentId,
       enabledMcpServerIds: context.enabledMcpServerIds
     })
-    const sessionDefs =
-      context.conversationId && this.options.sessionTools
-        ? this.options.sessionTools.getToolDefinitions(context.conversationId)
-        : []
-    const activeSessionToolNames = new Set<string>()
-    for (const definition of sessionDefs) {
-      const toolName = definition.function.name
-      if (activeSessionToolNames.has(toolName)) {
-        throw new Error(`Session tool provider returned duplicate tool ${toolName}.`)
-      }
-      activeSessionToolNames.add(toolName)
-    }
-
     // 1. Get MCP tools
     const mcpDefs = withToolSource(
       (
@@ -197,11 +180,7 @@ export class ToolService implements ToolServicePort {
           agentId: context.agentId,
           conversationId: context.conversationId
         })
-      ).filter(
-        (tool) =>
-          !RESERVED_AGENT_TOOL_NAMES.has(tool.function.name) &&
-          !activeSessionToolNames.has(tool.function.name)
-      ),
+      ).filter((tool) => !RESERVED_AGENT_TOOL_NAMES.has(tool.function.name)),
       'mcp'
     )
     defs.push(...mcpDefs)
@@ -238,18 +217,6 @@ export class ToolService implements ToolServicePort {
       mapper.registerTools(filteredAgentDefs, 'agent')
     } catch (error) {
       console.warn('[Tool] Failed to load Agent tool definitions', error)
-    }
-
-    if (sessionDefs.length > 0) {
-      for (const definition of sessionDefs) {
-        if (mapper.hasTool(definition.function.name)) {
-          throw new Error(
-            `Session tool ${definition.function.name} conflicts with the existing tool catalog.`
-          )
-        }
-      }
-      defs.push(...sessionDefs)
-      mapper.registerTools(sessionDefs, 'session')
     }
 
     this.publishMapper(context.conversationId, mapper, defs)
@@ -338,13 +305,6 @@ export class ToolService implements ToolServicePort {
 
     if (!source) {
       throw new Error(`Tool ${toolName} not found in any source`)
-    }
-
-    if (source === 'session') {
-      if (!this.options.sessionTools) {
-        throw new Error(`Session tool provider is unavailable for ${toolName}`)
-      }
-      return await this.options.sessionTools.callTool(request, options)
     }
 
     if (source === 'agent') {
@@ -462,10 +422,6 @@ export class ToolService implements ToolServicePort {
 
     if (!source) {
       console.warn(`[Tool] Tool ${toolName} not found for permission check`)
-      return null
-    }
-
-    if (source === 'session') {
       return null
     }
 

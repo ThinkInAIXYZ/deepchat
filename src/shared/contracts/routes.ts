@@ -546,22 +546,6 @@ import {
   workspaceWatchRoute
 } from './routes/workspace.routes'
 import {
-  workflowCancelRoute,
-  workflowInspectRoute,
-  workflowLaunchRoute,
-  workflowListRoute,
-  workflowPrepareLaunchRoute,
-  workflowRevokeLaunchApprovalRoute,
-  workflowResumeRoute,
-  workflowRetryRoute,
-  workflowSavedListRoute,
-  workflowSavedPrepareLaunchRoute,
-  workflowSavedReadRoute,
-  workflowSavedSaveRoute,
-  workflowSynthesizeRoute,
-  workflowValidateLaunchApprovalRoute
-} from './routes/workflow.routes'
-import {
   orchestrationGetCapabilityRoute,
   orchestrationInspectLiveDelegationRoute,
   orchestrationInterruptLiveDelegationRoute,
@@ -607,7 +591,6 @@ export * from './routes/tools.routes'
 export * from './routes/upgrade.routes'
 export * from './routes/window.routes'
 export * from './routes/workspace.routes'
-export * from './routes/workflow.routes'
 export * from './routes/orchestration.routes'
 
 // 路由目录按块拆分并各自导出：单个巨型对象的 `typeof` 在声明输出(.d.ts)时会超过
@@ -1117,25 +1100,11 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [dialogErrorRoute.name]: dialogErrorRoute,
   [toolsListDefinitionsRoute.name]: toolsListDefinitionsRoute,
   [systemOpenSettingsRoute.name]: systemOpenSettingsRoute,
-  [workflowPrepareLaunchRoute.name]: workflowPrepareLaunchRoute,
   [orchestrationGetCapabilityRoute.name]: orchestrationGetCapabilityRoute,
-  [workflowValidateLaunchApprovalRoute.name]: workflowValidateLaunchApprovalRoute,
-  [workflowRevokeLaunchApprovalRoute.name]: workflowRevokeLaunchApprovalRoute,
   [orchestrationSetPolicyRoute.name]: orchestrationSetPolicyRoute,
   [orchestrationListLiveDelegationsRoute.name]: orchestrationListLiveDelegationsRoute,
   [orchestrationInspectLiveDelegationRoute.name]: orchestrationInspectLiveDelegationRoute,
-  [orchestrationInterruptLiveDelegationRoute.name]: orchestrationInterruptLiveDelegationRoute,
-  [workflowLaunchRoute.name]: workflowLaunchRoute,
-  [workflowListRoute.name]: workflowListRoute,
-  [workflowInspectRoute.name]: workflowInspectRoute,
-  [workflowCancelRoute.name]: workflowCancelRoute,
-  [workflowResumeRoute.name]: workflowResumeRoute,
-  [workflowRetryRoute.name]: workflowRetryRoute,
-  [workflowSavedListRoute.name]: workflowSavedListRoute,
-  [workflowSavedReadRoute.name]: workflowSavedReadRoute,
-  [workflowSavedSaveRoute.name]: workflowSavedSaveRoute,
-  [workflowSavedPrepareLaunchRoute.name]: workflowSavedPrepareLaunchRoute,
-  [workflowSynthesizeRoute.name]: workflowSynthesizeRoute
+  [orchestrationInterruptLiveDelegationRoute.name]: orchestrationInterruptLiveDelegationRoute
 } satisfies Record<string, RouteContract>
 
 export type DeepchatRouteCatalog = typeof DEEPCHAT_ROUTE_CATALOG_PART_1 &

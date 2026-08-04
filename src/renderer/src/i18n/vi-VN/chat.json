@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "Mở Agent con" },
     "activityTitle": "Hoạt động của Agent",
     "proactive": {
       "title": "Cộng tác chủ động",
@@ -572,128 +573,6 @@
         "regular_parent_required": "Cộng tác chủ động không khả dụng trong phiên con.",
         "agent_policy_unavailable": "Không thể tải chính sách cộng tác.",
         "subagents_disabled": "Hãy bật Subagents cho Agent này để dùng cộng tác chủ động."
-      }
-    }
-  },
-  "workflow": {
-    "title": "Quy trình",
-    "loading": "Đang tải quy trình...",
-    "runLabel": "Lần chạy {id}",
-    "empty": {
-      "title": "Chưa có quy trình",
-      "description": "Các lần chạy quy trình rõ ràng cho cuộc trò chuyện này sẽ xuất hiện tại đây."
-    },
-    "status": {
-      "queued": "Đang xếp hàng",
-      "running": "Đang chạy",
-      "waiting_interaction": "Cần nhập liệu",
-      "cancelling": "Đang hủy",
-      "succeeded": "Thành công",
-      "failed": "Thất bại",
-      "cancelled": "Đã hủy",
-      "interrupted": "Bị gián đoạn"
-    },
-    "fields": {
-      "duration": "Thời lượng",
-      "usage": "Mức sử dụng",
-      "phase": "Giai đoạn",
-      "budget": "Ngân sách",
-      "reason": "Lý do",
-      "result": "Xem trước kết quả"
-    },
-    "actions": {
-      "refresh": "Làm mới quy trình",
-      "resume": "Tiếp tục",
-      "synthesize": "Yêu cầu Agent chính tổng hợp",
-      "openChild": "Mở Agent con",
-      "retryFromHere": "Thử lại từ đây"
-    },
-    "states": {
-      "incompatible": "Không thể tiếp tục Runtime API v{version} trong bản dựng này (hiện tại v{current}). Lịch sử vẫn có thể xem được.",
-      "partialResult": "Lần chạy này kết thúc trước khi mọi lời gọi hoàn tất. Kết quả thành công của Agent con vẫn có sẵn bên dưới.",
-      "unknownReason": "Không có lý do nào được ghi lại.",
-      "unavailable": "Không khả dụng",
-      "previewTruncated": "Bản xem trước đã được rút gọn",
-      "synthesisQueued": "Phần tổng hợp của Agent chính đã được xếp sau lượt đang hoạt động.",
-      "synthesisStarted": "Đã bắt đầu tổng hợp bởi Agent chính."
-    },
-    "invocations": {
-      "title": "Lời gọi",
-      "empty": "Chưa có lời gọi Agent con",
-      "defaultPhase": "Quy trình",
-      "attempt": "Lần thử {attempt}",
-      "timedOut": "Đã hết thời gian chờ do máy chủ quản lý."
-    },
-    "interactions": {
-      "generic": "Agent con này đang chờ quyền hoặc câu trả lời cho một câu hỏi.",
-      "permission": "Cần quyền",
-      "question": "Câu hỏi cần được trả lời"
-    },
-    "effects": {
-      "none": "Không có tác động",
-      "read": "Đọc",
-      "unknown": "Tác động không xác định",
-      "write": "Tác động ghi"
-    },
-    "effectWarning": {
-      "title": "Lần thử lại này có thể lặp lại tác động bên ngoài",
-      "retry": "Agent con này đã hoặc có thể đã thực hiện thao tác ghi. Thử lại có thể lặp lại thay đổi bên ngoài DeepChat.",
-      "retryFromHere": "Lời gọi này hoặc một Agent con phía sau đã hoặc có thể đã thực hiện thao tác ghi. Thử lại từ đây có thể lặp lại thay đổi bên ngoài DeepChat.",
-      "confirm": "Thử lại với tác động"
-    },
-    "duration": {
-      "seconds": "{count} giây",
-      "minutes": "{minutes} phút {seconds} giây",
-      "hours": "{hours} giờ {minutes} phút"
-    },
-    "budget": {
-      "duration": "Tối đa {duration}"
-    },
-    "approval": {
-      "checking": "Đang kiểm tra phê duyệt…",
-      "unavailable": "Phê duyệt này không còn khả dụng. Hãy chuẩn bị kế hoạch đã sửa để tiếp tục.",
-      "unavailableShort": "Phê duyệt không khả dụng",
-      "launched": "Đã khởi chạy quy trình",
-      "launchUnconfirmed": "Không thể xác nhận kết quả khởi chạy. Hãy kiểm tra lịch sử quy trình trước khi chuẩn bị kế hoạch khác.",
-      "revisionRequested": "Phản hồi đã được thêm vào ô nhập. Hãy gửi để chuẩn bị phê duyệt mới.",
-      "revisionRequestedShort": "Đã yêu cầu chỉnh sửa",
-      "feedbackPlaceholder": "Mô tả nội dung cần thay đổi…",
-      "stageRevision": "Thêm phản hồi vào ô nhập",
-      "modify": "Sửa kế hoạch",
-      "sourceDisclosure": "Mã nguồn quy trình đã tạo",
-      "revisionPrompt": "Hãy sửa kế hoạch quy trình đang chờ duyệt có mã băm nguồn {sourceHash} theo phản hồi bên dưới. Gọi lại workflow với operation=prepare_launch và không khởi chạy.\n\nPhản hồi:\n{feedback}"
-    },
-    "saved": {
-      "title": "Quy trình đã lưu",
-      "workspaceRequired": "Mở không gian làm việc dự án để tạo và chạy quy trình đã lưu.",
-      "selectPlaceholder": "Chọn một quy trình",
-      "empty": "Không có quy trình đã lưu trong không gian làm việc này.",
-      "unsaved": "Lưu thay đổi trước khi chuẩn bị chạy.",
-      "runTitle": "Chạy quy trình đã lưu",
-      "agentPlaceholder": "ID Agent tùy chọn, phân tách bằng dấu phẩy",
-      "fields": {
-        "name": "Tên",
-        "source": "Mã nguồn JavaScript",
-        "args": "Đối số JSON",
-        "agents": "Agent được phép"
-      },
-      "actions": {
-        "refresh": "Làm mới quy trình đã lưu",
-        "new": "Mới",
-        "save": "Lưu",
-        "reload": "Tải lại",
-        "prepare": "Xem lại lần chạy",
-        "launch": "Khởi chạy quy trình"
-      },
-      "approval": {
-        "title": "Xác nhận chính xác ảnh chụp quy trình này",
-        "sourceHash": "Mã băm nguồn",
-        "workspace": "Không gian làm việc",
-        "agents": "Agent được phép",
-        "maxInvocations": "Số lời gọi tối đa",
-        "maxPendingInvocations": "Số lời gọi đang chờ tối đa",
-        "warning": "Agent con có thể dùng các công cụ hiện có với khả năng ghi. Yêu cầu quyền riêng của từng Agent vẫn được áp dụng.",
-        "expired": "Phê duyệt đã hết hạn"
       }
     }
   }

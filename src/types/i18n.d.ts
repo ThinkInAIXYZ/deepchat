@@ -1281,6 +1281,9 @@ declare module 'vue-i18n' {
       }
     }
     orchestration: {
+      actions: {
+        openChild: string
+      }
       activityTitle: string
       proactive: {
         title: string
@@ -1292,128 +1295,6 @@ declare module 'vue-i18n' {
           regular_parent_required: string
           agent_policy_unavailable: string
           subagents_disabled: string
-        }
-      }
-    }
-    workflow: {
-      title: string
-      loading: string
-      runLabel: string
-      empty: {
-        title: string
-        description: string
-      }
-      status: {
-        queued: string
-        running: string
-        waiting_interaction: string
-        cancelling: string
-        succeeded: string
-        failed: string
-        cancelled: string
-        interrupted: string
-      }
-      fields: {
-        duration: string
-        usage: string
-        phase: string
-        budget: string
-        reason: string
-        result: string
-      }
-      actions: {
-        refresh: string
-        resume: string
-        synthesize: string
-        openChild: string
-        retryFromHere: string
-      }
-      states: {
-        incompatible: string
-        partialResult: string
-        unknownReason: string
-        unavailable: string
-        previewTruncated: string
-        synthesisQueued: string
-        synthesisStarted: string
-      }
-      invocations: {
-        title: string
-        empty: string
-        defaultPhase: string
-        attempt: string
-        timedOut: string
-      }
-      interactions: {
-        generic: string
-        permission: string
-        question: string
-      }
-      effects: {
-        none: string
-        read: string
-        unknown: string
-        write: string
-      }
-      effectWarning: {
-        title: string
-        retry: string
-        retryFromHere: string
-        confirm: string
-      }
-      duration: {
-        seconds: string
-        minutes: string
-        hours: string
-      }
-      budget: {
-        duration: string
-      }
-      approval: {
-        checking: string
-        unavailable: string
-        unavailableShort: string
-        launched: string
-        launchUnconfirmed: string
-        revisionRequested: string
-        revisionRequestedShort: string
-        feedbackPlaceholder: string
-        stageRevision: string
-        modify: string
-        sourceDisclosure: string
-        revisionPrompt: string
-      }
-      saved: {
-        title: string
-        workspaceRequired: string
-        selectPlaceholder: string
-        empty: string
-        unsaved: string
-        runTitle: string
-        agentPlaceholder: string
-        fields: {
-          name: string
-          source: string
-          args: string
-          agents: string
-        }
-        actions: {
-          refresh: string
-          new: string
-          save: string
-          reload: string
-          prepare: string
-          launch: string
-        }
-        approval: {
-          title: string
-          sourceHash: string
-          workspace: string
-          agents: string
-          maxInvocations: string
-          maxPendingInvocations: string
-          warning: string
-          expired: string
         }
       }
     }

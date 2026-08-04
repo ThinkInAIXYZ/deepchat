@@ -62,9 +62,3 @@ export const TAB_EVENTS = {
 export const WORKSPACE_EVENTS = {
   INSERT_REFERENCE_REQUESTED: 'workspace:insert-reference-requested'
 }
-
-export const WORKFLOW_EVENTS = {
-  OPEN_REQUESTED: 'workflow:open-requested',
-  REVISE_REQUESTED: 'workflow:revise-requested',
-  SAVED_CHANGED: 'workflow:saved-changed'
-}

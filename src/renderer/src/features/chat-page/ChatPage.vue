@@ -224,8 +224,6 @@
                     :agent-id="sessionStore.activeSession?.agentId ?? 'deepchat'"
                     :workspace-path="sessionStore.activeSession?.projectDir ?? null"
                     :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
-                    :workflow-enabled="supportsSavedWorkflows"
-                    :workflow-command-enabled="supportsSavedWorkflows"
                     :supports-vision="composerSupportsVision"
                     :is-generating="isGenerating"
                     :submit-disabled="isInputSubmitDisabled"
@@ -234,8 +232,6 @@
                     :is-attachment-preparation-pending="isPreparingAttachments"
                     @update:files="onFilesChange"
                     @command-submit="onCommandSubmit"
-                    @workflow-submit="onWorkflowSubmit"
-                    @workflow-open="onWorkflowOpen"
                     @draft-change="recordComposerDocumentChange"
                     @pending-skills-change="recordComposerSkillsChange"
                     @queue-submit="onQueueSubmit"
@@ -354,9 +350,6 @@ import { createChatClient } from '../../../api/ChatClient'
 import { createModelClient } from '@api/ModelClient'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useSessionStore } from '@/stores/ui/session'
-import { useAgentStore } from '@/stores/ui/agent'
-import { useSidepanelStore } from '@/stores/ui/sidepanel'
-import { isSavedWorkflowSupported } from '@/lib/workflowSupport'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { useAttachmentPreparationStore } from '@/stores/ui/attachmentPreparation'
@@ -365,7 +358,7 @@ import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
 import { createSessionClient } from '@api/SessionClient'
 
-import { WORKFLOW_EVENTS, WORKSPACE_EVENTS } from '@/events'
+import { WORKSPACE_EVENTS } from '@/events'
 import {
   useMessageWindow,
   type MessageMeasurementSnapshot
@@ -413,8 +406,6 @@ function recordChatSessionPerformance(
 
 const uiSettingsStore = useUiSettingsStore()
 const sessionStore = useSessionStore()
-const agentStore = useAgentStore()
-const sidepanelStore = useSidepanelStore()
 const messageStore = useMessageStore()
 const pendingInputStore = usePendingInputStore()
 const attachmentPreparationStore = useAttachmentPreparationStore()
@@ -440,9 +431,6 @@ const isCurrentSessionStreaming = computed(
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? t('common.newChat'))
 const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? '')
 const isReadOnlySession = computed(() => sessionStore.activeSession?.sessionKind === 'subagent')
-const supportsSavedWorkflows = computed(() =>
-  isSavedWorkflowSupported(sessionStore.activeSession, props.sessionId, agentStore.agents)
-)
 const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || isCurrentSessionStreaming.value
 )
@@ -1101,7 +1089,6 @@ function handleWindowKeydown(event: KeyboardEvent) {
 const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
-  insertTextBlock?: (text: string) => void
   insertWorkspaceReference?: (targetPath: string) => boolean
   getInlineItemsSnapshot?: () => UserMessageInlineItem[]
   getPendingSkillsSnapshot?: () => string[]
@@ -1110,7 +1097,6 @@ const chatInputRef = ref<{
   setPendingSkills?: (skillNames: string[]) => void
   getDocumentSnapshot?: () => JSONContent
   restoreDocumentSnapshot?: (document: JSONContent) => void
-  consumeWorkflowSlashCommand?: () => boolean
 } | null>(null)
 const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 
@@ -1195,7 +1181,7 @@ const {
   isQueueSubmitDisabled,
   isInputSubmitDisabled,
   disableQueueSteerAction,
-  onSubmit: submitComposerInput,
+  onSubmit,
   onCommandSubmit,
   onQueueSubmit,
   onSteer,
@@ -1239,28 +1225,7 @@ const {
   t
 })
 
-function onSubmit(): void {
-  if (chatInputRef.value?.consumeWorkflowSlashCommand?.()) {
-    return
-  }
-  void submitComposerInput()
-}
-
 switchComposerSessionDraft = switchComposerSession
-
-function onWorkflowSubmit(name: string, argsText: string): void {
-  if (!supportsSavedWorkflows.value || isReadOnlySession.value) {
-    return
-  }
-  sidepanelStore.requestSavedWorkflow(props.sessionId, name, argsText)
-}
-
-function onWorkflowOpen(): void {
-  if (!supportsSavedWorkflows.value) {
-    return
-  }
-  sidepanelStore.openWorkflow(props.sessionId)
-}
 
 watch(
   [() => props.sessionId, isSessionViewPreparing],
@@ -1343,8 +1308,7 @@ const { start: startChatPageEventBridge, stop: stopChatPageEventBridge } = useCh
     scheduleInactivePlanSnapshotClear(payload.sessionId)
   },
   chatClient,
-  workspaceInsertReferenceEvent: WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED,
-  workflowReviseEvent: WORKFLOW_EVENTS.REVISE_REQUESTED
+  workspaceInsertReferenceEvent: WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED
 })
 
 function onAttach() {

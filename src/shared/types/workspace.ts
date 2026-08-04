@@ -5,7 +5,7 @@
 
 export type SidePanelTab = 'workspace' | 'browser' | 'mcp-app'
 
-export type WorkspaceNavSection = 'artifacts' | 'files' | 'git' | 'workflows'
+export type WorkspaceNavSection = 'artifacts' | 'files' | 'git' | 'subagents'
 
 export type WorkspaceViewMode = 'preview' | 'code'
 

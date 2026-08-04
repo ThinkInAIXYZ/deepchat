@@ -1,12 +1,5 @@
 <template>
-  <WorkflowLaunchApprovalCard
-    v-if="workflowApproval"
-    :thread-id="threadId ?? ''"
-    :approval="workflowApproval.approval"
-    :script-source="workflowApproval.scriptSource"
-    :read-only="readOnly"
-  />
-  <div v-else class="flex flex-col w-full">
+  <div class="flex flex-col w-full">
     <LiveDelegationToolCallCard
       v-if="liveDelegationSpawn && threadId"
       :parent-session-id="threadId"
@@ -251,11 +244,9 @@ import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { createDeviceClient } from '@api/DeviceClient'
-import { parseWorkflowLaunchApprovalBlock } from '@/lib/workflowLaunchApproval'
 import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
 import LiveDelegationToolCallCard from './LiveDelegationToolCallCard.vue'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
-import WorkflowLaunchApprovalCard from './WorkflowLaunchApprovalCard.vue'
 
 const McpAppView = defineAsyncComponent(() => import('@/components/mcp/McpAppView.vue'))
 
@@ -298,7 +289,6 @@ const detailsId = `tool-call-details-${useId()}`
 const DETAILS_UNMOUNT_DELAY_MS = 240
 let detailsUnmountTimer: number | null = null
 
-const workflowApproval = computed(() => parseWorkflowLaunchApprovalBlock(props.block))
 const liveDelegationSpawn = computed(() => {
   const parsed = parseLiveDelegationSpawnBlock(props.block)
   if (!parsed || !props.threadId) return null

@@ -1,5 +1,4 @@
 import type { MCPToolDefinition, PromptListEntry } from '@shared/types/mcp'
-import { WorkflowSavedNameSchema, type WorkflowSavedSummary } from '@shared/workflow/savedWorkflow'
 
 export interface AcpSessionCommand {
   name: string
@@ -7,45 +6,28 @@ export interface AcpSessionCommand {
   input?: { hint: string } | null
 }
 
-export type SlashCategory = 'command' | 'workflow' | 'skill' | 'prompt' | 'tool'
-
-export type WorkflowSlashPayload = Pick<WorkflowSavedSummary, 'name' | 'relativePath'>
-
-export interface WorkflowCommandSlashPayload {
-  kind: 'workflow-command'
-  name: 'workflow'
-  description: string
-}
+export type SlashCategory = 'command' | 'skill' | 'prompt' | 'tool'
 
 export interface SlashSuggestionItem {
   id: string
   category: SlashCategory
   label: string
   description?: string
-  payload:
-    | AcpSessionCommand
-    | WorkflowCommandSlashPayload
-    | WorkflowSlashPayload
-    | PromptListEntry
-    | MCPToolDefinition
-    | { name: string }
+  payload: AcpSessionCommand | PromptListEntry | MCPToolDefinition | { name: string }
 }
 
 export const MAX_FILTERED_SLASH_SUGGESTIONS = 20
 
 const SLASH_CATEGORY_RANK: Record<SlashCategory, number> = {
   command: 0,
-  workflow: 1,
-  skill: 2,
-  prompt: 3,
-  tool: 4
+  skill: 1,
+  prompt: 2,
+  tool: 3
 }
 
 export type SlashActionDecision =
   | { kind: 'send-command'; command: string }
   | { kind: 'request-command-input'; command: AcpSessionCommand }
-  | { kind: 'request-workflow-input'; workflow: WorkflowSlashPayload }
-  | { kind: 'open-workflow' }
   | { kind: 'activate-skill'; skillName: string }
   | { kind: 'insert-tool'; text: string }
   | { kind: 'insert-prompt'; prompt: PromptListEntry }
@@ -53,11 +35,6 @@ export type SlashActionDecision =
 
 export const MANUAL_COMPACTION_COMMAND_NAME = 'compact'
 export const MANUAL_COMPACTION_COMMAND_TEXT = `/${MANUAL_COMPACTION_COMMAND_NAME}`
-export const WORKFLOW_COMMAND_TEXT = '/workflow'
-
-export type ParsedWorkflowSlashCommand =
-  | { kind: 'open' }
-  | { kind: 'prepare-saved'; name: string; argsText: string }
 
 const uniq = (values: string[]) => {
   const seen = new Set<string>()
@@ -100,50 +77,6 @@ export const createManualCompactionSuggestion = (description: string): SlashSugg
     input: null
   }
 })
-
-export const createWorkflowCommandSuggestion = (description: string): SlashSuggestionItem => ({
-  id: 'command:workflow',
-  category: 'command',
-  label: '/workflow',
-  description,
-  payload: {
-    kind: 'workflow-command',
-    name: 'workflow',
-    description
-  }
-})
-
-export const buildSavedWorkflowSlashLabel = (name: string): string =>
-  name === 'workflow' ? '/workflow workflow' : `/${name}`
-
-export const parseWorkflowSlashCommand = (value: string): ParsedWorkflowSlashCommand | null => {
-  const normalized = value.trim()
-  if (normalized === WORKFLOW_COMMAND_TEXT) {
-    return { kind: 'open' }
-  }
-  if (
-    !normalized.startsWith(WORKFLOW_COMMAND_TEXT) ||
-    !/\s/u.test(normalized.charAt(WORKFLOW_COMMAND_TEXT.length))
-  ) {
-    return null
-  }
-
-  const remainder = normalized.slice(WORKFLOW_COMMAND_TEXT.length).trim()
-  const separatorIndex = remainder.search(/\s/)
-  const name = separatorIndex === -1 ? remainder : remainder.slice(0, separatorIndex)
-  if (!WorkflowSavedNameSchema.safeParse(name).success) {
-    return null
-  }
-  const argsText = separatorIndex === -1 ? '{}' : remainder.slice(separatorIndex).trim() || '{}'
-  return { kind: 'prepare-saved', name, argsText }
-}
-
-const isWorkflowCommandSlashPayload = (value: unknown): value is WorkflowCommandSlashPayload =>
-  Boolean(
-    value &&
-    typeof value === 'object' &&
-    (value as Partial<WorkflowCommandSlashPayload>).kind === 'workflow-command'
-  )
 
 const collectPromptSegments = (value: unknown, segments: string[], visited: Set<object>): void => {
   if (typeof value === 'string') {
@@ -231,21 +164,11 @@ export const filterSlashSuggestionItems = (
 
 export const resolveSlashSelectionAction = (item: SlashSuggestionItem): SlashActionDecision => {
   if (item.category === 'command') {
-    if (isWorkflowCommandSlashPayload(item.payload)) {
-      return { kind: 'open-workflow' }
-    }
     const command = item.payload as AcpSessionCommand
     if (command.input?.hint?.trim()) {
       return { kind: 'request-command-input', command }
     }
     return { kind: 'send-command', command: buildCommandText(command.name) }
-  }
-
-  if (item.category === 'workflow') {
-    return {
-      kind: 'request-workflow-input',
-      workflow: item.payload as WorkflowSlashPayload
-    }
   }
 
   if (item.category === 'skill') {

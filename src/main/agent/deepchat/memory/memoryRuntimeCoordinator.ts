@@ -33,7 +33,7 @@ import {
   type MemoryExtractionChunk,
   type MemoryExtractionMessage
 } from './memoryExtractionChunks'
-import { isWorkflowResultMessageMetadata } from '@shared/workflow/resultDelivery'
+import { isRetiredWorkflowResultMessageMetadata } from '@shared/orchestration/retiredWorkflowData'
 import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
@@ -927,7 +927,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       if (entry.record.status !== 'sent' && entry.record.status !== 'error') {
         throw new Error('Effective Tape view exposed a pending message during rebuild.')
       }
-      if (isWorkflowResultMessageMetadata(entry.record.metadata)) {
+      if (isRetiredWorkflowResultMessageMetadata(entry.record.metadata)) {
         return []
       }
       return [

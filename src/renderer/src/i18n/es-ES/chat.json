@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "Abrir Agent secundario" },
     "activityTitle": "Actividad del Agent",
     "proactive": {
       "title": "Colaboración proactiva",
@@ -572,128 +573,6 @@
         "regular_parent_required": "La colaboración proactiva no está disponible en una sesión secundaria.",
         "agent_policy_unavailable": "No se pudo cargar la política de colaboración.",
         "subagents_disabled": "Activa Subagents para este Agent antes de usar la colaboración proactiva."
-      }
-    }
-  },
-  "workflow": {
-    "title": "Flujos de trabajo",
-    "loading": "Cargando flujos de trabajo...",
-    "runLabel": "Ejecución {id}",
-    "empty": {
-      "title": "Aún no hay flujos de trabajo",
-      "description": "Las ejecuciones explícitas de esta conversación aparecerán aquí."
-    },
-    "status": {
-      "queued": "En cola",
-      "running": "En ejecución",
-      "waiting_interaction": "Necesita intervención",
-      "cancelling": "Cancelando",
-      "succeeded": "Completado",
-      "failed": "Fallido",
-      "cancelled": "Cancelado",
-      "interrupted": "Interrumpido"
-    },
-    "fields": {
-      "duration": "Duración",
-      "usage": "Uso",
-      "phase": "Fase",
-      "budget": "Presupuesto",
-      "reason": "Motivo",
-      "result": "Vista previa del resultado"
-    },
-    "actions": {
-      "refresh": "Actualizar flujo de trabajo",
-      "resume": "Reanudar",
-      "synthesize": "Pedir al Agent principal que sintetice",
-      "openChild": "Abrir Agent secundario",
-      "retryFromHere": "Reintentar desde aquí"
-    },
-    "states": {
-      "incompatible": "La Runtime API v{version} no puede reanudarse en esta compilación (actual v{current}). El historial sigue disponible para consulta.",
-      "partialResult": "Esta ejecución terminó antes de completar todas las invocaciones. Los resultados correctos de los Agents secundarios siguen disponibles abajo.",
-      "unknownReason": "No se registró ningún motivo.",
-      "unavailable": "No disponible",
-      "previewTruncated": "Vista previa truncada",
-      "synthesisQueued": "La síntesis del Agent principal quedó en cola tras el turno activo.",
-      "synthesisStarted": "Se inició la síntesis del Agent principal."
-    },
-    "invocations": {
-      "title": "Invocaciones",
-      "empty": "Aún no hay invocaciones de Agents secundarios",
-      "defaultPhase": "Flujo de trabajo",
-      "attempt": "Intento {attempt}",
-      "timedOut": "Se agotó el tiempo límite administrado por el host."
-    },
-    "interactions": {
-      "generic": "Este Agent secundario espera un permiso o la respuesta a una pregunta.",
-      "permission": "Permiso necesario",
-      "question": "La pregunta requiere una respuesta"
-    },
-    "effects": {
-      "none": "Sin efectos",
-      "read": "Lectura",
-      "unknown": "Efecto desconocido",
-      "write": "Efecto de escritura"
-    },
-    "effectWarning": {
-      "title": "Este reintento puede repetir efectos externos",
-      "retry": "Este Agent secundario ya realizó o pudo haber realizado una escritura. Reintentar puede repetir cambios fuera de DeepChat.",
-      "retryFromHere": "Esta invocación o un Agent secundario posterior ya realizó o pudo haber realizado una escritura. Reintentar desde aquí puede repetir cambios fuera de DeepChat.",
-      "confirm": "Reintentar con efectos"
-    },
-    "duration": {
-      "seconds": "{count} s",
-      "minutes": "{minutes} min {seconds} s",
-      "hours": "{hours} h {minutes} min"
-    },
-    "budget": {
-      "duration": "{duration} como máximo"
-    },
-    "approval": {
-      "checking": "Comprobando esta aprobación…",
-      "unavailable": "Esta aprobación ya no está disponible. Prepara un plan revisado para continuar.",
-      "unavailableShort": "Aprobación no disponible",
-      "launched": "Flujo de trabajo iniciado",
-      "launchUnconfirmed": "No se pudo confirmar el resultado del inicio. Revisa el historial del flujo antes de preparar otro plan.",
-      "revisionRequested": "Los comentarios se añadieron al cuadro de entrada. Envíalos para preparar una nueva aprobación.",
-      "revisionRequestedShort": "Revisión solicitada",
-      "feedbackPlaceholder": "Describe qué debería cambiar…",
-      "stageRevision": "Añadir comentarios a la entrada",
-      "modify": "Modificar plan",
-      "sourceDisclosure": "Código fuente generado del flujo",
-      "revisionPrompt": "Revisa el plan de flujo pendiente con hash de origen {sourceHash} según los comentarios siguientes. Vuelve a llamar a workflow con operation=prepare_launch y no lo inicies.\n\nComentarios:\n{feedback}"
-    },
-    "saved": {
-      "title": "Flujos de trabajo guardados",
-      "workspaceRequired": "Abre un espacio de trabajo de proyecto para crear y ejecutar flujos guardados.",
-      "selectPlaceholder": "Selecciona un flujo de trabajo",
-      "empty": "No hay flujos guardados en este espacio de trabajo.",
-      "unsaved": "Guarda los cambios antes de preparar una ejecución.",
-      "runTitle": "Ejecutar flujo de trabajo guardado",
-      "agentPlaceholder": "IDs de Agent opcionales, separados por comas",
-      "fields": {
-        "name": "Nombre",
-        "source": "Código fuente JavaScript",
-        "args": "Argumentos JSON",
-        "agents": "Agents permitidos"
-      },
-      "actions": {
-        "refresh": "Actualizar flujos guardados",
-        "new": "Nuevo",
-        "save": "Guardar",
-        "reload": "Recargar",
-        "prepare": "Revisar inicio",
-        "launch": "Iniciar flujo de trabajo"
-      },
-      "approval": {
-        "title": "Confirmar esta instantánea exacta del flujo",
-        "sourceHash": "Hash del código fuente",
-        "workspace": "Espacio de trabajo",
-        "agents": "Agents permitidos",
-        "maxInvocations": "Invocaciones máximas",
-        "maxPendingInvocations": "Invocaciones pendientes máximas",
-        "warning": "Los Agents secundarios pueden usar sus herramientas de escritura existentes. Sus solicitudes de permiso individuales siguen aplicándose.",
-        "expired": "La aprobación ha caducado"
       }
     }
   }

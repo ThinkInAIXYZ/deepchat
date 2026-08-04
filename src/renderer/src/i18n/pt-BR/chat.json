@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "Abrir Agent filho" },
     "activityTitle": "Atividade dos Agents",
     "proactive": {
       "title": "Colaboração proativa",
@@ -572,128 +573,6 @@
         "regular_parent_required": "A colaboração proativa não está disponível em uma sessão filha.",
         "agent_policy_unavailable": "Não foi possível carregar a política de colaboração.",
         "subagents_disabled": "Ative Subagents para este Agent antes de usar a colaboração proativa."
-      }
-    }
-  },
-  "workflow": {
-    "title": "Fluxos de trabalho",
-    "loading": "Carregando fluxos de trabalho...",
-    "runLabel": "Execução {id}",
-    "empty": {
-      "title": "Ainda não há fluxos de trabalho",
-      "description": "As execuções explícitas desta conversa aparecerão aqui."
-    },
-    "status": {
-      "queued": "Na fila",
-      "running": "Em execução",
-      "waiting_interaction": "Requer entrada",
-      "cancelling": "Cancelando",
-      "succeeded": "Concluído",
-      "failed": "Falhou",
-      "cancelled": "Cancelado",
-      "interrupted": "Interrompido"
-    },
-    "fields": {
-      "duration": "Duração",
-      "usage": "Uso",
-      "phase": "Fase",
-      "budget": "Orçamento",
-      "reason": "Motivo",
-      "result": "Prévia do resultado"
-    },
-    "actions": {
-      "refresh": "Atualizar fluxo de trabalho",
-      "resume": "Retomar",
-      "synthesize": "Pedir ao Agent principal para sintetizar",
-      "openChild": "Abrir Agent filho",
-      "retryFromHere": "Tentar novamente daqui"
-    },
-    "states": {
-      "incompatible": "A Runtime API v{version} não pode ser retomada nesta versão (atual v{current}). O histórico continua disponível para consulta.",
-      "partialResult": "Esta execução terminou antes que todas as chamadas fossem concluídas. Os resultados bem-sucedidos dos Agents filhos continuam disponíveis abaixo.",
-      "unknownReason": "Nenhum motivo foi registrado.",
-      "unavailable": "Indisponível",
-      "previewTruncated": "Prévia truncada",
-      "synthesisQueued": "A síntese do Agent principal foi enfileirada após o turno ativo.",
-      "synthesisStarted": "A síntese do Agent principal foi iniciada."
-    },
-    "invocations": {
-      "title": "Chamadas",
-      "empty": "Ainda não há chamadas de Agents filhos",
-      "defaultPhase": "Fluxo de trabalho",
-      "attempt": "Tentativa {attempt}",
-      "timedOut": "O tempo limite gerenciado pelo host expirou."
-    },
-    "interactions": {
-      "generic": "Este Agent filho está aguardando uma permissão ou resposta a uma pergunta.",
-      "permission": "Permissão necessária",
-      "question": "A pergunta requer uma resposta"
-    },
-    "effects": {
-      "none": "Sem efeitos",
-      "read": "Leitura",
-      "unknown": "Efeito desconhecido",
-      "write": "Efeito de gravação"
-    },
-    "effectWarning": {
-      "title": "Esta nova tentativa pode repetir efeitos externos",
-      "retry": "Este Agent filho já realizou ou pode ter realizado uma gravação. Tentar novamente pode repetir alterações fora do DeepChat.",
-      "retryFromHere": "Esta chamada ou um Agent filho posterior já realizou ou pode ter realizado uma gravação. Tentar novamente daqui pode repetir alterações fora do DeepChat.",
-      "confirm": "Tentar novamente com efeitos"
-    },
-    "duration": {
-      "seconds": "{count} s",
-      "minutes": "{minutes} min {seconds} s",
-      "hours": "{hours} h {minutes} min"
-    },
-    "budget": {
-      "duration": "Máximo de {duration}"
-    },
-    "approval": {
-      "checking": "Verificando esta aprovação…",
-      "unavailable": "Esta aprovação não está mais disponível. Prepare um plano revisado para continuar.",
-      "unavailableShort": "Aprovação indisponível",
-      "launched": "Workflow iniciado",
-      "launchUnconfirmed": "Não foi possível confirmar o resultado da inicialização. Verifique o histórico do workflow antes de preparar outro plano.",
-      "revisionRequested": "O feedback foi adicionado ao campo de entrada. Envie-o para preparar uma nova aprovação.",
-      "revisionRequestedShort": "Revisão solicitada",
-      "feedbackPlaceholder": "Descreva o que deve mudar…",
-      "stageRevision": "Adicionar feedback à entrada",
-      "modify": "Modificar plano",
-      "sourceDisclosure": "Código-fonte do workflow gerado",
-      "revisionPrompt": "Revise o plano de workflow pendente com hash de origem {sourceHash} com base no feedback abaixo. Chame workflow novamente com operation=prepare_launch e não o inicie.\n\nFeedback:\n{feedback}"
-    },
-    "saved": {
-      "title": "Fluxos de trabalho salvos",
-      "workspaceRequired": "Abra um espaço de trabalho de projeto para criar e executar fluxos salvos.",
-      "selectPlaceholder": "Selecione um fluxo de trabalho",
-      "empty": "Não há fluxos salvos neste espaço de trabalho.",
-      "unsaved": "Salve as alterações antes de preparar uma execução.",
-      "runTitle": "Executar fluxo de trabalho salvo",
-      "agentPlaceholder": "IDs de Agent opcionais, separados por vírgulas",
-      "fields": {
-        "name": "Nome",
-        "source": "Código-fonte JavaScript",
-        "args": "Argumentos JSON",
-        "agents": "Agents permitidos"
-      },
-      "actions": {
-        "refresh": "Atualizar fluxos salvos",
-        "new": "Novo",
-        "save": "Salvar",
-        "reload": "Recarregar",
-        "prepare": "Revisar inicialização",
-        "launch": "Iniciar fluxo de trabalho"
-      },
-      "approval": {
-        "title": "Confirmar este snapshot exato do fluxo",
-        "sourceHash": "Hash do código-fonte",
-        "workspace": "Espaço de trabalho",
-        "agents": "Agents permitidos",
-        "maxInvocations": "Máximo de chamadas",
-        "maxPendingInvocations": "Máximo de chamadas pendentes",
-        "warning": "Os Agents filhos podem usar as ferramentas existentes com capacidade de gravação. As solicitações individuais de permissão continuam válidas.",
-        "expired": "A aprovação expirou"
       }
     }
   }

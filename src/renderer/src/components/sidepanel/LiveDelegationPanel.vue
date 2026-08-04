@@ -69,7 +69,7 @@
                 @click="openChild(delegation)"
               >
                 <Icon icon="lucide:external-link" class="mr-1 h-3 w-3" />
-                {{ t('chat.workflow.actions.openChild') }}
+                {{ t('chat.orchestration.actions.openChild') }}
               </Button>
               <Button
                 v-if="isActive(delegation.status)"

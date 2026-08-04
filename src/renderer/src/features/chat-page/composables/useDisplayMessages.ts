@@ -126,14 +126,9 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
       conversationId: record.sessionId,
       is_variant: 0,
       orderSeq: record.orderSeq,
-      messageType:
-        metadata.messageType === 'compaction' || metadata.messageType === 'workflow_result'
-          ? metadata.messageType
-          : 'normal',
+      messageType: metadata.messageType === 'compaction' ? 'compaction' : 'normal',
       compactionStatus: metadata.compactionStatus,
-      summaryUpdatedAt: metadata.summaryUpdatedAt ?? null,
-      workflowRunId: metadata.workflowRunId,
-      workflowResultDeliveryId: metadata.workflowResultDeliveryId
+      summaryUpdatedAt: metadata.summaryUpdatedAt ?? null
     } as const
 
     const streamingRenderKey = assistantRenderKeyByMessageId.value[record.id]

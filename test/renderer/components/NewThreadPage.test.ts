@@ -15,7 +15,6 @@ const chatInputClearPendingSkillsMock = vi.fn(() => {
   chatInputPendingSkillsSnapshotRef.value = []
 })
 const chatInputPendingSkillsSnapshotRef: { value: string[] } = { value: [] }
-const chatInputConsumeWorkflowSlashCommandMock = vi.fn(() => false)
 const chatStatusBarOpenModelPickerMock = vi.fn(() => true)
 
 const createChatInputBoxStub = () =>
@@ -43,8 +42,7 @@ const createChatInputBoxStub = () =>
       expose({
         triggerAttach: chatInputTriggerAttachMock,
         getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value],
-        clearPendingSkills: chatInputClearPendingSkillsMock,
-        consumeWorkflowSlashCommand: chatInputConsumeWorkflowSlashCommandMock
+        clearPendingSkills: chatInputClearPendingSkillsMock
       })
       return () =>
         h('div', {
@@ -93,8 +91,6 @@ const setup = async (options?: {
   chatInputTriggerAttachMock.mockReset()
   chatInputClearPendingSkillsMock.mockClear()
   chatInputPendingSkillsSnapshotRef.value = []
-  chatInputConsumeWorkflowSlashCommandMock.mockReset()
-  chatInputConsumeWorkflowSlashCommandMock.mockReturnValue(false)
   chatStatusBarOpenModelPickerMock.mockClear()
   const initialSelectedProject = Object.prototype.hasOwnProperty.call(
     options ?? {},
@@ -321,9 +317,7 @@ const setup = async (options?: {
     default: defineComponent({
       name: 'ChatStatusBar',
       setup(_, { expose }) {
-        expose({
-          openModelPicker: chatStatusBarOpenModelPickerMock
-        })
+        expose({ openModelPicker: chatStatusBarOpenModelPickerMock })
         return () => h('div', { 'data-testid': 'chat-status-bar' })
       }
     })
@@ -363,7 +357,6 @@ const setup = async (options?: {
     sessionClient,
     chatClient,
     chatStatusBarOpenModelPickerMock,
-    chatInputConsumeWorkflowSlashCommandMock,
     isDirectoryMock,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
@@ -513,20 +506,6 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
-  it('consumes a local Workflow command before creating a session', async () => {
-    const { wrapper, sessionStore, chatInputConsumeWorkflowSlashCommandMock } = await setup({
-      selectedAgentId: 'deepchat',
-      selectedAgentType: 'deepchat'
-    })
-    chatInputConsumeWorkflowSlashCommandMock.mockReturnValue(true)
-    ;(wrapper.vm as any).message = '/workflow'
-
-    await (wrapper.vm as any).onSubmit()
-
-    expect(chatInputConsumeWorkflowSlashCommandMock).toHaveBeenCalledOnce()
-    expect(sessionStore.createSession).not.toHaveBeenCalled()
-  })
-
   it('cancels attachment preparation before opening the vision model picker', async () => {
     const { chatClient, chatStatusBarOpenModelPickerMock, wrapper } = await setup({
       selectedAgentId: 'deepchat',
@@ -552,11 +531,9 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
   })
 
   it('shows a warning and blocks ACP draft/send when the selected workdir is invalid', async () => {
-    const { wrapper, sessionClient, sessionStore, chatInputConsumeWorkflowSlashCommandMock } =
-      await setup({
-        isDirectory: false
-      })
-    chatInputConsumeWorkflowSlashCommandMock.mockReturnValue(true)
+    const { wrapper, sessionClient, sessionStore } = await setup({
+      isDirectory: false
+    })
 
     expect(wrapper.find('[data-testid="new-thread-project-missing-warning"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
@@ -570,7 +547,6 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
 
     expect(sessionStore.createSession).not.toHaveBeenCalled()
     expect(sessionStore.sendMessage).not.toHaveBeenCalled()
-    expect(chatInputConsumeWorkflowSlashCommandMock).not.toHaveBeenCalled()
   })
 
   it('shows the same invalid-directory warning for DeepChat without blocking send', async () => {

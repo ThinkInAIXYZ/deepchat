@@ -1,5 +1,5 @@
 import type { AgentType } from '@shared/types/agent-interface'
-import type { OrchestrationCapability } from '@shared/workflow/orchestrationPolicy'
+import type { OrchestrationCapability } from '@shared/orchestration/policy'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentToolSessionPort } from '@/tool/runtimePorts'
 

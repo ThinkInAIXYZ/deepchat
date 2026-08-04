@@ -111,25 +111,6 @@ const setup = async (options: SetupOptions = {}) => {
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn().mockResolvedValue(undefined)
   })
-  const agentStore = reactive({
-    agents: [
-      {
-        id: 'deepchat',
-        type: 'deepchat',
-        agentType: 'deepchat'
-      },
-      {
-        id: 'acp-agent',
-        type: 'acp',
-        agentType: 'acp'
-      }
-    ]
-  })
-  const sidepanelStore = {
-    requestSavedWorkflow: vi.fn(),
-    openWorkflow: vi.fn()
-  }
-
   const messageStore = reactive({
     messages: options.messages ?? [
       buildAssistantMessage([
@@ -307,7 +288,6 @@ const setup = async (options: SetupOptions = {}) => {
   const chatInputTriggerAttach = vi.fn()
   const chatInputGetPendingSkillsSnapshot = vi.fn((): string[] => [])
   const chatInputClearPendingSkills = vi.fn()
-  const chatInputConsumeWorkflowSlashCommand = vi.fn(() => false)
   const chatStatusBarOpenModelPicker = vi.fn(() => true)
   const attachmentPreparationStore = reactive({
     consumeInitialDraftRecovery: vi.fn(() => null),
@@ -325,12 +305,6 @@ const setup = async (options: SetupOptions = {}) => {
 
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
-  }))
-  vi.doMock('@/stores/ui/agent', () => ({
-    useAgentStore: () => agentStore
-  }))
-  vi.doMock('@/stores/ui/sidepanel', () => ({
-    useSidepanelStore: () => sidepanelStore
   }))
   vi.doMock('@/stores/ui/message', () => ({
     useMessageStore: () => messageStore
@@ -485,14 +459,6 @@ const setup = async (options: SetupOptions = {}) => {
           type: Boolean,
           default: false
         },
-        workflowEnabled: {
-          type: Boolean,
-          default: false
-        },
-        workflowCommandEnabled: {
-          type: Boolean,
-          default: false
-        },
         supportsVision: {
           type: Boolean,
           default: null
@@ -518,8 +484,6 @@ const setup = async (options: SetupOptions = {}) => {
         'update:modelValue',
         'update:files',
         'command-submit',
-        'workflow-submit',
-        'workflow-open',
         'queue-submit',
         'submit',
         'switch-vision-model'
@@ -529,8 +493,7 @@ const setup = async (options: SetupOptions = {}) => {
           triggerAttach: chatInputTriggerAttach,
           insertWorkspaceReference: chatInputInsertWorkspaceReference,
           getPendingSkillsSnapshot: chatInputGetPendingSkillsSnapshot,
-          clearPendingSkills: chatInputClearPendingSkills,
-          consumeWorkflowSlashCommand: chatInputConsumeWorkflowSlashCommand
+          clearPendingSkills: chatInputClearPendingSkills
         })
       },
       template:
@@ -603,9 +566,7 @@ const setup = async (options: SetupOptions = {}) => {
     default: defineComponent({
       name: 'ChatStatusBar',
       setup(_, { expose }) {
-        expose({
-          openModelPicker: chatStatusBarOpenModelPicker
-        })
+        expose({ openModelPicker: chatStatusBarOpenModelPicker })
         return () => h('div', { class: 'chat-status-bar-stub' })
       }
     })
@@ -716,7 +677,6 @@ const setup = async (options: SetupOptions = {}) => {
     chatRespondToolInteraction,
     sessionClient,
     sessionStore,
-    sidepanelStore,
     notify,
     messageStore,
     pendingInputStore,
@@ -726,7 +686,6 @@ const setup = async (options: SetupOptions = {}) => {
     chatInputTriggerAttach,
     chatInputGetPendingSkillsSnapshot,
     chatInputClearPendingSkills,
-    chatInputConsumeWorkflowSlashCommand,
     chatStatusBarOpenModelPicker,
     recentMessageMeasurementCache,
     disposeChatSearch,
@@ -821,74 +780,6 @@ describe('ChatPage', () => {
     })
 
     expect(wrapper.findComponent({ name: 'ChatInputBox' }).props('agentId')).toBe('agent-b')
-  })
-
-  it('opens saved Workflow approval for a DeepChat Agent using the ACP provider', async () => {
-    const { wrapper, sidepanelStore } = await setup({
-      activeSessionPatch: {
-        agentId: 'deepchat',
-        providerId: 'acp',
-        sessionKind: 'regular'
-      }
-    })
-    const input = wrapper.findComponent({ name: 'ChatInputBox' })
-
-    expect(input.props('workflowEnabled')).toBe(true)
-    expect(input.props('workflowCommandEnabled')).toBe(true)
-    input.vm.$emit('workflow-submit', 'review', '{"target":"src"}')
-    await flushPromises()
-
-    expect(sidepanelStore.requestSavedWorkflow).toHaveBeenCalledWith(
-      's1',
-      'review',
-      '{"target":"src"}'
-    )
-  })
-
-  it('opens the Workflow surface for the built-in Workflow command', async () => {
-    const { wrapper, sidepanelStore } = await setup({
-      activeSessionPatch: {
-        agentId: 'deepchat',
-        providerId: 'acp',
-        sessionKind: 'regular'
-      }
-    })
-    const input = wrapper.findComponent({ name: 'ChatInputBox' })
-
-    expect(input.props('workflowCommandEnabled')).toBe(true)
-    input.vm.$emit('workflow-open')
-    await flushPromises()
-
-    expect(sidepanelStore.openWorkflow).toHaveBeenCalledWith('s1')
-  })
-
-  it('consumes a local Workflow command before toolbar submission', async () => {
-    const { wrapper, chatInputConsumeWorkflowSlashCommand, sessionStore } = await setup()
-    chatInputConsumeWorkflowSlashCommand.mockReturnValue(true)
-
-    wrapper.findComponent({ name: 'ChatInputToolbar' }).vm.$emit('send')
-    await flushPromises()
-
-    expect(chatInputConsumeWorkflowSlashCommand).toHaveBeenCalledOnce()
-    expect(sessionStore.sendMessage).not.toHaveBeenCalled()
-  })
-
-  it('keeps saved Workflow approval disabled for a direct ACP Agent', async () => {
-    const { wrapper, sidepanelStore } = await setup({
-      activeSessionPatch: {
-        agentId: 'acp-agent',
-        providerId: 'openai',
-        sessionKind: 'regular'
-      }
-    })
-    const input = wrapper.findComponent({ name: 'ChatInputBox' })
-
-    expect(input.props('workflowEnabled')).toBe(false)
-    expect(input.props('workflowCommandEnabled')).toBe(false)
-    input.vm.$emit('workflow-submit', 'review', '{}')
-    await flushPromises()
-
-    expect(sidepanelStore.requestSavedWorkflow).not.toHaveBeenCalled()
   })
 
   it('passes the active DeepChat model vision capability to the composer', async () => {

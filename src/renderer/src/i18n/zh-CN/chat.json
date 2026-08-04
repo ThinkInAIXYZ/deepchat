@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "打开子会话" },
     "activityTitle": "Agent 活动",
     "proactive": {
       "title": "主动协作",
@@ -572,128 +573,6 @@
         "regular_parent_required": "子会话中不能启用主动协作。",
         "agent_policy_unavailable": "无法加载协作策略。",
         "subagents_disabled": "请先为此 Agent 启用 Subagent，再使用主动协作。"
-      }
-    }
-  },
-  "workflow": {
-    "title": "工作流",
-    "loading": "正在加载工作流...",
-    "runLabel": "运行 {id}",
-    "empty": {
-      "title": "暂无工作流",
-      "description": "当前会话显式启动的工作流会显示在这里。"
-    },
-    "status": {
-      "queued": "排队中",
-      "running": "运行中",
-      "waiting_interaction": "需要处理",
-      "cancelling": "正在取消",
-      "succeeded": "已成功",
-      "failed": "失败",
-      "cancelled": "已取消",
-      "interrupted": "已中断"
-    },
-    "fields": {
-      "duration": "耗时",
-      "usage": "用量",
-      "phase": "阶段",
-      "budget": "预算",
-      "reason": "原因",
-      "result": "结果预览"
-    },
-    "actions": {
-      "refresh": "刷新工作流",
-      "resume": "恢复",
-      "synthesize": "让父 Agent 综合结果",
-      "openChild": "打开子会话",
-      "retryFromHere": "从这里重试"
-    },
-    "states": {
-      "incompatible": "当前版本使用 Runtime API v{current}，无法恢复 v{version} 的运行；历史记录仍可查看。",
-      "partialResult": "此运行在全部调用完成前结束；下方仍保留已经成功的子任务结果。",
-      "unknownReason": "未记录原因。",
-      "unavailable": "不可用",
-      "previewTruncated": "预览已截断",
-      "synthesisQueued": "父会话正在运行，综合请求已进入队列。",
-      "synthesisStarted": "父会话已开始综合结果。"
-    },
-    "invocations": {
-      "title": "子任务调用",
-      "empty": "暂无子任务调用",
-      "defaultPhase": "工作流",
-      "attempt": "第 {attempt} 次尝试",
-      "timedOut": "已达到 Host 管理的超时时间。"
-    },
-    "interactions": {
-      "generic": "此子会话正在等待权限确认或问题回答。",
-      "permission": "需要权限确认",
-      "question": "需要回答问题"
-    },
-    "effects": {
-      "none": "无副作用",
-      "read": "只读",
-      "unknown": "副作用未知",
-      "write": "有写副作用"
-    },
-    "effectWarning": {
-      "title": "此次重试可能重复外部副作用",
-      "retry": "此子任务已经执行或可能执行过写操作，重试可能再次修改 DeepChat 之外的状态。",
-      "retryFromHere": "此调用或其下游子任务已经执行或可能执行过写操作，从这里重试可能再次修改 DeepChat 之外的状态。",
-      "confirm": "确认并重试"
-    },
-    "duration": {
-      "seconds": "{count} 秒",
-      "minutes": "{minutes} 分 {seconds} 秒",
-      "hours": "{hours} 小时 {minutes} 分"
-    },
-    "budget": {
-      "duration": "最长 {duration}"
-    },
-    "approval": {
-      "checking": "正在核验这份审批…",
-      "unavailable": "这份审批已不可用。请生成修订后的计划再继续。",
-      "unavailableShort": "审批不可用",
-      "launched": "工作流已启动",
-      "launchUnconfirmed": "无法确认工作流是否已经启动。请先检查工作流历史，再生成新的计划。",
-      "revisionRequested": "反馈已加入输入框。发送后会生成一份新的审批。",
-      "revisionRequestedShort": "已请求修改",
-      "feedbackPlaceholder": "说明你希望修改的内容…",
-      "stageRevision": "将反馈加入输入框",
-      "modify": "修改计划",
-      "sourceDisclosure": "生成的工作流源码",
-      "revisionPrompt": "请根据以下反馈修改源码哈希为 {sourceHash} 的待审批工作流计划，再次调用 workflow 的 operation=prepare_launch，并且不要启动它。\n\n反馈：\n{feedback}"
-    },
-    "saved": {
-      "title": "已保存的工作流",
-      "workspaceRequired": "请先打开项目工作区，再创建和运行已保存的工作流。",
-      "selectPlaceholder": "选择工作流",
-      "empty": "当前工作区还没有已保存的工作流。",
-      "unsaved": "请先保存修改，再准备运行。",
-      "runTitle": "运行已保存的工作流",
-      "agentPlaceholder": "可选 Agent ID，使用逗号分隔",
-      "fields": {
-        "name": "名称",
-        "source": "JavaScript 源码",
-        "args": "JSON 参数",
-        "agents": "允许的 Agent"
-      },
-      "actions": {
-        "refresh": "刷新已保存的工作流",
-        "new": "新建",
-        "save": "保存",
-        "reload": "重新加载",
-        "prepare": "审核启动信息",
-        "launch": "启动工作流"
-      },
-      "approval": {
-        "title": "确认这一份精确的工作流快照",
-        "sourceHash": "源码哈希",
-        "workspace": "工作区",
-        "agents": "允许的 Agent",
-        "maxInvocations": "最大调用数",
-        "maxPendingInvocations": "最大未完成调用数",
-        "warning": "子 Agent 可能使用其已有的写入工具；每次工具权限确认仍按原有规则处理。",
-        "expired": "审批已过期"
       }
     }
   }

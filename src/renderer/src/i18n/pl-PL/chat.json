@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "Otwórz podrzędnego Agenta" },
     "activityTitle": "Aktywność Agentów",
     "proactive": {
       "title": "Proaktywna współpraca",
@@ -572,128 +573,6 @@
         "regular_parent_required": "Proaktywna współpraca jest niedostępna w sesji podrzędnej.",
         "agent_policy_unavailable": "Nie udało się wczytać zasad współpracy.",
         "subagents_disabled": "Włącz Subagents dla tego Agenta, aby używać proaktywnej współpracy."
-      }
-    }
-  },
-  "workflow": {
-    "title": "Przepływy pracy",
-    "loading": "Ładowanie przepływów pracy...",
-    "runLabel": "Uruchomienie {id}",
-    "empty": {
-      "title": "Brak przepływów pracy",
-      "description": "Jawnie uruchomione przepływy pracy dla tej rozmowy pojawią się tutaj."
-    },
-    "status": {
-      "queued": "W kolejce",
-      "running": "W toku",
-      "waiting_interaction": "Wymaga działania",
-      "cancelling": "Anulowanie",
-      "succeeded": "Zakończono pomyślnie",
-      "failed": "Niepowodzenie",
-      "cancelled": "Anulowano",
-      "interrupted": "Przerwano"
-    },
-    "fields": {
-      "duration": "Czas trwania",
-      "usage": "Użycie",
-      "phase": "Etap",
-      "budget": "Budżet",
-      "reason": "Powód",
-      "result": "Podgląd wyniku"
-    },
-    "actions": {
-      "refresh": "Odśwież przepływ pracy",
-      "resume": "Wznów",
-      "synthesize": "Poproś nadrzędnego Agenta o syntezę",
-      "openChild": "Otwórz podrzędnego Agenta",
-      "retryFromHere": "Ponów od tego miejsca"
-    },
-    "states": {
-      "incompatible": "Runtime API v{version} nie może zostać wznowione w tej kompilacji (obecnie v{current}). Historia pozostaje dostępna do wglądu.",
-      "partialResult": "To uruchomienie zakończyło się przed ukończeniem wszystkich wywołań. Wyniki pomyślnych podrzędnych Agentów pozostają dostępne poniżej.",
-      "unknownReason": "Nie zapisano powodu.",
-      "unavailable": "Niedostępne",
-      "previewTruncated": "Podgląd został skrócony",
-      "synthesisQueued": "Syntezę nadrzędnego Agenta dodano do kolejki za aktywną turą.",
-      "synthesisStarted": "Synteza nadrzędnego Agenta została rozpoczęta."
-    },
-    "invocations": {
-      "title": "Wywołania",
-      "empty": "Brak wywołań podrzędnych Agentów",
-      "defaultPhase": "Przepływ pracy",
-      "attempt": "Próba {attempt}",
-      "timedOut": "Upłynął limit czasu zarządzany przez hosta."
-    },
-    "interactions": {
-      "generic": "Ten podrzędny Agent czeka na uprawnienie lub odpowiedź na pytanie.",
-      "permission": "Wymagane uprawnienie",
-      "question": "Pytanie wymaga odpowiedzi"
-    },
-    "effects": {
-      "none": "Brak skutków",
-      "read": "Odczyt",
-      "unknown": "Nieznany skutek",
-      "write": "Skutek zapisu"
-    },
-    "effectWarning": {
-      "title": "Ponowienie może powtórzyć skutki zewnętrzne",
-      "retry": "Ten podrzędny Agent wykonał lub mógł wykonać zapis. Ponowienie może powtórzyć zmiany poza DeepChat.",
-      "retryFromHere": "To wywołanie lub późniejszy podrzędny Agent wykonał albo mógł wykonać zapis. Ponowienie od tego miejsca może powtórzyć zmiany poza DeepChat.",
-      "confirm": "Ponów ze skutkami"
-    },
-    "duration": {
-      "seconds": "{count} s",
-      "minutes": "{minutes} min {seconds} s",
-      "hours": "{hours} godz. {minutes} min"
-    },
-    "budget": {
-      "duration": "Maksymalnie {duration}"
-    },
-    "approval": {
-      "checking": "Sprawdzanie zatwierdzenia…",
-      "unavailable": "To zatwierdzenie nie jest już dostępne. Przygotuj poprawiony plan, aby kontynuować.",
-      "unavailableShort": "Zatwierdzenie niedostępne",
-      "launched": "Uruchomiono workflow",
-      "launchUnconfirmed": "Nie udało się potwierdzić wyniku uruchomienia. Sprawdź historię workflow przed przygotowaniem kolejnego planu.",
-      "revisionRequested": "Opinia została dodana do pola wprowadzania. Wyślij ją, aby przygotować nowe zatwierdzenie.",
-      "revisionRequestedShort": "Poproszono o zmianę",
-      "feedbackPlaceholder": "Opisz, co należy zmienić…",
-      "stageRevision": "Dodaj opinię do pola",
-      "modify": "Zmień plan",
-      "sourceDisclosure": "Wygenerowane źródło workflow",
-      "revisionPrompt": "Popraw oczekujący plan workflow o skrócie źródła {sourceHash} zgodnie z poniższą opinią. Ponownie wywołaj workflow z operation=prepare_launch i nie uruchamiaj go.\n\nOpinia:\n{feedback}"
-    },
-    "saved": {
-      "title": "Zapisane przepływy pracy",
-      "workspaceRequired": "Otwórz obszar roboczy projektu, aby tworzyć i uruchamiać zapisane przepływy pracy.",
-      "selectPlaceholder": "Wybierz przepływ pracy",
-      "empty": "Brak zapisanych przepływów pracy w tym obszarze roboczym.",
-      "unsaved": "Zapisz zmiany przed przygotowaniem uruchomienia.",
-      "runTitle": "Uruchom zapisany przepływ pracy",
-      "agentPlaceholder": "Opcjonalne identyfikatory Agentów, rozdzielone przecinkami",
-      "fields": {
-        "name": "Nazwa",
-        "source": "Kod źródłowy JavaScript",
-        "args": "Argumenty JSON",
-        "agents": "Dozwoleni Agenci"
-      },
-      "actions": {
-        "refresh": "Odśwież zapisane przepływy pracy",
-        "new": "Nowy",
-        "save": "Zapisz",
-        "reload": "Wczytaj ponownie",
-        "prepare": "Sprawdź uruchomienie",
-        "launch": "Uruchom przepływ pracy"
-      },
-      "approval": {
-        "title": "Potwierdź dokładnie tę migawkę przepływu pracy",
-        "sourceHash": "Skrót źródła",
-        "workspace": "Obszar roboczy",
-        "agents": "Dozwoleni Agenci",
-        "maxInvocations": "Maksymalna liczba wywołań",
-        "maxPendingInvocations": "Maksymalna liczba oczekujących wywołań",
-        "warning": "Podrzędni Agenci mogą używać istniejących narzędzi z możliwością zapisu. Ich indywidualne prośby o uprawnienia nadal obowiązują.",
-        "expired": "Zatwierdzenie wygasło"
       }
     }
   }

@@ -83,7 +83,6 @@
         v-if="sidepanelStore.activeTab === 'workspace'"
         :session-id="props.sessionId"
         :workspace-path="props.workspacePath"
-        :saved-workflows-enabled="props.savedWorkflowsEnabled"
         :is-fullscreen="isWorkspaceFullscreenActive"
         @toggle-fullscreen="toggleWorkspaceFullscreen"
         @insert-file-reference="handleWorkspaceInsertFileReference"
@@ -106,20 +105,18 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useEventListener } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'
-import { WORKFLOW_EVENTS, WORKSPACE_EVENTS } from '@/events'
+import { WORKSPACE_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 
 const props = defineProps<{
   sessionId: string | null
   workspacePath: string | null
-  savedWorkflowsEnabled?: boolean
 }>()
 
 const { t } = useI18n()
@@ -277,19 +274,6 @@ const handleWorkspaceInsertFileReference = (filePath: string) => {
     })
   )
 }
-
-useEventListener(window, WORKFLOW_EVENTS.OPEN_REQUESTED, (event) => {
-  const detail = (
-    event as CustomEvent<{
-      sessionId?: string
-      runId?: string
-    }>
-  ).detail
-  if (!props.sessionId || detail?.sessionId !== props.sessionId || !detail.runId?.trim()) {
-    return
-  }
-  sidepanelStore.openWorkflow(props.sessionId, detail.runId.trim())
-})
 
 const startResize = (event: MouseEvent) => {
   event.preventDefault()

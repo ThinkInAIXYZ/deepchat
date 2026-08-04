@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "Apri Agent secondario" },
     "activityTitle": "Attività Agent",
     "proactive": {
       "title": "Collaborazione proattiva",
@@ -572,128 +573,6 @@
         "regular_parent_required": "La collaborazione proattiva non è disponibile in una sessione figlia.",
         "agent_policy_unavailable": "Impossibile caricare il criterio di collaborazione.",
         "subagents_disabled": "Abilita i Subagents per questo Agent per usare la collaborazione proattiva."
-      }
-    }
-  },
-  "workflow": {
-    "title": "Workflow",
-    "loading": "Caricamento dei workflow...",
-    "runLabel": "Esecuzione {id}",
-    "empty": {
-      "title": "Nessun workflow",
-      "description": "Le esecuzioni esplicite dei workflow per questa conversazione appariranno qui."
-    },
-    "status": {
-      "queued": "In coda",
-      "running": "In esecuzione",
-      "waiting_interaction": "Richiede input",
-      "cancelling": "Annullamento",
-      "succeeded": "Completato",
-      "failed": "Non riuscito",
-      "cancelled": "Annullato",
-      "interrupted": "Interrotto"
-    },
-    "fields": {
-      "duration": "Durata",
-      "usage": "Utilizzo",
-      "phase": "Fase",
-      "budget": "Budget",
-      "reason": "Motivo",
-      "result": "Anteprima del risultato"
-    },
-    "actions": {
-      "refresh": "Aggiorna workflow",
-      "resume": "Riprendi",
-      "synthesize": "Chiedi all’Agent principale di sintetizzare",
-      "openChild": "Apri Agent secondario",
-      "retryFromHere": "Riprova da qui"
-    },
-    "states": {
-      "incompatible": "La Runtime API v{version} non può essere ripresa in questa build (attuale v{current}). La cronologia resta consultabile.",
-      "partialResult": "Questa esecuzione è terminata prima del completamento di tutte le chiamate. I risultati riusciti degli Agent secondari restano disponibili qui sotto.",
-      "unknownReason": "Non è stato registrato alcun motivo.",
-      "unavailable": "Non disponibile",
-      "previewTruncated": "Anteprima troncata",
-      "synthesisQueued": "La sintesi dell’Agent principale è stata accodata dopo il turno attivo.",
-      "synthesisStarted": "La sintesi dell’Agent principale è iniziata."
-    },
-    "invocations": {
-      "title": "Chiamate",
-      "empty": "Nessuna chiamata di Agent secondari",
-      "defaultPhase": "Workflow",
-      "attempt": "Tentativo {attempt}",
-      "timedOut": "Il timeout gestito dall’host è scaduto."
-    },
-    "interactions": {
-      "generic": "Questo Agent secondario attende un’autorizzazione o una risposta.",
-      "permission": "Autorizzazione richiesta",
-      "question": "La domanda richiede una risposta"
-    },
-    "effects": {
-      "none": "Nessun effetto",
-      "read": "Lettura",
-      "unknown": "Effetto sconosciuto",
-      "write": "Effetto di scrittura"
-    },
-    "effectWarning": {
-      "title": "Questo nuovo tentativo può ripetere effetti esterni",
-      "retry": "Questo Agent secondario ha già eseguito, o potrebbe aver eseguito, una scrittura. Riprovare può ripetere modifiche esterne a DeepChat.",
-      "retryFromHere": "Questa chiamata o un Agent secondario successivo ha già eseguito, o potrebbe aver eseguito, una scrittura. Riprovare da qui può ripetere modifiche esterne a DeepChat.",
-      "confirm": "Riprova con gli effetti"
-    },
-    "duration": {
-      "seconds": "{count} s",
-      "minutes": "{minutes} min {seconds} s",
-      "hours": "{hours} h {minutes} min"
-    },
-    "budget": {
-      "duration": "Massimo {duration}"
-    },
-    "approval": {
-      "checking": "Verifica dell’approvazione…",
-      "unavailable": "Questa approvazione non è più disponibile. Prepara un piano rivisto per continuare.",
-      "unavailableShort": "Approvazione non disponibile",
-      "launched": "Workflow avviato",
-      "launchUnconfirmed": "Non è stato possibile confermare l’esito dell’avvio. Controlla la cronologia del workflow prima di preparare un altro piano.",
-      "revisionRequested": "Il feedback è stato aggiunto al campo di input. Invialo per preparare una nuova approvazione.",
-      "revisionRequestedShort": "Revisione richiesta",
-      "feedbackPlaceholder": "Descrivi cosa dovrebbe cambiare…",
-      "stageRevision": "Aggiungi feedback all’input",
-      "modify": "Modifica piano",
-      "sourceDisclosure": "Sorgente del workflow generato",
-      "revisionPrompt": "Rivedi il piano del workflow in attesa con hash sorgente {sourceHash} in base al feedback seguente. Richiama workflow con operation=prepare_launch e non avviarlo.\n\nFeedback:\n{feedback}"
-    },
-    "saved": {
-      "title": "Workflow salvati",
-      "workspaceRequired": "Apri un’area di lavoro del progetto per creare ed eseguire workflow salvati.",
-      "selectPlaceholder": "Seleziona un workflow",
-      "empty": "Nessun workflow salvato in questa area di lavoro.",
-      "unsaved": "Salva le modifiche prima di preparare un’esecuzione.",
-      "runTitle": "Esegui workflow salvato",
-      "agentPlaceholder": "ID Agent facoltativi, separati da virgole",
-      "fields": {
-        "name": "Nome",
-        "source": "Codice sorgente JavaScript",
-        "args": "Argomenti JSON",
-        "agents": "Agent consentiti"
-      },
-      "actions": {
-        "refresh": "Aggiorna workflow salvati",
-        "new": "Nuovo",
-        "save": "Salva",
-        "reload": "Ricarica",
-        "prepare": "Rivedi avvio",
-        "launch": "Avvia workflow"
-      },
-      "approval": {
-        "title": "Conferma questa istantanea esatta del workflow",
-        "sourceHash": "Hash del sorgente",
-        "workspace": "Area di lavoro",
-        "agents": "Agent consentiti",
-        "maxInvocations": "Numero massimo di chiamate",
-        "maxPendingInvocations": "Numero massimo di chiamate in sospeso",
-        "warning": "Gli Agent secondari possono usare gli strumenti esistenti con capacità di scrittura. Le singole richieste di autorizzazione restano valide.",
-        "expired": "Approvazione scaduta"
       }
     }
   }

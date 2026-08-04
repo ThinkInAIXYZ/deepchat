@@ -65,7 +65,6 @@ import {
   getChatInputWorkspaceItemDragData
 } from '@/lib/chatInputWorkspaceReference'
 import { extractPlainUrlFromClipboard } from '@/lib/clipboardUrlPaste'
-import { parseWorkflowSlashCommand } from './mentions/utils'
 import { useChatInputMentions } from './composables/useChatInputMentions'
 import { useChatInputFiles } from './composables/useChatInputFiles'
 import { useSkillsData } from '@/components/chat-input/composables/useSkillsData'
@@ -91,8 +90,6 @@ const props = withDefaults(
     agentId?: string | null
     workspacePath?: string | null
     isAcpSession?: boolean
-    workflowEnabled?: boolean
-    workflowCommandEnabled?: boolean
     supportsVision?: boolean | null
     isGenerating?: boolean
     editable?: boolean
@@ -110,8 +107,6 @@ const props = withDefaults(
     agentId: 'deepchat',
     workspacePath: null,
     isAcpSession: false,
-    workflowEnabled: false,
-    workflowCommandEnabled: false,
     supportsVision: null,
     isGenerating: false,
     editable: true,
@@ -130,8 +125,6 @@ const emit = defineEmits<{
   'queue-submit': []
   'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
-  'workflow-submit': [name: string, argsText: string]
-  'workflow-open': []
   'pending-skills-change': [skills: string[]]
   'switch-vision-model': []
   'draft-change': []
@@ -155,24 +148,11 @@ const mentions = useChatInputMentions({
   sessionId: computed(() => props.sessionId),
   agentId: skillAgentId,
   isAcpSession: computed(() => props.isAcpSession),
-  workflowEnabled: computed(() => props.workflowEnabled),
-  workflowCommandEnabled: computed(() => props.workflowCommandEnabled),
   isGenerating: computed(() => props.isGenerating),
   compactCommandDescription: computed(() => t('chat.compaction.commandDescription')),
-  workflowArgsLabel: computed(() => t('chat.workflow.saved.fields.args')),
-  workflowPrepareText: computed(() => t('chat.workflow.saved.actions.prepare')),
-  workflowCommandDescription: computed(() => t('chat.workflow.title')),
   onCommandSubmit: (command) => {
     if (!props.editable) return
     emit('command-submit', command)
-  },
-  onWorkflowSubmit: (name, argsText) => {
-    if (!props.editable) return
-    emit('workflow-submit', name, argsText)
-  },
-  onWorkflowOpen: () => {
-    if (!props.editable) return
-    emit('workflow-open')
   },
   onActivateSkill: async (skillName) => {
     if (!props.editable) return
@@ -652,30 +632,6 @@ function onCompositionEnd() {
   isComposing.value = false
 }
 
-function consumeWorkflowSlashCommand(): boolean {
-  if (!props.editable) {
-    return false
-  }
-  const workflowCommand = parseWorkflowSlashCommand(props.modelValue)
-  const canHandleWorkflowCommand =
-    workflowCommand?.kind === 'open'
-      ? props.workflowCommandEnabled
-      : workflowCommand?.kind === 'prepare-saved'
-        ? props.workflowEnabled
-        : false
-  if (!workflowCommand || !canHandleWorkflowCommand) {
-    return false
-  }
-
-  emit('update:modelValue', '')
-  if (workflowCommand.kind === 'open') {
-    emit('workflow-open')
-  } else {
-    emit('workflow-submit', workflowCommand.name, workflowCommand.argsText)
-  }
-  return true
-}
-
 function handleKeydown(e: KeyboardEvent) {
   if (!props.editable) {
     const isCopyOrSelectAll = (e.metaKey || e.ctrlKey) && ['a', 'c'].includes(e.key.toLowerCase())
@@ -722,18 +678,13 @@ function handleKeydown(e: KeyboardEvent) {
     return
   }
 
-  const isImeComposing = isComposing.value || e.isComposing || e.keyCode === 229
-  if (isImeComposing) {
-    return
-  }
-
-  if (consumeWorkflowSlashCommand()) {
-    e.preventDefault()
-    return
-  }
-
   if (props.submitDisabled) {
     e.preventDefault()
+    return
+  }
+
+  const isImeComposing = isComposing.value || e.isComposing || e.keyCode === 229
+  if (isImeComposing) {
     return
   }
 
@@ -823,18 +774,6 @@ function insertRecognizedText(text: string) {
   }
 
   editor.chain().focus().insertContent(normalizedText).run()
-}
-
-function insertTextBlock(text: string) {
-  if (!props.editable) return
-  const normalizedText = text.trim()
-  if (!normalizedText) {
-    return
-  }
-
-  const paragraphs = toEditorDoc(normalizedText).content ?? []
-  const content = editor.isEmpty ? paragraphs : [{ type: 'paragraph' }, ...paragraphs]
-  editor.chain().focus('end').insertContent(content).run()
 }
 
 function onFileSelect(event: Event) {
@@ -930,7 +869,6 @@ function focusInput() {
 defineExpose({
   triggerAttach,
   insertRecognizedText,
-  insertTextBlock,
   insertWorkspaceReference,
   getInlineItemsSnapshot,
   getPendingSkillsSnapshot,
@@ -939,8 +877,7 @@ defineExpose({
   setPendingSkills,
   getDocumentSnapshot,
   restoreDocumentSnapshot,
-  focusInput,
-  consumeWorkflowSlashCommand
+  focusInput
 })
 </script>
 

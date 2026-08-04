@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "Ouvrir l’Agent enfant" },
     "activityTitle": "Activité des Agents",
     "proactive": {
       "title": "Collaboration proactive",
@@ -572,128 +573,6 @@
         "regular_parent_required": "La collaboration proactive n’est pas disponible dans une session enfant.",
         "agent_policy_unavailable": "La politique de collaboration n’a pas pu être chargée.",
         "subagents_disabled": "Activez les Subagents pour cet Agent afin d’utiliser la collaboration proactive."
-      }
-    }
-  },
-  "workflow": {
-    "title": "Workflows",
-    "loading": "Chargement des workflows...",
-    "runLabel": "Exécution {id}",
-    "empty": {
-      "title": "Aucun workflow pour le moment",
-      "description": "Les exécutions explicites de workflow de cette conversation apparaîtront ici."
-    },
-    "status": {
-      "queued": "En attente",
-      "running": "En cours",
-      "waiting_interaction": "Intervention requise",
-      "cancelling": "Annulation",
-      "succeeded": "Réussi",
-      "failed": "Échoué",
-      "cancelled": "Annulé",
-      "interrupted": "Interrompu"
-    },
-    "fields": {
-      "duration": "Durée",
-      "usage": "Utilisation",
-      "phase": "Phase",
-      "budget": "Budget",
-      "reason": "Motif",
-      "result": "Aperçu du résultat"
-    },
-    "actions": {
-      "refresh": "Actualiser le workflow",
-      "resume": "Reprendre",
-      "synthesize": "Demander à l’Agent parent de synthétiser",
-      "openChild": "Ouvrir l’Agent enfant",
-      "retryFromHere": "Réessayer à partir d’ici"
-    },
-    "states": {
-      "incompatible": "La Runtime API v{version} ne peut pas reprendre dans cette version (actuelle v{current}). L’historique reste consultable.",
-      "partialResult": "Cette exécution s’est terminée avant la fin de toutes les invocations. Les résultats réussis des Agents enfants restent disponibles ci-dessous.",
-      "unknownReason": "Aucun motif n’a été enregistré.",
-      "unavailable": "Indisponible",
-      "previewTruncated": "Aperçu tronqué",
-      "synthesisQueued": "La synthèse de l’Agent parent a été mise en attente après le tour actif.",
-      "synthesisStarted": "La synthèse de l’Agent parent a commencé."
-    },
-    "invocations": {
-      "title": "Invocations",
-      "empty": "Aucune invocation d’Agent enfant pour le moment",
-      "defaultPhase": "Workflow",
-      "attempt": "Tentative {attempt}",
-      "timedOut": "Le délai géré par l’hôte a expiré."
-    },
-    "interactions": {
-      "generic": "Cet Agent enfant attend une autorisation ou une réponse à une question.",
-      "permission": "Autorisation requise",
-      "question": "La question nécessite une réponse"
-    },
-    "effects": {
-      "none": "Aucun effet",
-      "read": "Lecture",
-      "unknown": "Effet inconnu",
-      "write": "Effet d’écriture"
-    },
-    "effectWarning": {
-      "title": "Cette nouvelle tentative peut répéter des effets externes",
-      "retry": "Cet Agent enfant a déjà effectué, ou a peut-être effectué, une écriture. Réessayer peut répéter des modifications hors de DeepChat.",
-      "retryFromHere": "Cette invocation ou un Agent enfant en aval a déjà effectué, ou a peut-être effectué, une écriture. Réessayer à partir d’ici peut répéter des modifications hors de DeepChat.",
-      "confirm": "Réessayer avec les effets"
-    },
-    "duration": {
-      "seconds": "{count} s",
-      "minutes": "{minutes} min {seconds} s",
-      "hours": "{hours} h {minutes} min"
-    },
-    "budget": {
-      "duration": "{duration} maximum"
-    },
-    "approval": {
-      "checking": "Vérification de cette approbation…",
-      "unavailable": "Cette approbation n’est plus disponible. Préparez un plan révisé pour continuer.",
-      "unavailableShort": "Approbation indisponible",
-      "launched": "Workflow lancé",
-      "launchUnconfirmed": "Le résultat du lancement n’a pas pu être confirmé. Vérifiez l’historique du workflow avant de préparer un autre plan.",
-      "revisionRequested": "Le retour a été ajouté à la zone de saisie. Envoyez-le pour préparer une nouvelle approbation.",
-      "revisionRequestedShort": "Révision demandée",
-      "feedbackPlaceholder": "Décrivez ce qui doit changer…",
-      "stageRevision": "Ajouter le retour à la saisie",
-      "modify": "Modifier le plan",
-      "sourceDisclosure": "Source du workflow généré",
-      "revisionPrompt": "Révisez le plan de workflow en attente dont le hachage source est {sourceHash} selon le retour ci-dessous. Appelez de nouveau workflow avec operation=prepare_launch, sans le lancer.\n\nRetour :\n{feedback}"
-    },
-    "saved": {
-      "title": "Workflows enregistrés",
-      "workspaceRequired": "Ouvrez un espace de travail de projet pour créer et exécuter des workflows enregistrés.",
-      "selectPlaceholder": "Sélectionner un workflow",
-      "empty": "Aucun workflow enregistré dans cet espace de travail.",
-      "unsaved": "Enregistrez les modifications avant de préparer une exécution.",
-      "runTitle": "Exécuter le workflow enregistré",
-      "agentPlaceholder": "ID d’Agent facultatifs, séparés par des virgules",
-      "fields": {
-        "name": "Nom",
-        "source": "Code source JavaScript",
-        "args": "Arguments JSON",
-        "agents": "Agents autorisés"
-      },
-      "actions": {
-        "refresh": "Actualiser les workflows enregistrés",
-        "new": "Nouveau",
-        "save": "Enregistrer",
-        "reload": "Recharger",
-        "prepare": "Vérifier le lancement",
-        "launch": "Lancer le workflow"
-      },
-      "approval": {
-        "title": "Confirmer cet instantané exact du workflow",
-        "sourceHash": "Empreinte de la source",
-        "workspace": "Espace de travail",
-        "agents": "Agents autorisés",
-        "maxInvocations": "Nombre maximal d’invocations",
-        "maxPendingInvocations": "Nombre maximal d’invocations en attente",
-        "warning": "Les Agents enfants peuvent utiliser leurs outils d’écriture existants. Leurs demandes d’autorisation individuelles restent applicables.",
-        "expired": "Approbation expirée"
       }
     }
   }

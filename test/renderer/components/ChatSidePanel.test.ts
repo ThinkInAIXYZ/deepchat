@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { WORKFLOW_EVENTS, WORKSPACE_EVENTS } from '@/events'
+import { WORKSPACE_EVENTS } from '@/events'
 
 describe('ChatSidePanel', () => {
   it('keeps shell width out of CSS transitions', async () => {
@@ -21,7 +21,6 @@ describe('ChatSidePanel', () => {
     activeTab?: 'workspace' | 'browser' | 'mcp-app'
     mcpAppPreviewOwnerId?: string | null
     sessionId?: string | null
-    savedWorkflowsEnabled?: boolean
   }) => {
     vi.resetModules()
 
@@ -32,10 +31,6 @@ describe('ChatSidePanel', () => {
       mcpAppPreviewOwnerId: options?.mcpAppPreviewOwnerId ?? null,
       width: 520,
       openWorkspace: vi.fn(),
-      openWorkflow: vi.fn((_sessionId: string, _runId?: string) => {
-        sidepanelStore.activeTab = 'workspace'
-        sidepanelStore.open = true
-      }),
       openBrowser: vi.fn(() => {
         sidepanelStore.activeTab = 'browser'
         sidepanelStore.open = true
@@ -87,10 +82,6 @@ describe('ChatSidePanel', () => {
           isFullscreen: {
             type: Boolean,
             default: false
-          },
-          savedWorkflowsEnabled: {
-            type: Boolean,
-            default: false
           }
         },
         emits: ['toggle-fullscreen', 'insert-file-reference'],
@@ -107,8 +98,7 @@ describe('ChatSidePanel', () => {
     const wrapper = mount(ChatSidePanel, {
       props: {
         sessionId: options?.sessionId ?? 'session-1',
-        workspacePath: 'C:/workspace',
-        savedWorkflowsEnabled: options?.savedWorkflowsEnabled ?? false
+        workspacePath: 'C:/workspace'
       },
       global: {
         stubs: {
@@ -129,16 +119,6 @@ describe('ChatSidePanel', () => {
       emitOpenRequested: (payload: unknown) => openRequestedHandler?.(payload)
     }
   }
-
-  it('forwards saved Workflow compatibility to the workspace panel', async () => {
-    const { wrapper } = await setup({
-      savedWorkflowsEnabled: true
-    })
-
-    expect(wrapper.getComponent({ name: 'WorkspacePanel' }).props('savedWorkflowsEnabled')).toBe(
-      true
-    )
-  })
 
   it('opens the browser sidepanel when OPEN_REQUESTED targets the current host window', async () => {
     const { sidepanelStore, emitOpenRequested } = await setup({
@@ -214,34 +194,6 @@ describe('ChatSidePanel', () => {
     } finally {
       window.removeEventListener(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, insertionListener)
     }
-  })
-
-  it('opens Workflow progress only for the current session', async () => {
-    const { sidepanelStore } = await setup({
-      open: false,
-      activeTab: 'browser',
-      sessionId: 'session-1'
-    })
-
-    window.dispatchEvent(
-      new CustomEvent(WORKFLOW_EVENTS.OPEN_REQUESTED, {
-        detail: {
-          sessionId: 'another-session',
-          runId: 'run-ignored'
-        }
-      })
-    )
-    window.dispatchEvent(
-      new CustomEvent(WORKFLOW_EVENTS.OPEN_REQUESTED, {
-        detail: {
-          sessionId: 'session-1',
-          runId: 'run-1'
-        }
-      })
-    )
-
-    expect(sidepanelStore.openWorkflow).toHaveBeenCalledTimes(1)
-    expect(sidepanelStore.openWorkflow).toHaveBeenCalledWith('session-1', 'run-1')
   })
 
   it('hosts the selected MCP App in the existing sidepanel', async () => {

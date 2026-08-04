@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { OrchestrationPolicySchema } from '../../workflow/orchestrationPolicy'
+import { OrchestrationPolicySchema } from '../../orchestration/policy'
 import type { SearchResult } from '@shared/types/core/search'
 import type {
   Agent,

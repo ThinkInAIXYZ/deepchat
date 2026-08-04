@@ -119,16 +119,6 @@
               <MessageBlockError v-else-if="item.block.type === 'error'" :block="item.block" />
             </template>
           </div>
-          <Button
-            v-if="currentMessage.messageType === 'workflow_result' && currentMessage.workflowRunId"
-            data-testid="workflow-result-open"
-            variant="outline"
-            size="sm"
-            class="h-7 self-start text-xs"
-            @click="handleOpenWorkflow"
-          >
-            {{ t('chat.workflow.title') }}
-          </Button>
           <MessageToolbar
             :loading="message.status === 'pending'"
             :usage="message.usage"
@@ -241,7 +231,6 @@ import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockVideo from './MessageBlockVideo.vue'
 import MessageBlockActivityGroup from './MessageBlockActivityGroup.vue'
 import { buildAssistantRenderItems } from './messageActivityGroups'
-import { WORKFLOW_EVENTS } from '@/events'
 
 import {
   Dialog,
@@ -388,23 +377,6 @@ const currentMessage = computed(() => {
   const variant = allVariants.value[currentVariantIndex.value - 1]
   return variant || props.message
 })
-
-const handleOpenWorkflow = () => {
-  const sessionId = currentThreadId.value.trim()
-  const runId = currentMessage.value.workflowRunId?.trim()
-  if (!sessionId || !runId) {
-    return
-  }
-
-  window.dispatchEvent(
-    new CustomEvent(WORKFLOW_EVENTS.OPEN_REQUESTED, {
-      detail: {
-        sessionId,
-        runId
-      }
-    })
-  )
-}
 
 // 计算当前消息的所有变体（包括缓存中的，过滤掉主消息本身）
 const allVariants = computed(() => {

@@ -19,7 +19,7 @@ import type {
 import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
-} from '@shared/workflow/orchestrationPolicy'
+} from '@shared/orchestration/policy'
 import { downloadBlob } from '@/lib/download'
 import {
   readGuidedOnboardingResumeIntent,

@@ -28,7 +28,7 @@ import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
-} from '@shared/workflow/orchestrationPolicy'
+} from '@shared/orchestration/policy'
 
 export interface SessionAgentAssignmentDependencies {
   sessions: SessionAssignmentStorePort

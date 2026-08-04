@@ -93,8 +93,7 @@ export class LiveDelegationAgentTool {
           'read_result to page through a referenced complete child answer when its Handoff is',
           'insufficient,',
           'and interrupt only for explicit cancellation or definitively superseded work, never',
-          'merely to avoid waiting. Use deepchat_workflow instead for',
-          'large programmatic fan-out, reusable data flow, approval, or replay.'
+          'merely to avoid waiting.'
         ].join(' '),
         parameters: {
           type: 'object',

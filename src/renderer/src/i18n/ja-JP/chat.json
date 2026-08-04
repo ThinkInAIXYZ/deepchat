@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "子 Agent を開く" },
     "activityTitle": "Agent のアクティビティ",
     "proactive": {
       "title": "プロアクティブ連携",
@@ -572,128 +573,6 @@
         "regular_parent_required": "子セッションではプロアクティブ連携を利用できません。",
         "agent_policy_unavailable": "連携ポリシーを読み込めませんでした。",
         "subagents_disabled": "プロアクティブ連携を使用するには、この Agent の Subagent を有効にしてください。"
-      }
-    }
-  },
-  "workflow": {
-    "title": "ワークフロー",
-    "loading": "ワークフローを読み込んでいます...",
-    "runLabel": "実行 {id}",
-    "empty": {
-      "title": "ワークフローはまだありません",
-      "description": "この会話で明示的に実行したワークフローがここに表示されます。"
-    },
-    "status": {
-      "queued": "待機中",
-      "running": "実行中",
-      "waiting_interaction": "入力が必要",
-      "cancelling": "キャンセル中",
-      "succeeded": "成功",
-      "failed": "失敗",
-      "cancelled": "キャンセル済み",
-      "interrupted": "中断済み"
-    },
-    "fields": {
-      "duration": "所要時間",
-      "usage": "使用量",
-      "phase": "フェーズ",
-      "budget": "予算",
-      "reason": "理由",
-      "result": "結果のプレビュー"
-    },
-    "actions": {
-      "refresh": "ワークフローを更新",
-      "resume": "再開",
-      "synthesize": "親 Agent に統合を依頼",
-      "openChild": "子 Agent を開く",
-      "retryFromHere": "ここから再試行"
-    },
-    "states": {
-      "incompatible": "Runtime API v{version} はこのビルドでは再開できません（現在は v{current}）。履歴は引き続き確認できます。",
-      "partialResult": "すべての呼び出しが完了する前に実行が終了しました。成功した子 Agent の結果は下に残っています。",
-      "unknownReason": "理由は記録されていません。",
-      "unavailable": "利用できません",
-      "previewTruncated": "プレビューは省略されています",
-      "synthesisQueued": "親 Agent の統合はアクティブなターンの後にキューへ追加されました。",
-      "synthesisStarted": "親 Agent の統合を開始しました。"
-    },
-    "invocations": {
-      "title": "呼び出し",
-      "empty": "子 Agent の呼び出しはまだありません",
-      "defaultPhase": "ワークフロー",
-      "attempt": "試行 {attempt}",
-      "timedOut": "ホスト側で管理されているタイムアウトが発生しました。"
-    },
-    "interactions": {
-      "generic": "この子 Agent は権限の承認または質問への回答を待っています。",
-      "permission": "権限が必要です",
-      "question": "質問への回答が必要です"
-    },
-    "effects": {
-      "none": "影響なし",
-      "read": "読み取り",
-      "unknown": "不明な影響",
-      "write": "書き込みの影響"
-    },
-    "effectWarning": {
-      "title": "再試行により外部への影響が繰り返される可能性があります",
-      "retry": "この子 Agent はすでに書き込みを実行したか、その可能性があります。再試行すると DeepChat 外の変更が繰り返される場合があります。",
-      "retryFromHere": "この呼び出しまたは後続の子 Agent はすでに書き込みを実行したか、その可能性があります。ここから再試行すると DeepChat 外の変更が繰り返される場合があります。",
-      "confirm": "影響を承知して再試行"
-    },
-    "duration": {
-      "seconds": "{count}秒",
-      "minutes": "{minutes}分{seconds}秒",
-      "hours": "{hours}時間{minutes}分"
-    },
-    "budget": {
-      "duration": "最大{duration}"
-    },
-    "approval": {
-      "checking": "承認を確認しています…",
-      "unavailable": "この承認は利用できません。続行するには修正版のプランを準備してください。",
-      "unavailableShort": "承認は利用できません",
-      "launched": "ワークフローを開始しました",
-      "launchUnconfirmed": "ワークフローが開始されたか確認できませんでした。別のプランを準備する前に履歴を確認してください。",
-      "revisionRequested": "フィードバックを入力欄に追加しました。送信すると新しい承認が準備されます。",
-      "revisionRequestedShort": "修正を依頼しました",
-      "feedbackPlaceholder": "変更したい内容を入力してください…",
-      "stageRevision": "フィードバックを入力欄に追加",
-      "modify": "プランを修正",
-      "sourceDisclosure": "生成されたワークフローのソース",
-      "revisionPrompt": "以下のフィードバックに基づき、ソースハッシュ {sourceHash} の承認待ちワークフロープランを修正してください。workflow を operation=prepare_launch でもう一度呼び出し、起動はしないでください。\n\nフィードバック：\n{feedback}"
-    },
-    "saved": {
-      "title": "保存済みワークフロー",
-      "workspaceRequired": "保存済みワークフローを作成・実行するには、プロジェクトワークスペースを開いてください。",
-      "selectPlaceholder": "ワークフローを選択",
-      "empty": "このワークスペースに保存済みワークフローはありません。",
-      "unsaved": "実行を準備する前に変更を保存してください。",
-      "runTitle": "保存済みワークフローを実行",
-      "agentPlaceholder": "任意の Agent ID（カンマ区切り）",
-      "fields": {
-        "name": "名前",
-        "source": "JavaScript ソース",
-        "args": "JSON 引数",
-        "agents": "許可する Agent"
-      },
-      "actions": {
-        "refresh": "保存済みワークフローを更新",
-        "new": "新規",
-        "save": "保存",
-        "reload": "再読み込み",
-        "prepare": "起動内容を確認",
-        "launch": "ワークフローを起動"
-      },
-      "approval": {
-        "title": "このワークフローの正確なスナップショットを確認",
-        "sourceHash": "ソースハッシュ",
-        "workspace": "ワークスペース",
-        "agents": "許可する Agent",
-        "maxInvocations": "最大呼び出し数",
-        "maxPendingInvocations": "最大保留呼び出し数",
-        "warning": "子 Agent は既存の書き込み可能なツールを使用できます。個別の権限確認は引き続き適用されます。",
-        "expired": "承認の有効期限が切れました"
       }
     }
   }

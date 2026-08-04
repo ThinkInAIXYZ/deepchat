@@ -12,7 +12,7 @@ import type {
   AttachmentResolvedRepresentation,
   PdfEmbeddedTextCoverage
 } from './attachment'
-import type { OrchestrationPolicy } from '../workflow/orchestrationPolicy'
+import type { OrchestrationPolicy } from '../orchestration/policy'
 
 export type {
   AttachmentFallbackPolicy,
@@ -605,7 +605,6 @@ export interface DeepChatSubagentMeta {
   slotId: string
   displayName: string
   targetAgentId?: string | null
-  workflow?: import('../workflow/subagent').WorkflowSubagentContext
   liveDelegation?: import('../orchestration/liveDelegation').LiveDelegationSubagentContext
 }
 

@@ -2,11 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentSettings } from '@/agent/settings'
 import { AgentLifecycleGate } from '@/agent/lifecycleGate'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
-import {
-  CRON_JOB_AGENT_TOOL_NAME,
-  LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME,
-  WORKFLOW_AGENT_TOOL_NAME
-} from '@shared/agentTools'
+import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 import type { CreateDeepChatAgentInput } from '@shared/types/agent-interface'
 
 const createModelSelection = (providerId: string, modelId: string) => ({ providerId, modelId })
@@ -125,7 +121,6 @@ describe('AgentSettings migrations', () => {
       reconcileLegacyBuiltinAgentSelections: vi.fn(() => sequence.push('reconcile-legacy')),
       cleanupDeprecatedBuiltinAgentSelections: vi.fn(() => sequence.push('cleanup-deprecated')),
       materializeIndependentDeepChatAgentConfigs: vi.fn(() => sequence.push('materialize-v3')),
-      removeModeControlledWorkflowToolOverrides: vi.fn(() => sequence.push('cleanup-workflow-v5')),
       settings: { get: vi.fn(() => 2) },
       provider: { setAcpProviderEnabled: vi.fn() },
       acpCatalog: { getGlobalEnabled: vi.fn(() => false) },
@@ -141,22 +136,19 @@ describe('AgentSettings migrations', () => {
       'initialize-v1-v2',
       'reconcile-legacy',
       'cleanup-deprecated',
-      'materialize-v3',
-      'cleanup-workflow-v5'
+      'materialize-v3'
     ])
   })
 
-  it('does not rerun legacy config materialization while completing later migrations', () => {
+  it('does not rerun legacy config materialization at version 3', () => {
     const reconcileLegacyBuiltinAgentSelections = vi.fn()
     const materializeIndependentDeepChatAgentConfigs = vi.fn()
-    const removeModeControlledWorkflowToolOverrides = vi.fn()
     const cleanupDeprecatedBuiltinAgentSelections = vi.fn()
     const settings = Object.assign(Object.create(AgentSettings.prototype), {
       initializeUnifiedAgents: vi.fn(),
       reconcileLegacyBuiltinAgentSelections,
       cleanupDeprecatedBuiltinAgentSelections,
       materializeIndependentDeepChatAgentConfigs,
-      removeModeControlledWorkflowToolOverrides,
       settings: { get: vi.fn(() => 3) },
       provider: { setAcpProviderEnabled: vi.fn() },
       acpCatalog: { getGlobalEnabled: vi.fn(() => false) },
@@ -171,7 +163,6 @@ describe('AgentSettings migrations', () => {
     expect(cleanupDeprecatedBuiltinAgentSelections).toHaveBeenCalledOnce()
     expect(reconcileLegacyBuiltinAgentSelections).not.toHaveBeenCalled()
     expect(materializeIndependentDeepChatAgentConfigs).not.toHaveBeenCalled()
-    expect(removeModeControlledWorkflowToolOverrides).toHaveBeenCalledOnce()
   })
 
   it('freezes legacy Skill targets before marking version 3', () => {
@@ -356,76 +347,12 @@ describe('AgentSettings migrations', () => {
     ;(settings as any).initializeUnifiedAgents()
 
     expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(1, BUILTIN_DEEPCHAT_AGENT_ID, {
-      config: {
-        disabledAgentTools: ['tool-a', CRON_JOB_AGENT_TOOL_NAME]
-      }
+      config: { disabledAgentTools: ['tool-a', CRON_JOB_AGENT_TOOL_NAME] }
     })
     expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(2, 'deepchat-custom', {
-      config: {
-        disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME]
-      }
+      config: { disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME] }
     })
     expect(store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 2)
-  })
-
-  it('removes legacy workflow overrides once for existing Agent configs', () => {
-    const repository = {
-      listAgents: vi.fn(() => [{ id: 'writer' }, { id: 'already-disabled' }]),
-      getDeepChatAgentConfig: vi.fn((agentId: string) =>
-        agentId === 'writer'
-          ? { disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME] }
-          : {
-              disabledAgentTools: [LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME, WORKFLOW_AGENT_TOOL_NAME]
-            }
-      ),
-      updateDeepChatAgent: vi.fn()
-    }
-    const store = {
-      get: vi.fn(() => 3),
-      set: vi.fn()
-    }
-    const settings = Object.assign(Object.create(AgentSettings.prototype), {
-      repository,
-      settings: store
-    }) as AgentSettings
-
-    ;(settings as any).removeModeControlledWorkflowToolOverrides()
-
-    expect(repository.updateDeepChatAgent).toHaveBeenCalledOnce()
-    expect(repository.updateDeepChatAgent).toHaveBeenCalledWith('already-disabled', {
-      config: {
-        disabledAgentTools: []
-      }
-    })
-    expect(store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 5)
-  })
-
-  it('leaves workflow cleanup retryable after a partial Agent config failure', () => {
-    const repository = {
-      listAgents: vi.fn(() => [{ id: 'writer' }, { id: 'reviewer' }]),
-      getDeepChatAgentConfig: vi.fn(() => ({
-        disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME, WORKFLOW_AGENT_TOOL_NAME]
-      })),
-      updateDeepChatAgent: vi
-        .fn()
-        .mockImplementationOnce(() => undefined)
-        .mockImplementationOnce(() => {
-          throw new Error('config write failed')
-        })
-    }
-    const store = {
-      get: vi.fn(() => 3),
-      set: vi.fn()
-    }
-    const settings = Object.assign(Object.create(AgentSettings.prototype), {
-      repository,
-      settings: store
-    }) as AgentSettings
-
-    expect(() => (settings as any).removeModeControlledWorkflowToolOverrides()).toThrow(
-      'config write failed'
-    )
-    expect(store.set).not.toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 5)
   })
 
   it('moves live legacy model selections into the built-in agent', () => {

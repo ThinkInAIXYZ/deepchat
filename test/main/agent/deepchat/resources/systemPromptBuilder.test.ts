@@ -4,10 +4,8 @@ import fs from 'fs'
 
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
-import {
-  LIVE_DELEGATION_AGENT_TOOL_NAME,
-  WORKFLOW_AGENT_TOOL_NAME
-} from '@shared/agentTools'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@shared/orchestration/resultSafety'
 
 describe('DeepChat system prompt builder', () => {
   it('assembles byte-identical prompts without a composed-prompt memo', async () => {
@@ -65,11 +63,6 @@ describe('DeepChat system prompt builder', () => {
       toolDefinitions: [
         {
           source: 'agent',
-          server: { name: 'agent-workflows' },
-          function: { name: WORKFLOW_AGENT_TOOL_NAME }
-        },
-        {
-          source: 'agent',
           server: { name: 'subagents' },
           function: { name: LIVE_DELEGATION_AGENT_TOOL_NAME }
         }
@@ -83,8 +76,8 @@ describe('DeepChat system prompt builder', () => {
       toolDefinitions: [
         {
           source: 'agent',
-          server: { name: 'agent-workflows' },
-          function: { name: WORKFLOW_AGENT_TOOL_NAME }
+          server: { name: 'subagents' },
+          function: { name: LIVE_DELEGATION_AGENT_TOOL_NAME }
         }
       ] as any,
       orchestrationPolicy: 'proactive',
@@ -113,11 +106,9 @@ describe('DeepChat system prompt builder', () => {
     expect(explicit).toContain('user, an active Skill, or project instructions explicitly request')
     expect(explicit).toContain(`Use \`${LIVE_DELEGATION_AGENT_TOOL_NAME}\``)
     expect(explicit).toContain('`send` for non-triggering context')
-    expect(explicit).toContain(`Use \`${WORKFLOW_AGENT_TOOL_NAME}\``)
+    expect(explicit).toContain(UNTRUSTED_CHILD_OUTPUT_POLICY)
     expect(proactive).toContain('enabled proactive multi-Agent collaboration')
     expect(proactive).toContain('Never delegate merely to demonstrate')
-    expect(proactive).toContain('never ask the user to author it')
-    expect(proactive).toContain('native Workflow approval card owns exact user approval')
     expect(sameNameMcp).not.toContain('## Multi-Agent Orchestration Policy')
     expect(assertCurrent).toHaveBeenCalled()
   })

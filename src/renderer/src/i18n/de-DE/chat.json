@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "Untergeordneten Agent öffnen" },
     "activityTitle": "Agent-Aktivität",
     "proactive": {
       "title": "Proaktive Zusammenarbeit",
@@ -572,128 +573,6 @@
         "regular_parent_required": "Proaktive Zusammenarbeit ist in einer untergeordneten Sitzung nicht verfügbar.",
         "agent_policy_unavailable": "Die Richtlinie für Zusammenarbeit konnte nicht geladen werden.",
         "subagents_disabled": "Aktivieren Sie Subagents für diesen Agent, um proaktive Zusammenarbeit zu verwenden."
-      }
-    }
-  },
-  "workflow": {
-    "title": "Workflows",
-    "loading": "Workflows werden geladen...",
-    "runLabel": "Ausführung {id}",
-    "empty": {
-      "title": "Noch keine Workflows",
-      "description": "Explizite Workflow-Ausführungen für diese Sitzung werden hier angezeigt."
-    },
-    "status": {
-      "queued": "In Warteschlange",
-      "running": "Wird ausgeführt",
-      "waiting_interaction": "Eingabe erforderlich",
-      "cancelling": "Wird abgebrochen",
-      "succeeded": "Erfolgreich",
-      "failed": "Fehlgeschlagen",
-      "cancelled": "Abgebrochen",
-      "interrupted": "Unterbrochen"
-    },
-    "fields": {
-      "duration": "Dauer",
-      "usage": "Nutzung",
-      "phase": "Phase",
-      "budget": "Budget",
-      "reason": "Grund",
-      "result": "Ergebnisvorschau"
-    },
-    "actions": {
-      "refresh": "Workflow aktualisieren",
-      "resume": "Fortsetzen",
-      "synthesize": "Übergeordneten Agent um Zusammenfassung bitten",
-      "openChild": "Untergeordneten Agent öffnen",
-      "retryFromHere": "Ab hier erneut versuchen"
-    },
-    "states": {
-      "incompatible": "Runtime API v{version} kann in diesem Build nicht fortgesetzt werden (aktuell v{current}). Der Verlauf bleibt einsehbar.",
-      "partialResult": "Diese Ausführung endete, bevor alle Aufrufe abgeschlossen waren. Erfolgreiche Ergebnisse untergeordneter Agents bleiben unten verfügbar.",
-      "unknownReason": "Es wurde kein Grund aufgezeichnet.",
-      "unavailable": "Nicht verfügbar",
-      "previewTruncated": "Vorschau gekürzt",
-      "synthesisQueued": "Die übergeordnete Zusammenfassung wurde hinter dem aktiven Turn eingereiht.",
-      "synthesisStarted": "Die übergeordnete Zusammenfassung wurde gestartet."
-    },
-    "invocations": {
-      "title": "Aufrufe",
-      "empty": "Noch keine Aufrufe untergeordneter Agents",
-      "defaultPhase": "Workflow",
-      "attempt": "Versuch {attempt}",
-      "timedOut": "Das vom Host verwaltete Zeitlimit ist abgelaufen."
-    },
-    "interactions": {
-      "generic": "Dieser untergeordnete Agent wartet auf eine Berechtigung oder eine Antwort.",
-      "permission": "Berechtigung erforderlich",
-      "question": "Frage muss beantwortet werden"
-    },
-    "effects": {
-      "none": "Keine Auswirkungen",
-      "read": "Lesen",
-      "unknown": "Unbekannte Auswirkung",
-      "write": "Schreibauswirkung"
-    },
-    "effectWarning": {
-      "title": "Dieser Versuch kann externe Auswirkungen wiederholen",
-      "retry": "Dieser untergeordnete Agent hat bereits einen Schreibvorgang ausgeführt oder möglicherweise ausgeführt. Ein erneuter Versuch kann Änderungen außerhalb von DeepChat wiederholen.",
-      "retryFromHere": "Dieser Aufruf oder ein nachgelagerter untergeordneter Agent hat bereits einen Schreibvorgang ausgeführt oder möglicherweise ausgeführt. Ein erneuter Versuch ab hier kann Änderungen außerhalb von DeepChat wiederholen.",
-      "confirm": "Mit Auswirkungen erneut versuchen"
-    },
-    "duration": {
-      "seconds": "{count} s",
-      "minutes": "{minutes} Min. {seconds} s",
-      "hours": "{hours} Std. {minutes} Min."
-    },
-    "budget": {
-      "duration": "Maximal {duration}"
-    },
-    "approval": {
-      "checking": "Freigabe wird geprüft…",
-      "unavailable": "Diese Freigabe ist nicht mehr verfügbar. Erstelle einen überarbeiteten Plan, um fortzufahren.",
-      "unavailableShort": "Freigabe nicht verfügbar",
-      "launched": "Workflow gestartet",
-      "launchUnconfirmed": "Das Startergebnis konnte nicht bestätigt werden. Prüfe den Workflow-Verlauf, bevor du einen neuen Plan erstellst.",
-      "revisionRequested": "Das Feedback wurde in das Eingabefeld eingefügt. Sende es, um eine neue Freigabe vorzubereiten.",
-      "revisionRequestedShort": "Überarbeitung angefordert",
-      "feedbackPlaceholder": "Beschreibe die gewünschten Änderungen…",
-      "stageRevision": "Feedback ins Eingabefeld",
-      "modify": "Plan ändern",
-      "sourceDisclosure": "Generierter Workflow-Quellcode",
-      "revisionPrompt": "Überarbeite den ausstehenden Workflow-Plan mit dem Quell-Hash {sourceHash} anhand des folgenden Feedbacks. Rufe workflow erneut mit operation=prepare_launch auf und starte ihn nicht.\n\nFeedback:\n{feedback}"
-    },
-    "saved": {
-      "title": "Gespeicherte Workflows",
-      "workspaceRequired": "Öffnen Sie einen Projektarbeitsbereich, um gespeicherte Workflows zu erstellen und auszuführen.",
-      "selectPlaceholder": "Workflow auswählen",
-      "empty": "Keine gespeicherten Workflows in diesem Arbeitsbereich.",
-      "unsaved": "Speichern Sie die Änderungen, bevor Sie eine Ausführung vorbereiten.",
-      "runTitle": "Gespeicherten Workflow ausführen",
-      "agentPlaceholder": "Optionale Agent-IDs, durch Kommas getrennt",
-      "fields": {
-        "name": "Name",
-        "source": "JavaScript-Quelltext",
-        "args": "JSON-Argumente",
-        "agents": "Zulässige Agents"
-      },
-      "actions": {
-        "refresh": "Gespeicherte Workflows aktualisieren",
-        "new": "Neu",
-        "save": "Speichern",
-        "reload": "Neu laden",
-        "prepare": "Start prüfen",
-        "launch": "Workflow starten"
-      },
-      "approval": {
-        "title": "Diesen exakten Workflow-Snapshot bestätigen",
-        "sourceHash": "Quellhash",
-        "workspace": "Arbeitsbereich",
-        "agents": "Zulässige Agents",
-        "maxInvocations": "Maximale Aufrufe",
-        "maxPendingInvocations": "Maximale ausstehende Aufrufe",
-        "warning": "Untergeordnete Agents können ihre vorhandenen schreibfähigen Werkzeuge verwenden. Ihre individuellen Berechtigungsabfragen gelten weiterhin.",
-        "expired": "Genehmigung abgelaufen"
       }
     }
   }

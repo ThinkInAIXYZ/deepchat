@@ -5,8 +5,7 @@ import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import {
   LIVE_DELEGATION_AGENT_TOOL_NAME,
-  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
-  WORKFLOW_AGENT_TOOL_NAME
+  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
 } from '@shared/agentTools'
 
 const { selectSessionMock } = vi.hoisted(() => ({
@@ -111,46 +110,6 @@ const createBlock = (
   }
 })
 
-const createWorkflowApprovalBlock = (
-  serverName = 'agent-workflows'
-): DisplayAssistantMessageBlock =>
-  createBlock({
-    extra: {
-      toolSource: 'agent'
-    },
-    tool_call: {
-      id: 'workflow-approval',
-      name: WORKFLOW_AGENT_TOOL_NAME,
-      server_name: serverName,
-      params: JSON.stringify({ operation: 'prepare_launch', scriptSource: 'return null' }),
-      response: JSON.stringify({
-        approval: {
-          approvalId: '50d6dbb8-45cb-4a76-af9c-9137cb4695ac',
-          sourceHash: 'a'.repeat(64),
-          scopeHash: 'b'.repeat(64),
-          expiresAt: Date.now() + 60_000,
-          summary: {
-            workspacePath: '/repo',
-            capabilityScopeHash: 'c'.repeat(64),
-            executionSnapshotHash: 'd'.repeat(64),
-            allowedAgentIds: ['deepchat'],
-            maxInvocations: 8,
-            maxPendingInvocations: 4,
-            budget: null,
-            capabilities: ['deepchat-child-sessions'],
-            outline: {
-              schemaVersion: 1,
-              confidence: 'exact',
-              truncated: false,
-              nodes: []
-            }
-          }
-        },
-        nextAction: 'Await native approval.'
-      })
-    }
-  })
-
 beforeEach(() => {
   selectSessionMock.mockReset()
   liveDelegationStoreMock.seed.mockReset()
@@ -172,55 +131,6 @@ afterEach(() => {
 })
 
 describe('MessageBlockToolCall', () => {
-  it('renders native approval only for the exact built-in workflow identity', () => {
-    const approvalStub = defineComponent({
-      name: 'WorkflowLaunchApprovalCard',
-      template: '<div data-testid="workflow-approval-stub" />'
-    })
-    const trusted = mount(MessageBlockToolCall, {
-      props: {
-        block: createWorkflowApprovalBlock(),
-        threadId: 'parent-1'
-      },
-      global: {
-        stubs: {
-          WorkflowLaunchApprovalCard: approvalStub
-        }
-      }
-    })
-    const untrusted = mount(MessageBlockToolCall, {
-      props: {
-        block: createWorkflowApprovalBlock('untrusted-mcp'),
-        threadId: 'parent-1'
-      },
-      global: {
-        stubs: {
-          WorkflowLaunchApprovalCard: approvalStub
-        }
-      }
-    })
-    const spoofedMcpBlock = createWorkflowApprovalBlock()
-    spoofedMcpBlock.extra = { toolSource: 'mcp' }
-    const spoofedMcp = mount(MessageBlockToolCall, {
-      props: {
-        block: spoofedMcpBlock,
-        threadId: 'parent-1'
-      },
-      global: {
-        stubs: {
-          WorkflowLaunchApprovalCard: approvalStub
-        }
-      }
-    })
-
-    expect(trusted.find('[data-testid="workflow-approval-stub"]').exists()).toBe(true)
-    expect(trusted.find('[data-testid="tool-call-trigger"]').exists()).toBe(false)
-    expect(untrusted.find('[data-testid="workflow-approval-stub"]').exists()).toBe(false)
-    expect(untrusted.find('[data-testid="tool-call-trigger"]').exists()).toBe(true)
-    expect(spoofedMcp.find('[data-testid="workflow-approval-stub"]').exists()).toBe(false)
-    expect(spoofedMcp.find('[data-testid="tool-call-trigger"]').exists()).toBe(true)
-  })
-
   it('renders a trusted live delegation as a navigable task card with raw disclosure', async () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {

@@ -9,11 +9,11 @@ const liveDelegationsModule = Database
   ? await import('@/orchestration/data/tables/liveDelegations').catch(() => null)
   : null
 const MainDatabaseCtor = mainDatabaseModule?.MainDatabase!
-const LIVE_DELEGATION_DATABASE_SCHEMA_VERSION =
-  liveDelegationsModule?.LIVE_DELEGATION_DATABASE_SCHEMA_VERSION
+const ORCHESTRATION_DATABASE_SCHEMA_VERSION =
+  liveDelegationsModule?.ORCHESTRATION_DATABASE_SCHEMA_VERSION
 const DatabaseCtor = Database!
 const describeIfSqlite = nativeSqliteDescribeIf(
-  Boolean(MainDatabaseCtor && LIVE_DELEGATION_DATABASE_SCHEMA_VERSION),
+  Boolean(MainDatabaseCtor && ORCHESTRATION_DATABASE_SCHEMA_VERSION),
   'Live delegation migration modules are unavailable'
 )
 
@@ -44,7 +44,7 @@ describeIfSqlite('live delegation schema migration', () => {
     bootstrap.close()
 
     const migrated = new MainDatabaseCtor(databasePath)
-    expect(migrated.getLatestSchemaVersion()).toBe(LIVE_DELEGATION_DATABASE_SCHEMA_VERSION)
+    expect(migrated.getLatestSchemaVersion()).toBe(ORCHESTRATION_DATABASE_SCHEMA_VERSION)
     migrated.close()
 
     const verification = new DatabaseCtor(databasePath)
@@ -66,7 +66,7 @@ describeIfSqlite('live delegation schema migration', () => {
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
     ).toEqual({
-      version: LIVE_DELEGATION_DATABASE_SCHEMA_VERSION
+      version: ORCHESTRATION_DATABASE_SCHEMA_VERSION
     })
     verification.close()
   })
@@ -99,7 +99,7 @@ describeIfSqlite('live delegation schema migration', () => {
     bootstrap.close()
 
     const migrated = new MainDatabaseCtor(databasePath)
-    expect(migrated.getLatestSchemaVersion()).toBe(LIVE_DELEGATION_DATABASE_SCHEMA_VERSION)
+    expect(migrated.getLatestSchemaVersion()).toBe(ORCHESTRATION_DATABASE_SCHEMA_VERSION)
     migrated.close()
 
     const verification = new DatabaseCtor(databasePath)
@@ -114,7 +114,7 @@ describeIfSqlite('live delegation schema migration', () => {
     ).toEqual({ effect_state: 'none', effect_evidence_json: null })
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
-    ).toEqual({ version: LIVE_DELEGATION_DATABASE_SCHEMA_VERSION })
+    ).toEqual({ version: ORCHESTRATION_DATABASE_SCHEMA_VERSION })
     verification.close()
   })
 
@@ -149,7 +149,7 @@ describeIfSqlite('live delegation schema migration', () => {
     bootstrap.close()
 
     const migrated = new MainDatabaseCtor(databasePath)
-    expect(migrated.getLatestSchemaVersion()).toBe(LIVE_DELEGATION_DATABASE_SCHEMA_VERSION)
+    expect(migrated.getLatestSchemaVersion()).toBe(ORCHESTRATION_DATABASE_SCHEMA_VERSION)
     migrated.close()
 
     const verification = new DatabaseCtor(databasePath)
@@ -164,7 +164,7 @@ describeIfSqlite('live delegation schema migration', () => {
     ).toEqual({ result_summary: 'Done.', result_ref_json: null })
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
-    ).toEqual({ version: LIVE_DELEGATION_DATABASE_SCHEMA_VERSION })
+    ).toEqual({ version: ORCHESTRATION_DATABASE_SCHEMA_VERSION })
     verification.close()
   })
 
@@ -201,7 +201,50 @@ describeIfSqlite('live delegation schema migration', () => {
     expect(columns.some((column) => column.name === 'result_ref_json')).toBe(true)
     expect(
       verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
-    ).toEqual({ version: LIVE_DELEGATION_DATABASE_SCHEMA_VERSION })
+    ).toEqual({ version: ORCHESTRATION_DATABASE_SCHEMA_VERSION })
+    verification.close()
+  })
+
+  it('retires Workflow tables and triggers from a v63 feature database', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workflow-retirement-'))
+    tempDirectories.push(directory)
+    const databasePath = path.join(directory, 'agent.db')
+    const current = new MainDatabaseCtor(databasePath)
+    current.close()
+
+    const bootstrap = new DatabaseCtor(databasePath)
+    bootstrap.exec(`
+      CREATE TABLE workflow_runs (id TEXT PRIMARY KEY);
+      CREATE TABLE workflow_invocations (id TEXT PRIMARY KEY);
+      CREATE TRIGGER trg_workflow_runs_parent_insert
+      AFTER INSERT ON workflow_runs BEGIN SELECT 1; END;
+      CREATE TRIGGER trg_workflow_invocations_run_insert
+      AFTER INSERT ON workflow_invocations BEGIN SELECT 1; END;
+      CREATE TRIGGER trg_workflow_sessions_delete_references
+      AFTER DELETE ON new_sessions BEGIN SELECT 1; END;
+      DELETE FROM schema_versions;
+      INSERT INTO schema_versions (version, applied_at) VALUES (63, 100);
+    `)
+    bootstrap.close()
+
+    const migrated = new MainDatabaseCtor(databasePath)
+    expect(migrated.getLatestSchemaVersion()).toBe(ORCHESTRATION_DATABASE_SCHEMA_VERSION)
+    migrated.close()
+
+    const verification = new DatabaseCtor(databasePath)
+    expect(
+      verification
+        .prepare(
+          `SELECT type, name
+           FROM sqlite_master
+           WHERE name LIKE 'workflow_%' OR name LIKE 'trg_workflow_%'
+           ORDER BY type, name`
+        )
+        .all()
+    ).toEqual([])
+    expect(
+      verification.prepare('SELECT MAX(version) AS version FROM schema_versions').get()
+    ).toEqual({ version: ORCHESTRATION_DATABASE_SCHEMA_VERSION })
     verification.close()
   })
 })

@@ -131,18 +131,11 @@ const sessionState = reactive({
   selectedArtifactContext: null,
   selectedFilePath: null,
   selectedDiffPath: null,
-  selectedWorkflowRunId: null,
-  savedWorkflowInvocationRequest: null as {
-    id: number
-    name: string
-    argsText: string
-  } | null,
   viewMode: 'preview',
   sections: {
     files: true,
     git: true,
-    artifacts: true,
-    workflows: true
+    artifacts: true
   }
 })
 
@@ -154,8 +147,6 @@ const sidepanelStore = reactive({
   clearDiff: clearDiffMock,
   selectFile: selectFileMock,
   selectDiff: selectDiffMock,
-  selectWorkflowRun: vi.fn(),
-  consumeSavedWorkflowRequest: vi.fn(),
   getSessionState: () => sessionState
 })
 
@@ -327,40 +318,6 @@ vi.mock('@/components/workspace/WorkspaceFileNode.vue', () => ({
   })
 }))
 
-vi.mock('@/components/sidepanel/WorkflowPanel.vue', () => ({
-  default: defineComponent({
-    name: 'WorkflowPanel',
-    props: {
-      sessionId: {
-        type: String,
-        required: true
-      },
-      selectedRunId: {
-        type: String,
-        required: false,
-        default: null
-      },
-      savedInvocationRequest: {
-        type: Object,
-        required: false,
-        default: null
-      },
-      savedWorkflowsEnabled: {
-        type: Boolean,
-        required: false,
-        default: false
-      },
-      expanded: {
-        type: Boolean,
-        required: true
-      }
-    },
-    emits: ['toggle', 'selectRun', 'consumeSavedInvocation'],
-    template:
-      '<button data-testid="workflow-panel-stub" @click="$emit(\'toggle\')">Workflow</button>'
-  })
-}))
-
 vi.mock('@/components/sidepanel/WorkspaceViewer.vue', () => ({
   default: defineComponent({
     emits: ['toggle-fullscreen', 'back'],
@@ -378,12 +335,9 @@ describe('WorkspacePanel', () => {
     sessionState.selectedArtifactContext = null
     sessionState.selectedFilePath = null
     sessionState.selectedDiffPath = null
-    sessionState.selectedWorkflowRunId = null
-    sessionState.savedWorkflowInvocationRequest = null
     sessionState.sections.files = true
     sessionState.sections.git = true
     sessionState.sections.artifacts = true
-    sessionState.sections.workflows = true
     artifactStore.currentArtifact = null
     artifactStore.currentMessageId = null
     artifactStore.currentThreadId = null
@@ -395,8 +349,6 @@ describe('WorkspacePanel', () => {
     clearDiffMock.mockReset()
     selectFileMock.mockReset()
     selectDiffMock.mockReset()
-    sidepanelStore.selectWorkflowRun.mockReset()
-    sidepanelStore.consumeSavedWorkflowRequest.mockReset()
     registerWorkspaceMock.mockReset().mockResolvedValue(undefined)
     watchWorkspaceMock.mockReset().mockResolvedValue(undefined)
     unwatchWorkspaceMock.mockReset().mockResolvedValue(undefined)
@@ -459,38 +411,17 @@ describe('WorkspacePanel', () => {
     wrapper.unmount()
   })
 
-  it('renders the workflow section through the shared workspace navigation state', async () => {
-    sessionState.selectedWorkflowRunId = 'run-1'
+  it('does not render a subagent section in the workspace navigation', async () => {
     const wrapper = mount(WorkspacePanel, {
       props: {
         sessionId: 's1',
-        workspacePath: 'C:/repo',
-        savedWorkflowsEnabled: true
+        workspacePath: 'C:/repo'
       }
     })
 
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="workflow-panel-stub"]').exists()).toBe(true)
-    const workflowPanel = wrapper.getComponent({ name: 'WorkflowPanel' })
-    expect(workflowPanel.props('selectedRunId')).toBe('run-1')
-    expect(workflowPanel.props('savedWorkflowsEnabled')).toBe(true)
-    await wrapper.get('[data-testid="workflow-panel-stub"]').trigger('click')
-    expect(toggleSectionMock).toHaveBeenCalledWith('s1', 'workflows')
-    workflowPanel.vm.$emit('selectRun', 'run-2')
-    expect(sidepanelStore.selectWorkflowRun).toHaveBeenCalledWith('s1', 'run-2')
-
-    sessionState.savedWorkflowInvocationRequest = {
-      id: 17,
-      name: 'review',
-      argsText: '{}'
-    }
-    await wrapper.vm.$nextTick()
-    expect(workflowPanel.props('savedInvocationRequest')).toEqual(
-      sessionState.savedWorkflowInvocationRequest
-    )
-    workflowPanel.vm.$emit('consumeSavedInvocation', 17)
-    expect(sidepanelStore.consumeSavedWorkflowRequest).toHaveBeenCalledWith('s1', 17)
+    expect(wrapper.text()).not.toContain('chat.workspace.sections.subagents')
 
     wrapper.unmount()
   })

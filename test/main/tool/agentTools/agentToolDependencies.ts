@@ -57,7 +57,6 @@ export const createAgentToolDependencies = (
       wait: vi.fn().mockResolvedValue({ events: [], cursor: 0, timedOut: true }),
       interrupt: vi.fn()
     } as any),
-  ...(overrides.workflow ? { workflow: overrides.workflow } : {}),
   skills:
     overrides.skillService ??
     ({

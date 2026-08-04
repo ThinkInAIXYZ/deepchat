@@ -1132,7 +1132,7 @@ import {
   useModelCapabilities,
   type RendererModelCapabilities
 } from '@/composables/useModelCapabilities'
-import type { OrchestrationCapability } from '@shared/workflow/orchestrationPolicy'
+import type { OrchestrationCapability } from '@shared/orchestration/policy'
 
 const props = withDefaults(
   defineProps<{
@@ -1343,7 +1343,7 @@ const proactiveSwitchDisabled = computed(
 )
 const orchestrationCapabilityMessage = computed(() => {
   if (orchestrationCapabilityLoadFailed.value) {
-    return t('chat.workflow.states.unavailable')
+    return t('chat.orchestration.proactive.reasons.agent_policy_unavailable')
   }
   const capability = orchestrationCapability.value
   if (capability && !capability.available) {

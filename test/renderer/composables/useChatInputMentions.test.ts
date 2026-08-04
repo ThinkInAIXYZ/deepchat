@@ -1,14 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { TOOL_EXECUTION, type MCPToolDefinition, type PromptListEntry } from '@shared/types/mcp'
 import {
-  buildSavedWorkflowSlashLabel,
   filterSlashSuggestionItems,
   flattenPromptResultToText,
   MAX_FILTERED_SLASH_SUGGESTIONS,
   createManualCompactionSuggestion,
-  createWorkflowCommandSuggestion,
   isManualCompactionCommand,
-  parseWorkflowSlashCommand,
   resolveSlashSelectionAction,
   shouldShowManualCompactionCommand,
   sortSlashSuggestionItems,
@@ -55,17 +52,6 @@ describe('resolveSlashSelectionAction', () => {
     })
   })
 
-  it('routes the built-in Workflow command to the local Workflow surface', () => {
-    const item = createWorkflowCommandSuggestion('Open Workflows')
-
-    expect(item).toMatchObject({
-      id: 'command:workflow',
-      category: 'command',
-      label: '/workflow'
-    })
-    expect(resolveSlashSelectionAction(item)).toEqual({ kind: 'open-workflow' })
-  })
-
   it('dispatches command directly when no input hint', () => {
     const item: SlashSuggestionItem = {
       id: 'command:plan',
@@ -88,27 +74,6 @@ describe('resolveSlashSelectionAction', () => {
 
     const action = resolveSlashSelectionAction(item)
     expect(action.kind).toBe('request-command-input')
-  })
-
-  it('routes saved workflows to the local approval flow', () => {
-    const item: SlashSuggestionItem = {
-      id: 'workflow:review',
-      category: 'workflow',
-      label: '/review',
-      description: '.deepchat/workflows/review.js',
-      payload: {
-        name: 'review',
-        relativePath: '.deepchat/workflows/review.js'
-      }
-    }
-
-    expect(resolveSlashSelectionAction(item)).toEqual({
-      kind: 'request-workflow-input',
-      workflow: {
-        name: 'review',
-        relativePath: '.deepchat/workflows/review.js'
-      }
-    })
   })
 
   it('activates skill without inserting text', () => {
@@ -172,20 +137,11 @@ describe('resolveSlashSelectionAction', () => {
     expect(action.kind).toBe('request-prompt-args')
   })
 
-  it('sorts slash entries by category: command > workflow > skill > prompt > tool', () => {
+  it('sorts slash entries by category: command > skill > prompt > tool', () => {
     const unordered: SlashSuggestionItem[] = [
       { id: 'tool:a', category: 'tool', label: 'z-tool', payload: {} as any },
       { id: 'prompt:a', category: 'prompt', label: 'b-prompt', payload: {} as any },
       { id: 'skill:a', category: 'skill', label: 'c-skill', payload: { name: 'c-skill' } },
-      {
-        id: 'workflow:a',
-        category: 'workflow',
-        label: '/workflow',
-        payload: {
-          name: 'workflow',
-          relativePath: '.deepchat/workflows/workflow.js'
-        }
-      },
       {
         id: 'command:a',
         category: 'command',
@@ -195,13 +151,7 @@ describe('resolveSlashSelectionAction', () => {
     ]
 
     const sorted = sortSlashSuggestionItems(unordered)
-    expect(sorted.map((item) => item.category)).toEqual([
-      'command',
-      'workflow',
-      'skill',
-      'prompt',
-      'tool'
-    ])
+    expect(sorted.map((item) => item.category)).toEqual(['command', 'skill', 'prompt', 'tool'])
   })
 })
 
@@ -242,37 +192,6 @@ describe('manual compaction slash visibility', () => {
     expect(isManualCompactionCommand('  /compact  ')).toBe(true)
     expect(isManualCompactionCommand('/compact now')).toBe(false)
     expect(isManualCompactionCommand('/compactly')).toBe(false)
-  })
-})
-
-describe('Workflow slash parsing', () => {
-  it('keeps surface navigation and saved preparation as separate local actions', () => {
-    expect(parseWorkflowSlashCommand('/workflow')).toEqual({ kind: 'open' })
-    expect(parseWorkflowSlashCommand(' /workflow review ')).toEqual({
-      kind: 'prepare-saved',
-      name: 'review',
-      argsText: '{}'
-    })
-    expect(parseWorkflowSlashCommand('/workflow review {"target":"src"}')).toEqual({
-      kind: 'prepare-saved',
-      name: 'review',
-      argsText: '{"target":"src"}'
-    })
-    expect(parseWorkflowSlashCommand('/workflow\treview')).toEqual({
-      kind: 'prepare-saved',
-      name: 'review',
-      argsText: '{}'
-    })
-  })
-
-  it('does not claim unrelated or invalid saved-workflow commands', () => {
-    expect(parseWorkflowSlashCommand('/workflowx')).toBeNull()
-    expect(parseWorkflowSlashCommand('/workflow ../review')).toBeNull()
-  })
-
-  it('reserves the bare Workflow name for mode activation', () => {
-    expect(buildSavedWorkflowSlashLabel('workflow')).toBe('/workflow workflow')
-    expect(buildSavedWorkflowSlashLabel('review')).toBe('/review')
   })
 })
 

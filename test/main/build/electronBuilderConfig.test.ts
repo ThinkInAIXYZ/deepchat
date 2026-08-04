@@ -77,8 +77,7 @@ describe('electron-builder config', () => {
         '**/node_modules/@opendal/**/*',
         '**/node_modules/@zerob13/nativekit/prebuilds/**/*',
         '**/node_modules/ffi-rs/**/*',
-        '**/node_modules/@yuuang/ffi-rs-*/**/*',
-        '**/node_modules/@jitl/quickjs-wasmfile-release-sync/**/*'
+        '**/node_modules/@yuuang/ffi-rs-*/**/*'
       ])
     )
   })

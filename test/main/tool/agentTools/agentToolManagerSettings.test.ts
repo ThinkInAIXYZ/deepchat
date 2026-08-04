@@ -10,7 +10,7 @@ import {
   DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
   resolveDeepChatSubagentCapability
 } from '@shared/lib/deepchatSubagents'
-import { LIVE_DELEGATION_AGENT_TOOL_NAME, WORKFLOW_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 vi.mock('electron', () => ({
   app: {
@@ -42,7 +42,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   const resolveConversationSessionInfo = vi.fn()
   const getToolDefinitions = vi.fn().mockReturnValue([])
 
-  const buildManager = (workflow?: any) =>
+  const buildManager = () =>
     new AgentToolManager({
       skillSettings: { isEnabled: () => true } as any,
       settings: { get: vi.fn() },
@@ -74,8 +74,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
         getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false),
-        workflow
+        consumeSettingsApproval: vi.fn().mockReturnValue(false)
       })
     })
 
@@ -473,35 +472,5 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(subagentDef?.function.description).toContain('send to leave a message without starting')
     expect(promptSchema?.description).toContain('Bounded child task')
     expect(defs.some((def) => def.function.name === 'subagent_orchestrator')).toBe(false)
-  })
-
-  it('exposes durable Workflow as a system tool without model-owned launch', async () => {
-    skillService.getActiveSkills.mockResolvedValue([])
-    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
-    const workflow = {
-      canUse: vi.fn().mockResolvedValue(true)
-    }
-    const manager = buildManager(workflow)
-
-    const definitions = await manager.getAllToolDefinitions({
-      chatMode: 'agent',
-      supportsVision: false,
-      agentWorkspacePath: null,
-      conversationId: 'conv-1'
-    })
-
-    expect(
-      definitions.some((definition) => definition.function.name === WORKFLOW_AGENT_TOOL_NAME)
-    ).toBe(true)
-
-    const workflowDefinition = definitions.find(
-      (definition) => definition.function.name === WORKFLOW_AGENT_TOOL_NAME
-    )
-    expect(workflowDefinition?.function.parameters.properties?.operation).toMatchObject({
-      enum: expect.not.arrayContaining(['launch'])
-    })
-    await expect(
-      manager.preCheckToolPermission(WORKFLOW_AGENT_TOOL_NAME, { operation: 'list' }, 'conv-1')
-    ).resolves.toBeNull()
   })
 })

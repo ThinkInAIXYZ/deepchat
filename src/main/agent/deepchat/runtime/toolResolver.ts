@@ -28,9 +28,9 @@ import type { SkillSettingsPort } from '@/skill/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 import {
-  normalizePersistedOrchestrationPolicy,
+  normalizeOrchestrationPolicy,
   type OrchestrationPolicy
-} from '@shared/workflow/orchestrationPolicy'
+} from '@shared/orchestration/policy'
 
 type ToolResolverSkillPort = Pick<
   SkillServicePort,
@@ -56,7 +56,7 @@ export class DeepChatToolResolver {
 
   resolveOrchestrationPolicy(sessionId: string): OrchestrationPolicy {
     const sessionRow = this.dependencies.sqlitePresenter.newSessionsTable?.get?.(sessionId)
-    return normalizePersistedOrchestrationPolicy(sessionRow?.orchestration_policy)
+    return normalizeOrchestrationPolicy(sessionRow?.orchestration_policy)
   }
 
   async loadToolDefinitionsForSession(

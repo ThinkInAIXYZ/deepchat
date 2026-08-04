@@ -29,7 +29,6 @@ export default defineConfig({
           backgroundExecUtilityHost: resolve('src/main/backgroundExecUtilityHostEntry.ts'),
           fileWatcherUtilityHost: resolve('src/main/fileWatcherUtilityHostEntry.ts'),
           schedulerUtilityHost: resolve('src/main/schedulerUtilityHostEntry.ts'),
-          workflowUtilityHost: resolve('src/main/workflowUtilityHostEntry.ts'),
           lightOcrHelper: resolve('src/main/lightOcrHelperEntry.ts')
         },
         external: ['sharp', '@duckdb/node-api'],

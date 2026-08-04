@@ -88,10 +88,6 @@ import type {
   ClaimedPendingInputHandle,
   TurnCompletion
 } from './pendingInputContracts'
-import {
-  WORKFLOW_RESULT_TEXT_SAFETY_RULE,
-  isWorkflowResultSynthesisPrompt
-} from '@shared/workflow/resultDelivery'
 
 type TurnRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
@@ -509,12 +505,10 @@ export class TurnCoordinator {
       // Retry truncation is destructive. Keep it after all independent resource I/O, but before
       // history/compaction preparation so those stages observe the replacement transcript.
       context?.beforeHistoryPreparation?.()
-      let shouldGuardAttachmentText = content.files?.some(hasUntrustedAttachmentText) === true
-      let shouldGuardWorkflowResultText = isWorkflowResultSynthesisPrompt(content.text)
-      let baseSystemPrompt = appendUntrustedTextSafetyRules(unguardedBaseSystemPrompt, {
-        attachment: shouldGuardAttachmentText,
-        workflowResult: shouldGuardWorkflowResultText
-      })
+      let shouldGuardAttachmentText = content.files?.some(hasUntrustedAttachmentText)
+      let baseSystemPrompt = shouldGuardAttachmentText
+        ? appendAttachmentTextSafetyRule(unguardedBaseSystemPrompt)
+        : unguardedBaseSystemPrompt
       const userContent: UserMessageContent = {
         text: content.text,
         files: content.files || [],
@@ -537,17 +531,8 @@ export class TurnCoordinator {
       const prepareCompactionIntent = async (historyRecords: ChatMessageRecord[]) => {
         if (!shouldGuardAttachmentText && historyContainsUntrustedAttachmentText(historyRecords)) {
           shouldGuardAttachmentText = true
+          baseSystemPrompt = appendAttachmentTextSafetyRule(unguardedBaseSystemPrompt)
         }
-        if (
-          !shouldGuardWorkflowResultText &&
-          historyContainsWorkflowResultSynthesis(historyRecords)
-        ) {
-          shouldGuardWorkflowResultText = true
-        }
-        baseSystemPrompt = appendUntrustedTextSafetyRules(unguardedBaseSystemPrompt, {
-          attachment: shouldGuardAttachmentText,
-          workflowResult: shouldGuardWorkflowResultText
-        })
         if (!useContextBudget) {
           return null
         }
@@ -836,10 +821,9 @@ export class TurnCoordinator {
               toolDefinitions: refreshedTools,
               activeSkillNames: activeSkillNames ?? effectiveActiveSkillNames
             })
-            return appendUntrustedTextSafetyRules(refreshedBasePrompt, {
-              attachment: shouldGuardAttachmentText,
-              workflowResult: shouldGuardWorkflowResultText
-            })
+            return shouldGuardAttachmentText
+              ? appendAttachmentTextSafetyRule(refreshedBasePrompt)
+              : refreshedBasePrompt
           },
           interleavedReasoning,
           viewContext: {
@@ -1163,7 +1147,6 @@ export class TurnCoordinator {
       })
       let baseSystemPrompt = unguardedBaseSystemPrompt
       let shouldGuardAttachmentText = false
-      let shouldGuardWorkflowResultText = false
       let resumeTargetOrderSeq: number | undefined
       const preparedInput = await this.ports.inputPreparationCoordinator.prepareExisting({
         ensureHistory: () =>
@@ -1191,14 +1174,8 @@ export class TurnCoordinator {
         prepareIntent: async (historyRecords) => {
           if (historyContainsUntrustedAttachmentText(historyRecords)) {
             shouldGuardAttachmentText = true
+            baseSystemPrompt = appendAttachmentTextSafetyRule(unguardedBaseSystemPrompt)
           }
-          if (historyContainsWorkflowResultSynthesis(historyRecords)) {
-            shouldGuardWorkflowResultText = true
-          }
-          baseSystemPrompt = appendUntrustedTextSafetyRules(unguardedBaseSystemPrompt, {
-            attachment: shouldGuardAttachmentText,
-            workflowResult: shouldGuardWorkflowResultText
-          })
           resumeTargetOrderSeq =
             historyRecords.find((record) => record.id === messageId)?.orderSeq ??
             this.ports.messageStore.getMessage(messageId)?.orderSeq
@@ -1404,10 +1381,9 @@ export class TurnCoordinator {
               toolDefinitions: refreshedTools,
               activeSkillNames: activeSkillNames ?? effectiveActiveSkillNames
             })
-            return appendUntrustedTextSafetyRules(refreshedBasePrompt, {
-              attachment: shouldGuardAttachmentText,
-              workflowResult: shouldGuardWorkflowResultText
-            })
+            return shouldGuardAttachmentText
+              ? appendAttachmentTextSafetyRule(refreshedBasePrompt)
+              : refreshedBasePrompt
           },
           interleavedReasoning,
           viewContext: {
@@ -1592,25 +1568,12 @@ export class TurnCoordinator {
   }
 }
 
-function appendUntrustedTextSafetyRules(
-  prompt: string,
-  guards: { attachment: boolean; workflowResult: boolean }
-): string {
-  const rules = [
-    ...(guards.attachment ? [ATTACHMENT_TEXT_SAFETY_RULE] : []),
-    ...(guards.workflowResult ? [WORKFLOW_RESULT_TEXT_SAFETY_RULE] : [])
-  ]
-  if (rules.length === 0) {
-    return prompt
-  }
-  let guardedPrompt = prompt.trimEnd()
-  for (const rule of rules) {
-    if (guardedPrompt.includes(rule)) {
-      continue
-    }
-    guardedPrompt = guardedPrompt ? `${guardedPrompt}\n\n${rule}` : rule
-  }
-  return guardedPrompt
+function appendAttachmentTextSafetyRule(prompt: string): string {
+  if (prompt.includes(ATTACHMENT_TEXT_SAFETY_RULE)) return prompt
+  const trimmedPrompt = prompt.trimEnd()
+  return trimmedPrompt
+    ? `${trimmedPrompt}\n\n${ATTACHMENT_TEXT_SAFETY_RULE}`
+    : ATTACHMENT_TEXT_SAFETY_RULE
 }
 
 function historyContainsUntrustedAttachmentText(
@@ -1620,16 +1583,6 @@ function historyContainsUntrustedAttachmentText(
     (record) =>
       record.role === 'user' &&
       extractUserMessageInput(record.content).files?.some(hasUntrustedAttachmentText)
-  )
-}
-
-function historyContainsWorkflowResultSynthesis(
-  records: readonly Pick<ChatMessageRecord, 'role' | 'content'>[]
-): boolean {
-  return records.some(
-    (record) =>
-      record.role === 'user' &&
-      isWorkflowResultSynthesisPrompt(extractUserMessageInput(record.content).text)
   )
 }
 

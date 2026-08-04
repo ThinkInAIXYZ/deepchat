@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { OrchestrationPolicySchema } from '../workflow/orchestrationPolicy'
+import { OrchestrationPolicySchema } from '../orchestration/policy'
 import { ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import type { Agent } from '../types/agent-interface'
 import {
@@ -30,7 +30,6 @@ import {
 } from '../types/attachment'
 import { isValidDocumentOcrTextPageSpans } from '../utils/documentOcrText'
 import { LiveDelegationSubagentContextSchema } from '../orchestration/liveDelegation'
-import { WorkflowSubagentContextSchema } from '../workflow/subagent'
 
 export type JsonValue =
   | string
@@ -147,11 +146,7 @@ export const DeepChatSubagentMetaSchema = z
     slotId: EntityIdSchema,
     displayName: z.string(),
     targetAgentId: EntityIdSchema.nullable().optional(),
-    workflow: WorkflowSubagentContextSchema.optional(),
     liveDelegation: LiveDelegationSubagentContextSchema.optional()
-  })
-  .refine((value) => !(value.workflow && value.liveDelegation), {
-    message: 'A Subagent cannot belong to a Workflow and a live delegation.'
   })
   .nullable()
 

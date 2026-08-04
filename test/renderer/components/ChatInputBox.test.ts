@@ -112,9 +112,6 @@ vi.mock('@tiptap/vue-3', () => {
       }),
       updateState: vi.fn()
     }
-    public get isEmpty() {
-      return mockEditorText.trim().length === 0
-    }
     public setEditable = vi.fn()
     constructor(options: any) {
       lastEditorOptions = options
@@ -129,7 +126,7 @@ vi.mock('@tiptap/vue-3', () => {
     chain() {
       const api = {
         focus: () => api,
-        insertContent: (content: unknown) => {
+        insertContent: (content: string) => {
           insertContentMock(content)
           return api
         },
@@ -302,94 +299,6 @@ describe('ChatInputBox attachments', () => {
     expect(mentionOptions?.agentId.value).toBe('agent-a')
   })
 
-  it('routes saved workflow requests through a dedicated local event', async () => {
-    const wrapper = await mountComponent()
-    const mentionOptions = useChatInputMentionsMock.mock.calls.at(-1)?.[0] as
-      | {
-          onWorkflowSubmit?: (name: string, argsText: string) => void
-        }
-      | undefined
-
-    mentionOptions?.onWorkflowSubmit?.('review', '{"target":"src"}')
-
-    expect(wrapper.emitted('workflow-submit')).toEqual([['review', '{"target":"src"}']])
-    expect(wrapper.emitted('command-submit')).toBeUndefined()
-  })
-
-  it('routes the built-in Workflow command to the local Workflow surface', async () => {
-    const wrapper = await mountComponent()
-    const mentionOptions = useChatInputMentionsMock.mock.calls.at(-1)?.[0] as
-      | {
-          workflowCommandEnabled: { value: boolean }
-          onWorkflowOpen?: () => void
-        }
-      | undefined
-
-    expect(mentionOptions?.workflowCommandEnabled.value).toBe(false)
-    await wrapper.setProps({ workflowCommandEnabled: true })
-    expect(mentionOptions?.workflowCommandEnabled.value).toBe(true)
-
-    mentionOptions?.onWorkflowOpen?.()
-
-    expect(wrapper.emitted('workflow-open')).toEqual([[]])
-    expect(wrapper.emitted('command-submit')).toBeUndefined()
-  })
-
-  it('handles typed Workflow commands locally without model submission', async () => {
-    const openWrapper = await mountComponent()
-    await openWrapper.setProps({
-      modelValue: '/workflow',
-      workflowCommandEnabled: true
-    })
-    await openWrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
-      key: 'Enter'
-    })
-
-    expect(openWrapper.emitted('workflow-open')).toEqual([[]])
-    expect(openWrapper.emitted('update:modelValue')).toContainEqual([''])
-    expect(openWrapper.emitted('submit')).toBeUndefined()
-
-    const savedWrapper = await mountComponent()
-    await savedWrapper.setProps({
-      modelValue: '/workflow review {"target":"src"}',
-      workflowEnabled: true,
-      workflowCommandEnabled: true
-    })
-    await savedWrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
-      key: 'Enter'
-    })
-
-    expect(savedWrapper.emitted('workflow-submit')).toEqual([['review', '{"target":"src"}']])
-    expect(savedWrapper.emitted('workflow-open')).toBeUndefined()
-    expect(savedWrapper.emitted('submit')).toBeUndefined()
-  })
-
-  it('exposes the same local Workflow command guard to toolbar submission', async () => {
-    const wrapper = await mountComponent()
-    await wrapper.setProps({
-      modelValue: '/workflow',
-      workflowCommandEnabled: true
-    })
-
-    expect((wrapper.vm as any).consumeWorkflowSlashCommand()).toBe(true)
-    expect(wrapper.emitted('workflow-open')).toEqual([[]])
-    expect(wrapper.emitted('update:modelValue')).toContainEqual([''])
-    expect(wrapper.emitted('submit')).toBeUndefined()
-  })
-
-  it('does not consume local Workflow commands while the editor is read-only', async () => {
-    const wrapper = await mountComponent()
-    await wrapper.setProps({
-      modelValue: '/workflow',
-      workflowCommandEnabled: true,
-      editable: false
-    })
-
-    expect((wrapper.vm as any).consumeWorkflowSlashCommand()).toBe(false)
-    expect(wrapper.emitted('workflow-open')).toBeUndefined()
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-  })
-
   it('provides reactive attachment context and fails open when OCR status cannot be read', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     let attachmentContext: AttachmentNodeContext | undefined
@@ -557,21 +466,6 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     ;(wrapper.vm as any).insertRecognizedText('hello world')
     expect(insertContentMock).toHaveBeenCalledWith('hello world')
-  })
-
-  it('appends a staged text block without overwriting the existing draft', async () => {
-    const wrapper = await mountComponent()
-    mockEditorText = 'existing draft'
-
-    ;(wrapper.vm as any).insertTextBlock('revise the workflow')
-
-    expect(insertContentMock).toHaveBeenCalledWith([
-      { type: 'paragraph' },
-      {
-        type: 'paragraph',
-        content: [{ type: 'text', text: 'revise the workflow' }]
-      }
-    ])
   })
 
   it('exposes insertWorkspaceReference and inserts a workspace reference into the editor', async () => {

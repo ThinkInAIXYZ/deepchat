@@ -35,13 +35,3 @@ export const DEFAULT_ORCHESTRATION_POLICY: OrchestrationPolicy = 'explicit'
 export function normalizeOrchestrationPolicy(value: unknown): OrchestrationPolicy {
   return OrchestrationPolicySchema.safeParse(value).data ?? DEFAULT_ORCHESTRATION_POLICY
 }
-
-export function normalizePersistedOrchestrationPolicy(value: unknown): OrchestrationPolicy {
-  if (value === 'adaptive') {
-    return 'explicit'
-  }
-  if (value === 'workflow') {
-    return 'proactive'
-  }
-  return normalizeOrchestrationPolicy(value)
-}

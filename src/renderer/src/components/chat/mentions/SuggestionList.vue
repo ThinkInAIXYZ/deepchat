@@ -38,7 +38,7 @@
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 
-export type SuggestionCategory = 'file' | 'command' | 'workflow' | 'skill' | 'prompt' | 'tool'
+export type SuggestionCategory = 'file' | 'command' | 'skill' | 'prompt' | 'tool'
 
 export interface SuggestionListItem {
   id: string
@@ -81,8 +81,6 @@ const categoryTag = (category: SuggestionCategory) => {
   switch (category) {
     case 'command':
       return '/'
-    case 'workflow':
-      return 'WF'
     case 'skill':
       return 'SK'
     case 'prompt':

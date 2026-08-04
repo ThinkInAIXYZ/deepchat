@@ -6,7 +6,6 @@ import type {
   DisplayAssistantMessage,
   DisplayAssistantMessageBlock
 } from '@/features/chat-page/model/displayMessage'
-import { WORKFLOW_EVENTS } from '@/events'
 
 const memoryActivity = vi.hoisted(() => ({
   enabled: false,
@@ -276,34 +275,6 @@ describe('MessageItemAssistant', () => {
 
     expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
     expect(wrapper.find('[data-message-content="true"]').exists()).toBe(true)
-  })
-
-  it('opens the durable Workflow run from a Workflow result message', async () => {
-    const openListener = vi.fn()
-    window.addEventListener(WORKFLOW_EVENTS.OPEN_REQUESTED, openListener)
-
-    try {
-      const wrapper = mount(MessageItemAssistant, {
-        props: {
-          message: createMessage('sent', [], {
-            messageType: 'workflow_result',
-            workflowRunId: 'run-1'
-          }),
-          isCapturingImage: false
-        },
-        global
-      })
-
-      await wrapper.get('[data-testid="workflow-result-open"]').trigger('click')
-
-      expect(openListener).toHaveBeenCalledTimes(1)
-      expect((openListener.mock.calls[0][0] as CustomEvent).detail).toEqual({
-        sessionId: 's1',
-        runId: 'run-1'
-      })
-    } finally {
-      window.removeEventListener(WORKFLOW_EVENTS.OPEN_REQUESTED, openListener)
-    }
   })
 
   it('keeps the message content wrapper stable when the first pending content arrives', async () => {

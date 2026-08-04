@@ -202,7 +202,7 @@ import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOve
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
-import { DEFAULT_ORCHESTRATION_POLICY } from '@shared/workflow/orchestrationPolicy'
+import { DEFAULT_ORCHESTRATION_POLICY } from '@shared/orchestration/policy'
 import type {
   DeepChatAgentConfig,
   MessageFile,
@@ -264,7 +264,6 @@ const chatInputRef = ref<{
   getPendingSkillsSnapshot?: () => string[]
   clearPendingSkills?: () => void
   focusInput?: () => void
-  consumeWorkflowSlashCommand?: () => boolean
 } | null>(null)
 const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
@@ -854,8 +853,6 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
 
 async function onSubmit() {
   if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
-  if (chatInputRef.value?.consumeWorkflowSlashCommand?.()) return
-
   const text = message.value.trim()
   if (!text && (isAcpSelectedAgent.value || attachedFiles.value.length === 0)) return
   if (shouldIgnoreManualCompactionDraft(text)) return

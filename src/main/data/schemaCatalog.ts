@@ -39,13 +39,6 @@ import { SettingsActivityTable } from '@/settings/data/tables/settingsActivity'
 import { CronJobsTable } from '@/scheduler/data/tables/cronJobs'
 import { CronJobRunsTable } from '@/scheduler/data/tables/cronJobRuns'
 import { CronJobDeliveriesTable } from '@/scheduler/data/tables/cronJobDeliveries'
-import {
-  LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH,
-  WORKFLOW_EXECUTION_SNAPSHOT_ADD_COLUMN_SQL,
-  WORKFLOW_EXECUTION_SNAPSHOT_BACKFILL_SQL,
-  WorkflowRunsTable
-} from '@/workflow/data/tables/workflowRuns'
-import { WorkflowInvocationsTable } from '@/workflow/data/tables/workflowInvocations'
 import { LiveDelegationEventsTable } from '@/orchestration/data/tables/liveDelegationEvents'
 import { LiveDelegationsTable } from '@/orchestration/data/tables/liveDelegations'
 import {
@@ -339,52 +332,6 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     createTable: (db) => new CronJobDeliveriesTable(db)
   },
   {
-    name: 'workflow_runs',
-    createTable: (db) => new WorkflowRunsTable(db),
-    repairableColumns: {
-      workspace_path: `ALTER TABLE workflow_runs
-        ADD COLUMN workspace_path TEXT CHECK (
-          workspace_path IS NULL
-          OR (
-            length(workspace_path) BETWEEN 1 AND 4096
-            AND instr(workspace_path, char(0)) = 0
-          )
-        );`,
-      capability_scope_hash: `ALTER TABLE workflow_runs
-        ADD COLUMN capability_scope_hash TEXT NOT NULL
-        DEFAULT '${LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH}' CHECK (
-          length(capability_scope_hash) = 64
-          AND capability_scope_hash NOT GLOB '*[^0-9a-f]*'
-        );`,
-      execution_snapshot_json: `${WORKFLOW_EXECUTION_SNAPSHOT_ADD_COLUMN_SQL};`
-    },
-    afterRepair: (db, addedColumns) => {
-      db.exec('DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot')
-      if (addedColumns.has('execution_snapshot_json')) {
-        db.exec(WORKFLOW_EXECUTION_SNAPSHOT_BACKFILL_SQL)
-      }
-      new WorkflowRunsTable(db).createTable()
-      new WorkflowInvocationsTable(db).createTable()
-    },
-    typeCheckedColumns: [
-      'runtime_api_version',
-      'execution_snapshot_json',
-      'execution_epoch',
-      'next_invocation_seq',
-      'created_at',
-      'updated_at',
-      'revision'
-    ]
-  },
-  {
-    name: 'workflow_invocations',
-    createTable: (db) => new WorkflowInvocationsTable(db),
-    afterRepair: (db) => {
-      new WorkflowInvocationsTable(db).createTable()
-    },
-    typeCheckedColumns: ['seq', 'attempt', 'execution_epoch', 'created_at', 'updated_at']
-  },
-  {
     name: 'live_delegations',
     createTable: (db) => new LiveDelegationsTable(db),
     typeCheckedColumns: ['last_turn_seq', 'created_at', 'updated_at', 'revision']
@@ -508,8 +455,6 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const cronJobs = new CronJobsTable(db)
   const cronJobRuns = new CronJobRunsTable(db)
   const cronJobDeliveries = new CronJobDeliveriesTable(db)
-  const workflowRuns = new WorkflowRunsTable(db)
-  const workflowInvocations = new WorkflowInvocationsTable(db)
   const liveDelegations = new LiveDelegationsTable(db)
   const liveDelegationTurns = new LiveDelegationTurnsTable(db)
   const liveDelegationEvents = new LiveDelegationEventsTable(db)
@@ -551,8 +496,6 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     cronJobs,
     cronJobRuns,
     cronJobDeliveries,
-    workflowRuns,
-    workflowInvocations,
     liveDelegations,
     liveDelegationTurns,
     liveDelegationEvents

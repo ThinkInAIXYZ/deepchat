@@ -11,13 +11,11 @@ import type {
   SessionRecord
 } from '@shared/types/agent-interface'
 import type { SessionListPageCursor } from '@/session/data/tables/newSessions'
-import { parseWorkflowSubagentContext } from '@shared/workflow/subagent'
 import { parseLiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
 import {
   normalizeOrchestrationPolicy,
-  normalizePersistedOrchestrationPolicy,
   type OrchestrationPolicy
-} from '@shared/workflow/orchestrationPolicy'
+} from '@shared/orchestration/policy'
 
 const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta | null => {
   if (!raw) {
@@ -30,10 +28,7 @@ const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta
       return null
     }
 
-    const workflow = parseWorkflowSubagentContext(parsed.workflow)
-    const correlatedWorkflow = workflow?.correlationSlot === parsed.slotId ? workflow : undefined
     const liveDelegation = parseLiveDelegationSubagentContext(parsed.liveDelegation)
-    const hasConflictingOwners = Boolean(correlatedWorkflow && liveDelegation)
     return {
       slotId: parsed.slotId,
       displayName: typeof parsed.displayName === 'string' ? parsed.displayName : parsed.slotId,
@@ -41,8 +36,7 @@ const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta
         parsed.targetAgentId === null || typeof parsed.targetAgentId === 'string'
           ? parsed.targetAgentId
           : undefined,
-      ...(!hasConflictingOwners && correlatedWorkflow ? { workflow: correlatedWorkflow } : {}),
-      ...(!hasConflictingOwners && liveDelegation ? { liveDelegation } : {})
+      ...(liveDelegation ? { liveDelegation } : {})
     }
   } catch {
     return null
@@ -278,7 +272,7 @@ export class AppSessionService implements AppSessionReadPort {
       sessionKind: row.session_kind === 'subagent' ? 'subagent' : 'regular',
       parentSessionId: row.parent_session_id ?? null,
       subagentMeta: parseSubagentMeta(row.subagent_meta_json),
-      orchestrationPolicy: normalizePersistedOrchestrationPolicy(row.orchestration_policy),
+      orchestrationPolicy: normalizeOrchestrationPolicy(row.orchestration_policy),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       revision: row.revision,

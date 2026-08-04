@@ -17,7 +17,6 @@ import type {
   SubagentTapeLinkInput,
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
-import type { WorkflowSubagentContext } from '@shared/workflow/subagent'
 import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
 import type {
   LiveDelegationDetail,
@@ -25,11 +24,6 @@ import type {
   LiveDelegationResultPage,
   LiveDelegationSummary
 } from '@shared/orchestration/liveDelegation'
-import type { WorkflowRunDetail, WorkflowRunSummary } from '@shared/workflow/projection'
-import type {
-  WorkflowLaunchApproval,
-  WorkflowLaunchIntent
-} from '@shared/workflow/serviceContracts'
 import type { AgentInvocationAdmissionPort } from '@/agent/invocationAdmission'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
@@ -80,7 +74,6 @@ export interface CreateSubagentSessionInput {
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
   activeSkills?: string[]
-  workflowContext?: WorkflowSubagentContext
   liveDelegationContext?: LiveDelegationSubagentContext
 }
 
@@ -143,29 +136,6 @@ export interface AgentSubagentToolPort {
   sendConversationMessage(conversationId: string, content: string | SendMessageInput): Promise<void>
   cancelConversation(conversationId: string): Promise<void>
   subscribeSessionRuntimeUpdates(listener: (update: SessionRuntimeUpdate) => void): () => void
-}
-
-export interface AgentWorkflowToolPort {
-  canUse(parentSessionId: string): Promise<boolean>
-  prepareLaunch(
-    parentSessionId: string,
-    input: Omit<WorkflowLaunchIntent, 'parentSessionId' | 'allowedAgentIds'> & {
-      allowedAgentIds?: string[]
-    }
-  ): Promise<WorkflowLaunchApproval>
-  list(parentSessionId: string, limit?: number): Promise<WorkflowRunSummary[]>
-  inspect(parentSessionId: string, runId: string): Promise<WorkflowRunDetail>
-  cancel(parentSessionId: string, runId: string, reason?: string): Promise<WorkflowRunSummary>
-  resume(parentSessionId: string, runId: string): Promise<WorkflowRunSummary>
-  retry(
-    parentSessionId: string,
-    input: {
-      runId: string
-      invocationId: string
-      fromHere?: boolean
-      confirmEffects?: boolean
-    }
-  ): Promise<WorkflowRunSummary>
 }
 
 export interface AgentLiveDelegationToolPort {
@@ -247,7 +217,6 @@ export interface AgentToolDependencies {
   cronJobs: AgentCronJobToolPort
   subagents: AgentSubagentToolPort
   liveDelegation?: AgentLiveDelegationToolPort
-  workflow?: AgentWorkflowToolPort
   agentInvocationAdmission: AgentInvocationAdmissionPort
   skills: SkillServicePort
   browser: AgentBrowserToolPort

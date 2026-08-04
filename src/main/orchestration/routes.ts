@@ -9,7 +9,7 @@ import {
   DEFAULT_ORCHESTRATION_POLICY,
   type OrchestrationCapability,
   type OrchestrationPolicy
-} from '@shared/workflow/orchestrationPolicy'
+} from '@shared/orchestration/policy'
 import type {
   LiveDelegationDetail,
   LiveDelegationSummary

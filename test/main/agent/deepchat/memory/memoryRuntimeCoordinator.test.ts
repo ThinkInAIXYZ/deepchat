@@ -872,7 +872,7 @@ describe('MemoryRuntimeCoordinator', () => {
     expect(deps.getTapeRows).toHaveBeenCalledTimes(2)
   })
 
-  it('excludes workflow result notices when rebuilding memory ingestion from Tape', () => {
+  it('excludes retired workflow result notices when rebuilding memory ingestion', () => {
     const { coordinator, projection, setRows } = createHarness()
     setRows([
       createRecord('u1', 1, 'Remember Redis.'),

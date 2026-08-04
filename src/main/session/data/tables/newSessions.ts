@@ -1,16 +1,13 @@
 import Database from 'better-sqlite3-multiple-ciphers'
-import { LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME } from '@shared/agentTools'
 import {
   DEFAULT_ORCHESTRATION_POLICY,
   normalizeOrchestrationPolicy,
-  normalizePersistedOrchestrationPolicy,
   type OrchestrationPolicy
-} from '@shared/workflow/orchestrationPolicy'
+} from '@shared/orchestration/policy'
 import { BaseTable } from '@/data/baseTable'
 
 const ADD_REVISION_COLUMN_SQL =
   'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
-export const LEGACY_SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION = 57
 export const SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION = 59
 
 export interface NewSessionRow {
@@ -84,10 +81,6 @@ export class NewSessionsTable extends BaseTable {
       columns.push(
         "orchestration_policy TEXT NOT NULL DEFAULT 'explicit' CHECK (orchestration_policy IN ('explicit', 'proactive'))"
       )
-    } else if (version >= LEGACY_SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION) {
-      columns.push(
-        "orchestration_mode TEXT NOT NULL DEFAULT 'adaptive' CHECK (orchestration_mode IN ('adaptive', 'workflow'))"
-      )
     }
 
     columns.push('created_at INTEGER NOT NULL', 'updated_at INTEGER NOT NULL')
@@ -127,64 +120,11 @@ export class NewSessionsTable extends BaseTable {
       // that global version, so they need a forward recovery migration.
       return ADD_REVISION_COLUMN_SQL
     }
-    if (version === LEGACY_SESSION_ORCHESTRATION_MODE_SCHEMA_VERSION) {
-      return `
-        ALTER TABLE new_sessions
-          ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'adaptive'
-          CHECK (orchestration_mode IN ('adaptive', 'workflow'));
-
-        INSERT INTO new_session_disabled_agent_tools (session_id, ordinal, tool_name)
-        SELECT
-          new_sessions.id,
-          CAST(json_each.key AS INTEGER),
-          json_each.value
-        FROM new_sessions,
-          json_each(
-            CASE
-              WHEN json_valid(new_sessions.disabled_agent_tools) = 0 THEN '[]'
-              WHEN json_type(new_sessions.disabled_agent_tools) = 'array'
-                THEN new_sessions.disabled_agent_tools
-              ELSE '[]'
-            END
-          )
-        WHERE json_each.type = 'text'
-          AND NOT EXISTS (
-            SELECT 1
-            FROM new_session_disabled_agent_tools AS normalized
-            WHERE normalized.session_id = new_sessions.id
-          );
-
-        DELETE FROM new_session_disabled_agent_tools
-        WHERE tool_name = '${LEGACY_DEEPCHAT_WORKFLOW_TOOL_NAME}';
-
-        UPDATE new_sessions
-        SET disabled_agent_tools = COALESCE(
-          (
-            SELECT json_group_array(ordered.tool_name)
-            FROM (
-              SELECT normalized.tool_name
-              FROM new_session_disabled_agent_tools AS normalized
-              WHERE normalized.session_id = new_sessions.id
-              ORDER BY normalized.ordinal
-            ) AS ordered
-          ),
-          '[]'
-        );
-      `
-    }
     if (version === SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION) {
       return `
         ALTER TABLE new_sessions
           ADD COLUMN orchestration_policy TEXT NOT NULL DEFAULT 'explicit'
           CHECK (orchestration_policy IN ('explicit', 'proactive'));
-
-        UPDATE new_sessions
-        SET orchestration_policy = CASE orchestration_mode
-          WHEN 'workflow' THEN 'proactive'
-          ELSE 'explicit'
-        END;
-
-        ALTER TABLE new_sessions DROP COLUMN orchestration_mode;
       `
     }
     return null
@@ -491,9 +431,7 @@ export class NewSessionsTable extends BaseTable {
     const row = this.db
       .prepare('SELECT orchestration_policy FROM new_sessions WHERE id = ?')
       .get(id) as { orchestration_policy?: unknown } | undefined
-    return normalizePersistedOrchestrationPolicy(
-      row?.orchestration_policy ?? DEFAULT_ORCHESTRATION_POLICY
-    )
+    return normalizeOrchestrationPolicy(row?.orchestration_policy ?? DEFAULT_ORCHESTRATION_POLICY)
   }
 
   updateOrchestrationPolicy(id: string, policy: OrchestrationPolicy): void {

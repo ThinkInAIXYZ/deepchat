@@ -9,7 +9,7 @@ import type { ModelRequestPolicy } from '../../../src/shared/modelRequestPolicy'
 import type {
   OrchestrationPolicy,
   OrchestrationCapability
-} from '../../../src/shared/workflow/orchestrationPolicy'
+} from '../../../src/shared/orchestration/policy'
 
 const TEST_TIMEOUT_MS = 20000
 
@@ -905,7 +905,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(sessionStore.applyConfirmedOrchestrationPolicy).not.toHaveBeenCalled()
     expect(sessionStore.activeSession?.orchestrationPolicy).toBe('explicit')
     expect(wrapper.get('[data-testid="orchestration-capability-message"]').text()).toBe(
-      'chat.workflow.states.unavailable'
+      'chat.orchestration.proactive.reasons.agent_policy_unavailable'
     )
   })
 

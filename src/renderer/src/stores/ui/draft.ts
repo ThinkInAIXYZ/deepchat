@@ -6,7 +6,7 @@ import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import {
   DEFAULT_ORCHESTRATION_POLICY,
   type OrchestrationPolicy
-} from '@shared/workflow/orchestrationPolicy'
+} from '@shared/orchestration/policy'
 import type {
   CreateSessionInput,
   PermissionMode,

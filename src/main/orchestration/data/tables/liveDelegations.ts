@@ -5,6 +5,7 @@ import type { LiveDelegationStatus } from '@shared/orchestration/liveDelegation'
 export const LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION = 60
 export const LIVE_DELEGATION_EFFECT_DATABASE_SCHEMA_VERSION = 61
 export const LIVE_DELEGATION_DATABASE_SCHEMA_VERSION = 62
+export const ORCHESTRATION_DATABASE_SCHEMA_VERSION = 64
 
 export interface LiveDelegationRow {
   delegation_id: string
@@ -82,6 +83,21 @@ const LIVE_DELEGATIONS_CHILD_BIND_TRIGGER_SQL = `
 
 const LIVE_DELEGATIONS_TRIGGER_SQL = `${LIVE_DELEGATIONS_CORE_TRIGGER_SQL}\n${LIVE_DELEGATIONS_CHILD_BIND_TRIGGER_SQL}`
 
+const RETIRED_WORKFLOW_SCHEMA_SQL = `
+  DROP TRIGGER IF EXISTS trg_workflow_runs_parent_insert;
+  DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot;
+  DROP TRIGGER IF EXISTS trg_workflow_invocations_run_insert;
+  DROP TRIGGER IF EXISTS trg_workflow_invocations_child_insert;
+  DROP TRIGGER IF EXISTS trg_workflow_invocations_child_update;
+  DROP TRIGGER IF EXISTS trg_workflow_invocations_immutable_identity;
+  DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_arm;
+  DROP TRIGGER IF EXISTS trg_workflow_invocations_timeout_required;
+  DROP TRIGGER IF EXISTS trg_workflow_runs_delete_invocations;
+  DROP TRIGGER IF EXISTS trg_workflow_sessions_delete_references;
+  DROP TABLE IF EXISTS workflow_invocations;
+  DROP TABLE IF EXISTS workflow_runs;
+`
+
 export class LiveDelegationsTable extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'live_delegations')
@@ -102,9 +118,13 @@ export class LiveDelegationsTable extends BaseTable {
   }
 
   getMigrationSQL(version: number): string | null {
-    return version === LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION
-      ? LIVE_DELEGATIONS_BASE_SCHEMA_SQL
-      : null
+    if (version === LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION) {
+      return LIVE_DELEGATIONS_BASE_SCHEMA_SQL
+    }
+    if (version === ORCHESTRATION_DATABASE_SCHEMA_VERSION) {
+      return RETIRED_WORKFLOW_SCHEMA_SQL
+    }
+    return null
   }
 
   finalizeMigration(version: number): void {
@@ -114,7 +134,7 @@ export class LiveDelegationsTable extends BaseTable {
   }
 
   getLatestVersion(): number {
-    return LIVE_DELEGATION_DATABASE_SCHEMA_VERSION
+    return ORCHESTRATION_DATABASE_SCHEMA_VERSION
   }
 
   get(id: string): LiveDelegationRow | undefined {

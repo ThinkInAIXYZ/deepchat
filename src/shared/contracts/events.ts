@@ -138,11 +138,6 @@ import {
   workspaceInvalidatedEvent,
   workspaceWatchStatusChangedEvent
 } from './events/workspace.events'
-import {
-  workflowInvocationChangedEvent,
-  workflowLogEvent,
-  workflowRunChangedEvent
-} from './events/workflow.events'
 import { liveDelegationChangedEvent } from './events/orchestration.events'
 
 export * from './events/browser.events'
@@ -172,15 +167,11 @@ export * from './events/sync.events'
 export * from './events/upgrade.events'
 export * from './events/window.events'
 export * from './events/workspace.events'
-export * from './events/workflow.events'
 
 export const DEEPCHAT_EVENT_CATALOG = {
   [windowStateChangedEvent.name]: windowStateChangedEvent,
   [workspaceInvalidatedEvent.name]: workspaceInvalidatedEvent,
   [workspaceWatchStatusChangedEvent.name]: workspaceWatchStatusChangedEvent,
-  [workflowRunChangedEvent.name]: workflowRunChangedEvent,
-  [workflowInvocationChangedEvent.name]: workflowInvocationChangedEvent,
-  [workflowLogEvent.name]: workflowLogEvent,
   [liveDelegationChangedEvent.name]: liveDelegationChangedEvent,
   [browserActivityChangedEvent.name]: browserActivityChangedEvent,
   [browserPreviewActionEvent.name]: browserPreviewActionEvent,

@@ -6,19 +6,6 @@
     >
       <div class="flex h-full min-h-0 flex-col">
         <div class="dc-overscroll-contain min-h-0 flex-1 overflow-auto pb-2">
-          <WorkflowPanel
-            :session-id="props.sessionId"
-            :expanded="sessionState.sections.workflows"
-            :selected-run-id="sessionState.selectedWorkflowRunId"
-            :saved-invocation-request="sessionState.savedWorkflowInvocationRequest"
-            :saved-workflows-enabled="props.savedWorkflowsEnabled"
-            @toggle="sidepanelStore.toggleSection(props.sessionId, 'workflows')"
-            @select-run="sidepanelStore.selectWorkflowRun(props.sessionId, $event)"
-            @consume-saved-invocation="
-              sidepanelStore.consumeSavedWorkflowRequest(props.sessionId, $event)
-            "
-          />
-
           <section>
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
@@ -185,7 +172,6 @@ import { createProjectClient } from '@api/ProjectClient'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { extractArtifactsFromContent } from '@/composables/useArtifacts'
 import WorkspaceFileNode from '@/components/workspace/WorkspaceFileNode.vue'
-import WorkflowPanel from './WorkflowPanel.vue'
 import WorkspaceViewer from './WorkspaceViewer.vue'
 import { useWorkspaceSync } from './composables/useWorkspaceSync'
 import { useArtifactStore } from '@/stores/artifact'
@@ -197,7 +183,6 @@ import type { WorkspaceGitFileChange } from '@shared/types/workspace'
 const props = defineProps<{
   sessionId: string
   workspacePath: string | null
-  savedWorkflowsEnabled?: boolean
   isFullscreen?: boolean
 }>()
 

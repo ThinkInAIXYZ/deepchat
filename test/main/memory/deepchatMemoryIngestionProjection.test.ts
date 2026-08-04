@@ -414,7 +414,7 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
   })
 
   itIfSqlite(
-    'keeps workflow result notices out of memory ingestion while advancing Tape head',
+    'keeps retired workflow result notices out of memory ingestion while advancing Tape head',
     () => {
       const { db, projection, tape } = createTables()
       try {

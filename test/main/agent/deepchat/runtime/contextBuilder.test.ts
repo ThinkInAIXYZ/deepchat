@@ -375,7 +375,7 @@ describe('truncateContext', () => {
 })
 
 describe('buildContext', () => {
-  it('keeps workflow result notices out of parent model history', () => {
+  it('keeps retired workflow result notices out of parent model history', () => {
     const workflowResult = {
       ...makeAssistantRecord(2, 'SECRET_WORKFLOW_RESULT'),
       metadata: JSON.stringify({

@@ -7,7 +7,7 @@ import {
   orchestrationSetPolicyRoute
 } from '@shared/contracts/routes'
 import { createOrchestrationRoutes } from '@/orchestration/routes'
-import type { OrchestrationPolicy } from '@shared/workflow/orchestrationPolicy'
+import type { OrchestrationPolicy } from '@shared/orchestration/policy'
 
 const context = { webContentsId: 1, windowId: 1 }
 const liveSummary = {

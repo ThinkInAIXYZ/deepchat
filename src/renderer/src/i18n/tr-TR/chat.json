@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "Alt Agent’ı aç" },
     "activityTitle": "Agent etkinliği",
     "proactive": {
       "title": "Proaktif iş birliği",
@@ -572,128 +573,6 @@
         "regular_parent_required": "Proaktif iş birliği alt oturumlarda kullanılamaz.",
         "agent_policy_unavailable": "İş birliği ilkesi yüklenemedi.",
         "subagents_disabled": "Proaktif iş birliğini kullanmak için bu Agent üzerinde Subagents özelliğini etkinleştirin."
-      }
-    }
-  },
-  "workflow": {
-    "title": "İş akışları",
-    "loading": "İş akışları yükleniyor...",
-    "runLabel": "Çalıştırma {id}",
-    "empty": {
-      "title": "Henüz iş akışı yok",
-      "description": "Bu konuşma için açıkça çalıştırılan iş akışları burada görünecek."
-    },
-    "status": {
-      "queued": "Kuyrukta",
-      "running": "Çalışıyor",
-      "waiting_interaction": "Girdi gerekiyor",
-      "cancelling": "İptal ediliyor",
-      "succeeded": "Başarılı",
-      "failed": "Başarısız",
-      "cancelled": "İptal edildi",
-      "interrupted": "Kesintiye uğradı"
-    },
-    "fields": {
-      "duration": "Süre",
-      "usage": "Kullanım",
-      "phase": "Aşama",
-      "budget": "Bütçe",
-      "reason": "Neden",
-      "result": "Sonuç önizlemesi"
-    },
-    "actions": {
-      "refresh": "İş akışını yenile",
-      "resume": "Sürdür",
-      "synthesize": "Üst Agent’tan sentezlemesini iste",
-      "openChild": "Alt Agent’ı aç",
-      "retryFromHere": "Buradan yeniden dene"
-    },
-    "states": {
-      "incompatible": "Runtime API v{version} bu derlemede sürdürülemez (geçerli sürüm v{current}). Geçmiş incelenmeye devam edilebilir.",
-      "partialResult": "Bu çalıştırma tüm çağrılar tamamlanmadan sona erdi. Başarılı alt Agent sonuçları aşağıda kullanılabilir.",
-      "unknownReason": "Herhangi bir neden kaydedilmedi.",
-      "unavailable": "Kullanılamıyor",
-      "previewTruncated": "Önizleme kısaltıldı",
-      "synthesisQueued": "Üst Agent sentezi etkin turun ardından kuyruğa alındı.",
-      "synthesisStarted": "Üst Agent sentezi başlatıldı."
-    },
-    "invocations": {
-      "title": "Çağrılar",
-      "empty": "Henüz alt Agent çağrısı yok",
-      "defaultPhase": "İş akışı",
-      "attempt": "Deneme {attempt}",
-      "timedOut": "Ana makinenin yönettiği zaman aşımı süresi doldu."
-    },
-    "interactions": {
-      "generic": "Bu alt Agent bir izin veya soru yanıtı bekliyor.",
-      "permission": "İzin gerekiyor",
-      "question": "Sorunun yanıtlanması gerekiyor"
-    },
-    "effects": {
-      "none": "Etki yok",
-      "read": "Okuma",
-      "unknown": "Bilinmeyen etki",
-      "write": "Yazma etkisi"
-    },
-    "effectWarning": {
-      "title": "Bu yeniden deneme dış etkileri tekrarlayabilir",
-      "retry": "Bu alt Agent daha önce bir yazma işlemi yaptı veya yapmış olabilir. Yeniden denemek DeepChat dışındaki değişiklikleri tekrarlayabilir.",
-      "retryFromHere": "Bu çağrı veya sonraki bir alt Agent daha önce bir yazma işlemi yaptı ya da yapmış olabilir. Buradan yeniden denemek DeepChat dışındaki değişiklikleri tekrarlayabilir.",
-      "confirm": "Etkilerle yeniden dene"
-    },
-    "duration": {
-      "seconds": "{count} sn",
-      "minutes": "{minutes} dk {seconds} sn",
-      "hours": "{hours} sa {minutes} dk"
-    },
-    "budget": {
-      "duration": "En fazla {duration}"
-    },
-    "approval": {
-      "checking": "Onay kontrol ediliyor…",
-      "unavailable": "Bu onay artık kullanılamıyor. Devam etmek için güncellenmiş bir plan hazırlayın.",
-      "unavailableShort": "Onay kullanılamıyor",
-      "launched": "İş akışı başlatıldı",
-      "launchUnconfirmed": "Başlatma sonucu doğrulanamadı. Başka bir plan hazırlamadan önce iş akışı geçmişini kontrol edin.",
-      "revisionRequested": "Geri bildirim giriş alanına eklendi. Yeni bir onay hazırlamak için gönderin.",
-      "revisionRequestedShort": "Düzeltme istendi",
-      "feedbackPlaceholder": "Nelerin değişmesi gerektiğini açıklayın…",
-      "stageRevision": "Geri bildirimi girişe ekle",
-      "modify": "Planı değiştir",
-      "sourceDisclosure": "Oluşturulan iş akışı kaynağı",
-      "revisionPrompt": "Kaynak karması {sourceHash} olan bekleyen iş akışı planını aşağıdaki geri bildirime göre düzeltin. workflow aracını operation=prepare_launch ile yeniden çağırın ve başlatmayın.\n\nGeri bildirim:\n{feedback}"
-    },
-    "saved": {
-      "title": "Kaydedilmiş iş akışları",
-      "workspaceRequired": "Kaydedilmiş iş akışları oluşturmak ve çalıştırmak için bir proje çalışma alanı açın.",
-      "selectPlaceholder": "Bir iş akışı seçin",
-      "empty": "Bu çalışma alanında kaydedilmiş iş akışı yok.",
-      "unsaved": "Çalıştırmayı hazırlamadan önce değişiklikleri kaydedin.",
-      "runTitle": "Kaydedilmiş iş akışını çalıştır",
-      "agentPlaceholder": "İsteğe bağlı Agent kimlikleri, virgülle ayrılmış",
-      "fields": {
-        "name": "Ad",
-        "source": "JavaScript kaynağı",
-        "args": "JSON bağımsız değişkenleri",
-        "agents": "İzin verilen Agents"
-      },
-      "actions": {
-        "refresh": "Kaydedilmiş iş akışlarını yenile",
-        "new": "Yeni",
-        "save": "Kaydet",
-        "reload": "Yeniden yükle",
-        "prepare": "Başlatmayı gözden geçir",
-        "launch": "İş akışını başlat"
-      },
-      "approval": {
-        "title": "Bu iş akışının tam anlık görüntüsünü onaylayın",
-        "sourceHash": "Kaynak karması",
-        "workspace": "Çalışma alanı",
-        "agents": "İzin verilen Agents",
-        "maxInvocations": "Maksimum çağrı",
-        "maxPendingInvocations": "Maksimum bekleyen çağrı",
-        "warning": "Alt Agents mevcut yazma özellikli araçlarını kullanabilir. Bireysel izin istemleri uygulanmaya devam eder.",
-        "expired": "Onayın süresi doldu"
       }
     }
   }

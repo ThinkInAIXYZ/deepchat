@@ -561,6 +561,7 @@
     }
   },
   "orchestration": {
+    "actions": { "openChild": "Buka Agent anak" },
     "activityTitle": "Aktiviti Agent",
     "proactive": {
       "title": "Kerjasama proaktif",
@@ -572,128 +573,6 @@
         "regular_parent_required": "Kerjasama proaktif tidak tersedia dalam sesi anak.",
         "agent_policy_unavailable": "Dasar kerjasama tidak dapat dimuatkan.",
         "subagents_disabled": "Dayakan Subagents untuk Agent ini bagi menggunakan kerjasama proaktif."
-      }
-    }
-  },
-  "workflow": {
-    "title": "Aliran kerja",
-    "loading": "Memuatkan aliran kerja...",
-    "runLabel": "Jalankan {id}",
-    "empty": {
-      "title": "Belum ada aliran kerja",
-      "description": "Pelaksanaan aliran kerja eksplisit untuk perbualan ini akan dipaparkan di sini."
-    },
-    "status": {
-      "queued": "Dalam baris gilir",
-      "running": "Sedang berjalan",
-      "waiting_interaction": "Memerlukan input",
-      "cancelling": "Sedang membatalkan",
-      "succeeded": "Berjaya",
-      "failed": "Gagal",
-      "cancelled": "Dibatalkan",
-      "interrupted": "Terganggu"
-    },
-    "fields": {
-      "duration": "Tempoh",
-      "usage": "Penggunaan",
-      "phase": "Fasa",
-      "budget": "Bajet",
-      "reason": "Sebab",
-      "result": "Pratonton hasil"
-    },
-    "actions": {
-      "refresh": "Muat semula aliran kerja",
-      "resume": "Sambung",
-      "synthesize": "Minta Agent induk membuat rumusan",
-      "openChild": "Buka Agent anak",
-      "retryFromHere": "Cuba lagi dari sini"
-    },
-    "states": {
-      "incompatible": "Runtime API v{version} tidak boleh disambung dalam binaan ini (semasa v{current}). Sejarah masih boleh diperiksa.",
-      "partialResult": "Pelaksanaan ini tamat sebelum semua panggilan selesai. Hasil Agent anak yang berjaya masih tersedia di bawah.",
-      "unknownReason": "Tiada sebab direkodkan.",
-      "unavailable": "Tidak tersedia",
-      "previewTruncated": "Pratonton dipendekkan",
-      "synthesisQueued": "Rumusan Agent induk dibariskan selepas giliran aktif.",
-      "synthesisStarted": "Rumusan Agent induk telah dimulakan."
-    },
-    "invocations": {
-      "title": "Panggilan",
-      "empty": "Belum ada panggilan Agent anak",
-      "defaultPhase": "Aliran kerja",
-      "attempt": "Percubaan {attempt}",
-      "timedOut": "Had masa yang dikendalikan oleh hos telah tamat."
-    },
-    "interactions": {
-      "generic": "Agent anak ini sedang menunggu kebenaran atau jawapan kepada soalan.",
-      "permission": "Kebenaran diperlukan",
-      "question": "Soalan memerlukan jawapan"
-    },
-    "effects": {
-      "none": "Tiada kesan",
-      "read": "Baca",
-      "unknown": "Kesan tidak diketahui",
-      "write": "Kesan tulis"
-    },
-    "effectWarning": {
-      "title": "Percubaan semula ini mungkin mengulangi kesan luaran",
-      "retry": "Agent anak ini telah atau mungkin telah melakukan penulisan. Mencuba semula boleh mengulangi perubahan di luar DeepChat.",
-      "retryFromHere": "Panggilan ini atau Agent anak seterusnya telah atau mungkin telah melakukan penulisan. Mencuba semula dari sini boleh mengulangi perubahan di luar DeepChat.",
-      "confirm": "Cuba lagi dengan kesan"
-    },
-    "duration": {
-      "seconds": "{count} saat",
-      "minutes": "{minutes} min {seconds} saat",
-      "hours": "{hours} jam {minutes} min"
-    },
-    "budget": {
-      "duration": "Maksimum {duration}"
-    },
-    "approval": {
-      "checking": "Menyemak kelulusan…",
-      "unavailable": "Kelulusan ini tidak lagi tersedia. Sediakan pelan yang disemak untuk meneruskan.",
-      "unavailableShort": "Kelulusan tidak tersedia",
-      "launched": "Aliran kerja dimulakan",
-      "launchUnconfirmed": "Hasil pelancaran tidak dapat disahkan. Semak sejarah aliran kerja sebelum menyediakan pelan lain.",
-      "revisionRequested": "Maklum balas ditambahkan pada kotak input. Hantarkannya untuk menyediakan kelulusan baharu.",
-      "revisionRequestedShort": "Semakan diminta",
-      "feedbackPlaceholder": "Terangkan perkara yang perlu diubah…",
-      "stageRevision": "Tambah maklum balas ke input",
-      "modify": "Ubah pelan",
-      "sourceDisclosure": "Sumber aliran kerja yang dijana",
-      "revisionPrompt": "Semak pelan aliran kerja tertunda dengan cincangan sumber {sourceHash} berdasarkan maklum balas berikut. Panggil workflow sekali lagi dengan operation=prepare_launch dan jangan mulakannya.\n\nMaklum balas:\n{feedback}"
-    },
-    "saved": {
-      "title": "Aliran kerja tersimpan",
-      "workspaceRequired": "Buka ruang kerja projek untuk mencipta dan menjalankan aliran kerja tersimpan.",
-      "selectPlaceholder": "Pilih aliran kerja",
-      "empty": "Tiada aliran kerja tersimpan dalam ruang kerja ini.",
-      "unsaved": "Simpan perubahan sebelum menyediakan pelaksanaan.",
-      "runTitle": "Jalankan aliran kerja tersimpan",
-      "agentPlaceholder": "ID Agent pilihan, dipisahkan dengan koma",
-      "fields": {
-        "name": "Nama",
-        "source": "Sumber JavaScript",
-        "args": "Argumen JSON",
-        "agents": "Agent yang dibenarkan"
-      },
-      "actions": {
-        "refresh": "Muat semula aliran kerja tersimpan",
-        "new": "Baharu",
-        "save": "Simpan",
-        "reload": "Muat semula",
-        "prepare": "Semak pelancaran",
-        "launch": "Lancarkan aliran kerja"
-      },
-      "approval": {
-        "title": "Sahkan petikan tepat aliran kerja ini",
-        "sourceHash": "Cincangan sumber",
-        "workspace": "Ruang kerja",
-        "agents": "Agent yang dibenarkan",
-        "maxInvocations": "Panggilan maksimum",
-        "maxPendingInvocations": "Panggilan tertunda maksimum",
-        "warning": "Agent anak boleh menggunakan alat sedia ada yang mampu menulis. Permintaan kebenaran individu masih terpakai.",
-        "expired": "Kelulusan telah tamat tempoh"
       }
     }
   }

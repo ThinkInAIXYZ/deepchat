@@ -3,7 +3,7 @@ import { defineRouteContract } from '../common'
 import {
   OrchestrationCapabilitySchema,
   OrchestrationPolicySchema
-} from '../../workflow/orchestrationPolicy'
+} from '../../orchestration/policy'
 import {
   LiveDelegationDetailSchema,
   LiveDelegationSummarySchema

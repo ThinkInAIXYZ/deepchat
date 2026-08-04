@@ -43,8 +43,7 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
-import type { OrchestrationPolicy } from '@shared/workflow/orchestrationPolicy'
-import type { WorkflowSubagentContext } from '@shared/workflow/subagent'
+import type { OrchestrationPolicy } from '@shared/orchestration/policy'
 import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
@@ -520,7 +519,6 @@ export interface SessionLifecycleSubagentInput {
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
   activeSkills?: string[]
-  workflowContext?: WorkflowSubagentContext
   liveDelegationContext?: LiveDelegationSubagentContext
 }
 

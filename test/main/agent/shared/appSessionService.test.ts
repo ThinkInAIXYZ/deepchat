@@ -211,7 +211,7 @@ describe('AppSessionService', () => {
       )
     })
 
-    it('preserves valid workflow correlation metadata and ignores malformed extensions', () => {
+    it('ignores retired workflow metadata while preserving child identity', () => {
       const baseRow = {
         id: 'child-1',
         agent_id: 'deepchat',
@@ -242,12 +242,7 @@ describe('AppSessionService', () => {
       expect(manager.get('child-1')?.subagentMeta).toEqual({
         slotId: 'workflow:slot',
         displayName: 'Workflow child',
-        targetAgentId: 'deepchat',
-        workflow: {
-          runId: 'run-1',
-          invocationId: 'invocation-1',
-          correlationSlot: 'workflow:slot'
-        }
+        targetAgentId: 'deepchat'
       })
 
       sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
@@ -287,7 +282,7 @@ describe('AppSessionService', () => {
       })
     })
 
-    it('preserves child identity while dropping ambiguous ownership metadata', () => {
+    it('preserves live ownership while ignoring retired metadata', () => {
       const baseRow = {
         id: 'child-1',
         agent_id: 'deepchat',
@@ -333,7 +328,8 @@ describe('AppSessionService', () => {
       expect(manager.get('child-1')?.subagentMeta).toEqual({
         slotId: 'reviewer',
         displayName: 'Ambiguous child',
-        targetAgentId: undefined
+        targetAgentId: undefined,
+        liveDelegation: { delegationId: 'delegation-1' }
       })
     })
 

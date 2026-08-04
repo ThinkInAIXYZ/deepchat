@@ -8,14 +8,12 @@ import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAg
 import type { ProviderCatalogPort } from '@/provider/ports'
 import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from "./systemEnvPromptBuilder";
 import type { SkillSettingsPort } from "@/skill/settings";
-import {
-  LIVE_DELEGATION_AGENT_TOOL_NAME,
-  WORKFLOW_AGENT_TOOL_NAME
-} from '@shared/agentTools'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@shared/orchestration/resultSafety'
 import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
-} from '@shared/workflow/orchestrationPolicy'
+} from '@shared/orchestration/policy'
 
 export type AgentExtensionPolicy = {
   enabledMcpServerIds?: string[] | null;
@@ -280,8 +278,7 @@ function buildOrchestrationPolicyPrompt(
   agentToolNames: Set<string>
 ): string {
   const hasSubagents = agentToolNames.has(LIVE_DELEGATION_AGENT_TOOL_NAME)
-  const hasWorkflow = agentToolNames.has(WORKFLOW_AGENT_TOOL_NAME)
-  if (!hasSubagents && !hasWorkflow) {
+  if (!hasSubagents) {
     return ''
   }
 
@@ -295,25 +292,19 @@ function buildOrchestrationPolicyPrompt(
   ]
   if (normalizedPolicy === 'explicit') {
     lines.push(
-      'Use Subagents or durable Workflow only when the user, an active Skill, or project instructions explicitly request multi-Agent orchestration.'
+      'Use Subagents only when the user, an active Skill, or project instructions explicitly request multi-Agent orchestration.'
     )
   } else {
     lines.push(
       'Delegate only when independent context, isolation, parallelism, or durable recovery provides clear value. Never delegate merely to demonstrate that proactive collaboration is enabled.'
     )
   }
-  if (hasSubagents) {
-    lines.push(
-      `Use \`${LIVE_DELEGATION_AGENT_TOOL_NAME}\` for a small number of adaptive bounded child tasks. Use \`spawn\` to start work, \`send\` for non-triggering context, and \`follow_up\` only to start another child turn.`
-    )
-  }
-  if (hasWorkflow) {
-    lines.push(
-      `Use \`${WORKFLOW_AGENT_TOOL_NAME}\` for large fan-out, programmatic data flow, durable recovery, or reusable orchestration. Generate Workflow JavaScript internally and call \`operation=prepare_launch\`; never ask the user to author it and never call \`operation=launch\`.`
-    )
-  }
   lines.push(
-    'Do not run overlapping write-heavy children in the same workspace. The native Workflow approval card owns exact user approval and launch.'
+    `Use \`${LIVE_DELEGATION_AGENT_TOOL_NAME}\` for bounded child tasks. Use \`spawn\` to start work, \`send\` for non-triggering context, and \`follow_up\` only to start another child turn.`,
+    UNTRUSTED_CHILD_OUTPUT_POLICY
+  )
+  lines.push(
+    'Do not run overlapping write-heavy children in the same workspace. Account for every spawned child until it reaches a terminal state.'
   )
   return lines.join('\n')
 }

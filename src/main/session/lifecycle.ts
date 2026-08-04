@@ -29,12 +29,11 @@ import type {
   ResolvedSubagentAssignment
 } from './contracts'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
-import { WorkflowSubagentContextSchema } from '@shared/workflow/subagent'
 import { LiveDelegationSubagentContextSchema } from '@shared/orchestration/liveDelegation'
 import {
   DEFAULT_ORCHESTRATION_POLICY,
   normalizeOrchestrationPolicy
-} from '@shared/workflow/orchestrationPolicy'
+} from '@shared/orchestration/policy'
 import type { SessionDeletionGatePort } from './deletionGate'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
@@ -313,25 +312,14 @@ export class SessionLifecycle implements SessionLifecyclePort {
 
     const displayName = input.displayName?.trim() || 'Subagent'
     const projectDir = input.projectDir?.trim() || null
-    const workflowContext =
-      input.workflowContext === undefined
-        ? undefined
-        : WorkflowSubagentContextSchema.parse(input.workflowContext)
     const liveDelegationContext =
       input.liveDelegationContext === undefined
         ? undefined
         : LiveDelegationSubagentContextSchema.parse(input.liveDelegationContext)
-    if (workflowContext && liveDelegationContext) {
-      throw new Error('A subagent cannot belong to a Workflow and a live delegation.')
-    }
-    if (workflowContext && workflowContext.correlationSlot !== slotId) {
-      throw new Error('Workflow correlation slot must match the subagent slotId.')
-    }
     const subagentMeta: DeepChatSubagentMeta = {
       slotId,
       displayName,
       targetAgentId: runtimeConfig.targetAgentId || null,
-      ...(workflowContext ? { workflow: workflowContext } : {}),
       ...(liveDelegationContext ? { liveDelegation: liveDelegationContext } : {})
     }
     let lastError: unknown = null
