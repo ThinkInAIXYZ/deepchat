@@ -221,7 +221,7 @@
           <span>{{ displayModelText }}</span>
         </Button>
 
-        <Popover v-if="showOrchestrationControl" v-model:open="isOrchestrationPanelOpen">
+        <Popover v-if="showReasoningOrchestrationControl" v-model:open="isOrchestrationPanelOpen">
           <PopoverTrigger as-child>
             <Button
               data-testid="orchestration-control"
@@ -281,7 +281,7 @@
               </div>
             </div>
 
-            <div class="border-t px-3 py-3">
+            <div v-if="showOrchestrationControl" class="border-t px-3 py-3">
               <div class="flex items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-2">
                   <Icon icon="lucide:git-fork" class="h-4 w-4 shrink-0" />
@@ -1779,6 +1779,9 @@ const showReasoningEffort = computed(
     Boolean(localSettings.value) &&
     (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
       isAnthropicReasoningEnabled.value)
+)
+const showReasoningOrchestrationControl = computed(
+  () => showReasoningEffort.value || showOrchestrationControl.value
 )
 const showReasoningVisibility = computed(
   () =>

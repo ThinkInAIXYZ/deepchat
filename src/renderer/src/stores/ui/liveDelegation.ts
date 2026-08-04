@@ -152,6 +152,7 @@ export const useLiveDelegationStore = defineStore('liveDelegation', () => {
       try {
         const beforeRefresh = new Map(projection.byId)
         const loaded = await client.listLiveDelegations(normalized, 100)
+        if (projections.get(normalized) !== projection) return false
         for (const delegation of loaded) assertRelation(delegation, normalized)
         for (const delegation of loaded) upsert(delegation, true)
         const loadedIds = new Set(loaded.map((delegation) => delegation.id))
@@ -208,6 +209,7 @@ export const useLiveDelegationStore = defineStore('liveDelegation', () => {
     if (current && isAuthoritative(normalizedParentId, normalizedDelegationId)) return current
 
     ensureStarted()
+    const projection = requireProjection(normalizedParentId)
     const key = interruptionKey(normalizedParentId, normalizedDelegationId)
     const existing = confirmationPromises.get(key)
     if (existing) return await existing
@@ -215,11 +217,13 @@ export const useLiveDelegationStore = defineStore('liveDelegation', () => {
       .inspectLiveDelegation(normalizedParentId, normalizedDelegationId)
       .then((detail) => {
         assertRelation(detail.delegation, normalizedParentId, normalizedDelegationId)
-        upsert(detail.delegation, true)
+        if (projections.get(normalizedParentId) === projection) {
+          upsert(detail.delegation, true)
+        }
         return detail.delegation
       })
       .finally(() => {
-        confirmationPromises.delete(key)
+        if (confirmationPromises.get(key) === request) confirmationPromises.delete(key)
       })
     confirmationPromises.set(key, request)
     return await request
@@ -241,14 +245,18 @@ export const useLiveDelegationStore = defineStore('liveDelegation', () => {
     if (!normalizedParentId || !normalizedDelegationId) {
       throw new Error('Interrupt requires parent Session and delegation IDs.')
     }
+    ensureStarted()
+    const projection = requireProjection(normalizedParentId)
     const confirmed = await confirm(normalizedParentId, normalizedDelegationId)
+    if (projections.get(normalizedParentId) !== projection) {
+      throw new Error('The parent Session was removed while the delegation was being confirmed.')
+    }
     if (
       expected &&
       (confirmed.slotId !== expected.slotId.trim() || confirmed.title !== expected.title.trim())
     ) {
       throw new Error('The delegation no longer matches the displayed task.')
     }
-    ensureStarted()
     const key = interruptionKey(normalizedParentId, normalizedDelegationId)
     const existing = interruptPromises.get(key)
     if (existing) return await existing
@@ -258,15 +266,36 @@ export const useLiveDelegationStore = defineStore('liveDelegation', () => {
       .interruptLiveDelegation(normalizedParentId, normalizedDelegationId)
       .then((detail) => {
         assertRelation(detail.delegation, normalizedParentId, normalizedDelegationId)
-        upsert(detail.delegation, true)
+        if (projections.get(normalizedParentId) === projection) {
+          upsert(detail.delegation, true)
+        }
         return detail
       })
       .finally(() => {
-        interrupting.delete(key)
-        interruptPromises.delete(key)
+        if (interruptPromises.get(key) === request) {
+          interrupting.delete(key)
+          interruptPromises.delete(key)
+        }
       })
     interruptPromises.set(key, request)
     return await request
+  }
+
+  function purge(parentSessionId: string): void {
+    const normalized = normalizeId(parentSessionId)
+    if (!normalized) return
+    projections.delete(normalized)
+    loadPromises.delete(normalized)
+    const prefix = `${normalized}\u0000`
+    for (const key of interrupting) {
+      if (key.startsWith(prefix)) interrupting.delete(key)
+    }
+    for (const key of confirmationPromises.keys()) {
+      if (key.startsWith(prefix)) confirmationPromises.delete(key)
+    }
+    for (const key of interruptPromises.keys()) {
+      if (key.startsWith(prefix)) interruptPromises.delete(key)
+    }
   }
 
   function stop(): void {
@@ -287,6 +316,7 @@ export const useLiveDelegationStore = defineStore('liveDelegation', () => {
     confirm,
     interrupt,
     isInterrupting,
+    purge,
     stop
   }
 })

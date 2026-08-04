@@ -193,4 +193,47 @@ describe('liveDelegation store', () => {
     expect(store.isAuthoritative('parent-1', 'delegation-1')).toBe(false)
     expect(store.getDelegation('parent-1', 'other-delegation')).toBeNull()
   })
+
+  it('purges deleted parent projections without reviving them from an in-flight refresh', async () => {
+    let resolveList: ((items: LiveDelegationSummary[]) => void) | null = null
+    client.listLiveDelegations.mockReturnValue(
+      new Promise<LiveDelegationSummary[]>((resolve) => {
+        resolveList = resolve
+      })
+    )
+    const store = useLiveDelegationStore()
+    store.seed(summary())
+
+    const refreshing = store.refresh('parent-1')
+    store.purge('parent-1')
+    resolveList?.([summary({ revision: 2, updatedAt: 30 })])
+
+    await expect(refreshing).resolves.toBe(false)
+    expect(store.getDelegation('parent-1', 'delegation-1')).toBeNull()
+    expect(store.getLoadState('parent-1')).toEqual({
+      loaded: false,
+      loading: false,
+      loadFailed: false
+    })
+  })
+
+  it('does not start an interrupt after its parent projection is purged during confirmation', async () => {
+    let resolveInspect: ((detail: LiveDelegationDetail) => void) | null = null
+    client.inspectLiveDelegation.mockReturnValue(
+      new Promise<LiveDelegationDetail>((resolve) => {
+        resolveInspect = resolve
+      })
+    )
+    const store = useLiveDelegationStore()
+    store.seed(summary())
+
+    const interrupting = store.interrupt('parent-1', 'delegation-1')
+    await vi.waitFor(() => expect(client.inspectLiveDelegation).toHaveBeenCalledOnce())
+    store.purge('parent-1')
+    resolveInspect?.({ delegation: summary(), turns: [] })
+
+    await expect(interrupting).rejects.toThrow('parent Session was removed')
+    expect(client.interruptLiveDelegation).not.toHaveBeenCalled()
+    expect(store.getDelegation('parent-1', 'delegation-1')).toBeNull()
+  })
 })

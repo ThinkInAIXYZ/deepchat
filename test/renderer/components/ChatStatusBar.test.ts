@@ -944,6 +944,21 @@ describe('ChatStatusBar model and session panels', () => {
     })
   })
 
+  it('keeps reasoning controls independent from orchestration ownership', async () => {
+    const { wrapper } = await setup({
+      agentId: 'acp-agent',
+      agentType: 'acp',
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
+    })
+
+    expect(wrapper.get('[data-testid="orchestration-control"]').text()).toContain(
+      'settings.model.modelConfig.reasoningEffort.options.medium'
+    )
+    expect(wrapper.find('[data-testid="proactive-collaboration-toggle"]').exists()).toBe(false)
+  })
+
   it(
     'passes system prompt section to the unified session panel in deepchat and hides it in ACP',
     async () => {

@@ -358,7 +358,7 @@ Referenced-result validation evidence:
 - [x] Make global admission state-aware for waiting children.
 - [ ] Separate per-turn generation snapshots from continuously validated safety state.
 - [x] Remove the dead batch orchestrator while retaining historical transcript rendering.
-- [ ] Evict stale renderer projections and decouple reasoning capability from orchestration UI.
+- [x] Evict stale renderer projections and decouple reasoning capability from orchestration UI.
 - [ ] Complete full validation and the final severity-ordered review.
 
 Decommission facts established before implementation:
@@ -392,3 +392,19 @@ Consent and child-result validation evidence:
 - 43 affected renderer parsing and tool-card tests passed;
 - `pnpm run typecheck`, `pnpm run i18n`, `pnpm run lint`, `pnpm run format:check`, and
   `git diff --check` passed.
+
+Renderer cleanup review findings, ordered by severity:
+
+- medium, fixed before commit: deleting a parent Session left its delegation projection resident
+  for the renderer lifetime; Session removal now purges the projection and its request bookkeeping;
+- medium, fixed before commit: late list, confirmation, or interruption responses could recreate a
+  purged projection; response application is now fenced by projection identity;
+- medium, fixed before commit: the compact reasoning selector was mounted only when the executor
+  owned orchestration, despite reasoning support being a model capability; the selector and
+  collaboration section now have independent visibility contracts;
+- low: no unresolved renderer lifecycle or capability-coupling finding.
+
+Renderer cleanup validation evidence:
+
+- 83 focused live-delegation store and status-bar tests passed;
+- `pnpm run typecheck:web`, `pnpm run lint`, and `git diff --check` passed.
