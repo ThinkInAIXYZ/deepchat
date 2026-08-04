@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CUA_PLUGIN_ID } from '@shared/types/plugin'
 import { ToolManager, type ComputerUsePreviewObserver } from '@/mcp/toolManager'
+import { validateAndCloneMcpTool } from '@/mcp/schemaValidation'
 import type { PluginRuntimeStartReason } from '@/plugin/runtimeSupervisor'
 import * as toolPolicyStore from '@/plugin/toolPolicyStore'
 
@@ -23,6 +24,12 @@ function deferred<T>() {
 }
 
 describe('ToolManager', () => {
+  const createConfirmedCuaClickResult = () => ({
+    effect: 'confirmed',
+    route: 'accessibility',
+    evidence: [{ kind: 'window_change' }]
+  })
+
   let warnSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
@@ -330,6 +337,88 @@ describe('ToolManager', () => {
     expect(liveClient.callTool).toHaveBeenCalledTimes(2)
   })
 
+  it('accepts representation-only schema differences and revalidates after invalidation', async () => {
+    const serverName = 'catalog-server'
+    const liveTool = validateAndCloneMcpTool(
+      {
+        name: 'inspect_screen',
+        description: 'Live inspect screen',
+        inputSchema: {
+          required: ['display_id'],
+          properties: { display_id: { type: 'integer' } },
+          type: 'object'
+        }
+      },
+      serverName
+    )
+    const driftedLiveTool = validateAndCloneMcpTool(
+      {
+        ...liveTool,
+        inputSchema: {
+          type: 'object',
+          properties: { display_id: { type: 'number' } },
+          required: ['display_id']
+        }
+      },
+      serverName
+    )
+    const liveClient = createClient(serverName, [liveTool])
+    liveClient.listTools.mockResolvedValueOnce([liveTool]).mockResolvedValueOnce([driftedLiveTool])
+    const serverManager = createServerManager([])
+    serverManager.getClient.mockReturnValue(liveClient)
+    const manager = createToolManager(
+      createProviderSettings(serverName),
+      serverManager,
+      { [serverName]: TOOL_POLICY_PLUGIN_ID },
+      {
+        ensureRunning: vi.fn().mockResolvedValue(undefined),
+        catalogs: [
+          {
+            pluginId: TOOL_POLICY_PLUGIN_ID,
+            serverName,
+            displayName: 'Catalog Server',
+            toolCatalog: {
+              version: '1.0.0',
+              tools: [
+                {
+                  name: 'inspect_screen',
+                  description: 'Static inspect screen',
+                  inputSchema: {
+                    type: 'object',
+                    properties: { display_id: { type: 'integer' } },
+                    required: ['display_id']
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    )
+
+    const result = await manager.callTool({
+      id: 'catalog-equivalent-schema',
+      type: 'function',
+      function: { name: 'inspect_screen', arguments: '{"display_id":1}' }
+    })
+
+    expect(result.isError).toBe(false)
+    expect(liveClient.callTool).toHaveBeenCalledOnce()
+    expect(serverManager.setServerLastError).not.toHaveBeenCalled()
+
+    manager.invalidateRegistry()
+    const driftedResult = await manager.callTool({
+      id: 'catalog-drifted-after-invalidation',
+      type: 'function',
+      function: { name: 'inspect_screen', arguments: '{"display_id":1}' }
+    })
+
+    expect(driftedResult.isError).toBe(true)
+    expect(driftedResult.content).toContain('at "#/properties/display_id/type" (value differs)')
+    expect(liveClient.listTools).toHaveBeenCalledTimes(2)
+    expect(liveClient.callTool).toHaveBeenCalledOnce()
+  })
+
   it('hard-fails when a catalog tool is missing from the live runtime', async () => {
     const serverName = 'catalog-server'
     const liveClient = createClient(serverName, [
@@ -516,7 +605,9 @@ describe('ToolManager', () => {
     })
 
     expect(result.isError).toBe(true)
-    expect(result.content).toContain('schema differs from the packaged catalog')
+    expect(result.content).toContain(
+      'schema differs from the packaged catalog for server "catalog-server" at "#/properties/display_id" (not present in packaged schema)'
+    )
     expect(liveClient.callTool).not.toHaveBeenCalled()
   })
 
@@ -1291,6 +1382,7 @@ describe('ToolManager', () => {
             properties: {
               element_index: { type: 'integer' },
               element_token: { type: 'string' },
+              snapshot_id: { type: 'string' },
               x: { type: 'number' },
               y: { type: 'number' }
             }
@@ -1315,7 +1407,7 @@ describe('ToolManager', () => {
       function: {
         name: 'click',
         arguments:
-          '{"element_index":2,"element_token":"","x":0,"y":0,"modifier":[],"from_zoom":false}'
+          '{"element_index":2,"element_token":"","snapshot_id":"s00000004","x":0,"y":0,"modifier":[],"from_zoom":false}'
       }
     })
 
@@ -1324,6 +1416,7 @@ describe('ToolManager', () => {
       'click',
       {
         element_index: 2,
+        snapshot_id: 's00000004',
         x: 0,
         y: 0,
         modifier: [],
@@ -1333,6 +1426,51 @@ describe('ToolManager', () => {
         toolDefinition: expect.objectContaining({ name: 'click' })
       })
     )
+  })
+
+  it('rejects a bare CUA element index before runtime dispatch', async () => {
+    const client = createClient(
+      'cua-driver',
+      [
+        {
+          name: 'click',
+          description: 'Click',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              element_index: { type: 'integer' },
+              element_token: { type: 'string' },
+              snapshot_id: { type: 'string' }
+            }
+          }
+        }
+      ],
+      {
+        source: 'plugin',
+        ownerPluginId: CUA_PLUGIN_ID
+      }
+    )
+    const manager = createToolManager(
+      createProviderSettings('cua-driver'),
+      createServerManager([client]),
+      { 'cua-driver': CUA_PLUGIN_ID },
+      { ensureRunning: vi.fn().mockResolvedValue(undefined) }
+    )
+
+    const result = await manager.callTool({
+      id: 'cua-bare-index',
+      type: 'function',
+      function: {
+        name: 'click',
+        arguments: '{"element_index":2}'
+      }
+    })
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: expect.stringContaining('snapshot_id_required')
+    })
+    expect(client.callTool).not.toHaveBeenCalled()
   })
 
   it('preserves raw CUA structured content and appends reviewed projections', async () => {
@@ -1357,12 +1495,12 @@ describe('ToolManager', () => {
       }
     )
     const structuredContent = {
-      snapshot_id: 's9',
+      snapshot_id: 's00000009',
       tree_markdown: '- AXButton "Clear" [element_index 2]',
       elements: [
         {
           element_index: 2,
-          element_token: '00000002',
+          element_token: 's00000009:2',
           role: 'AXButton',
           label: 'Clear'
         }
@@ -1410,7 +1548,7 @@ describe('ToolManager', () => {
       { type: 'text', text: 'window tree' },
       {
         type: 'text',
-        text: expect.stringContaining('2="00000002"')
+        text: expect.stringContaining('2="s00000009:2"')
       },
       {
         type: 'text',
@@ -1478,6 +1616,49 @@ describe('ToolManager', () => {
         text: `## CUA structured refusal\nrefusal.code=${JSON.stringify(code)}`
       }
     ])
+  })
+
+  it('preserves raw CUA ActionResult and appends its bounded model projection', async () => {
+    const client = createClient(
+      'cua-driver',
+      [{ name: 'click', description: 'Click', inputSchema: { type: 'object', properties: {} } }],
+      {
+        source: 'plugin',
+        ownerPluginId: CUA_PLUGIN_ID
+      }
+    )
+    const structuredContent = {
+      effect: 'confirmed',
+      route: 'accessibility',
+      evidence: [{ kind: 'value_readback', detail: 'private value' }]
+    }
+    client.callTool.mockResolvedValue({
+      content: [{ type: 'text', text: 'clicked' }],
+      structuredContent,
+      isError: false
+    })
+    const manager = createToolManager(
+      createProviderSettings('cua-driver'),
+      createServerManager([client]),
+      { 'cua-driver': CUA_PLUGIN_ID },
+      { ensureRunning: vi.fn().mockResolvedValue(undefined) }
+    )
+
+    const result = await manager.callTool({
+      id: 'cua-action-result',
+      type: 'function',
+      function: { name: 'click', arguments: '{"x":0,"y":0}' }
+    })
+
+    expect(result.structuredContent).toBe(structuredContent)
+    expect(result.content).toEqual([
+      { type: 'text', text: 'clicked' },
+      {
+        type: 'text',
+        text: expect.stringContaining('## CUA action result')
+      }
+    ])
+    expect(JSON.stringify(result.content)).not.toContain('private value')
   })
 
   it('observes trusted CUA snapshots with run metadata without changing tool arguments', async () => {
@@ -1609,6 +1790,7 @@ describe('ToolManager', () => {
       if (toolName === 'click') {
         return Promise.resolve({
           content: 'clicked',
+          structuredContent: createConfirmedCuaClickResult(),
           isError: false
         })
       }
@@ -1661,11 +1843,12 @@ describe('ToolManager', () => {
       { runId: 'run-1' }
     )
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       toolCallId: 'cua-click-1',
-      content: 'clicked',
+      content: expect.stringContaining('## CUA action result'),
       isError: false,
-      ownerPluginId: CUA_PLUGIN_ID
+      ownerPluginId: CUA_PLUGIN_ID,
+      structuredContent: expect.objectContaining({ effect: 'confirmed' })
     })
     expect(client.callTool).toHaveBeenNthCalledWith(
       1,
@@ -1709,7 +1892,7 @@ describe('ToolManager', () => {
       'mcp.toolCall.result',
       expect.objectContaining({
         functionName: 'click',
-        content: 'clicked'
+        content: expect.stringContaining('## CUA action result')
       })
     )
 
@@ -1753,7 +1936,7 @@ describe('ToolManager', () => {
       },
       { runId: 'run-1' }
     )
-    expect(laterResult.content).toBe('clicked')
+    expect(laterResult.content).toContain('## CUA action result')
     expect(publishEvent).toHaveBeenCalledTimes(2)
 
     const privateFailure = new Error('private snapshot failed')
@@ -1780,7 +1963,7 @@ describe('ToolManager', () => {
       { runId: 'run-1' }
     )
 
-    expect(guardedResult.content).toBe('clicked')
+    expect(guardedResult.content).toContain('## CUA action result')
     expect(client.callTool).toHaveBeenCalledTimes(5)
     expect(observer.shouldCaptureAfterClick).toHaveBeenCalledTimes(2)
     expect(observer.started).toHaveBeenCalledTimes(2)
@@ -1832,6 +2015,7 @@ describe('ToolManager', () => {
     })
     client.callTool.mockResolvedValue({
       content: 'clicked',
+      structuredContent: createConfirmedCuaClickResult(),
       isError: false
     })
     const serverManager = createServerManager([client])
@@ -1875,7 +2059,7 @@ describe('ToolManager', () => {
       { runId: 'run-1' }
     )
 
-    expect(result.content).toBe('clicked')
+    expect(result.content).toContain('## CUA action result')
     await vi.waitFor(() => expect(observer.failed).toHaveBeenCalledOnce())
     expect(client.callTool).toHaveBeenCalledOnce()
     expect(client.callTool).toHaveBeenCalledWith(
@@ -1898,12 +2082,12 @@ describe('ToolManager', () => {
       }),
       expect.objectContaining({
         message:
-          'Live MCP tool "get_window_state" schema differs from the packaged catalog for server "cua-driver"'
+          'Live MCP tool "get_window_state" schema differs from the packaged catalog for server "cua-driver" at "#/properties/window_id" (missing from live schema)'
       })
     )
     expect(serverManager.setServerLastError).toHaveBeenCalledWith(
       'cua-driver',
-      'Live MCP tool "get_window_state" schema differs from the packaged catalog for server "cua-driver"'
+      'Live MCP tool "get_window_state" schema differs from the packaged catalog for server "cua-driver" at "#/properties/window_id" (missing from live schema)'
     )
   })
 
@@ -1927,7 +2111,11 @@ describe('ToolManager', () => {
     )
     trustedClient.callTool
       .mockResolvedValueOnce({ content: 'click failed', isError: true })
-      .mockResolvedValueOnce({ content: 'clicked', isError: false })
+      .mockResolvedValueOnce({
+        content: 'clicked',
+        structuredContent: createConfirmedCuaClickResult(),
+        isError: false
+      })
     const trustedObserver = {
       shouldCaptureAfterClick: vi.fn(() => true),
       started: vi.fn(),

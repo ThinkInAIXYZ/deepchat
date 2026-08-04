@@ -64,8 +64,8 @@ async function createCuaPluginFixture() {
       integrityDescriptor: 'runtime/${target.platform}/${arch}/integrity.json',
       adapterContract: {
         hostBundleId: 'com.wefonk.deepchat',
-        driverVersion: '0.14.1',
-        contractVersion: '0.2.0',
+        driverVersion: '0.17.0',
+        contractVersion: '0.6.0',
         toolsListSchemaVersion: '1',
         capabilityVersion: '1',
         mcpProtocolVersion: '2025-06-18'
@@ -101,7 +101,7 @@ async function createCuaPluginFixture() {
   }
   const toolCatalog = `${JSON.stringify(
     {
-      version: '0.14.1',
+      version: '0.17.0',
       tools: [
         {
           name: 'check_permissions',
@@ -220,7 +220,7 @@ describe('package-plugin', () => {
       schemaVersion: 1,
       pluginId: 'com.deepchat.plugins.cua',
       runtimeId: 'cua-driver',
-      runtimeVersion: '0.14.1',
+      runtimeVersion: '0.17.0',
       target: 'win32/arm64',
       runtimeRoot: 'runtime/win32/arm64',
       binaryPath: 'cua-driver.exe',

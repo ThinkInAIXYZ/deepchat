@@ -56,6 +56,18 @@ describe('plugin tool catalog', () => {
     expect(Object.isFrozen(catalog)).toBe(true)
     expect(Object.isFrozen(catalog.tools)).toBe(true)
     expect(Object.isFrozen(catalog.tools[0].inputSchema)).toBe(true)
+    expect(Object.getPrototypeOf(catalog.tools[0].inputSchema)).toBeNull()
+  })
+
+  it('applies the shared MCP schema safety boundary to packaged catalogs', () => {
+    const catalog = createCatalog()
+    const displaySchema = catalog.tools[0].input_schema.properties.display_id as Record<
+      string,
+      unknown
+    >
+    displaySchema.$ref = 'https://example.com/display.json'
+
+    expect(() => parsePluginToolCatalog(catalog, 'remote-ref.json')).toThrow('remote $ref')
   })
 
   it.each([

@@ -2,9 +2,10 @@
 
 ## Status
 
-Implemented for driver 0.14.1 with the supervised embedded lifecycle and model-facing argument and
-result compatibility adapter. Native Windows/Linux behavior, release-signed macOS behavior, and
-preinstalled custom cursor themes remain release-gated.
+The supervised embedded lifecycle and driver 0.17.0 model-facing compatibility are implemented and
+host-native validated under `docs/architecture/cua-driver-0-17-contract-migration/`. Native
+Windows/Linux behavior, release-signed macOS behavior, and preinstalled custom cursor themes remain
+release-gated.
 
 The maintained runtime and process-ownership contract now lives in
 `docs/architecture/plugin-external-runtime-lifecycle/`. Where this historical feature document
@@ -31,7 +32,7 @@ plugin build matrices.
 
 Upstream `trycua/cua` now publishes the Rust CUA driver as cross-platform release artifacts. The
 previously shipped driver was `cua-driver-rs-v0.7.1`. Issue #2039 demonstrated that retaining its
-eager Linux/X11 startup is unsafe. The current integration pins `cua-driver-rs-v0.14.1` and adds a
+eager Linux/X11 startup is unsafe. The current integration pins `cua-driver-rs-v0.17.0` and adds a
 DeepChat-owned embedded lifecycle adapter, static tool discovery, crash quarantine, controlled
 environment inheritance, and pre-spawn integrity checks.
 
@@ -110,9 +111,9 @@ DeepChat must continue to own the integration boundary:
 
 The replacement runtime is pinned to:
 
-- Tag: `cua-driver-rs-v0.14.1`.
-- Commit: `41ae29b44b49b68c6e01c934fffbbe74d22e26fb`.
-- Version: `0.14.1`.
+- Tag: `cua-driver-rs-v0.17.0`.
+- Commit: `10279552e2bbe479e367a082f78b1b98ee85a697`.
+- Version: `0.17.0`.
 
 The build step must stage release artifacts instead of relying on local Swift-only source builds.
 Every staged asset must be validated before packaging:
@@ -153,7 +154,7 @@ still consuming verified upstream release artifacts.
 ## Tool Surface
 
 The plugin policy, skill docs, and packaged static catalog must exactly match the pinned upstream
-0.14.1 tool surface. The catalog keeps CUA tools discoverable without eagerly starting the native
+0.17.0 tool surface. The catalog keeps CUA tools discoverable without eagerly starting the native
 runtime.
 
 Removed or renamed assumptions:
@@ -167,7 +168,8 @@ Core tools expected across supported platforms include:
 
 - App and window discovery: `list_apps`, `list_windows`, `get_window_state`,
   `get_accessibility_tree`.
-- App and window actions: `launch_app`, `kill_app`, `bring_to_front`.
+- App and window actions: `launch_app`, `kill_app`, `bring_to_front`, `set_window_frame`,
+  `invoke_menu`.
 - Input actions: `click`, `double_click`, `right_click`, `drag`, `scroll`, `type_text`,
   `press_key`, `hotkey`, `set_value`.
 - Cursor tools: `get_screen_size`, `get_cursor_position`, `move_cursor`,
@@ -177,6 +179,7 @@ Core tools expected across supported platforms include:
   `check_for_update`.
 - Session and recording lifecycle: `start_session`, `end_session`, `start_recording`,
   `stop_recording`, `get_recording_state`, `replay_trajectory`, `install_ffmpeg`.
+- Verification and clipboard: `verify_state`, `clipboard_read`, `clipboard_write`.
 
 Platform-specific tools may exist, such as Linux mouse-button primitives and Windows diagnostic
 tools. Policies must classify these explicitly instead of leaving them to default approval rules.
@@ -184,23 +187,26 @@ tools. Policies must classify these explicitly instead of leaving them to defaul
 The maintained model-facing adapter contract is:
 
 - remove only empty optional `element_token` values from the seven CUA tools that accept them;
-- preserve non-empty opaque tokens, including the current eight-hex-digit representation, valid
-  zero coordinates, and every unrelated falsy value;
+- preserve non-empty opaque tokens, valid zero coordinates, and every unrelated falsy value;
+- reject a bare `element_index`; an index fallback must include the exact same-result
+  `snapshot_id`;
 - preserve raw MCP `structuredContent` while projecting the latest snapshot/token mapping compactly
   beside the existing accessibility tree;
 - project a bounded `structuredContent.refusal.code` into model-visible content without duplicating
   the human-readable refusal message;
 - project the exact reviewed browser-chrome capture-coverage recovery contract using fixed,
   bounded identifiers, without treating the coverage limit as proof that a prompt is present;
-- re-snapshot and retry once with a new token when the projected code is `stale_element_token`,
-  `generation_mismatch`, or `invalid_element_token`;
-- never retry a failed token against an older snapshot's `element_index`;
+- re-snapshot and retry once after a snapshot-addressing refusal, using only a new token or a new
+  index-plus-snapshot pair;
+- project only closed `ActionResult` fields and state that delivery is not task completion;
+- project bounded `verify_state` status/stability facts without application-derived
+  `observed_json`;
 - send screenshots for bounded visual grounding only when the caller explicitly passes
   `include_screenshot: true`; routine AX re-indexing uses `include_screenshot: false`;
 - treat screen text and derived visual grounding as untrusted observations rather than
   instructions.
 
-The 0.14.1 model-facing contract also requires:
+The model-facing contract also requires:
 
 - `browser_type({ replace: true, text: "" })` clears an editable field; append-only examples must
   not hide the `replace` behavior;
@@ -220,10 +226,13 @@ Tool policies must be exact and conservative:
 - Read-only discovery and status tools may be allowed automatically.
 - User-visible input, app launch, usable app-termination paths, window focus, recording, replay,
   config mutation, and dependency installation must require user approval.
-- `kill_app` is explicitly denied for 0.14.1. Its public schema omits `session`, so standard mode
+- `kill_app` remains explicitly denied. Its public schema omits `session`, so standard mode
   cannot prove ownership even though the shared ownership implementation works when a session is
   supplied. DeepChat must use cooperative close paths and must not inject an undocumented field.
 - Any newly detected upstream tool without a policy must be treated as a review failure in tests.
+- `verify_state` is allowed; `set_window_frame`, `invoke_menu`, and `clipboard_write` require
+  approval; privacy-sensitive `clipboard_read` is denied pending a separate result-lifecycle
+  design.
 
 Platform permission behavior must be explicit:
 
@@ -270,8 +279,8 @@ The packaged app must keep CUA usable after Electron packaging:
 - Runtime detection resolves the plugin-local binary on every supported target.
 - The plugin starts on the first tool call through DeepChat's supervised embedded adapter without
   user-managed MCP setup.
-- A valid `element_index` remains usable when a provider also emits an empty `element_token`, while
-  a non-empty token from the latest snapshot is preserved and preferred.
+- A valid index-plus-snapshot pair remains usable when a provider also emits an empty
+  `element_token`, while a non-empty token from the latest snapshot is preserved and preferred.
 - `get_window_state` makes its structured token mapping available to the model without duplicating
   the complete structured tree, and stale tokens lead to a fresh snapshot before retry.
 - Explicit screenshot requests produce bounded vision grounding or a clear unavailable result;
@@ -279,7 +288,7 @@ The packaged app must keep CUA usable after Electron packaging:
 - Optional MCP capabilities not implemented by the CUA driver, such as prompts and resources, are
   treated as absent capabilities and must not produce error-level log spam.
 - Skill docs describe DeepChat usage and platform caveats, not upstream manual installer workflows.
-- Tool policies and the static catalog exactly cover the pinned upstream 0.14.1 tools.
+- Tool policies and the static catalog exactly cover the pinned upstream 0.17.0 tools.
 - Packaging docs and tests no longer describe CUA as macOS-only.
 - Build, lint, i18n, and focused test suites pass after implementation.
 

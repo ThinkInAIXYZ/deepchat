@@ -2,9 +2,10 @@
 
 ## Status
 
-Lifecycle and model-facing CUA 0.14.1 compatibility implementation are complete with automated
-validation. Native Windows/Linux behavior, release-signed macOS behavior, and preinstalled custom
-cursor themes remain release-gated.
+Lifecycle ownership and the model-facing CUA 0.17.0 contract migration are complete and
+host-native validated under `docs/architecture/cua-driver-0-17-contract-migration/`. Native
+Windows/Linux behavior, release-signed macOS behavior, and preinstalled custom cursor themes
+remain release-gated.
 
 ## Context
 
@@ -37,7 +38,7 @@ plugin-owned external processes.
    state.
 3. Start CUA only when one of its tools is invoked, while keeping its tool catalog visible before
    process startup.
-4. Upgrade the bundled driver to pinned upstream release `cua-driver-rs-v0.14.1` and adapt to its
+4. Upgrade the bundled driver to pinned upstream release `cua-driver-rs-v0.17.0` and adapt to its
    embedded daemon/proxy contract.
 5. Fail closed on stale crash evidence, runtime integrity failures, incomplete packaged catalogs,
    and unsupported launch contracts.
@@ -135,6 +136,11 @@ Live revalidation compares both the tool name and its complete input schema with
 catalog. A protocol or capability version match is not a substitute for schema equality because an
 upstream release can change a schema without correctly bumping those versions.
 
+Schema equality follows JSON structural semantics rather than JavaScript object identity:
+prototype and object-key insertion order are not protocol data, while array order, keys, types, and
+values remain exact. Live and packaged schemas pass through the same bounded validator before
+comparison, and a mismatch fails closed with a bounded JSON Pointer diagnostic.
+
 Package verification fails if the catalog is missing, malformed, contains duplicate/empty names,
 contains invalid input schemas, disagrees with the pinned runtime's generated catalog, lacks exact
 tool-policy coverage, declares a non-tool surface, or cannot be resolved from the packaged plugin.
@@ -227,7 +233,7 @@ Runtime manifests may select a closed host adapter. CUA uses `cua-embedded-v1`; 
 continue to use the direct stdio path. Adapter-specific state does not leak into the generic MCP
 configuration persisted in SQLite.
 
-## CUA 0.14.1 adapter
+## CUA 0.17.0 adapter
 
 The CUA adapter starts two related processes:
 
@@ -240,8 +246,8 @@ The CUA adapter starts two related processes:
 The daemon stdin remains open for parent-liveness. Startup completes only after a newline-delimited
 metadata response validates:
 
-- driver version `0.14.1`;
-- contract version `0.2.0`;
+- driver version `0.17.0`;
+- contract version `0.6.0`;
 - tools-list schema version `1`;
 - capability version `1`;
 - MCP protocol version `2025-06-18`;
@@ -264,7 +270,7 @@ For any CUA result carrying `structuredContent.refusal.code`, DeepChat appends a
 single-line code projection to model-visible `content` while preserving the raw structured value.
 The human-readable refusal message is already present in MCP text content and is not duplicated.
 
-For Chromium-family `get_window_state` results, CUA 0.14.1 may also declare that browser-owned
+For Chromium-family `get_window_state` results, CUA may also declare that browser-owned
 chrome is not observable in window scope. DeepChat projects this recovery contract only when every
 known field matches the reviewed upstream shape. The projection contains fixed identifiers rather
 than runtime-provided prose, does not claim that a prompt is present, and recommends desktop
@@ -272,10 +278,10 @@ escalation only after a window action was verified ineffective. Unknown or parti
 contracts remain available in raw `structuredContent` but are not promoted into model-visible
 instructions.
 
-CUA 0.14.1 declares `element_token` as an optional unconstrained string but rejects an empty string
-at runtime and gives any present token precedence over a valid index. Immediately before dispatch,
-the closed CUA adapter therefore removes only an empty or whitespace-only `element_token` from these
-seven tools:
+CUA declares `element_token` as an optional unconstrained string but rejects an empty string at
+runtime. A non-empty token is resolved first, and every simultaneously supplied index, snapshot,
+or window field must identify the same target. Immediately before dispatch, the closed CUA adapter
+therefore removes only an empty or whitespace-only `element_token` from these seven tools:
 
 - `click`;
 - `double_click`;
@@ -286,17 +292,25 @@ seven tools:
 - `scroll`.
 
 The adapter preserves every other value, including `x: 0`, `y: 0`, empty arrays, booleans, and a
-non-empty opaque token. The normalization naturally becomes a no-op after upstream schemas and
-model/provider argument generation stop producing empty optional tokens.
+non-empty opaque token. After normalization it rejects a remaining bare `element_index` before
+dispatch. A valid index fallback must include the non-empty `snapshot_id` returned by the same
+latest `get_window_state`; DeepChat never guesses or caches that value.
 
-A non-empty token is preferred when it came from the latest `get_window_state`. Tokens are opaque;
-the current eight-hex-digit representation must not be parsed or synthesized by DeepChat. When
-the projected `refusal.code` is `stale_element_token`, `generation_mismatch`, or
-`invalid_element_token`, the packaged skill requires one fresh `get_window_state` call and a retry
-with the new token. It must not reuse a stale token or silently fall back to an older snapshot's
-index.
+A non-empty token is preferred when it came from the latest `get_window_state`. Tokens remain
+opaque: DeepChat checks only the pinned lexical form and agreement with the returned snapshot and
+element index, and never decodes, derives, or synthesizes a handle for a caller. Any
+snapshot-addressing refusal requires one fresh `get_window_state` call and at most one retry with a
+token or index-plus-snapshot pair entirely from the new result.
 
-### CUA 0.14.1 tool-contract changes
+Successful tools in CUA's reviewed `ActionResult` set return that closed contract. DeepChat
+projects only its reviewed effect, route, delivery, evidence-kind, and escalation enums. It does
+not promote runtime prose, and it states explicitly that delivery is not task completion.
+`verify_state` receives a separate bounded projection of aggregate status/stability and at most
+eight predicate statuses; application-derived `observed_json` is not promoted into model-visible
+instructions. Exact details and privacy boundaries are maintained in the 0.17 migration
+architecture specification.
+
+### CUA tool-contract changes
 
 The static catalog, closed policy, skill, and tests track these reviewed changes together:
 
@@ -307,7 +321,7 @@ The static catalog, closed policy, skill, and tests track these reviewed changes
 - `browser_type` accepts `replace`; an empty replacement clears the editable field;
 - normal `start_session` calls omit optional `cursor_theme`, while an explicit user theme request
   uses the reviewed `set_agent_cursor_theme` action;
-- `kill_app` is denied because the 0.14.1 public `launch_app` and `kill_app` schemas omit
+- `kill_app` remains denied because the 0.17.0 public `launch_app` and `kill_app` schemas omit
   `session`, preventing standard-mode ownership proof. DeepChat does not rely on the proxy's
   current acceptance of undeclared fields.
 - cursor themes use source schema `cua.cursor-theme/2`, profile `cua-driver-actions-v2`, semantics
@@ -317,6 +331,11 @@ The static catalog, closed policy, skill, and tests track these reviewed changes
   badges, while DeepChat continues to treat cursor appearance as optional user-requested state;
 - Chromium window snapshots may expose the bounded browser-chrome capture-coverage recovery
   contract described above.
+- `verify_state` provides bounded exact-window postcondition checks; `unknown` never implies
+  success.
+- `set_window_frame`, `invoke_menu`, and `clipboard_write` require approval.
+- `clipboard_read` is explicitly denied until privacy-sensitive structured results have a reviewed
+  consent, model-projection, persistence, export, and retention contract.
 
 The `kill_app` mitigation is version-specific. A direct native smoke test must use a disposable
 fixture process rather than the DeepChat product path, because the closed policy blocks the call
@@ -413,7 +432,7 @@ security task and do not block CUA remediation.
 | Linux x64 | Bundle executable | Checksum/file-set gate and executable mode |
 | Linux arm64 | DeepChat still builds/releases; CUA remains unbundled until validated | Unsupported CUA target |
 
-The upstream UIA worker is not part of the 0.14.1 release contract. DeepChat continues to package
+The upstream UIA worker is not part of the 0.17.0 release contract. DeepChat continues to package
 only `cua-driver.exe` on Windows and removes the obsolete worker opt-in environment variable.
 
 The macOS `cua-cursor-theme` executable is an authoring utility, not part of the embedded runtime.
@@ -424,7 +443,7 @@ confirming the explicit failure of a retired v1 theme remain native release gate
 
 The upstream GNOME Wayland helper is also outside DeepChat's package and lifecycle contract.
 DeepChat does not install or upgrade it. Users with an older manually installed helper may need to
-update it before v0.14.1 cursor context or overlay behavior can be accepted; fresh and pre-existing
+update it before current cursor context or overlay behavior can be accepted; fresh and pre-existing
 helper states remain part of the Linux Wayland native gate.
 
 `--no-permissions-gate` skips only the upstream macOS TCC first-launch UI. It does not disable

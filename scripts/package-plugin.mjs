@@ -14,8 +14,8 @@ const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
 const CUA_INTEGRITY_DESCRIPTOR_NAME = 'integrity.json'
 const CUA_EMBEDDED_ADAPTER_CONTRACT = Object.freeze({
   hostBundleId: 'com.wefonk.deepchat',
-  driverVersion: '0.14.1',
-  contractVersion: '0.2.0',
+  driverVersion: '0.17.0',
+  contractVersion: '0.6.0',
   toolsListSchemaVersion: '1',
   capabilityVersion: '1',
   mcpProtocolVersion: '2025-06-18'

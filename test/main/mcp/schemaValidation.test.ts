@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   assertBoundedMcpJson,
+  findJsonValueDifference,
   validateAndCloneJsonSchema,
   validateAndCloneMcpTool
 } from '@/mcp/schemaValidation'
@@ -28,6 +29,52 @@ describe('MCP schema validation', () => {
     expect(cloned).toEqual(schema)
     expect(cloned).not.toBe(schema)
     expect(cloned.properties).not.toBe(schema.properties)
+    expect(Object.getPrototypeOf(cloned)).toBeNull()
+  })
+
+  it('compares protocol JSON independently of object prototypes and key insertion order', () => {
+    const packaged = JSON.parse(
+      '{"required":["mode"],"properties":{"mode":{"type":"string"},"__proto__":{"type":"string"}},"type":"object"}'
+    ) as Record<string, unknown>
+    const live = validateAndCloneJsonSchema(
+      JSON.parse(
+        '{"type":"object","properties":{"__proto__":{"type":"string"},"mode":{"type":"string"}},"required":["mode"]}'
+      ),
+      'live tool input'
+    )
+
+    expect(findJsonValueDifference(packaged, live)).toBeNull()
+    expect(Object.getPrototypeOf(live)).toBeNull()
+    expect(Object.getPrototypeOf(live.properties)).toBeNull()
+    expect(Object.hasOwn(live.properties as object, '__proto__')).toBe(true)
+  })
+
+  it('reports escaped JSON Pointer paths while preserving array order', () => {
+    expect(
+      findJsonValueDifference(
+        { properties: { 'target/with~separator': { type: 'string' } } },
+        { properties: { 'target/with~separator': { type: 'number' } } }
+      )
+    ).toEqual({
+      path: '#/properties/target~1with~0separator/type',
+      kind: 'value'
+    })
+    expect(findJsonValueDifference({ enum: ['safe', 'fast'] }, { enum: ['fast', 'safe'] })).toEqual(
+      {
+        path: '#/enum/0',
+        kind: 'value'
+      }
+    )
+    expect(findJsonValueDifference({ type: 'object' }, ['object'])).toEqual({
+      path: '#',
+      kind: 'type'
+    })
+    expect(
+      findJsonValueDifference({ required: ['pid'] }, { required: ['pid', 'window_id'] })
+    ).toEqual({
+      path: '#/required',
+      kind: 'array-length'
+    })
   })
 
   it('rejects remote references and unknown schema dialects', () => {

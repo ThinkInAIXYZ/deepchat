@@ -26,6 +26,90 @@ interface CloneState {
   seen: WeakSet<object>
 }
 
+export type JsonValueDifference = {
+  readonly path: string
+  readonly kind: 'type' | 'value' | 'array-length' | 'missing-key' | 'unexpected-key'
+}
+
+const jsonValueKind = (value: unknown): string => {
+  if (value === null) {
+    return 'null'
+  }
+  if (Array.isArray(value)) {
+    return 'array'
+  }
+  return typeof value
+}
+
+const appendJsonPointerSegment = (path: string, segment: string): string =>
+  `${path}/${segment.replaceAll('~', '~0').replaceAll('/', '~1')}`
+
+/**
+ * Compares values that already crossed the bounded MCP JSON validation boundary. JSON object
+ * prototypes and insertion order are intentionally ignored because neither is protocol data.
+ */
+export function findJsonValueDifference(
+  expected: unknown,
+  actual: unknown,
+  path = '#'
+): JsonValueDifference | null {
+  if (expected === actual) {
+    return null
+  }
+
+  const expectedKind = jsonValueKind(expected)
+  const actualKind = jsonValueKind(actual)
+  if (expectedKind !== actualKind) {
+    return { path, kind: 'type' }
+  }
+
+  if (expectedKind === 'array') {
+    const expectedItems = expected as unknown[]
+    const actualItems = actual as unknown[]
+    const sharedLength = Math.min(expectedItems.length, actualItems.length)
+    for (let index = 0; index < sharedLength; index += 1) {
+      const difference = findJsonValueDifference(
+        expectedItems[index],
+        actualItems[index],
+        appendJsonPointerSegment(path, String(index))
+      )
+      if (difference) {
+        return difference
+      }
+    }
+    return expectedItems.length === actualItems.length ? null : { path, kind: 'array-length' }
+  }
+
+  if (expectedKind === 'object') {
+    const expectedRecord = expected as Record<string, unknown>
+    const actualRecord = actual as Record<string, unknown>
+    const keys = Array.from(
+      new Set([...Object.keys(expectedRecord), ...Object.keys(actualRecord)])
+    ).sort()
+
+    for (const key of keys) {
+      const differencePath = appendJsonPointerSegment(path, key)
+      if (!Object.hasOwn(expectedRecord, key)) {
+        return { path: differencePath, kind: 'unexpected-key' }
+      }
+      if (!Object.hasOwn(actualRecord, key)) {
+        return { path: differencePath, kind: 'missing-key' }
+      }
+      const difference = findJsonValueDifference(
+        expectedRecord[key],
+        actualRecord[key],
+        differencePath
+      )
+      if (difference) {
+        return difference
+      }
+    }
+    return null
+  }
+
+  return { path, kind: 'value' }
+}
+
 function cloneBoundedJson(value: unknown, label: string, limits: CloneLimits): unknown {
   const state: CloneState = {
     keys: 0,

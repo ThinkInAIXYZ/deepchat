@@ -66,6 +66,21 @@
   - macOS x64, Windows, and Linux generation remain native-CI gates.
 - [ ] Validate bundled and preinstalled cursor-theme behavior on native targets.
 
+## CUA 0.17.0 contract upgrade
+
+- [x] Audit the two breaking contracts, five added tools, and unchanged embedded protocol fields.
+- [x] Pin the release assets, checksums, driver version, and contract version.
+- [x] Add exact policies for the five new tools, with `clipboard_read` denied.
+- [x] Reject bare indices and require a token or same-result index-plus-snapshot pair.
+- [x] Project closed `ActionResult` and bounded `verify_state` facts to the model.
+- [x] Update the packaged skill's action/verification loop.
+- [ ] Regenerate and verify each supported native catalog and artifact.
+  - macOS arm64 generated 54 tools and passed bundle/verification locally on 2026-08-03.
+  - macOS x64, Windows, and Linux generation remain native-CI gates.
+
+The goal-level implementation and validation record lives in
+`docs/architecture/cua-driver-0-17-contract-migration/`.
+
 ## Model-facing CUA compatibility
 
 - [x] Normalize empty `element_token` for the seven affected CUA action tools without removing
@@ -181,6 +196,16 @@ CUA 0.14.1 upgrade validation completed on 2026-07-30:
 - `pnpm run test:renderer`: 207 files and 1653 tests passed;
 - formatting, i18n, lint, Node/Web type checks, the production build, and CUA manifest validation
   passed.
+
+CUA 0.17.0 upgrade validation completed on 2026-08-03:
+
+- macOS arm64 plugin bundle, validation, and verification passed with a development-signed
+  artifact; the generated catalog reported 54 tools for driver 0.17.0 and included all five added
+  tools;
+- 133 focused CUA adapter, ToolManager, and plugin tests passed;
+- `pnpm run test:main`: 486 files and 5787 tests passed; 21 files and 285 tests were skipped;
+- `pnpm run test:renderer`: 242 files and 1978 tests passed;
+- formatting, i18n, lint, Node/Web type checks, and the production build passed.
 
 Windows/Linux native catalogs and behavior, the version-gated direct-driver ownership smoke,
 release-signed/notarized macOS behavior, and preinstalled custom themes remain unchecked above.
