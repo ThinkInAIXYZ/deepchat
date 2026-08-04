@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { z } from 'zod'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import {
@@ -10,6 +11,8 @@ import {
 } from '@shared/lib/deepchatSubagents'
 import {
   LIVE_DELEGATION_OPERATIONS,
+  LIVE_DELEGATION_MAX_MESSAGE_BYTES,
+  LIVE_DELEGATION_MAX_PROMPT_BYTES,
   LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH,
   LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS
 } from '@shared/orchestration/liveDelegation'
@@ -34,13 +37,13 @@ const liveDelegationSchema = z
         message: 'Task title cannot contain control characters.'
       })
       .optional(),
-    prompt: z.string().trim().min(1).max(65_536).optional(),
+    prompt: utf8BoundedString(LIVE_DELEGATION_MAX_PROMPT_BYTES, 'Prompt').optional(),
     delegationId: z.string().trim().min(1).max(256).optional(),
     turnId: z.string().trim().min(1).max(256).optional(),
     cursor: z.string().trim().min(1).max(LIVE_DELEGATION_RESULT_CURSOR_MAX_LENGTH).optional(),
     maxTokens: z.number().int().min(1).max(LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS).optional(),
-    message: z.string().trim().min(1).max(8_192).optional(),
-    task: z.string().trim().min(1).max(65_536).optional(),
+    message: utf8BoundedString(LIVE_DELEGATION_MAX_MESSAGE_BYTES, 'Message').optional(),
+    task: utf8BoundedString(LIVE_DELEGATION_MAX_PROMPT_BYTES, 'Task').optional(),
     delegationIds: z.array(z.string().trim().min(1).max(256)).max(20).optional(),
     after: z.number().int().nonnegative().optional(),
     timeoutMs: z.number().int().min(0).max(60_000).optional(),
@@ -250,4 +253,14 @@ function hasControlCharacters(value: string): boolean {
     if (codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f)) return true
   }
   return false
+}
+
+function utf8BoundedString(maxBytes: number, label: string) {
+  return z
+    .string()
+    .trim()
+    .min(1)
+    .refine((value) => !value.includes('\0') && Buffer.byteLength(value, 'utf8') <= maxBytes, {
+      message: `${label} must not exceed ${maxBytes} UTF-8 bytes or contain NUL characters.`
+    })
 }

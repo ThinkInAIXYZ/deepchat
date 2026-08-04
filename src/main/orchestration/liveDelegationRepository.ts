@@ -6,6 +6,7 @@ import {
   LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES,
   LIVE_DELEGATION_MAX_HANDOFF_BYTES,
   LIVE_DELEGATION_MAX_MESSAGE_BYTES,
+  LIVE_DELEGATION_MAX_PENDING_MESSAGE_BYTES,
   LIVE_DELEGATION_MAX_PROMPT_BYTES,
   LIVE_DELEGATION_MAX_RESULT_REF_BYTES,
   LiveDelegationEventSchema,
@@ -34,6 +35,8 @@ import type { LiveDelegationTurnRow } from './data/tables/liveDelegationTurns'
 
 const MAX_LIST_LIMIT = 100
 const MAX_PENDING_MESSAGES = 16
+const MAILBOX_RECOVERY_NOTICE =
+  '[Some queued messages were truncated or omitted to satisfy host mailbox limits.]'
 const StoredIdSchema = z.string().trim().min(1).max(256)
 const ListLimitSchema = z.number().int().min(1).max(MAX_LIST_LIMIT)
 const CursorSchema = z.number().int().nonnegative()
@@ -253,24 +256,40 @@ export class LiveDelegationRepository {
       'Live delegation message'
     )
     const db = this.database.getDatabase()
-    const pending = db
-      .prepare(
-        `SELECT COUNT(*) AS count FROM live_delegation_events
-         WHERE delegation_id = ? AND direction = 'parent_to_child'
-           AND consumed_by_turn_id IS NULL`
-      )
-      .get(delegation.id) as { count: number }
-    if (pending.count >= MAX_PENDING_MESSAGES) {
-      throw new Error(`Live delegation ${delegation.id} has too many pending messages.`)
-    }
-    const event = this.insertEvent({
-      delegation,
-      direction: 'parent_to_child',
-      kind: 'message',
-      content: message,
-      relatedTurnId: null,
-      now: Date.now()
-    })
+    const messageBytes = Buffer.byteLength(message, 'utf8')
+    const eventId = db.transaction(() => {
+      const pending = db
+        .prepare(
+          `SELECT COUNT(*) AS count,
+                  COALESCE(SUM(length(CAST(content AS BLOB))), 0) AS bytes
+           FROM live_delegation_events
+           WHERE delegation_id = ? AND direction = 'parent_to_child'
+             AND kind = 'message' AND consumed_by_turn_id IS NULL`
+        )
+        .get(delegation.id) as { count: number; bytes: number }
+      if (pending.count >= MAX_PENDING_MESSAGES) {
+        throw new Error(`Live delegation ${delegation.id} has too many pending messages.`)
+      }
+      if (pending.bytes + messageBytes > LIVE_DELEGATION_MAX_PENDING_MESSAGE_BYTES) {
+        throw new Error(
+          `Live delegation ${delegation.id} pending mailbox would exceed ` +
+            `${LIVE_DELEGATION_MAX_PENDING_MESSAGE_BYTES} UTF-8 bytes.`
+        )
+      }
+      return this.insertEventRow({
+        delegationId: delegation.id,
+        parentSessionId: delegation.parentSessionId,
+        direction: 'parent_to_child',
+        kind: 'message',
+        content: message,
+        relatedTurnId: null,
+        now: Date.now()
+      })
+    })()
+    const row = db
+      .prepare('SELECT * FROM live_delegation_events WHERE event_id = ?')
+      .get(eventId) as LiveDelegationEventRow
+    const event = toEvent(row)
     this.pruneEvents(delegation.parentSessionId)
     return event
   }
@@ -308,7 +327,7 @@ export class LiveDelegationRepository {
            ORDER BY event_id ASC`
         )
         .all(delegation.id) as Array<{ event_id: number; content: string }>
-      const prompt = buildFollowUpPrompt(
+      const prompt = buildBoundedFollowUpPrompt(
         normalizedTask,
         messageRows.map((row) => row.content)
       )
@@ -578,30 +597,6 @@ export class LiveDelegationRepository {
     return { delegation: this.require(turn.delegationId), turn: this.requireTurn(turn.id) }
   }
 
-  private insertEvent(input: {
-    delegation: LiveDelegation
-    direction: 'parent_to_child' | 'child_to_parent'
-    kind: LiveDelegationEventKind
-    content: string
-    relatedTurnId: string | null
-    now: number
-  }): LiveDelegationEvent {
-    const id = this.insertEventRow({
-      delegationId: input.delegation.id,
-      parentSessionId: input.delegation.parentSessionId,
-      direction: input.direction,
-      kind: input.kind,
-      content: input.content,
-      relatedTurnId: input.relatedTurnId,
-      now: input.now
-    })
-    const row = this.database
-      .getDatabase()
-      .prepare('SELECT * FROM live_delegation_events WHERE event_id = ?')
-      .get(id) as LiveDelegationEventRow
-    return toEvent(row)
-  }
-
   private insertEventRow(input: {
     delegationId: string
     parentSessionId: string
@@ -703,14 +698,73 @@ function toEvent(row: LiveDelegationEventRow): LiveDelegationEvent {
   })
 }
 
-function buildFollowUpPrompt(task: string, messages: string[]): string {
-  if (messages.length === 0) return task
+function buildBoundedFollowUpPrompt(task: string, storedMessages: string[]): string {
+  const messages: string[] = []
+  let admittedBytes = 0
+  let recovered = false
+  for (const storedMessage of storedMessages.slice(0, MAX_PENDING_MESSAGES)) {
+    const normalized = storedMessage.trim()
+    if (!normalized || normalized.includes('\0')) {
+      recovered = true
+      continue
+    }
+    const message = truncateUtf8(normalized, LIVE_DELEGATION_MAX_MESSAGE_BYTES)
+    if (message !== normalized) recovered = true
+    const messageBytes = Buffer.byteLength(message, 'utf8')
+    if (admittedBytes + messageBytes > LIVE_DELEGATION_MAX_PENDING_MESSAGE_BYTES) {
+      recovered = true
+      continue
+    }
+    admittedBytes += messageBytes
+    messages.push(message)
+  }
+  if (storedMessages.length > MAX_PENDING_MESSAGES) recovered = true
+
+  for (let count = messages.length; count >= 0; count -= 1) {
+    const omittedForPrompt = count < messages.length
+    const prompt = buildFollowUpPrompt(
+      task,
+      messages.slice(0, count),
+      recovered || omittedForPrompt
+    )
+    if (Buffer.byteLength(prompt, 'utf8') <= LIVE_DELEGATION_MAX_PROMPT_BYTES) return prompt
+  }
+
+  // The task was already validated independently. If it consumes the complete prompt budget,
+  // consume legacy mailbox rows and prefer the explicit follow-up instead of creating a poison row
+  // that fails every retry.
+  return task
+}
+
+function buildFollowUpPrompt(task: string, messages: string[], recovered: boolean): string {
+  if (messages.length === 0 && !recovered) return task
   return [
-    '# Messages received without starting a turn',
-    ...messages.map((message, index) => `## Message ${index + 1}\n${message}`),
+    ...(messages.length > 0
+      ? [
+          '# Messages received without starting a turn',
+          ...messages.map((message, index) => `## Message ${index + 1}\n${message}`)
+        ]
+      : []),
+    ...(recovered ? [MAILBOX_RECOVERY_NOTICE] : []),
     '# Follow-up task',
     task
   ].join('\n\n')
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  if (Buffer.byteLength(value, 'utf8') <= maxBytes) return value
+  let low = 0
+  let high = value.length
+  while (low < high) {
+    const midpoint = Math.ceil((low + high) / 2)
+    const candidate = value.slice(0, midpoint)
+    if (Buffer.byteLength(candidate, 'utf8') <= maxBytes) low = midpoint
+    else high = midpoint - 1
+  }
+  let end = low
+  const code = value.charCodeAt(end - 1)
+  if (code >= 0xd800 && code <= 0xdbff) end -= 1
+  return value.slice(0, Math.max(0, end))
 }
 
 function validateText(value: string, maxLength: number, label: string): string {

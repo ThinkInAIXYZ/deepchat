@@ -129,6 +129,32 @@ describe('LiveDelegationAgentTool', () => {
     expect(parseChildAgentResultEnvelope(envelope)).toBeNull()
   })
 
+  it('enforces advertised prompt and message limits in UTF-8 bytes', async () => {
+    await expect(
+      tool.call(
+        {
+          operation: 'send',
+          delegationId: 'delegation-1',
+          message: '界'.repeat(2_731)
+        },
+        'parent-1'
+      )
+    ).rejects.toThrow('8192 UTF-8 bytes')
+    await expect(
+      tool.call(
+        {
+          operation: 'spawn',
+          slotId: 'reviewer',
+          title: 'Review',
+          prompt: '界'.repeat(21_846)
+        },
+        'parent-1'
+      )
+    ).rejects.toThrow('65536 UTF-8 bytes')
+    expect(port.send).not.toHaveBeenCalled()
+    expect(port.spawn).not.toHaveBeenCalled()
+  })
+
   it('forwards the caller signal to bounded mailbox waits', async () => {
     const controller = new AbortController()
 

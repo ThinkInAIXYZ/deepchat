@@ -175,6 +175,64 @@ describeIfSqlite('LiveDelegationRepository', () => {
     ).toThrow('already has an active turn')
   })
 
+  it('applies atomic UTF-8 backpressure to the pending mailbox', () => {
+    createDelegation()
+    repository.finishTurn({ turnId: 'turn-1', status: 'completed', summary: 'Done', now: 110 })
+
+    for (let index = 0; index < 4; index += 1) {
+      repository.createMessage('parent', 'delegation-1', 'a'.repeat(8 * 1024))
+    }
+    expect(() => repository.createMessage('parent', 'delegation-1', 'one byte too many')).toThrow(
+      'pending mailbox would exceed 32768 UTF-8 bytes'
+    )
+    expect(
+      db!
+        .prepare(
+          `SELECT COUNT(*) AS count,
+                  SUM(length(CAST(content AS BLOB))) AS bytes
+           FROM live_delegation_events
+           WHERE direction = 'parent_to_child' AND consumed_by_turn_id IS NULL`
+        )
+        .get()
+    ).toEqual({ count: 4, bytes: 32 * 1024 })
+    expect(() => repository.createMessage('parent', 'delegation-1', '界'.repeat(2_731))).toThrow(
+      '8192 UTF-8 bytes'
+    )
+  })
+
+  it('consumes legacy mailbox overflow without poisoning every follow-up retry', () => {
+    createDelegation()
+    repository.finishTurn({ turnId: 'turn-1', status: 'completed', summary: 'Done', now: 110 })
+    const insert = db!.prepare(
+      `INSERT INTO live_delegation_events (
+         delegation_id, parent_session_id, direction, kind, content, related_turn_id,
+         consumed_by_turn_id, created_at
+       ) VALUES ('delegation-1', 'parent', 'parent_to_child', 'message', ?, NULL, NULL, ?)`
+    )
+    for (let index = 0; index < 6; index += 1) {
+      insert.run(String(index).repeat(8 * 1024), 120 + index)
+    }
+
+    const followUp = repository.createFollowUp(
+      'parent',
+      'delegation-1',
+      'turn-2',
+      'Continue with the bounded evidence.',
+      130
+    )
+
+    expect(Buffer.byteLength(followUp.turn.prompt, 'utf8')).toBeLessThanOrEqual(64 * 1024)
+    expect(followUp.turn.prompt).toContain('host mailbox limits')
+    expect(
+      db!
+        .prepare(
+          `SELECT COUNT(*) AS count FROM live_delegation_events
+           WHERE direction = 'parent_to_child' AND consumed_by_turn_id IS NULL`
+        )
+        .get()
+    ).toEqual({ count: 0 })
+  })
+
   it('persists monotonic tool effect evidence before child execution', () => {
     createDelegation()
     repository.markTurnStarted('turn-1', 110)
