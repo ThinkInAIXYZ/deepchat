@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { WORKFLOW_RUNTIME_DEFAULT_LIMITS } from '@shared/workflow/runtimeProtocol'
 import { WorkflowExecutionSnapshotSchema } from '@shared/workflow/domain'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
+import { TEST_WORKFLOW_EXECUTION_SNAPSHOT } from './workflowTestFixtures'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const mainDatabaseModule = Database ? await import('@/data/mainDatabase').catch(() => null) : null
@@ -19,6 +20,8 @@ const liveDelegationsModule = Database
   : null
 const MainDatabase = mainDatabaseModule?.MainDatabase
 const WORKFLOW_SCHEMA_VERSION = workflowRunsModule?.WORKFLOW_SCHEMA_VERSION
+const WORKFLOW_TOKEN_BUDGET_REMOVAL_SCHEMA_VERSION =
+  workflowRunsModule?.WORKFLOW_TOKEN_BUDGET_REMOVAL_SCHEMA_VERSION
 const LATEST_SCHEMA_VERSION = Math.max(
   WORKFLOW_SCHEMA_VERSION ?? 0,
   newSessionsModule?.SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION ?? 0,
@@ -27,7 +30,12 @@ const LATEST_SCHEMA_VERSION = Math.max(
 const DatabaseCtor = Database!
 const MainDatabaseCtor = MainDatabase!
 const describeIfSqlite = nativeSqliteDescribeIf(
-  Boolean(MainDatabase && WORKFLOW_SCHEMA_VERSION && LATEST_SCHEMA_VERSION),
+  Boolean(
+    MainDatabase &&
+    WORKFLOW_SCHEMA_VERSION &&
+    WORKFLOW_TOKEN_BUDGET_REMOVAL_SCHEMA_VERSION &&
+    LATEST_SCHEMA_VERSION
+  ),
   'Workflow migration modules are unavailable'
 )
 
@@ -463,6 +471,88 @@ describeIfSqlite('workflow schema migration', () => {
         .prepare('SELECT orchestration_policy FROM new_sessions WHERE id = ?')
         .get('snapshot-parent')
     ).toEqual({ orchestration_policy: 'proactive' })
+    migrated.close()
+  })
+
+  it('removes legacy aggregate token cutoffs while preserving execution deadlines', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workflow-budget-migration-'))
+    tempDirectories.push(directory)
+    const databasePath = path.join(directory, 'agent.db')
+    const current = new MainDatabaseCtor(databasePath)
+    current.close()
+
+    const bootstrap = new DatabaseCtor(databasePath)
+    bootstrap
+      .prepare(
+        `INSERT INTO new_sessions (id, agent_id, title, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .run('budget-parent', 'deepchat', 'Budget parent', 100, 100)
+    const source = 'return null'
+    const insertRun = bootstrap.prepare(`
+      INSERT INTO workflow_runs (
+        run_id,
+        parent_session_id,
+        capability_scope_hash,
+        execution_snapshot_json,
+        script_source,
+        script_hash,
+        input_json,
+        runtime_api_version,
+        limits_json,
+        allowed_agent_ids_json,
+        policy_hash,
+        budget_json,
+        status,
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'null', 1, ?, '["deepchat"]', ?, ?, 'queued', 100, 100)
+    `)
+    const insertBudgetRun = (runId: string, budget: object): void => {
+      insertRun.run(
+        runId,
+        'budget-parent',
+        'a'.repeat(64),
+        JSON.stringify(TEST_WORKFLOW_EXECUTION_SNAPSHOT),
+        source,
+        createHash('sha256').update(source).digest('hex'),
+        JSON.stringify(WORKFLOW_RUNTIME_DEFAULT_LIMITS),
+        'b'.repeat(64),
+        JSON.stringify(budget)
+      )
+    }
+    insertBudgetRun('token-and-deadline', {
+      maxTotalTokens: 10_000,
+      maxExecutionMs: 60_000
+    })
+    insertBudgetRun('token-only', { maxTotalTokens: 10_000 })
+    insertBudgetRun('deadline-only', { maxExecutionMs: 30_000 })
+    bootstrap.exec(`
+      DELETE FROM schema_versions;
+      INSERT INTO schema_versions (version, applied_at)
+      VALUES (${WORKFLOW_TOKEN_BUDGET_REMOVAL_SCHEMA_VERSION! - 1}, 100);
+    `)
+    bootstrap.close()
+
+    const database = new MainDatabaseCtor(databasePath)
+    database.close()
+
+    const migrated = new DatabaseCtor(databasePath)
+    const rows = migrated
+      .prepare('SELECT run_id, budget_json FROM workflow_runs ORDER BY run_id')
+      .all() as Array<{ run_id: string; budget_json: string }>
+    expect(
+      Object.fromEntries(rows.map((row) => [row.run_id, JSON.parse(row.budget_json)]))
+    ).toEqual({
+      'deadline-only': { maxExecutionMs: 30_000 },
+      'token-and-deadline': { maxExecutionMs: 60_000 },
+      'token-only': { maxExecutionMs: 2 * 60 * 60 * 1_000 }
+    })
+    expect(() =>
+      migrated
+        .prepare('UPDATE workflow_runs SET budget_json = ? WHERE run_id = ?')
+        .run('{"maxExecutionMs":1000}', 'token-only')
+    ).toThrow('workflow run snapshot is immutable')
     migrated.close()
   })
 

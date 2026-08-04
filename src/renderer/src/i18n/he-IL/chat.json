@@ -647,7 +647,6 @@
       "hours": "{hours} שע׳ {minutes} דק׳"
     },
     "budget": {
-      "tokens": "{count} טוקנים",
       "duration": "עד {duration}"
     },
     "approval": {

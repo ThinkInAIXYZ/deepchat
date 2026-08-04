@@ -6,11 +6,11 @@ import {
   WorkflowEffectStateSchema,
   WorkflowInvocationStatusSchema,
   WorkflowResultDeliveryStateSchema,
+  WorkflowRunBudgetSchema,
   WorkflowRunStatusSchema,
   WorkflowTapeLinkReceiptSchema
 } from './domain'
 import { WorkflowInvocationErrorSchema, WorkflowRuntimeLimitsSchema } from './runtimeProtocol'
-import { WorkflowRunBudgetSchema } from './serviceContracts'
 import { WorkflowSourceOutlineSchema } from './outline'
 
 const WorkflowProjectionIdSchema = z.string().min(1).max(256)

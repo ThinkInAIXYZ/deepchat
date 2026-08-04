@@ -647,7 +647,6 @@
       "hours": "{hours}시간 {minutes}분"
     },
     "budget": {
-      "tokens": "{count}토큰",
       "duration": "최대 {duration}"
     },
     "approval": {

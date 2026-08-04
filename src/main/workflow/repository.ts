@@ -9,6 +9,7 @@ import {
   WorkflowInvocationFailureSchema,
   WorkflowInvocationSchema,
   WorkflowInvocationStatusSchema,
+  WorkflowRunBudgetSchema,
   WorkflowRunSchema,
   WorkflowTapeLinkReceiptSchema,
   WORKFLOW_STORED_EVIDENCE_MAX_BYTES,
@@ -44,11 +45,6 @@ const MAX_METADATA_JSON_BYTES = WORKFLOW_STORED_METADATA_MAX_BYTES
 const MAX_EVIDENCE_JSON_BYTES = WORKFLOW_STORED_EVIDENCE_MAX_BYTES
 const MAX_STORED_JSON_BYTES = WORKFLOW_STORED_JSON_MAX_BYTES
 const MAX_RUN_LIST_LIMIT = 500
-const MAX_USAGE_KEY_LENGTH = 128
-const WORKFLOW_USAGE_RESERVED_KEYS = Object.freeze(Object.getOwnPropertyNames(Object.prototype))
-const WORKFLOW_USAGE_RESERVED_KEY_PARAMETERS = WORKFLOW_USAGE_RESERVED_KEYS.map(() => '?').join(
-  ', '
-)
 
 const StoredIdSchema = z.string().trim().min(1).max(256)
 const WorkspacePathSchema = z
@@ -180,7 +176,7 @@ export class WorkflowRepository {
     const budget =
       input.budget == null
         ? null
-        : canonicalizeWorkflowJson(input.budget, {
+        : canonicalizeWorkflowJson(WorkflowRunBudgetSchema.parse(input.budget), {
             maxBytes: MAX_METADATA_JSON_BYTES
           }).json
     const namedWorkflowPath = input.namedWorkflowPath?.trim() || null
@@ -692,101 +688,6 @@ export class WorkflowRepository {
 
   listInvocations(runId: string): WorkflowInvocation[] {
     return this.database.workflowInvocationsTable.listByRun(runId).map(toWorkflowInvocation)
-  }
-
-  getTotalTokenUsage(runId: string): number {
-    const normalizedRunId = StoredIdSchema.parse(runId)
-    const row = this.database
-      .getDatabase()
-      .prepare(
-        `WITH usage_documents AS (
-           SELECT invocation_id,
-                  CASE
-                    WHEN usage_json IS NULL THEN '{}'
-                    WHEN json_valid(usage_json) = 0 THEN '{}'
-                    WHEN json_type(usage_json) = 'object' THEN usage_json
-                    ELSE '{}'
-                  END AS safe_usage_json,
-                  CASE
-                    WHEN usage_json IS NULL THEN 0
-                    WHEN json_valid(usage_json) = 0 THEN 1
-                    WHEN json_type(usage_json) != 'object' THEN 1
-                    ELSE 0
-                  END AS invalid_document
-           FROM workflow_invocations
-           WHERE run_id = ?
-         ),
-         usage_entries AS (
-           SELECT documents.invocation_id,
-                  entries.key,
-                  entries.value,
-                  entries.type
-           FROM usage_documents AS documents
-           CROSS JOIN json_each(documents.safe_usage_json) AS entries
-         ),
-         duplicate_keys AS (
-           SELECT invocation_id, key
-           FROM usage_entries
-           GROUP BY invocation_id, key
-           HAVING COUNT(*) > 1
-         ),
-         invocation_token_parts AS (
-           SELECT invocation_id,
-                  SUM(CASE WHEN key = 'totalTokens' THEN 1 ELSE 0 END) AS total_count,
-                  MAX(CASE WHEN key = 'totalTokens' THEN value END) AS total_tokens,
-                  MAX(CASE WHEN key = 'inputTokens' THEN value END) AS input_tokens,
-                  MAX(CASE WHEN key = 'outputTokens' THEN value END) AS output_tokens
-           FROM usage_entries
-           GROUP BY invocation_id
-         ),
-         invocation_tokens AS (
-           SELECT invocation_id,
-                  CASE
-                    WHEN total_count > 0 THEN total_tokens
-                    ELSE COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
-                  END AS total_tokens,
-                  CASE
-                    WHEN total_count > 0 THEN
-                      total_tokens != CAST(total_tokens AS INTEGER)
-                    ELSE
-                      COALESCE(input_tokens, 0) != CAST(COALESCE(input_tokens, 0) AS INTEGER)
-                      OR COALESCE(output_tokens, 0)
-                           != CAST(COALESCE(output_tokens, 0) AS INTEGER)
-                      OR COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
-                           > ${Number.MAX_SAFE_INTEGER}
-                  END AS invalid_tokens
-           FROM invocation_token_parts
-         )
-         SELECT
-           (SELECT COALESCE(SUM(invalid_document), 0) FROM usage_documents)
-             + (SELECT COUNT(*)
-                FROM usage_entries
-                WHERE length(key) NOT BETWEEN 1 AND ${MAX_USAGE_KEY_LENGTH}
-                   OR substr(key, 1, 1) NOT GLOB '[A-Za-z]'
-                   OR key GLOB '*[^A-Za-z0-9]*'
-                   OR key IN (${WORKFLOW_USAGE_RESERVED_KEY_PARAMETERS})
-                   OR type NOT IN ('integer', 'real')
-                   OR value < 0
-                   OR value > ${Number.MAX_SAFE_INTEGER})
-             + (SELECT COUNT(*) FROM duplicate_keys)
-             + (SELECT COALESCE(SUM(invalid_tokens), 0) FROM invocation_tokens)
-             AS invalid_count,
-           (SELECT COALESCE(SUM(total_tokens), 0) FROM invocation_tokens) AS total_tokens`
-      )
-      .get(normalizedRunId, ...WORKFLOW_USAGE_RESERVED_KEYS) as {
-      invalid_count: number
-      total_tokens: number
-    }
-    if (!Number.isSafeInteger(row.invalid_count) || row.invalid_count < 0) {
-      throw new Error(`Stored workflow usage validation failed for run ${normalizedRunId}.`)
-    }
-    if (row.invalid_count > 0) {
-      throw new Error(`Stored workflow usage accounting is invalid for run ${normalizedRunId}.`)
-    }
-    if (!Number.isSafeInteger(row.total_tokens) || row.total_tokens < 0) {
-      throw new Error(`Stored workflow token accounting overflowed for run ${normalizedRunId}.`)
-    }
-    return row.total_tokens
   }
 
   getInvocationCounts(runIds: readonly string[]): Map<string, WorkflowInvocationCounts> {

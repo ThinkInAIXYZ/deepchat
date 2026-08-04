@@ -228,7 +228,7 @@ function runDetail(
     ...summary,
     limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
     allowedAgentIds: ['deepchat'],
-    budget: { maxTotalTokens: 10_000 },
+    budget: { maxExecutionMs: 2 * 60 * 60 * 1_000 },
     outline: {
       schemaVersion: 1,
       confidence: 'exact',
@@ -322,6 +322,12 @@ describe('WorkflowPanel', () => {
 
     expect(wrapper.get('[data-testid="workflow-run-detail"]').text()).toContain(
       'Which implementation should be used?'
+    )
+    expect(wrapper.get('[data-testid="workflow-run-detail"]').text()).toContain(
+      'chat.workflow.budget.duration'
+    )
+    expect(wrapper.get('[data-testid="workflow-run-detail"]').text()).toContain(
+      'chat.workflow.duration.hours'
     )
     await wrapper.get('[data-testid="workflow-open-child-invocation-1"]').trigger('click')
     expect(client.selectSession).toHaveBeenCalledWith('child-1')

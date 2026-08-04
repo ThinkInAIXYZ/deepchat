@@ -647,7 +647,6 @@
       "hours": "{hours} ч {minutes} мин"
     },
     "budget": {
-      "tokens": "{count} токенов",
       "duration": "Не более {duration}"
     },
     "approval": {

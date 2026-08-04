@@ -647,7 +647,6 @@
       "hours": "{hours} jam {minutes} min"
     },
     "budget": {
-      "tokens": "{count} token",
       "duration": "Maksimum {duration}"
     },
     "approval": {

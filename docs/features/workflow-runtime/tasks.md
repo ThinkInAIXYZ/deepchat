@@ -49,6 +49,8 @@ Validation evidence (2026-07-31):
 - [x] Add schema version 57 for the legacy session-mode bridge.
 - [x] Add schema version 58 for immutable execution snapshots.
 - [x] Add schema version 59 for the final `explicit | proactive` session policy.
+- [x] Add schema version 63 to remove legacy `maxTotalTokens` values while preserving execution
+  deadlines.
 - [x] Add `workflow_runs`.
 - [x] Add `workflow_invocations`.
 - [x] Store immutable source, hashes, statuses, attempts, effects, usage, and delivery state.
@@ -136,13 +138,14 @@ Structured-output validation evidence (2026-07-31):
 
 - [x] Add explicit launch approval bound to source hash and effective scope.
 - [x] Add one-process-per-run lifecycle.
-- [x] Add admission, execution, settlement, timeout, cancellation, and budget orchestration.
+- [x] Add admission, execution, settlement, timeout, cancellation, and execution-deadline
+  orchestration.
 - [x] Add resume, retry, and retry-from-here behavior.
 - [x] Add typed launch/status/cancel/resume/retry routes.
 - [x] Add explicit workflow agent-tool actions.
 - [x] Add typed workflow events and renderer projections.
 - [x] Keep activation independent from reasoning effort and explicit-only in V1.
-- [x] Add service, protocol-failure, recovery, and budget tests.
+- [x] Add service, protocol-failure, recovery, and execution-deadline tests.
 - [x] Add route and agent-tool tests.
 - [x] Complete the pre-commit service-core review, focused validation, and commit.
 
@@ -151,8 +154,8 @@ Service-core validation evidence (2026-07-31):
 - launch approvals bind the source and input hashes to a main-resolved workspace, allowlist,
   limits, and budget; pending approval count and bytes are bounded;
 - one-process-per-run admission covers active, queued, overflow, cancellation, and shutdown paths;
-- queued resume intent survives restart; replay, duplicate active paths, utility crashes, token and
-  execution-time budgets, effect-aware retry, retry-from-here, and projection failure isolation
+- queued resume intent survives restart; replay, duplicate active paths, utility crashes,
+  execution-time deadlines, effect-aware retry, retry-from-here, and projection failure isolation
   are covered by focused tests;
 - child usage is validated, correction-turn usage is accumulated, and terminal invocation usage is
   durable.
@@ -335,7 +338,7 @@ Runtime/recovery audit validation evidence (2026-07-31):
 - [x] Make the model-facing workflow tool user-configurable and disabled by default.
 - [x] Stop globally reserving the `workflow` MCP name.
 - [x] Require write/unknown retry confirmation independently of a changed input hash.
-- [x] Aggregate token usage without loading every invocation on each dispatch.
+- [x] Remove aggregate-token admission checks while retaining durable usage observability.
 - [x] Remove avoidable per-block workflow invocation reads.
 - [x] Add focused admission, exposure, retry, and performance-contract tests.
 
@@ -362,16 +365,62 @@ Policy/retry validation evidence (2026-07-31):
   tests passed;
 - `pnpm run typecheck:node`.
 
-Hot-path validation evidence (2026-07-31):
+Hot-path validation evidence (2026-07-31, token-cutoff portion superseded):
 
-- dispatch-time token budget checks return one SQL aggregate scalar without materializing
-  invocation payloads, while rejecting malformed documents, invalid keys or values, duplicate
-  keys, non-integral token accounting, and safe-integer overflow;
+- dispatch-time aggregate-token accounting was validated in the original implementation and is
+  intentionally removed by the 2026-08-04 contract revision because usage must not decide which
+  approved branches run;
 - child block updates perform no invocation read and write only when interaction state changes;
   correction turns preserve the prior tracker state;
 - 75 focused persistence, child-executor, and service tests passed, followed by all 181 Workflow
   tests;
 - `pnpm run typecheck:node`.
+
+### Aggregate Token Cutoff Removal
+
+- [x] Restrict the run budget contract to the host-owned execution deadline.
+- [x] Remove token-based dispatch rejection and its scheduling-only SQL aggregate.
+- [x] Migrate legacy run budgets without invalidating immutable snapshots or restart recovery.
+- [x] Keep per-invocation and run usage available in durable projections.
+- [x] Remove token-limit copy from approval and run surfaces.
+- [x] Add contract, migration, service, tool, and renderer regression coverage.
+- [x] Complete the pre-commit review and full validation.
+
+Aggregate-token cutoff validation evidence (2026-08-04):
+
+- schema version 63 removes only `maxTotalTokens`, preserves explicit execution deadlines, gives
+  token-only legacy budgets the frozen historical two-hour default, and restores the immutable-run
+  trigger in the migration transaction;
+- the launch, persisted run, projection, and model-facing tool contracts accept only the bounded
+  host-owned `maxExecutionMs`; legacy token fields fail at the typed boundary instead of silently
+  influencing scheduling;
+- prior durable usage no longer rejects later invocations, while per-invocation usage and successful
+  run aggregates remain available for UI and audit projections;
+- the native SQLite Workflow suite passed 25 files and 246 tests; the complete main suite passed
+  513 files and 5,988 tests with 28 files and 413 environment-specific tests skipped;
+- the complete renderer suite passed 255 files and 2,070 tests; `pnpm run i18n` validated 20 locales,
+  400 namespace registrations, and 4,252 source contracts;
+- `pnpm run format`, `pnpm run lint`, `pnpm run typecheck`, and `pnpm run build` passed.
+
+Aggregate-token cutoff review findings, ordered by severity:
+
+- critical and high: no remaining findings;
+- medium, fixed before commit: a historical migration initially depended on the mutable runtime
+  deadline default, so future tuning could have changed v63 replay behavior; the migration now owns
+  a frozen version-specific value;
+- medium, fixed before commit: the model-facing JSON schema described the deadline as an arbitrary
+  object even though the runtime rejected unknown keys; it now publishes the exact bounded
+  `maxExecutionMs` contract and explicitly disallows retired fields;
+- medium, fixed before commit: leaving persisted budgets as arbitrary JSON would have deferred
+  malformed legacy-state failures into recovery; the domain and repository boundary now share one
+  strict budget schema, with v63 normalizing valid legacy token budgets first;
+- low, fixed before commit: redundant projection parsing and execution-budget naming obscured the
+  single typed source of truth; projections now consume the domain value directly and the runtime
+  timer is named for its actual deadline responsibility;
+- low, fixed before commit: approval and run-detail formatter changes initially lacked direct
+  observable renderer assertions; all three deadline surfaces now have regression coverage;
+- no actionable compatibility, edge-case, performance, security, naming, test, or maintenance
+  finding remains in the changed scope.
 
 ### Projection And Authoring UX
 

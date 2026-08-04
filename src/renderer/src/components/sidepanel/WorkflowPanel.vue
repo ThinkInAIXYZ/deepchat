@@ -1085,22 +1085,9 @@ function formatPhase(value: JsonValue): string {
 }
 
 function formatBudget(budget: WorkflowRunBudget): string {
-  const parts: string[] = []
-  if (budget.maxTotalTokens !== undefined) {
-    parts.push(
-      t('chat.workflow.budget.tokens', {
-        count: budget.maxTotalTokens.toLocaleString()
-      })
-    )
-  }
-  if (budget.maxExecutionMs !== undefined) {
-    parts.push(
-      t('chat.workflow.budget.duration', {
-        duration: formatDuration(budget.maxExecutionMs)
-      })
-    )
-  }
-  return parts.join(' · ')
+  return t('chat.workflow.budget.duration', {
+    duration: formatDuration(budget.maxExecutionMs)
+  })
 }
 
 function invocationDepth(callPath: string): number {

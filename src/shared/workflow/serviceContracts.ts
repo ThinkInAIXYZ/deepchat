@@ -6,9 +6,14 @@ import {
   WorkflowRuntimeLimitsSchema
 } from './runtimeProtocol'
 import { WorkflowSourceOutlineSchema } from './outline'
-import { WorkflowExecutionSnapshotSchema } from './domain'
+import {
+  WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS,
+  WorkflowExecutionSnapshotSchema,
+  WorkflowRunBudgetSchema
+} from './domain'
 
-export const WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS = 2 * 60 * 60 * 1_000
+export { WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS, WorkflowRunBudgetSchema } from './domain'
+export type { WorkflowRunBudget } from './domain'
 
 const WorkflowStoredIdSchema = z.string().trim().min(1).max(256)
 const WorkflowNamedPathSchema = z
@@ -25,21 +30,6 @@ const WorkflowRuntimeLimitOverridesSchema = z
   .object(WorkflowRuntimeLimitsSchema.shape)
   .partial()
   .strict()
-
-export const WorkflowRunBudgetSchema = z
-  .object({
-    maxTotalTokens: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
-    maxExecutionMs: z
-      .number()
-      .int()
-      .min(1_000)
-      .max(7 * 24 * 60 * 60 * 1_000)
-      .optional()
-  })
-  .strict()
-  .refine((budget) => Object.keys(budget).length > 0, 'Workflow budget cannot be empty')
-
-export type WorkflowRunBudget = z.infer<typeof WorkflowRunBudgetSchema>
 
 const WorkflowUsageKeySchema = z
   .string()

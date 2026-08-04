@@ -161,6 +161,10 @@ declare module 'vue-i18n' {
       audioInputUnsupportedTitle: string
       audioInputUnsupportedDescription: string
     }
+    messageReceipt: {
+      unread: string
+      read: string
+    }
     attachments: {
       chooseRepresentation: string
       representation: string
@@ -1277,6 +1281,7 @@ declare module 'vue-i18n' {
       }
     }
     orchestration: {
+      activityTitle: string
       proactive: {
         title: string
         description: string
@@ -1362,7 +1367,6 @@ declare module 'vue-i18n' {
         hours: string
       }
       budget: {
-        tokens: string
         duration: string
       }
       approval: {
@@ -2510,6 +2514,14 @@ declare module 'vue-i18n' {
         personaActive: string
         rollback: string
         actionFailed: string
+        commandRejected: {
+          unavailable: string
+          notFound: string
+          invalidState: string
+          conflict: string
+          stale: string
+          anchored: string
+        }
         conflict: string
         conflictPairsTitle: string
         keepTarget: string

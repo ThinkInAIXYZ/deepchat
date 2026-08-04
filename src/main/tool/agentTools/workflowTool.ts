@@ -123,7 +123,18 @@ export class WorkflowAgentTool {
             },
             budget: {
               type: ['object', 'null'],
-              description: 'Optional maxTotalTokens and/or maxExecutionMs budget.'
+              properties: {
+                maxExecutionMs: {
+                  type: 'integer',
+                  minimum: 1_000,
+                  maximum: 7 * 24 * 60 * 60 * 1_000,
+                  description: 'Host-owned execution deadline in milliseconds.'
+                }
+              },
+              required: ['maxExecutionMs'],
+              additionalProperties: false,
+              description:
+                'Optional host-owned execution deadline. Omit budget to use the two-hour default.'
             },
             runId: {
               type: 'string',

@@ -647,7 +647,6 @@
       "hours": "{hours}時間{minutes}分"
     },
     "budget": {
-      "tokens": "{count}トークン",
       "duration": "最大{duration}"
     },
     "approval": {

@@ -2,9 +2,9 @@
 
 ## Status
 
-Active. Work is split into reviewable local commits. Every commit receives a pre-commit review for
-hidden side effects, compatibility, edge cases, performance, security, naming, test sufficiency,
-and maintenance cost. Findings are fixed before the commit. This branch is not pushed.
+Active. Work is split into reviewable commits. Every commit receives a pre-commit review for hidden
+side effects, compatibility, edge cases, performance, security, naming, test sufficiency, and
+maintenance cost. Findings are fixed before the commit.
 
 ## 1. Freeze Versioned Contracts
 
@@ -44,7 +44,8 @@ testable solution.
 - Add schema version 53 with `workflow_runs` and `workflow_invocations`, version 54 for the immutable
   workspace/capability scope, version 55 for one-time invocation deadline arming, version 57 for
   the legacy mode bridge, version 58 for immutable execution snapshots, and version 59 for the
-  final `explicit | proactive` session policy. Version 56 intentionally has no Workflow migration.
+  final `explicit | proactive` session policy. Version 63 removes the retired aggregate-token
+  cutoff from persisted run budgets. Version 56 intentionally has no Workflow migration.
 - Store the exact immutable executed script source and hash in the run row.
 - Enforce status checks, foreign keys, uniqueness, JSON bounds, and timestamps.
 - Implement domain mapping and Zod parsing at repository boundaries.
@@ -120,7 +121,9 @@ testable solution.
 - Spawn exactly one utility process per active run with a minimal environment.
 - Persist an invocation before admission and a child identity before handoff.
 - Settle guest promises from terminal or replayed invocation outcomes.
-- Enforce run count, total-token, active-child, and per-execution wall-clock budgets.
+- Enforce run count, pending-invocation, active-child, and per-execution wall-clock limits.
+- Persist provider-reported token usage for observability without using it to admit, skip, or
+  cancel approved workflow branches.
 - Defer monetary-cost budgets until DeepChat has a normalized cost fact at the common child
   runtime boundary; never treat unavailable cost as zero.
 - Implement host-owned invocation timeout and typed guest errors.
@@ -269,8 +272,8 @@ This section supersedes the first final-review claim that no critical or high fi
 
 ### Performance follow-up
 
-- Aggregate durable token usage in SQL instead of loading and hashing every invocation on each
-  dispatch.
+- Keep durable usage aggregation on read/projection paths rather than adding dispatch-time
+  accounting queries.
 - Use lightweight run-summary queries for progress projection.
 - Remove per-block invocation reads from child runtime tracking when no status transition is
   required.

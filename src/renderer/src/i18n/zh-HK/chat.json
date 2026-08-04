@@ -647,7 +647,6 @@
       "hours": "{hours} 小時 {minutes} 分"
     },
     "budget": {
-      "tokens": "{count} tokens",
       "duration": "最長 {duration}"
     },
     "approval": {

@@ -96,6 +96,38 @@ describe('WorkflowAgentTool', () => {
     ).toBe(false)
   })
 
+  it('rejects the retired aggregate token cutoff from model-authored launches', () => {
+    expect(
+      workflowAgentToolSchema.safeParse({
+        operation: 'prepare_launch',
+        scriptSource: 'return null',
+        budget: { maxTotalTokens: 10_000 }
+      }).success
+    ).toBe(false)
+    expect(
+      workflowAgentToolSchema.safeParse({
+        operation: 'prepare_launch',
+        scriptSource: 'return null',
+        budget: { maxExecutionMs: 60_000 }
+      }).success
+    ).toBe(true)
+
+    expect(tool.getToolDefinition().function.parameters.properties?.budget).toMatchObject({
+      properties: {
+        maxExecutionMs: {
+          type: 'integer',
+          minimum: 1_000,
+          maximum: 7 * 24 * 60 * 60 * 1_000
+        }
+      },
+      required: ['maxExecutionMs'],
+      additionalProperties: false
+    })
+    expect(
+      JSON.stringify(tool.getToolDefinition().function.parameters.properties?.budget)
+    ).not.toContain('maxTotalTokens')
+  })
+
   it('keeps launch out of the model-facing operation contract', async () => {
     expect(tool.getToolDefinition().function.parameters.properties?.operation).toMatchObject({
       enum: expect.not.arrayContaining(['launch'])

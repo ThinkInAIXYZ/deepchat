@@ -65,7 +65,7 @@ const approval = {
     allowedAgentIds: ['deepchat', 'reviewer'],
     maxInvocations: 8,
     maxPendingInvocations: 4,
-    budget: null,
+    budget: { maxExecutionMs: 2 * 60 * 60 * 1_000 },
     capabilities: ['deepchat-child-sessions'],
     outline: {
       schemaVersion: 1 as const,
@@ -111,6 +111,8 @@ describe('WorkflowLaunchApprovalCard', () => {
     expect(
       wrapper.get('[data-testid="workflow-approval-launch"]').attributes('disabled')
     ).toBeUndefined()
+    expect(wrapper.text()).toContain('chat.workflow.budget.duration')
+    expect(wrapper.text()).toContain('chat.workflow.duration.hours')
 
     await wrapper.get('[data-testid="workflow-approval-launch"]').trigger('click')
     await wrapper.get('[data-testid="workflow-approval-launch"]').trigger('click')

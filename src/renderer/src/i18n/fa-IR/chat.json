@@ -647,7 +647,6 @@
       "hours": "{hours} ساعت و {minutes} دقیقه"
     },
     "budget": {
-      "tokens": "{count} توکن",
       "duration": "حداکثر {duration}"
     },
     "approval": {

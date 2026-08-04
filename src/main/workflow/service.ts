@@ -26,12 +26,10 @@ import {
 } from '@shared/workflow/runtimeProtocol'
 import {
   WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS,
-  WorkflowRunBudgetSchema,
   WorkflowLaunchIntentSchema,
   WorkflowUsageSchema,
   type WorkflowLaunchApproval,
   type WorkflowLaunchIntent,
-  type WorkflowRunBudget,
   type WorkflowUsage
 } from '@shared/workflow/serviceContracts'
 import { WorkflowLaunchApprovalRegistry } from './launchApproval'
@@ -642,7 +640,7 @@ export class WorkflowService {
         executionTimer: null
       }
       this.active.set(runId, execution)
-      this.armExecutionBudget(execution, run)
+      this.armExecutionDeadline(execution, run)
       this.emitRun(runId)
       await host.start({
         type: 'START',
@@ -837,10 +835,6 @@ export class WorkflowService {
         }
       }
     }
-    const budgetError = this.checkTokenBudget(execution.runId)
-    if (budgetError) {
-      return { status: 'error', error: budgetError }
-    }
     if (
       latest &&
       latest.invalidatedAt === null &&
@@ -956,16 +950,15 @@ export class WorkflowService {
     }
   }
 
-  private armExecutionBudget(execution: ActiveRunExecution, run: WorkflowRun): void {
-    const budget = parseBudget(run)
-    const maxExecutionMs = budget?.maxExecutionMs ?? WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS
+  private armExecutionDeadline(execution: ActiveRunExecution, run: WorkflowRun): void {
+    const maxExecutionMs = run.budget?.maxExecutionMs ?? WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS
     execution.executionTimer = setTimeout(() => {
       if (execution.exited || execution.terminalizing) {
         return
       }
       execution.terminalizing = true
       try {
-        execution.host.cancel('Workflow execution wall-clock budget exhausted.')
+        execution.host.cancel('Workflow execution deadline exceeded.')
       } catch (error) {
         console.warn(
           `[WorkflowService] Failed to signal execution timeout for run=${execution.runId}:`,
@@ -981,22 +974,6 @@ export class WorkflowService {
         })
       )
     }, maxExecutionMs)
-  }
-
-  private checkTokenBudget(runId: string): WorkflowInvocationError | null {
-    const run = this.options.repository.requireRun(runId)
-    const budget = parseBudget(run)
-    if (!budget?.maxTotalTokens) {
-      return null
-    }
-    const totalTokens = this.options.repository.getTotalTokenUsage(runId)
-    return totalTokens >= budget.maxTotalTokens
-      ? {
-          code: 'WORKFLOW_TOKEN_BUDGET_EXCEEDED',
-          message: `Workflow token budget is exhausted (${totalTokens}/${budget.maxTotalTokens}).`,
-          retriable: false
-        }
-      : null
   }
 
   private failProtocol(execution: ActiveRunExecution, message: string): void {
@@ -1417,10 +1394,6 @@ function addBoundedUsage(left: number, right: number, message: string): number {
     throw new Error(message)
   }
   return total
-}
-
-function parseBudget(run: WorkflowRun): WorkflowRunBudget | null {
-  return run.budget === null ? null : WorkflowRunBudgetSchema.parse(run.budget)
 }
 
 function toServiceInvocationError(error: unknown): WorkflowInvocationError {

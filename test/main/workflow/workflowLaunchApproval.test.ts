@@ -23,7 +23,6 @@ function draft(input: JsonValue = null) {
     input,
     allowedAgentIds: ['reviewer', 'deepchat', 'reviewer'],
     budget: {
-      maxTotalTokens: 10_000,
       maxExecutionMs: 60_000
     }
   }
@@ -65,7 +64,6 @@ describe('WorkflowLaunchApprovalRegistry', () => {
       maxInvocations: 128,
       maxPendingInvocations: 64,
       budget: {
-        maxTotalTokens: 10_000,
         maxExecutionMs: 60_000
       },
       outline: {
@@ -126,18 +124,28 @@ describe('WorkflowLaunchApprovalRegistry', () => {
       ...draft(),
       budget: undefined
     })
-    const tokenOnly = registry.prepare({
+    const explicitDeadline = registry.prepare({
       ...draft(),
-      budget: { maxTotalTokens: 500 }
+      budget: { maxExecutionMs: 5_000 }
     })
 
     expect(withoutBudget.summary.budget).toEqual({
       maxExecutionMs: WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS
     })
-    expect(tokenOnly.summary.budget).toEqual({
-      maxExecutionMs: WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS,
-      maxTotalTokens: 500
+    expect(explicitDeadline.summary.budget).toEqual({
+      maxExecutionMs: 5_000
     })
+  })
+
+  it('rejects the retired aggregate token cutoff', () => {
+    const registry = new WorkflowLaunchApprovalRegistry()
+
+    expect(() =>
+      registry.prepare({
+        ...draft(),
+        budget: { maxTotalTokens: 500 } as never
+      })
+    ).toThrow('Unrecognized key')
   })
 
   it('bounds unconsumed approval state', () => {

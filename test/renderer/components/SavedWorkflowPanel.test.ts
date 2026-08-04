@@ -102,7 +102,6 @@ const approval = {
     maxInvocations: 128,
     maxPendingInvocations: 64,
     budget: {
-      maxTotalTokens: 10_000,
       maxExecutionMs: 2 * 60 * 60 * 1_000
     },
     capabilities: ['deepchat-child-sessions'],
@@ -219,7 +218,12 @@ describe('SavedWorkflowPanel', () => {
       savedDocument.sourceHash
     )
     expect(wrapper.get('[data-testid="saved-workflow-approval"]').text()).toContain('64')
-    expect(wrapper.get('[data-testid="saved-workflow-approval"]').text()).toContain('10,000')
+    expect(wrapper.get('[data-testid="saved-workflow-approval"]').text()).toContain(
+      'chat.workflow.budget.duration'
+    )
+    expect(wrapper.get('[data-testid="saved-workflow-approval"]').text()).toContain(
+      'chat.workflow.duration.hours'
+    )
     expect(wrapper.get('[data-testid="saved-workflow-capabilities"]').text()).toContain(
       'deepchat-child-sessions'
     )

@@ -14,7 +14,10 @@ export const WORKFLOW_BASE_SCHEMA_VERSION = 53
 export const WORKFLOW_SCOPE_SCHEMA_VERSION = 54
 export const WORKFLOW_INVOCATION_TIMEOUT_SCHEMA_VERSION = 55
 export const WORKFLOW_EXECUTION_SNAPSHOT_SCHEMA_VERSION = 58
-export const WORKFLOW_SCHEMA_VERSION = WORKFLOW_EXECUTION_SNAPSHOT_SCHEMA_VERSION
+export const WORKFLOW_TOKEN_BUDGET_REMOVAL_SCHEMA_VERSION = 63
+export const WORKFLOW_SCHEMA_VERSION = WORKFLOW_TOKEN_BUDGET_REMOVAL_SCHEMA_VERSION
+// Historical migration behavior must not change with future runtime-default tuning.
+const WORKFLOW_V63_DEFAULT_EXECUTION_TIMEOUT_MS = 7_200_000
 export const LEGACY_WORKFLOW_CAPABILITY_SCOPE_HASH = '0'.repeat(64)
 export const LEGACY_WORKFLOW_EXECUTION_SNAPSHOT_JSON = JSON.stringify({
   schemaVersion: 1,
@@ -471,6 +474,26 @@ export class WorkflowRunsTable extends BaseTable {
       }
       return `${statements.join(';\n')};`
     }
+    if (version === WORKFLOW_TOKEN_BUDGET_REMOVAL_SCHEMA_VERSION) {
+      return `
+        DROP TRIGGER IF EXISTS trg_workflow_runs_immutable_snapshot;
+        UPDATE workflow_runs
+        SET budget_json = CASE
+          WHEN json_type(budget_json, '$.maxExecutionMs') IS NULL THEN
+            json_set(
+              json_remove(budget_json, '$.maxTotalTokens'),
+              '$.maxExecutionMs',
+              ${WORKFLOW_V63_DEFAULT_EXECUTION_TIMEOUT_MS}
+            )
+          ELSE json_remove(budget_json, '$.maxTotalTokens')
+        END
+        WHERE CASE
+          WHEN budget_json IS NULL OR json_valid(budget_json) = 0 THEN 0
+          WHEN json_type(budget_json) != 'object' THEN 0
+          ELSE json_type(budget_json, '$.maxTotalTokens') IS NOT NULL
+        END;
+      `
+    }
     return null
   }
 
@@ -482,7 +505,8 @@ export class WorkflowRunsTable extends BaseTable {
     if (
       version === WORKFLOW_BASE_SCHEMA_VERSION ||
       version === WORKFLOW_SCOPE_SCHEMA_VERSION ||
-      version === WORKFLOW_EXECUTION_SNAPSHOT_SCHEMA_VERSION
+      version === WORKFLOW_EXECUTION_SNAPSHOT_SCHEMA_VERSION ||
+      version === WORKFLOW_TOKEN_BUDGET_REMOVAL_SCHEMA_VERSION
     ) {
       this.db.exec(WORKFLOW_RUNS_TRIGGER_SQL)
     }

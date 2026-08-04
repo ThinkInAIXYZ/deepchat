@@ -6,7 +6,7 @@ Active. The architecture has been reviewed against the current DeepChat agent, T
 permission, utility-process, and database paths. Implementation is in progress on
 `feat/workflow-runtime`.
 
-Last reviewed: 2026-08-02.
+Last reviewed: 2026-08-04.
 
 The user-facing session policy, live-delegation relationship, and composer behavior are now owned
 by `docs/architecture/proactive-multi-agent-orchestration/`. That architecture supersedes the
@@ -18,7 +18,7 @@ execution, approval, replay, recovery, or saved-asset contracts.
 DeepChat already has first-class child sessions, child-to-parent Tape lineage, permission and
 question lifting, typed route/event contracts, utility-process examples, and durable SQLite
 migrations. It does not yet have a durable programmable runtime that can coordinate many child
-agents, pass structured results between them, enforce one global admission budget, and resume
+agents, pass structured results between them, enforce bounded shared admission, and resume
 orchestration after an application restart.
 
 The target feature combines:
@@ -136,7 +136,7 @@ feature before merge and are tracked in `tasks.md`.
 7. Preserve child sessions as first-class sessions that users can inspect and continue after a run.
 8. Deliver a durable result to the parent session without automatically starting another model
    turn.
-9. Make cancellation, timeout, budget exhaustion, process exit, and recovery explicit and
+9. Make cancellation, timeout, provider failure, process exit, and recovery explicit and
    diagnosable.
 10. Show an advisory static outline before launch and incrementally project durable invocation
     changes without repeatedly transferring the complete run detail.
@@ -531,8 +531,15 @@ Each workflow also enforces:
 - a lifetime maximum invocation-attempt count across resume and explicit retry;
 - a maximum pending invocation count, with admitted children still bounded by the smaller
   process-wide child cap;
-- an optional total-token budget aggregated from every durable child attempt;
 - an optional host-owned wall-clock deadline for each explicit execution epoch.
+
+Durable token usage is an observability fact, not an admission or cancellation primitive. A user
+who explicitly approves a Workflow is opting into potentially higher aggregate model usage in
+exchange for completing the approved topology. DeepChat therefore does not stop scheduling later
+branches because earlier branches consumed an estimated token total. This avoids making runnable
+topology depend on completion order, queue timing, or provider-specific usage reporting. Structural
+limits, shared admission, explicit cancellation, and the wall-clock deadline remain hard host-owned
+protections. Provider quota and rate-limit failures remain downstream typed outcomes.
 
 V1 does not expose a cost budget. DeepChat-owned provider sessions do not yet publish one
 normalized, provider-independent monetary-cost fact at the common child runtime boundary. The ACP
@@ -540,9 +547,6 @@ usage notification has an optional cost field, but direct ACP children are outsi
 boundary and the DeepChat-loop compatibility path does not project that field into message usage.
 Treating missing cost as zero would make the budget unsafe, so cost enforcement remains deferred
 until that accounting contract exists.
-
-Budget exhaustion is a soft scheduling stop: no new child is admitted, while already running
-children are allowed to settle unless the user cancels.
 
 ## Timeout And Cancellation
 
@@ -580,10 +584,11 @@ BigInt, or cyclic object crosses IPC.
 ## Permissions
 
 Launching a workflow is an explicit action in V1. Approval is bound to the exact script and input
-hashes, main-resolved parent workspace, declared `allowedAgentIds`, effective limits and budget,
-and capability summary. The renderer cannot self-assert the workspace shown by the approval. The
-summary describes write-capable scope, not a claim that static inspection can predict which tools
-a model will call. Editing the source or input, changing scope, or expanding the allowlist
+hashes, main-resolved parent workspace, declared `allowedAgentIds`, effective limits, execution
+deadline, and capability summary. The renderer cannot self-assert the workspace shown by the
+approval. The summary describes write-capable scope, not a claim that static inspection can predict
+which tools a model will call. Editing the source or input, changing scope, or expanding the
+allowlist
 invalidates a remembered launch approval.
 
 The parent session stores an `explicit | proactive` orchestration policy. Policy controls when the

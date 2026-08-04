@@ -18,7 +18,6 @@ import {
   type WorkflowValuePreview,
   type WorkflowWaitingInteractionProjection
 } from '@shared/workflow/projection'
-import { WorkflowRunBudgetSchema } from '@shared/workflow/serviceContracts'
 import type { WorkflowSourceOutline } from '@shared/workflow/outline'
 import {
   createPartialWorkflowSourceOutline,
@@ -79,7 +78,7 @@ export function projectWorkflowRunDetail(
     ...projectWorkflowRunSummary(run, invocations),
     limits: run.limits,
     allowedAgentIds: run.allowedAgentIds,
-    budget: run.budget === null ? null : WorkflowRunBudgetSchema.parse(run.budget),
+    budget: run.budget,
     outline: projectWorkflowSourceOutline(run.scriptSource),
     resultPreview: run.status === 'succeeded' ? createJsonPreview(run.result) : null,
     invalidatedFromSeq: run.invalidatedFromSeq,

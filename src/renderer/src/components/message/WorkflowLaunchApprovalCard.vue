@@ -326,22 +326,9 @@ function formatApprovalBudget(budget: WorkflowRunBudget | null): string {
   if (!budget) {
     return '—'
   }
-  const parts: string[] = []
-  if (budget.maxTotalTokens !== undefined) {
-    parts.push(
-      t('chat.workflow.budget.tokens', {
-        count: budget.maxTotalTokens.toLocaleString()
-      })
-    )
-  }
-  if (budget.maxExecutionMs !== undefined) {
-    parts.push(
-      t('chat.workflow.budget.duration', {
-        duration: formatApprovalDuration(budget.maxExecutionMs)
-      })
-    )
-  }
-  return parts.join(' · ') || '—'
+  return t('chat.workflow.budget.duration', {
+    duration: formatApprovalDuration(budget.maxExecutionMs)
+  })
 }
 
 function formatApprovalDuration(durationMs: number): string {

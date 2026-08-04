@@ -647,7 +647,6 @@
       "hours": "{hours} giờ {minutes} phút"
     },
     "budget": {
-      "tokens": "{count} token",
       "duration": "Tối đa {duration}"
     },
     "approval": {

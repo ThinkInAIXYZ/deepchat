@@ -647,7 +647,6 @@
       "hours": "{hours} sa {minutes} dk"
     },
     "budget": {
-      "tokens": "{count} token",
       "duration": "En fazla {duration}"
     },
     "approval": {

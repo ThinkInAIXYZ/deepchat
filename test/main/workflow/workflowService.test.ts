@@ -6,7 +6,8 @@ import {
   WORKFLOW_UNAVAILABLE_EXECUTION_ID,
   type WorkflowExecutionSnapshot,
   type WorkflowInvocation,
-  type WorkflowRun
+  type WorkflowRun,
+  type WorkflowRunBudget
 } from '@shared/workflow/domain'
 import {
   WORKFLOW_RUNTIME_DEFAULT_LIMITS,
@@ -209,7 +210,7 @@ describeIfSqlite('WorkflowService', () => {
     options: {
       source?: string
       input?: JsonValue
-      budget?: { maxTotalTokens?: number; maxExecutionMs?: number } | null
+      budget?: WorkflowRunBudget | null
     } = {}
   ): Promise<WorkflowRun> {
     const approval = await service.prepareLaunch({
@@ -258,7 +259,7 @@ describeIfSqlite('WorkflowService', () => {
 
   function createDormantRun(
     status: 'failed' | 'interrupted',
-    budget: JsonValue | null = null
+    budget: WorkflowRunBudget | null = null
   ): WorkflowRun {
     const run = repository.createRun({
       id: `dormant-${++idSequence}`,
@@ -980,7 +981,7 @@ describeIfSqlite('WorkflowService', () => {
       input: null,
       limits: WORKFLOW_RUNTIME_DEFAULT_LIMITS,
       allowedAgentIds: ['deepchat'],
-      budget: { maxTotalTokens: 5 },
+      budget: { maxExecutionMs: 60_000 },
       now: now++
     })
     repository.startRun(run.id, now++)
@@ -1207,8 +1208,8 @@ describeIfSqlite('WorkflowService', () => {
     expect(repository.listInvocations(run.id)).toHaveLength(2)
   })
 
-  it('stops scheduling after the durable token budget is exhausted', async () => {
-    const run = createDormantRun('failed', { maxTotalTokens: 5 })
+  it('keeps durable token usage observational when scheduling later work', async () => {
+    const run = createDormantRun('failed')
     repository.resumeRun(run.id, now++)
     const prior = repository.createInvocation({
       id: 'budget-prior',
@@ -1228,25 +1229,19 @@ describeIfSqlite('WorkflowService', () => {
     )
     const childExecutor = succeedingChildExecutor()
     const service = createService(childExecutor)
-    const listInvocations = vi.spyOn(repository, 'listInvocations')
 
     service.resume(run.id)
     const host = await waitForHost()
-    listInvocations.mockClear()
     host.emit({
       type: 'INVOKE_AGENT',
-      requestId: 'over-budget',
+      requestId: 'after-reported-usage',
       request: request('root/agent/next')
     })
     await vi.waitFor(() => expect(host.settlements).toHaveLength(1))
 
-    expect(host.settlements[0].outcome).toMatchObject({
-      status: 'error',
-      error: { code: 'WORKFLOW_TOKEN_BUDGET_EXCEEDED', retriable: false }
-    })
-    expect(childExecutor.execute).not.toHaveBeenCalled()
-    expect(listInvocations).not.toHaveBeenCalled()
-    expect(repository.listInvocations(run.id)).toHaveLength(1)
+    expect(host.settlements[0].outcome).toMatchObject({ status: 'success' })
+    expect(childExecutor.execute).toHaveBeenCalledOnce()
+    expect(repository.listInvocations(run.id)).toHaveLength(2)
   })
 
   it('requires confirmation for downstream effects when retrying from an earlier node', async () => {
@@ -1498,7 +1493,7 @@ describeIfSqlite('WorkflowService', () => {
     await waitForRun(run.id, 'cancelled')
   })
 
-  it('fails an execution epoch when its host-owned wall-clock budget expires', async () => {
+  it('fails an execution epoch when its host-owned deadline expires', async () => {
     vi.useFakeTimers()
     const service = createService()
     const run = await prepareAndLaunch(service, {

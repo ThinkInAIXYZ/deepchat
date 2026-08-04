@@ -49,6 +49,17 @@ export const WORKFLOW_STORED_EVIDENCE_MAX_BYTES = 256 * 1024
 export const WORKFLOW_STORED_JSON_MAX_BYTES = 8 * 1024 * 1024
 export const WORKFLOW_EXECUTION_SNAPSHOT_MAX_BYTES = 512 * 1024
 export const WORKFLOW_UNAVAILABLE_EXECUTION_ID = '__deepchat_workflow_legacy_unavailable__'
+export const WORKFLOW_DEFAULT_EXECUTION_TIMEOUT_MS = 2 * 60 * 60 * 1_000
+
+export const WorkflowRunBudgetSchema = z
+  .object({
+    maxExecutionMs: z
+      .number()
+      .int()
+      .min(1_000)
+      .max(7 * 24 * 60 * 60 * 1_000)
+  })
+  .strict()
 
 export const WorkflowRunStatusSchema = z.enum(WORKFLOW_RUN_STATUSES)
 export const WorkflowInvocationStatusSchema = z.enum(WORKFLOW_INVOCATION_STATUSES)
@@ -59,6 +70,7 @@ export type WorkflowRunStatus = z.infer<typeof WorkflowRunStatusSchema>
 export type WorkflowInvocationStatus = z.infer<typeof WorkflowInvocationStatusSchema>
 export type WorkflowEffectState = OrchestrationEffectState
 export type WorkflowResultDeliveryState = z.infer<typeof WorkflowResultDeliveryStateSchema>
+export type WorkflowRunBudget = z.infer<typeof WorkflowRunBudgetSchema>
 
 const StoredIdSchema = z.string().min(1).max(256)
 const HashSchema = z
@@ -138,7 +150,7 @@ export const WorkflowRunSchema = z
     limits: WorkflowRuntimeLimitsSchema,
     allowedAgentIds: z.array(StoredIdSchema).min(1).max(32),
     policyHash: HashSchema,
-    budget: JsonValueSchema.nullable(),
+    budget: WorkflowRunBudgetSchema.nullable(),
     status: WorkflowRunStatusSchema,
     executionEpoch: z.number().int().positive(),
     nextInvocationSeq: z.number().int().positive(),
@@ -285,7 +297,7 @@ export interface WorkflowRunCreateInput {
   input: JsonValue
   limits: WorkflowRuntimeLimits
   allowedAgentIds: string[]
-  budget?: JsonValue | null
+  budget?: WorkflowRunBudget | null
   now?: number
 }
 
