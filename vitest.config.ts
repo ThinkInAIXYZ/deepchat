@@ -46,6 +46,7 @@ export default defineConfig({
             },
             { find: '@shared', replacement: resolve('src/shared') },
             { find: '@shadcn', replacement: resolve('src/shadcn') },
+            { find: '@dc-ui', replacement: resolve('src/dc-ui') },
             { find: 'electron', replacement: resolve('test/mocks/electron.ts') },
             { find: '@electron-toolkit/utils', replacement: resolve('test/mocks/electron-toolkit-utils.ts') }
           ]

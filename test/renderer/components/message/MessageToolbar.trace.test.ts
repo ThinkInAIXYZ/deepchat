@@ -26,12 +26,14 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock(
-  '@shadcn/components/ui/button',
+  '@dc-ui/components/button',
   () => ({
-    Button: {
+    DcButton: {
       name: 'Button',
       inheritAttrs: false,
-      template: '<button v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>'
+      props: ['icon'],
+      template:
+        '<button v-bind="$attrs" @click="$emit(\'click\')"><span v-if="icon" :data-icon="icon"></span><slot /></button>'
     }
   }),
   { virtual: true }

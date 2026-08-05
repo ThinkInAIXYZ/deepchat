@@ -425,8 +425,15 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const buttonStub = defineComponent({
+    props: {
+      icon: {
+        type: String,
+        default: ''
+      }
+    },
     emits: ['click'],
-    template: '<button @click="$emit(\'click\', $event)"><slot /></button>'
+    template:
+      '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><span v-if="icon">{{ icon }}</span><slot /></button>'
   })
 
   const inputStub = defineComponent({
@@ -507,7 +514,7 @@ const setup = async (options: SetupOptions = {}) => {
           DialogFooter: passthrough,
           DialogHeader: passthrough,
           DialogTitle: passthrough,
-          Button: buttonStub,
+          DcButton: buttonStub,
           Input: inputStub,
           AgentAvatar: true,
           Icon: true,
@@ -1979,7 +1986,7 @@ describe('WindowSideBar agent switch', () => {
 
     expect(button.exists()).toBe(true)
     expect(button.classes().join(' ')).toContain('border-emerald-500/40')
-    expect(enabledSetup.wrapper.text()).toContain('chat.sidebar.remoteControlStatus.starting')
+    expect(button.attributes('title')).toContain('chat.sidebar.remoteControlStatus.starting')
     expect(enabledSetup.wrapper.html()).toContain('animate-pulse')
 
     enabledSetup.wrapper.unmount()
