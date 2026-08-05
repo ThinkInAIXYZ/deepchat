@@ -47,7 +47,7 @@ const CollapsibleStub = defineComponent({
 })
 
 const stubs = {
-  Button: ButtonStub,
+  DcButton: ButtonStub,
   Textarea: TextareaStub,
   Select: SelectStub,
   SelectContent: passthrough('SelectContent'),

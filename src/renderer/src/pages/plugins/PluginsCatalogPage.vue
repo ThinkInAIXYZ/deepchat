@@ -71,14 +71,14 @@
               </p>
             </div>
 
-            <Button
+            <DcButton
               size="sm"
               variant="outline"
               :disabled="isPending(item.id)"
               @click="handleCatalogAction(item)"
             >
               {{ item.actionLabel }}
-            </Button>
+            </DcButton>
           </article>
         </div>
         <div
@@ -98,7 +98,6 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
 import { DcButton } from '@dc-ui/components/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createOcrClient } from '@api/OcrClient'

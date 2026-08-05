@@ -125,6 +125,9 @@
   "history": "Historik",
   "minimize": "Minimer",
   "maximize": "Maksimer",
+  "showValue": "Vis",
+  "hideValue": "Skjul",
+  "scrollToBottom": "Rul til bunden",
   "restore": "Gendan",
   "browser": {
     "back": "Back",

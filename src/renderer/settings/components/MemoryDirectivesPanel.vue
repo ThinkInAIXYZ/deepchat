@@ -98,7 +98,7 @@
             }}
           </p>
         </div>
-        <Button
+        <DcButton
           size="sm"
           class="h-8 shrink-0 text-xs"
           :disabled="!canCreate"
@@ -107,7 +107,7 @@
         >
           <Icon icon="lucide:plus" class="mr-1.5 h-3.5 w-3.5" />
           {{ t('settings.memory.redesign.directiveCreateAction') }}
-        </Button>
+        </DcButton>
       </div>
     </DcSectionCard>
 
@@ -127,10 +127,10 @@
           }}
         </p>
       </div>
-      <Button variant="ghost" size="sm" class="h-8 text-xs" :disabled="loading" @click="refresh">
+      <DcButton variant="ghost" size="sm" class="h-8 text-xs" :disabled="loading" @click="refresh">
         <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
         {{ t('settings.memory.redesign.refresh') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div v-if="loading" class="py-12 text-center text-sm text-muted-foreground">
@@ -184,7 +184,7 @@
 
             <div class="flex shrink-0 flex-wrap items-center justify-end gap-1">
               <template v-if="directive.status === 'draft'">
-                <Button
+                <DcButton
                   variant="ghost"
                   size="sm"
                   class="h-8 text-xs"
@@ -192,18 +192,18 @@
                   @click="transition(directive.id, 'rejected')"
                 >
                   {{ t('settings.deepchatAgents.memoryManager.reject') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   class="h-8 text-xs"
                   :disabled="pendingIds.has(directive.id)"
                   @click="transition(directive.id, 'active')"
                 >
                   {{ t('settings.deepchatAgents.memoryManager.approve') }}
-                </Button>
+                </DcButton>
               </template>
 
-              <Button
+              <DcButton
                 variant="ghost"
                 size="icon"
                 class="h-8 w-8 text-destructive"
@@ -211,9 +211,10 @@
                 :aria-label="t('common.delete')"
                 data-testid="memory-directive-delete-trigger"
                 @click="requestDelete(directive)"
+                :tooltip="t('common.delete')"
               >
                 <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
-              </Button>
+              </DcButton>
             </div>
           </div>
         </li>
@@ -249,7 +250,7 @@ import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { DcSectionCard } from '@dc-ui/components/section-card'
 import { DcBadge } from '@dc-ui/components/badge'
 import { DcEmpty } from '@dc-ui/components/empty'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import {
   Select,

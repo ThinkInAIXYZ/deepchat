@@ -223,7 +223,7 @@ async function mountDetail(
     global: {
       plugins: [createPinia()],
       stubs: {
-        Button: buttonStub,
+        DcButton: buttonStub,
         ScrollArea: passthrough('ScrollArea'),
         RemoteSettings: remoteSettingsStub,
         Alert: passthrough('Alert'),

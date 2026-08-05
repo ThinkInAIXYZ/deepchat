@@ -41,7 +41,7 @@ const stubs = {
   AlertDialogTitle: passthrough('AlertDialogTitle'),
   AlertDialogTrigger: passthrough('AlertDialogTrigger'),
   Badge: passthrough('Badge'),
-  Button: defineComponent({
+  DcButton: defineComponent({
     name: 'Button',
     inheritAttrs: false,
     template: '<button v-bind="$attrs"><slot /></button>'

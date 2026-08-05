@@ -47,7 +47,7 @@
             {{ t('settings.skills.importExport.chooseDirectoryHint') }}
           </p>
         </button>
-        <Button variant="outline" :disabled="directoryPickerDisabled" @click="chooseDirectory">
+        <DcButton variant="outline" :disabled="directoryPickerDisabled" @click="chooseDirectory">
           <Spinner
             v-if="configLoading || choosingDirectory || directorySaving"
             data-icon="inline-start"
@@ -58,7 +58,7 @@
               ? t('settings.skills.importExport.changeDirectory')
               : t('settings.skills.importExport.chooseDirectory')
           }}
-        </Button>
+        </DcButton>
       </div>
     </div>
 
@@ -71,14 +71,14 @@
           previewError ? t('settings.skills.sync.previewError') : t('common.error.requestFailed')
         }}
       </span>
-      <Button
+      <DcButton
         variant="outline"
         size="sm"
         :disabled="configLoading || previewing || operationPending"
         @click="retryReadOperation"
       >
         {{ t('common.retry') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div
@@ -130,22 +130,22 @@
             }}
           </span>
           <div class="flex shrink-0 gap-2">
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="operationPending"
               @click="selectVisibleExport"
             >
               {{ t('settings.skills.importExport.selectVisible') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="operationPending"
               @click="clearExportSelection"
             >
               {{ t('settings.skills.importExport.clearSelection') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
 
@@ -185,11 +185,11 @@
         </div>
 
         <div class="flex justify-end">
-          <Button :disabled="!canExport" @click="requestExportConfirmation">
+          <DcButton :disabled="!canExport" @click="requestExportConfirmation">
             <Spinner v-if="previewing || exporting" data-icon="inline-start" />
             <Icon v-else icon="lucide:upload" data-icon="inline-start" />
             {{ t('settings.skills.importExport.exportNow') }}
-          </Button>
+          </DcButton>
         </div>
       </TabsContent>
 
@@ -226,7 +226,7 @@
             }}
           </span>
           <div class="flex shrink-0 flex-wrap gap-2">
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="!config || previewing || operationPending"
@@ -235,23 +235,23 @@
               <Spinner v-if="previewing" data-icon="inline-start" />
               <Icon v-else icon="lucide:refresh-cw" data-icon="inline-start" />
               {{ t('settings.skills.importExport.refresh') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="operationPending"
               @click="selectVisibleImport"
             >
               {{ t('settings.skills.importExport.selectVisible') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="operationPending"
               @click="clearImportSelection"
             >
               {{ t('settings.skills.importExport.clearSelection') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
 
@@ -386,7 +386,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
 import { DcBadge } from '@dc-ui/components/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {

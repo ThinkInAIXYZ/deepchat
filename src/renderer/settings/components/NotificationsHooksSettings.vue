@@ -18,7 +18,7 @@
         <div class="rounded-lg border p-4">
           <div class="space-y-4">
             <div class="flex justify-end">
-              <Button
+              <DcButton
                 data-testid="notifications-hooks-add"
                 variant="outline"
                 size="sm"
@@ -26,12 +26,15 @@
               >
                 <Icon icon="lucide:plus" class="mr-1 h-4 w-4" />
                 {{ t('settings.notificationsHooks.commands.newHook') }}
-              </Button>
+              </DcButton>
             </div>
 
             <Collapsible v-model:open="guideOpen" class="rounded-md border bg-muted/20">
               <CollapsibleTrigger as-child>
-                <Button variant="ghost" class="flex h-auto w-full items-center justify-between p-4">
+                <DcButton
+                  variant="ghost"
+                  class="flex h-auto w-full items-center justify-between p-4"
+                >
                   <div class="min-w-0 text-left">
                     <div class="text-sm font-medium">
                       {{ t('settings.notificationsHooks.commands.guideTitle') }}
@@ -44,7 +47,7 @@
                     :icon="guideOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
                     class="ml-3 h-4 w-4 shrink-0 text-muted-foreground"
                   />
-                </Button>
+                </DcButton>
               </CollapsibleTrigger>
 
               <CollapsibleContent class="border-t px-4 pb-4">
@@ -178,7 +181,7 @@
                         />
                       </label>
 
-                      <Button
+                      <DcButton
                         variant="outline"
                         size="sm"
                         :disabled="isHookTesting(hook.id) || !hook.command.trim()"
@@ -200,9 +203,9 @@
                             ? t('settings.notificationsHooks.test.testing')
                             : t('settings.notificationsHooks.test.button')
                         }}
-                      </Button>
+                      </DcButton>
 
-                      <Button
+                      <DcButton
                         variant="ghost"
                         size="sm"
                         class="text-destructive"
@@ -211,7 +214,7 @@
                       >
                         <Icon icon="lucide:trash-2" class="mr-1 h-4 w-4" />
                         {{ t('common.delete') }}
-                      </Button>
+                      </DcButton>
                     </div>
                   </div>
 
@@ -336,7 +339,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Collapsible,

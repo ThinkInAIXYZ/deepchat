@@ -5,7 +5,7 @@ import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
 import { DcBadge } from '@dc-ui/components/badge'
 import { DcEmpty } from '@dc-ui/components/empty'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Dialog,
@@ -438,10 +438,10 @@ onBeforeUnmount(() => {
               <p class="mt-1 text-xs text-muted-foreground">
                 {{ t('common.error.requestFailed') }}
               </p>
-              <Button class="mt-3" variant="outline" size="sm" @click="retrySources">
+              <DcButton class="mt-3" variant="outline" size="sm" @click="retrySources">
                 <Icon icon="lucide:refresh-cw" class="size-4" />
                 {{ t('common.retry') }}
-              </Button>
+              </DcButton>
             </div>
 
             <DcEmpty
@@ -509,22 +509,22 @@ onBeforeUnmount(() => {
                 </p>
               </div>
               <div class="flex gap-1">
-                <Button
+                <DcButton
                   variant="ghost"
                   size="sm"
                   :disabled="executing || loadingPreview || actionableItems.length === 0"
                   @click="selectAll"
                 >
                   {{ t('settings.skills.agentImport.selectAll') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   variant="ghost"
                   size="sm"
                   :disabled="executing || loadingPreview || selectedCount === 0"
                   @click="clearSelection"
                 >
                   {{ t('settings.skills.agentImport.clear') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
 
@@ -543,10 +543,10 @@ onBeforeUnmount(() => {
               <p class="mt-1 text-xs text-muted-foreground">
                 {{ t('common.error.requestFailed') }}
               </p>
-              <Button class="mt-3" variant="outline" size="sm" @click="loadPreview">
+              <DcButton class="mt-3" variant="outline" size="sm" @click="loadPreview">
                 <Icon icon="lucide:refresh-cw" class="size-4" />
                 {{ t('common.retry') }}
-              </Button>
+              </DcButton>
             </div>
 
             <DcEmpty
@@ -634,9 +634,9 @@ onBeforeUnmount(() => {
       </div>
 
       <DialogFooter class="shrink-0 border-t px-6 py-4 sm:justify-between">
-        <Button v-if="result" variant="outline" :disabled="executing" @click="requestClose">
+        <DcButton v-if="result" variant="outline" :disabled="executing" @click="requestClose">
           {{ t('common.close') }}
-        </Button>
+        </DcButton>
         <DcFormActions
           v-else
           :cancel-label="t('common.cancel')"

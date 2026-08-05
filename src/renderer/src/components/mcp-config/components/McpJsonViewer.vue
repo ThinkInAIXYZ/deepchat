@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
@@ -130,7 +130,7 @@ const getJsonPartClass = (type: string): string => {
     <div v-if="title || !readonly" class="flex items-center justify-between mb-3">
       <h4 v-if="title" class="text-sm font-medium text-foreground">{{ title }}</h4>
       <div v-if="!readonly" class="flex space-x-2">
-        <Button
+        <DcButton
           v-if="isJsonContent"
           variant="ghost"
           size="sm"
@@ -139,7 +139,7 @@ const getJsonPartClass = (type: string): string => {
         >
           <Icon icon="lucide:align-left" class="mr-1 h-3 w-3" />
           {{ t('common.format') }}
-        </Button>
+        </DcButton>
         <DcCopyButton
           variant="ghost"
           size="sm"

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
 import { DcButton } from '@dc-ui/components/button'
 import { DcEmpty } from '@dc-ui/components/empty'
 import { DcSheetPanel } from '@dc-ui/components/sheet-panel'
@@ -209,7 +208,7 @@ const promptArgsDescription = computed(() => {
             />
 
             <div v-else class="p-2 space-y-1">
-              <Button
+              <DcButton
                 v-for="prompt in serverPrompts"
                 :key="prompt.name"
                 variant="ghost"
@@ -228,7 +227,7 @@ const promptArgsDescription = computed(() => {
                     <div class="font-medium text-sm truncate">{{ prompt.name }}</div>
                   </div>
                 </div>
-              </Button>
+              </DcButton>
             </div>
           </ScrollArea>
         </div>
@@ -266,7 +265,7 @@ const promptArgsDescription = computed(() => {
 
                 <!-- 参数说明（可折叠） -->
                 <div v-if="promptArgsDescription.length > 0" class="border rounded-lg">
-                  <Button
+                  <DcButton
                     variant="ghost"
                     class="w-full justify-between p-3 h-auto"
                     @click="isParametersExpanded = !isParametersExpanded"
@@ -278,7 +277,7 @@ const promptArgsDescription = computed(() => {
                       :icon="isParametersExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
                       class="h-4 w-4"
                     />
-                  </Button>
+                  </DcButton>
                   <div v-if="isParametersExpanded" class="px-3 pb-3 space-y-2">
                     <div
                       v-for="arg in promptArgsDescription"

@@ -9,7 +9,7 @@
       </DialogHeader>
 
       <div class="overflow-y-auto flex-1 pr-2 -mr-2">
-        <form @submit.prevent="handleSave" class="space-y-6">
+        <DcForm @submit="handleSave" class="space-y-6">
           <!-- 模型名称 -->
           <div v-if="!showOpenAIMediaGenerationSettings || canEditModelIdentity" class="space-y-2">
             <Label for="modelName">{{ t('settings.model.modelConfig.name.label') }}</Label>
@@ -481,19 +481,19 @@
               </div>
             </div>
           </div>
-        </form>
+        </DcForm>
       </div>
 
       <DialogFooter class="gap-2">
-        <Button type="button" variant="outline" @click="handleReset">
+        <DcButton type="button" variant="outline" @click="handleReset">
           {{ t('settings.model.modelConfig.resetToDefault') }}
-        </Button>
-        <Button type="button" variant="ghost" @click="$emit('update:open', false)">
+        </DcButton>
+        <DcButton type="button" variant="ghost" @click="$emit('update:open', false)">
           {{ t('settings.model.modelConfig.cancel') }}
-        </Button>
-        <Button type="button" @click="handleSave" :disabled="!isValid">
+        </DcButton>
+        <DcButton type="button" @click="handleSave" :disabled="!isValid">
           {{ t('settings.model.modelConfig.saveConfig') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -577,6 +577,7 @@ import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcForm } from '@dc-ui/components/form'
 import OpenAIImageGenerationSettingsFields from './OpenAIImageGenerationSettingsFields.vue'
 import OpenAIVideoGenerationSettingsFields from './OpenAIVideoGenerationSettingsFields.vue'
 import TtsSettingsFields from './TtsSettingsFields.vue'
@@ -591,7 +592,7 @@ import {
   DialogTitle,
   DialogFooter
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'

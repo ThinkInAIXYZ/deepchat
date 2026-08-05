@@ -43,15 +43,15 @@
                 class="h-8!"
                 @click="handleSelectSyncFolder"
               />
-              <Button
+              <DcButton
                 size="icon-sm"
                 variant="outline"
                 :disabled="!syncStore.syncEnabled || isSyncInteractionDisabled"
-                :title="t('settings.data.openSyncFolder')"
+                :tooltip="t('settings.data.openSyncFolder')"
                 @click="handleOpenSyncFolder"
               >
                 <Icon icon="lucide:external-link" class="h-4 w-4" />
-              </Button>
+              </DcButton>
             </div>
           </div>
 
@@ -73,7 +73,7 @@
           </div>
 
           <div class="flex flex-col gap-2 sm:flex-row">
-            <Button
+            <DcButton
               variant="outline"
               class="w-full sm:w-auto"
               :dir="languageStore.dir"
@@ -89,11 +89,11 @@
                     : t('settings.data.startBackup')
                 }}
               </span>
-            </Button>
+            </DcButton>
 
             <Dialog :open="isImportDialogOpen" @update:open="handleImportDialogOpenChange">
               <DialogTrigger as-child>
-                <Button
+                <DcButton
                   variant="outline"
                   class="w-full sm:w-auto"
                   :disabled="!syncStore.syncEnabled || isSyncInteractionDisabled"
@@ -101,7 +101,7 @@
                 >
                   <Icon icon="lucide:download" class="h-4 w-4 text-muted-foreground" />
                   <span class="text-sm font-medium">{{ t('settings.data.importData') }}</span>
-                </Button>
+                </DcButton>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -158,14 +158,14 @@
                   </RadioGroup>
                 </div>
                 <DialogFooter>
-                  <Button
+                  <DcButton
                     variant="outline"
                     :disabled="syncStore.isImporting"
                     @click="closeImportDialog"
                   >
                     {{ t('dialog.cancel') }}
-                  </Button>
-                  <Button
+                  </DcButton>
+                  <DcButton
                     variant="default"
                     :disabled="syncStore.isImporting || !selectedBackup"
                     @click="handleImport"
@@ -175,7 +175,7 @@
                         ? t('settings.data.importing')
                         : t('settings.data.confirmImport')
                     }}
-                  </Button>
+                  </DcButton>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -470,7 +470,7 @@
             <DcInlineError v-if="cloudOperationError" :error="cloudOperationError" class="mt-2" />
 
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button
+              <DcButton
                 variant="outline"
                 class="w-full sm:w-auto"
                 :disabled="isCloudOperationDisabled"
@@ -479,8 +479,8 @@
               >
                 <Icon icon="lucide:cloud-upload" class="h-4 w-4 text-muted-foreground" />
                 <span class="text-sm font-medium">{{ t('settings.data.cloudSync.upload') }}</span>
-              </Button>
-              <Button
+              </DcButton>
+              <DcButton
                 variant="outline"
                 class="w-full sm:w-auto"
                 :disabled="isCloudOperationDisabled"
@@ -489,7 +489,7 @@
               >
                 <Icon icon="lucide:cloud-download" class="h-4 w-4 text-muted-foreground" />
                 <span class="text-sm font-medium">{{ t('settings.data.cloudSync.pull') }}</span>
-              </Button>
+              </DcButton>
               <div class="flex items-center gap-3">
                 <RadioGroup
                   v-model="cloudPullMode"
@@ -586,15 +586,15 @@
             v-if="isDatabaseSecurityStatusLoaded && !hasDatabaseSecurityStatusError"
             class="flex flex-col gap-2 sm:flex-row"
           >
-            <Button
+            <DcButton
               v-if="!databaseSecurityStatus?.enabled"
               class="w-full justify-center sm:w-36"
               :disabled="isDatabaseSecurityActionDisabled"
               @click="openDatabaseEncryptionDialog('enable')"
             >
               <span>{{ t('settings.data.databaseEncryption.setPasswordButton') }}</span>
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               v-else
               variant="outline"
               class="w-full justify-center sm:w-36"
@@ -602,8 +602,8 @@
               @click="openDatabaseEncryptionDialog('change')"
             >
               <span>{{ t('settings.data.databaseEncryption.changeButton') }}</span>
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               v-if="databaseSecurityStatus?.enabled"
               variant="destructive"
               class="w-full justify-center sm:w-36"
@@ -611,7 +611,7 @@
               @click="openDatabaseEncryptionDialog('disable')"
             >
               <span>{{ t('settings.data.databaseEncryption.disableButton') }}</span>
-            </Button>
+            </DcButton>
           </div>
 
           <Dialog
@@ -732,7 +732,7 @@
                 </p>
               </div>
             </div>
-            <Button
+            <DcButton
               variant="outline"
               class="w-full shrink-0 lg:w-56"
               :dir="languageStore.dir"
@@ -742,7 +742,7 @@
               <span class="text-sm font-medium">
                 {{ t('settings.data.providerImport.entryButton') }}
               </span>
-            </Button>
+            </DcButton>
           </div>
 
           <div
@@ -769,7 +769,7 @@
                 </p>
               </div>
             </div>
-            <Button
+            <DcButton
               data-testid="database-repair-button"
               variant="outline"
               class="w-full shrink-0 lg:w-56"
@@ -786,7 +786,7 @@
                     : t('settings.data.databaseRepair.button')
                 }}
               </span>
-            </Button>
+            </DcButton>
           </div>
 
           <div
@@ -815,7 +815,7 @@
                 </p>
               </div>
             </div>
-            <Button
+            <DcButton
               variant="outline"
               class="w-full shrink-0 lg:w-40"
               :disabled="isUpdatingModelConfig"
@@ -831,7 +831,7 @@
                     : t('settings.data.modelConfigUpdate.button')
                 }}
               </span>
-            </Button>
+            </DcButton>
           </div>
 
           <div
@@ -847,7 +847,7 @@
                 </p>
               </div>
             </div>
-            <Button
+            <DcButton
               variant="outline"
               class="w-full shrink-0 justify-center border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive lg:w-40"
               :disabled="isResetActionDisabled"
@@ -858,7 +858,7 @@
             >
               <Icon icon="lucide:triangle-alert" class="h-4 w-4" />
               <span class="text-sm font-medium">{{ t('settings.data.resetData') }}</span>
-            </Button>
+            </DcButton>
             <DcConfirmDialog
               :open="isResetDialogOpen"
               :title="t('settings.data.resetConfirmTitle')"
@@ -1059,7 +1059,6 @@ import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { DcInlineError } from '@dc-ui/components/inline-error'
 import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import { DcFormActions } from '@dc-ui/components/form-actions'
-import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Switch } from '@shadcn/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'

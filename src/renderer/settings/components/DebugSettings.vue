@@ -14,14 +14,14 @@
       </div>
 
       <div class="mt-4 flex flex-wrap gap-2">
-        <Button variant="outline" :disabled="guidancePending" @click="startGuidedOnboarding">
+        <DcButton variant="outline" :disabled="guidancePending" @click="startGuidedOnboarding">
           <Spinner
             v-if="isGuidanceOperation(guidanceOperationIds.onboarding)"
             class="mr-2 size-4"
           />
           <Icon v-else icon="lucide:route" class="mr-2 size-4" />
           {{ t('about.mockOnboardingButton') }}
-        </Button>
+        </DcButton>
         <DcSubmitButton
           variant="outline"
           data-testid="debug-create-mock-chat"
@@ -31,7 +31,7 @@
         >
           {{ isCreatingMockChat ? t('about.mockChatCreating') : t('about.mockChatButton') }}
         </DcSubmitButton>
-        <Button
+        <DcButton
           v-if="!upgrade.isMockUpdate"
           variant="outline"
           :disabled="guidancePending"
@@ -43,15 +43,15 @@
           />
           <Icon v-else icon="lucide:download" class="mr-2 size-4" />
           {{ t('about.mockUpdateButton') }}
-        </Button>
-        <Button v-else variant="outline" :disabled="guidancePending" @click="clearMockUpdate">
+        </DcButton>
+        <DcButton v-else variant="outline" :disabled="guidancePending" @click="clearMockUpdate">
           <Spinner
             v-if="isGuidanceOperation(guidanceOperationIds.clearUpdate)"
             class="mr-2 size-4"
           />
           <Icon v-else icon="lucide:rotate-ccw" class="mr-2 size-4" />
           {{ t('about.clearMockUpdateButton') }}
-        </Button>
+        </DcButton>
       </div>
       <DcInlineError v-if="mockChatError" :error="mockChatError" class="mt-2" />
     </section>
@@ -64,7 +64,7 @@
         <p class="text-sm text-muted-foreground">{{ t('settings.debug.splash.description') }}</p>
       </div>
       <div class="mt-4 flex flex-wrap gap-2">
-        <Button
+        <DcButton
           v-for="scenario in splashScenarios"
           :key="scenario.mode"
           variant="outline"
@@ -73,15 +73,15 @@
         >
           <Spinner v-if="isSplashOperation(splashOperationId(scenario.mode))" class="mr-2 size-4" />
           {{ scenario.label }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           variant="outline"
           :disabled="splashPending || !isSplashPreviewOpen"
           @click="closeSplashScenario"
         >
           <Spinner v-if="isSplashOperation(splashOperationIds.close)" class="mr-2 size-4" />
           {{ t('common.close') }}
-        </Button>
+        </DcButton>
       </div>
     </section>
   </SettingsPageShell>
@@ -92,7 +92,7 @@ import { Icon } from '@iconify/vue'
 import { computed, onMounted, ref } from 'vue'
 import type { SplashDebugMode } from '@shared/contracts/splash'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { DcInlineError } from '@dc-ui/components/inline-error'
 import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'

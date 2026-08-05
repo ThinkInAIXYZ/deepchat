@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { createConfigClient } from '@api/ConfigClient'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 const emit = defineEmits<{
@@ -147,9 +147,9 @@ onBeforeUnmount(() => {
 
     <div v-else-if="loadError" role="alert" class="flex items-center justify-between gap-3">
       <span class="text-xs text-destructive">{{ loadError }}</span>
-      <Button size="sm" variant="outline" @click="load">
+      <DcButton size="sm" variant="outline" @click="load">
         {{ t('common.retry') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div v-else-if="selectableServers.length === 0" class="text-xs text-muted-foreground">

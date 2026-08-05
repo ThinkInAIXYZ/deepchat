@@ -122,7 +122,7 @@ describe('skill sync settings components', () => {
           DialogFooter: passthrough('DialogFooter'),
           DialogHeader: passthrough('DialogHeader'),
           DialogTitle: passthrough('DialogTitle'),
-          Button: buttonStub,
+          DcButton: buttonStub,
           Checkbox: true
         }
       }
@@ -222,7 +222,7 @@ describe('skill sync settings components', () => {
         stubs: {
           Icon: true,
           Badge: passthrough('Badge'),
-          Button: buttonStub,
+          DcButton: buttonStub,
           Table: passthrough('Table'),
           TableBody: passthrough('TableBody'),
           TableCell: passthrough('TableCell'),
@@ -328,7 +328,7 @@ describe('skill sync settings components', () => {
         stubs: {
           Icon: true,
           Badge: passthrough('Badge'),
-          Button: buttonStub,
+          DcButton: buttonStub,
           AgentSkillTable: defineComponent({
             props: { agent: { type: Object, required: true } },
             template: '<div data-testid="agent-detail">{{ agent.skills[0].name }}</div>'
@@ -437,7 +437,7 @@ describe('skill sync settings components', () => {
         stubs: {
           Icon: true,
           Badge: passthrough('Badge'),
-          Button: buttonStub,
+          DcButton: buttonStub,
           Table: passthrough('Table'),
           TableBody: passthrough('TableBody'),
           TableCell: passthrough('TableCell'),
@@ -497,7 +497,7 @@ describe('skill sync settings components', () => {
       global: {
         stubs: {
           Icon: true,
-          Button: buttonStub,
+          DcButton: buttonStub,
           Input: inputStub,
           Label: passthrough('Label'),
           Switch: switchStub,
@@ -558,7 +558,7 @@ describe('skill sync settings components', () => {
       global: {
         stubs: {
           Icon: true,
-          Button: buttonStub,
+          DcButton: buttonStub,
           Input: inputStub,
           Label: passthrough('Label'),
           Switch: switchStub,
@@ -723,7 +723,7 @@ describe('skill sync settings components', () => {
         stubs: {
           Icon: true,
           Badge: passthrough('Badge'),
-          Button: buttonStub,
+          DcButton: buttonStub,
           Checkbox: checkboxStub,
           Dialog: passthrough('Dialog'),
           DialogContent: passthrough('DialogContent'),
@@ -821,7 +821,7 @@ describe('skill sync settings components', () => {
         stubs: {
           Icon: true,
           Badge: passthrough('Badge'),
-          Button: buttonStub,
+          DcButton: buttonStub,
           Checkbox: checkboxStub,
           Dialog: passthrough('Dialog'),
           DialogContent: passthrough('DialogContent'),
@@ -972,7 +972,7 @@ describe('skill sync settings components', () => {
         stubs: {
           Icon: true,
           Badge: passthrough('Badge'),
-          Button: buttonStub,
+          DcButton: buttonStub,
           Checkbox: checkboxStub,
           Dialog: passthrough('Dialog'),
           DialogContent: passthrough('DialogContent'),
@@ -1150,7 +1150,7 @@ describe('skill sync settings components', () => {
         stubs: {
           Icon: true,
           Badge: passthrough('Badge'),
-          Button: buttonStub,
+          DcButton: buttonStub,
           Checkbox: checkboxStub,
           Dialog: passthrough('Dialog'),
           DialogContent: passthrough('DialogContent'),
@@ -1241,7 +1241,7 @@ describe('skill sync settings components', () => {
         stubs: {
           Icon: true,
           Badge: passthrough('Badge'),
-          Button: buttonStub,
+          DcButton: buttonStub,
           Checkbox: checkboxStub,
           Dialog: passthrough('Dialog'),
           DialogContent: passthrough('DialogContent'),
@@ -1346,7 +1346,7 @@ describe('skill sync settings components', () => {
         stubs: {
           Icon: true,
           Badge: passthrough('Badge'),
-          Button: buttonStub,
+          DcButton: buttonStub,
           Checkbox: checkboxStub,
           Dialog: passthrough('Dialog'),
           DialogContent: passthrough('DialogContent'),

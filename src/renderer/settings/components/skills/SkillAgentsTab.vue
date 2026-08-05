@@ -8,7 +8,7 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <Button
+        <DcButton
           variant="outline"
           size="sm"
           :disabled="loading || operationPending"
@@ -17,7 +17,7 @@
           <Spinner v-if="loading" data-icon="inline-start" />
           <Icon v-else icon="lucide:refresh-cw" data-icon="inline-start" />
           {{ t('settings.skills.agents.refresh') }}
-        </Button>
+        </DcButton>
       </div>
     </div>
 
@@ -45,7 +45,7 @@
 
     <template v-else>
       <div class="flex flex-wrap gap-2">
-        <Button
+        <DcButton
           v-for="agent in agents"
           :key="agent.id"
           type="button"
@@ -63,7 +63,7 @@
           <DcBadge v-if="agent.conflictCount" variant="outline" class="ml-1 text-[11px]">
             {{ t('settings.skills.agents.conflictCount', { count: agent.conflictCount }) }}
           </DcBadge>
-        </Button>
+        </DcButton>
       </div>
 
       <div v-if="selectedAgent" class="space-y-3">
@@ -134,7 +134,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
 import { DcBadge } from '@dc-ui/components/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@shadcn/components/ui/empty'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import { Spinner } from '@shadcn/components/ui/spinner'

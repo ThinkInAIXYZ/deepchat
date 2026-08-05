@@ -1,10 +1,10 @@
 <template>
   <Dialog :open="open" @update:open="handleOpenChange">
     <DialogTrigger as-child>
-      <Button data-testid="yobrowser-import-button" variant="outline" class="w-full lg:w-56">
+      <DcButton data-testid="yobrowser-import-button" variant="outline" class="w-full lg:w-56">
         <Icon icon="lucide:import" class="size-4 text-muted-foreground" />
         {{ t('settings.data.yoBrowser.import.button') }}
-      </Button>
+      </DcButton>
     </DialogTrigger>
 
     <DialogContent class="sm:max-w-lg">
@@ -106,10 +106,10 @@
       </div>
 
       <DialogFooter>
-        <Button variant="outline" :disabled="busy" @click="handleOpenChange(false)">
+        <DcButton variant="outline" :disabled="busy" @click="handleOpenChange(false)">
           {{ result ? t('dialog.ok') : t('dialog.cancel') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           v-if="scanResult?.platformSupported && !result"
           :disabled="busy || !selectedProfileId"
           @click="preview ? applyImport() : createPreview()"
@@ -120,7 +120,7 @@
               ? t('settings.data.yoBrowser.import.confirm')
               : t('settings.data.yoBrowser.import.preview')
           }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -131,7 +131,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { DcInlineError } from '@dc-ui/components/inline-error'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,

@@ -34,38 +34,38 @@
       </div>
 
       <DialogFooter class="flex-wrap sm:justify-between">
-        <Button
+        <DcButton
           variant="ghost"
           :disabled="processing && !cancelWhileProcessing"
           @click="emit('cancel')"
         >
           {{ t('chat.attachments.keepDraft') }}
-        </Button>
+        </DcButton>
         <div class="flex flex-wrap justify-end gap-2">
-          <Button
+          <DcButton
             v-if="hasAction('switch_to_vision_model')"
             variant="outline"
             :disabled="processing"
             @click="emit('switch-model')"
           >
             {{ t('chat.attachments.switchVisionModel') }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-if="hasAction('retry')"
             variant="outline"
             :disabled="processing"
             @click="emit('retry')"
           >
             {{ t('chat.attachments.retry') }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-if="hasAction('send_without_image_content')"
             :disabled="processing"
             @click="emit('send-without-image-content')"
           >
             <Spinner v-if="processing" class="mr-2 size-4" />
             {{ t('chat.attachments.sendWithoutImageContent') }}
-          </Button>
+          </DcButton>
         </div>
       </DialogFooter>
     </DialogContent>
@@ -76,7 +76,7 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,

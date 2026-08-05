@@ -106,7 +106,7 @@ describe('DebugSettings', () => {
     return mount(DebugSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Spinner: true,
           SettingsPageShell: settingsPageShellStub

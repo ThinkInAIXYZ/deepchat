@@ -5,11 +5,11 @@
     data-testid="settings-shortcut-page"
   >
     <template #actions>
-      <Button variant="outline" size="sm" @click="resetShortcutKeys()">
+      <DcButton variant="outline" size="sm" @click="resetShortcutKeys()">
         <Spinner v-if="resetLoading" class="mr-1 size-4" data-icon="inline-start" />
         <Icon v-else icon="lucide:refresh-cw" class="mr-1 size-4" data-icon="inline-start" />
         {{ t('common.resetData') }}
-      </Button>
+      </DcButton>
     </template>
 
     <div class="flex flex-col gap-4">
@@ -62,28 +62,28 @@
               class="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
               :class="{ 'opacity-100': recordingShortcutId === shortcut.id }"
             >
-              <Button
+              <DcButton
                 v-if="!shortcut.disabled"
                 :data-testid="`shortcut-edit-${shortcut.id}`"
                 variant="ghost"
                 size="icon"
                 class="h-8 w-8 text-muted-foreground hover:text-primary"
-                :title="t('common.edit')"
+                :tooltip="t('common.edit')"
                 @click.stop="startRecording(shortcut.id)"
               >
                 <Icon icon="lucide:pencil" class="h-4 w-4" />
-              </Button>
-              <Button
+              </DcButton>
+              <DcButton
                 v-if="shortcut.key.length && !shortcut.disabled"
                 :data-testid="`shortcut-clear-${shortcut.id}`"
                 variant="ghost"
                 size="icon"
                 class="h-8 w-8 text-muted-foreground hover:text-destructive"
-                :title="t('settings.shortcuts.clearShortcut')"
+                :tooltip="t('settings.shortcuts.clearShortcut')"
                 @click.stop="clearShortcut(shortcut.id)"
               >
                 <Icon icon="lucide:x" class="h-4 w-4" />
-              </Button>
+              </DcButton>
             </div>
           </div>
           <div
@@ -115,7 +115,7 @@ import { Icon } from '@iconify/vue'
 
 import { useShortcutKeyStore } from '@/stores/shortcutKey'
 import { useLanguageStore } from '@/stores/language'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Kbd, KbdGroup } from '@shadcn/components/ui/kbd'
 import type { ShortcutKey } from '@shared/types/desktop'

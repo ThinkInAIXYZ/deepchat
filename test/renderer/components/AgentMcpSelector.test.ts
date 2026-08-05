@@ -72,7 +72,7 @@ const mountSelector = () =>
     global: {
       stubs: {
         Checkbox: checkboxStub,
-        Button: buttonStub
+        DcButton: buttonStub
       }
     }
   })

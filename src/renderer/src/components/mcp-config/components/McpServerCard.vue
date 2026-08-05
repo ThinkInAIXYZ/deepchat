@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { DcStatusPill } from '@dc-ui/components/status-pill'
 import { DcTooltip } from '@dc-ui/components/tooltip'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -187,14 +187,15 @@ watch(watchDescription, () => {
         <!-- 操作菜单 -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               size="icon"
               class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+              :tooltip="t('common.more')"
               @click.stop
             >
               <Icon icon="lucide:more-horizontal" class="h-3 w-3" />
-            </Button>
+            </DcButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DcDropdownActionItem
@@ -259,7 +260,7 @@ watch(watchDescription, () => {
 
         <!-- 开关 -->
         <div class="flex shrink-0 items-center gap-2" @click.stop @keydown.stop>
-          <Button
+          <DcButton
             v-if="showAuthenticateButton"
             variant="outline"
             size="sm"
@@ -270,7 +271,7 @@ watch(watchDescription, () => {
             <Spinner v-if="isAuthenticating" class="size-3" data-icon="inline-start" />
             <Icon v-else icon="lucide:key-round" class="size-3" data-icon="inline-start" />
             {{ t('settings.mcp.authenticate') }}
-          </Button>
+          </DcButton>
           <Switch
             :model-value="server.enabled"
             :disabled="disabled || isLoading"
@@ -281,7 +282,7 @@ watch(watchDescription, () => {
     </div>
     <div class="flex flex-row border-t h-9 items-center">
       <!-- 工具按钮 -->
-      <Button
+      <DcButton
         v-if="toolsCount !== undefined"
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
@@ -290,10 +291,10 @@ watch(watchDescription, () => {
       >
         <Icon icon="lucide:wrench" class="h-3 w-3 mr-1" />
         {{ toolsCount }}
-      </Button>
+      </DcButton>
       <!-- 提示词按钮 -->
       <Separator orientation="vertical" class="h-5" />
-      <Button
+      <DcButton
         v-if="promptsCount !== undefined"
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
@@ -302,10 +303,10 @@ watch(watchDescription, () => {
       >
         <Icon icon="lucide:message-square-quote" class="h-3 w-3 mr-1" />
         {{ promptsCount }}
-      </Button>
+      </DcButton>
       <Separator orientation="vertical" class="h-5" />
       <!-- 资源按钮 -->
-      <Button
+      <DcButton
         v-if="resourcesCount !== undefined"
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
@@ -314,7 +315,7 @@ watch(watchDescription, () => {
       >
         <Icon icon="lucide:folder" class="h-3 w-3 mr-1" />
         {{ resourcesCount }}
-      </Button>
+      </DcButton>
     </div>
   </div>
 </template>

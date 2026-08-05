@@ -31,7 +31,7 @@ const stubs = {
   AlertDialogTitle: passthrough('AlertDialogTitle'),
   AlertDialogTrigger: passthrough('AlertDialogTrigger'),
   Badge: passthrough('Badge'),
-  Button: ButtonStub,
+  DcButton: ButtonStub,
   Icon: passthrough('Icon'),
   ScrollArea: passthrough('ScrollArea'),
   Spinner: passthrough('Spinner')

@@ -42,7 +42,7 @@
     </div>
 
     <div v-if="isQuestion" class="mt-4 flex flex-wrap gap-2">
-      <Button
+      <DcButton
         v-for="option in questionOptions"
         :key="option.label"
         :disabled="processing"
@@ -57,8 +57,8 @@
             {{ option.description }}
           </span>
         </span>
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         v-if="allowOther"
         :disabled="processing"
         variant="outline"
@@ -67,11 +67,11 @@
         @click="onQuestionOther"
       >
         Other
-      </Button>
+      </DcButton>
     </div>
 
     <div v-else class="mt-4 flex gap-2">
-      <Button
+      <DcButton
         :disabled="processing"
         variant="outline"
         size="sm"
@@ -79,15 +79,15 @@
         @click="onPermission(false)"
       >
         {{ t('components.messageBlockPermissionRequest.deny') }}
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         :disabled="processing"
         size="sm"
         class="h-8 flex-1 text-xs"
         @click="onPermission(true)"
       >
         {{ t('components.messageBlockPermissionRequest.allow') }}
-      </Button>
+      </DcButton>
     </div>
   </div>
 </template>
@@ -95,7 +95,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
 import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'

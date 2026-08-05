@@ -23,10 +23,10 @@
           {{ t('settings.memory.redesign.inboxDescription') }}
         </p>
       </div>
-      <Button variant="ghost" size="sm" class="h-8 text-xs" :disabled="loading" @click="refresh">
+      <DcButton variant="ghost" size="sm" class="h-8 text-xs" :disabled="loading" @click="refresh">
         <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
         {{ t('settings.memory.redesign.refresh') }}
-      </Button>
+      </DcButton>
     </div>
 
     <MemoryInlineFeedback
@@ -65,7 +65,7 @@
             </div>
           </div>
           <div class="mt-3 flex flex-wrap justify-end gap-2">
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               class="h-8 text-xs"
@@ -73,8 +73,8 @@
               @click="resolveConflict(conflict.challenger.id, 'keep_target')"
             >
               {{ t('settings.deepchatAgents.memoryManager.keepTarget') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               variant="outline"
               size="sm"
               class="h-8 text-xs"
@@ -82,15 +82,15 @@
               @click="resolveConflict(conflict.challenger.id, 'keep_challenger')"
             >
               {{ t('settings.deepchatAgents.memoryManager.keepChallenger') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               size="sm"
               class="h-8 text-xs"
               :disabled="pendingConflictIds.has(conflict.challenger.id)"
               @click="resolveConflict(conflict.challenger.id, 'keep_both')"
             >
               {{ t('settings.deepchatAgents.memoryManager.keepBoth') }}
-            </Button>
+            </DcButton>
           </div>
         </article>
       </section>
@@ -129,7 +129,7 @@
             </div>
           </div>
           <div class="mt-3 flex justify-end gap-2">
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               class="h-8 text-xs"
@@ -137,15 +137,15 @@
               @click="rejectDraft(draft.id)"
             >
               {{ t('settings.deepchatAgents.memoryManager.reject') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               size="sm"
               class="h-8 text-xs"
               :disabled="pendingPersonaIds.has(draft.id)"
               @click="approveDraft(draft.id)"
             >
               {{ t('settings.deepchatAgents.memoryManager.approve') }}
-            </Button>
+            </DcButton>
           </div>
         </article>
       </section>
@@ -177,7 +177,7 @@
           </div>
           <p class="whitespace-pre-wrap wrap-break-word text-xs">{{ directive.content }}</p>
           <div class="mt-3 flex justify-end gap-2">
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               class="h-8 text-xs"
@@ -185,15 +185,15 @@
               @click="rejectDirective(directive.id)"
             >
               {{ t('settings.deepchatAgents.memoryManager.reject') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               size="sm"
               class="h-8 text-xs"
               :disabled="directivePendingIds.has(directive.id)"
               @click="approveDirective(directive.id)"
             >
               {{ t('settings.deepchatAgents.memoryManager.approve') }}
-            </Button>
+            </DcButton>
           </div>
         </article>
       </section>
@@ -206,7 +206,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcBadge } from '@dc-ui/components/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { createMemoryClient } from '@api/MemoryClient'
 import type { MemoryConflictItem, MemoryDirectiveItem, MemoryItem } from '@shared/contracts/routes'
 import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@shared/types/agent-memory'

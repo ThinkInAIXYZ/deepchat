@@ -24,7 +24,7 @@ const stubs = {
   SelectItem: passthrough('SelectItem'),
   SelectTrigger: passthrough('SelectTrigger'),
   SelectValue: passthrough('SelectValue'),
-  Button: passthrough('Button'),
+  DcButton: passthrough('Button'),
   Badge: passthrough('Badge'),
   Icon: passthrough('Icon'),
   MemoryConfigInlinePanel: PropStub(

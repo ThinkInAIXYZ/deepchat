@@ -136,7 +136,7 @@ async function setup(
         SelectValue: passthrough('SelectValue'),
         Spinner: true,
         Icon: true,
-        Button: buttonStub('Button'),
+        DcButton: buttonStub('Button'),
         Alert: passthrough('Alert'),
         AlertTitle: passthrough('AlertTitle'),
         AlertDescription: passthrough('AlertDescription'),

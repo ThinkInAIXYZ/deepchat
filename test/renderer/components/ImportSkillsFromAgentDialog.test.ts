@@ -90,7 +90,7 @@ const mountDialog = async () => {
         EmptyMedia: passthrough('EmptyMedia'),
         EmptyTitle: passthrough('EmptyTitle'),
         Badge: passthrough('Badge'),
-        Button: ButtonStub,
+        DcButton: ButtonStub,
         Checkbox: passthrough('Checkbox'),
         RadioGroup: passthrough('RadioGroup'),
         RadioGroupItem: RadioGroupItemStub,

@@ -10,16 +10,17 @@
       <span v-if="delegations.length > 0" class="text-[10px] text-muted-foreground">
         {{ delegations.length }}
       </span>
-      <Button
+      <DcButton
         variant="ghost"
         size="icon"
         class="h-6 w-6"
         :aria-label="t('common.retry')"
         :disabled="loading"
         @click="refresh"
+        :tooltip="t('common.retry')"
       >
         <Icon icon="lucide:refresh-cw" class="h-3 w-3" :class="loading && 'animate-spin'" />
-      </Button>
+      </DcButton>
     </div>
 
     <p v-if="loadError" class="break-words text-[11px] text-destructive">
@@ -58,7 +59,7 @@
               {{ delegation.errorPreview || delegation.summaryPreview }}
             </p>
             <div class="mt-1.5 flex flex-wrap gap-1">
-              <Button
+              <DcButton
                 v-if="delegation.childSessionId"
                 :variant="requiresInteraction(delegation.status) ? 'default' : 'ghost'"
                 size="sm"
@@ -70,8 +71,8 @@
               >
                 <Icon icon="lucide:external-link" class="mr-1 h-3 w-3" />
                 {{ t('chat.orchestration.actions.openChild') }}
-              </Button>
-              <Button
+              </DcButton>
+              <DcButton
                 v-if="isActive(delegation.status)"
                 variant="ghost"
                 size="sm"
@@ -82,7 +83,7 @@
               >
                 <Icon icon="lucide:square" class="mr-1 h-3 w-3" />
                 {{ t('common.cancel') }}
-              </Button>
+              </DcButton>
             </div>
           </div>
         </div>
@@ -95,7 +96,7 @@
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import type {
   LiveDelegationStatus,
   LiveDelegationSummary

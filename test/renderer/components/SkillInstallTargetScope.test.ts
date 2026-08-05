@@ -86,7 +86,7 @@ const globalOptions = (realAlertDialog = false) => ({
     AlertDialogHeader: realAlertDialog ? false : passthrough('AlertDialogHeader'),
     AlertDialogTitle: realAlertDialog ? false : passthrough('AlertDialogTitle'),
     Badge: passthrough('Badge'),
-    Button: ButtonStub,
+    DcButton: ButtonStub,
     Checkbox: passthrough('Checkbox'),
     Dialog: passthrough('Dialog'),
     DialogContent: passthrough('DialogContent'),

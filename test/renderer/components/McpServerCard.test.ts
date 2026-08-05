@@ -62,7 +62,7 @@ const mountCard = (onClick = vi.fn(), serverOverrides: Record<string, unknown> =
     },
     global: {
       stubs: {
-        Button: buttonStub,
+        DcButton: buttonStub,
         Switch: switchStub,
         DropdownMenu: passthrough('DropdownMenu'),
         DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),

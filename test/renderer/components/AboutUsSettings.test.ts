@@ -190,7 +190,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -236,7 +236,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -280,7 +280,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -325,7 +325,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -371,7 +371,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -415,7 +415,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),

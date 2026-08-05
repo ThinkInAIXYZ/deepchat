@@ -38,7 +38,7 @@
           class="w-16 h-6 text-xs px-1 border rounded bg-background border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
         />
         <span class="text-muted-foreground whitespace-nowrap">页</span>
-        <Button
+        <DcButton
           @click="handleSync"
           :disabled="isSyncing"
           size="sm"
@@ -51,7 +51,7 @@
               ? t('settings.provider.modelscope.mcpSync.syncing')
               : t('settings.provider.modelscope.mcpSync.sync')
           }}
-        </Button>
+        </DcButton>
       </div>
 
       <!-- 同步状态与结果 -->
@@ -99,7 +99,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { DcBadge } from '@dc-ui/components/badge'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import type { LLM_PROVIDER } from '@shared/types/provider'

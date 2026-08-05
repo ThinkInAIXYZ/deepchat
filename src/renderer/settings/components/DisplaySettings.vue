@@ -196,7 +196,7 @@
           <span class="truncate">{{ t('settings.display.fontSize') }}</span>
         </span>
         <ButtonGroup class="flex-wrap">
-          <Button
+          <DcButton
             v-for="(sizeOption, index) in fontSizeOptions"
             :key="index"
             :variant="fontSizeLevel === index ? 'default' : 'outline'"
@@ -205,7 +205,7 @@
             @click="fontSizeLevel = index"
           >
             {{ t('settings.display.' + sizeOption) }}
-          </Button>
+          </DcButton>
         </ButtonGroup>
       </div>
 
@@ -255,15 +255,15 @@
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button variant="outline" @click="cancelContentProtectionChange">
+        <DcButton variant="outline" @click="cancelContentProtectionChange">
           {{ t('common.cancel') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           :variant="newContentProtectionValue ? 'default' : 'destructive'"
           @click="confirmContentProtectionChange"
         >
           {{ t('common.confirm') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -296,7 +296,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { ButtonGroup } from '@shadcn/components/ui/button-group'
 import FontSettingsSection from './display/FontSettingsSection.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'

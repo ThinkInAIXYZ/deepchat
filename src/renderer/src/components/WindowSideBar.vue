@@ -167,16 +167,6 @@
                 class="h-8 pr-8 pl-8 text-sm"
                 @keydown.esc.prevent="sessionSearchQuery = ''"
               />
-              <DcButton
-                v-if="sessionSearchQuery"
-                icon="lucide:x"
-                size="icon-sm"
-                :label="t('common.clear')"
-                :tooltip="t('common.clear')"
-                data-testid="sidebar-session-search-clear"
-                class="absolute right-2 top-1/2 size-7 -translate-y-1/2"
-                @click="sessionSearchQuery = ''"
-              />
             </div>
 
             <button
@@ -315,8 +305,8 @@
                 size="icon-sm"
                 icon="lucide:plus"
                 icon-size="4"
+                variant="ghost"
                 :tooltip="t('common.newChat')"
-                class="flex items-center justify-center rounded-md opacity-0 transition-all duration-150 hover:bg-accent/60 hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                 @click.stop="handleNewChatForProject(defaultChatWorkspacePath || null)"
               />
             </div>
@@ -355,6 +345,7 @@
                   ? t('chat.sidebar.groupByDate')
                   : t('chat.sidebar.groupByProject')
               "
+              variant="ghost"
               class="flex items-center justify-center rounded-md transition-all duration-150"
               :class="
                 sessionStore.groupMode === 'project'
@@ -416,6 +407,7 @@
                     size="icon-sm"
                     icon="lucide:plus"
                     icon-size="3.5"
+                    variant="ghost"
                     :tooltip="t('common.newChat')"
                     class="flex items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all duration-150 hover:bg-accent/60 hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                     @click.stop="handleNewChatForProject(group.id)"
@@ -425,13 +417,16 @@
                     v-if="isProjectGroupReorderTarget(group) && canReorderProjectGroups"
                   >
                     <DropdownMenuTrigger as-child>
-                      <button
+                      <DcButton
+                        v-if="isProjectDirectoryGroup(group)"
                         type="button"
-                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                        size="icon-sm"
+                        icon="lucide:ellipsis"
+                        icon-size="3.5"
+                        :tooltip="t('common.more')"
+                        variant="ghost"
                         :aria-label="t('chat.sidebar.projectGroupActions')"
-                      >
-                        <Icon icon="lucide:ellipsis" class="h-3.5 w-3.5" />
-                      </button>
+                      />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" class="w-40">
                       <DropdownMenuItem
@@ -509,7 +504,7 @@
             role="status"
           >
             <span class="min-w-0 flex-1 truncate">{{ sessionStore.error }}</span>
-            <Button
+            <DcButton
               data-testid="sidebar-session-pagination-retry"
               type="button"
               variant="outline"
@@ -519,7 +514,7 @@
               @click="sessionStore.loadNextPage()"
             >
               {{ t('common.browser.reload') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </div>
@@ -533,12 +528,12 @@
         <DialogDescription>{{ t('dialog.delete.description') }}</DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button variant="outline" @click="deleteDialogOpen = false">{{
+        <DcButton variant="outline" @click="deleteDialogOpen = false">{{
           t('dialog.cancel')
-        }}</Button>
-        <Button variant="destructive" @click="handleDeleteConfirm">{{
+        }}</DcButton>
+        <DcButton variant="destructive" @click="handleDeleteConfirm">{{
           t('dialog.delete.confirm')
-        }}</Button>
+        }}</DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -550,9 +545,9 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
 import { DcButton } from '@dc-ui/components/button'
 import { DcEmpty } from '@dc-ui/components/empty'
+import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Input } from '@shadcn/components/ui/input'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import {

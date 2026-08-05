@@ -178,9 +178,9 @@
           class="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
         >
           <span>{{ loadError }}</span>
-          <Button size="sm" variant="ghost" :disabled="loadingConfig" @click="loadConfiguration">
+          <DcButton size="sm" variant="ghost" :disabled="loadingConfig" @click="loadConfiguration">
             {{ t('common.retry') }}
-          </Button>
+          </DcButton>
         </div>
       </div>
     </div>
@@ -194,7 +194,6 @@ import { createNowledgeMemClient } from '@api/NowledgeMemClient'
 import { DcButton } from '@dc-ui/components/button'
 import { DcInlineError } from '@dc-ui/components/inline-error'
 import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
-import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'

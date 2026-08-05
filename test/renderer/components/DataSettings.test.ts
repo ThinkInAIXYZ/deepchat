@@ -263,7 +263,7 @@ const setup = async (
         AlertDialogHeader: options.realAlertDialog ? false : passthroughStub('AlertDialogHeader'),
         AlertDialogTitle: options.realAlertDialog ? false : passthroughStub('AlertDialogTitle'),
         AlertDialogTrigger: options.realAlertDialog ? false : passthroughStub('AlertDialogTrigger'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Input: defineComponent({
           name: 'Input',
           props: {

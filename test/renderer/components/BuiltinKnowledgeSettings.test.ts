@@ -145,7 +145,7 @@ async function setup(options: { setRejects?: boolean } = {}) {
       },
       stubs: {
         Icon: true,
-        Button: buttonStub,
+        DcButton: buttonStub,
         Switch: true,
         Input: true,
         Label: true,

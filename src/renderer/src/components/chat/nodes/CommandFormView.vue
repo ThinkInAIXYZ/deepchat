@@ -43,17 +43,22 @@
     </div>
 
     <div class="mt-3 flex items-center justify-end gap-2">
-      <Button variant="ghost" size="sm" class="h-7 rounded-full px-3 text-xs" @click="handleCancel">
+      <DcButton
+        variant="ghost"
+        size="sm"
+        class="h-7 rounded-full px-3 text-xs"
+        @click="handleCancel"
+      >
         {{ t('common.cancel') }}
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         size="sm"
         class="h-7 rounded-full px-3 text-xs"
         :disabled="!canSubmit"
         @click="handleSubmit"
       >
         {{ confirmText || t('common.confirm') }}
-      </Button>
+      </DcButton>
     </div>
   </NodeViewWrapper>
 </template>
@@ -63,7 +68,6 @@ import { computed, inject, reactive } from 'vue'
 import { NodeViewWrapper } from '@tiptap/vue-3'
 import type { NodeViewProps } from '@tiptap/vue-3'
 import { DcButton } from '@dc-ui/components/button'
-import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { useI18n } from 'vue-i18n'

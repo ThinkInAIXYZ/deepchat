@@ -22,7 +22,7 @@
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <Button
+        <DcButton
           data-testid="settings-leave-guard-cancel"
           type="button"
           variant="outline"
@@ -30,8 +30,8 @@
           @click="settingsLeaveGuard.cancelLeave()"
         >
           {{ t('settings.leaveGuard.stay') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           v-if="snapshot.risk === 'dirty'"
           data-testid="settings-leave-guard-discard"
           type="button"
@@ -39,7 +39,7 @@
           @click="settingsLeaveGuard.discardAndLeave()"
         >
           {{ t('settings.leaveGuard.discard') }}
-        </Button>
+        </DcButton>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>
@@ -54,7 +54,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@shadcn/components/ui/alert-dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { onBeforeUnmount, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'

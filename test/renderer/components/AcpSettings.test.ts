@@ -215,7 +215,7 @@ async function setup(options: SetupOptions = {}) {
         CardHeader: passthrough('CardHeader'),
         CardTitle: passthrough('CardTitle'),
         Badge: passthrough('Badge'),
-        Button: ButtonStub,
+        DcButton: ButtonStub,
         Switch: SwitchStub,
         Separator: passthrough('Separator'),
         Input: InputStub,

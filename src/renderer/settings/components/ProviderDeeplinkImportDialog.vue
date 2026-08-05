@@ -57,21 +57,21 @@
       </p>
 
       <DialogFooter>
-        <Button
+        <DcButton
           type="button"
           variant="outline"
           :disabled="submitting"
           @click="emit('update:open', false)"
         >
           {{ t('dialog.cancel') }}
-        </Button>
-        <Button type="button" :disabled="confirmDisabled || submitting" @click="emit('confirm')">
+        </DcButton>
+        <DcButton type="button" :disabled="confirmDisabled || submitting" @click="emit('confirm')">
           {{
             submitting
               ? t('settings.provider.dialog.providerDeeplinkImport.confirming')
               : t('dialog.confirm')
           }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -79,7 +79,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,

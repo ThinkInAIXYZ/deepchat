@@ -156,7 +156,7 @@ describe('ProviderModelList', () => {
       global: {
         stubs: {
           Input: InputStub,
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Popover: passthrough('Popover'),
           PopoverContent: passthrough('PopoverContent'),

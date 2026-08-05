@@ -52,7 +52,7 @@
           data-testid="skill-detail-actions"
           class="flex shrink-0 items-center gap-2"
         >
-          <Button
+          <DcButton
             v-if="mutable"
             variant="outline"
             size="sm"
@@ -61,8 +61,8 @@
           >
             <Icon :icon="editing ? 'lucide:eye' : 'lucide:pencil'" class="mr-1 h-4 w-4" />
             {{ editing ? t('settings.skills.detail.preview') : t('settings.skills.detail.edit') }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             variant="destructive"
             size="sm"
             :disabled="saving"
@@ -70,7 +70,7 @@
           >
             <Icon icon="lucide:trash-2" class="mr-1 h-4 w-4" />
             {{ t('settings.skills.detail.delete') }}
-          </Button>
+          </DcButton>
           <DcConfirmDialog
             :open="deleteConfirmOpen"
             :title="t('settings.skills.detail.confirmDeleteTitle')"
@@ -154,13 +154,13 @@
       </div>
 
       <DialogFooter v-if="editing">
-        <Button variant="outline" :disabled="saving" @click="cancelEditing">
+        <DcButton variant="outline" :disabled="saving" @click="cancelEditing">
           {{ t('common.cancel') }}
-        </Button>
-        <Button :disabled="saving || descriptionMissing" @click="handleSave">
+        </DcButton>
+        <DcButton :disabled="saving || descriptionMissing" @click="handleSave">
           <Spinner v-if="saving" data-icon="inline-start" />
           {{ t('common.save') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -184,7 +184,7 @@ import { useI18n } from 'vue-i18n'
 import { nanoid } from 'nanoid'
 import * as yaml from 'yaml'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'

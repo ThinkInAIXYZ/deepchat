@@ -7,7 +7,7 @@
     :description="t('settings.cronJobs.description')"
   >
     <template #actions>
-      <Button
+      <DcButton
         variant="outline"
         size="sm"
         :disabled="isLoading || pageOperationPending || runtimeActionPending || hasDirtyJobs"
@@ -16,8 +16,8 @@
         <Spinner v-if="restartingScheduler" class="mr-1 h-4 w-4" />
         <Icon v-else icon="lucide:rotate-cw" class="mr-1 h-4 w-4" />
         {{ t('settings.cronJobs.actions.restart') }}
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         data-testid="cron-jobs-add"
         size="sm"
         :disabled="isLoading || pageOperationPending || runtimeActionPending || hasDirtyJobs"
@@ -25,7 +25,7 @@
       >
         <Icon icon="lucide:plus" class="mr-1 h-4 w-4" />
         {{ t('settings.cronJobs.actions.newJob') }}
-      </Button>
+      </DcButton>
     </template>
 
     <div v-if="isLoading || !loadAttempted" class="text-sm text-muted-foreground">
@@ -38,9 +38,9 @@
       class="flex max-w-5xl items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4"
     >
       <span class="text-sm text-destructive">{{ t('common.error.operationFailed') }}</span>
-      <Button size="sm" variant="outline" :disabled="isLoading" @click="loadJobs">
+      <DcButton size="sm" variant="outline" :disabled="isLoading" @click="loadJobs">
         {{ t('common.retry') }}
-      </Button>
+      </DcButton>
     </div>
 
     <template v-else>
@@ -99,7 +99,7 @@
           {{ t('settings.cronJobs.fields.remoteDelivery') }} ·
           {{ t('common.error.requestFailed') }}
         </span>
-        <Button
+        <DcButton
           variant="link"
           size="sm"
           class="h-auto p-0 text-xs"
@@ -107,7 +107,7 @@
           @click="refreshRemoteDeliveryOptions"
         >
           {{ t('common.retry') }}
-        </Button>
+        </DcButton>
       </div>
 
       <div
@@ -120,7 +120,7 @@
           <Icon icon="lucide:calendar-clock" class="h-5 w-5" />
         </div>
         <div class="text-sm font-medium">{{ t('settings.cronJobs.empty') }}</div>
-        <Button
+        <DcButton
           variant="outline"
           size="sm"
           :disabled="pageOperationPending || hasDirtyJobs"
@@ -128,7 +128,7 @@
         >
           <Icon icon="lucide:plus" class="mr-1 h-4 w-4" />
           {{ t('settings.cronJobs.actions.newJob') }}
-        </Button>
+        </DcButton>
       </div>
 
       <div v-else class="max-w-5xl overflow-hidden rounded-lg border bg-card/30">
@@ -205,7 +205,7 @@
                 :aria-label="job.enabled ? t('common.enabled') : t('common.disabled')"
                 @update:model-value="(value) => toggleJob(job.id, value === true)"
               />
-              <Button
+              <DcButton
                 variant="ghost"
                 size="icon"
                 class="h-8 w-8"
@@ -215,18 +215,18 @@
               >
                 <Spinner v-if="runningId === job.id" class="size-4" />
                 <Icon v-else icon="lucide:play" class="size-4" />
-              </Button>
-              <Button
+              </DcButton>
+              <DcButton
                 variant="ghost"
                 size="icon"
                 class="h-8 w-8"
                 :disabled="jobInteractionDisabled(job.id)"
                 :aria-label="t('common.delete')"
-                :title="t('common.delete')"
+                :tooltip="t('common.delete')"
                 @click="requestDeleteJob(job.id)"
               >
                 <Icon icon="lucide:trash-2" class="h-4 w-4 text-destructive" />
-              </Button>
+              </DcButton>
             </div>
           </div>
 
@@ -432,17 +432,17 @@
         <DialogDescription>{{ pendingDeleteJob?.name }}</DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button
+        <DcButton
           variant="outline"
           :disabled="pageOperationPending"
           @click="deleteDialogOpen = false"
         >
           {{ t('common.cancel') }}
-        </Button>
-        <Button variant="destructive" :disabled="pageOperationPending" @click="confirmDeleteJob">
+        </DcButton>
+        <DcButton variant="destructive" :disabled="pageOperationPending" @click="confirmDeleteJob">
           <Spinner v-if="deleting" class="mr-2 size-4" />
           {{ t('common.delete') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -453,7 +453,7 @@ import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcBadge } from '@dc-ui/components/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,

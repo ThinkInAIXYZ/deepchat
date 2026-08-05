@@ -101,7 +101,7 @@
       </div>
 
       <div class="mt-2 flex flex-wrap justify-center gap-2">
-        <Button
+        <DcButton
           variant="outline"
           size="sm"
           class="mb-2 text-xs"
@@ -109,14 +109,14 @@
         >
           <Icon icon="lucide:message-square" class="mr-1 h-3 w-3" />
           {{ t('about.feedbackButton') }}
-        </Button>
+        </DcButton>
 
-        <Button variant="outline" size="sm" class="mb-2 text-xs" @click="openDisclaimerDialog">
+        <DcButton variant="outline" size="sm" class="mb-2 text-xs" @click="openDisclaimerDialog">
           <Icon icon="lucide:info" class="mr-1 h-3 w-3" />
           {{ t('about.disclaimerButton') }}
-        </Button>
+        </DcButton>
 
-        <Button
+        <DcButton
           v-if="upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
@@ -124,9 +124,9 @@
           @click="handleManualDownload('github')"
         >
           {{ t('update.githubDownload') }}
-        </Button>
+        </DcButton>
 
-        <Button
+        <DcButton
           v-if="upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
@@ -134,9 +134,9 @@
           @click="handleManualDownload('official')"
         >
           {{ t('update.officialDownload') }}
-        </Button>
+        </DcButton>
 
-        <Button
+        <DcButton
           v-if="!upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
@@ -173,7 +173,7 @@
           <span v-else>
             {{ t('about.checkUpdateButton') }}
           </span>
-        </Button>
+        </DcButton>
       </div>
     </div>
 
@@ -200,7 +200,7 @@
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button @click="isDisclaimerOpen = false">{{ t('common.close') }}</Button>
+        <DcButton @click="isDisclaimerOpen = false">{{ t('common.close') }}</DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -213,7 +213,7 @@ import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
 import {
   Dialog,

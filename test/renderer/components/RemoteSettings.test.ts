@@ -907,7 +907,7 @@ const setup = async (options: SetupOptions = {}) => {
         DropdownMenuItem: dropdownMenuItemStub,
         DropdownMenuSeparator: passthrough,
         DropdownMenuTrigger: passthrough,
-        Button: buttonStub,
+        DcButton: buttonStub,
         Input: inputStub,
         Switch: switchStub,
         Checkbox: checkboxStub,

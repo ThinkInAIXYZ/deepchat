@@ -33,10 +33,10 @@
           <Checkbox v-model:checked="includeArchived" />
           {{ t('settings.memory.redesign.includeArchived') }}
         </label>
-        <Button size="sm" class="h-9" :disabled="memoryDisabled || panelBusy" @click="openCreate">
+        <DcButton size="sm" class="h-9" :disabled="memoryDisabled || panelBusy" @click="openCreate">
           <Icon icon="lucide:plus" class="mr-1.5 h-3.5 w-3.5" />
           {{ t('settings.memory.redesign.addMemory') }}
-        </Button>
+        </DcButton>
       </div>
     </div>
 
@@ -164,7 +164,7 @@
       v-if="!initialLoading && nextCursor && (!searchActive || includeArchived)"
       class="flex justify-center pt-1"
     >
-      <Button
+      <DcButton
         variant="outline"
         size="sm"
         data-testid="memory-load-more"
@@ -172,7 +172,7 @@
         @click="loadMore"
       >
         {{ loadingMore ? t('common.loading') : t('settings.memory.redesign.loadMore') }}
-      </Button>
+      </DcButton>
     </div>
 
     <DcConfirmDialog
@@ -211,7 +211,7 @@ import { useDebounceFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcInlineError } from '@dc-ui/components/inline-error'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { Input } from '@shadcn/components/ui/input'
@@ -404,7 +404,7 @@ const MemoryListRow = defineComponent({
                 rowProps.memory.conflictState !== 'challenged' &&
                 (rowProps.memory.kind === 'episodic' || rowProps.memory.kind === 'semantic')
                   ? h(
-                      Button,
+                      DcButton,
                       {
                         variant: 'ghost',
                         size: 'sm',
@@ -420,7 +420,7 @@ const MemoryListRow = defineComponent({
                     )
                   : null,
                 h(
-                  Button,
+                  DcButton,
                   {
                     variant: 'ghost',
                     size: 'sm',
@@ -446,7 +446,7 @@ const MemoryListRow = defineComponent({
                   ]
                 ),
                 h(
-                  Button,
+                  DcButton,
                   {
                     variant: 'ghost',
                     size: 'sm',

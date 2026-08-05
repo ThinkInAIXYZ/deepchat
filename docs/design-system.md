@@ -106,15 +106,15 @@
 |-------|---------|
 | `background` | `hsl(0 0 5% / 1)` |
 | `foreground` | `base-200` |
-| `card` | `hsl(0 0 20% / 1)` |
+| `card` | `#121212` → `hsl(0 0% 7.1%)` |
 | `card-foreground` | `base-200` |
-| `popover` | `hsl(0 0 20% / 1)` |
+| `popover` | `#121212` → `hsl(0 0% 7.1%)` |
 | `popover-foreground` | `#fff` |
-| `secondary` | `hsl(0 0 15% / 0.8)` |
+| `secondary` | `hsl(0 0 100% / 0.05)` |
 | `secondary-foreground` | `base-50` |
 | `muted` | `hsl(0 0 100% / 0.03)` |
 | `muted-foreground` | `hsl(0 0 100% / 0.5)` |
-| `accent` | `hsl(0 0 100% / 0.05)` |
+| `accent` | `hsl(0 0 100% / 0.1)`（Dashboard interactive-card hover 基准） |
 | `accent-foreground` | `hsl(0 0 100% / 0.8)` |
 | `destructive` | `hsl(0 62.8% 30.6%)` |
 | `border` | `base-800` |
@@ -286,8 +286,9 @@
 2. **Primary 蓝色** 色相锁定在 ~210°，饱和度 72-100%，作为品牌主色。
 3. **双主题体系并存**：shadcn 语义色（`background`/`foreground` 等）+ 自定义 Token（`bg-*`/`text-*` 等），自定义 Token 为实际组件使用的主要体系。
 4. **Dark 模式** 通过 `.dark` / `[data-theme='dark']` 选择器触发，同时保留 `prefers-color-scheme` 媒体查询作为系统级兜底。
-5. **通知色** 使用独立的 `dc-notification-*` 命名空间，与 shadcn 语义色解耦。
-6. **语法高亮色** 在 Light/Dark 下分别使用硬编码 HSL 和 Tailwind 色板引用。
+5. **暗色表面与 hover**：所有表面（包括 shadcn 消费的 `card` / `popover`）以 `#121212` 为基准，禁止引入 20% 灰色表面；交互 hover 统一消费 `accent`，其暗色值为 `foreground` 的 10% 透明度，与 Dashboard 的 interactive-card 一致。必须在主题 token 层调整，禁止修改 `src/shadcn` 源码或在组件中硬编码颜色。
+6. **通知色** 使用独立的 `dc-notification-*` 命名空间，与 shadcn 语义色解耦。
+7. **语法高亮色** 在 Light/Dark 下分别使用硬编码 HSL 和 Tailwind 色板引用。
 
 ---
 

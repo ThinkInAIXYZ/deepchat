@@ -107,7 +107,7 @@
           </div>
 
           <div class="flex justify-center">
-            <Button
+            <DcButton
               type="button"
               :disabled="operationPending"
               size="sm"
@@ -117,7 +117,7 @@
             >
               <Icon icon="lucide:plus" class="w-8 h-4" />
               {{ t('settings.knowledgeBase.addBuiltinKnowledgeConfig') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </CollapsibleContent>
@@ -190,7 +190,7 @@
                 </div>
                 <Popover v-model:open="embeddingModelSelectOpen">
                   <PopoverTrigger as-child>
-                    <Button
+                    <DcButton
                       id="edit-builtin-config-model"
                       variant="outline"
                       class="w-full justify-between"
@@ -206,14 +206,14 @@
                           selectEmbeddingModel?.name || t('settings.common.selectModel')
                         }}</span>
                       </div>
-                      <Button
+                      <DcButton
                         size="sm"
                         variant="ghost"
                         class="text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center"
                       >
                         <Icon icon="lucide:chevron-down" class="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </Button>
+                      </DcButton>
+                    </DcButton>
                   </PopoverTrigger>
                   <PopoverContent class="w-80 p-0">
                     <ModelSelect
@@ -232,7 +232,7 @@
                 </div>
                 <Popover v-model:open="rerankModelSelectOpen">
                   <PopoverTrigger as-child>
-                    <Button
+                    <DcButton
                       id="edit-builtin-config-model"
                       variant="outline"
                       class="w-full justify-between"
@@ -247,7 +247,7 @@
                           {{ selectRerankModel?.name || t('settings.common.selectModel') }}
                         </span>
                       </div>
-                      <Button
+                      <DcButton
                         size="sm"
                         variant="ghost"
                         v-if="selectRerankModel"
@@ -255,16 +255,16 @@
                         @click.stop="clearRerankModel"
                       >
                         <Icon icon="lucide:x" class="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                      <Button
+                      </DcButton>
+                      <DcButton
                         size="sm"
                         variant="ghost"
                         v-else
                         class="text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center"
                       >
                         <Icon icon="lucide:chevron-down" class="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </Button>
+                      </DcButton>
+                    </DcButton>
                   </PopoverTrigger>
                   <PopoverContent class="w-80 p-0">
                     <ModelSelect
@@ -408,14 +408,14 @@
                         ></Input>
                         <Popover v-model:open="separatorsPopoverOpen">
                           <PopoverTrigger as-child>
-                            <Button
+                            <DcButton
                               size="sm"
                               variant="ghost"
                               class="whitespace-nowrap"
-                              :title="t('settings.knowledgeBase.separatorsPreset')"
+                              :tooltip="t('settings.knowledgeBase.separatorsPreset')"
                             >
                               <Icon icon="lucide:book-marked" class="w-4 h-4 text-primary" />
-                            </Button>
+                            </DcButton>
                           </PopoverTrigger>
                           <PopoverContent class="w-40 p-2">
                             <div class="space-y-2">
@@ -423,7 +423,7 @@
                                 {{ t('settings.knowledgeBase.selectLanguage') }}
                               </div>
                               <div class="max-h-48 overflow-y-auto space-y-1">
-                                <Button
+                                <DcButton
                                   v-for="language in supportedLanguages"
                                   :key="language"
                                   variant="ghost"
@@ -432,7 +432,7 @@
                                   @click="handleLanguageSelect(language)"
                                 >
                                   {{ language }}
-                                </Button>
+                                </DcButton>
                               </div>
                             </div>
                           </PopoverContent>
@@ -568,7 +568,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
 import {

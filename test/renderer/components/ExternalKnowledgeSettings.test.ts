@@ -20,7 +20,7 @@ const buttonStub = defineComponent({
 })
 
 const stubs = {
-  Button: buttonStub,
+  DcButton: buttonStub,
   Input: true,
   Label: true,
   Switch: true,

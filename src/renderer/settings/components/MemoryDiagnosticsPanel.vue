@@ -6,7 +6,7 @@
     >
       <template #actions>
         <div class="flex flex-wrap gap-2">
-          <Button
+          <DcButton
             variant="outline"
             size="sm"
             class="h-8 text-xs"
@@ -15,15 +15,15 @@
           >
             <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('settings.memory.redesign.refresh') }}
-          </Button>
-          <Button size="sm" class="h-8 text-xs" :disabled="reindexing" @click="reindex">
+          </DcButton>
+          <DcButton size="sm" class="h-8 text-xs" :disabled="reindexing" @click="reindex">
             <Icon icon="lucide:rotate-cw" class="mr-1.5 h-3.5 w-3.5" />
             {{
               reindexing
                 ? t('settings.deepchatAgents.memoryManager.health.reindexing')
                 : t('settings.deepchatAgents.memoryManager.health.reindex')
             }}
-          </Button>
+          </DcButton>
         </div>
       </template>
     </DcSectionCard>
@@ -46,7 +46,7 @@
           }}
         </p>
       </div>
-      <Button
+      <DcButton
         v-if="canRetryReindex"
         variant="outline"
         size="sm"
@@ -56,7 +56,7 @@
       >
         <Icon icon="lucide:rotate-cw" class="mr-1.5 h-3.5 w-3.5" />
         {{ t('settings.deepchatAgents.memoryManager.health.reindex') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div v-if="loading" class="py-12 text-center text-sm text-muted-foreground">
@@ -277,7 +277,7 @@
           <p class="mt-1 text-xs text-muted-foreground">
             {{ t('settings.memory.redesign.dangerZoneDescription') }}
           </p>
-          <Button
+          <DcButton
             variant="destructive"
             size="sm"
             class="mt-3 h-8 text-xs"
@@ -287,7 +287,7 @@
           >
             <Icon icon="lucide:trash-2" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('settings.deepchatAgents.memoryManager.clearAll') }}
-          </Button>
+          </DcButton>
         </section>
       </aside>
     </div>
@@ -321,7 +321,7 @@ import { Icon } from '@iconify/vue'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { DcSectionCard } from '@dc-ui/components/section-card'
 import { DcBadge } from '@dc-ui/components/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { createMemoryClient } from '@api/MemoryClient'
 import type {
   MemoryArchiveCandidateLifecyclePreview,

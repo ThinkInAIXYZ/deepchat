@@ -355,8 +355,8 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@shadcn/components/ui/tooltip', () => ({
     TooltipProvider: passthrough('TooltipProvider')
   }))
-  vi.doMock('@shadcn/components/ui/button', () => ({
-    Button: clickStub('Button')
+  vi.doMock('@dc-ui/components/button', () => ({
+    DcButton: clickStub('Button')
   }))
   vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
     AlertDialog: defineComponent({

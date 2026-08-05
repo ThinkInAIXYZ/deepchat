@@ -13,14 +13,14 @@
     "
   >
     <template #action>
-      <Button size="sm" @click="handleClick">
+      <DcButton size="sm" @click="handleClick">
         <Icon :icon="enabled ? 'lucide:plus' : 'lucide:power'" data-icon="inline-start" />
         {{
           enabled
             ? t('settings.memory.redesign.addMemory')
             : t('settings.memory.redesign.enableMemory')
         }}
-      </Button>
+      </DcButton>
     </template>
   </DcEmpty>
 </template>
@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { DcEmpty } from '@dc-ui/components/empty'
 
 const props = defineProps<{ enabled: boolean }>()

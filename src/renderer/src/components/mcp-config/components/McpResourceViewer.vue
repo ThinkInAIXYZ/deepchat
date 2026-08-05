@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { DcEmpty } from '@dc-ui/components/empty'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { DcBadge } from '@dc-ui/components/badge'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
@@ -164,7 +164,7 @@ const getResourceType = (uri: string) => {
             />
 
             <div v-else class="p-2 space-y-1">
-              <Button
+              <DcButton
                 v-for="resource in serverResources"
                 :key="resource.uri"
                 variant="ghost"
@@ -196,7 +196,7 @@ const getResourceType = (uri: string) => {
                     </div>
                   </div>
                 </div>
-              </Button>
+              </DcButton>
             </div>
           </ScrollArea>
         </div>
@@ -248,7 +248,7 @@ const getResourceType = (uri: string) => {
 
                 <!-- 加载资源按钮 -->
                 <div>
-                  <Button
+                  <DcButton
                     class="w-full"
                     :disabled="resourceLoading"
                     @click="loadResourceContent(selectedResourceObj as ResourceListEntry)"
@@ -256,7 +256,7 @@ const getResourceType = (uri: string) => {
                     <Spinner v-if="resourceLoading" data-icon="inline-start" />
                     <Icon v-else icon="lucide:download" data-icon="inline-start" />
                     {{ resourceLoading ? 'Loading...' : 'Load Content' }}
-                  </Button>
+                  </DcButton>
                 </div>
 
                 <!-- 资源内容显示 -->

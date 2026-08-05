@@ -293,7 +293,7 @@
       </div>
 
       <DialogFooter>
-        <Button variant="outline" @click="close">{{ t('traceDialog.close') }}</Button>
+        <DcButton variant="outline" @click="close">{{ t('traceDialog.close') }}</DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -308,7 +308,7 @@ import {
   DialogTitle,
   DialogFooter
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Select,
   SelectContent,

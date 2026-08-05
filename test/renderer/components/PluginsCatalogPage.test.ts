@@ -141,7 +141,7 @@ async function mountCatalog(options?: { ocrStatus?: OcrRuntimeStatus | Error }) 
     global: {
       plugins: [createPinia()],
       stubs: {
-        Button: buttonStub,
+        DcButton: buttonStub,
         ScrollArea: passthrough('ScrollArea')
       }
     }

@@ -59,17 +59,17 @@
           class="text-base text-yellow-500"
         />
       </div>
-      <Button
+      <DcButton
         variant="ghost"
         size="icon"
         :disabled="disabled"
         class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
-        :title="t(`settings.knowledgeBase.reAdd`)"
+        :tooltip="t(`settings.knowledgeBase.reAdd`)"
         v-if="file.status !== 'processing'"
         @click="reAddDialogOpen = true"
       >
         <Icon icon="lucide:refresh-ccw" class="text-base text-gray-500" />
-      </Button>
+      </DcButton>
       <DcConfirmDialog
         :open="reAddDialogOpen"
         :title="t('settings.knowledgeBase.reAddFile.title')"
@@ -82,16 +82,16 @@
         @cancel="reAddDialogOpen = false"
       />
 
-      <Button
+      <DcButton
         variant="ghost"
         size="icon"
         :disabled="disabled"
         class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
-        :title="t(`settings.knowledgeBase.delete`)"
+        :tooltip="t(`settings.knowledgeBase.delete`)"
         @click="deleteDialogOpen = true"
       >
         <Icon icon="lucide:trash" class="text-base text-red-400" />
-      </Button>
+      </DcButton>
       <DcConfirmDialog
         :open="deleteDialogOpen"
         :title="t('settings.knowledgeBase.deleteFile.title')"
@@ -115,7 +115,7 @@ import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import { computed, ref } from 'vue'
 import type { KnowledgeFileMessage } from '@shared/types/knowledge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import dayjs from 'dayjs'

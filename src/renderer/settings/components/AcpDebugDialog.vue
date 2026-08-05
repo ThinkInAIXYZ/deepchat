@@ -22,7 +22,7 @@
                 : t('settings.acp.debug.processNotReady')
             "
           />
-          <Button
+          <DcButton
             size="sm"
             variant="outline"
             class="h-8"
@@ -33,13 +33,13 @@
             {{
               loading ? t('settings.acp.debug.healthChecking') : t('settings.acp.debug.healthCheck')
             }}
-          </Button>
-          <Button size="sm" variant="ghost" class="h-8" @click="clearEvents">
+          </DcButton>
+          <DcButton size="sm" variant="ghost" class="h-8" @click="clearEvents">
             {{ t('settings.acp.debug.clearHistory') }}
-          </Button>
-          <Button size="sm" variant="outline" class="h-8" @click="emit('update:open', false)">
+          </DcButton>
+          <DcButton size="sm" variant="outline" class="h-8" @click="emit('update:open', false)">
             {{ t('settings.acp.debug.close') }}
-          </Button>
+          </DcButton>
         </div>
       </header>
 
@@ -61,7 +61,7 @@
 
       <div class="grid h-full min-h-0 flex-1 overflow-hidden lg:grid-cols-[260px_1fr]">
         <aside class="h-full min-h-0 space-y-2 overflow-y-auto border-r p-3">
-          <Button
+          <DcButton
             v-for="method in methodOptions"
             :key="method.value"
             type="button"
@@ -76,7 +76,7 @@
             @click="selectMethod(method.value)"
           >
             <span class="text-sm font-medium leading-tight">{{ method.label }}</span>
-          </Button>
+          </DcButton>
         </aside>
 
         <main class="flex flex-col gap-4 p-4 overflow-hidden min-h-0 h-full">
@@ -170,7 +170,7 @@
                   :disabled="loading"
                   @click="handleSelectWorkdir"
                 />
-                <Button
+                <DcButton
                   v-if="workdirPath"
                   size="sm"
                   variant="ghost"
@@ -179,8 +179,8 @@
                   @click="clearWorkdir"
                 >
                   {{ t('common.clear') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   variant="ghost"
                   class="h-8 px-2"
@@ -188,8 +188,8 @@
                   @click="formatPayload"
                 >
                   {{ t('settings.acp.debug.format') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   variant="ghost"
                   class="h-8 px-2"
@@ -197,8 +197,8 @@
                   @click="resetPayload"
                 >
                   {{ t('settings.acp.debug.resetTemplate') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   class="h-9"
                   :disabled="loading"
@@ -207,7 +207,7 @@
                 >
                   <Spinner v-if="loading" data-icon="inline-start" />
                   {{ loading ? t('settings.acp.debug.sending') : t('settings.acp.debug.send') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
           </div>
@@ -222,7 +222,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import { DcStatusPill } from '@dc-ui/components/status-pill'
-import { Button } from '@shadcn/components/ui/button'
 import {
   Dialog,
   DialogContent,

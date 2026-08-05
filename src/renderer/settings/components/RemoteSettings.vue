@@ -23,9 +23,9 @@
         class="flex flex-col items-start gap-3 text-sm text-muted-foreground"
       >
         <span>{{ t('common.error.requestFailed') }}</span>
-        <Button variant="outline" size="sm" :disabled="isLoading" @click="loadState">
+        <DcButton variant="outline" size="sm" :disabled="isLoading" @click="loadState">
           {{ t('common.retry') }}
-        </Button>
+        </DcButton>
       </div>
       <template v-else>
         <div v-if="!props.hideHeader" class="space-y-1">
@@ -127,17 +127,18 @@
                       class="pr-10"
                       @blur="queueTelegramSettingsPersist"
                     />
-                    <Button
+                    <DcButton
                       variant="ghost"
                       size="sm"
                       class="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
+                      :tooltip="showBotToken ? t('common.hideValue') : t('common.showValue')"
                       @click="showBotToken = !showBotToken"
                     >
                       <Icon
                         :icon="showBotToken ? 'lucide:eye-off' : 'lucide:eye'"
                         class="h-4 w-4 text-muted-foreground"
                       />
-                    </Button>
+                    </DcButton>
                   </div>
                 </div>
               </div>
@@ -185,7 +186,7 @@
                     </Label>
                     <DropdownMenu>
                       <DropdownMenuTrigger as-child>
-                        <Button
+                        <DcButton
                           variant="outline"
                           size="sm"
                           class="h-8 w-full min-w-0 justify-between gap-1.5 px-2.5 text-xs"
@@ -202,7 +203,7 @@
                             icon="lucide:chevron-down"
                             class="h-3 w-3 shrink-0 text-muted-foreground"
                           />
-                        </Button>
+                        </DcButton>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" class="w-[20rem]">
                         <DropdownMenuItem
@@ -250,7 +251,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                  <Button
+                  <DcButton
                     data-testid="remote-pair-button"
                     variant="outline"
                     size="sm"
@@ -263,8 +264,8 @@
                     @click="generatePairCodeAndOpenDialog('telegram')"
                   >
                     {{ t('settings.remote.remoteControl.openPairDialog') }}
-                  </Button>
-                  <Button
+                  </DcButton>
+                  <DcButton
                     data-testid="remote-bindings-button"
                     variant="outline"
                     size="sm"
@@ -272,7 +273,7 @@
                     @click="openBindingsDialog('telegram')"
                   >
                     {{ t('settings.remote.remoteControl.manageBindings') }}
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -417,7 +418,7 @@
                     {{ feishuInstallError }}
                   </div>
                   <div class="mt-3 flex flex-wrap gap-2">
-                    <Button
+                    <DcButton
                       data-testid="feishu-install-open-web-button"
                       variant="default"
                       size="sm"
@@ -440,8 +441,8 @@
                           ? t('settings.remote.feishu.installWaiting')
                           : t('settings.remote.feishu.openInstallWeb')
                       }}
-                    </Button>
-                    <Button
+                    </DcButton>
+                    <DcButton
                       data-testid="feishu-install-show-qr-button"
                       variant="outline"
                       size="sm"
@@ -459,15 +460,15 @@
                           ? t('settings.remote.feishu.installWaiting')
                           : t('settings.remote.feishu.showInstallQr')
                       }}
-                    </Button>
-                    <Button
+                    </DcButton>
+                    <DcButton
                       v-if="feishuInstallBusy"
                       variant="outline"
                       size="sm"
                       @click="cancelFeishuInstall()"
                     >
                       {{ t('common.cancel') }}
-                    </Button>
+                    </DcButton>
                   </div>
                 </div>
 
@@ -483,15 +484,15 @@
                     <li>{{ t('settings.remote.feishu.setupStepPublish') }}</li>
                   </ul>
                   <div class="mt-3 flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" @click="openFeishuSetupGuide">
+                    <DcButton variant="outline" size="sm" @click="openFeishuSetupGuide">
                       {{ t('settings.remote.feishu.openSetupGuide') }}
-                    </Button>
-                    <Button variant="outline" size="sm" @click="openFeishuDeveloperConsole">
+                    </DcButton>
+                    <DcButton variant="outline" size="sm" @click="openFeishuDeveloperConsole">
                       {{ t('settings.remote.feishu.openDeveloperConsole') }}
-                    </Button>
-                    <Button variant="outline" size="sm" @click="openFeishuBotChat">
+                    </DcButton>
+                    <DcButton variant="outline" size="sm" @click="openFeishuBotChat">
                       {{ t('settings.remote.feishu.openBotChat') }}
-                    </Button>
+                    </DcButton>
                   </div>
                 </div>
 
@@ -528,7 +529,7 @@
                     {{ feishuAuthError }}
                   </div>
                   <div class="mt-3 flex flex-wrap gap-2">
-                    <Button
+                    <DcButton
                       data-testid="feishu-pair-button"
                       variant="outline"
                       size="sm"
@@ -542,8 +543,8 @@
                     >
                       <Icon icon="lucide:key-round" class="h-4 w-4" />
                       {{ t('settings.remote.remoteControl.openPairDialog') }}
-                    </Button>
-                    <Button
+                    </DcButton>
+                    <DcButton
                       data-testid="feishu-scan-auth-button"
                       variant="outline"
                       size="sm"
@@ -562,15 +563,15 @@
                           ? t('settings.remote.feishu.scanAuthWaiting')
                           : t('settings.remote.feishu.startScanAuth')
                       }}
-                    </Button>
-                    <Button
+                    </DcButton>
+                    <DcButton
                       v-if="feishuAuthBusy"
                       variant="outline"
                       size="sm"
                       @click="cancelFeishuScanAuth()"
                     >
                       {{ t('common.cancel') }}
-                    </Button>
+                    </DcButton>
                   </div>
                 </div>
               </div>
@@ -650,7 +651,7 @@
                     </Label>
                     <DropdownMenu>
                       <DropdownMenuTrigger as-child>
-                        <Button
+                        <DcButton
                           variant="outline"
                           size="sm"
                           class="h-8 w-full min-w-0 justify-between gap-1.5 px-2.5 text-xs"
@@ -667,7 +668,7 @@
                             icon="lucide:chevron-down"
                             class="h-3 w-3 shrink-0 text-muted-foreground"
                           />
-                        </Button>
+                        </DcButton>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" class="w-[20rem]">
                         <DropdownMenuItem
@@ -715,7 +716,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                  <Button
+                  <DcButton
                     data-testid="feishu-bindings-button"
                     variant="outline"
                     size="sm"
@@ -723,7 +724,7 @@
                     @click="openBindingsDialog('feishu')"
                   >
                     {{ t('settings.remote.remoteControl.manageBindings') }}
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -844,7 +845,7 @@
                     </Label>
                     <DropdownMenu>
                       <DropdownMenuTrigger as-child>
-                        <Button
+                        <DcButton
                           variant="outline"
                           size="sm"
                           class="h-8 w-full min-w-0 justify-between gap-1.5 px-2.5 text-xs"
@@ -861,7 +862,7 @@
                             icon="lucide:chevron-down"
                             class="h-3 w-3 shrink-0 text-muted-foreground"
                           />
-                        </Button>
+                        </DcButton>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" class="w-[20rem]">
                         <DropdownMenuItem
@@ -909,7 +910,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                  <Button
+                  <DcButton
                     variant="outline"
                     size="sm"
                     :disabled="
@@ -921,15 +922,15 @@
                     @click="generatePairCodeAndOpenDialog('qqbot')"
                   >
                     {{ t('settings.remote.remoteControl.openPairDialog') }}
-                  </Button>
-                  <Button
+                  </DcButton>
+                  <DcButton
                     variant="outline"
                     size="sm"
                     :disabled="saving.qqbot"
                     @click="openBindingsDialog('qqbot')"
                   >
                     {{ t('settings.remote.remoteControl.manageBindings') }}
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -993,17 +994,18 @@
                       class="pr-10"
                       @blur="queueDiscordSettingsPersist"
                     />
-                    <Button
+                    <DcButton
                       variant="ghost"
                       size="sm"
                       class="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
+                      :tooltip="showDiscordBotToken ? t('common.hideValue') : t('common.showValue')"
                       @click="showDiscordBotToken = !showDiscordBotToken"
                     >
                       <Icon
                         :icon="showDiscordBotToken ? 'lucide:eye-off' : 'lucide:eye'"
                         class="h-4 w-4 text-muted-foreground"
                       />
-                    </Button>
+                    </DcButton>
                   </div>
                 </div>
               </div>
@@ -1058,7 +1060,7 @@
                     </Label>
                     <DropdownMenu>
                       <DropdownMenuTrigger as-child>
-                        <Button
+                        <DcButton
                           variant="outline"
                           size="sm"
                           class="h-8 w-full min-w-0 justify-between gap-1.5 px-2.5 text-xs"
@@ -1075,7 +1077,7 @@
                             icon="lucide:chevron-down"
                             class="h-3 w-3 shrink-0 text-muted-foreground"
                           />
-                        </Button>
+                        </DcButton>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" class="w-[20rem]">
                         <DropdownMenuItem
@@ -1123,7 +1125,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                  <Button
+                  <DcButton
                     data-testid="discord-pair-button"
                     variant="outline"
                     size="sm"
@@ -1136,8 +1138,8 @@
                     @click="generatePairCodeAndOpenDialog('discord')"
                   >
                     {{ t('settings.remote.remoteControl.openPairDialog') }}
-                  </Button>
-                  <Button
+                  </DcButton>
+                  <DcButton
                     data-testid="discord-bindings-button"
                     variant="outline"
                     size="sm"
@@ -1145,7 +1147,7 @@
                     @click="openBindingsDialog('discord')"
                   >
                     {{ t('settings.remote.remoteControl.manageBindings') }}
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -1199,7 +1201,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                  <Button
+                  <DcButton
                     data-testid="weixin-ilink-connect-button"
                     variant="outline"
                     size="sm"
@@ -1222,7 +1224,7 @@
                       data-icon="inline-start"
                     />
                     {{ t('settings.remote.weixinIlink.connectButton') }}
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -1305,7 +1307,7 @@
                   </div>
 
                   <div class="mt-3 flex flex-wrap items-center gap-2">
-                    <Button
+                    <DcButton
                       variant="outline"
                       size="sm"
                       :disabled="
@@ -1317,8 +1319,8 @@
                       @click="restartWeixinIlinkAccount(account.accountId)"
                     >
                       {{ t('settings.remote.weixinIlink.restartAccount') }}
-                    </Button>
-                    <Button
+                    </DcButton>
+                    <DcButton
                       variant="outline"
                       size="sm"
                       class="text-destructive hover:text-destructive"
@@ -1330,7 +1332,7 @@
                       @click="removeWeixinIlinkAccount(account.accountId)"
                     >
                       {{ t('settings.remote.weixinIlink.removeAccount') }}
-                    </Button>
+                    </DcButton>
                   </div>
                 </div>
               </div>
@@ -1380,7 +1382,7 @@
                     </Label>
                     <DropdownMenu>
                       <DropdownMenuTrigger as-child>
-                        <Button
+                        <DcButton
                           variant="outline"
                           size="sm"
                           class="h-8 w-full min-w-0 justify-between gap-1.5 px-2.5 text-xs"
@@ -1397,7 +1399,7 @@
                             icon="lucide:chevron-down"
                             class="h-3 w-3 shrink-0 text-muted-foreground"
                           />
-                        </Button>
+                        </DcButton>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" class="w-[20rem]">
                         <DropdownMenuItem
@@ -1447,14 +1449,14 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                  <Button
+                  <DcButton
                     variant="outline"
                     size="sm"
                     :disabled="saving['weixin-ilink']"
                     @click="openBindingsDialog('weixin-ilink')"
                   >
                     {{ t('settings.remote.remoteControl.manageBindings') }}
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -1521,9 +1523,9 @@
         </div>
 
         <div class="flex justify-end">
-          <Button variant="outline" :disabled="pairDialogCancelling" @click="cancelPairDialog">
+          <DcButton variant="outline" :disabled="pairDialogCancelling" @click="cancelPairDialog">
             {{ pairDialogCancelling ? t('common.loading') : t('common.cancel') }}
-          </Button>
+          </DcButton>
         </div>
       </div>
     </DialogContent>
@@ -1570,12 +1572,16 @@
         </div>
 
         <div class="flex justify-end gap-2">
-          <Button variant="outline" :disabled="!feishuInstallQrUrl" @click="openFeishuInstallQrUrl">
+          <DcButton
+            variant="outline"
+            :disabled="!feishuInstallQrUrl"
+            @click="openFeishuInstallQrUrl"
+          >
             {{ t('settings.remote.feishu.openInstallWeb') }}
-          </Button>
-          <Button variant="outline" @click="closeFeishuInstallQrDialog">
+          </DcButton>
+          <DcButton variant="outline" @click="closeFeishuInstallQrDialog">
             {{ feishuInstallBusy ? t('common.cancel') : t('common.close') }}
-          </Button>
+          </DcButton>
         </div>
       </div>
     </DialogContent>
@@ -1611,7 +1617,7 @@
             class="flex items-center gap-2 text-sm text-destructive"
           >
             <span>{{ bindingsDialogError }}</span>
-            <Button
+            <DcButton
               v-if="bindingsDialogFailure?.source === 'load'"
               variant="link"
               size="sm"
@@ -1620,7 +1626,7 @@
               @click="retryBindingsDialogLoad"
             >
               {{ t('common.retry') }}
-            </Button>
+            </DcButton>
           </div>
           <template
             v-if="
@@ -1659,7 +1665,7 @@
                   <div class="min-w-0 flex-1">
                     <div class="truncate text-sm font-medium">{{ principalId }}</div>
                   </div>
-                  <Button
+                  <DcButton
                     variant="ghost"
                     size="sm"
                     class="text-destructive hover:text-destructive"
@@ -1667,7 +1673,7 @@
                     @click="removePrincipal(principalId)"
                   >
                     {{ t('common.delete') }}
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -1717,7 +1723,7 @@
                       }}{{ binding.threadId ? `:${binding.threadId}` : '' }}
                     </div>
                   </div>
-                  <Button
+                  <DcButton
                     variant="ghost"
                     size="sm"
                     class="text-destructive hover:text-destructive"
@@ -1725,7 +1731,7 @@
                     @click="removeBinding(binding.endpointKey)"
                   >
                     {{ t('common.delete') }}
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -1733,9 +1739,13 @@
         </div>
 
         <div class="flex justify-end">
-          <Button variant="outline" :disabled="bindingsDialogMutating" @click="closeBindingsDialog">
+          <DcButton
+            variant="outline"
+            :disabled="bindingsDialogMutating"
+            @click="closeBindingsDialog"
+          >
             {{ t('common.close') }}
-          </Button>
+          </DcButton>
         </div>
       </div>
     </DialogContent>
@@ -1763,16 +1773,16 @@
         </div>
 
         <div class="flex justify-end gap-2">
-          <Button
+          <DcButton
             variant="outline"
             :disabled="weixinIlinkLoginBusy"
             @click="restartWeixinIlinkLogin"
           >
             {{ t('settings.remote.weixinIlink.refreshQrCode') }}
-          </Button>
-          <Button variant="outline" @click="closeWeixinIlinkLoginDialog">
+          </DcButton>
+          <DcButton variant="outline" @click="closeWeixinIlinkLoginDialog">
             {{ t('common.close') }}
-          </Button>
+          </DcButton>
         </div>
       </div>
     </DialogContent>
@@ -1787,7 +1797,7 @@ import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Label } from '@shadcn/components/ui/label'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import {

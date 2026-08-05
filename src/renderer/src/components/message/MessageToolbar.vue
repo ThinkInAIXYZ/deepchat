@@ -44,7 +44,7 @@
               @click="emit('retry')"
             />
             <DcButton
-              v-show="isAssistant && hasVariants"
+              v-if="isAssistant && hasVariants"
               :disabled="currentVariantIndex === 0"
               variant="ghost"
               size="icon-sm"
@@ -55,11 +55,11 @@
               class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
               @click="emit('prev')"
             />
-            <span v-show="isAssistant && hasVariants">
+            <span v-if="isAssistant && hasVariants">
               {{ (currentVariantIndex ?? 0) + 1 }} / {{ totalVariants }}
             </span>
             <DcButton
-              v-show="isAssistant && hasVariants"
+              v-if="isAssistant && hasVariants"
               :disabled="(currentVariantIndex ?? 0) >= (totalVariants || 0) - 1"
               variant="ghost"
               size="icon-sm"
@@ -87,7 +87,7 @@
               </span>
             </DcCopyButton>
             <DcButton
-              v-show="isAssistant"
+              v-if="isAssistant"
               variant="ghost"
               size="icon-sm"
               icon="lucide:images"

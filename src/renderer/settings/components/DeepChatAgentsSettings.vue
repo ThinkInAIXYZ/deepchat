@@ -8,14 +8,14 @@
             {{ t('settings.deepchatAgents.description') }}
           </div>
         </div>
-        <Button
+        <DcButton
           data-testid="deepchat-agent-add-button"
           size="sm"
           :disabled="saving"
           @click="startCreate"
         >
           {{ t('common.add') }}
-        </Button>
+        </DcButton>
       </div>
 
       <div class="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
@@ -99,10 +99,10 @@
           <div
             class="agent-header-actions flex w-full min-w-0 flex-wrap items-center justify-end gap-2"
           >
-            <Button variant="outline" :disabled="saving" @click="resetEditor">
+            <DcButton variant="outline" :disabled="saving" @click="resetEditor">
               {{ t('common.reset') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               v-if="form.id && !form.protected"
               data-testid="deepchat-agent-delete-button"
               variant="destructive"
@@ -110,7 +110,7 @@
               @click="removeAgent"
             >
               {{ t('common.delete') }}
-            </Button>
+            </DcButton>
             <DcSubmitButton
               data-testid="deepchat-agent-save-button"
               :status="saveStatus"
@@ -189,7 +189,7 @@
               <Input v-model="form.lucideIcon" placeholder="bot" />
             </label>
             <div class="flex flex-wrap gap-2 md:col-span-2">
-              <Button
+              <DcButton
                 v-for="iconName in lucideIcons"
                 :key="iconName"
                 size="sm"
@@ -199,7 +199,7 @@
               >
                 <Icon :icon="`lucide:${iconName}`" class="h-4 w-4" />
                 <span>{{ iconName }}</span>
-              </Button>
+              </DcButton>
             </div>
             <label class="space-y-2">
               <div class="text-sm font-medium">{{ t('settings.deepchatAgents.lightColor') }}</div>
@@ -248,7 +248,7 @@
               <div class="text-[11px] font-medium text-muted-foreground">{{ field.label }}</div>
               <Popover v-model:open="field.open.value">
                 <PopoverTrigger as-child>
-                  <Button
+                  <DcButton
                     variant="outline"
                     size="sm"
                     class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
@@ -270,12 +270,12 @@
                       icon="lucide:chevron-down"
                       class="h-3 w-3 shrink-0 text-muted-foreground"
                     />
-                  </Button>
+                  </DcButton>
                 </PopoverTrigger>
                 <PopoverContent class="w-[320px] p-0" align="start">
                   <div class="flex items-center justify-between border-b px-3 py-2">
                     <div class="text-sm font-medium">{{ field.label }}</div>
-                    <Button
+                    <DcButton
                       v-if="form[field.key]"
                       variant="ghost"
                       size="sm"
@@ -283,7 +283,7 @@
                       @click="clearModel(field.key)"
                     >
                       {{ t('common.clear') }}
-                    </Button>
+                    </DcButton>
                   </div>
                   <ModelSelect
                     :exclude-providers="['acp']"
@@ -302,7 +302,7 @@
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
-                  <Button
+                  <DcButton
                     variant="outline"
                     size="sm"
                     class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
@@ -319,7 +319,7 @@
                       icon="lucide:chevron-down"
                       class="h-3 w-3 shrink-0 text-muted-foreground"
                     />
-                  </Button>
+                  </DcButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" class="w-[20rem]">
                   <DropdownMenuItem
@@ -365,7 +365,7 @@
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
-                  <Button
+                  <DcButton
                     variant="outline"
                     size="sm"
                     :class="[
@@ -383,7 +383,7 @@
                       icon="lucide:chevron-down"
                       class="h-3 w-3 shrink-0 text-muted-foreground"
                     />
-                  </Button>
+                  </DcButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" class="min-w-48">
                   <DropdownMenuItem
@@ -410,10 +410,10 @@
           <div class="space-y-2">
             <div class="flex items-center justify-between gap-3">
               <div class="text-sm font-medium">{{ t('settings.deepchatAgents.systemPrompt') }}</div>
-              <Button variant="outline" size="sm" class="gap-2" @click="openSystemPromptPicker">
+              <DcButton variant="outline" size="sm" class="gap-2" @click="openSystemPromptPicker">
                 <Icon icon="lucide:library-big" class="h-4 w-4" />
                 <span>{{ t('promptSetting.selectSystemPrompt') }}</span>
-              </Button>
+              </DcButton>
             </div>
             <Textarea
               v-model="form.systemPrompt"
@@ -452,7 +452,7 @@
                 >
                   {{ slot.id }}
                 </div>
-                <Button
+                <DcButton
                   variant="ghost"
                   size="sm"
                   class="h-7 px-2 text-xs"
@@ -460,7 +460,7 @@
                   @click="removeSubagentSlot(index)"
                 >
                   {{ t('common.delete') }}
-                </Button>
+                </DcButton>
               </div>
 
               <div class="mt-4 grid gap-4 md:grid-cols-2">
@@ -508,14 +508,14 @@
                   })
                 }}
               </span>
-              <Button
+              <DcButton
                 size="sm"
                 variant="outline"
                 :disabled="form.subagents.length >= subagentSlotLimit"
                 @click="addSubagentSlot"
               >
                 {{ t('settings.deepchatAgents.addSubagentSlot') }}
-              </Button>
+              </DcButton>
             </div>
           </div>
         </section>
@@ -543,7 +543,7 @@
               </div>
 
               <div class="flex flex-wrap gap-2">
-                <Button
+                <DcButton
                   v-for="tool in group.tools"
                   :key="tool.function.name"
                   type="button"
@@ -558,7 +558,7 @@
                   @click="toggleTool(tool.function.name)"
                 >
                   {{ tool.function.name }}
-                </Button>
+                </DcButton>
               </div>
             </div>
           </div>
@@ -625,7 +625,7 @@
             v-if="form.memoryEnabled && form.id && form.id !== DRAFT_AGENT_ID"
             class="space-y-1.5"
           >
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               class="h-8 gap-1.5 rounded-lg text-xs"
@@ -633,7 +633,7 @@
             >
               <Icon icon="lucide:brain" class="h-3.5 w-3.5" />
               {{ t('settings.deepchatAgents.memoryManageLink') }}
-            </Button>
+            </DcButton>
             <p class="text-[11px] text-muted-foreground">
               {{ t('settings.deepchatAgents.memoryManageLinkHint') }}
             </p>
@@ -694,7 +694,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { DcBadge } from '@dc-ui/components/badge'
 import { DcInlineError } from '@dc-ui/components/inline-error'
 import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'

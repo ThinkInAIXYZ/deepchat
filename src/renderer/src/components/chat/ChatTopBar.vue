@@ -100,6 +100,7 @@
 
     <div class="flex items-center gap-1 no-drag">
       <DcButton
+        variant="ghost"
         icon="lucide:folder-tree"
         size="icon-sm"
         :label="t('chat.workspace.title')"
@@ -109,14 +110,15 @@
 
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button
+          <DcButton
             variant="ghost"
             size="icon"
             class="h-7 w-7 text-muted-foreground hover:text-foreground"
-            :title="t('chat.topbar.share')"
+            :tooltip="t('chat.topbar.share')"
+            :label="t('chat.topbar.share')"
           >
             <Icon icon="lucide:share" class="w-4 h-4" />
-          </Button>
+          </DcButton>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" class="w-52">
@@ -145,14 +147,14 @@
 
       <DropdownMenu v-if="!isReadOnly">
         <DropdownMenuTrigger as-child>
-          <Button
+          <DcButton
             variant="ghost"
             size="icon"
             class="h-7 w-7 text-muted-foreground hover:text-foreground"
-            :title="t('chat.topbar.more')"
+            :tooltip="t('chat.topbar.more')"
           >
             <Icon icon="lucide:ellipsis" class="w-4 h-4" />
-          </Button>
+          </DcButton>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" class="w-48">
@@ -225,7 +227,6 @@
 import { computed, nextTick, ref, useAttrs, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
 import { DcButton } from '@dc-ui/components/button'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { DcInlineError } from '@dc-ui/components/inline-error'

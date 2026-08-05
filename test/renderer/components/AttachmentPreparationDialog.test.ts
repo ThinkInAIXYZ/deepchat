@@ -15,8 +15,8 @@ vi.mock('@iconify/vue', () => ({
   Icon: defineComponent({ name: 'Icon', template: '<span />' })
 }))
 
-vi.mock('@shadcn/components/ui/button', () => ({
-  Button: defineComponent({
+vi.mock('@dc-ui/components/button', () => ({
+  DcButton: defineComponent({
     name: 'Button',
     props: { disabled: { type: Boolean, default: false } },
     emits: ['click'],

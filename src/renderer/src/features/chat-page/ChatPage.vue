@@ -71,7 +71,7 @@
                 class="inline-flex items-center gap-2 rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"
               >
                 <span>{{ t('common.error.requestFailed') }}</span>
-                <Button
+                <DcButton
                   data-testid="history-load-retry"
                   type="button"
                   size="sm"
@@ -80,7 +80,7 @@
                   @click="void retryOlderMessages()"
                 >
                   {{ t('thread.toolbar.retry') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
             <MessageList
@@ -309,7 +309,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted, inject } from '
 import type { JSONContent } from '@tiptap/core'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import ChatSearchBar from '@/components/chat/ChatSearchBar.vue'

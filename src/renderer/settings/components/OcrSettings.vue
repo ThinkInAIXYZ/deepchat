@@ -29,7 +29,7 @@
           <AlertTitle>{{ t('common.error.operationFailed') }}</AlertTitle>
           <AlertDescription class="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
             <span>{{ t('settings.ocr.statusLoadFailed') }}</span>
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="statusLoading"
@@ -39,7 +39,7 @@
               <Spinner v-if="statusLoading" class="mr-2 size-4" />
               <Icon v-else icon="lucide:refresh-cw" class="mr-2 size-4" />
               {{ t('settings.ocr.refresh') }}
-            </Button>
+            </DcButton>
           </AlertDescription>
         </Alert>
 
@@ -59,7 +59,7 @@
 
         <Collapsible v-model:open="advancedOpen" class="rounded-lg border bg-muted/10">
           <CollapsibleTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               class="flex h-auto w-full items-center justify-between rounded-lg p-4"
               data-testid="ocr-advanced-toggle"
@@ -74,7 +74,7 @@
                 :icon="advancedOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
                 class="ml-3 size-4 shrink-0 text-muted-foreground"
               />
-            </Button>
+            </DcButton>
           </CollapsibleTrigger>
 
           <CollapsibleContent class="border-t">
@@ -135,7 +135,7 @@
                   {{ cacheModeDescription }}
                 </p>
               </div>
-              <Button
+              <DcButton
                 v-if="status?.cache && status.cache.entryCount > 0"
                 variant="outline"
                 size="sm"
@@ -146,11 +146,11 @@
                 <Spinner v-if="cacheClearInFlight" class="mr-2 size-4" />
                 <Icon v-else icon="lucide:trash-2" class="mr-2 size-4" />
                 {{ t('settings.ocr.clearCache') }}
-              </Button>
+              </DcButton>
             </div>
             <Collapsible v-model:open="diagnosticsOpen" class="border-t">
               <CollapsibleTrigger as-child>
-                <Button
+                <DcButton
                   variant="ghost"
                   class="flex h-auto w-full items-center justify-between rounded-none px-4 py-4"
                   data-testid="ocr-diagnostics-toggle"
@@ -165,7 +165,7 @@
                     :icon="diagnosticsOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
                     class="ml-3 size-4 shrink-0 text-muted-foreground"
                   />
-                </Button>
+                </DcButton>
               </CollapsibleTrigger>
 
               <CollapsibleContent class="border-t bg-background/50 px-4 py-4">
@@ -277,7 +277,7 @@ import { createOcrClient } from '@api/OcrClient'
 import { createSettingsClient } from '@api/SettingsClient'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@shadcn/components/ui/alert'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Collapsible,
   CollapsibleContent,

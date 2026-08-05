@@ -45,7 +45,7 @@
               </DcBadge>
             </div>
             <div class="flex flex-wrap items-center gap-1">
-              <Button
+              <DcButton
                 variant="ghost"
                 size="sm"
                 class="h-8 text-xs"
@@ -61,8 +61,8 @@
                     ? t('settings.deepchatAgents.memoryManager.unanchor')
                     : t('settings.deepchatAgents.memoryManager.anchor')
                 }}
-              </Button>
-              <Button
+              </DcButton>
+              <DcButton
                 v-if="!isActive(version)"
                 variant="ghost"
                 size="sm"
@@ -73,7 +73,7 @@
               >
                 <Icon icon="lucide:rotate-ccw" class="mr-1.5 h-3.5 w-3.5" />
                 {{ t('settings.deepchatAgents.memoryManager.rollback') }}
-              </Button>
+              </DcButton>
             </div>
           </div>
           <p class="whitespace-pre-wrap wrap-break-word text-sm text-muted-foreground">
@@ -110,7 +110,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { DcBadge } from '@dc-ui/components/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createMemoryClient } from '@api/MemoryClient'
 import type { MemoryItem } from '@shared/contracts/routes'

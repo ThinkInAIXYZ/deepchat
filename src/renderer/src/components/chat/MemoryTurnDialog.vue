@@ -138,7 +138,7 @@
                       </DcBadge>
                     </div>
                   </div>
-                  <Button
+                  <DcButton
                     variant="ghost"
                     size="icon"
                     class="h-7 w-7"
@@ -149,9 +149,10 @@
                     "
                     :aria-label="t('chat.memory.actions.forget')"
                     @click="handleForget(detail.id)"
+                    :tooltip="t('chat.memory.actions.forget')"
                   >
                     <Icon icon="lucide:archive" class="h-3.5 w-3.5" />
-                  </Button>
+                  </DcButton>
                 </div>
                 <DcInlineError
                   v-if="forgetErrors[detail.id]"
@@ -179,7 +180,7 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { DcBadge } from '@dc-ui/components/badge'
 import { DcInlineError } from '@dc-ui/components/inline-error'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { useMemoryActivityStore } from '@/stores/ui/memoryActivity'
 

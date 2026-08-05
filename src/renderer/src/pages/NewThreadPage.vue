@@ -20,7 +20,7 @@
         <!-- Project selector -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               size="sm"
               data-testid="new-thread-project-trigger"
@@ -41,7 +41,7 @@
                 :title="selectedProjectUnavailableTooltip"
               />
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
-            </Button>
+            </DcButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="center"
@@ -168,7 +168,7 @@ import { useI18n } from 'vue-i18n'
 import { nanoid } from 'nanoid'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,

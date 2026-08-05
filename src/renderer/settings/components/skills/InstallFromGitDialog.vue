@@ -15,11 +15,11 @@
             :placeholder="t('settings.skills.git.placeholder')"
             :disabled="scanning || installing"
           />
-          <Button :disabled="!repoUrl.trim() || scanning || installing" @click="scan">
+          <DcButton :disabled="!repoUrl.trim() || scanning || installing" @click="scan">
             <Spinner v-if="scanning" data-icon="inline-start" />
             <Icon v-else icon="lucide:search" data-icon="inline-start" />
             {{ t('settings.skills.git.scan') }}
-          </Button>
+          </DcButton>
         </div>
 
         <div v-if="error" class="rounded-md border border-destructive/30 px-3 py-2 text-sm">
@@ -131,7 +131,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
 import { DcBadge } from '@dc-ui/components/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import {

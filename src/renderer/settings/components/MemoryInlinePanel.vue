@@ -24,12 +24,12 @@
           {{ t('settings.memory.redesign.unsavedDescription') }}
         </p>
         <div class="mt-3 flex justify-end gap-2">
-          <Button variant="ghost" size="sm" class="h-7 text-xs" @click="$emit('cancel-pending')">
+          <DcButton variant="ghost" size="sm" class="h-7 text-xs" @click="$emit('cancel-pending')">
             {{ t('common.cancel') }}
-          </Button>
-          <Button size="sm" class="h-7 text-xs" @click="$emit('discard-pending')">
+          </DcButton>
+          <DcButton size="sm" class="h-7 text-xs" @click="$emit('discard-pending')">
             {{ t('settings.memory.redesign.discardChanges') }}
-          </Button>
+          </DcButton>
         </div>
       </div>
     </Transition>
@@ -50,16 +50,17 @@
             }}
           </p>
         </div>
-        <Button
+        <DcButton
           variant="ghost"
           size="icon"
           class="h-7 w-7 shrink-0"
           :disabled="busy"
           :aria-label="t('common.close')"
           @click="requestClose"
+          :tooltip="t('common.close')"
         >
           <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-        </Button>
+        </DcButton>
       </header>
 
       <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
@@ -193,9 +194,9 @@
               class="flex items-center justify-between gap-3 py-3 text-xs text-destructive"
             >
               <span>{{ sourceError }}</span>
-              <Button variant="outline" size="sm" class="h-7 text-xs" @click="retrySource">
+              <DcButton variant="outline" size="sm" class="h-7 text-xs" @click="retrySource">
                 {{ t('settings.memory.redesign.refresh') }}
-              </Button>
+              </DcButton>
             </div>
             <div v-else-if="!sourceSpan" class="py-4 text-center text-xs text-muted-foreground">
               {{ t('settings.deepchatAgents.memoryManager.sourceDialogEmpty') }}
@@ -239,7 +240,7 @@
 
       <footer class="flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center">
         <div v-if="memory" class="flex items-center gap-1">
-          <Button
+          <DcButton
             v-if="memory.status === 'archived'"
             variant="outline"
             size="sm"
@@ -250,8 +251,8 @@
             <Spinner v-if="pendingMutation === 'restore'" class="mr-1.5 size-3.5" />
             <Icon v-else icon="lucide:archive-restore" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('settings.deepchatAgents.memoryManager.restore') }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-else
             variant="outline"
             size="sm"
@@ -262,7 +263,7 @@
             <Spinner v-if="pendingMutation === 'archive'" class="mr-1.5 size-3.5" />
             <Icon v-else icon="lucide:archive" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('settings.memory.redesign.archive') }}
-          </Button>
+          </DcButton>
           <DcButton
             icon="lucide:trash-2"
             size="icon-sm"
@@ -295,7 +296,7 @@
         </div>
 
         <div class="ml-auto flex items-center gap-2">
-          <Button
+          <DcButton
             v-if="mode === 'view' && canEditMemory"
             variant="outline"
             size="sm"
@@ -306,8 +307,8 @@
           >
             <Icon icon="lucide:pencil" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('common.edit') }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             variant="ghost"
             size="sm"
             class="h-8 text-xs"
@@ -315,8 +316,8 @@
             @click="requestClose"
           >
             {{ mode === 'view' ? t('common.close') : t('common.cancel') }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-if="mode !== 'view'"
             size="sm"
             class="h-8 text-xs"
@@ -331,7 +332,7 @@
                   ? t('settings.memory.redesign.addMemory')
                   : t('common.save')
             }}
-          </Button>
+          </DcButton>
         </div>
       </footer>
     </div>
@@ -342,9 +343,8 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
-import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { DcButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import {
   Collapsible,
   CollapsibleContent,

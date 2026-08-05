@@ -16,7 +16,7 @@
               {{ provider.name }}
             </DcBadge>
             <div class="flex flex-col gap-1.5" role="listbox" aria-orientation="vertical">
-              <Button
+              <DcButton
                 v-for="model in provider.models"
                 :key="`${provider.id}-${model.id}`"
                 type="button"
@@ -52,7 +52,7 @@
                   class="h-4 w-4 shrink-0 text-primary dark:text-primary/80"
                   aria-hidden="true"
                 />
-              </Button>
+              </DcButton>
             </div>
           </div>
         </div>
@@ -65,7 +65,7 @@
 import { computed, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcBadge } from '@dc-ui/components/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Card, CardContent } from '@shadcn/components/ui/card'
 import { Input } from '@shadcn/components/ui/input'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'

@@ -97,9 +97,9 @@ vi.mock(
 )
 
 vi.mock(
-  '@shadcn/components/ui/button',
+  '@dc-ui/components/button',
   () => ({
-    Button: {
+    DcButton: {
       name: 'Button',
       template: '<button @click="$emit(\'click\')"><slot /></button>'
     }

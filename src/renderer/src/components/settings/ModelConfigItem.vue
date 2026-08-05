@@ -78,7 +78,7 @@
         class="rounded-lg text-xs"
         @click="onConfigModel"
       />
-      <Button
+      <DcButton
         v-if="isCustomModel"
         variant="link"
         size="icon"
@@ -86,7 +86,7 @@
         @click="onDeleteModel"
       >
         <Icon icon="lucide:trash-2" class="size-4 text-destructive" />
-      </Button>
+      </DcButton>
     </div>
   </div>
 
@@ -108,7 +108,6 @@ import { computed, ref, toRefs } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcBadge } from '@dc-ui/components/badge'
 import { DcButton } from '@dc-ui/components/button'
-import { Button } from '@shadcn/components/ui/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'

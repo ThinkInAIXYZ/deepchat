@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Textarea } from '@shadcn/components/ui/textarea'
@@ -819,12 +819,12 @@ HTTP-Referer=deepchatai.cn`
     </ScrollArea>
 
     <div class="flex justify-between pt-2 border-t px-4">
-      <Button type="button" variant="outline" size="sm" @click="goToDetailedForm">
+      <DcButton type="button" variant="outline" size="sm" @click="goToDetailedForm">
         {{ t('settings.mcp.serverForm.skipToManual') }}
-      </Button>
-      <Button type="button" size="sm" @click="parseJsonConfig">
+      </DcButton>
+      <DcButton type="button" size="sm" @click="parseJsonConfig">
         {{ t('settings.mcp.serverForm.parseAndContinue') }}
-      </Button>
+      </DcButton>
     </div>
   </form>
 
@@ -1058,7 +1058,7 @@ HTTP-Referer=deepchatai.cn`
                       : t('settings.mcp.serverForm.clientSecret')
                   }}
                 </Label>
-                <Button
+                <DcButton
                   v-if="selectedCredentialStatus?.configured"
                   type="button"
                   variant="ghost"
@@ -1066,7 +1066,7 @@ HTTP-Referer=deepchatai.cn`
                   @click="removeStoredCredential"
                 >
                   {{ t('settings.mcp.serverForm.removeCredential') }}
-                </Button>
+                </DcButton>
               </div>
               <Textarea
                 v-if="authorizationMode === 'private_key_jwt'"
@@ -1134,7 +1134,7 @@ HTTP-Referer=deepchatai.cn`
               class="flex items-center justify-between p-2 border border-input rounded-md bg-background"
             >
               <span class="text-sm truncate flex-1 mr-2" :title="folder">{{ folder }}</span>
-              <Button
+              <DcButton
                 type="button"
                 variant="ghost"
                 size="sm"
@@ -1142,11 +1142,11 @@ HTTP-Referer=deepchatai.cn`
                 @click="removeFolder(index)"
               >
                 <X class="h-3 w-3" />
-              </Button>
+              </DcButton>
             </div>
 
             <!-- 添加文件夹按钮 -->
-            <Button
+            <DcButton
               type="button"
               variant="outline"
               size="sm"
@@ -1155,7 +1155,7 @@ HTTP-Referer=deepchatai.cn`
             >
               <Icon icon="lucide:folder-plus" class="h-4 w-4" />
               {{ t('settings.mcp.serverForm.addFolder') }}
-            </Button>
+            </DcButton>
             <DcInlineError v-if="folderSelectionError" :error="folderSelectionError" />
 
             <!-- 空状态提示 -->
@@ -1173,9 +1173,9 @@ HTTP-Referer=deepchatai.cn`
             <Label class="text-xs text-muted-foreground" for="server-args">
               {{ t('settings.mcp.serverForm.args') }}
             </Label>
-            <Button type="button" variant="ghost" size="sm" @click="addArgsRow">
+            <DcButton type="button" variant="ghost" size="sm" @click="addArgsRow">
               {{ t('settings.mcp.serverForm.addArg') }}
-            </Button>
+            </DcButton>
           </div>
           <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
             <div v-for="row in argsRows" :key="row.id" class="grid grid-cols-12 gap-2 items-center">
@@ -1184,7 +1184,7 @@ HTTP-Referer=deepchatai.cn`
                 class="col-span-11"
                 :placeholder="t('settings.mcp.serverForm.argPlaceholder')"
               />
-              <Button
+              <DcButton
                 type="button"
                 variant="ghost"
                 size="icon"
@@ -1192,7 +1192,7 @@ HTTP-Referer=deepchatai.cn`
                 @click="removeArgsRow(row.id)"
               >
                 <X class="h-4 w-4" />
-              </Button>
+              </DcButton>
             </div>
           </div>
           <!-- 隐藏原始Input，但保留v-model绑定以利用其验证状态或原有逻辑(如果需要) -->
@@ -1306,7 +1306,7 @@ HTTP-Referer=deepchatai.cn`
     <!-- 提交按钮 -->
     <div class="flex items-center justify-between gap-3 pt-2 border-t px-4">
       <DcInlineError class="min-w-0" :error="submissionError" />
-      <Button type="submit" size="sm" class="ml-auto" :disabled="!isFormValid || submitting">
+      <DcButton type="submit" size="sm" class="ml-auto" :disabled="!isFormValid || submitting">
         <Icon
           v-if="submitting"
           icon="lucide:loader-circle"
@@ -1314,7 +1314,7 @@ HTTP-Referer=deepchatai.cn`
           aria-hidden="true"
         />
         {{ t('settings.mcp.serverForm.submit') }}
-      </Button>
+      </DcButton>
     </div>
   </form>
 </template>

@@ -6,7 +6,7 @@
     data-testid="settings-environments-page"
   >
     <template #actions>
-      <Button
+      <DcButton
         variant="outline"
         size="sm"
         :disabled="pageOperationPending"
@@ -15,12 +15,12 @@
         <Spinner v-if="refreshPending" class="mr-2 size-4" data-icon="inline-start" />
         <Icon v-else icon="lucide:refresh-cw" class="mr-2 size-4" data-icon="inline-start" />
         {{ t('settings.environments.actions.refresh') }}
-      </Button>
+      </DcButton>
     </template>
 
     <div class="flex w-full flex-col gap-3">
       <div class="flex flex-wrap items-center gap-2 px-2">
-        <Button
+        <DcButton
           variant="ghost"
           size="sm"
           data-testid="environments-active-tab"
@@ -28,8 +28,8 @@
           @click="currentView = 'active'"
         >
           {{ t('settings.environments.tabs.active', { count: activeEnvironments.length }) }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           variant="ghost"
           size="sm"
           data-testid="environments-archived-tab"
@@ -39,7 +39,7 @@
           @click="currentView = 'archived'"
         >
           {{ t('settings.environments.tabs.archived', { count: archivedEnvironments.length }) }}
-        </Button>
+        </DcButton>
       </div>
 
       <div v-if="currentView === 'active'" class="flex items-center gap-3 px-2 py-1">
@@ -133,21 +133,21 @@
         <DialogDescription>{{ confirmDescription }}</DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button
+        <DcButton
           variant="outline"
           :disabled="confirmationPending"
           @click="confirmDialogOpen = false"
         >
           {{ t('common.cancel') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           :variant="pendingAction?.type === 'remove' ? 'destructive' : 'default'"
           :disabled="confirmationPending"
           @click="void confirmEnvironmentAction()"
         >
           <Spinner v-if="confirmationPending" class="mr-2 size-4" />
           {{ confirmActionLabel }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -158,7 +158,7 @@ import { computed, defineComponent, h, onMounted, ref, watch, type PropType } fr
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import {
   Dialog,
@@ -677,7 +677,7 @@ const EnvironmentRow = defineComponent({
             ]),
             h('div', { class: 'flex shrink-0 flex-wrap items-center gap-2 md:pl-4' }, [
               h(
-                Button,
+                DcButton,
                 {
                   variant: 'outline',
                   size: 'sm',
@@ -690,7 +690,7 @@ const EnvironmentRow = defineComponent({
               props.view === 'active'
                 ? isDefault()
                   ? h(
-                      Button,
+                      DcButton,
                       {
                         variant: 'ghost',
                         size: 'sm',
@@ -701,7 +701,7 @@ const EnvironmentRow = defineComponent({
                       () => t('settings.environments.actions.clearDefault')
                     )
                   : h(
-                      Button,
+                      DcButton,
                       {
                         variant: 'ghost',
                         size: 'sm',
@@ -712,7 +712,7 @@ const EnvironmentRow = defineComponent({
                       () => t('settings.environments.actions.setDefault')
                     )
                 : h(
-                    Button,
+                    DcButton,
                     {
                       variant: 'ghost',
                       size: 'sm',
@@ -725,7 +725,7 @@ const EnvironmentRow = defineComponent({
               h(DropdownMenu, null, () => [
                 h(DropdownMenuTrigger, { asChild: true }, () =>
                   h(
-                    Button,
+                    DcButton,
                     {
                       variant: 'ghost',
                       size: 'icon',

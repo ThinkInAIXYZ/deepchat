@@ -15,7 +15,7 @@ describe('MessageActionButtons', () => {
     })
 
     // Find buttons by their component type and index
-    const buttons = wrapper.findAllComponents({ name: 'Button' })
+    const buttons = wrapper.findAll('button')
 
     // First button should be workspace
     await buttons[0].trigger('click')

@@ -25,7 +25,7 @@
       />
     </div>
 
-    <Button
+    <DcButton
       v-if="block.extra?.needContinue && !isReadOnly"
       class="bg-primary rounded-lg hover:bg-indigo-600/50 h-8"
       size="sm"
@@ -33,7 +33,7 @@
     >
       <Icon icon="lucide:check" class="w-4 h-4" />
       {{ t('components.messageBlockAction.continue') }}
-    </Button>
+    </DcButton>
     <div
       v-if="!block.extra?.needContinue && block.action_type !== 'rate_limit'"
       class="text-xs text-gray-500 flex flex-row gap-2 items-center"
@@ -46,7 +46,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 

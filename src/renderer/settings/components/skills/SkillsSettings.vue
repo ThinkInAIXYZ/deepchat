@@ -20,10 +20,10 @@
       </div>
       <DropdownMenu v-if="!isAgentScope || isDeepChatTarget">
         <DropdownMenuTrigger as-child>
-          <Button size="sm" :disabled="pageOperationPending">
+          <DcButton size="sm" :disabled="pageOperationPending">
             <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
             {{ t('settings.skills.addSkill') }}
-          </Button>
+          </DcButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" class="w-48">
           <DcDropdownActionItem
@@ -77,7 +77,7 @@
                 class="flex items-center gap-2 text-xs text-destructive"
               >
                 <span>{{ t('common.error.requestFailed') }}</span>
-                <Button
+                <DcButton
                   variant="link"
                   size="sm"
                   class="h-auto px-0 text-xs"
@@ -85,7 +85,7 @@
                   @click="loadDraftSuggestions"
                 >
                   {{ t('common.retry') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
             <Switch
@@ -118,10 +118,10 @@
               <EmptyTitle>{{ t('settings.skills.agents.loadFailed') }}</EmptyTitle>
               <EmptyDescription>{{ t('common.error.requestFailed') }}</EmptyDescription>
             </EmptyHeader>
-            <Button variant="outline" size="sm" @click="reloadPageData">
+            <DcButton variant="outline" size="sm" @click="reloadPageData">
               <Icon icon="lucide:refresh-cw" class="size-4" />
               {{ t('common.retry') }}
-            </Button>
+            </DcButton>
           </Empty>
 
           <DcEmpty
@@ -223,7 +223,7 @@ import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
 import { Separator } from '@shadcn/components/ui/separator'
 import { Switch } from '@shadcn/components/ui/switch'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import {
   Empty,

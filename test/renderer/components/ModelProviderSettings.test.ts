@@ -285,7 +285,7 @@ const setup = async (options?: {
       stubs: {
         ScrollArea: passthrough('ScrollArea'),
         Input: inputStub,
-        Button: passthrough('Button'),
+        DcButton: passthrough('Button'),
         Badge: passthrough('Badge'),
         Switch: passthrough('Switch'),
         GuidedOnboardingOverlay: defineComponent({

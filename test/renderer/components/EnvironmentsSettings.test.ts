@@ -287,7 +287,7 @@ async function setup(overrides?: {
     global: {
       stubs: {
         ScrollArea: passthrough('ScrollArea'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Switch: switchStub,
         draggable: draggableStub,
         Icon: passthrough('Icon')

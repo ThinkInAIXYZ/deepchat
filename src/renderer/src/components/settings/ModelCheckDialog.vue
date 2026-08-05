@@ -93,10 +93,10 @@
       </div>
 
       <DialogFooter class="shrink-0">
-        <Button type="button" variant="outline" @click="closeDialog">
+        <DcButton type="button" variant="outline" @click="closeDialog">
           {{ result ? t('dialog.close') : t('dialog.cancel') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           data-testid="model-check-submit"
           v-if="!result && hasModels"
           type="button"
@@ -109,14 +109,14 @@
               ? t('settings.provider.dialog.modelCheck.checking')
               : t('settings.provider.dialog.modelCheck.test')
           }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>
 
 <script setup lang="ts">
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,

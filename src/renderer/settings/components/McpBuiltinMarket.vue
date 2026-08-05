@@ -1,7 +1,7 @@
 <template>
   <div class="w-full h-full flex flex-col">
     <div class="p-4 sticky top-0 z-10 flex items-center gap-2">
-      <Button
+      <DcButton
         v-if="embedded"
         variant="ghost"
         size="sm"
@@ -11,7 +11,7 @@
       >
         <Icon icon="lucide:chevron-left" class="w-4 h-4 mr-1" />
         {{ t('common.back') }}
-      </Button>
+      </DcButton>
 
       <div class="flex flex-col">
         <div class="font-medium">{{ t('mcp.market.builtinTitle') }}</div>
@@ -51,14 +51,14 @@
     <!-- API Key 获取提示 -->
     <div class="px-4 text-xs text-muted-foreground">
       {{ t('mcp.market.keyHelpText') }}
-      <Button
+      <DcButton
         variant="link"
         size="sm"
         class="text-xs p-0 h-auto font-normal text-primary hover:underline"
         @click="openHowToGetKey"
       >
         {{ t('mcp.market.keyGuide') }}
-      </Button>
+      </DcButton>
       {{ t('mcp.market.keyHelpEnd') }}
       <div
         v-if="apiKeyLoadError"
@@ -66,9 +66,9 @@
         class="mt-2 flex items-center justify-between gap-3 text-destructive"
       >
         <span>{{ apiKeyLoadError }}</span>
-        <Button variant="outline" size="sm" class="h-7" @click="loadApiKey">
+        <DcButton variant="outline" size="sm" class="h-7" @click="loadApiKey">
           {{ t('common.retry') }}
-        </Button>
+        </DcButton>
       </div>
       <DcInlineError
         v-else-if="apiKeyRequirementError"
@@ -106,7 +106,7 @@
               :title="item.server_key"
               >{{ item.server_key }}</span
             >
-            <Button
+            <DcButton
               size="sm"
               :variant="installedServers.has(item.server_key) ? 'secondary' : 'outline'"
               :disabled="
@@ -142,7 +142,7 @@
                     ? t('mcp.market.installed')
                     : t('mcp.market.install')
               }}
-            </Button>
+            </DcButton>
           </div>
           <DcInlineError
             v-if="installErrors[item.server_key]"
@@ -162,10 +162,10 @@
         role="alert"
       >
         <span>{{ t('common.error.operationFailed') }}</span>
-        <Button variant="outline" size="sm" class="h-7 text-xs" @click="fetchPage">
+        <DcButton variant="outline" size="sm" class="h-7 text-xs" @click="fetchPage">
           <Icon icon="lucide:refresh-cw" class="mr-1 h-3.5 w-3.5" />
           {{ t('common.retry') }}
-        </Button>
+        </DcButton>
       </div>
       <div
         v-if="!hasMore && !loadError && items.length > 0"
@@ -187,7 +187,7 @@
 import { computed, ref, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { createMcpClient } from '@api/McpClient'
 import { Separator } from '@shadcn/components/ui/separator'

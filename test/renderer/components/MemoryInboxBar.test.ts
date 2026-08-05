@@ -14,7 +14,7 @@ const passthrough = (name: string, tag = 'div') =>
 
 const stubs = {
   Badge: passthrough('Badge'),
-  Button: defineComponent({
+  DcButton: defineComponent({
     name: 'Button',
     inheritAttrs: false,
     template: '<button v-bind="$attrs"><slot /></button>'

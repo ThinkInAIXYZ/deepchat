@@ -1,7 +1,7 @@
 <template>
   <DcPopover v-model:open="panelOpen" width-class="w-80" align="end">
     <template #trigger>
-      <Button
+      <DcButton
         variant="ghost"
         size="sm"
         :class="
@@ -19,7 +19,7 @@
           <span>{{ triggerLabel }}</span>
           <Icon icon="lucide:chevron-down" class="h-3 w-3" />
         </template>
-      </Button>
+      </DcButton>
     </template>
 
     <template v-if="isDeepchatContext" #header>
@@ -27,16 +27,16 @@
         <div class="text-sm font-medium">
           {{ t('chat.advancedSettings.title') }}
         </div>
-        <Button
+        <DcButton
           variant="ghost"
           size="sm"
           class="h-7 w-7 p-0 text-muted-foreground"
-          :title="t('chat.input.mcp.openSettings')"
+          :tooltip="t('chat.input.mcp.openSettings')"
           :aria-label="t('chat.input.mcp.openSettings')"
           @click="openSettings"
         >
           <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
-        </Button>
+        </DcButton>
       </div>
     </template>
 
@@ -108,7 +108,7 @@
               </div>
 
               <div class="flex flex-wrap gap-2">
-                <Button
+                <DcButton
                   v-for="item in group.items"
                   :key="item.id"
                   variant="outline"
@@ -123,7 +123,7 @@
                   @click="toggleGroupItem(item)"
                 >
                   {{ item.label }}
-                </Button>
+                </DcButton>
               </div>
             </div>
           </div>
@@ -193,16 +193,16 @@
           <div class="text-sm font-medium">
             {{ t('chat.input.mcp.title') }}
           </div>
-          <Button
+          <DcButton
             variant="ghost"
             size="sm"
             class="h-7 w-7 p-0 text-muted-foreground"
-            :title="t('chat.input.mcp.openSettings')"
+            :tooltip="t('chat.input.mcp.openSettings')"
             :aria-label="t('chat.input.mcp.openSettings')"
             @click="openSettings"
           >
             <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
-          </Button>
+          </DcButton>
         </div>
       </div>
 
@@ -271,7 +271,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { DcPopover } from '@dc-ui/components/popover'
 import {
   Select,

@@ -93,18 +93,22 @@ vi.mock('@shadcn/components/ui/dropdown-menu', () => {
     DropdownMenuTrigger: passthrough('DropdownMenuTrigger')
   }
 })
-vi.mock('@shadcn/components/ui/button', () => ({
-  Button: defineComponent({
+vi.mock('@dc-ui/components/button', () => ({
+  DcButton: defineComponent({
     name: 'Button',
     props: {
       disabled: {
         type: Boolean,
         default: false
+      },
+      variant: {
+        type: String,
+        default: undefined
       }
     },
     emits: ['click'],
     template:
-      '<button type="button" :disabled="disabled" v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>'
+      '<button type="button" :disabled="disabled" :data-variant="variant" v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>'
   })
 }))
 vi.mock('@shadcn/components/ui/dialog', () => {
@@ -168,6 +172,24 @@ const mountTopBar = () =>
       project: ''
     }
   })
+
+describe('ChatTopBar action buttons', () => {
+  it('uses ghost DcButtons for workspace, share, and more actions', () => {
+    const wrapper = mountTopBar()
+
+    for (const icon of ['lucide:folder-tree', 'lucide:share', 'lucide:ellipsis']) {
+      const button = wrapper
+        .findAll('button')
+        .find(
+          (candidate) =>
+            candidate.attributes('icon') === icon ||
+            candidate.find(`[data-icon="${icon}"]`).exists()
+        )
+
+      expect(button?.attributes('data-variant')).toBe('ghost')
+    }
+  })
+})
 
 describe('ChatTopBar destructive operations', () => {
   beforeEach(() => {

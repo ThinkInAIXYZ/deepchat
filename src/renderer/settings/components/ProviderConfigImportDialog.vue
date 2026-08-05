@@ -53,10 +53,10 @@
                 {{ scanError }}
               </p>
             </div>
-            <Button variant="outline" size="sm" @click="runScan">
+            <DcButton variant="outline" size="sm" @click="runScan">
               <Icon icon="lucide:refresh-cw" class="h-4 w-4" />
               {{ t('settings.data.providerImport.actions.rescan') }}
-            </Button>
+            </DcButton>
           </div>
 
           <template v-else-if="scanResult">
@@ -152,12 +152,12 @@
               </p>
             </div>
             <div class="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" @click="selectAllCurrentProviders">
+              <DcButton variant="outline" size="sm" @click="selectAllCurrentProviders">
                 {{ t('settings.data.providerImport.actions.selectAll') }}
-              </Button>
-              <Button variant="outline" size="sm" @click="clearCurrentProviders">
+              </DcButton>
+              <DcButton variant="outline" size="sm" @click="clearCurrentProviders">
                 {{ t('settings.data.providerImport.actions.clearSelected') }}
-              </Button>
+              </DcButton>
             </div>
           </div>
 
@@ -387,32 +387,32 @@
       </div>
 
       <DialogFooter class="shrink-0 border-t px-6 py-4">
-        <Button v-if="step === 'scan'" variant="outline" @click="isOpen = false">
+        <DcButton v-if="step === 'scan'" variant="outline" @click="isOpen = false">
           {{ t('dialog.cancel') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           v-else-if="step !== 'applying' && step !== 'done'"
           variant="outline"
           @click="goBack"
         >
           {{ t('common.back') }}
-        </Button>
-        <Button v-if="step === 'scan'" variant="outline" :disabled="isScanning" @click="runScan">
+        </DcButton>
+        <DcButton v-if="step === 'scan'" variant="outline" :disabled="isScanning" @click="runScan">
           {{ t('settings.data.providerImport.actions.rescan') }}
-        </Button>
-        <Button v-if="step === 'scan'" :disabled="!canContinueFromScan" @click="goToProviders">
+        </DcButton>
+        <DcButton v-if="step === 'scan'" :disabled="!canContinueFromScan" @click="goToProviders">
           {{ t('common.next') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           v-else-if="step === 'providers'"
           :disabled="!canContinueFromProviders"
           @click="goNextProviderStep"
         >
           {{ providerActionLabel }}
-        </Button>
-        <Button v-else-if="step === 'done'" @click="isOpen = false">
+        </DcButton>
+        <DcButton v-else-if="step === 'done'" @click="isOpen = false">
           {{ t('dialog.ok') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -430,7 +430,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { DcBadge } from '@dc-ui/components/badge'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'

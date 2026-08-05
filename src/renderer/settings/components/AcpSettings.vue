@@ -25,9 +25,9 @@
         class="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
       >
         <span>{{ loadError }}</span>
-        <Button size="sm" variant="ghost" :disabled="loading" @click="loadAcpData">
+        <DcButton size="sm" variant="ghost" :disabled="loading" @click="loadAcpData">
           {{ t('common.retry') }}
-        </Button>
+        </DcButton>
       </div>
 
       <div
@@ -41,10 +41,10 @@
           </p>
         </div>
         <div class="flex items-center gap-2">
-          <Button variant="outline" @click="openRegistryDialog">
+          <DcButton variant="outline" @click="openRegistryDialog">
             <Icon icon="lucide:download" class="h-4 w-4 mr-2" />
             {{ t('settings.acp.registryInstallEntry') }}
-          </Button>
+          </DcButton>
         </div>
       </div>
 
@@ -65,14 +65,14 @@
               <DcBadge variant="outline">
                 {{ t('settings.acp.mcpAccessBadge', { count: sharedMcpCount }) }}
               </DcBadge>
-              <Button
+              <DcButton
                 size="sm"
                 variant="outline"
                 :disabled="sharedMcpLeaveRisk !== 'clean'"
                 @click="sharedMcpOpen = !sharedMcpOpen"
               >
                 {{ sharedMcpOpen ? t('common.collapse') : t('common.expand') }}
-              </Button>
+              </DcButton>
             </div>
           </div>
 
@@ -141,14 +141,14 @@
                     </CardDescription>
                   </div>
                   <div class="flex items-center gap-2 shrink-0">
-                    <Button
+                    <DcButton
                       size="sm"
                       variant="destructive"
                       :disabled="isAnyMutationPending"
                       @click="confirmRegistryAgentUninstall(agent)"
                     >
                       {{ t('settings.acp.registryUninstallAction') }}
-                    </Button>
+                    </DcButton>
                     <Switch
                       :model-value="agent.enabled"
                       :disabled="isAnyMutationPending"
@@ -203,22 +203,22 @@
                     >
                       {{ t('common.clear') }}
                     </DcSubmitButton>
-                    <Button
+                    <DcButton
                       size="sm"
                       variant="outline"
                       :disabled="isAnyMutationPending"
                       @click="repairRegistryAgent(agent)"
                     >
                       {{ t('settings.acp.registryRepair') }}
-                    </Button>
-                    <Button
+                    </DcButton>
+                    <DcButton
                       size="sm"
                       variant="outline"
                       :disabled="isAnyMutationPending"
                       @click="openInspector(agent.id, agent.name)"
                     >
                       {{ t('settings.acp.debug.entry') }}
-                    </Button>
+                    </DcButton>
                   </div>
                   <DcInlineError
                     v-if="envOperationErrors[agent.id]"
@@ -242,12 +242,12 @@
               </p>
             </div>
             <div class="flex items-center gap-2">
-              <Button size="sm" variant="outline" @click="manualSectionOpen = !manualSectionOpen">
+              <DcButton size="sm" variant="outline" @click="manualSectionOpen = !manualSectionOpen">
                 {{ manualSectionOpen ? t('common.collapse') : t('common.expand') }}
-              </Button>
-              <Button size="sm" :disabled="isAnyMutationPending" @click="openManualDialog()">
+              </DcButton>
+              <DcButton size="sm" :disabled="isAnyMutationPending" @click="openManualDialog()">
                 {{ t('settings.acp.addCustomAgent') }}
-              </Button>
+              </DcButton>
             </div>
           </div>
 
@@ -301,30 +301,30 @@
                     </div>
                   </div>
                   <div class="flex flex-wrap gap-2">
-                    <Button
+                    <DcButton
                       size="sm"
                       variant="ghost"
                       :disabled="isAnyMutationPending"
                       @click="openManualDialog(agent)"
                     >
                       {{ t('common.edit') }}
-                    </Button>
-                    <Button
+                    </DcButton>
+                    <DcButton
                       size="sm"
                       variant="ghost"
                       :disabled="isAnyMutationPending"
                       @click="confirmAndDeleteManualAgent(agent)"
                     >
                       {{ t('common.delete') }}
-                    </Button>
-                    <Button
+                    </DcButton>
+                    <DcButton
                       size="sm"
                       variant="outline"
                       :disabled="isAnyMutationPending"
                       @click="openInspector(agent.id, agent.name)"
                     >
                       {{ t('settings.acp.debug.entry') }}
-                    </Button>
+                    </DcButton>
                   </div>
                 </CardContent>
               </Card>
@@ -426,7 +426,7 @@
                 </DialogDescription>
               </div>
               <div class="flex items-center gap-2 self-end lg:self-start">
-                <Button as-child size="sm" variant="outline" class="hidden sm:inline-flex">
+                <DcButton as-child size="sm" variant="outline" class="hidden sm:inline-flex">
                   <a
                     href="https://agentclientprotocol.com/get-started/registry"
                     target="_blank"
@@ -435,8 +435,8 @@
                     {{ t('settings.acp.registryLearnMore') }}
                     <Icon icon="lucide:external-link" class="h-4 w-4 ml-2" />
                   </a>
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   variant="outline"
                   :disabled="isAnyMutationPending"
@@ -445,17 +445,18 @@
                   <Spinner v-if="isRegistryRefreshPending" data-icon="inline-start" />
                   <Icon v-else icon="lucide:refresh-cw" data-icon="inline-start" />
                   {{ t('settings.acp.registryRefresh') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="icon"
                   variant="ghost"
                   class="h-9 w-9"
                   :aria-label="t('settings.acp.debug.close')"
                   :disabled="isRegistryDialogPending"
                   @click="handleRegistryDialogOpenChange(false)"
+                  :tooltip="t('settings.acp.debug.close')"
                 >
                   <Icon icon="lucide:x" class="h-4 w-4" />
-                </Button>
+                </DcButton>
               </div>
             </div>
 
@@ -473,27 +474,27 @@
               </div>
 
               <div class="flex flex-wrap gap-2">
-                <Button
+                <DcButton
                   size="sm"
                   :variant="registryDialog.filter === 'all' ? 'default' : 'outline'"
                   @click="registryDialog.filter = 'all'"
                 >
                   {{ t('settings.acp.installFilters.all') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   :variant="registryDialog.filter === 'installed' ? 'default' : 'outline'"
                   @click="registryDialog.filter = 'installed'"
                 >
                   {{ t('settings.acp.installFilters.installed') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   :variant="registryDialog.filter === 'not_installed' ? 'default' : 'outline'"
                   @click="registryDialog.filter = 'not_installed'"
                 >
                   {{ t('settings.acp.installFilters.notInstalled') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
           </DialogHeader>
@@ -543,7 +544,7 @@
                       </p>
                     </div>
 
-                    <Button
+                    <DcButton
                       size="sm"
                       :variant="registryActionVariant(agent)"
                       :disabled="isRegistryActionDisabled(agent)"
@@ -552,7 +553,7 @@
                       <Spinner v-if="registryActionSpins(agent)" data-icon="inline-start" />
                       <Icon v-else :icon="registryActionIcon(agent)" data-icon="inline-start" />
                       {{ registryActionLabel(agent) }}
-                    </Button>
+                    </DcButton>
                   </div>
 
                   <div class="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
@@ -621,7 +622,7 @@ import {
 } from '@shadcn/components/ui/card'
 import { DcBadge } from '@dc-ui/components/badge'
 import { DcEmpty } from '@dc-ui/components/empty'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Separator } from '@shadcn/components/ui/separator'

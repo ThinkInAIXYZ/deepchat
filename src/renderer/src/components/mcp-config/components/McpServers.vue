@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { DcEmpty } from '@dc-ui/components/empty'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
@@ -15,7 +15,6 @@ import {
   DialogDescription
 } from '@shadcn/components/ui/dialog'
 import { Input } from '@shadcn/components/ui/input'
-import { DcButton } from '@dc-ui/components/button'
 import { DcCopyButton } from '@dc-ui/components/copy-button'
 import { DcSheetPanel } from '@dc-ui/components/sheet-panel'
 import { DcStatusPill } from '@dc-ui/components/status-pill'
@@ -610,7 +609,7 @@ defineExpose({
             :placeholder="t('settings.mcp.center.searchPlaceholder')"
           />
           <div class="flex flex-wrap gap-2">
-            <Button
+            <DcButton
               v-for="filter in MCP_FILTERS"
               :key="filter"
               size="sm"
@@ -618,7 +617,7 @@ defineExpose({
               @click="activeFilter = filter"
             >
               {{ t(`settings.mcp.center.filters.${filter}`) }}
-            </Button>
+            </DcButton>
           </div>
         </div>
 
@@ -687,10 +686,10 @@ defineExpose({
           <McpEnterpriseProfiles v-if="!props.agentScopedToggle" />
           <Dialog :open="isAddServerDialogOpen" @update:open="handleAddDialogOpenChange">
             <DialogTrigger v-if="props.showFooterAddButton" as-child>
-              <Button size="sm" class="h-8 px-3 text-xs">
+              <DcButton size="sm" class="h-8 px-3 text-xs">
                 <Icon icon="lucide:plus" class="mr-1.5 h-3 w-3" />
                 {{ t('common.add') }}
-              </Button>
+              </DcButton>
             </DialogTrigger>
             <DialogContent class="w-[95vw] max-w-[500px] px-0 h-[85vh] max-h-[500px] flex flex-col">
               <DialogHeader class="px-3 shrink-0 pb-2">
@@ -749,30 +748,30 @@ defineExpose({
         </div>
 
         <div class="grid gap-2 sm:grid-cols-3">
-          <Button
+          <DcButton
             variant="outline"
             :disabled="getServerToolsCount(selectedDetailServer.name) === 0"
             @click="handleViewTools(selectedDetailServer.name)"
           >
             <Icon icon="lucide:wrench" class="size-4" />
             {{ getServerToolsCount(selectedDetailServer.name) }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             variant="outline"
             :disabled="getServerPromptsCount(selectedDetailServer.name) === 0"
             @click="handleViewPrompts(selectedDetailServer.name)"
           >
             <Icon icon="lucide:message-square-quote" class="size-4" />
             {{ getServerPromptsCount(selectedDetailServer.name) }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             variant="outline"
             :disabled="getServerResourcesCount(selectedDetailServer.name) === 0"
             @click="handleViewResources(selectedDetailServer.name)"
           >
             <Icon icon="lucide:folder" class="size-4" />
             {{ getServerResourcesCount(selectedDetailServer.name) }}
-          </Button>
+          </DcButton>
         </div>
 
         <div class="rounded-lg border border-border p-3">
@@ -843,7 +842,7 @@ defineExpose({
           {{ removeServerError }}
         </p>
         <div class="mt-2 flex flex-row items-center justify-end gap-3">
-          <Button
+          <DcButton
             variant="outline"
             size="sm"
             class="min-w-24"
@@ -851,8 +850,8 @@ defineExpose({
             @click="isRemoveConfirmDialogOpen = false"
           >
             {{ t('common.cancel') }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             variant="destructive"
             size="sm"
             class="min-w-24"
@@ -861,7 +860,7 @@ defineExpose({
           >
             <Spinner v-if="isRemovingServer" data-icon="inline-start" />
             {{ t('common.confirm') }}
-          </Button>
+          </DcButton>
         </div>
       </DialogContent>
     </Dialog>
@@ -892,22 +891,22 @@ defineExpose({
             {{ authCallbackError }}
           </p>
           <div class="flex justify-end gap-2">
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="isSubmittingAuthCallback"
               @click="closeAuthCallbackDialog"
             >
               {{ t('common.cancel') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               size="sm"
               :disabled="!authCallbackUrl.trim() || isSubmittingAuthCallback"
               @click="submitAuthCallbackUrl"
             >
               <Spinner v-if="isSubmittingAuthCallback" data-icon="inline-start" />
               {{ t('settings.mcp.completeAuthentication') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </DialogContent>
@@ -987,10 +986,10 @@ defineExpose({
           </dl>
         </div>
         <div class="flex justify-end gap-2">
-          <Button variant="outline" :disabled="isDiagnosticsLoading" @click="refreshDiagnostics">
+          <DcButton variant="outline" :disabled="isDiagnosticsLoading" @click="refreshDiagnostics">
             <Icon icon="lucide:refresh-cw" class="size-4" />
             {{ t('mcp.tools.refresh') }}
-          </Button>
+          </DcButton>
           <DcCopyButton
             :disabled="!diagnostics"
             :copy-text="diagnosticsText"

@@ -21,7 +21,7 @@
       >
         {{ statusLabel }}
       </span>
-      <Button
+      <DcButton
         v-if="delegationId && (childSessionId || !authoritative)"
         :variant="statusPresentation.actionRequired ? 'default' : 'ghost'"
         size="sm"
@@ -33,8 +33,8 @@
       >
         <Icon icon="lucide:external-link" class="mr-1 h-3 w-3" />
         {{ t('chat.orchestration.actions.openChild') }}
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         v-if="canInterrupt"
         variant="ghost"
         size="icon"
@@ -43,9 +43,10 @@
         :data-testid="`live-delegation-tool-interrupt-${delegationId}`"
         :disabled="interrupting || readOnly"
         @click="interrupt"
+        :tooltip="t('common.cancel')"
       >
         <Icon icon="lucide:square" class="h-3 w-3" />
-      </Button>
+      </DcButton>
       <button
         type="button"
         class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -80,7 +81,7 @@
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import {
   getLiveDelegationStatusPresentation,

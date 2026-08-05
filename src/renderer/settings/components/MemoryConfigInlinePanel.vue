@@ -18,7 +18,7 @@
           <Spinner class="size-3.5" />
           {{ t('common.saving') }}
         </span>
-        <Button
+        <DcButton
           variant="ghost"
           size="icon"
           class="h-8 w-8"
@@ -26,9 +26,10 @@
           :aria-label="t('common.close')"
           data-testid="settings-memory-config-close"
           @click="requestClose"
+          :tooltip="t('common.close')"
         >
           <Icon icon="lucide:x" class="h-4 w-4" />
-        </Button>
+        </DcButton>
       </div>
     </header>
 
@@ -76,7 +77,7 @@
               </div>
               <Popover v-model:open="embeddingOpen">
                 <PopoverTrigger as-child>
-                  <Button
+                  <DcButton
                     variant="outline"
                     size="sm"
                     class="h-8 w-full justify-between gap-2 text-xs"
@@ -98,14 +99,14 @@
                       icon="lucide:chevron-down"
                       class="h-3 w-3 shrink-0 text-muted-foreground"
                     />
-                  </Button>
+                  </DcButton>
                 </PopoverTrigger>
                 <PopoverContent class="w-[320px] p-0" align="start">
                   <div class="flex items-center justify-between border-b px-3 py-2">
                     <div class="text-sm font-medium">
                       {{ t('settings.deepchatAgents.memoryEmbeddingModel') }}
                     </div>
-                    <Button
+                    <DcButton
                       v-if="form.memoryEmbedding"
                       variant="ghost"
                       size="sm"
@@ -113,7 +114,7 @@
                       @click="submitModel('memoryEmbedding', null)"
                     >
                       {{ t('common.clear') }}
-                    </Button>
+                    </DcButton>
                   </div>
                   <ModelSelect
                     :exclude-providers="['acp']"
@@ -155,7 +156,7 @@
                   </div>
                   <Popover v-model:open="extractionOpen">
                     <PopoverTrigger as-child>
-                      <Button
+                      <DcButton
                         variant="outline"
                         size="sm"
                         class="h-8 w-full justify-between gap-2 text-xs"
@@ -177,14 +178,14 @@
                           icon="lucide:chevron-down"
                           class="h-3 w-3 shrink-0 text-muted-foreground"
                         />
-                      </Button>
+                      </DcButton>
                     </PopoverTrigger>
                     <PopoverContent class="w-[320px] p-0" align="start">
                       <div class="flex items-center justify-between border-b px-3 py-2">
                         <div class="text-sm font-medium">
                           {{ t('settings.memory.config.extractionModel') }}
                         </div>
-                        <Button
+                        <DcButton
                           v-if="form.memoryExtractionModel"
                           variant="ghost"
                           size="sm"
@@ -192,7 +193,7 @@
                           @click="submitModel('memoryExtractionModel', null)"
                         >
                           {{ t('common.clear') }}
-                        </Button>
+                        </DcButton>
                       </div>
                       <ModelSelect
                         :exclude-providers="['acp']"
@@ -292,7 +293,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcSectionCard } from '@dc-ui/components/section-card'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Collapsible,
   CollapsibleContent,

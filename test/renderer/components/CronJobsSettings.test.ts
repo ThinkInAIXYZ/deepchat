@@ -295,7 +295,7 @@ async function setup(options: SetupOptions = {}) {
       stubs: {
         SettingsPageShell: settingsPageShellStub,
         Badge: passthrough('Badge'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Dialog: dialogStub,
         DialogContent: passthrough('DialogContent'),
         DialogDescription: passthrough('DialogDescription'),

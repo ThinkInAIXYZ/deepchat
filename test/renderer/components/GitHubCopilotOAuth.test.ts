@@ -78,8 +78,8 @@ describe('GitHubCopilotOAuth', () => {
     vi.doMock('@shadcn/components/ui/input', () => ({
       Input: inputStub
     }))
-    vi.doMock('@shadcn/components/ui/button', () => ({
-      Button: buttonStub
+    vi.doMock('@dc-ui/components/button', () => ({
+      DcButton: buttonStub
     }))
     vi.doMock('@shadcn/components/ui/label', () => ({
       Label: labelStub

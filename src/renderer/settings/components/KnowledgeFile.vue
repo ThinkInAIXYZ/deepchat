@@ -47,10 +47,10 @@
           :disabled="uploading"
           @click="openSearchDialog"
         />
-        <Button variant="outline" size="sm" :disabled="uploading" @click="onReturn">
+        <DcButton variant="outline" size="sm" :disabled="uploading" @click="onReturn">
           <Icon icon="lucide:corner-down-left" class="w-4 h-4" />
           {{ t('settings.knowledgeBase.return') }}
-        </Button>
+        </DcButton>
       </div>
     </div>
     <DcInlineError v-if="pageError" :error="pageError" />
@@ -192,7 +192,7 @@
                 <TooltipProvider>
                   <Tooltip :delay-duration="200">
                     <TooltipTrigger as-child>
-                      <Button
+                      <DcButton
                         variant="ghost"
                         size="sm"
                         class="absolute right-2 top-1 h-6 w-6 flex items-center justify-center rounded-sm hover:bg-primary/80 hover:text-white transition-colors"
@@ -200,7 +200,7 @@
                       >
                         <Icon v-if="copyId === item.id" icon="lucide:check" />
                         <Icon v-else icon="lucide:copy" />
-                      </Button>
+                      </DcButton>
                     </TooltipTrigger>
                     <TooltipContent>
                       <div v-if="copyId === item.id">
@@ -241,7 +241,6 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { DcInlineError } from '@dc-ui/components/inline-error'
-import { Button } from '@shadcn/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@shadcn/components/ui/empty'
 import { Spinner } from '@shadcn/components/ui/spinner'

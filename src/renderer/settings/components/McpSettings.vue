@@ -34,14 +34,14 @@
             class="flex shrink-0 items-center gap-3"
             @click="handleMcpGuideTargetInteract"
           >
-            <Button v-if="mcpEnabled" size="sm" @click="openAddServerDialog">
+            <DcButton v-if="mcpEnabled" size="sm" @click="openAddServerDialog">
               <Icon icon="lucide:plus" class="size-4" />
               {{ t('common.add') }}
-            </Button>
-            <Button variant="outline" size="sm" @click="openMarketView">
+            </DcButton>
+            <DcButton variant="outline" size="sm" @click="openMarketView">
               <Icon icon="lucide:shopping-bag" class="size-4" />
               {{ t('routes.settings-mcp-market') }}
-            </Button>
+            </DcButton>
             <Switch
               dir="ltr"
               :model-value="mcpEnabled"
@@ -63,9 +63,9 @@
           class="m-4 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3"
         >
           <span class="text-sm text-destructive">{{ agentPolicyError }}</span>
-          <Button size="sm" variant="outline" @click="loadAgentPolicy">
+          <DcButton size="sm" variant="outline" @click="loadAgentPolicy">
             {{ t('common.retry') }}
-          </Button>
+          </DcButton>
         </div>
         <McpServers
           v-else
@@ -101,7 +101,7 @@
           <template #footer-actions-after>
             <Dialog :open="npmAdvancedDialogOpen" @update:open="handleNpmDialogOpenChange">
               <DialogTrigger as-child>
-                <Button
+                <DcButton
                   variant="outline"
                   size="sm"
                   class="h-8 max-w-[18rem] gap-1.5 px-3 text-xs"
@@ -114,7 +114,7 @@
                   <span class="truncate font-mono">
                     {{ npmRegistryStatus.currentRegistry || 'Default' }}
                   </span>
-                </Button>
+                </DcButton>
               </DialogTrigger>
               <DialogContent class="sm:max-w-md">
                 <DialogHeader>
@@ -239,7 +239,7 @@ import { computed, ref, onMounted, watch } from 'vue'
 import McpServers from '@/components/mcp-config/components/McpServers.vue'
 import McpBuiltinMarket from './McpBuiltinMarket.vue'
 import { Switch } from '@shadcn/components/ui/switch'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import { Icon } from '@iconify/vue'
@@ -252,7 +252,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@shadcn/components/ui/dialog'
-import { DcButton } from '@dc-ui/components/button'
 import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'

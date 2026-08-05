@@ -5,7 +5,7 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { DcForm } from '@dc-ui/components/form'
 import { DcFormActions } from '@dc-ui/components/form-actions'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Spinner } from '@shadcn/components/ui/spinner'
@@ -200,10 +200,10 @@ onBeforeUnmount(() => {
 <template>
   <Dialog v-model:open="isOpen" @update:open="(open) => open && loadProfiles()">
     <DialogTrigger as-child>
-      <Button variant="outline" size="sm" class="h-8 px-3 text-xs">
+      <DcButton variant="outline" size="sm" class="h-8 px-3 text-xs">
         <Icon icon="lucide:building-2" class="mr-1.5 size-3" />
         {{ t('settings.mcp.enterpriseProfiles.title') }}
-      </Button>
+      </DcButton>
     </DialogTrigger>
     <DialogContent class="flex h-[80vh] max-h-[680px] w-[95vw] max-w-[620px] flex-col">
       <DialogHeader>
@@ -299,10 +299,10 @@ onBeforeUnmount(() => {
 
       <div v-else class="flex min-h-0 flex-1 flex-col gap-3">
         <div class="flex justify-end">
-          <Button size="sm" @click="startCreate">
+          <DcButton size="sm" @click="startCreate">
             <Icon icon="lucide:plus" class="size-4" />
             {{ t('common.add') }}
-          </Button>
+          </DcButton>
         </div>
 
         <div class="min-h-0 flex-1 space-y-2 overflow-y-auto">
@@ -334,15 +334,15 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div class="flex shrink-0 gap-1">
-                <Button
+                <DcButton
                   v-if="statuses[profile.id]?.authenticated"
                   variant="outline"
                   size="sm"
                   @click="logout(profile.id)"
                 >
                   {{ t('settings.mcp.enterpriseProfiles.signOut') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   v-else
                   size="sm"
                   :disabled="
@@ -352,13 +352,23 @@ onBeforeUnmount(() => {
                   @click="startAuth(profile.id)"
                 >
                   {{ t('settings.mcp.enterpriseProfiles.signIn') }}
-                </Button>
-                <Button variant="ghost" size="icon" @click="startEdit(profile)">
+                </DcButton>
+                <DcButton
+                  variant="ghost"
+                  size="icon"
+                  :tooltip="t('common.edit')"
+                  @click="startEdit(profile)"
+                >
                   <Icon icon="lucide:pencil" class="size-4" />
-                </Button>
-                <Button variant="ghost" size="icon" @click="pendingRemove = profile">
+                </DcButton>
+                <DcButton
+                  variant="ghost"
+                  size="icon"
+                  :tooltip="t('common.delete')"
+                  @click="pendingRemove = profile"
+                >
                   <Icon icon="lucide:trash-2" class="size-4 text-destructive" />
-                </Button>
+                </DcButton>
               </div>
             </div>
           </div>
@@ -377,9 +387,9 @@ onBeforeUnmount(() => {
             :placeholder="t('settings.mcp.authCallbackPlaceholder')"
           />
           <div class="flex justify-end">
-            <Button :disabled="!callbackUrl.trim()" @click="completeAuth">
+            <DcButton :disabled="!callbackUrl.trim()" @click="completeAuth">
               {{ t('settings.mcp.completeAuthentication') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </div>
@@ -399,12 +409,12 @@ onBeforeUnmount(() => {
         </DialogDescription>
       </DialogHeader>
       <div class="flex justify-end gap-2">
-        <Button variant="outline" @click="pendingRemove = null">
+        <DcButton variant="outline" @click="pendingRemove = null">
           {{ t('common.cancel') }}
-        </Button>
-        <Button variant="destructive" @click="removeProfile">
+        </DcButton>
+        <DcButton variant="destructive" @click="removeProfile">
           {{ t('common.confirm') }}
-        </Button>
+        </DcButton>
       </div>
     </DialogContent>
   </Dialog>

@@ -30,8 +30,8 @@ vi.mock('@iconify/vue', () => ({
   })
 }))
 
-vi.mock('@shadcn/components/ui/button', () => ({
-  Button: defineComponent({
+vi.mock('@dc-ui/components/button', () => ({
+  DcButton: defineComponent({
     name: 'Button',
     emits: ['click'],
     template: '<button type="button" @click="$emit(\'click\')"><slot /></button>'

@@ -247,7 +247,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -750,7 +750,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1017,7 +1017,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1115,7 +1115,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1226,7 +1226,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1438,7 +1438,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1610,7 +1610,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1729,7 +1729,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1869,7 +1869,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -2006,7 +2006,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -2276,7 +2276,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,

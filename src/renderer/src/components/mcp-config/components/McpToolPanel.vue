@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { DcBadge } from '@dc-ui/components/badge'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
@@ -231,7 +231,7 @@ const selectTool = (tool: MCPToolDefinition) => {
           </div>
           <ScrollArea class="flex-1 min-h-0">
             <div class="p-2 space-y-1">
-              <Button
+              <DcButton
                 v-for="tool in serverTools"
                 :key="tool.function.name"
                 variant="ghost"
@@ -250,7 +250,7 @@ const selectTool = (tool: MCPToolDefinition) => {
                     <div class="font-medium text-sm truncate">{{ tool.function.name }}</div>
                   </div>
                 </div>
-              </Button>
+              </DcButton>
             </div>
           </ScrollArea>
         </div>
@@ -288,7 +288,7 @@ const selectTool = (tool: MCPToolDefinition) => {
 
                 <!-- 工具参数说明（可折叠） -->
                 <div v-if="toolParametersDescription.length > 0" class="border rounded-lg">
-                  <Button
+                  <DcButton
                     variant="ghost"
                     class="w-full justify-between p-3 h-auto"
                     @click="isParametersExpanded = !isParametersExpanded"
@@ -302,7 +302,7 @@ const selectTool = (tool: MCPToolDefinition) => {
                       :icon="isParametersExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
                       class="h-4 w-4"
                     />
-                  </Button>
+                  </DcButton>
                   <div v-if="isParametersExpanded" class="px-3 pb-3 space-y-2">
                     <div
                       v-for="param in toolParametersDescription"
@@ -387,7 +387,7 @@ const selectTool = (tool: MCPToolDefinition) => {
                     <h3 class="text-sm font-medium text-foreground">
                       {{ t('mcp.tools.input') }}
                     </h3>
-                    <Button
+                    <DcButton
                       variant="ghost"
                       size="sm"
                       class="h-6 text-xs px-2"
@@ -395,7 +395,7 @@ const selectTool = (tool: MCPToolDefinition) => {
                     >
                       <Icon icon="lucide:align-left" class="mr-1 h-3 w-3" />
                       {{ t('common.format') }}
-                    </Button>
+                    </DcButton>
                   </div>
 
                   <div class="relative">
@@ -423,7 +423,7 @@ const selectTool = (tool: MCPToolDefinition) => {
                   </p>
 
                   <!-- 执行按钮 -->
-                  <Button
+                  <DcButton
                     class="w-full"
                     :disabled="
                       mcpStore.toolLoadingStates[selectedTool.function.name] ||
@@ -441,7 +441,7 @@ const selectTool = (tool: MCPToolDefinition) => {
                         ? t('mcp.tools.runningTool')
                         : t('mcp.tools.executeButton')
                     }}
-                  </Button>
+                  </DcButton>
                 </div>
 
                 <!-- 结果显示 -->

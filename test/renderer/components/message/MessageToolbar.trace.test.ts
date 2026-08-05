@@ -158,6 +158,20 @@ describe('MessageToolbar trace button visibility', () => {
     expect(wrapper.find('[data-icon="lucide:copy"]').exists()).toBe(true)
   })
 
+  it('does not mount assistant-only controls for user messages', () => {
+    const wrapper = mount(MessageToolbar, {
+      props: {
+        ...baseProps,
+        isAssistant: false,
+        totalVariants: 2
+      }
+    })
+
+    expect(wrapper.find('[data-icon="lucide:chevron-left"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:chevron-right"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:images"]').exists()).toBe(false)
+  })
+
   it('shows memory button only for assistant messages that allow memory details', async () => {
     const wrapper = mount(MessageToolbar, {
       props: {

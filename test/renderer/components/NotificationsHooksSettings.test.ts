@@ -148,7 +148,7 @@ async function setup(options?: {
     global: {
       stubs: {
         ScrollArea: passthrough('ScrollArea'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Checkbox: checkboxStub,
         Collapsible: passthrough('Collapsible'),
         CollapsibleContent: passthrough('CollapsibleContent'),

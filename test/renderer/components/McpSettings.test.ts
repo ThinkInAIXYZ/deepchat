@@ -161,7 +161,7 @@ const setup = async (
     global: {
       stubs: {
         Switch: true,
-        Button: buttonStub,
+        DcButton: buttonStub,
         Input: true,
         Icon: true,
         Separator: true,

@@ -13,44 +13,46 @@
     @after-leave="handleAfterLeave"
     @leave-cancelled="handleAfterLeave"
   >
-    <Button
+    <DcButton
       v-if="showWorkspaceButton"
       key="open-workspace"
       variant="outline"
       size="icon"
       class="dc-blur-panel w-8 h-8 shrink-0 opacity-100 bg-card z-[var(--dc-z-sidepanel)]"
-      :title="t('chat.workspace.title')"
+      :tooltip="t('chat.workspace.title')"
       @click="$emit('open-workspace')"
     >
       <Icon icon="lucide:layout-dashboard" class="w-5 h-5 text-foreground" />
-    </Button>
+    </DcButton>
 
-    <Button
+    <DcButton
       v-if="showCleanButton"
       key="new-chat"
       variant="outline"
       size="icon"
       class="dc-blur-panel w-8 h-8 shrink-0 opacity-100 bg-card z-[var(--dc-z-float)]"
+      :tooltip="t('common.newChat')"
       @click="$emit('clean')"
     >
       <Icon icon="lucide:brush-cleaning" class="w-6 h-6 text-foreground" />
-    </Button>
+    </DcButton>
 
-    <Button
+    <DcButton
       v-if="showScrollButton"
       key="scroll-bottom"
       variant="outline"
       size="icon"
       class="dc-blur-panel w-8 h-8 shrink-0 relative z-[var(--dc-z-sticky)]"
+      :tooltip="t('common.scrollToBottom')"
       @click="$emit('scroll-to-bottom')"
     >
       <Icon icon="lucide:arrow-down" class="w-5 h-5 text-foreground" />
-    </Button>
+    </DcButton>
   </TransitionGroup>
 </template>
 
 <script setup lang="ts">
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 
