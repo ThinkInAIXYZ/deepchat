@@ -1,0 +1,177 @@
+# DeepSeek Native Web Search
+
+Status: proposed.
+
+## User Need
+
+DeepChat users selecting DeepSeek V4 Flash on DeepSeek's official API need to opt into the
+provider-native Web Search tool for an individual turn. Search results must remain visible and
+exportable, and a later turn must retain the search context even though DeepSeek's Responses API is
+stateless.
+
+## Goals
+
+- Route only the exact supported DeepSeek configuration through the existing OpenAI Responses
+  transport.
+- Capture search intent per submitted turn across send, queue, and steer paths.
+- Project provider search output into DeepChat's existing search blocks and result store.
+- Persist the complete provider item required for stateless replay without a schema migration.
+- Replay search history in original assistant-block order without relying on server-side response
+  storage.
+- Keep every DeepSeek wire-protocol rule in one removable adapter.
+
+## Supported Configuration
+
+Native search is available only when all of the following are true:
+
+- provider ID is exactly `deepseek`;
+- model ID is exactly `deepseek-v4-flash`;
+- the derived transport is `openai-responses`;
+- the persisted endpoint is an official DeepSeek HTTPS URL.
+
+An official endpoint has host `api.deepseek.com`, no credentials, query, fragment, or custom port,
+and a path of `/` or `/v1` after removing trailing slashes. Requests use the derived, request-local
+base URL `https://api.deepseek.com`; the persisted provider configuration remains unchanged.
+
+Custom relays, aggregators, model-name prefixes, and DeepSeek V4 Pro are not supported by this
+feature.
+
+## Functional Requirements
+
+### Per-turn intent
+
+- `SendMessageInput.search` is optional at the public boundary and normalizes to `false`.
+- Persisted `UserMessageContent.search` records the captured value for every accepted user input.
+- Send, queue, and steer snapshot the effective toolbar state when submitted.
+- Multiple steer inputs merged into one provider turn combine search intent with logical OR.
+- Turning search off prevents a new search tool from being offered; it never removes compatible
+  replay items from prior turns.
+- Existing conversation-level `enableSearch` fields are not read, extended, or migrated.
+
+### Search output
+
+- A search-enabled request offers `openai.tools.webSearch()` with no optional provider arguments.
+- Raw AI SDK chunks are enabled only when a new provider search can occur.
+- A complete `response.output_item.done` item with type `web_search_call` produces one
+  `provider_search` event.
+- The event creates one successful `search` block at the event's original position and stores
+  normalized HTTP(S) URL sources through the existing message search-result table.
+- Provider-owned Web Search tool lifecycle events do not enter DeepChat's local tool execution
+  loop and do not create a visible `tool_call` block.
+- Normalized search data serves UI, export, and citation lookup. It is never used to reconstruct the
+  provider protocol item.
+
+### Opaque replay
+
+Each search block stores a JSON string in `block.extra.providerReplayJson`. The version 1 envelope
+contains:
+
+```ts
+type DeepSeekWebSearchReplayEnvelopeV1 = {
+  version: 1
+  providerId: 'deepseek'
+  modelId: 'deepseek-v4-flash'
+  item: {
+    type: 'web_search_call'
+    id: string
+    [key: string]: unknown
+  }
+}
+```
+
+The complete raw `item` is retained. No database table or migration is added.
+
+For a compatible target, context projection emits an internal opaque replay part at the search
+block's original position. For any other provider or model, it omits the part while retaining all
+normal assistant text and reasoning.
+
+Before AI SDK conversion, non-search OpenAI item IDs are removed from historical messages. The
+adapter maps each compatible replay part to a provider-executed Web Search marker so AI SDK emits
+an `item_reference`. A request-scoped fetch transform then:
+
+1. replaces each marker with its matching original `web_search_call` object;
+2. rejects malformed, duplicate, missing, mismatched, or leftover markers before network I/O;
+3. forces `store: false`;
+4. removes `previous_response_id`, `conversation`, and `truncation` state fields.
+
+Replay state is held only in a closure owned by one provider request. No global or cross-request map
+is permitted.
+
+### Context budget
+
+- The serialized opaque envelope contributes to token estimation exactly once.
+- History selection removes complete user turns before falling back to narrower truncation.
+- A replay part is inseparable from the assistant record that owns it; no request may contain an
+  isolated search item.
+- DeepSeek requests do not ask the server to truncate context.
+
+### Toolbar
+
+The toolbar exposes an icon toggle only while the current route reports `supportsSearch`.
+Search state is transient and keyed by session in the renderer. It may stay enabled between sends in
+the same renderer session, resets to false after reload, and is effectively false while an
+unsupported model is selected.
+
+Before:
+
+```text
++------------------------------------------------------------------+
+| [+ Attach]                                  [Mic] [Steer] [Send] |
++------------------------------------------------------------------+
+```
+
+After on the supported route:
+
+```text
++------------------------------------------------------------------+
+| [+ Attach]                         [Globe Search] [Mic] [Steer] [Send] |
++------------------------------------------------------------------+
+```
+
+After on every unsupported route, the layout remains unchanged.
+
+## Acceptance Criteria
+
+- Official `/` and `/v1` endpoint variants enable V4 Flash search and derive the canonical request
+  URL without mutating saved configuration.
+- HTTP, credentials, query, fragment, custom host/path/port, relay, prefixed model IDs, and V4 Pro
+  configurations do not expose or send native search.
+- Missing `search` values behave as false for old callers and persisted pending inputs.
+- Queue and steer inputs retain their submission-time search values; merged steers use OR.
+- A search stream creates a search block, normalized result rows, and a versioned opaque envelope,
+  with no local tool execution.
+- Switching provider or model excludes incompatible replay markers but preserves response text.
+- Malformed compatible envelopes and unmatched markers fail before fetch.
+- A local two-round conformance test proves that the second request contains the original
+  `web_search_call`, contains no `item_reference`, sets `store: false`, and contains no continuation
+  state fields.
+- A real-key canary completes two independent user turns and demonstrates that the second response
+  retains the first turn's searched context.
+
+## Constraints
+
+- Reuse `ai`, `@ai-sdk/openai`, and the existing OpenAI Responses transport.
+- Do not add `@ai-sdk/deepseek` or another search service dependency.
+- Do not mutate persisted provider base URLs.
+- Do not add a database migration.
+- Do not broaden provider-db search capability metadata to relays or aggregators.
+- Preserve abort signals, proxy handling, headers, request tracing, and existing non-DeepSeek
+  behavior through the fetch adapter.
+- Bound normalized URL projection and reject unreasonably large replay envelopes; the full accepted
+  opaque item remains the replay source of truth.
+
+## Non-goals
+
+- Supporting DeepSeek V4 Pro, custom relays, or third-party DeepSeek aggregators.
+- Adding conversation-level search settings or restoring legacy external-search infrastructure.
+- Implementing DeepSeek Responses state storage or `previous_response_id` chaining.
+- Generalizing arbitrary provider response items into a public extension protocol.
+- Replacing existing search rendering, export, or citation components.
+
+If an external search stack is reintroduced later, its interaction with provider-native search must
+be specified at that time; no such runtime exists today.
+
+## Open Questions
+
+None. A real-key two-turn canary remains a release gate because DeepSeek may silently ignore unknown
+request fields.
