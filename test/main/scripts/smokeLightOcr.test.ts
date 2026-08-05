@@ -52,13 +52,13 @@ const runtimeVersions = {
     }
   },
   lightOcr: {
-    facadeVersion: '0.5.6',
+    facadeVersion: '0.5.7',
     runtimePackage: '@arcships/light-ocr-runtime',
-    runtimeVersion: '0.1.6',
+    runtimeVersion: '0.1.7',
     bundleId: 'ppocrv6-small-native-20260719.1',
     modelPackage: '@arcships/light-ocr-model-ppocrv6-small',
     modelVersion: '0.3.4',
-    nativeVersion: '0.5.6',
+    nativeVersion: '0.5.7',
     nativePackages: {
       'darwin-arm64': '@arcships/light-ocr-darwin-arm64',
       'darwin-x64': '@arcships/light-ocr-darwin-x64',
@@ -228,18 +228,18 @@ describe('smoke-light-ocr', () => {
       'out/main/lightOcrHelper.js': 'helper',
       'node_modules/@arcships/light-ocr/package.json': JSON.stringify({
         name: '@arcships/light-ocr',
-        version: '0.5.6',
+        version: '0.5.7',
         dependencies: {
-          '@arcships/light-ocr-runtime': '0.1.6',
+          '@arcships/light-ocr-runtime': '0.1.7',
           '@arcships/light-ocr-model-ppocrv6-small': '0.3.4'
         }
       }),
       'node_modules/@arcships/light-ocr/src/index.cjs': 'module.exports = {}',
       'node_modules/@arcships/light-ocr-runtime/package.json': JSON.stringify({
         name: '@arcships/light-ocr-runtime',
-        version: '0.1.6',
+        version: '0.1.7',
         optionalDependencies: {
-          '@arcships/light-ocr-darwin-arm64': '0.5.6'
+          '@arcships/light-ocr-darwin-arm64': '0.5.7'
         }
       }),
       'node_modules/@arcships/light-ocr-runtime/src/index.cjs': 'module.exports = {}',
@@ -255,7 +255,7 @@ describe('smoke-light-ocr', () => {
       ].join('\n'),
       'node_modules/@arcships/light-ocr-darwin-arm64/package.json': JSON.stringify({
         name: '@arcships/light-ocr-darwin-arm64',
-        version: '0.5.6'
+        version: '0.5.7'
       }),
       'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node.gz.b64': gzipSync(
         nativePayload
@@ -311,10 +311,10 @@ describe('smoke-light-ocr', () => {
         supported: true,
         platform: 'darwin',
         arch: 'arm64',
-        facadeVersion: '0.5.6',
-        runtimeVersion: '0.1.6',
+        facadeVersion: '0.5.7',
+        runtimeVersion: '0.1.7',
         modelVersion: '0.3.4',
-        nativeVersion: '0.5.6',
+        nativeVersion: '0.5.7',
         pdfSupport: true,
         bundleId: runtimeVersions.lightOcr.bundleId,
         nodeVersion: runtimeVersions.node,
@@ -506,17 +506,17 @@ describe('smoke-light-ocr', () => {
       'out/main/lightOcrHelper.js': 'helper',
       'node_modules/@arcships/light-ocr/package.json': JSON.stringify({
         name: '@arcships/light-ocr',
-        version: '0.5.6',
+        version: '0.5.7',
         dependencies: {
-          '@arcships/light-ocr-runtime': '0.1.6',
+          '@arcships/light-ocr-runtime': '0.1.7',
           '@arcships/light-ocr-model-ppocrv6-small': '0.3.4'
         }
       }),
       'node_modules/@arcships/light-ocr/src/index.cjs': 'module.exports = {}',
       'node_modules/@arcships/light-ocr-runtime/package.json': JSON.stringify({
         name: '@arcships/light-ocr-runtime',
-        version: '0.1.6',
-        optionalDependencies: { [nativePackage]: '0.5.6' }
+        version: '0.1.7',
+        optionalDependencies: { [nativePackage]: '0.5.7' }
       }),
       'node_modules/@arcships/light-ocr-runtime/src/index.cjs': 'module.exports = {}',
       'node_modules/@arcships/light-ocr-model-ppocrv6-small/package.json': JSON.stringify({
@@ -531,7 +531,7 @@ describe('smoke-light-ocr', () => {
       ].join('\n'),
       [`node_modules/${nativePackage}/package.json`]: JSON.stringify({
         name: nativePackage,
-        version: '0.5.6'
+        version: '0.5.7'
       }),
       [`node_modules/${nativePackage}/native/addon.node`]: nativePayload,
       [`node_modules/${nativePackage}/native/runtime-descriptor.json`]: nativeDescriptor,
@@ -584,10 +584,10 @@ describe('smoke-light-ocr', () => {
         supported: true,
         platform: 'linux',
         arch: 'arm64',
-        facadeVersion: '0.5.6',
-        runtimeVersion: '0.1.6',
+        facadeVersion: '0.5.7',
+        runtimeVersion: '0.1.7',
         modelVersion: '0.3.4',
-        nativeVersion: '0.5.6',
+        nativeVersion: '0.5.7',
         pdfSupport: true,
         bundleId: runtimeVersions.lightOcr.bundleId,
         nodeVersion: runtimeVersions.node,
@@ -627,10 +627,10 @@ describe('smoke-light-ocr', () => {
         supported: true,
         platform: 'darwin',
         arch: 'arm64',
-        facadeVersion: '0.5.6',
-        runtimeVersion: '0.1.6',
+        facadeVersion: '0.5.7',
+        runtimeVersion: '0.1.7',
         modelVersion: '0.3.4',
-        nativeVersion: '0.5.6',
+        nativeVersion: '0.5.7',
         pdfSupport: true,
         bundleId: runtimeVersions.lightOcr.bundleId,
         nodeVersion: runtimeVersions.node,
@@ -667,10 +667,10 @@ describe('smoke-light-ocr', () => {
         reason: 'unsupported_platform',
         platform: 'win32',
         arch: 'ia32',
-        facadeVersion: '0.5.6',
-        runtimeVersion: '0.1.6',
+        facadeVersion: '0.5.7',
+        runtimeVersion: '0.1.7',
         modelVersion: '0.3.4',
-        nativeVersion: '0.5.6',
+        nativeVersion: '0.5.7',
         pdfSupport: false,
         bundleId: runtimeVersions.lightOcr.bundleId
       })

@@ -22,7 +22,7 @@ describe('OcrRuntimeService', () => {
       availability: {
         status: 'unavailable',
         reason: 'unsupported_platform',
-        lightOcrVersion: '0.5.6',
+        lightOcrVersion: '0.5.7',
         bundleId: 'ppocrv6-small-native-20260719.1'
       },
       process: null,
@@ -39,7 +39,7 @@ describe('OcrRuntimeService', () => {
     await expect(service.getAvailability()).resolves.toEqual({
       status: 'unavailable',
       reason: 'service_closed',
-      lightOcrVersion: '0.5.6',
+      lightOcrVersion: '0.5.7',
       bundleId: 'ppocrv6-small-native-20260719.1'
     })
   })

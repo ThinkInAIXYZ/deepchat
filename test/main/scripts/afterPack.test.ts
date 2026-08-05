@@ -117,12 +117,12 @@ const testRuntimeVersions = {
     ])
   ),
   lightOcr: {
-    facadeVersion: '0.5.6',
+    facadeVersion: '0.5.7',
     runtimePackage: '@arcships/light-ocr-runtime',
-    runtimeVersion: '0.1.6',
+    runtimeVersion: '0.1.7',
     modelPackage: '@arcships/light-ocr-model-ppocrv6-small',
     modelVersion: '0.3.4',
-    nativeVersion: '0.5.6',
+    nativeVersion: '0.5.7',
     bundleId: 'ppocrv6-small-native-20260719.1',
     nativePackages: {
       'darwin-arm64': '@arcships/light-ocr-darwin-arm64',
@@ -163,7 +163,7 @@ const seedLightOcrPrerequisites = async (
   await mkdir(projectDir, { recursive: true })
   await writeFile(
     path.join(projectDir, 'package.json'),
-    JSON.stringify({ dependencies: { '@arcships/light-ocr': '0.5.6' } })
+    JSON.stringify({ dependencies: { '@arcships/light-ocr': '0.5.7' } })
   )
   await writeTestRuntimeVersions(projectDir)
   const virtualNodeModules = path.join(projectDir, 'node_modules', '.pnpm', 'node_modules')
@@ -192,7 +192,7 @@ const seedLightOcrPrerequisites = async (
   const pdfiumLibrary = 'pdfium-library'
   const nativePackageJson = `${JSON.stringify({
     name: nativePackage,
-    version: '0.5.6',
+    version: '0.5.7',
     main: 'native/addon.node',
     exports: {
       '.': './native/addon.node',
@@ -203,10 +203,10 @@ const seedLightOcrPrerequisites = async (
   await writeVirtualPackage(projectDir, '@arcships/light-ocr', {
     'package.json': JSON.stringify({
       name: '@arcships/light-ocr',
-      version: '0.5.6',
+      version: '0.5.7',
       main: 'src/index.cjs',
       dependencies: {
-        '@arcships/light-ocr-runtime': '0.1.6',
+        '@arcships/light-ocr-runtime': '0.1.7',
         [modelPackage]: '0.3.4'
       }
     }),
@@ -217,9 +217,9 @@ const seedLightOcrPrerequisites = async (
   await writeVirtualPackage(projectDir, '@arcships/light-ocr-runtime', {
     'package.json': JSON.stringify({
       name: '@arcships/light-ocr-runtime',
-      version: '0.1.6',
+      version: '0.1.7',
       main: 'src/index.cjs',
-      optionalDependencies: { [nativePackage]: '0.5.6' }
+      optionalDependencies: { [nativePackage]: '0.5.7' }
     }),
     LICENSE: 'runtime license',
     NOTICE: 'runtime notice',
@@ -541,10 +541,10 @@ describe('afterPack', () => {
     expect(manifest).toMatchObject({
       schemaVersion: 3,
       supported: true,
-      facadeVersion: '0.5.6',
-      runtimeVersion: '0.1.6',
+      facadeVersion: '0.5.7',
+      runtimeVersion: '0.1.7',
       modelVersion: '0.3.4',
-      nativeVersion: '0.5.6',
+      nativeVersion: '0.5.7',
       pdfSupport: true,
       nodeVersion: 'v24.14.1',
       nodeSha256: sha256('node'),
@@ -1088,7 +1088,7 @@ describe('afterPack', () => {
     await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'linux', 'x64')
     await writeFile(
       path.join(projectDir, 'package.json'),
-      JSON.stringify({ dependencies: { '@arcships/light-ocr': '^0.5.6' } })
+      JSON.stringify({ dependencies: { '@arcships/light-ocr': '^0.5.7' } })
     )
 
     await expect(
@@ -1098,6 +1098,6 @@ describe('afterPack', () => {
         arch: 'x64',
         packager: { projectDir }
       })
-    ).rejects.toThrow('DeepChat must depend on exactly @arcships/light-ocr@0.5.6')
+    ).rejects.toThrow('DeepChat must depend on exactly @arcships/light-ocr@0.5.7')
   })
 })
