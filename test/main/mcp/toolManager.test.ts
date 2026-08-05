@@ -226,6 +226,36 @@ describe('ToolManager', () => {
     ).toBe('Regular launch app description')
   })
 
+  it('registers every tool from a large valid MCP catalog', async () => {
+    const serverName = 'large-catalog'
+    const tools = Array.from({ length: 151 }, (_, toolIndex) => ({
+      name: `tool_${toolIndex}`,
+      description: `Tool ${toolIndex}`,
+      inputSchema: {
+        type: 'object',
+        properties: Object.fromEntries(
+          Array.from({ length: 22 }, (_, propertyIndex) => [
+            `field_${propertyIndex}`,
+            {
+              type: 'string',
+              description: `Input field ${propertyIndex} owned by tool ${toolIndex}`
+            }
+          ])
+        )
+      }
+    }))
+    const client = createClient(serverName, tools)
+    const manager = createToolManager(
+      createProviderSettings(serverName),
+      createServerManager([client])
+    )
+
+    const definitions = await manager.getAllToolDefinitions()
+
+    expect(definitions).toHaveLength(151)
+    expect(definitions.at(-1)?.function.name).toBe('tool_150')
+  })
+
   it('keeps MCP tools sequential even when the server declares readOnlyHint', async () => {
     const client = createClient('untrusted-server', [
       {

@@ -131,6 +131,74 @@ describe('MCP schema validation', () => {
     ).toThrow('maximum schema composition size')
   })
 
+  it('counts configured collection members independently without weakening member limits', () => {
+    const member = Object.fromEntries(
+      Array.from({ length: 6_000 }, (_, index) => [`key_${index}`, index])
+    )
+    const payload = { tools: [member, member] }
+
+    expect(() => assertBoundedMcpJson(payload, 'tool list', 1024 * 1024)).toThrow(
+      'maximum JSON key count'
+    )
+    expect(() =>
+      assertBoundedMcpJson(payload, 'tool list', 1024 * 1024, {
+        independentArrayItemsAtPath: '#/tools'
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertBoundedMcpJson(payload, 'tool list', 1024, {
+        independentArrayItemsAtPath: '#/tools'
+      })
+    ).toThrow('maximum serialized size')
+
+    const oversizedMember = Object.fromEntries(
+      Array.from({ length: 10_001 }, (_, index) => [`key_${index}`, index])
+    )
+    expect(() =>
+      assertBoundedMcpJson({ tools: [oversizedMember] }, 'tool list', 1024 * 1024, {
+        independentArrayItemsAtPath: '#/tools'
+      })
+    ).toThrow('maximum JSON key count')
+
+    const cyclicMember: Record<string, unknown> = {}
+    cyclicMember.self = cyclicMember
+    expect(() =>
+      assertBoundedMcpJson({ tools: [cyclicMember] }, 'tool list', 1024 * 1024, {
+        independentArrayItemsAtPath: '#/tools'
+      })
+    ).toThrow('circular reference')
+  })
+
+  it('preserves bounded legacy schemas without applying modern semantics', () => {
+    const inputSchema = {
+      $schema: 'https://example.com/legacy-dialect',
+      type: 'object',
+      properties: {
+        remote: { $ref: 'https://example.com/schema.json' }
+      }
+    }
+
+    const cloned = validateAndCloneMcpTool(
+      {
+        name: 'legacy_inspect',
+        inputSchema,
+        outputSchema: {
+          type: 'object',
+          $ref: 'https://example.com/output.json'
+        }
+      },
+      'legacy-server',
+      'legacy'
+    )
+
+    expect(cloned.inputSchema).toEqual(inputSchema)
+    expect(cloned.inputSchema).not.toBe(inputSchema)
+    expect(cloned.outputSchema).toEqual({
+      type: 'object',
+      $ref: 'https://example.com/output.json'
+    })
+  })
+
   it('retains standard tool metadata while cloning untrusted values', () => {
     const tool = {
       name: 'inspect',

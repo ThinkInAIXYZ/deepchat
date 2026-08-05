@@ -417,7 +417,9 @@ export class McpAppHost implements McpAppHostPort {
       ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
       ...(result._meta ? { _meta: result._meta } : {})
     }
-    assertBoundedMcpJson(output, 'MCP App tool list', MAX_APP_ACTION_BYTES)
+    assertBoundedMcpJson(output, 'MCP App tool list', MAX_APP_ACTION_BYTES, {
+      independentArrayItemsAtPath: '#/tools'
+    })
     return output
   }
 

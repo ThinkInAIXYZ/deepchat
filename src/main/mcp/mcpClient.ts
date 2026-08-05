@@ -1460,9 +1460,14 @@ export class McpClient {
         name: toolName,
         arguments: args
       }
+      // The v2 client compiles outputSchema in legacy mode, while the v1 client did not.
+      const toolDefinition =
+        options?.toolDefinition?.outputSchema && this.getToolSchemaPolicy() === 'legacy'
+          ? { ...options.toolDefinition, outputSchema: undefined }
+          : options?.toolDefinition
       const result = (await this.client.callTool(request, {
         signal: options?.signal,
-        toolDefinition: options?.toolDefinition as SdkTool | undefined
+        toolDefinition: toolDefinition as SdkTool | undefined
       })) as unknown as ToolCallResult
       options?.signal?.throwIfAborted()
       assertBoundedMcpJson(
@@ -1489,6 +1494,16 @@ export class McpClient {
     return capabilities !== undefined && capabilities[capability] === undefined
   }
 
+  private getToolSchemaPolicy(): 'strict' | 'legacy' {
+    const isPluginOwned =
+      Boolean(this.serverConfig.ownerPluginId) || this.serverConfig.source === 'plugin'
+    return this.client?.getProtocolEra() === 'legacy' &&
+      this.serverConfig.type !== 'inmemory' &&
+      !isPluginOwned
+      ? 'legacy'
+      : 'strict'
+  }
+
   async listTools(options?: { signal?: AbortSignal }): Promise<Tool[]> {
     options?.signal?.throwIfAborted()
 
@@ -1507,10 +1522,13 @@ export class McpClient {
         ? await this.client.listTools(undefined, { signal: options.signal })
         : await this.client.listTools()
       options?.signal?.throwIfAborted()
-      this.assertControlResult(response, 'tool list')
+      this.assertControlResult(response, 'tool list', {
+        independentArrayItemsAtPath: '#/tools'
+      })
       if (Array.isArray(response.tools)) {
+        const schemaPolicy = this.getToolSchemaPolicy()
         return (response.tools as unknown as Tool[]).map((tool) =>
-          validateAndCloneMcpTool(tool, this.serverName)
+          validateAndCloneMcpTool(tool, this.serverName, schemaPolicy)
         )
       }
       throw new Error('Invalid tool response format')
@@ -1546,11 +1564,14 @@ export class McpClient {
       { tools: [] },
       signal
     )
-    this.assertControlResult(result, 'tool list page')
+    this.assertControlResult(result, 'tool list page', {
+      independentArrayItemsAtPath: '#/tools'
+    })
+    const schemaPolicy = this.getToolSchemaPolicy()
     return {
       ...result,
       tools: (result.tools as unknown as Tool[]).map((tool) =>
-        validateAndCloneMcpTool(tool, this.serverName)
+        validateAndCloneMcpTool(tool, this.serverName, schemaPolicy)
       )
     } as unknown as ListToolsResult
   }
@@ -1787,11 +1808,16 @@ export class McpClient {
     return 'transport-error'
   }
 
-  private assertControlResult(value: unknown, label: string): void {
+  private assertControlResult(
+    value: unknown,
+    label: string,
+    options: { independentArrayItemsAtPath?: string } = {}
+  ): void {
     assertBoundedMcpJson(
       value,
       `MCP ${label} from ${this.serverName}`,
-      MCP_CONTROL_RESULT_MAX_BYTES
+      MCP_CONTROL_RESULT_MAX_BYTES,
+      options
     )
   }
 

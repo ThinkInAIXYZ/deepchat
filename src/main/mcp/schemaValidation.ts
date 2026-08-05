@@ -18,12 +18,12 @@ const SUPPORTED_JSON_SCHEMA_DIALECTS = new Set([
 
 interface CloneLimits {
   maxBytes: number
+  independentArrayItemsAtPath?: string
 }
 
 interface CloneState {
   keys: number
   nodes: number
-  seen: WeakSet<object>
 }
 
 export type JsonValueDifference = {
@@ -113,17 +113,22 @@ export function findJsonValueDifference(
 function cloneBoundedJson(value: unknown, label: string, limits: CloneLimits): unknown {
   const state: CloneState = {
     keys: 0,
-    nodes: 0,
-    seen: new WeakSet()
+    nodes: 0
   }
+  const seen = new WeakSet<object>()
 
-  const visit = (current: unknown, depth: number, path: string): unknown => {
+  const visit = (
+    current: unknown,
+    depth: number,
+    path: string,
+    complexity: CloneState
+  ): unknown => {
     if (depth > MAX_JSON_DEPTH) {
       throw new Error(`${label} exceeds the maximum JSON depth`)
     }
 
-    state.nodes += 1
-    if (state.nodes > MAX_JSON_NODES) {
+    complexity.nodes += 1
+    if (complexity.nodes > MAX_JSON_NODES) {
       throw new Error(`${label} exceeds the maximum JSON node count`)
     }
 
@@ -139,14 +144,22 @@ function cloneBoundedJson(value: unknown, label: string, limits: CloneLimits): u
     }
 
     if (Array.isArray(current)) {
-      if (state.seen.has(current)) {
+      if (seen.has(current)) {
         throw new Error(`${label} contains a circular reference at ${path}`)
       }
-      state.seen.add(current)
+      seen.add(current)
+      const independentItems = path === limits.independentArrayItemsAtPath
       const cloned = current.map((entry, index) =>
-        entry === undefined ? null : visit(entry, depth + 1, `${path}/${index}`)
+        entry === undefined
+          ? null
+          : visit(
+              entry,
+              depth + 1,
+              `${path}/${index}`,
+              independentItems ? { keys: 0, nodes: 0 } : complexity
+            )
       )
-      state.seen.delete(current)
+      seen.delete(current)
       return cloned
     }
 
@@ -154,27 +167,27 @@ function cloneBoundedJson(value: unknown, label: string, limits: CloneLimits): u
       throw new Error(`${label} contains a non-JSON value at ${path}`)
     }
 
-    if (state.seen.has(current)) {
+    if (seen.has(current)) {
       throw new Error(`${label} contains a circular reference at ${path}`)
     }
-    state.seen.add(current)
+    seen.add(current)
 
     const entries = Object.entries(current).filter(([, entry]) => entry !== undefined)
-    state.keys += entries.length
-    if (state.keys > MAX_JSON_KEYS) {
+    complexity.keys += entries.length
+    if (complexity.keys > MAX_JSON_KEYS) {
       throw new Error(`${label} exceeds the maximum JSON key count`)
     }
 
     const cloned: Record<string, unknown> = Object.create(null)
     for (const [key, entry] of entries) {
-      cloned[key] = visit(entry, depth + 1, `${path}/${key}`)
+      cloned[key] = visit(entry, depth + 1, `${path}/${key}`, complexity)
     }
 
-    state.seen.delete(current)
+    seen.delete(current)
     return cloned
   }
 
-  const cloned = visit(value, 0, '#')
+  const cloned = visit(value, 0, '#', state)
   const serialized = JSON.stringify(cloned)
   if (Buffer.byteLength(serialized, 'utf8') > limits.maxBytes) {
     throw new Error(`${label} exceeds the maximum serialized size`)
@@ -269,13 +282,23 @@ function validateSchemaTree(schema: Record<string, unknown>, label: string): voi
   visit(schema, '#')
 }
 
-export function assertBoundedMcpJson(value: unknown, label: string, maxBytes: number): void {
+export function assertBoundedMcpJson(
+  value: unknown,
+  label: string,
+  maxBytes: number,
+  options: { independentArrayItemsAtPath?: string } = {}
+): void {
   cloneBoundedJson(value, label, {
-    maxBytes
+    maxBytes,
+    ...options
   })
 }
 
-export function validateAndCloneJsonSchema(value: unknown, label: string): Record<string, unknown> {
+function cloneJsonSchema(
+  value: unknown,
+  label: string,
+  validateSemantics: boolean
+): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`${label} must be a JSON object`)
   }
@@ -283,14 +306,20 @@ export function validateAndCloneJsonSchema(value: unknown, label: string): Recor
   const cloned = cloneBoundedJson(value, label, {
     maxBytes: MAX_SCHEMA_BYTES
   }) as Record<string, unknown>
-  const dialect = cloned.$schema
-  if (dialect !== undefined) {
-    if (typeof dialect !== 'string' || !SUPPORTED_JSON_SCHEMA_DIALECTS.has(dialect)) {
-      throw new Error(`${label} uses an unsupported JSON Schema dialect`)
+  if (validateSemantics) {
+    const dialect = cloned.$schema
+    if (dialect !== undefined) {
+      if (typeof dialect !== 'string' || !SUPPORTED_JSON_SCHEMA_DIALECTS.has(dialect)) {
+        throw new Error(`${label} uses an unsupported JSON Schema dialect`)
+      }
     }
+    validateSchemaTree(cloned, label)
   }
-  validateSchemaTree(cloned, label)
   return cloned
+}
+
+export function validateAndCloneJsonSchema(value: unknown, label: string): Record<string, unknown> {
+  return cloneJsonSchema(value, label, true)
 }
 
 function cloneMetadata(
@@ -305,12 +334,21 @@ function cloneMetadata(
   }) as Record<string, unknown>
 }
 
-export function validateAndCloneMcpTool(tool: Tool, serverName: string): Tool {
+export function validateAndCloneMcpTool(
+  tool: Tool,
+  serverName: string,
+  schemaPolicy: 'strict' | 'legacy' = 'strict'
+): Tool {
   const label = `MCP tool ${serverName}/${tool.name}`
+  const validateSchemaSemantics = schemaPolicy === 'strict'
   let outputSchema: Record<string, unknown> | undefined
   if (tool.outputSchema !== undefined) {
     try {
-      outputSchema = validateAndCloneJsonSchema(tool.outputSchema, `${label} outputSchema`)
+      outputSchema = cloneJsonSchema(
+        tool.outputSchema,
+        `${label} outputSchema`,
+        validateSchemaSemantics
+      )
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       console.warn(`Ignoring invalid ${label} outputSchema: ${reason}`)
@@ -326,7 +364,7 @@ export function validateAndCloneMcpTool(tool: Tool, serverName: string): Tool {
           maxBytes: MAX_METADATA_BYTES
         }) as Tool['icons'])
       : undefined,
-    inputSchema: validateAndCloneJsonSchema(tool.inputSchema, `${label} inputSchema`),
+    inputSchema: cloneJsonSchema(tool.inputSchema, `${label} inputSchema`, validateSchemaSemantics),
     outputSchema,
     annotations: cloneMetadata(tool.annotations, `${label} annotations`),
     _meta: cloneMetadata(tool._meta, `${label} metadata`),
