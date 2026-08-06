@@ -16,6 +16,16 @@ describe('ChatSidePanel', () => {
     expect(shellStyles).not.toMatch(/transition(?:-property)?:[^;]*width/)
   })
 
+  it('crossfades sidepanel content swaps without overlap', async () => {
+    const source = await readFile(
+      resolve(process.cwd(), 'src/renderer/src/components/sidepanel/ChatSidePanel.vue'),
+      'utf8'
+    )
+
+    expect(source).toContain('<Transition name="panel-content" mode="out-in">')
+    expect(source).toContain('transition: opacity var(--dc-motion-fast) var(--dc-ease-out-soft);')
+  })
+
   const setup = async (options?: {
     open?: boolean
     activeTab?: 'workspace' | 'browser' | 'mcp-app'

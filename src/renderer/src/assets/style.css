@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'tailwind-scrollbar-hide/v4';
+@import '../../../dc-ui/styles/motion.css';
 
 @plugin "@tailwindcss/typography";
 @plugin "tailwindcss-animate";

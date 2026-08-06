@@ -322,4 +322,12 @@ function handlePrimaryAction() {
     opacity: 1;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-wave-bar {
+    animation: none;
+    transform: scaleY(0.8);
+    opacity: 1;
+  }
+}
 </style>

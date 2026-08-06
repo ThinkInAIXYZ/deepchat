@@ -17,6 +17,8 @@
         :is-capturing="isCapturingValue"
         :is-read-only="isReadOnly"
         :disable-markdown-virtualization="shouldDisableMarkdownVirtualization"
+        :class="{ 'message-row-entrance': shouldAnimateEntrance(item) }"
+        @animationend="onEntranceAnimationEnd(item, $event)"
         @retry="onRetry"
         @delete="onDelete"
         @fork="onFork"
@@ -45,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, unref } from 'vue'
+import { computed, onMounted, ref, unref, watch } from 'vue'
 import MessageBlockAction from '@/components/message/MessageBlockAction.vue'
 import { useMessageCapture } from '@/composables/message/useMessageCapture'
 import {
@@ -101,6 +103,34 @@ const shouldDisableMarkdownVirtualization = computed(
   () => props.disableMarkdownVirtualization || isCapturingValue.value
 )
 const allRenderedMessages = computed(() => props.messages)
+const seenMessageIds = new Set<string>()
+const animatingMessageIds = ref(new Set<string>())
+
+onMounted(() => {
+  for (const message of props.messages) {
+    seenMessageIds.add(message.id)
+  }
+})
+
+watch(
+  () => props.messages.at(-1),
+  (lastMessage) => {
+    if (!lastMessage || seenMessageIds.has(lastMessage.id)) return
+
+    seenMessageIds.add(lastMessage.id)
+    if (lastMessage.role === 'user' && lastMessage.id !== props.streamingMessageId) {
+      animatingMessageIds.value.add(lastMessage.id)
+    }
+  }
+)
+
+const shouldAnimateEntrance = (item: MessageListItem) => animatingMessageIds.value.has(item.id)
+
+const onEntranceAnimationEnd = (item: MessageListItem, event: AnimationEvent) => {
+  if (event.target === event.currentTarget) {
+    animatingMessageIds.value.delete(item.id)
+  }
+}
 
 const onRetry = (messageId: string) => emit('retry', messageId)
 const onDelete = (messageId: string) => emit('delete', messageId)
@@ -140,3 +170,27 @@ const handleCopyImage = async (
   await captureMessage({ messageId, parentId: resolvedParentId, fromTop, modelInfo })
 }
 </script>
+
+<style scoped>
+.message-row-entrance {
+  animation: message-row-in 140ms var(--dc-ease-out-soft);
+}
+
+@keyframes message-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-row-entrance {
+    animation: none;
+  }
+}
+</style>

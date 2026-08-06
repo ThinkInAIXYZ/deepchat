@@ -170,24 +170,3 @@ const handleDragStart = (event: DragEvent) => {
   })
 }
 </script>
-
-<style scoped>
-.workspace-collapse-enter-active,
-.workspace-collapse-leave-active {
-  transition: all 0.18s ease;
-}
-
-.workspace-collapse-enter-from,
-.workspace-collapse-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-  max-height: 0;
-}
-
-.workspace-collapse-enter-to,
-.workspace-collapse-leave-from {
-  opacity: 1;
-  transform: translateY(0);
-  max-height: 500px;
-}
-</style>

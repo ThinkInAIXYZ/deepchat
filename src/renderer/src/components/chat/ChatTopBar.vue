@@ -1,7 +1,7 @@
 <template>
   <div
     v-bind="attrs"
-    class="dc-blur-panel sticky top-0 z-[var(--dc-z-sticky)] flex h-12 items-center justify-between bg-background/60 px-4 window-drag-region transition-[padding] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+    class="dc-blur-panel sticky top-0 z-[var(--dc-z-sticky)] flex h-12 items-center justify-between bg-background/60 px-4 window-drag-region transition-[padding] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
     :class="{ 'pl-12': showCollapsedNewChatSpacer }"
   >
     <div class="flex min-w-0 flex-1 items-center gap-2">
@@ -553,8 +553,8 @@ const handleBackToParent = async () => {
 .collapsed-new-chat-button-enter-active,
 .collapsed-new-chat-button-leave-active {
   transition:
-    opacity 200ms ease-out,
-    transform 200ms ease-out;
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-fast) var(--dc-ease-out-soft);
 }
 
 .collapsed-new-chat-button-enter-from,
@@ -567,6 +567,13 @@ const handleBackToParent = async () => {
 .collapsed-new-chat-button-leave-from {
   opacity: 1;
   transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapsed-new-chat-button-enter-active,
+  .collapsed-new-chat-button-leave-active {
+    transition: none;
+  }
 }
 
 .collapsed-new-chat-button {

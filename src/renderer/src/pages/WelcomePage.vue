@@ -29,93 +29,97 @@
         class="welcome-guide-coachmark pointer-events-auto absolute rounded-2xl border border-border/80 bg-background/95 p-4 shadow-2xl backdrop-blur"
         :style="coachmarkPanelStyle"
       >
-        <div class="flex items-center justify-between gap-3">
-          <p class="text-[11px] uppercase tracking-[0.18em] text-primary/80">
-            {{ t('welcome.page.guide.title') }}
-          </p>
-          <span
-            class="rounded-full border border-border/70 bg-muted/80 px-2 py-0.5 text-[11px] text-muted-foreground"
-          >
-            {{ coachmarkStepIndex }}/{{ coachmarkTotalSteps }}
-          </span>
-        </div>
+        <Transition name="spotlight-panel" mode="out-in">
+          <div :key="coachmarkStepId">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-primary/80">
+                {{ t('welcome.page.guide.title') }}
+              </p>
+              <span
+                class="rounded-full border border-border/70 bg-muted/80 px-2 py-0.5 text-[11px] text-muted-foreground"
+              >
+                {{ coachmarkStepIndex }}/{{ coachmarkTotalSteps }}
+              </span>
+            </div>
 
-        <div class="mt-3 flex min-w-0 items-center gap-2 overflow-hidden">
-          <h2 class="shrink-0 text-sm font-semibold text-foreground">
-            {{ coachmarkStepTitle }}
-          </h2>
-          <template v-if="showGuideImportAction">
-            <span class="shrink-0 text-xs font-medium text-muted-foreground">
-              {{ t('welcome.page.guide.or') }}
-            </span>
-            <button
-              data-testid="welcome-guide-import-action"
-              type="button"
-              class="inline-flex min-w-0 max-w-[220px] items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary shadow-sm transition-all duration-150 hover:border-primary/60 hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.99]"
-              @click.stop="onImportProviders"
-            >
-              <Icon icon="lucide:download" class="h-3.5 w-3.5 shrink-0" />
-              <span class="truncate">{{ t('welcome.page.importProviders') }}</span>
-            </button>
-          </template>
-        </div>
-        <p class="mt-2 text-xs leading-5 text-muted-foreground">
-          {{ t('welcome.page.guide.description', { step: coachmarkStepTitle }) }}
-        </p>
+            <div class="mt-3 flex min-w-0 items-center gap-2 overflow-hidden">
+              <h2 class="shrink-0 text-sm font-semibold text-foreground">
+                {{ coachmarkStepTitle }}
+              </h2>
+              <template v-if="showGuideImportAction">
+                <span class="shrink-0 text-xs font-medium text-muted-foreground">
+                  {{ t('welcome.page.guide.or') }}
+                </span>
+                <button
+                  data-testid="welcome-guide-import-action"
+                  type="button"
+                  class="inline-flex min-w-0 max-w-[220px] items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary shadow-sm transition-all duration-150 hover:border-primary/60 hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.99]"
+                  @click.stop="onImportProviders"
+                >
+                  <Icon icon="lucide:download" class="h-3.5 w-3.5 shrink-0" />
+                  <span class="truncate">{{ t('welcome.page.importProviders') }}</span>
+                </button>
+              </template>
+            </div>
+            <p class="mt-2 text-xs leading-5 text-muted-foreground">
+              {{ t('welcome.page.guide.description', { step: coachmarkStepTitle }) }}
+            </p>
 
-        <div class="mt-4 flex flex-wrap items-start justify-between gap-3">
-          <div class="flex max-w-full flex-wrap items-center gap-2">
-            <button
-              data-testid="welcome-guide-prev-action"
-              type="button"
-              class="whitespace-nowrap rounded-lg border border-border/80 px-3 py-1.5 text-xs transition-colors"
-              :class="
-                canGoToPreviousGuideStep
-                  ? 'text-foreground hover:bg-accent/50'
-                  : 'cursor-not-allowed text-muted-foreground/50'
-              "
-              :disabled="!canGoToPreviousGuideStep"
-              @click="goToPreviousGuideStep"
-            >
-              {{ t('common.back') }}
-            </button>
+            <div class="mt-4 flex flex-wrap items-start justify-between gap-3">
+              <div class="flex max-w-full flex-wrap items-center gap-2">
+                <button
+                  data-testid="welcome-guide-prev-action"
+                  type="button"
+                  class="whitespace-nowrap rounded-lg border border-border/80 px-3 py-1.5 text-xs transition-colors"
+                  :class="
+                    canGoToPreviousGuideStep
+                      ? 'text-foreground hover:bg-accent/50'
+                      : 'cursor-not-allowed text-muted-foreground/50'
+                  "
+                  :disabled="!canGoToPreviousGuideStep"
+                  @click="goToPreviousGuideStep"
+                >
+                  {{ t('common.back') }}
+                </button>
 
-            <button
-              data-testid="welcome-guide-next-action"
-              type="button"
-              class="whitespace-nowrap rounded-lg border border-border/80 px-3 py-1.5 text-xs transition-colors"
-              :class="
-                canGoToNextGuideStep
-                  ? 'text-foreground hover:bg-accent/50'
-                  : 'cursor-not-allowed text-muted-foreground/50'
-              "
-              :disabled="!canGoToNextGuideStep"
-              @click="goToNextGuideStep"
-            >
-              {{ t('common.next') }}
-            </button>
+                <button
+                  data-testid="welcome-guide-next-action"
+                  type="button"
+                  class="whitespace-nowrap rounded-lg border border-border/80 px-3 py-1.5 text-xs transition-colors"
+                  :class="
+                    canGoToNextGuideStep
+                      ? 'text-foreground hover:bg-accent/50'
+                      : 'cursor-not-allowed text-muted-foreground/50'
+                  "
+                  :disabled="!canGoToNextGuideStep"
+                  @click="goToNextGuideStep"
+                >
+                  {{ t('common.next') }}
+                </button>
+              </div>
+
+              <div class="flex max-w-full flex-wrap items-center justify-end gap-2">
+                <button
+                  data-testid="welcome-guide-close-action"
+                  type="button"
+                  class="whitespace-nowrap rounded-lg border border-border/80 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                  @click="dismissGuideCoachmark"
+                >
+                  {{ t('common.close') }}
+                </button>
+
+                <button
+                  data-testid="welcome-guide-expert-action"
+                  type="button"
+                  class="whitespace-nowrap rounded-lg border border-border/80 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                  @click="handleExperiencedGuideAction"
+                >
+                  {{ t('settings.skills.sync.skipAll') }}
+                </button>
+              </div>
+            </div>
           </div>
-
-          <div class="flex max-w-full flex-wrap items-center justify-end gap-2">
-            <button
-              data-testid="welcome-guide-close-action"
-              type="button"
-              class="whitespace-nowrap rounded-lg border border-border/80 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-              @click="dismissGuideCoachmark"
-            >
-              {{ t('common.close') }}
-            </button>
-
-            <button
-              data-testid="welcome-guide-expert-action"
-              type="button"
-              class="whitespace-nowrap rounded-lg border border-border/80 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-              @click="handleExperiencedGuideAction"
-            >
-              {{ t('settings.skills.sync.skipAll') }}
-            </button>
-          </div>
-        </div>
+        </Transition>
       </div>
     </div>
 
@@ -656,5 +660,22 @@ select,
 textarea,
 [role='button'] {
   -webkit-app-region: no-drag;
+}
+
+.spotlight-panel-enter-active,
+.spotlight-panel-leave-active {
+  transition: opacity var(--dc-motion-fast) var(--dc-ease-out-soft);
+}
+
+.spotlight-panel-enter-from,
+.spotlight-panel-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-panel-enter-active,
+  .spotlight-panel-leave-active {
+    transition: none;
+  }
 }
 </style>

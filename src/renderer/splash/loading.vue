@@ -394,7 +394,8 @@ onBeforeUnmount(() => {
   box-shadow:
     0 0 10px 3px rgb(103 221 255 / 90%),
     0 0 30px 9px rgb(25 126 255 / 46%);
-  transform: scale(0);
+  opacity: 0;
+  transform: scale(0.3);
 }
 
 .speed-line {
@@ -802,7 +803,7 @@ onBeforeUnmount(() => {
 @keyframes core-flare {
   0% {
     opacity: 0;
-    transform: scale(0);
+    transform: scale(0.3);
   }
   42% {
     opacity: 1;

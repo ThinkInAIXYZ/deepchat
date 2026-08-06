@@ -1138,9 +1138,11 @@ onBeforeUnmount(() => {
     box-shadow 160ms ease;
 }
 
-.calendar-cell:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 0 1px hsl(var(--border));
+@media (hover: hover) and (pointer: fine) {
+  .calendar-cell:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 1px hsl(var(--border));
+  }
 }
 
 .calendar-month-label {

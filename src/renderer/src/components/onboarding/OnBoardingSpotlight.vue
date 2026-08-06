@@ -15,14 +15,17 @@
       fill-rule="evenodd"
       @click.stop.prevent="$emit('dimClick')"
     />
-    <path
-      v-if="cutoutPathD"
-      data-testid="onboarding-spotlight-border"
-      :d="cutoutPathD"
-      fill="none"
-      :stroke="borderColor"
-      :stroke-width="borderWidth"
-    />
+    <Transition name="spotlight-cutout" mode="out-in">
+      <path
+        v-if="cutoutPathD"
+        :key="cutoutPathD"
+        data-testid="onboarding-spotlight-border"
+        :d="cutoutPathD"
+        fill="none"
+        :stroke="borderColor"
+        :stroke-width="borderWidth"
+      />
+    </Transition>
   </svg>
 </template>
 
@@ -69,5 +72,22 @@ defineEmits<{
 .onboarding-spotlight-svg path[data-testid='onboarding-spotlight-path'] {
   pointer-events: auto;
   cursor: auto;
+}
+
+.spotlight-cutout-enter-active,
+.spotlight-cutout-leave-active {
+  transition: opacity var(--dc-motion-fast) var(--dc-ease-out-soft);
+}
+
+.spotlight-cutout-enter-from,
+.spotlight-cutout-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-cutout-enter-active,
+  .spotlight-cutout-leave-active {
+    transition: none;
+  }
 }
 </style>

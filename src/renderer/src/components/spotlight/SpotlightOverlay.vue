@@ -335,14 +335,12 @@ input {
 
 .dc-spotlight-enter-active,
 .dc-spotlight-leave-active {
-  transition: opacity var(--dc-motion-fast) var(--dc-ease-out-soft);
+  transition: opacity 80ms var(--dc-ease-out-soft);
 }
 
 .dc-spotlight-enter-active .spotlight-panel,
 .dc-spotlight-leave-active .spotlight-panel {
-  transition:
-    opacity var(--dc-motion-default) var(--dc-ease-out-express),
-    transform var(--dc-motion-default) var(--dc-ease-out-express);
+  transition: opacity 80ms var(--dc-ease-out-soft);
 }
 
 .dc-spotlight-enter-from,
@@ -353,7 +351,7 @@ input {
 .dc-spotlight-enter-from .spotlight-panel,
 .dc-spotlight-leave-to .spotlight-panel {
   opacity: 0;
-  transform: translate3d(0, -10px, 0) scale(0.98);
+  transform: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

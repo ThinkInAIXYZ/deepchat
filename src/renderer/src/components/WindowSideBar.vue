@@ -2,7 +2,7 @@
   <TooltipProvider :delay-duration="200">
     <div
       data-testid="window-sidebar"
-      class="window-sidebar-shell flex flex-row h-full shrink-0 overflow-hidden window-drag-region transition-[width] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+      class="window-sidebar-shell flex flex-row h-full shrink-0 overflow-hidden window-drag-region transition-[width] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
       :class="collapsed ? 'w-12' : 'w-[288px]'"
     >
       <!-- Left Column: Agent Icons (48px) -->
@@ -311,7 +311,13 @@
               />
             </div>
 
-            <div v-show="!isGroupCollapsed(chatSectionGroup)" class="space-y-0.5">
+            <TransitionGroup
+              v-show="!isGroupCollapsed(chatSectionGroup)"
+              name="session-row"
+              tag="div"
+              class="space-y-0.5"
+              :class="{ 'session-rows-static': sessionRowsStatic }"
+            >
               <WindowSideBarSessionItem
                 v-for="session in chatSectionGroup.sessions"
                 :key="session.id"
@@ -329,7 +335,7 @@
                 @toggle-pin="handleTogglePin"
                 @delete="openDeleteDialog"
               />
-            </div>
+            </TransitionGroup>
           </div>
 
           <div class="flex items-center justify-between gap-2 px-2 pb-1 pt-4">
@@ -772,6 +778,7 @@ const remoteControlIconClass = computed(() => {
 
 const isPinnedSectionCollapsed = ref(false)
 const collapsedGroupIds = ref<Set<string>>(new Set())
+const sessionRowsStatic = ref(sessionStore.loading || sessionStore.loadingMore)
 const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLowerCase())
 const matchesSessionSearch = (session: UISession) => {
   if (!normalizedSessionSearchQuery.value) {
@@ -1538,6 +1545,25 @@ watch(collapsed, (isCollapsed) => {
   }
 })
 
+watch(
+  () => sessionStore.loading || sessionStore.loadingMore,
+  (loading) => {
+    if (loading) {
+      sessionRowsStatic.value = true
+      return
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!sessionStore.loading && !sessionStore.loadingMore) {
+          sessionRowsStatic.value = false
+        }
+      })
+    })
+  },
+  { immediate: true }
+)
+
 const openDeleteDialog = (session: UISession) => {
   deleteTargetSession.value = session
 }
@@ -1782,11 +1808,11 @@ const getPinFlightAnimationOptions = (nextPinned: boolean) =>
   nextPinned
     ? {
         duration: PIN_FLIGHT_DURATION_MS,
-        easing: 'cubic-bezier(0.18, 0.92, 0.22, 1)'
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)'
       }
     : {
         duration: PIN_FLIGHT_DURATION_MS + 20,
-        easing: 'cubic-bezier(0.24, 0.84, 0.28, 1)'
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
       }
 
 const createPinFlightKeyframes = (
@@ -2028,6 +2054,26 @@ onUnmounted(() => {
   overflow-anchor: none;
 }
 
+.session-row-enter-active {
+  transition:
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-fast) var(--dc-ease-out-soft);
+}
+
+.session-row-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.session-row-move {
+  transition: transform var(--dc-motion-default) var(--dc-ease-out-express);
+}
+
+.session-rows-static .session-row-enter-active,
+.session-rows-static .session-row-move {
+  transition: none;
+}
+
 :deep(.sidebar-project-group-ghost) {
   opacity: 0.45;
 }
@@ -2059,7 +2105,7 @@ input {
 }
 
 :global(.sidebar-pin-flight .session-content) {
-  margin-left: var(--pin-text-shift) !important;
+  transform: translateX(var(--pin-text-shift)) !important;
 }
 
 .theme-icon-wrap {
@@ -2079,17 +2125,17 @@ input {
   will-change: transform, opacity;
 }
 
-/* 形态变化交给 line-md 的线条流动动画；这里再叠加一个缩放"弹出"增强存在感 */
+/* 形态变化交给 line-md 的线条流动动画；这里再叠加淡入缩放增强存在感 */
 .theme-icon-enter-active {
   transition:
-    opacity 0.25s ease,
-    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    opacity var(--dc-motion-default) var(--dc-ease-out-soft),
+    transform var(--dc-motion-default) var(--dc-ease-out-express);
 }
 
 .theme-icon-leave-active {
   transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-fast) var(--dc-ease-out-express);
 }
 
 .theme-icon-enter-from {
@@ -2104,7 +2150,9 @@ input {
 
 @media (prefers-reduced-motion: reduce) {
   .window-sidebar-shell,
-  .window-sidebar-session-column {
+  .window-sidebar-session-column,
+  .session-row-enter-active,
+  .session-row-move {
     transition: none;
   }
 

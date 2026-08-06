@@ -22,7 +22,7 @@
         @click="emit('toggle-collapse')"
       >
         <span
-          class="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-inner shadow-primary/10 transition-transform duration-200 group-hover:scale-[0.98] dark:border-primary/25 dark:bg-primary/15"
+          class="agent-progress-trigger-icon flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-inner shadow-primary/10 transition-transform duration-200 dark:border-primary/25 dark:bg-primary/15"
         >
           <Icon icon="lucide:list-checks" class="h-4 w-4" />
         </span>
@@ -289,6 +289,12 @@ const getEntryAriaLabel = (entry: AgentPlanItem): string =>
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, hsl(var(--foreground)) 6%, transparent),
     0 0 0 1px color-mix(in srgb, hsl(var(--primary)) 24%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .agent-progress-trigger:hover .agent-progress-trigger-icon {
+    transform: scale(0.98);
+  }
 }
 
 .agent-progress-action:active,
