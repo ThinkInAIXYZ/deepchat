@@ -658,7 +658,7 @@ async function createOnePackageArtifact(
     source: { commit: sourceSha, version },
     build: {
       purpose: 'distribution',
-      electron: '40.10.5',
+      electron: '41.10.4',
       electronBuilder: '26.15.3',
       workflowRunId,
       workflowRunAttempt
