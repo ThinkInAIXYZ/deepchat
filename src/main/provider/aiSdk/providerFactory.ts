@@ -72,7 +72,7 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function toOpenAICompatibleProviderOptionsKey(providerName: string): string {
-  // Mirrors the private toCamelCase helper in @ai-sdk/openai-compatible@3.0.14.
+  // Mirrors the package's private toCamelCase helper.
   // Broader camel-case transforms can produce namespaces the adapter does not read.
   return providerName.replace(/[_-]([a-z])/g, (match) => match[1].toUpperCase())
 }
