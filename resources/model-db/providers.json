@@ -33099,13 +33099,14 @@
             "context": 164000,
             "output": 8192
           },
+          "temperature": true,
           "tool_call": false,
           "reasoning": {
             "supported": false
           },
           "attachment": false,
           "open_weights": true,
-          "release_date": "2024-01-01",
+          "release_date": "2025-08-21",
           "last_updated": "2025-08-21",
           "type": "chat"
         },
@@ -36521,14 +36522,15 @@
             "context": 256000,
             "output": 262144
           },
+          "temperature": true,
           "tool_call": true,
           "reasoning": {
             "supported": false
           },
           "attachment": false,
           "open_weights": true,
-          "release_date": "2025-07-25",
-          "last_updated": "2025-07-25",
+          "release_date": "2025-07-21",
+          "last_updated": "2025-07-21",
           "type": "chat"
         },
         {
@@ -38380,6 +38382,73 @@
           "open_weights": false,
           "release_date": "2026-04-08",
           "last_updated": "2026-07-09",
+          "type": "chat"
+        },
+        {
+          "id": "meta/muse-spark-1.2-contributor",
+          "name": "Muse Spark 1.2 Contributor (Data Used for Training)",
+          "display_name": "Muse Spark 1.2 Contributor (Data Used for Training)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-05",
+          "last_updated": "2026-08-05",
+          "type": "chat"
+        },
+        {
+          "id": "meta/muse-spark-1.2",
+          "name": "Muse Spark 1.2",
+          "display_name": "Muse Spark 1.2",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-05",
+          "last_updated": "2026-08-05",
           "type": "chat"
         },
         {
@@ -74041,39 +74110,6 @@
           "type": "chat"
         },
         {
-          "id": "gemini-2-5-pro",
-          "name": "Gemini 2.5 Pro",
-          "display_name": "Gemini 2.5 Pro",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "audio",
-              "video",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 65536
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": false,
-          "knowledge": "2025-01",
-          "release_date": "2025-06-17",
-          "last_updated": "2025-06-17",
-          "type": "chat"
-        },
-        {
           "id": "gpt-5-4",
           "name": "GPT-5.4",
           "display_name": "GPT-5.4",
@@ -74184,6 +74220,63 @@
           "knowledge": "2025-05-31",
           "release_date": "2026-02-05",
           "last_updated": "2026-03-13",
+          "type": "chat"
+        },
+        {
+          "id": "claude-fable-5",
+          "name": "Claude Fable 5",
+          "display_name": "Claude Fable 5",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "omitted",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Adaptive thinking is always on for Claude Fable 5 and Claude Mythos 5; thinking.type = \"disabled\" is rejected.",
+                "Manual budget_tokens requests return 400 on Claude Fable 5 and Claude Mythos 5.",
+                "thinking.display defaults to omitted; set display to summarized to receive readable thinking summaries."
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-01-31",
+          "release_date": "2026-06-09",
+          "last_updated": "2026-06-09",
           "type": "chat"
         },
         {
@@ -74363,6 +74456,38 @@
           "type": "chat"
         },
         {
+          "id": "gpt-5-5-pro",
+          "name": "GPT-5.5 Pro",
+          "display_name": "GPT-5.5 Pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-12-01",
+          "release_date": "2026-04-23",
+          "last_updated": "2026-04-23",
+          "type": "chat"
+        },
+        {
           "id": "gemini-3-flash",
           "name": "Gemini 3 Flash Preview",
           "display_name": "Gemini 3 Flash Preview",
@@ -74415,13 +74540,14 @@
           "type": "chat"
         },
         {
-          "id": "gpt-5-1-codex-mini",
-          "name": "GPT-5.1 Codex mini",
-          "display_name": "GPT-5.1 Codex mini",
+          "id": "gpt-5-6-luna",
+          "name": "GPT-5.6 Luna",
+          "display_name": "GPT-5.6 Luna",
           "modalities": {
             "input": [
               "text",
-              "image"
+              "image",
+              "pdf"
             ],
             "output": [
               "text",
@@ -74429,26 +74555,28 @@
             ]
           },
           "limit": {
-            "context": 400000,
+            "context": 1050000,
             "output": 128000
           },
           "temperature": false,
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
                 "none",
                 "low",
                 "medium",
-                "high"
+                "high",
+                "xhigh",
+                "max"
               ],
               "verbosity": "medium",
               "verbosity_options": [
@@ -74461,61 +74589,9 @@
           },
           "attachment": true,
           "open_weights": false,
-          "knowledge": "2024-09-30",
-          "release_date": "2025-11-13",
-          "last_updated": "2025-11-13",
-          "type": "chat"
-        },
-        {
-          "id": "gpt-5-1-codex-max",
-          "name": "GPT-5.1 Codex Max",
-          "display_name": "GPT-5.1 Codex Max",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 400000,
-            "output": 128000
-          },
-          "temperature": false,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": false
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": false,
-              "mode": "effort",
-              "effort": "none",
-              "effort_options": [
-                "none",
-                "low",
-                "medium",
-                "high"
-              ],
-              "verbosity": "medium",
-              "verbosity_options": [
-                "low",
-                "medium",
-                "high"
-              ],
-              "visibility": "hidden"
-            }
-          },
-          "attachment": true,
-          "open_weights": false,
-          "knowledge": "2024-09-30",
-          "release_date": "2025-11-13",
-          "last_updated": "2025-11-13",
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
           "type": "chat"
         },
         {
@@ -74761,24 +74837,20 @@
           "type": "chat"
         },
         {
-          "id": "gemini-3-pro",
-          "name": "Gemini 3 Pro Preview",
-          "display_name": "Gemini 3 Pro Preview",
+          "id": "glm-5-2",
+          "name": "GLM-5.2",
+          "display_name": "GLM-5.2",
           "modalities": {
             "input": [
-              "text",
-              "image",
-              "video",
-              "audio",
-              "pdf"
+              "text"
             ],
             "output": [
               "text"
             ]
           },
           "limit": {
-            "context": 1048576,
-            "output": 65536
+            "context": 1000000,
+            "output": 131072
           },
           "temperature": true,
           "tool_call": true,
@@ -74786,28 +74858,10 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "level",
-              "level": "high",
-              "level_options": [
-                "low",
-                "high"
-              ],
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thought_signatures"
-              ]
-            }
-          },
-          "attachment": true,
-          "open_weights": false,
-          "knowledge": "2025-01",
-          "release_date": "2025-11-18",
-          "last_updated": "2025-11-18",
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-06-13",
+          "last_updated": "2026-06-13",
           "type": "chat"
         },
         {
@@ -74893,9 +74947,9 @@
           "type": "chat"
         },
         {
-          "id": "claude-sonnet-4",
-          "name": "Claude Sonnet 4.5",
-          "display_name": "Claude Sonnet 4.5",
+          "id": "gpt-5-6-terra",
+          "name": "GPT-5.6 Terra",
+          "display_name": "GPT-5.6 Terra",
           "modalities": {
             "input": [
               "text",
@@ -74903,45 +74957,48 @@
               "pdf"
             ],
             "output": [
-              "text"
+              "text",
+              "image"
             ]
           },
           "limit": {
-            "context": 200000,
-            "output": 64000
+            "context": 1050000,
+            "output": 128000
           },
-          "temperature": true,
+          "temperature": false,
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
-              "mode": "budget",
-              "budget": {
-                "min": 1024,
-                "unit": "tokens"
-              },
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
               ],
-              "notes": [
-                "Claude 4 manual thinking uses thinking.type = \"enabled\" with budget_tokens.",
-                "Interleaved thinking requires the interleaved-thinking-2025-05-14 beta header for this model family."
-              ]
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
             }
           },
           "attachment": true,
           "open_weights": false,
-          "knowledge": "2025-07-31",
-          "release_date": "2025-09-29",
-          "last_updated": "2025-09-29",
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
           "type": "chat"
         },
         {
@@ -75114,9 +75171,9 @@
           "type": "chat"
         },
         {
-          "id": "gpt-5-2-codex",
-          "name": "GPT-5.2 Codex",
-          "display_name": "GPT-5.2 Codex",
+          "id": "gpt-5-6-sol",
+          "name": "GPT-5.6 Sol",
+          "display_name": "GPT-5.6 Sol",
           "modalities": {
             "input": [
               "text",
@@ -75129,7 +75186,7 @@
             ]
           },
           "limit": {
-            "context": 400000,
+            "context": 1050000,
             "output": 128000
           },
           "temperature": false,
@@ -75145,10 +75202,12 @@
               "mode": "effort",
               "effort": "medium",
               "effort_options": [
+                "none",
                 "low",
                 "medium",
                 "high",
-                "xhigh"
+                "xhigh",
+                "max"
               ],
               "verbosity": "medium",
               "verbosity_options": [
@@ -75161,9 +75220,9 @@
           },
           "attachment": true,
           "open_weights": false,
-          "knowledge": "2025-08-31",
-          "release_date": "2025-12-11",
-          "last_updated": "2025-12-11",
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
           "type": "chat"
         },
         {
@@ -75216,6 +75275,36 @@
           "knowledge": "2024-05-30",
           "release_date": "2025-08-07",
           "last_updated": "2025-08-07",
+          "type": "chat"
+        },
+        {
+          "id": "inkling",
+          "name": "Inkling",
+          "display_name": "Inkling",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-15",
+          "last_updated": "2026-07-15",
           "type": "chat"
         },
         {
@@ -75276,39 +75365,6 @@
           "type": "chat"
         },
         {
-          "id": "gemini-2-5-flash",
-          "name": "Gemini 2.5 Flash",
-          "display_name": "Gemini 2.5 Flash",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "audio",
-              "video",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 65536
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": false,
-          "knowledge": "2025-01",
-          "release_date": "2025-06-17",
-          "last_updated": "2025-06-17",
-          "type": "chat"
-        },
-        {
           "id": "claude-opus-4-5",
           "name": "Claude Opus 4.5 (latest)",
           "display_name": "Claude Opus 4.5 (latest)",
@@ -75364,6 +75420,42 @@
           "knowledge": "2025-05",
           "release_date": "2025-11-24",
           "last_updated": "2025-11-24",
+          "type": "chat"
+        },
+        {
+          "id": "claude-sonnet-5",
+          "name": "Claude Sonnet 5",
+          "display_name": "Claude Sonnet 5",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-01-31",
+          "release_date": "2026-06-30",
+          "last_updated": "2026-06-30",
           "type": "chat"
         },
         {
@@ -75501,6 +75593,42 @@
           "type": "chat"
         },
         {
+          "id": "claude-opus-5",
+          "name": "Claude Opus 5",
+          "display_name": "Claude Opus 5",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05",
+          "release_date": "2026-07-24",
+          "last_updated": "2026-07-24",
+          "type": "chat"
+        },
+        {
           "id": "qwen3-next-80b-a3b-instruct",
           "name": "Qwen3-Next 80B-A3B Instruct",
           "display_name": "Qwen3-Next 80B-A3B Instruct",
@@ -75526,6 +75654,59 @@
           "knowledge": "2025-04",
           "release_date": "2025-09",
           "last_updated": "2025-09",
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5-5",
+          "name": "GPT-5.5",
+          "display_name": "GPT-5.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-12-01",
+          "release_date": "2026-04-23",
+          "last_updated": "2026-04-23",
           "type": "chat"
         }
       ]
@@ -81833,19 +82014,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
+            "supported": false
           },
           "attachment": true,
           "open_weights": false,
@@ -81875,19 +82044,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
+            "supported": false
           },
           "attachment": true,
           "open_weights": false,
@@ -82399,19 +82556,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
+            "supported": false
           },
           "attachment": true,
           "open_weights": false,
@@ -82642,19 +82787,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
+            "supported": false
           },
           "attachment": true,
           "open_weights": false,
@@ -82987,7 +83120,7 @@
           },
           "limit": {
             "context": 1000000,
-            "output": 64000
+            "output": 65000
           },
           "temperature": true,
           "tool_call": true,
@@ -83683,19 +83816,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
+            "supported": false
           },
           "attachment": true,
           "open_weights": false,
@@ -84443,19 +84564,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
+            "supported": false
           },
           "attachment": false,
           "open_weights": true,
@@ -85690,19 +85799,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
+            "supported": false
           },
           "attachment": true,
           "open_weights": true,
@@ -94918,6 +95015,75 @@
           "open_weights": false,
           "release_date": "2026-04-08",
           "last_updated": "2026-07-09",
+          "type": "chat"
+        },
+        {
+          "id": "muse-spark-1.2-contributor",
+          "name": "Muse Spark 1.2 Contributor",
+          "display_name": "Muse Spark 1.2 Contributor",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-05",
+          "last_updated": "2026-08-05",
+          "type": "chat"
+        },
+        {
+          "id": "muse-spark-1.2",
+          "name": "Muse Spark 1.2",
+          "display_name": "Muse Spark 1.2",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-05",
+          "last_updated": "2026-08-05",
           "type": "chat"
         }
       ]
@@ -135955,8 +136121,8 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 131072
+            "context": 262144,
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -136567,8 +136733,8 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 32768
+            "context": 262144,
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -138463,6 +138629,43 @@
           "type": "chat"
         },
         {
+          "id": "meta/muse-spark-1.2",
+          "name": "Meta: Muse Spark 1.2",
+          "display_name": "Meta: Muse Spark 1.2",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-05",
+          "last_updated": "2026-08-05",
+          "type": "chat"
+        },
+        {
           "id": "gryphe/mythomax-l2-13b",
           "name": "MythoMax 13B",
           "display_name": "MythoMax 13B",
@@ -138487,6 +138690,39 @@
           "open_weights": false,
           "release_date": "2023-07-02",
           "last_updated": "2023-07-02",
+          "type": "chat"
+        },
+        {
+          "id": "inclusionai/ling-3.0-flash",
+          "name": "Ling-3.0-flash",
+          "display_name": "Ling-3.0-flash",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-07-23",
+          "last_updated": "2026-07-23",
           "type": "chat"
         },
         {
@@ -139353,7 +139589,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 393216
+            "output": 131072
           },
           "temperature": true,
           "tool_call": true,
@@ -141564,8 +141800,8 @@
             ]
           },
           "limit": {
-            "context": 200000,
-            "output": 128000
+            "context": 202752,
+            "output": 131072
           },
           "temperature": true,
           "tool_call": true,
@@ -152784,7 +153020,7 @@
             ]
           },
           "limit": {
-            "context": 1048576,
+            "context": 1000000,
             "output": 384000
           },
           "temperature": true,
@@ -156938,7 +157174,7 @@
             ]
           },
           "limit": {
-            "context": 262144,
+            "context": 256000,
             "output": 131072
           },
           "temperature": true,
@@ -158924,6 +159160,69 @@
           "open_weights": false,
           "release_date": "2026-07-09",
           "last_updated": "2026-07-09",
+          "type": "chat"
+        },
+        {
+          "id": "meta/muse-spark-1.2-contributor",
+          "name": "Muse Spark 1.2 Contributor",
+          "display_name": "Muse Spark 1.2 Contributor",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-05",
+          "last_updated": "2026-08-05",
+          "type": "chat"
+        },
+        {
+          "id": "meta/muse-spark-1.2",
+          "name": "Muse Spark 1.2",
+          "display_name": "Muse Spark 1.2",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-05",
+          "last_updated": "2026-08-05",
           "type": "chat"
         },
         {
@@ -174384,6 +174683,33 @@
           "type": "chat"
         },
         {
+          "id": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+          "name": "Qwen3 235B-A22B Instruct 2507",
+          "display_name": "Qwen3 235B-A22B Instruct 2507",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-07-21",
+          "last_updated": "2025-07-21",
+          "type": "chat"
+        },
+        {
           "id": "Qwen/Qwen3.5-122B-A10B",
           "name": "Qwen3.5 122B-A10B",
           "display_name": "Qwen3.5 122B-A10B",
@@ -175097,6 +175423,33 @@
           "type": "chat"
         },
         {
+          "id": "deepseek-ai/DeepSeek-V3",
+          "name": "DeepSeek-V3",
+          "display_name": "DeepSeek-V3",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 64000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2024-12-26",
+          "last_updated": "2024-12-26",
+          "type": "chat"
+        },
+        {
           "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
           "name": "DeepSeek V4 Flash 0731",
           "display_name": "DeepSeek V4 Flash 0731",
@@ -175248,6 +175601,34 @@
           "knowledge": "2024-07",
           "release_date": "2025-12-01",
           "last_updated": "2025-12-01",
+          "type": "chat"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-V3.1",
+          "name": "DeepSeek-V3.1",
+          "display_name": "DeepSeek-V3.1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-08-21",
+          "last_updated": "2025-08-21",
           "type": "chat"
         },
         {
@@ -181168,6 +181549,33 @@
           "type": "chat"
         },
         {
+          "id": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+          "name": "Qwen3 235B-A22B Instruct 2507",
+          "display_name": "Qwen3 235B-A22B Instruct 2507",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-07-21",
+          "last_updated": "2025-07-21",
+          "type": "chat"
+        },
+        {
           "id": "Qwen/Qwen3.5-122B-A10B",
           "name": "Qwen3.5 122B-A10B",
           "display_name": "Qwen3.5 122B-A10B",
@@ -181692,6 +182100,33 @@
           "type": "chat"
         },
         {
+          "id": "deepseek-ai/DeepSeek-V3",
+          "name": "DeepSeek-V3",
+          "display_name": "DeepSeek-V3",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 163840,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2024-12-26",
+          "last_updated": "2024-12-26",
+          "type": "chat"
+        },
+        {
           "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
           "name": "DeepSeek V4 Flash 0731",
           "display_name": "DeepSeek V4 Flash 0731",
@@ -181803,6 +182238,34 @@
           "knowledge": "2024-12",
           "release_date": "2025-12-02",
           "last_updated": "2025-12-02",
+          "type": "chat"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-V3.1",
+          "name": "DeepSeek-V3.1",
+          "display_name": "DeepSeek-V3.1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 163840,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-08-21",
+          "last_updated": "2025-08-21",
           "type": "chat"
         },
         {
@@ -197340,8 +197803,8 @@
         },
         {
           "id": "qwen3-235b-a22b-instruct-2507",
-          "name": "Qwen3 235B A22B Instruct 2507",
-          "display_name": "Qwen3 235B A22B Instruct 2507",
+          "name": "Qwen3 235B-A22B Instruct 2507",
+          "display_name": "Qwen3 235B-A22B Instruct 2507",
           "modalities": {
             "input": [
               "text"
@@ -197357,14 +197820,12 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
+            "supported": false
           },
           "attachment": false,
           "open_weights": true,
-          "knowledge": "2025-04",
-          "release_date": "2025-07-23",
-          "last_updated": "2025-07-23",
+          "release_date": "2025-07-21",
+          "last_updated": "2025-07-21",
           "type": "chat"
         },
         {
@@ -218518,31 +218979,6 @@
       "doc": "https://www.volcengine.com/docs/82379/1330310?lang=zh",
       "models": [
         {
-          "id": "deepseek-v3-2-251201",
-          "name": "deepseek-v3-2-251201",
-          "display_name": "deepseek-v3-2-251201",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 32000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
-          "type": "chat"
-        },
-        {
           "id": "deepseek-v4-flash-260425",
           "name": "deepseek-v4-flash-260425",
           "display_name": "deepseek-v4-flash-260425",
@@ -218564,7 +219000,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218589,7 +219025,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218614,7 +219050,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218638,7 +219074,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218662,7 +219098,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218686,7 +219122,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218711,7 +219147,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218736,7 +219172,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "embedding"
         },
         {
@@ -218761,7 +219197,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "embedding"
         },
         {
@@ -218787,7 +219223,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218813,7 +219249,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218839,7 +219275,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218865,7 +219301,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218891,7 +219327,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218917,7 +219353,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218943,7 +219379,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218969,7 +219405,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -218995,7 +219431,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219021,7 +219457,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219047,7 +219483,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219073,7 +219509,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219099,7 +219535,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219125,7 +219561,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219149,7 +219585,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219175,7 +219611,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219201,7 +219637,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219227,7 +219663,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219251,7 +219687,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219272,7 +219708,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z"
+          "last_updated": "2026-08-06T06:54:17Z"
         },
         {
           "id": "doubao-seedance-1-0-pro-fast-251015",
@@ -219292,7 +219728,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z"
+          "last_updated": "2026-08-06T06:54:17Z"
         },
         {
           "id": "doubao-seedance-1-5-pro-251215",
@@ -219313,7 +219749,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z"
+          "last_updated": "2026-08-06T06:54:17Z"
         },
         {
           "id": "doubao-seedance-2-0-260128",
@@ -219335,7 +219771,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z"
+          "last_updated": "2026-08-06T06:54:17Z"
         },
         {
           "id": "doubao-seedance-2-0-fast-260128",
@@ -219357,7 +219793,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z"
+          "last_updated": "2026-08-06T06:54:17Z"
         },
         {
           "id": "doubao-seedance-2-0-mini-260615",
@@ -219379,7 +219815,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z"
+          "last_updated": "2026-08-06T06:54:17Z"
         },
         {
           "id": "doubao-seedream-4-0-250828",
@@ -219399,7 +219835,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "imageGeneration"
         },
         {
@@ -219420,7 +219856,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "imageGeneration"
         },
         {
@@ -219441,7 +219877,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "imageGeneration"
         },
         {
@@ -219462,7 +219898,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "imageGeneration"
         },
         {
@@ -219487,7 +219923,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         },
         {
@@ -219512,7 +219948,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-08-05T09:07:36Z",
+          "last_updated": "2026-08-06T06:54:17Z",
           "type": "chat"
         }
       ]
@@ -228127,6 +228563,34 @@
           "type": "chat"
         },
         {
+          "id": "muse-spark-1.2",
+          "name": "muse-spark-1.2",
+          "display_name": "muse-spark-1.2",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen3.8-max-preview",
           "name": "qwen3.8-max-preview",
           "display_name": "qwen3.8-max-preview",
@@ -229126,9 +229590,9 @@
           "type": "chat"
         },
         {
-          "id": "qwen3.7-plus",
-          "name": "qwen3.7-plus",
-          "display_name": "qwen3.7-plus",
+          "id": "qwen3.7-flash",
+          "name": "qwen3.7-flash",
+          "display_name": "qwen3.7-flash",
           "modalities": {
             "input": [
               "text"
@@ -229151,9 +229615,9 @@
           "type": "chat"
         },
         {
-          "id": "qwen3.7-flash",
-          "name": "qwen3.7-flash",
-          "display_name": "qwen3.7-flash",
+          "id": "qwen3.7-plus",
+          "name": "qwen3.7-plus",
+          "display_name": "qwen3.7-plus",
           "modalities": {
             "input": [
               "text"
@@ -229971,6 +230435,25 @@
           "type": "chat"
         },
         {
+          "id": "xiaomi-mimo-v2.5-pro",
+          "name": "xiaomi-mimo-v2.5-pro",
+          "display_name": "xiaomi-mimo-v2.5-pro",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen3.6-max-preview",
           "name": "qwen3.6-max-preview",
           "display_name": "qwen3.6-max-preview",
@@ -229998,25 +230481,6 @@
                 "thinking_blocks"
               ]
             }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "xiaomi-mimo-v2.5-pro",
-          "name": "xiaomi-mimo-v2.5-pro",
-          "display_name": "xiaomi-mimo-v2.5-pro",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 1000000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
           },
           "type": "chat"
         },
@@ -243363,9 +243827,9 @@
           "type": "chat"
         },
         {
-          "id": "text-babbage-001",
-          "name": "text-babbage-001",
-          "display_name": "text-babbage-001",
+          "id": "text-ada-001",
+          "name": "text-ada-001",
+          "display_name": "text-ada-001",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -243377,9 +243841,9 @@
           "type": "chat"
         },
         {
-          "id": "text-davinci-002",
-          "name": "text-davinci-002",
-          "display_name": "text-davinci-002",
+          "id": "text-curie-001",
+          "name": "text-curie-001",
+          "display_name": "text-curie-001",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -243467,20 +243931,6 @@
           "type": "tts"
         },
         {
-          "id": "text-ada-001",
-          "name": "text-ada-001",
-          "display_name": "text-ada-001",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
           "id": "text-search-ada-doc-001",
           "name": "text-search-ada-doc-001",
           "display_name": "text-search-ada-doc-001",
@@ -243509,9 +243959,9 @@
           "type": "chat"
         },
         {
-          "id": "text-curie-001",
-          "name": "text-curie-001",
-          "display_name": "text-curie-001",
+          "id": "text-moderation-latest",
+          "name": "text-moderation-latest",
+          "display_name": "text-moderation-latest",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -243523,9 +243973,9 @@
           "type": "chat"
         },
         {
-          "id": "text-moderation-007",
-          "name": "text-moderation-007",
-          "display_name": "text-moderation-007",
+          "id": "text-babbage-001",
+          "name": "text-babbage-001",
+          "display_name": "text-babbage-001",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -243554,6 +244004,20 @@
             "supported": false
           },
           "type": "embedding"
+        },
+        {
+          "id": "step-2-16k",
+          "name": "step-2-16k",
+          "display_name": "step-2-16k",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
         },
         {
           "id": "whisper-1",
@@ -243602,20 +244066,6 @@
               "audio"
             ]
           },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "step-2-16k",
-          "name": "step-2-16k",
-          "display_name": "step-2-16k",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -243712,6 +244162,20 @@
           "type": "chat"
         },
         {
+          "id": "text-davinci-002",
+          "name": "text-davinci-002",
+          "display_name": "text-davinci-002",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
           "id": "yi-large",
           "name": "yi-large",
           "display_name": "yi-large",
@@ -243796,9 +244260,9 @@
           "type": "chat"
         },
         {
-          "id": "text-moderation-latest",
-          "name": "text-moderation-latest",
-          "display_name": "text-moderation-latest",
+          "id": "text-moderation-007",
+          "name": "text-moderation-007",
+          "display_name": "text-moderation-007",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -248873,6 +249337,11 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
           "attachment": true,
           "type": "imageGeneration"
         },
@@ -253897,8 +254366,8 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 131072
+            "context": 262144,
+            "output": 262144
           },
           "tool_call": true,
           "reasoning": {
