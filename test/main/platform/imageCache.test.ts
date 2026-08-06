@@ -45,9 +45,31 @@ describe('resolveCachedImageDataUrl', () => {
     )
   })
 
+  it('resolves cached images with an uppercase scheme', async () => {
+    await fs.writeFile(path.join(electronMock.userDataPath, 'images', 'generated.png'), 'image')
+
+    await expect(resolveCachedImageDataUrl('IMGCACHE://generated.png')).resolves.toBe(
+      'data:image/png;base64,aW1hZ2U='
+    )
+  })
+
   it('rejects references outside the image cache root', async () => {
     await expect(resolveCachedImageDataUrl('imgcache://../outside.png')).rejects.toThrow(
       'Invalid cached image path'
+    )
+  })
+
+  it('rejects symbolic links that escape the image cache root', async () => {
+    const outsidePath = path.join(electronMock.userDataPath, 'outside.png')
+    await fs.writeFile(outsidePath, 'image')
+    await fs.symlink(
+      outsidePath,
+      path.join(electronMock.userDataPath, 'images', 'outside.png'),
+      'file'
+    )
+
+    await expect(resolveCachedImageDataUrl('imgcache://outside.png')).rejects.toThrow(
+      'Cached image reference is not a regular file'
     )
   })
 

@@ -1134,7 +1134,7 @@ describe('ToolManager', () => {
     )
     const argumentsJson = JSON.stringify({
       image: 'imgcache://generated.jpg',
-      nested: [{ reference: ' imgcache://generated.jpg ' }],
+      nested: [{ reference: ' IMGCACHE://generated.jpg ' }],
       prompt: 'Edit imgcache://generated.jpg with warmer light'
     })
 
@@ -1149,6 +1149,7 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(false)
     expect(resolveCachedImageDataUrl).toHaveBeenCalledTimes(2)
     expect(resolveCachedImageDataUrl).toHaveBeenCalledWith('imgcache://generated.jpg', undefined)
+    expect(resolveCachedImageDataUrl).toHaveBeenCalledWith('IMGCACHE://generated.jpg', undefined)
     expect(client.callTool).toHaveBeenCalledWith(
       'echo',
       {

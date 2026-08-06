@@ -1192,7 +1192,7 @@ export class ToolManager {
     signal?.throwIfAborted()
     if (typeof value === 'string') {
       const reference = value.trim()
-      return /^imgcache:\/\/\S+$/.test(reference)
+      return /^imgcache:\/\/\S+$/i.test(reference)
         ? await this.resolveCachedImageDataUrl(reference, signal)
         : value
     }

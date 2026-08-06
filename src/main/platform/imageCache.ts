@@ -114,7 +114,7 @@ export async function resolveCachedImageDataUrl(
 ): Promise<string> {
   signal?.throwIfAborted()
   const normalizedSource = source.trim()
-  if (!normalizedSource.startsWith(IMGCACHE_URL_PREFIX)) {
+  if (!normalizedSource.toLowerCase().startsWith(IMGCACHE_URL_PREFIX)) {
     throw new Error('Unsupported cached image reference')
   }
 
