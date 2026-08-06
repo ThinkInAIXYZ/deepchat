@@ -13,6 +13,7 @@ import {
   DEEPSEEK_RESPONSES_BASE_URL,
   DEEPSEEK_RESPONSES_MODEL_ID,
   isOfficialDeepSeekEndpoint,
+  resolveDeepSeekResponsesRequestRoute,
   resolveDeepSeekResponsesRoute
 } from '@/provider/deepseekResponsesAdapter'
 import { createAiSdkProviderContext } from '@/provider/aiSdk/providerFactory'
@@ -153,6 +154,39 @@ describe('DeepSeek Responses route', () => {
         baseUrl: 'https://api.deepseek.com/v1'
       })
     ).toBeNull()
+  })
+
+  it('selects Responses only for a new search or compatible replay', () => {
+    const target = {
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      baseUrl: 'https://api.deepseek.com/v1'
+    }
+
+    expect(
+      resolveDeepSeekResponsesRequestRoute({ ...target, messages: [], search: false })
+    ).toBeNull()
+    expect(resolveDeepSeekResponsesRequestRoute({ ...target, messages: [], search: true })).toEqual(
+      {
+        providerKind: 'openai-responses',
+        baseUrl: DEEPSEEK_RESPONSES_BASE_URL
+      }
+    )
+    expect(
+      resolveDeepSeekResponsesRequestRoute({
+        ...target,
+        messages: [
+          {
+            role: 'assistant',
+            provider_replay: { markerId: 'ws_1', payload: '{"version":1}' }
+          }
+        ],
+        search: false
+      })
+    ).toEqual({
+      providerKind: 'openai-responses',
+      baseUrl: DEEPSEEK_RESPONSES_BASE_URL
+    })
   })
 })
 

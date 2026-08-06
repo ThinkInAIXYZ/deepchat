@@ -19,8 +19,8 @@
 - [x] Run the full required validation and complete the severity-ordered pre-commit review.
 - [x] Confirm with a real key that the official Responses endpoint emits completed native `search`
   and `open_page` items.
-- [ ] Confirm with a real key that a second independent user turn retains the first turn's replayed
-  search context.
+- [ ] Before merge, confirm with a real key that a second independent user turn retains the first
+  turn's replayed search context.
 - [x] Capture normalized AI SDK URL sources in search blocks and the existing result table.
 - [x] Hide provider-owned search markers and wrap completed search targets without truncation.
 - [x] Preserve queued search intent during edits and keep replay-bearing turns atomic in emergency
@@ -28,3 +28,8 @@
 - [x] Cover production-runtime replay, SDK default store behavior, persisted OpenAI item-ID removal,
   request-scope isolation, and SQLite opaque-envelope round trips.
 - [x] Keep legacy MCP search blocks and opaque replay payloads out of provider-native renderer UI.
+- [x] Keep ordinary V4 Flash requests on Chat Completions while routing search and replay requests
+  through Responses.
+- [x] Strip opaque replay payloads from client message pages without changing durable storage.
+- [x] Apply the safe replay projector to in-flight tool rounds and recover resume intent from the
+  closest persisted user record.

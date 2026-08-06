@@ -20,6 +20,7 @@ import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { DeepChatLoopNotification } from '@/agent/deepchat/loop/ports'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
+import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
 import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
@@ -463,7 +464,19 @@ describe('processStream', () => {
         yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
       })()
     }) as unknown as ProcessParams['coreStream']
-    const params = createParams({ coreStream, tools: [makeTool('read_file')] })
+    const providerReplayProjector = createDeepSeekResponsesReplayProjector({
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      baseUrl: 'https://api.deepseek.com/v1'
+    })
+    if (!providerReplayProjector) {
+      throw new Error('Expected provider replay projector')
+    }
+    const params = createParams({
+      coreStream,
+      tools: [makeTool('read_file')],
+      providerReplayProjector
+    })
 
     const promise = processStream(params)
     await vi.runAllTimersAsync()

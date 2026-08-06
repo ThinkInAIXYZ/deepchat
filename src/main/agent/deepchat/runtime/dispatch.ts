@@ -28,7 +28,8 @@ import type {
 import type {
   ChatMessage,
   ChatMessageProviderOptions,
-  ChatMessageProviderReplay
+  ChatMessageProviderReplay,
+  ChatMessageProviderReplayProjector
 } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
 import type {
@@ -382,18 +383,26 @@ function extractReasoningProviderOptions(
   return undefined
 }
 
-function extractProviderReplay(block: AssistantMessageBlock): ChatMessageProviderReplay | null {
-  if (block.type !== 'search') {
+function extractProviderReplay(
+  block: AssistantMessageBlock,
+  projector: ChatMessageProviderReplayProjector | undefined
+): ChatMessageProviderReplay | null {
+  if (block.type !== 'search' || !projector) {
     return null
   }
   const payload = block.extra?.providerReplayJson
   if (typeof payload !== 'string') {
     return null
   }
-  if (!payload || typeof block.id !== 'string' || !block.id.trim()) {
-    throw new Error('Provider replay block is missing its marker ID or payload.')
+  const replay = projector(payload)
+  if (!replay) {
+    return null
   }
-  return { markerId: block.id, payload }
+  if (typeof block.id !== 'string' || !block.id.trim() || block.id !== replay.markerId) {
+    console.warn('[DeepChatDispatch] Ignoring provider replay block with mismatched marker ID.')
+    return null
+  }
+  return replay
 }
 
 function mapToolCallToChatMessage(
@@ -410,9 +419,12 @@ function mapToolCallToChatMessage(
 function buildReplayAwareToolRoundMessages(
   blocks: AssistantMessageBlock[],
   toolCalls: ToolCallResult[],
-  interleavedReasoning: InterleavedReasoningConfig
+  interleavedReasoning: InterleavedReasoningConfig,
+  providerReplayProjector: ChatMessageProviderReplayProjector | undefined
 ): ChatMessage[] | null {
-  const replaySegments = segmentAssistantBlocksByProviderReplay(blocks, extractProviderReplay)
+  const replaySegments = segmentAssistantBlocksByProviderReplay(blocks, (block) =>
+    extractProviderReplay(block, providerReplayProjector)
+  )
   if (replaySegments.every((segment) => segment.replayAfter === null)) {
     return null
   }
@@ -1791,6 +1803,7 @@ export interface SettleToolBatchParams {
   contextLength: number
   maxTokens: number
   rendererFlushHandle: RendererFlushHandle
+  providerReplayProjector?: ChatMessageProviderReplayProjector
   collaborators?: ToolDispatchCollaborators
   providerId?: string
 }
@@ -1814,6 +1827,7 @@ export async function settleToolBatch(
     contextLength,
     maxTokens,
     rendererFlushHandle,
+    providerReplayProjector,
     collaborators,
     providerId
   } = params
@@ -1881,7 +1895,8 @@ export async function settleToolBatch(
   const replayAwareMessages = buildReplayAwareToolRoundMessages(
     iterationBlocks,
     toolCalls,
-    interleavedReasoning
+    interleavedReasoning,
+    providerReplayProjector
   )
   conversation.push(...(replayAwareMessages ?? [assistantMessage]))
 

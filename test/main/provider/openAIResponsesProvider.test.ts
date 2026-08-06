@@ -152,7 +152,47 @@ describe('OpenAIResponsesProvider', () => {
     expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(false)
   })
 
-  it('routes only official DeepSeek V4 Flash requests through Responses', async () => {
+  it('keeps ordinary official DeepSeek V4 Flash requests on the configured transport', async () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiType: 'deepseek',
+        baseUrl: 'https://api.deepseek.com/v1'
+      }),
+      createProviderSettings()
+    )
+    ;(provider as any).isInitialized = true
+
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'hello' }],
+      'deepseek-v4-flash',
+      {
+        maxTokens: 1024,
+        contextLength: 8192,
+        functionCall: true,
+        type: 'chat'
+      } as ModelConfig,
+      0.7,
+      256,
+      []
+    )) {
+      break
+    }
+
+    const call = mockRunAiSdkCoreStream.mock.calls.at(-1)
+    expect(call?.[0]).toMatchObject({
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'deepseek',
+        apiType: 'deepseek',
+        baseUrl: 'https://api.deepseek.com/v1'
+      }
+    })
+    expect(call?.[8]).toBeUndefined()
+  })
+
+  it('routes official DeepSeek V4 Flash search requests through Responses', async () => {
     const provider = new AiSdkProvider(
       createProvider({
         id: 'deepseek',
@@ -191,6 +231,52 @@ describe('OpenAIResponsesProvider', () => {
       }
     })
     expect(call?.[8]).toEqual({ search: true })
+  })
+
+  it('keeps compatible DeepSeek search replay on Responses when new search is disabled', async () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiType: 'deepseek',
+        baseUrl: 'https://api.deepseek.com/v1'
+      }),
+      createProviderSettings()
+    )
+    ;(provider as any).isInitialized = true
+
+    for await (const _event of provider.coreStream(
+      [
+        { role: 'user', content: 'continue' },
+        {
+          role: 'assistant',
+          provider_replay: { markerId: 'ws_1', payload: '{"version":1}' }
+        }
+      ],
+      'deepseek-v4-flash',
+      {
+        maxTokens: 1024,
+        contextLength: 8192,
+        functionCall: true,
+        type: 'chat'
+      } as ModelConfig,
+      0.7,
+      256,
+      []
+    )) {
+      break
+    }
+
+    const call = mockRunAiSdkCoreStream.mock.calls.at(-1)
+    expect(call?.[0]).toMatchObject({
+      providerKind: 'openai-responses',
+      provider: {
+        id: 'deepseek',
+        apiType: 'openai-responses',
+        baseUrl: 'https://api.deepseek.com'
+      }
+    })
+    expect(call?.[8]).toBeUndefined()
   })
 
   it('submits audio transcriptions to the OpenAI audio endpoint', async () => {

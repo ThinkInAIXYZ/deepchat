@@ -44,6 +44,7 @@ import type {
   SessionProjectionUpdate,
   TitleGenerationInput
 } from './contracts'
+import { projectMessagePageForClient } from './clientMessageProjection'
 
 export interface SessionQueryDependencies {
   sessions: SessionProjectionStorePort
@@ -141,7 +142,8 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     options?: { limit?: number; cursor?: MessagePageCursor | null }
   ): Promise<ChatMessagePageResult> {
     this.requireSession(sessionId)
-    return await this.dependencies.transcript.listMessagesPage(sessionId, options)
+    const page = await this.dependencies.transcript.listMessagesPage(sessionId, options)
+    return projectMessagePageForClient(page)
   }
 
   async getTapeInfo(sessionId: string): Promise<AgentTapeInfo> {

@@ -52,6 +52,11 @@ export type DeepSeekResponsesRoute = {
   baseUrl: typeof DEEPSEEK_RESPONSES_BASE_URL
 }
 
+export type DeepSeekResponsesRequestRouteInput = DeepSeekResponsesRouteInput & {
+  messages: readonly ChatMessage[]
+  search: boolean
+}
+
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -104,6 +109,14 @@ export function resolveDeepSeekResponsesRoute(
     providerKind: 'openai-responses',
     baseUrl: DEEPSEEK_RESPONSES_BASE_URL
   }
+}
+
+export function resolveDeepSeekResponsesRequestRoute(
+  input: DeepSeekResponsesRequestRouteInput
+): DeepSeekResponsesRoute | null {
+  const requiresResponses =
+    input.search || input.messages.some((message) => message.provider_replay !== undefined)
+  return requiresResponses ? resolveDeepSeekResponsesRoute(input) : null
 }
 
 function validateWebSearchCall(value: unknown): DeepSeekWebSearchCall {

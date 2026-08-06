@@ -9,7 +9,11 @@ import type {
   ProviderRoundStopReason,
   ToolCallExecutionOwner
 } from '@shared/types/core/llm-events'
-import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
+import type {
+  ChatMessage,
+  ChatMessageProviderOptions,
+  ChatMessageProviderReplayProjector
+} from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
 import type { DeepchatEventName } from '@shared/contracts/events'
@@ -238,6 +242,7 @@ export interface ProcessParams {
   permissionMode: PermissionMode
   initialBlocks?: AssistantMessageBlock[]
   initialAccounting?: MessageMetadata
+  providerReplayProjector?: ChatMessageProviderReplayProjector
   onFirstProviderRoundReady?: () => void
   onConversationMessagesChange?: (messages: ChatMessage[]) => void
   shouldYieldForPendingInput?: () => boolean

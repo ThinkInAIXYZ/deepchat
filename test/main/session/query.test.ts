@@ -282,6 +282,43 @@ describe('SessionQuery', () => {
     warn.mockRestore()
   })
 
+  it('keeps opaque provider replay out of client message pages', async () => {
+    const harness = createHarness()
+    const persistedMessage = createMessage({
+      role: 'assistant',
+      content: JSON.stringify([
+        {
+          id: 'ws_1',
+          type: 'search',
+          status: 'success',
+          timestamp: 100,
+          extra: {
+            actionType: 'search',
+            providerReplayJson: JSON.stringify({ private: 'x'.repeat(1024) })
+          }
+        },
+        {
+          type: 'legacy-search-block',
+          extra: { providerReplayJson: 'legacy-opaque-payload' }
+        }
+      ])
+    })
+    harness.transcript.listMessagesPage.mockResolvedValue({
+      messages: [persistedMessage],
+      nextCursor: null,
+      hasMore: false
+    })
+
+    const page = await harness.coordinator.listMessagesPage('s1')
+    const projectedBlocks = JSON.parse(page.messages[0]?.content ?? '[]')
+    const persistedBlocks = JSON.parse(persistedMessage.content)
+
+    expect(projectedBlocks[0]?.extra).toEqual({ actionType: 'search' })
+    expect(projectedBlocks[1]?.extra).toBeUndefined()
+    expect(persistedBlocks[0]?.extra?.providerReplayJson).toContain('private')
+    expect(persistedBlocks[1]?.extra?.providerReplayJson).toBe('legacy-opaque-payload')
+  })
+
   it('falls back when manifest and replay projections fail or lose their session', async () => {
     const harness = createHarness()
     harness.messages.get.mockReturnValue({ session_id: 's1' })

@@ -825,6 +825,7 @@ export class TurnCoordinator {
           contextContributions,
           resourceInstance: instance,
           providerModelFacts,
+          providerReplayProjector,
           abortController: preStreamAbortController,
           maxProviderRounds: context?.maxProviderRounds,
           refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
@@ -1144,7 +1145,8 @@ export class TurnCoordinator {
         baseUrl: this.ports.providerSettings.getProviderById(state.providerId)?.baseUrl
       })
       const searchIntent = resolveAssistantTurnSearchIntent(
-        this.ports.messageStore.getMessages(sessionId),
+        this.ports.messageStore,
+        sessionId,
         messageId
       )
       const search =
@@ -1400,6 +1402,7 @@ export class TurnCoordinator {
           contextContributions,
           initialBlocks,
           initialAccounting: resumeAccounting,
+          providerReplayProjector,
           maxProviderRounds: resumeAccounting.maxProviderRounds,
           search,
           refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
@@ -1597,25 +1600,16 @@ export class TurnCoordinator {
 }
 
 function resolveAssistantTurnSearchIntent(
-  records: ChatMessageRecord[],
+  messageStore: Pick<SessionTranscript, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
+  sessionId: string,
   assistantMessageId: string
 ): boolean {
-  const orderedRecords = [...records].sort((left, right) => left.orderSeq - right.orderSeq)
-  const assistantIndex = orderedRecords.findIndex((record) => record.id === assistantMessageId)
-  if (assistantIndex < 0 || orderedRecords[assistantIndex]?.role !== 'assistant') {
+  const assistant = messageStore.getMessage(assistantMessageId)
+  if (!assistant || assistant.sessionId !== sessionId || assistant.role !== 'assistant') {
     return false
   }
-
-  for (let index = assistantIndex - 1; index >= 0; index -= 1) {
-    const record = orderedRecords[index]
-    if (record.role === 'assistant') {
-      break
-    }
-    if (record.role === 'user' && extractUserMessageInput(record.content).search === true) {
-      return true
-    }
-  }
-  return false
+  const user = messageStore.getLastUserMessageBeforeOrAt(sessionId, assistant.orderSeq)
+  return user?.role === 'user' && extractUserMessageInput(user.content).search === true
 }
 
 function appendAttachmentTextSafetyRule(prompt: string): string {

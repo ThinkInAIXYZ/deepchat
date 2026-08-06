@@ -1,7 +1,10 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type { AssistantMessageBlock, MessageMetadata } from '@shared/types/agent-interface'
-import type { ChatMessage } from '@shared/types/core/chat-message'
+import type {
+  ChatMessage,
+  ChatMessageProviderReplayProjector
+} from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
@@ -139,6 +142,7 @@ export type DeepChatLoopRunInput = {
   contextContributions?: ContextRuntimeContributions
   initialBlocks?: AssistantMessageBlock[]
   initialAccounting?: MessageMetadata
+  providerReplayProjector?: ChatMessageProviderReplayProjector
   promptPreview?: string
   search?: boolean
   interleavedReasoning?: InterleavedReasoningConfig
@@ -279,6 +283,7 @@ export class DeepChatLoopRunner {
       contextContributions,
       initialBlocks,
       initialAccounting,
+      providerReplayProjector,
       promptPreview,
       search,
       interleavedReasoning: providedInterleavedReasoning,
@@ -453,6 +458,7 @@ export class DeepChatLoopRunner {
           reviewConversationMessages = nextMessages
         },
         maxProviderRounds,
+        providerReplayProjector,
         toolCatalog,
         refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
           if (refreshSystemPrompt) {

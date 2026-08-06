@@ -21,6 +21,7 @@ import {
 } from '@shared/types/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
+import type { ChatMessageProviderReplayProjector } from '@shared/types/core/chat-message'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
 import {
   createToolExecutionPort,
@@ -33,6 +34,7 @@ import {
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from '@shared/agentImageGenerationTool'
 import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
+import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
@@ -160,6 +162,7 @@ type TestHooks = Partial<ProcessControlCollaborators & ProcessInternalDiagnostic
     tool: DeepChatLoopToolNotification
   ) => void
   resultNormalizer?: ToolResultPort['normalize']
+  providerReplayProjector?: ChatMessageProviderReplayProjector
 }
 
 function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
@@ -243,6 +246,7 @@ async function settleToolBatch(
     contextLength,
     maxTokens,
     rendererFlushHandle: flushHandle,
+    providerReplayProjector: hooks?.providerReplayProjector,
     collaborators: {
       notificationObserver: hooks
         ? {
@@ -351,6 +355,59 @@ describe('dispatch', () => {
       expect(toolBlock!.tool_call!.response).toBe('Sunny, 72F')
       expect(toolBlock!.status).toBe('success')
       expect(toolBlock!.extra?.toolSource).toBe('agent')
+    })
+
+    it('skips damaged provider replay while continuing the tool round', async () => {
+      const tools = [makeAgentTool('get_weather')]
+      const toolService = createMockToolService({ get_weather: 'Sunny' })
+      const conversation: any[] = [{ role: 'user', content: 'Hello' }]
+      const providerReplayProjector = createDeepSeekResponsesReplayProjector({
+        providerId: 'deepseek',
+        modelId: 'deepseek-v4-flash',
+        baseUrl: 'https://api.deepseek.com/v1'
+      })
+      if (!providerReplayProjector) throw new Error('Expected provider replay projector')
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      state.blocks.push(
+        {
+          id: 'ws_1',
+          type: 'search',
+          status: 'success',
+          timestamp: Date.now(),
+          extra: { providerReplayJson: '{' }
+        },
+        {
+          type: 'tool_call',
+          status: 'pending',
+          timestamp: Date.now(),
+          tool_call: { id: 'tc1', name: 'get_weather', params: '{}', response: '' }
+        }
+      )
+      state.completedToolCalls = [{ id: 'tc1', name: 'get_weather', arguments: '{}' }]
+
+      const result = await settleToolBatch(
+        state,
+        conversation,
+        0,
+        tools,
+        toolService,
+        'deepseek-v4-flash',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        { providerReplayProjector },
+        'deepseek'
+      )
+
+      expect(result.executed).toBe(1)
+      expect(conversation.some((message) => message.provider_replay)).toBe(false)
+      expect(warn).toHaveBeenCalledWith(
+        '[DeepSeekResponsesAdapter] Ignoring invalid persisted Web Search replay:',
+        expect.any(Error)
+      )
+      warn.mockRestore()
     })
 
     it('rejects an output-truncated batch atomically without tool side effects', async () => {

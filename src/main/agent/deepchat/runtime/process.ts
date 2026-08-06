@@ -1097,6 +1097,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                     : UNKNOWN_CONTEXT_LIMIT,
               maxTokens,
               rendererFlushHandle: echo,
+              providerReplayProjector: params.providerReplayProjector,
               collaborators: {
                 notificationObserver,
                 controls,

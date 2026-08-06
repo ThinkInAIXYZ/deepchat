@@ -1,6 +1,7 @@
 # DeepSeek Native Web Search
 
-Status: repository-validated; native-search canary passed, real-key second-turn replay canary pending.
+Status: repository-validated; native-search canary passed, real-key second-turn replay canary pending
+as a merge gate.
 
 ## User Need
 
@@ -11,8 +12,8 @@ stateless.
 
 ## Goals
 
-- Route only the exact supported DeepSeek configuration through the existing OpenAI Responses
-  transport.
+- Route only native-search and compatible replay requests from the exact supported DeepSeek
+  configuration through the existing OpenAI Responses transport.
 - Capture search intent per submitted turn across send, queue, and steer paths.
 - Project provider search output into DeepChat's existing search blocks and result store.
 - Persist the complete provider item required for stateless replay without a schema migration.
@@ -22,16 +23,18 @@ stateless.
 
 ## Supported Configuration
 
-Native search is available only when all of the following are true:
+Native search is eligible only when all of the following are true:
 
 - provider ID is exactly `deepseek`;
 - model ID is exactly `deepseek-v4-flash`;
-- the derived transport is `openai-responses`;
 - the persisted endpoint is an official DeepSeek HTTPS URL.
 
 An official endpoint has host `api.deepseek.com`, no credentials, query, fragment, or custom port,
-and a path of `/` or `/v1` after removing trailing slashes. Requests use the derived, request-local
-base URL `https://api.deepseek.com`; the persisted provider configuration remains unchanged.
+and a path of `/` or `/v1` after removing trailing slashes. An eligible request switches to the
+request-local `openai-responses` transport and base URL `https://api.deepseek.com` only when the
+current turn enables native search or the projected context contains compatible replay. Requests
+with neither condition keep the persisted transport and base URL. Persisted provider configuration
+is never mutated.
 
 Custom relays, aggregators, model-name prefixes, and DeepSeek V4 Pro are not supported by this
 feature.
@@ -45,7 +48,9 @@ feature.
 - Send, queue, and steer snapshot the effective toolbar state when submitted.
 - Multiple steer inputs merged into one provider turn combine search intent with logical OR.
 - Turning search off prevents a new search tool from being offered; it never removes compatible
-  replay items from prior turns.
+  replay items from prior turns, and those replay-bearing requests still use Responses.
+- Resuming an unfinished assistant turn recovers its intent from the closest persisted user record
+  at or before that assistant. Completed historical turns never enable search for a new turn.
 - Existing conversation-level `enableSearch` fields are not read, extended, or migrated.
 
 ### Search output
@@ -77,8 +82,9 @@ feature.
 - Normalized search data serves UI, export, and citation lookup. It is never used to reconstruct the
   provider protocol item.
 - Renderer code consumes only normalized block fields and never parses `providerReplayJson`.
-- Streaming renderer snapshots omit `providerReplayJson`; renderer presentation never depends on
-  the opaque payload, while durable assistant-block storage remains the replay source.
+- Streaming snapshots and client-facing message-page projections omit `providerReplayJson`;
+  renderer presentation and public read models never depend on the opaque payload, while durable
+  assistant-block storage remains the replay source.
 - Existing MCP-produced `search` blocks without normalized provider action metadata remain on their
   legacy presentation path instead of being grouped as provider-native search activity.
 
@@ -106,9 +112,10 @@ For a compatible target, context projection emits an internal opaque replay part
 block's original position. For any other provider or model, it omits the part while retaining all
 normal assistant text and reasoning.
 
-Invalid, unsupported, or oversized persisted envelopes are omitted with a diagnostic warning so a
-damaged local row cannot permanently block the conversation. Once a replay marker is accepted,
-registration and wire transformation remain fail-closed and never send incomplete replay state.
+Invalid, unsupported, or oversized persisted envelopes are omitted with a diagnostic warning in
+both history and in-flight tool-round projection, so a damaged local row cannot permanently block
+the conversation. Once a replay marker is accepted, registration and wire transformation remain
+fail-closed and never send incomplete replay state.
 
 Before AI SDK conversion, non-search OpenAI item IDs are removed from historical messages. The
 adapter maps each compatible replay part to a provider-executed Web Search marker so AI SDK emits
@@ -125,7 +132,9 @@ is permitted.
 ### Context budget
 
 - The serialized opaque envelope contributes to token estimation exactly once.
-- History selection removes complete user turns before falling back to narrower truncation.
+- Normal history selection removes complete user turns. Emergency message-level truncation may
+  remove non-replay messages individually, but removes a replay-bearing turn atomically when that
+  turn reaches the head.
 - A replay part is inseparable from the assistant record that owns it; no request may contain an
   isolated search item.
 - Emergency message-level truncation removes an entire replay-bearing turn if any part of that turn
@@ -167,8 +176,9 @@ After on every unsupported route, the layout remains unchanged.
 
 ## Acceptance Criteria
 
-- Official `/` and `/v1` endpoint variants enable V4 Flash search and derive the canonical request
-  URL without mutating saved configuration.
+- Official `/` and `/v1` endpoint variants enable V4 Flash search. Search and compatible replay
+  requests derive the canonical Responses URL without mutating saved configuration; ordinary
+  requests retain the configured transport and endpoint.
 - HTTP, credentials, query, fragment, custom host/path/port, relay, prefixed model IDs, and V4 Pro
   configurations do not expose or send native search.
 - Missing `search` values behave as false for old callers and persisted pending inputs.
@@ -182,6 +192,10 @@ After on every unsupported route, the layout remains unchanged.
 - Switching provider or model excludes incompatible replay markers but preserves response text.
 - Corrupt persisted envelopes are skipped locally, while malformed accepted markers and unmatched
   item references still fail before fetch.
+- Resuming across multiple assistant records recovers search intent from the owning persisted user
+  record without inferring intent for a new turn.
+- Stream snapshots and paginated client reads exclude opaque replay JSON while durable storage keeps
+  the envelope intact.
 - A local two-round conformance test proves that the second request contains the original
   `web_search_call`, contains no `item_reference`, sets `store: false`, and contains no continuation
   state fields.
@@ -214,6 +228,6 @@ be specified at that time; no such runtime exists today.
 
 ## Open Questions
 
-None. A real-key native-search canary has confirmed `https://api.deepseek.com/responses` and completed
-`search` plus `open_page` items. A second independent user turn remains required to close the
-stateless replay release gate.
+None. A real-key native-search canary has confirmed `https://api.deepseek.com/responses` and
+completed `search` plus `open_page` items. A second independent user turn remains a blocking merge
+gate until it confirms that DeepSeek accepts the replayed `web_search_call` and retains its context.

@@ -9842,10 +9842,15 @@ describe('DeepChatAgentHarness', () => {
         modelId: 'deepseek-v4-flash'
       })
       const assistantRow = installPendingQuestion()
-      assistantRow.order_seq = 3
+      assistantRow.order_seq = 4
+      const searchSteer = makeDeepchatUserRow(2, 'search steer', 'resume-steer', true)
+      sqlitePresenter.deepchatMessagesTable.getLastUserMessageBeforeOrAtOrderSeq.mockReturnValue(
+        searchSteer
+      )
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
         makeDeepchatUserRow(1, 'initial request', 'resume-user', false),
-        makeDeepchatUserRow(2, 'search steer', 'resume-steer', true),
+        searchSteer,
+        makeDeepchatAssistantRow(3, 'interrupted partial response', 'partial-assistant'),
         assistantRow
       ])
 

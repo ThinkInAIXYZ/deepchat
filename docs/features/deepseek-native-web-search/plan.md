@@ -2,9 +2,11 @@
 
 ## Approach
 
-Use the existing AI SDK OpenAI Responses transport for the exact official DeepSeek V4 Flash route.
-Introduce one provider adapter that owns route recognition, raw item validation, normalized search
-projection, replay-envelope validation, AI SDK marker creation, and request-body transformation.
+Use the existing AI SDK OpenAI Responses transport for native-search and compatible replay requests
+on the exact official DeepSeek V4 Flash route. Ordinary requests keep the configured transport.
+Introduce one provider adapter that owns request-level route recognition, raw item validation,
+normalized search projection, replay-envelope validation, AI SDK marker creation, and request-body
+transformation.
 
 The surrounding runtime receives only narrow generic hooks:
 
@@ -83,14 +85,18 @@ header, timeout, and abort behavior.
 
 ### Runtime wiring
 
-- Resolve the special Responses route before the provider's default OpenAI-compatible route.
+- Resolve the special Responses route per request only when search is enabled or projected context
+  contains compatible replay; otherwise preserve the provider's configured route.
 - Derive `https://api.deepseek.com` only in the request-local provider patch.
 - Create one adapter instance inside each prompt runtime, then pass its closures to provider factory,
   message mapper, and stream adapter.
 - Offer the native tool only for `ProviderStreamOptions.search === true`.
 - Enable raw chunks only for those search-enabled requests.
-- Thread the current turn's search intent through retries and local tool rounds without inferring it
-  from history.
+- Thread the current turn's search intent through retries and local tool rounds. Resume recovers the
+  unfinished turn's intent from its closest preceding persisted user record; new turns never infer
+  intent from completed history.
+- Use the same safe replay projector for persisted history and in-flight tool rounds before any
+  marker reaches the fail-closed adapter registration path.
 
 ### Persistence and UI
 
@@ -111,8 +117,9 @@ header, timeout, and abort behavior.
 - Render normalized provider-search blocks in the existing assistant activity group. Search,
   open-page, and find-in-page actions use one compact presentation with safe links; the component
   must not inspect opaque replay JSON.
-- Exclude opaque replay JSON from throttled renderer snapshots and distinguish provider-native
-  actions from legacy MCP search-result blocks by normalized action metadata.
+- Exclude opaque replay JSON from throttled renderer snapshots and client-facing message-page
+  projections, and distinguish provider-native actions from legacy MCP search-result blocks by
+  normalized action metadata.
 - Remove provider-owned call markers from visible search targets and let completed targets wrap.
 - Keep page-navigation targets separate from citation sources. Only normalized provider URL sources
   enter the citation lookup table.
@@ -122,6 +129,8 @@ header, timeout, and abort behavior.
 - Old callers and pending rows without `search` normalize to false.
 - Non-DeepSeek providers receive no new tools, raw chunks, replay parts, or request transformation.
 - DeepSeek custom endpoints and all other model IDs keep their existing transport.
+- Official V4 Flash requests with neither a new search nor compatible replay keep the configured
+  Chat Completions transport and endpoint.
 - Existing assistant rows without `providerReplayJson` project exactly as before.
 - Compatible envelopes are additive inside the existing JSON extra column and remain readable by
   older builds, which ignore the unknown field.
@@ -131,8 +140,8 @@ header, timeout, and abort behavior.
 
 - Invalid endpoint inputs simply do not enable the route.
 - A malformed raw Web Search item fails the stream rather than persisting unreplayable state.
-- A malformed, unsupported, or oversized persisted envelope is omitted with a warning so local
-  corruption cannot make a conversation unusable.
+- A malformed, unsupported, or oversized persisted envelope is omitted from history and in-flight
+  tool-round projection with a warning so local corruption cannot make a conversation unusable.
 - Duplicate replay IDs, duplicate body markers, missing registrations, unmatched item references,
   remaining continuation fields, or a non-JSON request body fail before the base fetch is called.
 - Only HTTP(S) source URLs enter the normalized search result table; invalid and duplicate sources
@@ -153,6 +162,8 @@ Focused tests will cover:
 - envelope compatibility, model switching, malformed data, duplicate IDs, and leftover markers;
 - production prompt-runtime replay with persisted OpenAI item IDs and the SDK default store path,
   request-scope concurrency isolation, and SQLite `extra_json` round-trip projection;
+- request-level transport selection for search, replay, and ordinary DeepSeek turns;
+- client message-page redaction, damaged in-flight replay, and multi-assistant resume intent;
 - token accounting and complete-turn truncation with replay payloads;
 - a two-round AI SDK conformance path with a captured second request body.
 
