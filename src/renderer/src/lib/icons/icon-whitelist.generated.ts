@@ -120,6 +120,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'git-fork',
     'github',
     'globe',
+    'globe-2',
     'grip-vertical',
     'hammer',
     'hand',
