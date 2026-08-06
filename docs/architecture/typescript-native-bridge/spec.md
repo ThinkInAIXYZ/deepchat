@@ -41,5 +41,5 @@ performance.
 
 ## Compatibility
 
-TNB supports Node 20.19 and newer; DeepChat requires Node 24.14.1. `vue-tsc` accepts TypeScript 5
+TNB supports Node 20.19 and newer; DeepChat requires Node 24.18.0. `vue-tsc` accepts TypeScript 5
 and newer, and TNB exposes the TypeScript 6.0.3 API expected by the current project.
