@@ -1,4 +1,4 @@
-import { defineComponent, nextTick, reactive } from 'vue'
+import { defineComponent, onMounted, onUnmounted, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { WORKSPACE_EVENTS } from '@/events'
@@ -59,6 +59,9 @@ describe('ChatSidePanel', () => {
     vi.doMock('@/components/sidepanel/BrowserPanel.vue', () => ({
       default: defineComponent({
         name: 'BrowserPanel',
+        setup() {
+          onMounted(() => window.dispatchEvent(new Event('browser-panel-mounted')))
+        },
         template: '<div data-testid="browser-panel-stub" />'
       })
     }))
@@ -73,6 +76,9 @@ describe('ChatSidePanel', () => {
           }
         },
         emits: ['toggle-fullscreen', 'insert-file-reference'],
+        setup() {
+          onUnmounted(() => window.dispatchEvent(new Event('workspace-panel-unmounted')))
+        },
         template:
           '<div data-testid="workspace-panel-stub" :data-fullscreen="String(isFullscreen)"><button data-testid="workspace-panel-toggle" @click="$emit(\'toggle-fullscreen\')">toggle</button><button data-testid="workspace-panel-insert" @click="$emit(\'insert-file-reference\', \'C:/workspace/README.md\')">insert</button></div>'
       })
@@ -108,21 +114,30 @@ describe('ChatSidePanel', () => {
     }
   }
 
-  it('replaces workspace content when switching to the browser tab', async () => {
-    const { wrapper } = await setup({ activeTab: 'workspace' })
+  it('unmounts workspace content before mounting browser content', async () => {
+    const lifecycleEvents: string[] = []
+    const recordWorkspaceUnmount = () => lifecycleEvents.push('workspace-unmounted')
+    const recordBrowserMount = () => lifecycleEvents.push('browser-mounted')
+    window.addEventListener('workspace-panel-unmounted', recordWorkspaceUnmount)
+    window.addEventListener('browser-panel-mounted', recordBrowserMount)
 
-    expect(wrapper.find('[data-testid="workspace-panel-stub"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="browser-panel-stub"]').exists()).toBe(false)
+    try {
+      const { wrapper } = await setup({ activeTab: 'workspace' })
+      const browserTab = wrapper
+        .findAll('button')
+        .find((button) => button.text() === 'common.browser.name')
+      expect(browserTab).toBeDefined()
 
-    const browserTab = wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'common.browser.name')
-    expect(browserTab).toBeDefined()
-    await browserTab!.trigger('click')
-    await nextTick()
+      await browserTab!.trigger('click')
+      await new Promise((resolve) => window.setTimeout(resolve, 250))
 
-    expect(wrapper.find('[data-testid="workspace-panel-stub"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="browser-panel-stub"]').exists()).toBe(true)
+      expect(lifecycleEvents).toEqual(['workspace-unmounted', 'browser-mounted'])
+      expect(wrapper.find('[data-testid="workspace-panel-stub"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="browser-panel-stub"]').exists()).toBe(true)
+    } finally {
+      window.removeEventListener('workspace-panel-unmounted', recordWorkspaceUnmount)
+      window.removeEventListener('browser-panel-mounted', recordBrowserMount)
+    }
   })
 
   it('opens the browser sidepanel when OPEN_REQUESTED targets the current host window', async () => {
