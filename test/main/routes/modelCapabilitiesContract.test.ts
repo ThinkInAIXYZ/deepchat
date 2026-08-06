@@ -58,4 +58,16 @@ describe('ModelCapabilitiesSchema', () => {
       temperatureCapability: null
     })
   })
+
+  it('retains provider-native search execution metadata', () => {
+    expect(
+      ModelCapabilitiesSchema.parse({
+        ...createValidCapabilities(),
+        searchExecution: 'provider'
+      })
+    ).toMatchObject({
+      supportsSearch: true,
+      searchExecution: 'provider'
+    })
+  })
 })

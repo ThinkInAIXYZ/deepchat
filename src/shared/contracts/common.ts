@@ -343,6 +343,7 @@ export const UserMessageInlineItemSchema = z.discriminatedUnion('type', [
 export const SendMessageInputSchema = z.object({
   text: z.string(),
   files: z.array(MessageFileSchema).optional(),
+  search: z.boolean().optional().default(false),
   activeSkills: z.array(z.string()).optional(),
   inlineItems: z.array(UserMessageInlineItemSchema).optional(),
   attachmentFallbackPolicy: AttachmentFallbackPolicySchema.optional()

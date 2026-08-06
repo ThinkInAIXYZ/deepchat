@@ -88,6 +88,7 @@ import type {
   ClaimedPendingInputHandle,
   TurnCompletion
 } from './pendingInputContracts'
+import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
 
 type TurnRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
@@ -411,6 +412,16 @@ export class TurnCoordinator {
       preStreamAbortController,
       preStreamAbortSignal
     } = initializedTurn
+    const providerReplayProjector = createDeepSeekResponsesReplayProjector({
+      providerId: state.providerId,
+      modelId: state.modelId,
+      baseUrl: this.ports.providerSettings.getProviderById(state.providerId)?.baseUrl
+    })
+    const searchIntent = content.search === true
+    const search =
+      searchIntent &&
+      providerModelFacts.capabilitySnapshot.supportsSearch &&
+      providerModelFacts.capabilitySnapshot.searchExecution === 'provider'
     let pendingInputFailedBeforeUserFact = false
     let userMessageId: string | null =
       linkedSteerMessageIds[linkedSteerMessageIds.length - 1] ?? null
@@ -513,7 +524,7 @@ export class TurnCoordinator {
         text: content.text,
         files: content.files || [],
         links: [],
-        search: false,
+        search: searchIntent,
         think: false,
         ...(content.activeSkills?.length ? { activeSkills: content.activeSkills } : {}),
         ...(content.inlineItems?.length ? { inlineItems: content.inlineItems } : {})
@@ -753,7 +764,8 @@ export class TurnCoordinator {
               extraReserveTokens: toolReserveTokens,
               preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
               preserveEmptyInterleavedReasoning:
-                interleavedReasoning.preserveEmptyReasoningContent === true
+                interleavedReasoning.preserveEmptyReasoningContent === true,
+              providerReplayProjector
             }
           })
           logSlowPreStreamStep(sessionId, 'context-build', contextBuildStartedAt)
@@ -807,6 +819,7 @@ export class TurnCoordinator {
           messages,
           projectDir,
           promptPreview: content.text,
+          search,
           tools,
           baseSystemPrompt,
           contextContributions,
@@ -1125,6 +1138,19 @@ export class TurnCoordinator {
         state.modelId,
         providerModelFacts
       )
+      const providerReplayProjector = createDeepSeekResponsesReplayProjector({
+        providerId: state.providerId,
+        modelId: state.modelId,
+        baseUrl: this.ports.providerSettings.getProviderById(state.providerId)?.baseUrl
+      })
+      const searchIntent = resolveAssistantTurnSearchIntent(
+        this.ports.messageStore.getMessages(sessionId),
+        messageId
+      )
+      const search =
+        searchIntent &&
+        providerModelFacts.capabilitySnapshot.supportsSearch &&
+        providerModelFacts.capabilitySnapshot.searchExecution === 'provider'
       const projectDir = this.ports.sessionSettings.resolveProjectDir(sessionId, undefined, instance)
       const {
         generationSettings,
@@ -1271,7 +1297,8 @@ export class TurnCoordinator {
               extraReserveTokens: toolReserveTokens,
               preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
               preserveEmptyInterleavedReasoning:
-                interleavedReasoning.preserveEmptyReasoningContent === true
+                interleavedReasoning.preserveEmptyReasoningContent === true,
+              providerReplayProjector
             }
           })
           logSlowPreStreamStep(sessionId, 'context-build', contextBuildStartedAt)
@@ -1374,6 +1401,7 @@ export class TurnCoordinator {
           initialBlocks,
           initialAccounting: resumeAccounting,
           maxProviderRounds: resumeAccounting.maxProviderRounds,
+          search,
           refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
             const refreshedBasePrompt = await basePromptAssembler.assemble({
               sessionId: toAppSessionId(sessionId),
@@ -1566,6 +1594,28 @@ export class TurnCoordinator {
       this.ports.messageStore.deleteFromOrderSeq(sessionId, userMessage.orderSeq)
     }
   }
+}
+
+function resolveAssistantTurnSearchIntent(
+  records: ChatMessageRecord[],
+  assistantMessageId: string
+): boolean {
+  const orderedRecords = [...records].sort((left, right) => left.orderSeq - right.orderSeq)
+  const assistantIndex = orderedRecords.findIndex((record) => record.id === assistantMessageId)
+  if (assistantIndex < 0 || orderedRecords[assistantIndex]?.role !== 'assistant') {
+    return false
+  }
+
+  for (let index = assistantIndex - 1; index >= 0; index -= 1) {
+    const record = orderedRecords[index]
+    if (record.role === 'assistant') {
+      break
+    }
+    if (record.role === 'user' && extractUserMessageInput(record.content).search === true) {
+      return true
+    }
+  }
+  return false
 }
 
 function appendAttachmentTextSafetyRule(prompt: string): string {

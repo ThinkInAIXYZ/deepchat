@@ -1,6 +1,6 @@
 # DeepSeek Native Web Search
 
-Status: proposed.
+Status: implemented and repository-validated; real-key two-turn canary pending.
 
 ## User Need
 

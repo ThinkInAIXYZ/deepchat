@@ -67,6 +67,7 @@ import {
   resolveCapabilityIdentity as resolveModelCapabilityIdentity
 } from '../capabilityIdentity'
 import type { ResolvedCapabilityIdentity } from '@shared/types/model-capabilities'
+import { resolveDeepSeekResponsesRoute } from '../deepseekResponsesAdapter'
 
 const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
 const OPENAI_IMAGE_GENERATION_MODEL_PREFIXES = ['dall-e-', 'gpt-image-']
@@ -360,6 +361,29 @@ export class AiSdkProvider extends BaseLLMProvider {
   private buildRouteDecision(modelId: string, modelConfig: ModelRouteConfig): RouteDecision {
     const strategy = this.getRouteStrategy()
     const storedModel = this.getStoredModelRouteMetadata(modelId, modelConfig)
+    const deepSeekResponsesRoute = resolveDeepSeekResponsesRoute({
+      providerId: this.provider.id,
+      modelId,
+      baseUrl: this.provider.baseUrl
+    })
+
+    if (deepSeekResponsesRoute) {
+      const capabilityIdentity = this.resolveCapabilityIdentity(
+        modelId,
+        undefined,
+        modelConfig,
+        storedModel
+      )
+      return {
+        providerKind: deepSeekResponsesRoute.providerKind,
+        capabilityIdentity,
+        providerPatch: {
+          apiType: 'openai-responses',
+          baseUrl: deepSeekResponsesRoute.baseUrl,
+          capabilityProviderId: capabilityIdentity.providerId
+        }
+      }
+    }
 
     if (strategy === 'grok' && modelId.startsWith('grok-2-image')) {
       return {
@@ -1107,7 +1131,8 @@ export class AiSdkProvider extends BaseLLMProvider {
     temperature: number,
     maxTokens: number,
     tools: MCPToolDefinition[],
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    search = false
   ): AsyncGenerator<LLMCoreStreamEvent> {
     this.assertModelRequestReady(modelId)
     const { context, resolvedModelConfig } = this.buildRuntimeContext(
@@ -1116,6 +1141,19 @@ export class AiSdkProvider extends BaseLLMProvider {
       modelConfig
     )
     if (signal) {
+      if (!search) {
+        yield* runAiSdkCoreStream(
+          context,
+          messages,
+          modelId,
+          resolvedModelConfig,
+          temperature,
+          maxTokens,
+          tools,
+          signal
+        )
+        return
+      }
       yield* runAiSdkCoreStream(
         context,
         messages,
@@ -1124,7 +1162,22 @@ export class AiSdkProvider extends BaseLLMProvider {
         temperature,
         maxTokens,
         tools,
-        signal
+        signal,
+        { search }
+      )
+      return
+    }
+    if (search) {
+      yield* runAiSdkCoreStream(
+        context,
+        messages,
+        modelId,
+        resolvedModelConfig,
+        temperature,
+        maxTokens,
+        tools,
+        undefined,
+        { search: true }
       )
       return
     }
@@ -1146,7 +1199,8 @@ export class AiSdkProvider extends BaseLLMProvider {
     temperature: number,
     maxTokens: number,
     tools: MCPToolDefinition[],
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    search = false
   ): AsyncGenerator<LLMCoreStreamEvent> {
     const decision = this.resolveRequestRouteDecision(modelId, modelConfig)
     yield* this.streamTextWithDecision(
@@ -1157,7 +1211,8 @@ export class AiSdkProvider extends BaseLLMProvider {
       temperature,
       maxTokens,
       tools,
-      signal
+      signal,
+      search
     )
   }
 
@@ -2695,7 +2750,8 @@ export class AiSdkProvider extends BaseLLMProvider {
       temperature,
       maxTokens,
       tools,
-      options?.signal
+      options?.signal,
+      options?.search === true
     )
   }
 

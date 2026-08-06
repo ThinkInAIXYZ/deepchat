@@ -829,7 +829,7 @@ export const useMessageStore = defineStore('message', () => {
         text: normalizedInput.text,
         files: normalizedInput.files ?? [],
         links: [],
-        search: false,
+        search: normalizedInput.search === true,
         think: false,
         activeSkills: normalizedInput.activeSkills ?? [],
         inlineItems: normalizedInput.inlineItems ?? []

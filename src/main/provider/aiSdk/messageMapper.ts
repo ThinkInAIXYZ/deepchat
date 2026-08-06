@@ -274,6 +274,7 @@ export interface MapMessagesToModelMessagesOptions {
   buildLegacyFunctionCallPrompt?: (tools: MCPToolDefinition[]) => string
   preserveOpenAICompatibleReasoningContent?: boolean
   preferOpenAICompatibleAudioDataUrl?: boolean
+  mapProviderReplay?: (replay: NonNullable<ChatMessage['provider_replay']>) => unknown
 }
 
 function buildAssistantProviderOptions(
@@ -354,6 +355,9 @@ export function mapMessagesToModelMessages(
 
     if (message.role === 'assistant') {
       const assistantContent = mapAssistantTextAndReasoning(message)
+      if (message.provider_replay && options.mapProviderReplay) {
+        assistantContent.push(options.mapProviderReplay(message.provider_replay))
+      }
 
       if (message.tool_calls?.length) {
         if (options.supportsNativeTools) {

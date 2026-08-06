@@ -227,6 +227,34 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       }
       break
     }
+    case 'provider_search': {
+      finalizeTrailingPendingNarrativeBlocks(state.blocks)
+      const search = event.provider_search
+      const block: AssistantMessageBlock = {
+        id: search.id,
+        type: 'search',
+        content: search.query,
+        status: 'success',
+        timestamp: Date.now(),
+        extra: {
+          total: search.results.length,
+          searchId: search.id,
+          label: search.label,
+          name: 'web_search',
+          engine: search.provider,
+          provider: search.provider,
+          pages: search.results.slice(0, 6).map((result) => ({
+            title: result.title,
+            url: result.url,
+            ...(result.snippet ? { content: result.snippet } : {})
+          })),
+          providerReplayJson: search.providerReplayJson
+        }
+      }
+      state.blocks.push(block)
+      state.dirty = true
+      break
+    }
     case 'image_data': {
       finalizeTrailingPendingNarrativeBlocks(state.blocks)
       if (state.firstTokenTime === null) state.firstTokenTime = Date.now()

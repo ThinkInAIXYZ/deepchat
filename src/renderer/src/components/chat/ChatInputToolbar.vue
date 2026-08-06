@@ -21,6 +21,31 @@
     </div>
 
     <div class="flex items-center gap-1">
+      <Tooltip v-if="showSearch">
+        <TooltipTrigger as-child>
+          <Button
+            data-testid="chat-search-toggle"
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7 rounded-lg"
+            :class="
+              searchEnabled
+                ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            "
+            :aria-pressed="searchEnabled"
+            :aria-label="t('chat.features.webSearch')"
+            :disabled="isPreparingAttachments"
+            @click="emit('toggle-search')"
+          >
+            <Icon icon="lucide:globe-2" class="w-4 h-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{{ t('chat.features.webSearch') }}</p>
+        </TooltipContent>
+      </Tooltip>
+
       <!-- Mic button -->
       <Tooltip v-if="showVoiceInput">
         <TooltipTrigger as-child>
@@ -205,6 +230,8 @@ const props = withDefaults(
     isVoiceInputListening?: boolean
     isVoiceInputTranscribing?: boolean
     isPreparingAttachments?: boolean
+    showSearch?: boolean
+    searchEnabled?: boolean
   }>(),
   {
     isGenerating: false,
@@ -217,7 +244,9 @@ const props = withDefaults(
     showVoiceInput: false,
     isVoiceInputListening: false,
     isVoiceInputTranscribing: false,
-    isPreparingAttachments: false
+    isPreparingAttachments: false,
+    showSearch: false,
+    searchEnabled: false
   }
 )
 
@@ -227,6 +256,7 @@ const emit = defineEmits<{
   steer: []
   attach: []
   'voice-input': []
+  'toggle-search': []
   stop: []
   'cancel-preparation': []
 }>()

@@ -568,6 +568,7 @@ export const ModelCapabilitiesSchema = z.object({
     default: z.number().int().optional()
   }),
   supportsSearch: z.boolean(),
+  searchExecution: z.literal('provider').optional(),
   searchDefaults: z.object({
     default: z.boolean().optional(),
     forced: z.boolean().optional(),

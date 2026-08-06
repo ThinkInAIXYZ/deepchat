@@ -34,6 +34,7 @@ export function extractUserMessageInput(content: string): SendMessageInput {
     return {
       text,
       files,
+      search: (parsed as { search?: unknown }).search === true,
       ...(activeSkills.length > 0 ? { activeSkills } : {}),
       ...(inlineItems.length > 0 ? { inlineItems } : {})
     }
@@ -55,6 +56,7 @@ export function normalizeUserMessageInput(input: string | SendMessageInput): Sen
   return {
     text,
     files,
+    search: input.search === true,
     ...(activeSkills.length > 0 ? { activeSkills } : {}),
     ...(inlineItems.length > 0 ? { inlineItems } : {}),
     ...(input.attachmentFallbackPolicy === 'auto' ||

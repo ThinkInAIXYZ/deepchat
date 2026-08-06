@@ -70,6 +70,7 @@ export const normalizeSendMessageInput = (content: string | SendMessageInput): S
   return {
     text,
     files,
+    search: content.search === true,
     ...(activeSkills.length > 0 ? { activeSkills } : {}),
     ...(inlineItems.length > 0 ? { inlineItems } : {}),
     ...(attachmentFallbackPolicy ? { attachmentFallbackPolicy } : {})
@@ -80,6 +81,7 @@ export const normalizeCreateSessionInput = (input: CreateSessionInput): SendMess
   normalizeSendMessageInput({
     text: typeof input.message === 'string' ? input.message : '',
     files: Array.isArray(input.files) ? input.files : [],
+    search: input.search === true,
     activeSkills: input.activeSkills,
     inlineItems: Array.isArray(input.inlineItems) ? input.inlineItems : []
   })

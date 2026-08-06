@@ -74,7 +74,15 @@ type SessionClientLike = {
 }
 
 type ModelClientLike = {
-  getCapabilities: (query: CapabilitySnapshotQuery) => Promise<{ supportsAudioInput: boolean }>
+  getCapabilities: (query: CapabilitySnapshotQuery) => Promise<{
+    supportsAudioInput: boolean
+    supportsSearch?: boolean
+    searchExecution?: 'provider'
+  }>
+}
+
+type ProviderClientLike = {
+  onProvidersChanged: (listener: (payload: { providerIds?: string[] }) => void) => () => void
 }
 
 type ComposerInputHandle = {
@@ -98,6 +106,14 @@ type BlockedComposerAttempt = {
 type ComposerSubmissionSeed = {
   draft: ComposerSessionDraft
   inlineItems: UserMessageInlineItem[]
+  search: boolean
+}
+
+type ActiveSearchCapability = {
+  sessionId: string
+  providerId: string
+  modelId: string
+  supported: boolean
 }
 
 type ActiveSubmissionPreparation = {
@@ -119,6 +135,7 @@ type UseComposerSubmitOptions = {
   chatClient: ChatClientLike
   sessionClient: SessionClientLike
   modelClient: ModelClientLike
+  providerClient: ProviderClientLike
   chatInputRef: Ref<ComposerInputHandle | null>
   isReadOnlySession: ComputedRef<boolean>
   isSessionViewPreparing: ComputedRef<boolean>
@@ -154,6 +171,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     chatClient,
     sessionClient,
     modelClient,
+    providerClient,
     chatInputRef,
     isReadOnlySession,
     isSessionViewPreparing,
@@ -180,12 +198,15 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     new Map<string, ActiveSubmissionPreparation>()
   )
   const attachmentFilterTokens = new Map<string, number>()
+  const searchIntents = shallowReactive(new Map<string, boolean>())
+  const activeSearchCapability = ref<ActiveSearchCapability | null>(null)
   const steeringSessionIds = ref<Set<string>>(new Set())
   let activeDraftSessionId = options.sessionId()
   let nextDraftRevision = 0
   let nextDispatchToken = 0
   let suppressedDraftMutations = 0
   let pendingHandleRestoreSessionId: string | null = null
+  let searchCapabilityRequestId = 0
 
   const initialDraft = createEmptyComposerDraft()
   draftRevisions.set(activeDraftSessionId, initialDraft.revision)
@@ -238,6 +259,78 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       options.hasBlockingInteraction() ||
       isSteering.value
   )
+
+  const isSearchAvailable = computed(() => {
+    const capability = activeSearchCapability.value
+    const selection = options.getActiveModelSelection()
+    return Boolean(
+      capability?.supported &&
+      selection &&
+      capability.sessionId === options.sessionId() &&
+      capability.providerId === selection.providerId &&
+      capability.modelId === selection.modelId
+    )
+  })
+  const isSearchEnabled = computed(
+    () => isSearchAvailable.value && searchIntents.get(options.sessionId()) === true
+  )
+
+  function refreshSearchCapability(sessionId: string, providerId: string, modelId: string): void {
+    const requestId = ++searchCapabilityRequestId
+    activeSearchCapability.value = null
+    if (!providerId || !modelId) return
+
+    void modelClient
+      .getCapabilities({ providerId, modelId })
+      .then((capability) => {
+        if (requestId !== searchCapabilityRequestId) return
+        const currentSelection = options.getActiveModelSelection()
+        if (
+          options.sessionId() !== sessionId ||
+          currentSelection?.providerId !== providerId ||
+          currentSelection.modelId !== modelId
+        ) {
+          return
+        }
+        activeSearchCapability.value = {
+          sessionId,
+          providerId,
+          modelId,
+          supported: capability.supportsSearch === true && capability.searchExecution === 'provider'
+        }
+      })
+      .catch((error) => {
+        if (requestId !== searchCapabilityRequestId) return
+        console.warn('[ChatPage] Failed to resolve provider search capability:', error)
+      })
+  }
+
+  const stopSearchCapabilityWatch = watch(
+    () => {
+      const selection = options.getActiveModelSelection()
+      return [options.sessionId(), selection?.providerId ?? '', selection?.modelId ?? ''] as const
+    },
+    ([sessionId, providerId, modelId]) => {
+      refreshSearchCapability(sessionId, providerId, modelId)
+    },
+    { immediate: true }
+  )
+  const removeProvidersChangedListener = providerClient.onProvidersChanged((payload) => {
+    const selection = options.getActiveModelSelection()
+    if (
+      !selection ||
+      (payload.providerIds && !payload.providerIds.includes(selection.providerId))
+    ) {
+      return
+    }
+    refreshSearchCapability(options.sessionId(), selection.providerId, selection.modelId)
+  })
+
+  function toggleSearch(): void {
+    if (!isSearchAvailable.value) return
+    const sessionId = options.sessionId()
+    searchIntents.set(sessionId, searchIntents.get(sessionId) !== true)
+  }
 
   function setSteering(sessionId: string, pending: boolean): void {
     const next = new Set(steeringSessionIds.value)
@@ -311,6 +404,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     return {
       text,
       files: copyComposerFiles(files),
+      search: seed.search,
       ...(activeSkills.length > 0 ? { activeSkills: [...activeSkills] } : {}),
       ...(inlineItems.length > 0 ? { inlineItems: copyInlineItems(inlineItems) } : {})
     }
@@ -420,7 +514,11 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   function captureSubmissionSeed(sessionId: string): ComposerSubmissionSeed {
     return {
       draft: captureLiveDraft(sessionId),
-      inlineItems: copyInlineItems(getComposerInlineItemsSnapshot())
+      inlineItems: copyInlineItems(getComposerInlineItemsSnapshot()),
+      search:
+        sessionId === options.sessionId() &&
+        isSearchAvailable.value &&
+        searchIntents.get(sessionId) === true
     }
   }
 
@@ -996,6 +1094,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     const payload: SendMessageInput = {
       text: input.text,
       files: copyComposerFiles(input.files ?? []),
+      search: input.search === true,
       ...(input.activeSkills ? { activeSkills: [...input.activeSkills] } : {}),
       ...(input.inlineItems ? { inlineItems: input.inlineItems.map((item) => ({ ...item })) } : {})
     }
@@ -1074,6 +1173,11 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   function dispose(): void {
+    searchCapabilityRequestId += 1
+    stopSearchCapabilityWatch()
+    removeProvidersChangedListener()
+    activeSearchCapability.value = null
+    searchIntents.clear()
     attachmentFilterTokens.clear()
     for (const preparation of activeSubmissionPreparations.values()) {
       requestPreparationCancellation(preparation)
@@ -1089,6 +1193,9 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     isQueueSubmitDisabled,
     isInputSubmitDisabled,
     disableQueueSteerAction,
+    isSearchAvailable,
+    isSearchEnabled,
+    toggleSearch,
     onSubmit,
     onCommandSubmit,
     onQueueSubmit,

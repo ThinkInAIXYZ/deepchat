@@ -85,7 +85,14 @@ const setup = async (options?: {
   deferStartupTasks?: boolean
   modelStoreInitialized?: boolean
   initializeModels?: () => Promise<void>
-  modelCapabilities?: Record<string, { supportsAudioInput: boolean }>
+  modelCapabilities?: Record<
+    string,
+    {
+      supportsAudioInput: boolean
+      supportsSearch?: boolean
+      searchExecution?: 'provider'
+    }
+  >
 }) => {
   vi.resetModules()
   chatInputTriggerAttachMock.mockReset()
@@ -252,6 +259,13 @@ const setup = async (options?: {
     onModelsChanged: vi.fn(() => vi.fn()),
     onModelStatusChanged: vi.fn(() => vi.fn())
   }
+  let providersChangedListener: ((payload: { providerIds?: string[] }) => void) | null = null
+  const providerClient = {
+    onProvidersChanged: vi.fn((listener: (payload: { providerIds?: string[] }) => void) => {
+      providersChangedListener = listener
+      return vi.fn()
+    })
+  }
   const isDirectoryMock = vi.fn((path: string) => {
     const resolver = options?.isDirectory ?? true
     return Promise.resolve(typeof resolver === 'function' ? resolver(path) : resolver)
@@ -284,6 +298,9 @@ const setup = async (options?: {
   }))
   vi.doMock('@api/ModelClient', () => ({
     createModelClient: vi.fn(() => modelClient)
+  }))
+  vi.doMock('@api/ProviderClient', () => ({
+    createProviderClient: vi.fn(() => providerClient)
   }))
   vi.doMock('@api/FileClient', () => ({
     createFileClient: vi.fn(() => ({
@@ -354,6 +371,8 @@ const setup = async (options?: {
     modelStore,
     draftStore,
     modelClient,
+    emitProvidersChanged: (payload: { providerIds?: string[] }) =>
+      providersChangedListener?.(payload),
     sessionClient,
     chatClient,
     chatStatusBarOpenModelPickerMock,
@@ -504,6 +523,83 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-supports-vision')).toBe(
       'true'
     )
+  })
+
+  it('captures provider-native search intent in the first DeepChat turn', async () => {
+    const { wrapper, sessionStore, draftStore, modelStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      modelCapabilities: {
+        'deepseek:deepseek-v4-flash': {
+          supportsAudioInput: false,
+          supportsSearch: true,
+          searchExecution: 'provider'
+        }
+      }
+    })
+    modelStore.enabledModels = [
+      {
+        providerId: 'deepseek',
+        models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' }]
+      }
+    ]
+    draftStore.providerId = 'deepseek'
+    draftStore.modelId = 'deepseek-v4-flash'
+    await flushPromises()
+
+    expect((wrapper.vm as any).isSearchAvailable).toBe(true)
+    ;(wrapper.vm as any).toggleSearch()
+    ;(wrapper.vm as any).message = 'Find the latest DeepChat release'
+    await (wrapper.vm as any).onSubmit()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'deepseek',
+        modelId: 'deepseek-v4-flash',
+        search: true
+      })
+    )
+  })
+
+  it('refreshes default-model search capability after provider configuration changes', async () => {
+    const capabilities = {
+      'deepseek:deepseek-v4-flash': {
+        supportsAudioInput: false,
+        supportsSearch: true,
+        searchExecution: 'provider' as const
+      }
+    }
+    const { wrapper, draftStore, modelStore, emitProvidersChanged } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      defaultModel: { providerId: 'deepseek', modelId: 'deepseek-v4-flash' },
+      modelCapabilities: capabilities
+    })
+    modelStore.enabledModels = [
+      {
+        providerId: 'deepseek',
+        models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' }]
+      }
+    ]
+    draftStore.providerId = 'deepseek'
+    draftStore.modelId = 'deepseek-v4-flash'
+    await flushPromises()
+    expect((wrapper.vm as any).isSearchAvailable).toBe(true)
+
+    draftStore.providerId = undefined
+    draftStore.modelId = undefined
+    await flushPromises()
+    expect((wrapper.vm as any).isSearchAvailable).toBe(true)
+
+    capabilities['deepseek:deepseek-v4-flash'] = {
+      supportsAudioInput: false,
+      supportsSearch: false,
+      searchExecution: undefined
+    }
+    emitProvidersChanged({ providerIds: ['deepseek'] })
+    await flushPromises()
+
+    expect((wrapper.vm as any).isSearchAvailable).toBe(false)
   })
 
   it('cancels attachment preparation before opening the vision model picker', async () => {

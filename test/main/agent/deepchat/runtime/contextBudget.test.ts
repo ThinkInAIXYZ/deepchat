@@ -101,6 +101,36 @@ describe('agent request context budget', () => {
     ])
   })
 
+  it('keeps a replay item with its complete active user turn', () => {
+    const result = preflightRequestContext({
+      messages: [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'old' },
+        { role: 'assistant', content: 'old answer' },
+        { role: 'user', content: 'search owner' },
+        { role: 'assistant', content: 'visible answer' },
+        {
+          role: 'assistant',
+          provider_replay: { markerId: 'ws_1', payload: 'R'.repeat(200) }
+        }
+      ],
+      tools: [],
+      contextLength: 32,
+      requestedMaxTokens: 8
+    })
+
+    expect(result.messages).toEqual([
+      { role: 'system', content: 'sys' },
+      { role: 'user', content: 'search owner' },
+      { role: 'assistant', content: 'visible answer' },
+      {
+        role: 'assistant',
+        provider_replay: { markerId: 'ws_1', payload: 'R'.repeat(200) }
+      }
+    ])
+    expect(result.fitsWithinContext).toBe(false)
+  })
+
   it('formats diagnostics for unfittable preflight results', () => {
     const result = preflightRequestContext({
       messages: [{ role: 'user', content: 'x'.repeat(9000) }],

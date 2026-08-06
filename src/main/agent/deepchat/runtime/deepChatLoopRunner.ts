@@ -140,6 +140,7 @@ export type DeepChatLoopRunInput = {
   initialBlocks?: AssistantMessageBlock[]
   initialAccounting?: MessageMetadata
   promptPreview?: string
+  search?: boolean
   interleavedReasoning?: InterleavedReasoningConfig
   viewContext?: PendingTapeViewContext
   refreshSystemPrompt?: (
@@ -279,6 +280,7 @@ export class DeepChatLoopRunner {
       initialBlocks,
       initialAccounting,
       promptPreview,
+      search,
       interleavedReasoning: providedInterleavedReasoning,
       viewContext,
       refreshSystemPrompt,
@@ -629,7 +631,10 @@ export class DeepChatLoopRunner {
                   temperature,
                   maxTokens,
                   tools,
-                  { signal }
+                  {
+                    signal,
+                    ...(search === true ? { search: true } : {})
+                  }
                 )
               },
               beforeStream: () => {

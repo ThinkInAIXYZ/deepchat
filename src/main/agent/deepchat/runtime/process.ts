@@ -965,6 +965,17 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             if (event.type !== 'usage') {
               accumulate(state, event)
             }
+            if (event.type === 'provider_search') {
+              for (const result of event.provider_search.results) {
+                io.messageStore.addSearchResult({
+                  sessionId: io.sessionId,
+                  messageId: io.messageId,
+                  searchId: event.provider_search.id,
+                  rank: typeof result.rank === 'number' ? result.rank : null,
+                  result
+                })
+              }
+            }
             if (event.type === 'plan' && state.latestAgentPlanSnapshot) {
               state.latestAgentPlanSnapshot = {
                 ...state.latestAgentPlanSnapshot,

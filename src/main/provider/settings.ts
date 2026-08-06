@@ -65,6 +65,7 @@ import type {
   ResolvedModelCapabilitySnapshot
 } from '@shared/types/model-capabilities'
 import { getMoonshotKimiTemperaturePolicy } from '@shared/modelRequestPolicy'
+import { resolveDeepSeekResponsesRoute } from './deepseekResponsesAdapter'
 
 // Create interface for model storage
 const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
@@ -566,9 +567,25 @@ export class ProviderSettings implements ProviderSettingsPort {
         ? this.getModelConfig(modelId, providerId, identity).reasoning
         : undefined)
 
-    return buildResolvedCapabilitySnapshot(identity, {
+    const snapshot = buildResolvedCapabilitySnapshot(identity, {
       reasoningEnabled
     })
+    const provider = this.providerHelper?.getProviderById?.(providerId)
+    if (
+      resolveDeepSeekResponsesRoute({
+        providerId,
+        modelId,
+        baseUrl: provider?.baseUrl
+      })
+    ) {
+      return {
+        ...snapshot,
+        supportsSearch: true,
+        searchExecution: 'provider'
+      }
+    }
+
+    return snapshot
   }
 
   private inferProviderDbModelType(model: ProviderModel): ModelType {

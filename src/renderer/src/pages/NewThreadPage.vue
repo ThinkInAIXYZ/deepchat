@@ -122,10 +122,13 @@
                 :show-voice-input="isVoiceInputEnabled"
                 :is-voice-input-listening="isVoiceInputListening"
                 :is-voice-input-transcribing="isVoiceInputTranscribing"
+                :show-search="isSearchAvailable"
+                :search-enabled="isSearchEnabled"
                 :has-input="hasDraftInput"
                 :send-disabled="isAcpWorkdirUnavailable || isSubmittingInput || !hasDraftInput"
                 :is-preparing-attachments="isPreparingAttachments"
                 @attach="onAttach"
+                @toggle-search="toggleSearch"
                 @voice-input="onToggleVoiceInput"
                 @send="onSubmit"
                 @cancel-preparation="cancelSubmissionPreparation"
@@ -196,6 +199,7 @@ import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { createConfigClient } from '@api/ConfigClient'
 import { createFileClient } from '@api/FileClient'
 import { createModelClient } from '@api/ModelClient'
+import { createProviderClient } from '@api/ProviderClient'
 import { createSessionClient } from '@api/SessionClient'
 import { createChatClient } from '@api/ChatClient'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
@@ -231,6 +235,7 @@ const draftStore = useDraftStore()
 const configClient = createConfigClient()
 const fileClient = createFileClient()
 const modelClient = createModelClient()
+const providerClient = createProviderClient()
 const sessionClient = createSessionClient()
 const chatClient = createChatClient()
 const { t } = useI18n()
@@ -257,6 +262,12 @@ const modelGuideTargetRef = ref<HTMLElement | null>(null)
 const firstChatGuideHostRef = ref<HTMLElement | null>(null)
 const firstChatGuideTargetRef = ref<HTMLElement | null>(null)
 const isVoiceInputEnabled = ref(false)
+const isProviderSearchAvailable = ref(false)
+const searchIntent = ref(false)
+const isSearchAvailable = computed(
+  () => !isAcpSelectedAgent.value && isProviderSearchAvailable.value
+)
+const isSearchEnabled = computed(() => isSearchAvailable.value && searchIntent.value)
 const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
@@ -275,6 +286,7 @@ let currentDraftDefaultsTask: Promise<void> | null = null
 let draftDefaultsRequestSeq = 0
 let cancelEnsureDraftTask: (() => void) | null = null
 let voiceInputConfigToken = 0
+let searchCapabilityToken = 0
 let attachmentFilterToken = 0
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
 const hasDraftInput = computed(
@@ -315,7 +327,7 @@ const voiceInput = useSpeechRecognition({
     chatInputRef.value?.insertRecognizedText?.(text)
   },
   transcribe: async ({ audioBase64, mimeType, filename }) => {
-    const explicitSelection = resolveVoiceInputSelection()
+    const explicitSelection = resolveExplicitDraftModelSelection()
     const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
     if (!selection) {
       throw new Error('transcription-target-unavailable')
@@ -712,7 +724,7 @@ async function resolveModel(): Promise<SubmissionModelSelection | null> {
   return null
 }
 
-function resolveVoiceInputSelection(): SubmissionModelSelection | null {
+function resolveExplicitDraftModelSelection(): SubmissionModelSelection | null {
   if (isAcpSelectedAgent.value) {
     return null
   }
@@ -757,7 +769,7 @@ async function refreshVoiceInputAvailability() {
     return
   }
 
-  const explicitSelection = resolveVoiceInputSelection()
+  const explicitSelection = resolveExplicitDraftModelSelection()
   const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
 
   if (!selection) {
@@ -787,16 +799,59 @@ async function refreshVoiceInputAvailability() {
   }
 }
 
+function toggleSearch(): void {
+  if (!isSearchAvailable.value) return
+  searchIntent.value = !searchIntent.value
+}
+
+async function refreshSearchAvailability(): Promise<void> {
+  const token = ++searchCapabilityToken
+  isProviderSearchAvailable.value = false
+
+  if (isAcpSelectedAgent.value) {
+    return
+  }
+
+  try {
+    const explicitSelection = resolveExplicitDraftModelSelection()
+    const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
+    if (token !== searchCapabilityToken || !selection) {
+      return
+    }
+
+    const capabilities = await modelClient.getCapabilities(selection)
+    if (token !== searchCapabilityToken) {
+      return
+    }
+    isProviderSearchAvailable.value =
+      capabilities.supportsSearch === true && capabilities.searchExecution === 'provider'
+  } catch (error) {
+    if (token !== searchCapabilityToken) {
+      return
+    }
+    console.warn('[NewThreadPage] Failed to resolve provider search capability:', error)
+  }
+}
+
 watch(
   () => [selectedAgent.value.id, draftStore.providerId, draftStore.modelId, modelStore.initialized],
   () => {
     void refreshVoiceInputAvailability()
+    void refreshSearchAvailability()
   },
   { immediate: true }
 )
 
 const removeModelConfigChangedListener = modelClient.onModelConfigChanged(() => {
   void refreshVoiceInputAvailability()
+  void refreshSearchAvailability()
+})
+const removeProvidersChangedListener = providerClient.onProvidersChanged((payload) => {
+  const selection = resolveExplicitDraftModelSelection()
+  if (selection && payload.providerIds && !payload.providerIds.includes(selection.providerId)) {
+    return
+  }
+  void refreshSearchAvailability()
 })
 
 const normalizeStartMention = (mention: string): string => {
@@ -862,6 +917,7 @@ async function onSubmit() {
     mainDispatched: false
   }
   activeSubmission.value = submission
+  const search = isSearchEnabled.value
   isSubmittingInput.value = true
   isPreparingAttachments.value =
     !isAcpSelectedAgent.value && attachedFiles.value.some(isAttachmentPreparationCandidate)
@@ -869,7 +925,7 @@ async function onSubmit() {
   try {
     const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
     if (submission.cancelled) return
-    if (await submitText(text, files, submission)) {
+    if (await submitText(text, files, submission, search)) {
       message.value = ''
       attachedFiles.value = []
     }
@@ -903,13 +959,14 @@ async function onCommandSubmit(command: string) {
     mainDispatched: false
   }
   activeSubmission.value = submission
+  const search = isSearchEnabled.value
   isSubmittingInput.value = true
   isPreparingAttachments.value =
     !isAcpSelectedAgent.value && attachedFiles.value.some(isAttachmentPreparationCandidate)
   try {
     const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
     if (submission.cancelled) return
-    if (await submitText(text, files, submission)) {
+    if (await submitText(text, files, submission, search)) {
       attachedFiles.value = []
     }
   } catch (e) {
@@ -938,7 +995,8 @@ function shouldIgnoreManualCompactionDraft(text: string): boolean {
 async function submitText(
   text: string,
   files: MessageFile[],
-  submission: ActiveNewThreadSubmission
+  submission: ActiveNewThreadSubmission,
+  search: boolean
 ): Promise<boolean> {
   if (!text.trim() && files.length === 0) return false
   if (isAcpWorkdirUnavailable.value) return false
@@ -961,6 +1019,7 @@ async function submitText(
     const messagePayload = {
       text,
       files,
+      ...(search ? { search: true } : {}),
       ...(dedupedPendingSkills.length > 0 ? { activeSkills: dedupedPendingSkills } : {}),
       ...(inlineItems.length > 0 ? { inlineItems } : {})
     }
@@ -1003,6 +1062,7 @@ async function submitText(
     const createInput = {
       message: messagePayload.text,
       files: messagePayload.files,
+      ...(messagePayload.search ? { search: true } : {}),
       inlineItems: messagePayload.inlineItems,
       projectDir: selectedSessionProjectDir.value,
       agentId,
@@ -1403,7 +1463,11 @@ onMounted(() => {
 
 onUnmounted(() => {
   cancelSubmissionPreparation()
+  searchCapabilityToken += 1
+  isProviderSearchAvailable.value = false
+  searchIntent.value = false
   removeModelConfigChangedListener()
+  removeProvidersChangedListener()
   voiceInput.cleanup()
   cancelEnsureDraftTask?.()
   cancelEnsureDraftTask = null

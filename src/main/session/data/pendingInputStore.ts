@@ -164,6 +164,7 @@ export class SessionPendingInputStore {
       payload_json: JSON.stringify({
         text,
         files,
+        search: existing.search === true || next.search === true,
         ...(activeSkills.length > 0 ? { activeSkills } : {}),
         ...(inlineItems.length > 0 ? { inlineItems } : {}),
         ...(attachmentFallbackPolicy ? { attachmentFallbackPolicy } : {})

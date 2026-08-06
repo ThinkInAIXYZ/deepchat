@@ -250,6 +250,7 @@ export interface MessageFile {
 export interface SendMessageInput {
   text: string
   files?: MessageFile[]
+  search?: boolean
   activeSkills?: string[]
   inlineItems?: UserMessageInlineItem[]
   attachmentFallbackPolicy?: AttachmentFallbackPolicy
@@ -804,6 +805,7 @@ export interface CreateSessionInput {
   agentId: string
   message: string
   files?: MessageFile[]
+  search?: boolean
   inlineItems?: UserMessageInlineItem[]
   projectDir?: string | null
   providerId?: string

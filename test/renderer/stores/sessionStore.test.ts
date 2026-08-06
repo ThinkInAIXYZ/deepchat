@@ -981,6 +981,7 @@ describe('sessionStore onboarding progress', () => {
       agentId: 'deepchat',
       message: '',
       files: [file],
+      search: true,
       activeSkills: ['ocr-skill'],
       providerId: 'openai',
       modelId: 'gpt-4'
@@ -992,6 +993,7 @@ describe('sessionStore onboarding progress', () => {
       input: {
         text: '',
         files: [file],
+        search: true,
         activeSkills: ['ocr-skill']
       },
       summary

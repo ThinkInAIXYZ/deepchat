@@ -257,6 +257,14 @@ function resolveProtectedRequestTailCount(messages: ChatMessage[]): number {
     return 1
   }
 
+  let activeTurnStart = messages.length - 1
+  while (activeTurnStart > 0 && messages[activeTurnStart]?.role !== 'user') {
+    activeTurnStart -= 1
+  }
+  if (messages.slice(activeTurnStart).some((message) => message.provider_replay)) {
+    return messages.length - activeTurnStart
+  }
+
   let toolTailStart = messages.length - 1
   while (toolTailStart >= 0 && messages[toolTailStart]?.role === 'tool') {
     toolTailStart -= 1

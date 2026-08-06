@@ -16,7 +16,7 @@ function toUserMessageContent(input: SendMessageInput): UserMessageContent {
     text: input.text,
     files: input.files ?? [],
     links: [],
-    search: false,
+    search: input.search === true,
     think: false,
     ...(input.activeSkills?.length ? { activeSkills: input.activeSkills } : {}),
     ...(input.inlineItems?.length ? { inlineItems: input.inlineItems } : {})

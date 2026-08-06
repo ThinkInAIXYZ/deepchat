@@ -2,6 +2,7 @@
 
 import type { ChatMessageProviderOptions } from './chat-message'
 import type { AgentPlanItem, AgentPlanTerminalReason } from '../agent-plan'
+import type { SearchResult } from './search'
 
 export type StreamEventType =
   | 'text'
@@ -15,6 +16,7 @@ export type StreamEventType =
   | 'stop'
   | 'image_data'
   | 'rate_limit'
+  | 'provider_search'
   | 'plan'
 
 export interface TextStreamEvent {
@@ -117,6 +119,20 @@ export interface RateLimitStreamEvent {
   }
 }
 
+export type ProviderSearchPayload = {
+  id: string
+  query: string
+  label: string
+  provider: string
+  results: SearchResult[]
+  providerReplayJson: string
+}
+
+export interface ProviderSearchStreamEvent {
+  type: 'provider_search'
+  provider_search: ProviderSearchPayload
+}
+
 export interface PlanStreamEvent {
   type: 'plan'
   plan: AgentPlanItem[]
@@ -138,12 +154,14 @@ export type LLMCoreStreamEvent =
   | StopStreamEvent
   | ImageDataStreamEvent
   | RateLimitStreamEvent
+  | ProviderSearchStreamEvent
   | PlanStreamEvent
 
 export type {
   ChatMessage,
   ChatMessageContent,
   ChatMessageProviderOptions,
+  ChatMessageProviderReplay,
   ChatMessageRole,
   ChatMessageToolCall
 } from './chat-message'
@@ -249,6 +267,10 @@ export const createStreamEvent = {
   }): RateLimitStreamEvent => ({
     type: 'rate_limit',
     rate_limit
+  }),
+  providerSearch: (provider_search: ProviderSearchPayload): ProviderSearchStreamEvent => ({
+    type: 'provider_search',
+    provider_search
   })
 }
 

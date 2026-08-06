@@ -24,6 +24,7 @@ import {
   type HistoryTurn
 } from './contextBuilder'
 import { buildContextCheckpoint } from './contextContributions'
+import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
 
 const SAFETY_MARGIN = 1.2
 const SUMMARIZATION_OVERHEAD_TOKENS = 4096
@@ -586,12 +587,19 @@ export class CompactionService {
       return null
     }
 
+    const providerReplayProjector = createDeepSeekResponsesReplayProjector({
+      providerId: params.providerId,
+      modelId: params.modelId,
+      baseUrl: this.providerSettings.getProviderById(params.providerId)?.baseUrl
+    })
     const turns = buildHistoryTurns(
       scopedRecords,
       params.supportsVision,
       params.preserveInterleavedReasoning,
       params.preserveEmptyInterleavedReasoning === true,
-      params.supportsAudioInput === true
+      params.supportsAudioInput === true,
+      undefined,
+      providerReplayProjector
     )
     if (turns.length === 0) {
       return null

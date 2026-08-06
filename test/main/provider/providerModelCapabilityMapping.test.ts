@@ -407,6 +407,46 @@ describe('ProviderSettings provider model capability mapping', () => {
     ).toBe('anthropic')
   })
 
+  it('marks provider-native search only for the exact official DeepSeek route', async () => {
+    const { ProviderSettings } = await loadProviderSettings()
+    const provider = {
+      id: 'deepseek',
+      apiType: 'deepseek',
+      baseUrl: 'https://api.deepseek.com/v1'
+    }
+    const identity = {
+      providerId: 'deepseek',
+      requestModelId: 'deepseek-v4-flash',
+      catalogMatched: false as const,
+      catalogModelId: null
+    }
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
+      providerHelper: {
+        getProviderById: vi.fn(() => provider)
+      },
+      resolveCapabilityIdentityForModel: vi.fn(() => identity),
+      getModelConfig: vi.fn().mockReturnValue({ reasoning: false })
+    }) as InstanceType<typeof ProviderSettings>
+
+    expect(
+      presenter.getCapabilitySnapshot({
+        providerId: 'deepseek',
+        modelId: 'deepseek-v4-flash'
+      })
+    ).toMatchObject({
+      supportsSearch: true,
+      searchExecution: 'provider'
+    })
+
+    provider.baseUrl = 'https://relay.example.com/v1'
+    expect(
+      presenter.getCapabilitySnapshot({
+        providerId: 'deepseek',
+        modelId: 'deepseek-v4-flash'
+      })
+    ).not.toHaveProperty('searchExecution')
+  })
+
   it('does not load the full model list when a targeted capability route is absent', async () => {
     const { ProviderSettings } = await loadProviderSettings()
     const getProviderModels = vi.fn().mockReturnValue([])

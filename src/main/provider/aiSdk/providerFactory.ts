@@ -35,6 +35,8 @@ export type AiSdkProviderKind =
   | 'vertex'
   | 'aws-bedrock'
 
+export type AiSdkFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
+
 export interface CreateAiSdkProviderContextParams {
   providerKind: AiSdkProviderKind
   provider: LLM_PROVIDER
@@ -43,6 +45,7 @@ export interface CreateAiSdkProviderContextParams {
   modelId: string
   cleanHeaders?: boolean
   wrapThinkReasoning?: boolean
+  fetchAdapter?: (baseFetch: AiSdkFetch) => AiSdkFetch
 }
 
 export interface AiSdkProviderContext {
@@ -571,11 +574,12 @@ export function createAiSdkProviderContext(
   params: CreateAiSdkProviderContextParams
 ): AiSdkProviderContext {
   const baseUrl = params.provider.baseUrl || ''
-  const fetch = createFetchMiddleware(
+  const baseFetch = createFetchMiddleware(
     params.provider,
     params.defaultHeaders,
     params.cleanHeaders === true
   )
+  const fetch = params.fetchAdapter ? params.fetchAdapter(baseFetch) : baseFetch
   const maybeWrapModel = (model: any): any =>
     params.wrapThinkReasoning === false
       ? model

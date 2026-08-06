@@ -167,7 +167,11 @@ describe('SessionPendingInputStore', () => {
     row.payload_json = JSON.stringify({ text: 'legacy', files: [] })
     const { store } = createStore([row])
 
-    expect(store.getInput('legacy-1')?.payload).toEqual({ text: 'legacy', files: [] })
+    expect(store.getInput('legacy-1')?.payload).toEqual({
+      text: 'legacy',
+      files: [],
+      search: false
+    })
   })
 
   it.each(['claimed', 'consumed'] as const)('rejects updates to %s queue inputs', (state) => {
@@ -244,6 +248,30 @@ describe('SessionPendingInputStore', () => {
         text: 'first\n\nsecond',
         attachmentFallbackPolicy: expectedPolicy
       })
+    }
+  )
+
+  it.each([
+    [false, true, true],
+    [true, false, true],
+    [false, false, false]
+  ])(
+    'merges steer search intent with OR (%s + %s -> %s)',
+    (existingSearch, nextSearch, expectedSearch) => {
+      const row = createQueueRow('steer-1', 'session-1', 0, 'pending')
+      row.mode = 'steer'
+      row.queue_order = null
+      row.payload_json = JSON.stringify({ text: 'first', files: [], search: existingSearch })
+      const { store, deepchatPendingInputsTable } = createStore([row])
+
+      store.appendSteerInput(
+        'steer-1',
+        { text: 'second', files: [], search: nextSearch },
+        'steer-message-2'
+      )
+
+      const update = deepchatPendingInputsTable.update.mock.calls[0][1]
+      expect(JSON.parse(update.payload_json)).toMatchObject({ search: expectedSearch })
     }
   )
 

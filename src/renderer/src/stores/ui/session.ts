@@ -967,6 +967,7 @@ export const useSessionStore = defineStore('session', () => {
           input: {
             text: input.message,
             ...(input.files ? { files: input.files } : {}),
+            ...(input.search === true ? { search: true } : {}),
             ...(input.activeSkills ? { activeSkills: input.activeSkills } : {}),
             ...(input.inlineItems ? { inlineItems: input.inlineItems } : {})
           },

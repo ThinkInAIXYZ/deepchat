@@ -216,12 +216,14 @@ describe('messageStore', () => {
     const optimisticId = store.addOptimisticUserMessage('s1', {
       text: 'hello',
       files: [],
+      search: true,
       activeSkills: ['skill-a']
     })
 
     expect(store.messages.value).toHaveLength(1)
     expect(store.messages.value[0]?.id).toBe(optimisticId)
     expect(store.messages.value[0]?.content).toContain('skill-a')
+    expect(JSON.parse(store.messages.value[0]!.content)).toMatchObject({ search: true })
 
     messageListeners[0]({
       sessionId: 's1',

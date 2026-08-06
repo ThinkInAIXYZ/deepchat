@@ -152,6 +152,47 @@ describe('OpenAIResponsesProvider', () => {
     expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(false)
   })
 
+  it('routes only official DeepSeek V4 Flash requests through Responses', async () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiType: 'deepseek',
+        baseUrl: 'https://api.deepseek.com/v1'
+      }),
+      createProviderSettings()
+    )
+    ;(provider as any).isInitialized = true
+
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'search' }],
+      'deepseek-v4-flash',
+      {
+        maxTokens: 1024,
+        contextLength: 8192,
+        functionCall: true,
+        type: 'chat'
+      } as ModelConfig,
+      0.7,
+      256,
+      [],
+      { search: true }
+    )) {
+      break
+    }
+
+    const call = mockRunAiSdkCoreStream.mock.calls.at(-1)
+    expect(call?.[0]).toMatchObject({
+      providerKind: 'openai-responses',
+      provider: {
+        id: 'deepseek',
+        apiType: 'openai-responses',
+        baseUrl: 'https://api.deepseek.com'
+      }
+    })
+    expect(call?.[8]).toEqual({ search: true })
+  })
+
   it('submits audio transcriptions to the OpenAI audio endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

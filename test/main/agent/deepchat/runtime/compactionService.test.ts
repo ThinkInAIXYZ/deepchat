@@ -177,6 +177,7 @@ function createService(options?: {
   } as any
 
   const providerSettings = {
+    getProviderById: vi.fn().mockReturnValue(undefined),
     getModelConfig: vi.fn().mockReturnValue({ contextLength: 4096 }),
     getSetting: vi.fn().mockReturnValue(undefined),
     getAutoCompactionEnabled: vi.fn().mockReturnValue(true),
@@ -659,7 +660,9 @@ describe('CompactionService', () => {
       false,
       false,
       false,
-      false
+      false,
+      undefined,
+      undefined
     )
     expect(buildHistoryTurns).toHaveBeenNthCalledWith(
       2,
@@ -667,7 +670,9 @@ describe('CompactionService', () => {
       false,
       true,
       false,
-      false
+      false,
+      undefined,
+      undefined
     )
   })
 

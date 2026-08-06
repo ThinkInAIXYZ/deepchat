@@ -487,6 +487,7 @@ describe('SessionLifecycle', () => {
           agentId: 'deepchat',
           message: 'Hello',
           projectDir: null,
+          search: true,
           activeSkills: ['review']
         },
         42
@@ -513,7 +514,7 @@ describe('SessionLifecycle', () => {
     expect(harness.desktop.bind).toHaveBeenCalledWith(42, 'session-1')
     expect(harness.initialTurn.startInitialTurn).toHaveBeenCalledWith({
       sessionId: 'session-1',
-      content: { text: 'Hello', files: [], activeSkills: ['review'] },
+      content: { text: 'Hello', files: [], search: true, activeSkills: ['review'] },
       projectDir: null,
       initialTitle: 'Hello',
       fallbackProviderId: 'openai',

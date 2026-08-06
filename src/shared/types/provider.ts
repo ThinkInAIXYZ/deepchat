@@ -225,6 +225,7 @@ export type RateLimitQueueSnapshot = {
 
 export interface ProviderStreamOptions {
   signal?: AbortSignal
+  search?: boolean
 }
 
 export interface ProviderRuntimePort {

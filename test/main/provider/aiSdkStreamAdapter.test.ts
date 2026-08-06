@@ -178,6 +178,81 @@ describe('AI SDK stream adapter', () => {
     ])
   })
 
+  it('projects raw provider search output while suppressing its tool lifecycle', async () => {
+    const providerSearch = {
+      id: 'ws_1',
+      query: 'DeepChat',
+      label: 'DeepChat',
+      provider: 'deepseek',
+      results: [],
+      providerReplayJson: '{"version":1}'
+    }
+    const projectRawChunk = vi.fn(() => providerSearch)
+    const suppressTool = vi.fn((toolName: string) => toolName === 'provider_web_search')
+
+    const events = await collectEvents(
+      [
+        { type: 'raw', rawValue: { type: 'response.output_item.done' } },
+        {
+          type: 'tool-input-start',
+          id: 'ws_1',
+          toolName: 'provider_web_search',
+          providerExecuted: true
+        },
+        { type: 'tool-input-delta', id: 'ws_1', delta: '{}' },
+        { type: 'tool-input-end', id: 'ws_1' },
+        {
+          type: 'tool-call',
+          toolCallId: 'ws_1',
+          toolName: 'provider_web_search',
+          input: {},
+          providerExecuted: true
+        },
+        {
+          type: 'tool-result',
+          toolCallId: 'ws_1',
+          toolName: 'provider_web_search',
+          output: { action: { type: 'search', query: 'DeepChat' } },
+          providerExecuted: true
+        },
+        { type: 'tool-input-start', id: 'local_1', toolName: 'read_file' },
+        { type: 'tool-input-delta', id: 'local_1', delta: '{"path":"README.md"}' },
+        { type: 'tool-input-end', id: 'local_1' },
+        {
+          type: 'finish',
+          finishReason: 'stop',
+          totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        }
+      ],
+      { supportsNativeTools: true, projectRawChunk, suppressTool }
+    )
+
+    expect(events).toEqual([
+      { type: 'provider_search', provider_search: providerSearch },
+      {
+        type: 'tool_call_start',
+        tool_call_id: 'local_1',
+        tool_call_name: 'read_file'
+      },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'local_1',
+        tool_call_arguments_chunk: '{"path":"README.md"}'
+      },
+      {
+        type: 'tool_call_end',
+        tool_call_id: 'local_1',
+        tool_call_arguments_complete: '{"path":"README.md"}'
+      },
+      {
+        type: 'usage',
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+      },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+    expect(projectRawChunk).toHaveBeenCalledWith({ type: 'response.output_item.done' })
+  })
+
   it('preserves explicit zero cache usage reported by the provider', async () => {
     const events = await collectEvents(
       [

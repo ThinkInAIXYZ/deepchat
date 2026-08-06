@@ -247,6 +247,56 @@ describe('accumulate', () => {
     })
   })
 
+  it('creates a replayable search block in stream order', () => {
+    accumulate(state, { type: 'text', content: 'Before search' })
+    accumulate(state, {
+      type: 'provider_search',
+      provider_search: {
+        id: 'ws_1',
+        query: 'DeepChat',
+        label: 'DeepChat',
+        provider: 'deepseek',
+        results: [
+          {
+            title: 'DeepChat',
+            url: 'https://deepchat.thinkinai.xyz/',
+            snippet: 'A privacy-first AI chat client.',
+            rank: 0,
+            searchId: 'ws_1'
+          }
+        ],
+        providerReplayJson: '{"version":1}'
+      }
+    })
+
+    expect(state.blocks).toHaveLength(2)
+    expect(state.blocks[0]).toMatchObject({ type: 'content', status: 'success' })
+    expect(state.blocks[1]).toEqual({
+      id: 'ws_1',
+      type: 'search',
+      content: 'DeepChat',
+      status: 'success',
+      timestamp: expect.any(Number),
+      extra: {
+        total: 1,
+        searchId: 'ws_1',
+        label: 'DeepChat',
+        name: 'web_search',
+        engine: 'deepseek',
+        provider: 'deepseek',
+        pages: [
+          {
+            title: 'DeepChat',
+            url: 'https://deepchat.thinkinai.xyz/',
+            content: 'A privacy-first AI chat client.'
+          }
+        ],
+        providerReplayJson: '{"version":1}'
+      }
+    })
+    expect(state.dirty).toBe(true)
+  })
+
   it('tool_call_end with complete args overrides accumulated chunks', () => {
     accumulate(state, {
       type: 'tool_call_start',

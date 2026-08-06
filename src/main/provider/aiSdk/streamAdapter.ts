@@ -1,4 +1,8 @@
-import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import {
+  createStreamEvent,
+  type LLMCoreStreamEvent,
+  type ProviderSearchPayload
+} from '@shared/types/core/llm-events'
 import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { ToolSet, TextStreamPart } from 'ai'
 import { parseLegacyFunctionCalls } from './toolProtocol'
@@ -52,6 +56,8 @@ function toProviderOptions(value: unknown): ChatMessageProviderOptions | undefin
 export interface AdaptAiSdkStreamOptions {
   supportsNativeTools: boolean
   cacheImage?: (data: string) => Promise<string>
+  projectRawChunk?: (rawValue: unknown) => ProviderSearchPayload | null
+  suppressTool?: (toolName: string) => boolean
 }
 
 export async function* adaptAiSdkStream(
@@ -60,6 +66,7 @@ export async function* adaptAiSdkStream(
 ): AsyncGenerator<LLMCoreStreamEvent> {
   const toolArgumentBuffers = new Map<string, string>()
   const endedToolCalls = new Set<string>()
+  const suppressedToolCallIds = new Set<string>()
   let bufferedLegacyText = ''
   let legacyToolUseDetected = false
 
@@ -146,6 +153,10 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-input-start':
+        if (options.suppressTool?.(part.toolName)) {
+          suppressedToolCallIds.add(part.id)
+          break
+        }
         toolArgumentBuffers.set(part.id, '')
         yield createStreamEvent.toolCallStart(
           part.id,
@@ -156,6 +167,9 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-input-delta':
+        if (suppressedToolCallIds.has(part.id)) {
+          break
+        }
         toolArgumentBuffers.set(part.id, `${toolArgumentBuffers.get(part.id) ?? ''}${part.delta}`)
         yield createStreamEvent.toolCallChunk(
           part.id,
@@ -165,6 +179,9 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-input-end':
+        if (suppressedToolCallIds.has(part.id)) {
+          break
+        }
         endedToolCalls.add(part.id)
         yield createStreamEvent.toolCallEnd(
           part.id,
@@ -174,6 +191,11 @@ export async function* adaptAiSdkStream(
         break
 
       case 'tool-call':
+        if (options.suppressTool?.(part.toolName)) {
+          suppressedToolCallIds.add(part.toolCallId)
+          endedToolCalls.add(part.toolCallId)
+          break
+        }
         if (!endedToolCalls.has(part.toolCallId)) {
           const serializedInput = JSON.stringify(part.input ?? {})
           const providerOptions = toProviderOptions((part as any).providerMetadata)
@@ -188,6 +210,14 @@ export async function* adaptAiSdkStream(
           endedToolCalls.add(part.toolCallId)
         }
         break
+
+      case 'raw': {
+        const projected = options.projectRawChunk?.(part.rawValue)
+        if (projected) {
+          yield createStreamEvent.providerSearch(projected)
+        }
+        break
+      }
 
       case 'file': {
         const mediaType = part.file.mediaType

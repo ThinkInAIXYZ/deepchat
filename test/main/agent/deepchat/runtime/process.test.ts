@@ -341,6 +341,124 @@ describe('processStream', () => {
     }) as unknown as ProcessParams['coreStream']
   }
 
+  it('persists normalized provider search results with the assistant message', async () => {
+    const resultRow = {
+      title: 'DeepChat',
+      url: 'https://deepchat.thinkinai.xyz/',
+      snippet: 'A privacy-first AI chat client.',
+      rank: 0,
+      searchId: 'ws_1'
+    }
+    const coreStream = vi.fn(async function* () {
+      yield {
+        type: 'provider_search',
+        provider_search: {
+          id: 'ws_1',
+          query: 'DeepChat',
+          label: 'DeepChat',
+          provider: 'deepseek',
+          results: [resultRow],
+          providerReplayJson: '{"version":1}'
+        }
+      } as LLMCoreStreamEvent
+      yield { type: 'text', content: 'DeepChat is an AI client.' } as LLMCoreStreamEvent
+      yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+    })
+    const params = createParams({ coreStream })
+
+    await expect(processStream(params)).resolves.toMatchObject({ status: 'completed' })
+
+    expect(messageStore.addSearchResult).toHaveBeenCalledTimes(1)
+    expect(messageStore.addSearchResult).toHaveBeenCalledWith({
+      sessionId: params.run.sessionId,
+      messageId: params.run.messageId,
+      searchId: 'ws_1',
+      rank: 0,
+      result: resultRow
+    })
+    expect(params.run.streamState.blocks).toEqual([
+      expect.objectContaining({
+        id: 'ws_1',
+        type: 'search',
+        status: 'success',
+        extra: expect.objectContaining({ providerReplayJson: '{"version":1}' })
+      }),
+      expect.objectContaining({
+        type: 'content',
+        content: 'DeepChat is an AI client.',
+        status: 'success'
+      })
+    ])
+  })
+
+  it('replays provider search output before continuing a local tool round', async () => {
+    const providerReplayJson = JSON.stringify({ version: 1, item: { id: 'ws_1' } })
+    let callCount = 0
+    const coreStream = vi.fn(function () {
+      callCount += 1
+      if (callCount === 1) {
+        return (async function* () {
+          yield { type: 'text', content: 'Before search.' } as LLMCoreStreamEvent
+          yield {
+            type: 'provider_search',
+            provider_search: {
+              id: 'ws_1',
+              query: 'DeepChat',
+              label: 'DeepChat',
+              provider: 'deepseek',
+              results: [],
+              providerReplayJson
+            }
+          } as LLMCoreStreamEvent
+          yield { type: 'text', content: 'After search.' } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: 'tc_1',
+            tool_call_name: 'read_file'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc_1',
+            tool_call_arguments_complete: '{"path":"README.md"}'
+          } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+        })()
+      }
+
+      return (async function* () {
+        yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+    const params = createParams({ coreStream, tools: [makeTool('read_file')] })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    await promise
+
+    expect(coreStream).toHaveBeenCalledTimes(2)
+    expect((coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]).toEqual([
+      { role: 'user', content: 'Hello' },
+      { role: 'assistant', content: 'Before search.' },
+      {
+        role: 'assistant',
+        provider_replay: { markerId: 'ws_1', payload: providerReplayJson }
+      },
+      {
+        role: 'assistant',
+        content: 'After search.',
+        tool_calls: [
+          {
+            id: 'tc_1',
+            type: 'function',
+            function: { name: 'read_file', arguments: '{"path":"README.md"}' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'tc_1', content: 'result for read_file' }
+    ])
+  })
+
   describe('fixed lifecycle commits', () => {
     const TOOL_ROUND_COMMIT_ORDER = [
       'renderer:update',

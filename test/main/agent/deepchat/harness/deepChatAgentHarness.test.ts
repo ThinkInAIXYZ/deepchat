@@ -588,11 +588,12 @@ function createMockProviderRuntime() {
         modelConfig: ModelConfig,
         temperature: number,
         maxTokens: number,
-        tools: MCPToolDefinition[]
+        tools: MCPToolDefinition[],
+        options?: { signal?: AbortSignal; search?: boolean }
       ) =>
         runtime
           .getProviderInstance(providerId)
-          .coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools)
+          .coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools, options)
     ),
     resolveAgentPermission: vi.fn().mockResolvedValue(undefined),
     executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
@@ -610,6 +611,7 @@ function createMockProviderSettings() {
   const providerApiTypes: Record<string, string> = {
     acp: 'acp',
     anthropic: 'anthropic',
+    deepseek: 'openai-responses',
     gemini: 'gemini',
     'new-api': 'new-api',
     openai: 'openai',
@@ -669,7 +671,8 @@ function createMockProviderSettings() {
     getSetting: vi.fn().mockReturnValue(undefined),
     getProviderById: vi.fn((providerId: string) => ({
       id: providerId,
-      apiType: providerApiTypes[providerId] ?? 'openai-compatible'
+      apiType: providerApiTypes[providerId] ?? 'openai-compatible',
+      ...(providerId === 'deepseek' ? { baseUrl: 'https://api.deepseek.com/v1' } : {})
     })),
     isKnownModel: vi.fn().mockReturnValue(true),
     getAgentType: vi.fn().mockResolvedValue('deepchat'),
@@ -681,6 +684,7 @@ function createMockProviderSettings() {
       const portrait = capabilityFixture.reasoningPortrait(providerId, modelId)
       const hasFixedKimiTemperature =
         providerId === 'moonshot' && modelId === 'moonshotai/kimi-k2.6'
+      const supportsProviderSearch = providerId === 'deepseek' && modelId === 'deepseek-v4-flash'
       return {
         identity: {
           providerId: capabilityFixture.providerId(providerId, modelId),
@@ -700,7 +704,8 @@ function createMockProviderSettings() {
         supportsReasoning: capabilityFixture.supportsReasoning(providerId, modelId),
         reasoningPortrait: portrait,
         thinkingBudgetRange: capabilityFixture.thinkingBudgetRange(providerId, modelId),
-        supportsSearch: false,
+        supportsSearch: supportsProviderSearch,
+        ...(supportsProviderSearch ? { searchExecution: 'provider' as const } : {}),
         searchDefaults: {},
         temperatureCapability: undefined,
         supportsTemperatureControl: true,
@@ -839,13 +844,13 @@ function makeTextWithEstimatedTokens(minTokens: number): string {
   return 'x'.repeat(low)
 }
 
-function makeDeepchatUserRow(orderSeq: number, text: string, id = `u${orderSeq}`) {
+function makeDeepchatUserRow(orderSeq: number, text: string, id = `u${orderSeq}`, search = false) {
   return {
     id,
     session_id: 's1',
     order_seq: orderSeq,
     role: 'user' as const,
-    content: JSON.stringify({ text, files: [], links: [], search: false, think: false }),
+    content: JSON.stringify({ text, files: [], links: [], search, think: false }),
     status: 'sent' as const,
     is_context_edge: 0,
     metadata: '{}',
@@ -986,7 +991,8 @@ describe('DeepChatAgentHarness', () => {
 
   const installPendingQuestion = (
     messageId = 'm1',
-    leadingBlocks: AssistantMessageBlock[] = []
+    leadingBlocks: AssistantMessageBlock[] = [],
+    search = false
   ) => {
     const blocks: AssistantMessageBlock[] = [
       ...leadingBlocks,
@@ -1023,7 +1029,7 @@ describe('DeepChatAgentHarness', () => {
       id === messageId ? row : undefined
     )
     sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
-      makeDeepchatUserRow(1, 'resume query', 'resume-user'),
+      makeDeepchatUserRow(1, 'resume query', 'resume-user', search),
       row
     ])
     sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementation(
@@ -2398,6 +2404,31 @@ describe('DeepChatAgentHarness', () => {
       expect(assistantInsert.orderSeq).toBe(2)
       expect(assistantInsert.status).toBe('pending')
       expect(assistantInsert.content).toBe('[]')
+    })
+
+    it('persists search intent without sending it to an unsupported provider', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', { text: 'Search this', search: true })
+
+      const userInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls[0][0]
+      expect(JSON.parse(userInsert.content).search).toBe(true)
+
+      const providerOptions = llmProvider.providerInstance.coreStream.mock.calls[0][6]
+      expect(providerOptions).toEqual(expect.objectContaining({ signal: expect.any(AbortSignal) }))
+      expect(providerOptions).not.toHaveProperty('search')
     })
 
     it('starts the provider stream when memory injection never settles', async () => {
@@ -9792,6 +9823,39 @@ describe('DeepChatAgentHarness', () => {
         expect(afterTurnSettled.mock.invocationCallOrder[0]).toBeLessThan(terminalProjectionOrder)
       }
     )
+
+    it('restores OR-ed search intent when resuming a provider-native search turn', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        for await (const _event of params.coreStream(
+          params.run.messages,
+          params.modelId,
+          params.modelConfig,
+          params.temperature,
+          params.maxTokens,
+          params.run.resources.toolDefinitions
+        )) {
+        }
+        return { status: 'completed', stopReason: 'complete' }
+      })
+      await agent.initSession('s1', {
+        providerId: 'deepseek',
+        modelId: 'deepseek-v4-flash'
+      })
+      const assistantRow = installPendingQuestion()
+      assistantRow.order_seq = 3
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        makeDeepchatUserRow(1, 'initial request', 'resume-user', false),
+        makeDeepchatUserRow(2, 'search steer', 'resume-steer', true),
+        assistantRow
+      ])
+
+      await expect(answerPendingQuestion()).resolves.toEqual({ resumed: true })
+
+      const providerOptions = llmProvider.providerInstance.coreStream.mock.calls[0][6]
+      expect(providerOptions).toEqual(
+        expect.objectContaining({ signal: expect.any(AbortSignal), search: true })
+      )
+    })
 
     it('assembles resume context after compaction and preserves base-only round refresh', async () => {
       const order: string[] = []

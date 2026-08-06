@@ -47,6 +47,7 @@ export type ResolvedModelCapabilitySnapshot = {
     default?: number
   }
   supportsSearch: boolean
+  searchExecution?: 'provider'
   searchDefaults: {
     default?: boolean
     forced?: boolean

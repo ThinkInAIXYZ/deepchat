@@ -92,6 +92,7 @@ export const CreateSessionInputSchema = z.object({
   message: z.string(),
   submissionId: SubmissionIdSchema.optional(),
   files: z.array(MessageFileSchema).optional(),
+  search: z.boolean().optional().default(false),
   inlineItems: z.array(UserMessageInlineItemSchema).optional(),
   projectDir: z.string().nullable().optional(),
   providerId: z.string().optional(),

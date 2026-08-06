@@ -63,6 +63,7 @@ import {
 import type { PromptCacheIntent } from '../promptCacheStrategy'
 import type { ResolvedModelCapabilitySnapshot } from '@shared/types/model-capabilities'
 import { normalizeReasoningEffortValue } from '@shared/types/model-db'
+import { createDeepSeekResponsesAdapter } from '../deepseekResponsesAdapter'
 
 type ImageGenerationProviderPayload = Record<string, JSONValue>
 type ImageGenerationRequestOptions = {
@@ -1180,26 +1181,43 @@ async function buildPromptRuntime(
   modelConfig: ModelConfig,
   requestPolicy: ModelRequestPolicy,
   tools: MCPToolDefinition[],
-  cacheIntent: PromptCacheIntent
+  cacheIntent: PromptCacheIntent,
+  search = false
 ) {
   const supportsNativeTools = resolveSupportsNativeTools(context, modelId, modelConfig)
   const capabilityProviderId = resolveCapabilityProviderId(context)
+  const providerAdapter = createDeepSeekResponsesAdapter({
+    providerKind: context.providerKind,
+    provider: context.provider,
+    modelId
+  })
   const providerContext = createAiSdkProviderContext({
     providerKind: context.providerKind,
     provider: context.provider,
     providerSettings: context.providerSettings,
     defaultHeaders: context.defaultHeaders,
     modelId,
-    cleanHeaders: context.cleanHeaders
+    cleanHeaders: context.cleanHeaders,
+    fetchAdapter: providerAdapter?.wrapFetch
   })
-  const mappedMessages = mapMessagesToModelMessages(messages, {
-    tools,
-    supportsNativeTools,
-    buildLegacyFunctionCallPrompt: context.buildLegacyFunctionCallPrompt,
-    preserveOpenAICompatibleReasoningContent: context.providerKind === 'openai-compatible',
-    preferOpenAICompatibleAudioDataUrl: context.providerKind === 'openai-compatible'
-  })
+  const mappedMessages = mapMessagesToModelMessages(
+    providerAdapter?.prepareMessages(messages) ?? messages,
+    {
+      tools,
+      supportsNativeTools,
+      buildLegacyFunctionCallPrompt: context.buildLegacyFunctionCallPrompt,
+      preserveOpenAICompatibleReasoningContent: context.providerKind === 'openai-compatible',
+      preferOpenAICompatibleAudioDataUrl: context.providerKind === 'openai-compatible',
+      mapProviderReplay: providerAdapter?.mapReplay
+    }
+  )
   const toolsMap = supportsNativeTools ? mcpToolsToAISDKTools(tools) : {}
+  const searchTools = search ? (providerAdapter?.getSearchTools() ?? {}) : {}
+  for (const toolName of Object.keys(searchTools)) {
+    if (Object.prototype.hasOwnProperty.call(toolsMap, toolName)) {
+      throw new Error(`Provider tool name conflicts with an existing tool: ${toolName}`)
+    }
+  }
   const providerOptionResult = buildProviderOptions({
     providerId: context.provider.id,
     capabilityProviderId,
@@ -1221,8 +1239,10 @@ async function buildPromptRuntime(
     instructions: promptSplit.instructions,
     messages: promptSplit.messages,
     providerOptions: providerOptionResult.providerOptions,
-    tools: toolsMap,
-    supportsNativeTools
+    tools: { ...toolsMap, ...searchTools },
+    supportsNativeTools,
+    providerAdapter,
+    includeRawChunks: search && providerAdapter !== null
   }
 }
 
@@ -1360,7 +1380,8 @@ export async function* runAiSdkCoreStream(
   temperature: number,
   maxTokens: number,
   tools: MCPToolDefinition[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options?: { search?: boolean }
 ): AsyncGenerator<LLMCoreStreamEvent> {
   signal?.throwIfAborted()
   const effectiveRequest = resolveEffectiveGenerationRequest(
@@ -1537,7 +1558,8 @@ export async function* runAiSdkCoreStream(
     normalizedModelConfig,
     effectiveRequest.requestPolicy,
     tools,
-    'conversation'
+    'conversation',
+    options?.search === true
   )
   const requestBody = {
     model: runtime.providerContext.resolvedModelId ?? modelId,
@@ -1565,12 +1587,15 @@ export async function* runAiSdkCoreStream(
     providerOptions: runtime.providerOptions as any,
     ...(requestSignal ? { abortSignal: requestSignal } : {}),
     ...effectiveRequest.samplingOptions,
-    maxOutputTokens: maxTokens
+    maxOutputTokens: maxTokens,
+    ...(runtime.includeRawChunks ? { include: { rawChunks: true } } : {})
   })
 
   yield* adaptAiSdkStream(result.stream, {
     supportsNativeTools: runtime.supportsNativeTools,
-    cacheImage
+    cacheImage,
+    projectRawChunk: runtime.providerAdapter?.projectRawChunk,
+    suppressTool: runtime.providerAdapter?.isSearchToolName
   })
 }
 

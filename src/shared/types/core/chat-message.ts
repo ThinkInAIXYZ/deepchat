@@ -2,6 +2,15 @@ export type ChatMessageRole = 'system' | 'user' | 'assistant' | 'tool'
 
 export type ChatMessageProviderOptions = Record<string, Record<string, unknown>>
 
+export type ChatMessageProviderReplay = {
+  markerId: string
+  payload: string
+}
+
+export type ChatMessageProviderReplayProjector = (
+  providerReplayJson: string
+) => ChatMessageProviderReplay | null
+
 export type ChatMessageToolCall = {
   id: string
   type: 'function'
@@ -30,6 +39,7 @@ export type ChatMessageContent =
 export type ChatMessage = {
   role: ChatMessageRole
   content?: string | ChatMessageContent[]
+  provider_replay?: ChatMessageProviderReplay
   tool_calls?: ChatMessageToolCall[]
   tool_call_id?: string
   reasoning_content?: string

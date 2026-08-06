@@ -251,7 +251,10 @@
                         :is-voice-input-listening="isVoiceInputListening"
                         :is-voice-input-transcribing="isVoiceInputTranscribing"
                         :is-preparing-attachments="isPreparingAttachments"
+                        :show-search="isSearchAvailable"
+                        :search-enabled="isSearchEnabled"
                         @attach="onAttach"
+                        @toggle-search="toggleSearch"
                         @voice-input="onToggleVoiceInput"
                         @queue="onQueueSubmit"
                         @steer="onSteer"
@@ -348,6 +351,7 @@ import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { createChatClient } from '../../../api/ChatClient'
 import { createModelClient } from '@api/ModelClient'
+import { createProviderClient } from '@api/ProviderClient'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
@@ -414,6 +418,7 @@ const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
 const chatClient = createChatClient()
 const modelClient = createModelClient()
+const providerClient = createProviderClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
 const isSessionViewCommitted = computed(
@@ -1181,6 +1186,9 @@ const {
   isQueueSubmitDisabled,
   isInputSubmitDisabled,
   disableQueueSteerAction,
+  isSearchAvailable,
+  isSearchEnabled,
+  toggleSearch,
   onSubmit,
   onCommandSubmit,
   onQueueSubmit,
@@ -1206,6 +1214,7 @@ const {
   chatClient,
   sessionClient,
   modelClient,
+  providerClient,
   chatInputRef,
   isReadOnlySession,
   isSessionViewPreparing,
