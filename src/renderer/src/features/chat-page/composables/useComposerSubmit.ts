@@ -410,7 +410,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     return {
       text,
       files: copyComposerFiles(files),
-      search: seed.search,
+      ...(seed.search ? { search: true } : {}),
       ...(activeSkills.length > 0 ? { activeSkills: [...activeSkills] } : {}),
       ...(inlineItems.length > 0 ? { inlineItems: copyInlineItems(inlineItems) } : {})
     }
@@ -1100,7 +1100,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     const payload: SendMessageInput = {
       text: input.text,
       files: copyComposerFiles(input.files ?? []),
-      search: input.search === true,
+      ...(input.search === true ? { search: true } : {}),
       ...(input.activeSkills ? { activeSkills: [...input.activeSkills] } : {}),
       ...(input.inlineItems ? { inlineItems: input.inlineItems.map((item) => ({ ...item })) } : {})
     }

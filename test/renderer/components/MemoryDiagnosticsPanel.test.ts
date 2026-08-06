@@ -28,7 +28,7 @@ const AlertDialogStub = defineComponent({
 })
 
 const stubs = {
-  Button: ButtonStub,
+  DcButton: ButtonStub,
   Badge: passthrough('Badge'),
   AlertDialog: AlertDialogStub,
   AlertDialogAction: ButtonStub,

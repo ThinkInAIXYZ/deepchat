@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { useMcpAppConsentStore } from '@/stores/mcpAppConsent'
 
@@ -48,13 +48,13 @@ const onDialogToggle = (open: boolean) => {
       </div>
 
       <DialogFooter>
-        <Button variant="outline" :disabled="store.isSubmitting" @click="store.deny">
+        <DcButton variant="outline" :disabled="store.isSubmitting" @click="store.deny">
           {{ t('mcp.apps.consent.deny') }}
-        </Button>
-        <Button :disabled="store.isSubmitting" @click="store.approve">
+        </DcButton>
+        <DcButton :disabled="store.isSubmitting" @click="store.approve">
           <Spinner v-if="store.isSubmitting" data-icon="inline-start" />
           {{ t('mcp.apps.consent.allowOnce') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>

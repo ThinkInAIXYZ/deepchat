@@ -1,36 +1,39 @@
 <template>
   <div class="flex h-full min-w-0 flex-1 flex-col bg-background">
     <div class="flex h-11 items-center gap-2 border-b px-3">
-      <Button
+      <DcButton
         variant="outline"
         size="icon"
         class="h-7 w-7"
         :aria-label="t('common.browser.back')"
         :disabled="!canGoBack"
+        :tooltip="t('common.browser.back')"
         @click="goBack"
       >
         <Icon icon="lucide:arrow-left" class="h-4 w-4" />
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         variant="outline"
         size="icon"
         class="h-7 w-7"
         :aria-label="t('common.browser.forward')"
         :disabled="!canGoForward"
+        :tooltip="t('common.browser.forward')"
         @click="goForward"
       >
         <Icon icon="lucide:arrow-right" class="h-4 w-4" />
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         variant="outline"
         size="icon"
         class="h-7 w-7"
         :aria-label="t('common.browser.reload')"
+        :tooltip="t('common.browser.reload')"
         @click="reloadPage"
       >
         <Icon icon="lucide:refresh-ccw" class="h-4 w-4" />
-      </Button>
-      <form class="flex min-w-0 flex-1" @submit.prevent="navigate">
+      </DcButton>
+      <DcForm class="flex min-w-0 flex-1" @submit="navigate">
         <Input
           v-model="urlInput"
           :aria-label="t('common.browser.addressLabel')"
@@ -40,19 +43,20 @@
           autocomplete="off"
           spellcheck="false"
         />
-      </form>
-      <Button
+      </DcForm>
+      <DcButton
         variant="outline"
         size="icon"
         class="h-7 w-7 shrink-0"
         :aria-label="props.isFullscreen ? t('common.restore') : t('common.expand')"
+        :tooltip="props.isFullscreen ? t('common.restore') : t('common.expand')"
         @click="emit('toggle-fullscreen')"
       >
         <Icon
           :icon="props.isFullscreen ? 'lucide:minimize-2' : 'lucide:maximize-2'"
           class="h-4 w-4"
         />
-      </Button>
+      </DcButton>
     </div>
 
     <div ref="containerRef" class="relative min-h-0 flex-1 overflow-hidden">
@@ -67,7 +71,8 @@ import type { Rectangle } from 'electron'
 import { useResizeObserver } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcForm } from '@dc-ui/components/form'
 import { Input } from '@shadcn/components/ui/input'
 import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPlaceholder from './BrowserPlaceholder.vue'

@@ -1,25 +1,20 @@
 <template>
   <section class="flex min-h-0 flex-1 flex-col gap-3">
-    <div class="rounded-lg border border-border bg-card p-4">
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div class="min-w-0">
-          <h2 class="text-sm font-semibold">
-            {{ t('settings.memory.redesign.directiveCreateTitle') }}
-          </h2>
-          <p class="mt-1 text-xs text-muted-foreground">
-            {{ t('settings.memory.redesign.directiveCreateDescription') }}
-          </p>
-        </div>
-        <Badge :variant="memoryEnabled ? 'secondary' : 'outline'" class="w-fit text-[10px]">
+    <DcSectionCard
+      :title="t('settings.memory.redesign.directiveCreateTitle')"
+      :description="t('settings.memory.redesign.directiveCreateDescription')"
+    >
+      <template #actions>
+        <DcBadge :variant="memoryEnabled ? 'secondary' : 'outline'" class="w-fit text-[10px]">
           {{
             memoryEnabled
               ? t('settings.memory.redesign.directiveRuntimeEnabled')
               : t('settings.memory.redesign.directiveRuntimeDisabled')
           }}
-        </Badge>
-      </div>
+        </DcBadge>
+      </template>
 
-      <div class="mt-4 grid gap-3 lg:grid-cols-[minmax(10rem,0.35fr)_minmax(0,1fr)]">
+      <div class="grid gap-3 lg:grid-cols-[minmax(10rem,0.35fr)_minmax(0,1fr)]">
         <label class="space-y-1.5">
           <span class="text-[11px] font-medium text-muted-foreground">
             {{ t('settings.memory.redesign.directiveKindLabel') }}
@@ -103,7 +98,7 @@
             }}
           </p>
         </div>
-        <Button
+        <DcButton
           size="sm"
           class="h-8 shrink-0 text-xs"
           :disabled="!canCreate"
@@ -112,9 +107,9 @@
         >
           <Icon icon="lucide:plus" class="mr-1.5 h-3.5 w-3.5" />
           {{ t('settings.memory.redesign.directiveCreateAction') }}
-        </Button>
+        </DcButton>
       </div>
-    </div>
+    </DcSectionCard>
 
     <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
 
@@ -132,27 +127,23 @@
           }}
         </p>
       </div>
-      <Button variant="ghost" size="sm" class="h-8 text-xs" :disabled="loading" @click="refresh">
+      <DcButton variant="ghost" size="sm" class="h-8 text-xs" :disabled="loading" @click="refresh">
         <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
         {{ t('settings.memory.redesign.refresh') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div v-if="loading" class="py-12 text-center text-sm text-muted-foreground">
       {{ t('common.loading') }}
     </div>
 
-    <Empty v-else-if="orderedDirectives.length === 0" class="min-h-48 border">
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <Icon icon="lucide:list-checks" />
-        </EmptyMedia>
-        <EmptyTitle>{{ t('settings.memory.redesign.directiveEmptyTitle') }}</EmptyTitle>
-        <EmptyDescription>
-          {{ t('settings.memory.redesign.directiveEmptyDescription') }}
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <DcEmpty
+      v-else-if="orderedDirectives.length === 0"
+      icon="lucide:list-checks"
+      :title="t('settings.memory.redesign.directiveEmptyTitle')"
+      :description="t('settings.memory.redesign.directiveEmptyDescription')"
+      class="min-h-48"
+    />
 
     <ScrollArea v-else class="min-h-0 flex-1 pr-3">
       <ol class="space-y-2">
@@ -165,12 +156,12 @@
           <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0">
               <div class="mb-2 flex flex-wrap items-center gap-1.5">
-                <Badge :variant="statusVariant(directive.status)" class="text-[10px]">
+                <DcBadge :variant="statusVariant(directive.status)" class="text-[10px]">
                   {{ t(`settings.memory.redesign.directiveStatus.${directive.status}`) }}
-                </Badge>
-                <Badge variant="outline" class="text-[10px]">
+                </DcBadge>
+                <DcBadge variant="outline" class="text-[10px]">
                   {{ t(`settings.memory.redesign.directiveKind.${directive.kind}`) }}
-                </Badge>
+                </DcBadge>
                 <span class="text-[10px] text-muted-foreground">
                   {{ t(`settings.memory.redesign.directiveSource.${directive.source}`) }}
                 </span>
@@ -193,7 +184,7 @@
 
             <div class="flex shrink-0 flex-wrap items-center justify-end gap-1">
               <template v-if="directive.status === 'draft'">
-                <Button
+                <DcButton
                   variant="ghost"
                   size="sm"
                   class="h-8 text-xs"
@@ -201,18 +192,18 @@
                   @click="transition(directive.id, 'rejected')"
                 >
                   {{ t('settings.deepchatAgents.memoryManager.reject') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   class="h-8 text-xs"
                   :disabled="pendingIds.has(directive.id)"
                   @click="transition(directive.id, 'active')"
                 >
                   {{ t('settings.deepchatAgents.memoryManager.approve') }}
-                </Button>
+                </DcButton>
               </template>
 
-              <Button
+              <DcButton
                 variant="ghost"
                 size="icon"
                 class="h-8 w-8 text-destructive"
@@ -220,53 +211,34 @@
                 :aria-label="t('common.delete')"
                 data-testid="memory-directive-delete-trigger"
                 @click="requestDelete(directive)"
+                :tooltip="t('common.delete')"
               >
                 <Icon icon="lucide:trash-2" class="h-3.5 w-3.5" />
-              </Button>
+              </DcButton>
             </div>
           </div>
         </li>
       </ol>
     </ScrollArea>
 
-    <AlertDialog :open="deleteDialogOpen" @update:open="handleDeleteDialogOpenChange">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {{ t('settings.memory.redesign.directiveDeleteTitle') }}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('settings.memory.redesign.directiveDeleteDescription') }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <MemoryInlineFeedback
-          v-if="deleteFeedback"
-          :feedback="deleteFeedback"
-          @clear="clearDeleteFeedback"
-        />
-        <AlertDialogFooter>
-          <AlertDialogCancel
-            data-testid="memory-directive-delete-cancel"
-            :disabled="deleteRequest.status === 'pending'"
-          >
-            {{ t('common.cancel') }}
-          </AlertDialogCancel>
-          <AlertDialogAsyncAction
-            data-testid="memory-directive-delete-confirm"
-            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            :disabled="deleteRequest.status === 'pending'"
-            @click="confirmDelete"
-          >
-            <Spinner
-              v-if="deleteRequest.status === 'pending'"
-              data-testid="memory-directive-delete-spinner"
-              class="mr-1.5 size-3.5"
-            />
-            {{ t('common.delete') }}
-          </AlertDialogAsyncAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DcConfirmDialog
+      :open="deleteDialogOpen"
+      :title="t('settings.memory.redesign.directiveDeleteTitle')"
+      :description="t('settings.memory.redesign.directiveDeleteDescription')"
+      :confirm-label="t('common.delete')"
+      :busy="deleteRequest.status === 'pending'"
+      :confirm-attrs="{ 'data-testid': 'memory-directive-delete-confirm' }"
+      :cancel-attrs="{ 'data-testid': 'memory-directive-delete-cancel' }"
+      busy-data-testid="memory-directive-delete-spinner"
+      @update:open="handleDeleteDialogOpenChange"
+      @confirm="confirmDelete"
+    >
+      <MemoryInlineFeedback
+        v-if="deleteFeedback"
+        :feedback="deleteFeedback"
+        @clear="clearDeleteFeedback"
+      />
+    </DcConfirmDialog>
   </section>
 </template>
 
@@ -274,25 +246,11 @@
 import { computed, onBeforeUnmount, reactive, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import {
-  AlertDialog,
-  AlertDialogAsyncAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle
-} from '@shadcn/components/ui/empty'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcSectionCard } from '@dc-ui/components/section-card'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcEmpty } from '@dc-ui/components/empty'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import {
   Select,
@@ -302,7 +260,6 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Spinner } from '@shadcn/components/ui/spinner'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { createMemoryClient } from '@api/MemoryClient'
 import {

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createRendererRouteContext } from '@/routes/routeRegistry'
 import {
   notificationAcknowledgePresentationRoute,
   notificationRendererReadyRoute
@@ -14,7 +15,7 @@ describe('notification routes', () => {
     })
 
     await expect(
-      routes.get(notificationRendererReadyRoute.name)?.({}, { webContentsId: 42, windowId: 7 })
+      routes.get(notificationRendererReadyRoute.name)?.({}, createRendererRouteContext(42, 7))
     ).resolves.toEqual({ ready: true })
     expect(rendererReady).toHaveBeenCalledWith(42)
   })
@@ -29,7 +30,7 @@ describe('notification routes', () => {
     await expect(
       routes.get(notificationAcknowledgePresentationRoute.name)?.(
         { episodeId: 'episode-1' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ accepted: true })
     expect(acknowledgePresentation).toHaveBeenCalledWith('episode-1', 42)
@@ -45,9 +46,32 @@ describe('notification routes', () => {
     await expect(
       routes.get(notificationAcknowledgePresentationRoute.name)?.(
         { episodeId: '' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).rejects.toThrow()
     expect(acknowledgePresentation).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-renderer callers before invoking renderer ownership services', async () => {
+    const rendererReady = vi.fn()
+    const routes = createNotificationRoutes({
+      rendererReady,
+      acknowledgePresentation: vi.fn()
+    })
+
+    await expect(
+      routes.get(notificationRendererReadyRoute.name)?.(
+        {},
+        {
+          caller: {
+            kind: 'cli',
+            principal: 'human',
+            connectionId: 'connection-1',
+            scopes: ['system:read']
+          }
+        }
+      )
+    ).rejects.toThrow('Route requires a renderer caller')
+    expect(rendererReady).not.toHaveBeenCalled()
   })
 })

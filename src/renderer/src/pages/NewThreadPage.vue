@@ -20,7 +20,7 @@
         <!-- Project selector -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               size="sm"
               data-testid="new-thread-project-trigger"
@@ -41,7 +41,7 @@
                 :title="selectedProjectUnavailableTooltip"
               />
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
-            </Button>
+            </DcButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="center"
@@ -85,13 +85,12 @@
                 :title="selectedProjectUnavailableTooltip"
               />
             </DropdownMenuItem>
-            <DropdownMenuItem
-              class="gap-2 text-xs py-1.5 px-2"
-              @click="projectStore.openFolderPicker()"
-            >
-              <Icon icon="lucide:folder-open" class="w-3.5 h-3.5 text-muted-foreground" />
-              <span>{{ t('common.project.openFolder') }}</span>
-            </DropdownMenuItem>
+            <DcDropdownActionItem
+              icon="lucide:folder-open"
+              :label="t('common.project.openFolder')"
+              class="text-xs py-1.5 px-2"
+              @select="projectStore.openFolderPicker()"
+            />
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -172,7 +171,7 @@ import { useI18n } from 'vue-i18n'
 import { nanoid } from 'nanoid'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -181,6 +180,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'

@@ -45,6 +45,13 @@ interface RuntimeResources {
   documentExtraction: DocumentTextExtractionService
 }
 
+export class OcrRuntimeBusyError extends Error {
+  constructor() {
+    super('OCR cache cannot be cleared while extraction is active')
+    this.name = 'OcrRuntimeBusyError'
+  }
+}
+
 /** Lazily owns the offline OCR helper, engine, and derived cache for the application lifetime. */
 export class OcrRuntimeService {
   private readonly resolver: OcrRuntimeAssetResolver
@@ -108,7 +115,7 @@ export class OcrRuntimeService {
       processStatus.state === 'busy' ||
       processStatus.state === 'stopping'
     ) {
-      throw new Error('OCR cache cannot be cleared while extraction is active')
+      throw new OcrRuntimeBusyError()
     }
     await resources.store.clear()
   }

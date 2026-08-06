@@ -1,5 +1,5 @@
 import { vi, beforeEach, afterEach } from 'vitest'
-import { config } from '@vue/test-utils'
+import { config, enableAutoUnmount } from '@vue/test-utils'
 
 const createDefaultModelConfig = () => ({
   maxTokens: 4096,
@@ -569,3 +569,7 @@ afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
 })
+
+// Vitest runs cleanup hooks in reverse registration order. Register auto-unmount
+// last so components dispose while their mocked dependencies are still intact.
+enableAutoUnmount(afterEach)

@@ -72,7 +72,7 @@ describe('McpToolPanel', () => {
       },
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Badge: passthrough('Badge'),
           ScrollArea: passthrough('ScrollArea'),
           Sheet: passthrough('Sheet'),

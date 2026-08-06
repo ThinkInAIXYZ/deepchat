@@ -186,7 +186,7 @@ const setup = async (options: SetupOptions) => {
         AlertDialogFooter: passthrough('AlertDialogFooter'),
         AlertDialogHeader: passthrough('AlertDialogHeader'),
         AlertDialogTitle: passthrough('AlertDialogTitle'),
-        Button: passthrough('Button'),
+        DcButton: passthrough('Button'),
         Input: passthrough('Input'),
         Label: passthrough('Label'),
         Switch: passthrough('Switch'),

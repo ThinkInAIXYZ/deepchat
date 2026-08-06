@@ -92,22 +92,22 @@
                         </span>
                       </div>
                       <div class="flex items-center gap-1">
-                        <Button
+                        <DcButton
                           variant="ghost"
                           size="sm"
                           class="h-7 rounded-full px-2 text-xs"
                           @click.stop="cancelEdit"
                         >
                           {{ t('common.cancel') }}
-                        </Button>
-                        <Button
+                        </DcButton>
+                        <DcButton
                           size="sm"
                           class="h-7 rounded-full px-2 text-xs"
                           :disabled="!canSaveEdit"
                           @click.stop="saveEdit"
                         >
                           {{ t('common.save') }}
-                        </Button>
+                        </DcButton>
                       </div>
                     </div>
                   </template>
@@ -151,23 +151,23 @@
                     >
                       {{ t('chat.attachments.pending.blocked') }}
                     </span>
-                    <Button
+                    <DcButton
                       variant="ghost"
                       size="icon"
                       data-testid="pending-blocked-retry"
                       class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
-                      :title="t('chat.attachments.pending.retry')"
+                      :tooltip="t('chat.attachments.pending.retry')"
                       :aria-label="t('chat.attachments.pending.retry')"
                       @click.stop="emit('resolve-blocked', { itemId: element.id, action: 'retry' })"
                     >
                       <Icon icon="lucide:refresh-cw" class="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
+                    </DcButton>
+                    <DcButton
                       variant="ghost"
                       size="icon"
                       data-testid="pending-blocked-send-without"
                       class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
-                      :title="t('chat.attachments.pending.sendWithoutImageContent')"
+                      :tooltip="t('chat.attachments.pending.sendWithoutImageContent')"
                       :aria-label="t('chat.attachments.pending.sendWithoutImageContent')"
                       @click.stop="
                         emit('resolve-blocked', {
@@ -177,15 +177,15 @@
                       "
                     >
                       <Icon icon="lucide:file-x-2" class="h-3.5 w-3.5" />
-                    </Button>
+                    </DcButton>
                   </template>
-                  <Button
+                  <DcButton
                     v-else
                     variant="ghost"
                     size="icon"
                     data-testid="pending-row-steer"
                     class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
-                    :title="
+                    :tooltip="
                       disableQueueSteerAction
                         ? t('chat.pendingInput.steerUnavailable')
                         : t('chat.pendingInput.toSteer')
@@ -199,16 +199,16 @@
                     @click.stop="emit('steer-queue', element.id)"
                   >
                     <Icon icon="lucide:compass" class="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
+                  </DcButton>
+                  <DcButton
                     variant="ghost"
                     size="icon"
                     class="h-6 w-6 rounded-full text-muted-foreground"
-                    :title="t('chat.pendingInput.remove')"
+                    :tooltip="t('chat.pendingInput.remove')"
                     @click.stop="emit('delete-queue', element.id)"
                   >
                     <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -227,7 +227,7 @@
 import { computed, ref, watch } from 'vue'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { useI18n } from 'vue-i18n'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 

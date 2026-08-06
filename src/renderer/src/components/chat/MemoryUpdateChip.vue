@@ -2,7 +2,7 @@
   <div v-if="memoryActivity.hasChip" class="mb-2 flex w-full justify-start">
     <Popover v-model:open="popoverOpen">
       <PopoverTrigger as-child>
-        <Button
+        <DcButton
           variant="outline"
           size="sm"
           class="h-8 gap-2 rounded-md border-border/70 bg-background/95 text-xs shadow-sm"
@@ -11,22 +11,23 @@
           <span>{{
             t('chat.memory.chip.title', { count: memoryActivity.displayChipItems.length })
           }}</span>
-        </Button>
+        </DcButton>
       </PopoverTrigger>
       <PopoverContent align="start" class="w-[min(92vw,34rem)] p-0">
         <div class="border-b px-3 py-2">
           <div class="flex items-center justify-between gap-3">
             <p class="text-sm font-medium">{{ t('chat.memory.chip.heading') }}</p>
-            <Button
+            <DcButton
               variant="ghost"
               size="icon"
               class="h-6 w-6"
               data-testid="memory-chip-clear"
               :aria-label="t('common.clear')"
               @click="handleClearChip"
+              :tooltip="t('common.clear')"
             >
               <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-            </Button>
+            </DcButton>
           </div>
           <p class="mt-0.5 text-xs text-muted-foreground">
             {{ t('chat.memory.chip.description') }}
@@ -43,50 +44,53 @@
               <div class="min-w-0 flex-1">
                 <p class="line-clamp-3 text-sm leading-5">{{ item.memory.content }}</p>
                 <div class="mt-1.5 flex flex-wrap gap-1.5">
-                  <Badge variant="outline" class="text-[10px]">{{ item.memory.kind }}</Badge>
-                  <Badge v-if="item.memory.category" variant="secondary" class="text-[10px]">
+                  <DcBadge variant="outline" class="text-[10px]">{{ item.memory.kind }}</DcBadge>
+                  <DcBadge v-if="item.memory.category" variant="secondary" class="text-[10px]">
                     {{ item.memory.category }}
-                  </Badge>
-                  <Badge
+                  </DcBadge>
+                  <DcBadge
                     v-if="item.memory.status === 'archived'"
                     variant="secondary"
                     class="text-[10px]"
                   >
                     {{ t('chat.memory.status.archived') }}
-                  </Badge>
+                  </DcBadge>
                 </div>
               </div>
               <div class="flex shrink-0 items-center gap-1">
-                <Button
+                <DcButton
                   variant="ghost"
                   size="icon"
                   class="h-7 w-7"
                   :disabled="item.busy || isArchived(item)"
                   :aria-label="t('chat.memory.actions.undo')"
                   @click="handleUndo(item.id)"
+                  :tooltip="t('chat.memory.actions.undo')"
                 >
                   <Icon icon="lucide:undo-2" class="h-3.5 w-3.5" />
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   variant="ghost"
                   size="icon"
                   class="h-7 w-7"
                   :disabled="item.busy || isArchived(item)"
                   :aria-label="t('chat.memory.actions.forget')"
                   @click="handleForget(item.id)"
+                  :tooltip="t('chat.memory.actions.forget')"
                 >
                   <Icon icon="lucide:archive" class="h-3.5 w-3.5" />
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   variant="ghost"
                   size="icon"
                   class="h-7 w-7"
                   :disabled="item.busy || isArchived(item)"
                   :aria-label="t('chat.memory.actions.edit')"
                   @click="startEditing(item)"
+                  :tooltip="t('chat.memory.actions.edit')"
                 >
                   <Icon icon="lucide:pencil" class="h-3.5 w-3.5" />
-                </Button>
+                </DcButton>
               </div>
             </div>
 
@@ -99,10 +103,10 @@
                 @update:model-value="handleDraftTextUpdate"
               />
               <div class="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" @click="cancelEditing">
+                <DcButton variant="ghost" size="sm" @click="cancelEditing">
                   {{ t('common.cancel') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   :disabled="
                     item.busy ||
@@ -112,7 +116,7 @@
                   @click="handleAmend(item.id)"
                 >
                   {{ t('common.save') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
 
@@ -130,8 +134,8 @@
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { useMemoryActivityStore, type MemoryActivityItem } from '@/stores/ui/memoryActivity'

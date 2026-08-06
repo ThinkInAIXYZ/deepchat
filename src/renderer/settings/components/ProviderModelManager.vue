@@ -10,7 +10,7 @@
           {{ t('settings.provider.modelsEnabled') }}
         </div>
       </div>
-      <Button
+      <DcButton
         data-testid="provider-models-refresh-button"
         variant="outline"
         size="sm"
@@ -34,7 +34,7 @@
             ? t('settings.provider.refreshingModels')
             : t('settings.provider.refreshModels')
         }}
-      </Button>
+      </DcButton>
     </div>
 
     <div class="w-full">
@@ -56,7 +56,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/types/provider'

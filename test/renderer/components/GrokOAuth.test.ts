@@ -86,8 +86,8 @@ describe('GrokOAuth', () => {
         t: (key: string) => key
       })
     }))
-    vi.doMock('@shadcn/components/ui/button', () => ({
-      Button: buttonStub
+    vi.doMock('@dc-ui/components/button', () => ({
+      DcButton: buttonStub
     }))
     vi.doMock('@shadcn/components/ui/label', () => ({
       Label: labelStub

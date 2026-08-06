@@ -60,9 +60,9 @@
           >
             <div v-if="integrityStatus" class="flex shrink-0 items-center gap-2">
               <span class="font-semibold">{{ t('traceDialog.integrity.label') }}:</span>
-              <Badge :variant="integrityVariant">
+              <DcBadge :variant="integrityVariant">
                 {{ t(`traceDialog.integrity.${integrityStatus}`) }}
-              </Badge>
+              </DcBadge>
             </div>
             <div v-if="selectedTrace" class="flex min-w-0 flex-1 basis-96 items-center gap-2">
               <span class="shrink-0 font-semibold">{{ t('traceDialog.endpoint') }}:</span>
@@ -95,10 +95,13 @@
             class="shrink-0 flex items-center justify-between px-4 py-2 bg-muted border-x border-t"
           >
             <span class="text-sm font-semibold">{{ activeTabLabel }}</span>
-            <Button variant="ghost" size="sm" :disabled="!activeJson" @click="copyJson">
-              <Icon icon="lucide:copy" class="w-4 h-4 mr-1" />
-              {{ copySuccess ? t('traceDialog.copySuccess') : t('traceDialog.copyJson') }}
-            </Button>
+            <DcCopyButton
+              variant="ghost"
+              size="sm"
+              :disabled="!activeJson"
+              :copy-text="activeJson"
+              :label="t('traceDialog.copyJson')"
+            />
           </div>
 
           <TabsContent
@@ -290,7 +293,7 @@
       </div>
 
       <DialogFooter>
-        <Button variant="outline" @click="close">{{ t('traceDialog.close') }}</Button>
+        <DcButton variant="outline" @click="close">{{ t('traceDialog.close') }}</DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -305,7 +308,7 @@ import {
   DialogTitle,
   DialogFooter
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Select,
   SelectContent,
@@ -314,11 +317,11 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcCopyButton } from '@dc-ui/components/copy-button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { createDeviceClient } from '@api/DeviceClient'
 import { createSessionClient } from '@api/SessionClient'
 import { useMonaco } from 'stream-monaco'
 import { useThemeStore } from '@/stores/theme'
@@ -332,7 +335,6 @@ import type {
 type DiagnosticTab = 'request' | 'view' | 'entries' | 'budget'
 
 const { t } = useI18n()
-const deviceClient = createDeviceClient()
 const sessionClient = createSessionClient()
 const uiSettingsStore = useUiSettingsStore()
 const themeStore = useThemeStore()
@@ -372,7 +374,6 @@ const emit = defineEmits<{
 const isOpen = ref(false)
 const loading = ref(false)
 const error = ref(false)
-const copySuccess = ref(false)
 const requestId = ref(0)
 const traceList = ref<MessageTraceRecord[]>([])
 const manifestList = ref<DeepChatTapeViewManifestRecord[]>([])
@@ -710,23 +711,9 @@ const loadTraces = async (messageId: string) => {
   }
 }
 
-const copyJson = async () => {
-  if (!activeJson.value) return
-  try {
-    deviceClient.copyText(activeJson.value)
-    copySuccess.value = true
-    setTimeout(() => {
-      copySuccess.value = false
-    }, 2000)
-  } catch (err) {
-    console.error('Failed to copy JSON:', err)
-  }
-}
-
 const resetState = () => {
   loading.value = false
   error.value = false
-  copySuccess.value = false
   traceList.value = []
   manifestList.value = []
   selectedRequestSeq.value = null

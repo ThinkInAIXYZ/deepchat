@@ -8,7 +8,7 @@
       class="h-full shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
     >
       <div v-if="!isFullscreened && isMacOS" class="shrink-0 w-20 h-full window-drag-region"></div>
-      <Button
+      <DcButton
         v-if="showUpdateButton"
         variant="default"
         size="sm"
@@ -18,34 +18,34 @@
         @click="handleInstallUpdate"
       >
         {{ upgrade.isRestarting ? t('update.restarting') : t('update.topbarButton') }}
-      </Button>
+      </DcButton>
       <div class="flex-1"></div>
 
-      <Button
+      <DcButton
         v-if="!isMacOS"
         class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
-        :title="t('common.minimize')"
+        :tooltip="t('common.minimize')"
         @click="minimizeWindow"
       >
         <MinimizeIcon class="h-3! w-3!" />
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         v-if="!isMacOS"
         class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
-        :title="isMaximized ? t('common.restore') : t('common.maximize')"
+        :tooltip="isMaximized ? t('common.restore') : t('common.maximize')"
         @click="toggleMaximize"
       >
         <MaximizeIcon v-if="!isMaximized" class="h-3! w-3!" />
         <RestoreIcon v-else class="h-3! w-3!" />
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         v-if="!isMacOS"
         class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-red-700/80 hover:text-white text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
-        :title="t('common.close')"
+        :tooltip="t('common.close')"
         @click="closeWindow"
       >
         <CloseIcon class="h-3! w-3!" />
-      </Button>
+      </DcButton>
     </div>
     <UpdateTaskCheckDialog
       :open="upgrade.showTaskRunningDialog ?? false"
@@ -64,7 +64,7 @@ import CloseIcon from './icons/CloseIcon.vue'
 import MinimizeIcon from './icons/MinimizeIcon.vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
 import { useUpgradeStore } from '@/stores/upgrade'

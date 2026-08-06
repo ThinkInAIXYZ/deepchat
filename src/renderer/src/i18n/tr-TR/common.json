@@ -125,6 +125,9 @@
   "history": "Tarih",
   "minimize": "Küçült",
   "maximize": "Büyüt",
+  "showValue": "Göster",
+  "hideValue": "Gizle",
+  "scrollToBottom": "En alta kaydır",
   "restore": "Eski haline getirmek",
   "browser": {
     "back": "Geri",

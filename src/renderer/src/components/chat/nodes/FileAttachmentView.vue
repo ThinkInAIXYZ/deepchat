@@ -57,10 +57,11 @@
         </DropdownMenuRadioGroup>
         <template v-if="isImage && supportsVision === false">
           <DropdownMenuSeparator />
-          <DropdownMenuItem @select="handleSwitchToVisionModel">
-            <Icon icon="lucide:scan-eye" class="mr-2 h-3.5 w-3.5 shrink-0" />
-            <span class="whitespace-normal">{{ t('chat.attachments.switchVisionModel') }}</span>
-          </DropdownMenuItem>
+          <DcDropdownActionItem
+            icon="lucide:scan-eye"
+            :label="t('chat.attachments.switchVisionModel')"
+            @select="handleSwitchToVisionModel"
+          />
         </template>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -85,12 +86,12 @@ import { getMimeTypeIcon } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import type { AttachmentRepresentationPreference } from '@shared/types/attachment'
 import {
   isImageAttachment,

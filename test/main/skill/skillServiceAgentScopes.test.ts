@@ -367,6 +367,70 @@ describe('SkillService Agent scopes', () => {
     expect(fs.existsSync(writerRoot)).toBe(false)
   })
 
+  it('shares the bundled CLI Skill read-only without copying it into Agent roots', async () => {
+    agents.push({ id: 'writer' })
+    vi.mocked(app.getAppPath).mockReturnValue(temporaryRoot)
+    const resourceRoot = writeSkill(
+      path.join(temporaryRoot, 'resources', 'skills'),
+      'deepchat-cli',
+      '# Bundled CLI'
+    )
+
+    await service.installBuiltinSkills()
+    const catalog = await service.getUnifiedSkillCatalog('writer')
+
+    expect(catalog).toEqual([
+      expect.objectContaining({
+        name: 'deepchat-cli',
+        skillRoot: resourceRoot,
+        canonicalPath: resourceRoot,
+        sourceType: 'builtin',
+        mutable: false,
+        readOnly: true
+      })
+    ])
+    expect(
+      fs.existsSync(path.join(resolveAgentSkillsRoot(skillsRoot, 'writer'), 'deepchat-cli'))
+    ).toBe(false)
+    await expect(service.uninstallSkillForAgent('writer', 'deepchat-cli')).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining('Read-only bundled Skills')
+    })
+    expect(fs.existsSync(path.join(resourceRoot, 'SKILL.md'))).toBe(true)
+  })
+
+  it('keeps an Agent-owned Skill when it collides with a read-only bundled name', async () => {
+    agents.push({ id: 'writer' })
+    vi.mocked(app.getAppPath).mockReturnValue(temporaryRoot)
+    writeSkill(path.join(temporaryRoot, 'resources', 'skills'), 'deepchat-cli', '# Bundled CLI')
+    const writerRoot = resolveAgentSkillsRoot(skillsRoot, 'writer')
+    const customRoot = writeSkill(writerRoot, 'deepchat-cli', '# Agent custom CLI')
+
+    await service.installBuiltinSkills()
+    const catalog = await service.getUnifiedSkillCatalog('writer')
+
+    expect(catalog).toEqual([
+      expect.objectContaining({
+        name: 'deepchat-cli',
+        skillRoot: customRoot,
+        sourceType: 'created',
+        mutable: true
+      })
+    ])
+    expect(catalog[0]).not.toHaveProperty('readOnly', true)
+
+    await expect(service.uninstallSkillForAgent('writer', 'deepchat-cli')).resolves.toMatchObject({
+      success: true
+    })
+    await expect(service.getUnifiedSkillCatalog('writer')).resolves.toEqual([
+      expect.objectContaining({
+        name: 'deepchat-cli',
+        readOnly: true,
+        mutable: false
+      })
+    ])
+  })
+
   it('preserves a preexisting independent Agent root instead of overwriting it', async () => {
     agents.push({ id: 'writer' })
     const writerRoot = resolveAgentSkillsRoot(skillsRoot, 'writer')

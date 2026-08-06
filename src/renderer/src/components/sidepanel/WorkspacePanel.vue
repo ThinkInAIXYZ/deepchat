@@ -65,10 +65,10 @@
                 <p class="mb-3 text-[11px] text-muted-foreground">
                   {{ t('chat.workspace.files.noWorkspace.description') }}
                 </p>
-                <Button variant="outline" size="sm" class="h-7 text-xs" @click="selectFolder">
+                <DcButton variant="outline" size="sm" class="h-7 text-xs" @click="selectFolder">
                   <Icon icon="lucide:folder-open" class="mr-1.5 h-3.5 w-3.5" />
                   {{ t('chat.workspace.files.noWorkspace.button') }}
-                </Button>
+                </DcButton>
               </div>
               <div v-else-if="loadingFiles" class="px-3 py-2 text-[11px] text-muted-foreground/70">
                 {{ t('chat.workspace.files.loading') }}
@@ -191,7 +191,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { useI18n } from 'vue-i18n'
 import { createFileClient } from '@api/FileClient'
 import { createProjectClient } from '@api/ProjectClient'

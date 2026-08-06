@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createRendererRouteContext } from '@/routes/routeRegistry'
 import {
   orchestrationGetCapabilityRoute,
   orchestrationInspectLiveDelegationRoute,
@@ -9,7 +10,7 @@ import {
 import { createOrchestrationRoutes } from '@/orchestration/routes'
 import type { OrchestrationPolicy } from '@shared/orchestration/policy'
 
-const context = { webContentsId: 1, windowId: 1 }
+const context = createRendererRouteContext(1, 1)
 const liveSummary = {
   schemaVersion: 1 as const,
   id: 'delegation-1',

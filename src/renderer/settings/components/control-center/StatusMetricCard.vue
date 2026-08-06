@@ -1,9 +1,9 @@
 <template>
   <Card
     :class="[
-      'min-w-0 border-none bg-accent shadow-none',
+      'min-w-0 border-none bg-card shadow-none',
       interactive
-        ? ' transition-colors hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+        ? 'transition-colors hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
         : ''
     ]"
     :role="interactive ? 'button' : undefined"
@@ -24,9 +24,9 @@
         <p v-if="description" class="truncate text-xs text-muted-foreground">
           {{ description }}
         </p>
-        <Badge v-if="badge" variant="secondary" class="shrink-0">
+        <DcBadge v-if="badge" variant="secondary" class="shrink-0">
           {{ badge }}
-        </Badge>
+        </DcBadge>
       </div>
     </CardContent>
   </Card>
@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import {
   Card,
   CardContent,

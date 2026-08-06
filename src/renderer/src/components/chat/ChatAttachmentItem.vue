@@ -29,7 +29,7 @@
       @mousedown.stop
       @click.stop="isOcrPreviewOpen = true"
     >
-      <Badge
+      <DcBadge
         variant="secondary"
         data-testid="attachment-representation-status"
         class="h-4 px-1.5 text-[9px] font-medium"
@@ -38,41 +38,44 @@
         "
       >
         {{ ocrStatusLabel }}
-      </Badge>
+      </DcBadge>
     </button>
-    <Badge
+    <DcBadge
       v-else-if="resolvedRepresentation?.kind === 'embedded_text'"
       variant="secondary"
       data-testid="attachment-representation-status"
       class="h-4 px-1.5 text-[9px] font-medium"
     >
       {{ t('chat.attachments.embeddedTextBadge') }}
-    </Badge>
-    <Badge
+    </DcBadge>
+    <DcBadge
       v-else-if="resolvedRepresentation?.kind === 'image'"
       variant="secondary"
       data-testid="attachment-representation-status"
       class="h-4 px-1.5 text-[9px] font-medium"
     >
       {{ t('chat.attachments.imageBadge') }}
-    </Badge>
-    <Badge
+    </DcBadge>
+    <DcBadge
       v-else-if="resolvedRepresentation?.kind === 'unavailable'"
-      variant="outline"
+      variant="warning"
       data-testid="attachment-representation-status"
-      class="h-4 border-amber-500/40 px-1.5 text-[9px] font-medium text-amber-700 dark:text-amber-300"
+      class="h-4 px-1.5 text-[9px] font-medium"
       :title="t(`chat.attachments.reasons.${resolvedRepresentation.reason}`)"
     >
       {{ t('chat.attachments.unavailableBadge') }}
-    </Badge>
-    <button
+    </DcBadge>
+    <DcButton
       v-if="removable"
       type="button"
-      class="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      size="icon-xs"
+      icon="lucide:x"
+      icon-size="3.5"
+      :label="t('chat.pendingInput.remove')"
+      :tooltip="t('chat.pendingInput.remove')"
+      class="size-[18px] rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       @click.stop.prevent="$emit('remove')"
-    >
-      <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-    </button>
+    />
   </span>
 
   <Dialog v-model:open="isOcrPreviewOpen">
@@ -111,7 +114,8 @@ import { Icon } from '@iconify/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getMimeTypeIcon } from '@/lib/utils'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,

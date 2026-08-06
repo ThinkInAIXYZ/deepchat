@@ -125,6 +125,9 @@
   "history": "sejarah",
   "minimize": "meminimumkan",
   "maximize": "memaksimumkan",
+  "showValue": "Tunjukkan",
+  "hideValue": "Sembunyikan",
+  "scrollToBottom": "Tatal ke bawah",
   "restore": "pengurangan",
   "browser": {
     "back": "belakang",

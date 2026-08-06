@@ -7,31 +7,35 @@
     <div class="flex w-full flex-col gap-3">
       <UploadFileSettingsSection />
       <ProxySettingsSection />
-      <SettingToggleRow
+      <DcToggleRow
         id="launch-at-login-switch"
         icon="lucide:power"
         :label="t('settings.common.launchAtLoginEnabled')"
+        label-min-width="220px"
         :model-value="launchAtLoginEnabled"
         @update:model-value="handleLaunchAtLoginChange"
       />
-      <SettingToggleRow
+      <DcToggleRow
         id="auto-scroll-switch"
         icon="lucide:arrow-down"
         :label="t('settings.common.autoScrollEnabled')"
+        label-min-width="220px"
         :model-value="autoScrollEnabled"
         @update:model-value="handleAutoScrollChange"
       />
-      <SettingToggleRow
+      <DcToggleRow
         id="copy-with-cot-switch"
         icon="lucide:file-text"
         :label="t('settings.common.copyWithCotEnabled')"
+        label-min-width="220px"
         :model-value="copyWithCotEnabled"
         @update:model-value="handleCopyWithCotChange"
       />
-      <SettingToggleRow
+      <DcToggleRow
         id="trace-debug-switch"
         icon="lucide:bug"
         :label="t('settings.common.traceDebugEnabled')"
+        label-min-width="220px"
         :model-value="traceDebugEnabled"
         @update:model-value="handleTraceDebugChange"
       />
@@ -44,9 +48,9 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import { DcToggleRow } from '@dc-ui/components/toggle-row'
 import ProxySettingsSection from './common/ProxySettingsSection.vue'
 import LoggingSettingsSection from './common/LoggingSettingsSection.vue'
-import SettingToggleRow from './common/SettingToggleRow.vue'
 import UploadFileSettingsSection from './common/UploadFileSettingsSection.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 

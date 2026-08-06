@@ -125,6 +125,9 @@
   "history": "기록",
   "minimize": "최소화",
   "maximize": "최대화",
+  "showValue": "표시",
+  "hideValue": "숨기기",
+  "scrollToBottom": "맨 아래로 스크롤",
   "restore": "복원",
   "browser": {
     "back": "뒤로",

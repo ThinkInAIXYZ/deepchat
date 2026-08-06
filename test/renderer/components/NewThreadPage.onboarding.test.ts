@@ -223,7 +223,7 @@ const setup = async () => {
     global: {
       stubs: {
         TooltipProvider: passthrough('TooltipProvider'),
-        Button: {
+        DcButton: {
           template: '<button type="button" v-bind="$attrs"><slot /></button>'
         },
         DropdownMenu: true,

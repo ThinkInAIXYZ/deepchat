@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: vi.fn()
+}))
 
 type EnvironmentFixture = {
   path: string
@@ -282,7 +287,7 @@ async function setup(overrides?: {
     global: {
       stubs: {
         ScrollArea: passthrough('ScrollArea'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Switch: switchStub,
         draggable: draggableStub,
         Icon: passthrough('Icon')
@@ -472,7 +477,7 @@ describe('EnvironmentsSettings', () => {
     ])
   })
 
-  it('keeps reorder failures inline without exposing exception messages', async () => {
+  it('reports reorder failures as a toast without exposing exception messages', async () => {
     const appEnvironment = {
       path: '/work/app',
       name: 'app',
@@ -511,9 +516,13 @@ describe('EnvironmentsSettings', () => {
       .trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('Reorder failed')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.environments.reorder.failed',
+        title: 'Reorder failed'
+      })
+    )
     expect(wrapper.text()).not.toContain('/private/projects/order.json')
     consoleError.mockRestore()
   })
@@ -549,9 +558,13 @@ describe('EnvironmentsSettings', () => {
 
     expect(projectStore.archiveEnvironment).toHaveBeenCalledWith('/work/app')
     expect(wrapper.text()).toContain('Archive app?')
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('Archive failed')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.environments.archive.failed',
+        title: 'Archive failed'
+      })
+    )
     expect(wrapper.text()).not.toContain('/private/project.db')
     consoleError.mockRestore()
   })

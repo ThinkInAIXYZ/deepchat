@@ -51,8 +51,8 @@ async function setup() {
   vi.doMock('@iconify/vue', () => ({
     Icon: passthrough('Icon')
   }))
-  vi.doMock('@shadcn/components/ui/button', () => ({
-    Button: buttonStub
+  vi.doMock('@dc-ui/components/button', () => ({
+    DcButton: buttonStub
   }))
   vi.doMock('@shadcn/components/ui/badge', () => ({
     Badge: passthrough('Badge')

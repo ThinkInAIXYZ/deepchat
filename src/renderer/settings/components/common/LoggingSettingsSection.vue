@@ -7,7 +7,7 @@
       >
         <Icon icon="lucide:file-text" class="w-4 h-4 text-muted-foreground" />
         <span class="truncate">{{ t('settings.common.loggingEnabled') }}</span>
-        <Button
+        <DcButton
           variant="ghost"
           size="sm"
           class="shrink-0 ltr:ml-2 rtl:mr-2"
@@ -16,7 +16,7 @@
         >
           <Icon icon="lucide:external-link" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{ t('settings.common.openLogFolder') }}</span>
-        </Button>
+        </DcButton>
       </div>
       <Switch
         id="logging-switch"
@@ -44,8 +44,10 @@
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="cancelLoggingChange">{{ t('common.cancel') }}</Button>
-          <Button @click="confirmLoggingChange">{{ t('common.confirm') }}</Button>
+          <DcButton variant="outline" @click="cancelLoggingChange">{{
+            t('common.cancel')
+          }}</DcButton>
+          <DcButton @click="confirmLoggingChange">{{ t('common.confirm') }}</DcButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -56,7 +58,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import {
   Dialog,

@@ -246,7 +246,7 @@ const setup = async (options?: {
     },
     global: {
       stubs: {
-        Button: ButtonStub,
+        DcButton: ButtonStub,
         Switch: SwitchStub,
         Popover: passthrough('Popover'),
         PopoverTrigger: passthrough('PopoverTrigger'),

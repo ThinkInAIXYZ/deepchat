@@ -42,7 +42,7 @@ const createSliderStub = () =>
 
 const createToggleStub = () =>
   defineComponent({
-    name: 'SettingToggleRow',
+    name: 'DcToggleRow',
     props: {
       modelValue: {
         type: Boolean,
@@ -118,7 +118,7 @@ const setup = async (enabled = true) => {
     global: {
       stubs: {
         Icon: true,
-        SettingToggleRow: createToggleStub()
+        DcToggleRow: createToggleStub()
       }
     }
   })

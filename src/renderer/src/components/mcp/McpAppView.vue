@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { useI18n } from 'vue-i18n'
 import { useResizeObserver } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   AppBridge,
@@ -465,9 +465,9 @@ onBeforeUnmount(() => {
   >
     <p>{{ t('mcp.apps.loadError') }}</p>
     <p class="mt-1 break-words text-xs">{{ errorMessage }}</p>
-    <Button variant="outline" size="sm" class="mt-3" @click="prepare">
+    <DcButton variant="outline" size="sm" class="mt-3" @click="prepare">
       {{ t('mcp.apps.retry') }}
-    </Button>
+    </DcButton>
   </div>
 
   <Teleport v-else-if="prepared" :to="teleportTarget" :disabled="teleportDisabled">
@@ -480,35 +480,38 @@ onBeforeUnmount(() => {
           </span>
         </div>
         <div class="flex items-center gap-1">
-          <Button
+          <DcButton
             variant="ghost"
             size="icon"
             :aria-label="t('mcp.apps.securityDetails')"
             :aria-expanded="detailsExpanded"
             @click="detailsExpanded = !detailsExpanded"
+            :tooltip="t('mcp.apps.securityDetails')"
           >
             <Icon icon="lucide:shield-check" class="size-4" />
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-if="displayMode === 'inline' && !isSidepanelPreview"
             data-testid="mcp-app-open-sidepanel"
             variant="ghost"
             size="icon"
             :aria-label="`${t('mcp.apps.title')} · ${t('common.preview')}`"
             @click="openSidepanelPreview"
+            :tooltip="`${t('mcp.apps.title')} · ${t('common.preview')}`"
           >
             <Icon icon="lucide:panel-right-open" class="size-4" />
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-if="displayMode === 'inline' && supportedDisplayModes.includes('fullscreen')"
             variant="ghost"
             size="icon"
             :aria-label="t('mcp.apps.fullscreen')"
             @click="setDisplayMode('fullscreen')"
+            :tooltip="t('mcp.apps.fullscreen')"
           >
             <Icon icon="lucide:maximize-2" class="size-4" />
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-if="
               displayMode === 'inline' &&
               !supportedDisplayModes.includes('fullscreen') &&
@@ -518,31 +521,34 @@ onBeforeUnmount(() => {
             size="icon"
             :aria-label="t('mcp.apps.pictureInPicture')"
             @click="setDisplayMode('pip')"
+            :tooltip="t('mcp.apps.pictureInPicture')"
           >
             <Icon icon="lucide:picture-in-picture-2" class="size-4" />
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-if="displayMode === 'fullscreen' && supportedDisplayModes.includes('pip')"
             variant="ghost"
             size="icon"
             :aria-label="t('mcp.apps.pictureInPicture')"
             @click="setDisplayMode('pip')"
+            :tooltip="t('mcp.apps.pictureInPicture')"
           >
             <Icon icon="lucide:picture-in-picture-2" class="size-4" />
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-if="displayMode !== 'inline' || isSidepanelPreview"
             data-testid="mcp-app-return-inline"
             variant="ghost"
             size="icon"
             :aria-label="t('mcp.apps.returnInline')"
             @click="returnInline"
+            :tooltip="t('mcp.apps.returnInline')"
           >
             <Icon
               :icon="isSidepanelPreview ? 'lucide:panel-right-close' : 'lucide:minimize-2'"
               class="size-4"
             />
-          </Button>
+          </DcButton>
         </div>
       </header>
       <div v-if="detailsExpanded" class="shrink-0 space-y-2 border-b bg-muted/30 px-3 py-2 text-xs">
@@ -586,9 +592,9 @@ onBeforeUnmount(() => {
         class="flex items-center justify-between gap-3 border-t bg-muted/40 px-3 py-2 text-xs"
       >
         <span>{{ t('mcp.apps.toolAccessSuspended') }}</span>
-        <Button size="sm" variant="outline" @click="retryToolAccess">
+        <DcButton size="sm" variant="outline" @click="retryToolAccess">
           {{ t('mcp.apps.retryAccess') }}
-        </Button>
+        </DcButton>
       </div>
     </section>
   </Teleport>

@@ -31,8 +31,8 @@ describe('ProviderModelManager', () => {
     vi.doMock('@shadcn/components/ui/label', () => ({
       Label: passthrough('Label')
     }))
-    vi.doMock('@shadcn/components/ui/button', () => ({
-      Button: ButtonStub
+    vi.doMock('@dc-ui/components/button', () => ({
+      DcButton: ButtonStub
     }))
     vi.doMock('@iconify/vue', () => ({
       Icon: passthrough('Icon')

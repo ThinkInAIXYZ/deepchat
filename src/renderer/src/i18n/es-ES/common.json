@@ -125,6 +125,9 @@
   "history": "Historial",
   "minimize": "Minimizar",
   "maximize": "Maximizar",
+  "showValue": "Mostrar",
+  "hideValue": "Ocultar",
+  "scrollToBottom": "Desplazarse al final",
   "restore": "Restaurar",
   "browser": {
     "back": "Atrás",

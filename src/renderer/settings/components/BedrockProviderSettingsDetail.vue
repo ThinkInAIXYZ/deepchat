@@ -46,17 +46,18 @@
                 @keyup.enter="handleAccessKeyIdChange(accessKeyId)"
                 @update:model-value="accessKeyId = String($event)"
               />
-              <Button
+              <DcButton
                 variant="ghost"
                 size="sm"
                 class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+                :tooltip="showAccessKeyId ? t('common.hideValue') : t('common.showValue')"
                 @click="showAccessKeyId = !showAccessKeyId"
               >
                 <Icon
                   :icon="showAccessKeyId ? 'lucide:eye-off' : 'lucide:eye'"
                   class="w-4 h-4 text-muted-foreground hover:text-foreground"
                 />
-              </Button>
+              </DcButton>
             </div>
           </div>
           <div class="flex flex-col items-start gap-2">
@@ -74,17 +75,18 @@
                 @keyup.enter="handleSecretAccessKeyChange(secretAccessKey)"
                 @update:model-value="secretAccessKey = String($event)"
               />
-              <Button
+              <DcButton
                 variant="ghost"
                 size="sm"
                 class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+                :tooltip="showSecretAccessKey ? t('common.hideValue') : t('common.showValue')"
                 @click="showSecretAccessKey = !showSecretAccessKey"
               >
                 <Icon
                   :icon="showSecretAccessKey ? 'lucide:eye-off' : 'lucide:eye'"
                   class="w-4 h-4 text-muted-foreground hover:text-foreground"
                 />
-              </Button>
+              </DcButton>
             </div>
           </div>
         </template>
@@ -120,7 +122,7 @@
         </div>
 
         <div class="flex flex-row gap-2">
-          <Button
+          <DcButton
             variant="outline"
             size="sm"
             class="text-xs text-normal rounded-lg"
@@ -130,7 +132,7 @@
             <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{
               t('settings.provider.verifyKey')
             }}
-          </Button>
+          </DcButton>
           <TooltipProvider :delayDuration="200">
             <Tooltip>
               <TooltipTrigger>
@@ -192,7 +194,7 @@ import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
 import {
   Tooltip,

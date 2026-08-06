@@ -20,7 +20,7 @@
       class="grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
       data-testid="settings-overview-search-results"
     >
-      <Button
+      <DcButton
         v-for="item in searchResults"
         :key="item.routeName"
         variant="outline"
@@ -29,7 +29,7 @@
       >
         <Icon :icon="item.icon" class="size-4" />
         <span class="truncate">{{ t(item.titleKey) }}</span>
-      </Button>
+      </DcButton>
     </div>
 
     <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -53,7 +53,7 @@
         interactive
         @select="openRoute('settings-deepchat-agents')"
       />
-      <Card class="min-w-0 border-none bg-accent shadow-none">
+      <Card class="min-w-0 border-none bg-card shadow-none">
         <CardHeader class="gap-2 pb-2">
           <div class="flex items-center justify-between gap-3">
             <CardDescription class="truncate">
@@ -93,7 +93,7 @@
     </section>
 
     <SettingsSectionCard
-      class="border-none bg-accent shadow-none"
+      class="border-none bg-card shadow-none"
       :title="t('settings.controlCenter.activity.title')"
       :description="t('settings.controlCenter.activity.description')"
     >
@@ -116,7 +116,7 @@
               {{ formatDate(activity.createdAt) }}
             </TableCell>
             <TableCell>
-              <Badge variant="outline">{{ getActivityCategoryLabel(activity.category) }}</Badge>
+              <DcBadge variant="outline">{{ getActivityCategoryLabel(activity.category) }}</DcBadge>
             </TableCell>
             <TableCell class="min-w-0">
               <span class="line-clamp-2 text-sm">
@@ -126,14 +126,11 @@
           </TableRow>
         </TableBody>
       </Table>
-      <Empty v-else>
-        <EmptyHeader>
-          <EmptyTitle>{{ t('settings.controlCenter.activity.empty') }}</EmptyTitle>
-          <EmptyDescription>
-            {{ t('settings.controlCenter.activity.emptyDescription') }}
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <DcEmpty
+        v-else
+        :title="t('settings.controlCenter.activity.empty')"
+        :description="t('settings.controlCenter.activity.emptyDescription')"
+      />
     </SettingsSectionCard>
   </SettingsPageShell>
 </template>
@@ -143,10 +140,10 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import { Card, CardContent, CardDescription, CardHeader } from '@shadcn/components/ui/card'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@shadcn/components/ui/empty'
+import { DcEmpty } from '@dc-ui/components/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@shadcn/components/ui/input-group'
 import {
   Table,

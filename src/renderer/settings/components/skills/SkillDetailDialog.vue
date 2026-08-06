@@ -52,7 +52,7 @@
           data-testid="skill-detail-actions"
           class="flex shrink-0 items-center gap-2"
         >
-          <Button
+          <DcButton
             v-if="mutable"
             variant="outline"
             size="sm"
@@ -61,43 +61,30 @@
           >
             <Icon :icon="editing ? 'lucide:eye' : 'lucide:pencil'" class="mr-1 h-4 w-4" />
             {{ editing ? t('settings.skills.detail.preview') : t('settings.skills.detail.edit') }}
-          </Button>
-          <AlertDialog
-            v-if="mutable"
-            :open="deleteConfirmOpen"
-            @update:open="handleDeleteConfirmOpenChange"
+          </DcButton>
+          <DcButton
+            variant="destructive"
+            size="sm"
+            :disabled="saving"
+            @click="deleteConfirmOpen = true"
           >
-            <AlertDialogTrigger as-child>
-              <Button variant="destructive" size="sm" :disabled="saving">
-                <Icon icon="lucide:trash-2" class="mr-1 h-4 w-4" />
-                {{ t('settings.skills.detail.delete') }}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  {{ t('settings.skills.detail.confirmDeleteTitle') }}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {{ t('settings.skills.detail.confirmDeleteDescription', { name }) }}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <InlineOperationFeedback :snapshot="feedback" />
-              <AlertDialogFooter>
-                <Button variant="outline" :disabled="saving" @click="deleteConfirmOpen = false">
-                  {{ t('common.cancel') }}
-                </Button>
-                <Button variant="destructive" :disabled="saving" @click="handleDelete">
-                  <Spinner v-if="saving" data-icon="inline-start" />
-                  {{ t('common.delete') }}
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            <Icon icon="lucide:trash-2" class="mr-1 h-4 w-4" />
+            {{ t('settings.skills.detail.delete') }}
+          </DcButton>
+          <DcConfirmDialog
+            :open="deleteConfirmOpen"
+            :title="t('settings.skills.detail.confirmDeleteTitle')"
+            :description="t('settings.skills.detail.confirmDeleteDescription', { name })"
+            :danger="true"
+            :busy="saving"
+            confirm-label="t('common.delete')"
+            cancel-label="t('common.cancel')"
+            @update:open="handleDeleteConfirmOpenChange"
+            @confirm="handleDelete"
+            @cancel="handleDeleteCancel"
+          />
         </div>
       </div>
-
-      <InlineOperationFeedback v-if="!deleteConfirmOpen" class="min-h-5" :snapshot="feedback" />
 
       <div v-if="editing" class="min-h-0 flex-1 overflow-auto rounded-md border p-4">
         <div class="space-y-4">
@@ -167,33 +154,28 @@
       </div>
 
       <DialogFooter v-if="editing">
-        <Button variant="outline" :disabled="saving" @click="cancelEditing">
+        <DcButton variant="outline" :disabled="saving" @click="cancelEditing">
           {{ t('common.cancel') }}
-        </Button>
-        <Button :disabled="saving || descriptionMissing" @click="handleSave">
+        </DcButton>
+        <DcButton :disabled="saving || descriptionMissing" @click="handleSave">
           <Spinner v-if="saving" data-icon="inline-start" />
           {{ t('common.save') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 
-  <AlertDialog :open="discardConfirmOpen" @update:open="discardConfirmOpen = $event">
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>{{ t('settings.leaveGuard.dirtyTitle') }}</AlertDialogTitle>
-        <AlertDialogDescription>
-          {{ t('settings.leaveGuard.dirtyDescription') }}
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel>{{ t('settings.leaveGuard.stay') }}</AlertDialogCancel>
-        <AlertDialogAction @click="discardAndClose">
-          {{ t('settings.leaveGuard.discard') }}
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
+  <DcConfirmDialog
+    :open="discardConfirmOpen"
+    :title="t('settings.leaveGuard.dirtyTitle')"
+    :description="t('settings.leaveGuard.dirtyDescription')"
+    :danger="false"
+    confirm-label="t('settings.leaveGuard.discard')"
+    cancel-label="t('settings.leaveGuard.stay')"
+    @update:open="discardConfirmOpen = $event"
+    @confirm="discardAndClose"
+    @cancel="discardConfirmOpen = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -202,23 +184,12 @@ import { useI18n } from 'vue-i18n'
 import { nanoid } from 'nanoid'
 import * as yaml from 'yaml'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Textarea } from '@shadcn/components/ui/textarea'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from '@shadcn/components/ui/alert-dialog'
 import {
   Dialog,
   DialogContent,
@@ -227,9 +198,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import type { SurfaceFeedbackSnapshot } from '@renderer-notifications/surfaceFeedbackController'
 import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const props = withDefaults(
@@ -242,7 +212,6 @@ const props = withDefaults(
     mutable?: boolean
     deepchatDisabled?: boolean
     saving?: boolean
-    feedback?: SurfaceFeedbackSnapshot
   }>(),
   {
     description: '',
@@ -250,8 +219,7 @@ const props = withDefaults(
     markdown: '',
     mutable: false,
     deepchatDisabled: false,
-    saving: false,
-    feedback: () => ({ status: 'idle', version: 0 })
+    saving: false
   }
 )
 
@@ -392,6 +360,7 @@ const handleOpenChange = (value: boolean) => {
 
 const discardAndClose = () => {
   if (props.saving) return
+  discardConfirmOpen.value = false
   resetDraft()
   emit('update:open', false)
 }
@@ -410,6 +379,10 @@ const handleEnabledChange = (value: boolean | string) => {
 const handleDeleteConfirmOpenChange = (open: boolean) => {
   if (!open && props.saving) return
   deleteConfirmOpen.value = open
+}
+
+const handleDeleteCancel = () => {
+  if (!props.saving) deleteConfirmOpen.value = false
 }
 
 const handleDelete = () => {

@@ -1,7 +1,7 @@
 <template>
   <div class="w-full h-full flex flex-col">
     <div class="p-4 sticky top-0 z-10 flex items-center gap-2">
-      <Button
+      <DcButton
         v-if="embedded"
         variant="ghost"
         size="sm"
@@ -11,7 +11,7 @@
       >
         <Icon icon="lucide:chevron-left" class="w-4 h-4 mr-1" />
         {{ t('common.back') }}
-      </Button>
+      </DcButton>
 
       <div class="flex flex-col">
         <div class="font-medium">{{ t('mcp.market.builtinTitle') }}</div>
@@ -36,19 +36,14 @@
             :aria-invalid="Boolean(apiKeyLoadError || apiKeyRequirementError)"
             @update:model-value="handleApiKeyInputUpdate"
           />
-          <Button
+          <DcSubmitButton
             size="sm"
+            :status="saveApiKeyStatus"
             :disabled="apiKeyLoading || Boolean(apiKeyLoadError) || marketMutationInProgress"
             @click="saveApiKey"
           >
-            <Spinner v-if="savingApiKey" class="mr-1 size-3.5" data-icon="inline-start" />
             {{ t('common.save') }}
-          </Button>
-          <InlineOperationFeedback
-            :snapshot="apiKeyFeedback"
-            :retry-label="t('common.retry')"
-            @retry="saveApiKey"
-          />
+          </DcSubmitButton>
         </div>
       </div>
     </div>
@@ -56,14 +51,14 @@
     <!-- API Key 获取提示 -->
     <div class="px-4 text-xs text-muted-foreground">
       {{ t('mcp.market.keyHelpText') }}
-      <Button
+      <DcButton
         variant="link"
         size="sm"
         class="text-xs p-0 h-auto font-normal text-primary hover:underline"
         @click="openHowToGetKey"
       >
         {{ t('mcp.market.keyGuide') }}
-      </Button>
+      </DcButton>
       {{ t('mcp.market.keyHelpEnd') }}
       <div
         v-if="apiKeyLoadError"
@@ -71,13 +66,16 @@
         class="mt-2 flex items-center justify-between gap-3 text-destructive"
       >
         <span>{{ apiKeyLoadError }}</span>
-        <Button variant="outline" size="sm" class="h-7" @click="loadApiKey">
+        <DcButton variant="outline" size="sm" class="h-7" @click="loadApiKey">
           {{ t('common.retry') }}
-        </Button>
+        </DcButton>
       </div>
-      <p v-else-if="apiKeyRequirementError" role="alert" class="mt-2 text-destructive">
-        {{ apiKeyRequirementError }}
-      </p>
+      <DcInlineError
+        v-else-if="apiKeyRequirementError"
+        :error="apiKeyRequirementError"
+        class="mt-2"
+      />
+      <DcInlineError v-if="apiKeySaveError" :error="apiKeySaveError" class="mt-2" />
       <Separator class="mt-4" />
     </div>
 
@@ -108,7 +106,7 @@
               :title="item.server_key"
               >{{ item.server_key }}</span
             >
-            <Button
+            <DcButton
               size="sm"
               :variant="installedServers.has(item.server_key) ? 'secondary' : 'outline'"
               :disabled="
@@ -144,15 +142,13 @@
                     ? t('mcp.market.installed')
                     : t('mcp.market.install')
               }}
-            </Button>
+            </DcButton>
           </div>
-          <p
+          <DcInlineError
             v-if="installErrors[item.server_key]"
-            role="alert"
-            class="mt-2 text-xs text-destructive"
-          >
-            {{ installErrors[item.server_key] }}
-          </p>
+            :error="installErrors[item.server_key]"
+            class="mt-2"
+          />
         </div>
       </div>
 
@@ -166,10 +162,10 @@
         role="alert"
       >
         <span>{{ t('common.error.operationFailed') }}</span>
-        <Button variant="outline" size="sm" class="h-7 text-xs" @click="fetchPage">
+        <DcButton variant="outline" size="sm" class="h-7 text-xs" @click="fetchPage">
           <Icon icon="lucide:refresh-cw" class="mr-1 h-3.5 w-3.5" />
           {{ t('common.retry') }}
-        </Button>
+        </DcButton>
       </div>
       <div
         v-if="!hasMore && !loadError && items.length > 0"
@@ -191,15 +187,13 @@
 import { computed, ref, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { createMcpClient } from '@api/McpClient'
 import { Separator } from '@shadcn/components/ui/separator'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import { nanoid } from 'nanoid'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 
 withDefaults(
   defineProps<{
@@ -216,9 +210,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const mcpClient = createMcpClient()
-const apiKeyFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: apiKeyFeedback } = useSurfaceFeedback(apiKeyFeedbackController)
-const apiKeyOperationId = `settings.mcpMarket.apiKey.save:${nanoid(8)}`
 
 type MarketItem = {
   uuid: string
@@ -250,7 +241,9 @@ const apiKeyInputRef = ref<{ $el?: HTMLInputElement } | HTMLInputElement | null>
 const apiKeyLoading = ref(false)
 const apiKeyLoadError = ref<string | null>(null)
 const apiKeyRequirementError = ref<string | null>(null)
-const savingApiKey = computed(() => apiKeyFeedback.value.status === 'pending')
+const apiKeySaveError = ref<string | null>(null)
+const { status: saveApiKeyStatus, run: runSaveApiKey } = useDcFormSubmit()
+const savingApiKey = computed(() => saveApiKeyStatus.value === 'submitting')
 const installInProgress = computed(() => installingServerKeys.value.size > 0)
 const marketMutationInProgress = computed(() => savingApiKey.value || installInProgress.value)
 
@@ -275,29 +268,20 @@ const synchronizeApiKey = async (apiKey: string) => {
 
 const saveApiKey = async () => {
   if (apiKeyLoading.value || apiKeyLoadError.value || marketMutationInProgress.value) return
-  apiKeyFeedbackController.begin(apiKeyOperationId, t('common.saving'))
+  apiKeySaveError.value = null
   try {
-    await synchronizeApiKey(apiKeyInput.value)
-
-    apiKeyFeedbackController.succeed({
-      code: 'settings.mcpMarket.apiKey.saved',
-      title: t('common.saved')
+    await runSaveApiKey(async () => {
+      await synchronizeApiKey(apiKeyInput.value)
     })
   } catch (error) {
     console.error('[McpBuiltinMarket] Failed to save API key:', error)
-    apiKeyFeedbackController.fail({
-      code: 'settings.mcpMarket.apiKey.saveFailed',
-      title: t('common.error.operationFailed'),
-      description: t('common.error.requestFailed')
-    })
+    apiKeySaveError.value = t('common.error.requestFailed')
   }
 }
 
 const handleApiKeyInputUpdate = () => {
   apiKeyRequirementError.value = null
-  if (apiKeyFeedback.value.status === 'success' || apiKeyFeedback.value.status === 'error') {
-    apiKeyFeedbackController.clearSettled()
-  }
+  apiKeySaveError.value = null
 }
 
 const openHowToGetKey = () => {

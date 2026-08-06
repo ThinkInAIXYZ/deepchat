@@ -1,8 +1,6 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { nanoid } from 'nanoid'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 export type KnowledgeConfigOperationSource = 'confirmation' | 'dialog' | 'panel'
 
@@ -20,12 +18,18 @@ export type KnowledgeConfigOperation = Readonly<{
   failure?: () => KnowledgeConfigOperationFailure
 }>
 
+export type KnowledgeConfigOperationSnapshot = Readonly<
+  | { status: 'idle'; version: number }
+  | { status: 'pending'; version: number }
+  | { status: 'success'; version: number }
+  | { status: 'error'; version: number }
+>
+
 export function useKnowledgeConfigOperation() {
   const { t } = useI18n()
-  const controller = createRendererSurfaceFeedbackController('settings')
-  const { snapshot } = useSurfaceFeedback(controller)
-  const operationId = `settings.knowledgeBase.configuration:${nanoid(8)}`
+  const snapshot = ref<KnowledgeConfigOperationSnapshot>({ status: 'idle', version: 0 })
   const source = ref<KnowledgeConfigOperationSource | null>(null)
+  const lastError = ref<KnowledgeConfigOperationFailure | null>(null)
   let retryOperation: KnowledgeConfigOperation | null = null
 
   const pending = computed(() => snapshot.value.status === 'pending')
@@ -33,9 +37,10 @@ export function useKnowledgeConfigOperation() {
   const run = async (operation: KnowledgeConfigOperation): Promise<boolean> => {
     if (pending.value) return false
 
-    controller.begin(operationId, operation.label)
+    snapshot.value = { status: 'pending', version: snapshot.value.version + 1 }
     source.value = operation.source
     retryOperation = operation
+    lastError.value = null
 
     let persisted = false
     try {
@@ -53,10 +58,17 @@ export function useKnowledgeConfigOperation() {
       failure ??= {
         title: t('common.error.operationFailed')
       }
-      controller.fail({
-        code: `${operation.code}.failed`,
-        ...failure
-      })
+      if (operation.source === 'dialog') {
+        // 对话框保存：反馈走按钮态 + 内联错误，不再弹 toast
+        lastError.value = failure
+      } else {
+        notifyRenderer({
+          kind: 'error',
+          code: `${operation.code}.failed`,
+          ...failure
+        })
+      }
+      snapshot.value = { status: 'error', version: snapshot.value.version }
       return false
     }
 
@@ -66,12 +78,15 @@ export function useKnowledgeConfigOperation() {
       console.error(`[KnowledgeConfigOperation] ${operation.code} local commit failed`, error)
     }
 
-    controller.succeed({
-      code: `${operation.code}.succeeded`,
-      title: t('common.saved')
-    })
+    if (operation.source !== 'dialog') {
+      notifyRenderer({
+        kind: 'success',
+        code: `${operation.code}.succeeded`,
+        title: t('common.saved')
+      })
+    }
     retryOperation = null
-    controller.clearSettled()
+    snapshot.value = { status: 'idle', version: snapshot.value.version + 1 }
     source.value = null
     return true
   }
@@ -86,8 +101,9 @@ export function useKnowledgeConfigOperation() {
     if (pending.value) return
     retryOperation = null
     source.value = null
+    lastError.value = null
     if (snapshot.value.status !== 'idle') {
-      controller.clearSettled()
+      snapshot.value = { status: 'idle', version: snapshot.value.version + 1 }
     }
   }
 
@@ -95,6 +111,7 @@ export function useKnowledgeConfigOperation() {
     snapshot,
     pending,
     source,
+    lastError,
     run,
     retry,
     clear

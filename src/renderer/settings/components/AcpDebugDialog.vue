@@ -14,23 +14,15 @@
           </DialogDescription>
         </DialogHeader>
         <div class="flex items-center gap-3">
-          <div
-            class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
-            :class="processReady ? 'border-emerald-500/50 text-emerald-600' : 'border-border'"
-          >
-            <span
-              class="size-2 rounded-full"
-              :class="processReady ? 'bg-emerald-500' : 'bg-muted-foreground/60'"
-            ></span>
-            <span>
-              {{
-                processReady
-                  ? t('settings.acp.debug.processReady')
-                  : t('settings.acp.debug.processNotReady')
-              }}
-            </span>
-          </div>
-          <Button
+          <DcStatusPill
+            :status="processReady ? 'success' : 'neutral'"
+            :label="
+              processReady
+                ? t('settings.acp.debug.processReady')
+                : t('settings.acp.debug.processNotReady')
+            "
+          />
+          <DcButton
             size="sm"
             variant="outline"
             class="h-8"
@@ -41,13 +33,13 @@
             {{
               loading ? t('settings.acp.debug.healthChecking') : t('settings.acp.debug.healthCheck')
             }}
-          </Button>
-          <Button size="sm" variant="ghost" class="h-8" @click="clearEvents">
+          </DcButton>
+          <DcButton size="sm" variant="ghost" class="h-8" @click="clearEvents">
             {{ t('settings.acp.debug.clearHistory') }}
-          </Button>
-          <Button size="sm" variant="outline" class="h-8" @click="emit('update:open', false)">
+          </DcButton>
+          <DcButton size="sm" variant="outline" class="h-8" @click="emit('update:open', false)">
             {{ t('settings.acp.debug.close') }}
-          </Button>
+          </DcButton>
         </div>
       </header>
 
@@ -69,7 +61,7 @@
 
       <div class="grid h-full min-h-0 flex-1 overflow-hidden lg:grid-cols-[260px_1fr]">
         <aside class="h-full min-h-0 space-y-2 overflow-y-auto border-r p-3">
-          <Button
+          <DcButton
             v-for="method in methodOptions"
             :key="method.value"
             type="button"
@@ -84,7 +76,7 @@
             @click="selectMethod(method.value)"
           >
             <span class="text-sm font-medium leading-tight">{{ method.label }}</span>
-          </Button>
+          </DcButton>
         </aside>
 
         <main class="flex flex-col gap-4 p-4 overflow-hidden min-h-0 h-full">
@@ -127,7 +119,7 @@
               >
                 <div class="flex items-center justify-between gap-2">
                   <div class="flex items-center gap-2">
-                    <Badge variant="outline">{{ eventLabel(event.kind) }}</Badge>
+                    <DcBadge variant="outline">{{ eventLabel(event.kind) }}</DcBadge>
                     <span class="font-mono text-[11px] text-muted-foreground">
                       {{ formatTime(event.timestamp) }}
                     </span>
@@ -168,16 +160,17 @@
                 <span class="truncate max-w-[240px]" :title="workdirPath || undefined">
                   {{ workdirLabel }}
                 </span>
-                <Button
+                <DcButton
                   size="icon"
                   variant="ghost"
+                  icon="lucide:folder-open"
+                  :label="t('mcp.selectFolder')"
+                  :tooltip="t('mcp.selectFolder')"
                   class="h-9 w-9"
                   :disabled="loading"
                   @click="handleSelectWorkdir"
-                >
-                  <Icon icon="lucide:folder-open" class="h-4 w-4" />
-                </Button>
-                <Button
+                />
+                <DcButton
                   v-if="workdirPath"
                   size="sm"
                   variant="ghost"
@@ -186,8 +179,8 @@
                   @click="clearWorkdir"
                 >
                   {{ t('common.clear') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   variant="ghost"
                   class="h-8 px-2"
@@ -195,8 +188,8 @@
                   @click="formatPayload"
                 >
                   {{ t('settings.acp.debug.format') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   variant="ghost"
                   class="h-8 px-2"
@@ -204,8 +197,8 @@
                   @click="resetPayload"
                 >
                   {{ t('settings.acp.debug.resetTemplate') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   size="sm"
                   class="h-9"
                   :disabled="loading"
@@ -214,7 +207,7 @@
                 >
                   <Spinner v-if="loading" data-icon="inline-start" />
                   {{ loading ? t('settings.acp.debug.sending') : t('settings.acp.debug.send') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
           </div>
@@ -227,7 +220,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcStatusPill } from '@dc-ui/components/status-pill'
 import {
   Dialog,
   DialogContent,
@@ -236,7 +230,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { Input } from '@shadcn/components/ui/input'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Empty, EmptyDescription, EmptyHeader } from '@shadcn/components/ui/empty'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'

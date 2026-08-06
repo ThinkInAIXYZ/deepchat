@@ -1,6 +1,11 @@
 import logger from '@shared/logger'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
-import { liveDelegationChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
+import {
+  approvalClosedEvent,
+  approvalRequestedEvent,
+  liveDelegationChangedEvent,
+  sessionsUpdatedEvent
+} from '@shared/contracts/events'
 import { performance } from 'node:perf_hooks'
 import path from 'path'
 import { DialogService } from '../desktop/dialog'
@@ -105,6 +110,7 @@ import { createPlatformRoutes } from '../platform/routes'
 import { createHookRoutes } from '../hook/routes'
 import { createAppSettingsRoutes } from './settingsRoutes'
 import { createAppRoutes } from './routes'
+import { ApprovalBroker, createApprovalRoutes } from '@/approval'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -200,8 +206,35 @@ import { createAgentRoutes } from '@/agent/routes'
 import { createPromptRoutes } from '@/agent/promptRoutes'
 import { AgentSessionExportService } from '../exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
-import { createRouteDispatcher, registerDeepchatRoutes } from '@/routes'
+import {
+  createRouteDispatcher,
+  dispatchDeepchatRoute,
+  registerDeepchatRoutes,
+  type RouteDispatcher
+} from '@/routes'
 import { createNodeScheduler } from '@/routes/scheduler'
+import { coordinateApplicationDataReset } from './applicationDataReset'
+import {
+  AgentCliCommandAccess,
+  AgentCliTokenAuthority,
+  ArtifactSpool,
+  CliAudioTranscriptionService,
+  CliAuditLog,
+  CliComputeService,
+  CliLauncherService,
+  CliMutationGuard,
+  CliOcrService,
+  CliRequestPolicy,
+  CliRunService,
+  CliServer,
+  CliSkillService,
+  createArtifactRoutes,
+  createCliComputeRoutes,
+  createCliMcpAdminRoutes,
+  createCliProviderModelAdminRoutes,
+  createCliRoutes,
+  resolveBundledCliDirectory
+} from '@/cli'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
@@ -213,6 +246,8 @@ import {
 } from './startupMigrations/sessionDataMigrations'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { SessionRuntimeEvents } from '@/session/runtimeEvents'
+import { TypedEventHub } from '@/events/typedEventHub'
+import { SessionEventRouter } from '@/events/sessionEventRouter'
 import { createMemoryProviderBindings } from './memoryProviderBindings'
 import {
   EpisodeRegistry,
@@ -319,6 +354,7 @@ export async function createMainProcessControl(dependencies: {
   let commandPermissionService: CommandPermissionService
   let filePermissionService: FilePermissionService
   let settingsPermissionService: SettingsPermissionService
+  let approvalBroker: ApprovalBroker
   let toolPermissionBroker: ToolPermissionBroker
   let legacyChatImportService: LegacyChatImportService
   let usageStatsService: UsageStatsService
@@ -330,6 +366,14 @@ export async function createMainProcessControl(dependencies: {
   let liveDelegationService: LiveDelegationService
   let acpAsLlmProviderSessionControl: AcpAsLlmProviderSessionControlPort
   let acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
+  let routeDispatcher: RouteDispatcher | undefined
+  let cliComputeService: CliComputeService
+  let cliAudioTranscriptionService: CliAudioTranscriptionService
+  let cliOcrService: CliOcrService
+  let cliSkillService: CliSkillService
+  let cliMutationGuard: CliMutationGuard
+  let cliRequestPolicy: CliRequestPolicy
+  let cliRunService: CliRunService
   let hasInitialized = false
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
   let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
@@ -350,16 +394,104 @@ export async function createMainProcessControl(dependencies: {
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
   )
+  // No CLI sessions can exist before AppSessionService is ready, so startup events retain the
+  // renderer compatibility path. The installed resolver below fails closed for missing sessions.
+  let resolveSessionRunId = (_sessionId: string): string | null | undefined => null
+  let resolveBoundRendererIds = (_sessionId: string): readonly number[] => []
+  const typedEventHub = new TypedEventHub({
+    renderer: {
+      broadcast: (envelope) => windowPresenter.sendToAllWindows(DEEPCHAT_EVENT_CHANNEL, envelope),
+      send: (webContentsId, envelope) =>
+        (windowPresenter as WindowPresenter).sendToWebContents(
+          webContentsId,
+          DEEPCHAT_EVENT_CHANNEL,
+          envelope
+        )
+    },
+    log: logger
+  })
+  const sessionEventRouter = new SessionEventRouter({
+    hub: typedEventHub,
+    resolveSessionRunId: (sessionId) => resolveSessionRunId(sessionId),
+    getBoundRendererIds: (sessionId) => resolveBoundRendererIds(sessionId)
+  })
+  const agentCliTokenAuthority = new AgentCliTokenAuthority()
+  const artifactSpool = new ArtifactSpool({
+    directory: path.join(app.getPath('userData'), 'local-control', 'artifacts'),
+    consumeAgentBytes: (tokenId, bytes) => agentCliTokenAuthority.consumeBytes(tokenId, bytes),
+    log: logger
+  })
+  const cliAuditLog = new CliAuditLog({
+    directory: path.join(app.getPath('userData'), 'local-control')
+  })
+  const cliServer = new CliServer({
+    userDataPath: app.getPath('userData'),
+    appVersion: app.getVersion(),
+    dispatch: async (method, input, caller, signal) => {
+      if (cliAudioTranscriptionService?.handlesRpc(method)) {
+        assertRouteAllowedDuringDatabaseMaintenance(method)
+        return await cliAudioTranscriptionService.dispatchRpc(method, input, caller, signal)
+      }
+      if (cliOcrService?.handlesRpc(method)) {
+        assertRouteAllowedDuringDatabaseMaintenance(method)
+        return await cliOcrService.dispatchRpc(method, input, caller, signal)
+      }
+      if (!routeDispatcher) throw new Error('CLI route dispatcher is not ready')
+      signal.throwIfAborted()
+      const output = await dispatchDeepchatRoute(routeDispatcher, method, input, { caller })
+      signal.throwIfAborted()
+      return output
+    },
+    dispatchStream: async (method, input, caller, requestId, signal, emit) => {
+      if (cliRunService?.handlesStream(method)) {
+        assertRouteAllowedDuringDatabaseMaintenance(method)
+        return await cliRunService.dispatchStream(method, input, caller, signal, emit)
+      }
+      if (!cliComputeService) throw new Error('CLI compute service is not ready')
+      assertRouteAllowedDuringDatabaseMaintenance(method)
+      return await cliComputeService.dispatchStream(method, input, caller, requestId, signal, emit)
+    },
+    dispatchUpload: async (method, input, upload, caller, signal) => {
+      assertRouteAllowedDuringDatabaseMaintenance(method)
+      if (cliAudioTranscriptionService?.handlesUpload(method)) {
+        return await cliAudioTranscriptionService.dispatchUpload(
+          method,
+          input,
+          upload,
+          caller,
+          signal
+        )
+      }
+      if (cliOcrService?.handlesUpload(method)) {
+        return await cliOcrService.dispatchUpload(method, input, upload, caller, signal)
+      }
+      if (cliSkillService?.handlesUpload(method)) {
+        return await cliSkillService.dispatchUpload(method, input, upload, caller, signal)
+      }
+      throw new Error(`CLI upload service is not ready for ${method}`)
+    },
+    authorize: async (input) => {
+      if (!cliRequestPolicy) throw new Error('CLI request policy is not ready')
+      return await cliRequestPolicy.authorize(input)
+    },
+    beginAgentRequest: (token) => agentCliTokenAuthority.beginRequest(token),
+    artifactSpool,
+    log: logger
+  })
   const semanticNotificationScheduler = new TimeoutNotificationScheduler()
   const semanticNotificationEpisodes = new EpisodeRegistry(
     systemNotificationClock,
     semanticNotificationScheduler
   )
   let handleSemanticRendererUnavailable = (_webContentsId: number): void => undefined
+  let handleApprovalRendererUnavailable = (_webContentsId: number): void => undefined
   const semanticNotificationTargets = new ElectronWindowNotificationTargets(
     windowPresenter,
     () => tabPresenter,
-    (webContentsId) => handleSemanticRendererUnavailable(webContentsId)
+    (webContentsId) => {
+      handleSemanticRendererUnavailable(webContentsId)
+      handleApprovalRendererUnavailable(webContentsId)
+    }
   )
   const semanticNotificationDiagnostics = new AggregatedWindowNotificationDiagnostics({
     scheduler: semanticNotificationScheduler,
@@ -392,10 +524,7 @@ export async function createMainProcessControl(dependencies: {
     }
   }
   const publishDeepchatEvent = (name: DeepchatEventName, payload: unknown): void => {
-    windowPresenter.sendToAllWindows(
-      DEEPCHAT_EVENT_CHANNEL,
-      createDeepchatEventEnvelope(name, payload)
-    )
+    sessionEventRouter.publish(name, payload)
   }
   dependencies.mcpAppSandboxRegistry.setConsentPublisher((windowId, payload) => {
     windowPresenter.sendToWindow(
@@ -458,6 +587,18 @@ export async function createMainProcessControl(dependencies: {
   appSessionService = new AppSessionService(projectDatabase, sessionData.database, () =>
     projectService.notifyEnvironmentProjectionChanged()
   )
+  resolveSessionRunId = (sessionId) => {
+    const visited = new Set<string>()
+    let currentSessionId: string | null = sessionId
+    while (currentSessionId && visited.size < 32 && !visited.has(currentSessionId)) {
+      visited.add(currentSessionId)
+      const session = appSessionService.get(currentSessionId)
+      if (!session) return undefined
+      if (session.metadata?.source === 'cli_run') return session.id
+      currentSessionId = session.parentSessionId ?? null
+    }
+    return currentSessionId ? undefined : null
+  }
   sessionDataMigrationSQLite = {
     get appSettingsTable() {
       return settingsDatabase.appSettingsTable
@@ -598,6 +739,19 @@ export async function createMainProcessControl(dependencies: {
     acpSessionPersistence,
     publishDeepchatEvent
   )
+  cliComputeService = new CliComputeService({
+    providerSettings,
+    providerRuntime,
+    artifactSpool,
+    mediaCacheDirectory: path.join(app.getPath('userData'), 'images'),
+    log: logger
+  })
+  cliAudioTranscriptionService = new CliAudioTranscriptionService({
+    providerSettings,
+    providerRuntime,
+    artifactSpool,
+    log: logger
+  })
   const agentDefaults = new DeepChatDefaults({
     settings: dependencies.settingsStore,
     publishSettingChanged: (key, value) =>
@@ -616,10 +770,78 @@ export async function createMainProcessControl(dependencies: {
   acpAsLlmProviderSessionControl = providerRuntime
   acpAsLlmProviderPermission = providerRuntime
   const commandPermissionHandler = new CommandPermissionService()
+  const resolveCliDirectory = () =>
+    resolveBundledCliDirectory({
+      appPath: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+      isPackaged: app.isPackaged
+    })
+  const cliLauncherService = new CliLauncherService({
+    homeDirectory: app.getPath('home'),
+    userDataDirectory: app.getPath('userData'),
+    environmentPath: process.env.PATH,
+    shell: process.env.SHELL,
+    localAppDataDirectory: process.env.LOCALAPPDATA,
+    resolveCliDirectory
+  })
+  const agentCliCommandAccess = new AgentCliCommandAccess({
+    tokenAuthority: agentCliTokenAuthority,
+    commandPermission: commandPermissionHandler,
+    resolveCliDirectory
+  })
   commandPermissionService = commandPermissionHandler
   filePermissionService = new FilePermissionService()
   settingsPermissionService = new SettingsPermissionService()
-  toolPermissionBroker = new ToolPermissionBroker()
+  approvalBroker = new ApprovalBroker({ log: logger })
+  toolPermissionBroker = new ToolPermissionBroker({ approvalBroker })
+  cliMutationGuard = new CliMutationGuard(approvalBroker, {
+    getTarget: async () => {
+      const focused = await semanticNotificationTargets.getFocusedTarget()
+      const target =
+        focused?.kind === 'main'
+          ? focused
+          : (await semanticNotificationTargets.getExistingTargets()).find(
+              (candidate) => candidate.kind === 'main'
+            )
+      return target ? { windowId: target.windowId, webContentsId: target.webContentsId } : null
+    },
+    present: async (target, payload) => {
+      const readyTarget = await semanticNotificationTargets.getTargetForWindow(target.windowId)
+      if (
+        !readyTarget ||
+        readyTarget.kind !== 'main' ||
+        readyTarget.webContentsId !== target.webContentsId
+      ) {
+        return false
+      }
+      windowPresenter.show(target.windowId, true)
+      return await semanticNotificationTargets.sendDeepchatEvent(
+        readyTarget,
+        approvalRequestedEvent.name,
+        payload
+      )
+    },
+    close: async (target, payload) => {
+      const readyTarget = await semanticNotificationTargets.getTargetByWebContents(
+        target.webContentsId
+      )
+      if (!readyTarget || readyTarget.kind !== 'main' || readyTarget.windowId !== target.windowId) {
+        return
+      }
+      await semanticNotificationTargets.sendDeepchatEvent(
+        readyTarget,
+        approvalClosedEvent.name,
+        payload
+      )
+    }
+  })
+  handleApprovalRendererUnavailable = (webContentsId) => {
+    cliMutationGuard.cancelRenderer(webContentsId)
+  }
+  cliRequestPolicy = new CliRequestPolicy({
+    mutationGuard: cliMutationGuard,
+    audit: (record) => cliAuditLog.record(record)
+  })
   const liveDelegationConsent = new LiveDelegationConsentAuthority()
   deviceService = new DeviceService()
   const loggingService = new LoggingService(
@@ -671,6 +893,12 @@ export async function createMainProcessControl(dependencies: {
     nodeRuntimePath: runtimeHelper.getNodeRuntimePath(),
     tempBaseDir: app.getPath('temp'),
     userDataDir: app.getPath('userData')
+  })
+  cliOcrService = new CliOcrService({
+    appVersion: app.getVersion(),
+    ocrRuntime: ocrRuntimeService,
+    artifactSpool,
+    log: logger
   })
   const attachmentRouter = new AttachmentCapabilityRouter({
     extraction: ocrRuntimeService,
@@ -841,6 +1069,16 @@ export async function createMainProcessControl(dependencies: {
         }))
     }
   )
+  cliSkillService = new CliSkillService({
+    skills: skillService,
+    agentExists: async (agentId) => (await agentSettings.getAgent(agentId))?.type === 'deepchat',
+    recordSettingsActivity: (input) => {
+      void settingsDatabase.recordSettingsActivity(input).catch((error) => {
+        logger.warn('[SettingsActivity] Failed to record CLI Skill activity:', error)
+      })
+    },
+    log: logger
+  })
 
   const agentInvocationAdmission = new AgentInvocationAdmission()
   const agentToolDependencies: AgentToolDependencies = {
@@ -1015,6 +1253,7 @@ export async function createMainProcessControl(dependencies: {
     skillSettings,
     desktopSettings,
     commandPermissionHandler,
+    commandEnvironment: agentCliCommandAccess,
     permissionBroker: toolPermissionBroker,
     liveDelegationConsent,
     agentTools: agentToolDependencies,
@@ -1064,6 +1303,7 @@ export async function createMainProcessControl(dependencies: {
   }
   sessionPermissionPort = {
     clearSessionPermissions: (sessionId) => {
+      agentCliTokenAuthority.revokeConversation(sessionId)
       commandPermissionService.clearConversation(sessionId)
       filePermissionService.clearConversation(sessionId)
       settingsPermissionService.clearConversation(sessionId)
@@ -1294,6 +1534,8 @@ export async function createMainProcessControl(dependencies: {
     ui: sessionUiPort
   })
   desktopSessionBinding = new DesktopSessionBinding(sessionQuery)
+  resolveBoundRendererIds = (sessionId) =>
+    desktopSessionBinding.getWebContentsIdsForSession(sessionId)
   tabPresenter = new TabPresenter(windowPresenter, desktopSessionBinding, () =>
     deeplinkService.processStartupUrl()
   )
@@ -1443,6 +1685,14 @@ export async function createMainProcessControl(dependencies: {
     deletionGate: sessionDeletionGate,
     permissions: sessionPermissionPort,
     agentLifecycle
+  })
+  cliRunService = new CliRunService({
+    lifecycle: sessionLifecycle,
+    turn: sessionTurn,
+    projection: sessionQuery,
+    sessions: appSessionService,
+    eventHub: typedEventHub,
+    log: logger
   })
   sessionHistorySearch = new SessionHistorySearch(sessionData.database, appSessionService)
   agentSessionExportService = new AgentSessionExportService({
@@ -1853,6 +2103,12 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function destroy(): Promise<void> {
+    await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
+    await runDestroyStep('cliServer.stop', () => cliServer.stop())
+    await runDestroyStep('typedEventHub.close', () => typedEventHub.close())
+    await runDestroyStep('cliMutationGuard.clear', () => cliMutationGuard.clear())
+    await runDestroyStep('cliAuditLog.close', () => cliAuditLog.close())
+    await runDestroyStep('artifactSpool.close', () => artifactSpool.close())
     await runDestroyStep('providerCatalog.unsubscribe', () => unsubscribeProviderDbCatalog())
     await runDestroyStep('liveDelegationService.stop', () => liveDelegationService.stop())
     await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
@@ -1970,6 +2226,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   function registerRoutes(): void {
+    const providerQueryScheduler = createNodeScheduler()
     const providerRoutes = createProviderRoutes({
       providerSettings,
       providerRuntime,
@@ -1981,7 +2238,7 @@ export async function createMainProcessControl(dependencies: {
         updateProvidersBatch: (batchUpdate) => providerRuntime.updateProvidersBatch(batchUpdate)
       }),
       oauthService,
-      scheduler: createNodeScheduler(),
+      scheduler: providerQueryScheduler,
       recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const toolRoutes = createToolRoutes(toolService)
@@ -2169,8 +2426,8 @@ export async function createMainProcessControl(dependencies: {
     const appRoutes = createAppRoutes({
       logging: loggingService,
       rendererPerformance: rendererPerformanceLogService,
-      isMainWindowContext: (context) =>
-        windowPresenter.mainWindow?.webContents.id === context.webContentsId,
+      isMainWindowContext: (caller) =>
+        windowPresenter.mainWindow?.webContents.id === caller.webContentsId,
       agentSettings,
       projects: projectService,
       databaseSecurity: databaseSecurityService,
@@ -2210,7 +2467,41 @@ export async function createMainProcessControl(dependencies: {
       },
       splash: dependencies.splash
     })
-    const routeDispatcher = createRouteDispatcher({
+    const cliRoutes = createCliRoutes({
+      appVersion: app.getVersion(),
+      getStatus: () => cliServer.getStatus(),
+      hasTrustedRenderer: async () =>
+        (await semanticNotificationTargets.getExistingTargets()).some(
+          (target) => target.kind === 'main'
+        )
+    })
+    const approvalRoutes = createApprovalRoutes({
+      resolve: (input, caller) => cliMutationGuard.resolve(input, caller)
+    })
+    const artifactRoutes = createArtifactRoutes(artifactSpool)
+    const cliComputeRoutes = createCliComputeRoutes(cliComputeService)
+    const cliProviderModelAdminRoutes = createCliProviderModelAdminRoutes({
+      providerSettings,
+      providerRuntime,
+      scheduler: providerQueryScheduler,
+      recordSettingsActivity: (input) => {
+        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
+          console.warn('[SettingsActivity] Failed to record CLI provider activity:', error)
+        })
+      }
+    })
+    const cliSkillRoutes = cliSkillService.createRoutes()
+    const cliMcpAdminRoutes = createCliMcpAdminRoutes({
+      mcp: mcpService,
+      recordSettingsActivity: (input) => {
+        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
+          console.warn('[SettingsActivity] Failed to record CLI MCP activity:', error)
+        })
+      },
+      log: logger
+    })
+    const cliRunRoutes = cliRunService.createRoutes()
+    routeDispatcher = createRouteDispatcher({
       appDatabaseMaintenance: {
         assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName)
       },
@@ -2243,7 +2534,15 @@ export async function createMainProcessControl(dependencies: {
         hookRoutes,
         notificationRoutes,
         appSettingsRoutes,
-        appRoutes
+        appRoutes,
+        approvalRoutes,
+        cliRoutes,
+        artifactRoutes,
+        cliComputeRoutes,
+        cliProviderModelAdminRoutes,
+        cliSkillRoutes,
+        cliMcpAdminRoutes,
+        cliRunRoutes
       ],
       settingsWindow: windowPresenter,
       startupWorkloadCoordinator
@@ -2542,8 +2841,12 @@ export async function createMainProcessControl(dependencies: {
   async function resetApplicationData(
     resetType: 'chat' | 'knowledge' | 'config' | 'all'
   ): Promise<void> {
-    await stop()
-    await deviceService.resetDataByType(resetType)
+    await coordinateApplicationDataReset(resetType, {
+      cliLauncher: cliLauncherService,
+      logger,
+      stop,
+      resetDataByType: (type) => deviceService.resetDataByType(type)
+    })
   }
 
   async function restartApplication(): Promise<void> {
@@ -2597,7 +2900,7 @@ export async function createMainProcessControl(dependencies: {
       commandPermissionService.clearAll()
       filePermissionService.clearAll()
       settingsPermissionService.clearAll()
-      toolPermissionBroker.clear()
+      approvalBroker.clear()
       dependencies.mcpAppSandboxRegistry.clear()
     },
     confirmShutdown: async () => await knowledgeService.confirmShutdown(),
@@ -2632,6 +2935,19 @@ export async function createMainProcessControl(dependencies: {
   cronJobs.start()
   memoryService.startBackgroundMaintenance()
   appLifecycleState = 'running'
+  try {
+    await artifactSpool.initialize()
+    await cliServer.start()
+  } catch (error) {
+    logger.error('[CLI] Failed to start local control server', error)
+  }
+  if (cliServer.getStatus().running) {
+    try {
+      await cliLauncherService.ensureInstalled()
+    } catch (error) {
+      logger.warn('[CLI] Failed to install or refresh the command launcher', error)
+    }
+  }
   init(dependencies.startupRunId)
   scheduleBackgroundWork()
   return control

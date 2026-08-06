@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createRendererRouteContext } from '@/routes/routeRegistry'
 import { app } from 'electron'
 import {
   debugCloseSplashScenarioRoute,
@@ -63,10 +64,10 @@ describe('app debug splash routes', () => {
       const show = routes.get(debugShowSplashScenarioRoute.name)
       const close = routes.get(debugCloseSplashScenarioRoute.name)
 
-      await expect(show?.({ mode: 'unlock' }, { webContentsId: 1, windowId: 1 })).resolves.toEqual({
+      await expect(show?.({ mode: 'unlock' }, createRendererRouteContext(1, 1))).resolves.toEqual({
         shown: false
       })
-      await expect(close?.({}, { webContentsId: 1, windowId: 1 })).resolves.toEqual({
+      await expect(close?.({}, createRendererRouteContext(1, 1))).resolves.toEqual({
         closed: false
       })
       expect(splash.showDebugScenario).not.toHaveBeenCalled()
@@ -85,13 +86,13 @@ describe('app debug splash routes', () => {
     const show = routes.get(debugShowSplashScenarioRoute.name)
     const close = routes.get(debugCloseSplashScenarioRoute.name)
 
-    await expect(show?.({ mode: 'unlock' }, { webContentsId: 1, windowId: 1 })).resolves.toEqual({
+    await expect(show?.({ mode: 'unlock' }, createRendererRouteContext(1, 1))).resolves.toEqual({
       shown: true
     })
     expect(splash.showDebugScenario).toHaveBeenCalledWith('unlock')
-    await expect(close?.({}, { webContentsId: 1, windowId: 1 })).resolves.toEqual({ closed: true })
+    await expect(close?.({}, createRendererRouteContext(1, 1))).resolves.toEqual({ closed: true })
     expect(splash.closeDebugScenario).toHaveBeenCalledTimes(1)
-    await expect(show?.({ mode: 'invalid' }, { webContentsId: 1, windowId: 1 })).rejects.toThrow()
+    await expect(show?.({ mode: 'invalid' }, createRendererRouteContext(1, 1))).rejects.toThrow()
   })
 })
 
@@ -101,7 +102,7 @@ describe('app performance diagnostics route', () => {
     const routes = createRoutes({ rendererPerformance })
     const handler = routes.get(performanceRecordRendererRoute.name)
 
-    await expect(handler?.(validRecord, { webContentsId: 1, windowId: 1 })).resolves.toEqual({
+    await expect(handler?.(validRecord, createRendererRouteContext(1, 1))).resolves.toEqual({
       accepted: true
     })
     expect(rendererPerformance.record).toHaveBeenCalledWith(validRecord)
@@ -115,7 +116,7 @@ describe('app performance diagnostics route', () => {
     })
     const handler = routes.get(performanceRecordRendererRoute.name)
 
-    await expect(handler?.(validRecord, { webContentsId: 2, windowId: 2 })).resolves.toEqual({
+    await expect(handler?.(validRecord, createRendererRouteContext(2, 2))).resolves.toEqual({
       accepted: false
     })
     expect(rendererPerformance.record).not.toHaveBeenCalled()
@@ -128,7 +129,7 @@ describe('app performance diagnostics route', () => {
     await expect(
       handler?.(
         { ...validRecord, metadata: { sessionId: 'sensitive' } },
-        { webContentsId: 1, windowId: 1 }
+        createRendererRouteContext(1, 1)
       )
     ).rejects.toThrow()
   })

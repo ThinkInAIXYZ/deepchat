@@ -12,7 +12,7 @@
       <div class="ml-auto flex items-center gap-2">
         <Popover v-model:open="assistantModelSelectOpen">
           <PopoverTrigger as-child>
-            <Button
+            <DcButton
               variant="outline"
               class="h-8 w-[320px] justify-between text-sm border-border hover:bg-accent"
             >
@@ -28,7 +28,7 @@
                 }}</span>
               </div>
               <ChevronDown class="h-4 w-4 opacity-50" />
-            </Button>
+            </DcButton>
           </PopoverTrigger>
           <PopoverContent class="w-[320px] p-0" align="end">
             <ModelSelect
@@ -48,7 +48,7 @@
       <div class="ml-auto flex items-center gap-2">
         <Popover v-model:open="chatModelSelectOpen">
           <PopoverTrigger as-child>
-            <Button
+            <DcButton
               variant="outline"
               class="h-8 w-[320px] justify-between text-sm border-border hover:bg-accent"
             >
@@ -64,7 +64,7 @@
                 }}</span>
               </div>
               <ChevronDown class="h-4 w-4 opacity-50" />
-            </Button>
+            </DcButton>
           </PopoverTrigger>
           <PopoverContent class="w-[320px] p-0" align="end">
             <ModelSelect
@@ -83,7 +83,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { ChevronDown } from '@lucide/vue'
 import ModelSelect from '@/components/ModelSelect.vue'

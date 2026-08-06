@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { OcrRuntimeAssetResolver } from '../../../src/main/ocr/ocrRuntimeAssetResolver'
 
-const lightOcrVersion = '0.5.6'
-const runtimeVersion = '0.1.6'
+const lightOcrVersion = '0.5.7'
+const runtimeVersion = '0.1.7'
 const modelVersion = '0.3.4'
-const nativeVersion = '0.5.6'
+const nativeVersion = '0.5.7'
 const bundleId = 'ppocrv6-small-native-20260719.1'
 const runtimePackage = '@arcships/light-ocr-runtime'
 const modelPackage = '@arcships/light-ocr-model-ppocrv6-small'

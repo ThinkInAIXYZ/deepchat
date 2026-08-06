@@ -2,17 +2,17 @@
   <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background">
     <div class="flex h-11 shrink-0 items-center justify-between border-b px-3">
       <div class="flex min-w-0 items-center gap-2">
-        <Button
+        <DcButton
           v-if="props.showBackButton"
           variant="ghost"
           size="icon"
           class="h-7 w-7 shrink-0"
-          :title="t('common.back')"
+          :tooltip="t('common.back')"
           :aria-label="t('common.back')"
           @click="emit('back')"
         >
           <Icon icon="lucide:arrow-left" class="h-4 w-4" />
-        </Button>
+        </DcButton>
         <div class="min-w-0">
           <h3 class="truncate text-sm font-medium">{{ viewerTitle }}</h3>
           <p v-if="viewerSubtitle" class="truncate text-xs text-muted-foreground">
@@ -46,12 +46,12 @@
           </button>
         </div>
 
-        <Button
+        <DcButton
           variant="ghost"
           size="icon"
           class="h-7 w-7"
           data-testid="workspace-viewer-fullscreen-toggle"
-          :title="fullscreenToggleLabel"
+          :tooltip="fullscreenToggleLabel"
           :aria-label="fullscreenToggleLabel"
           @click="emit('toggle-fullscreen')"
         >
@@ -59,9 +59,9 @@
             :icon="props.isFullscreen ? 'lucide:minimize-2' : 'lucide:maximize-2'"
             class="h-4 w-4"
           />
-        </Button>
+        </DcButton>
 
-        <Button
+        <DcButton
           v-if="openFilePath"
           variant="outline"
           size="sm"
@@ -69,7 +69,7 @@
           @click="handleOpenFile"
         >
           {{ t('chat.workspace.files.contextMenu.openFile') }}
-        </Button>
+        </DcButton>
       </div>
     </div>
 
@@ -161,7 +161,7 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import type { ArtifactState } from '@/stores/artifact'

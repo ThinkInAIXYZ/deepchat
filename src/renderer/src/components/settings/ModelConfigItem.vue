@@ -58,9 +58,9 @@
       >
         {{ group }}
       </span>
-      <Badge variant="outline" class="shrink-0 select-none text-xs text-muted-foreground">
+      <DcBadge variant="neutral" class="shrink-0 select-none text-xs">
         {{ type }}
-      </Badge>
+      </DcBadge>
       <Switch
         v-if="!hideEnableToggle"
         :key="`${providerId}:${modelId}`"
@@ -68,20 +68,17 @@
         :model-value="enabled"
         @update:model-value="onEnabledChange"
       />
-      <Tooltip v-if="changeable">
-        <TooltipTrigger as-child>
-          <Button
-            variant="link"
-            size="icon"
-            class="h-7 w-7 rounded-lg text-xs"
-            @click="onConfigModel"
-          >
-            <Icon icon="lucide:settings" class="size-4 text-muted-foreground" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{{ t('settings.model.configureModel') }}</TooltipContent>
-      </Tooltip>
-      <Button
+      <DcButton
+        v-if="changeable"
+        variant="link"
+        size="icon-sm"
+        icon="lucide:settings"
+        icon-size="4"
+        :tooltip="t('settings.model.configureModel')"
+        class="rounded-lg text-xs"
+        @click="onConfigModel"
+      />
+      <DcButton
         v-if="isCustomModel"
         variant="link"
         size="icon"
@@ -89,7 +86,7 @@
         @click="onDeleteModel"
       >
         <Icon icon="lucide:trash-2" class="size-4 text-destructive" />
-      </Button>
+      </DcButton>
     </div>
   </div>
 
@@ -109,8 +106,8 @@
 <script setup lang="ts">
 import { computed, ref, toRefs } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'

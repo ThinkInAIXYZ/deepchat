@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { CommandPermissionCache } from './commandPermissionCache'
 
 export type CommandRiskLevel = 'low' | 'medium' | 'high' | 'critical'
@@ -40,7 +41,7 @@ const SAFE_COMMANDS = new Set([
 
 const DESTRUCTIVE_PATTERN = /\brm\s+-rf\b|:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;|\bchmod\s+777\s+\//
 const NETWORK_PATTERN = /\b(curl|wget|nc|netcat|telnet)\b/
-const CHAINING_PATTERN = /&&|\|\||;|\$\(|`|\|/
+const SHELL_CONTROL_CHARS = new Set([';', '|', '&', '<', '>', '\r', '\n'])
 const RISKY_COMMANDS = /\b(rm|rmdir|mv|chmod|chown|sudo|doas|su|docker|podman|kubectl)\b/
 const BUILD_COMMANDS =
   /\b(git\s+(pull|push|checkout|switch|merge)|npm|pnpm|yarn|bun|pip|pip3|cargo|make|gradle|mvn)\b/
@@ -50,6 +51,53 @@ const SUGGESTION_KEYS: Record<CommandRiskLevel, string> = {
   medium: 'components.messageBlockPermissionRequest.suggestion.medium',
   high: 'components.messageBlockPermissionRequest.suggestion.high',
   critical: 'components.messageBlockPermissionRequest.suggestion.critical'
+}
+
+function hasShellControlSyntax(command: string): boolean {
+  let quote: "'" | '"' | null = null
+  const supportsPosixEscapes = process.platform !== 'win32'
+
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index]
+
+    if (quote === "'") {
+      if (character === "'") quote = null
+      continue
+    }
+
+    if (quote === '"') {
+      if (character === '"') {
+        quote = null
+        continue
+      }
+      if (supportsPosixEscapes && character === '\\') {
+        index += 1
+        continue
+      }
+      if (character === '`' || (character === '$' && command[index + 1] === '(')) {
+        return true
+      }
+      continue
+    }
+
+    if (supportsPosixEscapes && character === '\\') {
+      index += 1
+      continue
+    }
+    if (character === '"' || (supportsPosixEscapes && character === "'")) {
+      quote = character
+      continue
+    }
+    if (
+      character === '`' ||
+      (character === '$' && command[index + 1] === '(') ||
+      SHELL_CONTROL_CHARS.has(character)
+    ) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export class CommandPermissionRequiredError extends Error {
@@ -167,7 +215,7 @@ export class CommandPermissionService {
       return { level: 'critical', suggestion: SUGGESTION_KEYS.critical }
     }
 
-    if (CHAINING_PATTERN.test(command)) {
+    if (hasShellControlSyntax(command)) {
       return { level: 'critical', suggestion: SUGGESTION_KEYS.critical }
     }
 
@@ -187,6 +235,10 @@ export class CommandPermissionService {
     return { level: 'medium', suggestion: SUGGESTION_KEYS.medium }
   }
 
+  hasShellControlSyntax(command: string): boolean {
+    return hasShellControlSyntax(command)
+  }
+
   extractBaseCommand(command: string): string {
     const tokens = this.tokenize(command)
     if (tokens.length === 0) return ''
@@ -200,7 +252,13 @@ export class CommandPermissionService {
   }
 
   extractCommandSignature(command: string): string {
-    const tokens = this.tokenize(command)
+    const trimmed = command.trim()
+    if (hasShellControlSyntax(trimmed)) {
+      const digest = createHash('sha256').update(trimmed).digest('hex')
+      return `shell:${digest}`
+    }
+
+    const tokens = this.tokenize(trimmed)
     if (tokens.length === 0) return ''
 
     let index = 0

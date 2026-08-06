@@ -1,4 +1,5 @@
 import { SessionService } from '@/session/sessionService'
+import { createRendererRouteCaller } from '@/routes/routeRegistry'
 
 describe('SessionService', () => {
   const createScheduler = () => ({
@@ -134,7 +135,7 @@ describe('SessionService', () => {
       getActive: vi.fn().mockResolvedValue(session)
     }
     const service = new SessionService({ lifecycle, projection, desktop, scheduler })
-    const context = { webContentsId: 42, windowId: 7 }
+    const context = createRendererRouteCaller(42, 7)
     const input = { agentId: 'deepchat', message: 'hello' }
     const filters = { agentId: 'deepchat' }
     const pageOptions = { limit: 20, cursor: null }

@@ -8,217 +8,178 @@
         <span v-show="!loading" class="flex flex-row gap-3">
           <!-- Edit mode buttons (save/cancel) -->
           <template v-if="isEditMode">
-            <Tooltip :delayDuration="200">
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('save')"
-                >
-                  <Icon icon="lucide:check" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.save') }}</TooltipContent>
-            </Tooltip>
-            <Tooltip :delayDuration="200">
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('cancel')"
-                >
-                  <Icon icon="lucide:x" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.cancel') }}</TooltipContent>
-            </Tooltip>
+            <DcButton
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:check"
+              icon-size="3"
+              :tooltip="t('thread.toolbar.save')"
+              :tooltip-delay-duration="200"
+              class="w-4 h-4 min-w-0 min-h-0 p-0 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('save')"
+            />
+            <DcButton
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:x"
+              icon-size="3"
+              :tooltip="t('thread.toolbar.cancel')"
+              :tooltip-delay-duration="200"
+              class="w-4 h-4 min-w-0 min-h-0 p-0 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('cancel')"
+            />
           </template>
 
           <!-- Normal mode buttons -->
           <template v-else>
-            <Tooltip v-if="!isAssistant && !isEditMode && !isReadOnly" :delayDuration="200">
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('retry')"
-                >
-                  <Icon icon="lucide:refresh-cw" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.retry') }}</TooltipContent>
-            </Tooltip>
-            <Tooltip :delayDuration="200">
-              <TooltipTrigger as-child>
-                <Button
-                  v-show="isAssistant && hasVariants"
-                  :disabled="currentVariantIndex === 0"
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('prev')"
-                >
-                  <Icon icon="lucide:chevron-left" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.previousVariant') }}</TooltipContent>
-            </Tooltip>
-            <span v-show="isAssistant && hasVariants">
+            <DcButton
+              v-if="!isAssistant && !isEditMode && !isReadOnly"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:refresh-cw"
+              icon-size="3"
+              :tooltip="t('thread.toolbar.retry')"
+              :tooltip-delay-duration="200"
+              class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('retry')"
+            />
+            <DcButton
+              v-if="isAssistant && hasVariants"
+              :disabled="currentVariantIndex === 0"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:chevron-left"
+              icon-size="3"
+              :tooltip="t('thread.toolbar.previousVariant')"
+              :tooltip-delay-duration="200"
+              class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('prev')"
+            />
+            <span v-if="isAssistant && hasVariants">
               {{ (currentVariantIndex ?? 0) + 1 }} / {{ totalVariants }}
             </span>
-            <Tooltip :delayDuration="200">
-              <TooltipTrigger as-child>
-                <Button
-                  v-show="isAssistant && hasVariants"
-                  :disabled="(currentVariantIndex ?? 0) >= (totalVariants || 0) - 1"
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('next')"
-                >
-                  <Icon icon="lucide:chevron-right" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.nextVariant') }}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="relative w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="handleCopy"
-                >
-                  <Icon icon="lucide:copy" class="w-3 h-3" />
-                  <span
-                    v-if="showCopyTip"
-                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
-                  >
-                    {{ t('common.copySuccess') }}
-                  </span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.copy') }}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button
-                  v-show="isAssistant"
-                  variant="ghost"
-                  size="icon"
-                  class="relative w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  :disabled="isCapturingImage"
-                  aria-keyshortcuts="Enter Space Shift+Enter Shift+Space"
-                  @mousedown="handleCopyImageStart"
-                  @mouseup="handleCopyImageEnd"
-                  @mouseleave="handleCopyImageCancel"
-                  @keydown="handleCopyImageKeyboard"
-                >
-                  <Spinner v-if="isCapturingImage" class="size-3" />
-                  <Icon v-else icon="lucide:images" class="size-3" />
-                  <span
-                    v-if="showCopyImageTip"
-                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
-                  >
-                    {{ t('common.copyImageSuccess') }}
-                  </span>
-                  <span
-                    v-if="showCopyFromTopTip"
-                    class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
-                  >
-                    {{ t('thread.toolbar.copyFromTopSuccess') }}
-                  </span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {{
-                  isCapturingImage
-                    ? t('thread.toolbar.capturing')
-                    : t('thread.toolbar.copyImageWithLongPress')
-                }}
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip v-if="isAssistant && !isReadOnly">
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('retry')"
-                >
-                  <Icon icon="lucide:refresh-cw" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.retry') }}</TooltipContent>
-            </Tooltip>
-            <Tooltip v-if="isAssistant && traceDebugEnabled && allowTrace">
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('trace')"
-                >
-                  <Icon icon="lucide:bug" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.trace') }}</TooltipContent>
-            </Tooltip>
-            <Tooltip v-if="isAssistant && allowMemory && !isReadOnly">
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('memory')"
-                >
-                  <Icon icon="lucide:brain" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('chat.memory.toolbar') }}</TooltipContent>
-            </Tooltip>
-            <Tooltip v-if="isAssistant && !loading && !isInGeneratingThread && !isReadOnly">
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('fork')"
-                >
-                  <Icon icon="lucide:git-branch" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.fork') }}</TooltipContent>
-            </Tooltip>
-            <Tooltip v-if="!isAssistant && !isEditMode && !isReadOnly">
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('edit')"
-                >
-                  <Icon icon="lucide:edit" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.edit') }}</TooltipContent>
-            </Tooltip>
-            <Tooltip v-if="!isReadOnly">
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="w-4 h-4 text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
-                  @click="emit('delete')"
-                >
-                  <Icon icon="lucide:trash-2" class="w-3 h-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('thread.toolbar.delete') }}</TooltipContent>
-            </Tooltip>
+            <DcButton
+              v-if="isAssistant && hasVariants"
+              :disabled="(currentVariantIndex ?? 0) >= (totalVariants || 0) - 1"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:chevron-right"
+              icon-size="3"
+              :tooltip="t('thread.toolbar.nextVariant')"
+              :tooltip-delay-duration="200"
+              class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('next')"
+            />
+            <DcCopyButton
+              size="xs"
+              icon-size="3"
+              variant="ghost"
+              :tooltip="t('thread.toolbar.copy')"
+              :tooltip-ignore-non-keyboard-focus="true"
+              class="relative text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="handleCopy"
+            >
+              <span
+                v-if="showCopyTip"
+                class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
+              >
+                {{ t('common.copySuccess') }}
+              </span>
+            </DcCopyButton>
+            <DcButton
+              v-if="isAssistant"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:images"
+              icon-size="3"
+              :loading="isCapturingImage"
+              :disabled="isCapturingImage"
+              :tooltip="
+                isCapturingImage
+                  ? t('thread.toolbar.capturing')
+                  : t('thread.toolbar.copyImageWithLongPress')
+              "
+              aria-keyshortcuts="Enter Space Shift+Enter Shift+Space"
+              class="relative text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @mousedown="handleCopyImageStart"
+              @mouseup="handleCopyImageEnd"
+              @mouseleave="handleCopyImageCancel"
+              @keydown="handleCopyImageKeyboard"
+            >
+              <span
+                v-if="showCopyImageTip"
+                class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
+              >
+                {{ t('common.copyImageSuccess') }}
+              </span>
+              <span
+                v-if="showCopyFromTopTip"
+                class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
+              >
+                {{ t('thread.toolbar.copyFromTopSuccess') }}
+              </span>
+            </DcButton>
+            <DcButton
+              v-if="isAssistant && !isReadOnly"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:refresh-cw"
+              icon-size="3"
+              :tooltip="t('thread.toolbar.retry')"
+              :tooltip-delay-duration="200"
+              class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('retry')"
+            />
+            <DcButton
+              v-if="isAssistant && traceDebugEnabled && allowTrace"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:bug"
+              icon-size="3"
+              :tooltip="t('thread.toolbar.trace')"
+              class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('trace')"
+            />
+            <DcButton
+              v-if="isAssistant && allowMemory && !isReadOnly"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:brain"
+              icon-size="3"
+              :tooltip="t('chat.memory.toolbar')"
+              class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('memory')"
+            />
+            <DcButton
+              v-if="isAssistant && !loading && !isInGeneratingThread && !isReadOnly"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:git-branch"
+              icon-size="3"
+              :tooltip="t('thread.toolbar.fork')"
+              class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('fork')"
+            />
+            <DcButton
+              v-if="!isAssistant && !isEditMode && !isReadOnly"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:edit"
+              icon-size="3"
+              :tooltip="t('thread.toolbar.edit')"
+              class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('edit')"
+            />
+            <DcButton
+              v-if="!isReadOnly"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:trash-2"
+              icon-size="3"
+              :tooltip="t('thread.toolbar.delete')"
+              class="text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @click="emit('delete')"
+            />
           </template>
         </span>
         <span class="flex flex-row gap-2">
@@ -239,15 +200,10 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
-import { Spinner } from '@shadcn/components/ui/spinner'
+import { DcButton } from '@dc-ui/components/button'
+import { DcCopyButton } from '@dc-ui/components/copy-button'
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@shadcn/components/ui/tooltip'
+import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { useI18n } from 'vue-i18n'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 
@@ -376,9 +332,12 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.message-toolbar :deep(button) {
-  min-width: 1.75rem;
-  min-height: 1.75rem;
+.message-toolbar :deep([data-slot='dc-button']) {
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  min-height: 1rem;
+  padding: 0;
 }
 
 @media (hover: none), (pointer: coarse) {

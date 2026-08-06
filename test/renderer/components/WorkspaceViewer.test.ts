@@ -129,7 +129,7 @@ describe('WorkspaceViewer', () => {
       },
       global: {
         stubs: {
-          Button: defineComponent({
+          DcButton: defineComponent({
             name: 'Button',
             emits: ['click'],
             template: '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>'
@@ -145,7 +145,7 @@ describe('WorkspaceViewer', () => {
     const { wrapper } = await setup()
 
     const fullscreenButton = wrapper.get('[data-testid="workspace-viewer-fullscreen-toggle"]')
-    expect(fullscreenButton.attributes('title')).toBe('common.maximize')
+    expect(fullscreenButton.attributes('tooltip')).toBe('common.maximize')
 
     await fullscreenButton.trigger('click')
     expect(wrapper.emitted('toggle-fullscreen')).toEqual([[]])
@@ -159,7 +159,7 @@ describe('WorkspaceViewer', () => {
     })
 
     expect(
-      wrapper.get('[data-testid="workspace-viewer-fullscreen-toggle"]').attributes('title')
+      wrapper.get('[data-testid="workspace-viewer-fullscreen-toggle"]').attributes('tooltip')
     ).toBe('common.restore')
   })
 

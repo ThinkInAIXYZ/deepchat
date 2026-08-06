@@ -3,6 +3,8 @@ import { defineComponent } from 'vue'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import type { HooksNotificationsSettings } from '../../../src/shared/hooksNotifications'
 
+const notifyRenderer = vi.hoisted(() => vi.fn())
+
 const HOOKS_FIXTURE: HooksNotificationsSettings = {
   hooks: [
     {
@@ -101,6 +103,9 @@ async function setup(options?: {
   vi.doMock('@api/ConfigClient', () => ({
     createConfigClient: () => configClient
   }))
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
+  }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       t: (key: string, params?: Record<string, unknown>) => {
@@ -143,7 +148,7 @@ async function setup(options?: {
     global: {
       stubs: {
         ScrollArea: passthrough('ScrollArea'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Checkbox: checkboxStub,
         Collapsible: passthrough('Collapsible'),
         CollapsibleContent: passthrough('CollapsibleContent'),
@@ -161,14 +166,14 @@ async function setup(options?: {
   const { settingsLeaveGuard } =
     await import('../../../src/renderer/settings/services/settingsLeaveGuard')
 
-  return { wrapper, configClient, settingsLeaveGuard }
+  return { wrapper, configClient, settingsLeaveGuard, notifyRenderer }
 }
 
 describe('NotificationsHooksSettings', () => {
-  it('retries an inline load failure without exposing the exception', async () => {
+  it('reports a load failure via toast without exposing the exception', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     let loadAttempt = 0
-    const { wrapper, configClient } = await setup({
+    const { wrapper, notifyRenderer } = await setup({
       load: async () => {
         loadAttempt += 1
         if (loadAttempt === 1) throw new Error('/private/hooks.json')
@@ -176,17 +181,14 @@ describe('NotificationsHooksSettings', () => {
       }
     })
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('Operation failed')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.notificationsHooks.loadFailed',
+        title: 'Operation failed'
+      })
+    )
     expect(wrapper.text()).not.toContain('/private/hooks.json')
-
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-
-    expect(configClient.getHooksNotificationsConfig).toHaveBeenCalledTimes(2)
-    expect(wrapper.text()).toContain('Primary hook')
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
     consoleError.mockRestore()
   })
 
@@ -194,7 +196,7 @@ describe('NotificationsHooksSettings', () => {
     let resolveFirst!: (config: HooksNotificationsSettings) => void
     let resolveSecond!: (config: HooksNotificationsSettings) => void
     let saveAttempt = 0
-    const { wrapper, configClient } = await setup({
+    const { wrapper, configClient, notifyRenderer } = await setup({
       save: async () => {
         saveAttempt += 1
         return await new Promise<HooksNotificationsSettings>((resolve) => {
@@ -223,14 +225,18 @@ describe('NotificationsHooksSettings', () => {
 
     resolveSecond(configClient.setHooksNotificationsConfig.mock.calls[1][0])
     await flushPromises()
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('success')
-    expect(feedback.text()).toContain('Saved')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.notificationsHooks.saved',
+        title: 'Saved'
+      })
+    )
   })
 
   it('keeps a failed draft editable and lets the leave guard discard it', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const { wrapper, settingsLeaveGuard } = await setup({
+    const { wrapper, settingsLeaveGuard, notifyRenderer } = await setup({
       save: async () => {
         throw new Error('/private/hooks-secret.json')
       }
@@ -243,8 +249,12 @@ describe('NotificationsHooksSettings', () => {
 
     expect((nameInput.element as HTMLInputElement).value).toBe('Unsaved hook')
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').attributes('data-status')).toBe(
-      'error'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.notificationsHooks.saveFailed',
+        title: 'Operation failed'
+      })
     )
     expect(wrapper.text()).not.toContain('/private/hooks-secret.json')
 
@@ -256,10 +266,10 @@ describe('NotificationsHooksSettings', () => {
     consoleError.mockRestore()
   })
 
-  it('retries the latest failed draft from its inline feedback', async () => {
+  it('retries the latest failed draft from a subsequent save attempt', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     let saveAttempt = 0
-    const { wrapper, configClient, settingsLeaveGuard } = await setup({
+    const { wrapper, configClient, settingsLeaveGuard, notifyRenderer } = await setup({
       save: async (config) => {
         saveAttempt += 1
         if (saveAttempt === 1) throw new Error('transient failure')
@@ -271,10 +281,15 @@ describe('NotificationsHooksSettings', () => {
     await nameInput.setValue('Retry draft')
     await nameInput.trigger('blur')
     await flushPromises()
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Retry')!
-      .trigger('click')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.notificationsHooks.saveFailed',
+        title: 'Operation failed'
+      })
+    )
+
+    await nameInput.trigger('blur')
     await flushPromises()
 
     expect(configClient.setHooksNotificationsConfig).toHaveBeenCalledTimes(2)
@@ -282,8 +297,12 @@ describe('NotificationsHooksSettings', () => {
       'Retry draft'
     )
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').attributes('data-status')).toBe(
-      'success'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.notificationsHooks.saved',
+        title: 'Saved'
+      })
     )
     consoleError.mockRestore()
   })

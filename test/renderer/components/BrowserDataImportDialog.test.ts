@@ -70,7 +70,7 @@ const setup = async (browserClient: {
         DialogHeader: passthroughStub('DialogHeader'),
         DialogTitle: passthroughStub('DialogTitle'),
         DialogTrigger: passthroughStub('DialogTrigger'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Label: passthroughStub('Label'),
         Select: passthroughStub('Select'),
         SelectContent: passthroughStub('SelectContent'),

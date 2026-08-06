@@ -9,10 +9,16 @@
           </p>
         </div>
 
-        <Button variant="outline" size="icon" :disabled="loading" @click="loadCatalog">
-          <Spinner v-if="loading" class="size-4" />
-          <Icon v-else icon="lucide:refresh-cw" class="size-4" />
-        </Button>
+        <DcButton
+          variant="outline"
+          size="icon"
+          icon="lucide:refresh-cw"
+          :loading="loading"
+          :disabled="loading"
+          :label="t('common.browser.reload')"
+          :tooltip="t('common.browser.reload')"
+          @click="loadCatalog"
+        />
       </header>
 
       <div
@@ -65,14 +71,14 @@
               </p>
             </div>
 
-            <Button
+            <DcButton
               size="sm"
               variant="outline"
               :disabled="isPending(item.id)"
               @click="handleCatalogAction(item)"
             >
               {{ item.actionLabel }}
-            </Button>
+            </DcButton>
           </article>
         </div>
         <div
@@ -92,9 +98,8 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Spinner } from '@shadcn/components/ui/spinner'
 import { createOcrClient } from '@api/OcrClient'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'

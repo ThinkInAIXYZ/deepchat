@@ -125,6 +125,9 @@
   "history": "歷史",
   "minimize": "最小化",
   "maximize": "最大化",
+  "showValue": "顯示",
+  "hideValue": "隱藏",
+  "scrollToBottom": "捲動至底部",
   "restore": "還原",
   "browser": {
     "back": "後退",

@@ -1,13 +1,16 @@
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ToolPermissionPreCheckResult } from '@shared/types/tool'
-import { createHash, randomUUID } from 'node:crypto'
+import {
+  ApprovalBroker,
+  ApprovalCapacityError,
+  type ApprovalMatch,
+  type ApprovalSnapshot
+} from '@/approval'
 
-const MAX_ARGUMENT_BYTES = 1024 * 1024
-const MAX_ARGUMENT_PREVIEW_BYTES = 16 * 1024
-const MAX_ARGUMENT_DEPTH = 64
-const MAX_ARGUMENT_KEYS = 10_000
 const MAX_PENDING_PER_CONVERSATION = 64
-const DEFAULT_REQUEST_TIMEOUT_MS = 2 * 60 * 1000
+const DEFAULT_REQUEST_TIMEOUT_MS = 2 * 60_000
+const TOOL_APPROVAL_DOMAIN = 'tool-permission'
+const TOOL_APPROVAL_OPERATION = 'tool.execute'
 
 export type ToolPermissionSource = 'model' | 'mcp-app'
 
@@ -32,8 +35,12 @@ export interface ToolPermissionDecision {
   reason?: 'denied' | 'cancelled' | 'timeout'
 }
 
-type PendingPermission = {
-  requestId: string
+export type ToolPermissionBrokerOptions = Readonly<{
+  approvalBroker?: ApprovalBroker
+  timeoutMs?: number
+}>
+
+type ToolApprovalMetadata = Readonly<{
   conversationId: string
   serverId: string
   configGeneration?: number
@@ -41,96 +48,71 @@ type PendingPermission = {
   serverName: string
   toolName: string
   executionId?: string
-  argumentsHash: string
-  argumentsPreview: string
   source: ToolPermissionSource
   permissionType: 'read' | 'write'
   approvalMode: 'permission_mode' | 'explicit_user'
   description?: string
-  status: 'pending' | 'approved'
-  expiresAt: number
-  timeout: NodeJS.Timeout
-  settlers: Set<(decision: ToolPermissionDecision) => void>
-  abortCleanups: Set<() => void>
+}>
+
+function toolScopeKey(conversationId: string): string {
+  return `tool:${conversationId}`
 }
 
-type CanonicalizeState = {
-  keys: number
-  seen: WeakSet<object>
-}
-
-const canonicalize = (value: unknown, state: CanonicalizeState, depth = 0): unknown => {
-  if (depth > MAX_ARGUMENT_DEPTH) {
-    throw new Error('Tool arguments exceed the permission depth limit')
-  }
-  if (Array.isArray(value)) {
-    if (state.seen.has(value)) {
-      throw new Error('Tool arguments must not contain cycles')
-    }
-    state.seen.add(value)
-    const output = value.map((entry) => canonicalize(entry, state, depth + 1))
-    state.seen.delete(value)
-    return output
-  }
-
-  if (value && typeof value === 'object') {
-    if (state.seen.has(value)) {
-      throw new Error('Tool arguments must not contain cycles')
-    }
-    state.seen.add(value)
-    const output = Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-        .map(([key, entry]) => {
-          state.keys += 1
-          if (state.keys > MAX_ARGUMENT_KEYS) {
-            throw new Error('Tool arguments exceed the permission key limit')
-          }
-          return [key, canonicalize(entry, state, depth + 1)]
-        })
-    )
-    state.seen.delete(value)
-    return output
-  }
-
+function toolBindingKey(context: ToolPermissionContext): string {
   if (
-    value !== null &&
-    typeof value !== 'string' &&
-    typeof value !== 'number' &&
-    typeof value !== 'boolean' &&
-    value !== undefined
+    context.configGeneration !== undefined &&
+    (!Number.isSafeInteger(context.configGeneration) || context.configGeneration <= 0)
   ) {
-    throw new Error('Tool arguments must be JSON-compatible')
+    throw new Error('Tool permission config generation must be a positive safe integer')
   }
-  if (typeof value === 'number' && !Number.isFinite(value)) {
-    throw new Error('Tool arguments must contain only finite numbers')
-  }
-  return value
+  return JSON.stringify([
+    context.serverId,
+    context.configGeneration === undefined
+      ? ['config-generation-absent']
+      : ['config-generation-present', context.configGeneration],
+    context.bindingHash === undefined
+      ? ['binding-hash-absent']
+      : ['binding-hash-present', context.bindingHash],
+    context.toolName,
+    context.executionId === undefined
+      ? ['execution-id-absent']
+      : ['execution-id-present', context.executionId],
+    context.source,
+    context.permissionType,
+    context.approvalMode ?? 'permission_mode'
+  ])
 }
 
-const serializeArguments = (value: unknown): { hash: string; preview: string } => {
-  const serialized =
-    JSON.stringify(canonicalize(value, { keys: 0, seen: new WeakSet<object>() })) ?? 'null'
-  const bytes = Buffer.byteLength(serialized, 'utf8')
-  if (bytes > MAX_ARGUMENT_BYTES) {
-    throw new Error(`Tool arguments exceed the ${MAX_ARGUMENT_BYTES}-byte permission limit`)
-  }
-
-  const preview =
-    bytes <= MAX_ARGUMENT_PREVIEW_BYTES
-      ? serialized
-      : `${Buffer.from(serialized).subarray(0, MAX_ARGUMENT_PREVIEW_BYTES).toString('utf8')}…`
-
+function toMetadata(context: ToolPermissionContext): ToolApprovalMetadata {
   return {
-    hash: createHash('sha256').update(serialized).digest('hex'),
-    preview
+    conversationId: context.conversationId,
+    serverId: context.serverId,
+    configGeneration: context.configGeneration,
+    bindingHash: context.bindingHash,
+    serverName: context.serverName,
+    toolName: context.toolName,
+    executionId: context.executionId,
+    source: context.source,
+    permissionType: context.permissionType,
+    approvalMode: context.approvalMode ?? 'permission_mode',
+    description: context.description
   }
 }
 
 export class ToolPermissionBroker {
-  private readonly pending = new Map<string, PendingPermission>()
+  private readonly approvals: ApprovalBroker
+  private readonly timeoutMs: number
 
-  constructor(private readonly timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {}
+  constructor(options: number | ToolPermissionBrokerOptions = {}) {
+    const normalized = typeof options === 'number' ? { timeoutMs: options } : options
+    this.timeoutMs = normalized.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+    this.approvals =
+      normalized.approvalBroker ??
+      new ApprovalBroker({
+        defaultTimeoutMs: this.timeoutMs,
+        maxPendingPerScope: MAX_PENDING_PER_CONVERSATION
+      })
+  }
 
   evaluateModel(
     context: ToolPermissionContext,
@@ -140,8 +122,7 @@ export class ToolPermissionBroker {
       return null
     }
 
-    const pending = this.createPending(context, signal)
-    return this.toPermissionRequest(pending)
+    return this.toPermissionRequest(this.createPending(context, signal))
   }
 
   authorizeExecution(
@@ -157,27 +138,7 @@ export class ToolPermissionBroker {
       return { allowed: true }
     }
 
-    const { hash } = serializeArguments(context.arguments)
-    const approved = Array.from(this.pending.values()).find(
-      (entry) =>
-        entry.status === 'approved' &&
-        entry.conversationId === context.conversationId &&
-        entry.serverId === context.serverId &&
-        entry.configGeneration === context.configGeneration &&
-        entry.bindingHash === context.bindingHash &&
-        entry.toolName === context.toolName &&
-        entry.executionId === context.executionId &&
-        entry.argumentsHash === hash &&
-        entry.source === context.source &&
-        entry.permissionType === context.permissionType &&
-        entry.approvalMode === (context.approvalMode ?? 'permission_mode')
-    )
-
-    if (approved) {
-      this.deletePending(approved.requestId)
-      return { allowed: true }
-    }
-
+    if (this.approvals.consumeApproved(this.toMatch(context))) return { allowed: true }
     const pending = this.createPending(context, signal)
     return { allowed: false, request: this.toPermissionRequest(pending) }
   }
@@ -192,209 +153,117 @@ export class ToolPermissionBroker {
     ) {
       return { allowed: true }
     }
-    const pending = this.createPending({ ...context, source: 'mcp-app' })
+    const appContext = { ...context, source: 'mcp-app' as const }
+    const pending = this.createPending(appContext)
+    const decision = this.approvals.wait(pending.requestId)
     try {
       onRequest(this.toPermissionRequest(pending))
     } catch {
-      this.deletePending(pending.requestId)
-      return { allowed: false, reason: 'denied' }
+      this.approvals.resolve({
+        requestId: pending.requestId,
+        scopeKey: toolScopeKey(context.conversationId),
+        decision: 'denied'
+      })
     }
-    return await new Promise<ToolPermissionDecision>((resolve) => {
-      pending.settlers.add(resolve)
-    })
+    return await decision
   }
 
   approve(requestId: string, conversationId: string): boolean {
-    const pending = this.pending.get(requestId)
-    if (
-      !pending ||
-      pending.status !== 'pending' ||
-      pending.conversationId !== conversationId ||
-      pending.expiresAt <= Date.now()
-    ) {
-      return false
-    }
-
-    if (pending.source === 'mcp-app') {
-      this.settleAppPermission(pending, { allowed: true })
-      this.deletePending(requestId)
-      return true
-    }
-
-    pending.status = 'approved'
-    return true
+    return this.approvals.resolve({
+      requestId,
+      scopeKey: toolScopeKey(conversationId),
+      decision: 'approved'
+    })
   }
 
   deny(requestId: string, conversationId: string): boolean {
-    return this.resolveDenied(requestId, conversationId, 'denied')
+    return this.approvals.resolve({
+      requestId,
+      scopeKey: toolScopeKey(conversationId),
+      decision: 'denied'
+    })
   }
 
   cancel(requestId: string, conversationId: string): boolean {
-    return this.resolveDenied(requestId, conversationId, 'cancelled')
+    return this.approvals.resolve({
+      requestId,
+      scopeKey: toolScopeKey(conversationId),
+      decision: 'cancelled'
+    })
   }
 
   cancelConversation(conversationId: string): void {
-    for (const pending of this.pending.values()) {
-      if (pending.conversationId === conversationId) {
-        this.settleAppPermission(pending, { allowed: false, reason: 'cancelled' })
-        this.deletePending(pending.requestId)
-      }
-    }
+    this.approvals.cancelScope(toolScopeKey(conversationId))
   }
 
   clear(): void {
-    for (const pending of this.pending.values()) {
-      this.settleAppPermission(pending, { allowed: false, reason: 'cancelled' })
-      this.deletePending(pending.requestId)
-    }
+    this.approvals.clearDomain(TOOL_APPROVAL_DOMAIN)
   }
 
-  private createPending(context: ToolPermissionContext, signal?: AbortSignal): PendingPermission {
-    signal?.throwIfAborted()
-    this.pruneExpired()
-    const { hash, preview } = serializeArguments(context.arguments)
-    const existing = Array.from(this.pending.values()).find(
-      (entry) =>
-        entry.status === 'pending' &&
-        entry.conversationId === context.conversationId &&
-        entry.serverId === context.serverId &&
-        entry.configGeneration === context.configGeneration &&
-        entry.bindingHash === context.bindingHash &&
-        entry.toolName === context.toolName &&
-        entry.executionId === context.executionId &&
-        entry.argumentsHash === hash &&
-        entry.source === context.source &&
-        entry.permissionType === context.permissionType &&
-        entry.approvalMode === (context.approvalMode ?? 'permission_mode')
-    )
-    if (existing) {
-      this.attachAbort(existing, signal)
-      return existing
-    }
-    const conversationPending = Array.from(this.pending.values()).filter(
-      (entry) => entry.conversationId === context.conversationId
-    ).length
-    if (conversationPending >= MAX_PENDING_PER_CONVERSATION) {
-      throw new Error('Too many pending tool permission requests')
-    }
-
-    const requestId = randomUUID()
-    const expiresAt = Date.now() + this.timeoutMs
-    const pending: PendingPermission = {
-      requestId,
-      conversationId: context.conversationId,
-      serverId: context.serverId,
-      configGeneration: context.configGeneration,
-      bindingHash: context.bindingHash,
-      serverName: context.serverName,
-      toolName: context.toolName,
-      executionId: context.executionId,
-      argumentsHash: hash,
-      argumentsPreview: preview,
-      source: context.source,
-      permissionType: context.permissionType,
-      approvalMode: context.approvalMode ?? 'permission_mode',
-      description: context.description,
-      status: 'pending',
-      expiresAt,
-      settlers: new Set(),
-      abortCleanups: new Set(),
-      timeout: setTimeout(() => {
-        const current = this.pending.get(requestId)
-        if (current) {
-          this.settleAppPermission(current, { allowed: false, reason: 'timeout' })
+  private createPending(
+    context: ToolPermissionContext,
+    signal?: AbortSignal
+  ): ApprovalSnapshot<ToolApprovalMetadata> {
+    try {
+      return this.approvals.create(
+        {
+          domain: TOOL_APPROVAL_DOMAIN,
+          scopeKey: toolScopeKey(context.conversationId),
+          operation: TOOL_APPROVAL_OPERATION,
+          effect: context.permissionType,
+          bindingKey: toolBindingKey(context),
+          arguments: context.arguments,
+          metadata: toMetadata(context)
+        },
+        {
+          deduplicatePending: true,
+          includeArgumentsPreview: true,
+          consumeOnApprove: context.source === 'mcp-app',
+          timeoutMs: this.timeoutMs,
+          signal
         }
-        this.deletePending(requestId)
-      }, this.timeoutMs)
+      )
+    } catch (error) {
+      if (error instanceof ApprovalCapacityError) {
+        throw new Error('Too many pending tool permission requests')
+      }
+      throw error
     }
-
-    this.pending.set(requestId, pending)
-    this.attachAbort(pending, signal)
-    return pending
   }
 
-  private toPermissionRequest(pending: PendingPermission): ToolPermissionPreCheckResult {
+  private toMatch(context: ToolPermissionContext): ApprovalMatch {
+    return {
+      domain: TOOL_APPROVAL_DOMAIN,
+      scopeKey: toolScopeKey(context.conversationId),
+      operation: TOOL_APPROVAL_OPERATION,
+      effect: context.permissionType,
+      bindingKey: toolBindingKey(context),
+      arguments: context.arguments
+    }
+  }
+
+  private toPermissionRequest(
+    pending: ApprovalSnapshot<ToolApprovalMetadata>
+  ): ToolPermissionPreCheckResult {
+    const metadata = pending.metadata
     return {
       needsPermission: true,
       requestId: pending.requestId,
-      conversationId: pending.conversationId,
-      toolName: pending.toolName,
-      serverName: pending.serverName,
-      permissionType: pending.permissionType,
+      conversationId: metadata.conversationId,
+      toolName: metadata.toolName,
+      serverName: metadata.serverName,
+      permissionType: metadata.permissionType,
       description:
-        pending.description ??
-        `components.messageBlockPermissionRequest.description.${pending.permissionType}`,
+        metadata.description ??
+        `components.messageBlockPermissionRequest.description.${metadata.permissionType}`,
       rememberable: false,
-      ...(pending.approvalMode === 'explicit_user' ? { requiresUserConfirmation: true } : {}),
-      source: pending.source,
-      serverId: pending.serverId,
-      configGeneration: pending.configGeneration,
-      bindingHash: pending.bindingHash,
+      ...(metadata.approvalMode === 'explicit_user' ? { requiresUserConfirmation: true } : {}),
+      source: metadata.source,
+      serverId: metadata.serverId,
+      configGeneration: metadata.configGeneration,
+      bindingHash: metadata.bindingHash,
       argumentsHash: pending.argumentsHash,
       argumentsPreview: pending.argumentsPreview
     }
-  }
-
-  private resolveDenied(
-    requestId: string,
-    conversationId: string,
-    reason: 'denied' | 'cancelled'
-  ): boolean {
-    const pending = this.pending.get(requestId)
-    if (!pending || pending.conversationId !== conversationId) {
-      return false
-    }
-
-    this.settleAppPermission(pending, { allowed: false, reason })
-    this.deletePending(requestId)
-    return true
-  }
-
-  private deletePending(requestId: string): void {
-    const pending = this.pending.get(requestId)
-    if (!pending) {
-      return
-    }
-    clearTimeout(pending.timeout)
-    for (const cleanup of pending.abortCleanups) {
-      cleanup()
-    }
-    pending.abortCleanups.clear()
-    this.pending.delete(requestId)
-  }
-
-  private pruneExpired(): void {
-    const now = Date.now()
-    for (const pending of this.pending.values()) {
-      if (pending.expiresAt <= now) {
-        this.settleAppPermission(pending, { allowed: false, reason: 'timeout' })
-        this.deletePending(pending.requestId)
-      }
-    }
-  }
-
-  private attachAbort(pending: PendingPermission, signal?: AbortSignal): void {
-    if (!signal) {
-      return
-    }
-    const onAbort = () => {
-      if (this.pending.get(pending.requestId) !== pending) {
-        return
-      }
-      this.settleAppPermission(pending, { allowed: false, reason: 'cancelled' })
-      this.deletePending(pending.requestId)
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    pending.abortCleanups.add(() => signal.removeEventListener('abort', onAbort))
-    if (signal.aborted) {
-      onAbort()
-    }
-  }
-
-  private settleAppPermission(pending: PendingPermission, decision: ToolPermissionDecision): void {
-    for (const settle of pending.settlers) {
-      settle(decision)
-    }
-    pending.settlers.clear()
   }
 }

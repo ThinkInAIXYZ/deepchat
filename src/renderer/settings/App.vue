@@ -13,15 +13,15 @@
         ]"
       >
         <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border z-10"></div>
-        <Button
+        <DcButton
           v-if="!isMacOS"
           class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-red-700/80 hover:text-white text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
-          :title="t('common.close')"
+          :tooltip="t('common.close')"
           :aria-label="t('common.close')"
           @click="closeWindow"
         >
           <CloseIcon class="h-3! w-3!" />
-        </Button>
+        </DcButton>
       </div>
       <div class="w-full h-0 flex-1 flex flex-row bg-background relative">
         <div
@@ -104,7 +104,7 @@ import CloseIcon from './icons/CloseIcon.vue'
 import { useUiSettingsStore } from '../src/stores/uiSettingsStore'
 import { useLanguageStore } from '../src/stores/language'
 import { useModelCheckStore } from '../src/stores/modelCheck'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
 import NotificationHost from '@renderer-notifications/NotificationHost.vue'

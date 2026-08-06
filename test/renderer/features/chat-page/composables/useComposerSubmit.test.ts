@@ -978,10 +978,8 @@ describe('useComposerSubmit attachment preflight', () => {
     harness.actions.message.value = 'do not search'
     await harness.actions.onSubmit()
 
-    expect(harness.chatClient.sendMessage).toHaveBeenCalledWith(
-      's1',
-      expect.objectContaining({ search: false })
-    )
+    const payload = harness.chatClient.sendMessage.mock.calls[0]?.[1]
+    expect(payload).not.toHaveProperty('search')
     harness.stop()
   })
 

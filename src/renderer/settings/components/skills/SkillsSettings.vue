@@ -20,40 +20,36 @@
       </div>
       <DropdownMenu v-if="!isAgentScope || isDeepChatTarget">
         <DropdownMenuTrigger as-child>
-          <Button size="sm" :disabled="pageOperationPending">
+          <DcButton size="sm" :disabled="pageOperationPending">
             <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
             {{ t('settings.skills.addSkill') }}
-          </Button>
+          </DcButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" class="w-48">
-          <DropdownMenuItem
+          <DcDropdownActionItem
             v-if="isAgentScope && isDeepChatTarget"
             data-testid="skills-import-from-agent"
-            @click="agentImportOpen = true"
-          >
-            <Icon icon="lucide:copy-plus" class="mr-2 size-4" />
-            {{ t('settings.skills.agentImport.menuItem') }}
-          </DropdownMenuItem>
+            icon="lucide:copy-plus"
+            :label="t('settings.skills.agentImport.menuItem')"
+            @select="agentImportOpen = true"
+          />
           <DropdownMenuSeparator v-if="isAgentScope && isDeepChatTarget" />
-          <DropdownMenuItem @click="installDialogOpen = true">
-            <Icon icon="lucide:folder-plus" class="mr-2 h-4 w-4" />
-            {{ t('settings.skills.install.basicTitle') }}
-          </DropdownMenuItem>
-          <DropdownMenuItem @click="gitDialogOpen = true">
-            <Icon icon="lucide:git-branch" class="mr-2 h-4 w-4" />
-            {{ t('settings.skills.git.menuItem') }}
-          </DropdownMenuItem>
+          <DcDropdownActionItem
+            icon="lucide:folder-plus"
+            :label="t('settings.skills.install.basicTitle')"
+            @select="installDialogOpen = true"
+          />
+          <DcDropdownActionItem
+            icon="lucide:git-branch"
+            :label="t('settings.skills.git.menuItem')"
+            @select="gitDialogOpen = true"
+          />
         </DropdownMenuContent>
       </DropdownMenu>
     </template>
 
     <div ref="guideRootRef">
       <Separator class="my-4" />
-      <InlineOperationFeedback
-        v-if="!detailDialogOpen"
-        class="mb-3"
-        :snapshot="visiblePageFeedback"
-      />
 
       <Tabs v-model="activeTab" class="w-full">
         <TabsList v-if="!isAgentScope" class="grid w-full max-w-xl grid-cols-3">
@@ -81,7 +77,7 @@
                 class="flex items-center gap-2 text-xs text-destructive"
               >
                 <span>{{ t('common.error.requestFailed') }}</span>
-                <Button
+                <DcButton
                   variant="link"
                   size="sm"
                   class="h-auto px-0 text-xs"
@@ -89,7 +85,7 @@
                   @click="loadDraftSuggestions"
                 >
                   {{ t('common.retry') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
             <Switch
@@ -122,25 +118,19 @@
               <EmptyTitle>{{ t('settings.skills.agents.loadFailed') }}</EmptyTitle>
               <EmptyDescription>{{ t('common.error.requestFailed') }}</EmptyDescription>
             </EmptyHeader>
-            <Button variant="outline" size="sm" @click="reloadPageData">
+            <DcButton variant="outline" size="sm" @click="reloadPageData">
               <Icon icon="lucide:refresh-cw" class="size-4" />
               {{ t('common.retry') }}
-            </Button>
+            </DcButton>
           </Empty>
 
-          <Empty v-else-if="filteredSkills.length === 0" class="border-0 py-8">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Icon icon="lucide:wand-sparkles" />
-              </EmptyMedia>
-              <EmptyTitle class="text-sm font-normal text-muted-foreground">
-                {{ searchQuery ? t('settings.skills.noResults') : t('settings.skills.empty') }}
-              </EmptyTitle>
-              <EmptyDescription v-if="!searchQuery">
-                {{ t('settings.skills.emptyHint') }}
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <DcEmpty
+            v-else-if="filteredSkills.length === 0"
+            icon="lucide:wand-sparkles"
+            :title="searchQuery ? t('settings.skills.noResults') : t('settings.skills.empty')"
+            :description="searchQuery ? undefined : t('settings.skills.emptyHint')"
+            class="border-0 py-8"
+          />
 
           <div
             v-else
@@ -196,7 +186,6 @@
       :mutable="selectedDetailSkill?.mutable ?? false"
       :deepchat-disabled="selectedDetailSkill?.deepchatDisabled ?? false"
       :saving="pageOperationPending"
-      :feedback="visiblePageFeedback"
       @save="handleDetailSave"
       @toggle-disabled="handleDetailToggleDisabled"
       @delete="handleDetailDelete"
@@ -234,7 +223,7 @@ import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
 import { Separator } from '@shadcn/components/ui/separator'
 import { Switch } from '@shadcn/components/ui/switch'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import {
   Empty,
@@ -243,15 +232,16 @@ import {
   EmptyMedia,
   EmptyTitle
 } from '@shadcn/components/ui/empty'
+import { DcEmpty } from '@dc-ui/components/empty'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { useSkillsStore } from '@/stores/skillsStore'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
@@ -278,9 +268,7 @@ import SkillDetailDialog from './SkillDetailDialog.vue'
 import SettingsPageShell from '../control-center/SettingsPageShell.vue'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { continueGuidedOnboardingFromSettings } from '../../lib/guidedOnboardingSettings'
 import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
@@ -304,13 +292,8 @@ const guideRootRef = ref<HTMLElement | null>(null)
 const skillsSyncRef = ref<HTMLElement | null>(null)
 const skillsGuide = useGuidedOnboardingStep('skills')
 const showSkillsGuide = computed(() => skillsGuide.showGuide.value && Boolean(skillsSyncRef.value))
-const pageFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: pageFeedback, setActive: setPageFeedbackActive } =
-  useSurfaceFeedback(pageFeedbackController)
-const pageOperationId = `settings.skills.operation:${nanoid(8)}`
 let pageOperationGeneration = 0
-const pageSurfaceContextVersion = ref(0)
-const pageFeedbackContextVersion = ref<number | null>(null)
+const pageOperationPending = ref(false)
 const pageOperationKind = ref<'read' | 'mutation' | null>(null)
 type SkillCatalogChangedPayload = DeepchatEventPayload<typeof skillsCatalogChangedEvent.name>
 
@@ -372,18 +355,6 @@ const displayedSkillScripts = computed(() =>
 const skillsLoading = computed(() =>
   isAgentScope.value ? scopedSkillsLoading.value : loading.value
 )
-const pageOperationPending = computed(() => pageFeedback.value.status === 'pending')
-const pageFeedbackBelongsToSurface = computed(
-  () => pageFeedbackContextVersion.value === pageSurfaceContextVersion.value
-)
-const visiblePageFeedback = computed(() => {
-  const snapshot = pageFeedback.value
-  if (snapshot.status === 'pending' || pageFeedbackBelongsToSurface.value) return snapshot
-  return { status: 'idle' as const, version: snapshot.version }
-})
-const pageFeedbackSurfaceActive = computed(
-  () => pageFeedback.value.status === 'idle' || pageFeedbackBelongsToSurface.value
-)
 const pageLoadFailed = computed(
   () =>
     agentPolicyError.value ||
@@ -423,27 +394,26 @@ const logFailure = (message: string, error: unknown, context: Record<string, unk
 }
 
 const beginPageOperation = (
-  label: string,
   kind: Exclude<typeof pageOperationKind.value, null> = 'mutation'
 ): number | null => {
-  if (pageFeedbackController.getSnapshot().status === 'pending') return null
+  if (pageOperationPending.value) return null
   const generation = ++pageOperationGeneration
-  pageFeedbackContextVersion.value = pageSurfaceContextVersion.value
   pageOperationKind.value = kind
-  pageFeedbackController.begin(pageOperationId, label)
+  pageOperationPending.value = true
   return generation
 }
 
 const isCurrentPageOperation = (generation: number) =>
-  generation === pageOperationGeneration &&
-  pageFeedbackController.getSnapshot().status === 'pending'
+  generation === pageOperationGeneration && pageOperationPending.value
+
+const finishPageOperation = () => {
+  pageOperationPending.value = false
+}
 
 const cancelPageReadOperation = () => {
-  const snapshot = pageFeedbackController.getSnapshot()
-  if (snapshot.status === 'pending' && pageOperationKind.value === 'read') {
+  if (pageOperationPending.value && pageOperationKind.value === 'read') {
     pageOperationGeneration += 1
-    pageFeedbackController.cancelPending()
-    pageFeedbackContextVersion.value = null
+    pageOperationPending.value = false
     pageOperationKind.value = null
   }
 }
@@ -514,7 +484,6 @@ onUnmounted(() => {
   if (eventCleanup.value) {
     eventCleanup.value()
   }
-  stopPageFeedbackSurfaceSync()
   leaveGuardLease.release()
 })
 
@@ -630,7 +599,6 @@ const removeScopedSkill = (name: string): boolean => {
 }
 
 watch(surfaceScopeKey, () => {
-  pageSurfaceContextVersion.value += 1
   cancelPageReadOperation()
   detailRequestId.value += 1
   detailMutationRequestId.value += 1
@@ -765,7 +733,7 @@ const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean
 }
 
 const openSkillDetail = async (skill: UnifiedSkillItem) => {
-  const operationGeneration = beginPageOperation(t('common.loading'), 'read')
+  const operationGeneration = beginPageOperation('read')
   if (operationGeneration === null) return
   const requestId = ++detailRequestId.value
   detailMutationRequestId.value += 1
@@ -790,25 +758,28 @@ const openSkillDetail = async (skill: UnifiedSkillItem) => {
       markdown,
       mutable: skill.mutable
     }
-    pageFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.skills.detailLoaded',
       title: skill.name
     })
-    pageFeedbackController.clearSettled()
+    finishPageOperation()
     detailDialogOpen.value = true
   } catch (cause) {
     if (!isCurrentPageOperation(operationGeneration) || requestId !== detailRequestId.value) return
     logFailure('[SkillsSettings] Failed to load skill detail', cause, { skillName: skill.name })
-    pageFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.skills.detailLoadFailed',
       title: t('settings.skills.detail.failed'),
       description: t('common.error.requestFailed')
     })
+    finishPageOperation()
   }
 }
 
 const toggleSkillDisabled = async (skill: UnifiedSkillItem, disabled: boolean) => {
-  const operationGeneration = beginPageOperation(t('common.saving'))
+  const operationGeneration = beginPageOperation()
   if (operationGeneration === null) return false
 
   try {
@@ -816,22 +787,26 @@ const toggleSkillDisabled = async (skill: UnifiedSkillItem, disabled: boolean) =
       ? await updateAgentSkillPolicy(skill, disabled)
       : await skillsStore.setSkillDisabled(skill.name, disabled)
     if (!isCurrentPageOperation(operationGeneration)) return false
-    pageFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: disabled ? 'settings.skills.disabled' : 'settings.skills.enabled',
       title: disabled ? t('settings.skills.disable.success') : t('settings.skills.enable.success'),
       description: disabled
         ? t('settings.skills.disable.successMessage', { name: skill.name })
         : t('settings.skills.enable.successMessage', { name: skill.name })
     })
+    finishPageOperation()
     return updated !== false
   } catch (error) {
     if (!isCurrentPageOperation(operationGeneration)) return false
     logFailure('[SkillsSettings] Failed to update skill state', error, { skillName: skill.name })
-    pageFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: disabled ? 'settings.skills.disableFailed' : 'settings.skills.enableFailed',
       title: disabled ? t('settings.skills.disable.failed') : t('settings.skills.enable.failed'),
       description: t('common.error.requestFailed')
     })
+    finishPageOperation()
     return false
   }
 }
@@ -849,21 +824,21 @@ const createDefaultExtension = (): SkillExtensionConfig => ({
 const handleDetailSave = async (content: string) => {
   const skill = selectedDetailSkill.value
   if (!skill) return
-  const operationGeneration = beginPageOperation(t('common.saving'))
+  const operationGeneration = beginPageOperation()
   if (operationGeneration === null) return
   if (isAgentScope.value && (!targetAgent.value || !isDeepChatTarget.value)) {
-    pageFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.skills.unsupportedAgent',
       title: t('settings.pluginsHub.agentScopeUnsupported')
     })
+    finishPageOperation()
     return
   }
 
   const requestId = ++detailMutationRequestId.value
-  const operationContextVersion = pageSurfaceContextVersion.value
   const agentId = isAgentScope.value ? targetAgentId.value : undefined
   const isCurrentSurface = () =>
-    operationContextVersion === pageSurfaceContextVersion.value &&
     requestId === detailMutationRequestId.value &&
     selectedDetailSkill.value?.name === skill.name &&
     (!isAgentScope.value || agentId === targetAgentId.value)
@@ -878,27 +853,29 @@ const handleDetailSave = async (content: string) => {
         skillName: skill.name,
         errorCode: result.errorCode ?? 'UnknownError'
       })
-      pageFeedbackController.fail({
+      notifyRenderer({
+        kind: 'error',
         code: 'settings.skills.saveFailed',
         title: t('settings.skills.edit.failed'),
         description: t('common.error.requestFailed')
       })
+      finishPageOperation()
       return
     }
 
-    pageFeedbackController.succeed({
-      code: 'settings.skills.saved',
-      title: t('settings.skills.edit.success')
-    })
+    // 成功反馈走编辑器关闭 + 列表刷新（按钮级反馈由 SkillDetailDialog 承担）
+    finishPageOperation()
     if (isCurrentSurface()) closeSkillDetail()
   } catch (cause) {
     if (!isCurrentPageOperation(operationGeneration)) return
     logFailure('[SkillsSettings] Failed to save skill', cause, { skillName: skill.name })
-    pageFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.skills.saveFailed',
       title: t('settings.skills.edit.failed'),
       description: t('common.error.requestFailed')
     })
+    finishPageOperation()
   }
 }
 
@@ -917,21 +894,21 @@ const handleDetailToggleDisabled = async (disabled: boolean) => {
 const handleDetailDelete = async () => {
   const skill = selectedDetailSkill.value
   if (!skill) return
-  const operationGeneration = beginPageOperation(t('settings.skills.detail.delete'))
+  const operationGeneration = beginPageOperation()
   if (operationGeneration === null) return
   if (isAgentScope.value && (!targetAgent.value || !isDeepChatTarget.value)) {
-    pageFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.skills.unsupportedAgent',
       title: t('settings.pluginsHub.agentScopeUnsupported')
     })
+    finishPageOperation()
     return
   }
 
   const requestId = ++detailMutationRequestId.value
-  const operationContextVersion = pageSurfaceContextVersion.value
   const agentId = isAgentScope.value ? targetAgentId.value : undefined
   const isCurrentSurface = () =>
-    operationContextVersion === pageSurfaceContextVersion.value &&
     requestId === detailMutationRequestId.value &&
     selectedDetailSkill.value?.name === skill.name &&
     (!isAgentScope.value || agentId === targetAgentId.value)
@@ -947,19 +924,23 @@ const handleDetailDelete = async () => {
         skillName: skill.name,
         errorCode: result.errorCode ?? 'UnknownError'
       })
-      pageFeedbackController.fail({
+      notifyRenderer({
+        kind: 'error',
         code: 'settings.skills.deleteFailed',
         title: t('settings.skills.delete.failed'),
         description: t('common.error.requestFailed')
       })
+      finishPageOperation()
       return
     }
 
-    pageFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.skills.deleted',
       title: t('settings.skills.delete.success'),
       description: t('settings.skills.delete.successMessage', { name: skill.name })
     })
+    finishPageOperation()
     if (isAgentScope.value && isCurrentSurface()) {
       removeScopedSkill(skill.name)
     }
@@ -967,11 +948,13 @@ const handleDetailDelete = async () => {
   } catch (cause) {
     if (!isCurrentPageOperation(operationGeneration)) return
     logFailure('[SkillsSettings] Failed to delete skill', cause, { skillName: skill.name })
-    pageFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.skills.deleteFailed',
       title: t('settings.skills.delete.failed'),
       description: t('common.error.requestFailed')
     })
+    finishPageOperation()
   }
 }
 
@@ -1002,7 +985,7 @@ const reloadPageData = async () => {
 
 const handleDraftSuggestionsToggle = async (nextValue: boolean | string) => {
   const normalized = typeof nextValue === 'string' ? nextValue === 'true' : Boolean(nextValue)
-  const operationGeneration = beginPageOperation(t('common.saving'))
+  const operationGeneration = beginPageOperation()
   if (operationGeneration === null) return
   try {
     await configClient.setSkillDraftSuggestionsEnabled(normalized)
@@ -1010,17 +993,21 @@ const handleDraftSuggestionsToggle = async (nextValue: boolean | string) => {
     draftSuggestionsEnabled.value = normalized
     draftSuggestionsLoaded.value = true
     draftSuggestionsLoadFailed.value = false
-    pageFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.skills.draftSuggestionsSaved',
       title: t('common.saved')
     })
+    finishPageOperation()
   } catch (error) {
     if (!isCurrentPageOperation(operationGeneration)) return
     logFailure('[SkillsSettings] Failed to save draft suggestion preference', error)
-    pageFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.skills.draftSuggestionsSaveFailed',
       title: t('common.error.operationFailed')
     })
+    finishPageOperation()
   }
 }
 
@@ -1028,13 +1015,6 @@ const leaveGuardLease = settingsLeaveGuard.register({
   id: `settings.skills.operation:${nanoid(8)}`,
   onDiscard: () => undefined
 })
-const stopPageFeedbackSurfaceSync = watch(
-  pageFeedbackSurfaceActive,
-  (active) => {
-    setPageFeedbackActive(active)
-  },
-  { immediate: true, flush: 'sync' }
-)
 watch(
   pageOperationPending,
   (pending) => {

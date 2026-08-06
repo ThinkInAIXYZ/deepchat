@@ -14,7 +14,12 @@ import {
   sessionsListLightweightRoute,
   skillsListMetadataRoute
 } from '@shared/contracts/routes'
-import { createRouteRegistry, type DeepchatRouteMap, type RouteContext } from './routeRegistry'
+import {
+  createRendererRouteContext,
+  createRouteRegistry,
+  type DeepchatRouteMap,
+  type RouteContext
+} from './routeRegistry'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 
 export type RouteDispatcher = {
@@ -61,10 +66,10 @@ type StartupTrackedRouteTask = {
 }
 
 function isSettingsWindowContext(dispatcher: RouteDispatcher, context: RouteContext): boolean {
-  if (context.windowId == null) {
+  if (context.caller.kind !== 'renderer' || context.caller.windowId == null) {
     return false
   }
-  return dispatcher.settingsWindow.getSettingsWindowId() === context.windowId
+  return dispatcher.settingsWindow.getSettingsWindowId() === context.caller.windowId
 }
 
 function resolveTrackedRouteTask(
@@ -219,10 +224,15 @@ export function registerDeepchatRoutes(ipcMain: IpcMain, dispatcher: RouteDispat
   ipcMain.handle(
     DEEPCHAT_ROUTE_INVOKE_CHANNEL,
     async (event: IpcMainInvokeEvent, routeName: string, rawInput: unknown) => {
-      return await dispatchDeepchatRoute(dispatcher, routeName, rawInput, {
-        webContentsId: event.sender.id,
-        windowId: BrowserWindow.fromWebContents(event.sender)?.id ?? null
-      })
+      return await dispatchDeepchatRoute(
+        dispatcher,
+        routeName,
+        rawInput,
+        createRendererRouteContext(
+          event.sender.id,
+          BrowserWindow.fromWebContents(event.sender)?.id ?? null
+        )
+      )
     }
   )
 }

@@ -52,6 +52,7 @@ import { YO_BROWSER_TOOL_NAMES } from './browser/definitions'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
+import type { AgentCommandEnvironmentPort } from './agentTools/agentBashHandler'
 import type { ToolEffectObserver } from './effectObserver'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 import { composeSubagentAuthority } from '@/session/subagentAuthority'
@@ -68,6 +69,7 @@ interface ToolServiceOptions {
   skillSettings: SkillSettingsPort
   desktopSettings: AgentDisplaySettingsPort
   commandPermissionHandler: CommandPermissionService
+  commandEnvironment?: AgentCommandEnvironmentPort
   permissionBroker?: ToolPermissionBroker
   liveDelegationConsent?: LiveDelegationConsentIssuer
   agentTools: AgentToolDependencies
@@ -159,6 +161,7 @@ export class ToolService implements ToolServicePort {
       skillSettings: this.options.skillSettings,
       desktopSettings: this.options.desktopSettings,
       commandPermissionHandler: this.options.commandPermissionHandler,
+      commandEnvironment: this.options.commandEnvironment,
       dependencies: this.options.agentTools
     })
   }

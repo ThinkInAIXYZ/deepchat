@@ -757,7 +757,7 @@ const setup = async (options: SetupOptions = {}) => {
     },
     global: {
       stubs: {
-        Button: ButtonStub,
+        DcButton: ButtonStub,
         Collapsible: passthrough('Collapsible'),
         CollapsibleContent: passthrough('CollapsibleContent'),
         CollapsibleTrigger: passthrough('CollapsibleTrigger'),

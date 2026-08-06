@@ -73,7 +73,8 @@ export default defineConfig({
         '@api': resolve('src/renderer/api'),
         '@renderer-notifications': resolve('src/renderer/services/notifications'),
         '@shared': resolve('src/shared'),
-        "@shadcn": resolve('src/shadcn'),
+        '@shadcn': resolve('src/shadcn'),
+        '@dc-ui': resolve('src/dc-ui'),
         vue: 'vue/dist/vue.esm-bundler.js'
       }
     },

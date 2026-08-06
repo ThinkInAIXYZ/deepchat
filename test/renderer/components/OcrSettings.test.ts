@@ -136,7 +136,7 @@ async function setup(
         SelectValue: passthrough('SelectValue'),
         Spinner: true,
         Icon: true,
-        Button: buttonStub('Button'),
+        DcButton: buttonStub('Button'),
         Alert: passthrough('Alert'),
         AlertTitle: passthrough('AlertTitle'),
         AlertDescription: passthrough('AlertDescription'),
@@ -249,14 +249,18 @@ describe('OcrSettings', () => {
 
   it('does not overwrite persisted values when the initial settings snapshot fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const { wrapper, settingsClient } = await setup(AVAILABLE_STATUS, true)
+    const { wrapper, settingsClient, notifyRenderer } = await setup(AVAILABLE_STATUS, true)
 
     expect(
       wrapper.get('[data-testid="ocr-auto-extract-switch"]').attributes('disabled')
     ).toBeDefined()
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('settings.ocr.loadFailed')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.ocr.loadFailed',
+        title: 'settings.ocr.loadFailed'
+      })
+    )
     expect(wrapper.text()).not.toContain('settings unavailable')
     await wrapper.get('[data-testid="ocr-auto-extract-switch"]').trigger('click')
 
@@ -280,7 +284,7 @@ describe('OcrSettings', () => {
   })
 
   it('keeps the committed OCR setting when persistence fails', async () => {
-    const { wrapper, settingsClient } = await setup()
+    const { wrapper, settingsClient, notifyRenderer } = await setup()
     settingsClient.update.mockRejectedValueOnce(new Error('secret settings path'))
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
@@ -291,9 +295,13 @@ describe('OcrSettings', () => {
     await flushPromises()
 
     expect(autoExtractSwitch.attributes('data-model-value')).toBe('true')
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('settings.ocr.updateFailed')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.ocr.updateFailed',
+        title: 'settings.ocr.updateFailed'
+      })
+    )
     expect(wrapper.text()).not.toContain('secret settings path')
     consoleError.mockRestore()
   })
@@ -368,6 +376,7 @@ describe('OcrSettings', () => {
     const pending = deferred<Awaited<ReturnType<typeof ocrClient.clearCache>>>()
     ocrClient.clearCache.mockReturnValueOnce(pending.promise)
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    notifyRenderer.mockClear()
 
     await openAdvanced(wrapper)
     await wrapper.get('[data-testid="ocr-clear-cache"]').trigger('click')

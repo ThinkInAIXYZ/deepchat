@@ -25,7 +25,7 @@
             @update:open="onAcpInlineOptionOpenChange(option.id, $event)"
           >
             <PopoverTrigger as-child>
-              <Button
+              <DcButton
                 variant="ghost"
                 size="sm"
                 :title="getAcpOptionDisplayValue(option)"
@@ -35,7 +35,7 @@
               >
                 <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
                 <Icon icon="lucide:chevron-down" class="h-3 w-3 shrink-0" />
-              </Button>
+              </DcButton>
             </PopoverTrigger>
 
             <PopoverContent align="start" class="w-56 overflow-hidden p-0">
@@ -84,7 +84,7 @@
 
         <Popover v-else-if="showModelPopover" v-model:open="isModelPanelOpen">
           <PopoverTrigger as-child>
-            <Button
+            <DcButton
               data-testid="app-model-switcher"
               :data-selected-provider-id="effectiveModelSelection?.providerId ?? ''"
               :data-selected-model-id="effectiveModelSelection?.modelId ?? ''"
@@ -104,7 +104,7 @@
               <span>{{ displayModelText }}</span>
               <Spinner v-if="showModelOptionsLoading" class="size-3" />
               <Icon v-else icon="lucide:chevron-down" class="w-3 h-3" />
-            </Button>
+            </DcButton>
           </PopoverTrigger>
 
           <PopoverContent
@@ -140,7 +140,7 @@
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
                   >
                     <div>{{ t('model.error.loadFailed') }}</div>
-                    <Button
+                    <DcButton
                       type="button"
                       variant="outline"
                       size="sm"
@@ -148,7 +148,7 @@
                       @click="retryModelOptionsInitialization"
                     >
                       {{ t('settings.dashboard.rtk.actions.retry') }}
-                    </Button>
+                    </DcButton>
                   </div>
 
                   <div
@@ -206,7 +206,7 @@
           </PopoverContent>
         </Popover>
 
-        <Button
+        <DcButton
           v-else
           variant="ghost"
           size="sm"
@@ -219,11 +219,11 @@
             :is-dark="themeStore.isDark"
           />
           <span>{{ displayModelText }}</span>
-        </Button>
+        </DcButton>
 
         <Popover v-if="showReasoningOrchestrationControl" v-model:open="isOrchestrationPanelOpen">
           <PopoverTrigger as-child>
-            <Button
+            <DcButton
               data-testid="orchestration-control"
               variant="ghost"
               size="sm"
@@ -233,7 +233,7 @@
                   ? 'bg-violet-500/10 text-violet-600 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/15 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200'
                   : 'text-muted-foreground hover:text-foreground'
               ]"
-              :title="orchestrationControlTitle"
+              :tooltip="orchestrationControlTitle"
               :aria-label="orchestrationControlTitle"
               :aria-pressed="proactiveCollaborationEnabled"
             >
@@ -244,7 +244,7 @@
               />
               <span>{{ reasoningEffortDisplayLabel }}</span>
               <Icon icon="lucide:chevron-down" class="h-3 w-3" />
-            </Button>
+            </DcButton>
           </PopoverTrigger>
 
           <PopoverContent align="start" class="w-[19rem] overflow-hidden p-0">
@@ -315,15 +315,15 @@
       <div class="flex items-center gap-1">
         <Popover v-if="isAcpAgent && acpOverflowOptions.length > 0">
           <PopoverTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               size="sm"
               class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
-              :title="t('chat.advancedSettings.button')"
+              :tooltip="t('chat.advancedSettings.button')"
               :aria-label="t('chat.advancedSettings.button')"
             >
               <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
-            </Button>
+            </DcButton>
           </PopoverTrigger>
 
           <PopoverContent align="end" class="w-[18rem] p-0">
@@ -365,7 +365,7 @@
                   </SelectContent>
                 </Select>
 
-                <Button
+                <DcButton
                   v-else
                   type="button"
                   variant="outline"
@@ -376,7 +376,7 @@
                   @click="onAcpBooleanOption(option.id, !Boolean(option.currentValue))"
                 >
                   <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
-                </Button>
+                </DcButton>
               </div>
             </div>
           </PopoverContent>
@@ -445,7 +445,7 @@
                           t('chat.advancedSettings.temperature')
                         }}</label>
                         <div class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -458,9 +458,14 @@
                             "
                             :disabled="isTemperatureFixed || hasNumericInputError('temperature')"
                             @click="stepTemperature(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.temperature')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -477,7 +482,7 @@
                             @blur="commitTemperatureInput"
                             @keydown.enter.prevent="commitTemperatureInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -490,9 +495,14 @@
                             "
                             :disabled="isTemperatureFixed || hasNumericInputError('temperature')"
                             @click="stepTemperature(1)"
+                            :tooltip="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.temperature')
+                              })
+                            "
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
                         <p v-if="temperaturePolicyHint" class="text-[11px] text-muted-foreground">
                           {{ temperaturePolicyHint }}
@@ -530,7 +540,7 @@
                           </Tooltip>
                         </div>
                         <div class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -545,9 +555,14 @@
                               isTopPFixed || hasNumericInputError('topP') || topPDecreaseDisabled
                             "
                             @click="stepTopP(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.topP')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -567,7 +582,7 @@
                             @blur="commitTopPInput"
                             @keydown.enter.prevent="commitTopPInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -582,9 +597,14 @@
                               isTopPFixed || hasNumericInputError('topP') || topPIncreaseDisabled
                             "
                             @click="stepTopP(1)"
+                            :tooltip="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.topP')
+                              })
+                            "
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
                         <p v-if="topPPolicyHint" class="text-[11px] text-muted-foreground">
                           {{ topPPolicyHint }}
@@ -602,7 +622,7 @@
                           t('chat.advancedSettings.contextLength')
                         }}</label>
                         <div class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -618,9 +638,14 @@
                               localSettings.contextLength <= 0
                             "
                             @click="stepContextLength(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.contextLength')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -636,7 +661,7 @@
                             @blur="commitContextLengthInput"
                             @keydown.enter.prevent="commitContextLengthInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -649,9 +674,14 @@
                             "
                             :disabled="hasNumericInputError('contextLength')"
                             @click="stepContextLength(1)"
+                            :tooltip="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.contextLength')
+                              })
+                            "
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('contextLength')"
@@ -666,7 +696,7 @@
                           t('chat.advancedSettings.maxTokens')
                         }}</label>
                         <div class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -681,9 +711,14 @@
                               hasNumericInputError('maxTokens') || localSettings.maxTokens <= 0
                             "
                             @click="stepMaxTokens(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.maxTokens')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -699,7 +734,7 @@
                             @blur="commitMaxTokensInput"
                             @keydown.enter.prevent="commitMaxTokensInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -712,9 +747,14 @@
                             "
                             :disabled="hasNumericInputError('maxTokens')"
                             @click="stepMaxTokens(1)"
+                            :tooltip="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.maxTokens')
+                              })
+                            "
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('maxTokens')"
@@ -729,7 +769,7 @@
                           t('settings.model.modelConfig.timeout.label')
                         }}</label>
                         <div class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -745,9 +785,14 @@
                               (localSettings.timeout ?? 0) <= TIMEOUT_MIN
                             "
                             @click="stepTimeout(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('settings.model.modelConfig.timeout.label')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -765,7 +810,7 @@
                             @blur="commitTimeoutInput"
                             @keydown.enter.prevent="commitTimeoutInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -783,7 +828,7 @@
                             @click="stepTimeout(1)"
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('timeout')"
@@ -896,7 +941,7 @@
                           </div>
                         </div>
                         <div v-if="isThinkingBudgetEnabled" class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -912,9 +957,14 @@
                               (localSettings.thinkingBudget ?? 0) <= 0
                             "
                             @click="stepThinkingBudget(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.thinkingBudget')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -930,7 +980,7 @@
                             @blur="commitThinkingBudgetInput"
                             @keydown.enter.prevent="commitThinkingBudgetInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -943,9 +993,14 @@
                             "
                             :disabled="hasNumericInputError('thinkingBudget')"
                             @click="stepThinkingBudget(1)"
+                            :tooltip="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.thinkingBudget')
+                              })
+                            "
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('thinkingBudget')"
@@ -989,7 +1044,7 @@
 
         <DropdownMenu v-if="!isAcpAgent">
           <DropdownMenuTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               size="sm"
               :class="[
@@ -1004,7 +1059,7 @@
               <Icon :icon="permissionIcon" class="w-3.5 h-3.5" />
               <span>{{ permissionModeLabel }}</span>
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
-            </Button>
+            </DcButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="min-w-48">
             <DropdownMenuItem
@@ -1032,7 +1087,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,

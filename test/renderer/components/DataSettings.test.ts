@@ -263,7 +263,7 @@ const setup = async (
         AlertDialogHeader: options.realAlertDialog ? false : passthroughStub('AlertDialogHeader'),
         AlertDialogTitle: options.realAlertDialog ? false : passthroughStub('AlertDialogTitle'),
         AlertDialogTrigger: options.realAlertDialog ? false : passthroughStub('AlertDialogTrigger'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Input: defineComponent({
           name: 'Input',
           props: {
@@ -424,7 +424,7 @@ describe('DataSettings', () => {
   })
 
   it('saves the cloud config before testing the cloud connection', async () => {
-    const { wrapper, syncStore } = await setup()
+    const { wrapper, syncStore, notifyRenderer } = await setup()
 
     await wrapper.get('#cloud-endpoint').setValue('https://account.r2.cloudflarestorage.com/')
     await wrapper.get('#cloud-bucket').setValue('deepchat')
@@ -445,13 +445,15 @@ describe('DataSettings', () => {
     expect(syncStore.saveCloudConfig.mock.invocationCallOrder[0]).toBeLessThan(
       syncStore.testCloud.mock.invocationCallOrder[0]
     )
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('success')
-    expect(feedback.text()).toContain('Connection succeeded')
+    // 成功反馈走按钮 ✅ 态，不再弹 toast，也不出现内联错误
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.data.cloud.testSucceeded' })
+    )
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 
-  it('keeps cloud connection failures visible after applying the persisted config snapshot', async () => {
-    const { wrapper, syncStore } = await setup()
+  it('reports cloud connection failures as an inline error after the persisted config snapshot', async () => {
+    const { wrapper, syncStore, notifyRenderer } = await setup()
     syncStore.testCloud.mockResolvedValueOnce({
       success: false,
       message: 'sync.error.cloudConnectionFailed'
@@ -464,13 +466,16 @@ describe('DataSettings', () => {
     await wrapper.get('[data-testid="cloud-save-test"]').trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('settings.data.cloudSync.testFailedTitle')
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.data.cloud.testFailed' })
+    )
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.data.cloudSync.testFailedTitle'
+    )
   })
 
-  it('keeps a failed cloud save inline and preserves the unsaved draft', async () => {
-    const { wrapper, syncStore } = await setup()
+  it('reports a failed cloud save as an inline error and preserves the unsaved draft', async () => {
+    const { wrapper, syncStore, notifyRenderer } = await setup()
     syncStore.saveCloudConfig.mockRejectedValueOnce(
       new Error('Authorization failed for secret-key@example.test')
     )
@@ -482,9 +487,10 @@ describe('DataSettings', () => {
     await wrapper.get('[data-testid="cloud-save-only"]').trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('Operation failed')
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.data.cloud.saveFailed' })
+    )
+    expect(wrapper.get('[role="alert"]').text()).toContain('Operation failed')
     expect(wrapper.text()).not.toContain('secret-key@example.test')
     expect((wrapper.get('#cloud-bucket').element as HTMLInputElement).value).toBe('deepchat')
 
@@ -514,9 +520,9 @@ describe('DataSettings', () => {
     const { settingsLeaveGuard } =
       await import('../../../src/renderer/settings/services/settingsLeaveGuard')
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('busy')
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').attributes('data-status')).toBe(
-      'pending'
-    )
+    expect(
+      (wrapper.vm as unknown as { isCloudFeedbackPending: boolean }).isCloudFeedbackPending
+    ).toBe(true)
 
     resolveSave?.()
     await flushPromises()
@@ -616,7 +622,7 @@ describe('DataSettings', () => {
   })
 
   it('enables database encryption after matching password input', async () => {
-    const { wrapper, databaseSecurityClient } = await setup()
+    const { wrapper, databaseSecurityClient, notifyRenderer } = await setup()
     await findDatabaseEncryptionButton(
       wrapper,
       'settings.data.databaseEncryption.setPasswordButton'
@@ -625,20 +631,22 @@ describe('DataSettings', () => {
 
     await wrapper.get('#database-new-password').setValue('sqlite-pass')
     await wrapper.get('#database-confirm-password').setValue('sqlite-pass')
-    await findDatabaseEncryptionButton(
-      wrapper,
-      'settings.data.databaseEncryption.enableButton'
-    ).trigger('click')
+    await wrapper.get('[data-testid="database-encryption-submit"]').trigger('click')
     await flushPromises()
 
     expect(databaseSecurityClient.enable).toHaveBeenCalledWith('sqlite-pass')
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('success')
-    expect(feedback.text()).toContain('settings.data.databaseEncryption.enabledTitle')
+    // 成功反馈走按钮 ✅ 态，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.data.databaseSecurity.updated' })
+    )
+    expect(
+      (wrapper.vm as unknown as { isDatabaseEncryptionDialogOpen: boolean })
+        .isDatabaseEncryptionDialogOpen
+    ).toBe(false)
   })
 
   it('keeps database encryption failures in the dialog without exposing details', async () => {
-    const { wrapper, databaseSecurityClient } = await setup()
+    const { wrapper, databaseSecurityClient, notifyRenderer } = await setup()
     databaseSecurityClient.enable.mockRejectedValueOnce(
       new Error('SQLCipher rejected sqlite-pass at /private/database.db')
     )
@@ -650,15 +658,15 @@ describe('DataSettings', () => {
     await nextTick()
     await wrapper.get('#database-new-password').setValue('sqlite-pass')
     await wrapper.get('#database-confirm-password').setValue('sqlite-pass')
-    await findDatabaseEncryptionButton(
-      wrapper,
-      'settings.data.databaseEncryption.enableButton'
-    ).trigger('click')
+    await wrapper.get('[data-testid="database-encryption-submit"]').trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('settings.data.databaseEncryption.failedTitle')
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.data.databaseSecurity.updateFailed' })
+    )
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.data.databaseEncryption.failedTitle'
+    )
     expect(wrapper.text()).not.toContain('/private/database.db')
     expect(wrapper.text()).not.toContain('sqlite-pass')
     expect(
@@ -684,18 +692,22 @@ describe('DataSettings', () => {
     ).toBe(false)
   })
 
-  it('keeps privacy update failures inline without exposing transport details', async () => {
-    const { wrapper, uiSettingsStore } = await setup()
+  it('reports privacy update failures as an error toast without exposing transport details', async () => {
+    const { wrapper, uiSettingsStore, notifyRenderer } = await setup()
 
     uiSettingsStore.setPrivacyModeEnabled = vi.fn().mockRejectedValue(new Error('IPC failed'))
 
     await wrapper.get('[data-testid="privacy-mode-switch"]').trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('Operation failed')
-    expect(feedback.text()).not.toContain('IPC failed')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.privacy.updateFailed',
+        title: 'Operation failed'
+      })
+    )
+    expect(wrapper.text()).not.toContain('IPC failed')
   })
 
   it('does not render a repair result summary before any repair run', async () => {
@@ -791,7 +803,6 @@ describe('DataSettings', () => {
     expect(databaseSecurityClient.repairSchema).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('settings.data.databaseRepair.lastResultLabel')
     expect(wrapper.text()).toContain('settings.data.databaseRepair.summaryHealthy')
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
   })
 
   it('disables schema repair during backup and blocks both click and auto-run paths', async () => {
@@ -885,6 +896,7 @@ describe('DataSettings', () => {
       new Error('Failed to delete /private/sandbox/session')
     )
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    notifyRenderer.mockClear()
 
     await wrapper.get('[data-testid="yobrowser-clear-sandbox-button"]').trigger('click')
     await flushPromises()
@@ -911,6 +923,12 @@ describe('DataSettings', () => {
       (wrapper.vm as unknown as { isClearSandboxDialogOpen: boolean }).isClearSandboxDialogOpen
     ).toBe(false)
     expect(notifyRenderer).toHaveBeenCalledOnce()
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.data.sandbox.cleared',
+      title: 'settings.data.yoBrowser.clearedTitle',
+      description: 'settings.data.yoBrowser.clearedDescription'
+    })
     consoleError.mockRestore()
     wrapper.unmount()
   })
@@ -976,7 +994,7 @@ describe('DataSettings', () => {
   })
 
   it('keeps reset failures in the confirmation surface without exposing details', async () => {
-    const { wrapper, deviceClient } = await setup({ realAlertDialog: true })
+    const { wrapper, deviceClient, notifyRenderer } = await setup({ realAlertDialog: true })
     const pending = deferred<{ reset: boolean }>()
     deviceClient.resetDataByType.mockReturnValueOnce(pending.promise)
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -1002,14 +1020,14 @@ describe('DataSettings', () => {
     await flushPromises()
 
     await vi.waitFor(() => {
-      expect(
-        resetContent
-          ?.querySelector('[data-testid="inline-operation-feedback"]')
-          ?.getAttribute('data-status')
-      ).toBe('error')
+      expect(notifyRenderer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'error',
+          code: 'settings.data.reset.failed',
+          title: 'Operation failed'
+        })
+      )
     })
-    const feedback = resetContent?.querySelector('[data-testid="inline-operation-feedback"]')
-    expect(feedback?.textContent).toContain('Operation failed')
     expect(document.body.textContent).not.toContain('/private/deepchat.db')
     expect((wrapper.vm as unknown as { isResetDialogOpen: boolean }).isResetDialogOpen).toBe(true)
     expect(resetConfirm.element.isConnected).toBe(true)
@@ -1024,17 +1042,21 @@ describe('DataSettings', () => {
     wrapper.unmount()
   })
 
-  it('keeps sync persistence failures inline without changing the visible setting', async () => {
-    const { wrapper, syncStore } = await setup()
+  it('reports sync persistence failures as an error toast without changing the visible setting', async () => {
+    const { wrapper, syncStore, notifyRenderer } = await setup()
     syncStore.setSyncEnabled.mockRejectedValueOnce(new Error('IPC token leaked'))
 
     wrapper.findComponent({ name: 'Switch' }).vm.$emit('update:modelValue', false)
     await flushPromises()
 
     expect(syncStore.syncEnabled).toBe(true)
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('Operation failed')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.data.sync.updateFailed',
+        title: 'Operation failed'
+      })
+    )
     expect(wrapper.text()).not.toContain('IPC token leaked')
   })
 
@@ -1071,26 +1093,25 @@ describe('DataSettings', () => {
     })
   })
 
-  it('offers an inline retry when initial sync settings loading fails', async () => {
+  it('reports failed sync initialization as a toast and re-enables sync on a fresh load', async () => {
     const initialize = vi
       .fn()
       .mockRejectedValueOnce(new Error('cloud config at /private/config failed'))
       .mockResolvedValueOnce(undefined)
-    const { wrapper } = await setup({ syncInitialize: initialize })
+    const { wrapper, notifyRenderer } = await setup({ syncInitialize: initialize })
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('Operation failed')
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.data.sync.initializeFailed',
+      title: 'Operation failed'
+    })
     expect(wrapper.text()).not.toContain('/private/config')
     expect(wrapper.findComponent({ name: 'Switch' }).attributes('disabled')).toBeDefined()
 
-    const retryButton = wrapper.findAll('button').find((button) => button.text() === 'common.retry')
-    if (!retryButton) throw new Error('Retry sync initialization button not found')
-    await retryButton.trigger('click')
-    await flushPromises()
-
+    wrapper.unmount()
+    const { wrapper: remounted } = await setup({ syncInitialize: initialize })
     expect(initialize).toHaveBeenCalledTimes(2)
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'Switch' }).attributes('disabled')).toBeUndefined()
+    expect(remounted.findComponent({ name: 'Switch' }).attributes('disabled')).toBeUndefined()
+    remounted.unmount()
   })
 })

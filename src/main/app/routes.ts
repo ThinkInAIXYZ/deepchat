@@ -19,7 +19,12 @@ import {
 import type { DatabaseSecurityService } from './databaseSecurity'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 import type { SessionQuery } from '@/session/query'
-import { createRouteMap, type DeepchatRouteMap, type RouteContext } from '@/routes/routeRegistry'
+import {
+  createRouteMap,
+  requireRendererCaller,
+  type DeepchatRouteMap,
+  type RendererRouteCaller
+} from '@/routes/routeRegistry'
 import {
   createDebugMockChatSession,
   type DebugMockChatDatabase
@@ -32,7 +37,7 @@ import type { SplashWindow } from './splashWindow'
 export function createAppRoutes(deps: {
   logging: Pick<LoggingService, 'openFolder'>
   rendererPerformance: Pick<RendererPerformanceLogService, 'record'>
-  isMainWindowContext(context: RouteContext): boolean
+  isMainWindowContext(caller: RendererRouteCaller): boolean
   agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAcpEnabled'>
   projects: Pick<ProjectService, 'getDefaultProjectPath'>
   databaseSecurity: Pick<DatabaseSecurityService, 'getStatus'>
@@ -136,7 +141,8 @@ export function createAppRoutes(deps: {
       performanceRecordRendererRoute.name,
       async (rawInput, context) => {
         const record = performanceRecordRendererRoute.input.parse(rawInput)
-        if (!deps.isMainWindowContext(context)) {
+        const caller = requireRendererCaller(context)
+        if (!deps.isMainWindowContext(caller)) {
           return performanceRecordRendererRoute.output.parse({ accepted: false })
         }
         const accepted = await deps.rendererPerformance.record(record)
@@ -147,6 +153,7 @@ export function createAppRoutes(deps: {
       startupGetBootstrapRoute.name,
       async (rawInput, context) => {
         startupGetBootstrapRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         return await deps.startup.scheduleTask({
           id: 'main.bootstrap:route',
           target: 'main',
@@ -157,7 +164,7 @@ export function createAppRoutes(deps: {
           dedupeKey: 'main.bootstrap:route',
           runId: deps.startup.getRunId('main'),
           run: async () => {
-            const activeSessionId = deps.desktopSession.getActiveId(context.webContentsId)
+            const activeSessionId = deps.desktopSession.getActiveId(caller.webContentsId)
             const activeSession = activeSessionId
               ? ((await deps.startupSession.getLightweightByIds([activeSessionId]))[0] ?? null)
               : null

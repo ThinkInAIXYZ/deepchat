@@ -9,7 +9,7 @@
       </DialogHeader>
 
       <div class="overflow-y-auto flex-1 pr-2 -mr-2">
-        <form @submit.prevent="handleSave" class="space-y-6">
+        <DcForm @submit="handleSave" class="space-y-6">
           <!-- 模型名称 -->
           <div v-if="!showOpenAIMediaGenerationSettings || canEditModelIdentity" class="space-y-2">
             <Label for="modelName">{{ t('settings.model.modelConfig.name.label') }}</Label>
@@ -481,62 +481,48 @@
               </div>
             </div>
           </div>
-        </form>
+        </DcForm>
       </div>
 
       <DialogFooter class="gap-2">
-        <Button type="button" variant="outline" @click="handleReset">
+        <DcButton type="button" variant="outline" @click="handleReset">
           {{ t('settings.model.modelConfig.resetToDefault') }}
-        </Button>
-        <Button type="button" variant="ghost" @click="$emit('update:open', false)">
+        </DcButton>
+        <DcButton type="button" variant="ghost" @click="$emit('update:open', false)">
           {{ t('settings.model.modelConfig.cancel') }}
-        </Button>
-        <Button type="button" @click="handleSave" :disabled="!isValid">
+        </DcButton>
+        <DcButton type="button" @click="handleSave" :disabled="!isValid">
           {{ t('settings.model.modelConfig.saveConfig') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 
   <!-- 重置确认对话框 -->
-  <Dialog :open="showResetConfirm" @update:open="showResetConfirm = $event">
-    <DialogContent class="sm:max-w-[425px]">
-      <DialogHeader>
-        <DialogTitle>{{ t('settings.model.modelConfig.resetConfirm.title') }}</DialogTitle>
-        <p class="text-sm text-muted-foreground">
-          {{ t('settings.model.modelConfig.resetConfirm.message') }}
-        </p>
-      </DialogHeader>
-      <DialogFooter>
-        <Button variant="ghost" @click="showResetConfirm = false">
-          {{ t('settings.model.modelConfig.cancel') }}
-        </Button>
-        <Button variant="destructive" @click="confirmReset">
-          {{ t('settings.model.modelConfig.resetConfirm.confirm') }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  <DcConfirmDialog
+    :open="showResetConfirm"
+    :title="t('settings.model.modelConfig.resetConfirm.title')"
+    :description="t('settings.model.modelConfig.resetConfirm.message')"
+    :danger="true"
+    confirm-label="t('settings.model.modelConfig.resetConfirm.confirm')"
+    cancel-label="t('settings.model.modelConfig.cancel')"
+    @update:open="showResetConfirm = $event"
+    @confirm="confirmReset"
+    @cancel="showResetConfirm = false"
+  />
 
   <!-- DeepSeek-V3.1 互斥确认对话框 -->
-  <AlertDialog :open="showMutualExclusiveAlert" @update:open="showMutualExclusiveAlert = $event">
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>{{ getConfirmTitle }}</AlertDialogTitle>
-        <AlertDialogDescription>
-          {{ getConfirmMessage }}
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel @click="cancelMutualExclusiveToggle">
-          {{ t('dialog.cancel') }}
-        </AlertDialogCancel>
-        <AlertDialogAction @click="confirmMutualExclusiveToggle">
-          {{ t('dialog.mutualExclusive.confirmEnable') }}
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
+  <DcConfirmDialog
+    :open="showMutualExclusiveAlert"
+    :title="getConfirmTitle"
+    :description="getConfirmMessage"
+    :danger="false"
+    confirm-label="t('dialog.mutualExclusive.confirmEnable')"
+    cancel-label="t('dialog.cancel')"
+    @update:open="showMutualExclusiveAlert = $event"
+    @confirm="confirmMutualExclusiveToggle"
+    @cancel="cancelMutualExclusiveToggle"
+  />
 </template>
 
 <script setup lang="ts">
@@ -590,6 +576,8 @@ import { normalizeTtsSettings } from '@shared/ttsSettings'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcForm } from '@dc-ui/components/form'
 import OpenAIImageGenerationSettingsFields from './OpenAIImageGenerationSettingsFields.vue'
 import OpenAIVideoGenerationSettingsFields from './OpenAIVideoGenerationSettingsFields.vue'
 import TtsSettingsFields from './TtsSettingsFields.vue'
@@ -604,7 +592,7 @@ import {
   DialogTitle,
   DialogFooter
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -615,16 +603,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
 
 interface Props {
   open: boolean

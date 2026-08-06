@@ -29,36 +29,36 @@
     </span>
 
     <div class="flex shrink-0 items-center gap-0.5">
-      <Button
+      <DcButton
         variant="ghost"
         size="icon"
         class="h-7 w-7 rounded-xl text-muted-foreground hover:text-foreground"
-        :title="t('chat.inlineSearch.previous')"
+        :tooltip="t('chat.inlineSearch.previous')"
         :aria-label="t('chat.inlineSearch.previous')"
         @click="emit('previous')"
       >
         <Icon icon="lucide:chevron-up" class="h-4 w-4" />
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         variant="ghost"
         size="icon"
         class="h-7 w-7 rounded-xl text-muted-foreground hover:text-foreground"
-        :title="t('chat.inlineSearch.next')"
+        :tooltip="t('chat.inlineSearch.next')"
         :aria-label="t('chat.inlineSearch.next')"
         @click="emit('next')"
       >
         <Icon icon="lucide:chevron-down" class="h-4 w-4" />
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         variant="ghost"
         size="icon"
         class="h-7 w-7 rounded-xl text-muted-foreground hover:text-foreground"
-        :title="t('chat.inlineSearch.close')"
+        :tooltip="t('chat.inlineSearch.close')"
         :aria-label="t('chat.inlineSearch.close')"
         @click="emit('close')"
       >
         <Icon icon="lucide:x" class="h-4 w-4" />
-      </Button>
+      </DcButton>
     </div>
   </div>
 </template>
@@ -67,7 +67,7 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 
 defineProps<{

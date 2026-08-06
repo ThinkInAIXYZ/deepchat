@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive, ref } from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+
+const notifyRenderer = vi.hoisted(() => vi.fn())
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -17,21 +19,12 @@ const buttonStub = defineComponent({
     '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>'
 })
 
-const inlineFeedbackStub = defineComponent({
-  name: 'InlineOperationFeedback',
-  props: ['snapshot'],
-  emits: ['retry'],
-  template:
-    '<div data-testid="knowledge-operation-feedback" :data-status="snapshot.status"><button data-testid="knowledge-operation-retry" @click="$emit(\'retry\')" /></div>'
-})
-
 const stubs = {
-  Button: buttonStub,
+  DcButton: buttonStub,
   Input: true,
   Label: true,
   Switch: true,
   Icon: true,
-  InlineOperationFeedback: inlineFeedbackStub,
   Collapsible: passthrough('Collapsible'),
   CollapsibleContent: passthrough('CollapsibleContent'),
   Dialog: passthrough('Dialog'),
@@ -130,43 +123,12 @@ async function setup(testCase: Case) {
     updateServer,
     toggleServer
   })
-  const feedbackSnapshot = ref<any>({ status: 'idle', version: 0 })
-  const feedbackController = {
-    begin: vi.fn((operationId: string, label: string) => {
-      feedbackSnapshot.value = { status: 'pending', operationId, label, version: 1 }
-    }),
-    succeed: vi.fn((result) => {
-      feedbackSnapshot.value = {
-        status: 'success',
-        operationId: 'knowledge-operation',
-        ...result,
-        version: 2
-      }
-    }),
-    fail: vi.fn((result) => {
-      feedbackSnapshot.value = {
-        status: 'error',
-        operationId: 'knowledge-operation',
-        ...result,
-        version: 2
-      }
-    }),
-    clearSettled: vi.fn(() => {
-      feedbackSnapshot.value = { status: 'idle', version: 3 }
-    })
-  }
 
   vi.doMock('@/stores/mcp', () => ({
     useMcpStore: () => mcpStore
   }))
-  vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
-    createRendererSurfaceFeedbackController: () => feedbackController
-  }))
-  vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
-    useSurfaceFeedback: () => ({
-      snapshot: feedbackSnapshot,
-      setActive: vi.fn()
-    })
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
   }))
   vi.doMock('vue-router', () => ({
     useRoute: () => reactive({ query: {} })
@@ -188,14 +150,18 @@ async function setup(testCase: Case) {
   })
   await flushPromises()
 
-  return { wrapper, mcpStore, updateServer, toggleServer, feedbackController }
+  return { wrapper, mcpStore, updateServer, toggleServer, notifyRenderer }
 }
 
 describe('external knowledge settings feedback', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it.each(cases)(
     '$component keeps local state unchanged until persistence succeeds',
     async (testCase) => {
-      const { wrapper, updateServer, feedbackController } = await setup(testCase)
+      const { wrapper, updateServer, notifyRenderer } = await setup(testCase)
       const vm = wrapper.vm as any
 
       vm.openAddConfig()
@@ -206,21 +172,22 @@ describe('external knowledge settings feedback', () => {
       expect(updateServer).toHaveBeenCalledTimes(1)
       expect(vm[testCase.listKey]).toEqual([])
       expect(vm[testCase.dialogKey]).toBe(true)
-      expect(feedbackController.fail).toHaveBeenCalledWith({
-        code: expect.stringMatching(/\.save\.failed$/),
+      // 失败走按钮 ⚠ + 内联错误，不弹 toast
+      expect(notifyRenderer).not.toHaveBeenCalled()
+      expect(vm.knowledgeConfigs.operation.lastError.value).toEqual({
         title: 'common.error.operationFailed'
       })
+      expect(wrapper.text()).toContain('common.error.operationFailed')
 
-      await wrapper.get('[data-testid="knowledge-operation-retry"]').trigger('click')
+      ;(vm.knowledgeConfigs as any).operation.retry()
       await flushPromises()
 
       expect(updateServer).toHaveBeenCalledTimes(2)
       expect(vm[testCase.listKey]).toHaveLength(1)
       expect(vm[testCase.dialogKey]).toBe(false)
-      expect(feedbackController.succeed).toHaveBeenCalledWith({
-        code: expect.stringMatching(/\.save\.succeeded$/),
-        title: 'common.saved'
-      })
+      // 成功走按钮 ✅，不弹 toast，内联错误清除
+      expect(notifyRenderer).not.toHaveBeenCalled()
+      expect(wrapper.text()).not.toContain('common.error.operationFailed')
       wrapper.unmount()
     }
   )

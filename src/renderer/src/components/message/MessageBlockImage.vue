@@ -37,19 +37,15 @@
           <DialogTitle>
             <div class="flex items-center justify-between gap-2 pr-8">
               <span>{{ t('common.image') }}</span>
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-                    @click="handleSaveImage"
-                  >
-                    <Icon icon="lucide:download" class="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{{ t('image.save') }}</TooltipContent>
-              </Tooltip>
+              <DcButton
+                variant="ghost"
+                size="icon-sm"
+                icon="lucide:download"
+                icon-size="4"
+                :tooltip="t('image.save')"
+                class="rounded-lg text-muted-foreground hover:text-foreground"
+                @click="handleSaveImage"
+              />
             </div>
           </DialogTitle>
         </DialogHeader>
@@ -70,12 +66,10 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import ImageActionContextMenu from './ImageActionContextMenu.vue'
 import { useImageActions } from '@/composables/useImageActions'

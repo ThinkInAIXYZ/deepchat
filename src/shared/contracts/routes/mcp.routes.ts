@@ -90,6 +90,409 @@ const MCPServerConfigUpdateSchema: z.ZodType<Partial<MCPServerConfig>> =
   MCPServerConfigObjectSchema.partial().refine(isBoundedServerConfig, {
     message: 'MCP server configuration exceeds the 3 MiB route limit'
   })
+
+// Leave room for the route envelope inside ApprovalBroker's 1 MiB argument binding.
+export const PUBLIC_MCP_CONFIG_MAX_BYTES = 768 * 1024
+export const PUBLIC_MCP_DESCRIPTION_MAX_CHARACTERS = 16 * 1024
+export const PUBLIC_MCP_ICON_MAX_CHARACTERS = 128
+export const PUBLIC_MCP_LIST_MAX_ITEMS = 512
+
+function isSafePublicMcpDisplayText(value: string): boolean {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)!
+    if (
+      codePoint <= 0x1f ||
+      (codePoint >= 0x7f && codePoint <= 0x9f) ||
+      codePoint === 0x061c ||
+      codePoint === 0x200e ||
+      codePoint === 0x200f ||
+      (codePoint >= 0x202a && codePoint <= 0x202e) ||
+      (codePoint >= 0x2066 && codePoint <= 0x2069)
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+function isBoundedPublicMcpConfig(value: unknown): boolean {
+  try {
+    return (
+      new TextEncoder().encode(JSON.stringify(value) ?? 'null').byteLength <=
+      PUBLIC_MCP_CONFIG_MAX_BYTES
+    )
+  } catch {
+    return false
+  }
+}
+
+export const PublicMcpServerNameSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .refine((value) => value === value.trim(), {
+    message: 'MCP server name must not have surrounding whitespace'
+  })
+  .refine(isSafePublicMcpDisplayText, {
+    message: 'MCP server name contains unsafe display characters'
+  })
+  .refine(
+    (value) =>
+      value !== 'prototype' && !Object.prototype.hasOwnProperty.call(Object.prototype, value),
+    { message: 'MCP server name conflicts with an object property' }
+  )
+
+const PublicMcpDescriptionSchema = z.string().max(PUBLIC_MCP_DESCRIPTION_MAX_CHARACTERS)
+const PublicMcpIconSchema = z
+  .string()
+  .max(PUBLIC_MCP_ICON_MAX_CHARACTERS)
+  .refine(isSafePublicMcpDisplayText, {
+    message: 'MCP server icon contains unsafe display characters'
+  })
+const PublicMcpCommandSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(4096)
+  .refine((value) => !value.includes('\0'), { message: 'MCP command must not contain NUL' })
+const PublicMcpArgumentSchema = z
+  .string()
+  .max(8192)
+  .refine((value) => !value.includes('\0'), { message: 'MCP argument must not contain NUL' })
+const PublicMcpEnvironmentSchema = z
+  .record(
+    z
+      .string()
+      .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
+      .max(256),
+    z
+      .string()
+      .max(64 * 1024)
+      .refine((value) => !value.includes('\0'), {
+        message: 'MCP environment value must not contain NUL'
+      })
+  )
+  .refine((value) => Object.keys(value).length <= 256, {
+    message: 'MCP environment has too many entries'
+  })
+  .refine(
+    (value) => {
+      const keys = Object.keys(value).map((key) => key.toLowerCase())
+      return new Set(keys).size === keys.length
+    },
+    { message: 'MCP environment contains case-insensitive duplicate names' }
+  )
+const PublicMcpHeadersSchema = z
+  .record(
+    z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/),
+    z
+      .string()
+      .max(64 * 1024)
+      .refine((value) => !value.includes('\0') && !value.includes('\r') && !value.includes('\n'), {
+        message: 'MCP header value contains an unsafe character'
+      })
+  )
+  .refine((value) => Object.keys(value).length <= 256, {
+    message: 'MCP headers have too many entries'
+  })
+  .refine(
+    (value) => {
+      const keys = Object.keys(value).map((key) => key.toLowerCase())
+      return new Set(keys).size === keys.length
+    },
+    { message: 'MCP headers contain case-insensitive duplicate names' }
+  )
+
+const PublicMcpSecureUrlSchema = z
+  .url()
+  .max(8192)
+  .superRefine((value, context) => {
+    let url: URL
+    try {
+      url = new URL(value)
+    } catch {
+      context.addIssue({ code: 'custom', message: 'MCP URL is invalid' })
+      return
+    }
+    const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname.toLowerCase())
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'MCP URL must use HTTPS or loopback HTTP'
+      })
+    }
+    if (url.username || url.password || url.search || url.hash) {
+      context.addIssue({
+        code: 'custom',
+        message: 'MCP URL must not contain credentials, query parameters, or a fragment'
+      })
+    }
+  })
+
+const PublicMcpAuthorizationConfigSchema = z
+  .object({
+    mode: z.enum([
+      'none',
+      'interactive',
+      'client_credentials',
+      'private_key_jwt',
+      'cross_app_access'
+    ]),
+    protectedResourceUrl: PublicMcpSecureUrlSchema.optional(),
+    authorizationServerIssuer: PublicMcpSecureUrlSchema.optional(),
+    clientMetadataUrl: PublicMcpSecureUrlSchema.optional(),
+    clientId: z.string().min(1).max(2048).refine(isSafePublicMcpDisplayText).optional(),
+    scopes: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .max(512)
+          .regex(/^[\x21\x23-\x5b\x5d-\x7e]+$/)
+      )
+      .max(128)
+      .optional(),
+    identityProfileId: z.string().min(1).max(512).refine(isSafePublicMcpDisplayText).optional(),
+    keyAlgorithm: z.enum(['RS256', 'ES256']).optional()
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const machineMode =
+      value.mode === 'client_credentials' ||
+      value.mode === 'private_key_jwt' ||
+      value.mode === 'cross_app_access'
+    if (!machineMode) return
+
+    for (const field of [
+      'protectedResourceUrl',
+      'authorizationServerIssuer',
+      'clientId'
+    ] as const) {
+      if (!value[field]) {
+        context.addIssue({
+          code: 'custom',
+          path: [field],
+          message: `${field} is required for machine authorization`
+        })
+      }
+    }
+    if (value.mode === 'private_key_jwt' && !value.keyAlgorithm) {
+      context.addIssue({
+        code: 'custom',
+        path: ['keyAlgorithm'],
+        message: 'keyAlgorithm is required for private_key_jwt authorization'
+      })
+    }
+    if (value.mode === 'cross_app_access' && !value.identityProfileId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['identityProfileId'],
+        message: 'identityProfileId is required for cross_app_access authorization'
+      })
+    }
+  })
+
+const PublicMcpCommonConfigShape = {
+  description: PublicMcpDescriptionSchema.optional().default(''),
+  icon: PublicMcpIconSchema.optional().default('')
+}
+
+const PublicMcpStdioConfigSchema = z
+  .object({
+    ...PublicMcpCommonConfigShape,
+    type: z.literal('stdio'),
+    command: PublicMcpCommandSchema,
+    args: z.array(PublicMcpArgumentSchema).max(256).optional().default([]),
+    environment: PublicMcpEnvironmentSchema.optional().default({}),
+    inheritEnv: z.enum(['legacy', 'minimal']).optional().default('minimal'),
+    customNpmRegistry: PublicMcpSecureUrlSchema.optional()
+  })
+  .strict()
+
+const PublicMcpSseConfigSchema = z
+  .object({
+    ...PublicMcpCommonConfigShape,
+    type: z.literal('sse'),
+    baseUrl: PublicMcpSecureUrlSchema,
+    headers: PublicMcpHeadersSchema.optional().default({})
+  })
+  .strict()
+
+const PublicMcpHttpConfigSchema = z
+  .object({
+    ...PublicMcpCommonConfigShape,
+    type: z.literal('http'),
+    baseUrl: PublicMcpSecureUrlSchema,
+    headers: PublicMcpHeadersSchema.optional().default({}),
+    authorization: PublicMcpAuthorizationConfigSchema.optional()
+  })
+  .strict()
+
+export const PublicMcpServerConfigInputSchema = z
+  .discriminatedUnion('type', [
+    PublicMcpStdioConfigSchema,
+    PublicMcpSseConfigSchema,
+    PublicMcpHttpConfigSchema
+  ])
+  .refine(isBoundedPublicMcpConfig, {
+    message: 'Public MCP server configuration exceeds its byte limit'
+  })
+
+export const PublicMcpServerUpdateSchema = z
+  .object({
+    type: z.enum(['stdio', 'sse', 'http']).optional(),
+    description: PublicMcpDescriptionSchema.optional(),
+    icon: PublicMcpIconSchema.optional(),
+    command: PublicMcpCommandSchema.optional(),
+    args: z.array(PublicMcpArgumentSchema).max(256).optional(),
+    environment: PublicMcpEnvironmentSchema.optional(),
+    inheritEnv: z.enum(['legacy', 'minimal']).optional(),
+    baseUrl: PublicMcpSecureUrlSchema.optional(),
+    headers: PublicMcpHeadersSchema.optional(),
+    authorization: PublicMcpAuthorizationConfigSchema.nullable().optional(),
+    customNpmRegistry: PublicMcpSecureUrlSchema.nullable().optional()
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const stdioFields = ['command', 'args', 'environment', 'inheritEnv', 'customNpmRegistry']
+    const remoteFields = ['baseUrl', 'headers', 'authorization']
+    const hasStdioField = stdioFields.some((field) => Object.hasOwn(value, field))
+    const hasRemoteField = remoteFields.some((field) => Object.hasOwn(value, field))
+    if (hasStdioField && hasRemoteField) {
+      context.addIssue({
+        code: 'custom',
+        message: 'MCP update cannot mix stdio and remote transport fields'
+      })
+    }
+    if (value.type === 'stdio' && hasRemoteField) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Remote transport fields are not valid for stdio MCP servers'
+      })
+    }
+    if (value.type !== undefined && value.type !== 'stdio' && hasStdioField) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Stdio transport fields are not valid for remote MCP servers'
+      })
+    }
+    if (value.type === 'sse' && Object.hasOwn(value, 'authorization')) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Authorization settings are only valid for HTTP MCP servers'
+      })
+    }
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: 'At least one MCP server update is required'
+  })
+  .refine(isBoundedPublicMcpConfig, {
+    message: 'Public MCP server update exceeds its byte limit'
+  })
+
+export const PublicMcpServerSchema = z
+  .object({
+    name: PublicMcpServerNameSchema,
+    type: z.enum(['sse', 'stdio', 'inmemory', 'http']),
+    enabled: z.boolean(),
+    running: z.boolean().nullable(),
+    managedBy: z.enum(['deepchat', 'plugin', 'user']),
+    editable: z.boolean(),
+    removable: z.boolean(),
+    description: z.string().max(1024),
+    commandName: z.string().max(256).nullable(),
+    endpoint: z
+      .object({
+        origin: z.string().max(4096),
+        pathPresent: z.boolean()
+      })
+      .strict()
+      .nullable(),
+    argumentCount: z.number().int().nonnegative().max(1_000_000),
+    environmentEntryCount: z.number().int().nonnegative().max(1_000_000),
+    headerEntryCount: z.number().int().nonnegative().max(1_000_000),
+    authorizationMode: z
+      .enum(['none', 'interactive', 'client_credentials', 'private_key_jwt', 'cross_app_access'])
+      .nullable(),
+    metadataTruncated: z.boolean()
+  })
+  .strict()
+
+export const mcpListPublicRoute = defineRouteContract({
+  name: 'mcp.listPublic',
+  input: z.object({}).strict().default({}),
+  output: z
+    .object({
+      servers: z.array(PublicMcpServerSchema).max(PUBLIC_MCP_LIST_MAX_ITEMS),
+      truncated: z.boolean()
+    })
+    .strict()
+})
+
+export const mcpAddPublicRoute = defineRouteContract({
+  name: 'mcp.addPublic',
+  input: z
+    .object({
+      serverName: PublicMcpServerNameSchema,
+      config: PublicMcpServerConfigInputSchema
+    })
+    .strict(),
+  output: z.object({ server: PublicMcpServerSchema }).strict()
+})
+
+export const mcpUpdatePublicRoute = defineRouteContract({
+  name: 'mcp.updatePublic',
+  input: z
+    .object({
+      serverName: PublicMcpServerNameSchema,
+      updates: PublicMcpServerUpdateSchema
+    })
+    .strict(),
+  output: z.object({ server: PublicMcpServerSchema }).strict()
+})
+
+export const mcpSetPublicStatusRoute = defineRouteContract({
+  name: 'mcp.setPublicStatus',
+  input: z
+    .object({
+      serverName: PublicMcpServerNameSchema,
+      enabled: z.boolean()
+    })
+    .strict(),
+  output: z.object({ server: PublicMcpServerSchema }).strict()
+})
+
+export const mcpStartPublicRoute = defineRouteContract({
+  name: 'mcp.startPublic',
+  input: z.object({ serverName: PublicMcpServerNameSchema }).strict(),
+  output: z.object({ server: PublicMcpServerSchema }).strict()
+})
+
+export const mcpStopPublicRoute = defineRouteContract({
+  name: 'mcp.stopPublic',
+  input: z.object({ serverName: PublicMcpServerNameSchema }).strict(),
+  output: z.object({ server: PublicMcpServerSchema }).strict()
+})
+
+export const mcpRemovePublicRoute = defineRouteContract({
+  name: 'mcp.removePublic',
+  input: z.object({ serverName: PublicMcpServerNameSchema }).strict(),
+  output: z
+    .object({
+      serverName: PublicMcpServerNameSchema,
+      removed: z.literal(true)
+    })
+    .strict()
+})
+
+export type PublicMcpServer = z.infer<typeof PublicMcpServerSchema>
+export type PublicMcpServerConfigInput = z.infer<typeof PublicMcpServerConfigInputSchema>
+export type PublicMcpServerUpdate = z.infer<typeof PublicMcpServerUpdateSchema>
+
 const McpClientSchema = z.custom<McpClient>()
 const MCPToolDefinitionSchema = z.custom<MCPToolDefinition>()
 const PromptListEntrySchema = z.custom<PromptListEntry>()

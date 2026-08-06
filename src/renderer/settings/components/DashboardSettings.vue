@@ -13,7 +13,7 @@
             {{ t('settings.dashboard.description') }}
           </p>
         </div>
-        <Button
+        <DcButton
           variant="outline"
           size="sm"
           class="w-full shrink-0 sm:w-auto"
@@ -23,7 +23,7 @@
           <Spinner v-if="isLoading" class="mr-2 size-4" data-icon="inline-start" />
           <Icon v-else icon="lucide:refresh-cw" class="mr-2 size-4" data-icon="inline-start" />
           {{ t('settings.dashboard.actions.refresh') }}
-        </Button>
+        </DcButton>
       </div>
 
       <section
@@ -63,12 +63,12 @@
       </section>
 
       <section v-if="isLoading && !dashboard">
-        <div class="h-68 animate-pulse rounded-xl bg-accent"></div>
+        <div class="h-68 animate-pulse rounded-xl bg-muted"></div>
       </section>
 
       <template v-else-if="dashboard">
         <section v-if="hasData">
-          <Card data-testid="usage-summary-panel" class="border-none bg-accent py-5 shadow-none">
+          <Card data-testid="usage-summary-panel" class="border-none bg-card py-5 shadow-none">
             <CardContent :class="['grid gap-6', props.hideNostalgia ? '' : 'lg:grid-cols-2']">
               <UsageNostalgiaCard
                 v-if="!props.hideNostalgia"
@@ -225,7 +225,7 @@
           </div>
         </section>
 
-        <Card class="overflow-hidden border-none bg-accent shadow-none">
+        <Card class="overflow-hidden border-none bg-card shadow-none">
           <CardHeader class="pb-4">
             <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
               <div class="space-y-1">
@@ -337,7 +337,7 @@
           </CardContent>
         </Card>
 
-        <Card data-testid="rtk-card" class="overflow-hidden border-none bg-accent shadow-none">
+        <Card data-testid="rtk-card" class="overflow-hidden border-none bg-card shadow-none">
           <CardHeader class="pb-4">
             <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div class="space-y-1">
@@ -347,14 +347,14 @@
                 </CardDescription>
               </div>
               <div class="flex flex-wrap items-center gap-2">
-                <Badge
+                <DcBadge
                   data-testid="rtk-status-badge"
                   variant="secondary"
                   :class="rtkStatusBadgeClass"
                 >
                   {{ rtkStatusLabel }}
-                </Badge>
-                <Button
+                </DcBadge>
+                <DcButton
                   v-if="dashboard.rtk.health === 'unhealthy'"
                   data-testid="rtk-retry-button"
                   variant="outline"
@@ -363,7 +363,7 @@
                   @click="void retryRtkHealthCheck()"
                 >
                   {{ t('settings.dashboard.rtk.actions.retry') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
           </CardHeader>
@@ -423,7 +423,7 @@
         </Card>
 
         <div class="grid gap-4 xl:grid-cols-2">
-          <Card class="border-none bg-accent shadow-none">
+          <Card class="border-none bg-card shadow-none">
             <CardHeader class="pb-4">
               <CardTitle>{{ t('settings.dashboard.breakdown.providerTitle') }}</CardTitle>
               <CardDescription>
@@ -481,7 +481,7 @@
             </CardContent>
           </Card>
 
-          <Card class="border-none bg-accent shadow-none">
+          <Card class="border-none bg-card shadow-none">
             <CardHeader class="pb-4">
               <CardTitle>{{ t('settings.dashboard.breakdown.modelTitle') }}</CardTitle>
               <CardDescription>
@@ -550,8 +550,8 @@ import { useI18n } from 'vue-i18n'
 import { useDocumentVisibility, useTimeoutFn, useWindowFocus } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcButton } from '@dc-ui/components/button'
+import { DcBadge } from '@dc-ui/components/badge'
 import {
   Card,
   CardContent,

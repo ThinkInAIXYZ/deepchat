@@ -591,6 +591,53 @@ describe('ProviderRuntime Integration Tests', () => {
       )
     }, 15000)
 
+    it('should generate typed audio through the standalone speech runtime', async () => {
+      mockProviderSettings.getModelConfig = vi.fn().mockReturnValue({
+        maxTokens: 4096,
+        contextLength: 4096,
+        temperature: 0.4,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.TTS,
+        tts: { voice: 'alloy', speed: 1 }
+      })
+      mockRunAiSdkCoreStream.mockImplementationOnce(async function* () {
+        yield {
+          type: 'image_data',
+          image_data: { data: 'data:audio/mpeg;base64,AQID', mimeType: 'audio/mpeg' }
+        }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+
+      const response = await providerRuntime.generateSpeechStandalone(
+        'mock-openai-api',
+        ' Read this aloud. ',
+        'gpt-4o-mini-tts',
+        { speed: 1.25, responseFormat: 'mp3' }
+      )
+
+      expect(response).toEqual({
+        providerId: 'mock-openai-api',
+        modelId: 'gpt-4o-mini-tts',
+        options: { voice: 'alloy', speed: 1.25, responseFormat: 'mp3' },
+        audio: { data: 'data:audio/mpeg;base64,AQID', mimeType: 'audio/mpeg' }
+      })
+      expect(mockRunAiSdkCoreStream).toHaveBeenCalledWith(
+        expect.any(Object),
+        [{ role: 'user', content: 'Read this aloud.' }],
+        'gpt-4o-mini-tts',
+        expect.objectContaining({
+          apiEndpoint: ApiEndpointType.AudioSpeech,
+          type: ModelType.TTS,
+          tts: { voice: 'alloy', speed: 1.25, responseFormat: 'mp3' }
+        }),
+        0.4,
+        4096,
+        []
+      )
+    }, 15000)
+
     it('should summarize titles', async () => {
       const messages = [
         { role: 'user' as const, content: 'Hello, I want to learn about artificial intelligence' },

@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: vi.fn()
+}))
 
 const buttonStub = defineComponent({
   name: 'Button',
@@ -185,7 +190,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -231,7 +236,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -275,7 +280,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -308,7 +313,7 @@ describe('AboutUsSettings', () => {
     wrapper.unmount()
   })
 
-  it('shows an inline confirmation when no update is available', async () => {
+  it('shows a confirmation toast when no update is available', async () => {
     upgradeStoreMock.showManualDownloadOptions = false
     upgradeStoreMock.updateError = null
     upgradeStoreMock.updateState = 'idle'
@@ -320,7 +325,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -346,10 +351,13 @@ describe('AboutUsSettings', () => {
     await flushPromises()
 
     expect(upgradeStoreMock.checkUpdate).toHaveBeenCalledWith(false)
-    const feedback = wrapper
-      .findAll('[data-testid="inline-operation-feedback"]')
-      .find((item) => item.attributes('data-status') === 'success')
-    expect(feedback?.text()).toContain('update.alreadyUpToDate')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.about.alreadyUpToDate',
+        title: 'update.alreadyUpToDate'
+      })
+    )
 
     wrapper.unmount()
   })
@@ -363,7 +371,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -388,10 +396,13 @@ describe('AboutUsSettings', () => {
 
     expect(configClientMock.setUpdateChannel).toHaveBeenCalledWith('beta')
     expect(select.props('modelValue')).toBe('stable')
-    const feedback = wrapper
-      .findAll('[data-testid="inline-operation-feedback"]')
-      .find((item) => item.attributes('data-status') === 'error')
-    expect(feedback?.text()).toContain('common.error.operationFailed')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.about.updateChannelSaveFailed',
+        title: 'common.error.operationFailed'
+      })
+    )
     expect(wrapper.text()).not.toContain('disk unavailable')
 
     wrapper.unmount()
@@ -404,7 +415,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),

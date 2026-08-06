@@ -54,7 +54,7 @@ describe('KnowledgeFileItem', () => {
       global: {
         stubs: {
           Icon: true,
-          Button: buttonStub,
+          DcButton: buttonStub,
           AlertDialog: passthrough('AlertDialog'),
           AlertDialogAction: buttonStub,
           AlertDialogCancel: buttonStub,

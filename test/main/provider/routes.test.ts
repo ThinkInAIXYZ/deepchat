@@ -1,16 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createRendererRouteContext } from '@/routes/routeRegistry'
 import { createProviderRoutes } from '@/provider/routes'
 import {
   modelsGetCapabilitiesRoute,
   modelsGetProviderCatalogRoute,
+  modelsSetStatusRoute,
   providersImportApplyRoute,
   providersImportScanRoute,
   providersListSummariesRoute,
+  providersRemoveRoute,
   providersUpdateRoute
 } from '@shared/contracts/routes'
 import { ModelType } from '@shared/model'
 
-const context = { webContentsId: 42, windowId: 7 }
+const context = createRendererRouteContext(42, 7)
 
 function createRoutes(deps: {
   providerSettings: Record<string, unknown>
@@ -30,6 +33,54 @@ function createRoutes(deps: {
 }
 
 describe('Provider routes', () => {
+  it('prevents CLI removal of built-in providers', async () => {
+    const removeProviderAtomic = vi.fn()
+    const routes = createRoutes({
+      providerSettings: {
+        getProviderById: vi.fn(() => ({ id: 'openai', custom: false }))
+      },
+      providerRuntime: { removeProviderAtomic }
+    })
+
+    await expect(
+      routes.get(providersRemoveRoute.name)?.(
+        { providerId: 'openai' },
+        {
+          caller: {
+            kind: 'cli',
+            principal: 'human',
+            connectionId: 'connection-1',
+            scopes: ['providers:write']
+          }
+        }
+      )
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(removeProviderAtomic).not.toHaveBeenCalled()
+  })
+
+  it('prevents CLI status records for unknown models', async () => {
+    const updateModelStatus = vi.fn()
+    const routes = createRoutes({
+      providerSettings: { isKnownModel: vi.fn(() => false) },
+      providerRuntime: { updateModelStatus }
+    })
+
+    await expect(
+      routes.get(modelsSetStatusRoute.name)?.(
+        { providerId: 'provider-1', modelId: 'unknown-model', enabled: true },
+        {
+          caller: {
+            kind: 'cli',
+            principal: 'human',
+            connectionId: 'connection-1',
+            scopes: ['providers:write']
+          }
+        }
+      )
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(updateModelStatus).not.toHaveBeenCalled()
+  })
+
   it('returns one authoritative capability snapshot and forwards draft route metadata', async () => {
     const snapshot = {
       identity: {

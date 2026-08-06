@@ -27,6 +27,9 @@ const discoveryWorkerMock = vi.hoisted(() => ({
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+const skillArchiveMock = vi.hoisted(() => ({
+  extractSkillArchive: vi.fn()
+}))
 
 // Mock external dependencies
 vi.mock('electron', () => ({
@@ -134,10 +137,6 @@ vi.mock('gray-matter', () => {
   }
 })
 
-vi.mock('fflate', () => ({
-  unzipSync: vi.fn()
-}))
-
 vi.mock('node:child_process', () => ({
   execFile: vi.fn(
     (
@@ -168,12 +167,12 @@ vi.mock('@shared/logger', () => ({
 }))
 
 vi.mock('../../../src/main/skill/discoveryWorker', () => discoveryWorkerMock)
+vi.mock('../../../src/main/skill/archive', () => skillArchiveMock)
 
 // Import mocked modules
 import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
-import { unzipSync } from 'fflate'
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import logger from '@shared/logger'
@@ -336,6 +335,7 @@ describe('SkillService', () => {
     // Setup default mocks
     ;(fs.existsSync as Mock).mockReturnValue(true)
     ;(fs.mkdirSync as Mock).mockReturnValue(undefined)
+    ;(fs.mkdtempSync as Mock).mockReturnValue('/mock/temp/deepchat-skill-123')
     ;(fs.readdirSync as Mock).mockReturnValue([])
     ;(fs.statSync as Mock).mockReturnValue({
       isFile: () => true,
@@ -372,6 +372,7 @@ describe('SkillService', () => {
       new Error('worker unavailable')
     )
     discoveryWorkerMock.logSkillDiscoveryWorkerWarnings.mockImplementation(() => {})
+    skillArchiveMock.extractSkillArchive.mockResolvedValue(undefined)
     ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(false)
     ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
       async (conversationId: string) => newSessionActiveSkillsStore.get(conversationId) ?? []
@@ -2297,14 +2298,31 @@ describe('SkillService', () => {
         // Temp dir exists
         return true
       })
-      ;(fs.readFileSync as Mock).mockReturnValue(new Uint8Array([0x50, 0x4b, 0x03, 0x04]))
-      ;(unzipSync as Mock).mockReturnValue({})
       ;(fs.readdirSync as Mock).mockReturnValue([])
 
       const result = await skillService.installFromZip('/path/to/skill.zip')
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('SKILL.md not found')
+      expect(skillArchiveMock.extractSkillArchive).toHaveBeenCalledWith(
+        '/path/to/skill.zip',
+        '/mock/temp/deepchat-skill-123',
+        { maxArchiveBytes: SKILL_CONFIG.ZIP_MAX_SIZE }
+      )
+    })
+
+    it('cleans the temporary directory when bounded extraction fails', async () => {
+      skillArchiveMock.extractSkillArchive.mockRejectedValueOnce(
+        new Error('ZIP archive exceeds the total extracted size limit')
+      )
+
+      const result = await skillService.installFromZip('/path/to/skill.zip')
+
+      expect(result).toMatchObject({ success: false, errorCode: 'io_error' })
+      expect(fs.rmSync).toHaveBeenCalledWith('/mock/temp/deepchat-skill-123', {
+        recursive: true,
+        force: true
+      })
     })
   })
 

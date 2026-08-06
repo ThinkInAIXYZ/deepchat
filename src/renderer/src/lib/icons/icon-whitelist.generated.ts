@@ -183,7 +183,6 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'pin',
     'pin-off',
     'play',
-    'plug-zap',
     'plus',
     'plus-circle',
     'plus-square',

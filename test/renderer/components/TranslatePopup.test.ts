@@ -31,8 +31,8 @@ vi.mock('@/stores/ui/agent', () => ({
   })
 }))
 
-vi.mock('@shadcn/components/ui/button', () => ({
-  Button: defineComponent({
+vi.mock('@dc-ui/components/button', () => ({
+  DcButton: defineComponent({
     name: 'Button',
     template: '<button type="button"><slot /></button>'
   })

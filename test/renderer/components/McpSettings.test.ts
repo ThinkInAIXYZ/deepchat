@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive, ref, shallowRef } from 'vue'
+import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const TEST_TIMEOUT_MS = 20000
@@ -37,42 +37,6 @@ const setup = async (
   }
 
   const notifyRenderer = vi.fn()
-  const feedbackSnapshot = shallowRef<Record<string, unknown>>({
-    status: 'idle',
-    version: 0
-  })
-  const feedbackController = {
-    begin: vi.fn((operationId: string, label: string) => {
-      feedbackSnapshot.value = {
-        status: 'pending',
-        operationId,
-        label,
-        version: Number(feedbackSnapshot.value.version) + 1
-      }
-    }),
-    succeed: vi.fn((result: Record<string, unknown>) => {
-      feedbackSnapshot.value = {
-        status: 'success',
-        operationId: feedbackSnapshot.value.operationId,
-        ...result,
-        version: Number(feedbackSnapshot.value.version) + 1
-      }
-    }),
-    fail: vi.fn((result: Record<string, unknown>) => {
-      feedbackSnapshot.value = {
-        status: 'error',
-        operationId: feedbackSnapshot.value.operationId,
-        ...result,
-        version: Number(feedbackSnapshot.value.version) + 1
-      }
-    }),
-    clearSettled: vi.fn(() => {
-      feedbackSnapshot.value = {
-        status: 'idle',
-        version: Number(feedbackSnapshot.value.version) + 1
-      }
-    })
-  }
   const configClient = {
     listAgents: vi.fn().mockResolvedValue([
       {
@@ -183,15 +147,6 @@ const setup = async (
   vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
     notifyRenderer
   }))
-  vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
-    createRendererSurfaceFeedbackController: () => feedbackController
-  }))
-  vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
-    useSurfaceFeedback: () => ({
-      snapshot: feedbackSnapshot,
-      setActive: vi.fn()
-    })
-  }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       t: (key: string) => key
@@ -206,7 +161,7 @@ const setup = async (
     global: {
       stubs: {
         Switch: true,
-        Button: buttonStub,
+        DcButton: buttonStub,
         Input: true,
         Icon: true,
         Separator: true,
@@ -253,8 +208,7 @@ const setup = async (
     router,
     configClient,
     mcpStore,
-    notifyRenderer,
-    feedbackController
+    notifyRenderer
   }
 }
 
@@ -293,10 +247,7 @@ describe('McpSettings', () => {
   })
 
   it('saves MCP server toggles to the current agent in agent scope', async () => {
-    const { wrapper, configClient, mcpStore, feedbackController } = await setup(
-      {},
-      { scope: 'agent' }
-    )
+    const { wrapper, configClient, mcpStore, notifyRenderer } = await setup({}, { scope: 'agent' })
 
     expect(wrapper.find('[data-testid="servers-view"]').text()).toContain('true:false:')
 
@@ -309,10 +260,13 @@ describe('McpSettings', () => {
         enabledMcpServerIds: ['Artifacts', 'Custom']
       }
     })
-    expect(feedbackController.succeed).toHaveBeenCalledWith({
-      code: 'settings.agentMcpPolicy.saved',
-      title: 'settings.mcp.saveSuccess'
-    })
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.agentMcpPolicy.saved',
+        title: 'settings.mcp.saveSuccess'
+      })
+    )
   })
 
   it('optimistically reflects one agent policy write and blocks overlapping toggles', async () => {
@@ -348,20 +302,23 @@ describe('McpSettings', () => {
     expect(serverView.attributes('disabled')).toBeUndefined()
   })
 
-  it('rolls back failed agent-scoped toggles and keeps retryable inline feedback', async () => {
+  it('rolls back failed agent-scoped toggles and reports the failure toast', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const { wrapper, configClient, feedbackController } = await setup({}, { scope: 'agent' })
+    const { wrapper, configClient, notifyRenderer } = await setup({}, { scope: 'agent' })
     configClient.updateDeepChatAgent.mockRejectedValueOnce(new Error('write failed'))
 
     await wrapper.find('[data-testid="servers-view"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.find('[data-testid="servers-view"]').text()).toContain('true:false:')
-    expect(feedbackController.fail).toHaveBeenCalledWith({
-      code: 'settings.agentMcpPolicy.saveFailed',
-      title: 'settings.mcp.saveFailed',
-      description: 'common.error.requestFailed'
-    })
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.agentMcpPolicy.saveFailed',
+        title: 'settings.mcp.saveFailed',
+        description: 'common.error.requestFailed'
+      })
+    )
     consoleError.mockRestore()
   })
 

@@ -14,7 +14,7 @@ import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { SkillManageResult } from '@shared/types/skill'
 import { buildBinaryReadGuidance, shouldRejectAgentBinaryRead } from '@/lib/binaryReadGuard'
 import { AgentFileSystemHandler, type ProtectedDirectoryRule } from './agentFileSystemHandler'
-import { AgentBashHandler } from './agentBashHandler'
+import { AgentBashHandler, type AgentCommandEnvironmentPort } from './agentBashHandler'
 import {
   AgentFffSearchHandler,
   GLOB_TOOL_NAME,
@@ -116,6 +116,7 @@ interface AgentToolManagerOptions {
   skillSettings: SkillSettingsPort
   desktopSettings: AgentDisplaySettingsPort
   commandPermissionHandler: CommandPermissionService
+  commandEnvironment?: AgentCommandEnvironmentPort
   dependencies: AgentToolDependencies
 }
 
@@ -163,6 +164,7 @@ export class AgentToolManager {
   private readonly agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   private readonly skillSettings: SkillSettingsPort
   private readonly desktopSettings: AgentDisplaySettingsPort
+  private readonly commandEnvironment?: AgentCommandEnvironmentPort
   private readonly dependencies: AgentToolDependencies
   private skillTools: SkillTools | null = null
   private skillExecutionService: SkillExecutionService | null = null
@@ -338,6 +340,7 @@ export class AgentToolManager {
     this.skillSettings = options.skillSettings
     this.desktopSettings = options.desktopSettings
     this.commandPermissionHandler = options.commandPermissionHandler
+    this.commandEnvironment = options.commandEnvironment
     this.dependencies = options.dependencies
     this.liveDelegationTool = this.dependencies.liveDelegation
       ? new LiveDelegationAgentTool(this.dependencies.liveDelegation)
@@ -363,7 +366,8 @@ export class AgentToolManager {
       this.bashHandler = new AgentBashHandler(
         [this.agentWorkspacePath],
         this.settings,
-        this.commandPermissionHandler
+        this.commandPermissionHandler,
+        this.commandEnvironment
       )
     }
   }
@@ -386,7 +390,8 @@ export class AgentToolManager {
       this.bashHandler = new AgentBashHandler(
         [effectiveWorkspacePath],
         this.settings,
-        this.commandPermissionHandler
+        this.commandPermissionHandler,
+        this.commandEnvironment
       )
     } else {
       this.fileSystemHandler = null
@@ -1045,7 +1050,8 @@ export class AgentToolManager {
       const bashHandler = new AgentBashHandler(
         allowedDirectories,
         this.settings,
-        this.commandPermissionHandler
+        this.commandPermissionHandler,
+        this.commandEnvironment
       )
       const execArgs = parsedArgs as {
         command: string

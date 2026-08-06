@@ -58,7 +58,7 @@ const MemoryInlinePanelStub = defineComponent({
 })
 
 const stubs = {
-  Button: ButtonStub,
+  DcButton: ButtonStub,
   Input: InputStub,
   Checkbox: CheckboxStub,
   Select: passthrough('Select'),

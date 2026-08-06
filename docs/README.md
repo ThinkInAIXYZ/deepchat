@@ -1,6 +1,6 @@
 # DeepChat 文档索引
 
-本文档反映 `2026-07-30` 的当前代码。历史实施过程、已完成 issue 和一次性 SDD 通过 Git
+本文档反映 `2026-08-05` 的当前代码。历史实施过程、已完成 issue 和一次性 SDD 通过 Git
 历史查询，不再长期留在 `docs/`。
 
 ## 当前必读
@@ -16,6 +16,7 @@
 | [architecture/tape-system.md](./architecture/tape-system.md) | Tape、ViewManifest、回放和 Subagent lineage |
 | [architecture/event-system.md](./architecture/event-system.md) | typed route、typed event 和 main 内部调用规则 |
 | [guides/getting-started.md](./guides/getting-started.md) | 当前代码入口和本地开发命令 |
+| [guides/cli.md](./guides/cli.md) | 随包 CLI 的能力、生命周期、安全边界和 benchmark 合同 |
 | [guides/plugin-packaging.md](./guides/plugin-packaging.md) | `.dcplugin` 打包、内置分发和 release 规则 |
 | [release-flow.md](./release-flow.md) | 版本、分支、tag 和平台构建流程 |
 | [spec-driven-dev.md](./spec-driven-dev.md) | SDD 分类、产物和清理规则 |
@@ -26,6 +27,7 @@
 
 | 文档 | 状态 |
 | --- | --- |
+| [architecture/local-control-plane/](./architecture/local-control-plane/) | CLI V1 已实现；全量测试与生产构建通过，当前平台 unpack 受发布 runtime 下载网络阻塞 |
 | [features/acp-v1-reliability/](./features/acp-v1-reliability/) | ACP capability、auth、session lifecycle 与 diagnostics 待实施 |
 | [features/cua-cross-platform-computer-use/](./features/cua-cross-platform-computer-use/) | 已实现主体，等待 CI platform matrix 验证 |
 | [features/mcp-oauth-authentication/](./features/mcp-oauth-authentication/) | 已实现主体，等待真实 OAuth smoke |

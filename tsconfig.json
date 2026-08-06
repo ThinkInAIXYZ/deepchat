@@ -13,6 +13,9 @@
     "paths": {
       "@shadcn/*": [
         "src/shadcn/*"
+      ],
+      "@dc-ui/*": [
+        "src/dc-ui/*"
       ]
     }
   }

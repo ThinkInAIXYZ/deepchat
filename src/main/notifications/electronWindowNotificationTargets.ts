@@ -1,6 +1,11 @@
 import { BrowserWindow, webContents as electronWebContents, type WebContents } from 'electron'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope, semanticNotificationEvent } from '@shared/contracts/events'
+import {
+  createDeepchatEventEnvelope,
+  semanticNotificationEvent,
+  type DeepchatEventName,
+  type DeepchatEventPayload
+} from '@shared/contracts/events'
 import type { ITabPresenter, IWindowPresenter } from '@shared/types/desktop'
 import type { SemanticNotificationDelivery } from '@shared/notifications'
 import type {
@@ -123,6 +128,14 @@ export class ElectronWindowNotificationTargets implements WindowNotificationTarg
     target: NotificationWindowTarget,
     delivery: SemanticNotificationDelivery
   ): Promise<boolean> {
+    return await this.sendDeepchatEvent(target, semanticNotificationEvent.name, delivery)
+  }
+
+  async sendDeepchatEvent<T extends DeepchatEventName>(
+    target: NotificationWindowTarget,
+    eventName: T,
+    payload: DeepchatEventPayload<T>
+  ): Promise<boolean> {
     const current = await this.getTargetByWebContents(target.webContentsId)
     if (!current || current.kind !== target.kind || current.windowId !== target.windowId) {
       return false
@@ -131,7 +144,7 @@ export class ElectronWindowNotificationTargets implements WindowNotificationTarg
     return await this.windows.sendToWebContents(
       target.webContentsId,
       DEEPCHAT_EVENT_CHANNEL,
-      createDeepchatEventEnvelope(semanticNotificationEvent.name, delivery)
+      createDeepchatEventEnvelope(eventName, payload)
     )
   }
 

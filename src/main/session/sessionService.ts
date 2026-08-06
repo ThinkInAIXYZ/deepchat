@@ -6,15 +6,13 @@ import type {
   SessionWithState
 } from '@shared/types/agent-interface'
 import type { Scheduler } from '@/routes/scheduler'
+import type { RendererRouteCaller } from '@/routes/routeRegistry'
 
 const SESSION_OPERATION_TIMEOUT_MS = 5_000
 const SESSION_LIST_TIMEOUT_MS = 15_000
 const DEFAULT_RESTORE_MESSAGE_LIMIT = 100
 
-export type SessionRouteContext = {
-  webContentsId: number
-  windowId: number | null
-}
+export type SessionRouteContext = RendererRouteCaller
 
 export type SessionListFilters = {
   agentId?: string

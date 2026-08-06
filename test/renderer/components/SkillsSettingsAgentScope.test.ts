@@ -116,7 +116,7 @@ const mountSkillsSettings = async (scope: 'global' | 'agent') => {
         SettingsPageShell: passthrough('SettingsPageShell'),
         GuidedOnboardingOverlay: true,
         Separator: true,
-        Button: defineComponent({ name: 'Button', template: '<button><slot /></button>' }),
+        DcButton: defineComponent({ name: 'Button', template: '<button><slot /></button>' }),
         Input: true,
         Switch: true,
         Tabs: passthrough('Tabs'),

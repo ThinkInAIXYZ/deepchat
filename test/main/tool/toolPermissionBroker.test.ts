@@ -24,6 +24,25 @@ describe('ToolPermissionBroker', () => {
     await expect(second).resolves.toEqual({ allowed: true })
   })
 
+  it('does not lose an MCP App decision resolved inside the request callback', async () => {
+    const broker = new ToolPermissionBroker()
+    const context = {
+      conversationId: 'conversation',
+      serverId: 'server',
+      serverName: 'fixture',
+      toolName: 'read',
+      arguments: { path: '/tmp/example' },
+      permissionType: 'read' as const,
+      permissionMode: 'default' as const
+    }
+
+    await expect(
+      broker.requestAppDecision(context, (request) => {
+        expect(broker.approve(request.requestId!, context.conversationId)).toBe(true)
+      })
+    ).resolves.toEqual({ allowed: true })
+  })
+
   it('does not reuse a model approval for changed arguments or an MCP App source', () => {
     const broker = new ToolPermissionBroker()
     const base = {

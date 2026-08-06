@@ -831,12 +831,16 @@ export interface CreateDetachedSessionInput {
   metadata?: SessionMetadata | null
 }
 
-export type SessionMetadata = {
-  source: 'cron_job'
-  cronJobId: string
-  cronJobRunId: string
-  scheduledAt: number
-}
+export type SessionMetadata =
+  | {
+      source: 'cron_job'
+      cronJobId: string
+      cronJobRunId: string
+      scheduledAt: number
+    }
+  | {
+      source: 'cli_run'
+    }
 
 // ---- Project Types ----
 

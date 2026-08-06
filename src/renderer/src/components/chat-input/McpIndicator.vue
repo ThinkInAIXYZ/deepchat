@@ -1,7 +1,7 @@
 <template>
-  <Popover v-model:open="panelOpen">
-    <PopoverTrigger as-child>
-      <Button
+  <DcPopover v-model:open="panelOpen" width-class="w-80" align="end">
+    <template #trigger>
+      <DcButton
         variant="ghost"
         size="sm"
         :class="
@@ -19,211 +19,129 @@
           <span>{{ triggerLabel }}</span>
           <Icon icon="lucide:chevron-down" class="h-3 w-3" />
         </template>
-      </Button>
-    </PopoverTrigger>
+      </DcButton>
+    </template>
 
-    <PopoverContent align="end" class="w-80 overflow-hidden p-0">
-      <template v-if="isDeepchatContext">
-        <div class="border-b px-3 py-2">
-          <div class="flex items-center justify-between gap-2">
-            <div class="text-sm font-medium">
-              {{ t('chat.advancedSettings.title') }}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-7 w-7 p-0 text-muted-foreground"
-              :title="t('chat.input.mcp.openSettings')"
-              :aria-label="t('chat.input.mcp.openSettings')"
-              @click="openSettings"
-            >
-              <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
-            </Button>
-          </div>
+    <template v-if="isDeepchatContext" #header>
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-sm font-medium">
+          {{ t('chat.advancedSettings.title') }}
         </div>
-
-        <div class="max-h-[24rem] overflow-y-auto">
-          <div v-if="showSystemPromptSection" class="border-b px-3 py-3">
-            <div class="flex items-center justify-between gap-2">
-              <div class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                {{ t('chat.advancedSettings.systemPrompt') }}
-              </div>
-              <span v-if="showCustomSystemPromptBadge" class="text-[11px] text-muted-foreground">
-                {{ t('chat.advancedSettings.currentCustomPrompt') }}
-              </span>
-            </div>
-
-            <Select
-              :model-value="selectedSystemPromptId"
-              @update:model-value="emit('select-system-prompt', $event as string)"
-            >
-              <SelectTrigger class="mt-3 h-8 text-xs">
-                <SelectValue :placeholder="t('chat.advancedSettings.systemPromptPlaceholder')" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="option in systemPromptOptions"
-                  :key="option.id"
-                  :value="option.id"
-                  :disabled="option.disabled"
-                >
-                  {{ option.label }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <slot name="generation-settings" />
-
-          <div class="border-b px-3 py-3">
-            <div
-              class="mb-3 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-            >
-              <span>{{ t('chat.input.tools.title') }}</span>
-            </div>
-
-            <div v-if="toolsLoading" class="text-xs text-muted-foreground">
-              {{ t('chat.input.tools.loading') }}
-            </div>
-
-            <div
-              v-else-if="groupedAgentTools.length === 0"
-              class="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground"
-            >
-              {{ t('chat.input.tools.builtinEmpty') }}
-            </div>
-
-            <div v-else class="space-y-4">
-              <div v-for="group in groupedAgentTools" :key="group.name" class="space-y-2">
-                <div class="flex items-center justify-between gap-3">
-                  <div
-                    class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-                  >
-                    {{ group.label }}
-                  </div>
-
-                  <Switch
-                    :model-value="isGroupEnabled(group)"
-                    :disabled="isGroupPending(group)"
-                    :aria-label="group.label"
-                    @update:model-value="(value) => setGroupEnabled(group, value)"
-                  />
-                </div>
-
-                <div class="flex flex-wrap gap-2">
-                  <Button
-                    v-for="item in group.items"
-                    :key="item.id"
-                    variant="outline"
-                    size="sm"
-                    class="h-7 rounded-md px-2.5 text-xs shadow-none transition-colors"
-                    :class="
-                      isGroupItemEnabled(item)
-                        ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
-                        : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-                    "
-                    :disabled="isGroupItemPending(item)"
-                    @click="toggleGroupItem(item)"
-                  >
-                    {{ item.label }}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div :class="enabledPluginServers.length > 0 ? 'border-b px-3 py-3' : 'px-3 py-3'">
-            <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {{ t('chat.input.tools.mcpSection') }}
-            </div>
-
-            <div
-              v-if="enabledServers.length === 0"
-              class="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground"
-            >
-              {{ t('chat.input.mcp.empty') }}
-            </div>
-
-            <div v-else class="space-y-1">
-              <div
-                v-for="server in enabledServers"
-                :key="server.name"
-                class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
-              >
-                <span class="shrink-0">{{ server.icons }}</span>
-                <span class="min-w-0 flex-1 truncate" :title="getServerLabel(server.name)">
-                  {{ getServerLabel(server.name) }}
-                </span>
-                <span class="shrink-0 text-muted-foreground">
-                  {{ getServerToolsCount(server.name) }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="enabledPluginServers.length > 0" class="px-3 py-3">
-            <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {{ t('chat.input.tools.pluginSection') }}
-            </div>
-
-            <div class="space-y-1">
-              <div
-                v-for="server in enabledPluginServers"
-                :key="server.name"
-                class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
-              >
-                <Icon
-                  v-if="server.icons === 'plugin'"
-                  icon="lucide:puzzle"
-                  class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                />
-                <span v-else class="shrink-0">{{ server.icons }}</span>
-                <span class="min-w-0 flex-1 truncate" :title="getPluginServerLabel(server)">
-                  {{ getPluginServerLabel(server) }}
-                </span>
-                <span class="shrink-0 text-muted-foreground">
-                  {{ getPluginServerToolsCount(server.name) }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <template v-else>
-        <div class="border-b px-3 py-2">
-          <div class="flex items-center justify-between gap-2">
-            <div class="text-sm font-medium">
-              {{ t('chat.input.mcp.title') }}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-7 w-7 p-0 text-muted-foreground"
-              :title="t('chat.input.mcp.openSettings')"
-              :aria-label="t('chat.input.mcp.openSettings')"
-              @click="openSettings"
-            >
-              <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-
-        <div
-          v-if="enabledServers.length === 0 && enabledPluginServers.length === 0"
-          class="px-3 py-4 text-xs text-muted-foreground"
+        <DcButton
+          variant="ghost"
+          size="sm"
+          class="h-7 w-7 p-0 text-muted-foreground"
+          :tooltip="t('chat.input.mcp.openSettings')"
+          :aria-label="t('chat.input.mcp.openSettings')"
+          @click="openSettings"
         >
-          {{ t('chat.input.mcp.empty') }}
+          <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+        </DcButton>
+      </div>
+    </template>
+
+    <template v-if="isDeepchatContext">
+      <div class="max-h-[24rem] overflow-y-auto">
+        <div v-if="showSystemPromptSection" class="border-b px-3 py-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {{ t('chat.advancedSettings.systemPrompt') }}
+            </div>
+            <span v-if="showCustomSystemPromptBadge" class="text-[11px] text-muted-foreground">
+              {{ t('chat.advancedSettings.currentCustomPrompt') }}
+            </span>
+          </div>
+
+          <Select
+            :model-value="selectedSystemPromptId"
+            @update:model-value="emit('select-system-prompt', $event as string)"
+          >
+            <SelectTrigger class="mt-3 h-8 text-xs">
+              <SelectValue :placeholder="t('chat.advancedSettings.systemPromptPlaceholder')" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                v-for="option in systemPromptOptions"
+                :key="option.id"
+                :value="option.id"
+                :disabled="option.disabled"
+              >
+                {{ option.label }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        <div v-else class="max-h-64 space-y-3 overflow-y-auto px-2 py-2">
-          <div v-if="enabledServers.length > 0" class="space-y-1">
-            <div
-              v-if="enabledPluginServers.length > 0"
-              class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-            >
-              {{ t('chat.input.tools.mcpSection') }}
+        <slot name="generation-settings" />
+
+        <div class="border-b px-3 py-3">
+          <div
+            class="mb-3 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+          >
+            <span>{{ t('chat.input.tools.title') }}</span>
+          </div>
+
+          <div v-if="toolsLoading" class="text-xs text-muted-foreground">
+            {{ t('chat.input.tools.loading') }}
+          </div>
+
+          <div
+            v-else-if="groupedAgentTools.length === 0"
+            class="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground"
+          >
+            {{ t('chat.input.tools.builtinEmpty') }}
+          </div>
+
+          <div v-else class="space-y-4">
+            <div v-for="group in groupedAgentTools" :key="group.name" class="space-y-2">
+              <div class="flex items-center justify-between gap-3">
+                <div class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {{ group.label }}
+                </div>
+
+                <Switch
+                  :model-value="isGroupEnabled(group)"
+                  :disabled="isGroupPending(group)"
+                  :aria-label="group.label"
+                  @update:model-value="(value) => setGroupEnabled(group, value)"
+                />
+              </div>
+
+              <div class="flex flex-wrap gap-2">
+                <DcButton
+                  v-for="item in group.items"
+                  :key="item.id"
+                  variant="outline"
+                  size="sm"
+                  class="h-7 rounded-md px-2.5 text-xs shadow-none transition-colors"
+                  :class="
+                    isGroupItemEnabled(item)
+                      ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                      : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                  "
+                  :disabled="isGroupItemPending(item)"
+                  @click="toggleGroupItem(item)"
+                >
+                  {{ item.label }}
+                </DcButton>
+              </div>
             </div>
+          </div>
+        </div>
+
+        <div :class="enabledPluginServers.length > 0 ? 'border-b px-3 py-3' : 'px-3 py-3'">
+          <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {{ t('chat.input.tools.mcpSection') }}
+          </div>
+
+          <div
+            v-if="enabledServers.length === 0"
+            class="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground"
+          >
+            {{ t('chat.input.mcp.empty') }}
+          </div>
+
+          <div v-else class="space-y-1">
             <div
               v-for="server in enabledServers"
               :key="server.name"
@@ -238,13 +156,14 @@
               </span>
             </div>
           </div>
+        </div>
 
-          <div v-if="enabledPluginServers.length > 0" class="space-y-1">
-            <div
-              class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-            >
-              {{ t('chat.input.tools.pluginSection') }}
-            </div>
+        <div v-if="enabledPluginServers.length > 0" class="px-3 py-3">
+          <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {{ t('chat.input.tools.pluginSection') }}
+          </div>
+
+          <div class="space-y-1">
             <div
               v-for="server in enabledPluginServers"
               :key="server.name"
@@ -265,9 +184,86 @@
             </div>
           </div>
         </div>
-      </template>
-    </PopoverContent>
-  </Popover>
+      </div>
+    </template>
+
+    <template v-else>
+      <div class="border-b px-3 py-2">
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-sm font-medium">
+            {{ t('chat.input.mcp.title') }}
+          </div>
+          <DcButton
+            variant="ghost"
+            size="sm"
+            class="h-7 w-7 p-0 text-muted-foreground"
+            :tooltip="t('chat.input.mcp.openSettings')"
+            :aria-label="t('chat.input.mcp.openSettings')"
+            @click="openSettings"
+          >
+            <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+          </DcButton>
+        </div>
+      </div>
+
+      <div
+        v-if="enabledServers.length === 0 && enabledPluginServers.length === 0"
+        class="px-3 py-4 text-xs text-muted-foreground"
+      >
+        {{ t('chat.input.mcp.empty') }}
+      </div>
+
+      <div v-else class="max-h-64 space-y-3 overflow-y-auto px-2 py-2">
+        <div v-if="enabledServers.length > 0" class="space-y-1">
+          <div
+            v-if="enabledPluginServers.length > 0"
+            class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+          >
+            {{ t('chat.input.tools.mcpSection') }}
+          </div>
+          <div
+            v-for="server in enabledServers"
+            :key="server.name"
+            class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+          >
+            <span class="shrink-0">{{ server.icons }}</span>
+            <span class="min-w-0 flex-1 truncate" :title="getServerLabel(server.name)">
+              {{ getServerLabel(server.name) }}
+            </span>
+            <span class="shrink-0 text-muted-foreground">
+              {{ getServerToolsCount(server.name) }}
+            </span>
+          </div>
+        </div>
+
+        <div v-if="enabledPluginServers.length > 0" class="space-y-1">
+          <div
+            class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+          >
+            {{ t('chat.input.tools.pluginSection') }}
+          </div>
+          <div
+            v-for="server in enabledPluginServers"
+            :key="server.name"
+            class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+          >
+            <Icon
+              v-if="server.icons === 'plugin'"
+              icon="lucide:puzzle"
+              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            />
+            <span v-else class="shrink-0">{{ server.icons }}</span>
+            <span class="min-w-0 flex-1 truncate" :title="getPluginServerLabel(server)">
+              {{ getPluginServerLabel(server) }}
+            </span>
+            <span class="shrink-0 text-muted-foreground">
+              {{ getPluginServerToolsCount(server.name) }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </template>
+  </DcPopover>
 </template>
 
 <script setup lang="ts">
@@ -275,8 +271,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
+import { DcButton } from '@dc-ui/components/button'
+import { DcPopover } from '@dc-ui/components/popover'
 import {
   Select,
   SelectContent,

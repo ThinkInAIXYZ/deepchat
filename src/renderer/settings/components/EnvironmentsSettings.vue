@@ -6,7 +6,7 @@
     data-testid="settings-environments-page"
   >
     <template #actions>
-      <Button
+      <DcButton
         variant="outline"
         size="sm"
         :disabled="pageOperationPending"
@@ -15,12 +15,12 @@
         <Spinner v-if="refreshPending" class="mr-2 size-4" data-icon="inline-start" />
         <Icon v-else icon="lucide:refresh-cw" class="mr-2 size-4" data-icon="inline-start" />
         {{ t('settings.environments.actions.refresh') }}
-      </Button>
+      </DcButton>
     </template>
 
     <div class="flex w-full flex-col gap-3">
       <div class="flex flex-wrap items-center gap-2 px-2">
-        <Button
+        <DcButton
           variant="ghost"
           size="sm"
           data-testid="environments-active-tab"
@@ -28,8 +28,8 @@
           @click="currentView = 'active'"
         >
           {{ t('settings.environments.tabs.active', { count: activeEnvironments.length }) }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           variant="ghost"
           size="sm"
           data-testid="environments-archived-tab"
@@ -39,7 +39,7 @@
           @click="currentView = 'archived'"
         >
           {{ t('settings.environments.tabs.archived', { count: archivedEnvironments.length }) }}
-        </Button>
+        </DcButton>
       </div>
 
       <div v-if="currentView === 'active'" class="flex items-center gap-3 px-2 py-1">
@@ -55,8 +55,6 @@
           />
         </div>
       </div>
-
-      <InlineOperationFeedback v-if="!confirmDialogOpen" class="px-2" :snapshot="pageFeedback" />
 
       <div
         v-if="currentView === 'active' && visibleActiveEnvironments.length === 0"
@@ -134,23 +132,22 @@
         <DialogTitle>{{ confirmTitle }}</DialogTitle>
         <DialogDescription>{{ confirmDescription }}</DialogDescription>
       </DialogHeader>
-      <InlineOperationFeedback :snapshot="confirmationFeedback" />
       <DialogFooter>
-        <Button
+        <DcButton
           variant="outline"
           :disabled="confirmationPending"
           @click="confirmDialogOpen = false"
         >
           {{ t('common.cancel') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           :variant="pendingAction?.type === 'remove' ? 'destructive' : 'default'"
           :disabled="confirmationPending"
           @click="void confirmEnvironmentAction()"
         >
           <Spinner v-if="confirmationPending" class="mr-2 size-4" />
           {{ confirmActionLabel }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -159,10 +156,9 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, onMounted, ref, watch, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { nanoid } from 'nanoid'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import {
   Dialog,
@@ -182,9 +178,7 @@ import {
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { createProjectClient } from '@api/ProjectClient'
 import { useProjectStore } from '@/stores/ui/project'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import type { EnvironmentSummary } from '@shared/types/agent-interface'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
@@ -202,28 +196,15 @@ type MoveTarget = 'top' | 'up' | 'down' | 'bottom'
 const { t, locale } = useI18n()
 const projectStore = useProjectStore()
 const projectClient = createProjectClient()
-const pageFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: pageFeedback } = useSurfaceFeedback(pageFeedbackController)
-const confirmationFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: confirmationFeedback } = useSurfaceFeedback(confirmationFeedbackController)
-const operationIds = Object.freeze({
-  refresh: `settings.environments.refresh:${nanoid(8)}`,
-  open: `settings.environments.open:${nanoid(8)}`,
-  mutate: `settings.environments.mutate:${nanoid(8)}`,
-  confirm: `settings.environments.confirm:${nanoid(8)}`
-})
 
 const showMissing = ref(false)
 const syntheticDefaultExists = ref(true)
 const currentView = ref<EnvironmentView>('active')
 const pendingAction = ref<PendingEnvironmentAction | null>(null)
-const pageOperationPending = computed(() => pageFeedback.value.status === 'pending')
-const refreshPending = computed(
-  () =>
-    pageFeedback.value.status === 'pending' &&
-    pageFeedback.value.operationId === operationIds.refresh
-)
-const confirmationPending = computed(() => confirmationFeedback.value.status === 'pending')
+const pendingPageOperationId = ref<string | null>(null)
+const pageOperationPending = computed(() => pendingPageOperationId.value !== null)
+const refreshPending = computed(() => pendingPageOperationId.value === 'refresh')
+const confirmationPending = ref(false)
 
 const defaultProjectPath = computed(() => projectStore.defaultProjectPath)
 const archivedEnvironments = computed<EnvironmentListItem[]>(
@@ -312,9 +293,6 @@ const confirmDialogOpen = computed({
         return
       }
       pendingAction.value = null
-      if (confirmationFeedback.value.status !== 'idle') {
-        confirmationFeedbackController.clearSettled()
-      }
     }
   }
 })
@@ -358,9 +336,8 @@ const formatDate = (timestamp: number) => {
 
 const refreshData = async () => {
   await runPageOperation({
-    operationId: operationIds.refresh,
+    operationId: 'refresh',
     code: 'settings.environments.refresh',
-    pendingLabel: t('common.loading'),
     failureTitle: t('common.error.operationFailed'),
     action: projectStore.refreshEnvironmentData
   })
@@ -370,9 +347,8 @@ const getActiveOrderPaths = () => activeEnvironments.value.map((environment) => 
 
 const reorderActivePaths = async (paths: string[]) => {
   await runPageOperation({
-    operationId: operationIds.mutate,
+    operationId: 'mutate',
     code: 'settings.environments.reorder',
-    pendingLabel: t('common.saving'),
     failureTitle: t('settings.environments.errors.reorderTitle'),
     action: () => projectStore.reorderEnvironments(paths)
   })
@@ -429,9 +405,8 @@ const handleMove = (environment: EnvironmentListItem, target: MoveTarget) => {
 
 const handleOpen = async (path: string) => {
   await runPageOperation({
-    operationId: operationIds.open,
+    operationId: 'open',
     code: 'settings.environments.open',
-    pendingLabel: t('common.loading'),
     failureTitle: t('settings.environments.errors.openTitle'),
     action: () => projectStore.openDirectory(path)
   })
@@ -443,9 +418,8 @@ const handleSetDefault = async (environment: EnvironmentListItem) => {
   }
 
   await runPageOperation({
-    operationId: operationIds.mutate,
+    operationId: 'mutate',
     code: 'settings.environments.setDefault',
-    pendingLabel: t('common.saving'),
     failureTitle: t('common.error.operationFailed'),
     action: () => projectStore.setDefaultProject(environment.path)
   })
@@ -453,9 +427,8 @@ const handleSetDefault = async (environment: EnvironmentListItem) => {
 
 const handleClearDefault = async () => {
   await runPageOperation({
-    operationId: operationIds.mutate,
+    operationId: 'mutate',
     code: 'settings.environments.clearDefault',
-    pendingLabel: t('common.saving'),
     failureTitle: t('common.error.operationFailed'),
     action: projectStore.clearDefaultProject
   })
@@ -468,17 +441,13 @@ const requestEnvironmentAction = (
   if (pageOperationPending.value || confirmationPending.value) {
     return
   }
-  if (confirmationFeedback.value.status !== 'idle') {
-    confirmationFeedbackController.clearSettled()
-  }
   pendingAction.value = { type, environment }
 }
 
 const handleRestore = async (environment: EnvironmentListItem) => {
   await runPageOperation({
-    operationId: operationIds.mutate,
+    operationId: 'mutate',
     code: 'settings.environments.restore',
-    pendingLabel: t('common.saving'),
     failureTitle: t('settings.environments.errors.restoreTitle'),
     action: () => projectStore.restoreEnvironment(environment.path)
   })
@@ -494,18 +463,13 @@ const confirmEnvironmentAction = async () => {
     return
   }
 
-  confirmationFeedbackController.begin(operationIds.confirm, t('common.saving'))
+  confirmationPending.value = true
   try {
     if (action.type === 'archive') {
       await projectStore.archiveEnvironment(action.environment.path)
     } else {
       await projectStore.removeEnvironment(action.environment.path)
     }
-    confirmationFeedbackController.succeed({
-      code: `settings.environments.${action.type}`,
-      title: t('common.saved')
-    })
-    confirmationFeedbackController.clearSettled()
     pendingAction.value = null
   } catch (error) {
     console.error(
@@ -515,20 +479,22 @@ const confirmEnvironmentAction = async () => {
       },
       error
     )
-    confirmationFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: `settings.environments.${action.type}.failed`,
       title:
         action.type === 'archive'
           ? t('settings.environments.errors.archiveTitle')
           : t('settings.environments.errors.removeTitle')
     })
+  } finally {
+    confirmationPending.value = false
   }
 }
 
 type PageOperationOptions = Readonly<{
   operationId: string
   code: string
-  pendingLabel: string
   failureTitle: string
   action: () => Promise<unknown>
 }>
@@ -536,7 +502,6 @@ type PageOperationOptions = Readonly<{
 const runPageOperation = async ({
   operationId,
   code,
-  pendingLabel,
   failureTitle,
   action
 }: PageOperationOptions): Promise<boolean> => {
@@ -544,11 +509,9 @@ const runPageOperation = async ({
     return false
   }
 
-  pageFeedbackController.begin(operationId, pendingLabel)
+  pendingPageOperationId.value = operationId
   try {
     await action()
-    pageFeedbackController.succeed({ code, title: pendingLabel })
-    pageFeedbackController.clearSettled()
     return true
   } catch (error) {
     console.error(
@@ -558,11 +521,14 @@ const runPageOperation = async ({
       },
       error
     )
-    pageFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: `${code}.failed`,
       title: failureTitle
     })
     return false
+  } finally {
+    pendingPageOperationId.value = null
   }
 }
 
@@ -711,7 +677,7 @@ const EnvironmentRow = defineComponent({
             ]),
             h('div', { class: 'flex shrink-0 flex-wrap items-center gap-2 md:pl-4' }, [
               h(
-                Button,
+                DcButton,
                 {
                   variant: 'outline',
                   size: 'sm',
@@ -724,7 +690,7 @@ const EnvironmentRow = defineComponent({
               props.view === 'active'
                 ? isDefault()
                   ? h(
-                      Button,
+                      DcButton,
                       {
                         variant: 'ghost',
                         size: 'sm',
@@ -735,7 +701,7 @@ const EnvironmentRow = defineComponent({
                       () => t('settings.environments.actions.clearDefault')
                     )
                   : h(
-                      Button,
+                      DcButton,
                       {
                         variant: 'ghost',
                         size: 'sm',
@@ -746,7 +712,7 @@ const EnvironmentRow = defineComponent({
                       () => t('settings.environments.actions.setDefault')
                     )
                 : h(
-                    Button,
+                    DcButton,
                     {
                       variant: 'ghost',
                       size: 'sm',
@@ -759,7 +725,7 @@ const EnvironmentRow = defineComponent({
               h(DropdownMenu, null, () => [
                 h(DropdownMenuTrigger, { asChild: true }, () =>
                   h(
-                    Button,
+                    DcButton,
                     {
                       variant: 'ghost',
                       size: 'icon',

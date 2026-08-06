@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createRendererRouteContext } from '@/routes/routeRegistry'
 
 import { createOcrRoutes } from '@/ocr/routes'
 import type { OcrRuntimeServiceStatus } from '@/ocr/ocrRuntimeService'
@@ -60,7 +61,7 @@ describe('OCR routes', () => {
     const routes = createOcrRoutes({ runtime, platform: 'darwin', arch: 'arm64' })
     const handler = routes.get('ocr.getRuntimeStatus')
 
-    const result = await handler?.({}, { webContentsId: 1, windowId: 1 })
+    const result = await handler?.({}, createRendererRouteContext(1, 1))
 
     expect(result).toEqual({
       platform: 'darwin',
@@ -104,7 +105,7 @@ describe('OCR routes', () => {
     }
     const routes = createOcrRoutes({ runtime })
 
-    const result = await routes.get('ocr.clearCache')?.({}, { webContentsId: 1, windowId: null })
+    const result = await routes.get('ocr.clearCache')?.({}, createRendererRouteContext(1, null))
 
     expect(runtime.clearCache).toHaveBeenCalledOnce()
     expect(result).toEqual({ cache: clearedStatus.cache })
@@ -127,7 +128,7 @@ describe('OCR routes', () => {
     const routes = createOcrRoutes({ runtime, platform: 'win32', arch: 'ia32' })
 
     await expect(
-      routes.get('ocr.getRuntimeStatus')?.({}, { webContentsId: 1, windowId: null })
+      routes.get('ocr.getRuntimeStatus')?.({}, createRendererRouteContext(1, null))
     ).resolves.toMatchObject({
       platform: 'win32',
       arch: 'ia32',

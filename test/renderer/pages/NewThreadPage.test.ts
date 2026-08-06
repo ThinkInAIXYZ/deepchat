@@ -237,7 +237,7 @@ const setup = async (
         DropdownMenuSeparator: {
           template: '<div />'
         },
-        Button: {
+        DcButton: {
           template: '<button type="button" v-bind="$attrs"><slot /></button>'
         },
         ChatInputToolbar: true,

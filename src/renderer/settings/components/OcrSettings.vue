@@ -29,7 +29,7 @@
           <AlertTitle>{{ t('common.error.operationFailed') }}</AlertTitle>
           <AlertDescription class="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
             <span>{{ t('settings.ocr.statusLoadFailed') }}</span>
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="statusLoading"
@@ -39,7 +39,7 @@
               <Spinner v-if="statusLoading" class="mr-2 size-4" />
               <Icon v-else icon="lucide:refresh-cw" class="mr-2 size-4" />
               {{ t('settings.ocr.refresh') }}
-            </Button>
+            </DcButton>
           </AlertDescription>
         </Alert>
 
@@ -57,16 +57,9 @@
           {{ t('settings.ocr.loading') }}
         </div>
 
-        <InlineOperationFeedback
-          v-if="settingsFeedback.status !== 'pending' || !statusLoading"
-          :snapshot="settingsFeedback"
-          :retry-label="settingsReady ? undefined : t('common.retry')"
-          @retry="loadSettings"
-        />
-
         <Collapsible v-model:open="advancedOpen" class="rounded-lg border bg-muted/10">
           <CollapsibleTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               class="flex h-auto w-full items-center justify-between rounded-lg p-4"
               data-testid="ocr-advanced-toggle"
@@ -81,7 +74,7 @@
                 :icon="advancedOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
                 class="ml-3 size-4 shrink-0 text-muted-foreground"
               />
-            </Button>
+            </DcButton>
           </CollapsibleTrigger>
 
           <CollapsibleContent class="border-t">
@@ -142,7 +135,7 @@
                   {{ cacheModeDescription }}
                 </p>
               </div>
-              <Button
+              <DcButton
                 v-if="status?.cache && status.cache.entryCount > 0"
                 variant="outline"
                 size="sm"
@@ -153,11 +146,11 @@
                 <Spinner v-if="cacheClearInFlight" class="mr-2 size-4" />
                 <Icon v-else icon="lucide:trash-2" class="mr-2 size-4" />
                 {{ t('settings.ocr.clearCache') }}
-              </Button>
+              </DcButton>
             </div>
             <Collapsible v-model:open="diagnosticsOpen" class="border-t">
               <CollapsibleTrigger as-child>
-                <Button
+                <DcButton
                   variant="ghost"
                   class="flex h-auto w-full items-center justify-between rounded-none px-4 py-4"
                   data-testid="ocr-diagnostics-toggle"
@@ -172,7 +165,7 @@
                     :icon="diagnosticsOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
                     class="ml-3 size-4 shrink-0 text-muted-foreground"
                   />
-                </Button>
+                </DcButton>
               </CollapsibleTrigger>
 
               <CollapsibleContent class="border-t bg-background/50 px-4 py-4">
@@ -254,36 +247,22 @@
       </div>
     </SettingsSectionCard>
 
-    <AlertDialog :open="clearDialogOpen" @update:open="handleClearDialogOpenChange">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{{ t('settings.ocr.clearCacheTitle') }}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('settings.ocr.clearCacheDescription') }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <p v-if="cacheClearFailed" role="alert" class="text-sm text-destructive">
-          {{ t('settings.ocr.clearCacheFailed') }}
-        </p>
-        <AlertDialogFooter>
-          <AlertDialogCancel :disabled="cacheClearInFlight">
-            {{ t('common.cancel') }}
-          </AlertDialogCancel>
-          <AlertDialogAsyncAction
-            data-testid="ocr-clear-cache-confirm"
-            :disabled="!canClearCache"
-            @click="clearCache"
-          >
-            <Spinner
-              v-if="cacheClearInFlight"
-              data-testid="ocr-clear-cache-spinner"
-              class="mr-2 size-4"
-            />
-            {{ t('settings.ocr.clearCacheConfirm') }}
-          </AlertDialogAsyncAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DcConfirmDialog
+      :open="clearDialogOpen"
+      :title="t('settings.ocr.clearCacheTitle')"
+      :description="t('settings.ocr.clearCacheDescription')"
+      :confirm-label="t('settings.ocr.clearCacheConfirm')"
+      :busy="cacheClearInFlight"
+      :disabled-confirm="!canClearCache"
+      :confirm-attrs="{ 'data-testid': 'ocr-clear-cache-confirm' }"
+      busy-data-testid="ocr-clear-cache-spinner"
+      @update:open="handleClearDialogOpenChange"
+      @confirm="clearCache"
+    >
+      <p v-if="cacheClearFailed" role="alert" class="text-sm text-destructive">
+        {{ t('settings.ocr.clearCacheFailed') }}
+      </p>
+    </DcConfirmDialog>
   </SettingsPageShell>
 </template>
 
@@ -291,24 +270,14 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useDocumentVisibility, useIntervalFn, useWindowFocus } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
-import { nanoid } from 'nanoid'
 import type { AcceptableValue } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
 import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
 import { createOcrClient } from '@api/OcrClient'
 import { createSettingsClient } from '@api/SettingsClient'
-import {
-  AlertDialog,
-  AlertDialogAsyncAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@shadcn/components/ui/alert'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Collapsible,
   CollapsibleContent,
@@ -325,25 +294,19 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import { Switch } from '@shadcn/components/ui/switch'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import SettingsSectionCard from './control-center/SettingsSectionCard.vue'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
 
 type OcrBackend = 'auto' | 'cpu'
 
 const { t, locale } = useI18n()
 const settingsClient = createSettingsClient()
 const ocrClient = createOcrClient()
-const settingsFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: settingsFeedback } = useSurfaceFeedback(settingsFeedbackController)
-const settingsOperationId = `settings.ocr.configuration:${nanoid(8)}`
 
 const automaticExtractionEnabled = ref(true)
 const backend = ref<OcrBackend>('auto')
 const status = ref<OcrRuntimeStatus | null>(null)
 const settingsReady = ref(false)
-const settingsOperationPending = computed(() => settingsFeedback.value.status === 'pending')
+const settingsOperationPending = ref(false)
 const statusLoading = ref(false)
 const cacheClearInFlight = ref(false)
 const cacheClearFailed = ref(false)
@@ -450,7 +413,7 @@ watch(pollingAllowed, (allowed) => {
 async function loadSettings(): Promise<void> {
   if (settingsOperationPending.value) return
 
-  settingsFeedbackController.begin(settingsOperationId, t('common.loading'))
+  settingsOperationPending.value = true
   try {
     const values = await settingsClient.getSnapshot([
       'ocrAutoExtractForNonVisionModels',
@@ -459,56 +422,67 @@ async function loadSettings(): Promise<void> {
     automaticExtractionEnabled.value = values.ocrAutoExtractForNonVisionModels ?? true
     backend.value = values.ocrBackend ?? 'auto'
     settingsReady.value = true
-    settingsFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.ocr.loaded',
       title: t('common.saved')
     })
-    settingsFeedbackController.clearSettled()
   } catch (error) {
     settingsReady.value = false
     console.error('[OcrSettings] Failed to load settings', error)
-    settingsFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.ocr.loadFailed',
       title: t('settings.ocr.loadFailed')
     })
+  } finally {
+    settingsOperationPending.value = false
   }
 }
 
 async function updateAutomaticExtraction(value: boolean): Promise<void> {
   if (settingsOperationPending.value) return
-  settingsFeedbackController.begin(settingsOperationId, t('common.saving'))
+  settingsOperationPending.value = true
   try {
     const result = await settingsClient.update([{ key: 'ocrAutoExtractForNonVisionModels', value }])
     automaticExtractionEnabled.value = result.values.ocrAutoExtractForNonVisionModels ?? value
-    settingsFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.ocr.autoExtractUpdated',
       title: t('common.saved')
     })
   } catch (error) {
     console.error('[OcrSettings] Failed to update automatic extraction', error)
-    settingsFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.ocr.updateFailed',
       title: t('settings.ocr.updateFailed')
     })
+  } finally {
+    settingsOperationPending.value = false
   }
 }
 
 async function updateBackend(value: AcceptableValue): Promise<void> {
   if (settingsOperationPending.value || (value !== 'auto' && value !== 'cpu')) return
-  settingsFeedbackController.begin(settingsOperationId, t('common.saving'))
+  settingsOperationPending.value = true
   try {
     const result = await settingsClient.update([{ key: 'ocrBackend', value }])
     backend.value = result.values.ocrBackend ?? value
-    settingsFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.ocr.backendUpdated',
       title: t('common.saved')
     })
   } catch (error) {
     console.error('[OcrSettings] Failed to update backend', error)
-    settingsFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.ocr.updateFailed',
       title: t('settings.ocr.updateFailed')
     })
+  } finally {
+    settingsOperationPending.value = false
   }
 }
 

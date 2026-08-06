@@ -64,7 +64,12 @@ import {
   mcpUpdateServerRoute,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import { createRouteMap, type DeepchatRouteMap, type RouteContext } from '@/routes/routeRegistry'
+import {
+  createRouteMap,
+  requireRendererCaller,
+  type DeepchatRouteMap,
+  type RouteContext
+} from '@/routes/routeRegistry'
 import { assertBoundedMcpJson } from './schemaValidation'
 
 const MCP_APP_ROUTE_INPUT_MAX_BYTES = 3 * 1024 * 1024
@@ -81,16 +86,18 @@ export function createMcpRoutes(deps: {
 }): DeepchatRouteMap {
   const { mcpService } = deps
   const appContext = (context: RouteContext) => {
-    if (context.windowId === null || deps.isSettingsWindow(context.windowId)) {
+    const caller = requireRendererCaller(context)
+    if (caller.windowId === null || deps.isSettingsWindow(caller.windowId)) {
       throw new Error('MCP Apps are restricted to conversation windows')
     }
     return {
-      webContentsId: context.webContentsId,
-      windowId: context.windowId
+      webContentsId: caller.webContentsId,
+      windowId: caller.windowId
     }
   }
   const assertSettingsWindow = (context: RouteContext): void => {
-    if (!deps.isSettingsWindow(context.windowId)) {
+    const caller = requireRendererCaller(context)
+    if (!deps.isSettingsWindow(caller.windowId)) {
       throw new Error('MCP credential changes are restricted to the settings window')
     }
   }

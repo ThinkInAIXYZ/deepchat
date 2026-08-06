@@ -13,6 +13,7 @@ import type {
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
   StandaloneImageGenerationResult,
+  StandaloneSpeechGenerationResult,
   StandaloneVideoGenerationResult,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
@@ -29,6 +30,7 @@ import {
   normalizeVideoGenerationOptions,
   type VideoGenerationOptions
 } from '@shared/videoGenerationSettings'
+import { normalizeTtsSettings, type TtsSettings } from '@shared/ttsSettings'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import type {
@@ -759,6 +761,93 @@ export class ProviderRuntime
       modelId,
       ...(mergedVideoOptions ? { options: mergedVideoOptions } : {}),
       videos
+    }
+  }
+
+  async generateSpeechStandalone(
+    providerId: string,
+    text: string,
+    modelId: string,
+    speechOptions?: TtsSettings,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneSpeechGenerationResult> {
+    const normalizedText = text.trim()
+    if (!normalizedText) {
+      throw new Error('Speech generation text is required')
+    }
+
+    const signal = options?.signal
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
+
+    await this.executeWithRateLimit(providerId, { signal })
+
+    const provider = this.getProviderInstance(providerId)
+    const modelConfig = this.providerSettings.getModelConfig(modelId, providerId)
+    const mergedSpeechOptions = normalizeTtsSettings({
+      ...modelConfig.tts,
+      ...speechOptions
+    })
+    const resolvedModelConfig: ModelConfig = {
+      ...modelConfig,
+      type: ModelType.TTS,
+      apiEndpoint: ApiEndpointType.AudioSpeech,
+      tts: mergedSpeechOptions
+    }
+    const stream = provider.coreStream(
+      [{ role: 'user', content: normalizedText }],
+      modelId,
+      resolvedModelConfig,
+      modelConfig.temperature ?? 0.7,
+      modelConfig.maxTokens ?? 1024,
+      [],
+      { signal }
+    )
+    let audio: StandaloneSpeechGenerationResult['audio'] | undefined
+    const abort = createAbortPromise(signal, () => {
+      closeAsyncIterator(stream)
+    })
+
+    const collect = async () => {
+      for await (const event of stream) {
+        if (signal?.aborted) {
+          throw createAbortError()
+        }
+
+        if (
+          event.type === 'image_data' &&
+          event.image_data.mimeType.trim().toLowerCase().startsWith('audio/')
+        ) {
+          if (audio) {
+            throw new Error('Speech generation returned multiple audio outputs')
+          }
+          audio = {
+            data: event.image_data.data,
+            mimeType: event.image_data.mimeType
+          }
+        }
+        if (event.type === 'error') {
+          throw new Error(event.error_message)
+        }
+      }
+    }
+
+    try {
+      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
+    } finally {
+      abort.cleanup()
+    }
+
+    if (!audio) {
+      throw new Error('Speech generation completed without audio output')
+    }
+
+    return {
+      providerId,
+      modelId,
+      ...(mergedSpeechOptions ? { options: mergedSpeechOptions } : {}),
+      audio
     }
   }
 

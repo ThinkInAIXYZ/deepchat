@@ -125,6 +125,9 @@
   "history": "履歴",
   "minimize": "最小化",
   "maximize": "最大化",
+  "showValue": "表示",
+  "hideValue": "非表示",
+  "scrollToBottom": "一番下までスクロール",
   "restore": "元に戻す",
   "browser": {
     "back": "戻る",

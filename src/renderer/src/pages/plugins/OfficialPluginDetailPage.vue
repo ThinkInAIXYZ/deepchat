@@ -2,10 +2,10 @@
   <ScrollArea v-if="remoteChannel" class="h-full w-full">
     <div class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
       <div class="flex items-center gap-2">
-        <Button variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
+        <DcButton variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
           <Icon icon="lucide:arrow-left" class="mr-2 size-4" />
           {{ t('common.back') }}
-        </Button>
+        </DcButton>
       </div>
 
       <div v-if="remoteLoading" class="space-y-3">
@@ -62,11 +62,16 @@
           </div>
 
           <div class="flex shrink-0 flex-wrap gap-2">
-            <Button v-if="!remoteEnabled" :disabled="pending" size="sm" @click="enableRemotePlugin">
+            <DcButton
+              v-if="!remoteEnabled"
+              :disabled="pending"
+              size="sm"
+              @click="enableRemotePlugin"
+            >
               <Icon icon="lucide:power" class="mr-2 size-4" />
               {{ t('settings.plugins.enable') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               v-if="remoteEnabled"
               :disabled="pending"
               size="sm"
@@ -75,7 +80,7 @@
             >
               <Icon icon="lucide:power-off" class="mr-2 size-4" />
               {{ t('settings.plugins.disable') }}
-            </Button>
+            </DcButton>
           </div>
         </header>
 
@@ -101,10 +106,10 @@
   <ScrollArea v-else class="h-full w-full">
     <div class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
       <div class="flex items-center gap-2">
-        <Button variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
+        <DcButton variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
           <Icon icon="lucide:arrow-left" class="mr-2 size-4" />
           {{ t('common.back') }}
-        </Button>
+        </DcButton>
       </div>
 
       <div v-if="loading" class="space-y-3">
@@ -157,11 +162,11 @@
           </div>
 
           <div class="flex shrink-0 flex-wrap gap-2">
-            <Button v-if="!plugin.enabled" :disabled="pending" size="sm" @click="enablePlugin">
+            <DcButton v-if="!plugin.enabled" :disabled="pending" size="sm" @click="enablePlugin">
               <Icon icon="lucide:power" class="mr-2 size-4" />
               {{ t('settings.plugins.enable') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               v-if="plugin.enabled"
               :disabled="pending"
               size="sm"
@@ -170,7 +175,7 @@
             >
               <Icon icon="lucide:power-off" class="mr-2 size-4" />
               {{ t('settings.plugins.disable') }}
-            </Button>
+            </DcButton>
           </div>
         </header>
 
@@ -201,11 +206,10 @@
           </AlertDescription>
         </Alert>
 
-        <section class="rounded-lg border border-border p-4">
-          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div class="text-sm font-semibold">{{ t('settings.plugins.runtime') }}</div>
+        <DcSectionCard :title="t('settings.plugins.runtime')">
+          <template #actions>
             <div v-if="showCuaRuntimeActions" class="flex flex-wrap gap-2">
-              <Button
+              <DcButton
                 v-if="cuaRuntimeQuarantined && !cuaRuntimeIntegrityError"
                 data-testid="cua-runtime-retry"
                 size="sm"
@@ -215,8 +219,8 @@
               >
                 <Icon icon="lucide:rotate-ccw" class="mr-2 size-4" />
                 {{ t('settings.plugins.retryRuntime') }}
-              </Button>
-              <Button
+              </DcButton>
+              <DcButton
                 v-else
                 data-testid="cua-runtime-test"
                 size="sm"
@@ -226,9 +230,9 @@
               >
                 <Icon icon="lucide:play" class="mr-2 size-4" />
                 {{ t('settings.plugins.testRuntime') }}
-              </Button>
+              </DcButton>
             </div>
-          </div>
+          </template>
           <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
             <dt class="text-muted-foreground">{{ t('settings.plugins.runtimeState') }}</dt>
             <dd>{{ formatRuntimeState(plugin.runtime?.state) }}</dd>
@@ -240,10 +244,9 @@
           <p v-if="plugin.runtime?.lastError" class="mt-3 break-all text-xs text-destructive">
             {{ plugin.runtime.lastError }}
           </p>
-        </section>
+        </DcSectionCard>
 
-        <section v-if="plugin.mcpServers?.length" class="rounded-lg border border-border p-4">
-          <div class="mb-3 text-sm font-semibold">{{ t('routes.settings-mcp') }}</div>
+        <DcSectionCard v-if="plugin.mcpServers?.length" :title="t('routes.settings-mcp')">
           <div class="divide-y divide-border/70">
             <div
               v-for="server in plugin.mcpServers"
@@ -261,7 +264,7 @@
               </span>
             </div>
           </div>
-        </section>
+        </DcSectionCard>
 
         <RemoteSettings
           v-if="isFeishuPlugin"
@@ -273,12 +276,11 @@
           single-channel
         />
 
-        <section v-if="lastActionData" class="rounded-lg border border-border p-4">
-          <div class="mb-3 text-sm font-semibold">{{ t('settings.pluginsHub.actionResult') }}</div>
+        <DcSectionCard v-if="lastActionData" :title="t('settings.pluginsHub.actionResult')">
           <pre class="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">{{
             lastActionData
           }}</pre>
-        </section>
+        </DcSectionCard>
       </template>
     </div>
   </ScrollArea>
@@ -289,8 +291,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { DcSectionCard } from '@dc-ui/components/section-card'
 import { Alert, AlertDescription, AlertTitle } from '@shadcn/components/ui/alert'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'

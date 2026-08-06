@@ -125,6 +125,9 @@
   "history": "Cronologia",
   "minimize": "Riduci a icona",
   "maximize": "Ingrandisci",
+  "showValue": "Mostra",
+  "hideValue": "Nascondi",
+  "scrollToBottom": "Scorri fino in fondo",
   "restore": "Ripristina",
   "browser": {
     "back": "Indietro",

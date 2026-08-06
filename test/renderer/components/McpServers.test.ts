@@ -224,7 +224,7 @@ const setup = async (options: SetupOptions = {}) => {
     },
     global: {
       stubs: {
-        Button: buttonStub,
+        DcButton: buttonStub,
         ScrollArea: passthrough('ScrollArea'),
         Dialog: dialogStub,
         DialogTrigger: passthrough('DialogTrigger'),

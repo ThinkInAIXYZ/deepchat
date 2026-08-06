@@ -139,13 +139,14 @@
                   <Icon icon="lucide:arrow-up-from-dot" class="w-4 h-4 text-foreground" />
                   {{ t('toolCall.params') }}
                 </h5>
-                <button
-                  class="text-xs text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
-                  @click.stop="copyParams"
-                >
-                  <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
-                  {{ paramsCopyText }}
-                </button>
+                <DcCopyButton
+                  size="xs"
+                  variant="ghost"
+                  class="text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
+                  :copy-text="paramsText"
+                  :label="t('common.copy')"
+                  @click.stop
+                />
               </div>
               <div
                 data-testid="tool-call-params"
@@ -169,13 +170,14 @@
                   />
                   {{ isTerminalTool ? t('toolCall.terminalOutput') : t('toolCall.responseData') }}
                 </h5>
-                <button
-                  class="text-xs text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
-                  @click.stop="copyResponse"
-                >
-                  <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
-                  {{ responseCopyText }}
-                </button>
+                <DcCopyButton
+                  size="xs"
+                  variant="ghost"
+                  class="text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
+                  :copy-text="responseText"
+                  :label="t('common.copy')"
+                  @click.stop
+                />
               </div>
               <template v-if="diffData">
                 <div class="dc-overscroll-contain min-h-0 overflow-auto">
@@ -243,10 +245,10 @@ import { useThemeStore } from '@/stores/theme'
 import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
-import { createDeviceClient } from '@api/DeviceClient'
 import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
 import LiveDelegationToolCallCard from './LiveDelegationToolCallCard.vue'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
+import { DcCopyButton } from '@dc-ui/components/copy-button'
 
 const McpAppView = defineAsyncComponent(() => import('@/components/mcp/McpAppView.vue'))
 
@@ -254,7 +256,6 @@ const { t } = useI18n()
 
 const themeStore = useThemeStore()
 const sessionStore = useSessionStore()
-const deviceClient = createDeviceClient()
 
 const props = defineProps<{
   block: DisplayAssistantMessageBlock
@@ -680,45 +681,6 @@ watch(
   { immediate: true }
 )
 
-const paramsCopyText = ref(t('common.copy'))
-const responseCopyText = ref(t('common.copy'))
-let paramsCopyResetTimer: number | null = null
-let responseCopyResetTimer: number | null = null
-
-const copyParams = async () => {
-  if (!hasParams.value) return
-  try {
-    deviceClient.copyText(paramsText.value)
-    paramsCopyText.value = t('common.copySuccess')
-    if (paramsCopyResetTimer !== null) {
-      window.clearTimeout(paramsCopyResetTimer)
-    }
-    paramsCopyResetTimer = window.setTimeout(() => {
-      paramsCopyText.value = t('common.copy')
-      paramsCopyResetTimer = null
-    }, 2000)
-  } catch (error) {
-    console.error('[MessageBlockToolCall] Failed to copy params:', error)
-  }
-}
-
-const copyResponse = async () => {
-  if (!hasResponse.value) return
-  try {
-    deviceClient.copyText(responseText.value)
-    responseCopyText.value = t('common.copySuccess')
-    if (responseCopyResetTimer !== null) {
-      window.clearTimeout(responseCopyResetTimer)
-    }
-    responseCopyResetTimer = window.setTimeout(() => {
-      responseCopyText.value = t('common.copy')
-      responseCopyResetTimer = null
-    }, 2000)
-  } catch (error) {
-    console.error('[MessageBlockToolCall] Failed to copy response:', error)
-  }
-}
-
 const getSubagentStatusClass = (status: string): string => {
   if (status === 'completed') {
     return 'bg-emerald-500/10 text-emerald-600'
@@ -755,16 +717,6 @@ onBeforeUnmount(() => {
   if (detailsUnmountTimer !== null) {
     window.clearTimeout(detailsUnmountTimer)
     detailsUnmountTimer = null
-  }
-
-  if (paramsCopyResetTimer !== null) {
-    window.clearTimeout(paramsCopyResetTimer)
-    paramsCopyResetTimer = null
-  }
-
-  if (responseCopyResetTimer !== null) {
-    window.clearTimeout(responseCopyResetTimer)
-    responseCopyResetTimer = null
   }
 })
 

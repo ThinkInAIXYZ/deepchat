@@ -818,7 +818,7 @@
     {
       "id": "kilo",
       "name": "Kilo",
-      "version": "7.4.17",
+      "version": "7.4.19",
       "description": "The open source coding agent",
       "repository": "https://github.com/Kilo-Org/kilocode",
       "website": "https://kilo.ai/",
@@ -830,48 +830,48 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.17/kilo-darwin-arm64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.19/kilo-darwin-arm64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "b51f33f7c47fb77c6252fcacfc20ba7c90a979ecd757cc9aadb246338f8c266a"
+            "sha256": "370f213a1ff62575e471d5c1fd96ccadb41096224f560aaa3c51d868f132f59b"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.17/kilo-darwin-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.19/kilo-darwin-x64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "4670655e95869ff25b398d5c24b0a9c890ebef18dc23af4c6faa586c97d75cc9"
+            "sha256": "46b32098a5e8cf2177fb586478ae85f3a0989eed6f11d03033c0d8776e0a856d"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.17/kilo-linux-arm64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.19/kilo-linux-arm64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "b0342209411e4e16a161541e36b7d01d6972e965abea1c13c2e0eec021acfdf7"
+            "sha256": "48eb310f95a2778d7a25a2fada06785f1082a66a518f8e454863f4d11836e2a0"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.17/kilo-linux-x64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.19/kilo-linux-x64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "8bc8b4918c0634c185e1c54be049b4110b9e37d59f3dc93c6411d63c23b11034"
+            "sha256": "324de57ff82c1ff55c11903280e97ff0b7abacf1aa5acd6d2331bdb191c78f7e"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.17/kilo-windows-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.4.19/kilo-windows-x64.zip",
             "cmd": "./kilo.exe",
             "args": [
               "acp"
             ],
-            "sha256": "4313a14a20ab3609702ab3c52e232f28aba52bbd7eb41853297ba947a452d4d2"
+            "sha256": "5db36446e18e1ccb592be9106c6da9342ab56c230d84d68ca268ced64873e96d"
           }
         },
         "npx": {
-          "package": "@kilocode/cli@7.4.17",
+          "package": "@kilocode/cli@7.4.19",
           "args": [
             "acp"
           ]
@@ -970,24 +970,24 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.3/vibe-acp-darwin-aarch64-2.23.3.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.3/vibe-acp-darwin-aarch64-2.23.3.tar.gz",
             "cmd": "./vibe-acp",
-            "sha256": "39b1b0293e778303c4ab1be6bdeed28ab769c9eb94cea39783a475c857900f83"
+            "sha256": "cca5c15f20b2048c1d319892e337e8a39e2aa9f3829c9bc96d517ad6f5698846"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.3/vibe-acp-darwin-x86_64-2.23.3.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.3/vibe-acp-darwin-x86_64-2.23.3.tar.gz",
             "cmd": "./vibe-acp",
-            "sha256": "99a89078e8ac040685aa34696b9e94b9e7ccbe1af6b978763b1552c39baec8e6"
+            "sha256": "fd82665d03bbc4d94713b06364b71506a3042376f49a40c25073b3b8cfeefbc7"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.3/vibe-acp-linux-aarch64-2.23.3.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.3/vibe-acp-linux-aarch64-2.23.3.tar.gz",
             "cmd": "./vibe-acp",
-            "sha256": "cad8302d8d9f5448292b6371c44fb827b3dd3027f8db0535291c81219fb46ba3"
+            "sha256": "eb33a1c7064745a437ad109aac26546a6a961a0212940bf9551f44dd731b4a5b"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.3/vibe-acp-linux-x86_64-2.23.3.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.3/vibe-acp-linux-x86_64-2.23.3.tar.gz",
             "cmd": "./vibe-acp",
-            "sha256": "b5f6e9e8411f32238eeecf130b18a7f0256f1b6db4afcfa8b3548d480ab42b26"
+            "sha256": "4166cc3457469be487897979a10d866c5c6587b32d621656f6c0b5614fce5986"
           },
           "windows-x86_64": {
             "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.23.3/vibe-acp-windows-x86_64-2.23.3.zip",

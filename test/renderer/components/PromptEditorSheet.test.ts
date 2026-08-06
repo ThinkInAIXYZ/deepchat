@@ -114,7 +114,7 @@ describe('PromptEditorSheet', () => {
           SheetHeader: passthrough('SheetHeader'),
           SheetTitle: passthrough('SheetTitle'),
           ScrollArea: passthrough('ScrollArea'),
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Input: InputStub,
           Label: passthrough('Label'),
           Checkbox: CheckboxStub,

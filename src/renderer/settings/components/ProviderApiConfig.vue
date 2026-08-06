@@ -16,7 +16,7 @@
     <div class="flex flex-col items-start gap-2">
       <div class="flex justify-between items-center w-full">
         <Label :for="`${provider.id}-url`" class="flex-1">API URL</Label>
-        <Button
+        <DcButton
           v-if="provider.custom"
           variant="destructive"
           size="sm"
@@ -24,7 +24,7 @@
           @click="$emit('delete-provider')"
         >
           <Icon icon="lucide:trash-2" class="w-4 h-4 mr-1" />{{ t('settings.provider.delete') }}
-        </Button>
+        </DcButton>
       </div>
       <div v-if="showLockedBaseUrl" class="flex w-full items-center gap-2">
         <div
@@ -35,9 +35,14 @@
             {{ apiHost || t('settings.provider.urlPlaceholder') }}
           </span>
         </div>
-        <Button variant="outline" size="sm" class="shrink-0 text-xs" @click="requestBaseUrlUnlock">
+        <DcButton
+          variant="outline"
+          size="sm"
+          class="shrink-0 text-xs"
+          @click="requestBaseUrlUnlock"
+        >
           {{ t('settings.provider.modifyBaseUrl') }}
-        </Button>
+        </DcButton>
       </div>
       <Input
         v-else
@@ -126,17 +131,18 @@
             @keyup.enter="handleValidateKey"
             @update:model-value="apiKey = String($event)"
           />
-          <Button
+          <DcButton
             variant="ghost"
             size="sm"
             class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+            :tooltip="showApiKey ? t('common.hideValue') : t('common.showValue')"
             @click="showApiKey = !showApiKey"
           >
             <Icon
               :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
               class="w-4 h-4 text-muted-foreground hover:text-foreground"
             />
-          </Button>
+          </DcButton>
         </div>
         <div
           v-if="
@@ -158,7 +164,7 @@
         </div>
       </div>
       <div class="flex flex-row gap-2">
-        <Button
+        <DcButton
           data-testid="provider-verify-button"
           variant="outline"
           size="sm"
@@ -169,8 +175,8 @@
           <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{
             t('settings.provider.verifyKey')
           }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           data-testid="provider-refresh-models-button"
           variant="outline"
           size="sm"
@@ -194,7 +200,7 @@
               ? t('settings.provider.refreshingModels')
               : t('settings.provider.refreshModels')
           }}
-        </Button>
+        </DcButton>
       </div>
       <p v-if="shouldRefreshProviderDbFirst" class="text-xs leading-5 text-muted-foreground">
         {{ t('settings.provider.refreshModelsWithMetadataHint') }}
@@ -213,7 +219,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Tooltip,
   TooltipContent,

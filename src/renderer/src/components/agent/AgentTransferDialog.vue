@@ -155,12 +155,12 @@
       </div>
 
       <DialogFooter class="border-t px-5 py-4">
-        <Button variant="outline" :disabled="busy" @click="emit('update:open', false)">
+        <DcButton variant="outline" :disabled="busy" @click="emit('update:open', false)">
           {{ t('dialog.cancel') }}
-        </Button>
-        <Button :variant="confirmVariant" :disabled="!canConfirm" @click="handleConfirm">
+        </DcButton>
+        <DcButton :variant="confirmVariant" :disabled="!canConfirm" @click="handleConfirm">
           {{ confirmLabel }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -169,7 +169,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,
