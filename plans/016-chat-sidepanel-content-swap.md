@@ -13,7 +13,7 @@ panels — swaps via bare `v-if`/`v-else-if` with zero transition. Spatially-con
 the same segmented trigger change with no motion explaining the swap. Playbook §8: state changes
 that teleport are the canonical missed opportunity.
 
-Current code (`src/renderer/src/components/sidepanel/ChatSidePanel.vue:88-107`):
+Current code (`src/renderer/src/components/sidepanel/ChatSidePanel.vue:88-109`):
 
 ```html
 <WorkspacePanel
@@ -24,10 +24,17 @@ Current code (`src/renderer/src/components/sidepanel/ChatSidePanel.vue:88-107`):
   v-else-if="activeTab === 'browser'"
   ...
 />
-<div v-else-if="activeTab === 'mcp-app'">
+<div
+  v-show="activeTab === 'mcp-app'"
+  id="mcp-app-sidepanel-outlet"
   ...
-</div>
+/>
 ```
+
+Note: the MCP-app outlet is `v-show` (always mounted) — `McpAppView` teleports its iframe into
+`#mcp-app-sidepanel-outlet` synchronously when the mcp-app tab activates
+(`watch(isSidepanelPreview, reloadRelocatedFrame, { flush: 'sync' })`), so the outlet must exist in
+the DOM at that exact moment.
 
 ## Target
 
@@ -44,11 +51,21 @@ avoid scrollbar flash on full-size panels):
     v-else-if="activeTab === 'browser'"
     ...
   />
-  <div v-else-if="activeTab === 'mcp-app'">
-    ...
-  </div>
 </Transition>
+<div
+  v-show="activeTab === 'mcp-app' && !panelContentLeaving"
+  id="mcp-app-sidepanel-outlet"
+  ...
+/>
 ```
+
+Implementation note: the MCP-app outlet stays **outside** the Transition and remains mounted
+(`v-show`), because `mode="out-in"` delays the new branch's mount until the old panel's leave
+finishes — during that window `McpAppView`'s synchronous teleport would find no
+`#mcp-app-sidepanel-outlet` and the app preview would stay stranded in the message list until an
+unrelated re-render. The outlet's visibility is gated on the leave transition
+(`panelContentLeaving`, driven by `@before-leave`/`@after-leave`/`@leave-cancelled`) so it never
+overlaps the fading panel while still being a valid teleport target at all times.
 
 Scoped CSS:
 
@@ -82,7 +99,8 @@ where overlap would show double scrollbars).
 
 ## Steps
 
-1. Wrap the three `v-if/v-else-if` branches in `<Transition name="panel-content" mode="out-in">`.
+1. Wrap the workspace/browser branches in `<Transition name="panel-content" mode="out-in">`; keep
+   the MCP-app outlet mounted beside it (`v-show`), gated on `!panelContentLeaving`.
 2. Add the scoped CSS block.
 3. Verify each branch still receives its own key (single root per branch — `v-else-if` branches
    are already distinct elements; add `:key="activeTab"` on the Transition's children only if Vue
@@ -92,7 +110,8 @@ where overlap would show double scrollbars).
 
 - Do NOT animate transform on the panels (scrollbar flash).
 - Do NOT touch the panel shells' open/close animation (already correct, plan 005 covers it).
-- Do NOT convert `v-show` (panels should unmount so iframes unload — current behavior).
+- Do NOT convert workspace/browser panels to `v-show` (they should unmount so iframes unload —
+  current behavior). The MCP-app outlet is the one exception that must stay mounted.
 
 ## Verification
 

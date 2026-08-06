@@ -85,7 +85,13 @@
         />
       </div>
 
-      <Transition name="panel-content" mode="out-in">
+      <Transition
+        name="panel-content"
+        mode="out-in"
+        @before-leave="panelContentLeaving = true"
+        @after-leave="panelContentLeaving = false"
+        @leave-cancelled="panelContentLeaving = false"
+      >
         <WorkspacePanel
           v-if="sidepanelStore.activeTab === 'workspace'"
           :session-id="props.sessionId"
@@ -100,13 +106,13 @@
           :is-fullscreen="isBrowserFullscreenActive"
           @toggle-fullscreen="toggleBrowserFullscreen"
         />
-        <div
-          v-else-if="sidepanelStore.activeTab === 'mcp-app'"
-          id="mcp-app-sidepanel-outlet"
-          data-testid="mcp-app-sidepanel-outlet"
-          class="min-h-0 flex-1"
-        />
       </Transition>
+      <div
+        v-show="sidepanelStore.activeTab === 'mcp-app' && !panelContentLeaving"
+        id="mcp-app-sidepanel-outlet"
+        data-testid="mcp-app-sidepanel-outlet"
+        class="min-h-0 flex-1"
+      />
     </aside>
   </div>
 </template>
@@ -143,6 +149,7 @@ const shouldShow = computed(() => sidepanelStore.open && Boolean(props.sessionId
 const layoutWidth = ref(shouldShow.value ? sidepanelStore.width : 0)
 const panelVisible = ref(shouldShow.value)
 const isResizing = ref(false)
+const panelContentLeaving = ref(false)
 const isWorkspaceFullscreen = ref(false)
 const isBrowserFullscreen = ref(false)
 const fullscreenMotionState = ref<'expanding' | 'collapsing' | null>(null)

@@ -140,6 +140,25 @@ describe('ChatSidePanel', () => {
     }
   })
 
+  it('keeps the mcp-app outlet mounted so teleported apps always have a target', async () => {
+    const { wrapper } = await setup({
+      activeTab: 'workspace',
+      mcpAppPreviewOwnerId: 'm1'
+    })
+    const mcpTab = wrapper.findAll('button').find((button) => button.text() === 'mcp.apps.title')
+    expect(mcpTab).toBeDefined()
+
+    // The outlet must already exist while the workspace panel is still in the leave phase
+    // (McpAppView teleports synchronously when the mcp-app tab activates).
+    await mcpTab!.trigger('click')
+    expect(wrapper.find('#mcp-app-sidepanel-outlet').exists()).toBe(true)
+
+    await new Promise((resolve) => window.setTimeout(resolve, 250))
+    const outlet = wrapper.find('#mcp-app-sidepanel-outlet')
+    expect(outlet.exists()).toBe(true)
+    expect(outlet.isVisible()).toBe(true)
+  })
+
   it('opens the browser sidepanel when OPEN_REQUESTED targets the current host window', async () => {
     const { sidepanelStore, emitOpenRequested } = await setup({
       open: false,
