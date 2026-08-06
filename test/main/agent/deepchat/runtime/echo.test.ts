@@ -10,7 +10,8 @@ vi.mock('@/events', () => ({
   }
 }))
 
-import { cloneBlocksForRenderer, startEcho } from '@/agent/deepchat/runtime/echo'
+import { startEcho } from '@/agent/deepchat/runtime/echo'
+import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
 
 const publishDeepchatEvent = vi.fn()
 

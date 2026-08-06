@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionTape } from '@/tape/application/sessionTape'
-import { cloneBlocksForRenderer } from '@/agent/deepchat/runtime/echo'
+import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
 import logger from '@shared/logger'
 import type { UserMessageContent } from '@shared/types/agent-interface'
 
