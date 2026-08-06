@@ -18,6 +18,7 @@
         :is-read-only="isReadOnly"
         :disable-markdown-virtualization="shouldDisableMarkdownVirtualization"
         :class="{ 'message-row-entrance': shouldAnimateEntrance(item) }"
+        :data-entrance-feedback="shouldAnimateEntrance(item) || undefined"
         @animationend="onEntranceAnimationEnd(item, $event)"
         @retry="onRetry"
         @delete="onDelete"
@@ -127,21 +128,20 @@ watch(
     if (!previousMessages) return
 
     const isAppend =
-      previousMessages.length > 0 &&
       messages.length >= previousMessages.length &&
       previousMessages.every((message, index) => messages[index]?.id === message.id)
-    if (!isAppend) resetEntranceTracking(messages)
-  }
-)
+    if (!isAppend) {
+      resetEntranceTracking(messages)
+      return
+    }
 
-watch(
-  () => props.messages.at(-1),
-  (lastMessage) => {
-    if (!lastMessage || seenMessageIds.has(lastMessage.id)) return
+    for (const message of messages.slice(previousMessages.length)) {
+      if (seenMessageIds.has(message.id)) continue
 
-    seenMessageIds.add(lastMessage.id)
-    if (lastMessage.role === 'user' && lastMessage.id !== props.streamingMessageId) {
-      animatingMessageIds.value.add(lastMessage.id)
+      seenMessageIds.add(message.id)
+      if (message.role === 'user' && message.id !== props.streamingMessageId) {
+        animatingMessageIds.value.add(message.id)
+      }
     }
   }
 )

@@ -217,34 +217,25 @@ describe('MessageList', () => {
     expect(compactedWrapper.find('.compaction-divider__label--compacting').exists()).toBe(false)
   })
 
-  it('animates only newly appended user messages once', async () => {
+  it('provides entrance feedback for an optimistic user message in a batched send', async () => {
     const wrapper = mount(MessageList, {
       props: {
-        messages: [createMessage('u1', 'user', 1)]
+        messages: []
       }
     })
 
-    expect(wrapper.find('[data-message-id="u1"]').classes()).not.toContain('message-row-entrance')
-
     await wrapper.setProps({
-      messages: [createMessage('u1', 'user', 1), createMessage('u2', 'user', 2)]
+      messages: [createMessage('u1', 'user', 1), createMessage('a1', 'assistant', 2)]
     })
 
-    const appendedUserRow = wrapper.find('[data-message-id="u2"]')
-    expect(appendedUserRow.classes()).toContain('message-row-entrance')
+    const userRow = wrapper.find('[data-message-id="u1"]')
+    expect(userRow.attributes('data-entrance-feedback')).toBe('true')
+    expect(
+      wrapper.find('[data-message-id="a1"]').attributes('data-entrance-feedback')
+    ).toBeUndefined()
 
-    await appendedUserRow.trigger('animationend', { animationName: 'message-row-in' })
-    expect(appendedUserRow.classes()).not.toContain('message-row-entrance')
-
-    await wrapper.setProps({
-      messages: [
-        createMessage('u1', 'user', 1),
-        createMessage('u2', 'user', 2),
-        createMessage('a1', 'assistant', 3)
-      ]
-    })
-
-    expect(wrapper.find('[data-message-id="a1"]').classes()).not.toContain('message-row-entrance')
+    await userRow.trigger('animationend', { animationName: 'message-row-in' })
+    expect(userRow.attributes('data-entrance-feedback')).toBeUndefined()
   })
 
   it('does not animate historical messages after replacing the messages collection', async () => {

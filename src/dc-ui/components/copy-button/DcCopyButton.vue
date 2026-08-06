@@ -4,7 +4,12 @@ import { computed, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import { cn } from '@shadcn/lib/utils'
 
 type DcTooltipSide = 'top' | 'bottom' | 'left' | 'right'
@@ -90,34 +95,36 @@ const accessibleName = computed(() => props.label ?? props.tooltip)
 </script>
 
 <template>
-  <Tooltip
+  <TooltipProvider
     v-if="tooltip"
     :delay-duration="tooltipDelayDuration"
     :ignore-non-keyboard-focus="tooltipIgnoreNonKeyboardFocus"
   >
-    <TooltipTrigger as-child>
-      <DcButton
-        v-bind="$attrs"
-        :variant="variant"
-        :size="size"
-        :icon="icon"
-        :icon-size="iconSize"
-        :disabled="disabled"
-        :label="accessibleName"
-        :class="cn('shrink-0', copied && 'text-emerald-600 dark:text-emerald-400', props.class)"
-        @click="copy"
+    <Tooltip :delay-duration="tooltipDelayDuration">
+      <TooltipTrigger as-child>
+        <DcButton
+          v-bind="$attrs"
+          :variant="variant"
+          :size="size"
+          :icon="icon"
+          :icon-size="iconSize"
+          :disabled="disabled"
+          :label="accessibleName"
+          :class="cn('shrink-0', copied && 'text-emerald-600 dark:text-emerald-400', props.class)"
+          @click="copy"
+        >
+          <slot>{{ label }}</slot>
+        </DcButton>
+      </TooltipTrigger>
+      <TooltipContent
+        :side="tooltipSide"
+        :side-offset="tooltipSideOffset"
+        :class="tooltipContentClass"
       >
-        <slot>{{ label }}</slot>
-      </DcButton>
-    </TooltipTrigger>
-    <TooltipContent
-      :side="tooltipSide"
-      :side-offset="tooltipSideOffset"
-      :class="tooltipContentClass"
-    >
-      {{ tooltip }}
-    </TooltipContent>
-  </Tooltip>
+        {{ tooltip }}
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
   <DcButton
     v-else
     v-bind="$attrs"

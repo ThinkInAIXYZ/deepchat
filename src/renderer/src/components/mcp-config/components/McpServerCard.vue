@@ -249,21 +249,11 @@ watch(watchDescription, () => {
           />
 
           <!-- 错误提示 -->
-          <DcTooltip
-            v-if="server.errorMessage"
-            :content="server.errorMessage"
-            content-class="max-w-xs whitespace-normal break-words"
-            side="top"
-          >
+          <DcTooltip v-if="server.errorMessage" :content="server.errorMessage" side="top">
             <Icon icon="lucide:alert-circle" class="w-3 h-3 text-red-500" />
           </DcTooltip>
 
-          <DcTooltip
-            v-if="server.authStatus?.error"
-            :content="server.authStatus.error"
-            content-class="max-w-xs whitespace-normal break-words"
-            side="top"
-          >
+          <DcTooltip v-if="server.authStatus?.error" :content="server.authStatus.error" side="top">
             <Icon icon="lucide:key-round" class="w-3 h-3 text-yellow-500" />
           </DcTooltip>
         </div>

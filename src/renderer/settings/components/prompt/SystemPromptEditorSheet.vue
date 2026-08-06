@@ -6,7 +6,7 @@
       isEditing ? t('promptSetting.editSystemPromptDesc') : t('promptSetting.addSystemPromptDesc')
     "
     icon="lucide:settings"
-    width-class="w-full sm:w-[min(40rem,92vw)] sm:max-w-[min(40rem,92vw)]"
+    width-class="w-full sm:w-[min(40rem,92vw)]"
     @update:open="handleOpenChange"
   >
     <fieldset class="contents">

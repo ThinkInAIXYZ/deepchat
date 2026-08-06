@@ -1,9 +1,11 @@
-import { defineComponent, onMounted, onUnmounted, reactive } from 'vue'
+import { defineComponent, nextTick, onMounted, onUnmounted, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WORKSPACE_EVENTS } from '@/events'
 
 describe('ChatSidePanel', () => {
+  afterEach(() => vi.useRealTimers())
+
   const setup = async (options?: {
     open?: boolean
     activeTab?: 'workspace' | 'browser' | 'mcp-app'
@@ -115,6 +117,7 @@ describe('ChatSidePanel', () => {
   }
 
   it('unmounts workspace content before mounting browser content', async () => {
+    vi.useFakeTimers()
     const lifecycleEvents: string[] = []
     const recordWorkspaceUnmount = () => lifecycleEvents.push('workspace-unmounted')
     const recordBrowserMount = () => lifecycleEvents.push('browser-mounted')
@@ -129,7 +132,8 @@ describe('ChatSidePanel', () => {
       expect(browserTab).toBeDefined()
 
       await browserTab!.trigger('click')
-      await new Promise((resolve) => window.setTimeout(resolve, 250))
+      await vi.runAllTimersAsync()
+      await nextTick()
 
       expect(lifecycleEvents).toEqual(['workspace-unmounted', 'browser-mounted'])
       expect(wrapper.find('[data-testid="workspace-panel-stub"]').exists()).toBe(false)
@@ -153,10 +157,8 @@ describe('ChatSidePanel', () => {
     await mcpTab!.trigger('click')
     expect(wrapper.find('#mcp-app-sidepanel-outlet').exists()).toBe(true)
 
-    await new Promise((resolve) => window.setTimeout(resolve, 250))
-    const outlet = wrapper.find('#mcp-app-sidepanel-outlet')
-    expect(outlet.exists()).toBe(true)
-    expect(outlet.isVisible()).toBe(true)
+    await nextTick()
+    expect(wrapper.find('#mcp-app-sidepanel-outlet').isVisible()).toBe(true)
   })
 
   it('opens the browser sidepanel when OPEN_REQUESTED targets the current host window', async () => {

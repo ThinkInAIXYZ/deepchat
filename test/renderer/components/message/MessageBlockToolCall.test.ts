@@ -21,13 +21,6 @@ const liveDelegationStoreMock = vi.hoisted(() => ({
   interrupt: vi.fn()
 }))
 
-vi.mock('@shadcn/components/ui/tooltip', () => ({
-  Tooltip: defineComponent({ template: '<div><slot /></div>' }),
-  TooltipContent: defineComponent({ template: '<div><slot /></div>' }),
-  TooltipProvider: defineComponent({ template: '<div><slot /></div>' }),
-  TooltipTrigger: defineComponent({ template: '<div><slot /></div>' })
-}))
-
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: { count?: number; mode?: string }) => {

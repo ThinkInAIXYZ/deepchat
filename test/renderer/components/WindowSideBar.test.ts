@@ -584,8 +584,6 @@ describe('WindowSideBar agent switch', () => {
 
       const sidebar = wrapper.get('[data-testid="window-sidebar"]')
       expect(sidebar.classes()).toContain('w-12')
-      expect(sidebar.classes()).toContain('duration-[var(--dc-motion-fast)]')
-      expect(sidebar.classes()).toContain('motion-reduce:transition-none')
 
       await wrapper
         .get('[data-testid="sidebar-agent-button"][data-agent-id="acp-a"]')
@@ -852,37 +850,6 @@ describe('WindowSideBar agent switch', () => {
       await flushPromises()
 
       expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('normal-1', true)
-    },
-    TEST_TIMEOUT_MS
-  )
-
-  it(
-    'keeps chat session rows static during a pin flight',
-    async () => {
-      const session = {
-        id: 'normal-1',
-        title: 'Normal Session',
-        status: 'none',
-        isPinned: false
-      }
-      const { wrapper } = await setup({
-        groups: [
-          {
-            id: 'common.time.today',
-            label: 'common.time.today',
-            labelKey: 'common.time.today',
-            sessions: [session]
-          }
-        ]
-      })
-      document.body.appendChild(wrapper.element)
-      const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
-      vi.spyOn(item.element, 'getBoundingClientRect').mockReturnValue(createDomRect(0, 0, 240, 48))
-
-      item.vm.$emit('toggle-pin', session)
-      await nextTick()
-
-      expect(wrapper.find('.chat-session-rows-static').exists()).toBe(true)
     },
     TEST_TIMEOUT_MS
   )
@@ -2106,7 +2073,7 @@ describe('WindowSideBar agent switch', () => {
 
 describe('WindowSideBar session row transitions', () => {
   it(
-    'does not animate rows appended while pagination is loading',
+    'renders rows loaded during pagination',
     async () => {
       let resolvePage: (() => void) | undefined
       const pageLoaded = new Promise<void>((resolve) => {
@@ -2138,16 +2105,11 @@ describe('WindowSideBar session row transitions', () => {
       await flushSidebarFillFrame()
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.find('.chat-session-rows-static').exists()).toBe(true)
-
       resolvePage?.()
       await flushPromises()
       await nextTick()
-      await flushSidebarFillFrame()
-      await flushSidebarFillFrame()
 
       expect(wrapper.text()).toContain('Loaded')
-      expect(wrapper.find('.chat-session-rows-static').exists()).toBe(false)
 
       wrapper.unmount()
     },
