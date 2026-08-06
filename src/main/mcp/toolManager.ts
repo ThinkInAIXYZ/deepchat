@@ -29,6 +29,7 @@ import type {
   PluginRuntimeStartReason
 } from '@/plugin/runtimeSupervisor'
 import { createPersistedMcpToolResult, getToolVisibility } from './resultProjection'
+import { resolveCachedImageDataUrl as resolveCachedImageDataUrlFromDisk } from '@/platform/imageCache'
 
 const isAbortError = (error: unknown): boolean =>
   error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
@@ -69,6 +70,8 @@ type ActiveToolDefinitionsRefresh = {
   completion: Promise<void>
   settle: () => void
 }
+
+type CachedImageDataUrlResolver = (source: string, signal?: AbortSignal) => Promise<string>
 
 type PluginMcpOwnershipPort = {
   ownsServer(serverName: string): boolean
@@ -143,7 +146,8 @@ export class ToolManager {
     private readonly semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
     private readonly pluginOwnership: PluginMcpOwnershipPort = NO_PLUGIN_OWNERSHIP,
-    private readonly computerUsePreviewObserver?: ComputerUsePreviewObserver
+    private readonly computerUsePreviewObserver?: ComputerUsePreviewObserver,
+    private readonly resolveCachedImageDataUrl: CachedImageDataUrlResolver = resolveCachedImageDataUrlFromDisk
   ) {
     this.agentSettings = agentSettings
     this.mcpSettings = mcpSettings
@@ -1115,16 +1119,58 @@ export class ToolManager {
     args: Record<string, unknown>,
     signal?: AbortSignal
   ): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; error: string }> {
-    if (!this.isCuaComputerUseServer(client)) {
-      return { ok: true, args }
+    let resolvedArgs: Record<string, unknown>
+    try {
+      resolvedArgs = (await this.resolveCachedImageArguments(args, signal)) as Record<
+        string,
+        unknown
+      >
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) throw error
+      return {
+        ok: false,
+        error: `Unable to resolve cached image reference: ${error instanceof Error ? error.message : String(error)}`
+      }
     }
 
-    const normalizedArgs = normalizeCuaToolArguments(toolName, args)
+    if (!this.isCuaComputerUseServer(client)) {
+      return { ok: true, args: resolvedArgs }
+    }
+
+    const normalizedArgs = normalizeCuaToolArguments(toolName, resolvedArgs)
     if (toolName !== 'launch_app' || process.platform !== 'win32') {
       return { ok: true, args: normalizedArgs }
     }
 
     return await this.prepareCuaWindowsLaunchArgs(client, normalizedArgs, signal)
+  }
+
+  private async resolveCachedImageArguments(
+    value: unknown,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    signal?.throwIfAborted()
+    if (typeof value === 'string') {
+      const reference = value.trim()
+      return /^imgcache:\/\/\S+$/.test(reference)
+        ? await this.resolveCachedImageDataUrl(reference, signal)
+        : value
+    }
+    if (Array.isArray(value)) {
+      const resolved: unknown[] = []
+      for (const item of value) {
+        resolved.push(await this.resolveCachedImageArguments(item, signal))
+      }
+      return resolved
+    }
+    if (isRecord(value)) {
+      const resolved: Record<string, unknown> = {}
+      for (const [key, item] of Object.entries(value)) {
+        resolved[key] = await this.resolveCachedImageArguments(item, signal)
+      }
+      return resolved
+    }
+    return value
   }
 
   private async prepareCuaWindowsLaunchArgs(

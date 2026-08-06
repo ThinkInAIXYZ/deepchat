@@ -113,7 +113,8 @@ describe('ToolManager', () => {
       ensureRunning?: (serverName: string, reason: PluginRuntimeStartReason) => Promise<void>
       unavailableServers?: Set<string>
     } = {},
-    computerUsePreviewObserver?: ComputerUsePreviewObserver
+    computerUsePreviewObserver?: ComputerUsePreviewObserver,
+    resolveCachedImageDataUrl?: (source: string, signal?: AbortSignal) => Promise<string>
   ) {
     return new ToolManager(
       providerSettings as never,
@@ -136,7 +137,8 @@ describe('ToolManager', () => {
             throw new Error(`Unexpected runtime start for ${serverName}`)
           })
       },
-      computerUsePreviewObserver
+      computerUsePreviewObserver,
+      resolveCachedImageDataUrl
     )
   }
 
@@ -995,6 +997,78 @@ describe('ToolManager', () => {
     abortController.abort()
 
     await expect(callPromise).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('resolves exact cached image references only in the MCP execution arguments', async () => {
+    const client = createClient('open-server')
+    const providerSettings = createProviderSettings('open-server')
+    const resolveCachedImageDataUrl = vi.fn().mockResolvedValue('data:image/jpeg;base64,YWJj')
+    const manager = createToolManager(
+      providerSettings,
+      createServerManager([client]),
+      {},
+      {},
+      undefined,
+      resolveCachedImageDataUrl
+    )
+    const argumentsJson = JSON.stringify({
+      image: 'imgcache://generated.jpg',
+      nested: [{ reference: ' imgcache://generated.jpg ' }],
+      prompt: 'Edit imgcache://generated.jpg with warmer light'
+    })
+
+    const result = await manager.callTool({
+      id: 'tool-image-edit',
+      type: 'function',
+      function: { name: 'echo', arguments: argumentsJson },
+      conversationId: 'conv-image-edit',
+      providerId: 'openai'
+    })
+
+    expect(result.isError).toBe(false)
+    expect(resolveCachedImageDataUrl).toHaveBeenCalledTimes(2)
+    expect(resolveCachedImageDataUrl).toHaveBeenCalledWith('imgcache://generated.jpg', undefined)
+    expect(client.callTool).toHaveBeenCalledWith(
+      'echo',
+      {
+        image: 'data:image/jpeg;base64,YWJj',
+        nested: [{ reference: 'data:image/jpeg;base64,YWJj' }],
+        prompt: 'Edit imgcache://generated.jpg with warmer light'
+      },
+      expect.objectContaining({
+        toolDefinition: expect.objectContaining({ name: 'echo' })
+      })
+    )
+  })
+
+  it('does not invoke MCP when a cached image reference cannot be resolved', async () => {
+    const client = createClient('open-server')
+    const providerSettings = createProviderSettings('open-server')
+    const manager = createToolManager(
+      providerSettings,
+      createServerManager([client]),
+      {},
+      {},
+      undefined,
+      vi.fn().mockRejectedValue(new Error('cached image is missing'))
+    )
+
+    const result = await manager.callTool({
+      id: 'tool-image-missing',
+      type: 'function',
+      function: {
+        name: 'echo',
+        arguments: '{"image":"imgcache://missing.jpg"}'
+      },
+      conversationId: 'conv-image-missing',
+      providerId: 'openai'
+    })
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: 'Error: Unable to resolve cached image reference: cached image is missing'
+    })
+    expect(client.callTool).not.toHaveBeenCalled()
   })
 
   it('rejects promptly when cancellation lands during tool-definition refresh', async () => {

@@ -40,7 +40,7 @@ import {
   MCP_CLIENT_CREDENTIALS_DRAFT_REVISION,
   McpOAuthManager
 } from './mcpOAuthManager'
-import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
+import { prepareToolCallImageContent } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { PrivacySettingsPort } from '@/app/privacy'
@@ -1243,28 +1243,30 @@ export class McpService implements McpServicePort {
   ): Promise<{ content: string; rawData: MCPToolResponse }> {
     const toolCallResult = await this.toolManager.callTool(request, options)
     options?.signal?.throwIfAborted()
-    const imagePreviews = await extractToolCallImagePreviews({
+    const preparedImages = await prepareToolCallImageContent({
       toolName: request.function.name,
       toolArgs: request.function.arguments,
       content: toolCallResult.content,
       cacheImage: this.cacheImage,
       signal: options?.signal
     })
+    const imagePreviews = preparedImages.imagePreviews
+    const normalizedContent = preparedImages.content
     options?.signal?.throwIfAborted()
 
     // Format tool call results into strings that are easy for large models to parse
     let formattedContent = ''
 
     // Determine content type
-    if (typeof toolCallResult.content === 'string') {
+    if (typeof normalizedContent === 'string') {
       // Content is already a string
-      formattedContent = toolCallResult.content
-    } else if (Array.isArray(toolCallResult.content)) {
+      formattedContent = normalizedContent
+    } else if (Array.isArray(normalizedContent)) {
       // Content is structured array, needs formatting
       const contentParts: string[] = []
 
       // Process each content item
-      for (const item of toolCallResult.content) {
+      for (const item of normalizedContent) {
         if (item.type === 'text') {
           contentParts.push(item.text)
         } else if (item.type === 'image') {
@@ -1296,6 +1298,7 @@ export class McpService implements McpServicePort {
       content: formattedContent,
       rawData: {
         ...toolCallResult,
+        content: normalizedContent,
         ...(imagePreviews.length > 0 ? { imagePreviews } : {})
       }
     }

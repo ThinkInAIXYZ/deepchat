@@ -202,10 +202,14 @@ describe('MessageItemAssistant', () => {
           disableMarkdownVirtualization: {
             type: Boolean,
             default: false
+          },
+          hiddenMarkdownImageSources: {
+            type: Array,
+            default: undefined
           }
         },
         template:
-          '<div data-testid="message-block-content" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)"><slot /></div>'
+          '<div data-testid="message-block-content" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)" :data-hidden-image-sources="hiddenMarkdownImageSources?.join(\',\')"><slot /></div>'
       }),
       MessageBlockThink: componentStub('MessageBlockThink'),
       MessageBlockToolCall: componentStub('MessageBlockToolCall'),
@@ -324,6 +328,39 @@ describe('MessageItemAssistant', () => {
         .get('[data-testid="message-block-content"]')
         .attributes('data-disable-markdown-virtualization')
     ).toBe('true')
+  })
+
+  it('passes promoted local image sources to content blocks for Markdown deduplication', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [
+          createVideoLikeImageBlock({
+            image_data: {
+              data: 'imgcache://generated.png',
+              mimeType: 'image/png'
+            }
+          }),
+          createVideoLikeImageBlock({
+            image_data: {
+              data: 'https://example.com/remote.png',
+              mimeType: 'image/png'
+            }
+          }),
+          {
+            type: 'content',
+            content: '![generated](imgcache://generated.png)',
+            status: 'success',
+            timestamp: 2
+          }
+        ]),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    expect(
+      wrapper.get('[data-testid="message-block-content"]').attributes('data-hidden-image-sources')
+    ).toBe('imgcache://generated.png')
   })
 
   it('renders video blocks from legacy content urls', () => {

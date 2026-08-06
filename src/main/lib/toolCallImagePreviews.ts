@@ -6,6 +6,7 @@ type ImagePreviewInput = {
   mimeType: string
   title?: string
   source: ToolCallImagePreview['source']
+  replaceValue?: string
 }
 
 type ExtractToolCallImagePreviewsParams = {
@@ -17,7 +18,9 @@ type ExtractToolCallImagePreviewsParams = {
 }
 
 const DATA_IMAGE_URL_PATTERN = /data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=\r\n]+/g
-const IMAGE_URL_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|ico|avif|svg)(?:[?#].*)?$/i
+const HTTP_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi
+const TRAILING_URL_PUNCTUATION_PATTERN = /[),.;:!?\]}，。；：！？）】]+$/
+const IMAGE_PATH_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|ico|avif|svg)$/i
 
 function parseJsonRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -68,10 +71,21 @@ function isImageReference(value: string): boolean {
   if (!trimmed) return false
   if (trimmed.startsWith('data:image/')) return true
   if (trimmed.startsWith('imgcache://')) return true
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return IMAGE_URL_EXTENSION_PATTERN.test(trimmed)
+  try {
+    const url = new URL(trimmed)
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      IMAGE_PATH_EXTENSION_PATTERN.test(url.pathname)
+    )
+  } catch {
+    return false
   }
-  return false
+}
+
+function extractEmbeddedHttpImageReferences(content: string): string[] {
+  return (content.match(HTTP_URL_PATTERN) ?? [])
+    .map((value) => value.replace(TRAILING_URL_PUNCTUATION_PATTERN, ''))
+    .filter(isImageReference)
 }
 
 function normalizeImagePayload(data: string, mimeType: string): string {
@@ -93,6 +107,9 @@ async function cachePreviewData(
   cacheImage?: (data: string) => Promise<string>,
   signal?: AbortSignal
 ): Promise<string | undefined> {
+  if (data.trim().toLowerCase().startsWith('imgcache://')) {
+    return data.trim()
+  }
   if (!cacheImage) {
     return undefined
   }
@@ -100,8 +117,8 @@ async function cachePreviewData(
   try {
     signal?.throwIfAborted()
     const cachedData = await awaitWithAbort(cacheImage(data), signal)
-    const cachedDataTrimmed = cachedData.trim().toLowerCase()
-    return cachedDataTrimmed.startsWith('data:image/') ? undefined : cachedData
+    const cachedDataTrimmed = cachedData.trim()
+    return cachedDataTrimmed.toLowerCase().startsWith('imgcache://') ? cachedDataTrimmed : undefined
   } catch (error) {
     if (signal?.aborted) throw error
     return undefined
@@ -156,6 +173,9 @@ function collectJsonImageReferences(value: unknown, output: ImagePreviewInput[])
       output.push({
         data: trimmed,
         mimeType: inferMimeType(trimmed),
+        ...(trimmed.startsWith('http://') || trimmed.startsWith('https://')
+          ? { replaceValue: trimmed }
+          : {}),
         source: 'tool_output'
       })
     }
@@ -184,6 +204,18 @@ function extractStringImagePreviews(content: string): ImagePreviewInput[] {
     previews.push({
       data: trimmed,
       mimeType: inferMimeType(trimmed),
+      ...(trimmed.startsWith('http://') || trimmed.startsWith('https://')
+        ? { replaceValue: trimmed }
+        : {}),
+      source: 'tool_output'
+    })
+  }
+
+  for (const reference of extractEmbeddedHttpImageReferences(trimmed)) {
+    previews.push({
+      data: reference,
+      mimeType: inferMimeType(reference),
+      replaceValue: reference,
       source: 'tool_output'
     })
   }
@@ -206,21 +238,56 @@ function extractStringImagePreviews(content: string): ImagePreviewInput[] {
 }
 
 function extractStructuredImagePreviews(content: MCPContentItem[]): ImagePreviewInput[] {
-  return content
-    .filter((item) => item.type === 'image')
-    .map((item) => {
+  return content.flatMap((item): ImagePreviewInput[] => {
+    if (item.type === 'text') {
+      return extractStringImagePreviews(item.text)
+    }
+    if (item.type === 'image') {
       const mimeType = item.mimeType || 'image/png'
-      return {
-        data: normalizeImagePayload(item.data, mimeType),
-        mimeType,
-        source: 'mcp_image' as const
-      }
-    })
+      return [
+        {
+          data: normalizeImagePayload(item.data, mimeType),
+          mimeType,
+          source: 'mcp_image' as const
+        }
+      ]
+    }
+    return []
+  })
 }
 
-export async function extractToolCallImagePreviews(
+function replaceImageReferences(
+  content: string | MCPContentItem[],
+  replacements: ReadonlyMap<string, string>
+): string | MCPContentItem[] {
+  if (replacements.size === 0) {
+    return content
+  }
+
+  const replaceAll = (value: string): string => {
+    let result = value
+    const entries = Array.from(replacements).sort(([left], [right]) => right.length - left.length)
+    for (const [source, cached] of entries) {
+      result = result.replaceAll(source, cached)
+    }
+    return result
+  }
+
+  if (typeof content === 'string') {
+    return replaceAll(content)
+  }
+
+  return content.map((item) =>
+    item.type === 'text' ? { ...item, text: replaceAll(item.text) } : item
+  )
+}
+
+export async function prepareToolCallImageContent(
   params: ExtractToolCallImagePreviewsParams
-): Promise<ToolCallImagePreview[]> {
+): Promise<{
+  content: string | MCPContentItem[]
+  imagePreviews: ToolCallImagePreview[]
+}> {
   params.signal?.throwIfAborted()
   const inputs: ImagePreviewInput[] = []
   const screenshotPreview = extractScreenshotPreview(
@@ -239,15 +306,25 @@ export async function extractToolCallImagePreviews(
   }
 
   const previews: ToolCallImagePreview[] = []
+  const replacements = new Map<string, string>()
+  const seenInputs = new Set<string>()
   const seen = new Set<string>()
   for (const input of inputs) {
     params.signal?.throwIfAborted()
+    const inputKey = input.data.trim()
+    if (seenInputs.has(inputKey)) {
+      continue
+    }
+    seenInputs.add(inputKey)
     const data = await cachePreviewData(input.data, params.cacheImage, params.signal)
     if (data && seen.has(data)) {
       continue
     }
     if (data) {
       seen.add(data)
+    }
+    if (data && input.replaceValue) {
+      replacements.set(input.replaceValue, data)
     }
     previews.push({
       id: `${input.source}-${previews.length + 1}`,
@@ -259,5 +336,14 @@ export async function extractToolCallImagePreviews(
   }
 
   params.signal?.throwIfAborted()
-  return previews
+  return {
+    content: replaceImageReferences(params.content, replacements),
+    imagePreviews: previews
+  }
+}
+
+export async function extractToolCallImagePreviews(
+  params: ExtractToolCallImagePreviewsParams
+): Promise<ToolCallImagePreview[]> {
+  return (await prepareToolCallImageContent(params)).imagePreviews
 }

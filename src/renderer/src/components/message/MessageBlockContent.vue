@@ -17,6 +17,7 @@
         source: 'chat',
         sessionId: threadId
       }"
+      :hidden-image-sources="hiddenMarkdownImageSources"
     />
 
     <ArtifactThinking v-else-if="part.type === 'thinking' && part.loading" />
@@ -56,6 +57,7 @@ const props = defineProps<{
   threadId: string
   isSearchResult?: boolean
   disableMarkdownVirtualization?: boolean
+  hiddenMarkdownImageSources?: readonly string[]
 }>()
 
 const { processedContent } = useBlockContent(props)
