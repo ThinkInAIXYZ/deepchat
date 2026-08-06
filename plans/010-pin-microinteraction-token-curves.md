@@ -106,11 +106,13 @@ else, and WAAPI cannot read CSS vars.)
 
 - **Mechanical**: `pnpm exec vitest run test/renderer/components/WindowSideBar.test.ts` must pass
   (pin-flight tests exercise these paths); `pnpm exec oxfmt --check` clean.
-- **Feel check**: pin and unpin a session several times:
-  - The glow/bloom/release feel identical to before (durations untouched); no curve change is
-    perceptible by eye.
-  - Verify the targeted pin selectors use `var(--dc-ease-*)`, and that the two inline WAAPI
-    values in `WindowSideBar.vue` match the token curves. The unrelated curve in
-    `WindowSideBarSessionItem.vue` is outside this plan's scope.
-- **Done when**: the targeted pin selectors use shared easing tokens and the two WAAPI strings
-  match those token values exactly.
+- **Scoped source verification**:
+  - Verify only the six animation declarations listed in Steps 1–4 use their specified
+    `var(--dc-ease-*)` token.
+  - Verify only the two WAAPI `easing` fields at `WindowSideBar.vue:1785,1789` equal the raw values
+    of their specified tokens.
+  - Do not treat other easing declarations in either file as findings; they are outside this plan.
+- **Feel check**: pin and unpin a session several times; the targeted glow/bloom/release durations
+  remain unchanged.
+- **Done when**: the six scoped CSS declarations and two scoped WAAPI fields match the mappings in
+  Steps 1–6 exactly.

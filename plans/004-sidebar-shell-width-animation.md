@@ -39,11 +39,13 @@ Current code (`src/renderer/src/components/WindowSideBar.vue:5`):
 >
 ```
 
-- `--dc-motion-fast` (140ms) shortens the current 220ms layout-animation window by 80ms
-  (about 36%). It is an intentional structural-snap exception to the playbook's 200–500ms
-  standard-animation band for modals and drawers.
-- `motion-reduce:transition-none` drops the shell movement entirely under `prefers-reduced-motion`.
-  The session column's reduced-motion rule also removes both its transform and opacity transitions.
+- `--dc-motion-fast` is 140ms. Relative to the prior 220ms duration, it reduces the width
+  transition window by **80ms (about 36%)**; it does not make the transition 80ms. The 140ms value
+  is an intentional structural-snap exception to the playbook's 200–500ms standard-animation band
+  for modals and drawers.
+- `motion-reduce:transition-none` makes the shell width change discrete under
+  `prefers-reduced-motion`; it does not animate. The existing session-column reduced-motion rule
+  likewise removes its transform and opacity transitions.
 
 ## Repo conventions to follow
 
@@ -69,9 +71,14 @@ Current code (`src/renderer/src/components/WindowSideBar.vue:5`):
 
 - **Mechanical**: `pnpm exec vitest run test/renderer/components/WindowSideBar.test.ts` (50 tests)
   must pass — collapse/expand behavior is covered there.
-- **Feel check**: collapse/expand the sidebar repeatedly:
-  - Record a DevTools Performance trace while repeatedly toggling the sidebar: layout work stays
-    within each ~140ms transition window, frames remain responsive, and no visible jank occurs.
-  - With `prefers-reduced-motion: reduce`, the width and session-column state change instantly.
-- **Done when**: collapse feels responsive (not laggy), and DevTools Performance shows the width
-  layout work confined to a single ~140ms window per toggle.
+- **Performance trace**: record five collapse/expand toggles in DevTools Performance:
+  - For each toggle, sidebar width changes begin and end within one ~140ms transition interval;
+    no second width-transition interval is recorded.
+  - The trace contains no main-thread long task (over 50ms) and no frame longer than 16.7ms during
+    each transition interval.
+  - Layout invalidation is limited to the expected sidebar/chat geometry; there is no additional
+    layout shift or repeated reflow after the transition has ended.
+  - With `prefers-reduced-motion: reduce`, the width and session-column state each change
+    discretely, with no transition interval recorded.
+- **Done when**: all five traced toggles meet the interval, frame, long-task, and post-transition
+  layout criteria above.

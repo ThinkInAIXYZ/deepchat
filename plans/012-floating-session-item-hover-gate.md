@@ -35,8 +35,10 @@ Current code (`src/renderer/floating/components/FloatingSessionItem.vue:116-138`
 
 ## Target
 
-Tokenize the curves and confine the positional hover to fine pointers. Keep color/border feedback
-for all input types (playbook §6: keep opacity/color, drop movement on touch):
+Tokenize the 140ms transform duration and all curves, and confine positional hover to fine
+pointers. The three 180ms color/border/shadow durations are intentional local exceptions: there is
+no separate shared 180ms duration token, and this plan preserves their existing timing. Keep
+color/border feedback for all input types (playbook §6: keep opacity/color, drop movement on touch):
 
 ```css
 .session-card {
@@ -66,8 +68,9 @@ for all input types (playbook §6: keep opacity/color, drop movement on touch):
 
 ## Steps
 
-1. `FloatingSessionItem.vue:122-126` — replace the four `140ms ease`/`180ms ease` values with the
-   tokenized ones above.
+1. `FloatingSessionItem.vue:122-126` — replace the transform's `140ms ease` with
+   `var(--dc-motion-fast) var(--dc-ease-out-soft)` and replace the three `ease` curves with
+   `var(--dc-ease-out-soft)`; retain their intentional 180ms duration literals.
 2. `FloatingSessionItem.vue:136-138` — wrap `.session-card:hover` in the
    `@media (hover: hover) and (pointer: fine)` block.
 
@@ -84,5 +87,6 @@ for all input types (playbook §6: keep opacity/color, drop movement on touch):
   - Emulated touch: tapping the card never lifts it; hover-style tap still shows color feedback.
   - Real mouse: card lifts 1px with the 140ms soft curve as before.
   - Toggle `prefers-reduced-motion: reduce` — lift effectively disappears (1ms transition).
-- **Done when**: no bare `ease` keyword remains in this style block; the intentional 180ms
-  border, background, and shadow feedback remains; and positional hover only exists for fine pointers.
+- **Done when**: no bare `ease` keyword remains in this style block; the three intentional 180ms
+  border, background, and shadow durations remain (or are replaced only by a newly approved shared
+  180ms token); and positional hover only exists for fine pointers.

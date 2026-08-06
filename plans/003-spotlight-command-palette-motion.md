@@ -100,8 +100,8 @@ opacity-only is the maximum acceptable value.
 
 - **Mechanical**: `pnpm exec vitest run test/renderer/components/spotlight` (if present) and
   `pnpm run typecheck` pass; `pnpm exec oxfmt --check` clean.
-- **Feel check**: trigger spotlight via its keyboard shortcut:
-  - The overlay is fully visible within 80ms; no perceptible lag, no panel drift.
-  - Backdrop and panel appear simultaneously (no two-phase feel).
+- **Feel check**: trigger spotlight with its keyboard shortcut (for example, `⌘K`):
+  - From keydown, both the backdrop and panel are visibly present within 80ms; no panel drift.
+  - Backdrop and panel become visible in the same 80ms interval (no two-phase entry).
   - Toggle `prefers-reduced-motion: reduce` — instant show/hide, no fade.
 - **Done when**: open/close feels instant and the panel never translates or scales.

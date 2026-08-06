@@ -4,7 +4,7 @@
 - **Commit**: aefcb11cd
 - **Severity**: HIGH
 - **Category**: Physicality & origin
-- **Estimated scope**: 1 shared dc-ui stylesheet, no logic changes
+- **Estimated scope**: 3 selectors in `src/dc-ui/styles/motion.css`; shadcn primitives are verification-only
 
 ## Problem
 
@@ -16,8 +16,9 @@ Playbook: popovers/dropdowns/tooltips scale from their trigger, not center.
 
 ## Target
 
-Apply the Reka transform-origin variables through the shared dc-ui stylesheet. The selectors target
-the slots rendered by the unmodified shadcn primitives:
+Add only the following three selectors to `src/dc-ui/styles/motion.css`. They target the
+`data-slot` attributes emitted by the existing shadcn primitives; this plan does not change those
+primitives:
 
 ```css
 [data-slot='tooltip-content'] {
@@ -41,9 +42,11 @@ the slots rendered by the unmodified shadcn primitives:
 
 ## Steps
 
-1. Add the three Reka transform-origin selectors to `src/dc-ui/styles/motion.css`.
-2. Import that stylesheet from the renderer and browser-overlay entries.
-3. Verify the existing tooltip, select, and context-menu content retains its respective `data-slot`.
+1. Add the three Reka transform-origin selectors to `src/dc-ui/styles/motion.css` only.
+2. Verify (without editing) that the existing renderer and browser-overlay entries import
+   `motion.css`.
+3. Verify (without editing) that the existing tooltip, select, and context-menu primitives retain
+   their respective `data-slot` attributes.
 
 ## Boundaries
 
