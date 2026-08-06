@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url'
 
 const DEFAULT_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
+const MAX_PROVIDER_DB_PAYLOAD_BYTES = 10 * 1024 * 1024
 
 const log = (...args) => console.log('[fetch-provider-db]', ...args)
 const warn = (...args) => console.warn('[fetch-provider-db]', ...args)
@@ -267,8 +268,10 @@ async function main() {
     process.exit(1)
   }
 
-  if (text.length > 5 * 1024 * 1024) {
-    error('Downloaded file too large (>5MB). Aborting.')
+  if (Buffer.byteLength(text, 'utf8') > MAX_PROVIDER_DB_PAYLOAD_BYTES) {
+    error(
+      `Downloaded file exceeds ${MAX_PROVIDER_DB_PAYLOAD_BYTES / (1024 * 1024)} MiB limit. Aborting.`
+    )
     if (!fs.existsSync(outFile)) process.exit(1)
     return
   }

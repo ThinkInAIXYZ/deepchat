@@ -11,6 +11,7 @@ import { resolveProviderId } from './providerId'
 
 const DEFAULT_PROVIDER_DB_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
+const MAX_PROVIDER_DB_PAYLOAD_BYTES = 10 * 1024 * 1024
 
 type MetaFile = {
   sourceUrl: string
@@ -279,8 +280,7 @@ export class ProviderDbLoader {
       }
 
       const text = await res.text()
-      // Size guard (≈ 5MB)
-      if (text.length > 5 * 1024 * 1024) {
+      if (Buffer.byteLength(text, 'utf8') > MAX_PROVIDER_DB_PAYLOAD_BYTES) {
         const meta = this.createAttemptMeta(prevMeta, url, now)
         if (meta) this.writeMeta(meta)
         return this.createResult('error', meta, 'Provider DB payload exceeds size limit')
