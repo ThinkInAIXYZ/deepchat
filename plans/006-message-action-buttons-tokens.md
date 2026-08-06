@@ -40,22 +40,23 @@ leave-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var
   /* 控制离场的属性过渡（和 template 中的 leave-* class 一起工作） */
   transition:
     opacity 0.3s ease,
-    transform 0.3s ease;
+    translate 0.3s ease;
 }
 ```
 
 ## Target
 
-Only `opacity` and `transform` animate, using tokens everywhere:
+Only `opacity` and native `translate` animate for enter/leave, using tokens everywhere. The list
+move transition retains `transform`.
 
 Template (lines 5 and 8):
 
 ```html
-enter-active-class="transition-[opacity,transform] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+enter-active-class="transition-[opacity,translate] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
 ```
 
 ```html
-leave-active-class="transition-[opacity,transform] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+leave-active-class="transition-[opacity,translate] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
 ```
 
 Scoped CSS:
@@ -76,7 +77,7 @@ Scoped CSS:
   /* 控制离场的属性过渡（和 template 中的 leave-* class 一起工作） */
   transition:
     opacity var(--dc-motion-default) var(--dc-ease-out-express),
-    transform var(--dc-motion-default) var(--dc-ease-out-express);
+    translate var(--dc-motion-default) var(--dc-ease-out-express);
 }
 ```
 
@@ -85,20 +86,21 @@ Note: the enter/leave already used `--dc-motion-default` (220ms) — that stays.
 
 ## Repo conventions to follow
 
-- Token arbitrary-value syntax exemplar (same repo):
-  `src/renderer/src/components/WindowSideBar.vue:142`
-  `transition-[opacity,transform] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]`.
+- Token arbitrary-value syntax follows the existing Tailwind v4 individual transform-property
+  pattern: `transition-[opacity,translate] duration-[var(--dc-motion-default)]
+  ease-[var(--dc-ease-out-express)]`.
 - The JS before-leave measurement technique (lines 73-93, writing `--leave-*` CSS vars) is
   deliberate and commented — do not touch it.
 
 ## Steps
 
-1. `MessageActionButtons.vue:5` — `transition-all` → `transition-[opacity,transform]`.
+1. `MessageActionButtons.vue:5` — `transition-all` → `transition-[opacity,translate]`.
 2. `MessageActionButtons.vue:8` — same replacement.
-3. `MessageActionButtons.vue:98` — `transition: transform 0.3s ease;` →
-   `transition: transform var(--dc-motion-default) var(--dc-ease-out-express);`.
+3. `MessageActionButtons.vue:98` — retain `transition: transform ...` for the Vue transition-group
+   move class.
 4. `MessageActionButtons.vue:110-112` — `opacity 0.3s ease, transform 0.3s ease` →
-   `opacity var(--dc-motion-default) var(--dc-ease-out-express), transform var(--dc-motion-default) var(--dc-ease-out-express)`.
+   `opacity var(--dc-motion-default) var(--dc-ease-out-express), translate
+   var(--dc-motion-default) var(--dc-ease-out-express)`.
 
 ## Boundaries
 
@@ -111,8 +113,9 @@ Note: the enter/leave already used `--dc-motion-default` (220ms) — that stays.
 - **Mechanical**: `pnpm exec vitest run test/renderer/components/message/MessageActionButtons.test.ts`
   must pass; `pnpm exec oxfmt --check` clean.
 - **Feel check**: hover a message and move the mouse across several messages rapidly:
-  - Buttons appear/disappear in 220ms with a clean ease-out; no property animates except
-    opacity/transform (check the Elements → Computed → "transition" on the leaving element).
+  - Buttons appear/disappear in 220ms with a clean ease-out; only opacity/translate animate on
+    enter/leave (check the Elements → Computed → "transition" on the leaving element).
   - Rapid hover switching never shows a slow 300ms drift or shadow/width artifacts.
 - **Done when**: the action stack pops in/out at 220ms with express easing and only
-  opacity+transform in the transition list.
+  opacity+translate in the enter/leave transition list; the list move transition remains
+  transform-based.
