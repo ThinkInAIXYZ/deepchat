@@ -84,7 +84,7 @@ describe('imageCache', () => {
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { 'content-type': 'image/avif' },
-      data: Buffer.from('image')
+      data: Buffer.from('0000001866747970617669660000000061766966', 'hex')
     })
 
     const cached = await cacheImage('http://127.0.0.1/generated.avif', {
@@ -104,7 +104,7 @@ describe('imageCache', () => {
       fs.readFile(
         path.join(electronMock.userDataPath, 'images', cached.slice('imgcache://'.length))
       )
-    ).resolves.toEqual(Buffer.from('image'))
+    ).resolves.toEqual(Buffer.from('0000001866747970617669660000000061766966', 'hex'))
   })
 
   it('does not cache non-image HTTP responses', async () => {
@@ -112,6 +112,18 @@ describe('imageCache', () => {
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { 'content-type': 'text/html' },
+      data: Buffer.from('<html></html>')
+    })
+
+    await expect(cacheImage(sourceUrl, { allowPrivateNetwork: true })).resolves.toBe(sourceUrl)
+    await expect(fs.readdir(path.join(electronMock.userDataPath, 'images'))).resolves.toEqual([])
+  })
+
+  it('does not trust an image MIME type when the response bytes are not an image', async () => {
+    const sourceUrl = 'http://127.0.0.1/generated.png'
+    axiosMock.mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'image/png' },
       data: Buffer.from('<html></html>')
     })
 
