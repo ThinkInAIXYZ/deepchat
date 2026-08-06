@@ -559,5 +559,21 @@
       "amendRetryable": "Suntingan gagal. Memori asal telah dipulihkan, sila cuba lagi.",
       "amendRestoreFailed": "Suntingan gagal dan memori asal tidak dapat dipulihkan."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Buka Agent anak" },
+    "activityTitle": "Aktiviti Agent",
+    "proactive": {
+      "title": "Kerjasama proaktif",
+      "description": "Membolehkan Agent induk mewakilkan tugas apabila kerja bebas atau selari jelas membantu. Mungkin menggunakan lebih banyak masa, token dan sumber.",
+      "reasons": {
+        "session_unavailable": "Sesi ini tidak lagi tersedia.",
+        "agent_unavailable": "Agent yang dipilih tidak tersedia.",
+        "deepchat_agent_required": "Kerjasama proaktif memerlukan DeepChat Agent.",
+        "regular_parent_required": "Kerjasama proaktif tidak tersedia dalam sesi anak.",
+        "agent_policy_unavailable": "Dasar kerjasama tidak dapat dimuatkan.",
+        "subagents_disabled": "Dayakan Subagents untuk Agent ini bagi menggunakan kerjasama proaktif."
+      }
+    }
   }
 }

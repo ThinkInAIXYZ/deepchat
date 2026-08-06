@@ -255,7 +255,11 @@ export class ProviderPermissionCoordinator {
     if (instance) {
       this.removePending(instance, input)
       if (!instance.getActiveGeneration()) {
-        this.deps.runLifecycle.transitionCurrentStatus(input.sessionId, 'error')
+        this.deps.runLifecycle.transitionCurrentStatus(
+          input.sessionId,
+          'error',
+          buildUsageFromMetadata(terminalMetadata)
+        )
       }
     }
   }

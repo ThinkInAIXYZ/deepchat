@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 
 import type { Tool } from '@shared/types/mcp'
+import { validateAndCloneJsonSchema } from '@/mcp/schemaValidation'
 
 const TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/
 
@@ -11,9 +12,6 @@ export interface PluginToolCatalog {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const cloneJsonRecord = (value: Record<string, unknown>): Record<string, unknown> =>
-  JSON.parse(JSON.stringify(value)) as Record<string, unknown>
 
 const deepFreeze = <T>(value: T): T => {
   if (typeof value !== 'object' || value === null || Object.isFrozen(value)) {
@@ -27,6 +25,19 @@ const deepFreeze = <T>(value: T): T => {
 
 const catalogError = (source: string, detail: string): Error =>
   new Error(`Invalid plugin MCP tool catalog "${source}": ${detail}`)
+
+const validateCatalogInputSchema = (
+  inputSchema: Record<string, unknown>,
+  source: string,
+  location: string
+): Record<string, unknown> => {
+  try {
+    return validateAndCloneJsonSchema(inputSchema, `${location}.input_schema`)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw catalogError(source, detail)
+  }
+}
 
 export const parsePluginToolCatalog = (
   input: unknown,
@@ -100,7 +111,7 @@ export const parsePluginToolCatalog = (
     return {
       name,
       description,
-      inputSchema: cloneJsonRecord(inputSchema),
+      inputSchema: validateCatalogInputSchema(inputSchema, source, location),
       annotations: {
         readOnlyHint: readOnly,
         destructiveHint: destructive,

@@ -559,5 +559,21 @@
       "amendRetryable": "編集に失敗しました。元のメモリは復元されたので、もう一度お試しください。",
       "amendRestoreFailed": "編集に失敗し、元のメモリも復元できませんでした。"
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "子 Agent を開く" },
+    "activityTitle": "Agent のアクティビティ",
+    "proactive": {
+      "title": "プロアクティブ連携",
+      "description": "独立または並列の作業に明確な効果がある場合、親 Agent が自律的に委任できます。時間、Token、システム資源の使用量が増える場合があります。",
+      "reasons": {
+        "session_unavailable": "このセッションは利用できなくなりました。",
+        "agent_unavailable": "選択した Agent は利用できません。",
+        "deepchat_agent_required": "プロアクティブ連携には DeepChat Agent が必要です。",
+        "regular_parent_required": "子セッションではプロアクティブ連携を利用できません。",
+        "agent_policy_unavailable": "連携ポリシーを読み込めませんでした。",
+        "subagents_disabled": "プロアクティブ連携を使用するには、この Agent の Subagent を有効にしてください。"
+      }
+    }
   }
 }

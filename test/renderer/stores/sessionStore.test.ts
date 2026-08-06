@@ -1301,6 +1301,35 @@ describe('sessionStore streaming cleanup', () => {
     )
   })
 
+  it('keeps a confirmed proactive policy across active projections and stale reads', async () => {
+    const { store } = await setupStore()
+    const current = createSession({
+      id: 'session-workflow',
+      orchestrationPolicy: 'explicit',
+      revision: 3,
+      updatedAt: 3
+    })
+    store.sessions.value = [current]
+    await store.applyBootstrapShell({
+      activeSessionId: 'session-workflow',
+      activeSession: current
+    })
+    store.applyRestoredSession(current)
+
+    store.applyConfirmedOrchestrationPolicy('session-workflow', 'proactive')
+    store.applyRestoredSession(
+      createSession({
+        id: 'session-workflow',
+        orchestrationPolicy: 'explicit',
+        revision: 3,
+        updatedAt: 3
+      })
+    )
+
+    expect(store.sessions.value[0]?.orchestrationPolicy).toBe('proactive')
+    expect(store.activeSession.value?.orchestrationPolicy).toBe('proactive')
+  })
+
   it('clears streaming when bootstrap shell switches the active session', async () => {
     const { store, clearStreamingState } = await setupStore()
     store.activeSessionId.value = 'session-a'

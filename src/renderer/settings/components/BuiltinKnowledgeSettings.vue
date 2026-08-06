@@ -16,13 +16,6 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <InlineOperationFeedback
-          v-if="knowledgeOperation.source.value === 'panel'"
-          :snapshot="knowledgeOperation.snapshot.value"
-          :retry-label="t('common.retry')"
-          @click.stop
-          @retry="knowledgeOperation.retry"
-        />
         <!-- MCP开关 -->
         <TooltipProvider>
           <Tooltip :delay-duration="200">
@@ -114,7 +107,7 @@
           </div>
 
           <div class="flex justify-center">
-            <Button
+            <DcButton
               type="button"
               :disabled="operationPending"
               size="sm"
@@ -124,51 +117,26 @@
             >
               <Icon icon="lucide:plus" class="w-8 h-4" />
               {{ t('settings.knowledgeBase.addBuiltinKnowledgeConfig') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </CollapsibleContent>
     </Collapsible>
-    <AlertDialog :open="removeDialogOpen" @update:open="handleRemoveDialogOpenChange">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{{
-            t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmTitle', {
-              name: removeTargetDescription
-            })
-          }}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmDesc') }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <InlineOperationFeedback
-          v-if="knowledgeOperation.source.value === 'confirmation'"
-          :snapshot="knowledgeOperation.snapshot.value"
-          :retry-label="t('common.retry')"
-          @retry="knowledgeOperation.retry"
-        />
-        <AlertDialogFooter>
-          <AlertDialogCancel
-            data-testid="builtin-knowledge-remove-cancel"
-            :disabled="operationPending"
-          >
-            {{ t('common.cancel') }}
-          </AlertDialogCancel>
-          <AlertDialogAsyncAction
-            data-testid="builtin-knowledge-remove-confirm"
-            :disabled="operationPending"
-            @click="removeBuiltinConfig"
-          >
-            <Spinner
-              v-if="operationPending"
-              data-testid="builtin-knowledge-remove-spinner"
-              data-icon="inline-start"
-            />
-            {{ t('common.confirm') }}
-          </AlertDialogAsyncAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DcConfirmDialog
+      :open="removeDialogOpen"
+      :title="
+        t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmTitle', {
+          name: removeTargetDescription
+        })
+      "
+      :description="t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmDesc')"
+      :busy="operationPending"
+      :confirm-attrs="{ 'data-testid': 'builtin-knowledge-remove-confirm' }"
+      :cancel-attrs="{ 'data-testid': 'builtin-knowledge-remove-cancel' }"
+      busy-data-testid="builtin-knowledge-remove-spinner"
+      @update:open="handleRemoveDialogOpenChange"
+      @confirm="removeBuiltinConfig"
+    />
     <Dialog :open="isBuiltinConfigDialogOpen" @update:open="handleDialogOpenChange">
       <DialogContent>
         <DialogHeader>
@@ -222,7 +190,7 @@
                 </div>
                 <Popover v-model:open="embeddingModelSelectOpen">
                   <PopoverTrigger as-child>
-                    <Button
+                    <DcButton
                       id="edit-builtin-config-model"
                       variant="outline"
                       class="w-full justify-between"
@@ -238,14 +206,14 @@
                           selectEmbeddingModel?.name || t('settings.common.selectModel')
                         }}</span>
                       </div>
-                      <Button
+                      <DcButton
                         size="sm"
                         variant="ghost"
                         class="text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center"
                       >
                         <Icon icon="lucide:chevron-down" class="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </Button>
+                      </DcButton>
+                    </DcButton>
                   </PopoverTrigger>
                   <PopoverContent class="w-80 p-0">
                     <ModelSelect
@@ -264,7 +232,7 @@
                 </div>
                 <Popover v-model:open="rerankModelSelectOpen">
                   <PopoverTrigger as-child>
-                    <Button
+                    <DcButton
                       id="edit-builtin-config-model"
                       variant="outline"
                       class="w-full justify-between"
@@ -279,7 +247,7 @@
                           {{ selectRerankModel?.name || t('settings.common.selectModel') }}
                         </span>
                       </div>
-                      <Button
+                      <DcButton
                         size="sm"
                         variant="ghost"
                         v-if="selectRerankModel"
@@ -287,16 +255,16 @@
                         @click.stop="clearRerankModel"
                       >
                         <Icon icon="lucide:x" class="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                      <Button
+                      </DcButton>
+                      <DcButton
                         size="sm"
                         variant="ghost"
                         v-else
                         class="text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center"
                       >
                         <Icon icon="lucide:chevron-down" class="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </Button>
+                      </DcButton>
+                    </DcButton>
                   </PopoverTrigger>
                   <PopoverContent class="w-80 p-0">
                     <ModelSelect
@@ -440,14 +408,14 @@
                         ></Input>
                         <Popover v-model:open="separatorsPopoverOpen">
                           <PopoverTrigger as-child>
-                            <Button
+                            <DcButton
                               size="sm"
                               variant="ghost"
                               class="whitespace-nowrap"
-                              :title="t('settings.knowledgeBase.separatorsPreset')"
+                              :tooltip="t('settings.knowledgeBase.separatorsPreset')"
                             >
                               <Icon icon="lucide:book-marked" class="w-4 h-4 text-primary" />
-                            </Button>
+                            </DcButton>
                           </PopoverTrigger>
                           <PopoverContent class="w-40 p-2">
                             <div class="space-y-2">
@@ -455,7 +423,7 @@
                                 {{ t('settings.knowledgeBase.selectLanguage') }}
                               </div>
                               <div class="max-h-48 overflow-y-auto space-y-1">
-                                <Button
+                                <DcButton
                                   v-for="language in supportedLanguages"
                                   :key="language"
                                   variant="ghost"
@@ -464,7 +432,7 @@
                                   @click="handleLanguageSelect(language)"
                                 >
                                   {{ language }}
-                                </Button>
+                                </DcButton>
                               </div>
                             </div>
                           </PopoverContent>
@@ -579,28 +547,17 @@
         </ScrollArea>
         <DialogFooter>
           <div class="mr-auto min-w-0 space-y-1">
-            <p v-if="dialogValidationError" role="alert" class="text-xs text-destructive">
-              {{ dialogValidationError }}
-            </p>
-            <InlineOperationFeedback
-              v-if="knowledgeOperation.source.value === 'dialog'"
-              :snapshot="knowledgeOperation.snapshot.value"
-              :retry-label="t('common.retry')"
-              @retry="knowledgeOperation.retry"
-            />
+            <DcInlineError v-if="dialogValidationError" :error="dialogValidationError" />
+            <DcInlineError v-if="operationError" :error="operationError" />
           </div>
-          <Button variant="outline" :disabled="operationPending" @click="closeBuiltinConfigDialog">
-            {{ t('common.cancel') }}
-          </Button>
-          <Button
-            type="button"
-            :disabled="!isEditingBuiltinConfigValid || operationPending"
-            @click="saveBuiltinConfig"
-          >
-            <Spinner v-if="operationPending" data-icon="inline-start" />{{
-              isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig')
-            }}
-          </Button>
+          <DcFormActions
+            :submit-status="saveStatus"
+            :submit-disabled="!isEditingBuiltinConfigValid || operationPending"
+            :cancel-disabled="operationPending"
+            :submit-label="isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig')"
+            @cancel="closeBuiltinConfigDialog"
+            @submit="saveBuiltinConfig"
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -611,7 +568,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
 import {
@@ -623,16 +580,10 @@ import {
   DialogDescription
 } from '@shadcn/components/ui/dialog'
 import { Slider } from '@shadcn/components/ui/slider'
-import {
-  AlertDialog,
-  AlertDialogAsyncAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcFormActions } from '@dc-ui/components/form-actions'
+import { useDcFormSubmit } from '@dc-ui/components/form'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
@@ -650,9 +601,7 @@ import {
 } from '@shadcn/components/ui/accordion'
 import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Spinner } from '@shadcn/components/ui/spinner'
 import { useMcpStore } from '@/stores/mcp'
 import { ModelType } from '@shared/model'
 import { useThemeStore } from '@/stores/theme'
@@ -693,6 +642,8 @@ const isBuiltinConfigPanelOpen = ref(false)
 const isEditing = ref(false)
 const panelError = ref<{ title: string; description?: string } | null>(null)
 const dialogValidationError = ref<string | null>(null)
+const operationError = ref<string | null>(null)
+const { status: saveStatus, run: runSave } = useDcFormSubmit()
 const separators = ref('')
 const supportedLanguages = ref<string[]>([])
 
@@ -775,6 +726,7 @@ function openAddConfig() {
   selectRerankModel.value = null
   autoDetectDimensionsSwitch.value = true
   dialogValidationError.value = null
+  operationError.value = null
   dialogInitialSignature.value = editingSignature.value
   isBuiltinConfigDialogOpen.value = true
 }
@@ -853,6 +805,7 @@ const editBuiltinConfig = (index: number) => {
   fragmentsNumber.value = [editingBuiltinConfig.value.fragmentsNumber]
   autoDetectDimensionsSwitch.value = editingBuiltinConfig.value.dimensions === undefined
   dialogValidationError.value = null
+  operationError.value = null
   dialogInitialSignature.value = editingSignature.value
   isBuiltinConfigDialogOpen.value = true
 }
@@ -877,15 +830,13 @@ const resetBuiltinConfigDialog = () => {
   selectRerankModel.value = null
   autoDetectDimensionsSwitch.value = true
   dialogValidationError.value = null
+  operationError.value = null
   dialogInitialSignature.value = editingSignature.value
 }
 
 // 关闭编辑对话框
 const closeBuiltinConfigDialog = () => {
   if (operationPending.value) return
-  if (knowledgeOperation.source.value === 'dialog') {
-    knowledgeOperation.clear()
-  }
   resetBuiltinConfigDialog()
 }
 
@@ -906,6 +857,7 @@ const handleSetting = (config: BuiltinKnowledgeConfig) => {
 const saveBuiltinConfig = async () => {
   if (operationPending.value || !isEditingBuiltinConfigValid.value) return
   dialogValidationError.value = null
+  operationError.value = null
   const draft = cloneBuiltinConfig(editingBuiltinConfig.value)
   draft.fragmentsNumber = fragmentsNumber.value[0]
   // 转换separators格式
@@ -931,41 +883,52 @@ const saveBuiltinConfig = async () => {
     nextConfigs.push(draft)
   }
 
-  let failureTitle = t('common.error.operationFailed')
-  let dimensionsResolved = !autoDetectDimensionsSwitch.value
-  await knowledgeOperation.run({
-    code: 'settings.knowledgeBase.builtin.save',
-    source: 'dialog',
-    label: t('common.saving'),
-    perform: async () => {
-      failureTitle = t('common.error.operationFailed')
-      if (!dimensionsResolved) {
-        const result = await providerClient.getEmbeddingDimensions(
-          draft.embedding.providerId,
-          draft.embedding.modelId
-        )
-        if (
-          result.errorMsg ||
-          !Number.isFinite(result.data.dimensions) ||
-          result.data.dimensions <= 0
-        ) {
-          failureTitle = t('settings.knowledgeBase.autoDetectDimensionsError')
-          return false
+  try {
+    await runSave(async () => {
+      let failureTitle = t('common.error.operationFailed')
+      let dimensionsResolved = !autoDetectDimensionsSwitch.value
+      const saved = await knowledgeOperation.run({
+        code: 'settings.knowledgeBase.builtin.save',
+        source: 'dialog',
+        label: t('common.saving'),
+        perform: async () => {
+          failureTitle = t('common.error.operationFailed')
+          if (!dimensionsResolved) {
+            const result = await providerClient.getEmbeddingDimensions(
+              draft.embedding.providerId,
+              draft.embedding.modelId
+            )
+            if (
+              result.errorMsg ||
+              !Number.isFinite(result.data.dimensions) ||
+              result.data.dimensions <= 0
+            ) {
+              failureTitle = t('settings.knowledgeBase.autoDetectDimensionsError')
+              return false
+            }
+            draft.dimensions = result.data.dimensions
+            draft.normalized = result.data.normalized
+            dimensionsResolved = true
+          }
+          await configClient.setKnowledgeConfigs(nextConfigs)
+          return true
+        },
+        failure: () => ({ title: failureTitle }),
+        commit: () => {
+          builtinConfigs.value = nextConfigs.map(cloneBuiltinConfig)
+          panelError.value = null
+          resetBuiltinConfigDialog()
         }
-        draft.dimensions = result.data.dimensions
-        draft.normalized = result.data.normalized
-        dimensionsResolved = true
+      })
+      if (!saved) {
+        throw new Error('save configuration rejected')
       }
-      await configClient.setKnowledgeConfigs(nextConfigs)
-      return true
-    },
-    failure: () => ({ title: failureTitle }),
-    commit: () => {
-      builtinConfigs.value = nextConfigs.map(cloneBuiltinConfig)
-      panelError.value = null
-      resetBuiltinConfigDialog()
-    }
-  })
+    })
+  } catch (error) {
+    console.error('[BuiltinKnowledgeSettings] save configuration failed', error)
+    operationError.value =
+      knowledgeOperation.lastError.value?.title ?? t('common.error.operationFailed')
+  }
 }
 
 const requestRemoveBuiltinConfig = (config: BuiltinKnowledgeConfig) => {
@@ -976,9 +939,6 @@ const requestRemoveBuiltinConfig = (config: BuiltinKnowledgeConfig) => {
 const handleRemoveDialogOpenChange = (open: boolean) => {
   if (open || operationPending.value || removeRequest.value.status !== 'confirming') return
   removeRequest.value = { status: 'idle' }
-  if (knowledgeOperation.source.value === 'confirmation') {
-    knowledgeOperation.clear()
-  }
 }
 
 // 移除配置
@@ -1168,23 +1128,17 @@ const stopLeaveRiskSync = watch(
   },
   { immediate: true, flush: 'sync' }
 )
-const stopStaleFeedbackSync = watch(
+const stopValidationSync = watch(
   editingSignature,
   () => {
     dialogValidationError.value = null
-    if (
-      knowledgeOperation.source.value === 'dialog' &&
-      knowledgeOperation.snapshot.value.status === 'error'
-    ) {
-      knowledgeOperation.clear()
-    }
   },
   { flush: 'sync' }
 )
 
 onBeforeUnmount(() => {
   stopLeaveRiskSync()
-  stopStaleFeedbackSync()
+  stopValidationSync()
   leaveGuardLease.release()
 })
 </script>

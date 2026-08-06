@@ -32,20 +32,20 @@
         >
           <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex flex-wrap items-center gap-1.5">
-              <Badge :variant="isActive(version) ? 'default' : 'outline'" class="text-[10px]">
+              <DcBadge :variant="isActive(version) ? 'default' : 'outline'" class="text-[10px]">
                 {{
                   isActive(version)
                     ? t('settings.deepchatAgents.memoryManager.personaActive')
                     : formatRelativeTime(version.createdAt, locale)
                 }}
-              </Badge>
-              <Badge v-if="version.isAnchor" variant="secondary" class="gap-1 text-[10px]">
+              </DcBadge>
+              <DcBadge v-if="version.isAnchor" variant="secondary" class="gap-1 text-[10px]">
                 <Icon icon="lucide:lock" class="h-3 w-3" />
                 {{ t('settings.deepchatAgents.memoryManager.anchored') }}
-              </Badge>
+              </DcBadge>
             </div>
             <div class="flex flex-wrap items-center gap-1">
-              <Button
+              <DcButton
                 variant="ghost"
                 size="sm"
                 class="h-8 text-xs"
@@ -61,8 +61,8 @@
                     ? t('settings.deepchatAgents.memoryManager.unanchor')
                     : t('settings.deepchatAgents.memoryManager.anchor')
                 }}
-              </Button>
-              <Button
+              </DcButton>
+              <DcButton
                 v-if="!isActive(version)"
                 variant="ghost"
                 size="sm"
@@ -73,7 +73,7 @@
               >
                 <Icon icon="lucide:rotate-ccw" class="mr-1.5 h-3.5 w-3.5" />
                 {{ t('settings.deepchatAgents.memoryManager.rollback') }}
-              </Button>
+              </DcButton>
             </div>
           </div>
           <p class="whitespace-pre-wrap wrap-break-word text-sm text-muted-foreground">
@@ -83,43 +83,24 @@
       </ol>
     </ScrollArea>
 
-    <AlertDialog :open="rollbackDialogOpen" @update:open="handleRollbackDialogOpenChange">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {{ t('settings.deepchatAgents.memoryManager.rollbackConfirmTitle') }}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('settings.deepchatAgents.memoryManager.rollbackConfirmBody') }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <MemoryInlineFeedback
-          v-if="rollbackFeedback"
-          :feedback="rollbackFeedback"
-          @clear="clearRollbackFeedback"
-        />
-        <AlertDialogFooter>
-          <AlertDialogCancel
-            data-testid="memory-persona-rollback-cancel"
-            :disabled="rollbackRequest.status === 'pending'"
-          >
-            {{ t('common.cancel') }}
-          </AlertDialogCancel>
-          <AlertDialogAsyncAction
-            data-testid="memory-persona-rollback-confirm"
-            :disabled="rollbackRequest.status === 'pending'"
-            @click="confirmRollback"
-          >
-            <Spinner
-              v-if="rollbackRequest.status === 'pending'"
-              data-testid="memory-persona-rollback-spinner"
-              class="mr-1.5 size-3.5"
-            />
-            {{ t('settings.deepchatAgents.memoryManager.rollback') }}
-          </AlertDialogAsyncAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DcConfirmDialog
+      :open="rollbackDialogOpen"
+      :title="t('settings.deepchatAgents.memoryManager.rollbackConfirmTitle')"
+      :description="t('settings.deepchatAgents.memoryManager.rollbackConfirmBody')"
+      :confirm-label="t('settings.deepchatAgents.memoryManager.rollback')"
+      :busy="rollbackRequest.status === 'pending'"
+      :confirm-attrs="{ 'data-testid': 'memory-persona-rollback-confirm' }"
+      :cancel-attrs="{ 'data-testid': 'memory-persona-rollback-cancel' }"
+      busy-data-testid="memory-persona-rollback-spinner"
+      @update:open="handleRollbackDialogOpenChange"
+      @confirm="confirmRollback"
+    >
+      <MemoryInlineFeedback
+        v-if="rollbackFeedback"
+        :feedback="rollbackFeedback"
+        @clear="clearRollbackFeedback"
+      />
+    </DcConfirmDialog>
   </section>
 </template>
 
@@ -127,20 +108,10 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import {
-  AlertDialog,
-  AlertDialogAsyncAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Spinner } from '@shadcn/components/ui/spinner'
 import { createMemoryClient } from '@api/MemoryClient'
 import type { MemoryItem } from '@shared/contracts/routes'
 import { formatRelativeTime } from './memoryRedesignUtils'

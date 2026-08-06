@@ -46,7 +46,7 @@
     </div>
 
     <div class="flex flex-wrap gap-2">
-      <Button
+      <DcButton
         v-if="status.authenticated"
         data-testid="grok-test-connection-button"
         variant="outline"
@@ -57,9 +57,9 @@
       >
         <Icon icon="lucide:check-check" class="h-4 w-4 text-muted-foreground" />
         {{ t('settings.provider.verifyKey') }}
-      </Button>
+      </DcButton>
 
-      <Button
+      <DcButton
         data-testid="grok-device-login-button"
         variant="default"
         size="sm"
@@ -70,9 +70,9 @@
         <Spinner v-if="isDeviceBusy" class="size-4" data-icon="inline-start" />
         <Icon v-else icon="lucide:smartphone" class="size-4" data-icon="inline-start" />
         {{ deviceButtonText }}
-      </Button>
+      </DcButton>
 
-      <Button
+      <DcButton
         v-if="isPending && verificationLink"
         data-testid="grok-open-verification-button"
         variant="outline"
@@ -82,9 +82,9 @@
       >
         <Icon icon="lucide:external-link" class="h-4 w-4" />
         {{ t('settings.provider.xaiGrokOpenVerification') }}
-      </Button>
+      </DcButton>
 
-      <Button
+      <DcButton
         v-if="isPending"
         data-testid="grok-cancel-login-button"
         variant="outline"
@@ -94,9 +94,9 @@
       >
         <Icon icon="lucide:x" class="h-4 w-4" />
         {{ t('settings.provider.xaiGrokCancel') }}
-      </Button>
+      </DcButton>
 
-      <Button
+      <DcButton
         v-if="status.authenticated"
         data-testid="grok-logout-button"
         variant="outline"
@@ -106,7 +106,7 @@
       >
         <Icon icon="lucide:unlink" class="h-4 w-4 text-destructive" />
         {{ t('settings.provider.xaiGrokSignOut') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div class="text-xs leading-5 text-muted-foreground">
@@ -119,7 +119,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { createOAuthClient } from '@api/OAuthClient'

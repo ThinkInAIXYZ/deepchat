@@ -326,7 +326,7 @@ async function setup(
     global: {
       stubs: {
         ScrollArea: passthrough('ScrollArea'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Badge: passthrough('Badge'),
         Card: passthrough('Card'),
         CardContent: passthrough('CardContent'),
@@ -567,6 +567,8 @@ describe('DashboardSettings', () => {
       'whitespace-normal'
     )
     expect(wrapper.find('[data-testid="usage-summary-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="usage-summary-panel"]').classes()).toContain('bg-card')
+    expect(wrapper.find('[data-testid="usage-summary-panel"]').classes()).not.toContain('bg-accent')
     expect(wrapper.find('[data-testid="summary-card-tokenUsage"]').html()).toContain('lg:border-l')
     expect(wrapper.find('[data-testid="nostalgia-details"]').html()).toContain('space-y-2')
     expect(wrapper.find('[data-testid="nostalgia-rotating-value"]').text()).toBe('17 days')

@@ -31,8 +31,8 @@
     "integrityDescriptor": "runtime/${target.platform}/${arch}/integrity.json",
     "adapterContract": {
       "hostBundleId": "com.wefonk.deepchat",
-      "driverVersion": "0.14.1",
-      "contractVersion": "0.2.0",
+      "driverVersion": "0.17.0",
+      "contractVersion": "0.6.0",
       "toolsListSchemaVersion": "1",
       "capabilityVersion": "1",
       "mcpProtocolVersion": "2025-06-18"
@@ -47,7 +47,7 @@
       "mode": "user-confirmed",
       "provider": "trycua",
       "strategy": "bundled-plugin-helper",
-      "minVersion": "0.14.1",
+      "minVersion": "0.17.0",
       "guideUrl": "https://cua.ai/docs/cua-driver/guide/getting-started/installation"
     }
   },
@@ -89,6 +89,7 @@
         "list_windows": "allow",
         "get_screen_size": "allow",
         "get_window_state": "allow",
+        "verify_state": "allow",
         "get_accessibility_tree": "allow",
         "get_desktop_state": "allow",
         "get_cursor_position": "allow",
@@ -102,9 +103,11 @@
         "start_session": "allow",
         "end_session": "allow",
         "debug_window_info": "deny",
+        "clipboard_read": "deny",
         "launch_app": "ask",
         "kill_app": "deny",
         "bring_to_front": "ask",
+        "set_window_frame": "ask",
         "click": "ask",
         "right_click": "ask",
         "double_click": "ask",
@@ -119,6 +122,8 @@
         "press_key": "ask",
         "hotkey": "ask",
         "set_value": "ask",
+        "invoke_menu": "ask",
+        "clipboard_write": "ask",
         "set_config": "ask",
         "start_recording": "ask",
         "stop_recording": "ask",

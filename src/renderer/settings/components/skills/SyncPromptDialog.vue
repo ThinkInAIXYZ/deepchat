@@ -48,13 +48,13 @@
       </div>
 
       <DialogFooter class="gap-2 sm:gap-0">
-        <Button variant="ghost" @click="handleSkip">
+        <DcButton variant="ghost" @click="handleSkip">
           {{ t('settings.skills.syncPrompt.skip') }}
-        </Button>
-        <Button :disabled="selectedTools.size === 0" @click="handleImport">
+        </DcButton>
+        <DcButton :disabled="selectedTools.size === 0" @click="handleImport">
           <Icon icon="lucide:download" class="w-4 h-4 mr-1" />
           {{ t('settings.skills.syncPrompt.importSelected') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -72,7 +72,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { createSkillSyncClient } from '@api/SkillSyncClient'
 import type { NewDiscovery } from '@shared/types/skillSync'

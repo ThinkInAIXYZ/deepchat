@@ -559,5 +559,21 @@
       "amendRetryable": "修改失敗，原記憶已還原。請保留輸入後重試。",
       "amendRestoreFailed": "修改失敗，且原記憶未能還原。請手動重新記住這段內容。"
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "開啟子對話" },
+    "activityTitle": "Agent 活動",
+    "proactive": {
+      "title": "主動協作",
+      "description": "允許主 Agent 在獨立或並行工作明顯有幫助時主動委派；可能使用更多時間、Token 與系統資源。",
+      "reasons": {
+        "session_unavailable": "目前對話已不可用。",
+        "agent_unavailable": "目前選取的 Agent 不可用。",
+        "deepchat_agent_required": "主動協作需要使用 DeepChat Agent。",
+        "regular_parent_required": "子對話中不能啟用主動協作。",
+        "agent_policy_unavailable": "無法載入協作策略。",
+        "subagents_disabled": "請先為此 Agent 啟用 Subagent，再使用主動協作。"
+      }
+    }
   }
 }

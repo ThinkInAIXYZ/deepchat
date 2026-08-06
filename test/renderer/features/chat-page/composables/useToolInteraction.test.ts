@@ -1,4 +1,4 @@
-import { computed, effectScope, ref } from 'vue'
+import { effectScope, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToolInteraction } from '@/features/chat-page/composables/useToolInteraction'
 import { createDeferred } from '../../../utils/deferred'
@@ -13,7 +13,6 @@ function createAssistantMessage(id: string, blocks: unknown[]) {
 
 function createHarness(messages: Array<Record<string, unknown>>) {
   const sessionId = ref('s1')
-  const isReadOnlySession = computed(() => false)
   const messageStore = {
     messages,
     getAssistantMessageBlocks: vi.fn((message: { content: string }) => JSON.parse(message.content))
@@ -35,7 +34,6 @@ function createHarness(messages: Array<Record<string, unknown>>) {
     toolInteraction = useToolInteraction({
       sessionId: () => sessionId.value,
       messageStore: messageStore as any,
-      isReadOnlySession,
       chatClient,
       loadMessagesForSession,
       applyRestoredSessionSummary,

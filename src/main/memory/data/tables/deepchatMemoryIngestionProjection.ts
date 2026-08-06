@@ -11,6 +11,7 @@ import {
   tapeMessageRank,
   tapeToolRank
 } from '@/tape/domain/effectiveSemantics'
+import { isRetiredWorkflowResultMessageMetadata } from '@shared/orchestration/retiredWorkflowData'
 
 export const DEEPCHAT_MEMORY_INGESTION_PROJECTION_VERSION = 1
 
@@ -170,7 +171,11 @@ export class DeepChatMemoryIngestionProjectionTable
 
     if (row.kind === 'message') {
       const record = tapeEntryToMessageRecord(row)
-      if (record && tapeMessageRank(record, false) > 0) {
+      if (
+        record &&
+        tapeMessageRank(record, false) > 0 &&
+        !isRetiredWorkflowResultMessageMetadata(record.metadata)
+      ) {
         this.upsertMessage({
           sessionId: row.session_id,
           messageId: record.id,

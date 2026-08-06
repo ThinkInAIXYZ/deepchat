@@ -559,5 +559,21 @@
       "amendRetryable": "수정에 실패했습니다. 원래 기억은 복원되었으니 다시 시도하세요.",
       "amendRestoreFailed": "수정에 실패했고 원래 기억도 복원하지 못했습니다."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "하위 Agent 열기" },
+    "activityTitle": "Agent 활동",
+    "proactive": {
+      "title": "능동형 협업",
+      "description": "독립 또는 병렬 작업이 분명히 도움이 될 때 상위 Agent가 작업을 위임할 수 있습니다. 시간, Token, 시스템 리소스를 더 사용할 수 있습니다.",
+      "reasons": {
+        "session_unavailable": "이 세션은 더 이상 사용할 수 없습니다.",
+        "agent_unavailable": "선택한 Agent를 사용할 수 없습니다.",
+        "deepchat_agent_required": "능동형 협업에는 DeepChat Agent가 필요합니다.",
+        "regular_parent_required": "하위 세션에서는 능동형 협업을 사용할 수 없습니다.",
+        "agent_policy_unavailable": "협업 정책을 불러오지 못했습니다.",
+        "subagents_disabled": "능동형 협업을 사용하려면 이 Agent의 Subagent를 활성화하세요."
+      }
+    }
   }
 }

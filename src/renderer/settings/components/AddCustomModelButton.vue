@@ -1,6 +1,6 @@
 <template>
   <div class="inline-flex items-center">
-    <Button
+    <DcButton
       variant="outline"
       class="text-xs text-normal rounded-lg"
       @click="showAddModelDialog = true"
@@ -9,7 +9,7 @@
         <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
         {{ t('model.actions.add') }}
       </slot>
-    </Button>
+    </DcButton>
     <ModelConfigDialog
       v-model:open="showAddModelDialog"
       :model-id="modelId"
@@ -24,7 +24,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import ModelConfigDialog from '@/components/settings/ModelConfigDialog.vue'

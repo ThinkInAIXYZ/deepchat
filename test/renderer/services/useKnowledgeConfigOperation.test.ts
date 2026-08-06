@@ -1,44 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, ref } from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+
+const notifyRenderer = vi.hoisted(() => vi.fn())
 
 async function setup() {
   vi.resetModules()
 
-  const snapshot = ref<any>({ status: 'idle', version: 0 })
-  const controller = {
-    begin: vi.fn((operationId: string, label: string) => {
-      snapshot.value = { status: 'pending', operationId, label, version: 1 }
-    }),
-    succeed: vi.fn((result) => {
-      snapshot.value = {
-        status: 'success',
-        operationId: 'knowledge-operation',
-        ...result,
-        version: 2
-      }
-    }),
-    fail: vi.fn((result) => {
-      snapshot.value = {
-        status: 'error',
-        operationId: 'knowledge-operation',
-        ...result,
-        version: 2
-      }
-    }),
-    clearSettled: vi.fn(() => {
-      snapshot.value = { status: 'idle', version: 3 }
-    })
-  }
-
-  vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
-    createRendererSurfaceFeedbackController: () => controller
-  }))
-  vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
-    useSurfaceFeedback: () => ({
-      snapshot,
-      setActive: vi.fn()
-    })
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -57,12 +27,16 @@ async function setup() {
   })
   const wrapper = mount(Harness)
 
-  return { wrapper, operation, controller, snapshot }
+  return { wrapper, operation }
 }
 
 describe('useKnowledgeConfigOperation', () => {
-  it('keeps failed persistence retryable and commits only after persistence succeeds', async () => {
-    const { wrapper, operation, controller, snapshot } = await setup()
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('keeps failed dialog persistence retryable, commits only after persistence, and never toasts', async () => {
+    const { wrapper, operation } = await setup()
     const perform = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
     const commit = vi.fn()
     const request = {
@@ -73,25 +47,25 @@ describe('useKnowledgeConfigOperation', () => {
       commit
     }
 
-    await expect(operation.run(request)).resolves.toBe(false)
+    const running = operation.run(request)
+    expect(operation.snapshot.value.status).toBe('pending')
+    await expect(running).resolves.toBe(false)
 
     expect(commit).not.toHaveBeenCalled()
-    expect(snapshot.value.status).toBe('error')
-    expect(controller.fail).toHaveBeenCalledWith({
-      code: 'settings.knowledgeBase.test.save.failed',
-      title: 'common.error.operationFailed'
-    })
+    expect(operation.snapshot.value.status).toBe('error')
+    // 对话框保存：失败走按钮 ⚠ + 内联错误，不弹 toast
+    expect(operation.lastError.value).toEqual({ title: 'common.error.operationFailed' })
+    expect(notifyRenderer).not.toHaveBeenCalled()
 
     operation.retry()
     await flushPromises()
 
     expect(perform).toHaveBeenCalledTimes(2)
     expect(commit).toHaveBeenCalledTimes(1)
-    expect(controller.succeed).toHaveBeenCalledWith({
-      code: 'settings.knowledgeBase.test.save.succeeded',
-      title: 'common.saved'
-    })
-    expect(controller.clearSettled).toHaveBeenCalledTimes(1)
+    expect(operation.lastError.value).toBeNull()
+    // 成功走按钮 ✅，不弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(operation.snapshot.value.status).toBe('idle')
     expect(operation.source.value).toBeNull()
     wrapper.unmount()
   })
@@ -126,8 +100,8 @@ describe('useKnowledgeConfigOperation', () => {
     consoleError.mockRestore()
   })
 
-  it('uses the operation-specific failure copy when the source can diagnose the failure', async () => {
-    const { wrapper, operation, controller } = await setup()
+  it('uses the operation-specific failure copy for the inline dialog error', async () => {
+    const { wrapper, operation } = await setup()
 
     await operation.run({
       code: 'settings.knowledgeBase.test.dimensions',
@@ -140,10 +114,46 @@ describe('useKnowledgeConfigOperation', () => {
       })
     })
 
-    expect(controller.fail).toHaveBeenCalledWith({
-      code: 'settings.knowledgeBase.test.dimensions.failed',
+    expect(operation.lastError.value).toEqual({
       title: 'settings.knowledgeBase.autoDetectDimensionsError'
     })
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps toasting for panel and confirmation operations', async () => {
+    const { wrapper, operation } = await setup()
+    const perform = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const commit = vi.fn()
+    const request = {
+      code: 'settings.knowledgeBase.test.remove',
+      source: 'panel' as const,
+      label: 'common.saving',
+      perform,
+      commit
+    }
+
+    await expect(operation.run(request)).resolves.toBe(false)
+    expect(operation.lastError.value).toBeNull()
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.knowledgeBase.test.remove.failed',
+        title: 'common.error.operationFailed'
+      })
+    )
+
+    operation.retry()
+    await flushPromises()
+
+    expect(commit).toHaveBeenCalledTimes(1)
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.knowledgeBase.test.remove.succeeded',
+        title: 'common.saved'
+      })
+    )
     wrapper.unmount()
   })
 })

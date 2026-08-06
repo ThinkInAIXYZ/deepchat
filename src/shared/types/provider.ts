@@ -143,6 +143,13 @@ export type StandaloneVideoGenerationResult = {
   videos: Array<{ data: string; mimeType: string }>
 }
 
+export type StandaloneSpeechGenerationResult = {
+  providerId: string
+  modelId: string
+  options?: TtsSettings
+  audio: { data: string; mimeType: string }
+}
+
 export interface KeyStatus {
   remainNum?: number
   /** Remaining quota */
@@ -358,6 +365,14 @@ export interface ProviderRuntimePort {
     videoOptions?: VideoGenerationOptions,
     options?: { signal?: AbortSignal }
   ): Promise<StandaloneVideoGenerationResult>
+
+  generateSpeechStandalone(
+    providerId: string,
+    text: string,
+    modelId: string,
+    speechOptions?: TtsSettings,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneSpeechGenerationResult>
 }
 
 export type ProviderExecutionPort = Pick<

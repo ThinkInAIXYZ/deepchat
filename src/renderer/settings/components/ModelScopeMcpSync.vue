@@ -38,7 +38,7 @@
           class="w-16 h-6 text-xs px-1 border rounded bg-background border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
         />
         <span class="text-muted-foreground whitespace-nowrap">页</span>
-        <Button
+        <DcButton
           @click="handleSync"
           :disabled="isSyncing"
           size="sm"
@@ -51,33 +51,22 @@
               ? t('settings.provider.modelscope.mcpSync.syncing')
               : t('settings.provider.modelscope.mcpSync.sync')
           }}
-        </Button>
+        </DcButton>
       </div>
 
       <!-- 同步状态与结果 -->
       <div v-if="syncResult" class="flex items-center gap-1 text-xs">
-        <Badge
-          variant="outline"
-          class="text-xs h-5 border-green-500/30 text-green-600 bg-green-500/10"
-        >
+        <DcBadge variant="success" class="text-xs h-5">
           {{ t('settings.provider.modelscope.mcpSync.imported', { count: syncResult.imported }) }}
-        </Badge>
-        <Badge
-          v-if="syncResult.skipped > 0"
-          variant="outline"
-          class="text-xs h-5 border-amber-500/30 text-amber-600 bg-amber-500/10"
-        >
+        </DcBadge>
+        <DcBadge v-if="syncResult.skipped > 0" variant="warning" class="text-xs h-5">
           {{ t('settings.provider.modelscope.mcpSync.skipped', { count: syncResult.skipped }) }}
-        </Badge>
-        <Badge
-          v-if="syncResult.errors.length > 0"
-          variant="outline"
-          class="text-xs h-5 border-red-500/30 text-red-600 bg-red-500/10"
-        >
+        </DcBadge>
+        <DcBadge v-if="syncResult.errors.length > 0" variant="danger" class="text-xs h-5">
           {{
             t('settings.provider.modelscope.mcpSync.errors', { count: syncResult.errors.length })
           }}
-        </Badge>
+        </DcBadge>
       </div>
 
       <!-- 错误信息显示 -->
@@ -110,8 +99,8 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcButton } from '@dc-ui/components/button'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import { useI18n } from 'vue-i18n'

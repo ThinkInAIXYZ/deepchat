@@ -3,8 +3,10 @@ import {
   configGetEntriesRoute,
   configUpdateEntriesRoute,
   settingsActivityListRoute,
+  settingsGetPublicRoute,
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
+  settingsUpdatePublicRoute,
   settingsUpdateRoute,
   type ConfigEntryKey,
   type ConfigEntryValues,
@@ -171,6 +173,22 @@ export function createAppSettingsRoutes(deps: {
       summaryParams: { key: change.key }
     })
   }
+  const getSnapshot = (keys?: SettingsKey[]) => ({
+    version: Date.now(),
+    values: pickSnapshot(readSnapshot(), keys)
+  })
+  const updateSnapshot = (changes: SettingsChange[]) => {
+    for (const change of changes) {
+      applyChange(change)
+      recordChange(change)
+    }
+    const changedKeys = changes.map((change) => change.key)
+    return {
+      version: Date.now(),
+      changedKeys,
+      values: pickSnapshot(readSnapshot(), changedKeys)
+    }
+  }
 
   return createRouteMap([
     [
@@ -199,10 +217,14 @@ export function createAppSettingsRoutes(deps: {
       settingsGetSnapshotRoute.name,
       async (rawInput) => {
         const input = settingsGetSnapshotRoute.input.parse(rawInput)
-        return settingsGetSnapshotRoute.output.parse({
-          version: Date.now(),
-          values: pickSnapshot(readSnapshot(), input.keys)
-        })
+        return settingsGetSnapshotRoute.output.parse(getSnapshot(input.keys))
+      }
+    ],
+    [
+      settingsGetPublicRoute.name,
+      async (rawInput) => {
+        const input = settingsGetPublicRoute.input.parse(rawInput)
+        return settingsGetPublicRoute.output.parse(getSnapshot(input.keys))
       }
     ],
     [
@@ -218,16 +240,14 @@ export function createAppSettingsRoutes(deps: {
       settingsUpdateRoute.name,
       async (rawInput) => {
         const input = settingsUpdateRoute.input.parse(rawInput)
-        for (const change of input.changes) {
-          applyChange(change)
-          recordChange(change)
-        }
-        const changedKeys = input.changes.map((change) => change.key)
-        return settingsUpdateRoute.output.parse({
-          version: Date.now(),
-          changedKeys,
-          values: pickSnapshot(readSnapshot(), changedKeys)
-        })
+        return settingsUpdateRoute.output.parse(updateSnapshot(input.changes))
+      }
+    ],
+    [
+      settingsUpdatePublicRoute.name,
+      async (rawInput) => {
+        const input = settingsUpdatePublicRoute.input.parse(rawInput)
+        return settingsUpdatePublicRoute.output.parse(updateSnapshot(input.changes))
       }
     ],
     [

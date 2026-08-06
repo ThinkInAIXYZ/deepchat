@@ -8,7 +8,7 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <Button
+        <DcButton
           variant="outline"
           size="sm"
           :disabled="loading || operationPending"
@@ -17,16 +17,16 @@
           <Spinner v-if="loading" data-icon="inline-start" />
           <Icon v-else icon="lucide:refresh-cw" data-icon="inline-start" />
           {{ t('settings.skills.agents.refresh') }}
-        </Button>
+        </DcButton>
       </div>
     </div>
-
-    <InlineOperationFeedback :snapshot="operationFeedback" />
 
     <div v-if="error" class="rounded-md border border-destructive/30 px-3 py-2 text-sm">
       <div class="font-medium text-destructive">{{ t('settings.skills.agents.loadFailed') }}</div>
       <div class="mt-1 text-xs text-muted-foreground">{{ t('common.error.requestFailed') }}</div>
     </div>
+
+    <DcInlineError v-if="operationError" :error="operationError" class="mb-2" />
 
     <div v-if="loading && agents.length === 0" class="flex flex-col gap-2">
       <Skeleton v-for="index in 3" :key="index" class="h-10 rounded-md bg-muted/50" />
@@ -45,7 +45,7 @@
 
     <template v-else>
       <div class="flex flex-wrap gap-2">
-        <Button
+        <DcButton
           v-for="agent in agents"
           :key="agent.id"
           type="button"
@@ -57,13 +57,13 @@
         >
           <Icon :icon="getSkillAgentIcon(agent.id)" class="h-5 w-5 shrink-0" />
           <span class="min-w-0 flex-1 truncate text-left">{{ agent.name }}</span>
-          <Badge variant="outline" class="ml-2 text-[11px]">
+          <DcBadge variant="outline" class="ml-2 text-[11px]">
             {{ agent.skillsCount }}
-          </Badge>
-          <Badge v-if="agent.conflictCount" variant="outline" class="ml-1 text-[11px]">
+          </DcBadge>
+          <DcBadge v-if="agent.conflictCount" variant="outline" class="ml-1 text-[11px]">
             {{ t('settings.skills.agents.conflictCount', { count: agent.conflictCount }) }}
-          </Badge>
-        </Button>
+          </DcBadge>
+        </DcButton>
       </div>
 
       <div v-if="selectedAgent" class="space-y-3">
@@ -72,9 +72,9 @@
             <div class="min-w-0">
               <div class="flex items-center gap-2">
                 <h4 class="truncate text-sm font-medium">{{ selectedAgent.name }}</h4>
-                <Badge variant="outline" :class="agentStatusClass(selectedAgent.status)">
+                <DcBadge variant="outline" :class="agentStatusClass(selectedAgent.status)">
                   {{ t(`settings.skills.agents.agentStatus.${selectedAgent.status}`) }}
-                </Badge>
+                </DcBadge>
               </div>
               <p
                 class="mt-1 truncate text-xs text-muted-foreground"
@@ -133,14 +133,14 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@shadcn/components/ui/empty'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { useDcFormSubmit } from '@dc-ui/components/form'
 import { createSkillSyncClient } from '@api/SkillSyncClient'
 import type {
   AgentSkillItem,
@@ -155,9 +155,9 @@ import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const { t } = useI18n()
 const skillSyncClient = createSkillSyncClient()
-const operationController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: operationFeedback } = useSurfaceFeedback(operationController)
-const operationId = `settings.skills.agentLinks:${nanoid(8)}`
+const operationPending = ref(false)
+const operationError = ref<string | null>(null)
+const { run: runLinkAction } = useDcFormSubmit()
 let operationGeneration = 0
 let operationKind: 'read' | 'mutation' | null = null
 
@@ -174,7 +174,6 @@ let skillDetailRequestId = 0
 let agentsRequestId = 0
 
 const selectedAgent = computed(() => selectedAgentDetail.value)
-const operationPending = computed(() => operationFeedback.value.status === 'pending')
 
 const logFailure = (message: string, cause: unknown, context: Record<string, unknown> = {}) => {
   console.error(
@@ -186,29 +185,18 @@ const logFailure = (message: string, cause: unknown, context: Record<string, unk
   )
 }
 
-const beginOperation = (
-  label: string,
-  kind: Exclude<typeof operationKind, null> = 'mutation'
-): number | null => {
-  if (operationController.getSnapshot().status === 'pending') return null
+const beginOperation = (kind: Exclude<typeof operationKind, null> = 'mutation'): number | null => {
+  if (operationPending.value) return null
   const generation = ++operationGeneration
   operationKind = kind
-  operationController.begin(operationId, label)
+  operationPending.value = true
   return generation
 }
 
 const isCurrentOperation = (generation: number) =>
-  generation === operationGeneration && operationController.getSnapshot().status === 'pending'
-
-const clearSettledOperation = () => {
-  const snapshot = operationController.getSnapshot()
-  if (snapshot.status === 'success' || snapshot.status === 'error') {
-    operationController.clearSettled()
-  }
-}
+  generation === operationGeneration && operationPending.value
 
 const loadAgents = async () => {
-  clearSettledOperation()
   const requestId = ++agentsRequestId
   loading.value = true
   error.value = false
@@ -254,7 +242,6 @@ const loadAgentDetail = async (agentId: string) => {
 }
 
 const selectAgent = async (agentId: string) => {
-  clearSettledOperation()
   skillDetailRequestId += 1
   detailDialogOpen.value = false
   skillDetail.value = null
@@ -276,7 +263,7 @@ const handleAgentSkillAction = async (skill: AgentSkillItem) => {
 const openAgentSkillDetail = async (skill: AgentSkillItem) => {
   const agentId = selectedAgentId.value
   if (!agentId || selectedAgent.value?.id !== agentId) return
-  const operation = beginOperation(t('common.loading'), 'read')
+  const operation = beginOperation('read')
   if (operation === null) return
   const requestId = ++skillDetailRequestId
   try {
@@ -289,11 +276,12 @@ const openAgentSkillDetail = async (skill: AgentSkillItem) => {
       return
     }
     skillDetail.value = detail
-    operationController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.skills.agentDetailLoaded',
       title: skill.name
     })
-    operationController.clearSettled()
+    operationPending.value = false
     detailDialogOpen.value = true
   } catch (cause) {
     if (
@@ -307,11 +295,13 @@ const openAgentSkillDetail = async (skill: AgentSkillItem) => {
       agentId,
       skillName: skill.name
     })
-    operationController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.skills.agentDetailLoadFailed',
       title: t('settings.skills.detail.failed'),
       description: t('common.error.requestFailed')
     })
+    operationPending.value = false
   }
 }
 
@@ -322,10 +312,11 @@ const handleLinkChanged = async () => {
 const executeAgentLinkAction = async (skill: AgentSkillItem, action: 'repair' | 'remove') => {
   const agentId = selectedAgent.value?.id
   if (!agentId) return
-  const operation = beginOperation(t('common.saving'))
+  const operation = beginOperation()
   if (operation === null) return
+  operationError.value = null
 
-  try {
+  await runLinkAction(async () => {
     const result =
       action === 'repair'
         ? await skillSyncClient.repairAgentSkillLink({ agentId, skillName: skill.name })
@@ -334,29 +325,17 @@ const executeAgentLinkAction = async (skill: AgentSkillItem, action: 'repair' | 
     if (!result.success) throw new Error('Agent link update was rejected')
     await handleLinkChanged()
     if (!isCurrentOperation(operation)) return
-    operationController.succeed({
-      code:
-        action === 'repair'
-          ? 'settings.skills.agentLinkRepaired'
-          : 'settings.skills.agentLinkRemoved',
-      title: t(`settings.skills.agents.linkAction.${action}Success`),
-      description: t('settings.skills.agents.linkAction.successDescription', {
-        name: skill.name
-      })
-    })
-  } catch (cause) {
+    operationPending.value = false
+  }).catch((cause) => {
     if (!isCurrentOperation(operation)) return
     logFailure('[SkillAgentsTab] Failed to update Agent link', cause, {
       action,
       agentId,
       skillName: skill.name
     })
-    operationController.fail({
-      code: 'settings.skills.agentLinkUpdateFailed',
-      title: t('settings.skills.agents.linkAction.failed'),
-      description: t('common.error.requestFailed')
-    })
-  }
+    operationError.value = t('settings.skills.agents.linkAction.failed')
+    operationPending.value = false
+  })
 }
 
 const agentStatusClass = (status: InstalledSkillAgent['status']) => {
@@ -384,9 +363,9 @@ const stopLeaveRiskSync = watch(
 )
 
 onBeforeUnmount(() => {
-  if (operationKind === 'read' && operationController.getSnapshot().status === 'pending') {
+  if (operationKind === 'read' && operationPending.value) {
     operationGeneration += 1
-    operationController.cancelPending()
+    operationPending.value = false
   }
   stopLeaveRiskSync()
   leaveGuardLease.release()

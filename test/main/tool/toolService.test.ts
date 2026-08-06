@@ -2,18 +2,26 @@ import { describe, expect, it, vi } from 'vitest'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { ToolService } from '@/tool'
 import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
-import { CronJobToolHandler, TAPE_TOOL_NAMES, UPDATE_PLAN_TOOL_NAME } from '@/tool/agentTools'
-import { CommandPermissionService } from '@/tool/permission'
+import {
+  AgentToolManager,
+  CronJobToolHandler,
+  TAPE_TOOL_NAMES,
+  UPDATE_PLAN_TOOL_NAME
+} from '@/tool/agentTools'
+import { CommandPermissionService, ToolPermissionBroker } from '@/tool/permission'
 import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 import { createAgentToolDependencies } from './agentTools/agentToolDependencies'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   assertAgentToolExposure,
   getAgentToolExposure
 } from '@shared/agentTools'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
+import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
+import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 
 vi.mock('electron', () => ({
   app: {
@@ -50,7 +58,13 @@ const buildToolDefinition = (name: string, serverName: string): MCPToolDefinitio
 })
 
 const buildAgentToolRuntimeMock = (overrides: Record<string, unknown> = {}) =>
-  createAgentToolDependencies(overrides)
+  createAgentToolDependencies({
+    resolveConversationSessionInfo: vi.fn(async (sessionId: string) => ({
+      sessionId,
+      sessionKind: 'regular'
+    })),
+    ...overrides
+  })
 
 const cronJobFixture = {
   id: 'job-1',
@@ -113,6 +127,107 @@ const cronJobRunFixture = {
 } as any
 
 describe('ToolService', () => {
+  it('records effect intent before dispatch and blocks execution when it cannot persist', async () => {
+    const order: string[] = []
+    const effectObserver = {
+      beforeToolAuthorization: vi.fn().mockResolvedValue(null),
+      beforeToolExecution: vi.fn(async () => {
+        order.push('effect')
+      })
+    }
+    const mcpDefinition = {
+      ...buildToolDefinition('remote_read', 'remote'),
+      execution: TOOL_EXECUTION.read.parallel
+    }
+    const mcpService = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([mcpDefinition]),
+      callTool: vi.fn(async () => {
+        order.push('tool')
+        return {
+          content: 'ok',
+          rawData: {
+            toolCallId: 'call-1',
+            content: 'ok'
+          }
+        }
+      })
+    } as any
+    const toolService = new ToolService({
+      skillSettings: { isEnabled: () => false } as any,
+      mcpService,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock(),
+      effectObserver
+    })
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'child-session'
+    })
+    const request = {
+      id: 'call-1',
+      type: 'function',
+      function: {
+        name: 'remote_read',
+        arguments: '{}'
+      },
+      conversationId: 'child-session'
+    }
+
+    await expect(
+      toolService.callTool(request, { permissionMode: 'full_access' })
+    ).resolves.toMatchObject({ content: 'ok' })
+    expect(order).toEqual(['effect', 'tool'])
+    expect(effectObserver.beforeToolExecution).toHaveBeenCalledWith(
+      {
+        conversationId: 'child-session',
+        toolCallId: 'call-1',
+        toolName: 'remote_read',
+        source: 'mcp',
+        reviewedExecution: null,
+        authorizedPermissionMode: 'full_access'
+      },
+      undefined
+    )
+
+    order.length = 0
+    mcpService.callTool.mockClear()
+    effectObserver.beforeToolExecution.mockRejectedValueOnce(new Error('intent write failed'))
+    await expect(toolService.callTool(request, { permissionMode: 'full_access' })).rejects.toThrow(
+      'intent write failed'
+    )
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+
+    effectObserver.beforeToolExecution.mockClear()
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      toolService.callTool(request, { signal: controller.signal })
+    ).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+
+    mcpService.callTool.mockClear()
+    effectObserver.beforeToolAuthorization.mockResolvedValueOnce({ permissionMode: 'default' })
+    await expect(
+      toolService.callTool(request, { permissionMode: 'full_access' })
+    ).resolves.toMatchObject({ rawData: { requiresPermission: true } })
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+
+    await expect(toolService.callTool(request)).resolves.toMatchObject({
+      rawData: {
+        requiresPermission: true
+      }
+    })
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+    toolService.clearConversationToolMapping('child-session')
+  })
+
   it('reserves image_generate for the built-in agent tool when MCP exposes the same name', async () => {
     const mcpService = {
       getAllToolDefinitions: vi
@@ -466,6 +581,7 @@ describe('ToolService', () => {
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.anchors)).toBe('diagnostic')
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.handoff)).toBe('runtime-only')
     expect(getAgentToolExposure(SUBAGENT_ORCHESTRATOR_TOOL_NAME)).toBe('system-model')
+    expect(getAgentToolExposure(LIVE_DELEGATION_AGENT_TOOL_NAME)).toBe('system-model')
     expect(getAgentToolExposure('read')).toBe('user-configurable')
     expect(getAgentToolExposure('__proto__')).toBe('user-configurable')
     expect(() => assertAgentToolExposure(TAPE_TOOL_NAMES.handoff, 'user-configurable')).toThrow(
@@ -473,13 +589,60 @@ describe('ToolService', () => {
     )
   })
 
-  it('reserves the Subagent orchestrator and ignores generic disabled-tool state', async () => {
+  it('keeps Subagent orchestration outside disabled catalog controls', async () => {
+    const toolService = new ToolService({
+      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+
+    const configurable = await toolService.getConfigurableAgentToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null
+    })
+    expect(configurable.map((definition) => definition.function.name)).not.toContain(
+      LIVE_DELEGATION_AGENT_TOOL_NAME
+    )
+
+    const subagentCapability = resolveDeepChatSubagentCapability({
+      agentType: 'deepchat',
+      sessionKind: 'regular',
+      agentPolicyEnabled: true,
+      slots: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review the result.'
+        }
+      ]
+    })
+    const runtimeDefinitions = await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1',
+      disabledAgentTools: [LIVE_DELEGATION_AGENT_TOOL_NAME],
+      subagentCapability
+    })
+    expect(runtimeDefinitions.map((definition) => definition.function.name)).toContain(
+      LIVE_DELEGATION_AGENT_TOOL_NAME
+    )
+  })
+
+  it('reserves live delegation names and ignores generic disabled-tool state', async () => {
     const toolService = new ToolService({
       mcpService: {
         getAllToolDefinitions: vi
           .fn()
           .mockResolvedValue([
-            buildToolDefinition(SUBAGENT_ORCHESTRATOR_TOOL_NAME, 'untrusted-mcp')
+            buildToolDefinition(LIVE_DELEGATION_AGENT_TOOL_NAME, 'untrusted-mcp'),
+            buildToolDefinition(SUBAGENT_ORCHESTRATOR_TOOL_NAME, 'legacy-untrusted-mcp')
           ])
       } as any,
       skillSettings: { isEnabled: () => false } as any,
@@ -504,7 +667,7 @@ describe('ToolService', () => {
     })
 
     const defs = await toolService.getAllToolDefinitions({
-      disabledAgentTools: [SUBAGENT_ORCHESTRATOR_TOOL_NAME],
+      disabledAgentTools: [LIVE_DELEGATION_AGENT_TOOL_NAME, SUBAGENT_ORCHESTRATOR_TOOL_NAME],
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: null,
@@ -512,14 +675,17 @@ describe('ToolService', () => {
       subagentCapability
     })
     const orchestrators = defs.filter(
-      (definition) => definition.function.name === SUBAGENT_ORCHESTRATOR_TOOL_NAME
+      (definition) => definition.function.name === LIVE_DELEGATION_AGENT_TOOL_NAME
     )
 
     expect(orchestrators).toHaveLength(1)
     expect(orchestrators[0]).toMatchObject({
       source: 'agent',
-      server: { name: 'agent-subagents' }
+      server: { name: 'agent-live-delegation' }
     })
+    expect(
+      defs.some((definition) => definition.function.name === SUBAGENT_ORCHESTRATOR_TOOL_NAME)
+    ).toBe(false)
 
     const configurable = await toolService.getConfigurableAgentToolDefinitions({
       chatMode: 'agent',
@@ -529,9 +695,295 @@ describe('ToolService', () => {
     })
     expect(
       configurable.some(
-        (definition) => definition.function.name === SUBAGENT_ORCHESTRATOR_TOOL_NAME
+        (definition) => definition.function.name === LIVE_DELEGATION_AGENT_TOOL_NAME
       )
     ).toBe(false)
+  })
+
+  it('host-enforces explicit Subagent starts and treats proactive policy as authorization', async () => {
+    let orchestrationPolicy: 'explicit' | 'proactive' = 'explicit'
+    const spawn = vi.fn().mockResolvedValue({ delegation: { id: 'delegation-1' }, turns: [] })
+    const permissionBroker = new ToolPermissionBroker()
+    const liveDelegationConsent = new LiveDelegationConsentAuthority()
+    const toolService = new ToolService({
+      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      permissionBroker,
+      liveDelegationConsent,
+      agentTools: buildAgentToolRuntimeMock({
+        resolveConversationSessionInfo: vi.fn(async (sessionId: string) => ({
+          sessionId,
+          sessionKind: 'regular',
+          orchestrationPolicy
+        })),
+        liveDelegation: {
+          spawn,
+          send: vi.fn(),
+          followUp: vi.fn(),
+          list: vi.fn().mockReturnValue([]),
+          inspect: vi.fn(),
+          readResult: vi.fn(),
+          wait: vi.fn(),
+          interrupt: vi.fn()
+        }
+      })
+    })
+    const subagentCapability = resolveDeepChatSubagentCapability({
+      agentType: 'deepchat',
+      sessionKind: 'regular',
+      agentPolicyEnabled: true,
+      slots: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review the result.'
+        }
+      ]
+    })
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1',
+      subagentCapability
+    })
+    const request = {
+      id: 'spawn-1',
+      type: 'function' as const,
+      function: {
+        name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+        arguments: JSON.stringify({
+          operation: 'spawn',
+          slotId: 'reviewer',
+          title: 'Review architecture',
+          prompt: 'Inspect module boundaries.'
+        })
+      },
+      conversationId: 'conv-1'
+    }
+
+    const preChecked = await toolService.preCheckToolPermission(request, {
+      permissionMode: 'full_access'
+    })
+    expect(preChecked).toMatchObject({
+      needsPermission: true,
+      requiresUserConfirmation: true,
+      rememberable: false
+    })
+    const blocked = await toolService.callTool(request, { permissionMode: 'full_access' })
+    expect(blocked.rawData).toMatchObject({
+      requiresPermission: true,
+      permissionRequest: { requestId: preChecked?.requestId }
+    })
+    expect(spawn).not.toHaveBeenCalled()
+
+    expect(permissionBroker.approve(preChecked!.requestId!, 'conv-1')).toBe(true)
+    const approved = await toolService.callTool(request, { permissionMode: 'full_access' })
+    expect(spawn).toHaveBeenCalledTimes(1)
+    const receipt = spawn.mock.calls[0]?.[2]
+    expect(receipt).toBeDefined()
+    expect(
+      liveDelegationConsent.isValid(receipt, {
+        parentSessionId: 'conv-1',
+        operation: 'spawn'
+      })
+    ).toBe(true)
+    expect(parseChildAgentResultEnvelope(JSON.parse(String(approved.content)))).toMatchObject({
+      kind: 'child_agent_result',
+      trust: 'untrusted',
+      source: { operation: 'spawn' }
+    })
+
+    const oneShot = await toolService.callTool(request, { permissionMode: 'full_access' })
+    expect(oneShot.rawData.requiresPermission).toBe(true)
+    expect(spawn).toHaveBeenCalledTimes(1)
+
+    orchestrationPolicy = 'proactive'
+    await toolService.callTool(request, { permissionMode: 'default' })
+    expect(spawn).toHaveBeenCalledTimes(2)
+    expect(spawn.mock.calls[1]?.[2]).toBeUndefined()
+    permissionBroker.clear()
+  })
+
+  it('revalidates Subagent built-in and MCP authority at execution time', async () => {
+    const mcpDefinition = buildToolDefinition('remote_write', 'remote-server')
+    let parentMcpServerIds = [mcpDefinition.server.id!]
+    const mcpService = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([mcpDefinition]),
+      callTool: vi.fn()
+    }
+    const parent = {
+      sessionId: 'parent-1',
+      sessionKind: 'regular',
+      parentSessionId: null,
+      agentId: 'parent-agent',
+      disabledAgentTools: ['read']
+    }
+    const child = {
+      sessionId: 'child-1',
+      sessionKind: 'subagent',
+      parentSessionId: 'parent-1',
+      agentId: 'reviewer',
+      disabledAgentTools: []
+    }
+    const effectObserver = {
+      beforeToolExecution: vi.fn(async () => {
+        parentMcpServerIds = []
+      })
+    }
+    const toolService = new ToolService({
+      mcpService: mcpService as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: {
+        resolveDeepChatAgentConfig: vi.fn(async (agentId: string) => ({
+          enabledMcpServerIds:
+            agentId === 'parent-agent' ? parentMcpServerIds : [mcpDefinition.server.id!]
+        }))
+      } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      effectObserver,
+      agentTools: buildAgentToolRuntimeMock({
+        resolveConversationSessionInfo: vi.fn(async (sessionId: string) =>
+          sessionId === 'child-1' ? child : sessionId === 'parent-1' ? parent : null
+        )
+      })
+    })
+
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'child-1',
+      agentWorkspacePath: '/repo',
+      enabledMcpServerIds: [mcpDefinition.server.id!]
+    })
+
+    await expect(
+      toolService.callTool(
+        {
+          id: 'read-1',
+          type: 'function',
+          function: { name: 'read', arguments: JSON.stringify({ path: '/repo/file.ts' }) },
+          conversationId: 'child-1'
+        },
+        { permissionMode: 'full_access' }
+      )
+    ).rejects.toThrow("Tool 'read' is disabled by the current Subagent authority")
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+    await expect(
+      toolService.callTool(
+        {
+          id: 'mcp-1',
+          type: 'function',
+          function: { name: 'remote_write', arguments: '{}' },
+          conversationId: 'child-1'
+        },
+        { permissionMode: 'full_access', enabledMcpServerIds: [mcpDefinition.server.id!] }
+      )
+    ).rejects.toThrow("MCP tool 'remote_write' is disabled by the current Subagent authority")
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+    expect(effectObserver.beforeToolExecution).toHaveBeenCalledOnce()
+  })
+
+  it('fails closed before effect evidence when a mapped Session identity disappears', async () => {
+    const mcpDefinition = buildToolDefinition('remote_write', 'remote-server')
+    const mcpService = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([mcpDefinition]),
+      callTool: vi.fn()
+    }
+    const effectObserver = {
+      beforeToolExecution: vi.fn()
+    }
+    const toolService = new ToolService({
+      mcpService: mcpService as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      effectObserver,
+      agentTools: buildAgentToolRuntimeMock({
+        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null)
+      })
+    })
+
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'missing-child',
+      sessionKind: 'subagent',
+      agentWorkspacePath: '/repo',
+      enabledMcpServerIds: [mcpDefinition.server.id!]
+    })
+
+    await expect(
+      toolService.callTool(
+        {
+          id: 'mcp-missing-child',
+          type: 'function',
+          function: { name: 'remote_write', arguments: '{}' },
+          conversationId: 'missing-child'
+        },
+        { permissionMode: 'full_access' }
+      )
+    ).rejects.toThrow('Session missing-child execution identity is unavailable')
+    expect(effectObserver.beforeToolExecution).not.toHaveBeenCalled()
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed live-delegation results at the model-facing boundary', async () => {
+    const toolService = new ToolService({
+      mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+    const subagentCapability = resolveDeepChatSubagentCapability({
+      agentType: 'deepchat',
+      sessionKind: 'regular',
+      agentPolicyEnabled: true,
+      slots: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review the result.'
+        }
+      ]
+    })
+    await toolService.getAllToolDefinitions({
+      chatMode: 'agent',
+      conversationId: 'conv-1',
+      sessionKind: 'regular',
+      agentWorkspacePath: '/repo',
+      subagentCapability
+    })
+    const callToolSpy = vi.spyOn(AgentToolManager.prototype, 'callTool').mockResolvedValueOnce({
+      content: 'raw child output'
+    })
+
+    await expect(
+      toolService.callTool(
+        {
+          id: 'list-1',
+          type: 'function',
+          function: {
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            arguments: JSON.stringify({ operation: 'list' })
+          },
+          conversationId: 'conv-1'
+        },
+        { permissionMode: 'full_access' }
+      )
+    ).rejects.toThrow('invalid child-result envelope')
+    callToolSpy.mockRestore()
   })
 
   it('keeps the recall pair in the runtime catalog despite stale disabled values', async () => {
@@ -545,7 +997,11 @@ describe('ToolService', () => {
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentTools: buildAgentToolRuntimeMock({
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue({ agentType: 'deepchat' }),
+        resolveConversationSessionInfo: vi.fn(async (sessionId: string) => ({
+          sessionId,
+          sessionKind: 'regular',
+          agentType: 'deepchat'
+        })),
         getTapeInfo: vi.fn(),
         searchTape: vi.fn(),
         getTapeContext: vi.fn(),
@@ -584,7 +1040,11 @@ describe('ToolService', () => {
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentTools: buildAgentToolRuntimeMock({
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue({ agentType: 'deepchat' }),
+        resolveConversationSessionInfo: vi.fn(async (sessionId: string) => ({
+          sessionId,
+          sessionKind: 'regular',
+          agentType: 'deepchat'
+        })),
         getTapeInfo: vi.fn(),
         searchTape: vi.fn(),
         getTapeContext: vi.fn(),

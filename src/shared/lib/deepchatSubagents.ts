@@ -5,8 +5,10 @@ import type {
   DeepChatSubagentSlot,
   SessionKind
 } from '@shared/types/agent-interface'
+import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@shared/orchestration/resultSafety'
 
 export const DEEPCHAT_SUBAGENT_SLOT_LIMIT = 5
+export const DEEPCHAT_SUBAGENT_TASK_TITLE_LIMIT = 80
 export const DEEPCHAT_SELF_SUBAGENT_SLOT_ID = 'self'
 export const DEEPCHAT_EXPLORER_SUBAGENT_SLOT_ID = 'explorer'
 export const DEEPCHAT_IMPLEMENTER_SUBAGENT_SLOT_ID = 'implementer'
@@ -16,10 +18,15 @@ export type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 
 export const DEEPCHAT_SUBAGENT_MODEL_GUIDANCE = [
   'Honor explicit user requests about Subagents: use them when requested and available, and never use them for a request that asks you not to.',
+  "Tool availability never overrides the current session's explicit or proactive orchestration policy.",
   'For proactive delegation, choose only work with clear independent, isolated, or parallel benefit.',
   'Do not proactively delegate simple, latency-sensitive, or strongly sequential tasks.',
   'Do not run write-heavy Subagents in parallel when their files may overlap.',
+  `Name each spawned task with a concise user-language action-and-scope title of at most ${DEEPCHAT_SUBAGENT_TASK_TITLE_LIMIT} characters; keep sibling titles distinct and do not use role-only, ordinal, or person-like names.`,
   'Use bounded task prompts and require concrete evidence or validation from each child.',
+  UNTRUSTED_CHILD_OUTPUT_POLICY,
+  'Use a child Handoff by default; call read_result only when the complete referenced answer is needed.',
+  'Account for every spawned child until it reaches a terminal state; do not interrupt merely to avoid waiting, and interrupt only when the user requests it or the task is definitively superseded.',
   'Delegation adds token usage, latency, and system resource cost.'
 ].join(' ')
 

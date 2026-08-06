@@ -161,6 +161,10 @@ declare module 'vue-i18n' {
       audioInputUnsupportedTitle: string
       audioInputUnsupportedDescription: string
     }
+    messageReceipt: {
+      unread: string
+      read: string
+    }
     attachments: {
       chooseRepresentation: string
       representation: string
@@ -1276,6 +1280,24 @@ declare module 'vue-i18n' {
         }
       }
     }
+    orchestration: {
+      actions: {
+        openChild: string
+      }
+      activityTitle: string
+      proactive: {
+        title: string
+        description: string
+        reasons: {
+          session_unavailable: string
+          agent_unavailable: string
+          deepchat_agent_required: string
+          regular_parent_required: string
+          agent_policy_unavailable: string
+          subagents_disabled: string
+        }
+      }
+    }
     notifications: {
       label: string
       actionFailed: string
@@ -1442,6 +1464,7 @@ declare module 'vue-i18n' {
         read: string
         write: string
         all: string
+        subagentStart: string
         command: string
         commandWithRisk: string
       }
@@ -2373,6 +2396,14 @@ declare module 'vue-i18n' {
         personaActive: string
         rollback: string
         actionFailed: string
+        commandRejected: {
+          unavailable: string
+          notFound: string
+          invalidState: string
+          conflict: string
+          stale: string
+          anchored: string
+        }
         conflict: string
         conflictPairsTitle: string
         keepTarget: string

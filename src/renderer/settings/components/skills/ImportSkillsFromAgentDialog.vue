@@ -3,8 +3,9 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcEmpty } from '@dc-ui/components/empty'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Dialog,
@@ -23,9 +24,9 @@ import {
 } from '@shadcn/components/ui/empty'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { useDcFormSubmit } from '@dc-ui/components/form'
+import { DcFormActions } from '@dc-ui/components/form-actions'
 import { createSkillClient } from '@api/SkillClient'
 import type {
   AgentSkillImportConflictStrategy,
@@ -48,10 +49,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const skillClient = createSkillClient()
-const executionController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: executionFeedback, setActive: setExecutionFeedbackActive } =
-  useSurfaceFeedback(executionController)
-const executionOperationId = `settings.skills.agentImport:${nanoid(8)}`
 
 const sources = ref<AgentSkillImportSourceInfo[]>([])
 const selectedSourceKey = ref('')
@@ -63,14 +60,15 @@ const loadingPreview = ref(false)
 const sourceError = ref(false)
 const previewError = ref(false)
 const result = ref<AgentSkillImportResult | null>(null)
+const operationError = ref<string | null>(null)
+const { status: executeStatus, run: runExecute } = useDcFormSubmit()
 
 let sourceRequestId = 0
 let previewRequestId = 0
 let executeRequestId = 0
 let executionGeneration = 0
 const surfaceContextVersion = ref(0)
-const feedbackContextVersion = ref<number | null>(null)
-const feedbackTargetAgentId = ref('')
+const executing = ref(false)
 
 const selectedSource = computed(
   () => sources.value.find((source) => source.id === selectedSourceKey.value) ?? null
@@ -79,7 +77,6 @@ const actionableItems = computed(() =>
   previewItems.value.filter((item) => item.status !== 'unavailable')
 )
 const selectedCount = computed(() => selectedSkillNames.value.size)
-const executing = computed(() => executionFeedback.value.status === 'pending')
 const canExecute = computed(
   () =>
     Boolean(selectedSource.value) &&
@@ -89,19 +86,6 @@ const canExecute = computed(
     !executing.value
 )
 const failedCount = computed(() => result.value?.failed.length ?? 0)
-const feedbackBelongsToSurface = computed(
-  () =>
-    feedbackContextVersion.value === surfaceContextVersion.value &&
-    feedbackTargetAgentId.value === props.targetAgentId.trim()
-)
-const visibleExecutionFeedback = computed(() => {
-  const snapshot = executionFeedback.value
-  if (snapshot.status === 'pending' || feedbackBelongsToSurface.value) return snapshot
-  return { status: 'idle' as const, version: snapshot.version }
-})
-const executionFeedbackSurfaceActive = computed(
-  () => props.open && (executionFeedback.value.status === 'idle' || feedbackBelongsToSurface.value)
-)
 
 const logFailure = (message: string, cause: unknown) => {
   console.error(message, cause)
@@ -132,18 +116,8 @@ const resetDialog = () => {
   loadingSources.value = false
   loadingPreview.value = false
   sourceError.value = false
+  operationError.value = null
   resetPreview()
-}
-
-const dismissSettledExecutionFeedback = () => {
-  const snapshot = executionController.getSnapshot()
-  if (snapshot.status === 'success' || snapshot.status === 'error') {
-    executionController.clearSettled()
-  }
-  if (snapshot.status !== 'pending') {
-    feedbackContextVersion.value = null
-    feedbackTargetAgentId.value = ''
-  }
 }
 
 const loadSources = async (targetAgentId: string) => {
@@ -272,25 +246,21 @@ const executeImport = async () => {
 
   const requestId = ++executeRequestId
   const generation = ++executionGeneration
-  feedbackContextVersion.value = surfaceContextVersion.value
-  feedbackTargetAgentId.value = targetAgentId
-  executionController.begin(executionOperationId, t('settings.skills.agentImport.importing'))
-  try {
+  const operationContextVersion = surfaceContextVersion.value
+  executing.value = true
+  operationError.value = null
+  await runExecute(async () => {
     const nextResult = await skillClient.executeAgentImport({
       targetAgentId,
       source: importSource,
       items
     })
-    if (
-      generation !== executionGeneration ||
-      requestId !== executeRequestId ||
-      executionController.getSnapshot().status !== 'pending'
-    ) {
+    if (generation !== executionGeneration || requestId !== executeRequestId || !executing.value) {
       return
     }
 
     const surfaceCurrent =
-      feedbackBelongsToSurface.value &&
+      operationContextVersion === surfaceContextVersion.value &&
       isCurrentTarget(targetAgentId) &&
       selectedSourceKey.value === requestedSourceKey
     const resultSummary = t('settings.skills.agentImport.resultSummary', {
@@ -298,37 +268,24 @@ const executeImport = async () => {
       skipped: nextResult.skipped.length,
       failed: nextResult.failed.length
     })
-    if (!nextResult.success || nextResult.failed.length > 0) {
-      executionController.fail({
-        code: 'settings.skills.agentImportIncomplete',
-        title: t('settings.skills.agentImport.resultPartial'),
-        description: resultSummary
-      })
-    } else {
-      executionController.succeed({
-        code: 'settings.skills.agentImported',
-        title: t('settings.skills.agentImport.resultSuccess'),
-        description: resultSummary
-      })
-    }
+    executing.value = false
     if (surfaceCurrent) {
       result.value = nextResult
     }
-  } catch (cause) {
-    if (
-      generation !== executionGeneration ||
-      requestId !== executeRequestId ||
-      executionController.getSnapshot().status !== 'pending'
-    ) {
+    if (!nextResult.success || nextResult.failed.length > 0) {
+      operationError.value = resultSummary
+      throw new Error('Agent skill import was incomplete')
+    }
+  }).catch((cause) => {
+    if (generation !== executionGeneration || requestId !== executeRequestId || !executing.value) {
       return
     }
-    logFailure('[ImportSkillsFromAgentDialog] Failed to import Agent skills', cause)
-    executionController.fail({
-      code: 'settings.skills.agentImportFailed',
-      title: t('settings.skills.agentImport.executeError'),
-      description: t('common.error.requestFailed')
-    })
-  }
+    if (!operationError.value) {
+      logFailure('[ImportSkillsFromAgentDialog] Failed to import Agent skills', cause)
+      operationError.value = t('common.error.requestFailed')
+      executing.value = false
+    }
+  })
 }
 
 const retrySources = () => {
@@ -338,13 +295,11 @@ const retrySources = () => {
 
 const requestClose = () => {
   if (executing.value) return
-  dismissSettledExecutionFeedback()
   emit('update:open', false)
 }
 
 const handleOpenChange = (open: boolean) => {
   if (!open && executing.value) return
-  if (!open) dismissSettledExecutionFeedback()
   emit('update:open', open)
 }
 
@@ -363,14 +318,6 @@ watch(selectedSourceKey, (key) => {
   void loadPreview()
 })
 
-const stopSurfaceLeaseSync = watch(
-  executionFeedbackSurfaceActive,
-  (active) => {
-    setExecutionFeedbackActive(active)
-  },
-  { immediate: true, flush: 'sync' }
-)
-
 const leaveGuardLease = settingsLeaveGuard.register({
   id: `settings.skills.agentImport:${nanoid(8)}`,
   onDiscard: () => undefined
@@ -384,7 +331,6 @@ const stopLeaveRiskSync = watch(
 )
 
 onBeforeUnmount(() => {
-  stopSurfaceLeaseSync()
   stopLeaveRiskSync()
   leaveGuardLease.release()
 })
@@ -417,9 +363,9 @@ onBeforeUnmount(() => {
               {{ targetAgentName || targetAgentId }}
             </div>
           </div>
-          <Badge variant="outline" class="max-w-52 shrink-0 truncate font-mono text-[11px]">
+          <DcBadge variant="outline" class="max-w-52 shrink-0 truncate font-mono text-[11px]">
             {{ targetAgentId }}
-          </Badge>
+          </DcBadge>
         </div>
 
         <template v-if="result">
@@ -492,23 +438,19 @@ onBeforeUnmount(() => {
               <p class="mt-1 text-xs text-muted-foreground">
                 {{ t('common.error.requestFailed') }}
               </p>
-              <Button class="mt-3" variant="outline" size="sm" @click="retrySources">
+              <DcButton class="mt-3" variant="outline" size="sm" @click="retrySources">
                 <Icon icon="lucide:refresh-cw" class="size-4" />
                 {{ t('common.retry') }}
-              </Button>
+              </DcButton>
             </div>
 
-            <Empty v-else-if="sources.length === 0" class="border py-7">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Icon icon="lucide:inbox" />
-                </EmptyMedia>
-                <EmptyTitle>{{ t('settings.skills.agentImport.emptySources') }}</EmptyTitle>
-                <EmptyDescription>
-                  {{ t('settings.skills.agentImport.emptySourcesDescription') }}
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <DcEmpty
+              v-else-if="sources.length === 0"
+              icon="lucide:inbox"
+              :title="t('settings.skills.agentImport.emptySources')"
+              :description="t('settings.skills.agentImport.emptySourcesDescription')"
+              class="py-7"
+            />
 
             <RadioGroup
               v-else
@@ -540,9 +482,9 @@ onBeforeUnmount(() => {
                     <span class="truncate text-sm font-medium" :title="source.name">
                       {{ source.name }}
                     </span>
-                    <Badge variant="outline" class="shrink-0 text-[10px]">
+                    <DcBadge variant="outline" class="shrink-0 text-[10px]">
                       {{ t(`settings.skills.agentImport.sourceKind.${source.source.kind}`) }}
-                    </Badge>
+                    </DcBadge>
                   </span>
                   <span class="mt-1 block text-xs text-muted-foreground">
                     {{ t('settings.skills.agentImport.skillCount', { count: source.skillCount }) }}
@@ -567,22 +509,22 @@ onBeforeUnmount(() => {
                 </p>
               </div>
               <div class="flex gap-1">
-                <Button
+                <DcButton
                   variant="ghost"
                   size="sm"
                   :disabled="executing || loadingPreview || actionableItems.length === 0"
                   @click="selectAll"
                 >
                   {{ t('settings.skills.agentImport.selectAll') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   variant="ghost"
                   size="sm"
                   :disabled="executing || loadingPreview || selectedCount === 0"
                   @click="clearSelection"
                 >
                   {{ t('settings.skills.agentImport.clear') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
 
@@ -601,23 +543,19 @@ onBeforeUnmount(() => {
               <p class="mt-1 text-xs text-muted-foreground">
                 {{ t('common.error.requestFailed') }}
               </p>
-              <Button class="mt-3" variant="outline" size="sm" @click="loadPreview">
+              <DcButton class="mt-3" variant="outline" size="sm" @click="loadPreview">
                 <Icon icon="lucide:refresh-cw" class="size-4" />
                 {{ t('common.retry') }}
-              </Button>
+              </DcButton>
             </div>
 
-            <Empty v-else-if="previewItems.length === 0" class="border py-7">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Icon icon="lucide:folder-search" />
-                </EmptyMedia>
-                <EmptyTitle>{{ t('settings.skills.agentImport.emptyPreview') }}</EmptyTitle>
-                <EmptyDescription>
-                  {{ t('settings.skills.agentImport.emptyPreviewDescription') }}
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <DcEmpty
+              v-else-if="previewItems.length === 0"
+              icon="lucide:folder-search"
+              :title="t('settings.skills.agentImport.emptyPreview')"
+              :description="t('settings.skills.agentImport.emptyPreviewDescription')"
+              class="py-7"
+            />
 
             <div v-else class="overflow-hidden rounded-md border">
               <div
@@ -644,9 +582,9 @@ onBeforeUnmount(() => {
                       >
                         {{ item.name }}
                       </label>
-                      <Badge variant="outline" class="shrink-0 text-[10px]">
+                      <DcBadge variant="outline" class="shrink-0 text-[10px]">
                         {{ t(`settings.skills.agentImport.status.${item.status}`) }}
-                      </Badge>
+                      </DcBadge>
                     </div>
                     <p
                       v-if="item.description"
@@ -692,32 +630,34 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </section>
-
-          <InlineOperationFeedback
-            v-if="visibleExecutionFeedback.status === 'error'"
-            :snapshot="visibleExecutionFeedback"
-          />
         </template>
       </div>
 
       <DialogFooter class="shrink-0 border-t px-6 py-4 sm:justify-between">
-        <Button variant="outline" :disabled="executing" @click="requestClose">
-          {{ result ? t('common.close') : t('common.cancel') }}
-        </Button>
-        <Button
-          v-if="!result"
-          data-testid="agent-import-execute"
-          :disabled="!canExecute"
-          @click="executeImport"
-        >
-          <Spinner v-if="executing" class="size-4" />
-          {{
+        <DcButton v-if="result" variant="outline" :disabled="executing" @click="requestClose">
+          {{ t('common.close') }}
+        </DcButton>
+        <DcFormActions
+          v-else
+          :cancel-label="t('common.cancel')"
+          :cancel-disabled="executing"
+          :submit-status="executeStatus"
+          :submit-disabled="!canExecute"
+          :submit-label="
             executing
               ? t('settings.skills.agentImport.importing')
               : t('settings.skills.agentImport.importSelected', { count: selectedCount })
-          }}
-        </Button>
+          "
+          submit-test-id="agent-import-execute"
+          @cancel="requestClose"
+          @submit="executeImport"
+        />
       </DialogFooter>
+      <DcInlineError
+        v-if="operationError"
+        :error="operationError"
+        class="shrink-0 border-t px-6 py-3"
+      />
     </DialogContent>
   </Dialog>
 </template>

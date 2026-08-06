@@ -559,5 +559,21 @@
       "amendRetryable": "Düzenleme başarısız oldu. Özgün bellek geri yüklendi; tekrar deneyin.",
       "amendRestoreFailed": "Düzenleme başarısız oldu ve özgün bellek geri yüklenemedi."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Alt Agent’ı aç" },
+    "activityTitle": "Agent etkinliği",
+    "proactive": {
+      "title": "Proaktif iş birliği",
+      "description": "Bağımsız veya paralel çalışma açıkça fayda sağladığında ana Agent'ın görev devretmesine izin verir. Daha fazla zaman, token ve kaynak kullanabilir.",
+      "reasons": {
+        "session_unavailable": "Bu oturum artık kullanılamıyor.",
+        "agent_unavailable": "Seçilen Agent kullanılamıyor.",
+        "deepchat_agent_required": "Proaktif iş birliği bir DeepChat Agent gerektirir.",
+        "regular_parent_required": "Proaktif iş birliği alt oturumlarda kullanılamaz.",
+        "agent_policy_unavailable": "İş birliği ilkesi yüklenemedi.",
+        "subagents_disabled": "Proaktif iş birliğini kullanmak için bu Agent üzerinde Subagents özelliğini etkinleştirin."
+      }
+    }
   }
 }

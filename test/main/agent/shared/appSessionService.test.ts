@@ -11,6 +11,8 @@ function createMockSqlitePresenter() {
       list: vi.fn().mockReturnValue([]),
       getDisabledAgentTools: vi.fn().mockReturnValue([]),
       updateDisabledAgentTools: vi.fn(),
+      getOrchestrationPolicy: vi.fn().mockReturnValue('explicit'),
+      updateOrchestrationPolicy: vi.fn(),
       update: vi.fn(),
       delete: vi.fn()
     },
@@ -60,6 +62,7 @@ describe('AppSessionService', () => {
         {
           isDraft: undefined,
           disabledAgentTools: undefined,
+          orchestrationPolicy: undefined,
           sessionKind: undefined,
           parentSessionId: undefined,
           subagentMetaJson: null
@@ -148,10 +151,34 @@ describe('AppSessionService', () => {
         sessionKind: 'regular',
         parentSessionId: null,
         subagentMeta: null,
+        orchestrationPolicy: 'explicit',
         createdAt: 1000,
         updatedAt: 2000
       })
       expect(record).not.toHaveProperty('subagentEnabled')
+    })
+
+    it('maps proactive policy from durable session state', () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Workflow',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_meta_json: null,
+        orchestration_policy: 'proactive',
+        created_at: 1000,
+        updated_at: 2000,
+        revision: 3
+      })
+
+      expect(manager.get('s1')).toMatchObject({
+        id: 's1',
+        orchestrationPolicy: 'proactive'
+      })
     })
 
     it('returns stored metadata when present', () => {
@@ -182,6 +209,128 @@ describe('AppSessionService', () => {
           }
         })
       )
+    })
+
+    it('ignores retired workflow metadata while preserving child identity', () => {
+      const baseRow = {
+        id: 'child-1',
+        agent_id: 'deepchat',
+        title: 'Workflow child',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'subagent',
+        parent_session_id: 'parent-1',
+        created_at: 1000,
+        updated_at: 2000,
+        revision: 0
+      }
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'workflow:slot',
+          displayName: 'Workflow child',
+          targetAgentId: 'deepchat',
+          workflow: {
+            runId: 'run-1',
+            invocationId: 'invocation-1',
+            correlationSlot: 'workflow:slot'
+          }
+        })
+      })
+
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'workflow:slot',
+        displayName: 'Workflow child',
+        targetAgentId: 'deepchat'
+      })
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'legacy-slot',
+          displayName: 'Legacy child',
+          workflow: {
+            runId: '',
+            invocationId: 'invocation-1',
+            correlationSlot: 'workflow:slot'
+          }
+        })
+      })
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'legacy-slot',
+        displayName: 'Legacy child',
+        targetAgentId: undefined
+      })
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'workflow:slot',
+          displayName: 'Mismatched workflow child',
+          workflow: {
+            runId: 'run-1',
+            invocationId: 'invocation-1',
+            correlationSlot: 'workflow:different'
+          }
+        })
+      })
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'workflow:slot',
+        displayName: 'Mismatched workflow child',
+        targetAgentId: undefined
+      })
+    })
+
+    it('preserves live ownership while ignoring retired metadata', () => {
+      const baseRow = {
+        id: 'child-1',
+        agent_id: 'deepchat',
+        title: 'Live child',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'subagent',
+        parent_session_id: 'parent-1',
+        created_at: 1000,
+        updated_at: 2000,
+        revision: 0
+      }
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'reviewer',
+          displayName: 'Live child',
+          liveDelegation: { delegationId: 'delegation-1' }
+        })
+      })
+
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'reviewer',
+        displayName: 'Live child',
+        targetAgentId: undefined,
+        liveDelegation: { delegationId: 'delegation-1' }
+      })
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'reviewer',
+          displayName: 'Ambiguous child',
+          workflow: {
+            runId: 'run-1',
+            invocationId: 'invocation-1',
+            correlationSlot: 'reviewer'
+          },
+          liveDelegation: { delegationId: 'delegation-1' }
+        })
+      })
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'reviewer',
+        displayName: 'Ambiguous child',
+        targetAgentId: undefined,
+        liveDelegation: { delegationId: 'delegation-1' }
+      })
     })
 
     it('returns null when not found', () => {

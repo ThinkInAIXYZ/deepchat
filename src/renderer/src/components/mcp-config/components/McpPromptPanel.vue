@@ -1,17 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcEmpty } from '@dc-ui/components/empty'
+import { DcSheetPanel } from '@dc-ui/components/sheet-panel'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription
-} from '@shadcn/components/ui/sheet'
 import {
   Select,
   SelectContent,
@@ -173,234 +168,220 @@ const promptArgsDescription = computed(() => {
 </script>
 
 <template>
-  <Sheet v-model:open="open">
-    <SheetContent
-      side="right"
-      class="w-4/5 min-w-[80vw] max-w-[80vw] p-0 bg-white dark:bg-black h-screen flex flex-col gap-0"
-    >
-      <SheetHeader class="px-4 py-3 border-b bg-card shrink-0">
-        <SheetTitle class="flex items-center space-x-2">
-          <Icon icon="lucide:message-square-text" class="h-5 w-5 text-primary" />
-          <span>{{ props.serverName ? `${props.serverName}` : '' }}</span>
-        </SheetTitle>
-        <SheetDescription>
-          {{ t('mcp.prompts.dialogDescription') }}
-        </SheetDescription>
-      </SheetHeader>
+  <DcSheetPanel
+    v-model:open="open"
+    :title="props.serverName ?? ''"
+    :description="t('mcp.prompts.dialogDescription')"
+    icon="lucide:message-square-text"
+    width-class="w-4/5 min-w-[80vw] max-w-[80vw]"
+    :scroll-body="false"
+  >
+    <div class="flex flex-col flex-1 overflow-hidden">
+      <!-- 小屏幕：提示模板选择下拉菜单 -->
+      <div class="shrink-0 px-4 py-4 lg:hidden">
+        <Select v-model="selectedPrompt">
+          <SelectTrigger class="w-full">
+            <SelectValue :placeholder="t('mcp.prompts.selectPrompt')" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="prompt in serverPrompts" :key="prompt.name" :value="prompt.name">
+              {{ prompt.name }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-      <div class="flex flex-col flex-1 overflow-hidden">
-        <!-- 小屏幕：提示模板选择下拉菜单 -->
-        <div class="shrink-0 px-4 py-4 lg:hidden">
-          <Select v-model="selectedPrompt">
-            <SelectTrigger class="w-full">
-              <SelectValue :placeholder="t('mcp.prompts.selectPrompt')" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="prompt in serverPrompts" :key="prompt.name" :value="prompt.name">
-                {{ prompt.name }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+      <!-- 大屏幕：左右分列布局 -->
+      <div class="flex-1 flex overflow-hidden min-h-0">
+        <!-- 左侧提示模板列表 (仅大屏幕显示) -->
+        <div class="hidden lg:flex lg:w-1/3 lg:border-r lg:flex-col">
+          <ScrollArea class="flex-1 min-h-0">
+            <div v-if="mcpStore.toolsLoading" class="flex justify-center py-8">
+              <Spinner class="size-6 text-muted-foreground" />
+            </div>
+
+            <DcEmpty
+              v-else-if="serverPrompts.length === 0"
+              icon="lucide:message-square"
+              :title="t('mcp.prompts.noPromptsAvailable')"
+              class="border-0 py-8"
+            />
+
+            <div v-else class="p-2 space-y-1">
+              <DcButton
+                v-for="prompt in serverPrompts"
+                :key="prompt.name"
+                variant="ghost"
+                class="w-full justify-start h-auto p-3 text-left"
+                :class="{
+                  'bg-accent text-accent-foreground': selectedPrompt === prompt.name
+                }"
+                @click="selectPrompt(prompt)"
+              >
+                <div class="flex items-start space-x-2 w-full">
+                  <Icon
+                    icon="lucide:message-square-text"
+                    class="h-4 w-4 text-primary mt-0.5 shrink-0"
+                  />
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium text-sm truncate">{{ prompt.name }}</div>
+                  </div>
+                </div>
+              </DcButton>
+            </div>
+          </ScrollArea>
         </div>
 
-        <!-- 大屏幕：左右分列布局 -->
-        <div class="flex-1 flex overflow-hidden min-h-0">
-          <!-- 左侧提示模板列表 (仅大屏幕显示) -->
-          <div class="hidden lg:flex lg:w-1/3 lg:border-r lg:flex-col">
+        <!-- 右侧详情区域 -->
+        <div class="flex-1 flex flex-col overflow-hidden lg:w-2/3 min-h-0">
+          <div v-if="!selectedPromptObj" class="flex items-center justify-center h-full">
+            <div class="text-center">
+              <div
+                class="mx-auto w-12 h-12 bg-muted/30 rounded-full flex items-center justify-center mb-3"
+              >
+                <Icon icon="lucide:mouse-pointer-click" class="h-5 w-5 text-muted-foreground" />
+              </div>
+              <h3 class="text-base font-medium text-foreground mb-2">
+                {{ t('mcp.prompts.selectPrompt') }}
+              </h3>
+            </div>
+          </div>
+
+          <div v-else class="h-full flex flex-col overflow-hidden min-h-0">
             <ScrollArea class="flex-1 min-h-0">
-              <div v-if="mcpStore.toolsLoading" class="flex justify-center py-8">
-                <Spinner class="size-6 text-muted-foreground" />
-              </div>
-
-              <div v-else-if="serverPrompts.length === 0" class="text-center py-8">
-                <div
-                  class="mx-auto w-12 h-12 bg-muted/30 rounded-full flex items-center justify-center mb-3"
-                >
-                  <Icon icon="lucide:message-square" class="h-5 w-5 text-muted-foreground" />
+              <div class="px-4 py-4 space-y-4 pb-8">
+                <!-- 提示模板信息 -->
+                <div>
+                  <div class="flex items-center space-x-2 mb-2">
+                    <Icon icon="lucide:message-square-text" class="h-5 w-5 text-primary" />
+                    <h2 class="text-lg font-semibold">
+                      {{ selectedPromptObj.name }}
+                    </h2>
+                  </div>
+                  <p class="text-sm text-secondary-foreground">
+                    {{ selectedPromptObj.description || t('mcp.prompts.noDescription') }}
+                  </p>
                 </div>
-                <p class="text-sm text-muted-foreground">
-                  {{ t('mcp.prompts.noPromptsAvailable') }}
-                </p>
-              </div>
 
-              <div v-else class="p-2 space-y-1">
-                <Button
-                  v-for="prompt in serverPrompts"
-                  :key="prompt.name"
-                  variant="ghost"
-                  class="w-full justify-start h-auto p-3 text-left"
-                  :class="{
-                    'bg-accent text-accent-foreground': selectedPrompt === prompt.name
-                  }"
-                  @click="selectPrompt(prompt)"
-                >
-                  <div class="flex items-start space-x-2 w-full">
+                <!-- 参数说明（可折叠） -->
+                <div v-if="promptArgsDescription.length > 0" class="border rounded-lg">
+                  <DcButton
+                    variant="ghost"
+                    class="w-full justify-between p-3 h-auto"
+                    @click="isParametersExpanded = !isParametersExpanded"
+                  >
+                    <span class="font-medium"
+                      >{{ t('mcp.prompts.parameters') }} ({{ promptArgsDescription.length }})</span
+                    >
                     <Icon
-                      icon="lucide:message-square-text"
-                      class="h-4 w-4 text-primary mt-0.5 shrink-0"
+                      :icon="isParametersExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                      class="h-4 w-4"
                     />
-                    <div class="flex-1 min-w-0">
-                      <div class="font-medium text-sm truncate">{{ prompt.name }}</div>
+                  </DcButton>
+                  <div v-if="isParametersExpanded" class="px-3 pb-3 space-y-2">
+                    <div
+                      v-for="arg in promptArgsDescription"
+                      :key="arg.name"
+                      class="p-2 bg-muted/30 rounded-md border border-border/30"
+                    >
+                      <div class="flex items-center space-x-1 mb-1">
+                        <code class="text-xs font-mono font-medium text-foreground">{{
+                          arg.name
+                        }}</code>
+                        <DcBadge
+                          v-if="arg.required"
+                          variant="destructive"
+                          class="text-xs px-1 py-0"
+                        >
+                          {{ t('mcp.prompts.required') }}
+                        </DcBadge>
+                      </div>
+                      <p v-if="arg.description" class="text-xs text-muted-foreground">
+                        {{ arg.description }}
+                      </p>
                     </div>
                   </div>
-                </Button>
+                </div>
+
+                <!-- 参数输入（调试区域） -->
+                <div class="space-y-3">
+                  <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-foreground">
+                      {{ t('mcp.prompts.input') }}
+                    </h3>
+                    <div class="flex space-x-2">
+                      <DcButton
+                        variant="ghost"
+                        size="sm"
+                        class="h-6 px-2 text-xs"
+                        icon="lucide:refresh-cw"
+                        @click="promptParams = defaultPromptParams"
+                      >
+                        {{ t('mcp.prompts.resetToDefault') }}
+                      </DcButton>
+                      <DcButton
+                        variant="ghost"
+                        size="sm"
+                        class="h-6 px-2 text-xs"
+                        icon="lucide:align-left"
+                        @click="formatPromptParams"
+                      >
+                        {{ t('common.format') }}
+                      </DcButton>
+                    </div>
+                  </div>
+
+                  <div class="relative">
+                    <textarea
+                      v-model="promptParams"
+                      class="flex h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      :class="{ 'border-destructive': jsonPromptError }"
+                      placeholder="{}"
+                      @input="validatePromptJson(promptParams)"
+                      @blur="promptParams = formatJson(promptParams)"
+                    />
+                    <div
+                      v-if="jsonPromptError"
+                      class="absolute right-3 top-3 text-xs text-destructive"
+                    >
+                      {{ t('mcp.prompts.invalidJson') }}
+                    </div>
+                  </div>
+                  <p class="text-xs text-muted-foreground">
+                    {{ t('mcp.prompts.parametersHint') }}
+                  </p>
+
+                  <!-- 执行按钮 -->
+                  <DcButton
+                    class="w-full"
+                    icon="lucide:play"
+                    :loading="promptLoading"
+                    :disabled="promptLoading || jsonPromptError"
+                    @click="callPrompt(selectedPromptObj as PromptListEntry)"
+                  >
+                    {{
+                      promptLoading
+                        ? t('mcp.prompts.runningPrompt')
+                        : t('mcp.prompts.executeButton')
+                    }}
+                  </DcButton>
+                </div>
+
+                <!-- 结果显示 -->
+                <div v-if="promptResult">
+                  <McpJsonViewer
+                    :content="promptResult"
+                    :title="t('mcp.prompts.resultTitle')"
+                    readonly
+                  />
+                </div>
               </div>
             </ScrollArea>
           </div>
-
-          <!-- 右侧详情区域 -->
-          <div class="flex-1 flex flex-col overflow-hidden lg:w-2/3 min-h-0">
-            <div v-if="!selectedPromptObj" class="flex items-center justify-center h-full">
-              <div class="text-center">
-                <div
-                  class="mx-auto w-12 h-12 bg-muted/30 rounded-full flex items-center justify-center mb-3"
-                >
-                  <Icon icon="lucide:mouse-pointer-click" class="h-5 w-5 text-muted-foreground" />
-                </div>
-                <h3 class="text-base font-medium text-foreground mb-2">
-                  {{ t('mcp.prompts.selectPrompt') }}
-                </h3>
-              </div>
-            </div>
-
-            <div v-else class="h-full flex flex-col overflow-hidden min-h-0">
-              <ScrollArea class="flex-1 min-h-0">
-                <div class="px-4 py-4 space-y-4 pb-8">
-                  <!-- 提示模板信息 -->
-                  <div>
-                    <div class="flex items-center space-x-2 mb-2">
-                      <Icon icon="lucide:message-square-text" class="h-5 w-5 text-primary" />
-                      <h2 class="text-lg font-semibold">
-                        {{ selectedPromptObj.name }}
-                      </h2>
-                    </div>
-                    <p class="text-sm text-secondary-foreground">
-                      {{ selectedPromptObj.description || t('mcp.prompts.noDescription') }}
-                    </p>
-                  </div>
-
-                  <!-- 参数说明（可折叠） -->
-                  <div v-if="promptArgsDescription.length > 0" class="border rounded-lg">
-                    <Button
-                      variant="ghost"
-                      class="w-full justify-between p-3 h-auto"
-                      @click="isParametersExpanded = !isParametersExpanded"
-                    >
-                      <span class="font-medium"
-                        >{{ t('mcp.prompts.parameters') }} ({{
-                          promptArgsDescription.length
-                        }})</span
-                      >
-                      <Icon
-                        :icon="isParametersExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
-                        class="h-4 w-4"
-                      />
-                    </Button>
-                    <div v-if="isParametersExpanded" class="px-3 pb-3 space-y-2">
-                      <div
-                        v-for="arg in promptArgsDescription"
-                        :key="arg.name"
-                        class="p-2 bg-muted/30 rounded-md border border-border/30"
-                      >
-                        <div class="flex items-center space-x-1 mb-1">
-                          <code class="text-xs font-mono font-medium text-foreground">{{
-                            arg.name
-                          }}</code>
-                          <Badge
-                            v-if="arg.required"
-                            variant="destructive"
-                            class="text-xs px-1 py-0"
-                          >
-                            {{ t('mcp.prompts.required') }}
-                          </Badge>
-                        </div>
-                        <p v-if="arg.description" class="text-xs text-muted-foreground">
-                          {{ arg.description }}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- 参数输入（调试区域） -->
-                  <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                      <h3 class="text-sm font-medium text-foreground">
-                        {{ t('mcp.prompts.input') }}
-                      </h3>
-                      <div class="flex space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          class="h-6 text-xs px-2"
-                          @click="promptParams = defaultPromptParams"
-                        >
-                          <Icon icon="lucide:refresh-cw" class="mr-1 h-3 w-3" />
-                          {{ t('mcp.prompts.resetToDefault') }}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          class="h-6 text-xs px-2"
-                          @click="formatPromptParams"
-                        >
-                          <Icon icon="lucide:align-left" class="mr-1 h-3 w-3" />
-                          {{ t('common.format') }}
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div class="relative">
-                      <textarea
-                        v-model="promptParams"
-                        class="flex h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        :class="{ 'border-destructive': jsonPromptError }"
-                        placeholder="{}"
-                        @input="validatePromptJson(promptParams)"
-                        @blur="promptParams = formatJson(promptParams)"
-                      />
-                      <div
-                        v-if="jsonPromptError"
-                        class="absolute right-3 top-3 text-xs text-destructive"
-                      >
-                        {{ t('mcp.prompts.invalidJson') }}
-                      </div>
-                    </div>
-                    <p class="text-xs text-muted-foreground">
-                      {{ t('mcp.prompts.parametersHint') }}
-                    </p>
-
-                    <!-- 执行按钮 -->
-                    <Button
-                      class="w-full"
-                      :disabled="promptLoading || jsonPromptError"
-                      @click="callPrompt(selectedPromptObj as PromptListEntry)"
-                    >
-                      <Spinner v-if="promptLoading" data-icon="inline-start" />
-                      <Icon v-else icon="lucide:play" data-icon="inline-start" />
-                      {{
-                        promptLoading
-                          ? t('mcp.prompts.runningPrompt')
-                          : t('mcp.prompts.executeButton')
-                      }}
-                    </Button>
-                  </div>
-
-                  <!-- 结果显示 -->
-                  <div v-if="promptResult">
-                    <McpJsonViewer
-                      :content="promptResult"
-                      :title="t('mcp.prompts.resultTitle')"
-                      readonly
-                    />
-                  </div>
-                </div>
-              </ScrollArea>
-            </div>
-          </div>
         </div>
       </div>
-    </SheetContent>
-  </Sheet>
+    </div>
+  </DcSheetPanel>
 </template>
 
 <style scoped>

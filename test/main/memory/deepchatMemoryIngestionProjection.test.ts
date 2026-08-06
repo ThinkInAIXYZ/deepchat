@@ -39,6 +39,7 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
       status: 'pending' | 'sent' | 'error'
       content: string
       role?: 'user' | 'assistant'
+      metadata?: string
     }
   ) {
     const sessionId = input.sessionId ?? 's1'
@@ -57,7 +58,7 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
           content: input.content,
           status: input.status,
           isContextEdge: 0,
-          metadata: '{}',
+          metadata: input.metadata ?? '{}',
           traceCount: 0,
           createdAt: 100 + input.orderSeq,
           updatedAt: 100 + input.orderSeq
@@ -411,6 +412,39 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
       db.close()
     }
   })
+
+  itIfSqlite(
+    'keeps retired workflow result notices out of memory ingestion while advancing Tape head',
+    () => {
+      const { db, projection, tape } = createTables()
+      try {
+        appendMessage(tape, {
+          id: 'workflow-result',
+          orderSeq: 1,
+          role: 'assistant',
+          status: 'sent',
+          content: JSON.stringify([
+            {
+              type: 'content',
+              content: 'untrusted child result',
+              status: 'success',
+              timestamp: 100
+            }
+          ]),
+          metadata: JSON.stringify({
+            messageType: 'workflow_result',
+            workflowRunId: 'run-1',
+            workflowResultDeliveryId: 'delivery-1'
+          })
+        })
+
+        expect(projection.isCurrent('s1', tape.getMaxEntryId('s1'))).toBe(true)
+        expect(projection.listRange('s1', 0, 10)).toEqual([])
+      } finally {
+        db.close()
+      }
+    }
+  )
 
   itIfSqlite('rolls Tape append back when projection invalidation also fails', () => {
     const db = new DatabaseCtor(':memory:')

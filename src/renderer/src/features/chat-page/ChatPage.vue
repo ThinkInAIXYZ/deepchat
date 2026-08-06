@@ -71,7 +71,7 @@
                 class="inline-flex items-center gap-2 rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"
               >
                 <span>{{ t('common.error.requestFailed') }}</span>
-                <Button
+                <DcButton
                   data-testid="history-load-retry"
                   type="button"
                   size="sm"
@@ -80,7 +80,7 @@
                   @click="void retryOlderMessages()"
                 >
                   {{ t('thread.toolbar.retry') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
             <MessageList
@@ -120,6 +120,19 @@
         >
           <ChatSessionSkeleton />
         </div>
+      </div>
+      <div
+        v-if="isReadOnlySession && activePendingInteraction"
+        data-testid="chat-read-only-interaction-region"
+        class="chat-capture-hide relative w-full px-6 pb-3 pt-3"
+        style="z-index: var(--dc-z-sticky)"
+      >
+        <ChatToolInteractionOverlay
+          class="pointer-events-auto mx-auto"
+          :interaction="activePendingInteraction"
+          :processing="isHandlingInteraction"
+          @respond="onToolInteractionRespond"
+        />
       </div>
       <!-- Composer is outside message scroll geometry. -->
       <div
@@ -277,24 +290,17 @@
       @send-without-image-content="retryBlockedMessageWithoutImageContent"
       @switch-model="switchRetryToVisionModel"
     />
-    <AlertDialog :open="showDeleteMessageDialog" @update:open="onDeleteMessageDialogOpenChange">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{{ t('dialog.deleteMessage.title') }}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('dialog.deleteMessage.description') }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel @click="cancelMessageDelete">
-            {{ t('dialog.cancel') }}
-          </AlertDialogCancel>
-          <AlertDialogAction variant="destructive" @click="confirmMessageDelete">
-            {{ t('dialog.deleteMessage.confirm') }}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DcConfirmDialog
+      :open="showDeleteMessageDialog"
+      :title="t('dialog.deleteMessage.title')"
+      :description="t('dialog.deleteMessage.description')"
+      :danger="true"
+      confirm-label="t('dialog.deleteMessage.confirm')"
+      cancel-label="t('dialog.cancel')"
+      @update:open="onDeleteMessageDialogOpenChange"
+      @confirm="confirmMessageDelete"
+      @cancel="cancelMessageDelete"
+    />
   </TooltipProvider>
 </template>
 
@@ -303,17 +309,8 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted, inject } from '
 import type { JSONContent } from '@tiptap/core'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
-import { Button } from '@shadcn/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
+import { DcButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import ChatSearchBar from '@/components/chat/ChatSearchBar.vue'
 import ChatSessionSkeleton from '@/components/chat/ChatSessionSkeleton.vue'
@@ -1099,7 +1096,6 @@ const {
 } = useToolInteraction({
   sessionId: () => props.sessionId,
   messageStore,
-  isReadOnlySession,
   chatClient,
   loadMessagesForSession,
   applyRestoredSessionSummary,
@@ -1212,6 +1208,7 @@ const {
   notify: notifyRenderer,
   t
 })
+
 switchComposerSessionDraft = switchComposerSession
 
 watch(

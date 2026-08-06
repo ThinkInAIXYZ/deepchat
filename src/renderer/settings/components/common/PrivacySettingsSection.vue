@@ -30,12 +30,6 @@
       <li>{{ t('settings.common.privacyModeNpmRegistry') }}</li>
     </ul>
 
-    <InlineOperationFeedback
-      :snapshot="privacyFeedback"
-      :retry-label="t('common.retry')"
-      @retry="retryPrivacyModeChange"
-    />
-
     <div class="space-y-1 text-xs leading-5 text-muted-foreground">
       <p>{{ t('settings.common.privacyModeManualActions') }}</p>
       <p>{{ t('settings.common.privacyModeIntegrations') }}</p>
@@ -47,23 +41,16 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { nanoid } from 'nanoid'
 import { Switch } from '@shadcn/components/ui/switch'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const { t } = useI18n()
 const uiSettingsStore = useUiSettingsStore()
-const privacyFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: privacyFeedback } = useSurfaceFeedback(privacyFeedbackController)
-const privacyOperationId = `settings.privacy.update:${nanoid(8)}`
 
 const privacyModeEnabled = computed(() => uiSettingsStore.privacyModeEnabled)
-const isUpdatingPrivacyMode = computed(() => privacyFeedback.value.status === 'pending')
-const retryValue = ref<boolean | null>(null)
+const isUpdatingPrivacyMode = ref(false)
 const privacyModeLabelId = 'privacy-mode-label'
 const privacyModeDescriptionId = 'privacy-mode-desc'
 
@@ -72,30 +59,28 @@ const handlePrivacyModeChange = async (value: boolean) => {
     return
   }
 
-  retryValue.value = value
-  privacyFeedbackController.begin(privacyOperationId, t('common.saving'))
+  isUpdatingPrivacyMode.value = true
   try {
     await uiSettingsStore.setPrivacyModeEnabled(value)
-    retryValue.value = null
-    privacyFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.privacy.updated',
       title: t('common.saved')
     })
   } catch (error) {
     console.error('[PrivacySettingsSection] Failed to update privacy mode', error)
-    privacyFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.privacy.updateFailed',
       title: t('common.error.operationFailed')
     })
+  } finally {
+    isUpdatingPrivacyMode.value = false
   }
 }
 
-const retryPrivacyModeChange = () => {
-  if (retryValue.value !== null) void handlePrivacyModeChange(retryValue.value)
-}
-
 const leaveGuardLease = settingsLeaveGuard.register({
-  id: privacyOperationId,
+  id: 'settings-privacy-mode',
   onDiscard: () => undefined
 })
 const stopLeaveRiskSync = watch(

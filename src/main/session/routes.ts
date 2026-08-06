@@ -61,7 +61,11 @@ import type { SessionPermissionPort } from '@/session/contracts'
 import type { UsageStatsService } from '@/session/usageStatsService'
 import type { AgentSessionExportService } from '@/exporter/agentSessionExporter'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
-import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
+import {
+  createRouteMap,
+  requireRendererCaller,
+  type DeepchatRouteMap
+} from '@/routes/routeRegistry'
 import type { Scheduler } from '@/routes/scheduler'
 import type { SessionAgentAssignmentPort, SessionLifecyclePort, SessionTurnPort } from './contracts'
 import type { SessionQuery } from './query'
@@ -139,14 +143,15 @@ export function createSessionRoutes(deps: {
       sessionsCreateRoute.name,
       async (rawInput, context) => {
         const input = sessionsCreateRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         const { submissionId, ...createInput } = input
         const created = await withSubmissionCancellation(
-          context.webContentsId,
+          caller.webContentsId,
           submissionId,
           async (signal) =>
             signal
-              ? await sessionService.createSession(createInput, context, { signal })
-              : await sessionService.createSession(createInput, context)
+              ? await sessionService.createSession(createInput, caller, { signal })
+              : await sessionService.createSession(createInput, caller)
         )
         const { initialTurn, ...session } = created
         return sessionsCreateRoute.output.parse({
@@ -206,7 +211,7 @@ export function createSessionRoutes(deps: {
       sessionsActivateRoute.name,
       async (rawInput, context) => {
         const input = sessionsActivateRoute.input.parse(rawInput)
-        await sessionService.activateSession(context, input.sessionId)
+        await sessionService.activateSession(requireRendererCaller(context), input.sessionId)
         return sessionsActivateRoute.output.parse({ activated: true })
       }
     ],
@@ -214,7 +219,7 @@ export function createSessionRoutes(deps: {
       sessionsDeactivateRoute.name,
       async (rawInput, context) => {
         sessionsDeactivateRoute.input.parse(rawInput)
-        await sessionService.deactivateSession(context)
+        await sessionService.deactivateSession(requireRendererCaller(context))
         return sessionsDeactivateRoute.output.parse({ deactivated: true })
       }
     ],
@@ -223,7 +228,7 @@ export function createSessionRoutes(deps: {
       async (rawInput, context) => {
         sessionsGetActiveRoute.input.parse(rawInput)
         return sessionsGetActiveRoute.output.parse({
-          session: await sessionService.getActiveSession(context)
+          session: await sessionService.getActiveSession(requireRendererCaller(context))
         })
       }
     ],
@@ -646,9 +651,10 @@ export function createSessionRoutes(deps: {
       chatSendMessageRoute.name,
       async (rawInput, context) => {
         const input = chatSendMessageRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         return chatSendMessageRoute.output.parse(
           await withSubmissionCancellation(
-            context.webContentsId,
+            caller.webContentsId,
             input.submissionId,
             async (signal) =>
               signal
@@ -662,9 +668,10 @@ export function createSessionRoutes(deps: {
       chatSteerActiveTurnRoute.name,
       async (rawInput, context) => {
         const input = chatSteerActiveTurnRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         return chatSteerActiveTurnRoute.output.parse(
           await withSubmissionCancellation(
-            context.webContentsId,
+            caller.webContentsId,
             input.submissionId,
             async (signal) =>
               signal
@@ -678,8 +685,9 @@ export function createSessionRoutes(deps: {
       chatCancelSubmissionRoute.name,
       async (rawInput, context) => {
         const input = chatCancelSubmissionRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         return chatCancelSubmissionRoute.output.parse({
-          cancelled: submissionCancellations.cancel(context.webContentsId, input.submissionId)
+          cancelled: submissionCancellations.cancel(caller.webContentsId, input.submissionId)
         })
       }
     ],

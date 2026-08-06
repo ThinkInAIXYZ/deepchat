@@ -78,7 +78,13 @@ export interface InteractionCoordinatorPorts {
   messageProjection: Pick<MessageProjectionService, 'refresh'>
   hookSink: Pick<RuntimeHookSink, 'scope'>
   turnCoordinator: TurnResumePort
+  continuationAdmission: InteractionContinuationAdmissionPort
   publishEvent: DeepChatEventPublisher
+}
+
+export interface InteractionContinuationAdmissionPort {
+  resume(sessionId: string, signal?: AbortSignal): Promise<boolean>
+  suspend(sessionId: string): void
 }
 
 export class InteractionCoordinator {
@@ -101,8 +107,16 @@ export class InteractionCoordinator {
       interactionOwnerRun,
       messageId
     )
+    let resumedWaitingAdmission = false
     let interactionAbortController: AbortController | null = null
     let interactionAbortSignal: AbortSignal | undefined
+    const resumeWaitingAdmission = async () => {
+      if (
+        await this.ports.continuationAdmission.resume(sessionId, interactionAbortSignal)
+      ) {
+        resumedWaitingAdmission = true
+      }
+    }
     try {
       if (interactionOwnerRun) {
         if (interactionOwnedByActiveRun && interactionOwnerRun.abortController.signal.aborted) {
@@ -207,6 +221,7 @@ export class InteractionCoordinator {
         const requestId = permissionPayload?.requestId?.trim()
         const providerId = permissionPayload?.providerId?.trim()
         if (providerId === 'acp' && requestId) {
+          await resumeWaitingAdmission()
           await awaitWithAbort(
             this.ports.providerPermissionCoordinator.resolve({
               sessionId,
@@ -232,6 +247,7 @@ export class InteractionCoordinator {
         let shouldDispatchResolvedToolHook = false
 
         if (response.granted) {
+          await resumeWaitingAdmission()
           await awaitWithAbort(
             this.grantPermissionForPayload(sessionId, permissionPayload, toolCall),
             interactionAbortSignal
@@ -317,7 +333,11 @@ export class InteractionCoordinator {
               usage: buildUsageFromMetadata(terminalMetadata) ?? null,
               error: { message: execution.terminalError }
             })
-            this.ports.runLifecycle.transitionStatus(scope, 'error')
+            this.ports.runLifecycle.transitionStatus(
+              scope,
+              'error',
+              buildUsageFromMetadata(terminalMetadata)
+            )
             replacePendingInteractions(
               instance,
               reconcilePendingInteractionEntries(
@@ -400,6 +420,9 @@ export class InteractionCoordinator {
       const persistedMetadata = finishesForUserFollowUp
         ? stampTerminalMetadata(resumeAccounting, 'completed', 'user_follow_up')
         : resumeAccounting
+      if (remainingPending.length === 0 && !awaitsUserFollowUp) {
+        await resumeWaitingAdmission()
+      }
       this.ports.messageStore.updateAssistantContent(
         messageId,
         blocks,
@@ -409,6 +432,7 @@ export class InteractionCoordinator {
       this.ports.messageProjection.refresh(sessionId, messageId)
 
       if (remainingPending.length > 0) {
+        if (resumedWaitingAdmission) this.ports.continuationAdmission.suspend(sessionId)
         emitResolvedToolHook?.()
         this.ports.messageStore.updateMessageStatus(messageId, 'pending')
         this.ports.runLifecycle.transitionStatus(scope, 'generating')
@@ -423,7 +447,11 @@ export class InteractionCoordinator {
           stopReason: 'user_follow_up',
           usage: buildUsageFromMetadata(persistedMetadata)
         })
-        this.ports.runLifecycle.transitionStatus(scope, 'idle')
+        this.ports.runLifecycle.transitionStatus(
+          scope,
+          'idle',
+          buildUsageFromMetadata(persistedMetadata)
+        )
         return { resumed: false, waitingForUserMessage: true }
       }
 
@@ -441,6 +469,7 @@ export class InteractionCoordinator {
       emitResolvedToolHook?.()
       return { resumed }
     } catch (error) {
+      if (resumedWaitingAdmission) this.ports.continuationAdmission.suspend(sessionId)
       if (isAbortError(error) || interactionAbortSignal?.aborted) {
         if (interactionOwnedByActiveRun) {
           return { resumed: false }

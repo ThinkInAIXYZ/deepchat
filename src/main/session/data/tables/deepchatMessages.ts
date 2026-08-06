@@ -25,6 +25,13 @@ export interface DeepChatMessageUsageCandidateRow {
   model_id: string | null
 }
 
+export interface DeepChatAssistantMessageIdentityRow {
+  id: string
+  session_id: string
+  status: 'pending' | 'sent' | 'error'
+  updated_at: number
+}
+
 export class DeepChatMessagesTable extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'deepchat_messages')
@@ -235,6 +242,28 @@ export class DeepChatMessagesTable extends BaseTable {
   get(messageId: string): DeepChatMessageRow | undefined {
     const row = this.db.prepare('SELECT * FROM deepchat_messages WHERE id = ?').get(messageId)
     return row as DeepChatMessageRow | undefined
+  }
+
+  getAssistantIdentity(messageId: string): DeepChatAssistantMessageIdentityRow | undefined {
+    return this.db
+      .prepare(
+        `SELECT id, session_id, status, updated_at
+         FROM deepchat_messages
+         WHERE id = ? AND role = 'assistant'`
+      )
+      .get(messageId) as DeepChatAssistantMessageIdentityRow | undefined
+  }
+
+  getLatestAssistantIdentity(sessionId: string): DeepChatAssistantMessageIdentityRow | undefined {
+    return this.db
+      .prepare(
+        `SELECT id, session_id, status, updated_at
+         FROM deepchat_messages
+         WHERE session_id = ? AND role = 'assistant'
+         ORDER BY order_seq DESC, id DESC
+         LIMIT 1`
+      )
+      .get(sessionId) as DeepChatAssistantMessageIdentityRow | undefined
   }
 
   getMaxOrderSeq(sessionId: string): number {

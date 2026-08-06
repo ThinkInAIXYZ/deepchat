@@ -14,20 +14,24 @@
       </div>
 
       <div class="mt-4 flex flex-wrap gap-2">
-        <Button variant="outline" :disabled="guidancePending" @click="startGuidedOnboarding">
+        <DcButton variant="outline" :disabled="guidancePending" @click="startGuidedOnboarding">
           <Spinner
             v-if="isGuidanceOperation(guidanceOperationIds.onboarding)"
             class="mr-2 size-4"
           />
           <Icon v-else icon="lucide:route" class="mr-2 size-4" />
           {{ t('about.mockOnboardingButton') }}
-        </Button>
-        <Button variant="outline" :disabled="guidancePending" @click="createMockChat">
-          <Spinner v-if="isCreatingMockChat" class="mr-2 size-4" />
-          <Icon v-else icon="lucide:database" class="mr-2 size-4" />
+        </DcButton>
+        <DcSubmitButton
+          variant="outline"
+          data-testid="debug-create-mock-chat"
+          :status="mockChatStatus"
+          :disabled="guidancePending"
+          @click="createMockChat"
+        >
           {{ isCreatingMockChat ? t('about.mockChatCreating') : t('about.mockChatButton') }}
-        </Button>
-        <Button
+        </DcSubmitButton>
+        <DcButton
           v-if="!upgrade.isMockUpdate"
           variant="outline"
           :disabled="guidancePending"
@@ -39,17 +43,17 @@
           />
           <Icon v-else icon="lucide:download" class="mr-2 size-4" />
           {{ t('about.mockUpdateButton') }}
-        </Button>
-        <Button v-else variant="outline" :disabled="guidancePending" @click="clearMockUpdate">
+        </DcButton>
+        <DcButton v-else variant="outline" :disabled="guidancePending" @click="clearMockUpdate">
           <Spinner
             v-if="isGuidanceOperation(guidanceOperationIds.clearUpdate)"
             class="mr-2 size-4"
           />
           <Icon v-else icon="lucide:rotate-ccw" class="mr-2 size-4" />
           {{ t('about.clearMockUpdateButton') }}
-        </Button>
+        </DcButton>
       </div>
-      <InlineOperationFeedback class="mt-3" :snapshot="guidanceFeedback" />
+      <DcInlineError v-if="mockChatError" :error="mockChatError" class="mt-2" />
     </section>
 
     <section class="rounded-xl border border-border bg-card p-4">
@@ -60,7 +64,7 @@
         <p class="text-sm text-muted-foreground">{{ t('settings.debug.splash.description') }}</p>
       </div>
       <div class="mt-4 flex flex-wrap gap-2">
-        <Button
+        <DcButton
           v-for="scenario in splashScenarios"
           :key="scenario.mode"
           variant="outline"
@@ -69,36 +73,34 @@
         >
           <Spinner v-if="isSplashOperation(splashOperationId(scenario.mode))" class="mr-2 size-4" />
           {{ scenario.label }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           variant="outline"
           :disabled="splashPending || !isSplashPreviewOpen"
           @click="closeSplashScenario"
         >
           <Spinner v-if="isSplashOperation(splashOperationIds.close)" class="mr-2 size-4" />
           {{ t('common.close') }}
-        </Button>
+        </DcButton>
       </div>
-      <InlineOperationFeedback class="mt-3" :snapshot="splashFeedback" />
     </section>
   </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { nanoid } from 'nanoid'
 import { computed, onMounted, ref } from 'vue'
 import type { SplashDebugMode } from '@shared/contracts/splash'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import { createDebugClient } from '@api/DebugClient'
 import { createUpgradeClient } from '@api/UpgradeClient'
 import { createWindowClient } from '@api/WindowClient'
 import { useUpgradeStore } from '@/stores/upgrade'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const { t } = useI18n()
@@ -106,48 +108,38 @@ const debugClient = createDebugClient()
 const upgradeClient = createUpgradeClient()
 const windowClient = createWindowClient()
 const upgrade = useUpgradeStore()
-const guidanceFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: guidanceFeedback } = useSurfaceFeedback(guidanceFeedbackController)
-const splashFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: splashFeedback } = useSurfaceFeedback(splashFeedbackController)
-const splashInstanceId = nanoid(8)
 const guidanceOperationIds = Object.freeze({
-  onboarding: `settings.debug.onboarding:${nanoid(8)}`,
-  mockChat: `settings.debug.mockChat:${nanoid(8)}`,
-  mockUpdate: `settings.debug.mockUpdate:${nanoid(8)}`,
-  clearUpdate: `settings.debug.clearUpdate:${nanoid(8)}`
+  onboarding: 'settings.debug.onboarding',
+  mockChat: 'settings.debug.mockChat',
+  mockUpdate: 'settings.debug.mockUpdate',
+  clearUpdate: 'settings.debug.clearUpdate'
 })
 const splashOperationIds = Object.freeze({
-  close: `settings.debug.splash.close:${splashInstanceId}`
+  close: 'settings.debug.splash.close'
 })
+const pendingGuidanceOperationId = ref<string | null>(null)
+const pendingSplashOperationId = ref<string | null>(null)
 const isSplashPreviewOpen = ref(false)
+const mockChatError = ref<string | null>(null)
+const { status: mockChatStatus, run: runMockChat } = useDcFormSubmit()
 const splashScenarios = computed<Array<{ mode: SplashDebugMode; label: string }>>(() => [
   { mode: 'loading', label: t('settings.debug.splash.loading') },
   { mode: 'system-unlock', label: t('settings.debug.splash.systemUnlock') },
   { mode: 'unlock', label: t('settings.debug.splash.unlock') }
 ])
 
-const splashOperationId = (mode: SplashDebugMode) =>
-  `settings.debug.splash.${mode}:${splashInstanceId}`
+const splashOperationId = (mode: SplashDebugMode) => `settings.debug.splash.${mode}`
 
 const isGuidanceOperation = (operationId: string) =>
-  guidanceFeedback.value.status === 'pending' && guidanceFeedback.value.operationId === operationId
+  pendingGuidanceOperationId.value === operationId
 
-const isSplashOperation = (operationId: string) =>
-  splashFeedback.value.status === 'pending' && splashFeedback.value.operationId === operationId
+const isSplashOperation = (operationId: string) => pendingSplashOperationId.value === operationId
 
-const guidancePending = computed(() => guidanceFeedback.value.status === 'pending')
-const splashPending = computed(() => splashFeedback.value.status === 'pending')
-const isCreatingMockChat = computed(() => isGuidanceOperation(guidanceOperationIds.mockChat))
-
-const completeWithoutConfirmation = (
-  controller: typeof guidanceFeedbackController,
-  code: string,
-  title: string
-) => {
-  controller.succeed({ code, title })
-  controller.clearSettled()
-}
+const guidancePending = computed(
+  () => pendingGuidanceOperationId.value !== null || mockChatStatus.value === 'submitting'
+)
+const splashPending = computed(() => pendingSplashOperationId.value !== null)
+const isCreatingMockChat = computed(() => mockChatStatus.value === 'submitting')
 
 type GuidanceActionOptions = Readonly<{
   operationId: string
@@ -172,10 +164,11 @@ const runGuidanceAction = async ({
     return
   }
 
-  guidanceFeedbackController.begin(operationId, pendingLabel)
+  pendingGuidanceOperationId.value = operationId
   try {
     if (!(await action())) {
-      guidanceFeedbackController.fail({
+      notifyRenderer({
+        kind: 'error',
         code: `${code}.unavailable`,
         title: unavailableTitle
       })
@@ -183,9 +176,18 @@ const runGuidanceAction = async ({
     }
     const result = success?.()
     if (result) {
-      guidanceFeedbackController.succeed(result)
+      notifyRenderer({
+        kind: 'success',
+        code: result.code,
+        title: result.title,
+        description: result.description
+      })
     } else {
-      completeWithoutConfirmation(guidanceFeedbackController, code, pendingLabel)
+      notifyRenderer({
+        kind: 'success',
+        code,
+        title: pendingLabel
+      })
     }
   } catch (error) {
     console.error(
@@ -195,10 +197,13 @@ const runGuidanceAction = async ({
       },
       error
     )
-    guidanceFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: `${code}.failed`,
       title: failureTitle
     })
+  } finally {
+    pendingGuidanceOperationId.value = null
   }
 }
 
@@ -212,30 +217,25 @@ const startGuidedOnboarding = () =>
     failureTitle: t('settings.debug.guidance.failed')
   })
 
-const createMockChat = async () => {
-  if (guidancePending.value) {
-    return
-  }
+const createMockChat = () => {
+  if (guidancePending.value) return
 
-  let result: Awaited<ReturnType<typeof debugClient.createMockChatSession>> | undefined
-  await runGuidanceAction({
-    operationId: guidanceOperationIds.mockChat,
-    code: 'settings.debug.mockChat',
-    pendingLabel: t('about.mockChatCreating'),
-    action: async () => {
-      result = await debugClient.createMockChatSession()
-      return Boolean(result.created && result.sessionId)
-    },
-    unavailableTitle: t('about.mockChatCreateUnavailable'),
-    failureTitle: t('about.mockChatCreateFailed'),
-    success: () => ({
-      code: 'settings.debug.mockChat.created',
-      title: t('about.mockChatCreated'),
-      description: t('about.mockChatCreatedDesc', {
-        title: result?.title ?? result?.sessionId ?? '',
-        count: result?.messageCount ?? 0
-      })
-    })
+  mockChatError.value = null
+  void runMockChat(async () => {
+    const result = await debugClient.createMockChatSession()
+    if (!result.created || !result.sessionId) {
+      mockChatError.value = t('about.mockChatCreateUnavailable')
+      throw new Error('mock chat session unavailable')
+    }
+  }).catch((error: unknown) => {
+    console.error(
+      '[DebugSettings] Guidance action failed',
+      { code: 'settings.debug.mockChat' },
+      error
+    )
+    if (mockChatError.value === null) {
+      mockChatError.value = t('about.mockChatCreateFailed')
+    }
   })
 }
 
@@ -245,28 +245,32 @@ const showSplashScenario = async (mode: SplashDebugMode) => {
   }
 
   const operationId = splashOperationId(mode)
-  splashFeedbackController.begin(operationId, t(`settings.debug.splash.${mode}`))
+  pendingSplashOperationId.value = operationId
   try {
     const result = await debugClient.showSplashScenario(mode)
     if (!result.shown) {
-      splashFeedbackController.fail({
+      notifyRenderer({
+        kind: 'error',
         code: 'settings.debug.splash.unavailable',
         title: t('settings.debug.unavailableDescription')
       })
       return
     }
     isSplashPreviewOpen.value = true
-    completeWithoutConfirmation(
-      splashFeedbackController,
-      'settings.debug.splash.shown',
-      t(`settings.debug.splash.${mode}`)
-    )
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.debug.splash.shown',
+      title: t(`settings.debug.splash.${mode}`)
+    })
   } catch (error) {
     console.error('[DebugSettings] Failed to show Splash preview', error)
-    splashFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.debug.splash.showFailed',
       title: t('settings.debug.guidance.failed')
     })
+  } finally {
+    pendingSplashOperationId.value = null
   }
 }
 
@@ -275,28 +279,32 @@ const closeSplashScenario = async () => {
     return
   }
 
-  splashFeedbackController.begin(splashOperationIds.close, t('common.close'))
+  pendingSplashOperationId.value = splashOperationIds.close
   try {
     const result = await debugClient.closeSplashScenario()
     if (!result.closed) {
-      splashFeedbackController.fail({
+      notifyRenderer({
+        kind: 'error',
         code: 'settings.debug.splash.closeUnavailable',
         title: t('settings.debug.unavailableDescription')
       })
       return
     }
     isSplashPreviewOpen.value = false
-    completeWithoutConfirmation(
-      splashFeedbackController,
-      'settings.debug.splash.closed',
-      t('common.close')
-    )
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.debug.splash.closed',
+      title: t('common.close')
+    })
   } catch (error) {
     console.error('[DebugSettings] Failed to close Splash preview', error)
-    splashFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.debug.splash.closeFailed',
       title: t('settings.debug.guidance.failed')
     })
+  } finally {
+    pendingSplashOperationId.value = null
   }
 }
 

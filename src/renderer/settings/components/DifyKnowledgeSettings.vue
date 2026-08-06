@@ -14,13 +14,6 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <InlineOperationFeedback
-          v-if="knowledgeOperation.source.value === 'panel'"
-          :snapshot="knowledgeOperation.snapshot.value"
-          :retry-label="t('common.retry')"
-          @click.stop
-          @retry="knowledgeOperation.retry"
-        />
         <!-- MCP开关 -->
         <TooltipProvider>
           <Tooltip :delay-duration="200">
@@ -48,9 +41,7 @@
     <Collapsible v-model:open="isDifyConfigPanelOpen">
       <CollapsibleContent>
         <div class="p-4 border-t space-y-4">
-          <p v-if="loadError" role="alert" class="text-xs text-destructive">
-            {{ loadError }}
-          </p>
+          <DcInlineError v-if="loadError" :error="loadError" />
           <!-- 已添加的配置列表 -->
           <div v-if="difyConfigs.length > 0" class="space-y-3">
             <div
@@ -107,7 +98,7 @@
 
           <!-- 添加配置按钮 -->
           <div class="flex justify-center">
-            <Button
+            <DcButton
               type="button"
               :disabled="operationPending"
               size="sm"
@@ -117,7 +108,7 @@
             >
               <Icon icon="lucide:plus" class="w-8 h-4" />
               {{ t('settings.knowledgeBase.addDifyConfig') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </CollapsibleContent>
@@ -187,26 +178,16 @@
           </div>
         </div>
         <DialogFooter>
-          <InlineOperationFeedback
-            v-if="knowledgeOperation.source.value === 'dialog'"
-            :snapshot="knowledgeOperation.snapshot.value"
-            :retry-label="t('common.retry')"
-            @retry="knowledgeOperation.retry"
+          <DcFormActions
+            :submit-status="saveStatus"
+            :submit-disabled="operationPending || !isEditingDifyConfigValid"
+            :cancel-disabled="operationPending"
+            :submit-label="isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig')"
+            @cancel="closeEditDifyConfigDialog"
+            @submit="saveDifyConfig"
           />
-          <Button
-            variant="outline"
-            :disabled="operationPending"
-            @click="closeEditDifyConfigDialog"
-            >{{ t('common.cancel') }}</Button
-          >
-          <Button
-            type="button"
-            :disabled="operationPending || !isEditingDifyConfigValid"
-            @click="saveDifyConfig"
-          >
-            {{ isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig') }}
-          </Button>
         </DialogFooter>
+        <DcInlineError v-if="operationError" :error="operationError" class="mt-2" />
       </DialogContent>
     </Dialog>
   </div>
@@ -216,7 +197,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -229,7 +210,9 @@ import {
   DialogDescription
 } from '@shadcn/components/ui/dialog'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { useDcFormSubmit } from '@dc-ui/components/form'
+import { DcFormActions } from '@dc-ui/components/form-actions'
 import {
   Tooltip,
   TooltipContent,
@@ -320,6 +303,9 @@ const operationPending = knowledgeConfigs.pending
 const isDifyMcpEnabled = knowledgeConfigs.serverEnabled
 const mcpEnabled = knowledgeConfigs.globalEnabled
 
+const operationError = ref<string | null>(null)
+const { status: saveStatus, run: runSave } = useDcFormSubmit()
+
 // 验证配置是否有效
 const isEditingDifyConfigValid = computed(() => {
   return (
@@ -350,13 +336,13 @@ const resetDifyConfigDialog = () => {
     endpoint: 'https://api.dify.ai/v1',
     enabled: true
   }
+  operationError.value = null
   dialogInitialSignature.value = editingSignature.value
 }
 
 // 关闭配置对话框
 const closeEditDifyConfigDialog = () => {
   if (operationPending.value) return
-  knowledgeOperation.clear()
   resetDifyConfigDialog()
 }
 
@@ -371,16 +357,29 @@ const handleDialogOpenChange = (open: boolean) => {
 // 保存配置
 const saveDifyConfig = async () => {
   if (operationPending.value || !isEditingDifyConfigValid.value) return
+  operationError.value = null
   const config: DifyConfig = {
     ...editingDifyConfig.value,
     description: editingDifyConfig.value.description.trim(),
     endpoint: editingDifyConfig.value.endpoint.trim()
   }
-  await knowledgeConfigs.save(
-    isEditing.value ? editingConfigIndex.value : null,
-    config,
-    resetDifyConfigDialog
-  )
+
+  try {
+    await runSave(async () => {
+      const saved = await knowledgeConfigs.save(
+        isEditing.value ? editingConfigIndex.value : null,
+        config,
+        resetDifyConfigDialog
+      )
+      if (!saved) {
+        throw new Error('save configuration rejected')
+      }
+    })
+  } catch (error) {
+    console.error('[DifyKnowledgeSettings] save configuration failed', error)
+    operationError.value =
+      knowledgeOperation.lastError.value?.title ?? t('common.error.operationFailed')
+  }
 }
 
 // 移除Dify配置
@@ -427,22 +426,9 @@ const stopLeaveRiskSync = watch(
   },
   { immediate: true, flush: 'sync' }
 )
-const stopStaleFeedbackSync = watch(
-  editingSignature,
-  () => {
-    if (
-      knowledgeOperation.source.value === 'dialog' &&
-      knowledgeOperation.snapshot.value.status === 'error'
-    ) {
-      knowledgeOperation.clear()
-    }
-  },
-  { flush: 'sync' }
-)
 
 onBeforeUnmount(() => {
   stopLeaveRiskSync()
-  stopStaleFeedbackSync()
   leaveGuardLease.release()
 })
 </script>

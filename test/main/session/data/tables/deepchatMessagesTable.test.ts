@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import { DeepChatAssistantBlocksTable } from '@/session/data/tables/deepchatAssistantBlocks'
 import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
 import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
+import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 
 const DatabaseCtor = Database!
@@ -141,6 +143,89 @@ describeIfNativeSqlite('DeepChatMessagesTable runtime projection', () => {
       expect(rows.map((row) => row.id)).toEqual(['m1', 'm2'])
       expect(rows.every((row) => row.trace_count === undefined)).toBe(true)
       expect(table.get('m1')?.trace_count).toBeUndefined()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('projects only assistant identity and result text for delegated result reads', () => {
+    const { db, table } = createTable()
+    try {
+      const blocksTable = new DeepChatAssistantBlocksTable(db)
+      blocksTable.createTable()
+      table.insert({
+        id: 'm1',
+        sessionId: 's1',
+        orderSeq: 1,
+        role: 'assistant',
+        content: 'legacy payload must not be selected',
+        status: 'sent',
+        updatedAt: 100
+      })
+      table.insert({
+        id: 'm2',
+        sessionId: 's1',
+        orderSeq: 2,
+        role: 'assistant',
+        content: 'large serialized payload must not be selected',
+        status: 'sent',
+        updatedAt: 200
+      })
+      const blocks: AssistantMessageBlock[] = [
+        {
+          type: 'reasoning_content',
+          status: 'success',
+          content: 'r'.repeat(128 * 1024)
+        },
+        {
+          type: 'tool_call',
+          status: 'success',
+          tool_call: {
+            id: 'tool-1',
+            name: 'read_file',
+            params: '{"path":"large"}',
+            response: 'x'.repeat(256 * 1024)
+          }
+        },
+        { type: 'content', status: 'success', content: 'Canonical answer' }
+      ]
+      blocksTable.replaceForMessage('m2', blocks)
+
+      expect(table.getAssistantIdentity('m1')).toEqual({
+        id: 'm1',
+        session_id: 's1',
+        status: 'sent',
+        updated_at: 100
+      })
+      expect(table.getLatestAssistantIdentity('s1')).toEqual({
+        id: 'm2',
+        session_id: 's1',
+        status: 'sent',
+        updated_at: 200
+      })
+      expect(blocksTable.listResultProjectionByMessageId('m2')).toEqual([
+        {
+          block_index: 0,
+          block_type: 'reasoning_content',
+          status: 'success',
+          text_content: null,
+          updated_at: expect.any(Number)
+        },
+        {
+          block_index: 1,
+          block_type: 'tool_call',
+          status: 'success',
+          text_content: null,
+          updated_at: expect.any(Number)
+        },
+        {
+          block_index: 2,
+          block_type: 'content',
+          status: 'success',
+          text_content: 'Canonical answer',
+          updated_at: expect.any(Number)
+        }
+      ])
     } finally {
       db.close()
     }

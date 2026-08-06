@@ -13,10 +13,23 @@ Use these checks after enabling the CUA plugin:
 - A Chromium window snapshot projects browser-chrome coverage without claiming that a prompt is
   present; only a verified ineffective window action follows the declared desktop recovery path.
 - `click` or `set_value` works with a non-empty token from the latest same-window snapshot.
-- An empty optional token does not override a valid element index or pixel coordinate.
-- Each projected `stale_element_token`, `generation_mismatch`, or `invalid_element_token`
-  `refusal.code` triggers one fresh snapshot and retry with the replacement token, without using an
-  older snapshot index.
+- An index action succeeds only with `element_index` plus the exact same-result `snapshot_id`; a
+  bare index fails before native dispatch with `snapshot_id_required` and enters the same one-fresh-
+  snapshot recovery path as a structured addressing refusal.
+- An empty optional token does not override a valid index-plus-snapshot pair or pixel coordinate.
+- Each projected snapshot-addressing `refusal.code` triggers one fresh snapshot and one retry using
+  only a replacement token or replacement index-plus-snapshot pair.
+- Successful ActionResult-contract tools append a closed `## CUA action result`; delivery is not
+  interpreted as task completion, and partial/unverifiable/suspected-noop/refused effects enter
+  recovery.
+- `verify_state` returns `satisfied`, `unsatisfied`, or `unknown`; only stable satisfied output is
+  accepted, and `observed_json` application text is not projected into model instructions.
+- Malformed non-error action or verification results append a fixed contract warning and are not
+  interpreted as success; error responses never publish snapshot handles or recovery instructions.
+- `set_window_frame` is approval-gated and its requested bounds are checked with `verify_state`.
+- `invoke_menu` is approval-gated, targets an exact app/menu path, and verifies the resulting state.
+- `clipboard_read` is denied; `clipboard_write` remains approval-gated and is used only when the
+  task requires shared clipboard state.
 - `get_browser_state` either creates an exact browser/window binding or returns a structured
   refusal; typed browser mutation never proceeds from a heuristic binding.
 - `browser_type({ replace: true, text: "" })` clears a current editable ref and a fresh browser

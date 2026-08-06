@@ -6,6 +6,7 @@ import type {
   SessionWithState
 } from '@shared/types/agent-interface'
 import { SessionLifecycle, type SessionLifecycleDependencies } from '@/session/lifecycle'
+import { SessionDeletionGate } from '@/session/deletionGate'
 
 const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 'existing',
@@ -17,13 +18,17 @@ const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => 
   sessionKind: 'regular',
   parentSessionId: null,
   subagentMeta: null,
+  orchestrationPolicy: 'explicit',
   createdAt: 100,
   updatedAt: 200,
   ...overrides
 })
 
 function createHarness(initialSessions: SessionRecord[] = []) {
-  const records = new Map(initialSessions.map((session) => [session.id, session]))
+  const records = new Map<string, SessionRecord>([
+    ['parent', createRecord({ id: 'parent' })],
+    ...initialSessions.map((session): [string, SessionRecord] => [session.id, session])
+  ])
   const runtimeSessions = new Map<
     string,
     {
@@ -87,6 +92,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
         options: {
           isDraft?: boolean
           disabledAgentTools?: string[]
+          orchestrationPolicy?: SessionRecord['orchestrationPolicy']
           sessionKind?: SessionRecord['sessionKind']
           parentSessionId?: string | null
           subagentMeta?: SessionRecord['subagentMeta']
@@ -106,6 +112,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
             sessionKind: options.sessionKind ?? 'regular',
             parentSessionId: options.parentSessionId ?? null,
             subagentMeta: options.subagentMeta ?? null,
+            orchestrationPolicy: options.orchestrationPolicy ?? 'explicit',
             metadata: options.metadata ?? null
           })
         )
@@ -113,6 +120,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
       }
     ),
     get: vi.fn((sessionId: string) => records.get(sessionId) ?? null),
+    getDisabledAgentTools: vi.fn((): string[] => []),
     list: vi.fn((filters?: { agentId?: string; projectDir?: string }) =>
       [...records.values()].filter((session) => {
         if (filters?.agentId && session.agentId !== filters.agentId) return false
@@ -223,6 +231,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
   }
   const deletion = { deleteSessionTree: vi.fn().mockResolvedValue([]) }
   const permissions = { cloneSessionPermissions: vi.fn() }
+  const deletionGate = new SessionDeletionGate()
   const agentLifecycle = {
     runWithAgentOperation: vi.fn(
       async (_agentId: string, operation: () => Promise<unknown>) => await operation()
@@ -242,6 +251,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     projection,
     desktop,
     deletion,
+    deletionGate,
     permissions,
     agentLifecycle
   } as unknown as SessionLifecycleDependencies
@@ -262,11 +272,53 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     projection,
     desktop,
     deletion,
+    deletionGate,
     permissions
   }
 }
 
 describe('SessionLifecycle', () => {
+  it('persists proactive policy only for regular DeepChat sessions', async () => {
+    const deepChatHarness = createHarness()
+
+    await expect(
+      deepChatHarness.coordinator.createSession(
+        { agentId: 'deepchat', message: 'Hello', orchestrationPolicy: 'proactive' },
+        42
+      )
+    ).resolves.toMatchObject({ orchestrationPolicy: 'proactive' })
+    expect(deepChatHarness.sessions.create).toHaveBeenCalledWith(
+      'deepchat',
+      'Hello',
+      '/default',
+      expect.objectContaining({ orchestrationPolicy: 'proactive' })
+    )
+
+    const acpHarness = createHarness()
+    acpHarness.assignmentPolicy.resolveCreateAssignment.mockResolvedValueOnce({
+      agentId: 'kimi',
+      agentType: 'acp',
+      providerId: 'acp',
+      modelId: 'kimi',
+      projectDir: '/repo',
+      permissionMode: 'full_access',
+      disabledAgentTools: []
+    })
+
+    await expect(
+      acpHarness.coordinator.createSession(
+        { agentId: 'kimi', message: 'Hello', orchestrationPolicy: 'proactive' },
+        42
+      )
+    ).resolves.toMatchObject({ orchestrationPolicy: 'explicit' })
+    expect(acpHarness.sessions.create).toHaveBeenCalledWith(
+      'kimi',
+      'Hello',
+      '/repo',
+      expect.objectContaining({ orchestrationPolicy: 'explicit' })
+    )
+  })
+
   it('gates session creation with the resolved canonical agent id', async () => {
     const harness = createHarness()
     harness.assignmentPolicy.resolveCreateAssignment.mockResolvedValueOnce({
@@ -335,6 +387,87 @@ describe('SessionLifecycle', () => {
       expect.any(Function)
     )
     expect(harness.assignmentPolicy.resolveSubagentAssignment).toHaveBeenCalledOnce()
+  })
+
+  it('rejects subagent creation after its parent enters deletion', async () => {
+    const harness = createHarness()
+    let releaseDeletion!: () => void
+    let deletionEntered!: () => void
+    const entered = new Promise<void>((resolve) => {
+      deletionEntered = resolve
+    })
+    const deletion = harness.deletionGate.runWithSessionDeletion(
+      'parent',
+      async () =>
+        await new Promise<void>((resolve) => {
+          releaseDeletion = resolve
+          deletionEntered()
+        })
+    )
+    await entered
+
+    await expect(
+      harness.coordinator.createSubagentSession({
+        parentSessionId: 'parent',
+        agentId: 'deepchat',
+        slotId: 'reviewer',
+        displayName: 'Late child',
+        providerId: 'openai',
+        modelId: 'model-1',
+        permissionMode: 'default'
+      })
+    ).rejects.toThrow('Session is being deleted: parent')
+    expect(harness.sessions.create).not.toHaveBeenCalled()
+
+    releaseDeletion()
+    await deletion
+  })
+
+  it('rejects subagent creation when its parent has already been deleted', async () => {
+    const harness = createHarness()
+    harness.records.delete('parent')
+
+    await expect(
+      harness.coordinator.createSubagentSession({
+        parentSessionId: 'parent',
+        agentId: 'deepchat',
+        slotId: 'reviewer',
+        displayName: 'Orphan child',
+        providerId: 'openai',
+        modelId: 'model-1',
+        permissionMode: 'default'
+      })
+    ).rejects.toThrow('Subagent parent Session does not exist: parent')
+    expect(harness.sessions.create).not.toHaveBeenCalled()
+  })
+
+  it('persists live delegation identity before runtime initialization', async () => {
+    const harness = createHarness()
+
+    await harness.coordinator.createSubagentSession({
+      parentSessionId: 'parent',
+      agentId: 'deepchat',
+      slotId: 'reviewer',
+      displayName: 'Live child',
+      providerId: 'openai',
+      modelId: 'model-1',
+      permissionMode: 'default',
+      liveDelegationContext: { delegationId: 'delegation-1' }
+    })
+
+    expect(harness.sessions.create).toHaveBeenCalledWith(
+      'deepchat',
+      'Live child',
+      null,
+      expect.objectContaining({
+        sessionKind: 'subagent',
+        parentSessionId: 'parent',
+        orchestrationPolicy: 'explicit',
+        subagentMeta: expect.objectContaining({
+          liveDelegation: { delegationId: 'delegation-1' }
+        })
+      })
+    )
   })
 
   it('initializes before publication and awaits initial-turn preflight', async () => {
@@ -753,6 +886,28 @@ describe('SessionLifecycle', () => {
       closeError
     )
     warn.mockRestore()
+  })
+
+  it('preserves orchestration policy and disabled Agent tools when forking a session', async () => {
+    const harness = createHarness([
+      createRecord({ id: 'source', title: 'Source', orchestrationPolicy: 'proactive' })
+    ])
+    harness.getRuntime('source').snapshot.mockResolvedValue({
+      status: 'idle',
+      providerId: 'openai',
+      modelId: 'model-1',
+      permissionMode: 'default'
+    })
+    harness.sessions.getDisabledAgentTools.mockReturnValue(['cronjob', 'custom-tool'])
+
+    await harness.coordinator.forkSession('source', 'message-1')
+
+    expect(harness.sessions.getDisabledAgentTools).toHaveBeenCalledWith('source')
+    expect(harness.sessions.create).toHaveBeenCalledWith('deepchat', 'Source - Fork', '/repo', {
+      isDraft: false,
+      disabledAgentTools: ['cronjob', 'custom-tool'],
+      orchestrationPolicy: 'proactive'
+    })
   })
 
   it('delegates tree deletion and publishes the transaction result in order', async () => {

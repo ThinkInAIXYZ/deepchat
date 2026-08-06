@@ -38,6 +38,7 @@ const createHarness = () => {
   const client = {
     isServerRunning: vi.fn(() => true),
     listTools: vi.fn().mockResolvedValue([tool]),
+    listToolsPage: vi.fn().mockResolvedValue({ tools: [tool] }),
     readResourceContents: vi.fn().mockResolvedValue([
       {
         uri: descriptor.resourceUri,
@@ -187,6 +188,36 @@ describe('MCP App host', () => {
       },
       toolAccessSuspended: false
     })
+  })
+
+  it('returns a large App-visible tool catalog without a catalog-wide key budget', async () => {
+    const { client, host } = createHarness()
+    const tools = Array.from({ length: 151 }, (_, toolIndex) => ({
+      name: `app_tool_${toolIndex}`,
+      inputSchema: {
+        type: 'object',
+        properties: Object.fromEntries(
+          Array.from({ length: 22 }, (_, propertyIndex) => [
+            `field_${propertyIndex}`,
+            {
+              type: 'string',
+              description: `Input field ${propertyIndex} owned by tool ${toolIndex}`
+            }
+          ])
+        )
+      },
+      _meta: {
+        ui: {
+          visibility: ['app']
+        }
+      }
+    }))
+    client.listToolsPage.mockResolvedValueOnce({ tools })
+
+    const result = await host.listTools('instance-id', undefined, context)
+
+    expect(result.tools).toHaveLength(151)
+    expect(result.tools.at(-1)?.name).toBe('app_tool_150')
   })
 
   it('does not create an App instance if its binding changes while resources load', async () => {

@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, shallowRef } from 'vue'
+import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { AcpManualAgent, AcpRegistryAgent } from '@shared/types/acp'
+
+const notifyRenderer = vi.hoisted(() => vi.fn())
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -132,39 +134,6 @@ async function setup(options: SetupOptions = {}) {
     },
     template: '<div />'
   })
-  const feedbackSnapshot = shallowRef<any>({ status: 'idle', version: 0 })
-  const feedbackController = {
-    begin: vi.fn((operationId: string, label: string) => {
-      feedbackSnapshot.value = {
-        status: 'pending',
-        operationId,
-        label,
-        version: feedbackSnapshot.value.version + 1
-      }
-    }),
-    succeed: vi.fn((result: { code: string; title: string; description?: string }) => {
-      feedbackSnapshot.value = {
-        status: 'success',
-        operationId: 'settings.acp.operation:test',
-        ...result,
-        version: feedbackSnapshot.value.version + 1
-      }
-    }),
-    fail: vi.fn((result: { code: string; title: string; description?: string }) => {
-      feedbackSnapshot.value = {
-        status: 'error',
-        operationId: 'settings.acp.operation:test',
-        ...result,
-        version: feedbackSnapshot.value.version + 1
-      }
-    }),
-    clearSettled: vi.fn(() => {
-      feedbackSnapshot.value = {
-        status: 'idle',
-        version: feedbackSnapshot.value.version + 1
-      }
-    })
-  }
 
   const configService = {
     getAcpEnabled: vi.fn().mockResolvedValue(true),
@@ -209,14 +178,8 @@ async function setup(options: SetupOptions = {}) {
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: () => sessionClient
   }))
-  vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
-    createRendererSurfaceFeedbackController: () => feedbackController
-  }))
-  vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
-    useSurfaceFeedback: () => ({
-      snapshot: feedbackSnapshot,
-      setActive: vi.fn()
-    })
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -252,7 +215,7 @@ async function setup(options: SetupOptions = {}) {
         CardHeader: passthrough('CardHeader'),
         CardTitle: passthrough('CardTitle'),
         Badge: passthrough('Badge'),
-        Button: ButtonStub,
+        DcButton: ButtonStub,
         Switch: SwitchStub,
         Separator: passthrough('Separator'),
         Input: InputStub,
@@ -280,8 +243,7 @@ async function setup(options: SetupOptions = {}) {
     wrapper,
     configService,
     sessionClient,
-    feedbackController,
-    feedbackSnapshot,
+    notifyRenderer,
     discardSharedMcpRetryIntent,
     settingsLeaveGuard
   }
@@ -293,7 +255,7 @@ afterEach(() => {
 
 describe('AcpSettings', () => {
   it('removes an uninstalled registry agent locally without a redundant success toast', async () => {
-    const { wrapper, configService, sessionClient, feedbackController } = await setup({
+    const { wrapper, configService, sessionClient, notifyRenderer } = await setup({
       registryAgents: [installedAgent()]
     })
 
@@ -310,15 +272,18 @@ describe('AcpSettings', () => {
     expect(sessionClient.deleteAgentSessions).toHaveBeenCalledWith('codex-acp')
     expect(configService.uninstallAcpRegistryAgent).toHaveBeenCalledWith('codex-acp')
     expect(configService.listAcpRegistryAgents).toHaveBeenCalledTimes(1)
-    expect(feedbackController.succeed).toHaveBeenCalledWith({
-      code: 'settings.acp.agentDeleted',
-      title: 'common.saved'
-    })
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.acp.agentDeleted',
+        title: 'common.saved'
+      })
+    )
     expect(wrapper.text()).not.toContain('Codex ACP')
   })
 
-  it('keeps environment save feedback inline and does not turn cache refresh into save failure', async () => {
-    const { wrapper, configService, feedbackController } = await setup({
+  it('keeps environment save feedback on the button and does not turn cache refresh into save failure', async () => {
+    const { wrapper, configService, notifyRenderer } = await setup({
       registryAgents: [installedAgent()]
     })
 
@@ -331,11 +296,8 @@ describe('AcpSettings', () => {
       TOKEN: 'secret'
     })
     expect(configService.listAcpRegistryAgents).toHaveBeenCalledTimes(1)
-    expect(feedbackController.succeed).toHaveBeenCalledWith({
-      code: 'settings.acp.envOverrideSaved',
-      title: 'common.saved'
-    })
-    expect(wrapper.text()).toContain('common.saved')
+    // 成功反馈走按钮 ✅，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
   })
 
   it('retains a failed environment save with a retry that reuses the submitted value', async () => {
@@ -343,7 +305,7 @@ describe('AcpSettings', () => {
       .fn()
       .mockRejectedValueOnce(new Error('write failed'))
       .mockResolvedValueOnce({ ok: true })
-    const { wrapper, feedbackController } = await setup({
+    const { wrapper, notifyRenderer } = await setup({
       registryAgents: [installedAgent()],
       config: { setAcpAgentEnvOverride }
     })
@@ -353,19 +315,20 @@ describe('AcpSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    expect(feedbackController.fail).toHaveBeenCalledWith({
-      code: 'settings.acp.envOverrideSaveFailed',
-      title: 'settings.acp.saveFailed'
-    })
+    // 失败反馈走按钮 ⚠ + 内联错误，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('settings.acp.saveFailed')
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('TOKEN=secret')
 
-    const retryButton = wrapper.findAll('button').find((button) => button.text() === 'common.retry')
-    await retryButton!.trigger('click')
+    await saveButton!.trigger('click')
     await flushPromises()
 
     expect(setAcpAgentEnvOverride).toHaveBeenCalledTimes(2)
     expect(setAcpAgentEnvOverride).toHaveBeenLastCalledWith('codex-acp', {
       TOKEN: 'secret'
     })
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('settings.acp.saveFailed')
   })
 
   it('guards dirty and in-flight environment drafts until persistence completes', async () => {
@@ -424,7 +387,7 @@ describe('AcpSettings', () => {
 
   it('keeps a failed manual agent save open with contextual feedback', async () => {
     const addManualAcpAgent = vi.fn().mockRejectedValue(new Error('write failed'))
-    const { wrapper, feedbackController } = await setup({
+    const { wrapper, notifyRenderer } = await setup({
       config: { addManualAcpAgent }
     })
 
@@ -440,17 +403,15 @@ describe('AcpSettings', () => {
     await flushPromises()
 
     expect(addManualAcpAgent).toHaveBeenCalledTimes(1)
-    expect(feedbackController.fail).toHaveBeenCalledWith({
-      code: 'settings.acp.manualAgentSaveFailed',
-      title: 'settings.acp.saveFailed'
-    })
+    // 失败反馈走按钮 ⚠ + 内联错误，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('settings.acp.saveFailed')
     expect(wrapper.text()).toContain('settings.acp.profileDialog.addCustomTitle')
   })
 
   it('keeps registry refresh failures in the dialog lifecycle for retry and handoff', async () => {
     const refreshAcpRegistry = vi.fn().mockRejectedValue(new Error('registry unavailable'))
-    const { wrapper, feedbackController } = await setup({
+    const { wrapper, notifyRenderer } = await setup({
       config: { refreshAcpRegistry }
     })
 
@@ -465,12 +426,17 @@ describe('AcpSettings', () => {
     await refreshButton!.trigger('click')
     await flushPromises()
 
-    expect(feedbackController.fail).toHaveBeenCalledWith({
-      code: 'settings.acp.registryRefreshFailed',
-      title: 'common.error.requestFailed'
-    })
-    expect(wrapper.text()).toContain('common.error.requestFailed')
-    expect(wrapper.text()).toContain('common.retry')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.acp.registryRefreshFailed',
+        title: 'common.error.requestFailed'
+      })
+    )
+    expect(
+      wrapper.findAll('button').some((button) => button.text() === 'settings.acp.registryRefresh')
+    ).toBe(true)
+    expect(wrapper.text()).toContain('settings.acp.registryInstallTitle')
   })
 
   it('reveals the saved manual agent instead of replacing visible state with a success toast', async () => {

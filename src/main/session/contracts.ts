@@ -43,6 +43,8 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
+import type { OrchestrationPolicy } from '@shared/orchestration/policy'
+import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
 import type { DeepChatMessageRow } from '../session/data/tables/deepchatMessages'
@@ -397,10 +399,15 @@ export interface SessionAssignmentPolicyPort {
 export interface SessionAssignmentStorePort {
   get(sessionId: string): SessionRecord | null
   list(filters?: SessionListFilters): SessionRecord[]
-  update(sessionId: string, fields: Partial<Pick<SessionRecord, 'projectDir'>>): void
+  update(
+    sessionId: string,
+    fields: Partial<Pick<SessionRecord, 'projectDir' | 'orchestrationPolicy'>>
+  ): void
   updateAgentId(sessionId: string, agentId: string): void
   getDisabledAgentTools(sessionId: string): string[]
   updateDisabledAgentTools(sessionId: string, disabledAgentTools: string[]): void
+  getOrchestrationPolicy(sessionId: string): OrchestrationPolicy
+  updateOrchestrationPolicy(sessionId: string, policy: OrchestrationPolicy): void
 }
 
 export interface SessionAssignmentRuntimePort {
@@ -445,6 +452,7 @@ export interface SessionLifecycleStorePort {
     options?: {
       isDraft?: boolean
       disabledAgentTools?: string[]
+      orchestrationPolicy?: OrchestrationPolicy
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
@@ -452,6 +460,7 @@ export interface SessionLifecycleStorePort {
     }
   ): AppSessionId
   get(sessionId: string): SessionRecord | null
+  getDisabledAgentTools(sessionId: string): string[]
   list(filters?: SessionListFilters): SessionRecord[]
   delete(sessionId: string): void
 }
@@ -510,6 +519,7 @@ export interface SessionLifecycleSubagentInput {
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
   activeSkills?: string[]
+  liveDelegationContext?: LiveDelegationSubagentContext
 }
 
 export interface SessionLifecyclePort {
@@ -561,6 +571,11 @@ export interface SessionAgentAssignmentPort {
   setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<SessionWithState>
   getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
   getSessionDisabledAgentTools(sessionId: string): Promise<string[]>
+  getOrchestrationPolicy(sessionId: string): Promise<OrchestrationPolicy>
+  updateOrchestrationPolicy(
+    sessionId: string,
+    policy: OrchestrationPolicy
+  ): Promise<OrchestrationPolicy>
   updateSessionDisabledAgentTools(
     sessionId: string,
     disabledAgentTools: string[]
@@ -579,6 +594,10 @@ export interface SessionDeletionStorePort {
 
 export interface SessionDeletionRuntimePort {
   cleanupSessionBackends(sessionId: AppSessionId): Promise<void>
+}
+
+export interface SessionDeletionOrchestrationPort {
+  prepareSessionDeletion(sessionId: string): Promise<void>
 }
 
 export type SessionDeletionStatePort = Pick<SessionStatePort, 'destroySession'>

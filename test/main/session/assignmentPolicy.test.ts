@@ -209,7 +209,7 @@ describe('SessionAssignmentPolicy', () => {
         modelId: 'gpt-4',
         permissionMode: 'full_access',
         generationSettings: { systemPrompt: 'parent prompt', temperature: 0.4 },
-        disabledAgentTools: [],
+        disabledAgentTools: ['read'],
         activeSkills: ['skill-a', 'skill-b', 'skill-c']
       })
     ).resolves.toEqual({
@@ -222,9 +222,51 @@ describe('SessionAssignmentPolicy', () => {
         systemPrompt: 'Reviewer prompt',
         temperature: 0.4
       },
-      disabledAgentTools: ['exec', 'write'],
+      disabledAgentTools: ['exec', 'read', 'write'],
       activeSkills: ['skill-a', 'skill-b', 'skill-c']
     })
+  })
+
+  it('never elevates parent authority for cross-agent subagents', async () => {
+    const { policy, configs } = createHarness()
+
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'reviewer',
+        parentAgentId: 'deepchat',
+        targetAgentId: 'reviewer',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+    ).resolves.toMatchObject({ permissionMode: 'default' })
+
+    configs.set('reviewer', { permissionMode: 'full_access' })
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'reviewer',
+        parentAgentId: 'deepchat',
+        targetAgentId: 'reviewer',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'auto_approve'
+      })
+    ).resolves.toMatchObject({ permissionMode: 'auto_approve' })
+
+    configs.set('reviewer', { permissionMode: 'default' })
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'reviewer',
+        parentAgentId: 'deepchat',
+        targetAgentId: 'reviewer',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+    ).resolves.toMatchObject({ permissionMode: 'default' })
   })
 
   it('rejects DeepChat transfer targets backed by ACP defaults', async () => {

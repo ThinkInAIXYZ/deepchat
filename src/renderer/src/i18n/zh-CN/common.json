@@ -125,6 +125,9 @@
   "history": "历史",
   "minimize": "最小化",
   "maximize": "最大化",
+  "showValue": "显示",
+  "hideValue": "隐藏",
+  "scrollToBottom": "滚动到底部",
   "restore": "还原",
   "browser": {
     "back": "后退",

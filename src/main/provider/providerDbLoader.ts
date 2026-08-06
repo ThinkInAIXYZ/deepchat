@@ -11,6 +11,40 @@ import { resolveProviderId } from './providerId'
 
 const DEFAULT_PROVIDER_DB_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
+const MAX_PROVIDER_DB_PAYLOAD_BYTES = 10 * 1024 * 1024
+
+async function readResponseTextWithLimit(
+  response: Response,
+  maxBytes: number
+): Promise<string | null> {
+  if (!response.body) {
+    const text = await response.text()
+    return Buffer.byteLength(text, 'utf8') <= maxBytes ? text : null
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  const textChunks: string[] = []
+  let bytesRead = 0
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      bytesRead += value.byteLength
+      if (bytesRead > maxBytes) {
+        await reader.cancel().catch(() => undefined)
+        return null
+      }
+      textChunks.push(decoder.decode(value, { stream: true }))
+    }
+    textChunks.push(decoder.decode())
+    return textChunks.join('')
+  } finally {
+    reader.releaseLock()
+  }
+}
 
 type MetaFile = {
   sourceUrl: string
@@ -278,9 +312,8 @@ export class ProviderDbLoader {
         return this.createResult('error', meta, `Request failed with status ${res.status}`)
       }
 
-      const text = await res.text()
-      // Size guard (≈ 5MB)
-      if (text.length > 5 * 1024 * 1024) {
+      const text = await readResponseTextWithLimit(res, MAX_PROVIDER_DB_PAYLOAD_BYTES)
+      if (text === null) {
         const meta = this.createAttemptMeta(prevMeta, url, now)
         if (meta) this.writeMeta(meta)
         return this.createResult('error', meta, 'Provider DB payload exceeds size limit')

@@ -25,6 +25,10 @@ import type {
 } from './contracts'
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
+import {
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
 
 export interface SessionAgentAssignmentDependencies {
   sessions: SessionAssignmentStorePort
@@ -360,6 +364,34 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
   async getSessionDisabledAgentTools(sessionId: string): Promise<string[]> {
     this.requireSession(sessionId)
     return this.dependencies.sessions.getDisabledAgentTools(sessionId)
+  }
+
+  async getOrchestrationPolicy(sessionId: string): Promise<OrchestrationPolicy> {
+    this.requireSession(sessionId)
+    return this.dependencies.sessions.getOrchestrationPolicy(sessionId)
+  }
+
+  async updateOrchestrationPolicy(
+    sessionId: string,
+    policy: OrchestrationPolicy
+  ): Promise<OrchestrationPolicy> {
+    return await this.runWithSessionOperationGate(sessionId, async () => {
+      const session = this.requireSession(sessionId)
+      const normalized = normalizeOrchestrationPolicy(policy)
+      if (normalized === 'proactive') {
+        if (session.sessionKind !== 'regular') {
+          throw new Error('Proactive collaboration requires a regular parent session.')
+        }
+        if (
+          this.dependencies.runtime.getSessionAgentKind(toAppSessionId(sessionId)) !== 'deepchat'
+        ) {
+          throw new Error('Proactive collaboration requires a DeepChat session.')
+        }
+      }
+      this.dependencies.sessions.updateOrchestrationPolicy(sessionId, normalized)
+      this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
+      return normalized
+    })
   }
 
   async updateSessionDisabledAgentTools(

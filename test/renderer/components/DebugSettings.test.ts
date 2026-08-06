@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: vi.fn()
+}))
 
 const buttonStub = defineComponent({
   name: 'Button',
@@ -101,7 +106,7 @@ describe('DebugSettings', () => {
     return mount(DebugSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Spinner: true,
           SettingsPageShell: settingsPageShellStub
@@ -156,7 +161,7 @@ describe('DebugSettings', () => {
     expect(closeButton.attributes('disabled')).toBeDefined()
   })
 
-  it('runs onboarding, creates mock chat with pending state, and shows success feedback', async () => {
+  it('runs onboarding, creates mock chat with pending state, and shows button-level success feedback', async () => {
     let resolveMockChat!: (value: {
       created: boolean
       sessionId: string
@@ -189,13 +194,14 @@ describe('DebugSettings', () => {
       messageCount: 200
     })
     await flushPromises()
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('success')
-    expect(feedback.text()).toContain('Mock会话已创建')
-    expect(feedback.attributes('aria-label')).toContain('已创建Debug long chat test，共200条消息')
+    // 成功反馈走按钮 ✅ 态，不再弹 toast，也不出现内联错误
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.debug.mockChat.created' })
+    )
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 
-  it('keeps debug failures inline without exposing exception messages', async () => {
+  it('reports debug failures as an inline error without exposing exception messages', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     debugClientMock.createMockChatSession.mockRejectedValueOnce(
       new Error('/private/debug/session.db')
@@ -209,9 +215,10 @@ describe('DebugSettings', () => {
       .trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.attributes('data-status')).toBe('error')
-    expect(feedback.text()).toContain('创建Mock会话失败')
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.debug.mockChat.failed' })
+    )
+    expect(wrapper.get('[role="alert"]').text()).toContain('创建Mock会话失败')
     expect(wrapper.text()).not.toContain('/private/debug/session.db')
     consoleError.mockRestore()
   })

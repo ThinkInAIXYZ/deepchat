@@ -5,8 +5,9 @@ import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import matter from 'gray-matter'
-import { unzipSync } from 'fflate'
 import type { SkillSettingsPort } from './settings'
+import { extractSkillArchive } from './archive'
+import { downloadSkillArchive } from './archiveDownload'
 import {
   createWatcherRequestId,
   type IFileWatcherService,
@@ -42,7 +43,8 @@ import {
   SkillScriptDescriptor,
   SkillScriptRuntime,
   SkillViewResult,
-  SkillLinkedFile
+  SkillLinkedFile,
+  SKILL_ARCHIVE_MAX_INPUT_BYTES
 } from '@shared/types/skill'
 import type {
   AgentSkillManagementState,
@@ -65,6 +67,7 @@ import {
 } from './agentSkillRoots'
 
 const execFileAsync = promisify(execFile)
+const READ_ONLY_BUNDLED_SKILL_NAMES = new Set(['deepchat-cli'])
 
 /**
  * Skill system configuration constants
@@ -73,8 +76,8 @@ export const SKILL_CONFIG = {
   /** Maximum size for SKILL.md file (bytes) - prevents memory exhaustion */
   SKILL_FILE_MAX_SIZE: 5 * 1024 * 1024, // 5MB
 
-  /** Maximum size for ZIP file (bytes) - prevents ZIP bomb attacks */
-  ZIP_MAX_SIZE: 200 * 1024 * 1024, // 200MB
+  /** Maximum compressed ZIP input size (bytes) */
+  ZIP_MAX_SIZE: SKILL_ARCHIVE_MAX_INPUT_BYTES,
 
   /** Download timeout (milliseconds) - prevents hanging connections */
   DOWNLOAD_TIMEOUT: 30 * 1000, // 30 seconds
@@ -269,6 +272,7 @@ export class SkillService implements SkillServicePort {
   private draftsRoot: string
   private metadataCache: Map<string, SkillMetadata> = new Map()
   private contentCache: Map<string, SkillContent> = new Map()
+  private readOnlyBundledSkills: SkillMetadata[] = []
   private scopedCatalogs: Map<string, ScopedSkillCatalog> = new Map()
   private deletedAgentScopes: Set<string> = new Set()
   private activeAgentScopeOperations: Map<string, number> = new Map()
@@ -598,6 +602,7 @@ export class SkillService implements SkillServicePort {
 
     for (const metadata of [
       ...discoveredSkills,
+      ...this.readOnlyBundledSkills,
       ...(await this.discoverPluginSkillsOnMainThread())
     ]) {
       if (this.metadataCache.has(metadata.name)) {
@@ -911,6 +916,7 @@ export class SkillService implements SkillServicePort {
 
       for (const metadata of [
         ...discoveredSkills,
+        ...this.readOnlyBundledSkills,
         ...(await this.discoverPluginSkillsOnMainThread())
       ]) {
         if (!discoveredByName.has(metadata.name)) {
@@ -988,6 +994,22 @@ export class SkillService implements SkillServicePort {
       }
     }
 
+    return discovered
+  }
+
+  private async discoverReadOnlyBundledSkills(): Promise<SkillMetadata[]> {
+    const builtinDir = this.resolveBuiltinSkillsDir()
+    if (!builtinDir) return []
+
+    const discovered: SkillMetadata[] = []
+    for (const name of READ_ONLY_BUNDLED_SKILL_NAMES) {
+      const skillPath = path.join(builtinDir, name, 'SKILL.md')
+      if (!(await this.pathExists(skillPath))) continue
+      const metadata = await this.parseSkillMetadata(skillPath, name, undefined, builtinDir)
+      if (metadata && this.supportsCurrentPlatform(metadata.platforms)) {
+        discovered.push({ ...metadata, readOnly: true })
+      }
+    }
     return discovered
   }
 
@@ -1374,12 +1396,12 @@ export class SkillService implements SkillServicePort {
       return {
         ...skill,
         agentId: normalizedAgentId,
-        canonicalPath: item.canonicalPath || skill.skillRoot,
-        sourceType: item.source.type,
+        canonicalPath: skill.readOnly ? skill.skillRoot : item.canonicalPath || skill.skillRoot,
+        sourceType: skill.readOnly ? 'builtin' : item.source.type,
         disabled: item.disabled,
         deepchatDisabled: item.disabled,
         agentLinks: item.agentLinks ?? {},
-        mutable: !skill.ownerPluginId
+        mutable: !skill.ownerPluginId && !skill.readOnly
       }
     })
   }
@@ -2026,12 +2048,14 @@ export class SkillService implements SkillServicePort {
   async installBuiltinSkills(): Promise<void> {
     const builtinDir = this.resolveBuiltinSkillsDir()
     if (!builtinDir || !fs.existsSync(builtinDir)) {
+      this.readOnlyBundledSkills = []
       return
     }
 
     const entries = fs.readdirSync(builtinDir, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
+      if (READ_ONLY_BUNDLED_SKILL_NAMES.has(entry.name)) continue
       const skillDir = path.join(builtinDir, entry.name)
       const skillMdPath = path.join(skillDir, 'SKILL.md')
       if (!fs.existsSync(skillMdPath)) continue
@@ -2052,6 +2076,7 @@ export class SkillService implements SkillServicePort {
         console.warn('[SkillService] Failed to install builtin skill:', result.error)
       }
     }
+    this.readOnlyBundledSkills = await this.discoverReadOnlyBundledSkills()
   }
 
   private supportsCurrentPlatform(platforms?: string[]): boolean {
@@ -2173,7 +2198,9 @@ export class SkillService implements SkillServicePort {
 
     const tempDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'deepchat-skill-'))
     try {
-      this.extractZipToDirectory(zipPath, tempDir)
+      await extractSkillArchive(zipPath, tempDir, {
+        maxArchiveBytes: SKILL_CONFIG.ZIP_MAX_SIZE
+      })
       const skillDir = this.resolveSkillDirFromExtracted(tempDir)
       if (!skillDir) {
         return { success: false, error: 'SKILL.md not found in zip archive' }
@@ -2205,9 +2232,12 @@ export class SkillService implements SkillServicePort {
   ): Promise<SkillInstallResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
-    const tempZipPath = path.join(app.getPath('temp'), `deepchat-skill-${Date.now()}.zip`)
+    const tempZipPath = path.join(app.getPath('temp'), `deepchat-skill-${randomUUID()}.zip`)
     try {
-      await this.downloadSkillZip(url, tempZipPath)
+      await downloadSkillArchive(url, tempZipPath, {
+        maxBytes: SKILL_CONFIG.ZIP_MAX_SIZE,
+        timeoutMs: SKILL_CONFIG.DOWNLOAD_TIMEOUT
+      })
       const result = await this.installFromZipForAgent(normalizedAgentId, tempZipPath, options)
       if (result.success && result.skillName) {
         this.updateSkillManagementItem(
@@ -3025,65 +3055,6 @@ export class SkillService implements SkillServicePort {
     return code === 'EPERM' || code === 'EBUSY' || code === 'EACCES' || code === 'ENOTEMPTY'
   }
 
-  private extractZipToDirectory(zipPath: string, targetDir: string): void {
-    // Check ZIP file size before loading to prevent memory exhaustion
-    const stats = fs.statSync(zipPath)
-    if (stats.size > SKILL_CONFIG.ZIP_MAX_SIZE) {
-      throw new Error(`ZIP file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.ZIP_MAX_SIZE})`)
-    }
-
-    const zipContent = new Uint8Array(fs.readFileSync(zipPath))
-    const extracted = unzipSync(zipContent)
-    const resolvedTargetDir = path.resolve(targetDir)
-
-    for (const entryName of Object.keys(extracted)) {
-      const fileContent = extracted[entryName]
-      if (!fileContent) {
-        continue
-      }
-
-      const normalizedEntry = entryName.replace(/\\/g, '/')
-      if (!normalizedEntry) {
-        continue
-      }
-
-      if (/^[A-Za-z]:/.test(normalizedEntry) || normalizedEntry.startsWith('/')) {
-        throw new Error('Invalid zip entry')
-      }
-
-      const segments = normalizedEntry.split('/')
-      const safeSegments: string[] = []
-      for (const segment of segments) {
-        if (!segment || segment === '.') {
-          continue
-        }
-        if (segment === '..') {
-          throw new Error('Invalid zip entry')
-        }
-        safeSegments.push(segment)
-      }
-
-      if (safeSegments.length === 0) {
-        continue
-      }
-
-      const isDirectoryEntry = normalizedEntry.endsWith('/')
-      const destination = path.resolve(resolvedTargetDir, ...safeSegments)
-      const relativeToTarget = path.relative(resolvedTargetDir, destination)
-      if (relativeToTarget.startsWith('..') || path.isAbsolute(relativeToTarget)) {
-        throw new Error('Invalid zip entry')
-      }
-
-      if (isDirectoryEntry) {
-        fs.mkdirSync(destination, { recursive: true })
-        continue
-      }
-
-      fs.mkdirSync(path.dirname(destination), { recursive: true })
-      fs.writeFileSync(destination, Buffer.from(fileContent))
-    }
-  }
-
   private resolveSkillDirFromExtracted(extractDir: string): string | null {
     const rootSkill = path.join(extractDir, 'SKILL.md')
     if (fs.existsSync(rootSkill)) {
@@ -3102,50 +3073,6 @@ export class SkillService implements SkillServicePort {
     }
 
     return null
-  }
-
-  private async downloadSkillZip(url: string, destPath: string): Promise<void> {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), SKILL_CONFIG.DOWNLOAD_TIMEOUT)
-
-    try {
-      const response = await fetch(url, { signal: controller.signal })
-      if (!response.ok) {
-        throw new Error(`Failed to download skill zip: ${response.status} ${response.statusText}`)
-      }
-
-      // Check Content-Length to prevent memory exhaustion
-      const contentLength = response.headers.get('content-length')
-      if (contentLength && parseInt(contentLength) > SKILL_CONFIG.ZIP_MAX_SIZE) {
-        throw new Error(
-          `File too large: ${contentLength} bytes (max: ${SKILL_CONFIG.ZIP_MAX_SIZE})`
-        )
-      }
-
-      // Validate Content-Type
-      const contentType = response.headers.get('content-type')
-      if (
-        contentType &&
-        !contentType.includes('application/zip') &&
-        !contentType.includes('application/octet-stream') &&
-        !contentType.includes('application/x-zip')
-      ) {
-        throw new Error(`Expected ZIP file but got: ${contentType}`)
-      }
-
-      const buffer = new Uint8Array(await response.arrayBuffer())
-
-      // Double-check actual size after download
-      if (buffer.length > SKILL_CONFIG.ZIP_MAX_SIZE) {
-        throw new Error(
-          `Downloaded file too large: ${buffer.length} bytes (max: ${SKILL_CONFIG.ZIP_MAX_SIZE})`
-        )
-      }
-
-      fs.writeFileSync(destPath, Buffer.from(buffer))
-    } finally {
-      clearTimeout(timeoutId)
-    }
   }
 
   private async cloneGitSkillRepo(repoUrl: string): Promise<string> {
@@ -3554,6 +3481,8 @@ export class SkillService implements SkillServicePort {
       }
 
       this.cleanupUninstalledSkillState(name, normalizedAgentId)
+      const bundledFallback = this.readOnlyBundledSkills.find((skill) => skill.name === name)
+      if (bundledFallback) metadataCache.set(name, bundledFallback)
 
       this.publishEvent('skills.catalog.changed', {
         reason: 'uninstalled',
@@ -3650,6 +3579,9 @@ export class SkillService implements SkillServicePort {
   }
 
   private assertMutableSkillOwnership(agentId: string, metadata: SkillMetadata): void {
+    if (metadata.readOnly) {
+      throw new Error('Read-only bundled Skills cannot be modified as Agent-owned files')
+    }
     if (metadata.ownerPluginId) {
       throw new Error('Plugin-owned Skills cannot be modified as Agent-owned files')
     }
@@ -4672,6 +4604,7 @@ export class SkillService implements SkillServicePort {
     await this.stopWatching()
     this.metadataCache.clear()
     this.contentCache.clear()
+    this.readOnlyBundledSkills = []
     this.scopedCatalogs.clear()
     this.deletedAgentScopes.clear()
     this.activeAgentScopeOperations.clear()

@@ -559,5 +559,21 @@
       "amendRetryable": "Edycja się nie powiodła. Oryginalna pamięć została przywrócona, spróbuj ponownie.",
       "amendRestoreFailed": "Edycja się nie powiodła i nie udało się przywrócić oryginalnej pamięci."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Otwórz podrzędnego Agenta" },
+    "activityTitle": "Aktywność Agentów",
+    "proactive": {
+      "title": "Proaktywna współpraca",
+      "description": "Pozwala nadrzędnemu Agentowi delegować zadania, gdy praca niezależna lub równoległa daje wyraźną korzyść. Może zużywać więcej czasu, tokenów i zasobów.",
+      "reasons": {
+        "session_unavailable": "Ta sesja nie jest już dostępna.",
+        "agent_unavailable": "Wybrany Agent jest niedostępny.",
+        "deepchat_agent_required": "Proaktywna współpraca wymaga DeepChat Agenta.",
+        "regular_parent_required": "Proaktywna współpraca jest niedostępna w sesji podrzędnej.",
+        "agent_policy_unavailable": "Nie udało się wczytać zasad współpracy.",
+        "subagents_disabled": "Włącz Subagents dla tego Agenta, aby używać proaktywnej współpracy."
+      }
+    }
   }
 }

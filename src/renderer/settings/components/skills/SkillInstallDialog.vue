@@ -100,14 +100,14 @@
               {{ t('settings.skills.install.urlHint') }}
             </p>
           </div>
-          <Button
+          <DcSubmitButton
             class="w-full"
+            :status="installStatus"
             :disabled="!installUrl.trim() || installing"
             @click="installFromUrl"
           >
-            <Spinner v-if="installing" data-icon="inline-start" />
             {{ t('settings.skills.install.installButton') }}
-          </Button>
+          </DcSubmitButton>
         </TabsContent>
       </Tabs>
 
@@ -117,34 +117,23 @@
       >
         {{ validationError }}
       </div>
-      <InlineOperationFeedback
-        v-if="
-          visibleInstallFeedback.status === 'success' || visibleInstallFeedback.status === 'error'
-        "
-        :snapshot="visibleInstallFeedback"
-      />
+      <DcInlineError v-if="operationError" :error="operationError" class="mt-2" />
     </DialogContent>
   </Dialog>
 
   <!-- Conflict confirmation dialog -->
-  <AlertDialog :open="conflictDialogOpen" @update:open="handleConflictOpenChange">
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>{{ t('settings.skills.conflict.title') }}</AlertDialogTitle>
-        <AlertDialogDescription>
-          {{ t('settings.skills.conflict.description', { name: conflictSkillName }) }}
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel @click="handleConflictCancel">
-          {{ t('common.cancel') }}
-        </AlertDialogCancel>
-        <AlertDialogAction data-testid="skill-conflict-overwrite" @click="handleConflictOverwrite">
-          {{ t('settings.skills.conflict.overwrite') }}
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
+  <DcConfirmDialog
+    :open="conflictDialogOpen"
+    :title="t('settings.skills.conflict.title')"
+    :description="t('settings.skills.conflict.description', { name: conflictSkillName })"
+    :danger="false"
+    confirm-label="t('settings.skills.conflict.overwrite')"
+    cancel-label="t('common.cancel')"
+    :confirm-attrs="{ 'data-testid': 'skill-conflict-overwrite' }"
+    @update:open="handleConflictOpenChange"
+    @confirm="handleConflictOverwrite"
+    @cancel="handleConflictCancel"
+  />
 </template>
 
 <script setup lang="ts">
@@ -152,9 +141,8 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
-import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@shadcn/components/ui/input'
 import { Spinner } from '@shadcn/components/ui/spinner'
+import { Input } from '@shadcn/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import {
   Dialog,
@@ -163,20 +151,11 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { useSkillsStore } from '@/stores/skillsStore'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import { createSkillClient } from '@api/SkillClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createFileClient } from '@api/FileClient'
@@ -197,16 +176,11 @@ const skillsStore = useSkillsStore()
 const skillClient = createSkillClient()
 const deviceClient = createDeviceClient()
 const fileClient = createFileClient()
-const installController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: installFeedback, setActive: setInstallFeedbackActive } =
-  useSurfaceFeedback(installController)
-const installOperationId = `settings.skills.install:${nanoid(8)}`
 
 const isOpen = computed({
   get: () => props.open,
   set: (value) => {
     if (!value && installing.value) return
-    if (!value) dismissSettledInstallFeedback()
     emit('update:open', value)
   }
 })
@@ -214,6 +188,8 @@ const isOpen = computed({
 const activeTab = ref('folder')
 const installUrl = ref('')
 const validationError = ref('')
+const operationError = ref<string | null>(null)
+const { status: installStatus, run: runInstall } = useDcFormSubmit()
 
 // Drag and drop state: which zone is currently being dragged over
 const dragActive = ref<'folder' | 'zip' | null>(null)
@@ -230,62 +206,30 @@ const conflictSkillName = computed(() =>
   conflictRequest.value.status === 'idle' ? '' : conflictRequest.value.skillName
 )
 const contextVersion = ref(0)
-const feedbackContextVersion = ref<number | null>(null)
-const feedbackAgentId = ref<string | undefined>()
 let pickerRequestId = 0
 let installRequestId = 0
 let installGeneration = 0
+const installing = ref(false)
 
 const currentAgentId = () => props.agentId?.trim() || undefined
 const isCurrentContext = (version: number, agentId: string | undefined) =>
   props.open && version === contextVersion.value && currentAgentId() === agentId
-const installing = computed(() => installFeedback.value.status === 'pending')
-const feedbackBelongsToSurface = computed(
-  () =>
-    feedbackContextVersion.value === contextVersion.value &&
-    feedbackAgentId.value === currentAgentId()
-)
-const visibleInstallFeedback = computed(() => {
-  const snapshot = installFeedback.value
-  if (snapshot.status === 'pending' || feedbackBelongsToSurface.value) return snapshot
-  return { status: 'idle' as const, version: snapshot.version }
-})
-const installFeedbackSurfaceActive = computed(
-  () => props.open && (installFeedback.value.status === 'idle' || feedbackBelongsToSurface.value)
-)
 
 const logFailure = (message: string, error: unknown) => {
   console.error(message, error)
 }
 
-const dismissSettledInstallFeedback = () => {
-  const snapshot = installController.getSnapshot()
-  if (snapshot.status === 'success' || snapshot.status === 'error') {
-    installController.clearSettled()
-  }
-  if (snapshot.status !== 'pending') {
-    feedbackContextVersion.value = null
-    feedbackAgentId.value = undefined
-  }
-}
-
-const beginInstall = (agentId: string | undefined): number | null => {
-  if (installController.getSnapshot().status === 'pending') return null
+const beginInstall = (): number | null => {
+  if (installing.value) return null
   const generation = ++installGeneration
-  feedbackContextVersion.value = contextVersion.value
-  feedbackAgentId.value = agentId
-  installController.begin(installOperationId, t('settings.skills.install.installing'))
+  installing.value = true
   return generation
 }
 
 const isCurrentInstall = (generation: number) =>
-  generation === installGeneration && installController.getSnapshot().status === 'pending'
+  generation === installGeneration && installing.value
 
 const showValidationError = (message: string) => {
-  const snapshot = installController.getSnapshot()
-  if (snapshot.status === 'success' || snapshot.status === 'error') {
-    dismissSettledInstallFeedback()
-  }
   validationError.value = message
 }
 
@@ -298,6 +242,7 @@ watch([() => props.open, () => currentAgentId()], ([open, agentId], previous) =>
     conflictRequest.value = { status: 'idle' }
     dragActive.value = null
     validationError.value = ''
+    operationError.value = null
   }
 })
 
@@ -309,22 +254,33 @@ const executeInstall = async (
 ) => {
   const version = contextVersion.value
   if (!isCurrentContext(version, agentId)) return
-  const generation = beginInstall(agentId)
+  const generation = beginInstall()
   if (generation === null) return
   const requestId = ++installRequestId
   validationError.value = ''
-  try {
-    const result = await request()
-    if (!isCurrentInstall(generation) || requestId !== installRequestId) {
-      return
+  operationError.value = null
+  await runInstall(async () => {
+    try {
+      const result = await request()
+      if (!isCurrentInstall(generation) || requestId !== installRequestId) {
+        return
+      }
+      handleInstallResult(result, retryWithOverwrite, isCurrentContext(version, agentId))
+    } catch (error) {
+      if (!isCurrentInstall(generation) || requestId !== installRequestId) {
+        return
+      }
+      showError(error)
+      throw error
     }
-    handleInstallResult(result, retryWithOverwrite, isCurrentContext(version, agentId))
-  } catch (error) {
-    if (!isCurrentInstall(generation) || requestId !== installRequestId) {
-      return
+  }).catch(() => {
+    // runInstall already settled the status to error; the inline error is
+    // set by showError/handleInstallResult, keep a fallback for edge cases.
+    if (!operationError.value) {
+      operationError.value = t('common.error.requestFailed')
+      installing.value = false
     }
-    showError(error)
-  }
+  })
 }
 
 const selectFolder = async () => {
@@ -492,30 +448,25 @@ const handleInstallResult = (
   surfaceCurrent: boolean
 ) => {
   if (result.success) {
-    installController.succeed({
-      code: 'settings.skills.installed',
-      title: t('settings.skills.install.success'),
-      description: t('settings.skills.install.successMessage', { name: result.skillName })
-    })
+    installing.value = false
     if (surfaceCurrent) {
-      installController.clearSettled()
-      feedbackContextVersion.value = null
-      feedbackAgentId.value = undefined
       installUrl.value = ''
       isOpen.value = false
     }
   } else if (result.errorCode === 'conflict') {
     if (!surfaceCurrent) {
-      installController.fail({
+      notifyRenderer({
+        kind: 'error',
         code: 'settings.skills.installConflict',
         title: t('settings.skills.conflict.title'),
         description: t('settings.skills.conflict.description', {
           name: result.existingSkillName || result.skillName || ''
         })
       })
+      installing.value = false
       return
     }
-    installController.cancelPending()
+    installing.value = false
     conflictRequest.value = {
       status: 'confirming',
       skillName: result.existingSkillName || result.skillName || '',
@@ -525,11 +476,9 @@ const handleInstallResult = (
     console.error('[SkillInstallDialog] Skill installation was rejected', {
       errorCode: result.errorCode ?? 'UnknownError'
     })
-    installController.fail({
-      code: 'settings.skills.installFailed',
-      title: t('settings.skills.install.failed'),
-      description: t('common.error.requestFailed')
-    })
+    operationError.value = t('common.error.requestFailed')
+    installing.value = false
+    throw new Error('Skill installation was rejected')
   }
 }
 
@@ -568,33 +517,15 @@ const handleConflictOverwrite = () => {
 
 const showError = (error: unknown) => {
   logFailure('[SkillInstallDialog] Skill installation failed', error)
-  if (installController.getSnapshot().status !== 'pending') {
-    validationError.value = t('common.error.requestFailed')
-    return
-  }
-  installController.fail({
-    code: 'settings.skills.installFailed',
-    title: t('settings.skills.install.failed'),
-    description: t('common.error.requestFailed')
-  })
+  operationError.value = t('common.error.requestFailed')
+  installing.value = false
 }
 
 watch([activeTab, installUrl], () => {
   if (installing.value) return
   validationError.value = ''
-  const snapshot = installController.getSnapshot()
-  if (snapshot.status === 'success' || snapshot.status === 'error') {
-    dismissSettledInstallFeedback()
-  }
+  operationError.value = null
 })
-
-const stopSurfaceLeaseSync = watch(
-  installFeedbackSurfaceActive,
-  (active) => {
-    setInstallFeedbackActive(active)
-  },
-  { immediate: true, flush: 'sync' }
-)
 
 const leaveGuardLease = settingsLeaveGuard.register({
   id: `settings.skills.install:${nanoid(8)}`,
@@ -609,7 +540,6 @@ const stopLeaveRiskSync = watch(
 )
 
 onBeforeUnmount(() => {
-  stopSurfaceLeaseSync()
   stopLeaveRiskSync()
   leaveGuardLease.release()
 })

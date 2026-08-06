@@ -47,7 +47,7 @@
             {{ t('settings.skills.importExport.chooseDirectoryHint') }}
           </p>
         </button>
-        <Button variant="outline" :disabled="directoryPickerDisabled" @click="chooseDirectory">
+        <DcButton variant="outline" :disabled="directoryPickerDisabled" @click="chooseDirectory">
           <Spinner
             v-if="configLoading || choosingDirectory || directorySaving"
             data-icon="inline-start"
@@ -58,16 +58,9 @@
               ? t('settings.skills.importExport.changeDirectory')
               : t('settings.skills.importExport.chooseDirectory')
           }}
-        </Button>
+        </DcButton>
       </div>
     </div>
-
-    <InlineOperationFeedback
-      v-if="!exportConfirmOpen"
-      :snapshot="operationFeedback"
-      :retry-label="operationRetryLabel"
-      @retry="retryOperation"
-    />
 
     <div
       v-if="configLoadFailed || previewError"
@@ -78,14 +71,14 @@
           previewError ? t('settings.skills.sync.previewError') : t('common.error.requestFailed')
         }}
       </span>
-      <Button
+      <DcButton
         variant="outline"
         size="sm"
         :disabled="configLoading || previewing || operationPending"
         @click="retryReadOperation"
       >
         {{ t('common.retry') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div
@@ -137,22 +130,22 @@
             }}
           </span>
           <div class="flex shrink-0 gap-2">
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="operationPending"
               @click="selectVisibleExport"
             >
               {{ t('settings.skills.importExport.selectVisible') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="operationPending"
               @click="clearExportSelection"
             >
               {{ t('settings.skills.importExport.clearSelection') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
 
@@ -175,13 +168,13 @@
                 {{ skill.description }}
               </span>
             </span>
-            <Badge variant="outline">
+            <DcBadge variant="outline">
               {{
                 skill.deepchatDisabled
                   ? t('settings.skills.card.disabled')
                   : t('settings.skills.card.enabled')
               }}
-            </Badge>
+            </DcBadge>
           </label>
           <div
             v-if="exportCandidates.length === 0"
@@ -192,11 +185,11 @@
         </div>
 
         <div class="flex justify-end">
-          <Button :disabled="!canExport" @click="requestExportConfirmation">
+          <DcButton :disabled="!canExport" @click="requestExportConfirmation">
             <Spinner v-if="previewing || exporting" data-icon="inline-start" />
             <Icon v-else icon="lucide:upload" data-icon="inline-start" />
             {{ t('settings.skills.importExport.exportNow') }}
-          </Button>
+          </DcButton>
         </div>
       </TabsContent>
 
@@ -233,7 +226,7 @@
             }}
           </span>
           <div class="flex shrink-0 flex-wrap gap-2">
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="!config || previewing || operationPending"
@@ -242,23 +235,23 @@
               <Spinner v-if="previewing" data-icon="inline-start" />
               <Icon v-else icon="lucide:refresh-cw" data-icon="inline-start" />
               {{ t('settings.skills.importExport.refresh') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="operationPending"
               @click="selectVisibleImport"
             >
               {{ t('settings.skills.importExport.selectVisible') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               variant="outline"
               size="sm"
               :disabled="operationPending"
               @click="clearImportSelection"
             >
               {{ t('settings.skills.importExport.clearSelection') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
 
@@ -288,9 +281,9 @@
                 {{ t('settings.skills.sync.previewError') }}
               </span>
             </span>
-            <Badge variant="outline" :class="stateClass(item.state)">
+            <DcBadge variant="outline" :class="stateClass(item.state)">
               {{ t(`settings.skills.importExport.state.${item.state}`) }}
-            </Badge>
+            </DcBadge>
           </label>
           <div
             v-if="!importPreview || filteredImportItems.length === 0"
@@ -323,12 +316,16 @@
         </div>
 
         <div class="flex justify-end">
-          <Button :disabled="!canImport" @click="executeImport">
-            <Spinner v-if="importing" data-icon="inline-start" />
-            <Icon v-else icon="lucide:download" data-icon="inline-start" />
+          <DcSubmitButton
+            :status="importStatus"
+            :icon="'lucide:download'"
+            :disabled="!canImport"
+            @click="executeImport"
+          >
             {{ t('settings.skills.importExport.importSelected') }}
-          </Button>
+          </DcSubmitButton>
         </div>
+        <DcInlineError v-if="operationErrorMessage" :error="operationErrorMessage" class="mt-2" />
       </TabsContent>
     </Tabs>
 
@@ -353,9 +350,9 @@
             class="flex items-center gap-2 border-b px-3 py-2 text-sm last:border-b-0"
           >
             <div class="min-w-0 flex-1 truncate" :title="item.name">{{ item.name }}</div>
-            <Badge variant="outline" :class="stateClass(item.state)">
+            <DcBadge variant="outline" :class="stateClass(item.state)">
               {{ t(`settings.skills.importExport.state.${item.state}`) }}
-            </Badge>
+            </DcBadge>
           </div>
           <div
             v-if="!exportPreview || exportPreview.items.length === 0"
@@ -365,25 +362,18 @@
           </div>
         </div>
 
-        <InlineOperationFeedback
-          :snapshot="operationFeedback"
-          :retry-label="operationRetryLabel"
-          @retry="retryOperation"
-        />
+        <DcInlineError v-if="operationErrorMessage" :error="operationErrorMessage" class="mt-2" />
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            :disabled="exporting"
-            @click="handleExportConfirmOpenChange(false)"
-          >
-            {{ t('common.cancel') }}
-          </Button>
-          <Button :disabled="!canConfirmExport" @click="executeExport">
-            <Spinner v-if="exporting" data-icon="inline-start" />
-            <Icon v-else icon="lucide:upload" data-icon="inline-start" />
-            {{ t('settings.skills.importExport.confirmExport') }}
-          </Button>
+          <DcFormActions
+            :submit-status="exportStatus"
+            :submit-icon="'lucide:upload'"
+            :submit-disabled="!canConfirmExport"
+            :cancel-disabled="exporting"
+            :submit-label="t('settings.skills.importExport.confirmExport')"
+            @cancel="handleExportConfirmOpenChange(false)"
+            @submit="executeExport"
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -395,8 +385,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
@@ -410,9 +400,10 @@ import {
 import { Input } from '@shadcn/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
+import { DcFormActions } from '@dc-ui/components/form-actions'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createProjectClient } from '@api/ProjectClient'
 import { createSkillClient } from '@api/SkillClient'
@@ -435,9 +426,6 @@ const { t } = useI18n()
 const skillClient = createSkillClient()
 const deviceClient = createDeviceClient()
 const projectClient = createProjectClient()
-const operationController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: operationFeedback } = useSurfaceFeedback(operationController)
-const operationId = `settings.skills.syncDirectory:${nanoid(8)}`
 const IMPORT_PREVIEW_CACHE_TTL_MS = 2000
 
 const activeTab = ref<'export' | 'import'>('export')
@@ -475,6 +463,11 @@ const importPreviewRequestId = ref(0)
 let exportPreviewRequestId = 0
 let configRequestId = 0
 let operationGeneration = 0
+const operationPending = ref(false)
+const operationError = ref(false)
+const operationErrorMessage = ref<string | null>(null)
+const { status: exportStatus, run: runExport } = useDcFormSubmit()
+const { status: importStatus, run: runImport } = useDcFormSubmit()
 let disposed = false
 let importPreviewInFlight: {
   key: string
@@ -485,13 +478,11 @@ const skills = computed(() => props.skills.filter((skill) => skill.mutable))
 const syncDirectoryReady = computed(() =>
   Boolean(config.value?.skillsDirectory && directoryExists.value)
 )
-const operationPending = computed(() => operationFeedback.value.status === 'pending')
 const previewing = computed(() => exportPreviewing.value || importPreviewing.value)
 const directorySaving = computed(
   () => operationKind.value === 'directory' && operationPending.value
 )
 const exporting = computed(() => operationKind.value === 'export' && operationPending.value)
-const importing = computed(() => operationKind.value === 'import' && operationPending.value)
 const directoryPickerDisabled = computed(
   () => configLoading.value || operationPending.value || choosingDirectory.value
 )
@@ -537,45 +528,36 @@ const canConfirmExport = computed(
   () =>
     Boolean(exportPreview.value) &&
     !exporting.value &&
-    !(operationFeedback.value.status === 'error' && retryKind.value !== 'export')
+    !(operationError.value && retryKind.value !== 'export')
 )
-const operationRetryLabel = computed(() => {
-  if (retryKind.value === 'directory') {
-    return retryDirectory.value ? t('common.retry') : undefined
-  }
-  if (retryKind.value === 'export') {
-    return retryExportNames.value?.length ? t('common.retry') : undefined
-  }
-  if (retryKind.value === 'import') {
-    return selectedImportNames.value.size > 0 ? t('common.retry') : undefined
-  }
-  return undefined
-})
 
 const logFailure = (message: string, error: unknown) => {
   console.error(message, error)
 }
 
-const beginOperation = (
-  kind: Exclude<typeof operationKind.value, null>,
-  label: string
-): number | null => {
-  if (operationController.getSnapshot().status === 'pending') return null
+const beginOperation = (kind: Exclude<typeof operationKind.value, null>): number | null => {
+  if (operationPending.value) return null
   const generation = ++operationGeneration
   operationKind.value = kind
   retryKind.value = kind
-  operationController.begin(operationId, label)
+  operationPending.value = true
+  operationError.value = false
   return generation
 }
 
 const isCurrentOperation = (generation: number) =>
-  generation === operationGeneration && operationController.getSnapshot().status === 'pending'
+  generation === operationGeneration && operationPending.value
+
+const finishOperation = (failed: boolean) => {
+  operationPending.value = false
+  operationError.value = failed
+}
 
 const clearSettledOperation = () => {
-  const snapshot = operationController.getSnapshot()
-  if (snapshot.status === 'success' || snapshot.status === 'error') {
-    operationController.clearSettled()
+  if (operationError.value) {
+    operationError.value = false
     retryKind.value = null
+    operationErrorMessage.value = null
   }
 }
 
@@ -639,7 +621,7 @@ const chooseDirectory = async () => {
 }
 
 const saveDirectory = async (nextDirectory: string) => {
-  const generation = beginOperation('directory', t('common.saving'))
+  const generation = beginOperation('directory')
   if (generation === null) return
   configRequestId += 1
   configLoading.value = false
@@ -663,19 +645,23 @@ const saveDirectory = async (nextDirectory: string) => {
       await refreshImportPreview({ force: true })
     }
     if (!isCurrentOperation(generation)) return
-    operationController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.skills.syncDirectorySaved',
       title: t('settings.skills.importExport.saved')
     })
+    finishOperation(false)
     retryKind.value = null
     retryDirectory.value = ''
   } catch (error) {
     if (!isCurrentOperation(generation)) return
     logFailure('[SkillImportExportTab] Failed to save sync directory', error)
-    operationController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.skills.syncDirectorySaveFailed',
       title: t('common.error.operationFailed')
     })
+    finishOperation(true)
   }
 }
 
@@ -811,67 +797,59 @@ const executeExport = async () => {
       ? [...retryExportNames.value]
       : [...selectedExportNames.value]
   if (skillNames.length === 0) return
-  const generation = beginOperation(
-    'export',
-    t('settings.skills.sync.exporting', { current: 0, total: skillNames.length })
-  )
+  const generation = beginOperation('export')
   if (generation === null) return
   const requestedIncludeDisabled = includeDisabled.value
   retryExportNames.value = skillNames
+  operationErrorMessage.value = null
   try {
-    const result = await skillClient.executeSyncDirectoryExport({
-      skillNames,
-      includeDisabled: requestedIncludeDisabled
-    })
-    if (!isCurrentOperation(generation)) return
-    const exported = normalizeResultCount(result.exported, skillNames.length)
-    const skipped = normalizeResultCount(result.skipped, skillNames.length)
-    const failed = Math.min(
-      skillNames.length,
-      Math.max(result.failed.length, result.success ? 0 : 1, skillNames.length - exported - skipped)
-    )
-    invalidateImportPreviewCache()
-    if (!result.success || failed > 0) {
-      const failedNames = new Set(result.failed.map((failure) => failure.skillName))
-      const invalidNames = new Set(
-        (exportPreview.value?.items ?? [])
-          .filter((item) => item.state === 'invalid')
-          .map((item) => item.name)
+    await runExport(async () => {
+      const result = await skillClient.executeSyncDirectoryExport({
+        skillNames,
+        includeDisabled: requestedIncludeDisabled
+      })
+      if (!isCurrentOperation(generation)) return
+      const exported = normalizeResultCount(result.exported, skillNames.length)
+      const skipped = normalizeResultCount(result.skipped, skillNames.length)
+      const failed = Math.min(
+        skillNames.length,
+        Math.max(
+          result.failed.length,
+          result.success ? 0 : 1,
+          skillNames.length - exported - skipped
+        )
       )
-      const retryCandidates = (
-        failedNames.size ? skillNames.filter((name) => failedNames.has(name)) : skillNames
-      ).filter((name) => !invalidNames.has(name))
-      retryExportNames.value = retryCandidates.length > 0 ? retryCandidates : null
-      if (!retryExportNames.value) retryKind.value = null
-      operationController.fail({
-        code: 'settings.skills.syncDirectoryExportIncomplete',
-        title: t('settings.skills.sync.exportPartial'),
-        description: t('settings.skills.importExport.result', {
+      invalidateImportPreviewCache()
+      if (!result.success || failed > 0) {
+        const failedNames = new Set(result.failed.map((failure) => failure.skillName))
+        const invalidNames = new Set(
+          (exportPreview.value?.items ?? [])
+            .filter((item) => item.state === 'invalid')
+            .map((item) => item.name)
+        )
+        const retryCandidates = (
+          failedNames.size ? skillNames.filter((name) => failedNames.has(name)) : skillNames
+        ).filter((name) => !invalidNames.has(name))
+        retryExportNames.value = retryCandidates.length > 0 ? retryCandidates : null
+        if (!retryExportNames.value) retryKind.value = null
+        operationErrorMessage.value = t('settings.skills.importExport.result', {
           count: exported,
           failed
         })
-      })
-      return
-    }
-    operationController.succeed({
-      code: 'settings.skills.syncDirectoryExported',
-      title: t('settings.skills.importExport.exported'),
-      description: t('settings.skills.importExport.result', {
-        count: exported,
-        failed
-      })
+        finishOperation(true)
+        throw new Error('Sync directory export was incomplete')
+      }
+      finishOperation(false)
+      exportConfirmOpen.value = false
+      retryKind.value = null
+      retryExportNames.value = null
     })
-    exportConfirmOpen.value = false
-    retryKind.value = null
-    retryExportNames.value = null
   } catch (error) {
-    if (!isCurrentOperation(generation)) return
-    logFailure('[SkillImportExportTab] Failed to export skills', error)
-    operationController.fail({
-      code: 'settings.skills.syncDirectoryExportFailed',
-      title: t('settings.skills.sync.exportError'),
-      description: t('common.error.requestFailed')
-    })
+    if (!operationErrorMessage.value) {
+      logFailure('[SkillImportExportTab] Failed to export skills', error)
+      finishOperation(true)
+      operationErrorMessage.value = t('common.error.requestFailed')
+    }
   }
 }
 
@@ -976,61 +954,53 @@ const executeImport = async () => {
     retryKind.value = null
     return
   }
-  const generation = beginOperation(
-    'import',
-    t('settings.skills.sync.importing', { current: 0, total: skillNames.length })
-  )
+  const generation = beginOperation('import')
   if (generation === null) return
   const strategy = importStrategy.value
+  operationErrorMessage.value = null
   try {
-    const result = await skillClient.executeSyncDirectoryImport({
-      skillNames,
-      strategy
-    })
-    if (!isCurrentOperation(generation)) return
-    const imported = normalizeResultCount(result.imported, skillNames.length)
-    const skipped = normalizeResultCount(result.skipped, skillNames.length)
-    const failed = Math.min(
-      skillNames.length,
-      Math.max(result.failed.length, result.success ? 0 : 1, skillNames.length - imported - skipped)
-    )
-    invalidateImportPreviewCache()
-    if (!result.success || failed > 0) {
-      const failedNames = new Set(result.failed.map((failure) => failure.skillName))
-      selectedImportNames.value = failedNames.size
-        ? new Set(skillNames.filter((name) => failedNames.has(name)))
-        : new Set(skillNames)
-      operationController.fail({
-        code: 'settings.skills.syncDirectoryImportIncomplete',
-        title: t('settings.skills.sync.importPartial'),
-        description: t('settings.skills.importExport.result', {
+    await runImport(async () => {
+      const result = await skillClient.executeSyncDirectoryImport({
+        skillNames,
+        strategy
+      })
+      if (!isCurrentOperation(generation)) return
+      const imported = normalizeResultCount(result.imported, skillNames.length)
+      const skipped = normalizeResultCount(result.skipped, skillNames.length)
+      const failed = Math.min(
+        skillNames.length,
+        Math.max(
+          result.failed.length,
+          result.success ? 0 : 1,
+          skillNames.length - imported - skipped
+        )
+      )
+      invalidateImportPreviewCache()
+      if (!result.success || failed > 0) {
+        const failedNames = new Set(result.failed.map((failure) => failure.skillName))
+        selectedImportNames.value = failedNames.size
+          ? new Set(skillNames.filter((name) => failedNames.has(name)))
+          : new Set(skillNames)
+        operationErrorMessage.value = t('settings.skills.importExport.result', {
           count: imported,
           failed
         })
-      })
+        finishOperation(true)
+        await refreshImportPreview({ force: true })
+        if (selectedImportNames.value.size === 0) retryKind.value = null
+        throw new Error('Sync directory import was incomplete')
+      }
+      finishOperation(false)
+      retryKind.value = null
+      selectedImportNames.value = new Set()
       await refreshImportPreview({ force: true })
-      if (selectedImportNames.value.size === 0) retryKind.value = null
-      return
-    }
-    operationController.succeed({
-      code: 'settings.skills.syncDirectoryImported',
-      title: t('settings.skills.importExport.imported'),
-      description: t('settings.skills.importExport.result', {
-        count: imported,
-        failed
-      })
     })
-    retryKind.value = null
-    selectedImportNames.value = new Set()
-    await refreshImportPreview({ force: true })
   } catch (error) {
-    if (!isCurrentOperation(generation)) return
-    logFailure('[SkillImportExportTab] Failed to import skills', error)
-    operationController.fail({
-      code: 'settings.skills.syncDirectoryImportFailed',
-      title: t('settings.skills.sync.importError'),
-      description: t('common.error.requestFailed')
-    })
+    if (!operationErrorMessage.value) {
+      logFailure('[SkillImportExportTab] Failed to import skills', error)
+      finishOperation(true)
+      operationErrorMessage.value = t('common.error.requestFailed')
+    }
   }
 }
 
@@ -1058,7 +1028,7 @@ watch(
 watch(activeTab, (tab) => {
   previewError.value = false
   if (
-    operationController.getSnapshot().status === 'error' &&
+    operationError.value &&
     ((tab === 'import' && retryKind.value === 'export') ||
       (tab === 'export' && retryKind.value === 'import'))
   ) {
@@ -1068,21 +1038,6 @@ watch(activeTab, (tab) => {
     void refreshImportPreview()
   }
 })
-
-const retryOperation = () => {
-  if (operationPending.value) return
-  if (retryKind.value === 'directory' && retryDirectory.value) {
-    void saveDirectory(retryDirectory.value)
-    return
-  }
-  if (retryKind.value === 'export' && exportPreview.value) {
-    void executeExport()
-    return
-  }
-  if (retryKind.value === 'import') {
-    void executeImport()
-  }
-}
 
 const retryReadOperation = () => {
   if (configLoadFailed.value) {
@@ -1097,11 +1052,7 @@ const retryReadOperation = () => {
 const handleExportConfirmOpenChange = (open: boolean) => {
   if (!open && exporting.value) return
   exportConfirmOpen.value = open
-  if (
-    !open &&
-    retryKind.value === 'export' &&
-    operationController.getSnapshot().status === 'error'
-  ) {
+  if (!open && retryKind.value === 'export' && operationError.value) {
     clearSettledOperation()
   }
   if (!open) retryExportNames.value = null

@@ -10,12 +10,12 @@
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="showConfirmDialog = false">{{
+          <DcButton variant="outline" @click="showConfirmDialog = false">{{
             t('dialog.cancel')
-          }}</Button>
-          <Button variant="destructive" @click="$emit('confirm-disable-model')">{{
+          }}</DcButton>
+          <DcButton variant="destructive" @click="$emit('confirm-disable-model')">{{
             t('settings.provider.dialog.disableModel.confirm')
-          }}</Button>
+          }}</DcButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -42,9 +42,9 @@
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="showCheckModelDialog = false">{{
+          <DcButton variant="outline" @click="showCheckModelDialog = false">{{
             t('dialog.close')
-          }}</Button>
+          }}</DcButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -59,12 +59,12 @@
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="showDisableAllConfirmDialog = false">{{
+          <DcButton variant="outline" @click="showDisableAllConfirmDialog = false">{{
             t('dialog.cancel')
-          }}</Button>
-          <Button variant="destructive" @click="$emit('confirm-disable-all-models')">{{
+          }}</DcButton>
+          <DcButton variant="destructive" @click="$emit('confirm-disable-all-models')">{{
             t('settings.provider.dialog.disableAllModels.confirm')
-          }}</Button>
+          }}</DcButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -79,12 +79,12 @@
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="showDeleteProviderDialog = false">{{
+          <DcButton variant="outline" @click="showDeleteProviderDialog = false">{{
             t('dialog.cancel')
-          }}</Button>
-          <Button variant="destructive" @click="$emit('confirm-delete-provider')">{{
+          }}</DcButton>
+          <DcButton variant="destructive" @click="$emit('confirm-delete-provider')">{{
             t('settings.provider.dialog.deleteProvider.confirm')
-          }}</Button>
+          }}</DcButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -93,7 +93,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,

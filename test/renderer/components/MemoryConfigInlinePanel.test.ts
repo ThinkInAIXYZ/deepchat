@@ -43,7 +43,7 @@ const stubs = {
   Popover: passthrough('Popover'),
   PopoverContent: passthrough('PopoverContent'),
   PopoverTrigger: passthrough('PopoverTrigger'),
-  Button: ButtonStub,
+  DcButton: ButtonStub,
   Input: InputStub,
   Switch: SwitchStub,
   ModelIcon: passthrough('ModelIcon'),

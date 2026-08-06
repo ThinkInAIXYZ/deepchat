@@ -56,7 +56,7 @@
                   class="rounded-md border p-3"
                 >
                   <div class="mb-2 flex items-center justify-between">
-                    <Badge variant="outline" class="capitalize">{{ message.role }}</Badge>
+                    <DcBadge variant="outline" class="capitalize">{{ message.role }}</DcBadge>
                     <span class="text-xs text-muted-foreground">
                       {{ t(`mcp.sampling.contentType.${message.type}`) }}
                     </span>
@@ -149,9 +149,9 @@
             class="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground"
           >
             <div>{{ t('model.error.loadFailed') }}</div>
-            <Button variant="outline" class="mt-3" @click="onRetryModels">
+            <DcButton variant="outline" class="mt-3" @click="onRetryModels">
               {{ t('settings.dashboard.rtk.actions.retry') }}
-            </Button>
+            </DcButton>
           </div>
 
           <template v-else>
@@ -162,7 +162,7 @@
               }}</span>
               <Popover v-model:open="modelSelectOpen">
                 <PopoverTrigger as-child>
-                  <Button
+                  <DcButton
                     variant="ghost"
                     class="flex items-center gap-1.5 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                     size="sm"
@@ -178,7 +178,7 @@
                       {{ store.selectedModel?.name || t('mcp.sampling.selectModel') }}
                     </span>
                     <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
-                  </Button>
+                  </DcButton>
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
@@ -211,15 +211,15 @@
 
         <DialogFooter class="border-t border-border/60 bg-card/60 px-6 py-4">
           <div class="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button
+            <DcButton
               variant="outline"
               class="sm:min-w-[96px]"
               :disabled="store.isSubmitting"
               @click="onReject"
             >
               {{ t('mcp.sampling.reject') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               class="sm:min-w-[120px]"
               :disabled="
                 store.isSubmitting ||
@@ -234,7 +234,7 @@
               {{
                 store.isSubmitting ? t('mcp.sampling.confirming') : t('mcp.sampling.sendResponse')
               }}
-            </Button>
+            </DcButton>
           </div>
         </DialogFooter>
       </div>
@@ -252,8 +252,8 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcButton } from '@dc-ui/components/button'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   Collapsible,

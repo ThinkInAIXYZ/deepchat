@@ -21,8 +21,8 @@ vi.mock('@iconify/vue', () => ({
   })
 }))
 
-vi.mock('@shadcn/components/ui/button', () => ({
-  Button: defineComponent({
+vi.mock('@dc-ui/components/button', () => ({
+  DcButton: defineComponent({
     name: 'Button',
     inheritAttrs: false,
     props: {
@@ -33,15 +33,27 @@ vi.mock('@shadcn/components/ui/button', () => ({
       variant: {
         type: String,
         default: 'default'
+      },
+      icon: {
+        type: String,
+        default: ''
+      },
+      tooltip: {
+        type: String,
+        default: ''
       }
     },
     emits: ['click'],
     template:
-      '<button type="button" :disabled="disabled" :data-variant="variant" v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>'
+      '<button type="button" :disabled="disabled" :data-variant="variant" :title="tooltip || undefined" v-bind="$attrs" @click="$emit(\'click\')"><i v-if="icon" :data-icon="icon" /><slot /><span v-if="tooltip">{{ tooltip }}</span></button>'
   })
 }))
 
 vi.mock('@shadcn/components/ui/tooltip', () => ({
+  TooltipProvider: defineComponent({
+    name: 'TooltipProvider',
+    template: '<div><slot /></div>'
+  }),
   Tooltip: defineComponent({
     name: 'Tooltip',
     template: '<div><slot /></div>'

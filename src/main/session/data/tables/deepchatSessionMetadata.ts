@@ -84,6 +84,9 @@ export class DeepChatSessionMetadataTable extends BaseTable {
           scheduledAt: parsed.scheduledAt
         }
       }
+      if (row.source === 'cli_run' && parsed.source === 'cli_run') {
+        return { source: 'cli_run' }
+      }
     } catch {
       return null
     }

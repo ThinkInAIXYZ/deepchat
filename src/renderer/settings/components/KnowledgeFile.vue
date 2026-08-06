@@ -16,38 +16,44 @@
       </div>
       <!-- 操作按钮 -->
       <div class="flex flex-row gap-2 shrink-0">
-        <Button
+        <DcButton
           v-if="ctrlBtn === 'paused'"
           variant="outline"
           size="sm"
+          icon="lucide:play"
+          :label="t('settings.knowledgeBase.resumeAllPausedTasks')"
+          :tooltip="t('settings.knowledgeBase.resumeAllPausedTasks')"
           :disabled="pageActionPending"
+          class="text-green-500"
           @click="toggleStatus(true)"
-          :title="t('settings.knowledgeBase.resumeAllPausedTasks')"
-        >
-          <Icon icon="lucide:play" class="w-4 h-4 text-green-500" />
-        </Button>
-        <Button
+        />
+        <DcButton
           v-if="ctrlBtn === 'processing'"
           variant="outline"
           size="sm"
+          icon="lucide:pause"
+          :label="t('settings.knowledgeBase.pauseAllRunningTasks')"
+          :tooltip="t('settings.knowledgeBase.pauseAllRunningTasks')"
           :disabled="pageActionPending"
+          class="text-yellow-500"
           @click="toggleStatus(false)"
-          :title="t('settings.knowledgeBase.pauseAllRunningTasks')"
-        >
-          <Icon icon="lucide:pause" class="w-4 h-4 text-yellow-500" />
-        </Button>
-        <Button variant="outline" size="sm" :disabled="uploading" @click="openSearchDialog">
-          <Icon icon="lucide:search" class="w-4 h-4" />
-        </Button>
-        <Button variant="outline" size="sm" :disabled="uploading" @click="onReturn">
+        />
+        <DcButton
+          variant="outline"
+          size="sm"
+          icon="lucide:search"
+          :label="t('settings.knowledgeBase.searchKnowledge')"
+          :tooltip="t('settings.knowledgeBase.searchKnowledge')"
+          :disabled="uploading"
+          @click="openSearchDialog"
+        />
+        <DcButton variant="outline" size="sm" :disabled="uploading" @click="onReturn">
           <Icon icon="lucide:corner-down-left" class="w-4 h-4" />
           {{ t('settings.knowledgeBase.return') }}
-        </Button>
+        </DcButton>
       </div>
     </div>
-    <p v-if="pageError" role="alert" class="text-xs text-destructive">
-      {{ pageError }}
-    </p>
+    <DcInlineError v-if="pageError" :error="pageError" />
     <!-- 文件上传 -->
     <div class="bg-card border border-border rounded-lg px-4 pb-2">
       <div class="text-sm p-2">
@@ -134,56 +140,59 @@
     </div>
     <!-- 搜索弹窗 -->
     <Dialog v-model:open="isSearchDialogOpen">
-      <TooltipProvider>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle> {{ t('settings.knowledgeBase.searchKnowledge') }} </DialogTitle>
-          </DialogHeader>
-          <div class="flex w-full items-center gap-1 relative">
-            <Input
-              v-model="searchKey"
-              :disabled="loading"
-              :placeholder="t('settings.knowledgeBase.searchKnowledgePlaceholder')"
-              @update:model-value="searchError = null"
-            />
-            <Button
-              size="sm"
-              variant="ghost"
-              v-if="searchKey"
-              class="absolute right-16 text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center hover:bg-zinc-200"
-              @click.stop="clearSearchKey"
-            >
-              <Icon icon="lucide:x" class="w-4 h-4 text-muted-foreground" />
-            </Button>
-            <Button :disabled="loading || !searchKey.trim()" @click="handleSearch">
-              <Icon icon="lucide:search" class="w-4 h-4" />
-            </Button>
-          </div>
-          <p v-if="searchError" role="alert" class="text-xs text-destructive">
-            {{ searchError }}
-          </p>
-          <ScrollArea class="max-h-[calc(100vh-200px)]">
-            <div class="relative min-h-[180px]">
-              <div v-if="loading" class="absolute flex h-full w-full items-center justify-center">
-                <div class="text-center">
-                  <Spinner class="mx-auto mb-2 size-6 text-muted-foreground" />
-                  <p class="text-xs text-muted-foreground">{{ t('common.loading') }}</p>
-                </div>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle> {{ t('settings.knowledgeBase.searchKnowledge') }} </DialogTitle>
+        </DialogHeader>
+        <div class="flex w-full items-center gap-1 relative">
+          <Input
+            v-model="searchKey"
+            :disabled="loading"
+            :placeholder="t('settings.knowledgeBase.searchKnowledgePlaceholder')"
+            @update:model-value="searchError = null"
+          />
+          <DcButton
+            v-if="searchKey"
+            size="icon-xs"
+            variant="ghost"
+            icon="lucide:x"
+            :label="t('common.clear')"
+            :tooltip="t('common.clear')"
+            class="absolute right-16 text-xs text-muted-foreground rounded-full w-6 h-6 hover:bg-zinc-200"
+            @click.stop="clearSearchKey"
+          />
+          <DcButton
+            icon="lucide:search"
+            :label="t('settings.knowledgeBase.searchKnowledge')"
+            :tooltip="t('settings.knowledgeBase.searchKnowledge')"
+            :disabled="loading || !searchKey.trim()"
+            @click="handleSearch"
+          />
+        </div>
+        <DcInlineError v-if="searchError" :error="searchError" />
+        <ScrollArea class="max-h-[calc(100vh-200px)]">
+          <div class="relative min-h-[180px]">
+            <div v-if="loading" class="absolute flex h-full w-full items-center justify-center">
+              <div class="text-center">
+                <Spinner class="mx-auto mb-2 size-6 text-muted-foreground" />
+                <p class="text-xs text-muted-foreground">{{ t('common.loading') }}</p>
               </div>
-              <div v-if="searchResult.length > 0">
+            </div>
+            <div v-if="searchResult.length > 0">
+              <div
+                v-for="item in searchResult"
+                :key="item.id"
+                class="relative px-6 py-4 mt-2 bg-card border border-border rounded-sm bg-secondary"
+              >
                 <div
-                  v-for="item in searchResult"
-                  :key="item.id"
-                  class="relative px-6 py-4 mt-2 bg-card border border-border rounded-sm bg-secondary"
+                  class="absolute right-10 top-1 text-xs text-white p-1 rounded-sm bg-primary-600"
                 >
-                  <div
-                    class="absolute right-10 top-1 text-xs text-white p-1 rounded-sm bg-primary-600"
-                  >
-                    score:{{ (item.distance * 100).toFixed(2) + '%' }}
-                  </div>
+                  score:{{ (item.distance * 100).toFixed(2) + '%' }}
+                </div>
+                <TooltipProvider>
                   <Tooltip :delay-duration="200">
                     <TooltipTrigger as-child>
-                      <Button
+                      <DcButton
                         variant="ghost"
                         size="sm"
                         class="absolute right-2 top-1 h-6 w-6 flex items-center justify-center rounded-sm hover:bg-primary/80 hover:text-white transition-colors"
@@ -191,7 +200,7 @@
                       >
                         <Icon v-if="copyId === item.id" icon="lucide:check" />
                         <Icon v-else icon="lucide:copy" />
-                      </Button>
+                      </DcButton>
                     </TooltipTrigger>
                     <TooltipContent>
                       <div v-if="copyId === item.id">
@@ -200,28 +209,28 @@
                       <div v-else>{{ t('settings.knowledgeBase.copy') }}</div>
                     </TooltipContent>
                   </Tooltip>
-                  <div class="text-xs">
-                    {{ item.metadata.content }}
-                  </div>
-                  <div class="border-t border-gray-300 pt-2 mt-2 text-xs text-muted-foreground">
-                    {{ t('settings.knowledgeBase.source') }} ：{{ item.metadata.from }}
-                  </div>
+                </TooltipProvider>
+                <div class="text-xs">
+                  {{ item.metadata.content }}
+                </div>
+                <div class="border-t border-gray-300 pt-2 mt-2 text-xs text-muted-foreground">
+                  {{ t('settings.knowledgeBase.source') }} ：{{ item.metadata.from }}
                 </div>
               </div>
-              <Empty v-if="searchResult.length === 0 && !loading" class="border-0 py-12">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <Icon icon="lucide:book-open-text" />
-                  </EmptyMedia>
-                  <EmptyDescription>
-                    {{ t('settings.knowledgeBase.noData') }}
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
             </div>
-          </ScrollArea>
-        </DialogContent>
-      </TooltipProvider>
+            <Empty v-if="searchResult.length === 0 && !loading" class="border-0 py-12">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Icon icon="lucide:book-open-text" />
+                </EmptyMedia>
+                <EmptyDescription>
+                  {{ t('settings.knowledgeBase.noData') }}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </div>
+        </ScrollArea>
+      </DialogContent>
     </Dialog>
   </div>
 </template>
@@ -230,7 +239,8 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@shadcn/components/ui/empty'
 import { Spinner } from '@shadcn/components/ui/spinner'

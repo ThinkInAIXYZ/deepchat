@@ -99,7 +99,7 @@ const loadMcpServerForm = async () => {
 }
 
 const globalStubs = {
-  Button: buttonStub,
+  DcButton: buttonStub,
   Input: inputStub,
   Label: passthrough('Label', 'label'),
   Textarea: textareaStub,

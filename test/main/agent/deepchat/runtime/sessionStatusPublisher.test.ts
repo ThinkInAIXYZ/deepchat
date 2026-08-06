@@ -74,6 +74,30 @@ describe('SessionStatusPublisher', () => {
     expect(ports.sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
   })
 
+  it('publishes terminal usage even when the projected status is already unchanged', () => {
+    const runtime = new DeepChatAgentRuntime()
+    const scope = runtime.getOrHydrateScope(toAppSessionId('session'))
+    scope.instance.setRuntimeState({
+      status: 'idle',
+      providerId: 'openai',
+      modelId: 'gpt-5',
+      permissionMode: 'full_access'
+    })
+    const { ports, publisher } = createPublisher()
+
+    expect(publisher.transition(scope, 'idle', { totalTokens: 12 })).toBe(true)
+
+    expect(ports.publishSessionUpdate).toHaveBeenCalledWith({
+      sessionId: 'session',
+      kind: 'status',
+      updatedAt: expect.any(Number),
+      status: 'idle',
+      usage: { totalTokens: 12 }
+    })
+    expect(ports.publishEvent).not.toHaveBeenCalled()
+    expect(ports.sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
+  })
+
   it('fences stale and mismatched scopes before mutating any instance', () => {
     const runtime = new DeepChatAgentRuntime()
     const sessionId = toAppSessionId('session')

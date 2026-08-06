@@ -331,7 +331,7 @@ const setup = async (options?: {
     global: {
       stubs: {
         TooltipProvider: passthrough('TooltipProvider'),
-        Button: passthrough('Button'),
+        DcButton: passthrough('Button'),
         DropdownMenu: passthrough('DropdownMenu'),
         DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
         DropdownMenuContent: passthrough('DropdownMenuContent'),

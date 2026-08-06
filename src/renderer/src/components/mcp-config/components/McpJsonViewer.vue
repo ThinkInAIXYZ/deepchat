@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
+import { DcCopyButton } from '@dc-ui/components/copy-button'
 
 interface Props {
   content: string
@@ -121,15 +122,6 @@ const getJsonPartClass = (type: string): string => {
       return ''
   }
 }
-
-// Keep writeText for a reliable Electron/Chromium failure contract.
-const copyToClipboard = async () => {
-  try {
-    await navigator.clipboard.writeText(props.content)
-  } catch (err) {
-    console.error('复制失败:', err)
-  }
-}
 </script>
 
 <template>
@@ -138,7 +130,7 @@ const copyToClipboard = async () => {
     <div v-if="title || !readonly" class="flex items-center justify-between mb-3">
       <h4 v-if="title" class="text-sm font-medium text-foreground">{{ title }}</h4>
       <div v-if="!readonly" class="flex space-x-2">
-        <Button
+        <DcButton
           v-if="isJsonContent"
           variant="ghost"
           size="sm"
@@ -147,11 +139,14 @@ const copyToClipboard = async () => {
         >
           <Icon icon="lucide:align-left" class="mr-1 h-3 w-3" />
           {{ t('common.format') }}
-        </Button>
-        <Button variant="ghost" size="sm" class="h-7 text-xs" @click="copyToClipboard">
-          <Icon icon="lucide:copy" class="mr-1 h-3 w-3" />
-          {{ t('common.copy') }}
-        </Button>
+        </DcButton>
+        <DcCopyButton
+          variant="ghost"
+          size="sm"
+          class="h-7 text-xs"
+          :copy-text="props.content"
+          :label="t('common.copy')"
+        />
       </div>
     </div>
 

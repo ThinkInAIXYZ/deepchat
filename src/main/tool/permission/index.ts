@@ -4,6 +4,7 @@ export { FilePermissionService, FilePermissionRequiredError } from './filePermis
 export { SettingsPermissionService } from './settingsPermissionService'
 export {
   ToolPermissionBroker,
+  type ToolPermissionBrokerOptions,
   type ToolPermissionContext,
   type ToolPermissionDecision,
   type ToolPermissionSource

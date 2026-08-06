@@ -8,6 +8,12 @@ import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAg
 import type { ProviderCatalogPort } from '@/provider/ports'
 import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from "./systemEnvPromptBuilder";
 import type { SkillSettingsPort } from "@/skill/settings";
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@shared/orchestration/resultSafety'
+import {
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
 
 export type AgentExtensionPolicy = {
   enabledMcpServerIds?: string[] | null;
@@ -40,6 +46,7 @@ export interface SystemPromptBuildInput {
   basePrompt: string;
   toolDefinitions: MCPToolDefinition[];
   activeSkillNamesOverride?: string[];
+  orchestrationPolicy?: OrchestrationPolicy
   resourceInstance: DeepChatAgentInstance;
 }
 
@@ -256,6 +263,7 @@ export async function buildSystemPromptWithSkills(
     skillsMetadataPrompt,
     skillsPrompt,
     toolingPrompt,
+    buildOrchestrationPolicyPrompt(input.orchestrationPolicy, agentToolNames),
     buildPermissionRulesPrompt(agentToolNames),
     buildVerificationPolicyPrompt(workdir),
   ]);
@@ -263,6 +271,42 @@ export async function buildSystemPromptWithSkills(
 
   dependencies.assertCurrent(sessionId, resourceInstance);
   return composedPrompt;
+}
+
+function buildOrchestrationPolicyPrompt(
+  policy: OrchestrationPolicy | undefined,
+  agentToolNames: Set<string>
+): string {
+  const hasSubagents = agentToolNames.has(LIVE_DELEGATION_AGENT_TOOL_NAME)
+  if (!hasSubagents) {
+    return ''
+  }
+
+  const normalizedPolicy = normalizeOrchestrationPolicy(policy)
+  const lines = [
+    '## Multi-Agent Orchestration Policy',
+    normalizedPolicy === 'proactive'
+      ? 'The user enabled proactive multi-Agent collaboration for this session.'
+      : 'The session uses explicit multi-Agent collaboration. This revokes any earlier instruction to delegate proactively.',
+    'Do the work directly when it is simple, tightly sequential, or cheaper than coordination.'
+  ]
+  if (normalizedPolicy === 'explicit') {
+    lines.push(
+      'Use Subagents only when the user, an active Skill, or project instructions explicitly request multi-Agent orchestration.'
+    )
+  } else {
+    lines.push(
+      'Delegate only when independent context, isolation, parallelism, or durable recovery provides clear value. Never delegate merely to demonstrate that proactive collaboration is enabled.'
+    )
+  }
+  lines.push(
+    `Use \`${LIVE_DELEGATION_AGENT_TOOL_NAME}\` for bounded child tasks. Use \`spawn\` to start work, \`send\` for non-triggering context, and \`follow_up\` only to start another child turn.`,
+    UNTRUSTED_CHILD_OUTPUT_POLICY
+  )
+  lines.push(
+    'Do not run overlapping write-heavy children in the same workspace. Account for every spawned child until it reaches a terminal state.'
+  )
+  return lines.join('\n')
 }
 
 function composePromptSections(sections: string[]): string {

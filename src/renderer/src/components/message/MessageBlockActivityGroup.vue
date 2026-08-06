@@ -49,6 +49,7 @@
             :block="block"
             :message-id="messageId"
             :thread-id="threadId"
+            :read-only="readOnly"
             render-mode="tool-only"
           />
         </template>
@@ -77,6 +78,7 @@ const props = defineProps<{
   durationMs: number
   reasoningCount: number
   toolCallCount: number
+  readOnly?: boolean
 }>()
 
 const emit = defineEmits<{

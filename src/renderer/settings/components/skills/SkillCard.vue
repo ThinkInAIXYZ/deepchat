@@ -23,22 +23,22 @@
       </p>
 
       <div class="flex flex-wrap gap-1.5">
-        <Badge variant="secondary" class="text-[11px]">
+        <DcBadge variant="secondary" class="text-[11px]">
           {{ t('settings.skills.card.scripts', { count: scriptsList.length }) }}
-        </Badge>
-        <Badge variant="outline" class="text-[11px]">
+        </DcBadge>
+        <DcBadge variant="outline" class="text-[11px]">
           {{ t('settings.skills.card.env', { count: envCount }) }}
-        </Badge>
-        <Badge variant="outline" class="text-[11px]">
+        </DcBadge>
+        <DcBadge variant="outline" class="text-[11px]">
           {{ runtimeSummary }}
-        </Badge>
-        <Badge :variant="skill.deepchatDisabled ? 'secondary' : 'outline'" class="text-[11px]">
+        </DcBadge>
+        <DcBadge :variant="skill.deepchatDisabled ? 'secondary' : 'outline'" class="text-[11px]">
           {{
             skill.deepchatDisabled
               ? t('settings.skills.card.disabled')
               : t('settings.skills.card.enabled')
           }}
-        </Badge>
+        </DcBadge>
       </div>
     </div>
 
@@ -66,7 +66,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Switch } from '@shadcn/components/ui/switch'
 import type {
   SkillExtensionConfig,

@@ -559,5 +559,21 @@
       "amendRetryable": "ویرایش ناموفق بود. حافظه اصلی بازیابی شد؛ دوباره تلاش کنید.",
       "amendRestoreFailed": "ویرایش ناموفق بود و حافظه اصلی هم بازیابی نشد."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "باز کردن Agent فرزند" },
+    "activityTitle": "فعالیت Agent",
+    "proactive": {
+      "title": "همکاری فعال",
+      "description": "به Agent اصلی اجازه می‌دهد وقتی کار مستقل یا موازی سود روشنی دارد، وظایف را واگذار کند. ممکن است زمان، Token و منابع بیشتری مصرف شود.",
+      "reasons": {
+        "session_unavailable": "این نشست دیگر در دسترس نیست.",
+        "agent_unavailable": "Agent انتخاب‌شده در دسترس نیست.",
+        "deepchat_agent_required": "همکاری فعال به یک DeepChat Agent نیاز دارد.",
+        "regular_parent_required": "همکاری فعال در نشست فرزند در دسترس نیست.",
+        "agent_policy_unavailable": "خط‌مشی همکاری بارگیری نشد.",
+        "subagents_disabled": "برای استفاده از همکاری فعال، Subagentها را برای این Agent فعال کنید."
+      }
+    }
   }
 }

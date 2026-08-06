@@ -53,7 +53,7 @@ import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { nanoid } from 'nanoid'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
-import { SubagentOrchestratorTool } from '@/tool/agentTools/subagentOrchestratorTool'
+import { LiveDelegationAgentTool } from '@/tool/agentTools/liveDelegationTool'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -726,6 +726,10 @@ function createRuntimeDependencies(
     getMemoryIngestionProjection?: () => any
     promptSettings?: { getDefaultSystemPrompt(): Promise<string> }
     memoryPort?: MemoryRuntimePort
+    interactionContinuationAdmission?: {
+      resume: ReturnType<typeof vi.fn>
+      suspend: ReturnType<typeof vi.fn>
+    }
   } = {}
 ): DeepChatHarnessDependencies & {
   attachmentRouter: { prepare: ReturnType<typeof vi.fn> }
@@ -763,6 +767,10 @@ function createRuntimeDependencies(
         content,
         summary: { status: 'ready' as const, issues: [], suggestedActions: [] }
       }))
+    },
+    interactionContinuationAdmission: options.interactionContinuationAdmission ?? {
+      resume: vi.fn().mockResolvedValue(false),
+      suspend: vi.fn()
     }
   }
 }
@@ -4866,7 +4874,7 @@ describe('DeepChatAgentHarness', () => {
           }
         ]
       }
-      const subagentTool = new SubagentOrchestratorTool({} as any, {} as any)
+      const subagentTool = new LiveDelegationAgentTool({} as any)
 
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
@@ -4884,10 +4892,10 @@ describe('DeepChatAgentHarness', () => {
 
       const firstTools = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].run.resources
         .toolDefinitions
-      expect(firstTools.map((tool: any) => tool.function.name)).toEqual(['subagent_orchestrator'])
-      expect(
-        (firstTools[0].function.parameters as any).properties.tasks.items.properties.slotId.enum
-      ).toEqual(['reviewer'])
+      expect(firstTools.map((tool: any) => tool.function.name)).toEqual(['deepchat_subagents'])
+      expect((firstTools[0].function.parameters as any).properties.slotId.enum).toEqual([
+        'reviewer'
+      ])
 
       subagentConfig = { ...subagentConfig, subagentEnabled: false }
       await agent.processMessage('s1', 'Second turn')
@@ -4911,10 +4919,10 @@ describe('DeepChatAgentHarness', () => {
 
       const thirdTools = (processStream as ReturnType<typeof vi.fn>).mock.calls[2][0].run.resources
         .toolDefinitions
-      expect(thirdTools.map((tool: any) => tool.function.name)).toEqual(['subagent_orchestrator'])
-      expect(
-        (thirdTools[0].function.parameters as any).properties.tasks.items.properties.slotId.enum
-      ).toEqual(['explorer'])
+      expect(thirdTools.map((tool: any) => tool.function.name)).toEqual(['deepchat_subagents'])
+      expect((thirdTools[0].function.parameters as any).properties.slotId.enum).toEqual([
+        'explorer'
+      ])
       expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(3)
     })
 
@@ -9981,7 +9989,32 @@ describe('DeepChatAgentHarness', () => {
           signal: expect.any(AbortSignal)
         })
       )
+      expect(runtimeDependencies.interactionContinuationAdmission.resume).toHaveBeenCalledWith(
+        's1',
+        expect.any(AbortSignal)
+      )
       expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not resume child computation before continuation admission', async () => {
+      const admitted = deferred<void>()
+      runtimeDependencies.interactionContinuationAdmission.resume = vi.fn(async () => {
+        await admitted.promise
+        return true
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingQuestion()
+
+      const response = answerPendingQuestion()
+      await vi.waitFor(() =>
+        expect(runtimeDependencies.interactionContinuationAdmission.resume).toHaveBeenCalledOnce()
+      )
+      expect(processStream).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).not.toHaveBeenCalled()
+
+      admitted.resolve()
+      await expect(response).resolves.toEqual({ resumed: true })
+      expect(processStream).toHaveBeenCalledOnce()
     })
 
     it('inserts resume compaction indicators before the assistant message being resumed', async () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { OrchestrationPolicySchema } from '../orchestration/policy'
 import { ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import type { Agent } from '../types/agent-interface'
 import {
@@ -28,20 +29,19 @@ import {
   PDF_PAGE_COUNT_SANITY_LIMIT
 } from '../types/attachment'
 import { isValidDocumentOcrTextPageSpans } from '../utils/documentOcrText'
+import { LiveDelegationSubagentContextSchema } from '../orchestration/liveDelegation'
+import { JsonValueSchema, TimestampMsSchema } from './json'
 
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | {
-      [key: string]: JsonValue
-    }
+export {
+  defineEventContract,
+  defineRouteContract,
+  type EventContract,
+  type RouteContract
+} from './contract'
+export { JsonValueSchema, TimestampMsSchema, type JsonValue } from './json'
 
 export const EntityIdSchema = z.string().min(1)
 export const SubmissionIdSchema = z.string().min(1).max(128)
-export const TimestampMsSchema = z.number().int().nonnegative()
 
 // A monotonically increasing state token. Unlike TimestampMsSchema, this is not
 // tied to wall-clock time and is safe for ordered snapshot/event application.
@@ -54,17 +54,6 @@ export const ToolCallImagePreviewSchema = z.object({
   title: z.string().optional(),
   source: z.enum(['tool_output', 'file_read', 'screenshot', 'mcp_image'])
 })
-
-export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(JsonValueSchema),
-    z.record(z.string(), JsonValueSchema)
-  ])
-)
 
 export const FileMetadataValueSchema = z.union([JsonValueSchema, z.date()])
 
@@ -143,7 +132,8 @@ export const DeepChatSubagentMetaSchema = z
   .object({
     slotId: EntityIdSchema,
     displayName: z.string(),
-    targetAgentId: EntityIdSchema.nullable().optional()
+    targetAgentId: EntityIdSchema.nullable().optional(),
+    liveDelegation: LiveDelegationSubagentContextSchema.optional()
   })
   .nullable()
 
@@ -400,16 +390,22 @@ export const SessionWithStateSchema = z.object({
   sessionKind: SessionKindSchema,
   parentSessionId: EntityIdSchema.nullable().optional(),
   subagentMeta: DeepChatSubagentMetaSchema.optional(),
+  orchestrationPolicy: OrchestrationPolicySchema,
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema,
   revision: RevisionSchema.optional(),
   metadata: z
-    .object({
-      source: z.literal('cron_job'),
-      cronJobId: EntityIdSchema,
-      cronJobRunId: EntityIdSchema,
-      scheduledAt: TimestampMsSchema
-    })
+    .discriminatedUnion('source', [
+      z.object({
+        source: z.literal('cron_job'),
+        cronJobId: EntityIdSchema,
+        cronJobRunId: EntityIdSchema,
+        scheduledAt: TimestampMsSchema
+      }),
+      z.object({
+        source: z.literal('cli_run')
+      })
+    ])
     .nullable()
     .optional(),
   status: SessionStatusSchema,
@@ -602,40 +598,3 @@ export const AssistantMessageBlockSchema = z.object({
   extra: z.record(z.string(), JsonValueSchema).optional(),
   action_type: z.enum(['tool_call_permission', 'question_request', 'rate_limit']).optional()
 })
-
-export interface RouteContract<
-  Name extends string = string,
-  InputSchema extends z.ZodTypeAny = z.ZodTypeAny,
-  OutputSchema extends z.ZodTypeAny = z.ZodTypeAny
-> {
-  name: Name
-  input: InputSchema
-  output: OutputSchema
-}
-
-export interface EventContract<
-  Name extends string = string,
-  PayloadSchema extends z.ZodTypeAny = z.ZodTypeAny
-> {
-  name: Name
-  payload: PayloadSchema
-}
-
-export function defineRouteContract<
-  const Name extends string,
-  InputSchema extends z.ZodTypeAny,
-  OutputSchema extends z.ZodTypeAny
->(contract: {
-  name: Name
-  input: InputSchema
-  output: OutputSchema
-}): RouteContract<Name, InputSchema, OutputSchema> {
-  return contract
-}
-
-export function defineEventContract<
-  const Name extends string,
-  PayloadSchema extends z.ZodTypeAny
->(contract: { name: Name; payload: PayloadSchema }): EventContract<Name, PayloadSchema> {
-  return contract
-}

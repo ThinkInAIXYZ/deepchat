@@ -14,23 +14,23 @@
 
         <Popover v-model:open="filterPopoverOpen">
           <PopoverTrigger as-child>
-            <Button
+            <DcButton
               variant="outline"
               class="px-3 text-xs"
               :class="activeAdvancedFilterCount ? 'border-primary/40 bg-primary/5' : ''"
             >
               <Icon icon="lucide:funnel" class="mr-2 h-4 w-4 text-muted-foreground" />
               {{ t('model.filter.label') }}
-              <Badge v-if="activeAdvancedFilterCount" variant="secondary" class="ml-2">
+              <DcBadge v-if="activeAdvancedFilterCount" variant="secondary" class="ml-2">
                 {{ activeAdvancedFilterCount }}
-              </Badge>
-            </Button>
+              </DcBadge>
+            </DcButton>
           </PopoverTrigger>
           <PopoverContent align="end" class="w-[320px] p-4">
             <div class="space-y-4">
               <div class="flex items-center justify-between gap-2">
                 <div class="text-sm font-medium">{{ t('model.filter.label') }}</div>
-                <Button
+                <DcButton
                   size="sm"
                   variant="ghost"
                   class="h-7 px-2 text-xs"
@@ -38,7 +38,7 @@
                   @click="clearAdvancedFilters"
                 >
                   {{ t('common.clear') }}
-                </Button>
+                </DcButton>
               </div>
 
               <div class="space-y-2">
@@ -46,7 +46,7 @@
                   {{ t('model.filter.capabilities') }}
                 </div>
                 <div class="grid gap-2 sm:grid-cols-2">
-                  <Button
+                  <DcButton
                     v-for="option in capabilityFilterOptions"
                     :key="option.value"
                     :data-testid="`model-capability-filter-${option.value}`"
@@ -60,7 +60,7 @@
                       <span class="truncate">{{ option.label }}</span>
                     </span>
                     <span class="ml-2 text-[11px] opacity-70">{{ option.count }}</span>
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
 
@@ -69,7 +69,7 @@
                   {{ t('model.filter.types') }}
                 </div>
                 <div class="grid gap-2 sm:grid-cols-2">
-                  <Button
+                  <DcButton
                     v-for="option in typeFilterOptions"
                     :key="option.value"
                     :data-testid="`model-type-filter-${option.value}`"
@@ -83,7 +83,7 @@
                       <span class="truncate">{{ option.label }}</span>
                     </span>
                     <span class="ml-2 text-[11px] opacity-70">{{ option.count }}</span>
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -92,14 +92,14 @@
 
         <Popover v-model:open="sortPopoverOpen">
           <PopoverTrigger as-child>
-            <Button variant="outline" class="px-3 text-xs">
+            <DcButton variant="outline" class="px-3 text-xs">
               <Icon icon="lucide:arrow-up-down" class="mr-2 h-4 w-4 text-muted-foreground" />
               {{ currentSortLabel }}
-            </Button>
+            </DcButton>
           </PopoverTrigger>
           <PopoverContent align="end" class="w-48 p-2">
             <div class="space-y-1">
-              <Button
+              <DcButton
                 v-for="option in sortOptions"
                 :key="option.value"
                 :data-testid="`model-sort-${option.value}`"
@@ -110,7 +110,7 @@
               >
                 <span>{{ option.label }}</span>
                 <Icon v-if="sortState === option.value" icon="lucide:check" class="h-2 w-2" />
-              </Button>
+              </DcButton>
             </div>
           </PopoverContent>
         </Popover>
@@ -120,7 +120,7 @@
 
       <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
         <div v-if="activeFilterTokens.length" class="flex flex-wrap items-center gap-2">
-          <Button
+          <DcButton
             v-for="token in activeFilterTokens"
             :key="`${token.kind}-${token.value}`"
             size="sm"
@@ -130,10 +130,10 @@
           >
             <span>{{ token.label }}</span>
             <Icon icon="lucide:x" class="ml-1 h-3.5 w-3.5" />
-          </Button>
-          <Button size="sm" variant="ghost" class="h-7 px-2 text-xs" @click="clearAllFilters">
+          </DcButton>
+          <DcButton size="sm" variant="ghost" class="h-7 px-2 text-xs" @click="clearAllFilters">
             {{ t('model.filter.clearAll') }}
-          </Button>
+          </DcButton>
         </div>
 
         <div class="text-xs text-muted-foreground">
@@ -230,7 +230,7 @@
               {{ getProviderName(item.providerId) }}
             </div>
             <div class="flex shrink-0 gap-2">
-              <Button
+              <DcButton
                 variant="outline"
                 size="sm"
                 class="h-8 min-w-8 max-w-[9rem] whitespace-nowrap rounded-lg px-2 text-xs text-normal"
@@ -246,8 +246,8 @@
                 <span class="hidden min-w-0 truncate sm:inline">
                   {{ t('model.actions.enableAll') }}
                 </span>
-              </Button>
-              <Button
+              </DcButton>
+              <DcButton
                 variant="outline"
                 size="sm"
                 class="h-8 min-w-8 max-w-[9rem] whitespace-nowrap rounded-lg px-2 text-xs text-normal"
@@ -263,7 +263,7 @@
                 <span class="hidden min-w-0 truncate sm:inline">
                   {{ t('model.actions.disableAll') }}
                 </span>
-              </Button>
+              </DcButton>
             </div>
           </div>
           <div v-else-if="isModelItem(item)" :key="item.id" class="h-12 overflow-hidden bg-card">
@@ -302,8 +302,8 @@
 import { useI18n } from 'vue-i18n'
 import { computed, reactive, ref, watch } from 'vue'
 import { Input } from '@shadcn/components/ui/input'
-import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcButton } from '@dc-ui/components/button'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Icon } from '@iconify/vue'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'

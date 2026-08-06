@@ -9,10 +9,41 @@ import { pathToFileURL } from 'node:url'
 
 const DEFAULT_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
+const MAX_PROVIDER_DB_PAYLOAD_BYTES = 10 * 1024 * 1024
 
 const log = (...args) => console.log('[fetch-provider-db]', ...args)
 const warn = (...args) => console.warn('[fetch-provider-db]', ...args)
 const error = (...args) => console.error('[fetch-provider-db]', ...args)
+
+async function readResponseTextWithLimit(response, maxBytes) {
+  if (!response.body) {
+    const text = await response.text()
+    return Buffer.byteLength(text, 'utf8') <= maxBytes ? text : null
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  const textChunks = []
+  let bytesRead = 0
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      bytesRead += value.byteLength
+      if (bytesRead > maxBytes) {
+        await reader.cancel().catch(() => undefined)
+        return null
+      }
+      textChunks.push(decoder.decode(value, { stream: true }))
+    }
+    textChunks.push(decoder.decode())
+    return textChunks.join('')
+  } finally {
+    reader.releaseLock()
+  }
+}
 
 async function ensureDir(dir) {
   await fsp.mkdir(dir, { recursive: true })
@@ -249,14 +280,13 @@ async function main() {
   await ensureDir(outDir)
 
   let text
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 20000)
   try {
     log('Fetching', url)
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 20000)
     const res = await fetch(url, { signal: controller.signal })
-    clearTimeout(timeout)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    text = await res.text()
+    text = await readResponseTextWithLimit(res, MAX_PROVIDER_DB_PAYLOAD_BYTES)
   } catch (e) {
     warn('Fetch failed:', e?.message || e)
     if (fs.existsSync(outFile)) {
@@ -265,10 +295,14 @@ async function main() {
     }
     error('No existing snapshot found. Failing the build step.')
     process.exit(1)
+  } finally {
+    clearTimeout(timeout)
   }
 
-  if (text.length > 5 * 1024 * 1024) {
-    error('Downloaded file too large (>5MB). Aborting.')
+  if (text === null) {
+    error(
+      `Downloaded file exceeds ${MAX_PROVIDER_DB_PAYLOAD_BYTES / (1024 * 1024)} MiB limit. Aborting.`
+    )
     if (!fs.existsSync(outFile)) process.exit(1)
     return
   }

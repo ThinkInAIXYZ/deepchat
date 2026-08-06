@@ -184,6 +184,7 @@ export interface PendingToolInteraction {
     providerId?: string
     requestId?: string
     rememberable?: boolean
+    requiresUserConfirmation?: boolean
     command?: string
     commandSignature?: string
     paths?: string[]

@@ -11,6 +11,11 @@ import type {
   SessionRecord
 } from '@shared/types/agent-interface'
 import type { SessionListPageCursor } from '@/session/data/tables/newSessions'
+import { parseLiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
+import {
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
 
 const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta | null => {
   if (!raw) {
@@ -23,13 +28,15 @@ const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta
       return null
     }
 
+    const liveDelegation = parseLiveDelegationSubagentContext(parsed.liveDelegation)
     return {
       slotId: parsed.slotId,
       displayName: typeof parsed.displayName === 'string' ? parsed.displayName : parsed.slotId,
       targetAgentId:
         parsed.targetAgentId === null || typeof parsed.targetAgentId === 'string'
           ? parsed.targetAgentId
-          : undefined
+          : undefined,
+      ...(liveDelegation ? { liveDelegation } : {})
     }
   } catch {
     return null
@@ -54,6 +61,7 @@ export class AppSessionService implements AppSessionReadPort {
     options?: {
       isDraft?: boolean
       disabledAgentTools?: string[]
+      orchestrationPolicy?: OrchestrationPolicy
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
@@ -64,6 +72,7 @@ export class AppSessionService implements AppSessionReadPort {
     this.sessionDatabase.newSessionsTable.create(id, agentId, title, projectDir, {
       isDraft: options?.isDraft,
       disabledAgentTools: options?.disabledAgentTools,
+      orchestrationPolicy: options?.orchestrationPolicy,
       sessionKind: options?.sessionKind,
       parentSessionId: options?.parentSessionId,
       subagentMetaJson: options?.subagentMeta ? JSON.stringify(options.subagentMeta) : null
@@ -145,6 +154,7 @@ export class AppSessionService implements AppSessionReadPort {
         | 'sessionKind'
         | 'parentSessionId'
         | 'subagentMeta'
+        | 'orchestrationPolicy'
       >
     >
   ): void {
@@ -163,6 +173,7 @@ export class AppSessionService implements AppSessionReadPort {
       session_kind?: SessionKind
       parent_session_id?: string | null
       subagent_meta_json?: string | null
+      orchestration_policy?: OrchestrationPolicy
     } = {}
     if (fields.title !== undefined) dbFields.title = fields.title
     if (fields.projectDir !== undefined) dbFields.project_dir = fields.projectDir
@@ -174,6 +185,9 @@ export class AppSessionService implements AppSessionReadPort {
     }
     if (fields.subagentMeta !== undefined) {
       dbFields.subagent_meta_json = fields.subagentMeta ? JSON.stringify(fields.subagentMeta) : null
+    }
+    if (fields.orchestrationPolicy !== undefined) {
+      dbFields.orchestration_policy = normalizeOrchestrationPolicy(fields.orchestrationPolicy)
     }
     this.sessionDatabase.newSessionsTable.update(id, dbFields)
     if (fields.title !== undefined) {
@@ -211,6 +225,16 @@ export class AppSessionService implements AppSessionReadPort {
     this.notifyEnvironmentProjectionChanged()
   }
 
+  getOrchestrationPolicy(id: string): OrchestrationPolicy {
+    return this.sessionDatabase.newSessionsTable.getOrchestrationPolicy(id)
+  }
+
+  updateOrchestrationPolicy(id: string, policy: OrchestrationPolicy): void {
+    this.sessionDatabase.newSessionsTable.updateOrchestrationPolicy(id, policy)
+    this.sqlitePresenter.newEnvironmentsTable.syncForSession(id)
+    this.notifyEnvironmentProjectionChanged()
+  }
+
   updateAgentId(id: string, agentId: string): void {
     const current = this.sessionDatabase.newSessionsTable.get(id)
     if (!current || current.agent_id === agentId) {
@@ -232,6 +256,7 @@ export class AppSessionService implements AppSessionReadPort {
     session_kind: string
     parent_session_id: string | null
     subagent_meta_json: string | null
+    orchestration_policy: string
     created_at: number
     updated_at: number
     revision: number
@@ -247,6 +272,7 @@ export class AppSessionService implements AppSessionReadPort {
       sessionKind: row.session_kind === 'subagent' ? 'subagent' : 'regular',
       parentSessionId: row.parent_session_id ?? null,
       subagentMeta: parseSubagentMeta(row.subagent_meta_json),
+      orchestrationPolicy: normalizeOrchestrationPolicy(row.orchestration_policy),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       revision: row.revision,

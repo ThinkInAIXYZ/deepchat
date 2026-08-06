@@ -11,9 +11,9 @@
               </p>
             </div>
             <div class="flex shrink-0 flex-wrap items-center gap-2">
-              <Badge variant="outline">
+              <DcBadge variant="outline">
                 {{ t('settings.provider.center.enabledModels', { count: enabledCount }) }}
-              </Badge>
+              </DcBadge>
             </div>
           </div>
         </div>
@@ -60,7 +60,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 
 type ProviderSettingsTab = 'connection' | 'models' | 'advanced'

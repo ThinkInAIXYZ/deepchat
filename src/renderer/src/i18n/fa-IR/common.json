@@ -125,6 +125,9 @@
   "history": "تاریخچه",
   "minimize": "کوچک‌کردن",
   "maximize": "بزرگ‌کردن",
+  "showValue": "نمایش",
+  "hideValue": "پنهان کردن",
+  "scrollToBottom": "پیمایش به پایین",
   "restore": "بازگردانی",
   "browser": {
     "back": "Back",

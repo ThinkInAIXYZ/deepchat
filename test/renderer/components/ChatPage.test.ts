@@ -111,7 +111,6 @@ const setup = async (options: SetupOptions = {}) => {
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn().mockResolvedValue(undefined)
   })
-
   const messageStore = reactive({
     messages: options.messages ?? [
       buildAssistantMessage([
@@ -356,8 +355,8 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@shadcn/components/ui/tooltip', () => ({
     TooltipProvider: passthrough('TooltipProvider')
   }))
-  vi.doMock('@shadcn/components/ui/button', () => ({
-    Button: clickStub('Button')
+  vi.doMock('@dc-ui/components/button', () => ({
+    DcButton: clickStub('Button')
   }))
   vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
     AlertDialog: defineComponent({
@@ -372,6 +371,7 @@ const setup = async (options: SetupOptions = {}) => {
       template: '<div v-if="open" class="alert-dialog-stub"><slot /></div>'
     }),
     AlertDialogAction: clickStub('AlertDialogAction'),
+    AlertDialogAsyncAction: clickStub('AlertDialogAsyncAction'),
     AlertDialogCancel: clickStub('AlertDialogCancel'),
     AlertDialogContent: passthrough('AlertDialogContent'),
     AlertDialogDescription: passthrough('AlertDialogDescription'),
@@ -2543,7 +2543,7 @@ describe('ChatPage', () => {
     expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true)
     expect(wrapper.text()).toContain('dialog.deleteMessage.title')
 
-    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await wrapper.findComponent({ name: 'AlertDialogAsyncAction' }).trigger('click')
     await flushPromises()
 
     expect(messageStore.clearStreamingState).toHaveBeenCalled()
@@ -2565,7 +2565,7 @@ describe('ChatPage', () => {
 
     messageList.vm.$emit('delete', 'm1')
     await flushPromises()
-    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await wrapper.findComponent({ name: 'AlertDialogAsyncAction' }).trigger('click')
     await flushPromises()
 
     expect(agentPlanStore.clearSnapshot).toHaveBeenCalledWith('s1')
@@ -2585,7 +2585,7 @@ describe('ChatPage', () => {
 
     messageList.vm.$emit('delete', 'm1')
     await flushPromises()
-    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await wrapper.findComponent({ name: 'AlertDialogAsyncAction' }).trigger('click')
     await flushPromises()
 
     expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
@@ -2627,7 +2627,7 @@ describe('ChatPage', () => {
     sessionStore.activeSession.sessionKind = 'subagent'
     await flushPromises()
 
-    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await wrapper.findComponent({ name: 'AlertDialogAsyncAction' }).trigger('click')
     await flushPromises()
 
     expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
@@ -3610,8 +3610,8 @@ describe('ChatPage', () => {
     }
   })
 
-  it('renders subagent sessions as read-only display mode', async () => {
-    const { wrapper } = await setup({
+  it('keeps subagent sessions read-only while allowing their pending interaction', async () => {
+    const { wrapper, chatClient, messageStore } = await setup({
       sessionKind: 'subagent',
       messages: [
         buildAssistantMessage([
@@ -3642,8 +3642,24 @@ describe('ChatPage', () => {
     expect(wrapper.find('.message-list-stub').attributes('data-read-only')).toBe('true')
     expect(wrapper.find('.chat-input-box-stub').exists()).toBe(false)
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(false)
-    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="chat-composer-region"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="chat-read-only-interaction-region"]').exists()).toBe(true)
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'ChatStatusBar' }).exists()).toBe(false)
+
+    await wrapper.find('.chat-tool-interaction-overlay-stub').trigger('click')
+    await flushPromises()
+
+    expect(chatClient.respondToolInteraction).toHaveBeenCalledWith({
+      sessionId: 's1',
+      messageId: 'm1',
+      toolCallId: 'tool-1',
+      response: {
+        kind: 'permission',
+        granted: true
+      }
+    })
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
   })
 
   it('consumes pending spotlight message jumps after loading the target session', async () => {

@@ -182,17 +182,19 @@ export class RunLifecycleCoordinator {
 
   transitionCurrentStatus(
     sessionId: string,
-    status: DeepChatSessionState['status']
+    status: DeepChatSessionState['status'],
+    usage?: Record<string, number>
   ): boolean {
     const scope = this.getHydratedScope(sessionId)
-    return scope ? this.ports.statusPublisher.transition(scope, status) : false
+    return scope ? this.ports.statusPublisher.transition(scope, status, usage) : false
   }
 
   transitionStatus(
     scope: SessionRuntimeScope,
-    status: DeepChatSessionState['status']
+    status: DeepChatSessionState['status'],
+    usage?: Record<string, number>
   ): boolean {
-    return this.ports.statusPublisher.transition(scope, status)
+    return this.ports.statusPublisher.transition(scope, status, usage)
   }
 
   refreshPendingInteractions(sessionId: string): boolean {
@@ -352,7 +354,11 @@ export class RunLifecycleCoordinator {
       return
     }
     scope.instance.replacePendingInteractions([])
-    this.transitionStatus(scope, result.status === 'error' ? 'error' : 'idle')
+    this.ports.statusPublisher.transition(
+      scope,
+      result.status === 'error' ? 'error' : 'idle',
+      result.usage
+    )
   }
 
   settleAbortedTurn(
@@ -376,7 +382,7 @@ export class RunLifecycleCoordinator {
 
     const scope = this.getHydratedScope(sessionId)
     if (scope && this.canSettleAbortedRun(scope, runId)) {
-      this.transitionStatus(scope, 'idle')
+      this.ports.statusPublisher.transition(scope, 'idle', usage)
     }
   }
 

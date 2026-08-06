@@ -3,9 +3,22 @@ import { defineComponent, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import {
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
+} from '@shared/agentTools'
 
 const { selectSessionMock } = vi.hoisted(() => ({
   selectSessionMock: vi.fn()
+}))
+const liveDelegationStoreMock = vi.hoisted(() => ({
+  seed: vi.fn(),
+  getDelegation: vi.fn(() => null),
+  ensureLoaded: vi.fn().mockResolvedValue(true),
+  confirm: vi.fn(),
+  isAuthoritative: vi.fn(() => true),
+  isInterrupting: vi.fn(() => false),
+  interrupt: vi.fn()
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -58,6 +71,10 @@ vi.mock('@/stores/ui/session', () => ({
   })
 }))
 
+vi.mock('@/stores/ui/liveDelegation', () => ({
+  useLiveDelegationStore: () => liveDelegationStoreMock
+}))
+
 vi.mock('markstream-vue', () => ({
   CodeBlockNode: defineComponent({
     name: 'CodeBlockNode',
@@ -95,6 +112,17 @@ const createBlock = (
 
 beforeEach(() => {
   selectSessionMock.mockReset()
+  liveDelegationStoreMock.seed.mockReset()
+  liveDelegationStoreMock.getDelegation.mockReset().mockReturnValue(null)
+  liveDelegationStoreMock.ensureLoaded.mockReset().mockResolvedValue(true)
+  liveDelegationStoreMock.confirm.mockReset().mockResolvedValue({
+    childSessionId: 'child-1',
+    slotId: 'reviewer',
+    title: 'Review architecture'
+  })
+  liveDelegationStoreMock.isAuthoritative.mockReset().mockReturnValue(true)
+  liveDelegationStoreMock.isInterrupting.mockReset().mockReturnValue(false)
+  liveDelegationStoreMock.interrupt.mockReset()
 })
 
 afterEach(() => {
@@ -103,6 +131,118 @@ afterEach(() => {
 })
 
 describe('MessageBlockToolCall', () => {
+  it('renders a trusted live delegation as a navigable task card with raw disclosure', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'parent-1',
+        block: createBlock({
+          extra: { toolSource: 'agent' },
+          tool_call: {
+            id: 'spawn-1',
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+            params: JSON.stringify({
+              operation: 'spawn',
+              slotId: 'reviewer',
+              title: 'Review architecture',
+              prompt: 'Inspect module boundaries.'
+            }),
+            response: JSON.stringify({
+              delegation: {
+                schemaVersion: 1,
+                id: 'delegation-1',
+                parentSessionId: 'parent-1',
+                childSessionId: 'child-1',
+                slotId: 'reviewer',
+                targetAgentId: 'deepchat',
+                title: 'Review architecture',
+                status: 'running',
+                lastTurnSeq: 1,
+                createdAt: 10,
+                updatedAt: 20,
+                revision: 2,
+                summaryPreview: null,
+                errorPreview: null
+              },
+              turns: []
+            })
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="live-delegation-tool-card-delegation-1"]').text()).toContain(
+      'Review architecture'
+    )
+    expect(wrapper.text()).toContain('reviewer')
+    expect(wrapper.find('[data-testid="tool-call-trigger"]').exists()).toBe(false)
+    expect(liveDelegationStoreMock.seed).toHaveBeenCalledOnce()
+
+    await wrapper.get('[data-testid="live-delegation-tool-open-delegation-1"]').trigger('click')
+    expect(selectSessionMock).toHaveBeenCalledWith('child-1')
+
+    await wrapper.get('[data-testid="live-delegation-tool-details"]').trigger('click')
+    expect(wrapper.get('[data-testid="tool-call-details"]').text()).toContain(
+      'Inspect module boundaries.'
+    )
+  })
+
+  it('does not grant native live-delegation controls to spoofed or foreign-parent blocks', () => {
+    const trustedToolCall = {
+      id: 'spawn-1',
+      name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+      server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+      params: JSON.stringify({
+        operation: 'spawn',
+        slotId: 'reviewer',
+        title: 'Review architecture',
+        prompt: 'Inspect module boundaries.'
+      }),
+      response: JSON.stringify({
+        delegation: {
+          schemaVersion: 1,
+          id: 'delegation-1',
+          parentSessionId: 'original-parent',
+          childSessionId: 'child-1',
+          slotId: 'reviewer',
+          targetAgentId: 'deepchat',
+          title: 'Review architecture',
+          status: 'idle',
+          lastTurnSeq: 1,
+          createdAt: 10,
+          updatedAt: 20,
+          revision: 2,
+          summaryPreview: 'Done.',
+          errorPreview: null
+        },
+        turns: []
+      })
+    }
+    const spoofed = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'original-parent',
+        block: createBlock({
+          extra: { toolSource: 'mcp' },
+          tool_call: trustedToolCall
+        })
+      }
+    })
+    const foreignParent = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'forked-parent',
+        block: createBlock({
+          extra: { toolSource: 'agent' },
+          tool_call: trustedToolCall
+        })
+      }
+    })
+
+    expect(spoofed.find('[data-testid^="live-delegation-tool-card-"]').exists()).toBe(false)
+    expect(spoofed.find('[data-testid="tool-call-trigger"]').exists()).toBe(true)
+    expect(foreignParent.find('[data-testid^="live-delegation-tool-card-"]').exists()).toBe(false)
+    expect(foreignParent.find('[data-testid="tool-call-trigger"]').exists()).toBe(true)
+  })
+
   it('hides the tool disclosure in app-only mode', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {

@@ -11,30 +11,28 @@
           class="pointer-events-none absolute inset-x-0 top-0 h-12"
           style="z-index: var(--dc-z-sidepanel)"
         >
-          <Button
-            variant="ghost"
-            size="icon"
+          <DcButton
+            icon="lucide:plus"
+            size="icon-sm"
+            :label="t('common.newChat')"
+            :tooltip="t('common.newChat')"
             data-testid="collapsed-new-chat-button"
-            class="collapsed-new-chat-button pointer-events-auto absolute left-4 top-2.5 h-7 w-7 text-muted-foreground hover:text-foreground"
-            :title="t('common.newChat')"
-            :aria-label="t('common.newChat')"
+            class="collapsed-new-chat-button pointer-events-auto absolute left-4 top-2.5"
             @click="handleCollapsedNewChat"
-          >
-            <Icon icon="lucide:plus" class="h-4 w-4" />
-          </Button>
+          />
         </div>
       </Transition>
-      <Button
+      <DcButton
         v-if="parentSessionId"
         variant="ghost"
         size="sm"
+        icon="lucide:corner-up-left"
         class="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
         :title="t('chat.topbar.backToParent')"
         @click="handleBackToParent"
       >
-        <Icon icon="lucide:corner-up-left" class="h-3.5 w-3.5" />
         <span>{{ t('chat.topbar.backToParent') }}</span>
-      </Button>
+      </DcButton>
       <div v-if="project" class="flex items-center gap-1.5 text-muted-foreground">
         <Icon icon="lucide:folder" class="w-3.5 h-3.5 shrink-0" />
         <span class="text-xs truncate">{{ projectName }}</span>
@@ -76,161 +74,141 @@
           />
 
           <div class="flex shrink-0 items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon"
+            <DcButton
+              icon="lucide:x"
+              size="icon-sm"
+              :label="t('dialog.cancel')"
+              :tooltip="t('dialog.cancel')"
               data-testid="chat-topbar-title-cancel"
-              class="title-inline-action h-7 w-7 text-muted-foreground hover:text-foreground"
-              :title="t('dialog.cancel')"
-              :aria-label="t('dialog.cancel')"
+              class="title-inline-action"
               @click="handleRenameCancel"
-            >
-              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
+            />
+            <DcButton
+              icon="lucide:check"
+              size="icon-sm"
+              :label="t('dialog.confirm')"
+              :tooltip="t('dialog.confirm')"
               data-testid="chat-topbar-title-save"
-              class="title-inline-action h-7 w-7 text-primary hover:text-primary disabled:text-muted-foreground"
-              :title="t('dialog.confirm')"
-              :aria-label="t('dialog.confirm')"
+              class="title-inline-action text-primary hover:text-primary disabled:text-muted-foreground"
               :disabled="!canSubmitRename"
               @click="handleRenameConfirm"
-            >
-              <Icon icon="lucide:check" class="h-3.5 w-3.5" />
-            </Button>
+            />
           </div>
         </div>
       </div>
     </div>
 
     <div class="flex items-center gap-1 no-drag">
-      <Button
+      <DcButton
         variant="ghost"
-        size="icon"
-        class="h-7 w-7 text-muted-foreground hover:text-foreground"
-        :title="t('chat.workspace.title')"
+        icon="lucide:folder-tree"
+        size="icon-sm"
+        :label="t('chat.workspace.title')"
+        :tooltip="t('chat.workspace.title')"
         @click="sidepanelStore.toggleWorkspace(props.sessionId)"
-      >
-        <Icon icon="lucide:folder-tree" class="w-4 h-4" />
-      </Button>
+      />
 
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button
+          <DcButton
             variant="ghost"
             size="icon"
             class="h-7 w-7 text-muted-foreground hover:text-foreground"
-            :title="t('chat.topbar.share')"
+            :tooltip="t('chat.topbar.share')"
+            :label="t('chat.topbar.share')"
           >
             <Icon icon="lucide:share" class="w-4 h-4" />
-          </Button>
+          </DcButton>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" class="w-52">
-          <DropdownMenuItem @select="handleExport('markdown')">
-            <Icon icon="lucide:file-text" class="mr-2 h-4 w-4" />
-            <span>{{ t('artifacts.markdownDocument') }} (.md)</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="handleExport('html')">
-            <Icon icon="lucide:globe" class="mr-2 h-4 w-4" />
-            <span>{{ t('artifacts.htmlDocument') }} (.html)</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="handleExport('txt')">
-            <Icon icon="lucide:file-type" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.exportText') }} (.txt)</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="handleExport('nowledge-mem')">
-            <Icon icon="lucide:brain" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.exportNowledgeMem') }} (.json)</span>
-          </DropdownMenuItem>
+          <DcDropdownActionItem
+            icon="lucide:file-text"
+            :label="`${t('artifacts.markdownDocument')} (.md)`"
+            @select="handleExport('markdown')"
+          />
+          <DcDropdownActionItem
+            icon="lucide:globe"
+            :label="`${t('artifacts.htmlDocument')} (.html)`"
+            @select="handleExport('html')"
+          />
+          <DcDropdownActionItem
+            icon="lucide:file-type"
+            :label="`${t('thread.actions.exportText')} (.txt)`"
+            @select="handleExport('txt')"
+          />
+          <DcDropdownActionItem
+            icon="lucide:brain"
+            :label="`${t('thread.actions.exportNowledgeMem')} (.json)`"
+            @select="handleExport('nowledge-mem')"
+          />
         </DropdownMenuContent>
       </DropdownMenu>
 
       <DropdownMenu v-if="!isReadOnly">
         <DropdownMenuTrigger as-child>
-          <Button
+          <DcButton
             variant="ghost"
             size="icon"
             class="h-7 w-7 text-muted-foreground hover:text-foreground"
-            :title="t('chat.topbar.more')"
+            :tooltip="t('chat.topbar.more')"
           >
             <Icon icon="lucide:ellipsis" class="w-4 h-4" />
-          </Button>
+          </DcButton>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" class="w-48">
-          <DropdownMenuItem @select="handleTogglePin">
-            <Icon :icon="isPinned ? 'lucide:pin-off' : 'lucide:pin'" class="mr-2 h-4 w-4" />
-            <span>{{ isPinned ? t('thread.actions.unpin') : t('thread.actions.pin') }}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem :disabled="!canMoveConversation" @select="openMoveDialog">
-            <Icon icon="lucide:move-right" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.moveConversation') }}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="openClearDialog">
-            <Icon icon="lucide:eraser" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.cleanMessages') }}</span>
-          </DropdownMenuItem>
+          <DcDropdownActionItem
+            :icon="isPinned ? 'lucide:pin-off' : 'lucide:pin'"
+            :label="isPinned ? t('thread.actions.unpin') : t('thread.actions.pin')"
+            @select="handleTogglePin"
+          />
+          <DcDropdownActionItem
+            icon="lucide:move-right"
+            :label="t('thread.actions.moveConversation')"
+            :disabled="!canMoveConversation"
+            @select="openMoveDialog"
+          />
+          <DcDropdownActionItem
+            icon="lucide:eraser"
+            :label="t('thread.actions.cleanMessages')"
+            @select="openClearDialog"
+          />
           <DropdownMenuSeparator />
-          <DropdownMenuItem class="text-destructive" @select="openDeleteDialog">
-            <Icon icon="lucide:trash-2" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.delete') }}</span>
-          </DropdownMenuItem>
+          <DcDropdownActionItem
+            icon="lucide:trash-2"
+            :label="t('thread.actions.delete')"
+            danger
+            @select="openDeleteDialog"
+          />
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
   </div>
 
-  <Dialog :open="clearDialogOpen" @update:open="handleClearDialogOpenChange">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ t('dialog.cleanMessages.title') }}</DialogTitle>
-        <DialogDescription>{{ t('dialog.cleanMessages.description') }}</DialogDescription>
-      </DialogHeader>
-      <p v-if="clearDialogError" role="alert" class="text-sm text-destructive">
-        {{ clearDialogError }}
-      </p>
-      <DialogFooter>
-        <Button variant="outline" :disabled="clearDialogBusy" @click="clearDialogOpen = false">
-          {{ t('dialog.cancel') }}
-        </Button>
-        <Button variant="destructive" :disabled="clearDialogBusy" @click="handleClearConfirm">
-          <Icon
-            v-if="clearDialogBusy"
-            icon="lucide:loader-circle"
-            class="mr-1.5 size-4 animate-spin motion-reduce:animate-none"
-          />
-          {{ t('dialog.cleanMessages.confirm') }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  <DcConfirmDialog
+    :open="clearDialogOpen"
+    :title="t('dialog.cleanMessages.title')"
+    :description="t('dialog.cleanMessages.description')"
+    :confirm-label="t('dialog.cleanMessages.confirm')"
+    :busy="clearDialogBusy"
+    @update:open="handleClearDialogOpenChange"
+    @confirm="handleClearConfirm"
+  >
+    <DcInlineError v-if="clearDialogError" :error="clearDialogError" />
+  </DcConfirmDialog>
 
-  <Dialog :open="deleteDialogOpen" @update:open="handleDeleteDialogOpenChange">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ t('dialog.delete.title') }}</DialogTitle>
-        <DialogDescription>{{ t('dialog.delete.description') }}</DialogDescription>
-      </DialogHeader>
-      <p v-if="deleteDialogError" role="alert" class="text-sm text-destructive">
-        {{ deleteDialogError }}
-      </p>
-      <DialogFooter>
-        <Button variant="outline" :disabled="deleteDialogBusy" @click="deleteDialogOpen = false">
-          {{ t('dialog.cancel') }}
-        </Button>
-        <Button variant="destructive" :disabled="deleteDialogBusy" @click="handleDeleteConfirm">
-          <Icon
-            v-if="deleteDialogBusy"
-            icon="lucide:loader-circle"
-            class="mr-1.5 size-4 animate-spin motion-reduce:animate-none"
-          />
-          {{ t('dialog.delete.confirm') }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  <DcConfirmDialog
+    :open="deleteDialogOpen"
+    :title="t('dialog.delete.title')"
+    :description="t('dialog.delete.description')"
+    :confirm-label="t('dialog.delete.confirm')"
+    :busy="deleteDialogBusy"
+    @update:open="handleDeleteDialogOpenChange"
+    @confirm="handleDeleteConfirm"
+  >
+    <DcInlineError v-if="deleteDialogError" :error="deleteDialogError" />
+  </DcConfirmDialog>
 
   <AgentTransferDialog
     v-model:open="moveDialogOpen"
@@ -249,22 +227,16 @@
 import { computed, nextTick, ref, useAttrs, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@shadcn/components/ui/dialog'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import {
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
+} from '@shared/agentTools'
+import {
   type ActivityDurationLabels,
   buildAssistantRenderItems,
   formatActivityDuration
@@ -15,6 +19,41 @@ const createBlock = (
   timestamp: 1_000,
   ...overrides
 })
+
+const createLiveDelegationSpawnBlock = (): DisplayAssistantMessageBlock =>
+  createBlock('tool_call', {
+    extra: { toolSource: 'agent' },
+    tool_call: {
+      id: 'spawn-1',
+      name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+      server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+      params: JSON.stringify({
+        operation: 'spawn',
+        slotId: 'reviewer',
+        title: 'Review architecture',
+        prompt: 'Inspect module boundaries.'
+      }),
+      response: JSON.stringify({
+        delegation: {
+          schemaVersion: 1,
+          id: 'delegation-1',
+          parentSessionId: 'parent-1',
+          childSessionId: 'child-1',
+          slotId: 'reviewer',
+          targetAgentId: 'deepchat',
+          title: 'Review architecture',
+          status: 'idle',
+          lastTurnSeq: 1,
+          createdAt: 10,
+          updatedAt: 20,
+          revision: 2,
+          summaryPreview: 'Done.',
+          errorPreview: null
+        },
+        turns: []
+      })
+    }
+  })
 
 const zhDurationLabels: ActivityDurationLabels = {
   day: '天',
@@ -126,6 +165,34 @@ describe('messageActivityGroups', () => {
         type: 'tool_call',
         tool_call: {
           id: 'tc1'
+        }
+      }
+    })
+  })
+
+  it('keeps a completed live delegation spawn outside collapsed activity groups', () => {
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: true,
+      blocks: [
+        createBlock('reasoning_content', { content: 'delegate review' }),
+        createLiveDelegationSpawnBlock(),
+        createBlock('tool_call', {
+          tool_call: {
+            id: 'tc2',
+            name: 'read'
+          }
+        })
+      ]
+    })
+
+    expect(items.map((item) => item.kind)).toEqual(['activity-group', 'block', 'activity-group'])
+    expect(items[1]).toMatchObject({
+      kind: 'block',
+      block: {
+        tool_call: {
+          id: 'spawn-1'
         }
       }
     })

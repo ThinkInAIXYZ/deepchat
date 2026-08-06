@@ -154,21 +154,35 @@ instead of executing whichever target currently owns the model-visible name.
 
 ### Schemas, Metadata, And Headers
 
-Tool input and output schemas are arbitrary JSON Schema 2020-12 documents. DeepChat preserves the
-raw schema and metadata alongside any provider-specific projection.
+Modern tool input and output schemas are arbitrary JSON Schema 2020-12 documents. DeepChat
+preserves the raw schema and metadata alongside any provider-specific projection.
 
-Validate a declared schema dialect and support JSON Schema 2020-12. Do not network-dereference
-external `$ref` values by default; reject an unresolved external reference instead of treating it
-as permissive. Apply byte, depth, key-count, and composition-expansion limits before projection,
-persistence, or renderer delivery.
+Validate a declared schema dialect and support JSON Schema 2020-12 for modern connections and
+DeepChat-owned packaged catalogs. Do not network-dereference external `$ref` values. Modern and
+packaged definitions reject unresolved external references instead of treating them as permissive.
+
+User-configured external legacy connections preserve schema documents as opaque bounded JSON and
+must not acquire modern-only dialect, remote-reference, or composition-shape rejection after the
+legacy SDK accepts the response. This compatibility does not permit network dereferencing or relax
+the structural and size boundaries on an individual schema or metadata value.
+
+Apply byte, depth, key-count, node-count, and composition-expansion limits before projection,
+persistence, or renderer delivery. Collection envelopes also have a total byte limit, but member
+key and node counts do not accumulate into one fixed catalog-wide quota; validate those limits on
+each independently consumed member.
 
 The model-provider projection may simplify a schema only at the final provider adapter boundary.
-The original MCP definition must still be available when calling the tool so the SDK can:
+For modern connections and DeepChat-owned catalogs, the original MCP definition must still be
+available when calling the tool so the SDK can:
 
 - validate output;
 - mirror fields annotated by `x-mcp-header`;
 - emit standard `Mcp-Method` and `Mcp-Name` headers;
 - preserve tool `_meta`, including MCP Apps metadata.
+
+For user-configured external legacy connections, retain the original schema in DeepChat's tool
+record but do not opt the call into v2-only output-schema compilation that the v1 client did not
+perform. This exception does not relax DeepChat's bounded result validation.
 
 Structured content, result `_meta`, and the original content array remain available to extension
 handlers and durable assistant blocks. The text projection shown to the model remains bounded and
@@ -397,7 +411,9 @@ upstream gate opens.
 
 - No DeepChat-owned MCP core module imports the v1 SDK.
 - Existing legacy stdio, Streamable HTTP, SSE, and in-memory fixtures retain their current
-  observable behavior.
+  observable behavior, including schemas previously accepted by the legacy SDK subject to
+  per-value host bounds.
+- External legacy tool calls do not acquire v2-only output-schema compilation before dispatch.
 - Existing servers receive immutable local IDs without losing configuration; renames preserve the
   ID, while re-pointing invalidates the prior binding.
 - Modern stdio and HTTP fixtures connect without initialize/session assumptions.
@@ -406,8 +422,9 @@ upstream gate opens.
 - A failed stdio probe leaves no sibling process.
 - JSON Schema 2020-12 features and tool/result metadata survive discovery, provider projection,
   call execution, and persistence.
-- Declared dialects are validated, unresolved external references fail closed, and schema
-  composition remains within explicit limits.
+- Modern and packaged schemas validate declared dialects, fail closed on unresolved external
+  references, and keep schema composition within explicit limits. External legacy references stay
+  opaque and are never network-dereferenced.
 - `ttlMs`, `cacheScope`, discovery changes, and subscriptions update the rendered catalog without a
   manual protocol cache.
 - Multi-round input requests complete or cancel without issuing a duplicate tool call.

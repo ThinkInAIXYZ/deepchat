@@ -24,15 +24,15 @@
         </div>
 
         <!-- Export button -->
-        <Button variant="outline" size="sm" @click="$emit('export')">
+        <DcButton variant="outline" size="sm" @click="$emit('export')">
           <Icon icon="lucide:upload" class="w-4 h-4 mr-1" />
           {{ t('settings.skills.sync.export') }}
-        </Button>
+        </DcButton>
 
-        <Button size="sm" @click="$emit('install')">
+        <DcButton size="sm" @click="$emit('install')">
           <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
           {{ t('settings.skills.addSkill') }}
-        </Button>
+        </DcButton>
       </div>
     </div>
   </div>
@@ -41,7 +41,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { useLanguageStore } from '@/stores/language'
 

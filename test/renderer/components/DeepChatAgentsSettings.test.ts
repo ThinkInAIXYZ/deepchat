@@ -247,7 +247,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -321,9 +321,6 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton.trigger('click')
     expect(saveButton.attributes('disabled')).toBeDefined()
     expect(saveButton.attributes('aria-busy')).toBe('true')
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'settings.deepchatAgents.saveFeedback.saving'
-    )
     expect(
       wrapper.get('[data-testid="deepchat-agent-editor-content"]').attributes()
     ).toHaveProperty('inert')
@@ -331,14 +328,15 @@ describe('DeepChatAgentsSettings', () => {
     resolveSave?.(updatedAgent)
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'settings.deepchatAgents.saveFeedback.saved'
+    // 成功反馈走按钮 ✅ 态，不再弹 toast
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saved' })
     )
     expect(saveButton.attributes('disabled')).toBeDefined()
     expect(configService.listAgents).toHaveBeenCalledOnce()
   })
 
-  it('keeps save failures inline, hides raw errors, and retries the same edited data', async () => {
+  it('reports save failures as an inline error, hides raw errors, and retries the same edited data', async () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
@@ -366,18 +364,26 @@ describe('DeepChatAgentsSettings', () => {
     await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
     await flushPromises()
 
-    const feedback = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(feedback.text()).toContain('settings.deepchatAgents.saveFeedback.saveFailed')
-    expect(feedback.text()).toContain('settings.deepchatAgents.saveFeedback.retry')
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saveFailed' })
+    )
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.deepchatAgents.saveFeedback.saveFailed'
+    )
     expect(wrapper.text()).not.toContain('sensitive backend detail')
+    expect(wrapper.get('[data-testid="deepchat-agent-save-button"]').attributes('disabled')).toBe(
+      undefined
+    )
 
-    await feedback.get('button').trigger('click')
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
     await flushPromises()
 
     expect(updateDeepChatAgent).toHaveBeenCalledTimes(2)
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'settings.deepchatAgents.saveFeedback.saved'
+    // 重试成功走按钮 ✅ 态，内联错误清除
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saved' })
     )
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     consoleError.mockRestore()
   })
 
@@ -416,11 +422,8 @@ describe('DeepChatAgentsSettings', () => {
       '[DeepChatAgents] Failed to project saved agent',
       expect.any(TypeError)
     )
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'settings.deepchatAgents.saveFeedback.saved'
-    )
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).not.toContain(
-      'settings.deepchatAgents.saveFeedback.saveFailed'
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saved' })
     )
     expect(wrapper.get('[data-testid="deepchat-agent-save-button"]').attributes('disabled')).toBe(
       ''
@@ -468,12 +471,12 @@ describe('DeepChatAgentsSettings', () => {
       (wrapper.get('[data-testid="deepchat-agent-description-input"]').element as HTMLInputElement)
         .value
     ).toBe('')
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'settings.deepchatAgents.saveFeedback.saved'
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saved' })
     )
   })
 
-  it('clears a stale save failure as soon as the user edits again', async () => {
+  it('clears the failed-save state from the page as soon as the user edits again', async () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
@@ -495,12 +498,23 @@ describe('DeepChatAgentsSettings', () => {
     await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Changed once')
     await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
     await flushPromises()
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(true)
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.deepchatAgents.saveFeedback.saveFailed'
+    )
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saveFailed' })
+    )
+    expect(
+      wrapper.get('[data-testid="deepchat-agent-save-button"]').attributes('disabled')
+    ).toBeUndefined()
 
     await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Changed again')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
+    expect(
+      wrapper.get('[data-testid="deepchat-agent-save-button"]').attributes('disabled')
+    ).toBeUndefined()
+    expect(wrapper.text()).not.toContain('settings.deepchatAgents.saveFeedback.saveFailed')
     consoleError.mockRestore()
   })
 
@@ -736,7 +750,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1003,7 +1017,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1101,7 +1115,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1212,7 +1226,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1424,7 +1438,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1596,7 +1610,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1715,7 +1729,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1855,7 +1869,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1992,7 +2006,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -2262,7 +2276,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,

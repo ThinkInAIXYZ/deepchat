@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, isProxy } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: vi.fn()
+}))
 
 const mocks = vi.hoisted(() => ({
   listAgentImportSources: vi.fn(),
@@ -85,7 +90,7 @@ const mountDialog = async () => {
         EmptyMedia: passthrough('EmptyMedia'),
         EmptyTitle: passthrough('EmptyTitle'),
         Badge: passthrough('Badge'),
-        Button: ButtonStub,
+        DcButton: ButtonStub,
         Checkbox: passthrough('Checkbox'),
         RadioGroup: passthrough('RadioGroup'),
         RadioGroupItem: RadioGroupItemStub,
@@ -273,7 +278,7 @@ describe('ImportSkillsFromAgentDialog', () => {
     })
   })
 
-  it('keeps execution diagnostics out of user-facing feedback', async () => {
+  it('keeps execution diagnostics out of the failure feedback', async () => {
     mocks.executeAgentImport.mockRejectedValue(new Error('secret filesystem path'))
     const wrapper = await mountDialog()
     await flushPromises()
@@ -281,9 +286,10 @@ describe('ImportSkillsFromAgentDialog', () => {
     await wrapper.get('[data-testid="agent-import-execute"]').trigger('click')
     await flushPromises()
 
-    expect(
-      wrapper.get('[data-testid="inline-operation-feedback"]').attributes('aria-label')
-    ).toContain('common.error.requestFailed')
+    // 失败反馈走按钮 ⚠ + 内联错误，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).executeStatus).toBe('error')
+    expect(wrapper.text()).toContain('common.error.requestFailed')
     expect(wrapper.text()).not.toContain('secret filesystem path')
   })
 })

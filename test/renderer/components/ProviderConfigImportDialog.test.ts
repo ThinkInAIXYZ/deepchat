@@ -127,7 +127,7 @@ const setup = async (providerClient: {
         DialogFooter: passthroughStub('DialogFooter'),
         DialogHeader: passthroughStub('DialogHeader'),
         DialogTitle: passthroughStub('DialogTitle'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Checkbox: passthroughStub('Checkbox'),
         Badge: passthroughStub('Badge'),
         ScrollArea: passthroughStub('ScrollArea'),

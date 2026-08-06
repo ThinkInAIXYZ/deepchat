@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Spinner } from '@shadcn/components/ui/spinner'
@@ -141,19 +141,19 @@ const onDialogToggle = (open: boolean) => {
         <div class="break-all rounded-md border bg-muted/40 p-3 text-xs">
           {{ store.request.url }}
         </div>
-        <Button variant="outline" @click="store.openRequestedUrl">
+        <DcButton variant="outline" @click="store.openRequestedUrl">
           {{ t('mcp.elicitation.openLink') }}
-        </Button>
+        </DcButton>
       </div>
 
       <DialogFooter>
-        <Button variant="ghost" :disabled="store.isSubmitting" @click="store.decline">
+        <DcButton variant="ghost" :disabled="store.isSubmitting" @click="store.decline">
           {{ t('mcp.elicitation.decline') }}
-        </Button>
-        <Button :disabled="store.isSubmitting" @click="store.accept">
+        </DcButton>
+        <DcButton :disabled="store.isSubmitting" @click="store.accept">
           <Spinner v-if="store.isSubmitting" data-icon="inline-start" />
           {{ t('mcp.elicitation.accept') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>

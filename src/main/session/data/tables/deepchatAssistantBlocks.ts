@@ -22,6 +22,14 @@ export interface DeepChatAssistantBlockRow {
   updated_at: number
 }
 
+export interface DeepChatAssistantResultBlockRow {
+  block_index: number
+  block_type: AssistantMessageBlock['type']
+  status: AssistantMessageBlock['status']
+  text_content: string | null
+  updated_at: number
+}
+
 const NORMALIZATION_SCHEMA_VERSION = 26
 
 type PersistedBlockExtra = {
@@ -180,6 +188,19 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
          ORDER BY block_index`
       )
       .all(messageId) as DeepChatAssistantBlockRow[]
+  }
+
+  listResultProjectionByMessageId(messageId: string): DeepChatAssistantResultBlockRow[] {
+    return this.db
+      .prepare(
+        `SELECT block_index, block_type, status,
+                CASE WHEN block_type = 'content' THEN text_content ELSE NULL END AS text_content,
+                updated_at
+         FROM deepchat_assistant_blocks
+         WHERE message_id = ?
+         ORDER BY block_index`
+      )
+      .all(messageId) as DeepChatAssistantResultBlockRow[]
   }
 
   matchesMcpAppSource(

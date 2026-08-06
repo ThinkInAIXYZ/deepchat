@@ -59,58 +59,50 @@
           class="text-base text-yellow-500"
         />
       </div>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            :disabled="disabled"
-            class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
-            :title="t(`settings.knowledgeBase.reAdd`)"
-            v-if="file.status !== 'processing'"
-          >
-            <Icon icon="lucide:refresh-ccw" class="text-base text-gray-500" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{{ t('settings.knowledgeBase.reAddFile.title') }} </AlertDialogTitle>
-          </AlertDialogHeader>
-          <AlertDialogDescription>{{
-            t('settings.knowledgeBase.reAddFile.content', { fileName: file.name })
-          }}</AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-            <AlertDialogAction @click="reAddFile">{{ t('common.confirm') }}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DcButton
+        variant="ghost"
+        size="icon"
+        :disabled="disabled"
+        class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
+        :tooltip="t(`settings.knowledgeBase.reAdd`)"
+        v-if="file.status !== 'processing'"
+        @click="reAddDialogOpen = true"
+      >
+        <Icon icon="lucide:refresh-ccw" class="text-base text-gray-500" />
+      </DcButton>
+      <DcConfirmDialog
+        :open="reAddDialogOpen"
+        :title="t('settings.knowledgeBase.reAddFile.title')"
+        :description="t('settings.knowledgeBase.reAddFile.content', { fileName: file.name })"
+        :danger="false"
+        confirm-label="t('common.confirm')"
+        cancel-label="t('common.cancel')"
+        @update:open="reAddDialogOpen = $event"
+        @confirm="reAddFile"
+        @cancel="reAddDialogOpen = false"
+      />
 
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            :disabled="disabled"
-            class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
-            :title="t(`settings.knowledgeBase.delete`)"
-          >
-            <Icon icon="lucide:trash" class="text-base text-red-400" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{{ t('settings.knowledgeBase.deleteFile.title') }} </AlertDialogTitle>
-          </AlertDialogHeader>
-          <AlertDialogDescription>{{
-            t('settings.knowledgeBase.deleteFile.content', { fileName: file.name })
-          }}</AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-            <AlertDialogAction @click="deleteFile">{{ t('common.confirm') }}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DcButton
+        variant="ghost"
+        size="icon"
+        :disabled="disabled"
+        class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
+        :tooltip="t(`settings.knowledgeBase.delete`)"
+        @click="deleteDialogOpen = true"
+      >
+        <Icon icon="lucide:trash" class="text-base text-red-400" />
+      </DcButton>
+      <DcConfirmDialog
+        :open="deleteDialogOpen"
+        :title="t('settings.knowledgeBase.deleteFile.title')"
+        :description="t('settings.knowledgeBase.deleteFile.content', { fileName: file.name })"
+        :danger="true"
+        confirm-label="t('common.confirm')"
+        cancel-label="t('common.cancel')"
+        @update:open="deleteDialogOpen = $event"
+        @confirm="deleteFile"
+        @cancel="deleteDialogOpen = false"
+      />
     </div>
   </div>
 </template>
@@ -121,21 +113,11 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { KnowledgeFileMessage } from '@shared/types/knowledge'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from '@shadcn/components/ui/alert-dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import dayjs from 'dayjs'
 
 dayjs.extend(utc)
@@ -163,12 +145,16 @@ const uploadTime = computed(() => {
   return dayjs(props.file.uploadedAt).tz(userTimeZone).format('YYYY-MM-DD HH:mm:ss')
 })
 // 删除文件
+const deleteDialogOpen = ref(false)
 const deleteFile = () => {
+  deleteDialogOpen.value = false
   emit('delete')
 }
 
 // 重新上传
+const reAddDialogOpen = ref(false)
 const reAddFile = () => {
+  reAddDialogOpen.value = false
   emit('reAdd')
 }
 

@@ -126,7 +126,7 @@
             <div class="text-xs font-medium text-muted-foreground">
               {{ t('settings.provider.disabled') }} ({{ disabledProviders.length }})
             </div>
-            <Button
+            <DcButton
               data-testid="disabled-providers-toggle"
               variant="ghost"
               size="sm"
@@ -138,7 +138,7 @@
                 class="mr-1 h-3 w-3"
               />
               {{ t(isDisabledProvidersExpanded ? 'common.collapse' : 'common.expand') }}
-            </Button>
+            </DcButton>
           </div>
           <draggable
             v-if="isDisabledProvidersExpanded"
@@ -202,7 +202,7 @@
         </div>
 
         <div class="sticky bottom-4 z-10" :dir="languageStore.dir">
-          <Button
+          <DcButton
             data-testid="provider-add-button"
             variant="outline"
             class="w-full flex flex-row items-center gap-2 rounded-lg p-2 backdrop-blur-lg hover:bg-accent"
@@ -210,7 +210,7 @@
           >
             <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
             <span class="text-sm font-medium">{{ t('settings.provider.addCustomProvider') }}</span>
-          </Button>
+          </DcButton>
         </div>
       </div>
     </ScrollArea>
@@ -328,7 +328,7 @@ import { useI18n } from 'vue-i18n'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/types/provider'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'

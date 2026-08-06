@@ -60,8 +60,8 @@ const setup = async () => {
     }
   }))
 
-  vi.doMock('@shadcn/components/ui/button', () => ({
-    Button: {
+  vi.doMock('@dc-ui/components/button', () => ({
+    DcButton: {
       name: 'Button',
       props: {
         type: { type: String, default: 'button' }

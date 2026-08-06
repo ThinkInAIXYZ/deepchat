@@ -2,7 +2,7 @@ import {
   notificationAcknowledgePresentationRoute,
   notificationRendererReadyRoute
 } from '@shared/contracts/routes'
-import { createRouteMap } from '@/routes/routeRegistry'
+import { createRouteMap, requireRendererCaller } from '@/routes/routeRegistry'
 
 export type NotificationRoutesDependencies = Readonly<{
   rendererReady: (webContentsId: number) => Promise<boolean>
@@ -15,8 +15,9 @@ export const createNotificationRoutes = (dependencies: NotificationRoutesDepende
       notificationRendererReadyRoute.name,
       async (rawInput, context) => {
         notificationRendererReadyRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         return notificationRendererReadyRoute.output.parse({
-          ready: await dependencies.rendererReady(context.webContentsId)
+          ready: await dependencies.rendererReady(caller.webContentsId)
         })
       }
     ],
@@ -24,10 +25,11 @@ export const createNotificationRoutes = (dependencies: NotificationRoutesDepende
       notificationAcknowledgePresentationRoute.name,
       async (rawInput, context) => {
         const input = notificationAcknowledgePresentationRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         return notificationAcknowledgePresentationRoute.output.parse({
           accepted: await dependencies.acknowledgePresentation(
             input.episodeId,
-            context.webContentsId
+            caller.webContentsId
           )
         })
       }

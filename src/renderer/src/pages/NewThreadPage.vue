@@ -20,7 +20,7 @@
         <!-- Project selector -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               size="sm"
               data-testid="new-thread-project-trigger"
@@ -41,7 +41,7 @@
                 :title="selectedProjectUnavailableTooltip"
               />
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
-            </Button>
+            </DcButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="center"
@@ -85,13 +85,12 @@
                 :title="selectedProjectUnavailableTooltip"
               />
             </DropdownMenuItem>
-            <DropdownMenuItem
-              class="gap-2 text-xs py-1.5 px-2"
-              @click="projectStore.openFolderPicker()"
-            >
-              <Icon icon="lucide:folder-open" class="w-3.5 h-3.5 text-muted-foreground" />
-              <span>{{ t('common.project.openFolder') }}</span>
-            </DropdownMenuItem>
+            <DcDropdownActionItem
+              icon="lucide:folder-open"
+              :label="t('common.project.openFolder')"
+              class="text-xs py-1.5 px-2"
+              @select="projectStore.openFolderPicker()"
+            />
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -169,7 +168,7 @@ import { useI18n } from 'vue-i18n'
 import { nanoid } from 'nanoid'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -178,6 +177,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
@@ -202,6 +202,7 @@ import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOve
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import { DEFAULT_ORCHESTRATION_POLICY } from '@shared/orchestration/policy'
 import type {
   DeepChatAgentConfig,
   MessageFile,
@@ -852,7 +853,6 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
 
 async function onSubmit() {
   if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
-
   const text = message.value.trim()
   if (!text && (isAcpSelectedAgent.value || attachedFiles.value.length === 0)) return
   if (shouldIgnoreManualCompactionDraft(text)) return
@@ -950,6 +950,7 @@ async function submitText(
   const agentId = selectedAgent.value.id
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
+  const draftOrchestrationPolicy = draftStore.orchestrationPolicy
   const draftGenerationSettings = draftStore.toGenerationSettings()
 
   try {
@@ -1009,6 +1010,7 @@ async function submitText(
       modelId,
       permissionMode: draftPermissionMode,
       disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
+      orchestrationPolicy: isAcp ? DEFAULT_ORCHESTRATION_POLICY : draftOrchestrationPolicy,
       generationSettings: draftGenerationSettings,
       activeSkills: messagePayload.activeSkills
     }
@@ -1089,6 +1091,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
   draftStore.disabledAgentTools = [...DEFAULT_DISABLED_AGENT_TOOLS]
+  draftStore.orchestrationPolicy = DEFAULT_ORCHESTRATION_POLICY
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
   draftStore.topP = undefined

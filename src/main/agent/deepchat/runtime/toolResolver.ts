@@ -4,7 +4,8 @@ import type { ToolServicePort } from '@shared/types/tool'
 import type {
   AgentType,
   DeepChatAgentConfig,
-  DeepChatSubagentCapability
+  DeepChatSubagentCapability,
+  SessionKind
 } from '@shared/types/agent-interface'
 import type { SessionDatabase } from '@/session/data/database'
 import type {
@@ -27,6 +28,11 @@ import { createToolCatalogPort } from './toolAdapters'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
+import {
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
+import { composeSubagentAuthority } from '@/session/subagentAuthority'
 
 type ToolResolverSkillPort = Pick<
   SkillServicePort,
@@ -48,6 +54,11 @@ export class DeepChatToolResolver {
 
   private assertCurrent(sessionId: string, instance: DeepChatAgentInstance): void {
     this.dependencies.registry.scopeFor(toAppSessionId(sessionId), instance).assertCurrent()
+  }
+
+  resolveOrchestrationPolicy(sessionId: string): OrchestrationPolicy {
+    const sessionRow = this.dependencies.sqlitePresenter.newSessionsTable?.get?.(sessionId)
+    return normalizeOrchestrationPolicy(sessionRow?.orchestration_policy)
   }
 
   async loadToolDefinitionsForSession(
@@ -92,6 +103,7 @@ export class DeepChatToolResolver {
           projectDir,
           effectiveActiveSkillNames,
           policy,
+          toolPolicy.disabledAgentTools,
           toolPolicy.subagentCapability,
           resourceInstance
         )
@@ -104,9 +116,10 @@ export class DeepChatToolResolver {
           cached: resourceInstance.getToolProfileCache(),
           context: {
             agentId,
-            disabledAgentTools: this.getDisabledAgentTools(sessionId),
+            disabledAgentTools: toolPolicy.disabledAgentTools,
             chatMode: 'agent',
             conversationId: sessionId,
+            sessionKind: toolPolicy.sessionKind,
             agentWorkspacePath: projectDir,
             activeSkillNames: effectiveActiveSkillNames,
             subagentCapability: toolPolicy.subagentCapability,
@@ -144,13 +157,13 @@ export class DeepChatToolResolver {
     projectDir: string | null,
     activeSkillNamesOverride: string[],
     extensionPolicy: AgentExtensionPolicy,
+    disabledAgentTools: string[],
     subagentCapability: DeepChatSubagentCapability,
     resourceInstance?: DeepChatAgentInstance
   ): { kind: DeepChatToolProfileKind; fingerprint: string } {
     const normalizedProjectDir = projectDir?.trim() || null
     const skillsEnabled = this.dependencies.skillSettings.isEnabled()
     const activeSkillNames = normalizeStringList(activeSkillNamesOverride)
-    const disabledAgentTools = this.getDisabledAgentTools(sessionId)
     const state =
       resourceInstance?.getRuntimeState() ?? this.dependencies.registry.getHydratedScope(toAppSessionId(sessionId))?.state()
     const agentId =
@@ -202,13 +215,16 @@ export class DeepChatToolResolver {
     resourceInstance?: DeepChatAgentInstance
   ): Promise<{
     extensionPolicy: AgentExtensionPolicy
+    disabledAgentTools: string[]
     subagentCapability: DeepChatSubagentCapability
+    sessionKind: SessionKind | undefined
   }> {
     const agentId =
       resourceInstance?.getAgentId()?.trim() ||
       this.dependencies.identity.getAgentId(sessionId) ||
       'deepchat'
     const sessionRow = this.dependencies.sqlitePresenter.newSessionsTable?.get?.(sessionId)
+    const persistedDisabledAgentTools = this.getDisabledAgentTools(sessionId)
     const resolveCapability = (agentType: AgentType | null, config?: DeepChatAgentConfig | null) =>
       resolveDeepChatSubagentCapability({
         agentType,
@@ -234,20 +250,65 @@ export class DeepChatToolResolver {
         `[DeepChatAgent] Failed to resolve tool policy for agent ${agentId}:`,
         configResult.reason
       )
+      if (sessionRow?.session_kind === 'subagent') {
+        throw new Error(`Subagent Session ${sessionId} tool policy is unavailable.`)
+      }
       return {
         extensionPolicy: {},
-        subagentCapability: resolveCapability(agentType, null)
+        disabledAgentTools: persistedDisabledAgentTools,
+        subagentCapability: resolveCapability(agentType, null),
+        sessionKind: sessionRow?.session_kind
       }
     }
 
     const config = configResult.value
+    if (sessionRow?.session_kind === 'subagent') {
+      const parentSessionId = sessionRow.parent_session_id?.trim()
+      const parentRow = parentSessionId
+        ? this.dependencies.sqlitePresenter.newSessionsTable.get(parentSessionId)
+        : null
+      const parentAgentId = parentRow?.agent_id?.trim()
+      if (!parentSessionId || !parentAgentId) {
+        throw new Error(`Subagent Session ${sessionId} has no resolvable parent tool policy.`)
+      }
+
+      let parentConfig: DeepChatAgentConfig
+      try {
+        parentConfig = await this.dependencies.agentSettings.resolveDeepChatAgentConfig(
+          parentAgentId
+        )
+      } catch (error) {
+        console.warn(
+          `[DeepChatAgent] Failed to resolve parent tool policy for subagent ${sessionId}:`,
+          error
+        )
+        throw new Error(`Subagent Session ${sessionId} parent tool policy is unavailable.`)
+      }
+
+      const authority = composeSubagentAuthority(
+        { disabledAgentTools: persistedDisabledAgentTools },
+        parentConfig,
+        config
+      )
+      return {
+        extensionPolicy: {
+          enabledMcpServerIds: authority.enabledMcpServerIds
+        },
+        disabledAgentTools: authority.disabledAgentTools,
+        subagentCapability: resolveCapability(agentType, config),
+        sessionKind: sessionRow.session_kind
+      }
+    }
+
     return {
       extensionPolicy: config
         ? {
             enabledMcpServerIds: config.enabledMcpServerIds
           }
         : {},
-      subagentCapability: resolveCapability(agentType, config)
+      disabledAgentTools: persistedDisabledAgentTools,
+      subagentCapability: resolveCapability(agentType, config),
+      sessionKind: sessionRow?.session_kind
     }
   }
 
@@ -255,22 +316,7 @@ export class DeepChatToolResolver {
     sessionId: string,
     resourceInstance?: DeepChatAgentInstance
   ): Promise<AgentExtensionPolicy> {
-    const agentId =
-      resourceInstance?.getAgentId()?.trim() ||
-      this.dependencies.identity.getAgentId(sessionId) ||
-      'deepchat'
-    try {
-      const config = await this.dependencies.agentSettings.resolveDeepChatAgentConfig(agentId)
-      return {
-        enabledMcpServerIds: config.enabledMcpServerIds
-      }
-    } catch (error) {
-      console.warn(
-        `[DeepChatAgent] Failed to resolve extension policy for agent ${agentId}:`,
-        error
-      )
-      return {}
-    }
+    return (await this.resolveAgentToolPolicy(sessionId, resourceInstance)).extensionPolicy
   }
 
   toToolDefinitionMcpServerIds(value?: string[] | null): string[] | undefined {
@@ -328,6 +374,17 @@ export class DeepChatToolResolver {
   }
 
   getDisabledAgentTools(sessionId: string): string[] {
-    return this.dependencies.sqlitePresenter.newSessionsTable.getDisabledAgentTools(sessionId)
+    const sessions = this.dependencies.sqlitePresenter.newSessionsTable
+    const sessionRow = sessions.get(sessionId)
+    const parentSessionId =
+      sessionRow?.session_kind === 'subagent' ? sessionRow.parent_session_id?.trim() : null
+    return composeSubagentAuthority(
+      { disabledAgentTools: sessions.getDisabledAgentTools(sessionId) },
+      {
+        disabledAgentTools: parentSessionId
+          ? sessions.getDisabledAgentTools(parentSessionId)
+          : undefined
+      }
+    ).disabledAgentTools
   }
 }

@@ -255,7 +255,7 @@ describe('Settings App', () => {
     const wrapper = mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -486,7 +486,7 @@ describe('Settings App', () => {
     const wrapper = mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -695,7 +695,7 @@ describe('Settings App', () => {
     mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -894,7 +894,7 @@ describe('Settings App', () => {
     mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -1108,7 +1108,7 @@ describe('Settings App', () => {
     mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -1318,7 +1318,7 @@ describe('Settings App', () => {
     mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -1455,7 +1455,7 @@ describe('Settings App', () => {
     const wrapper = mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: true,

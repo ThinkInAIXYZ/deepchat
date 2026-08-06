@@ -28,6 +28,7 @@ const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord =>
   sessionKind: 'regular',
   parentSessionId: null,
   subagentMeta: null,
+  orchestrationPolicy: 'explicit',
   createdAt: 100,
   updatedAt: 200,
   ...overrides
@@ -108,7 +109,16 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
       if (session) records.set(sessionId, { ...session, agentId })
     }),
     getDisabledAgentTools: vi.fn(() => []),
-    updateDisabledAgentTools: vi.fn()
+    updateDisabledAgentTools: vi.fn(),
+    getOrchestrationPolicy: vi.fn(
+      (sessionId: string) => records.get(sessionId)?.orchestrationPolicy ?? 'explicit'
+    ),
+    updateOrchestrationPolicy: vi.fn(
+      (sessionId: string, orchestrationPolicy: 'explicit' | 'proactive') => {
+        const session = records.get(sessionId)
+        if (session) records.set(sessionId, { ...session, orchestrationPolicy })
+      }
+    )
   }
   const runtime = {
     getSessionAgentKind: vi.fn((sessionId: string) =>
@@ -380,7 +390,7 @@ describe('SessionAssignment', () => {
     expect(harness.projection.notify).not.toHaveBeenCalled()
   })
 
-  it('owns permission, generation, and disabled-tool settings', async () => {
+  it('owns permission, generation, orchestration, and disabled-tool settings', async () => {
     const harness = createHarness()
     harness.sessions.getDisabledAgentTools.mockReturnValue(['read'])
     harness.settings.getGenerationSettings.mockResolvedValue({ temperature: 0.7 })
@@ -394,6 +404,10 @@ describe('SessionAssignment', () => {
       harness.coordinator.updateSessionGenerationSettings('s1', { temperature: 0.2 })
     ).resolves.toEqual({ temperature: 0.2 })
     await expect(harness.coordinator.getSessionDisabledAgentTools('s1')).resolves.toEqual(['read'])
+    await expect(harness.coordinator.getOrchestrationPolicy('s1')).resolves.toBe('explicit')
+    await expect(harness.coordinator.updateOrchestrationPolicy('s1', 'proactive')).resolves.toBe(
+      'proactive'
+    )
     await expect(
       harness.coordinator.updateSessionDisabledAgentTools('s1', ['find', 'write', 'write'])
     ).resolves.toEqual(['write'])
@@ -401,6 +415,43 @@ describe('SessionAssignment', () => {
     expect(harness.settings.setPermissionMode).toHaveBeenCalledWith('auto_approve')
     expect(harness.settings.updateGenerationSettings).toHaveBeenCalledWith({ temperature: 0.2 })
     expect(harness.sessions.updateDisabledAgentTools).toHaveBeenCalledWith('s1', ['write'])
+    expect(harness.sessions.updateOrchestrationPolicy).toHaveBeenCalledWith('s1', 'proactive')
+  })
+
+  it('rejects proactive collaboration for direct ACP and subagent sessions', async () => {
+    const harness = createHarness([
+      createSession({ id: 'direct', agentId: 'claude-acp' }),
+      createSession({ id: 'child', sessionKind: 'subagent', parentSessionId: 'parent' })
+    ])
+
+    await expect(
+      harness.coordinator.updateOrchestrationPolicy('direct', 'proactive')
+    ).rejects.toThrow('requires a DeepChat session')
+    await expect(
+      harness.coordinator.updateOrchestrationPolicy('child', 'proactive')
+    ).rejects.toThrow('requires a regular parent session')
+    expect(harness.sessions.updateOrchestrationPolicy).not.toHaveBeenCalled()
+  })
+
+  it('revalidates proactive policy after an admitted Session mutation', async () => {
+    const harness = createHarness()
+    const mutationStarted = createDeferred<void>()
+    const mutationRelease = createDeferred<void>()
+    const mutation = harness.coordinator.runWithSessionOperationGate('s1', async () => {
+      mutationStarted.resolve(undefined)
+      await mutationRelease.promise
+      harness.records.set('s1', { ...harness.records.get('s1')!, agentId: 'claude-acp' })
+    })
+    await mutationStarted.promise
+
+    const policyUpdate = harness.coordinator.updateOrchestrationPolicy('s1', 'proactive')
+    await Promise.resolve()
+    expect(harness.sessions.updateOrchestrationPolicy).not.toHaveBeenCalled()
+
+    mutationRelease.resolve(undefined)
+    await mutation
+    await expect(policyUpdate).rejects.toThrow('requires a DeepChat session')
+    expect(harness.sessions.updateOrchestrationPolicy).not.toHaveBeenCalled()
   })
 
   it('routes direct and compatibility ACP commands and config through narrow controls', async () => {

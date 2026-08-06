@@ -33,6 +33,7 @@ import {
   type MemoryExtractionChunk,
   type MemoryExtractionMessage
 } from './memoryExtractionChunks'
+import { isRetiredWorkflowResultMessageMetadata } from '@shared/orchestration/retiredWorkflowData'
 import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
@@ -922,20 +923,25 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       const messageId = this.readToolCallMessageId(row)
       if (messageId) messageIdsWithToolUse.add(messageId)
     }
-    return view.messageEntries.map((entry) => {
+    return view.messageEntries.flatMap((entry) => {
       if (entry.record.status !== 'sent' && entry.record.status !== 'error') {
         throw new Error('Effective Tape view exposed a pending message during rebuild.')
       }
-      return {
-        sessionId,
-        messageId: entry.record.id,
-        orderSeq: entry.record.orderSeq,
-        entryId: entry.entryId,
-        role: entry.record.role,
-        content: entry.record.content,
-        status: entry.record.status,
-        hadToolUse: messageIdsWithToolUse.has(entry.record.id)
+      if (isRetiredWorkflowResultMessageMetadata(entry.record.metadata)) {
+        return []
       }
+      return [
+        {
+          sessionId,
+          messageId: entry.record.id,
+          orderSeq: entry.record.orderSeq,
+          entryId: entry.entryId,
+          role: entry.record.role,
+          content: entry.record.content,
+          status: entry.record.status,
+          hadToolUse: messageIdsWithToolUse.has(entry.record.id)
+        }
+      ]
     })
   }
 

@@ -14,7 +14,7 @@ import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { SkillManageResult } from '@shared/types/skill'
 import { buildBinaryReadGuidance, shouldRejectAgentBinaryRead } from '@/lib/binaryReadGuard'
 import { AgentFileSystemHandler, type ProtectedDirectoryRule } from './agentFileSystemHandler'
-import { AgentBashHandler } from './agentBashHandler'
+import { AgentBashHandler, type AgentCommandEnvironmentPort } from './agentBashHandler'
 import {
   AgentFffSearchHandler,
   GLOB_TOOL_NAME,
@@ -32,13 +32,13 @@ import {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
-import type { AgentDisplaySettingsPort, AgentToolDependencies } from '../runtimePorts'
+import type {
+  AgentDisplaySettingsPort,
+  AgentToolDependencies,
+  LiveDelegationStartAuthorization
+} from '../runtimePorts'
 import { YO_BROWSER_TOOL_NAMES } from '../browser/definitions'
 import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
-import {
-  SUBAGENT_ORCHESTRATOR_TOOL_NAME,
-  SubagentOrchestratorTool
-} from './subagentOrchestratorTool'
 import { AgentImageGenerationTool, IMAGE_GENERATE_TOOL_NAME } from './agentImageGenerationTool'
 import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
 import { AgentTapeToolHandler } from './agentTapeTools'
@@ -46,6 +46,8 @@ import { AgentMemoryToolHandler } from './agentMemoryTools'
 import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
   assertAgentToolExposure,
   isTapeToolName,
   type AgentToolExposure
@@ -59,6 +61,8 @@ import { isYoBrowserUnavailableError } from '../browser/errors'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
+import { LiveDelegationAgentTool } from './liveDelegationTool'
+import { normalizeOrchestrationPolicy } from '@shared/orchestration/policy'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -99,6 +103,7 @@ export interface AgentToolCallResult {
       }
       conversationId?: string
       rememberable?: boolean
+      requiresUserConfirmation?: boolean
     }
   }
 }
@@ -111,6 +116,7 @@ interface AgentToolManagerOptions {
   skillSettings: SkillSettingsPort
   desktopSettings: AgentDisplaySettingsPort
   commandPermissionHandler: CommandPermissionService
+  commandEnvironment?: AgentCommandEnvironmentPort
   dependencies: AgentToolDependencies
 }
 
@@ -121,6 +127,7 @@ interface AgentToolExecutionOptions {
   signal?: AbortSignal
   allowExternalFileAccess?: boolean
   activeSkillNames?: string[]
+  liveDelegationAuthorization?: LiveDelegationStartAuthorization
 }
 
 interface AgentToolPermissionCheckOptions {
@@ -157,11 +164,12 @@ export class AgentToolManager {
   private readonly agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   private readonly skillSettings: SkillSettingsPort
   private readonly desktopSettings: AgentDisplaySettingsPort
+  private readonly commandEnvironment?: AgentCommandEnvironmentPort
   private readonly dependencies: AgentToolDependencies
   private skillTools: SkillTools | null = null
   private skillExecutionService: SkillExecutionService | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
-  private readonly subagentOrchestratorTool: SubagentOrchestratorTool
+  private readonly liveDelegationTool: LiveDelegationAgentTool | null
   private readonly imageGenerationTool: AgentImageGenerationTool
   private readonly planTool: AgentPlanTool
   private readonly tapeToolHandler: AgentTapeToolHandler
@@ -332,11 +340,11 @@ export class AgentToolManager {
     this.skillSettings = options.skillSettings
     this.desktopSettings = options.desktopSettings
     this.commandPermissionHandler = options.commandPermissionHandler
+    this.commandEnvironment = options.commandEnvironment
     this.dependencies = options.dependencies
-    this.subagentOrchestratorTool = new SubagentOrchestratorTool(
-      this.dependencies.sessions,
-      this.dependencies.subagents
-    )
+    this.liveDelegationTool = this.dependencies.liveDelegation
+      ? new LiveDelegationAgentTool(this.dependencies.liveDelegation)
+      : null
     this.imageGenerationTool = new AgentImageGenerationTool({
       providerSettings: this.providerSettings,
       agentSettings: this.agentSettings,
@@ -358,7 +366,8 @@ export class AgentToolManager {
       this.bashHandler = new AgentBashHandler(
         [this.agentWorkspacePath],
         this.settings,
-        this.commandPermissionHandler
+        this.commandPermissionHandler,
+        this.commandEnvironment
       )
     }
   }
@@ -381,7 +390,8 @@ export class AgentToolManager {
       this.bashHandler = new AgentBashHandler(
         [effectiveWorkspacePath],
         this.settings,
-        this.commandPermissionHandler
+        this.commandPermissionHandler,
+        this.commandEnvironment
       )
     } else {
       this.fileSystemHandler = null
@@ -478,10 +488,15 @@ export class AgentToolManager {
       appendDefinitions([this.cronJobToolHandler.getToolDefinition()], 'user-configurable')
     }
 
-    // 2.5. Subagent orchestration tool (deepchat regular sessions only)
-    if (isAgentMode && acceptsExposure('system-model') && context.conversationId) {
+    // 2.5. Persistent live delegation (regular DeepChat sessions only)
+    if (
+      isAgentMode &&
+      acceptsExposure('system-model') &&
+      context.conversationId &&
+      this.liveDelegationTool
+    ) {
       try {
-        const subagentToolDefinition = this.subagentOrchestratorTool.getToolDefinition(
+        const subagentToolDefinition = this.liveDelegationTool.getToolDefinition(
           context.subagentCapability
         )
         if (subagentToolDefinition) {
@@ -580,8 +595,11 @@ export class AgentToolManager {
       }
     }
 
-    if (toolName === SUBAGENT_ORCHESTRATOR_TOOL_NAME) {
-      return await this.subagentOrchestratorTool.call(args, conversationId, options)
+    if (toolName === LIVE_DELEGATION_AGENT_TOOL_NAME) {
+      if (!this.liveDelegationTool) {
+        throw new Error('Live delegation is unavailable.')
+      }
+      return await this.liveDelegationTool.call(args, conversationId, options)
     }
 
     if (toolName === IMAGE_GENERATE_TOOL_NAME) {
@@ -1032,7 +1050,8 @@ export class AgentToolManager {
       const bashHandler = new AgentBashHandler(
         allowedDirectories,
         this.settings,
-        this.commandPermissionHandler
+        this.commandPermissionHandler,
+        this.commandEnvironment
       )
       const execArgs = parsedArgs as {
         command: string
@@ -2107,6 +2126,8 @@ export class AgentToolManager {
       baseCommand?: string
     }
     conversationId?: string
+    rememberable?: boolean
+    requiresUserConfirmation?: boolean
   } | null> {
     const writeTools = ['write', 'edit']
     const readTools = ['read', GLOB_TOOL_NAME, GREP_TOOL_NAME]
@@ -2120,6 +2141,34 @@ export class AgentToolManager {
         permissionType: 'write',
         description: 'Scheduled task changes require approval.',
         conversationId
+      }
+    }
+
+    if (
+      toolName === LIVE_DELEGATION_AGENT_TOOL_NAME &&
+      (args.operation === 'spawn' || args.operation === 'follow_up')
+    ) {
+      if (!conversationId) {
+        throw new Error(`${LIVE_DELEGATION_AGENT_TOOL_NAME} requires a conversationId.`)
+      }
+      const session =
+        await this.dependencies.sessions.resolveConversationSessionInfo(conversationId)
+      if (!session) {
+        throw new Error(`Conversation ${conversationId} is unavailable.`)
+      }
+      if (normalizeOrchestrationPolicy(session.orchestrationPolicy) === 'proactive') {
+        return null
+      }
+
+      return {
+        needsPermission: true,
+        toolName,
+        serverName: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+        permissionType: 'write',
+        description: 'components.messageBlockPermissionRequest.description.subagentStart',
+        conversationId,
+        rememberable: false,
+        requiresUserConfirmation: true
       }
     }
 

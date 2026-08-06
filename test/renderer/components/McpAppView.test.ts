@@ -147,7 +147,7 @@ describe('McpAppView', () => {
       },
       global: {
         stubs: {
-          Button: defineComponent({
+          DcButton: defineComponent({
             name: 'Button',
             emits: ['click'],
             template: '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>'

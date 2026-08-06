@@ -290,7 +290,7 @@ describe('dispatch', () => {
 
   describe('settleToolBatch', () => {
     it('builds assistant message, calls tools, updates blocks', async () => {
-      const tools = [makeTool('get_weather')]
+      const tools = [makeAgentTool('get_weather')]
       const toolService = createMockToolService({ get_weather: 'Sunny, 72F' })
       const conversation = [{ role: 'user' as const, content: 'Hello' }]
 
@@ -350,6 +350,7 @@ describe('dispatch', () => {
       const toolBlock = state.blocks.find((b) => b.type === 'tool_call')
       expect(toolBlock!.tool_call!.response).toBe('Sunny, 72F')
       expect(toolBlock!.status).toBe('success')
+      expect(toolBlock!.extra?.toolSource).toBe('agent')
     })
 
     it('rejects an output-truncated batch atomically without tool side effects', async () => {
@@ -1708,6 +1709,66 @@ describe('dispatch', () => {
       expect(result.executionState.committedResultCallIds).not.toContain('tc-write')
     })
 
+    it('pauses post-call user confirmation without attempting an automatic grant', async () => {
+      const tools = [makeAgentTool('deepchat_subagents')]
+      const toolService = {
+        ...createMockToolService(),
+        callTool: vi.fn(async () => ({
+          content: 'confirmation required',
+          rawData: {
+            content: 'confirmation required',
+            requiresPermission: true,
+            permissionRequest: {
+              permissionType: 'write',
+              description: 'Start this Subagent task?',
+              requestId: 'approval-1',
+              requiresUserConfirmation: true
+            }
+          }
+        }))
+      } as unknown as ToolServicePort
+      const autoGrantPermission = vi.fn().mockResolvedValue(undefined)
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-spawn',
+          name: 'deepchat_subagents',
+          params: '{"operation":"spawn"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-spawn', name: 'deepchat_subagents', arguments: '{"operation":"spawn"}' }
+      ]
+
+      const result = await settleToolBatch(
+        state,
+        [],
+        0,
+        tools,
+        toolService,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        { autoGrantPermission }
+      )
+
+      expect(result.type).toBe('paused')
+      expect(result.type === 'paused' ? result.interactions[0]?.permission : null).toMatchObject({
+        requestId: 'approval-1',
+        requiresUserConfirmation: true
+      })
+      expect(autoGrantPermission).not.toHaveBeenCalled()
+      expect(toolService.callTool).toHaveBeenCalledTimes(1)
+    })
+
     it('reviews command-runner Agent tool calls even without path args', async () => {
       const hooks = {
         onPermissionRequest: vi.fn(),
@@ -2153,6 +2214,70 @@ describe('dispatch', () => {
       expect(result.executed).toBe(1)
       expect(result.type).toBe('completed')
     })
+
+    it.each(['full_access', 'auto_approve'] as const)(
+      'never auto-grants explicit user confirmation in %s mode',
+      async (permissionMode) => {
+        const hooks = {
+          autoGrantPermission: vi.fn().mockResolvedValue(undefined),
+          reviewToolPermission: vi.fn().mockResolvedValue({ decision: 'auto_allow' })
+        }
+        const tools = [makeAgentTool('deepchat_subagents')]
+        const toolService = createMockToolService() as ToolServicePort & {
+          preCheckToolPermission: ReturnType<typeof vi.fn>
+        }
+        toolService.preCheckToolPermission = vi.fn().mockResolvedValue({
+          needsPermission: true,
+          permissionType: 'write',
+          description: 'Start this Subagent task?',
+          toolName: 'deepchat_subagents',
+          serverName: 'agent-live-delegation',
+          requestId: 'approval-1',
+          rememberable: false,
+          requiresUserConfirmation: true
+        })
+
+        state.blocks.push({
+          type: 'tool_call',
+          content: '',
+          status: 'pending',
+          timestamp: Date.now(),
+          tool_call: {
+            id: 'tc-spawn',
+            name: 'deepchat_subagents',
+            params: '{"operation":"spawn"}',
+            response: ''
+          }
+        })
+        state.completedToolCalls = [
+          { id: 'tc-spawn', name: 'deepchat_subagents', arguments: '{"operation":"spawn"}' }
+        ]
+
+        const result = await settleToolBatch(
+          state,
+          [],
+          0,
+          tools,
+          toolService,
+          'gpt-4',
+          io,
+          permissionMode,
+          new ToolOutputGuard(),
+          32000,
+          1024,
+          hooks
+        )
+
+        expect(result.type).toBe('paused')
+        expect(result.type === 'paused' ? result.interactions[0]?.permission : null).toMatchObject({
+          requestId: 'approval-1',
+          requiresUserConfirmation: true
+        })
+        expect(toolService.callTool).not.toHaveBeenCalled()
+        expect(hooks.autoGrantPermission).not.toHaveBeenCalled()
+        expect(hooks.reviewToolPermission).not.toHaveBeenCalled()
+      }
+    )
 
     it('enriches tool_call blocks with server info', async () => {
       const tools = [makeTool('get_weather')]

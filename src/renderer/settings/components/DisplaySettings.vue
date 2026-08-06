@@ -175,27 +175,16 @@
       </div>
 
       <!-- System notifications -->
-      <div class="flex flex-col gap-2 px-2 py-2">
-        <div class="flex items-center gap-3">
-          <span
-            class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
-            :dir="languageStore.dir"
-          >
-            <Icon icon="lucide:bell" class="w-4 h-4 text-muted-foreground" />
-            <span class="truncate">{{ t('settings.common.notifications') }}</span>
-          </span>
-          <div class="ml-auto">
-            <Switch
-              id="notifications-switch"
-              :model-value="notificationsEnabled"
-              @update:model-value="handleNotificationsChange"
-            />
-          </div>
-        </div>
-        <div class="text-xs text-muted-foreground">
-          {{ t('settings.common.notificationsDesc') }}
-        </div>
-      </div>
+      <DcToggleRow
+        id="notifications-switch"
+        icon="lucide:bell"
+        :label="t('settings.common.notifications')"
+        :description="t('settings.common.notificationsDesc')"
+        label-min-width="220px"
+        :model-value="notificationsEnabled"
+        class="px-2 py-2"
+        @update:model-value="handleNotificationsChange"
+      />
 
       <!-- Font size settings -->
       <div class="flex flex-col gap-2 px-2 py-2">
@@ -207,7 +196,7 @@
           <span class="truncate">{{ t('settings.display.fontSize') }}</span>
         </span>
         <ButtonGroup class="flex-wrap">
-          <Button
+          <DcButton
             v-for="(sizeOption, index) in fontSizeOptions"
             :key="index"
             :variant="fontSizeLevel === index ? 'default' : 'outline'"
@@ -216,52 +205,35 @@
             @click="fontSizeLevel = index"
           >
             {{ t('settings.display.' + sizeOption) }}
-          </Button>
+          </DcButton>
         </ButtonGroup>
       </div>
 
       <FontSettingsSection />
 
       <!-- Content protection toggle -->
-      <div class="flex items-center gap-3 px-2 py-2">
-        <span
-          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
-          :dir="languageStore.dir"
-        >
-          <Icon icon="lucide:monitor" class="w-4 h-4 text-muted-foreground" />
-          <span class="truncate">{{ t('settings.common.contentProtection') }}</span>
-        </span>
-        <div class="ml-auto">
-          <Switch
-            id="content-protection-switch"
-            :model-value="contentProtectionEnabled"
-            @update:model-value="handleContentProtectionChange"
-          />
-        </div>
-      </div>
+      <DcToggleRow
+        id="content-protection-switch"
+        icon="lucide:monitor"
+        :label="t('settings.common.contentProtection')"
+        label-min-width="220px"
+        :model-value="contentProtectionEnabled"
+        class="px-2 py-2"
+        @update:model-value="handleContentProtectionChange"
+      />
 
       <!-- Floating button toggle -->
-      <div v-if="FLOATING_BUTTON_AVAILABLE" class="flex flex-col gap-2 px-2 py-2">
-        <div class="flex items-center gap-3">
-          <span
-            class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
-            :dir="languageStore.dir"
-          >
-            <Icon icon="lucide:mouse-pointer-click" class="w-4 h-4 text-muted-foreground" />
-            <span class="truncate">{{ t('settings.display.floatingButton') }}</span>
-          </span>
-          <div class="ml-auto">
-            <Switch
-              id="floating-button-switch"
-              :model-value="floatingButtonStore.enabled"
-              @update:model-value="handleFloatingButtonChange"
-            />
-          </div>
-        </div>
-        <div class="text-xs text-muted-foreground">
-          {{ t('settings.display.floatingButtonDesc') }}
-        </div>
-      </div>
+      <DcToggleRow
+        v-if="FLOATING_BUTTON_AVAILABLE"
+        id="floating-button-switch"
+        icon="lucide:mouse-pointer-click"
+        :label="t('settings.display.floatingButton')"
+        :description="t('settings.display.floatingButtonDesc')"
+        label-min-width="220px"
+        :model-value="floatingButtonStore.enabled"
+        class="px-2 py-2"
+        @update:model-value="handleFloatingButtonChange"
+      />
     </div>
   </SettingsPageShell>
 
@@ -283,15 +255,15 @@
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button variant="outline" @click="cancelContentProtectionChange">
+        <DcButton variant="outline" @click="cancelContentProtectionChange">
           {{ t('common.cancel') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           :variant="newContentProtectionValue ? 'default' : 'destructive'"
           @click="confirmContentProtectionChange"
         >
           {{ t('common.confirm') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -309,6 +281,7 @@ import {
 } from '@shadcn/components/ui/select'
 import { ref, onMounted, watch, computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import { DcToggleRow } from '@dc-ui/components/toggle-row'
 
 import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -323,9 +296,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { ButtonGroup } from '@shadcn/components/ui/button-group'
-import { Switch } from '@shadcn/components/ui/switch'
 import FontSettingsSection from './display/FontSettingsSection.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import { LOCALE_DISPLAY_NAMES, SUPPORTED_LOCALES, type RequestedLocale } from '@shared/locales'

@@ -10,15 +10,17 @@
 
     <div class="shrink-0 flex items-center gap-1">
       <!-- 减小按钮 -->
-      <Button
+      <DcButton
         variant="outline"
         size="icon"
+        icon="lucide:minus"
+        icon-size="3"
+        :label="t('common.decrease')"
+        :tooltip="t('common.decrease')"
         class="h-8 w-8"
         @click="decreaseFileMaxSize"
         :disabled="fileMaxSize <= minSize"
-      >
-        <Icon icon="lucide:minus" class="h-3 w-3" />
-      </Button>
+      />
 
       <!-- 当前值 / 输入框 -->
       <div class="relative">
@@ -46,15 +48,17 @@
       </div>
 
       <!-- 增大按钮 -->
-      <Button
+      <DcButton
         variant="outline"
         size="icon"
+        icon="lucide:plus"
+        icon-size="3"
+        :label="t('common.increase')"
+        :tooltip="t('common.increase')"
         class="h-8 w-8"
         @click="increaseFileMaxSize"
         :disabled="fileMaxSize >= maxSize"
-      >
-        <Icon icon="lucide:plus" class="h-3 w-3" />
-      </Button>
+      />
 
       <!-- 单位 -->
       <span class="text-xs text-muted-foreground ml-1">{{ 'MB' }}</span>
@@ -65,7 +69,7 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { useI18n } from 'vue-i18n'
 import { createConfigClient } from '@api/ConfigClient'

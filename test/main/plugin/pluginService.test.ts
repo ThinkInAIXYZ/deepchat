@@ -1785,12 +1785,13 @@ describe('PluginService', () => {
     )
     expect(manifest.runtime.adapterContract).toEqual({
       hostBundleId: 'com.wefonk.deepchat',
-      driverVersion: '0.14.1',
-      contractVersion: '0.2.0',
+      driverVersion: '0.17.0',
+      contractVersion: '0.6.0',
       toolsListSchemaVersion: '1',
       capabilityVersion: '1',
       mcpProtocolVersion: '2025-06-18'
     })
+    expect(manifest.runtime.install.minVersion).toBe('0.17.0')
     expect(server.args).toEqual(['mcp', '--embedded'])
     expect(server.env).toBeUndefined()
     expect(mcpConfig.env).toBeUndefined()
@@ -1811,7 +1812,7 @@ describe('PluginService', () => {
     )
   })
 
-  it('keeps CUA v0.14.1 tool policies explicit and conservative', async () => {
+  it('keeps CUA v0.17.0 tool policies explicit and conservative', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
     const manifestTools = manifest.toolPolicies.find(
@@ -1823,6 +1824,7 @@ describe('PluginService', () => {
       'list_windows',
       'get_screen_size',
       'get_window_state',
+      'verify_state',
       'get_accessibility_tree',
       'get_desktop_state',
       'get_cursor_position',
@@ -1839,6 +1841,7 @@ describe('PluginService', () => {
     const EXPECTED_ASK = [
       'launch_app',
       'bring_to_front',
+      'set_window_frame',
       'click',
       'right_click',
       'double_click',
@@ -1850,6 +1853,8 @@ describe('PluginService', () => {
       'press_key',
       'hotkey',
       'set_value',
+      'invoke_menu',
+      'clipboard_write',
       'set_config',
       'start_recording',
       'stop_recording',
@@ -1872,11 +1877,17 @@ describe('PluginService', () => {
     ]
     const EXPECTED_DENY = [
       'debug_window_info',
+      'clipboard_read',
       'kill_app',
       'mouse_button_down',
       'mouse_button_up',
       'mouse_drag'
     ]
+
+    expect(manifestTools).toEqual(policy.tools)
+    expect(Object.keys(manifestTools).sort()).toEqual(
+      [...EXPECTED_ALLOW, ...EXPECTED_ASK, ...EXPECTED_DENY].sort()
+    )
 
     for (const tool of EXPECTED_ALLOW) {
       expect(manifestTools[tool]).toBe('allow')
@@ -1913,33 +1924,33 @@ describe('PluginService', () => {
       sourceKind: 'upstream-release',
       upstreamRepo: 'https://github.com/trycua/cua.git',
       upstreamSubdir: 'libs/cua-driver/rust',
-      tag: 'cua-driver-rs-v0.14.1',
-      commit: '41ae29b44b49b68c6e01c934fffbbe74d22e26fb',
-      version: '0.14.1',
-      checksumsSha256: '9aa3667892a4d5dd2bb424e11bb184d17a45c0c0d0da2ff58fa51694b81fb870',
+      tag: 'cua-driver-rs-v0.17.0',
+      commit: '10279552e2bbe479e367a082f78b1b98ee85a697',
+      version: '0.17.0',
+      checksumsSha256: 'a3d58c35df49b35c63135a5b969879a7bd831f7d59d9d76b44c6c341ce1bfd7f',
       supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
       unsupportedTargets: ['linux/arm64']
     })
     expect(metadata.assets).toEqual({
       'darwin-arm64': {
-        name: 'cua-driver-rs-0.14.1-darwin-arm64.tar.gz',
-        sha256: 'ff454b24f79eee28d018433d44b012ca58c932ab0066ce5186ea31e0ee0f2b5c'
+        name: 'cua-driver-rs-0.17.0-darwin-arm64.tar.gz',
+        sha256: '55ed672850492080ff4e7dab4948b4f3bc70c3b84884a89b1eb8521a5d8177a8'
       },
       'darwin-x64': {
-        name: 'cua-driver-rs-0.14.1-darwin-x86_64.tar.gz',
-        sha256: 'd6f5c3b456b90ce8cf954ff0c52e535daa6dcded69813f77a7ae9da6542226d2'
+        name: 'cua-driver-rs-0.17.0-darwin-x86_64.tar.gz',
+        sha256: 'cbabf2f71a25b6b158a42384b775d3a75fac15185280d2036d175ee8b49301ae'
       },
       'windows-x64': {
-        name: 'cua-driver-rs-0.14.1-windows-x86_64-binary.zip',
-        sha256: '6787fe505c38b37b324f5b0bdd17d0d56c3a4d648369a438998729d1bdc9a9e8'
+        name: 'cua-driver-rs-0.17.0-windows-x86_64-binary.zip',
+        sha256: 'f7e366edc4b7148b4f6f78957782b2a2d962620b0daaeb99df7cf9dce6176193'
       },
       'windows-arm64': {
-        name: 'cua-driver-rs-0.14.1-windows-arm64-binary.zip',
-        sha256: '5bd29f3f0cb0a8c08eab5d36fe355da20478fec07a60d227a81fe2a3664e0af9'
+        name: 'cua-driver-rs-0.17.0-windows-arm64-binary.zip',
+        sha256: 'bd3febdabff06331efd0951495f34ef7a5fb2cc230fd5270bd34292bc7ee036a'
       },
       'linux-x64': {
-        name: 'cua-driver-rs-0.14.1-linux-x86_64-binary.tar.gz',
-        sha256: '8305f5006f9eca47461ac4d04cbd9adad41958c0c3409e5503429aa6c6a8a963'
+        name: 'cua-driver-rs-0.17.0-linux-x86_64-binary.tar.gz',
+        sha256: 'd8fc3e69fc83f01e6c3a70acef1b16e59a2dfc3c91aa98276360a6d211a61017'
       }
     })
     for (const asset of Object.values(metadata.assets) as Array<{ sha256: string }>) {
@@ -2003,6 +2014,14 @@ describe('PluginService', () => {
     expect(combined).toContain('## CUA structured refusal')
     expect(combined).toContain('refusal.code')
     expect(combined).toContain('generation_mismatch')
+    expect(combined).toContain('snapshot_id_required')
+    expect(combined).toContain('element_index` and the exact `snapshot_id')
+    expect(combined).toContain('## CUA action result')
+    expect(combined).toContain('invalid_action_result')
+    expect(combined).toContain('invalid_verify_state_result')
+    expect(combined).toContain('verify_state')
+    expect(combined).toContain('status="satisfied"')
+    expect(combined).toContain('clipboard_read')
     expect(combined).toContain('single-session object')
     expect(combined).toContain('do not pass appearance fields')
     expect(combined).toContain('read-only `get_text` or `query_dom`')

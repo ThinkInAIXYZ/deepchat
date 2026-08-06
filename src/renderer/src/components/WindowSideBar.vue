@@ -8,50 +8,49 @@
       <!-- Left Column: Agent Icons (48px) -->
       <div class="window-no-drag-region flex flex-col items-center shrink-0 pt-2 pb-2 gap-1 w-12">
         <!-- All agents button -->
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              data-testid="sidebar-agent-all-button"
-              data-agent-id="__all__"
-              :data-selected="String(sidebarSelectedAgentId === null)"
-              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
-              :class="
-                sidebarSelectedAgentId === null
-                  ? 'bg-card/50 border-white/70 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
-                  : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
-              "
-              @click="handleAgentSelect(null)"
-            >
-              <Icon icon="lucide:layers" class="w-4 h-4 text-foreground/80" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">{{ t('chat.sidebar.allAgents') }}</TooltipContent>
-        </Tooltip>
+        <DcButton
+          data-testid="sidebar-agent-all-button"
+          data-agent-id="__all__"
+          :data-selected="String(sidebarSelectedAgentId === null)"
+          size="icon"
+          icon="lucide:layers"
+          icon-size="4"
+          tooltip-side="right"
+          :tooltip-delay-duration="200"
+          :tooltip="t('chat.sidebar.allAgents')"
+          class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 text-foreground/80 hover:text-foreground/80"
+          :class="
+            sidebarSelectedAgentId === null
+              ? 'bg-card/50 border-white/70 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
+              : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
+          "
+          @click="handleAgentSelect(null)"
+        />
 
         <div class="w-5 h-px bg-border my-1"></div>
 
         <!-- Agent icons -->
-        <Tooltip v-for="agent in agentStore.enabledAgents" :key="agent.id">
-          <TooltipTrigger as-child>
-            <Button
-              data-testid="sidebar-agent-button"
-              :data-agent-id="agent.id"
-              :data-agent-type="agent.agentType ?? agent.type"
-              :data-selected="String(sidebarSelectedAgentId === agent.id)"
-              size="icon"
-              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
-              :class="
-                sidebarSelectedAgentId === agent.id
-                  ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
-                  : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
-              "
-              @click="handleAgentSelect(agent.id)"
-            >
-              <AgentAvatar :agent="agent" class-name="w-4 h-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">{{ agent.name }}</TooltipContent>
-        </Tooltip>
+        <DcButton
+          v-for="agent in agentStore.enabledAgents"
+          :key="agent.id"
+          data-testid="sidebar-agent-button"
+          :data-agent-id="agent.id"
+          :data-agent-type="agent.agentType ?? agent.type"
+          :data-selected="String(sidebarSelectedAgentId === agent.id)"
+          size="icon"
+          tooltip-side="right"
+          :tooltip-delay-duration="200"
+          :tooltip="agent.name"
+          class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
+          :class="
+            sidebarSelectedAgentId === agent.id
+              ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
+              : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
+          "
+          @click="handleAgentSelect(agent.id)"
+        >
+          <AgentAvatar :agent="agent" class-name="w-4 h-4" />
+        </DcButton>
 
         <!-- Spacer -->
         <div class="flex-1"></div>
@@ -59,93 +58,82 @@
         <!-- Bottom action buttons -->
         <div class="w-5 h-px bg-border my-1"></div>
 
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none"
-              :class="
-                spotlightStore.open
-                  ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
-                  : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10'
-              "
-              :title="t('chat.spotlight.placeholder')"
-              @click="spotlightStore.toggleSpotlight()"
-            >
-              <Icon icon="lucide:search" class="w-4 h-4 text-foreground/80" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">{{ t('chat.spotlight.placeholder') }}</TooltipContent>
-        </Tooltip>
+        <DcButton
+          size="icon"
+          icon="lucide:search"
+          icon-size="4"
+          tooltip-side="right"
+          :tooltip-delay-duration="200"
+          :tooltip="t('chat.spotlight.placeholder')"
+          :title="t('chat.spotlight.placeholder')"
+          class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none text-foreground/80 hover:text-foreground/80"
+          :class="
+            spotlightStore.open
+              ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
+              : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10'
+          "
+          @click="spotlightStore.toggleSpotlight()"
+        />
 
-        <Tooltip v-if="showRemoteControlButton">
-          <TooltipTrigger as-child>
-            <Button
-              data-testid="remote-control-button"
-              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none"
-              :class="remoteControlButtonClass"
-              :title="remoteControlTooltip"
-              @click="openRemoteSettings"
-            >
-              <Icon icon="lucide:monitor-cloud" class="w-4 h-4" :class="remoteControlIconClass" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right" class="whitespace-pre-line">
-            {{ remoteControlTooltip }}
-          </TooltipContent>
-        </Tooltip>
+        <DcButton
+          v-if="showRemoteControlButton"
+          data-testid="remote-control-button"
+          size="icon"
+          icon="lucide:monitor-cloud"
+          tooltip-side="right"
+          :tooltip-delay-duration="200"
+          tooltip-content-class="whitespace-pre-line"
+          :label="remoteControlTooltip"
+          :tooltip="remoteControlTooltip"
+          :title="remoteControlTooltip"
+          class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none"
+          :class="remoteControlButtonClass"
+          :icon-class="remoteControlIconClass"
+          @click="openRemoteSettings"
+        />
 
         <!-- Theme toggle -->
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              data-testid="window-sidebar-theme-toggle"
-              class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
-              @click="themeStore.cycleTheme()"
-            >
-              <span class="theme-icon-wrap">
-                <Transition name="theme-icon">
-                  <Icon :key="themeIcon" :icon="themeIcon" class="theme-icon text-foreground/90" />
-                </Transition>
-              </span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            {{ t('chat.sidebar.themeToggle') }} · {{ themeModeLabel }}
-          </TooltipContent>
-        </Tooltip>
+        <DcButton
+          data-testid="window-sidebar-theme-toggle"
+          size="icon"
+          tooltip-side="right"
+          :tooltip-delay-duration="200"
+          :tooltip="`${t('chat.sidebar.themeToggle')} · ${themeModeLabel}`"
+          class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none shadow-none text-foreground/90 hover:text-foreground/90 hover:bg-white/30 dark:hover:bg-white/10"
+          @click="themeStore.cycleTheme()"
+        >
+          <span class="theme-icon-wrap">
+            <Transition name="theme-icon">
+              <Icon :key="themeIcon" :icon="themeIcon" class="theme-icon text-foreground/90" />
+            </Transition>
+          </span>
+        </DcButton>
 
         <!-- Collapse toggle -->
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              data-testid="window-sidebar-toggle"
-              class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
-              @click="sidebarStore.toggleSidebar()"
-            >
-              <Icon
-                :icon="collapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
-                class="w-4 h-4 text-foreground/80"
-              />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">{{
-            collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')
-          }}</TooltipContent>
-        </Tooltip>
+        <DcButton
+          :icon="collapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
+          size="icon"
+          data-testid="window-sidebar-toggle"
+          :label="collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')"
+          :tooltip="collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')"
+          tooltip-side="right"
+          :tooltip-delay-duration="200"
+          class="w-9 h-9 rounded-xl bg-transparent border-none shadow-none text-foreground/80 hover:bg-white/30 hover:text-foreground/80 dark:hover:bg-white/10"
+          @click="sidebarStore.toggleSidebar()"
+        />
 
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              data-testid="app-settings-button"
-              class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
-              :title="t('routes.settings')"
-              @click="openSettings"
-            >
-              <Icon icon="lucide:ellipsis" class="w-4 h-4 text-foreground/80" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">{{ t('routes.settings') }}</TooltipContent>
-        </Tooltip>
+        <DcButton
+          icon="lucide:ellipsis"
+          size="icon"
+          data-testid="app-settings-button"
+          :label="t('routes.settings')"
+          :tooltip="t('routes.settings')"
+          tooltip-side="right"
+          :tooltip-delay-duration="200"
+          :title="t('routes.settings')"
+          class="w-9 h-9 rounded-xl bg-transparent border-none shadow-none text-foreground/80 hover:bg-white/30 hover:text-foreground/80 dark:hover:bg-white/10"
+          @click="openSettings"
+        />
       </div>
 
       <!-- Right Column: Session List (240px) -->
@@ -179,18 +167,6 @@
                 class="h-8 pr-8 pl-8 text-sm"
                 @keydown.esc.prevent="sessionSearchQuery = ''"
               />
-              <Button
-                v-if="sessionSearchQuery"
-                data-testid="sidebar-session-search-clear"
-                type="button"
-                variant="ghost"
-                size="icon"
-                class="absolute right-2 top-1/2 size-7 -translate-y-1/2"
-                :aria-label="t('common.clear')"
-                @click="sessionSearchQuery = ''"
-              >
-                <Icon icon="lucide:x" class="size-3.5" />
-              </Button>
             </div>
 
             <button
@@ -239,37 +215,28 @@
         </div>
 
         <!-- Empty state -->
-        <Empty
+        <DcEmpty
           v-if="
             sessionStore.hasLoadedInitialPage &&
             pinnedSessions.length === 0 &&
             !chatSectionGroup &&
             workspaceGroups.length === 0
           "
+          icon="lucide:message-square-plus"
           class="h-full border-0 py-10"
-        >
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <Icon icon="lucide:message-square-plus" />
-            </EmptyMedia>
-            <EmptyTitle class="text-sm font-normal text-muted-foreground/60">
-              {{
-                normalizedSessionSearchQuery
-                  ? t('chat.sidebar.searchEmptyTitle')
-                  : t('chat.sidebar.emptyTitle')
-              }}
-            </EmptyTitle>
-            <EmptyDescription class="text-xs text-muted-foreground/40">
-              {{
-                normalizedSessionSearchQuery
-                  ? sessionStore.hasMore
-                    ? t('chat.sidebar.searchLoadedRangeDescription')
-                    : t('chat.sidebar.searchEmptyDescription')
-                  : t('chat.sidebar.emptyDescription')
-              }}
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+          :title="
+            normalizedSessionSearchQuery
+              ? t('chat.sidebar.searchEmptyTitle')
+              : t('chat.sidebar.emptyTitle')
+          "
+          :description="
+            normalizedSessionSearchQuery
+              ? sessionStore.hasMore
+                ? t('chat.sidebar.searchLoadedRangeDescription')
+                : t('chat.sidebar.searchEmptyDescription')
+              : t('chat.sidebar.emptyDescription')
+          "
+        />
 
         <!-- Session list -->
         <div
@@ -332,20 +299,16 @@
                   {{ t('chat.sidebar.chatSection') }}
                 </span>
               </button>
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <button
-                    type="button"
-                    data-testid="window-sidebar-chat-new-button"
-                    class="flex size-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-all duration-150 hover:bg-accent/60 hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-                    :aria-label="t('common.newChat')"
-                    @click.stop="handleNewChatForProject(defaultChatWorkspacePath || null)"
-                  >
-                    <Icon icon="lucide:plus" class="size-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>{{ t('common.newChat') }}</TooltipContent>
-              </Tooltip>
+              <DcButton
+                type="button"
+                data-testid="window-sidebar-chat-new-button"
+                size="icon-sm"
+                icon="lucide:plus"
+                icon-size="4"
+                variant="ghost"
+                :tooltip="t('common.newChat')"
+                @click.stop="handleNewChatForProject(defaultChatWorkspacePath || null)"
+              />
             </div>
 
             <div v-show="!isGroupCollapsed(chatSectionGroup)" class="space-y-0.5">
@@ -373,26 +336,24 @@
             <div class="min-w-0 truncate text-xs font-semibold text-muted-foreground">
               {{ t('chat.sidebar.workspace') }}
             </div>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <button
-                  class="flex size-7 items-center justify-center rounded-md transition-all duration-150"
-                  :class="
-                    sessionStore.groupMode === 'project'
-                      ? 'bg-accent/80 text-foreground'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                  "
-                  @click="sessionStore.toggleGroupMode()"
-                >
-                  <Icon icon="lucide:folder-kanban" class="size-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{{
+            <DcButton
+              size="icon-sm"
+              icon="lucide:folder-kanban"
+              icon-size="4"
+              :tooltip="
                 sessionStore.groupMode === 'project'
                   ? t('chat.sidebar.groupByDate')
                   : t('chat.sidebar.groupByProject')
-              }}</TooltipContent>
-            </Tooltip>
+              "
+              variant="ghost"
+              class="flex items-center justify-center rounded-md transition-all duration-150"
+              :class="
+                sessionStore.groupMode === 'project'
+                  ? 'bg-accent/80 text-foreground'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+              "
+              @click="sessionStore.toggleGroupMode()"
+            />
           </div>
 
           <draggable
@@ -439,32 +400,33 @@
                     </span>
                   </button>
 
-                  <Tooltip v-if="isProjectDirectoryGroup(group)">
-                    <TooltipTrigger as-child>
-                      <button
-                        type="button"
-                        data-testid="window-sidebar-project-new-button"
-                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all duration-150 hover:bg-accent/60 hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-                        :aria-label="t('common.newChat')"
-                        @click.stop="handleNewChatForProject(group.id)"
-                      >
-                        <Icon icon="lucide:plus" class="h-3.5 w-3.5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>{{ t('common.newChat') }}</TooltipContent>
-                  </Tooltip>
+                  <DcButton
+                    v-if="isProjectDirectoryGroup(group)"
+                    type="button"
+                    data-testid="window-sidebar-project-new-button"
+                    size="icon-sm"
+                    icon="lucide:plus"
+                    icon-size="3.5"
+                    variant="ghost"
+                    :tooltip="t('common.newChat')"
+                    class="flex items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all duration-150 hover:bg-accent/60 hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                    @click.stop="handleNewChatForProject(group.id)"
+                  />
 
                   <DropdownMenu
                     v-if="isProjectGroupReorderTarget(group) && canReorderProjectGroups"
                   >
                     <DropdownMenuTrigger as-child>
-                      <button
+                      <DcButton
+                        v-if="isProjectDirectoryGroup(group)"
                         type="button"
-                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                        size="icon-sm"
+                        icon="lucide:ellipsis"
+                        icon-size="3.5"
+                        :tooltip="t('common.more')"
+                        variant="ghost"
                         :aria-label="t('chat.sidebar.projectGroupActions')"
-                      >
-                        <Icon icon="lucide:ellipsis" class="h-3.5 w-3.5" />
-                      </button>
+                      />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" class="w-40">
                       <DropdownMenuItem
@@ -542,7 +504,7 @@
             role="status"
           >
             <span class="min-w-0 flex-1 truncate">{{ sessionStore.error }}</span>
-            <Button
+            <DcButton
               data-testid="sidebar-session-pagination-retry"
               type="button"
               variant="outline"
@@ -552,7 +514,7 @@
               @click="sessionStore.loadNextPage()"
             >
               {{ t('common.browser.reload') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </div>
@@ -566,12 +528,12 @@
         <DialogDescription>{{ t('dialog.delete.description') }}</DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button variant="outline" @click="deleteDialogOpen = false">{{
+        <DcButton variant="outline" @click="deleteDialogOpen = false">{{
           t('dialog.cancel')
-        }}</Button>
-        <Button variant="destructive" @click="handleDeleteConfirm">{{
+        }}</DcButton>
+        <DcButton variant="destructive" @click="handleDeleteConfirm">{{
           t('dialog.delete.confirm')
-        }}</Button>
+        }}</DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -583,21 +545,10 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@shadcn/components/ui/tooltip'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcEmpty } from '@dc-ui/components/empty'
+import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Input } from '@shadcn/components/ui/input'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle
-} from '@shadcn/components/ui/empty'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import {
   Dialog,

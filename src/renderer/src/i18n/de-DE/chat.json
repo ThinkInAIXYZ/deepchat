@@ -559,5 +559,21 @@
       "amendRetryable": "Die Änderung ist fehlgeschlagen. Die ursprüngliche Erinnerung wurde wiederhergestellt. Bitte versuche es erneut.",
       "amendRestoreFailed": "Die Änderung ist fehlgeschlagen, und die ursprüngliche Erinnerung konnte nicht wiederhergestellt werden."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Untergeordneten Agent öffnen" },
+    "activityTitle": "Agent-Aktivität",
+    "proactive": {
+      "title": "Proaktive Zusammenarbeit",
+      "description": "Erlaubt dem übergeordneten Agent, Aufgaben zu delegieren, wenn unabhängige oder parallele Arbeit klar hilft. Kann mehr Zeit, Tokens und Ressourcen benötigen.",
+      "reasons": {
+        "session_unavailable": "Diese Sitzung ist nicht mehr verfügbar.",
+        "agent_unavailable": "Der ausgewählte Agent ist nicht verfügbar.",
+        "deepchat_agent_required": "Proaktive Zusammenarbeit erfordert einen DeepChat Agent.",
+        "regular_parent_required": "Proaktive Zusammenarbeit ist in einer untergeordneten Sitzung nicht verfügbar.",
+        "agent_policy_unavailable": "Die Richtlinie für Zusammenarbeit konnte nicht geladen werden.",
+        "subagents_disabled": "Aktivieren Sie Subagents für diesen Agent, um proaktive Zusammenarbeit zu verwenden."
+      }
+    }
   }
 }

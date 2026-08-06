@@ -110,7 +110,7 @@ describe('KnowledgeFile', () => {
       global: {
         stubs: {
           Icon: true,
-          Button: buttonStub,
+          DcButton: buttonStub,
           Dialog: passthrough('Dialog'),
           DialogContent: passthrough('DialogContent'),
           DialogHeader: passthrough('DialogHeader'),

@@ -1,8 +1,14 @@
 import Database from 'better-sqlite3-multiple-ciphers'
+import {
+  DEFAULT_ORCHESTRATION_POLICY,
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
 import { BaseTable } from '@/data/baseTable'
 
 const ADD_REVISION_COLUMN_SQL =
   'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
+export const SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION = 59
 
 export interface NewSessionRow {
   id: string
@@ -17,6 +23,7 @@ export interface NewSessionRow {
   session_kind: 'regular' | 'subagent'
   parent_session_id: string | null
   subagent_meta_json: string | null
+  orchestration_policy: OrchestrationPolicy
   created_at: number
   updated_at: number
   revision: number
@@ -70,6 +77,11 @@ export class NewSessionsTable extends BaseTable {
     if (version >= 21) {
       columns.push('revision INTEGER NOT NULL DEFAULT 0')
     }
+    if (version >= SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION) {
+      columns.push(
+        "orchestration_policy TEXT NOT NULL DEFAULT 'explicit' CHECK (orchestration_policy IN ('explicit', 'proactive'))"
+      )
+    }
 
     columns.push('created_at INTEGER NOT NULL', 'updated_at INTEGER NOT NULL')
 
@@ -108,11 +120,18 @@ export class NewSessionsTable extends BaseTable {
       // that global version, so they need a forward recovery migration.
       return ADD_REVISION_COLUMN_SQL
     }
+    if (version === SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION) {
+      return `
+        ALTER TABLE new_sessions
+          ADD COLUMN orchestration_policy TEXT NOT NULL DEFAULT 'explicit'
+          CHECK (orchestration_policy IN ('explicit', 'proactive'));
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 44
+    return SESSION_ORCHESTRATION_POLICY_SCHEMA_VERSION
   }
 
   create(
@@ -125,6 +144,7 @@ export class NewSessionsTable extends BaseTable {
       isPinned?: boolean
       activeSkills?: string[]
       disabledAgentTools?: string[]
+      orchestrationPolicy?: OrchestrationPolicy
       sessionKind?: 'regular' | 'subagent'
       parentSessionId?: string | null
       subagentMetaJson?: string | null
@@ -149,9 +169,10 @@ export class NewSessionsTable extends BaseTable {
           session_kind,
           parent_session_id,
           subagent_meta_json,
+          orchestration_policy,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -165,6 +186,7 @@ export class NewSessionsTable extends BaseTable {
         options?.sessionKind === 'subagent' ? 'subagent' : 'regular',
         options?.parentSessionId ?? null,
         options?.subagentMetaJson ?? null,
+        normalizeOrchestrationPolicy(options?.orchestrationPolicy),
         createdAt,
         updatedAt
       )
@@ -288,6 +310,7 @@ export class NewSessionsTable extends BaseTable {
         | 'session_kind'
         | 'parent_session_id'
         | 'subagent_meta_json'
+        | 'orchestration_policy'
       >
     >
   ): void {
@@ -329,6 +352,10 @@ export class NewSessionsTable extends BaseTable {
     if (fields.subagent_meta_json !== undefined) {
       setClauses.push('subagent_meta_json = ?')
       params.push(fields.subagent_meta_json)
+    }
+    if (fields.orchestration_policy !== undefined) {
+      setClauses.push('orchestration_policy = ?')
+      params.push(normalizeOrchestrationPolicy(fields.orchestration_policy))
     }
 
     if (setClauses.length === 0) return
@@ -398,6 +425,17 @@ export class NewSessionsTable extends BaseTable {
 
   updateDisabledAgentTools(id: string, disabledAgentTools: string[]): void {
     this.update(id, { disabled_agent_tools: JSON.stringify(disabledAgentTools) })
+  }
+
+  getOrchestrationPolicy(id: string): OrchestrationPolicy {
+    const row = this.db
+      .prepare('SELECT orchestration_policy FROM new_sessions WHERE id = ?')
+      .get(id) as { orchestration_policy?: unknown } | undefined
+    return normalizeOrchestrationPolicy(row?.orchestration_policy ?? DEFAULT_ORCHESTRATION_POLICY)
+  }
+
+  updateOrchestrationPolicy(id: string, policy: OrchestrationPolicy): void {
+    this.update(id, { orchestration_policy: normalizeOrchestrationPolicy(policy) })
   }
 
   updateAgentId(id: string, agentId: string): void {

@@ -90,6 +90,38 @@ function createMcpClient(
   )
 }
 
+const createLargeToolCatalog = () =>
+  Array.from({ length: 151 }, (_, toolIndex) => ({
+    name: `tool_${toolIndex}`,
+    description: `Tool ${toolIndex}`,
+    inputSchema: {
+      type: 'object',
+      properties: Object.fromEntries(
+        Array.from({ length: 22 }, (_, propertyIndex) => [
+          `field_${propertyIndex}`,
+          {
+            type: 'string',
+            description: `Input field ${propertyIndex} owned by tool ${toolIndex}`
+          }
+        ])
+      )
+    }
+  }))
+
+const createSdkToolClient = (tools: unknown[], era: 'modern' | 'legacy') => ({
+  connect: vi.fn().mockResolvedValue(undefined),
+  callTool: vi.fn().mockResolvedValue({ content: [] }),
+  listTools: vi.fn().mockResolvedValue({ tools }),
+  listPrompts: vi.fn(),
+  getPrompt: vi.fn(),
+  listResources: vi.fn(),
+  readResource: vi.fn(),
+  setNotificationHandler: vi.fn(),
+  setRequestHandler: vi.fn(),
+  getProtocolEra: vi.fn(() => era),
+  getServerCapabilities: vi.fn(() => ({ tools: {} }))
+})
+
 vi.mock('@/agent/shared/process/processTree', () => ({
   terminateProcessTreeByPid: terminateProcessTreeMock
 }))
@@ -795,6 +827,118 @@ describe('McpClient Runtime Command Processing Tests', () => {
         expect.stringContaining('Failed to list MCP resources:'),
         expect.anything()
       )
+      consoleErrorSpy.mockRestore()
+    })
+  })
+
+  describe('Tool discovery validation', () => {
+    it.each(['modern', 'legacy'] as const)(
+      'accepts a large valid %s tool catalog without a catalog-wide key budget',
+      async (era) => {
+        const tools = createLargeToolCatalog()
+        const responseBytes = Buffer.byteLength(JSON.stringify({ tools }), 'utf8')
+        expect(responseBytes).toBeGreaterThan(260_000)
+        expect(responseBytes).toBeLessThan(275_000)
+
+        const sdkClient = createSdkToolClient(tools, era)
+        vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+        const client = createMcpClient('large-catalog', {
+          type: 'stdio',
+          command: 'large-catalog',
+          args: [],
+          forceLegacyWire: era === 'legacy'
+        })
+
+        await expect(client.listTools()).resolves.toHaveLength(151)
+        await expect(client.listToolsPage()).resolves.toMatchObject({
+          tools: expect.arrayContaining([
+            expect.objectContaining({ name: 'tool_0' }),
+            expect.objectContaining({ name: 'tool_150' })
+          ])
+        })
+      }
+    )
+
+    it('preserves modern-incompatible schemas for user-owned external legacy servers', async () => {
+      const inputSchema = {
+        $schema: 'https://example.com/legacy-dialect',
+        type: 'object',
+        properties: {
+          remote: { $ref: 'https://example.com/input.json' }
+        }
+      }
+      const sdkClient = createSdkToolClient(
+        [
+          {
+            name: 'legacy_tool',
+            inputSchema,
+            outputSchema: { $ref: 'https://example.com/output.json' }
+          }
+        ],
+        'legacy'
+      )
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const client = createMcpClient('legacy-server', {
+        type: 'stdio',
+        command: 'legacy-server',
+        args: [],
+        forceLegacyWire: true
+      })
+
+      const tools = await client.listTools()
+
+      expect(tools[0].inputSchema).toEqual(inputSchema)
+      expect(tools[0].outputSchema).toEqual({
+        $ref: 'https://example.com/output.json'
+      })
+
+      await client.callTool('legacy_tool', {}, { toolDefinition: tools[0] })
+
+      expect(sdkClient.callTool).toHaveBeenCalledWith(
+        { name: 'legacy_tool', arguments: {} },
+        {
+          signal: undefined,
+          toolDefinition: expect.objectContaining({
+            name: 'legacy_tool',
+            outputSchema: undefined
+          })
+        }
+      )
+    })
+
+    it.each([
+      ['modern external', 'modern', {}],
+      [
+        'plugin-owned legacy',
+        'legacy',
+        { forceLegacyWire: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+      ]
+    ] as const)('keeps strict schema semantics for %s servers', async (_label, era, config) => {
+      const sdkClient = createSdkToolClient(
+        [
+          {
+            name: 'strict_tool',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                remote: { $ref: 'https://example.com/input.json' }
+              }
+            }
+          }
+        ],
+        era
+      )
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const client = createMcpClient('strict-server', {
+        type: 'stdio',
+        command: 'strict-server',
+        args: [],
+        ...config
+      })
+
+      await expect(client.listTools()).rejects.toThrow('remote $ref')
+
       consoleErrorSpy.mockRestore()
     })
   })

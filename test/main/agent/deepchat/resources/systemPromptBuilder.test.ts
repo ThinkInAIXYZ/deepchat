@@ -4,6 +4,8 @@ import fs from 'fs'
 
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@shared/orchestration/resultSafety'
 
 describe('DeepChat system prompt builder', () => {
   it('assembles byte-identical prompts without a composed-prompt memo', async () => {
@@ -55,11 +57,59 @@ describe('DeepChat system prompt builder', () => {
       toolDefinitions: [],
       resourceInstance: instance
     })
+    const explicit = await buildSystemPromptWithSkills(dependencies, {
+      sessionId: 'session-1',
+      basePrompt: '  BASE PROMPT  ',
+      toolDefinitions: [
+        {
+          source: 'agent',
+          server: { name: 'subagents' },
+          function: { name: LIVE_DELEGATION_AGENT_TOOL_NAME }
+        }
+      ] as any,
+      orchestrationPolicy: 'explicit',
+      resourceInstance: instance
+    })
+    const proactive = await buildSystemPromptWithSkills(dependencies, {
+      sessionId: 'session-1',
+      basePrompt: '  BASE PROMPT  ',
+      toolDefinitions: [
+        {
+          source: 'agent',
+          server: { name: 'subagents' },
+          function: { name: LIVE_DELEGATION_AGENT_TOOL_NAME }
+        }
+      ] as any,
+      orchestrationPolicy: 'proactive',
+      resourceInstance: instance
+    })
+    const sameNameMcp = await buildSystemPromptWithSkills(dependencies, {
+      sessionId: 'session-1',
+      basePrompt: '  BASE PROMPT  ',
+      toolDefinitions: [
+        {
+          source: 'mcp',
+          server: { name: 'third-party' },
+          function: { name: 'workflow' }
+        }
+      ] as any,
+      resourceInstance: instance
+    })
 
     expect(first).toContain('BASE PROMPT')
     expect(first).toContain('You are powered by the model named GPT-4o.')
     expect(first).toContain('## Verification Policy')
+    expect(first).not.toContain('## Multi-Agent Orchestration Policy')
     expect(second).toBe(first)
+    expect(explicit).toContain('## Multi-Agent Orchestration Policy')
+    expect(explicit).toContain('explicit multi-Agent collaboration')
+    expect(explicit).toContain('user, an active Skill, or project instructions explicitly request')
+    expect(explicit).toContain(`Use \`${LIVE_DELEGATION_AGENT_TOOL_NAME}\``)
+    expect(explicit).toContain('`send` for non-triggering context')
+    expect(explicit).toContain(UNTRUSTED_CHILD_OUTPUT_POLICY)
+    expect(proactive).toContain('enabled proactive multi-Agent collaboration')
+    expect(proactive).toContain('Never delegate merely to demonstrate')
+    expect(sameNameMcp).not.toContain('## Multi-Agent Orchestration Policy')
     expect(assertCurrent).toHaveBeenCalled()
   })
 

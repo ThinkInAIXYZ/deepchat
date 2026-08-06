@@ -791,6 +791,10 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@api/RemoteControlClient', () => ({
     createRemoteControlClient: () => remoteControlPresenter
   }))
+  const notifyRenderer = vi.fn(() => true)
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
+  }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: () => sessionClient
   }))
@@ -903,7 +907,7 @@ const setup = async (options: SetupOptions = {}) => {
         DropdownMenuItem: dropdownMenuItemStub,
         DropdownMenuSeparator: passthrough,
         DropdownMenuTrigger: passthrough,
-        Button: buttonStub,
+        DcButton: buttonStub,
         Input: inputStub,
         Switch: switchStub,
         Checkbox: checkboxStub,
@@ -925,7 +929,8 @@ const setup = async (options: SetupOptions = {}) => {
     remoteControlPresenter,
     sessionClient,
     projectPresenter,
-    tabsComponents
+    tabsComponents,
+    notifyRenderer
   }
 }
 
@@ -994,7 +999,7 @@ describe('RemoteSettings', () => {
   })
 
   it('toggles telegram remote control from the tab header', async () => {
-    const { wrapper, remoteState, remoteControlPresenter } = await setup({
+    const { wrapper, remoteState, remoteControlPresenter, notifyRenderer } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: false,
@@ -1013,8 +1018,12 @@ describe('RemoteSettings', () => {
         remoteEnabled: true
       })
     )
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'common.saved'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.remote.telegram.saveSucceeded',
+        title: 'common.saved'
+      })
     )
     expect(wrapper.find('[data-testid="remote-bindings-button"]').exists()).toBe(true)
   })
@@ -1103,7 +1112,7 @@ describe('RemoteSettings', () => {
   })
 
   it('does not let an older save response overwrite a newer draft', async () => {
-    const { wrapper, remoteState, remoteControlPresenter } = await setup({
+    const { wrapper, remoteState, remoteControlPresenter, notifyRenderer } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
@@ -1157,13 +1166,17 @@ describe('RemoteSettings', () => {
       botToken: 'second-token'
     })
     await flushPromises()
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'common.saved'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.remote.telegram.saveSucceeded',
+        title: 'common.saved'
+      })
     )
   })
 
   it('preserves an unsubmitted edit when the active save resolves', async () => {
-    const { wrapper, remoteState, remoteControlPresenter } = await setup({
+    const { wrapper, remoteState, remoteControlPresenter, notifyRenderer } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
@@ -1193,22 +1206,26 @@ describe('RemoteSettings', () => {
     await flushPromises()
 
     expect((tokenInput.element as HTMLInputElement).value).toBe('editing-token')
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
+    expect(notifyRenderer).not.toHaveBeenCalled()
     const { settingsLeaveGuard } =
       await import('../../../src/renderer/settings/services/settingsLeaveGuard')
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
 
     await tokenInput.trigger('blur')
     await flushPromises()
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'common.saved'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.remote.telegram.saveSucceeded',
+        title: 'common.saved'
+      })
     )
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
   })
 
   it('guards a failed save as dirty and restores the persisted draft on discard', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const { wrapper, remoteControlPresenter } = await setup({
+    const { wrapper, remoteControlPresenter, notifyRenderer } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
@@ -1229,8 +1246,12 @@ describe('RemoteSettings', () => {
     const { settingsLeaveGuard } =
       await import('../../../src/renderer/settings/services/settingsLeaveGuard')
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'common.error.operationFailed'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.remote.telegram.saveFailed',
+        title: 'common.error.operationFailed'
+      })
     )
     expect(wrapper.text()).not.toContain('save secret diagnostics')
 
@@ -1240,7 +1261,7 @@ describe('RemoteSettings', () => {
     await flushPromises()
 
     expect((tokenInput.element as HTMLInputElement).value).toBe('telegram-token')
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
+    expect(notifyRenderer).toHaveBeenCalledTimes(1)
     consoleError.mockRestore()
   })
 
@@ -1595,7 +1616,6 @@ describe('RemoteSettings', () => {
       }
     })
 
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="remote-default-agent-select"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="remote-allowed-user-ids-input"]').exists()).toBe(false)
   })
@@ -1611,7 +1631,6 @@ describe('RemoteSettings', () => {
     await wrapper.find('[data-testid="remote-tab-feishu"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="feishu-bindings-button"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="remote-feishu-paired-user-open-ids-input"]').exists()).toBe(
       false
@@ -1785,7 +1804,7 @@ describe('RemoteSettings', () => {
   })
 
   it('does not open the pair dialog when saving telegram settings fails', async () => {
-    const { wrapper, remoteControlPresenter } = await setup({
+    const { wrapper, remoteControlPresenter, notifyRenderer } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
@@ -1804,8 +1823,12 @@ describe('RemoteSettings', () => {
 
     expect(remoteControlPresenter.createChannelPairCode).not.toHaveBeenCalled()
     expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(false)
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'common.error.operationFailed'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.remote.telegram.saveFailed',
+        title: 'common.error.operationFailed'
+      })
     )
     expect(wrapper.text()).not.toContain('save failed')
   })
@@ -1938,7 +1961,7 @@ describe('RemoteSettings', () => {
   })
 
   it('does not open bindings when saving feishu settings fails', async () => {
-    const { wrapper, remoteControlPresenter, tabsComponents } = await setup({
+    const { wrapper, remoteControlPresenter, tabsComponents, notifyRenderer } = await setup({
       feishuChannelSettingsOverride: {
         remoteEnabled: true
       }
@@ -1968,8 +1991,12 @@ describe('RemoteSettings', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="remote-bindings-dialog"]').exists()).toBe(false)
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toContain(
-      'common.error.operationFailed'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.remote.feishu.saveFailed',
+        title: 'common.error.operationFailed'
+      })
     )
     expect(wrapper.text()).not.toContain('feishu save failed')
   })

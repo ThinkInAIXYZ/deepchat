@@ -12,10 +12,20 @@ import type {
   PermissionMode,
   SendMessageInput,
   SessionGenerationSettings,
+  SessionStatus,
   SessionKind,
   SubagentTapeLinkInput,
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
+import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
+import type { OrchestrationPolicy } from '@shared/orchestration/policy'
+import type {
+  LiveDelegationDetail,
+  LiveDelegationEventSummary,
+  LiveDelegationResultPage,
+  LiveDelegationSummary
+} from '@shared/orchestration/liveDelegation'
+import type { AgentInvocationAdmissionPort } from '@/agent/invocationAdmission'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { MemoryCommandResult } from '@shared/contracts/routes/memory.routes'
@@ -29,6 +39,7 @@ import type {
 } from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { z } from 'zod'
+import type { LiveDelegationConsentReceipt } from '@/orchestration/liveDelegationConsent'
 
 export type AgentToolCronJobUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
 
@@ -41,6 +52,7 @@ export interface ConversationSessionInfo {
   modelId: string
   projectDir: string | null
   permissionMode: PermissionMode
+  orchestrationPolicy: OrchestrationPolicy
   generationSettings: SessionGenerationSettings | null
   disabledAgentTools: string[]
   activeSkills: string[]
@@ -48,6 +60,7 @@ export interface ConversationSessionInfo {
   parentSessionId: string | null
   subagentMeta: DeepChatSubagentMeta | null
   subagentCapability: DeepChatSubagentCapability
+  status: SessionStatus
 }
 
 export interface CreateSubagentSessionInput {
@@ -64,6 +77,7 @@ export interface CreateSubagentSessionInput {
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
   activeSkills?: string[]
+  liveDelegationContext?: LiveDelegationSubagentContext
 }
 
 export interface AgentToolSessionPort {
@@ -127,6 +141,40 @@ export interface AgentSubagentToolPort {
   subscribeSessionRuntimeUpdates(listener: (update: SessionRuntimeUpdate) => void): () => void
 }
 
+export type LiveDelegationStartAuthorization = LiveDelegationConsentReceipt
+
+export interface AgentLiveDelegationToolPort {
+  spawn(
+    parentSessionId: string,
+    input: { slotId: string; title: string; prompt: string },
+    authorization?: LiveDelegationStartAuthorization
+  ): Promise<LiveDelegationDetail>
+  send(parentSessionId: string, delegationId: string, message: string): LiveDelegationDetail
+  followUp(
+    parentSessionId: string,
+    delegationId: string,
+    task: string,
+    authorization?: LiveDelegationStartAuthorization
+  ): Promise<LiveDelegationDetail>
+  list(parentSessionId: string, limit?: number): LiveDelegationSummary[]
+  inspect(parentSessionId: string, delegationId: string): LiveDelegationDetail
+  readResult(
+    parentSessionId: string,
+    delegationId: string,
+    options?: { turnId?: string; cursor?: string; maxTokens?: number }
+  ): Promise<LiveDelegationResultPage>
+  wait(
+    parentSessionId: string,
+    options?: {
+      after?: number
+      timeoutMs?: number
+      delegationIds?: string[]
+      signal?: AbortSignal
+    }
+  ): Promise<{ events: LiveDelegationEventSummary[]; cursor: number; timedOut: boolean }>
+  interrupt(parentSessionId: string, delegationId: string): Promise<LiveDelegationDetail>
+}
+
 export interface AgentBrowserToolPort {
   getToolDefinitions(): MCPToolDefinition[]
   callTool(
@@ -175,6 +223,8 @@ export interface AgentToolDependencies {
   memory: AgentMemoryToolPort
   cronJobs: AgentCronJobToolPort
   subagents: AgentSubagentToolPort
+  liveDelegation?: AgentLiveDelegationToolPort
+  agentInvocationAdmission: AgentInvocationAdmissionPort
   skills: SkillServicePort
   browser: AgentBrowserToolPort
   files: AgentFileToolPort

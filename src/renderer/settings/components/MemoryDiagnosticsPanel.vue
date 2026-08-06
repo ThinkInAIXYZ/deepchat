@@ -1,35 +1,32 @@
 <template>
   <section class="flex min-h-0 flex-1 flex-col gap-4">
-    <div
-      class="flex flex-col gap-3 rounded-lg border border-border p-3 lg:flex-row lg:items-center lg:justify-between"
+    <DcSectionCard
+      :title="t('settings.memory.redesign.diagnosticsTitle')"
+      :description="t('settings.memory.redesign.diagnosticsDescription')"
     >
-      <div>
-        <h2 class="text-sm font-semibold">{{ t('settings.memory.redesign.diagnosticsTitle') }}</h2>
-        <p class="mt-1 text-xs text-muted-foreground">
-          {{ t('settings.memory.redesign.diagnosticsDescription') }}
-        </p>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          class="h-8 text-xs"
-          :disabled="loading"
-          @click="refresh"
-        >
-          <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
-          {{ t('settings.memory.redesign.refresh') }}
-        </Button>
-        <Button size="sm" class="h-8 text-xs" :disabled="reindexing" @click="reindex">
-          <Icon icon="lucide:rotate-cw" class="mr-1.5 h-3.5 w-3.5" />
-          {{
-            reindexing
-              ? t('settings.deepchatAgents.memoryManager.health.reindexing')
-              : t('settings.deepchatAgents.memoryManager.health.reindex')
-          }}
-        </Button>
-      </div>
-    </div>
+      <template #actions>
+        <div class="flex flex-wrap gap-2">
+          <DcButton
+            variant="outline"
+            size="sm"
+            class="h-8 text-xs"
+            :disabled="loading"
+            @click="refresh"
+          >
+            <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
+            {{ t('settings.memory.redesign.refresh') }}
+          </DcButton>
+          <DcButton size="sm" class="h-8 text-xs" :disabled="reindexing" @click="reindex">
+            <Icon icon="lucide:rotate-cw" class="mr-1.5 h-3.5 w-3.5" />
+            {{
+              reindexing
+                ? t('settings.deepchatAgents.memoryManager.health.reindexing')
+                : t('settings.deepchatAgents.memoryManager.health.reindex')
+            }}
+          </DcButton>
+        </div>
+      </template>
+    </DcSectionCard>
 
     <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
 
@@ -49,7 +46,7 @@
           }}
         </p>
       </div>
-      <Button
+      <DcButton
         v-if="canRetryReindex"
         variant="outline"
         size="sm"
@@ -59,7 +56,7 @@
       >
         <Icon icon="lucide:rotate-cw" class="mr-1.5 h-3.5 w-3.5" />
         {{ t('settings.deepchatAgents.memoryManager.health.reindex') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div v-if="loading" class="py-12 text-center text-sm text-muted-foreground">
@@ -87,11 +84,8 @@
           />
         </div>
 
-        <section class="rounded-lg border border-border p-3">
-          <h3 class="text-sm font-semibold">
-            {{ t('settings.memory.redesign.pipelineTitle') }}
-          </h3>
-          <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <DcSectionCard :title="t('settings.memory.redesign.pipelineTitle')">
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <StatusPill
               :label="t('settings.deepchatAgents.memoryManager.health.error')"
               :value="health?.embeddings.error ?? 0"
@@ -109,18 +103,14 @@
               :value="health?.conflicts.conflicted ?? status?.conflictCount ?? 0"
             />
           </div>
-        </section>
+        </DcSectionCard>
 
-        <section class="rounded-lg border border-border p-3" data-testid="runtime-pipeline">
-          <div>
-            <h3 class="text-sm font-semibold">
-              {{ t('settings.memory.redesign.runtimePipelineTitle') }}
-            </h3>
-            <p class="mt-1 text-xs text-muted-foreground">
-              {{ t('settings.memory.redesign.processWideDescription') }}
-            </p>
-          </div>
-          <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <DcSectionCard
+          data-testid="runtime-pipeline"
+          :title="t('settings.memory.redesign.runtimePipelineTitle')"
+          :description="t('settings.memory.redesign.processWideDescription')"
+        >
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <StatusPill
               :label="t('settings.memory.redesign.recallP50')"
               :value="recallLatencyP50"
@@ -171,29 +161,24 @@
               })
             }}
           </p>
-        </section>
+        </DcSectionCard>
 
-        <section class="rounded-lg border border-border p-3">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <h3 class="text-sm font-semibold">
-                {{ t('settings.memory.redesign.archiveCandidatesTitle') }}
-              </h3>
-              <p class="mt-1 text-xs text-muted-foreground">
-                {{ t('settings.memory.redesign.archiveCandidatesDescription') }}
-              </p>
-            </div>
-            <Badge variant="secondary" class="text-[10px]">
+        <DcSectionCard
+          :title="t('settings.memory.redesign.archiveCandidatesTitle')"
+          :description="t('settings.memory.redesign.archiveCandidatesDescription')"
+        >
+          <template #actions>
+            <DcBadge variant="secondary" class="text-[10px]">
               {{ archivePreview?.lifecycles.length ?? 0 }}
-            </Badge>
-          </div>
+            </DcBadge>
+          </template>
           <div
             v-if="!archivePreview || archivePreview.lifecycles.length === 0"
             class="py-8 text-center text-xs text-muted-foreground"
           >
             {{ t('settings.deepchatAgents.memoryManager.health.archivePrediction.empty') }}
           </div>
-          <ol v-else class="mt-3 space-y-2">
+          <ol v-else class="space-y-2">
             <li
               v-for="lifecycle in archivePreview.lifecycles"
               :key="lifecycle.memoryId"
@@ -201,11 +186,11 @@
             >
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <span class="font-medium">{{ shortId(lifecycle.memoryId) }}</span>
-                <Badge variant="outline" class="text-[10px]">
+                <DcBadge variant="outline" class="text-[10px]">
                   {{
                     t(`settings.deepchatAgents.memoryManager.lifecycle.tier.${lifecycle.decayTier}`)
                   }}
-                </Badge>
+                </DcBadge>
               </div>
               <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
                 <span>
@@ -220,29 +205,26 @@
               </div>
             </li>
           </ol>
-        </section>
+        </DcSectionCard>
       </div>
 
       <aside class="space-y-4">
-        <section class="rounded-lg border border-border p-3">
-          <h3 class="text-sm font-semibold">
-            {{ t('settings.memory.redesign.recentFailuresTitle') }}
-          </h3>
+        <DcSectionCard :title="t('settings.memory.redesign.recentFailuresTitle')">
           <div
             v-if="!health || health.maintenance.recentFailures.length === 0"
             class="py-6 text-center text-xs text-muted-foreground"
           >
             {{ t('settings.deepchatAgents.memoryManager.health.noRecentFailures') }}
           </div>
-          <ol v-else class="mt-3 space-y-2">
+          <ol v-else class="space-y-2">
             <li
               v-for="failure in health.maintenance.recentFailures"
               :key="`${failure.eventType}:${failure.createdAt}`"
               class="rounded-md border border-border px-3 py-2 text-xs"
             >
               <div class="flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline" class="text-[10px]">{{ failure.eventType }}</Badge>
-                <Badge variant="destructive" class="text-[10px]">{{ failure.status }}</Badge>
+                <DcBadge variant="outline" class="text-[10px]">{{ failure.eventType }}</DcBadge>
+                <DcBadge variant="destructive" class="text-[10px]">{{ failure.status }}</DcBadge>
                 <span class="text-[10px] text-muted-foreground">
                   {{ formatRelativeTime(failure.createdAt, locale) }}
                 </span>
@@ -252,32 +234,31 @@
               </p>
             </li>
           </ol>
-        </section>
+        </DcSectionCard>
 
-        <section class="rounded-lg border border-border p-3">
-          <h3 class="text-sm font-semibold">{{ t('settings.memory.redesign.activityTitle') }}</h3>
+        <DcSectionCard :title="t('settings.memory.redesign.activityTitle')">
           <div
             v-if="auditEvents.length === 0"
             class="py-6 text-center text-xs text-muted-foreground"
           >
             {{ t('settings.deepchatAgents.memoryManager.emptyActivity') }}
           </div>
-          <ol v-else class="mt-3 space-y-2">
+          <ol v-else class="space-y-2">
             <li
               v-for="event in auditEvents"
               :key="event.id"
               class="rounded-md border border-border px-3 py-2 text-xs"
             >
               <div class="flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline" class="text-[10px]">
+                <DcBadge variant="outline" class="text-[10px]">
                   {{ eventLabel(event.eventType) }}
-                </Badge>
-                <Badge
+                </DcBadge>
+                <DcBadge
                   :variant="event.status === 'failed' ? 'destructive' : 'secondary'"
                   class="text-[10px]"
                 >
                   {{ event.status }}
-                </Badge>
+                </DcBadge>
                 <span class="text-[10px] text-muted-foreground">
                   {{ formatRelativeTime(event.createdAt, locale) }}
                 </span>
@@ -287,7 +268,7 @@
               </p>
             </li>
           </ol>
-        </section>
+        </DcSectionCard>
 
         <section class="rounded-lg border border-destructive/40 p-3">
           <h3 class="text-sm font-semibold text-destructive">
@@ -296,7 +277,7 @@
           <p class="mt-1 text-xs text-muted-foreground">
             {{ t('settings.memory.redesign.dangerZoneDescription') }}
           </p>
-          <Button
+          <DcButton
             variant="destructive"
             size="sm"
             class="mt-3 h-8 text-xs"
@@ -306,46 +287,30 @@
           >
             <Icon icon="lucide:trash-2" class="mr-1.5 h-3.5 w-3.5" />
             {{ t('settings.deepchatAgents.memoryManager.clearAll') }}
-          </Button>
+          </DcButton>
         </section>
       </aside>
     </div>
 
-    <AlertDialog :open="clearDialogOpen" @update:open="handleClearDialogOpenChange">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {{ t('settings.deepchatAgents.memoryManager.clearConfirmTitle') }}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('settings.deepchatAgents.memoryManager.clearConfirmBody') }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <MemoryInlineFeedback
-          v-if="clearOperationFeedbackState"
-          :feedback="clearOperationFeedbackState"
-          @clear="clearClearAllFeedback"
-        />
-        <AlertDialogFooter>
-          <AlertDialogCancel data-testid="memory-clear-all-cancel" :disabled="clearing">
-            {{ t('common.cancel') }}
-          </AlertDialogCancel>
-          <AlertDialogAsyncAction
-            data-testid="memory-clear-all-confirm"
-            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            :disabled="loading || clearing"
-            @click="clearAll"
-          >
-            <Spinner
-              v-if="clearing"
-              data-testid="memory-clear-all-spinner"
-              class="mr-1.5 size-3.5"
-            />
-            {{ t('settings.deepchatAgents.memoryManager.clearAll') }}
-          </AlertDialogAsyncAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DcConfirmDialog
+      :open="clearDialogOpen"
+      :title="t('settings.deepchatAgents.memoryManager.clearConfirmTitle')"
+      :description="t('settings.deepchatAgents.memoryManager.clearConfirmBody')"
+      :confirm-label="t('settings.deepchatAgents.memoryManager.clearAll')"
+      :busy="clearing"
+      :disabled-confirm="loading"
+      :confirm-attrs="{ 'data-testid': 'memory-clear-all-confirm' }"
+      :cancel-attrs="{ 'data-testid': 'memory-clear-all-cancel' }"
+      busy-data-testid="memory-clear-all-spinner"
+      @update:open="handleClearDialogOpenChange"
+      @confirm="clearAll"
+    >
+      <MemoryInlineFeedback
+        v-if="clearOperationFeedbackState"
+        :feedback="clearOperationFeedbackState"
+        @clear="clearClearAllFeedback"
+      />
+    </DcConfirmDialog>
   </section>
 </template>
 
@@ -353,19 +318,10 @@
 import { computed, defineComponent, h, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import {
-  AlertDialog,
-  AlertDialogAsyncAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
-import { Spinner } from '@shadcn/components/ui/spinner'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcSectionCard } from '@dc-ui/components/section-card'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import { createMemoryClient } from '@api/MemoryClient'
 import type {
   MemoryArchiveCandidateLifecyclePreview,

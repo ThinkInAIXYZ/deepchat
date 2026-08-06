@@ -130,6 +130,23 @@ describeIfSqlite('NewSessionsTable', () => {
     })
   })
 
+  it('defaults orchestration to explicit and persists proactive policy updates', () => {
+    table.create('explicit', 'deepchat', 'Explicit', null)
+    table.create('proactive', 'deepchat', 'Proactive', null, {
+      orchestrationPolicy: 'proactive'
+    })
+    const revision = table.get('explicit')?.revision ?? 0
+
+    expect(table.getOrchestrationPolicy('explicit')).toBe('explicit')
+    expect(table.getOrchestrationPolicy('proactive')).toBe('proactive')
+
+    table.updateOrchestrationPolicy('explicit', 'proactive')
+    expect(table.get('explicit')).toMatchObject({
+      orchestration_policy: 'proactive',
+      revision: revision + 1
+    })
+  })
+
   it('reassigns matching agent sessions and advances only their revisions', () => {
     table.create('matching-1', 'legacy-agent', 'First matching session', null)
     table.create('matching-2', 'legacy-agent', 'Second matching session', null)

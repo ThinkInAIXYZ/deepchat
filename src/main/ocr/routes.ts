@@ -1,6 +1,7 @@
 import { ocrClearCacheRoute, ocrGetRuntimeStatusRoute } from '@shared/contracts/routes'
-import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
+import type { OcrEngine, OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
+import type { LightOcrEngineStatus } from './lightOcrProtocol'
 import type { OcrRuntimeService, OcrRuntimeServiceStatus } from './ocrRuntimeService'
 
 export function createOcrRoutes(deps: {
@@ -9,7 +10,7 @@ export function createOcrRoutes(deps: {
   arch?: string
 }): DeepchatRouteMap {
   const getStatus = async (): Promise<OcrRuntimeStatus> =>
-    toPublicStatus(
+    toPublicOcrStatus(
       await deps.runtime.getStatus(),
       deps.platform ?? process.platform,
       deps.arch ?? process.arch
@@ -36,7 +37,7 @@ export function createOcrRoutes(deps: {
   ])
 }
 
-function toPublicStatus(
+export function toPublicOcrStatus(
   status: OcrRuntimeServiceStatus,
   platform: string,
   arch: string
@@ -60,24 +61,26 @@ function toPublicStatus(
           nodeVersion: status.process.nodeVersion,
           queuedRequests: status.process.queuedRequests,
           pendingInputBytes: status.process.pendingInputBytes,
-          engine: status.process.engine
-            ? {
-                coreVersion: status.process.engine.coreVersion,
-                modelBundleId: status.process.engine.modelBundleId,
-                requestedBackend: status.process.engine.requestedProvider,
-                strategy: status.process.engine.strategy,
-                detection: {
-                  providerChain: status.process.engine.detection.actualProviderChain,
-                  precision: status.process.engine.detection.precision
-                },
-                recognition: {
-                  providerChain: status.process.engine.recognition.actualProviderChain,
-                  precision: status.process.engine.recognition.precision
-                }
-              }
-            : null
+          engine: status.process.engine ? toPublicOcrEngine(status.process.engine) : null
         }
       : null,
     cache: status.cache
+  }
+}
+
+export function toPublicOcrEngine(engine: LightOcrEngineStatus): OcrEngine {
+  return {
+    coreVersion: engine.coreVersion,
+    modelBundleId: engine.modelBundleId,
+    requestedBackend: engine.requestedProvider,
+    strategy: engine.strategy,
+    detection: {
+      providerChain: [...engine.detection.actualProviderChain],
+      precision: engine.detection.precision
+    },
+    recognition: {
+      providerChain: [...engine.recognition.actualProviderChain],
+      precision: engine.recognition.precision
+    }
   }
 }

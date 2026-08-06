@@ -251,6 +251,7 @@ async function buildDefaultGenerationSettings(
       : Math.min(4096, contextLengthDefault)
   const maxTokensDefault = capAgentDefaultMaxTokens(providerMaxTokensDefault, contextLengthDefault)
   const timeoutDefault = toValidNonNegativeInteger(modelConfig.timeout) ?? DEFAULT_MODEL_TIMEOUT
+  const topPDefault = normalizeTopP(modelConfig.topP)
 
   const defaults: SessionGenerationSettings = {
     systemPrompt: defaultSystemPrompt ?? '',
@@ -260,7 +261,7 @@ async function buildDefaultGenerationSettings(
         : undefined) ??
       parseFiniteNumericValue(modelConfig.temperature) ??
       0.7,
-    topP: normalizeTopP(modelConfig.topP),
+    ...(topPDefault === undefined ? {} : { topP: topPDefault }),
     contextLength: contextLengthDefault,
     timeout:
       timeoutDefault >= MODEL_TIMEOUT_MIN_MS && timeoutDefault <= MODEL_TIMEOUT_MAX_MS

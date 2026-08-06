@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, type ShallowRef } from 'vue'
+import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentMcpSelector from '@/components/mcp-config/AgentMcpSelector.vue'
 
@@ -9,34 +9,15 @@ const configClient = vi.hoisted(() => ({
   setAcpSharedMcpSelections: vi.fn()
 }))
 
-const feedback = vi.hoisted(() => ({
-  snapshot: null as ShallowRef<any> | null,
-  controller: {
-    begin: vi.fn(),
-    succeed: vi.fn(),
-    fail: vi.fn(),
-    clearSettled: vi.fn()
-  }
-}))
+const notifyRenderer = vi.hoisted(() => vi.fn())
 
 vi.mock('@api/ConfigClient', () => ({
   createConfigClient: () => configClient
 }))
 
-vi.mock('@renderer-notifications/rendererNotificationRuntime', () => ({
-  createRendererSurfaceFeedbackController: () => feedback.controller
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer
 }))
-
-vi.mock('@renderer-notifications/useSurfaceFeedback', async () => {
-  const { shallowRef } = await vi.importActual<typeof import('vue')>('vue')
-  feedback.snapshot = shallowRef({ status: 'idle', version: 0 })
-  return {
-    useSurfaceFeedback: () => ({
-      snapshot: feedback.snapshot,
-      setActive: vi.fn()
-    })
-  }
-})
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -91,7 +72,7 @@ const mountSelector = () =>
     global: {
       stubs: {
         Checkbox: checkboxStub,
-        Button: buttonStub
+        DcButton: buttonStub
       }
     }
   })
@@ -99,41 +80,6 @@ const mountSelector = () =>
 describe('AgentMcpSelector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    feedback.snapshot!.value = { status: 'idle', version: 0 }
-    feedback.controller.begin.mockImplementation((operationId: string, label: string) => {
-      feedback.snapshot!.value = {
-        status: 'pending',
-        operationId,
-        label,
-        version: feedback.snapshot!.value.version + 1
-      }
-    })
-    feedback.controller.succeed.mockImplementation(
-      (result: { code: string; title: string; description?: string }) => {
-        feedback.snapshot!.value = {
-          status: 'success',
-          operationId: feedback.snapshot!.value.operationId,
-          ...result,
-          version: feedback.snapshot!.value.version + 1
-        }
-      }
-    )
-    feedback.controller.fail.mockImplementation(
-      (result: { code: string; title: string; description?: string }) => {
-        feedback.snapshot!.value = {
-          status: 'error',
-          operationId: feedback.snapshot!.value.operationId,
-          ...result,
-          version: feedback.snapshot!.value.version + 1
-        }
-      }
-    )
-    feedback.controller.clearSettled.mockImplementation(() => {
-      feedback.snapshot!.value = {
-        status: 'idle',
-        version: feedback.snapshot!.value.version + 1
-      }
-    })
     configClient.getMcpServers.mockResolvedValue({
       filesystem: {
         type: 'stdio'
@@ -160,7 +106,7 @@ describe('AgentMcpSelector', () => {
     consoleError.mockRestore()
   })
 
-  it('uses compact pending and success feedback for persisted selections', async () => {
+  it('disables persistence while saving and reports a success toast', async () => {
     let resolveSave: () => void = () => undefined
     configClient.setAcpSharedMcpSelections.mockImplementationOnce(
       () =>
@@ -173,20 +119,26 @@ describe('AgentMcpSelector', () => {
 
     await wrapper.get('input[type="checkbox"]').trigger('click')
 
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toBe('common.saving')
     expect(wrapper.get('input[type="checkbox"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.emitted('persistence-state')?.at(-1)).toEqual(['saving'])
 
     resolveSave()
     await flushPromises()
 
     expect(configClient.setAcpSharedMcpSelections).toHaveBeenCalledWith(['filesystem'])
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toBe('common.saved')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.agentMcpSelections.saved',
+        title: 'common.saved'
+      })
+    )
     expect(wrapper.emitted('update:selections')?.[0]).toEqual([['filesystem']])
+    expect(wrapper.emitted('persistence-state')?.at(-1)).toEqual(['idle'])
   })
 
-  it('keeps persistence guarded when feedback cannot begin', async () => {
+  it('keeps persistence guarded while a save is in flight', async () => {
     let resolveSave: () => void = () => undefined
-    feedback.controller.begin.mockImplementationOnce(() => false)
     configClient.setAcpSharedMcpSelections.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
@@ -208,7 +160,7 @@ describe('AgentMcpSelector', () => {
     expect(wrapper.emitted('persistence-state')?.at(-1)).toEqual(['idle'])
   })
 
-  it('reverts failed selections and retries the intended value inline', async () => {
+  it('reverts failed selections and reports an error toast', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     configClient.setAcpSharedMcpSelections.mockRejectedValueOnce(new Error('disk full'))
     const wrapper = mountSelector()
@@ -218,23 +170,14 @@ describe('AgentMcpSelector', () => {
     await flushPromises()
 
     expect((wrapper.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(false)
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').attributes('data-status')).toBe(
-      'error'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.agentMcpSelections.saveFailed',
+        title: 'common.error.operationFailed'
+      })
     )
-
-    await wrapper.get('[data-testid="inline-operation-feedback"] button').trigger('click')
-    await flushPromises()
-
-    expect(configClient.setAcpSharedMcpSelections).toHaveBeenNthCalledWith(2, ['filesystem'])
-    expect((wrapper.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').text()).toBe('common.saved')
-    expect(wrapper.emitted('persistence-state')).toEqual([
-      ['idle'],
-      ['saving'],
-      ['retryable'],
-      ['saving'],
-      ['idle']
-    ])
+    expect(wrapper.emitted('persistence-state')).toEqual([['idle'], ['saving'], ['retryable']])
     consoleError.mockRestore()
   })
 
@@ -250,7 +193,6 @@ describe('AgentMcpSelector', () => {
 
     wrapper.vm.discardRetryIntent()
 
-    expect(feedback.controller.clearSettled).toHaveBeenCalledOnce()
     expect(wrapper.emitted('persistence-state')?.at(-1)).toEqual(['idle'])
     consoleError.mockRestore()
   })

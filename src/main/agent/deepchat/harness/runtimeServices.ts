@@ -18,7 +18,10 @@ import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAge
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryIngestionProjection } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { CompactionRuntimeCoordinator } from '@/agent/deepchat/runtime/compactionRuntimeCoordinator'
-import type { InteractionCoordinator } from '@/agent/deepchat/runtime/interactionCoordinator'
+import type {
+  InteractionContinuationAdmissionPort,
+  InteractionCoordinator
+} from '@/agent/deepchat/runtime/interactionCoordinator'
 import type { PendingInputAdmissionCoordinator } from '@/agent/deepchat/runtime/pendingInputAdmissionCoordinator'
 import type { RunLifecycleCoordinator } from '@/agent/deepchat/runtime/runLifecycleCoordinator'
 import type { SessionLifecycleCoordinator } from '@/agent/deepchat/runtime/sessionLifecycleCoordinator'
@@ -67,6 +70,7 @@ export interface DeepChatHarnessDependencies {
   traceSettings: AgentTraceSettingsPort
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
   attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  interactionContinuationAdmission: InteractionContinuationAdmissionPort
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, shallowRef, type ShallowRef } from 'vue'
+import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const buttonStub = defineComponent({
@@ -92,74 +92,21 @@ describe('McpBuiltinMarket', () => {
         }),
       installMcpRouterServer: options?.installMcpRouterServer ?? vi.fn().mockResolvedValue(true)
     }
-    const feedbackBindings = new Map<object, ShallowRef<Record<string, unknown>>>()
-    const feedbackControllers: Array<{
-      begin: ReturnType<typeof vi.fn>
-      succeed: ReturnType<typeof vi.fn>
-      fail: ReturnType<typeof vi.fn>
-      clear: ReturnType<typeof vi.fn>
-    }> = []
-    const createFeedbackController = () => {
-      const snapshot = shallowRef<Record<string, unknown>>({
-        status: 'idle',
-        version: 0
-      })
-      const controller = {
-        begin: vi.fn((operationId: string, label: string) => {
-          snapshot.value = {
-            status: 'pending',
-            operationId,
-            label,
-            version: Number(snapshot.value.version) + 1
-          }
-        }),
-        succeed: vi.fn((result: Record<string, unknown>) => {
-          snapshot.value = {
-            status: 'success',
-            operationId: snapshot.value.operationId,
-            ...result,
-            version: Number(snapshot.value.version) + 1
-          }
-        }),
-        fail: vi.fn((result: Record<string, unknown>) => {
-          snapshot.value = {
-            status: 'error',
-            operationId: snapshot.value.operationId,
-            ...result,
-            version: Number(snapshot.value.version) + 1
-          }
-        }),
-        clearSettled: vi.fn(() => {
-          snapshot.value = {
-            status: 'idle',
-            version: Number(snapshot.value.version) + 1
-          }
-        })
-      }
-      feedbackBindings.set(controller, snapshot)
-      feedbackControllers.push(controller)
-      return controller
-    }
+    const notifyRenderer = vi.fn(() => true)
 
     vi.doMock('@api/McpClient', () => ({
       createMcpClient: () => mcpClient
     }))
-    vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
-      createRendererSurfaceFeedbackController: createFeedbackController
-    }))
-    vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
-      useSurfaceFeedback: (controller: object) => ({
-        snapshot: feedbackBindings.get(controller),
-        setActive: vi.fn()
-      })
+    vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+      notifyRenderer
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
         t: (key: string) => key
       })
     }))
-    vi.doMock('@shadcn/components/ui/button', () => ({
-      Button: buttonStub
+    vi.doMock('@dc-ui/components/button', () => ({
+      DcButton: buttonStub
     }))
     vi.doMock('@shadcn/components/ui/input', () => ({
       Input: inputStub
@@ -182,12 +129,12 @@ describe('McpBuiltinMarket', () => {
     return {
       wrapper,
       mcpClient,
-      feedbackControllers
+      notifyRenderer
     }
   }
 
   it('loads, saves, and installs through McpClient', async () => {
-    const { wrapper, mcpClient, feedbackControllers } = await setup()
+    const { wrapper, mcpClient, notifyRenderer } = await setup()
 
     expect(mcpClient.getMcpRouterApiKey).toHaveBeenCalledTimes(1)
     expect(mcpClient.listMcpRouterServers).toHaveBeenCalledWith(1, 20)
@@ -205,26 +152,37 @@ describe('McpBuiltinMarket', () => {
     expect(mcpClient.setMcpRouterApiKey).toHaveBeenNthCalledWith(1, 'new-router-key')
     expect(mcpClient.setMcpRouterApiKey).toHaveBeenNthCalledWith(2, 'new-router-key')
     expect(mcpClient.installMcpRouterServer).toHaveBeenCalledWith('context7')
-    expect(feedbackControllers[0].succeed).toHaveBeenCalledWith({
-      code: 'settings.mcpMarket.apiKey.saved',
-      title: 'common.saved'
-    })
-    expect(feedbackControllers).toHaveLength(1)
+    // 成功反馈走按钮 ✅ 态，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('mcp.market.installed')
   })
 
   it('synchronizes installed router authorization when the API key is cleared', async () => {
-    const { wrapper, mcpClient, feedbackControllers } = await setup()
+    const { wrapper, mcpClient, notifyRenderer } = await setup()
 
     await wrapper.get('input').setValue('   ')
     await findButtonByText(wrapper, 'common.save').trigger('click')
     await flushPromises()
 
     expect(mcpClient.setMcpRouterApiKey).toHaveBeenCalledWith('')
-    expect(feedbackControllers[0].succeed).toHaveBeenCalledWith({
-      code: 'settings.mcpMarket.apiKey.saved',
-      title: 'common.saved'
-    })
+    // 成功反馈走按钮 ✅ 态，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed API key save inline without a toast', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const setMcpRouterApiKey = vi.fn().mockRejectedValue(new Error('keychain write failed'))
+    const { wrapper, mcpClient, notifyRenderer } = await setup({})
+    mcpClient.setMcpRouterApiKey = setMcpRouterApiKey
+
+    await wrapper.get('input').setValue('new-router-key')
+    await findButtonByText(wrapper, 'common.save').trigger('click')
+    await flushPromises()
+
+    expect(setMcpRouterApiKey).toHaveBeenCalledWith('new-router-key')
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain('common.error.requestFailed')
+    consoleError.mockRestore()
   })
 
   it('checks installation status only for items from the newly loaded page', async () => {
@@ -363,7 +321,7 @@ describe('McpBuiltinMarket', () => {
   })
 
   it('keeps install failures on the affected market card', async () => {
-    const { wrapper, feedbackControllers } = await setup({
+    const { wrapper } = await setup({
       installMcpRouterServer: vi.fn().mockResolvedValue(false)
     })
 
@@ -372,6 +330,5 @@ describe('McpBuiltinMarket', () => {
 
     expect(wrapper.get('[role="alert"]').text()).toContain('mcp.market.installFailed')
     expect(wrapper.text()).not.toContain('mcp.market.installed')
-    expect(feedbackControllers).toHaveLength(1)
   })
 })

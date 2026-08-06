@@ -191,6 +191,7 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   permissionType?: PermissionType
   grantedPermissions?: PermissionType
   toolName?: string
+  toolSource?: 'agent' | 'mcp'
   serverName?: string
   providerId?: string
   permissionRequestId?: string

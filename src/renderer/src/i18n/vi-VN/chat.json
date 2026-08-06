@@ -559,5 +559,21 @@
       "amendRetryable": "Chỉnh sửa thất bại. Ký ức ban đầu đã được khôi phục, hãy thử lại.",
       "amendRestoreFailed": "Chỉnh sửa thất bại và không thể khôi phục ký ức ban đầu."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Mở Agent con" },
+    "activityTitle": "Hoạt động của Agent",
+    "proactive": {
+      "title": "Cộng tác chủ động",
+      "description": "Cho phép Agent chính ủy quyền khi công việc độc lập hoặc song song mang lại lợi ích rõ ràng. Có thể dùng thêm thời gian, token và tài nguyên.",
+      "reasons": {
+        "session_unavailable": "Phiên này không còn khả dụng.",
+        "agent_unavailable": "Agent đã chọn không khả dụng.",
+        "deepchat_agent_required": "Cộng tác chủ động yêu cầu một DeepChat Agent.",
+        "regular_parent_required": "Cộng tác chủ động không khả dụng trong phiên con.",
+        "agent_policy_unavailable": "Không thể tải chính sách cộng tác.",
+        "subagents_disabled": "Hãy bật Subagents cho Agent này để dùng cộng tác chủ động."
+      }
+    }
   }
 }

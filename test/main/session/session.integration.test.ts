@@ -49,6 +49,25 @@ function expectSessionsUpdated(payload: Record<string, unknown>) {
   )
 }
 
+function createParentSessionRow(id = 'parent-1') {
+  return {
+    id,
+    agent_id: 'deepchat',
+    title: 'Parent',
+    project_dir: '/tmp/workspace',
+    is_pinned: 0,
+    is_draft: 0,
+    subagent_enabled: 1,
+    session_kind: 'regular',
+    parent_session_id: null,
+    subagent_meta_json: null,
+    orchestration_policy: 'explicit',
+    created_at: 900,
+    updated_at: 900,
+    revision: 0
+  }
+}
+
 function createMockDeepChatAgent() {
   const agent = {
     initSession: vi.fn().mockResolvedValue(undefined),
@@ -1201,12 +1220,12 @@ describe('Session application coordinators', () => {
     expect(harness.resolveExecutableDescriptor).not.toHaveBeenCalled()
     expect(harness.resolveInput).not.toHaveBeenCalled()
     expect(harness.directRuntimeCleanup.mock.calls).toEqual([
-      ['malformed-child'],
-      ['parent-session']
+      ['parent-session'],
+      ['malformed-child']
     ])
     expect(harness.deleteDurableSession.mock.calls).toEqual([
-      ['malformed-child'],
-      ['parent-session']
+      ['parent-session'],
+      ['malformed-child']
     ])
     expect(harness.deepchatImplementation.destroySession.mock.calls).toEqual([
       ['malformed-child'],
@@ -2084,6 +2103,7 @@ describe('Session application coordinators', () => {
         {
           isDraft: false,
           disabledAgentTools: [],
+          orchestrationPolicy: 'explicit',
           sessionKind: undefined,
           parentSessionId: undefined,
           subagentMetaJson: null
@@ -2659,7 +2679,7 @@ describe('Session application coordinators', () => {
         return null
       })
 
-      const sessionRows = new Map<string, any>()
+      const sessionRows = new Map<string, any>([['parent-1', createParentSessionRow()]])
       sqlitePresenter.newSessionsTable.create.mockImplementation(
         (id: string, agentId: string, title: string, projectDir: string | null, options: any) => {
           sessionRows.set(id, {
@@ -2750,7 +2770,7 @@ describe('Session application coordinators', () => {
       const nanoidMock = nanoid as unknown as ReturnType<typeof vi.fn>
       nanoidMock.mockReturnValueOnce('child-session-1').mockReturnValueOnce('child-session-2')
 
-      const sessionRows = new Map<string, any>()
+      const sessionRows = new Map<string, any>([['parent-1', createParentSessionRow()]])
       sqlitePresenter.newSessionsTable.create.mockImplementation(
         (id: string, agentId: string, title: string, projectDir: string | null, options: any) => {
           sessionRows.set(id, {
@@ -2822,7 +2842,7 @@ describe('Session application coordinators', () => {
       const nanoidMock = nanoid as unknown as ReturnType<typeof vi.fn>
       nanoidMock.mockReturnValueOnce('child-session-1').mockReturnValueOnce('child-session-2')
 
-      const sessionRows = new Map<string, any>()
+      const sessionRows = new Map<string, any>([['parent-1', createParentSessionRow()]])
       sqlitePresenter.newSessionsTable.create.mockImplementation(
         (id: string, agentId: string, title: string, projectDir: string | null, options: any) => {
           sessionRows.set(id, {
@@ -2877,7 +2897,7 @@ describe('Session application coordinators', () => {
       expect(deepChatAgent.destroySession).toHaveBeenCalledTimes(1)
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('child-session-1')
       expect(session.id).toBe('child-session-2')
-      expect(sessionSnapshots).toEqual([['child-session-2']])
+      expect(sessionSnapshots).toEqual([['child-session-2', 'parent-1']])
     })
   })
 

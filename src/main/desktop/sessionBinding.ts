@@ -27,6 +27,12 @@ export class DesktopSessionBinding {
     return this.bindings.get(webContentsId) ?? null
   }
 
+  getWebContentsIdsForSession(sessionId: string): number[] {
+    return Array.from(this.bindings.entries()).flatMap(([webContentsId, boundSessionId]) =>
+      boundSessionId === sessionId ? [webContentsId] : []
+    )
+  }
+
   async activate(webContentsId: number, sessionId: string): Promise<void> {
     this.bind(webContentsId, sessionId)
     this.projection.notify({

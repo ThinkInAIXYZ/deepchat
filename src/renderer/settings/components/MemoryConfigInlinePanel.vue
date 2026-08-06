@@ -18,7 +18,7 @@
           <Spinner class="size-3.5" />
           {{ t('common.saving') }}
         </span>
-        <Button
+        <DcButton
           variant="ghost"
           size="icon"
           class="h-8 w-8"
@@ -26,9 +26,10 @@
           :aria-label="t('common.close')"
           data-testid="settings-memory-config-close"
           @click="requestClose"
+          :tooltip="t('common.close')"
         >
           <Icon icon="lucide:x" class="h-4 w-4" />
-        </Button>
+        </DcButton>
       </div>
     </header>
 
@@ -76,7 +77,7 @@
               </div>
               <Popover v-model:open="embeddingOpen">
                 <PopoverTrigger as-child>
-                  <Button
+                  <DcButton
                     variant="outline"
                     size="sm"
                     class="h-8 w-full justify-between gap-2 text-xs"
@@ -98,14 +99,14 @@
                       icon="lucide:chevron-down"
                       class="h-3 w-3 shrink-0 text-muted-foreground"
                     />
-                  </Button>
+                  </DcButton>
                 </PopoverTrigger>
                 <PopoverContent class="w-[320px] p-0" align="start">
                   <div class="flex items-center justify-between border-b px-3 py-2">
                     <div class="text-sm font-medium">
                       {{ t('settings.deepchatAgents.memoryEmbeddingModel') }}
                     </div>
-                    <Button
+                    <DcButton
                       v-if="form.memoryEmbedding"
                       variant="ghost"
                       size="sm"
@@ -113,7 +114,7 @@
                       @click="submitModel('memoryEmbedding', null)"
                     >
                       {{ t('common.clear') }}
-                    </Button>
+                    </DcButton>
                   </div>
                   <ModelSelect
                     :exclude-providers="['acp']"
@@ -155,7 +156,7 @@
                   </div>
                   <Popover v-model:open="extractionOpen">
                     <PopoverTrigger as-child>
-                      <Button
+                      <DcButton
                         variant="outline"
                         size="sm"
                         class="h-8 w-full justify-between gap-2 text-xs"
@@ -177,14 +178,14 @@
                           icon="lucide:chevron-down"
                           class="h-3 w-3 shrink-0 text-muted-foreground"
                         />
-                      </Button>
+                      </DcButton>
                     </PopoverTrigger>
                     <PopoverContent class="w-[320px] p-0" align="start">
                       <div class="flex items-center justify-between border-b px-3 py-2">
                         <div class="text-sm font-medium">
                           {{ t('settings.memory.config.extractionModel') }}
                         </div>
-                        <Button
+                        <DcButton
                           v-if="form.memoryExtractionModel"
                           variant="ghost"
                           size="sm"
@@ -192,7 +193,7 @@
                           @click="submitModel('memoryExtractionModel', null)"
                         >
                           {{ t('common.clear') }}
-                        </Button>
+                        </DcButton>
                       </div>
                       <ModelSelect
                         :exclude-providers="['acp']"
@@ -226,69 +227,61 @@
                   </span>
                 </label>
 
-                <section class="space-y-3 rounded-lg border border-border p-3">
-                  <div class="flex items-center justify-between gap-3">
-                    <div>
-                      <div class="text-sm font-semibold">
-                        {{ t('settings.memory.config.retrievalTitle') }}
-                      </div>
-                      <p class="mt-1 text-xs text-muted-foreground">
-                        {{ t('settings.memory.config.retrievalHint') }}
-                      </p>
-                    </div>
+                <DcSectionCard
+                  :title="t('settings.memory.config.retrievalTitle')"
+                  :description="t('settings.memory.config.retrievalHint')"
+                >
+                  <template #actions>
                     <Switch
                       :model-value="form.overrideRetrieval"
                       :aria-label="t('settings.memory.config.retrievalOverride')"
                       @update:model-value="submitRetrievalOverride"
                     />
+                  </template>
+                  <div class="space-y-3">
+                    <p class="text-[11px] text-muted-foreground">
+                      {{ t('settings.memory.redesign.relativeWeightsHint') }}
+                    </p>
+                    <div
+                      class="grid gap-3 sm:grid-cols-2"
+                      :class="form.overrideRetrieval ? '' : 'pointer-events-none opacity-50'"
+                    >
+                      <label v-for="field in retrievalFields" :key="field.key" class="space-y-1">
+                        <span class="text-[11px] font-medium text-muted-foreground">
+                          {{ t(field.labelKey) }}
+                        </span>
+                        <Input
+                          v-model="form.retrieval[field.key]"
+                          :disabled="!form.overrideRetrieval"
+                          :inputmode="field.decimal ? 'decimal' : 'numeric'"
+                          class="h-8 text-xs"
+                          :placeholder="String(field.placeholder)"
+                          @blur="submitRetrieval"
+                          @keydown.enter.prevent="submitRetrieval"
+                        />
+                      </label>
+                    </div>
                   </div>
-                  <p class="text-[11px] text-muted-foreground">
-                    {{ t('settings.memory.redesign.relativeWeightsHint') }}
-                  </p>
-                  <div
-                    class="grid gap-3 sm:grid-cols-2"
-                    :class="form.overrideRetrieval ? '' : 'pointer-events-none opacity-50'"
-                  >
-                    <label v-for="field in retrievalFields" :key="field.key" class="space-y-1">
-                      <span class="text-[11px] font-medium text-muted-foreground">
-                        {{ t(field.labelKey) }}
-                      </span>
-                      <Input
-                        v-model="form.retrieval[field.key]"
-                        :disabled="!form.overrideRetrieval"
-                        :inputmode="field.decimal ? 'decimal' : 'numeric'"
-                        class="h-8 text-xs"
-                        :placeholder="String(field.placeholder)"
-                        @blur="submitRetrieval"
-                        @keydown.enter.prevent="submitRetrieval"
-                      />
-                    </label>
-                  </div>
-                </section>
+                </DcSectionCard>
               </CollapsibleContent>
             </Collapsible>
           </section>
 
-          <section class="space-y-2 rounded-lg border border-border p-4">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <div class="text-sm font-semibold">
-                  {{ t('settings.deepchatAgents.personaEvolutionTitle') }}
-                </div>
-                <p class="mt-1 text-xs text-muted-foreground">
-                  {{ t('settings.deepchatAgents.personaEvolutionDescription') }}
-                </p>
-              </div>
+          <DcSectionCard
+            :title="t('settings.deepchatAgents.personaEvolutionTitle')"
+            :description="t('settings.deepchatAgents.personaEvolutionDescription')"
+          >
+            <template #actions>
               <Switch
                 :model-value="form.personaEvolutionEnabled"
                 :aria-label="t('settings.deepchatAgents.personaEvolutionTitle')"
                 @update:model-value="submitBoolean('personaEvolutionEnabled', $event)"
               />
-            </div>
+            </template>
             <p class="rounded-lg bg-muted px-2.5 py-1.5 text-[11px] text-muted-foreground">
               {{ t('settings.deepchatAgents.personaEvolutionWarning') }}
             </p>
-          </section>
+          </DcSectionCard>
         </template>
       </div>
     </div>
@@ -299,7 +292,8 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcSectionCard } from '@dc-ui/components/section-card'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Collapsible,
   CollapsibleContent,

@@ -60,7 +60,12 @@ import {
   type SettingsActivityInput
 } from '@shared/contracts/routes'
 import { DEV_EVENTS } from '../events'
-import { createRouteMap, type DeepchatRouteMap, type RouteContext } from '@/routes/routeRegistry'
+import {
+  createRouteMap,
+  requireRendererCaller,
+  type DeepchatRouteMap,
+  type RouteContext
+} from '@/routes/routeRegistry'
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 
 export function createDesktopRoutes(deps: {
@@ -84,14 +89,15 @@ export function createDesktopRoutes(deps: {
     dialogService
   } = deps
   const readWindowState = (context: RouteContext) => {
-    const window = context.windowId == null ? null : BrowserWindow.fromId(context.windowId)
+    const caller = requireRendererCaller(context)
+    const window = caller.windowId == null ? null : BrowserWindow.fromId(caller.windowId)
     const exists = Boolean(window && !window.isDestroyed())
     return {
-      windowId: context.windowId,
+      windowId: caller.windowId,
       exists,
       isMaximized: exists ? window!.isMaximized() : false,
       isFullScreen: exists ? window!.isFullScreen() : false,
-      isFocused: exists ? windowPresenter.isMainWindowFocused(context.windowId!) : false
+      isFocused: exists ? windowPresenter.isMainWindowFocused(caller.windowId!) : false
     }
   }
   const readBrowserStatus = async (sessionId: string) =>
@@ -233,9 +239,10 @@ export function createDesktopRoutes(deps: {
       windowGetRuntimeIdentityRoute.name,
       async (rawInput, context) => {
         windowGetRuntimeIdentityRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         return windowGetRuntimeIdentityRoute.output.parse({
-          windowId: context.windowId,
-          webContentsId: context.webContentsId
+          windowId: caller.windowId,
+          webContentsId: caller.webContentsId
         })
       }
     ],
@@ -243,7 +250,8 @@ export function createDesktopRoutes(deps: {
       windowMinimizeCurrentRoute.name,
       async (rawInput, context) => {
         windowMinimizeCurrentRoute.input.parse(rawInput)
-        if (context.windowId != null) windowPresenter.minimize(context.windowId)
+        const caller = requireRendererCaller(context)
+        if (caller.windowId != null) windowPresenter.minimize(caller.windowId)
         return windowMinimizeCurrentRoute.output.parse({ state: readWindowState(context) })
       }
     ],
@@ -251,7 +259,8 @@ export function createDesktopRoutes(deps: {
       windowToggleMaximizeCurrentRoute.name,
       async (rawInput, context) => {
         windowToggleMaximizeCurrentRoute.input.parse(rawInput)
-        if (context.windowId != null) windowPresenter.maximize(context.windowId)
+        const caller = requireRendererCaller(context)
+        if (caller.windowId != null) windowPresenter.maximize(caller.windowId)
         return windowToggleMaximizeCurrentRoute.output.parse({ state: readWindowState(context) })
       }
     ],
@@ -259,8 +268,9 @@ export function createDesktopRoutes(deps: {
       windowCloseCurrentRoute.name,
       async (rawInput, context) => {
         windowCloseCurrentRoute.input.parse(rawInput)
-        if (context.windowId == null) return windowCloseCurrentRoute.output.parse({ closed: false })
-        windowPresenter.close(context.windowId)
+        const caller = requireRendererCaller(context)
+        if (caller.windowId == null) return windowCloseCurrentRoute.output.parse({ closed: false })
+        windowPresenter.close(caller.windowId)
         return windowCloseCurrentRoute.output.parse({ closed: true })
       }
     ],
@@ -268,8 +278,9 @@ export function createDesktopRoutes(deps: {
       windowCloseFloatingCurrentRoute.name,
       async (rawInput, context) => {
         windowCloseFloatingCurrentRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         const window = windowPresenter.getFloatingChatWindow()?.getWindow() ?? null
-        if (!window || window.isDestroyed() || window.webContents.id !== context.webContentsId) {
+        if (!window || window.isDestroyed() || window.webContents.id !== caller.webContentsId) {
           return windowCloseFloatingCurrentRoute.output.parse({ closed: false })
         }
         windowPresenter.hide(window.id)
@@ -304,7 +315,8 @@ export function createDesktopRoutes(deps: {
       windowNotifySettingsReadyRoute.name,
       async (rawInput, context) => {
         windowNotifySettingsReadyRoute.input.parse(rawInput)
-        windowPresenter.notifySettingsReady(context.webContentsId)
+        const caller = requireRendererCaller(context)
+        windowPresenter.notifySettingsReady(caller.webContentsId)
         return windowNotifySettingsReadyRoute.output.parse({ notified: true })
       }
     ],
@@ -352,6 +364,7 @@ export function createDesktopRoutes(deps: {
       browserLoadUrlRoute.name,
       async (rawInput, context) => {
         const input = browserLoadUrlRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         const browser = browserPresenter as IYoBrowserPresenter & {
           loadUrl(
             sessionId: string,
@@ -365,7 +378,7 @@ export function createDesktopRoutes(deps: {
             input.sessionId,
             input.url,
             input.timeoutMs,
-            context.windowId ?? undefined
+            caller.windowId ?? undefined
           )
         })
       }
@@ -374,11 +387,12 @@ export function createDesktopRoutes(deps: {
       browserAttachCurrentWindowRoute.name,
       async (rawInput, context) => {
         const input = browserAttachCurrentWindowRoute.input.parse(rawInput)
-        if (context.windowId == null) {
+        const caller = requireRendererCaller(context)
+        if (caller.windowId == null) {
           return browserAttachCurrentWindowRoute.output.parse({ attached: false })
         }
         return browserAttachCurrentWindowRoute.output.parse({
-          attached: await browserPresenter.attachSessionBrowser(input.sessionId, context.windowId)
+          attached: await browserPresenter.attachSessionBrowser(input.sessionId, caller.windowId)
         })
       }
     ],
@@ -386,12 +400,13 @@ export function createDesktopRoutes(deps: {
       browserUpdateCurrentWindowBoundsRoute.name,
       async (rawInput, context) => {
         const input = browserUpdateCurrentWindowBoundsRoute.input.parse(rawInput)
-        if (context.windowId == null) {
+        const caller = requireRendererCaller(context)
+        if (caller.windowId == null) {
           return browserUpdateCurrentWindowBoundsRoute.output.parse({ updated: false })
         }
         await browserPresenter.updateSessionBrowserBounds(
           input.sessionId,
-          context.windowId,
+          caller.windowId,
           input.bounds,
           input.visible
         )
@@ -410,11 +425,12 @@ export function createDesktopRoutes(deps: {
       browserSetPreviewModeRoute.name,
       async (rawInput, context) => {
         const input = browserSetPreviewModeRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         return browserSetPreviewModeRoute.output.parse(
           await browserPresenter.setPreviewMode(
             input.sessionId,
             input.mode,
-            context.windowId ?? undefined,
+            caller.windowId ?? undefined,
             input.runId
           )
         )
@@ -433,10 +449,11 @@ export function createDesktopRoutes(deps: {
       computerUseSetPreviewModeRoute.name,
       async (rawInput, context) => {
         const input = computerUseSetPreviewModeRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         if (
-          context.windowId == null ||
+          caller.windowId == null ||
           (input.mode !== 'stopped' &&
-            deps.desktopSessionBinding.getActiveId(context.webContentsId) !== input.sessionId)
+            deps.desktopSessionBinding.getActiveId(caller.webContentsId) !== input.sessionId)
         ) {
           return computerUseSetPreviewModeRoute.output.parse({
             updated: false,
@@ -447,7 +464,7 @@ export function createDesktopRoutes(deps: {
           await computerUsePreviewPresenter.setPreviewMode(
             input.sessionId,
             input.mode,
-            context.windowId
+            caller.windowId
           )
         )
       }
@@ -456,8 +473,9 @@ export function createDesktopRoutes(deps: {
       computerUseDismissPreviewRoute.name,
       async (rawInput, context) => {
         const input = computerUseDismissPreviewRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         const active =
-          deps.desktopSessionBinding.getActiveId(context.webContentsId) === input.sessionId
+          deps.desktopSessionBinding.getActiveId(caller.webContentsId) === input.sessionId
         return computerUseDismissPreviewRoute.output.parse({
           dismissed:
             active && computerUsePreviewPresenter.dismissPreview(input.sessionId, input.runId)
@@ -535,8 +553,9 @@ export function createDesktopRoutes(deps: {
       tabCaptureCurrentAreaRoute.name,
       async (rawInput, context) => {
         const input = tabCaptureCurrentAreaRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
         return tabCaptureCurrentAreaRoute.output.parse({
-          imageData: await tabPresenter.captureTabArea(context.webContentsId, input.rect)
+          imageData: await tabPresenter.captureTabArea(caller.webContentsId, input.rect)
         })
       }
     ],

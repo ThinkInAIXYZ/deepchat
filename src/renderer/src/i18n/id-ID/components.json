@@ -37,6 +37,7 @@
       "read": "Izinkan '{toolName}' dari '{serverName}' melakukan operasi baca?",
       "write": "Izinkan '{toolName}' dari '{serverName}' menulis?",
       "all": "Izinkan '{toolName}' dari '{serverName}' melakukan operasi baca dan tulis?",
+      "subagentStart": "Mulai tugas Subagent ini? Tindakan ini dapat menggunakan token, waktu, dan sumber daya sistem tambahan.",
       "command": "Perintah eksekusi: {command}",
       "commandWithRisk": "Perintah eksekusi: {command}\n\nTingkat risiko: {riskLevel}\n\nSaran: {suggestion}"
     },

@@ -559,5 +559,21 @@
       "amendRetryable": "Ændringen mislykkedes. Den oprindelige hukommelse er gendannet, så prøv igen.",
       "amendRestoreFailed": "Ændringen mislykkedes, og den oprindelige hukommelse kunne ikke gendannes."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Åbn underagent" },
+    "activityTitle": "Agentaktivitet",
+    "proactive": {
+      "title": "Proaktivt samarbejde",
+      "description": "Lader den overordnede Agent uddelegere, når uafhængigt eller parallelt arbejde tydeligt hjælper. Kan bruge mere tid, flere tokens og flere ressourcer.",
+      "reasons": {
+        "session_unavailable": "Denne samtale er ikke længere tilgængelig.",
+        "agent_unavailable": "Den valgte Agent er ikke tilgængelig.",
+        "deepchat_agent_required": "Proaktivt samarbejde kræver en DeepChat Agent.",
+        "regular_parent_required": "Proaktivt samarbejde er ikke tilgængeligt i en undersamtale.",
+        "agent_policy_unavailable": "Samarbejdspolitikken kunne ikke indlæses.",
+        "subagents_disabled": "Aktivér Subagents for denne Agent for at bruge proaktivt samarbejde."
+      }
+    }
   }
 }

@@ -147,6 +147,22 @@ export const settingsUpdateRoute = defineRouteContract({
   })
 })
 
+export const settingsGetPublicRoute = defineRouteContract({
+  name: 'settings.getPublic',
+  input: settingsGetSnapshotRoute.input,
+  output: settingsGetSnapshotRoute.output
+})
+
+export const settingsUpdatePublicRoute = defineRouteContract({
+  name: 'settings.updatePublic',
+  input: z
+    .object({
+      changes: z.array(SettingsChangeSchema).length(1)
+    })
+    .strict(),
+  output: settingsUpdateRoute.output
+})
+
 export const SettingsActivityCategorySchema = z.enum([
   'provider',
   'model',

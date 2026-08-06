@@ -559,5 +559,21 @@
       "amendRetryable": "La modifica non è riuscita. La memoria originale è stata ripristinata; riprova.",
       "amendRestoreFailed": "La modifica non è riuscita e non è stato possibile ripristinare la memoria originale."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Apri Agent secondario" },
+    "activityTitle": "Attività Agent",
+    "proactive": {
+      "title": "Collaborazione proattiva",
+      "description": "Consente all’Agent principale di delegare quando il lavoro indipendente o parallelo offre un vantaggio chiaro. Può usare più tempo, token e risorse.",
+      "reasons": {
+        "session_unavailable": "Questa sessione non è più disponibile.",
+        "agent_unavailable": "L’Agent selezionato non è disponibile.",
+        "deepchat_agent_required": "La collaborazione proattiva richiede un DeepChat Agent.",
+        "regular_parent_required": "La collaborazione proattiva non è disponibile in una sessione figlia.",
+        "agent_policy_unavailable": "Impossibile caricare il criterio di collaborazione.",
+        "subagents_disabled": "Abilita i Subagents per questo Agent per usare la collaborazione proattiva."
+      }
+    }
   }
 }

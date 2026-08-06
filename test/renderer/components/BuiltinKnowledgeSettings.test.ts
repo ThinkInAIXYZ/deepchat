@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive, ref } from 'vue'
+import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+
+const notifyRenderer = vi.hoisted(() => vi.fn())
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -68,31 +70,6 @@ async function setup(options: { setRejects?: boolean } = {}) {
     toggleServer: vi.fn().mockResolvedValue(true),
     updateServer: vi.fn().mockResolvedValue(true)
   })
-  const feedbackSnapshot = ref<any>({ status: 'idle', version: 0 })
-  const feedbackController = {
-    begin: vi.fn((operationId: string, label: string) => {
-      feedbackSnapshot.value = { status: 'pending', operationId, label, version: 1 }
-    }),
-    succeed: vi.fn((result) => {
-      feedbackSnapshot.value = {
-        status: 'success',
-        operationId: 'builtin-knowledge-operation',
-        ...result,
-        version: 2
-      }
-    }),
-    fail: vi.fn((result) => {
-      feedbackSnapshot.value = {
-        status: 'error',
-        operationId: 'builtin-knowledge-operation',
-        ...result,
-        version: 2
-      }
-    }),
-    clearSettled: vi.fn(() => {
-      feedbackSnapshot.value = { status: 'idle', version: 3 }
-    })
-  }
   const providerClient = {
     getEmbeddingDimensions: vi.fn().mockResolvedValue({
       data: {
@@ -137,14 +114,8 @@ async function setup(options: { setRejects?: boolean } = {}) {
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => ({})
   }))
-  vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
-    createRendererSurfaceFeedbackController: () => feedbackController
-  }))
-  vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
-    useSurfaceFeedback: () => ({
-      snapshot: feedbackSnapshot,
-      setActive: vi.fn()
-    })
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
   }))
   vi.doMock('../../../src/renderer/settings/services/settingsLeaveGuard', () => ({
     settingsLeaveGuard: {
@@ -174,14 +145,13 @@ async function setup(options: { setRejects?: boolean } = {}) {
       },
       stubs: {
         Icon: true,
-        Button: buttonStub,
+        DcButton: buttonStub,
         Switch: true,
         Input: true,
         Label: true,
         Slider: true,
         ModelSelect: true,
         ModelIcon: true,
-        InlineOperationFeedback: true,
         ScrollArea: passthrough('ScrollArea'),
         Collapsible: passthrough('Collapsible'),
         CollapsibleContent: passthrough('CollapsibleContent'),
@@ -224,7 +194,7 @@ async function setup(options: { setRejects?: boolean } = {}) {
     providerClient,
     knowledgeClient,
     mcpStore,
-    feedbackController
+    notifyRenderer
   }
 }
 
@@ -243,7 +213,7 @@ describe('BuiltinKnowledgeSettings', () => {
   })
 
   it('keeps built-in config removal pending and retries failures in its confirmation', async () => {
-    const { wrapper, configClient, feedbackController } = await setup()
+    const { wrapper, configClient, notifyRenderer } = await setup()
     const pending = deferred<unknown[]>()
     configClient.setKnowledgeConfigs.mockReturnValueOnce(pending.promise)
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -265,10 +235,13 @@ describe('BuiltinKnowledgeSettings', () => {
 
     expect(wrapper.find('[data-testid="builtin-knowledge-remove-confirm"]').exists()).toBe(true)
     expect((wrapper.vm as any).builtinConfigs).toHaveLength(1)
-    expect(feedbackController.fail).toHaveBeenCalledWith({
-      code: 'settings.knowledgeBase.builtin.remove.failed',
-      title: 'common.error.operationFailed'
-    })
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.knowledgeBase.builtin.remove.failed',
+        title: 'common.error.operationFailed'
+      })
+    )
 
     ;(wrapper.vm as any).knowledgeOperation.retry()
     await flushPromises()
@@ -297,7 +270,7 @@ describe('BuiltinKnowledgeSettings', () => {
   })
 
   it('does not update local configs or close dialog when ConfigClient save fails', async () => {
-    const { wrapper, configClient, mcpStore, feedbackController } = await setup({
+    const { wrapper, configClient, mcpStore, notifyRenderer } = await setup({
       setRejects: true
     })
     const vm = wrapper.vm as any
@@ -318,10 +291,13 @@ describe('BuiltinKnowledgeSettings', () => {
     expect(vm.builtinConfigs).toEqual([])
     expect(vm.isBuiltinConfigDialogOpen).toBe(true)
     expect(mcpStore.updateServer).not.toHaveBeenCalled()
-    expect(feedbackController.fail).toHaveBeenCalledWith({
-      code: 'settings.knowledgeBase.builtin.save.failed',
+    // 失败走按钮 ⚠ + 内联错误，不弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(vm.knowledgeOperation.lastError.value).toEqual({
       title: 'common.error.operationFailed'
     })
+    expect(vm.operationError).toBe('common.error.operationFailed')
+    expect(wrapper.text()).toContain('common.error.operationFailed')
     consoleError.mockRestore()
     wrapper.unmount()
   })
@@ -355,7 +331,7 @@ describe('BuiltinKnowledgeSettings', () => {
   })
 
   it('keeps the draft open with a specific error when dimension detection fails', async () => {
-    const { wrapper, configClient, providerClient, feedbackController } = await setup()
+    const { wrapper, configClient, providerClient, notifyRenderer } = await setup()
     const vm = wrapper.vm as any
     providerClient.getEmbeddingDimensions.mockResolvedValueOnce({
       data: null,
@@ -375,10 +351,13 @@ describe('BuiltinKnowledgeSettings', () => {
 
     expect(configClient.setKnowledgeConfigs).not.toHaveBeenCalled()
     expect(vm.isBuiltinConfigDialogOpen).toBe(true)
-    expect(feedbackController.fail).toHaveBeenCalledWith({
-      code: 'settings.knowledgeBase.builtin.save.failed',
+    // 失败走按钮 ⚠ + 内联错误（维度探测的具体错误文案），不弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(vm.knowledgeOperation.lastError.value).toEqual({
       title: 'settings.knowledgeBase.autoDetectDimensionsError'
     })
+    expect(vm.operationError).toBe('settings.knowledgeBase.autoDetectDimensionsError')
+    expect(wrapper.text()).toContain('settings.knowledgeBase.autoDetectDimensionsError')
     wrapper.unmount()
   })
 

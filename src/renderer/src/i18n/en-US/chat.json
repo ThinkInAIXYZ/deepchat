@@ -559,5 +559,21 @@
       "amendRetryable": "The edit failed. The original memory was restored, so you can retry.",
       "amendRestoreFailed": "The edit failed, and the original memory could not be restored."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Open child" },
+    "activityTitle": "Agent activity",
+    "proactive": {
+      "title": "Proactive collaboration",
+      "description": "Allows the parent Agent to delegate when independent or parallel work would clearly help. May use more time, tokens, and resources.",
+      "reasons": {
+        "session_unavailable": "This session is no longer available.",
+        "agent_unavailable": "The selected Agent is unavailable.",
+        "deepchat_agent_required": "Proactive collaboration requires a DeepChat Agent.",
+        "regular_parent_required": "Proactive collaboration is unavailable inside a child session.",
+        "agent_policy_unavailable": "The collaboration policy could not be loaded.",
+        "subagents_disabled": "Enable Subagents for this Agent to use proactive collaboration."
+      }
+    }
   }
 }

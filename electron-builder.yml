@@ -13,6 +13,7 @@ files:
   - '!docs/*'
   - '!plugins/**'
   - '!out/main/lightOcrHelper.js'
+  - '!out/cli/**'
   - '!keys/*'
   - '!scripts/*'
   - '!.github/*'
@@ -42,6 +43,9 @@ asarUnpack:
   - '**/node_modules/@arcships/light-ocr*/**/*'
   - '**/node_modules/@zerob13/nativekit/prebuilds/**/*'
 extraResources:
+  - from: ./out/cli/
+    to: app.asar.unpacked/cli
+    filter: ['deepchat', 'deepchat.cmd', 'deepchat.mjs']
   - from: ./runtime/
     to: app.asar.unpacked/runtime
     filter: ['**/*']

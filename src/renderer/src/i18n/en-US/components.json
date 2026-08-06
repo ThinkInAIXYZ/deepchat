@@ -37,6 +37,7 @@
       "read": "Allow '{toolName}' from '{serverName}' to perform read operations?",
       "write": "Allow '{toolName}' from '{serverName}' to perform write operations?",
       "all": "Allow '{toolName}' from '{serverName}' to perform read and write operations?",
+      "subagentStart": "Start this Subagent task? This may use additional tokens, time, and system resources.",
       "command": "Execute command: {command}",
       "commandWithRisk": "Execute command: {command}\n\nRisk level: {riskLevel}\n\nSuggestion: {suggestion}"
     },

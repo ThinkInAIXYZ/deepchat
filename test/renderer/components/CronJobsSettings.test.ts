@@ -295,7 +295,7 @@ async function setup(options: SetupOptions = {}) {
       stubs: {
         SettingsPageShell: settingsPageShellStub,
         Badge: passthrough('Badge'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Dialog: dialogStub,
         DialogContent: passthrough('DialogContent'),
         DialogDescription: passthrough('DialogDescription'),
@@ -352,13 +352,12 @@ describe('CronJobsSettings', () => {
 
     expect(cronClient.list).toHaveBeenCalledTimes(2)
     expect((wrapper.get('input').element as HTMLInputElement).value).toBe('Morning report')
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
     consoleError.mockRestore()
   })
 
   it('keeps a failed draft and lets the leave guard restore the persisted job', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const { wrapper, settingsLeaveGuard } = await setup({
+    const { wrapper, settingsLeaveGuard, notifyRenderer } = await setup({
       upsert: async () => {
         throw new Error('/private/scheduler-token')
       }
@@ -371,7 +370,13 @@ describe('CronJobsSettings', () => {
 
     expect((nameInput.element as HTMLInputElement).value).toBe('Unsaved report')
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
-    expect(wrapper.text()).toContain('Operation failed')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.cronJobs.saveFailed',
+        title: 'Operation failed'
+      })
+    )
     expect(wrapper.text()).not.toContain('/private/scheduler-token')
     expect(wrapper.get('[data-testid="cron-jobs-add"]').attributes('disabled')).toBeDefined()
 
@@ -417,7 +422,7 @@ describe('CronJobsSettings', () => {
 
   it('keeps delete confirmation open when deletion fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const { wrapper } = await setup({
+    const { wrapper, notifyRenderer } = await setup({
       remove: async () => {
         throw new Error('database unavailable')
       }
@@ -435,7 +440,13 @@ describe('CronJobsSettings', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="cron-delete-dialog"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Operation failed')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.cronJobs.deleteFailed',
+        title: 'Operation failed'
+      })
+    )
     expect(wrapper.get('button[aria-label="Delete"]').exists()).toBe(true)
     consoleError.mockRestore()
   })
@@ -477,7 +488,6 @@ describe('CronJobsSettings', () => {
       title: 'Task finished',
       description: 'Morning report'
     })
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
   })
 
   it('reports scheduler restart failures as transient feedback', async () => {

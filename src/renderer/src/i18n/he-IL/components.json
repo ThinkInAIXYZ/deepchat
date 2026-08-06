@@ -32,6 +32,7 @@
       "read": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות קריאה?",
       "write": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות כתיבה?",
       "all": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות קריאה וכתיבה?",
+      "subagentStart": "להפעיל את משימת סוכן המשנה הזו? היא עשויה לצרוך אסימונים, זמן ומשאבי מערכת נוספים.",
       "command": "{command}: הפעל פקודה",
       "commandWithRisk": "ביצוע פקודה: {command}\nרמת סיכון: {riskLevel}\nהמלצה: {suggestion}"
     },

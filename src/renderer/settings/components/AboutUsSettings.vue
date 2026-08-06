@@ -70,11 +70,6 @@
           </Select>
         </div>
       </div>
-      <InlineOperationFeedback
-        :snapshot="updateChannelFeedback"
-        :retry-label="updateChannelReady ? undefined : t('common.retry')"
-        @retry="loadUpdateChannel"
-      />
 
       <div
         v-if="upgrade.shouldShowUpdateNotes"
@@ -106,7 +101,7 @@
       </div>
 
       <div class="mt-2 flex flex-wrap justify-center gap-2">
-        <Button
+        <DcButton
           variant="outline"
           size="sm"
           class="mb-2 text-xs"
@@ -114,14 +109,14 @@
         >
           <Icon icon="lucide:message-square" class="mr-1 h-3 w-3" />
           {{ t('about.feedbackButton') }}
-        </Button>
+        </DcButton>
 
-        <Button variant="outline" size="sm" class="mb-2 text-xs" @click="openDisclaimerDialog">
+        <DcButton variant="outline" size="sm" class="mb-2 text-xs" @click="openDisclaimerDialog">
           <Icon icon="lucide:info" class="mr-1 h-3 w-3" />
           {{ t('about.disclaimerButton') }}
-        </Button>
+        </DcButton>
 
-        <Button
+        <DcButton
           v-if="upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
@@ -129,9 +124,9 @@
           @click="handleManualDownload('github')"
         >
           {{ t('update.githubDownload') }}
-        </Button>
+        </DcButton>
 
-        <Button
+        <DcButton
           v-if="upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
@@ -139,9 +134,9 @@
           @click="handleManualDownload('official')"
         >
           {{ t('update.officialDownload') }}
-        </Button>
+        </DcButton>
 
-        <Button
+        <DcButton
           v-if="!upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
@@ -150,7 +145,7 @@
             upgrade.isChecking ||
             upgrade.isDownloading ||
             upgrade.isRestarting ||
-            updateCheckFeedback.status === 'pending'
+            updateCheckPending
           "
           @click="handlePrimaryAction"
         >
@@ -178,13 +173,8 @@
           <span v-else>
             {{ t('about.checkUpdateButton') }}
           </span>
-        </Button>
+        </DcButton>
       </div>
-      <InlineOperationFeedback
-        :snapshot="updateCheckFeedback"
-        :retry-label="t('common.retry')"
-        @retry="handlePrimaryAction"
-      />
     </div>
 
     <UpdateTaskCheckDialog
@@ -210,7 +200,7 @@
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button @click="isDisclaimerOpen = false">{{ t('common.close') }}</Button>
+        <DcButton @click="isDisclaimerOpen = false">{{ t('common.close') }}</DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -223,7 +213,7 @@ import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
 import {
   Dialog,
@@ -242,16 +232,13 @@ import {
 } from '@shadcn/components/ui/select'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import NodeRenderer from 'markstream-vue'
-import { nanoid } from 'nanoid'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useLanguageStore } from '@/stores/language'
 import type { AcceptableValue } from 'reka-ui'
 import { useThemeStore } from '@/stores/theme'
 import { useRoute } from 'vue-router'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import UpdateTaskCheckDialog from '@/components/ui/UpdateTaskCheckDialog.vue'
 
 const { t } = useI18n()
@@ -268,13 +255,8 @@ const updateChannel = ref('stable')
 const updateChannelReady = ref(false)
 const isDisclaimerOpen = ref(false)
 let cleanupCheckForUpdates: (() => void) | null = null
-const updateChannelFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: updateChannelFeedback } = useSurfaceFeedback(updateChannelFeedbackController)
-const updateChannelOperationId = `settings.about.updateChannel:${nanoid(8)}`
-const updateCheckFeedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: updateCheckFeedback } = useSurfaceFeedback(updateCheckFeedbackController)
-const updateCheckOperationId = `settings.about.checkUpdate:${nanoid(8)}`
-const updateChannelSaving = computed(() => updateChannelFeedback.value.status === 'pending')
+const updateChannelSaving = ref(false)
+const updateCheckPending = ref(false)
 
 const formattedUpdateVersion = computed(() => {
   const version = upgrade.updateInfo?.version ?? ''
@@ -295,41 +277,43 @@ const setUpdateChannel = async (channel: AcceptableValue) => {
     return
   }
 
-  updateChannelFeedbackController.begin(updateChannelOperationId, t('common.saving'))
+  updateChannelSaving.value = true
   try {
     updateChannel.value = await configClient.setUpdateChannel(channel)
-    updateChannelFeedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.about.updateChannelSaved',
       title: t('common.saved')
     })
   } catch (error) {
     console.error('[AboutUsSettings] Failed to update channel', error)
-    updateChannelFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.about.updateChannelSaveFailed',
       title: t('common.error.operationFailed')
     })
+  } finally {
+    updateChannelSaving.value = false
   }
 }
 
 const loadUpdateChannel = async () => {
   if (updateChannelSaving.value) return
 
-  updateChannelFeedbackController.begin(updateChannelOperationId, t('common.loading'))
+  updateChannelSaving.value = true
   try {
     updateChannel.value = await configClient.getUpdateChannel()
     updateChannelReady.value = true
-    updateChannelFeedbackController.succeed({
-      code: 'settings.about.updateChannelLoaded',
-      title: t('common.saved')
-    })
-    updateChannelFeedbackController.clearSettled()
   } catch (error) {
     updateChannelReady.value = false
     console.error('[AboutUsSettings] Failed to load update channel', error)
-    updateChannelFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.about.updateChannelLoadFailed',
       title: t('common.error.operationFailed')
     })
+  } finally {
+    updateChannelSaving.value = false
   }
 }
 
@@ -338,7 +322,7 @@ const handlePrimaryAction = async () => {
     upgrade.isChecking ||
     upgrade.isDownloading ||
     upgrade.isRestarting ||
-    updateCheckFeedback.value.status === 'pending'
+    updateCheckPending.value
   ) {
     return
   }
@@ -350,33 +334,32 @@ const handlePrimaryAction = async () => {
     return
   }
 
-  updateCheckFeedbackController.begin(updateCheckOperationId, t('settings.about.checking'))
+  updateCheckPending.value = true
   try {
     const status = await upgrade.checkUpdate(false)
     if (status === 'not-available') {
-      updateCheckFeedbackController.succeed({
+      notifyRenderer({
+        kind: 'success',
         code: 'settings.about.alreadyUpToDate',
         title: t('update.alreadyUpToDate'),
         description: t('update.alreadyUpToDateDesc')
       })
     } else if (status === 'error') {
-      updateCheckFeedbackController.fail({
+      notifyRenderer({
+        kind: 'error',
         code: 'settings.about.updateCheckFailed',
         title: t('common.error.operationFailed')
       })
-    } else {
-      updateCheckFeedbackController.succeed({
-        code: 'settings.about.updateAvailable',
-        title: t('update.versionAvailable', { version: formattedUpdateVersion.value })
-      })
-      updateCheckFeedbackController.clearSettled()
     }
   } catch (error) {
     console.error('[AboutUsSettings] Failed to check for updates', error)
-    updateCheckFeedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.about.updateCheckFailed',
       title: t('common.error.operationFailed')
     })
+  } finally {
+    updateCheckPending.value = false
   }
 }
 

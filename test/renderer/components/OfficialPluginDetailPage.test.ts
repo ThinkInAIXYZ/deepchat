@@ -11,6 +11,11 @@ const passthrough = (name: string) =>
     template: '<div><slot /></div>'
   })
 
+const dcSectionCardStub = defineComponent({
+  name: 'DcSectionCard',
+  template: '<section><slot name="actions" /><slot /></section>'
+})
+
 const buttonStub = defineComponent({
   name: 'Button',
   props: {
@@ -218,12 +223,13 @@ async function mountDetail(
     global: {
       plugins: [createPinia()],
       stubs: {
-        Button: buttonStub,
+        DcButton: buttonStub,
         ScrollArea: passthrough('ScrollArea'),
         RemoteSettings: remoteSettingsStub,
         Alert: passthrough('Alert'),
         AlertTitle: passthrough('AlertTitle'),
-        AlertDescription: passthrough('AlertDescription')
+        AlertDescription: passthrough('AlertDescription'),
+        DcSectionCard: dcSectionCardStub
       }
     }
   })

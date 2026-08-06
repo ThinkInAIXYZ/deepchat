@@ -19,6 +19,149 @@ import type {
 } from '@shared/types/agentSkillImport'
 import { EntityIdSchema, defineRouteContract } from '../common'
 
+export const PUBLIC_SKILL_LIST_MAX_ITEMS = 512
+
+export const PublicSkillAgentIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
+  .refine((value) => !value.includes('..'), { message: 'Agent ID must not contain ..' })
+
+export const PublicSkillNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .regex(/^[a-z0-9][a-z0-9._-]*$/)
+
+export const PublicSkillSchema = z
+  .object({
+    agentId: PublicSkillAgentIdSchema,
+    name: PublicSkillNameSchema,
+    description: z.string().max(1024),
+    category: z.string().max(128).nullable(),
+    platforms: z.array(z.string().min(1).max(64)).max(32),
+    allowedTools: z.array(z.string().min(1).max(128)).max(32),
+    sourceType: z.enum([
+      'builtin',
+      'created',
+      'folder-install',
+      'zip-install',
+      'url-install',
+      'git-install',
+      'adopted',
+      'imported'
+    ]),
+    enabled: z.boolean(),
+    mutable: z.boolean(),
+    managedBy: z.enum(['deepchat', 'plugin', 'user']),
+    metadataTruncated: z.boolean()
+  })
+  .strict()
+
+const PublicSkillAgentScopeSchema = z
+  .object({
+    agentId: PublicSkillAgentIdSchema.optional().default('deepchat')
+  })
+  .strict()
+
+const PublicSkillArchiveFilenameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .refine(
+    (value) => value !== '.' && value !== '..' && !value.includes('/') && !value.includes('\\'),
+    { message: 'Archive filename must be a basename' }
+  )
+  .refine(
+    (value) =>
+      !/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/.test(value),
+    { message: 'Archive filename contains unsafe display characters' }
+  )
+
+const PublicSkillUrlSchema = z
+  .url()
+  .max(8192)
+  .superRefine((value, context) => {
+    const url = new URL(value)
+    if (url.protocol !== 'https:') {
+      context.addIssue({ code: 'custom', message: 'Skill URL must use HTTPS' })
+    }
+    if (url.username || url.password || url.hash) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Skill URL must not contain credentials or a fragment'
+      })
+    }
+  })
+
+export const skillsListPublicRoute = defineRouteContract({
+  name: 'skills.listPublic',
+  input: PublicSkillAgentScopeSchema,
+  output: z
+    .object({
+      skills: z.array(PublicSkillSchema).max(PUBLIC_SKILL_LIST_MAX_ITEMS),
+      truncated: z.boolean()
+    })
+    .strict()
+})
+
+export const skillsInstallPublicUrlRoute = defineRouteContract({
+  name: 'skills.installPublicUrl',
+  input: PublicSkillAgentScopeSchema.extend({
+    url: PublicSkillUrlSchema,
+    overwrite: z.boolean().optional().default(false)
+  }),
+  output: z
+    .object({
+      agentId: PublicSkillAgentIdSchema,
+      name: PublicSkillNameSchema,
+      installed: z.literal(true)
+    })
+    .strict()
+})
+
+export const skillsInstallUploadRoute = defineRouteContract({
+  name: 'skills.installUpload',
+  input: PublicSkillAgentScopeSchema.extend({
+    filename: PublicSkillArchiveFilenameSchema,
+    overwrite: z.boolean().optional().default(false)
+  }),
+  output: skillsInstallPublicUrlRoute.output
+})
+
+export const skillsSetPublicStatusRoute = defineRouteContract({
+  name: 'skills.setPublicStatus',
+  input: PublicSkillAgentScopeSchema.extend({
+    name: PublicSkillNameSchema,
+    enabled: z.boolean()
+  }),
+  output: z
+    .object({
+      agentId: PublicSkillAgentIdSchema,
+      name: PublicSkillNameSchema,
+      enabled: z.boolean()
+    })
+    .strict()
+})
+
+export const skillsUninstallPublicRoute = defineRouteContract({
+  name: 'skills.uninstallPublic',
+  input: PublicSkillAgentScopeSchema.extend({ name: PublicSkillNameSchema }),
+  output: z
+    .object({
+      agentId: PublicSkillAgentIdSchema,
+      name: PublicSkillNameSchema,
+      removed: z.literal(true)
+    })
+    .strict()
+})
+
+export type PublicSkill = z.infer<typeof PublicSkillSchema>
+
 const SkillMetadataSchema = z.custom<SkillMetadata>()
 const UnifiedSkillItemSchema = z.custom<UnifiedSkillItem>()
 const SkillInstallOptionsSchema = z.custom<SkillInstallOptions>().optional()

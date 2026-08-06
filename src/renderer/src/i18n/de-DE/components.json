@@ -37,6 +37,7 @@
       "read": "Soll '{toolName}' von '{serverName}' Leseoperationen ausführen dürfen?",
       "write": "Soll '{toolName}' von '{serverName}' Schreiboperationen ausführen dürfen?",
       "all": "Soll '{toolName}' von '{serverName}' Lese- und Schreiboperationen ausführen dürfen?",
+      "subagentStart": "Diese Subagent-Aufgabe starten? Dies kann zusätzliche Tokens, Zeit und Systemressourcen verbrauchen.",
       "command": "Befehl ausführen: {command}",
       "commandWithRisk": "Befehl ausführen: {command}\n\nRisikostufe: {riskLevel}\n\nEmpfehlung: {suggestion}"
     },

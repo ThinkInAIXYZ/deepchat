@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, ref } from 'vue'
+import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const buttonStub = defineComponent({
@@ -49,14 +49,6 @@ const iconStub = defineComponent({
   template: '<i />'
 })
 
-const inlineFeedbackStub = defineComponent({
-  name: 'InlineOperationFeedback',
-  props: ['snapshot'],
-  emits: ['retry'],
-  template:
-    '<div data-testid="operation-feedback" :data-status="snapshot.status">{{ snapshot.title || snapshot.label }}<button data-testid="feedback-retry" @click="$emit(\'retry\')" /></div>'
-})
-
 const findButtonByText = (wrapper: ReturnType<typeof mount>, text: string) => {
   const button = wrapper.findAll('button').find((item) => item.text().includes(text))
   if (!button) {
@@ -93,51 +85,21 @@ describe('NowledgeMemSettings', () => {
         message: 'Connection successful'
       })
     }
-    const feedbackSnapshot = ref<any>({ status: 'idle', version: 0 })
-    const feedbackController = {
-      begin: vi.fn((operationId: string, label: string) => {
-        feedbackSnapshot.value = { status: 'pending', operationId, label, version: 1 }
-      }),
-      succeed: vi.fn((result) => {
-        feedbackSnapshot.value = {
-          status: 'success',
-          operationId: 'test-operation',
-          ...result,
-          version: 2
-        }
-      }),
-      fail: vi.fn((result) => {
-        feedbackSnapshot.value = {
-          status: 'error',
-          operationId: 'test-operation',
-          ...result,
-          version: 2
-        }
-      }),
-      clearSettled: vi.fn(() => {
-        feedbackSnapshot.value = { status: 'idle', version: 3 }
-      })
-    }
+    const notifyRenderer = vi.fn(() => true)
 
     vi.doMock('@api/NowledgeMemClient', () => ({
       createNowledgeMemClient: () => nowledgeMemClient
     }))
-    vi.doMock('@renderer-notifications/rendererNotificationRuntime', () => ({
-      createRendererSurfaceFeedbackController: () => feedbackController
-    }))
-    vi.doMock('@renderer-notifications/useSurfaceFeedback', () => ({
-      useSurfaceFeedback: () => ({
-        snapshot: feedbackSnapshot,
-        setActive: vi.fn()
-      })
+    vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+      notifyRenderer
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
         t: (key: string) => key
       })
     }))
-    vi.doMock('@shadcn/components/ui/button', () => ({
-      Button: buttonStub
+    vi.doMock('@dc-ui/components/button', () => ({
+      DcButton: buttonStub
     }))
     vi.doMock('@shadcn/components/ui/input', () => ({
       Input: inputStub
@@ -158,7 +120,7 @@ describe('NowledgeMemSettings', () => {
           $t: (key: string) => key
         },
         stubs: {
-          InlineOperationFeedback: inlineFeedbackStub
+          Icon: iconStub
         }
       }
     })
@@ -167,13 +129,12 @@ describe('NowledgeMemSettings', () => {
     return {
       wrapper,
       nowledgeMemClient,
-      feedbackController,
-      feedbackSnapshot
+      notifyRenderer
     }
   }
 
   it('loads, saves, tests, and resets through NowledgeMemClient', async () => {
-    const { wrapper, nowledgeMemClient, feedbackController } = await setup()
+    const { wrapper, nowledgeMemClient, notifyRenderer } = await setup()
 
     await wrapper.find('.cursor-default').trigger('click')
     await flushPromises()
@@ -214,15 +175,13 @@ describe('NowledgeMemSettings', () => {
       apiKey: '',
       timeout: 30000
     })
-    expect(feedbackController.succeed).toHaveBeenLastCalledWith({
-      code: 'settings.nowledgeMem.configurationReset',
-      title: 'settings.knowledgeBase.nowledgeMem.configReset'
-    })
+    // 成功反馈走按钮 ✅ 态，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
-  it('keeps failed saves dirty and offers an inline retry', async () => {
-    const { wrapper, nowledgeMemClient, feedbackController } = await setup()
+  it('reports failed saves as an inline error and retries the same draft', async () => {
+    const { wrapper, nowledgeMemClient, notifyRenderer } = await setup()
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const apiError = new Error('request rejected for loaded-key', {
       cause: new Error('token loaded-key rejected')
@@ -234,11 +193,11 @@ describe('NowledgeMemSettings', () => {
     await wrapper.get('[data-testid="nowledge-mem-save-button"]').trigger('click')
     await flushPromises()
 
-    expect(feedbackController.fail).toHaveBeenCalledWith({
-      code: 'settings.nowledgeMem.configurationSaveFailed',
-      title: 'settings.knowledgeBase.nowledgeMem.configSaveFailed'
-    })
-    expect(wrapper.get('[data-testid="operation-feedback"]').text()).not.toContain('loaded-key')
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.knowledgeBase.nowledgeMem.configSaveFailed'
+    )
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('loaded-key')
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain('loaded-key')
     const diagnosticError = consoleError.mock.calls.find(
       ([message]) => message === '[NowledgeMemSettings] save configuration failed'
@@ -257,14 +216,14 @@ describe('NowledgeMemSettings', () => {
       undefined
     )
 
-    await wrapper.get('[data-testid="feedback-retry"]').trigger('click')
+    await wrapper.get('[data-testid="nowledge-mem-save-button"]').trigger('click')
     await flushPromises()
 
     expect(nowledgeMemClient.updateConfig).toHaveBeenCalledTimes(2)
-    expect(feedbackController.succeed).toHaveBeenCalledWith({
-      code: 'settings.nowledgeMem.configurationSaved',
-      title: 'settings.knowledgeBase.nowledgeMem.configSaved'
-    })
+    // 重试成功走按钮 ✅ 态，内联错误清除
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.html()).not.toContain('settings.knowledgeBase.nowledgeMem.configSaveFailed')
     wrapper.unmount()
   })
 
@@ -289,8 +248,8 @@ describe('NowledgeMemSettings', () => {
     wrapper.unmount()
   })
 
-  it('locks the draft during a connection test and clears stale success after editing', async () => {
-    const { wrapper, nowledgeMemClient, feedbackController } = await setup()
+  it('locks the draft during a connection test and reports success on the button', async () => {
+    const { wrapper, nowledgeMemClient, notifyRenderer } = await setup()
     const pending = deferred<{ success: boolean; message: string }>()
     nowledgeMemClient.testConnection.mockReturnValueOnce(pending.promise)
 
@@ -302,14 +261,9 @@ describe('NowledgeMemSettings', () => {
 
     pending.resolve({ success: true, message: 'Connection successful' })
     await flushPromises()
-    expect(feedbackController.succeed).toHaveBeenCalledWith({
-      code: 'settings.nowledgeMem.connectionSucceeded',
-      title: 'settings.knowledgeBase.nowledgeMem.connectionSucceeded'
-    })
-
-    await wrapper.get('#baseUrl').setValue('http://edited-after-test.local')
-
-    expect(feedbackController.clearSettled).toHaveBeenCalledTimes(1)
+    // 成功反馈走按钮 ✅ 态
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(wrapper.get('#baseUrl').attributes('disabled')).toBeUndefined()
     wrapper.unmount()
   })
 })

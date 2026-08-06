@@ -8,6 +8,7 @@ import SkillInstallDialog from '../../../src/renderer/settings/components/skills
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
 const mocks = vi.hoisted(() => ({
+  notifyRenderer: vi.fn(),
   skillClient: {
     onCatalogChanged: vi.fn(() => () => undefined),
     scanGitSkillRepo: vi.fn(),
@@ -24,6 +25,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@api/SkillClient', () => ({
   createSkillClient: () => mocks.skillClient
+}))
+
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: mocks.notifyRenderer
 }))
 
 vi.mock('@api/DeviceClient', () => ({
@@ -81,7 +86,7 @@ const globalOptions = (realAlertDialog = false) => ({
     AlertDialogHeader: realAlertDialog ? false : passthrough('AlertDialogHeader'),
     AlertDialogTitle: realAlertDialog ? false : passthrough('AlertDialogTitle'),
     Badge: passthrough('Badge'),
-    Button: ButtonStub,
+    DcButton: ButtonStub,
     Checkbox: passthrough('Checkbox'),
     Dialog: passthrough('Dialog'),
     DialogContent: passthrough('DialogContent'),
@@ -145,7 +150,7 @@ describe('Agent-scoped Skill install dialogs', () => {
     await flushPromises()
 
     expect((wrapper.vm as any).installing).toBe(false)
-    expect((wrapper.vm as any).installFeedback.status).toBe('success')
+    expect(mocks.notifyRenderer).not.toHaveBeenCalled()
     expect(wrapper.emitted('update:open')).toBeUndefined()
   })
 
@@ -224,7 +229,7 @@ describe('Agent-scoped Skill install dialogs', () => {
       'agent-b'
     )
     expect((wrapper.vm as any).installing).toBe(false)
-    expect((wrapper.vm as any).installFeedback.status).toBe('success')
+    expect(mocks.notifyRenderer).not.toHaveBeenCalled()
   })
 
   it('clears a scanned Git preview when the repository URL changes', async () => {

@@ -26,12 +26,14 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock(
-  '@shadcn/components/ui/button',
+  '@dc-ui/components/button',
   () => ({
-    Button: {
+    DcButton: {
       name: 'Button',
       inheritAttrs: false,
-      template: '<button v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>'
+      props: ['icon'],
+      template:
+        '<button v-bind="$attrs" @click="$emit(\'click\')"><span v-if="icon" :data-icon="icon"></span><slot /></button>'
     }
   }),
   { virtual: true }
@@ -154,6 +156,20 @@ describe('MessageToolbar trace button visibility', () => {
     expect(wrapper.find('[data-icon="lucide:git-branch"]').exists()).toBe(false)
     expect(wrapper.find('[data-icon="lucide:trash-2"]').exists()).toBe(false)
     expect(wrapper.find('[data-icon="lucide:copy"]').exists()).toBe(true)
+  })
+
+  it('does not mount assistant-only controls for user messages', () => {
+    const wrapper = mount(MessageToolbar, {
+      props: {
+        ...baseProps,
+        isAssistant: false,
+        totalVariants: 2
+      }
+    })
+
+    expect(wrapper.find('[data-icon="lucide:chevron-left"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:chevron-right"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:images"]').exists()).toBe(false)
   })
 
   it('shows memory button only for assistant messages that allow memory details', async () => {

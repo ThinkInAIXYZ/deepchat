@@ -57,40 +57,18 @@
       </div>
     </div>
 
-    <InlineOperationFeedback
-      v-if="!showConfirmDialog"
-      :snapshot="feedback"
-      :retry-label="t('common.retry')"
-      @retry="retryRateLimitUpdate"
+    <DcConfirmDialog
+      :open="showConfirmDialog"
+      :title="t('settings.rateLimit.confirmDisableTitle')"
+      :description="t('settings.rateLimit.confirmDisableMessage')"
+      :confirm-label="t('settings.rateLimit.confirmDisable')"
+      :danger="false"
+      :busy="saving"
+      :confirm-attrs="{ 'data-testid': 'rate-limit-disable-confirm' }"
+      @update:open="handleConfirmDialogOpenChange"
+      @confirm="confirmDisableRateLimit"
+      @cancel="cancelDisableRateLimit"
     />
-
-    <AlertDialog :open="showConfirmDialog" @update:open="handleConfirmDialogOpenChange">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{{ t('settings.rateLimit.confirmDisableTitle') }}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('settings.rateLimit.confirmDisableMessage') }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <InlineOperationFeedback
-          :snapshot="feedback"
-          :retry-label="t('common.retry')"
-          @retry="retryRateLimitUpdate"
-        />
-        <AlertDialogFooter>
-          <AlertDialogCancel :disabled="saving" @click="cancelDisableRateLimit">
-            {{ t('common.cancel') }}
-          </AlertDialogCancel>
-          <AlertDialogAsyncAction
-            data-testid="rate-limit-disable-confirm"
-            :disabled="saving"
-            @click="confirmDisableRateLimit"
-          >
-            {{ t('settings.rateLimit.confirmDisable') }}
-          </AlertDialogAsyncAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   </div>
 </template>
 
@@ -98,26 +76,14 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
-import { nanoid } from 'nanoid'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { createProviderClient } from '@api/ProviderClient'
 import type { LLM_PROVIDER } from '@shared/types/provider'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
-import {
-  AlertDialog,
-  AlertDialogAsyncAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 
 const props = defineProps<{
   provider: LLM_PROVIDER
@@ -129,24 +95,19 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const providerClient = createProviderClient()
-const feedbackController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: feedback } = useSurfaceFeedback(feedbackController)
-const operationId = `settings.providerRateLimit.update:${nanoid(8)}`
 
 const rateLimitEnabled = ref(props.provider.rateLimit?.enabled ?? false)
 const intervalValue = ref(convertQpsToInterval(props.provider.rateLimit?.qpsLimit ?? 0.1))
 const committedInterval = ref(intervalValue.value)
 const showConfirmDialog = ref(false)
-const retryDraft = ref<RateLimitDraft | null>(null)
 const status = ref<{
   currentQps: number
   queueLength: number
   lastRequestTime?: number
 } | null>(null)
-const saving = computed(() => feedback.value.status === 'pending')
+const saving = ref(false)
 const draftDirty = computed(() => intervalValue.value !== committedInterval.value)
 let statusRequestId = 0
-let currentProviderId = props.provider.id
 let statusLoading = false
 let statusRefreshQueued = false
 let disposed = false
@@ -219,8 +180,7 @@ const handleConfirmDialogOpenChange = (open: boolean) => {
 
 const persistRateLimit = async (draft: RateLimitDraft): Promise<boolean> => {
   if (saving.value) return false
-  retryDraft.value = draft
-  feedbackController.begin(operationId, t('common.saving'))
+  saving.value = true
   try {
     await providerClient.updateProviderRateLimit(
       draft.providerId,
@@ -228,13 +188,12 @@ const persistRateLimit = async (draft: RateLimitDraft): Promise<boolean> => {
       convertIntervalToQps(draft.interval)
     )
     emit('configChanged')
-    feedbackController.succeed({
+    notifyRenderer({
+      kind: 'success',
       code: 'settings.providerRateLimit.updated',
       title: draft.enabled ? t('common.saved') : t('settings.rateLimit.disabled')
     })
-    retryDraft.value = null
     if (props.provider.id !== draft.providerId) {
-      feedbackController.clearSettled()
       return false
     }
     rateLimitEnabled.value = draft.enabled
@@ -246,23 +205,20 @@ const persistRateLimit = async (draft: RateLimitDraft): Promise<boolean> => {
     return true
   } catch (error) {
     console.error('[ProviderRateLimitConfig] Failed to update config', error)
-    feedbackController.fail({
+    notifyRenderer({
+      kind: 'error',
       code: 'settings.providerRateLimit.updateFailed',
       title: t('common.error.operationFailed')
     })
     if (props.provider.id !== draft.providerId) {
-      feedbackController.clearSettled()
-      retryDraft.value = null
       return false
     }
     rateLimitEnabled.value = props.provider.rateLimit?.enabled ?? rateLimitEnabled.value
     intervalValue.value = committedInterval.value
     return false
+  } finally {
+    saving.value = false
   }
-}
-
-const retryRateLimitUpdate = () => {
-  if (retryDraft.value) void persistRateLimit(retryDraft.value)
 }
 
 const loadStatus = async () => {
@@ -354,12 +310,10 @@ const stopStatusPolling = () => {
 const discardDraft = () => {
   intervalValue.value = committedInterval.value
   showConfirmDialog.value = false
-  retryDraft.value = null
-  if (feedback.value.status === 'error') feedbackController.clearSettled()
 }
 
 const leaveGuardLease = settingsLeaveGuard.register({
-  id: operationId,
+  id: 'settings.providerRateLimit',
   onDiscard: discardDraft
 })
 const stopLeaveRiskSync = watch(
@@ -390,19 +344,9 @@ onUnmounted(() => {
 watch(
   () => props.provider,
   (newProvider) => {
-    const providerChanged = newProvider.id !== currentProviderId
-    currentProviderId = newProvider.id
     rateLimitEnabled.value = newProvider.rateLimit?.enabled ?? false
     intervalValue.value = convertQpsToInterval(newProvider.rateLimit?.qpsLimit ?? 0.1)
     committedInterval.value = intervalValue.value
-    if (providerChanged) retryDraft.value = null
-    if (
-      providerChanged &&
-      feedback.value.status !== 'pending' &&
-      feedback.value.status !== 'idle'
-    ) {
-      feedbackController.clearSettled()
-    }
     void loadStatus()
     startStatusPolling()
   },

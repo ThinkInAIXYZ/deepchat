@@ -559,5 +559,21 @@
       "amendRetryable": "A edição falhou. A memória original foi restaurada; tente novamente.",
       "amendRestoreFailed": "A edição falhou e a memória original não pôde ser restaurada."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Abrir Agent filho" },
+    "activityTitle": "Atividade dos Agents",
+    "proactive": {
+      "title": "Colaboração proativa",
+      "description": "Permite que o Agent principal delegue quando o trabalho independente ou paralelo traz um benefício claro. Pode usar mais tempo, tokens e recursos.",
+      "reasons": {
+        "session_unavailable": "Esta sessão não está mais disponível.",
+        "agent_unavailable": "O Agent selecionado não está disponível.",
+        "deepchat_agent_required": "A colaboração proativa requer um DeepChat Agent.",
+        "regular_parent_required": "A colaboração proativa não está disponível em uma sessão filha.",
+        "agent_policy_unavailable": "Não foi possível carregar a política de colaboração.",
+        "subagents_disabled": "Ative Subagents para este Agent antes de usar a colaboração proativa."
+      }
+    }
   }
 }

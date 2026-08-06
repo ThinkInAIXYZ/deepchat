@@ -93,22 +93,23 @@
           @keyup.enter="handlePrivateKeyChange(accountPrivateKey)"
           @update:model-value="accountPrivateKey = String($event)"
         />
-        <Button
+        <DcButton
           variant="ghost"
           size="sm"
           class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+          :tooltip="showPrivateKey ? t('common.hideValue') : t('common.showValue')"
           @click="showPrivateKey = !showPrivateKey"
         >
           <Icon
             :icon="showPrivateKey ? 'lucide:eye-off' : 'lucide:eye'"
             class="w-4 h-4 text-muted-foreground hover:text-foreground"
           />
-        </Button>
+        </DcButton>
       </div>
     </div>
 
     <div class="flex flex-row gap-2">
-      <Button
+      <DcButton
         variant="outline"
         size="sm"
         class="text-xs text-normal rounded-lg"
@@ -118,7 +119,7 @@
         <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{
           t('settings.provider.verifyKey')
         }}
-      </Button>
+      </DcButton>
     </div>
   </div>
 </template>
@@ -135,7 +136,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
 import type { VERTEX_PROVIDER } from '@shared/types/provider'
 import { useProviderStore } from '@/stores/providerStore'

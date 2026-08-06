@@ -3,6 +3,10 @@ import { ref, shallowRef, toRaw } from 'vue'
 import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
 import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import {
+  DEFAULT_ORCHESTRATION_POLICY,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
 import type {
   CreateSessionInput,
   PermissionMode,
@@ -46,6 +50,7 @@ export const useDraftStore = defineStore('draft', () => {
   )
   const permissionMode = ref<PermissionMode>('full_access')
   const disabledAgentTools = ref<string[]>([...DEFAULT_DISABLED_AGENT_TOOLS])
+  const orchestrationPolicy = ref<OrchestrationPolicy>(DEFAULT_ORCHESTRATION_POLICY)
   const pendingStartDeeplink = ref<StartDeeplinkPayload | null>(null)
   let nextStartToken = 0
 
@@ -102,6 +107,7 @@ export const useDraftStore = defineStore('draft', () => {
       modelId: modelId.value,
       permissionMode: permissionMode.value,
       disabledAgentTools: [...disabledAgentTools.value],
+      orchestrationPolicy: orchestrationPolicy.value,
       generationSettings: toGenerationSettings()
     }
   }
@@ -171,6 +177,7 @@ export const useDraftStore = defineStore('draft', () => {
     agentId.value = 'deepchat'
     permissionMode.value = 'full_access'
     disabledAgentTools.value = [...DEFAULT_DISABLED_AGENT_TOOLS]
+    orchestrationPolicy.value = DEFAULT_ORCHESTRATION_POLICY
     resetGenerationSettings()
   }
 
@@ -209,6 +216,7 @@ export const useDraftStore = defineStore('draft', () => {
     videoGeneration,
     permissionMode,
     disabledAgentTools,
+    orchestrationPolicy,
     pendingStartDeeplink,
     toGenerationSettings,
     toCreateInput,

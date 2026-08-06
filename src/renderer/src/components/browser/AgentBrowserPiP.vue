@@ -23,7 +23,7 @@
           <span class="min-w-0 flex-1 truncate text-xs font-medium">
             {{ t('common.browser.name') }}
           </span>
-          <Button
+          <DcButton
             data-pip-control
             variant="ghost"
             size="icon"
@@ -31,10 +31,11 @@
             :aria-label="t('common.open')"
             @pointerdown.stop
             @click="openInPanel"
+            :tooltip="t('common.open')"
           >
             <Icon icon="lucide:panel-right-open" class="size-4" />
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             data-pip-control
             variant="ghost"
             size="icon"
@@ -42,9 +43,10 @@
             :aria-label="t('common.close')"
             @pointerdown.stop
             @click="dismiss"
+            :tooltip="t('common.close')"
           >
             <Icon icon="lucide:x" class="size-4" />
-          </Button>
+          </DcButton>
         </div>
       </template>
 
@@ -73,7 +75,7 @@
         >
           <Icon icon="lucide:bot" class="size-4 shrink-0" />
           <span class="min-w-0 flex-1 truncate text-xs font-medium">{{ title }}</span>
-          <Button
+          <DcButton
             data-pip-control
             variant="ghost"
             size="icon"
@@ -81,10 +83,11 @@
             :aria-label="t('common.open')"
             @pointerdown.stop
             @click="openInPanel"
+            :tooltip="t('common.open')"
           >
             <Icon icon="lucide:panel-right-open" class="size-4" />
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             data-pip-control
             variant="ghost"
             size="icon"
@@ -92,9 +95,10 @@
             :aria-label="t('common.close')"
             @pointerdown.stop
             @click="dismiss"
+            :tooltip="t('common.close')"
           >
             <Icon icon="lucide:x" class="size-4" />
-          </Button>
+          </DcButton>
         </div>
         <div
           class="pointer-events-none absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/55 p-2.5 text-white shadow-lg backdrop-blur-sm transition-opacity motion-reduce:transition-none"
@@ -118,7 +122,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useResizeObserver } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { createBrowserClient } from '@api/BrowserClient'
 import { createWindowClient } from '@api/WindowClient'
 import { browserPreviewFrameEvent, type DeepchatEventPayload } from '@shared/contracts/events'

@@ -233,7 +233,7 @@ pnpm run typecheck
 
 Validation completed on 2026-08-06:
 
-- The nine focused test files pass with 280 tests, including persisted context reconstruction and
+- The nine focused test files pass with 288 tests, including persisted context reconstruction and
   execution-only local-image resolution.
 - Formatting, i18n validation, linting, and node/renderer type checking pass.
 

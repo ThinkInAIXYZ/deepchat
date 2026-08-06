@@ -47,6 +47,7 @@
                 :duration-ms="item.durationMs"
                 :reasoning-count="item.reasoningCount"
                 :tool-call-count="item.toolCallCount"
+                :read-only="isReadOnly"
                 @toggle-collapse="handleCollapseToggle"
               />
               <MessageBlockToolCall
@@ -80,6 +81,7 @@
                 :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
+                :read-only="isReadOnly"
                 :render-mode="item.block.tool_call?.mcpResult?.app ? 'tool-only' : 'full'"
               />
               <MessageBlockQuestionRequest
@@ -194,12 +196,12 @@
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button variant="outline" @click="cancelFork">
+        <DcButton variant="outline" @click="cancelFork">
           {{ t('dialog.cancel') }}
-        </Button>
-        <Button variant="default" @click="confirmFork">
+        </DcButton>
+        <DcButton variant="default" @click="confirmFork">
           {{ t('dialog.fork.confirm') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -239,7 +241,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   ContextMenu,
   ContextMenuContent,

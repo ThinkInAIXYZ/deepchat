@@ -12,6 +12,7 @@ import type {
   AttachmentResolvedRepresentation,
   PdfEmbeddedTextCoverage
 } from './attachment'
+import type { OrchestrationPolicy } from '../orchestration/policy'
 
 export type {
   AttachmentFallbackPolicy,
@@ -308,6 +309,7 @@ export interface AssistantMessageExtra {
   permissionType?: 'read' | 'write' | 'all' | 'command'
   grantedPermissions?: 'read' | 'write' | 'all' | 'command'
   toolName?: string
+  toolSource?: 'agent' | 'mcp'
   serverName?: string
   providerId?: string
   permissionRequestId?: string
@@ -390,9 +392,11 @@ export interface MessageMetadata {
   tokensPerSecond?: number
   model?: string
   provider?: string
-  messageType?: 'compaction'
+  messageType?: 'compaction' | 'workflow_result'
   compactionStatus?: 'compacting' | 'compacted'
   summaryUpdatedAt?: number | null
+  workflowRunId?: string
+  workflowResultDeliveryId?: string
   inputReceipt?: {
     mode: 'steer'
     readAt: number | null
@@ -601,6 +605,7 @@ export interface DeepChatSubagentMeta {
   slotId: string
   displayName: string
   targetAgentId?: string | null
+  liveDelegation?: import('../orchestration/liveDelegation').LiveDelegationSubagentContext
 }
 
 export interface DeepChatAgentMemoryEmbedding {
@@ -710,6 +715,7 @@ export interface SessionRecord {
   sessionKind: SessionKind
   parentSessionId?: string | null
   subagentMeta?: DeepChatSubagentMeta | null
+  orchestrationPolicy: OrchestrationPolicy
   createdAt: number
   updatedAt: number
   /** Monotonic durable revision for ordering snapshots of one session. */
@@ -805,6 +811,7 @@ export interface CreateSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
+  orchestrationPolicy?: OrchestrationPolicy
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
@@ -817,16 +824,21 @@ export interface CreateDetachedSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
+  orchestrationPolicy?: OrchestrationPolicy
   generationSettings?: Partial<SessionGenerationSettings>
   metadata?: SessionMetadata | null
 }
 
-export type SessionMetadata = {
-  source: 'cron_job'
-  cronJobId: string
-  cronJobRunId: string
-  scheduledAt: number
-}
+export type SessionMetadata =
+  | {
+      source: 'cron_job'
+      cronJobId: string
+      cronJobRunId: string
+      scheduledAt: number
+    }
+  | {
+      source: 'cli_run'
+    }
 
 // ---- Project Types ----
 

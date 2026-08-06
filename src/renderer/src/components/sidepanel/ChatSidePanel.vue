@@ -74,9 +74,15 @@
           </button>
         </div>
 
-        <Button variant="ghost" size="icon" class="h-7 w-7" @click="sidepanelStore.closePanel()">
-          <Icon icon="lucide:x" class="h-4 w-4" />
-        </Button>
+        <DcButton
+          variant="ghost"
+          size="icon"
+          icon="lucide:x"
+          :label="t('common.close')"
+          :tooltip="t('common.close')"
+          class="h-7 w-7"
+          @click="sidepanelStore.closePanel()"
+        />
       </div>
 
       <WorkspacePanel
@@ -105,9 +111,8 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'

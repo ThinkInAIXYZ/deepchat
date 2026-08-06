@@ -16,6 +16,10 @@ import type {
   CreateSessionInput,
   SendMessageInput
 } from '@shared/types/agent-interface'
+import {
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
 import { downloadBlob } from '@/lib/download'
 import {
   readGuidedOnboardingResumeIntent,
@@ -26,6 +30,7 @@ import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
 import { useAgentPlanStore } from './agentPlan'
 import { useAttachmentPreparationStore } from './attachmentPreparation'
+import { useLiveDelegationStore } from './liveDelegation'
 import { isAbortError } from '@/lib/errors'
 import { bindSessionStoreIpc } from './sessionIpc'
 
@@ -42,6 +47,7 @@ export interface UISession {
   sessionKind: SessionKind
   parentSessionId: string | null
   subagentMeta: DeepChatSubagentMeta | null
+  orchestrationPolicy: OrchestrationPolicy
   metadata?: SessionMetadata | null
   createdAt: number
   updatedAt: number
@@ -113,6 +119,7 @@ function mapToUISession(session: SessionListItem | SessionWithState): UISession 
     sessionKind: session.sessionKind,
     parentSessionId: session.parentSessionId ?? null,
     subagentMeta: session.subagentMeta ?? null,
+    orchestrationPolicy: normalizeOrchestrationPolicy(session.orchestrationPolicy),
     ...(metadata ? { metadata } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
@@ -311,6 +318,7 @@ export const useSessionStore = defineStore('session', () => {
   const messageStore = useMessageStore()
   const agentPlanStore = useAgentPlanStore()
   const attachmentPreparationStore = useAttachmentPreparationStore()
+  const liveDelegationStore = useLiveDelegationStore()
   const myWebContentsId = ref<number | null>(null)
   let groupModeLoadPromise: Promise<void> | null = null
   let groupModeWritePromise: Promise<void> = Promise.resolve()
@@ -502,6 +510,7 @@ export const useSessionStore = defineStore('session', () => {
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
     for (const sessionId of targetIds) {
       agentPlanStore.purge(sessionId)
+      liveDelegationStore.purge(sessionId)
       messageStore.invalidateRecentSessionView(sessionId)
       messageStore.purgeSessionTracking(sessionId)
     }
@@ -625,6 +634,28 @@ export const useSessionStore = defineStore('session', () => {
       activeSessionSummary.value = {
         ...activeSessionSummary.value,
         status: nextStatus
+      }
+    }
+  }
+
+  const applyConfirmedOrchestrationPolicy = (
+    sessionId: string,
+    policy: OrchestrationPolicy
+  ): void => {
+    const orchestrationPolicy = normalizeOrchestrationPolicy(policy)
+    sessions.value = sessions.value.map((session) =>
+      session.id === sessionId ? { ...session, orchestrationPolicy } : session
+    )
+    if (bootstrapActiveSession.value?.id === sessionId) {
+      bootstrapActiveSession.value = {
+        ...bootstrapActiveSession.value,
+        orchestrationPolicy
+      }
+    }
+    if (activeSessionSummary.value?.id === sessionId) {
+      activeSessionSummary.value = {
+        ...activeSessionSummary.value,
+        orchestrationPolicy
       }
     }
   }
@@ -1346,6 +1377,7 @@ export const useSessionStore = defineStore('session', () => {
     createSession,
     sendMessage,
     setSessionModel,
+    applyConfirmedOrchestrationPolicy,
     selectSession,
     closeSession,
     startNewConversation,

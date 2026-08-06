@@ -17,7 +17,7 @@
         class="pointer-events-none absolute inset-0 size-full"
         aria-hidden="true"
       />
-      <Button
+      <DcButton
         data-pip-control
         variant="ghost"
         size="icon"
@@ -25,9 +25,10 @@
         :aria-label="t('common.close')"
         @pointerdown.stop
         @click="dismiss"
+        :tooltip="t('common.close')"
       >
         <Icon icon="lucide:x" class="size-4" />
-      </Button>
+      </DcButton>
     </div>
   </div>
 </template>
@@ -37,7 +38,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useResizeObserver } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { createComputerUseClient } from '@api/ComputerUseClient'
 import { createWindowClient } from '@api/WindowClient'
 import type { DeepchatEventPayload } from '@shared/contracts/events'

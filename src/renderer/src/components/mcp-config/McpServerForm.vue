@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Textarea } from '@shadcn/components/ui/textarea'
@@ -13,7 +13,8 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import type {
   MCPServerConfig,
   McpAuthorizationMode,
@@ -812,25 +813,18 @@ HTTP-Referer=deepchatai.cn`
             :aria-invalid="Boolean(jsonConfigError)"
             :aria-describedby="jsonConfigError ? 'json-config-error' : undefined"
           />
-          <p
-            v-if="jsonConfigError"
-            id="json-config-error"
-            role="alert"
-            class="text-xs text-destructive"
-          >
-            {{ jsonConfigError }}
-          </p>
+          <DcInlineError id="json-config-error" :error="jsonConfigError ?? undefined" />
         </div>
       </div>
     </ScrollArea>
 
     <div class="flex justify-between pt-2 border-t px-4">
-      <Button type="button" variant="outline" size="sm" @click="goToDetailedForm">
+      <DcButton type="button" variant="outline" size="sm" @click="goToDetailedForm">
         {{ t('settings.mcp.serverForm.skipToManual') }}
-      </Button>
-      <Button type="button" size="sm" @click="parseJsonConfig">
+      </DcButton>
+      <DcButton type="button" size="sm" @click="parseJsonConfig">
         {{ t('settings.mcp.serverForm.parseAndContinue') }}
-      </Button>
+      </DcButton>
     </div>
   </form>
 
@@ -869,9 +863,7 @@ HTTP-Referer=deepchatai.cn`
             required
           />
         </div>
-        <p v-if="nameError" role="alert" class="text-xs text-destructive">
-          {{ nameError }}
-        </p>
+        <DcInlineError v-if="nameError" :error="nameError" />
 
         <!-- 图标 -->
         <div class="space-y-2">
@@ -896,12 +888,9 @@ HTTP-Referer=deepchatai.cn`
               <SelectItem value="stdio">{{ t('settings.mcp.serverForm.typeStdio') }}</SelectItem>
               <SelectItem value="sse">
                 <span>{{ t('settings.mcp.serverForm.typeSse') }}</span>
-                <Badge
-                  variant="outline"
-                  class="border-amber-500/50 px-1.5 py-0 text-[10px] font-normal text-amber-700 dark:text-amber-400"
-                >
+                <DcBadge variant="warning" class="px-1.5 py-0 text-[10px] font-normal">
                   {{ t('settings.mcp.serverForm.sseCompatibilityBadge') }}
-                </Badge>
+                </DcBadge>
               </SelectItem>
               <SelectItem value="http">{{ t('settings.mcp.serverForm.typeHttp') }}</SelectItem>
               <SelectItem
@@ -1069,7 +1058,7 @@ HTTP-Referer=deepchatai.cn`
                       : t('settings.mcp.serverForm.clientSecret')
                   }}
                 </Label>
-                <Button
+                <DcButton
                   v-if="selectedCredentialStatus?.configured"
                   type="button"
                   variant="ghost"
@@ -1077,7 +1066,7 @@ HTTP-Referer=deepchatai.cn`
                   @click="removeStoredCredential"
                 >
                   {{ t('settings.mcp.serverForm.removeCredential') }}
-                </Button>
+                </DcButton>
               </div>
               <Textarea
                 v-if="authorizationMode === 'private_key_jwt'"
@@ -1145,7 +1134,7 @@ HTTP-Referer=deepchatai.cn`
               class="flex items-center justify-between p-2 border border-input rounded-md bg-background"
             >
               <span class="text-sm truncate flex-1 mr-2" :title="folder">{{ folder }}</span>
-              <Button
+              <DcButton
                 type="button"
                 variant="ghost"
                 size="sm"
@@ -1153,11 +1142,11 @@ HTTP-Referer=deepchatai.cn`
                 @click="removeFolder(index)"
               >
                 <X class="h-3 w-3" />
-              </Button>
+              </DcButton>
             </div>
 
             <!-- 添加文件夹按钮 -->
-            <Button
+            <DcButton
               type="button"
               variant="outline"
               size="sm"
@@ -1166,10 +1155,8 @@ HTTP-Referer=deepchatai.cn`
             >
               <Icon icon="lucide:folder-plus" class="h-4 w-4" />
               {{ t('settings.mcp.serverForm.addFolder') }}
-            </Button>
-            <p v-if="folderSelectionError" role="alert" class="text-xs text-destructive">
-              {{ folderSelectionError }}
-            </p>
+            </DcButton>
+            <DcInlineError v-if="folderSelectionError" :error="folderSelectionError" />
 
             <!-- 空状态提示 -->
             <div
@@ -1186,9 +1173,9 @@ HTTP-Referer=deepchatai.cn`
             <Label class="text-xs text-muted-foreground" for="server-args">
               {{ t('settings.mcp.serverForm.args') }}
             </Label>
-            <Button type="button" variant="ghost" size="sm" @click="addArgsRow">
+            <DcButton type="button" variant="ghost" size="sm" @click="addArgsRow">
               {{ t('settings.mcp.serverForm.addArg') }}
-            </Button>
+            </DcButton>
           </div>
           <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
             <div v-for="row in argsRows" :key="row.id" class="grid grid-cols-12 gap-2 items-center">
@@ -1197,7 +1184,7 @@ HTTP-Referer=deepchatai.cn`
                 class="col-span-11"
                 :placeholder="t('settings.mcp.serverForm.argPlaceholder')"
               />
-              <Button
+              <DcButton
                 type="button"
                 variant="ghost"
                 size="icon"
@@ -1205,7 +1192,7 @@ HTTP-Referer=deepchatai.cn`
                 @click="removeArgsRow(row.id)"
               >
                 <X class="h-4 w-4" />
-              </Button>
+              </DcButton>
             </div>
           </div>
           <!-- 隐藏原始Input，但保留v-model绑定以利用其验证状态或原有逻辑(如果需要) -->
@@ -1226,9 +1213,11 @@ HTTP-Referer=deepchatai.cn`
             :aria-invalid="!isEnvValid"
             :aria-describedby="!isEnvValid ? 'server-env-error' : undefined"
           />
-          <p v-if="!isEnvValid" id="server-env-error" role="alert" class="text-xs text-destructive">
-            {{ t('settings.mcp.serverForm.envInvalid') }}
-          </p>
+          <DcInlineError
+            v-if="!isEnvValid"
+            id="server-env-error"
+            :error="t('settings.mcp.serverForm.envInvalid')"
+          />
         </div>
 
         <!-- 描述 -->
@@ -1316,10 +1305,8 @@ HTTP-Referer=deepchatai.cn`
 
     <!-- 提交按钮 -->
     <div class="flex items-center justify-between gap-3 pt-2 border-t px-4">
-      <p v-if="submissionError" role="alert" class="min-w-0 text-xs text-destructive">
-        {{ submissionError }}
-      </p>
-      <Button type="submit" size="sm" class="ml-auto" :disabled="!isFormValid || submitting">
+      <DcInlineError class="min-w-0" :error="submissionError" />
+      <DcButton type="submit" size="sm" class="ml-auto" :disabled="!isFormValid || submitting">
         <Icon
           v-if="submitting"
           icon="lucide:loader-circle"
@@ -1327,7 +1314,7 @@ HTTP-Referer=deepchatai.cn`
           aria-hidden="true"
         />
         {{ t('settings.mcp.serverForm.submit') }}
-      </Button>
+      </DcButton>
     </div>
   </form>
 </template>

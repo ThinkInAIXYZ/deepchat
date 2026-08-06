@@ -29,6 +29,12 @@ import type {
   ResolvedSubagentAssignment
 } from './contracts'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
+import { LiveDelegationSubagentContextSchema } from '@shared/orchestration/liveDelegation'
+import {
+  DEFAULT_ORCHESTRATION_POLICY,
+  normalizeOrchestrationPolicy
+} from '@shared/orchestration/policy'
+import type { SessionDeletionGatePort } from './deletionGate'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 
@@ -47,6 +53,7 @@ export interface SessionLifecycleDependencies {
   projection: SessionLifecycleProjectionPort
   desktop: SessionLifecycleDesktopPort
   deletion: SessionLifecycleDeletionPort
+  deletionGate: SessionDeletionGatePort
   permissions?: SessionLifecyclePermissionPort
   agentLifecycle: AgentLifecycleGatePort
 }
@@ -97,9 +104,14 @@ export class SessionLifecycle implements SessionLifecyclePort {
     logger.info(`[SessionLifecycle] resolved provider=${providerId} model=${modelId}`)
 
     const title = normalizedInput.text.slice(0, 50) || 'New Chat'
+    const orchestrationPolicy =
+      assignment.agentType === 'deepchat'
+        ? normalizeOrchestrationPolicy(input.orchestrationPolicy)
+        : DEFAULT_ORCHESTRATION_POLICY
     const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
       isDraft: false,
-      disabledAgentTools
+      disabledAgentTools,
+      orchestrationPolicy
     })
     logger.info(`[SessionLifecycle] session created id=${sessionId}`)
 
@@ -141,6 +153,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
         sessionKind: 'regular',
         parentSessionId: null,
         subagentMeta: null,
+        orchestrationPolicy,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         status: state?.status ?? 'idle',
@@ -197,10 +210,15 @@ export class SessionLifecycle implements SessionLifecyclePort {
       generationSettings,
       disabledAgentTools
     } = assignment
+    const orchestrationPolicy =
+      assignment.agentType === 'deepchat'
+        ? normalizeOrchestrationPolicy(input.orchestrationPolicy)
+        : DEFAULT_ORCHESTRATION_POLICY
 
     const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
       isDraft: false,
       disabledAgentTools,
+      orchestrationPolicy,
       metadata: input.metadata ?? null
     })
     try {
@@ -233,6 +251,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       sessionKind: 'regular',
       parentSessionId: null,
       subagentMeta: null,
+      orchestrationPolicy,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       ...(input.metadata ? { metadata: input.metadata } : {}),
@@ -243,6 +262,23 @@ export class SessionLifecycle implements SessionLifecyclePort {
   }
 
   async createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState> {
+    const parentSessionId = input.parentSessionId?.trim()
+    if (!parentSessionId) throw new Error('Subagent session requires a parentSessionId.')
+
+    return await this.dependencies.deletionGate.runWithSessionOperation(
+      parentSessionId,
+      async () => {
+        if (!this.dependencies.sessions.get(parentSessionId)) {
+          throw new Error(`Subagent parent Session does not exist: ${parentSessionId}`)
+        }
+        return await this.createSubagentSessionUnderParentGate(input)
+      }
+    )
+  }
+
+  private async createSubagentSessionUnderParentGate(
+    input: SessionLifecycleSubagentInput
+  ): Promise<SessionWithState> {
     const agentId = input.agentId?.trim()
     if (!agentId) throw new Error('Subagent session requires an agentId.')
     const projectDir = input.projectDir?.trim() || null
@@ -276,10 +312,15 @@ export class SessionLifecycle implements SessionLifecyclePort {
 
     const displayName = input.displayName?.trim() || 'Subagent'
     const projectDir = input.projectDir?.trim() || null
+    const liveDelegationContext =
+      input.liveDelegationContext === undefined
+        ? undefined
+        : LiveDelegationSubagentContextSchema.parse(input.liveDelegationContext)
     const subagentMeta: DeepChatSubagentMeta = {
       slotId,
       displayName,
-      targetAgentId: runtimeConfig.targetAgentId || null
+      targetAgentId: runtimeConfig.targetAgentId || null,
+      ...(liveDelegationContext ? { liveDelegation: liveDelegationContext } : {})
     }
     let lastError: unknown = null
 
@@ -291,6 +332,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
         {
           isDraft: false,
           disabledAgentTools: runtimeConfig.disabledAgentTools,
+          orchestrationPolicy: DEFAULT_ORCHESTRATION_POLICY,
           sessionKind: 'subagent',
           parentSessionId,
           subagentMeta
@@ -424,12 +466,17 @@ export class SessionLifecycle implements SessionLifecyclePort {
     const sourceState = await sourceRuntime.snapshot()
     if (!sourceState) throw new Error(`Session state not found: ${sourceSessionId}`)
     const generationSettings = await sourceRuntime.getGenerationSettings()
+    const disabledAgentTools = this.dependencies.sessions.getDisabledAgentTools(sourceSessionId)
     const title = this.buildForkTitle(sourceSession.title, newTitle)
     const targetSessionId = this.dependencies.sessions.create(
       sourceSession.agentId,
       title,
       sourceSession.projectDir ?? null,
-      { isDraft: false }
+      {
+        isDraft: false,
+        disabledAgentTools,
+        orchestrationPolicy: sourceSession.orchestrationPolicy
+      }
     )
 
     try {

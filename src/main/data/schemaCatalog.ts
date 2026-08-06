@@ -39,6 +39,12 @@ import { SettingsActivityTable } from '@/settings/data/tables/settingsActivity'
 import { CronJobsTable } from '@/scheduler/data/tables/cronJobs'
 import { CronJobRunsTable } from '@/scheduler/data/tables/cronJobRuns'
 import { CronJobDeliveriesTable } from '@/scheduler/data/tables/cronJobDeliveries'
+import { LiveDelegationEventsTable } from '@/orchestration/data/tables/liveDelegationEvents'
+import { LiveDelegationsTable } from '@/orchestration/data/tables/liveDelegations'
+import {
+  LIVE_DELEGATION_TURN_RESULT_REF_ADD_COLUMN_SQL,
+  LiveDelegationTurnsTable
+} from '@/orchestration/data/tables/liveDelegationTurns'
 import type { BaseTable } from '@/data/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
@@ -127,9 +133,11 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
         "ALTER TABLE new_sessions ADD COLUMN session_kind TEXT NOT NULL DEFAULT 'regular';",
       parent_session_id: 'ALTER TABLE new_sessions ADD COLUMN parent_session_id TEXT;',
       subagent_meta_json: 'ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;',
+      orchestration_policy:
+        "ALTER TABLE new_sessions ADD COLUMN orchestration_policy TEXT NOT NULL DEFAULT 'explicit' CHECK (orchestration_policy IN ('explicit', 'proactive'));",
       revision: 'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
     },
-    typeCheckedColumns: ['subagent_enabled', 'session_kind', 'revision']
+    typeCheckedColumns: ['subagent_enabled', 'session_kind', 'orchestration_policy', 'revision']
   },
   {
     name: 'new_projects',
@@ -322,6 +330,24 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'cron_job_deliveries',
     createTable: (db) => new CronJobDeliveriesTable(db)
+  },
+  {
+    name: 'live_delegations',
+    createTable: (db) => new LiveDelegationsTable(db),
+    typeCheckedColumns: ['last_turn_seq', 'created_at', 'updated_at', 'revision']
+  },
+  {
+    name: 'live_delegation_turns',
+    createTable: (db) => new LiveDelegationTurnsTable(db),
+    repairableColumns: {
+      result_ref_json: `${LIVE_DELEGATION_TURN_RESULT_REF_ADD_COLUMN_SQL};`
+    },
+    typeCheckedColumns: ['seq', 'created_at', 'updated_at']
+  },
+  {
+    name: 'live_delegation_events',
+    createTable: (db) => new LiveDelegationEventsTable(db),
+    typeCheckedColumns: ['event_id', 'created_at']
   }
 ]
 
@@ -429,6 +455,9 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const cronJobs = new CronJobsTable(db)
   const cronJobRuns = new CronJobRunsTable(db)
   const cronJobDeliveries = new CronJobDeliveriesTable(db)
+  const liveDelegations = new LiveDelegationsTable(db)
+  const liveDelegationTurns = new LiveDelegationTurnsTable(db)
+  const liveDelegationEvents = new LiveDelegationEventsTable(db)
 
   const createTables: BaseTable[] = [
     acpSessions,
@@ -466,7 +495,10 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     settingsActivity,
     cronJobs,
     cronJobRuns,
-    cronJobDeliveries
+    cronJobDeliveries,
+    liveDelegations,
+    liveDelegationTurns,
+    liveDelegationEvents
   ]
 
   return {

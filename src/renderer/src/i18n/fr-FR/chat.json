@@ -559,5 +559,21 @@
       "amendRetryable": "La modification a échoué. Le souvenir initial a été restauré ; réessayez.",
       "amendRestoreFailed": "La modification a échoué et le souvenir initial n’a pas pu être restauré."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Ouvrir l’Agent enfant" },
+    "activityTitle": "Activité des Agents",
+    "proactive": {
+      "title": "Collaboration proactive",
+      "description": "Permet à l’Agent parent de déléguer lorsque le travail indépendant ou parallèle apporte un bénéfice clair. Peut utiliser plus de temps, de tokens et de ressources.",
+      "reasons": {
+        "session_unavailable": "Cette session n’est plus disponible.",
+        "agent_unavailable": "L’Agent sélectionné n’est pas disponible.",
+        "deepchat_agent_required": "La collaboration proactive nécessite un DeepChat Agent.",
+        "regular_parent_required": "La collaboration proactive n’est pas disponible dans une session enfant.",
+        "agent_policy_unavailable": "La politique de collaboration n’a pas pu être chargée.",
+        "subagents_disabled": "Activez les Subagents pour cet Agent afin d’utiliser la collaboration proactive."
+      }
+    }
   }
 }

@@ -322,7 +322,7 @@ const mountSettingsApp = async (options?: {
   const wrapper = mount(SettingsApp, {
     global: {
       stubs: {
-        Button: true,
+        DcButton: true,
         RouterView: true,
         CloseIcon: true,
         ModelCheckDialog: defineComponent({

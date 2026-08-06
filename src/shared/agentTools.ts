@@ -1,5 +1,7 @@
 export const CRON_JOB_AGENT_TOOL_NAME = 'cronjob'
 export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
+export const LIVE_DELEGATION_AGENT_TOOL_NAME = 'deepchat_subagents'
+export const LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME = 'agent-live-delegation'
 export const DEFAULT_DISABLED_AGENT_TOOLS = [CRON_JOB_AGENT_TOOL_NAME] as const
 
 export const TAPE_TOOL_NAMES = Object.freeze({
@@ -20,7 +22,8 @@ const AGENT_TOOL_EXPOSURE_BY_NAME: Readonly<Record<string, AgentToolExposure>> =
   [TAPE_TOOL_NAMES.info]: 'diagnostic',
   [TAPE_TOOL_NAMES.anchors]: 'diagnostic',
   [TAPE_TOOL_NAMES.handoff]: 'runtime-only',
-  [SUBAGENT_ORCHESTRATOR_TOOL_NAME]: 'system-model'
+  [SUBAGENT_ORCHESTRATOR_TOOL_NAME]: 'system-model',
+  [LIVE_DELEGATION_AGENT_TOOL_NAME]: 'system-model'
 })
 
 const TAPE_TOOL_NAME_SET = new Set<string>(Object.values(TAPE_TOOL_NAMES))

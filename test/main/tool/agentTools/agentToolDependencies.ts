@@ -1,9 +1,11 @@
 import { vi } from 'vitest'
 import type { AgentToolDependencies } from '@/tool/runtimePorts'
+import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 
 export const createAgentToolDependencies = (
   overrides: Record<string, any> = {}
 ): AgentToolDependencies => ({
+  agentInvocationAdmission: overrides.agentInvocationAdmission ?? new AgentInvocationAdmission(),
   sessions: {
     resolveConversationWorkdir:
       overrides.resolveConversationWorkdir ?? vi.fn().mockResolvedValue(null),
@@ -39,12 +41,22 @@ export const createAgentToolDependencies = (
   },
   subagents: {
     createSubagentSession: overrides.createSubagentSession ?? vi.fn(),
-    mergeSubagentTape: overrides.mergeSubagentTape ?? vi.fn(),
-    discardSubagentTape: overrides.discardSubagentTape ?? vi.fn(),
+    linkSubagentTape: overrides.linkSubagentTape ?? vi.fn(),
     sendConversationMessage: overrides.sendConversationMessage ?? vi.fn(),
     cancelConversation: overrides.cancelConversation ?? vi.fn(),
     subscribeSessionRuntimeUpdates: overrides.subscribeSessionRuntimeUpdates ?? vi.fn(() => vi.fn())
   },
+  liveDelegation:
+    overrides.liveDelegation ??
+    ({
+      spawn: vi.fn(),
+      send: vi.fn(),
+      followUp: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      inspect: vi.fn(),
+      wait: vi.fn().mockResolvedValue({ events: [], cursor: 0, timedOut: true }),
+      interrupt: vi.fn()
+    } as any),
   skills:
     overrides.skillService ??
     ({

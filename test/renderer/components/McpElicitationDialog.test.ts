@@ -61,7 +61,7 @@ describe('McpElicitationDialog', () => {
           DialogFooter: passthrough('DialogFooter'),
           DialogHeader: passthrough('DialogHeader'),
           DialogTitle: passthrough('DialogTitle'),
-          Button: passthrough('Button'),
+          DcButton: passthrough('Button'),
           Input: passthrough('Input'),
           Label: passthrough('Label'),
           Spinner: passthrough('Spinner')

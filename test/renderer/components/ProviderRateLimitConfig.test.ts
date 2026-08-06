@@ -3,6 +3,8 @@ import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 
+const notifyRenderer = vi.hoisted(() => vi.fn())
+
 const switchStub = defineComponent({
   name: 'Switch',
   props: {
@@ -83,6 +85,9 @@ async function setup(
   vi.doMock('@api/ProviderClient', () => ({
     createProviderClient: () => providerClient
   }))
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
+  }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       t: (key: string) => key
@@ -127,6 +132,7 @@ async function setup(
   return {
     wrapper,
     providerClient,
+    notifyRenderer,
     stopRateLimitEvents,
     emitRateLimitEvent: (payload: { providerId: string; version: number }) =>
       rateLimitListener?.(payload)
@@ -163,8 +169,8 @@ describe('ProviderRateLimitConfig', () => {
     expect(stopRateLimitEvents).toHaveBeenCalledTimes(1)
   })
 
-  it('rolls back failed updates and retries from persistent inline feedback', async () => {
-    const { wrapper, providerClient } = await setup()
+  it('rolls back failed updates and retries the submitted value from a new toggle', async () => {
+    const { wrapper, providerClient, notifyRenderer } = await setup()
     providerClient.updateProviderRateLimit.mockRejectedValueOnce(new Error('transport details'))
 
     await wrapper.get('[data-testid="rate-limit-switch"]').trigger('click')
@@ -172,24 +178,31 @@ describe('ProviderRateLimitConfig', () => {
 
     expect(wrapper.getComponent(switchStub).props('modelValue')).toBe(false)
     expect(wrapper.emitted('configChanged')).toBeUndefined()
-    const failure = wrapper.get('[data-testid="inline-operation-feedback"]')
-    expect(failure.attributes('data-status')).toBe('error')
-    expect(failure.text()).not.toContain('transport details')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.providerRateLimit.updateFailed',
+        title: 'common.error.operationFailed'
+      })
+    )
+    expect(wrapper.text()).not.toContain('transport details')
 
-    const retry = wrapper.findAll('button').find((button) => button.text().includes('common.retry'))
-    expect(retry).toBeTruthy()
-    await retry!.trigger('click')
+    await wrapper.get('[data-testid="rate-limit-switch"]').trigger('click')
     await flushPromises()
 
     expect(providerClient.updateProviderRateLimit).toHaveBeenCalledTimes(2)
     expect(wrapper.getComponent(switchStub).props('modelValue')).toBe(true)
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').attributes('data-status')).toBe(
-      'success'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.providerRateLimit.updated',
+        title: 'common.saved'
+      })
     )
   })
 
   it('keeps a successful save truthful when status projection refresh fails', async () => {
-    const { wrapper, providerClient } = await setup()
+    const { wrapper, providerClient, notifyRenderer } = await setup()
     providerClient.getProviderRateLimitStatus.mockRejectedValueOnce(new Error('status unavailable'))
 
     await wrapper.get('[data-testid="rate-limit-switch"]').trigger('click')
@@ -197,8 +210,12 @@ describe('ProviderRateLimitConfig', () => {
 
     expect(wrapper.emitted('configChanged')).toHaveLength(1)
     expect(wrapper.getComponent(switchStub).props('modelValue')).toBe(true)
-    expect(wrapper.get('[data-testid="inline-operation-feedback"]').attributes('data-status')).toBe(
-      'success'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.providerRateLimit.updated',
+        title: 'common.saved'
+      })
     )
   })
 
@@ -231,7 +248,7 @@ describe('ProviderRateLimitConfig', () => {
       enabled: true,
       qpsLimit: 0.5
     }
-    const { wrapper, providerClient } = await setup({
+    const { wrapper, providerClient, notifyRenderer } = await setup({
       provider,
       realAlertDialog: true
     })
@@ -245,11 +262,14 @@ describe('ProviderRateLimitConfig', () => {
     await flushPromises()
 
     expect(document.querySelector('[data-testid="rate-limit-disable-confirm"]')).not.toBeNull()
-    const feedback = document.querySelector(
-      '[data-slot="alert-dialog-content"] [data-testid="inline-operation-feedback"]'
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.providerRateLimit.updateFailed',
+        title: 'common.error.operationFailed'
+      })
     )
-    expect(feedback?.getAttribute('data-status')).toBe('error')
-    expect(feedback?.textContent).not.toContain('transport details')
+    expect(document.body.textContent).not.toContain('transport details')
 
     document.querySelector<HTMLButtonElement>('[data-testid="rate-limit-disable-confirm"]')!.click()
     await flushPromises()

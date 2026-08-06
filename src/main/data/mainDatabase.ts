@@ -356,14 +356,13 @@ export class MainDatabase {
       }
     })
 
-    // 按版本号顺序执行迁移
-    const versions = Array.from(migrations.keys()).sort((a, b) => a - b)
-
-    for (const version of versions) {
+    // Schema versions are a monotonic high-water mark. Record intentionally empty versions too so
+    // a removed or abandoned migration number can never be reused after a newer version ships.
+    for (let version = this.currentVersion + 1; version <= latestVersion; version++) {
       const migrationSQLs = migrations.get(version) || []
-      if (migrationSQLs.length > 0) {
-        logger.info(`Executing migration version ${version}`)
-        this.db.transaction(() => {
+      this.db.transaction(() => {
+        if (migrationSQLs.length > 0) {
+          logger.info(`Executing migration version ${version}`)
           migrationSQLs.forEach((sqlBlock) => {
             for (const statement of splitSqlStatements(sqlBlock)) {
               logger.info(`Executing SQL: ${statement}`)
@@ -380,11 +379,11 @@ export class MainDatabase {
             }
           })
           tables.forEach((table) => table.finalizeMigration?.(version))
-          this.db
-            .prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)')
-            .run(version, Date.now())
-        })()
-      }
+        }
+        this.db
+          .prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)')
+          .run(version, Date.now())
+      })()
     }
   }
 

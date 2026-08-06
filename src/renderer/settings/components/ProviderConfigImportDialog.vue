@@ -53,10 +53,10 @@
                 {{ scanError }}
               </p>
             </div>
-            <Button variant="outline" size="sm" @click="runScan">
+            <DcButton variant="outline" size="sm" @click="runScan">
               <Icon icon="lucide:refresh-cw" class="h-4 w-4" />
               {{ t('settings.data.providerImport.actions.rescan') }}
-            </Button>
+            </DcButton>
           </div>
 
           <template v-else-if="scanResult">
@@ -89,9 +89,9 @@
                 <div class="min-w-0 flex-1">
                   <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                     <div class="text-sm font-medium">{{ source.name }}</div>
-                    <Badge variant="outline" class="text-[11px]">
+                    <DcBadge variant="outline" class="text-[11px]">
                       {{ t(`settings.data.providerImport.sourceStatus.${source.status}`) }}
-                    </Badge>
+                    </DcBadge>
                     <span class="text-xs text-muted-foreground">
                       {{
                         t('settings.data.providerImport.providersFound', {
@@ -135,14 +135,14 @@
             <div class="space-y-1">
               <div class="flex items-center gap-2">
                 <div class="text-sm font-medium">{{ currentSource.name }}</div>
-                <Badge variant="outline" class="text-[11px]">
+                <DcBadge variant="outline" class="text-[11px]">
                   {{
                     t('settings.data.providerImport.sourceProgress', {
                       current: currentSourceIndex + 1,
                       total: selectedSourceIds.length
                     })
                   }}
-                </Badge>
+                </DcBadge>
               </div>
               <p class="text-xs text-muted-foreground">
                 {{ t('settings.data.providerImport.overwriteNote') }}
@@ -152,12 +152,12 @@
               </p>
             </div>
             <div class="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" @click="selectAllCurrentProviders">
+              <DcButton variant="outline" size="sm" @click="selectAllCurrentProviders">
                 {{ t('settings.data.providerImport.actions.selectAll') }}
-              </Button>
-              <Button variant="outline" size="sm" @click="clearCurrentProviders">
+              </DcButton>
+              <DcButton variant="outline" size="sm" @click="clearCurrentProviders">
                 {{ t('settings.data.providerImport.actions.clearSelected') }}
-              </Button>
+              </DcButton>
             </div>
           </div>
 
@@ -200,7 +200,7 @@
                       <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
                           <div class="text-sm font-medium">{{ provider.name }}</div>
-                          <Badge
+                          <DcBadge
                             :variant="provider.configured ? 'secondary' : 'outline'"
                             class="text-[11px]"
                           >
@@ -209,7 +209,7 @@
                                 ? t('settings.data.providerImport.badges.configured')
                                 : provider.sourceType
                             }}
-                          </Badge>
+                          </DcBadge>
                         </div>
                         <div
                           class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
@@ -228,9 +228,9 @@
 
                       <div class="min-w-0 rounded-md border bg-muted/20 px-3 py-2 lg:w-64">
                         <div class="flex items-center gap-2 text-xs">
-                          <Badge variant="outline" class="text-[11px]">
+                          <DcBadge variant="outline" class="text-[11px]">
                             {{ targetKindLabel(provider.targetKind) }}
-                          </Badge>
+                          </DcBadge>
                           <span class="truncate font-medium">
                             {{ provider.targetProviderName || provider.targetProviderId }}
                           </span>
@@ -275,14 +275,14 @@
                     </div>
 
                     <div class="mt-3 flex flex-wrap gap-2">
-                      <Badge
+                      <DcBadge
                         v-for="model in provider.modelPreview"
                         :key="model"
                         variant="secondary"
                         class="max-w-[12rem] truncate text-[11px]"
                       >
                         {{ model }}
-                      </Badge>
+                      </DcBadge>
                       <span
                         v-if="provider.modelCount > provider.modelPreview.length"
                         class="text-xs text-muted-foreground"
@@ -369,9 +369,9 @@
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
                   <div class="text-sm font-medium">{{ result.name }}</div>
-                  <Badge variant="outline" class="text-[11px]">
+                  <DcBadge variant="outline" class="text-[11px]">
                     {{ t(`settings.data.providerImport.resultStatus.${result.status}`) }}
-                  </Badge>
+                  </DcBadge>
                 </div>
                 <p class="mt-1 truncate text-xs text-muted-foreground">
                   {{ result.sourceName }} ->
@@ -387,32 +387,32 @@
       </div>
 
       <DialogFooter class="shrink-0 border-t px-6 py-4">
-        <Button v-if="step === 'scan'" variant="outline" @click="isOpen = false">
+        <DcButton v-if="step === 'scan'" variant="outline" @click="isOpen = false">
           {{ t('dialog.cancel') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           v-else-if="step !== 'applying' && step !== 'done'"
           variant="outline"
           @click="goBack"
         >
           {{ t('common.back') }}
-        </Button>
-        <Button v-if="step === 'scan'" variant="outline" :disabled="isScanning" @click="runScan">
+        </DcButton>
+        <DcButton v-if="step === 'scan'" variant="outline" :disabled="isScanning" @click="runScan">
           {{ t('settings.data.providerImport.actions.rescan') }}
-        </Button>
-        <Button v-if="step === 'scan'" :disabled="!canContinueFromScan" @click="goToProviders">
+        </DcButton>
+        <DcButton v-if="step === 'scan'" :disabled="!canContinueFromScan" @click="goToProviders">
           {{ t('common.next') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           v-else-if="step === 'providers'"
           :disabled="!canContinueFromProviders"
           @click="goNextProviderStep"
         >
           {{ providerActionLabel }}
-        </Button>
-        <Button v-else-if="step === 'done'" @click="isOpen = false">
+        </DcButton>
+        <DcButton v-else-if="step === 'done'" @click="isOpen = false">
           {{ t('dialog.ok') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -430,9 +430,9 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcBadge } from '@dc-ui/components/badge'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
   Select,

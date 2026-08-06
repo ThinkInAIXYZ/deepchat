@@ -20,6 +20,7 @@ export interface SessionRuntimeUpdate {
   responseMarkdown?: string
   deliverySegments?: AssistantDeliverySegment[]
   waitingInteraction?: SessionWaitingInteraction | null
+  usage?: Record<string, number>
 }
 
 export interface SessionRuntimeEventPort {

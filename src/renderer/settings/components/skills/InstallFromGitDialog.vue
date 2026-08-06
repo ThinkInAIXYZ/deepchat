@@ -15,11 +15,11 @@
             :placeholder="t('settings.skills.git.placeholder')"
             :disabled="scanning || installing"
           />
-          <Button :disabled="!repoUrl.trim() || scanning || installing" @click="scan">
+          <DcButton :disabled="!repoUrl.trim() || scanning || installing" @click="scan">
             <Spinner v-if="scanning" data-icon="inline-start" />
             <Icon v-else icon="lucide:search" data-icon="inline-start" />
             {{ t('settings.skills.git.scan') }}
-          </Button>
+          </DcButton>
         </div>
 
         <div v-if="error" class="rounded-md border border-destructive/30 px-3 py-2 text-sm">
@@ -29,20 +29,15 @@
           </div>
         </div>
 
-        <InlineOperationFeedback
-          v-if="
-            visibleInstallFeedback.status === 'success' || visibleInstallFeedback.status === 'error'
-          "
-          :snapshot="visibleInstallFeedback"
-        />
+        <DcInlineError v-if="operationError" :error="operationError" class="mb-2" />
 
         <div v-if="scanResult" class="space-y-3">
           <div class="flex items-center justify-between gap-2 text-sm">
             <div>
               {{ t('settings.skills.git.detectedFormat') }}
-              <Badge variant="outline">{{
+              <DcBadge variant="outline">{{
                 t(`settings.skills.git.format.${scanResult.repoFormat}`)
-              }}</Badge>
+              }}</DcBadge>
             </div>
             <div class="text-xs text-muted-foreground">
               {{ t('settings.skills.git.selectedCount', { count: selectedNames.size }) }}
@@ -72,12 +67,12 @@
                   <span class="truncate text-sm font-medium" :title="skill.name">
                     {{ skill.name }}
                   </span>
-                  <Badge v-if="skill.conflict" variant="outline" class="shrink-0">
+                  <DcBadge v-if="skill.conflict" variant="outline" class="shrink-0">
                     {{ t('settings.skills.git.conflict') }}
-                  </Badge>
-                  <Badge v-if="!skill.valid" variant="destructive" class="shrink-0">
+                  </DcBadge>
+                  <DcBadge v-if="!skill.valid" variant="destructive" class="shrink-0">
                     {{ t('settings.skills.git.invalid') }}
-                  </Badge>
+                  </DcBadge>
                 </span>
                 <span
                   class="block truncate text-xs text-muted-foreground"
@@ -116,14 +111,15 @@
       </div>
 
       <DialogFooter class="gap-2 sm:gap-0">
-        <Button variant="ghost" :disabled="installing" @click="handleOpenChange(false)">
-          {{ t('common.cancel') }}
-        </Button>
-        <Button :disabled="!canInstall" @click="install">
-          <Spinner v-if="installing" data-icon="inline-start" />
-          <Icon v-else icon="lucide:download" data-icon="inline-start" />
-          {{ t('settings.skills.git.install') }}
-        </Button>
+        <DcFormActions
+          :submit-status="installStatus"
+          :submit-icon="'lucide:download'"
+          :submit-disabled="!canInstall"
+          :cancel-disabled="installing"
+          :submit-label="t('settings.skills.git.install')"
+          @cancel="handleOpenChange(false)"
+          @submit="install"
+        />
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -134,8 +130,8 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { nanoid } from 'nanoid'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import {
@@ -148,9 +144,9 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { Input } from '@shadcn/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
-import InlineOperationFeedback from '@renderer-notifications/InlineOperationFeedback.vue'
-import { createRendererSurfaceFeedbackController } from '@renderer-notifications/rendererNotificationRuntime'
-import { useSurfaceFeedback } from '@renderer-notifications/useSurfaceFeedback'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { useDcFormSubmit } from '@dc-ui/components/form'
+import { DcFormActions } from '@dc-ui/components/form-actions'
 import { createSkillClient } from '@api/SkillClient'
 import type { GitSkillRepoScanResult, SkillInstallConflictStrategy } from '@shared/types/skill'
 import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
@@ -166,10 +162,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const skillClient = createSkillClient()
-const installController = createRendererSurfaceFeedbackController('settings')
-const { snapshot: installFeedback, setActive: setInstallFeedbackActive } =
-  useSurfaceFeedback(installController)
-const installOperationId = `settings.skills.gitInstall:${nanoid(8)}`
 
 const repoUrl = ref('https://github.com/op7418/guizang-ppt-skill')
 const scanResult = ref<GitSkillRepoScanResult | null>(null)
@@ -177,60 +169,33 @@ const selectedNames = ref<Set<string>>(new Set())
 const strategy = ref<SkillInstallConflictStrategy>('rename')
 const scanning = ref(false)
 const error = ref(false)
+const operationError = ref<string | null>(null)
 const contextVersion = ref(0)
-const feedbackContextVersion = ref<number | null>(null)
-const feedbackAgentId = ref<string | undefined>()
 let scanRequestId = 0
 let installRequestId = 0
 let installGeneration = 0
+const installing = ref(false)
+const { status: installStatus, run: runInstall } = useDcFormSubmit()
 
 const currentAgentId = () => props.agentId?.trim() || undefined
 const isCurrentContext = (agentId: string | undefined) => props.open && currentAgentId() === agentId
-const installing = computed(() => installFeedback.value.status === 'pending')
-const feedbackBelongsToSurface = computed(
-  () =>
-    feedbackContextVersion.value === contextVersion.value &&
-    feedbackAgentId.value === currentAgentId()
-)
-const visibleInstallFeedback = computed(() => {
-  const snapshot = installFeedback.value
-  if (snapshot.status === 'pending' || feedbackBelongsToSurface.value) return snapshot
-  return { status: 'idle' as const, version: snapshot.version }
-})
-const installFeedbackSurfaceActive = computed(
-  () => props.open && (installFeedback.value.status === 'idle' || feedbackBelongsToSurface.value)
-)
 
 const logFailure = (message: string, cause: unknown) => {
   console.error(message, cause)
 }
 
-const dismissSettledInstallFeedback = () => {
-  const snapshot = installController.getSnapshot()
-  if (snapshot.status === 'success' || snapshot.status === 'error') {
-    installController.clearSettled()
-  }
-  if (snapshot.status !== 'pending') {
-    feedbackContextVersion.value = null
-    feedbackAgentId.value = undefined
-  }
-}
-
-const beginInstall = (agentId: string | undefined): number | null => {
-  if (installController.getSnapshot().status === 'pending') return null
+const beginInstall = (): number | null => {
+  if (installing.value) return null
   const generation = ++installGeneration
-  feedbackContextVersion.value = contextVersion.value
-  feedbackAgentId.value = agentId
-  installController.begin(installOperationId, t('settings.skills.install.installing'))
+  installing.value = true
   return generation
 }
 
 const isCurrentInstall = (generation: number) =>
-  generation === installGeneration && installController.getSnapshot().status === 'pending'
+  generation === installGeneration && installing.value
 
 const handleOpenChange = (open: boolean) => {
   if (!open && installing.value) return
-  if (!open) dismissSettledInstallFeedback()
   emit('update:open', open)
 }
 
@@ -247,7 +212,6 @@ const scan = async () => {
   const agentId = currentAgentId()
   const requestedRepoUrl = repoUrl.value.trim()
   error.value = false
-  if (installController.getSnapshot().status !== 'idle') dismissSettledInstallFeedback()
   scanResult.value = null
   selectedNames.value = new Set()
   scanning.value = true
@@ -274,7 +238,6 @@ const scan = async () => {
 
 const toggleSkill = (name: string) => {
   if (installing.value) return
-  if (installController.getSnapshot().status !== 'idle') dismissSettledInstallFeedback()
   const next = new Set(selectedNames.value)
   if (next.has(name)) {
     next.delete(name)
@@ -288,12 +251,13 @@ const install = async () => {
   if (!scanResult.value || !canInstall.value) return
   const agentId = currentAgentId()
   const operationContextVersion = contextVersion.value
-  const generation = beginInstall(agentId)
+  const generation = beginInstall()
   if (generation === null) return
   const requestId = ++installRequestId
   error.value = false
-  try {
-    const scannedRepoUrl = scanResult.value.repoUrl
+  operationError.value = null
+  await runInstall(async () => {
+    const scannedRepoUrl = scanResult.value?.repoUrl ?? ''
     const input = {
       repoUrl: scannedRepoUrl,
       skillNames: [...selectedNames.value],
@@ -330,38 +294,27 @@ const install = async () => {
           input.skillNames.filter((skillName) => !installedSourceNames.has(skillName))
         )
       }
-      installController.fail({
-        code: 'settings.skills.gitInstallIncomplete',
-        title: t('settings.skills.git.failed'),
-        description: t('settings.skills.git.successMessage', {
-          count: installed,
-          failed: failed || selectedNames.value.size
-        })
+      installing.value = false
+      operationError.value = t('settings.skills.git.successMessage', {
+        count: installed,
+        failed: failed || selectedNames.value.size
       })
-      return
+      throw new Error('Git repository install was incomplete')
     }
-    installController.succeed({
-      code: 'settings.skills.gitInstalled',
-      title: t('settings.skills.git.success'),
-      description: t('settings.skills.git.successMessage', { count: installed, failed })
-    })
+    installing.value = false
     if (surfaceCurrent) {
-      installController.clearSettled()
-      feedbackContextVersion.value = null
-      feedbackAgentId.value = undefined
       emit('update:open', false)
     }
-  } catch (cause) {
+  }).catch((cause) => {
     if (!isCurrentInstall(generation) || requestId !== installRequestId) {
       return
     }
-    logFailure('[InstallFromGitDialog] Failed to install repository skills', cause)
-    installController.fail({
-      code: 'settings.skills.gitInstallFailed',
-      title: t('settings.skills.git.failed'),
-      description: t('common.error.requestFailed')
-    })
-  }
+    if (!operationError.value) {
+      logFailure('[InstallFromGitDialog] Failed to install repository skills', cause)
+      operationError.value = t('common.error.requestFailed')
+      installing.value = false
+    }
+  })
 }
 
 watch([() => props.open, () => currentAgentId()], ([open, agentId], previous) => {
@@ -370,6 +323,7 @@ watch([() => props.open, () => currentAgentId()], ([open, agentId], previous) =>
     contextVersion.value += 1
     scanRequestId += 1
     error.value = false
+    operationError.value = null
     scanResult.value = null
     selectedNames.value = new Set()
     scanning.value = false
@@ -379,25 +333,12 @@ watch([() => props.open, () => currentAgentId()], ([open, agentId], previous) =>
 watch(repoUrl, () => {
   if (installing.value) return
   scanRequestId += 1
-  if (installController.getSnapshot().status !== 'idle') dismissSettledInstallFeedback()
   error.value = false
+  operationError.value = null
   scanResult.value = null
   selectedNames.value = new Set()
   scanning.value = false
 })
-
-watch(strategy, () => {
-  if (installing.value || installController.getSnapshot().status === 'idle') return
-  dismissSettledInstallFeedback()
-})
-
-const stopSurfaceLeaseSync = watch(
-  installFeedbackSurfaceActive,
-  (active) => {
-    setInstallFeedbackActive(active)
-  },
-  { immediate: true, flush: 'sync' }
-)
 
 const leaveGuardLease = settingsLeaveGuard.register({
   id: `settings.skills.gitInstall:${nanoid(8)}`,
@@ -412,7 +353,6 @@ const stopLeaveRiskSync = watch(
 )
 
 onBeforeUnmount(() => {
-  stopSurfaceLeaseSync()
   stopLeaveRiskSync()
   leaveGuardLease.release()
 })

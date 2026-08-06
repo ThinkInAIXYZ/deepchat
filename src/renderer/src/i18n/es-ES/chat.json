@@ -559,5 +559,21 @@
       "amendRetryable": "No se pudo guardar el cambio. Se restauró la memoria original; inténtalo de nuevo.",
       "amendRestoreFailed": "No se pudo guardar el cambio y tampoco se pudo restaurar la memoria original."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Abrir Agent secundario" },
+    "activityTitle": "Actividad del Agent",
+    "proactive": {
+      "title": "Colaboración proactiva",
+      "description": "Permite que el Agent principal delegue cuando el trabajo independiente o paralelo aporte una ventaja clara. Puede usar más tiempo, tokens y recursos.",
+      "reasons": {
+        "session_unavailable": "Esta sesión ya no está disponible.",
+        "agent_unavailable": "El Agent seleccionado no está disponible.",
+        "deepchat_agent_required": "La colaboración proactiva requiere un DeepChat Agent.",
+        "regular_parent_required": "La colaboración proactiva no está disponible en una sesión secundaria.",
+        "agent_policy_unavailable": "No se pudo cargar la política de colaboración.",
+        "subagents_disabled": "Activa Subagents para este Agent antes de usar la colaboración proactiva."
+      }
+    }
   }
 }

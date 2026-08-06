@@ -28,12 +28,12 @@
             <span class="text-sm">{{ ownerLabel(skill.owner) }}</span>
           </TableCell>
           <TableCell>
-            <Badge variant="outline" :class="statusBadgeClass(skill.status)">
+            <DcBadge variant="outline" :class="statusBadgeClass(skill.status)">
               {{ statusLabel(skill.status) }}
-            </Badge>
+            </DcBadge>
           </TableCell>
           <TableCell>
-            <Button
+            <DcButton
               variant="ghost"
               size="sm"
               class="h-7 px-2"
@@ -42,10 +42,10 @@
             >
               <Icon icon="lucide:eye" class="mr-1 h-3.5 w-3.5" />
               {{ t('settings.skills.agents.actions.view') }}
-            </Button>
+            </DcButton>
           </TableCell>
           <TableCell class="text-right">
-            <Button
+            <DcButton
               v-if="skill.action && isEnabledAction(skill.action)"
               variant="outline"
               size="sm"
@@ -56,7 +56,7 @@
             >
               <Icon :icon="actionIcon(skill.action)" class="mr-1 h-3.5 w-3.5" />
               {{ actionLabel(skill.action) }}
-            </Button>
+            </DcButton>
           </TableCell>
         </TableRow>
       </TableBody>
@@ -67,8 +67,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Table,
   TableBody,

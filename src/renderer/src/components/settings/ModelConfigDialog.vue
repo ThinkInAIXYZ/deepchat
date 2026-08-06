@@ -9,7 +9,7 @@
       </DialogHeader>
 
       <div class="overflow-y-auto flex-1 pr-2 -mr-2">
-        <form @submit.prevent="handleSave" class="space-y-6">
+        <DcForm @submit="handleSave" class="space-y-6">
           <!-- 模型名称 -->
           <div v-if="!showOpenAIMediaGenerationSettings || canEditModelIdentity" class="space-y-2">
             <Label for="modelName">{{ t('settings.model.modelConfig.name.label') }}</Label>
@@ -131,13 +131,8 @@
 
           <TtsSettingsFields v-if="showTtsSettings" v-model="config.tts" />
 
-          <GenerationParameterLoadingSkeleton v-if="temperatureControl.mode === 'loading'" />
-
           <!-- 温度 -->
-          <div
-            v-if="!showOpenAIMediaGenerationSettings && showTemperatureControl"
-            class="space-y-2"
-          >
+          <div v-if="showTemperatureControl" class="space-y-2">
             <Label for="temperature">{{ t('settings.model.modelConfig.temperature.label') }}</Label>
             <Input
               id="temperature"
@@ -148,7 +143,7 @@
               :max="2"
               :placeholder="t('settings.model.modelConfig.temperature.label')"
               :class="{ 'border-destructive': errors.temperature }"
-              :disabled="temperatureControl.mode === 'fixed'"
+              :disabled="temperatureSettingReadOnly"
             />
             <p class="text-xs text-muted-foreground">
               {{ t('settings.model.modelConfig.temperature.description') }}
@@ -169,7 +164,7 @@
               type="text"
               :placeholder="t('settings.model.modelConfig.useModelDefault')"
               :class="{ 'border-destructive': errors.topP }"
-              :disabled="topPControl.mode === 'fixed'"
+              :disabled="topPSettingReadOnly"
               @blur="clampTopPDraft"
             />
             <p class="text-xs text-muted-foreground">
@@ -486,62 +481,48 @@
               </div>
             </div>
           </div>
-        </form>
+        </DcForm>
       </div>
 
       <DialogFooter class="gap-2">
-        <Button type="button" variant="outline" @click="handleReset">
+        <DcButton type="button" variant="outline" @click="handleReset">
           {{ t('settings.model.modelConfig.resetToDefault') }}
-        </Button>
-        <Button type="button" variant="ghost" @click="$emit('update:open', false)">
+        </DcButton>
+        <DcButton type="button" variant="ghost" @click="$emit('update:open', false)">
           {{ t('settings.model.modelConfig.cancel') }}
-        </Button>
-        <Button type="button" @click="handleSave" :disabled="!isValid">
+        </DcButton>
+        <DcButton type="button" @click="handleSave" :disabled="!isValid">
           {{ t('settings.model.modelConfig.saveConfig') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 
   <!-- 重置确认对话框 -->
-  <Dialog :open="showResetConfirm" @update:open="showResetConfirm = $event">
-    <DialogContent class="sm:max-w-[425px]">
-      <DialogHeader>
-        <DialogTitle>{{ t('settings.model.modelConfig.resetConfirm.title') }}</DialogTitle>
-        <p class="text-sm text-muted-foreground">
-          {{ t('settings.model.modelConfig.resetConfirm.message') }}
-        </p>
-      </DialogHeader>
-      <DialogFooter>
-        <Button variant="ghost" @click="showResetConfirm = false">
-          {{ t('settings.model.modelConfig.cancel') }}
-        </Button>
-        <Button variant="destructive" @click="confirmReset">
-          {{ t('settings.model.modelConfig.resetConfirm.confirm') }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  <DcConfirmDialog
+    :open="showResetConfirm"
+    :title="t('settings.model.modelConfig.resetConfirm.title')"
+    :description="t('settings.model.modelConfig.resetConfirm.message')"
+    :danger="true"
+    confirm-label="t('settings.model.modelConfig.resetConfirm.confirm')"
+    cancel-label="t('settings.model.modelConfig.cancel')"
+    @update:open="showResetConfirm = $event"
+    @confirm="confirmReset"
+    @cancel="showResetConfirm = false"
+  />
 
   <!-- DeepSeek-V3.1 互斥确认对话框 -->
-  <AlertDialog :open="showMutualExclusiveAlert" @update:open="showMutualExclusiveAlert = $event">
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>{{ getConfirmTitle }}</AlertDialogTitle>
-        <AlertDialogDescription>
-          {{ getConfirmMessage }}
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel @click="cancelMutualExclusiveToggle">
-          {{ t('dialog.cancel') }}
-        </AlertDialogCancel>
-        <AlertDialogAction @click="confirmMutualExclusiveToggle">
-          {{ t('dialog.mutualExclusive.confirmEnable') }}
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
+  <DcConfirmDialog
+    :open="showMutualExclusiveAlert"
+    :title="getConfirmTitle"
+    :description="getConfirmMessage"
+    :danger="false"
+    confirm-label="t('dialog.mutualExclusive.confirmEnable')"
+    cancel-label="t('dialog.cancel')"
+    @update:open="showMutualExclusiveAlert = $event"
+    @confirm="confirmMutualExclusiveToggle"
+    @cancel="cancelMutualExclusiveToggle"
+  />
 </template>
 
 <script setup lang="ts">
@@ -595,10 +576,11 @@ import { normalizeTtsSettings } from '@shared/ttsSettings'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcForm } from '@dc-ui/components/form'
 import OpenAIImageGenerationSettingsFields from './OpenAIImageGenerationSettingsFields.vue'
 import OpenAIVideoGenerationSettingsFields from './OpenAIVideoGenerationSettingsFields.vue'
 import TtsSettingsFields from './TtsSettingsFields.vue'
-import GenerationParameterLoadingSkeleton from '../GenerationParameterLoadingSkeleton.vue'
 import {
   useModelCapabilities,
   type GenerationParameterControl
@@ -610,7 +592,7 @@ import {
   DialogTitle,
   DialogFooter
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -621,16 +603,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
 
 interface Props {
   open: boolean
@@ -730,6 +702,7 @@ const isLoadingModelConfig = ref(false)
 const modelConfigIsUserDefined = ref(false)
 const modelConfigHasExplicitType = ref(false)
 const hasManualModelTypeSelection = ref(false)
+const capabilityRouteWasEdited = ref(false)
 const topPDraft = ref('')
 const modelNameField = ref(props.modelName ?? '')
 const modelIdField = ref(props.modelId ?? '')
@@ -794,7 +767,7 @@ const parseTopPDraft = (): number | undefined => {
 }
 
 const clampTopPDraft = () => {
-  if (topPControl.value.mode !== 'editable') return
+  if (topPSettingReadOnly.value) return
 
   const raw = topPDraft.value.trim()
   if (!raw) return
@@ -969,6 +942,12 @@ const isThinkingBudgetSentinel = (
 const currentModelLookupId = computed(() =>
   (canEditModelIdentity.value ? modelIdField.value : props.modelId || modelIdField.value).trim()
 )
+const shouldUseDraftCapabilityRoute = computed(
+  () =>
+    isCreateMode.value ||
+    capabilityRouteWasEdited.value ||
+    (canEditModelIdentity.value && currentModelLookupId.value !== originalModelId.value)
+)
 
 const fetchCapabilities = async () => {
   const targetModelId = currentModelLookupId.value
@@ -978,17 +957,19 @@ const fetchCapabilities = async () => {
     return
   }
 
+  const routeOverride = shouldUseDraftCapabilityRoute.value
+    ? {
+        endpointType: isNewApiEndpointType(config.value.endpointType)
+          ? config.value.endpointType
+          : providerModelMeta.value?.endpointType,
+        type: effectiveNewApiModelType.value
+      }
+    : undefined
+
   await modelCapabilities.load({
     providerId: props.providerId,
     modelId: targetModelId,
-    routeOverride: {
-      endpointType: isNewApiEndpointType(config.value.endpointType)
-        ? config.value.endpointType
-        : providerModelMeta.value?.endpointType,
-      supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
-      type: effectiveNewApiModelType.value,
-      ownedBy: providerModelMeta.value?.ownedBy
-    },
+    ...(routeOverride ? { routeOverride } : {}),
     reasoningEnabled: config.value.reasoning
   })
 }
@@ -1107,13 +1088,21 @@ const topPPolicyHint = computed(() =>
       })
     : ''
 )
+const isGenerationSettingReadOnly = (control: GenerationParameterControl) =>
+  control.mode === 'fixed' ||
+  control.mode === 'loading' ||
+  (control.mode === 'hidden' && modelCapabilities.status.value === 'ready')
+const temperatureSettingReadOnly = computed(() =>
+  isGenerationSettingReadOnly(temperatureControl.value)
+)
+const topPSettingReadOnly = computed(() => isGenerationSettingReadOnly(topPControl.value))
 const temperatureInputValue = computed<number | undefined>({
   get: () =>
     temperatureControl.value.mode === 'fixed'
       ? temperatureControl.value.value
       : config.value.temperature,
   set: (value) => {
-    if (temperatureControl.value.mode === 'editable') {
+    if (!temperatureSettingReadOnly.value) {
       config.value.temperature = value
     }
   }
@@ -1122,7 +1111,7 @@ const topPInputValue = computed<string>({
   get: () =>
     topPControl.value.mode === 'fixed' ? String(topPControl.value.value) : topPDraft.value,
   set: (value) => {
-    if (topPControl.value.mode === 'editable') {
+    if (!topPSettingReadOnly.value) {
       topPDraft.value = value
     }
   }
@@ -1300,6 +1289,7 @@ const loadConfig = async () => {
   isLoadingModelConfig.value = true
   modelCapabilities.beginLoading()
   hasManualModelTypeSelection.value = false
+  capabilityRouteWasEdited.value = false
   modelConfigIsUserDefined.value = false
   modelConfigHasExplicitType.value = false
   initializeIdentityFields()
@@ -1457,8 +1447,8 @@ const validateForm = () => {
 
   // 验证温度 (仅对显示 temperature 控件的模型)
   if (
-    !showOpenAIMediaGenerationSettings.value &&
-    temperatureControl.value.mode === 'editable' &&
+    showTemperatureControl.value &&
+    !temperatureSettingReadOnly.value &&
     config.value.temperature !== undefined
   ) {
     if (config.value.temperature < 0) {
@@ -1468,7 +1458,7 @@ const validateForm = () => {
     }
   }
 
-  if (topPControl.value.mode === 'editable') {
+  if (showTopPControl.value && !topPSettingReadOnly.value) {
     const parsedTopP = parseTopPDraft()
     if (parsedTopP !== undefined) {
       if (!Number.isFinite(parsedTopP)) {
@@ -1521,10 +1511,9 @@ const handleSave = async () => {
     ...config.value,
     ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
     topP:
-      topPControl.value.mode !== 'editable'
+      !showTopPControl.value || topPSettingReadOnly.value
         ? config.value.topP
-        : showTopPControl.value &&
-            typeof parsedTopP === 'number' &&
+        : typeof parsedTopP === 'number' &&
             Number.isFinite(parsedTopP) &&
             parsedTopP >= 0.1 &&
             parsedTopP <= 1
@@ -1650,7 +1639,14 @@ watch(
       showEndpointTypeSelector.value,
       availableEndpointTypes.value.join('|')
     ] as const,
-  ([, nextType], [, previousType]) => {
+  ([nextEndpointType, nextType], [previousEndpointType, previousType]) => {
+    if (
+      !isLoadingModelConfig.value &&
+      (nextEndpointType !== previousEndpointType || nextType !== previousType)
+    ) {
+      capabilityRouteWasEdited.value = true
+    }
+
     if (!isLoadingModelConfig.value && nextType !== previousType) {
       hasManualModelTypeSelection.value = true
     }
@@ -1721,12 +1717,10 @@ const showReasoningVisibility = computed(
   () => supportsReasoningVisibility.value && effectiveReasoningEnabled.value
 )
 const showTemperatureControl = computed(
-  () => temperatureControl.value.mode === 'editable' || temperatureControl.value.mode === 'fixed'
+  () => !showOpenAIMediaGenerationSettings.value && config.value.type === ModelType.Chat
 )
 const showTopPControl = computed(
-  () =>
-    !showOpenAIMediaGenerationSettings.value &&
-    (topPControl.value.mode === 'editable' || topPControl.value.mode === 'fixed')
+  () => !showOpenAIMediaGenerationSettings.value && config.value.type === ModelType.Chat
 )
 const reasoningToggleMode = computed(() => {
   if (capabilityRequestPolicy.value?.reasoning.mode === 'fixed') {

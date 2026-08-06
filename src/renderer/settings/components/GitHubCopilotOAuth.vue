@@ -32,7 +32,7 @@
         </span>
       </div>
       <div class="flex flex-row gap-2">
-        <Button
+        <DcButton
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg"
@@ -41,8 +41,8 @@
         >
           <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
           {{ t('settings.provider.verifyKey') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg text-destructive"
@@ -50,7 +50,7 @@
         >
           <Icon icon="lucide:unlink" class="w-4 h-4 text-destructive" />
           {{ t('settings.provider.disconnect') }}
-        </Button>
+        </DcButton>
       </div>
     </div>
 
@@ -64,7 +64,7 @@
           {{ t('settings.provider.githubCopilotNotConnected') }}
         </span>
       </div>
-      <Button
+      <DcButton
         variant="default"
         size="sm"
         class="w-full"
@@ -74,9 +74,9 @@
         <Spinner v-if="isLoggingIn" class="mr-2 size-4" data-icon="inline-start" />
         <Icon v-else icon="lucide:smartphone" class="mr-2 size-4" data-icon="inline-start" />
         {{ isLoggingIn ? t('settings.provider.loggingIn') : 'Device Flow 登录 (推荐)' }}
-      </Button>
+      </DcButton>
 
-      <Button
+      <DcButton
         variant="outline"
         size="sm"
         class="w-full"
@@ -86,7 +86,7 @@
         <Spinner v-if="isLoggingIn" class="mr-2 size-4" data-icon="inline-start" />
         <Icon v-else icon="lucide:github" class="mr-2 size-4" data-icon="inline-start" />
         {{ isLoggingIn ? t('settings.provider.loggingIn') : '传统 OAuth 登录' }}
-      </Button>
+      </DcButton>
       <div class="text-xs text-muted-foreground">
         {{ t('settings.provider.githubCopilotLoginTip') }}
       </div>
@@ -132,7 +132,7 @@ import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Input } from '@shadcn/components/ui/input'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
 import { createOAuthClient } from '@api/OAuthClient'
 import { useProviderStore } from '@/stores/providerStore'

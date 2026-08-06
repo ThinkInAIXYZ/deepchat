@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { OrchestrationPolicySchema } from '../../orchestration/policy'
 import type { SearchResult } from '@shared/types/core/search'
 import type {
   Agent,
@@ -98,6 +99,7 @@ export const CreateSessionInputSchema = z.object({
   permissionMode: PermissionModeSchema.optional(),
   activeSkills: z.array(z.string()).optional(),
   disabledAgentTools: z.array(z.string()).optional(),
+  orchestrationPolicy: OrchestrationPolicySchema.optional(),
   generationSettings: SessionGenerationSettingsPatchSchema.optional()
 })
 

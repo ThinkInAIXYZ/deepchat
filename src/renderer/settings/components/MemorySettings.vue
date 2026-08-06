@@ -14,9 +14,9 @@
       class="space-y-3 rounded-lg border border-destructive/40 py-10 text-center text-sm text-destructive"
     >
       <div>{{ loadError }}</div>
-      <Button variant="outline" size="sm" @click="() => reload()">
+      <DcButton variant="outline" size="sm" @click="() => reload()">
         {{ t('settings.memory.redesign.refresh') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div
@@ -80,7 +80,7 @@
           </span>
         </div>
 
-        <Button
+        <DcButton
           variant="ghost"
           size="sm"
           class="h-8 shrink-0 justify-center self-start sm:self-auto"
@@ -91,7 +91,7 @@
         >
           <Icon icon="lucide:settings-2" class="mr-1.5 h-3.5 w-3.5" />
           {{ configureActionLabel }}
-        </Button>
+        </DcButton>
       </div>
 
       <MemoryInlineFeedback
@@ -131,23 +131,23 @@
             </TabsTrigger>
             <TabsTrigger v-if="personaTabVisible" value="persona">
               {{ t('settings.memory.redesign.tabPersona') }}
-              <Badge
+              <DcBadge
                 v-if="(status?.personaDraftCount ?? 0) > 0"
                 variant="secondary"
                 class="ml-1.5 text-[10px]"
               >
                 {{ status?.personaDraftCount }}
-              </Badge>
+              </DcBadge>
             </TabsTrigger>
             <TabsTrigger value="directives">
               {{ t('settings.memory.redesign.tabDirectives') }}
-              <Badge
+              <DcBadge
                 v-if="(status?.directiveDraftCount ?? 0) > 0"
                 variant="secondary"
                 class="ml-1.5 text-[10px]"
               >
                 {{ status?.directiveDraftCount }}
-              </Badge>
+              </DcBadge>
             </TabsTrigger>
             <TabsTrigger value="diagnostics">
               {{ t('settings.memory.redesign.tabDiagnostics') }}
@@ -197,8 +197,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcButton } from '@dc-ui/components/button'
+import { DcBadge } from '@dc-ui/components/badge'
 import {
   Select,
   SelectContent,

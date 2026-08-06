@@ -15,9 +15,9 @@
           <div class="text-sm text-muted-foreground">
             {{ t('settings.acp.profileManager.count', { count: agent.profiles.length }) }}
           </div>
-          <Button size="sm" @click="emit('add-profile', agent.id)">
+          <DcButton size="sm" @click="emit('add-profile', agent.id)">
             {{ t('settings.acp.addProfile') }}
-          </Button>
+          </DcButton>
         </div>
         <div v-if="!agent.profiles.length" class="text-sm text-muted-foreground text-center py-8">
           {{ t('settings.acp.profileManager.empty') }}
@@ -32,9 +32,9 @@
               <div class="space-y-1">
                 <div class="text-sm font-semibold flex items-center gap-2">
                   <span>{{ profile.name }}</span>
-                  <Badge v-if="profile.id === agent.activeProfileId" variant="secondary">
+                  <DcBadge v-if="profile.id === agent.activeProfileId" variant="secondary">
                     {{ t('settings.acp.profileManager.active') }}
-                  </Badge>
+                  </DcBadge>
                 </div>
                 <p class="text-xs text-muted-foreground break-words">
                   {{ profile.command }}
@@ -50,29 +50,29 @@
                 </p>
               </div>
               <div class="flex flex-col gap-1">
-                <Button
+                <DcButton
                   variant="ghost"
                   size="sm"
                   :disabled="profile.id === agent.activeProfileId"
                   @click="emit('set-active', { agentId: agent.id, profileId: profile.id })"
                 >
                   {{ t('settings.acp.profileManager.setActive') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   variant="ghost"
                   size="sm"
                   @click="emit('edit-profile', { agentId: agent.id, profile })"
                 >
                   {{ t('common.edit') }}
-                </Button>
-                <Button
+                </DcButton>
+                <DcButton
                   variant="ghost"
                   size="sm"
                   :disabled="agent.profiles.length <= 1"
                   @click="emit('delete-profile', { agentId: agent.id, profile })"
                 >
                   {{ t('common.delete') }}
-                </Button>
+                </DcButton>
               </div>
             </div>
           </div>
@@ -95,8 +95,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcButton } from '@dc-ui/components/button'
+import { DcBadge } from '@dc-ui/components/badge'
 
 defineProps<{
   open: boolean

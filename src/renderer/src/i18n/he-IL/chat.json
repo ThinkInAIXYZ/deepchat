@@ -559,5 +559,21 @@
       "amendRetryable": "העריכה נכשלה. הזיכרון המקורי שוחזר, אפשר לנסות שוב.",
       "amendRestoreFailed": "העריכה נכשלה, ולא ניתן היה לשחזר את הזיכרון המקורי."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "פתיחת Agent ילד" },
+    "activityTitle": "פעילות Agent",
+    "proactive": {
+      "title": "שיתוף פעולה יזום",
+      "description": "מאפשר ל-Agent הראשי להאציל משימות כאשר עבודה עצמאית או מקבילית מועילה בבירור. עשוי לצרוך יותר זמן, Tokens ומשאבים.",
+      "reasons": {
+        "session_unavailable": "ההפעלה הזו אינה זמינה עוד.",
+        "agent_unavailable": "ה-Agent שנבחר אינו זמין.",
+        "deepchat_agent_required": "שיתוף פעולה יזום דורש DeepChat Agent.",
+        "regular_parent_required": "שיתוף פעולה יזום אינו זמין בהפעלת משנה.",
+        "agent_policy_unavailable": "לא ניתן לטעון את מדיניות שיתוף הפעולה.",
+        "subagents_disabled": "יש להפעיל Subagents עבור Agent זה כדי להשתמש בשיתוף פעולה יזום."
+      }
+    }
   }
 }

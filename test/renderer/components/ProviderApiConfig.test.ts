@@ -110,8 +110,8 @@ async function setup(options?: {
   vi.doMock('@shadcn/components/ui/input', () => ({
     Input: createInputStub()
   }))
-  vi.doMock('@shadcn/components/ui/button', () => ({
-    Button: buttonStub
+  vi.doMock('@dc-ui/components/button', () => ({
+    DcButton: buttonStub
   }))
   vi.doMock('@shadcn/components/ui/label', () => ({
     Label: labelStub
@@ -444,7 +444,7 @@ describe('ProviderApiConfig', () => {
       useModelCheckStore: () => ({ openDialog: vi.fn() })
     }))
     vi.doMock('@shadcn/components/ui/input', () => ({ Input: createInputStub() }))
-    vi.doMock('@shadcn/components/ui/button', () => ({ Button: buttonStub }))
+    vi.doMock('@dc-ui/components/button', () => ({ DcButton: buttonStub }))
     vi.doMock('@shadcn/components/ui/label', () => ({ Label: labelStub }))
     vi.doMock('@shadcn/components/ui/tooltip', () => ({
       Tooltip: passthrough('Tooltip'),

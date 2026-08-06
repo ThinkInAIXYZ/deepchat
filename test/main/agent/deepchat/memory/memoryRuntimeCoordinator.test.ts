@@ -872,6 +872,42 @@ describe('MemoryRuntimeCoordinator', () => {
     expect(deps.getTapeRows).toHaveBeenCalledTimes(2)
   })
 
+  it('excludes retired workflow result notices when rebuilding memory ingestion', () => {
+    const { coordinator, projection, setRows } = createHarness()
+    setRows([
+      createRecord('u1', 1, 'Remember Redis.'),
+      {
+        ...createRecord('workflow-result', 2, ''),
+        role: 'assistant',
+        content: JSON.stringify([
+          {
+            type: 'content',
+            content: 'SECRET_WORKFLOW_RESULT',
+            status: 'success',
+            timestamp: 2
+          }
+        ]),
+        metadata: JSON.stringify({
+          messageType: 'workflow_result',
+          workflowRunId: 'run-1',
+          workflowResultDeliveryId: 'delivery-1'
+        })
+      }
+    ])
+
+    const window = coordinator.buildExtractionWindow('s1', 0, 2)
+
+    expect(window?.chunks.map((chunk) => chunk.text).join('\n')).toContain('Remember Redis.')
+    expect(window?.chunks.map((chunk) => chunk.text).join('\n')).not.toContain(
+      'SECRET_WORKFLOW_RESULT'
+    )
+    expect(projection.replaceSession).toHaveBeenCalledWith(
+      's1',
+      [expect.objectContaining({ messageId: 'u1' })],
+      2
+    )
+  })
+
   it.each([
     ['a JSON string', JSON.stringify('  Remember Redis.  ')],
     ['non-JSON plain text', '  Remember Redis.  ']

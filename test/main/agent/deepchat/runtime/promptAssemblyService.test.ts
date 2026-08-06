@@ -41,6 +41,7 @@ function createHarness(
     providerCatalogPort: {},
     toolService: {},
     identity: { isAcpBackedSubagentSession: vi.fn(() => false) },
+    orchestrationPolicy: { resolveOrchestrationPolicy: vi.fn(() => 'explicit') },
     projectDir: { resolveProjectDir: vi.fn(() => '/workspace') },
     memoryPromptContributor: { contribute }
   } as unknown as PromptAssemblyServiceDependencies

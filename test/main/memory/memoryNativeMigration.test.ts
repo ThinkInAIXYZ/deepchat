@@ -140,7 +140,7 @@ function seedReadyEmbedding(
 }
 
 describeIfNative('Memory native SQLite migration', () => {
-  it('migrates a genuine v45 memory table through every evolution schema exactly once', () => {
+  it('migrates a genuine v45 memory table through every declared evolution schema exactly once', () => {
     withTemporaryDatabase((databasePath) => {
       const seeded = new MainDatabaseCtor(databasePath)
       seeded.close()
@@ -156,12 +156,17 @@ describeIfNative('Memory native SQLite migration', () => {
 
       const migrated = new MainDatabaseCtor(databasePath)
       const db = migrated.getDatabase()
+      const latestSchemaVersion = migrated.getLatestSchemaVersion()
       expect(db.prepare('SELECT MAX(version) AS version FROM schema_versions').get()).toEqual({
-        version: migrated.getLatestSchemaVersion()
+        version: latestSchemaVersion
       })
+      const expectedAppliedVersions = Array.from(
+        { length: latestSchemaVersion - 45 },
+        (_, index) => index + 46
+      ).map((version) => ({ version }))
       expect(
         db.prepare('SELECT version FROM schema_versions WHERE version >= 46 ORDER BY version').all()
-      ).toEqual([46, 47, 48, 49, 50, 51, 52].map((version) => ({ version })))
+      ).toEqual(expectedAppliedVersions)
       expect(
         db
           .prepare(
@@ -631,7 +636,7 @@ describeIfNative('Memory native SQLite migration', () => {
       migrated.close()
 
       const reopened = new MainDatabaseCtor(databasePath)
-      expect(reopened.getLatestSchemaVersion()).toBe(52)
+      expect(reopened.getLatestSchemaVersion()).toBeGreaterThanOrEqual(52)
       expect(
         reopened
           .getDatabase()

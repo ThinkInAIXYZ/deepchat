@@ -13,14 +13,17 @@ describe('DesktopSessionBinding', () => {
 
     await binding.activate(1, 'missing')
     await binding.activate(2, 'available')
+    binding.bind(3, 'available')
     expect(binding.getActiveId(1)).toBe('missing')
     expect(binding.getActiveId(2)).toBe('available')
+    expect(binding.getWebContentsIdsForSession('available')).toEqual([2, 3])
 
     await expect(binding.getActive(1)).resolves.toBeNull()
     expect(binding.getActiveId(1)).toBeNull()
 
     await binding.deactivate(2)
     expect(binding.getActiveId(2)).toBeNull()
+    expect(binding.getWebContentsIdsForSession('available')).toEqual([3])
     expect(projection.notify).toHaveBeenLastCalledWith({
       sessionIds: [],
       reason: 'deactivated',
