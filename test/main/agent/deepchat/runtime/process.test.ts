@@ -354,7 +354,7 @@ describe('processStream', () => {
         type: 'provider_search',
         provider_search: {
           id: 'ws_1',
-          query: 'DeepChat',
+          action: { type: 'search', target: 'DeepChat' },
           label: 'DeepChat',
           provider: 'deepseek',
           results: [resultRow],
@@ -403,7 +403,7 @@ describe('processStream', () => {
             type: 'provider_search',
             provider_search: {
               id: 'ws_1',
-              query: 'DeepChat',
+              action: { type: 'search', target: 'DeepChat' },
               label: 'DeepChat',
               provider: 'deepseek',
               results: [],

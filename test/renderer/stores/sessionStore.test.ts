@@ -1003,6 +1003,21 @@ describe('sessionStore onboarding progress', () => {
     expect(onboardingClient.getState).not.toHaveBeenCalled()
   })
 
+  it('hands the first-turn search intent to the chat composer before navigation', async () => {
+    const { store, pageRouter } = await setupStore()
+
+    await store.createSession({
+      agentId: 'deepchat',
+      message: 'Find current prices',
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      search: true
+    })
+
+    expect(store.getSearchIntent('session-1')).toBe(true)
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-1')
+  })
+
   it('marks the first-chat step complete after a successful send', async () => {
     const { store, chatClient, onboardingClient } = await setupStore({
       onboardingCurrentStepId: 'first-chat'
@@ -1832,6 +1847,7 @@ describe('sessionStore streaming cleanup', () => {
     const { store, emitSessionUpdate, invalidateRecentSessionView, purgeSessionTracking } =
       await setupStore()
     store.sessions.value = [createSession({ id: 'session-removed' })]
+    store.setSearchIntent('session-removed', true)
 
     emitSessionUpdate({
       reason: 'deleted',
@@ -1841,6 +1857,7 @@ describe('sessionStore streaming cleanup', () => {
     expect(invalidateRecentSessionView).toHaveBeenCalledWith('session-removed')
     expect(purgeSessionTracking).toHaveBeenCalledWith('session-removed')
     expect(store.sessions.value).toEqual([])
+    expect(store.getSearchIntent('session-removed')).toBe(false)
   })
 })
 

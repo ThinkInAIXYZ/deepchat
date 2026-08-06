@@ -12,5 +12,10 @@
 - [x] Add focused main and renderer regression tests.
 - [x] Add and pass the local two-round conformance test.
 - [x] Run format, i18n, lint, node/web typechecks, focused tests, and final diff checks.
-- [x] Record that no real DeepSeek credential was available locally; the two-user-turn canary remains
-  a release gate.
+- [x] Share transient search intent between new-thread creation and the mounted chat composer.
+- [x] Render normalized provider-search actions and safe sources in assistant activity groups.
+- [x] Normalize open-page and find-in-page display targets without fabricating citations.
+- [x] Add focused renderer, session-store, and adapter regression coverage for the UI follow-up.
+- [x] Run the full required validation and complete the severity-ordered pre-commit review.
+- [x] Confirm with a real key that the official Responses endpoint emits completed native `search`
+  and `open_page` items; the independent second-turn replay canary remains pending.

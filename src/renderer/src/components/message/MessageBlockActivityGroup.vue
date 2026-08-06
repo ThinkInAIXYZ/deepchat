@@ -52,6 +52,11 @@
             :read-only="readOnly"
             render-mode="tool-only"
           />
+          <MessageBlockSearch
+            v-else-if="block.type === 'search'"
+            :block="block"
+            :thread-id="threadId"
+          />
         </template>
       </div>
     </div>
@@ -69,6 +74,7 @@ import type {
 import { formatActivityDuration } from './messageActivityGroups'
 import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
+import MessageBlockSearch from './MessageBlockSearch.vue'
 
 const props = defineProps<{
   blocks: DisplayAssistantMessageBlock[]

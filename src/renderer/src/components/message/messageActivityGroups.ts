@@ -46,7 +46,8 @@ type BufferedActivityBlock = {
 const ACTIVITY_BLOCK_TYPES = new Set<DisplayAssistantMessageBlock['type']>([
   'reasoning_content',
   'artifact-thinking',
-  'tool_call'
+  'tool_call',
+  'search'
 ])
 
 const isFiniteTimestamp = (value: number): boolean => Number.isFinite(value) && value >= 0
@@ -72,7 +73,7 @@ export const isCompletedActivityBlock = (block: DisplayAssistantMessageBlock): b
     return false
   }
 
-  if (block.type === 'tool_call') {
+  if (block.type === 'tool_call' || block.type === 'search') {
     return true
   }
 
@@ -99,7 +100,7 @@ const countReasoningBlocks = (blocks: DisplayAssistantMessageBlock[]): number =>
     .length
 
 const countToolCallBlocks = (blocks: DisplayAssistantMessageBlock[]): number =>
-  blocks.filter((block) => block.type === 'tool_call').length
+  blocks.filter((block) => block.type === 'tool_call' || block.type === 'search').length
 
 const buildActivityGroupItem = (
   messageId: string,

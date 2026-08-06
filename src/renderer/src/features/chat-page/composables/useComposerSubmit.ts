@@ -198,7 +198,6 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     new Map<string, ActiveSubmissionPreparation>()
   )
   const attachmentFilterTokens = new Map<string, number>()
-  const searchIntents = shallowReactive(new Map<string, boolean>())
   const activeSearchCapability = ref<ActiveSearchCapability | null>(null)
   const steeringSessionIds = ref<Set<string>>(new Set())
   let activeDraftSessionId = options.sessionId()
@@ -272,7 +271,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     )
   })
   const isSearchEnabled = computed(
-    () => isSearchAvailable.value && searchIntents.get(options.sessionId()) === true
+    () => isSearchAvailable.value && sessionStore.getSearchIntent(options.sessionId())
   )
 
   function refreshSearchCapability(sessionId: string, providerId: string, modelId: string): void {
@@ -328,8 +327,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   function toggleSearch(): void {
     if (!isSearchAvailable.value) return
-    const sessionId = options.sessionId()
-    searchIntents.set(sessionId, searchIntents.get(sessionId) !== true)
+    sessionStore.toggleSearchIntent(options.sessionId())
   }
 
   function setSteering(sessionId: string, pending: boolean): void {
@@ -518,7 +516,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       search:
         sessionId === options.sessionId() &&
         isSearchAvailable.value &&
-        searchIntents.get(sessionId) === true
+        sessionStore.getSearchIntent(sessionId)
     }
   }
 
@@ -1177,7 +1175,6 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     stopSearchCapabilityWatch()
     removeProvidersChangedListener()
     activeSearchCapability.value = null
-    searchIntents.clear()
     attachmentFilterTokens.clear()
     for (const preparation of activeSubmissionPreparations.values()) {
       requestPreparationCancellation(preparation)

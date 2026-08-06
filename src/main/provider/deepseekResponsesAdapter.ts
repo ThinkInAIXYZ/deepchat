@@ -16,6 +16,10 @@ const DEEPSEEK_PROVIDER_ID = 'deepseek'
 const DEEPSEEK_WEB_SEARCH_TOOL_NAME = 'deepseek_provider_web_search'
 const MAX_REPLAY_JSON_BYTES = 1024 * 1024
 const MAX_NORMALIZED_SOURCES = 100
+const MAX_DISPLAY_TARGET_LENGTH = 2048
+const MAX_NORMALIZED_URL_LENGTH = 8192
+const MAX_NORMALIZED_TITLE_LENGTH = 512
+const MAX_NORMALIZED_SNIPPET_LENGTH = 4096
 const CONTINUATION_FIELDS = ['previous_response_id', 'conversation', 'truncation'] as const
 
 type JsonRecord = Record<string, unknown>
@@ -270,14 +274,11 @@ function isItemReference(value: unknown): value is { type: 'item_reference'; id:
   return isRecord(value) && value.type === 'item_reference' && typeof value.id === 'string'
 }
 
-function normalizeSource(source: unknown, searchId: string, rank: number): SearchResult | null {
-  if (!isRecord(source) || source.type !== 'url' || typeof source.url !== 'string') {
-    return null
-  }
-
+function normalizeHttpUrl(value: unknown): URL | null {
+  if (typeof value !== 'string' || value.length > MAX_NORMALIZED_URL_LENGTH) return null
   let url: URL
   try {
-    url = new URL(source.url)
+    url = new URL(value)
   } catch {
     return null
   }
@@ -287,11 +288,28 @@ function normalizeSource(source: unknown, searchId: string, rank: number): Searc
   if (url.username || url.password) {
     return null
   }
+  if (url.href.length > MAX_NORMALIZED_URL_LENGTH) {
+    return null
+  }
+  return url
+}
+
+function normalizeSource(source: unknown, searchId: string, rank: number): SearchResult | null {
+  if (!isRecord(source) || source.type !== 'url') {
+    return null
+  }
+
+  const url = normalizeHttpUrl(source.url)
+  if (!url) return null
 
   const title =
-    typeof source.title === 'string' && source.title.trim() ? source.title.trim() : url.hostname
+    typeof source.title === 'string' && source.title.trim()
+      ? source.title.trim().slice(0, MAX_NORMALIZED_TITLE_LENGTH)
+      : url.hostname
   const snippet =
-    typeof source.snippet === 'string' && source.snippet.trim() ? source.snippet.trim() : undefined
+    typeof source.snippet === 'string' && source.snippet.trim()
+      ? source.snippet.trim().slice(0, MAX_NORMALIZED_SNIPPET_LENGTH)
+      : undefined
   return {
     title,
     url: url.href,
@@ -321,21 +339,47 @@ function normalizeSearchResults(item: DeepSeekWebSearchCall): SearchResult[] {
   return results
 }
 
-function resolveSearchQuery(item: DeepSeekWebSearchCall): string {
+function normalizeDisplayTarget(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  return value.trim().slice(0, MAX_DISPLAY_TARGET_LENGTH)
+}
+
+function resolveSearchAction(item: DeepSeekWebSearchCall): ProviderSearchPayload['action'] {
   const action = isRecord(item.action) ? item.action : null
   if (!action) {
-    return ''
+    return { type: item.action.type, target: '' }
   }
-  if (typeof action.query === 'string' && action.query.trim()) {
-    return action.query.trim()
+
+  if (item.action.type === 'search') {
+    const target =
+      normalizeDisplayTarget(action.query) ||
+      normalizeDisplayTarget(
+        Array.isArray(action.queries)
+          ? action.queries
+              .filter(
+                (query): query is string => typeof query === 'string' && Boolean(query.trim())
+              )
+              .map((query) => query.trim())
+              .join(', ')
+          : ''
+      )
+    return { type: 'search', target }
   }
-  if (Array.isArray(action.queries)) {
-    return action.queries
-      .filter((query): query is string => typeof query === 'string' && Boolean(query.trim()))
-      .map((query) => query.trim())
-      .join(', ')
+
+  const url = normalizeHttpUrl(action.url)?.href
+  if (item.action.type === 'open_page') {
+    return {
+      type: 'open_page',
+      target: normalizeDisplayTarget(url),
+      ...(url ? { url } : {})
+    }
   }
-  return ''
+
+  return {
+    type: 'find_in_page',
+    target: normalizeDisplayTarget(action.pattern) || normalizeDisplayTarget(url),
+    ...(url ? { url } : {})
+  }
 }
 
 function encodeEnvelope(item: DeepSeekWebSearchCall): string {
@@ -462,11 +506,11 @@ export function createDeepSeekResponsesAdapter(input: {
         throw new Error(`Duplicate DeepSeek Web Search output item: ${item.id}`)
       }
       seenRawItems.add(item.id)
-      const query = resolveSearchQuery(item)
+      const action = resolveSearchAction(item)
       return {
         id: item.id,
-        query,
-        label: query || 'Web Search',
+        action,
+        label: action.target || 'Web Search',
         provider: DEEPSEEK_PROVIDER_ID,
         results: normalizeSearchResults(item),
         providerReplayJson: encodeEnvelope(item)

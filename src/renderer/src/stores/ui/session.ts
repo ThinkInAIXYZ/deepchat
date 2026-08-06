@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
+import { ref, computed, onScopeDispose, getCurrentScope, shallowReactive } from 'vue'
 import { createChatClient } from '../../../api/ChatClient'
 import { createConfigClient } from '../../../api/ConfigClient'
 import { createOnboardingClient } from '../../../api/OnboardingClient'
@@ -346,6 +346,7 @@ export const useSessionStore = defineStore('session', () => {
   const bootstrapActiveSession = ref<UISession | null>(null)
   const activeSessionSummary = ref<UIActiveSessionSummary | null>(null)
   const activeSessionId = ref<string | null>(null)
+  const searchIntents = shallowReactive(new Map<string, boolean>())
   const newConversationProjectDirIntent = ref<NewConversationProjectDirIntent | null>(null)
   const groupMode = ref<GroupMode>(DEFAULT_GROUP_MODE)
   const loading = ref(false)
@@ -368,6 +369,22 @@ export const useSessionStore = defineStore('session', () => {
   const setActiveSessionId = (sessionId: string | null): void => {
     activeSessionId.value = sessionId
     messageStore.setCurrentSessionId(sessionId)
+  }
+
+  const getSearchIntent = (sessionId: string): boolean => searchIntents.get(sessionId) === true
+
+  const setSearchIntent = (sessionId: string, enabled: boolean): void => {
+    if (enabled) {
+      searchIntents.set(sessionId, true)
+    } else {
+      searchIntents.delete(sessionId)
+    }
+  }
+
+  const toggleSearchIntent = (sessionId: string): boolean => {
+    const enabled = !getSearchIntent(sessionId)
+    setSearchIntent(sessionId, enabled)
+    return enabled
   }
 
   const createActivationNavigationRequest = (): number => {
@@ -504,6 +521,7 @@ export const useSessionStore = defineStore('session', () => {
     sessionFetchPromise = null
     for (const sessionId of targetIds) {
       removedSessionIds.add(sessionId)
+      searchIntents.delete(sessionId)
       observedSessionStatuses.delete(sessionId)
       sessionByIdRefreshRevisions.set(sessionId, ++sessionByIdsRefreshRevision)
     }
@@ -957,6 +975,7 @@ export const useSessionStore = defineStore('session', () => {
         ? await sessionClient.create(input, { submissionId: options.submissionId })
         : await sessionClient.create(input)
       const session = result.session
+      setSearchIntent(session.id, input.search === true)
       const hasInitialTurn = input.message.trim().length > 0 || (input.files?.length ?? 0) > 0
       const attachmentPreparation = result.initialTurn?.attachmentPreparation
       const initialTurnNeedsUserAction = attachmentPreparation?.status === 'needs_user_action'
@@ -1367,6 +1386,9 @@ export const useSessionStore = defineStore('session', () => {
     nextCursor,
     error,
     activeSession,
+    getSearchIntent,
+    setSearchIntent,
+    toggleSearchIntent,
     sessionGroups,
     hasActiveSession,
     newConversationTargetAgentId,

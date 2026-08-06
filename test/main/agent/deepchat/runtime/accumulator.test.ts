@@ -253,7 +253,10 @@ describe('accumulate', () => {
       type: 'provider_search',
       provider_search: {
         id: 'ws_1',
-        query: 'DeepChat',
+        action: {
+          type: 'search',
+          target: 'DeepChat'
+        },
         label: 'DeepChat',
         provider: 'deepseek',
         results: [
@@ -281,6 +284,7 @@ describe('accumulate', () => {
         total: 1,
         searchId: 'ws_1',
         label: 'DeepChat',
+        actionType: 'search',
         name: 'web_search',
         engine: 'deepseek',
         provider: 'deepseek',

@@ -1,4 +1,4 @@
-import { computed, effectScope, nextTick, ref } from 'vue'
+import { computed, effectScope, nextTick, ref, shallowReactive } from 'vue'
 import type { JSONContent } from '@tiptap/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerSubmit } from '@/features/chat-page/composables/useComposerSubmit'
@@ -83,7 +83,21 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     applyPersistedMessageRecords: vi.fn(),
     invalidateRecentSessionView: vi.fn()
   }
-  const sessionStore = { activeSession: { providerId: 'openai' } }
+  const searchIntents = shallowReactive(new Map<string, boolean>())
+  const sessionStore = {
+    activeSession: { providerId: 'openai' },
+    getSearchIntent: (targetSessionId: string) => searchIntents.get(targetSessionId) === true,
+    setSearchIntent: (targetSessionId: string, enabled: boolean) => {
+      if (enabled) searchIntents.set(targetSessionId, true)
+      else searchIntents.delete(targetSessionId)
+    },
+    toggleSearchIntent: (targetSessionId: string) => {
+      const enabled = searchIntents.get(targetSessionId) !== true
+      if (enabled) searchIntents.set(targetSessionId, true)
+      else searchIntents.delete(targetSessionId)
+      return enabled
+    }
+  }
   const modelStore = { findChatSelectableModel: vi.fn(() => null) }
   const pendingInputStore = {
     isAtCapacity: false,
@@ -866,6 +880,26 @@ describe('useComposerSubmit attachment preflight', () => {
       's1',
       expect.objectContaining({ search: true })
     )
+    harness.stop()
+  })
+
+  it('observes the new-session search intent and retains it when the composer unmounts', async () => {
+    const harness = createHarness()
+    harness.sessionStore.setSearchIntent('s1', true)
+    harness.modelClient.getCapabilities.mockResolvedValue({
+      supportsAudioInput: true,
+      supportsSearch: true,
+      searchExecution: 'provider'
+    })
+    harness.activeModelSelection.value = {
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash'
+    }
+
+    await vi.waitFor(() => expect(harness.actions.isSearchEnabled.value).toBe(true))
+    harness.actions.dispose()
+
+    expect(harness.sessionStore.getSearchIntent('s1')).toBe(true)
     harness.stop()
   })
 

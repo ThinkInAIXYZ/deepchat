@@ -119,9 +119,15 @@ export interface RateLimitStreamEvent {
   }
 }
 
+export type ProviderSearchAction = {
+  type: 'search' | 'open_page' | 'find_in_page'
+  target: string
+  url?: string
+}
+
 export type ProviderSearchPayload = {
   id: string
-  query: string
+  action: ProviderSearchAction
   label: string
   provider: string
   results: SearchResult[]

@@ -96,9 +96,15 @@ header, timeout, and abort behavior.
 - Reuse `block.extra`/`extra_json`; no schema change.
 - Add a capability-gated globe icon toggle to `ChatInputToolbar.vue`, using
   `chat.features.webSearch` for its tooltip.
-- Keep toggle values in a per-session renderer map and capture the effective value while constructing
-  every submission payload.
+- Keep toggle values in the renderer session store and capture the effective value while constructing
+  every submission payload. Record a newly created session's captured first-turn intent before
+  navigation so the chat-page composer observes the same value on mount.
 - Preserve the value in optimistic user records.
+- Render normalized provider-search blocks in the existing assistant activity group. Search,
+  open-page, and find-in-page actions use one compact presentation with safe links; the component
+  must not inspect opaque replay JSON.
+- Keep page-navigation targets separate from citation sources. Only provider-declared source rows
+  enter the citation lookup table.
 
 ## Compatibility
 
@@ -130,6 +136,7 @@ Focused tests will cover:
 - input normalization, queue snapshots, merged steer OR semantics, and optimistic projection;
 - toolbar capability, toggle, session switching, and unsupported-model behavior;
 - raw chunk validation, URL normalization, block ordering, and result persistence;
+- search-action presentation, first-session intent handoff, session switching, and deletion cleanup;
 - envelope compatibility, model switching, malformed data, duplicate IDs, and leftover markers;
 - token accounting and complete-turn truncation with replay payloads;
 - a two-round AI SDK conformance path with a captured second request body.

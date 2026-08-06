@@ -1,6 +1,6 @@
 # DeepSeek Native Web Search
 
-Status: implemented and repository-validated; real-key two-turn canary pending.
+Status: repository-validated; native-search canary passed, real-key second-turn replay canary pending.
 
 ## User Need
 
@@ -54,12 +54,20 @@ feature.
 - Raw AI SDK chunks are enabled only when a new provider search can occur.
 - A complete `response.output_item.done` item with type `web_search_call` produces one
   `provider_search` event.
-- The event creates one successful `search` block at the event's original position and stores
-  normalized HTTP(S) URL sources through the existing message search-result table.
+- The event creates one successful `search` block at the event's original position. Its normalized
+  action type and bounded display target serve the renderer, while provider-declared HTTP(S)
+  `action.sources` continue through the existing message search-result table.
+- `search`, `open_page`, and `find_in_page` actions share one visible activity presentation.
+  Safe page targets are clickable, and completed opaque actions never claim that zero results were
+  found.
+- An `open_page.url` is a navigation target, not evidence cited by the model. It is displayed but is
+  not fabricated into a citation source. Translating provider URL-citation annotations into inline
+  numbered references requires a separate generic annotation contract and is outside this follow-up.
 - Provider-owned Web Search tool lifecycle events do not enter DeepChat's local tool execution
   loop and do not create a visible `tool_call` block.
 - Normalized search data serves UI, export, and citation lookup. It is never used to reconstruct the
   provider protocol item.
+- Renderer code consumes only normalized block fields and never parses `providerReplayJson`.
 
 ### Opaque replay
 
@@ -112,6 +120,11 @@ Search state is transient and keyed by session in the renderer. It may stay enab
 the same renderer session, resets to false after reload, and is effectively false while an
 unsupported model is selected.
 
+The new-thread composer captures its local intent in `CreateSessionInput`. After the main process
+accepts the new session and before chat navigation, the renderer session store records that intent
+under the returned session ID. The chat composer reads the same session-keyed source, so mounting the
+chat page cannot turn an enabled first-turn toggle off. Session deletion removes the transient entry.
+
 Before:
 
 ```text
@@ -138,8 +151,12 @@ After on every unsupported route, the layout remains unchanged.
   configurations do not expose or send native search.
 - Missing `search` values behave as false for old callers and persisted pending inputs.
 - Queue and steer inputs retain their submission-time search values; merged steers use OR.
+- A search-enabled first turn keeps the toolbar enabled after navigation to the newly created
+  session; switching sessions preserves independent transient values and deletion clears them.
 - A search stream creates a search block, normalized result rows, and a versioned opaque envelope,
   with no local tool execution.
+- Completed provider search, open-page, and find-in-page actions are visible inside the existing
+  assistant activity group, including safe clickable targets and normalized source rows.
 - Switching provider or model excludes incompatible replay markers but preserves response text.
 - Malformed compatible envelopes and unmatched markers fail before fetch.
 - A local two-round conformance test proves that the second request contains the original
@@ -166,12 +183,14 @@ After on every unsupported route, the layout remains unchanged.
 - Adding conversation-level search settings or restoring legacy external-search infrastructure.
 - Implementing DeepSeek Responses state storage or `previous_response_id` chaining.
 - Generalizing arbitrary provider response items into a public extension protocol.
-- Replacing existing search rendering, export, or citation components.
+- Restoring the retired external-search drawer or inventing citations from page-navigation actions.
+- Adding inline numbered references for provider URL-citation annotations.
 
 If an external search stack is reintroduced later, its interaction with provider-native search must
 be specified at that time; no such runtime exists today.
 
 ## Open Questions
 
-None. A real-key two-turn canary remains a release gate because DeepSeek may silently ignore unknown
-request fields.
+None. A real-key native-search canary has confirmed `https://api.deepseek.com/responses` and completed
+`search` plus `open_page` items. A second independent user turn remains required to close the
+stateless replay release gate.

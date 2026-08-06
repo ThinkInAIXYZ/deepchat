@@ -98,6 +98,33 @@ describe('messageActivityGroups', () => {
     })
   })
 
+  it('groups provider search activity and counts it as a tool call', () => {
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 70_000,
+      shouldGroup: true,
+      blocks: [
+        createBlock('reasoning_content', { content: 'checking sources', timestamp: 10_000 }),
+        createBlock('search', {
+          id: 'ws_1',
+          content: 'DeepChat',
+          timestamp: 20_000,
+          extra: { actionType: 'search' }
+        }),
+        createBlock('content', { content: 'answer', timestamp: 30_000 })
+      ]
+    })
+
+    expect(items).toHaveLength(2)
+    expect(items[0]).toMatchObject({
+      kind: 'activity-group',
+      reasoningCount: 1,
+      toolCallCount: 1,
+      blocks: [{ type: 'reasoning_content' }, { type: 'search', id: 'ws_1' }]
+    })
+    expect(items[1]).toMatchObject({ kind: 'block', block: { type: 'content' } })
+  })
+
   it('splits activity groups around visible content blocks', () => {
     const items = buildAssistantRenderItems({
       messageId: 'm1',

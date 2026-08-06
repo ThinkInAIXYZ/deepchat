@@ -72,7 +72,7 @@ const blocks: DisplayAssistantMessageBlock[] = [
   }
 ]
 
-const mountGroup = () =>
+const mountGroup = (props: Record<string, unknown> = {}) =>
   mount(MessageBlockActivityGroup, {
     props: {
       blocks,
@@ -81,7 +81,8 @@ const mountGroup = () =>
       usage,
       durationMs: 65_000,
       reasoningCount: 1,
-      toolCallCount: 1
+      toolCallCount: 1,
+      ...props
     },
     global: {
       stubs: {
@@ -113,6 +114,16 @@ const mountGroup = () =>
           },
           template:
             '<div data-testid="tool-block" :data-render-mode="renderMode">{{ block.tool_call?.name }}</div>'
+        }),
+        MessageBlockSearch: defineComponent({
+          name: 'MessageBlockSearch',
+          props: {
+            block: {
+              type: Object,
+              required: true
+            }
+          },
+          template: '<div data-testid="search-block">{{ block.content }}</div>'
         })
       }
     }
@@ -206,5 +217,25 @@ describe('MessageBlockActivityGroup', () => {
     expect(remounted.get('[data-testid="activity-group-toggle"]').attributes('aria-expanded')).toBe(
       'false'
     )
+  })
+
+  it('renders provider search activity inside the expanded group', async () => {
+    const wrapper = mountGroup({
+      blocks: [
+        {
+          id: 'ws_1',
+          type: 'search',
+          content: 'DeepChat latest release',
+          status: 'success',
+          timestamp: 1_000
+        }
+      ],
+      reasoningCount: 0,
+      toolCallCount: 1
+    })
+
+    await wrapper.get('[data-testid="activity-group-toggle"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="search-block"]').text()).toBe('DeepChat latest release')
   })
 })

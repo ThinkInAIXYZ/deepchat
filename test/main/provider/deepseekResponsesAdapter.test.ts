@@ -162,7 +162,7 @@ describe('DeepSeek Responses stream projection', () => {
 
     expect(projected).toMatchObject({
       id: 'ws_1',
-      query: 'DeepChat',
+      action: { type: 'search', target: 'DeepChat' },
       label: 'DeepChat',
       provider: 'deepseek',
       results: [
@@ -209,7 +209,7 @@ describe('DeepSeek Responses stream projection', () => {
     ).toThrow('DeepSeek Web Search replay item is malformed')
   })
 
-  it('preserves completed page actions for replay without inventing search results', () => {
+  it('projects a safe page target without inventing citation results', () => {
     const item = {
       type: 'web_search_call',
       id: 'ws_page_1',
@@ -217,14 +217,124 @@ describe('DeepSeek Responses stream projection', () => {
       action: { type: 'open_page', url: 'https://deepchat.thinkinai.xyz/' }
     }
 
-    expect(
-      createAdapter().projectRawChunk({ type: 'response.output_item.done', item })
-    ).toMatchObject({
+    const projected = createAdapter().projectRawChunk({
+      type: 'response.output_item.done',
+      item
+    })
+
+    expect(projected).toMatchObject({
       id: 'ws_page_1',
-      query: '',
-      label: 'Web Search',
+      action: {
+        type: 'open_page',
+        target: 'https://deepchat.thinkinai.xyz/',
+        url: 'https://deepchat.thinkinai.xyz/'
+      },
+      label: 'https://deepchat.thinkinai.xyz/',
       results: []
     })
+    expect(JSON.parse(projected!.providerReplayJson).item).toEqual(item)
+  })
+
+  it('bounds find-in-page targets and rejects unsafe display URLs', () => {
+    const findItem = {
+      type: 'web_search_call',
+      id: 'ws_find_1',
+      status: 'completed',
+      action: {
+        type: 'find_in_page',
+        url: 'https://deepchat.thinkinai.xyz/docs',
+        pattern: `release ${'x'.repeat(4096)}`
+      }
+    }
+    const findProjected = createAdapter().projectRawChunk({
+      type: 'response.output_item.done',
+      item: findItem
+    })
+
+    expect(findProjected?.action).toEqual({
+      type: 'find_in_page',
+      target: findItem.action.pattern.slice(0, 2048),
+      url: 'https://deepchat.thinkinai.xyz/docs'
+    })
+    expect(JSON.parse(findProjected!.providerReplayJson).item).toEqual(findItem)
+
+    const urlOnlyFindItem = {
+      ...findItem,
+      id: 'ws_find_url_only',
+      action: {
+        type: 'find_in_page',
+        url: `https://example.com/${'x'.repeat(4096)}`
+      }
+    }
+    const urlOnlyFindProjected = createAdapter().projectRawChunk({
+      type: 'response.output_item.done',
+      item: urlOnlyFindItem
+    })
+
+    expect(urlOnlyFindProjected?.action.target).toHaveLength(2048)
+    expect(urlOnlyFindProjected?.action.url).toBe(urlOnlyFindItem.action.url)
+
+    const unsafeItem = {
+      type: 'web_search_call',
+      id: 'ws_page_unsafe',
+      status: 'completed',
+      action: { type: 'open_page', url: 'https://user:secret@example.com/private' }
+    }
+    const unsafeProjected = createAdapter().projectRawChunk({
+      type: 'response.output_item.done',
+      item: unsafeItem
+    })
+
+    expect(unsafeProjected?.action).toEqual({ type: 'open_page', target: '' })
+    expect(unsafeProjected?.results).toEqual([])
+    expect(JSON.parse(unsafeProjected!.providerReplayJson).item).toEqual(unsafeItem)
+  })
+
+  it('bounds normalized source metadata and omits oversized display URLs', () => {
+    const item = createRawSearchItem()
+    item.action.sources = [
+      {
+        type: 'url',
+        url: `https://example.com/${'x'.repeat(9000)}`,
+        title: 'oversized URL'
+      },
+      {
+        type: 'url',
+        url: 'https://example.com/article',
+        title: 't'.repeat(1024),
+        snippet: 's'.repeat(8192)
+      }
+    ]
+
+    const projected = createAdapter().projectRawChunk({
+      type: 'response.output_item.done',
+      item
+    })
+
+    expect(projected?.results).toEqual([
+      {
+        title: 't'.repeat(512),
+        url: 'https://example.com/article',
+        snippet: 's'.repeat(4096),
+        rank: 0,
+        searchId: 'ws_1'
+      }
+    ])
+    expect(JSON.parse(projected!.providerReplayJson).item).toEqual(item)
+
+    const openPageItem = {
+      type: 'web_search_call',
+      id: 'ws_page_oversized',
+      status: 'completed',
+      action: { type: 'open_page', url: `https://example.com/${'x'.repeat(9000)}` }
+    }
+    const openPageProjected = createAdapter().projectRawChunk({
+      type: 'response.output_item.done',
+      item: openPageItem
+    })
+
+    expect(openPageProjected?.action).toEqual({ type: 'open_page', target: '' })
+    expect(JSON.parse(openPageProjected!.providerReplayJson).item).toEqual(openPageItem)
   })
 
   it('rejects replay envelopes above the 1 MiB limit before persistence or replay', () => {

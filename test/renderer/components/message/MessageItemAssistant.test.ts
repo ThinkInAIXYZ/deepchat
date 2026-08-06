@@ -208,6 +208,10 @@ describe('MessageItemAssistant', () => {
           '<div data-testid="message-block-content" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)"><slot /></div>'
       }),
       MessageBlockThink: componentStub('MessageBlockThink'),
+      MessageBlockSearch: defineComponent({
+        name: 'MessageBlockSearch',
+        template: '<div data-testid="search-block" />'
+      }),
       MessageBlockToolCall: componentStub('MessageBlockToolCall'),
       MessageBlockError: componentStub('MessageBlockError'),
       MessageBlockQuestionRequest: componentStub('MessageBlockQuestionRequest'),
@@ -465,6 +469,28 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
+  })
+
+  it('renders provider search activity while the row is still streaming', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', [
+          {
+            id: 'ws_1',
+            type: 'search',
+            content: 'DeepChat',
+            status: 'success',
+            timestamp: 2
+          }
+        ]),
+        isCapturingImage: false,
+        isStreamingMessage: true
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="search-block"]').exists()).toBe(true)
   })
 
   it('does not remount an MCP App when live activity becomes grouped', async () => {

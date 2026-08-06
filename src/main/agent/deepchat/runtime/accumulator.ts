@@ -233,13 +233,15 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       const block: AssistantMessageBlock = {
         id: search.id,
         type: 'search',
-        content: search.query,
+        content: search.action.target,
         status: 'success',
         timestamp: Date.now(),
         extra: {
           total: search.results.length,
           searchId: search.id,
           label: search.label,
+          actionType: search.action.type,
+          ...(search.action.url ? { actionUrl: search.action.url } : {}),
           name: 'web_search',
           engine: search.provider,
           provider: search.provider,

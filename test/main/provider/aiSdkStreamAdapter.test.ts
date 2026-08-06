@@ -181,7 +181,7 @@ describe('AI SDK stream adapter', () => {
   it('projects raw provider search output while suppressing its tool lifecycle', async () => {
     const providerSearch = {
       id: 'ws_1',
-      query: 'DeepChat',
+      action: { type: 'search' as const, target: 'DeepChat' },
       label: 'DeepChat',
       provider: 'deepseek',
       results: [],
