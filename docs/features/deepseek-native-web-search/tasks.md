@@ -1,7 +1,7 @@
 # DeepSeek Native Web Search Tasks
 
-- [x] Upgrade `ai`, `@ai-sdk/openai`, and `@ai-sdk/provider` to the selected patch versions in an
-  independent commit.
+- [x] Upgrade AI SDK core and directly used provider packages as one compatible release set in an
+  independent commit, then validate the shared provider runtime.
 - [x] Add the exact official-endpoint resolver, V4 Flash Responses route, and capability override.
 - [x] Add per-turn search input normalization and persistence across send, queue, steer, and retry.
 - [x] Add the capability-gated renderer toggle and optimistic search projection.
@@ -33,3 +33,6 @@
 - [x] Strip opaque replay payloads from client message pages without changing durable storage.
 - [x] Apply the safe replay projector to in-flight tool rounds and recover resume intent from the
   closest persisted user record.
+- [x] Fail closed when invalid client message content contains opaque replay payloads.
+- [x] Keep provider stream invocation independent from mock call arity and report provider search
+  separately from local tool-call counts.

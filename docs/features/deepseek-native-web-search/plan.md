@@ -18,6 +18,15 @@ The surrounding runtime receives only narrow generic hooks:
 
 No generic module parses or constructs a DeepSeek protocol object.
 
+## Dependency Baseline
+
+Upgrade AI SDK core and all directly used provider packages as one validated release set. The
+composite packages pin sibling providers from the same set: Amazon Bedrock depends on Anthropic and
+OpenAI, Google Vertex depends on Anthropic, Google, and OpenAI Compatible, and Azure depends on
+OpenAI. Every resolved package targets `@ai-sdk/provider@4.0.5` and
+`@ai-sdk/provider-utils@5.0.22`, avoiding a mixed provider ABI. The DeepSeek feature itself still
+uses only the existing OpenAI Responses transport.
+
 ## Data Flow
 
 ```text

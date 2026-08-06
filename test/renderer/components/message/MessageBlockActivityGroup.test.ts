@@ -231,9 +231,10 @@ describe('MessageBlockActivityGroup', () => {
         }
       ],
       reasoningCount: 0,
-      toolCallCount: 1
+      toolCallCount: 0
     })
 
+    expect(wrapper.get('[data-testid="activity-group-toggle"]').text()).not.toContain('tool call')
     await wrapper.get('[data-testid="activity-group-toggle"]').trigger('click')
 
     expect(wrapper.get('[data-testid="search-block"]').text()).toBe('DeepChat latest release')

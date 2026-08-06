@@ -98,7 +98,7 @@ describe('messageActivityGroups', () => {
     })
   })
 
-  it('groups provider search activity and counts it as a tool call', () => {
+  it('groups provider search activity without reporting a tool call', () => {
     const items = buildAssistantRenderItems({
       messageId: 'm1',
       messageUpdatedAt: 70_000,
@@ -119,7 +119,7 @@ describe('messageActivityGroups', () => {
     expect(items[0]).toMatchObject({
       kind: 'activity-group',
       reasoningCount: 1,
-      toolCallCount: 1,
+      toolCallCount: 0,
       blocks: [{ type: 'reasoning_content' }, { type: 'search', id: 'ws_1' }]
     })
     expect(items[1]).toMatchObject({ kind: 'block', block: { type: 'content' } })

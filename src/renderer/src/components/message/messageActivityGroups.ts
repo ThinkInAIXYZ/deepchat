@@ -105,7 +105,7 @@ const countReasoningBlocks = (blocks: DisplayAssistantMessageBlock[]): number =>
     .length
 
 const countToolCallBlocks = (blocks: DisplayAssistantMessageBlock[]): number =>
-  blocks.filter((block) => block.type === 'tool_call' || isProviderSearchBlock(block)).length
+  blocks.filter((block) => block.type === 'tool_call').length
 
 const buildActivityGroupItem = (
   messageId: string,

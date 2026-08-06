@@ -164,18 +164,16 @@ describe('AiSdkProvider openai-compatible', () => {
       { type: 'text', content: 'ok' },
       { type: 'stop', stop_reason: 'complete' }
     ])
-    expect(mockRunAiSdkCoreStream).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'openai-compatible'
-      }),
-      [{ role: 'user', content: 'hello' }],
-      'gpt-4o',
-      modelConfig,
-      0.7,
-      512,
-      [],
-      signal
-    )
+    const call = mockRunAiSdkCoreStream.mock.calls.at(-1)
+    expect(call?.[0]).toMatchObject({ providerKind: 'openai-compatible' })
+    expect(call?.[1]).toEqual([{ role: 'user', content: 'hello' }])
+    expect(call?.[2]).toBe('gpt-4o')
+    expect(call?.[3]).toEqual(modelConfig)
+    expect(call?.[4]).toBe(0.7)
+    expect(call?.[5]).toBe(512)
+    expect(call?.[6]).toEqual([])
+    expect(call?.[7]).toBe(signal)
+    expect(call?.[8]).toBeUndefined()
   })
 
   it('submits audio transcriptions using OpenAI multipart format', async () => {

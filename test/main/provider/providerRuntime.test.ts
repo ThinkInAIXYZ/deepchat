@@ -576,19 +576,17 @@ describe('ProviderRuntime Integration Tests', () => {
         options: { quality: 'low', size: '1024x1024' },
         images: [{ data: 'imgcache://generated.png', mimeType: 'image/png' }]
       })
-      expect(mockRunAiSdkCoreStream).toHaveBeenCalledWith(
-        expect.any(Object),
-        [{ role: 'user', content: 'A warm sunset over the ocean' }],
-        'gpt-image-1',
-        expect.objectContaining({
-          apiEndpoint: ApiEndpointType.Image,
-          type: ModelType.ImageGeneration,
-          imageGeneration: { quality: 'low', size: '1024x1024' }
-        }),
-        0.7,
-        4096,
-        []
-      )
+      const call = mockRunAiSdkCoreStream.mock.calls.at(-1)
+      expect(call?.[1]).toEqual([{ role: 'user', content: 'A warm sunset over the ocean' }])
+      expect(call?.[2]).toBe('gpt-image-1')
+      expect(call?.[3]).toMatchObject({
+        apiEndpoint: ApiEndpointType.Image,
+        type: ModelType.ImageGeneration,
+        imageGeneration: { quality: 'low', size: '1024x1024' }
+      })
+      expect(call?.[4]).toBe(0.7)
+      expect(call?.[5]).toBe(4096)
+      expect(call?.[6]).toEqual([])
     }, 15000)
 
     it('should generate typed audio through the standalone speech runtime', async () => {
@@ -623,19 +621,17 @@ describe('ProviderRuntime Integration Tests', () => {
         options: { voice: 'alloy', speed: 1.25, responseFormat: 'mp3' },
         audio: { data: 'data:audio/mpeg;base64,AQID', mimeType: 'audio/mpeg' }
       })
-      expect(mockRunAiSdkCoreStream).toHaveBeenCalledWith(
-        expect.any(Object),
-        [{ role: 'user', content: 'Read this aloud.' }],
-        'gpt-4o-mini-tts',
-        expect.objectContaining({
-          apiEndpoint: ApiEndpointType.AudioSpeech,
-          type: ModelType.TTS,
-          tts: { voice: 'alloy', speed: 1.25, responseFormat: 'mp3' }
-        }),
-        0.4,
-        4096,
-        []
-      )
+      const call = mockRunAiSdkCoreStream.mock.calls.at(-1)
+      expect(call?.[1]).toEqual([{ role: 'user', content: 'Read this aloud.' }])
+      expect(call?.[2]).toBe('gpt-4o-mini-tts')
+      expect(call?.[3]).toMatchObject({
+        apiEndpoint: ApiEndpointType.AudioSpeech,
+        type: ModelType.TTS,
+        tts: { voice: 'alloy', speed: 1.25, responseFormat: 'mp3' }
+      })
+      expect(call?.[4]).toBe(0.4)
+      expect(call?.[5]).toBe(4096)
+      expect(call?.[6]).toEqual([])
     }, 15000)
 
     it('should summarize titles', async () => {

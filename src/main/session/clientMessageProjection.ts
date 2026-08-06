@@ -46,15 +46,15 @@ function projectMessageRecordForClient(message: ChatMessageRecord): ChatMessageR
   try {
     const blocks: unknown = JSON.parse(message.content)
     if (!Array.isArray(blocks)) {
-      return message
+      throw new Error('Assistant content is not a block array.')
     }
     return {
       ...message,
       content: JSON.stringify(projectBlocksForClient(blocks))
     }
   } catch (error) {
-    console.warn('[ClientMessageProjection] Failed to project assistant blocks:', error)
-    return message
+    console.warn('[ClientMessageProjection] Redacted invalid assistant blocks:', error)
+    return { ...message, content: '[]' }
   }
 }
 

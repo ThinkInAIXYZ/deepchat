@@ -1167,18 +1167,17 @@ export class AiSdkProvider extends BaseLLMProvider {
       decision,
       modelConfig
     )
-    const streamArgs: Parameters<typeof runAiSdkCoreStream> = [
+    yield* runAiSdkCoreStream(
       context,
       messages,
       modelId,
       resolvedModelConfig,
       temperature,
       maxTokens,
-      tools
-    ]
-    if (signal || search) streamArgs[7] = signal
-    if (search) streamArgs[8] = { search: true }
-    yield* runAiSdkCoreStream(...streamArgs)
+      tools,
+      signal,
+      search ? { search: true } : undefined
+    )
   }
 
   public async *streamText(
