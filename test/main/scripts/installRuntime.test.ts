@@ -23,7 +23,7 @@ describe('install-runtime', () => {
   it('loads every pinned toolchain version from one manifest', () => {
     expect(loadRuntimeVersions()).toMatchObject({
       tinyRuntimeInjector: '1.2.0',
-      node: 'v24.14.1',
+      node: 'v24.18.0',
       uv: '0.9.18',
       rtk: 'v0.43.0'
     })
@@ -60,7 +60,7 @@ describe('install-runtime', () => {
 
     expect(plan.map(({ type, version }) => ({ type, version }))).toEqual([
       { type: 'uv', version: '0.9.18' },
-      { type: 'node', version: 'v24.14.1' },
+      { type: 'node', version: 'v24.18.0' },
       { type: 'rtk', version: 'v0.43.0' }
     ])
     for (const step of plan) {

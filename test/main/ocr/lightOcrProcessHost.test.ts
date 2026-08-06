@@ -70,7 +70,7 @@ describe('LightOcrProcessHost', () => {
       helperEntryPath: fixturePath,
       bundlePath,
       expectedBundleId: bundleId,
-      expectedNodeVersion: 'v24.14.1',
+      expectedNodeVersion: 'v24.18.0',
       tempBaseDir: tempDir,
       initializationTimeoutMs: 2_000,
       recognitionTimeoutMs: 2_000,
@@ -306,7 +306,7 @@ describe('LightOcrProcessHost', () => {
       strategy: 'bounded-960'
     })
     await expect.poll(() => host.getStatus().state).toBe('ready')
-    expect(host.getStatus().nodeVersion).toBe('v24.14.1')
+    expect(host.getStatus().nodeVersion).toBe('v24.18.0')
   })
 
   it('prepares the engine and exposes its exact execution identity before recognition', async () => {
