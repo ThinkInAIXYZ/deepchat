@@ -7,7 +7,7 @@
         :class="isBusy ? 'animate-spin' : ''"
       />
       <a
-        v-if="actionUrl"
+        v-if="actionUrl && actionType !== 'find_in_page'"
         data-testid="search-action-link"
         :href="actionUrl"
         class="min-w-0 flex-1 break-words text-foreground/80 underline-offset-2 hover:underline"
@@ -22,6 +22,17 @@
       >
         {{ displayTarget }}
       </span>
+      <a
+        v-if="actionType === 'find_in_page' && actionUrl"
+        data-testid="search-find-page-link"
+        :href="actionUrl"
+        :title="actionUrl"
+        class="inline-flex max-w-[40%] shrink-0 items-center gap-1 truncate text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        @click.prevent="openUrl(actionUrl, $event)"
+      >
+        <Icon icon="lucide:external-link" class="h-3 w-3 shrink-0" />
+        <span class="truncate">{{ actionHostname }}</span>
+      </a>
       <span v-if="statusText" class="max-w-[45%] shrink-0 truncate text-muted-foreground/80">
         {{ statusText }}
       </span>
@@ -101,6 +112,9 @@ const actionType = computed<SearchActionType>(() => {
 })
 
 const actionUrl = computed(() => normalizeHttpUrl(rawExtra.value.actionUrl)?.href ?? '')
+const actionHostname = computed(
+  () => normalizeHttpUrl(rawExtra.value.actionUrl)?.hostname.replace(/^www\./, '') ?? ''
+)
 
 const displayTarget = computed(() => {
   const target = typeof props.block.content === 'string' ? props.block.content.trim() : ''

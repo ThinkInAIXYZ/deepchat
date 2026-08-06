@@ -22,6 +22,7 @@ function createHarness() {
         payload: {
           text: 'draft',
           files: [{ name: 'file.txt' }],
+          search: true,
           activeSkills: ['skill-a'],
           inlineItems: [{ type: 'file', path: 'workspace://file.txt' }]
         }
@@ -71,7 +72,7 @@ describe('usePendingInputActions', () => {
     vi.clearAllMocks()
   })
 
-  it('updates an existing queue item without dropping files or skills', async () => {
+  it('updates an existing queue item without dropping files, search, or skills', async () => {
     const harness = createHarness()
 
     await harness.actions.onPendingInputUpdate({ itemId: 'item-1', text: 'updated' })
@@ -79,6 +80,7 @@ describe('usePendingInputActions', () => {
     expect(harness.pendingInputStore.updateQueueInput).toHaveBeenCalledWith('s1', 'item-1', {
       text: 'updated',
       files: [{ name: 'file.txt' }],
+      search: true,
       activeSkills: ['skill-a'],
       inlineItems: [{ type: 'file', path: 'workspace://file.txt' }]
     })

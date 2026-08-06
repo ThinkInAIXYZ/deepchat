@@ -287,7 +287,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
           name: 'web_search',
           engine: search.provider,
           provider: search.provider,
-          pages: search.results.slice(0, 6).map((result) => ({
+          pages: search.results.slice(0, MAX_VISIBLE_SEARCH_PAGES).map((result) => ({
             title: result.title,
             url: result.url,
             ...(result.snippet ? { content: result.snippet } : {})

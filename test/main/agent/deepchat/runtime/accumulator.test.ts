@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { accumulate, commitRoundUsage } from '@/agent/deepchat/runtime/accumulator'
 import { createState } from '@/agent/deepchat/runtime/types'
 import type { StreamState } from '@/agent/deepchat/runtime/types'
+import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
 
 describe('accumulate', () => {
   let state: StreamState
@@ -248,6 +249,7 @@ describe('accumulate', () => {
   })
 
   it('creates a replayable search block in stream order', () => {
+    const providerReplayJson = createDeepSeekReplayJson()
     accumulate(state, { type: 'text', content: 'Before search' })
     accumulate(state, {
       type: 'provider_search',
@@ -268,7 +270,7 @@ describe('accumulate', () => {
             searchId: 'ws_1'
           }
         ],
-        providerReplayJson: '{"version":1}'
+        providerReplayJson
       }
     })
 
@@ -295,13 +297,14 @@ describe('accumulate', () => {
             content: 'A privacy-first AI chat client.'
           }
         ],
-        providerReplayJson: '{"version":1}'
+        providerReplayJson
       }
     })
     expect(state.dirty).toBe(true)
   })
 
   it('adds provider URL citations without interrupting streamed text', () => {
+    const providerReplayJson = createDeepSeekReplayJson()
     accumulate(state, {
       type: 'provider_search',
       provider_search: {
@@ -310,7 +313,7 @@ describe('accumulate', () => {
         label: 'DeepChat',
         provider: 'deepseek',
         results: [],
-        providerReplayJson: '{"version":1}'
+        providerReplayJson
       }
     })
     accumulate(state, { type: 'text', content: 'Answer in progress' })

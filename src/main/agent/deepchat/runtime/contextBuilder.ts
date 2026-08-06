@@ -33,6 +33,7 @@ import {
   isPdfAttachment
 } from '@shared/utils/attachmentRepresentation'
 import { isRetiredWorkflowResultMessageMetadata } from '@shared/orchestration/retiredWorkflowData'
+import { segmentAssistantBlocksByProviderReplay } from './providerReplaySegments'
 
 export { estimateMessagesTokens } from '@shared/utils/messageTokens'
 
@@ -1077,7 +1078,7 @@ export function recordToChatMessages(
   }
 
   const blocks = JSON.parse(record.content) as AssistantMessageBlock[]
-  const projectedBlocks = blocks.map((block) => {
+  const segments = segmentAssistantBlocksByProviderReplay(blocks, (block) => {
     if (block.type !== 'search') {
       return null
     }
@@ -1086,7 +1087,7 @@ export function recordToChatMessages(
       ? providerReplayProjector(providerReplayJson)
       : null
   })
-  if (projectedBlocks.every((replay) => replay === null)) {
+  if (segments.every((segment) => segment.replayAfter === null)) {
     return recordToChatMessagesWithoutProviderReplay(
       record,
       supportsVision,
@@ -1098,44 +1099,25 @@ export function recordToChatMessages(
   }
 
   const messages: ChatMessage[] = []
-  let segmentStart = 0
-  for (let index = 0; index < blocks.length; index += 1) {
-    const replay = projectedBlocks[index]
-    if (!replay) {
-      continue
-    }
-
+  for (const segment of segments) {
     messages.push(
       ...recordToChatMessagesWithoutProviderReplay(
         {
           ...record,
-          content: JSON.stringify(blocks.slice(segmentStart, index + 1)),
-          status: 'sent'
+          content: JSON.stringify(segment.blocks),
+          ...(segment.replayAfter ? { status: 'sent' as const } : {})
         },
         supportsVision,
         preserveInterleavedReasoning,
         preserveEmptyInterleavedReasoning,
         supportsAudioInput,
         userLeadingContext
-      ),
-      { role: 'assistant', provider_replay: replay }
+      )
     )
-    segmentStart = index + 1
+    if (segment.replayAfter) {
+      messages.push({ role: 'assistant', provider_replay: segment.replayAfter })
+    }
   }
-
-  messages.push(
-    ...recordToChatMessagesWithoutProviderReplay(
-      {
-        ...record,
-        content: JSON.stringify(blocks.slice(segmentStart))
-      },
-      supportsVision,
-      preserveInterleavedReasoning,
-      preserveEmptyInterleavedReasoning,
-      supportsAudioInput,
-      userLeadingContext
-    )
-  )
   return messages
 }
 
@@ -1242,6 +1224,16 @@ export function truncateContext(history: ChatMessage[], availableTokens: number)
 
   const result = [...history]
   while (result.length > 0 && total > availableTokens) {
+    const nextTurnStart = result.findIndex(
+      (message, index) => index > 0 && message.role === 'user'
+    )
+    const firstTurnEnd = nextTurnStart >= 0 ? nextTurnStart : result.length
+    if (result.slice(0, firstTurnEnd).some((message) => message.provider_replay)) {
+      const removedTurn = result.splice(0, firstTurnEnd)
+      total -= estimateMessagesTokens(removedTurn)
+      continue
+    }
+
     const removed = result.shift()!
     total -= estimateMessageTokens(removed)
 

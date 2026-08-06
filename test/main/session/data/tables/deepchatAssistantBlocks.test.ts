@@ -2,6 +2,8 @@ import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { McpAppDescriptor } from '@shared/types/mcp'
 import { expect, it } from 'vitest'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
+import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
+import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
 
 const tableModule = Database ? await import('@/session/data/tables/deepchatAssistantBlocks') : null
 
@@ -172,6 +174,45 @@ describeIfSqlite('DeepChatAssistantBlocksTable MCP App source binding', () => {
     }
     expect(extra.toolCallExtra?.mcpResult?.modelContext).toEqual(modelContext)
 
+    db.close()
+  })
+})
+
+describeIfSqlite('DeepChatAssistantBlocksTable provider replay persistence', () => {
+  it('round-trips an opaque replay envelope through extra_json into the real projector', () => {
+    const db = new DatabaseCtor(':memory:')
+    const table = new DeepChatAssistantBlocksTableCtor(db)
+    table.createTable()
+    const providerReplayJson = createDeepSeekReplayJson('persisted query')
+    table.replaceForMessage('message-1', [
+      {
+        id: 'ws_1',
+        type: 'search',
+        content: 'persisted query',
+        status: 'success',
+        timestamp: 100,
+        extra: {
+          actionType: 'search',
+          providerReplayJson
+        }
+      }
+    ])
+
+    const [row] = table.listByMessageId('message-1')
+    const persisted = JSON.parse(row?.extra_json ?? '{}') as {
+      extra?: { providerReplayJson?: string }
+    }
+    const projector = createDeepSeekResponsesReplayProjector({
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      baseUrl: 'https://api.deepseek.com/v1'
+    })
+
+    expect(persisted.extra?.providerReplayJson).toBe(providerReplayJson)
+    expect(projector?.(persisted.extra?.providerReplayJson ?? '')).toEqual({
+      markerId: 'ws_1',
+      payload: providerReplayJson
+    })
     db.close()
   })
 })

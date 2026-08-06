@@ -20,6 +20,7 @@ import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { DeepChatLoopNotification } from '@/agent/deepchat/loop/ports'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
+import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
@@ -342,6 +343,7 @@ describe('processStream', () => {
   }
 
   it('persists normalized provider search results with the assistant message', async () => {
+    const providerReplayJson = createDeepSeekReplayJson()
     const resultRow = {
       title: 'DeepChat',
       url: 'https://deepchat.thinkinai.xyz/',
@@ -364,7 +366,7 @@ describe('processStream', () => {
           label: 'DeepChat',
           provider: 'deepseek',
           results: [resultRow],
-          providerReplayJson: '{"version":1}'
+          providerReplayJson
         }
       } as LLMCoreStreamEvent
       yield {
@@ -411,7 +413,7 @@ describe('processStream', () => {
               url: 'https://deepchat.thinkinai.xyz/docs'
             }
           ],
-          providerReplayJson: '{"version":1}'
+          providerReplayJson
         })
       }),
       expect.objectContaining({
@@ -423,7 +425,7 @@ describe('processStream', () => {
   })
 
   it('replays provider search output before continuing a local tool round', async () => {
-    const providerReplayJson = JSON.stringify({ version: 1, item: { id: 'ws_1' } })
+    const providerReplayJson = createDeepSeekReplayJson()
     let callCount = 0
     const coreStream = vi.fn(function () {
       callCount += 1

@@ -276,7 +276,14 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   function refreshSearchCapability(sessionId: string, providerId: string, modelId: string): void {
     const requestId = ++searchCapabilityRequestId
-    activeSearchCapability.value = null
+    const currentCapability = activeSearchCapability.value
+    const isSameSelection =
+      currentCapability?.sessionId === sessionId &&
+      currentCapability.providerId === providerId &&
+      currentCapability.modelId === modelId
+    if (!isSameSelection) {
+      activeSearchCapability.value = null
+    }
     if (!providerId || !modelId) return
 
     void modelClient
@@ -300,6 +307,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       })
       .catch((error) => {
         if (requestId !== searchCapabilityRequestId) return
+        activeSearchCapability.value = null
         console.warn('[ChatPage] Failed to resolve provider search capability:', error)
       })
   }

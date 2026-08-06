@@ -58,6 +58,7 @@ Next turn
 
 - Extend context-build options with an optional replay projector.
 - Preserve assistant block order when a projector accepts a replay envelope.
+- Reuse one replay segmentation helper for persisted-history projection and in-flight tool rounds.
 - Keep the existing projection unchanged when no replay part is accepted.
 - Count replay payload JSON in `estimateMessageTokens` without changing existing string/tool token
   accounting behavior.
@@ -110,6 +111,8 @@ header, timeout, and abort behavior.
 - Render normalized provider-search blocks in the existing assistant activity group. Search,
   open-page, and find-in-page actions use one compact presentation with safe links; the component
   must not inspect opaque replay JSON.
+- Exclude opaque replay JSON from throttled renderer snapshots and distinguish provider-native
+  actions from legacy MCP search-result blocks by normalized action metadata.
 - Remove provider-owned call markers from visible search targets and let completed targets wrap.
 - Keep page-navigation targets separate from citation sources. Only normalized provider URL sources
   enter the citation lookup table.
@@ -128,7 +131,8 @@ header, timeout, and abort behavior.
 
 - Invalid endpoint inputs simply do not enable the route.
 - A malformed raw Web Search item fails the stream rather than persisting unreplayable state.
-- A malformed envelope that targets the active route fails context construction.
+- A malformed, unsupported, or oversized persisted envelope is omitted with a warning so local
+  corruption cannot make a conversation unusable.
 - Duplicate replay IDs, duplicate body markers, missing registrations, unmatched item references,
   remaining continuation fields, or a non-JSON request body fail before the base fetch is called.
 - Only HTTP(S) source URLs enter the normalized search result table; invalid and duplicate sources
@@ -147,6 +151,8 @@ Focused tests will cover:
 - AI SDK URL source association, deduplication, unsafe URL filtering, and late block updates;
 - search-action presentation, first-session intent handoff, session switching, and deletion cleanup;
 - envelope compatibility, model switching, malformed data, duplicate IDs, and leftover markers;
+- production prompt-runtime replay with persisted OpenAI item IDs and the SDK default store path,
+  request-scope concurrency isolation, and SQLite `extra_json` round-trip projection;
 - token accounting and complete-turn truncation with replay payloads;
 - a two-round AI SDK conformance path with a captured second request body.
 

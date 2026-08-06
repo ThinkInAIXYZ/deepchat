@@ -120,7 +120,7 @@ describe('MessageBlockSearch', () => {
     )
   })
 
-  it('distinguishes find-in-page activity from a new web search', () => {
+  it('keeps a find pattern separate from its page navigation link', async () => {
     const wrapper = mountSearch({
       id: 'ws_find_1',
       type: 'search',
@@ -134,7 +134,12 @@ describe('MessageBlockSearch', () => {
     })
 
     expect(wrapper.get('[data-testid="icon"]').attributes('data-icon')).toBe('lucide:search')
-    expect(wrapper.get('[data-testid="search-action-link"]').text()).toBe('current price')
+    expect(wrapper.get('[data-testid="search-action-text"]').text()).toBe('current price')
+    expect(wrapper.find('[data-testid="search-action-link"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="search-find-page-link"]').text()).toBe('example.com')
+
+    await wrapper.get('[data-testid="search-find-page-link"]').trigger('click')
+    expect(navigateLink).toHaveBeenCalledWith('https://example.com/article', expect.anything())
   })
 
   it('does not make a credential-bearing action URL interactive', () => {

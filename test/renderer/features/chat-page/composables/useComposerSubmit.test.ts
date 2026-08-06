@@ -987,13 +987,17 @@ describe('useComposerSubmit attachment preflight', () => {
 
   it('refreshes search capability when the active provider configuration changes', async () => {
     const harness = createHarness()
+    const refreshedCapability = createDeferred<{
+      supportsAudioInput: boolean
+      supportsSearch: boolean
+    }>()
     harness.modelClient.getCapabilities
       .mockResolvedValueOnce({
         supportsAudioInput: true,
         supportsSearch: true,
         searchExecution: 'provider'
       })
-      .mockResolvedValueOnce({ supportsAudioInput: true, supportsSearch: false })
+      .mockReturnValueOnce(refreshedCapability.promise)
     harness.activeModelSelection.value = {
       providerId: 'deepseek',
       modelId: 'deepseek-v4-flash'
@@ -1004,8 +1008,11 @@ describe('useComposerSubmit attachment preflight', () => {
     expect(harness.modelClient.getCapabilities).toHaveBeenCalledTimes(1)
 
     harness.emitProvidersChanged({ providerIds: ['deepseek'] })
+    await vi.waitFor(() => expect(harness.modelClient.getCapabilities).toHaveBeenCalledTimes(2))
+    expect(harness.actions.isSearchAvailable.value).toBe(true)
+
+    refreshedCapability.resolve({ supportsAudioInput: true, supportsSearch: false })
     await vi.waitFor(() => expect(harness.actions.isSearchAvailable.value).toBe(false))
-    expect(harness.modelClient.getCapabilities).toHaveBeenCalledTimes(2)
     harness.stop()
   })
 })

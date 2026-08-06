@@ -561,7 +561,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
-  it('refreshes default-model search capability after provider configuration changes', async () => {
+  it('keeps default-model search capability while provider configuration refreshes', async () => {
     const capabilities = {
       'deepseek:deepseek-v4-flash': {
         supportsAudioInput: false,
@@ -569,7 +569,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         searchExecution: 'provider' as const
       }
     }
-    const { wrapper, draftStore, modelStore, emitProvidersChanged } = await setup({
+    const { wrapper, draftStore, modelStore, modelClient, emitProvidersChanged } = await setup({
       selectedAgentId: 'deepchat',
       selectedAgentType: 'deepchat',
       defaultModel: { providerId: 'deepseek', modelId: 'deepseek-v4-flash' },
@@ -591,15 +591,26 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     await flushPromises()
     expect((wrapper.vm as any).isSearchAvailable).toBe(true)
 
-    capabilities['deepseek:deepseek-v4-flash'] = {
-      supportsAudioInput: false,
-      supportsSearch: false,
-      searchExecution: undefined
-    }
+    let resolveRefresh!: (capability: {
+      supportsAudioInput: boolean
+      supportsSearch: boolean
+    }) => void
+    const refresh = new Promise<{
+      supportsAudioInput: boolean
+      supportsSearch: boolean
+    }>((resolve) => {
+      resolveRefresh = resolve
+    })
+    const previousRequestCount = modelClient.getCapabilities.mock.calls.length
+    modelClient.getCapabilities.mockReturnValueOnce(refresh)
     emitProvidersChanged({ providerIds: ['deepseek'] })
-    await flushPromises()
+    await vi.waitFor(() =>
+      expect(modelClient.getCapabilities).toHaveBeenCalledTimes(previousRequestCount + 1)
+    )
+    expect((wrapper.vm as any).isSearchAvailable).toBe(true)
 
-    expect((wrapper.vm as any).isSearchAvailable).toBe(false)
+    resolveRefresh({ supportsAudioInput: false, supportsSearch: false })
+    await vi.waitFor(() => expect((wrapper.vm as any).isSearchAvailable).toBe(false))
   })
 
   it('cancels attachment preparation before opening the vision model picker', async () => {

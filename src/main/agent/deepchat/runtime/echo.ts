@@ -18,7 +18,17 @@ export interface EchoHandle {
 export function cloneBlocksForRenderer(
   blocks: AssistantMessageBlock[]
 ): DeepchatEventPayload<'chat.stream.updated'>['blocks'] {
-  return RenderedAssistantBlocksSchema.parse(JSON.parse(JSON.stringify(blocks)))
+  const rendererBlocks = blocks.map((block) => {
+    if (!block.extra || !Object.hasOwn(block.extra, 'providerReplayJson')) {
+      return block
+    }
+    const { providerReplayJson: _providerReplayJson, ...visibleExtra } = block.extra
+    return {
+      ...block,
+      extra: Object.keys(visibleExtra).length > 0 ? visibleExtra : undefined
+    }
+  })
+  return RenderedAssistantBlocksSchema.parse(JSON.parse(JSON.stringify(rendererBlocks)))
 }
 
 export function startEcho(state: StreamState, io: IoParams): EchoHandle {

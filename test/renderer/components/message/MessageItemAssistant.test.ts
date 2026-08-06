@@ -243,6 +243,40 @@ describe('MessageItemAssistant', () => {
     }
   }
 
+  it('renders only normalized provider search blocks with the provider activity UI', () => {
+    const legacyBlock: DisplayAssistantMessageBlock = {
+      id: 'legacy-search',
+      type: 'search',
+      status: 'success',
+      timestamp: 1,
+      extra: { label: 'mcp_web_search', total: 3 }
+    }
+    const providerBlock: DisplayAssistantMessageBlock = {
+      id: 'provider-search',
+      type: 'search',
+      content: 'DeepChat',
+      status: 'success',
+      timestamp: 2,
+      extra: { actionType: 'search', provider: 'deepseek' }
+    }
+
+    const legacy = mount(MessageItemAssistant, {
+      props: { message: createMessage('sent', [legacyBlock]), isCapturingImage: false },
+      global
+    })
+    const provider = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [providerBlock]),
+        isCapturingImage: false,
+        isStreamingMessage: true
+      },
+      global
+    })
+
+    expect(legacy.find('[data-testid="search-block"]').exists()).toBe(false)
+    expect(provider.find('[data-testid="search-block"]').exists()).toBe(true)
+  })
+
   it('allows code block hosts to shrink inside the assistant row', () => {
     const wrapper = mount(MessageItemAssistant, {
       props: {
@@ -480,7 +514,8 @@ describe('MessageItemAssistant', () => {
             type: 'search',
             content: 'DeepChat',
             status: 'success',
-            timestamp: 2
+            timestamp: 2,
+            extra: { actionType: 'search', provider: 'deepseek' }
           }
         ]),
         isCapturingImage: false,

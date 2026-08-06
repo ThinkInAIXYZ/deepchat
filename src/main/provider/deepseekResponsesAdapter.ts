@@ -171,13 +171,21 @@ export function createDeepSeekResponsesReplayProjector(
   }
 
   return (providerReplayJson) => {
-    const envelope = parseMatchedEnvelope(providerReplayJson, target)
-    if (!envelope) {
+    try {
+      const envelope = parseMatchedEnvelope(providerReplayJson, target)
+      if (!envelope) {
+        return null
+      }
+      return {
+        markerId: envelope.item.id,
+        payload: providerReplayJson
+      }
+    } catch (error) {
+      console.warn(
+        '[DeepSeekResponsesAdapter] Ignoring invalid persisted Web Search replay:',
+        error
+      )
       return null
-    }
-    return {
-      markerId: envelope.item.id,
-      payload: providerReplayJson
     }
   }
 }
@@ -363,10 +371,7 @@ function normalizeSearchQueries(value: unknown): string {
 }
 
 function resolveSearchAction(item: DeepSeekWebSearchCall): ProviderSearchPayload['action'] {
-  const action = isRecord(item.action) ? item.action : null
-  if (!action) {
-    return { type: item.action.type, target: '' }
-  }
+  const action = item.action
 
   if (item.action.type === 'search') {
     const target = normalizeSearchQuery(action.query) || normalizeSearchQueries(action.queries)

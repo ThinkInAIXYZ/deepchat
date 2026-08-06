@@ -20,6 +20,7 @@ import {
   TOOL_EXECUTION,
   type MCPToolDefinitionBase
 } from '@shared/types/core/mcp'
+import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => {
@@ -358,6 +359,21 @@ describe('truncateContext', () => {
       { role: 'user', content: 'Thanks' },
       { role: 'assistant', content: 'You are welcome' }
     ])
+  })
+
+  it('drops a replay-bearing turn atomically during emergency truncation', () => {
+    const history = [
+      { role: 'user' as const, content: 'search owner' },
+      { role: 'assistant' as const, content: 'visible before search' },
+      {
+        role: 'assistant' as const,
+        provider_replay: { markerId: 'ws_1', payload: 'replay payload' }
+      },
+      { role: 'assistant' as const, content: 'visible after search' },
+      { role: 'user' as const, content: 'latest' }
+    ]
+
+    expect(truncateContext(history, 2)).toEqual([{ role: 'user', content: 'latest' }])
   })
 
   it('drops orphaned tool messages at the start', () => {
@@ -1963,6 +1979,7 @@ describe('fitMessagesToContextWindow', () => {
 })
 
 describe('provider replay context projection', () => {
+  const providerReplayJson = createDeepSeekReplayJson()
   const makeReplayRecord = () => ({
     ...makeAssistantRecord(2, ''),
     content: JSON.stringify([
@@ -1973,7 +1990,7 @@ describe('provider replay context projection', () => {
         content: 'DeepChat',
         status: 'success',
         timestamp: 2,
-        extra: { providerReplayJson: '{"version":1}' }
+        extra: { providerReplayJson }
       },
       { type: 'content', content: 'After search.', status: 'success', timestamp: 3 }
     ])
@@ -1988,7 +2005,7 @@ describe('provider replay context projection', () => {
       { role: 'assistant', content: 'Before search.' },
       {
         role: 'assistant',
-        provider_replay: { markerId: 'ws_1', payload: '{"version":1}' }
+        provider_replay: { markerId: 'ws_1', payload: providerReplayJson }
       },
       { role: 'assistant', content: 'After search.' }
     ])

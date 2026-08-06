@@ -33,6 +33,7 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
     await options.pendingInputStore.updateQueueInput(options.sessionId(), payload.itemId, {
       text: payload.text,
       files: target.payload.files ?? [],
+      search: target.payload.search === true,
       activeSkills: target.payload.activeSkills ?? [],
       inlineItems: target.payload.inlineItems ?? []
     })

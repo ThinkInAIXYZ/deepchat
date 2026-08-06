@@ -287,6 +287,7 @@ let draftDefaultsRequestSeq = 0
 let cancelEnsureDraftTask: (() => void) | null = null
 let voiceInputConfigToken = 0
 let searchCapabilityToken = 0
+let resolvedSearchCapabilityKey = ''
 let attachmentFilterToken = 0
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
 const hasDraftInput = computed(
@@ -806,9 +807,11 @@ function toggleSearch(): void {
 
 async function refreshSearchAvailability(): Promise<void> {
   const token = ++searchCapabilityToken
-  isProviderSearchAvailable.value = false
+  let selectionKey = ''
 
   if (isAcpSelectedAgent.value) {
+    resolvedSearchCapabilityKey = ''
+    isProviderSearchAvailable.value = false
     return
   }
 
@@ -816,19 +819,30 @@ async function refreshSearchAvailability(): Promise<void> {
     const explicitSelection = resolveExplicitDraftModelSelection()
     const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
     if (token !== searchCapabilityToken || !selection) {
+      if (token === searchCapabilityToken) {
+        resolvedSearchCapabilityKey = ''
+        isProviderSearchAvailable.value = false
+      }
       return
     }
 
+    selectionKey = `${selection.providerId}:${selection.modelId}`
+    if (selectionKey !== resolvedSearchCapabilityKey) {
+      isProviderSearchAvailable.value = false
+    }
     const capabilities = await modelClient.getCapabilities(selection)
     if (token !== searchCapabilityToken) {
       return
     }
+    resolvedSearchCapabilityKey = selectionKey
     isProviderSearchAvailable.value =
       capabilities.supportsSearch === true && capabilities.searchExecution === 'provider'
   } catch (error) {
     if (token !== searchCapabilityToken) {
       return
     }
+    resolvedSearchCapabilityKey = selectionKey
+    isProviderSearchAvailable.value = false
     console.warn('[NewThreadPage] Failed to resolve provider search capability:', error)
   }
 }
@@ -1464,6 +1478,7 @@ onMounted(() => {
 onUnmounted(() => {
   cancelSubmissionPreparation()
   searchCapabilityToken += 1
+  resolvedSearchCapabilityKey = ''
   isProviderSearchAvailable.value = false
   searchIntent.value = false
   removeModelConfigChangedListener()

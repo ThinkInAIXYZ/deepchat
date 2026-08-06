@@ -219,4 +219,24 @@ describe('echo', () => {
 
     expect(cloneBlocksForRenderer(blocks)[0]?.extra).toEqual({ label: 'web_search' })
   })
+
+  it('keeps opaque provider replay out of renderer snapshots without mutating persistence state', () => {
+    const blocks = [
+      {
+        id: 'ws_1',
+        type: 'search' as const,
+        status: 'success' as const,
+        timestamp: 1,
+        extra: {
+          actionType: 'search',
+          providerReplayJson: JSON.stringify({ private: 'x'.repeat(1024) })
+        }
+      }
+    ]
+
+    const cloned = cloneBlocksForRenderer(blocks)
+
+    expect(cloned[0]?.extra).toEqual({ actionType: 'search' })
+    expect(blocks[0]?.extra?.providerReplayJson).toContain('private')
+  })
 })

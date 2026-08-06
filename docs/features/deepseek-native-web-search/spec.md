@@ -77,6 +77,10 @@ feature.
 - Normalized search data serves UI, export, and citation lookup. It is never used to reconstruct the
   provider protocol item.
 - Renderer code consumes only normalized block fields and never parses `providerReplayJson`.
+- Streaming renderer snapshots omit `providerReplayJson`; renderer presentation never depends on
+  the opaque payload, while durable assistant-block storage remains the replay source.
+- Existing MCP-produced `search` blocks without normalized provider action metadata remain on their
+  legacy presentation path instead of being grouped as provider-native search activity.
 
 ### Opaque replay
 
@@ -102,6 +106,10 @@ For a compatible target, context projection emits an internal opaque replay part
 block's original position. For any other provider or model, it omits the part while retaining all
 normal assistant text and reasoning.
 
+Invalid, unsupported, or oversized persisted envelopes are omitted with a diagnostic warning so a
+damaged local row cannot permanently block the conversation. Once a replay marker is accepted,
+registration and wire transformation remain fail-closed and never send incomplete replay state.
+
 Before AI SDK conversion, non-search OpenAI item IDs are removed from historical messages. The
 adapter maps each compatible replay part to a provider-executed Web Search marker so AI SDK emits
 an `item_reference`. A request-scoped fetch transform then:
@@ -120,6 +128,8 @@ is permitted.
 - History selection removes complete user turns before falling back to narrower truncation.
 - A replay part is inseparable from the assistant record that owns it; no request may contain an
   isolated search item.
+- Emergency message-level truncation removes an entire replay-bearing turn if any part of that turn
+  must be discarded.
 - DeepSeek requests do not ask the server to truncate context.
 
 ### Toolbar
@@ -128,6 +138,9 @@ The toolbar exposes an icon toggle only while the current route reports `support
 Search state is transient and keyed by session in the renderer. It may stay enabled between sends in
 the same renderer session, resets to false after reload, and is effectively false while an
 unsupported model is selected.
+
+Capability refreshes keep the last resolved value while revalidating the same session/model identity,
+then replace it atomically. Switching identity clears the old value immediately.
 
 The new-thread composer captures its local intent in `CreateSessionInput`. After the main process
 accepts the new session and before chat navigation, the renderer session store records that intent
@@ -167,7 +180,8 @@ After on every unsupported route, the layout remains unchanged.
 - Completed provider search, open-page, and find-in-page actions are visible inside the existing
   assistant activity group, including safe clickable targets and normalized AI SDK URL source rows.
 - Switching provider or model excludes incompatible replay markers but preserves response text.
-- Malformed compatible envelopes and unmatched markers fail before fetch.
+- Corrupt persisted envelopes are skipped locally, while malformed accepted markers and unmatched
+  item references still fail before fetch.
 - A local two-round conformance test proves that the second request contains the original
   `web_search_call`, contains no `item_reference`, sets `store: false`, and contains no continuation
   state fields.

@@ -46,9 +46,14 @@ type BufferedActivityBlock = {
 const ACTIVITY_BLOCK_TYPES = new Set<DisplayAssistantMessageBlock['type']>([
   'reasoning_content',
   'artifact-thinking',
-  'tool_call',
-  'search'
+  'tool_call'
 ])
+
+export const isProviderSearchBlock = (block: DisplayAssistantMessageBlock): boolean => {
+  if (block.type !== 'search') return false
+  const actionType = block.extra?.actionType
+  return actionType === 'search' || actionType === 'open_page' || actionType === 'find_in_page'
+}
 
 const isFiniteTimestamp = (value: number): boolean => Number.isFinite(value) && value >= 0
 
@@ -65,7 +70,7 @@ const isEmptyReasoningBlock = (block: DisplayAssistantMessageBlock): boolean =>
   (typeof block.content !== 'string' || block.content.trim().length === 0)
 
 export const isCompletedActivityBlock = (block: DisplayAssistantMessageBlock): boolean => {
-  if (!ACTIVITY_BLOCK_TYPES.has(block.type)) {
+  if (!ACTIVITY_BLOCK_TYPES.has(block.type) && !isProviderSearchBlock(block)) {
     return false
   }
 
@@ -73,7 +78,7 @@ export const isCompletedActivityBlock = (block: DisplayAssistantMessageBlock): b
     return false
   }
 
-  if (block.type === 'tool_call' || block.type === 'search') {
+  if (block.type === 'tool_call' || isProviderSearchBlock(block)) {
     return true
   }
 
@@ -100,7 +105,7 @@ const countReasoningBlocks = (blocks: DisplayAssistantMessageBlock[]): number =>
     .length
 
 const countToolCallBlocks = (blocks: DisplayAssistantMessageBlock[]): number =>
-  blocks.filter((block) => block.type === 'tool_call' || block.type === 'search').length
+  blocks.filter((block) => block.type === 'tool_call' || isProviderSearchBlock(block)).length
 
 const buildActivityGroupItem = (
   messageId: string,

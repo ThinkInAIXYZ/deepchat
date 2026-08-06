@@ -1140,47 +1140,6 @@ export class AiSdkProvider extends BaseLLMProvider {
       decision,
       modelConfig
     )
-    if (signal) {
-      if (!search) {
-        yield* runAiSdkCoreStream(
-          context,
-          messages,
-          modelId,
-          resolvedModelConfig,
-          temperature,
-          maxTokens,
-          tools,
-          signal
-        )
-        return
-      }
-      yield* runAiSdkCoreStream(
-        context,
-        messages,
-        modelId,
-        resolvedModelConfig,
-        temperature,
-        maxTokens,
-        tools,
-        signal,
-        { search }
-      )
-      return
-    }
-    if (search) {
-      yield* runAiSdkCoreStream(
-        context,
-        messages,
-        modelId,
-        resolvedModelConfig,
-        temperature,
-        maxTokens,
-        tools,
-        undefined,
-        { search: true }
-      )
-      return
-    }
     yield* runAiSdkCoreStream(
       context,
       messages,
@@ -1188,7 +1147,9 @@ export class AiSdkProvider extends BaseLLMProvider {
       resolvedModelConfig,
       temperature,
       maxTokens,
-      tools
+      tools,
+      signal,
+      search ? { search: true } : undefined
     )
   }
 

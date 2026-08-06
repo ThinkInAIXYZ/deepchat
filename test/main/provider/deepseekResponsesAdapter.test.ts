@@ -16,7 +16,9 @@ import {
   resolveDeepSeekResponsesRoute
 } from '@/provider/deepseekResponsesAdapter'
 import { createAiSdkProviderContext } from '@/provider/aiSdk/providerFactory'
-import { mapMessagesToModelMessages } from '@/provider/aiSdk/messageMapper'
+import { runAiSdkCoreStream, type AiSdkRuntimeContext } from '@/provider/aiSdk/runtime'
+import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { ModelConfig } from '@shared/types/provider'
 
 const providerSettings = {
   getAzureApiVersion: () => undefined
@@ -53,6 +55,29 @@ function createProviderContext(adapter = createAdapter()) {
     wrapThinkReasoning: false
   })
 }
+
+function createRuntimeContext(): AiSdkRuntimeContext {
+  return {
+    providerKind: 'openai-responses',
+    provider: {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      apiType: 'openai-responses',
+      apiKey: 'test-key',
+      baseUrl: DEEPSEEK_RESPONSES_BASE_URL,
+      enable: true
+    } as any,
+    providerSettings,
+    defaultHeaders: {}
+  }
+}
+
+const deepSeekModelConfig = {
+  maxTokens: 1024,
+  contextLength: 65_536,
+  functionCall: true,
+  type: 'chat'
+} as ModelConfig
 
 function createRawSearchItem() {
   return {
@@ -363,7 +388,7 @@ describe('DeepSeek Responses stream projection', () => {
     expect(JSON.parse(openPageProjected!.providerReplayJson).item).toEqual(openPageItem)
   })
 
-  it('rejects replay envelopes above the 1 MiB limit before persistence or replay', () => {
+  it('rejects new oversized envelopes and ignores oversized persisted replay', () => {
     const oversizedItem = createRawSearchItem()
     oversizedItem.action.query = 'x'.repeat(1024 * 1024)
 
@@ -379,9 +404,10 @@ describe('DeepSeek Responses stream projection', () => {
       modelId: 'deepseek-v4-flash',
       baseUrl: 'https://api.deepseek.com/v1'
     })
-    expect(() => projector?.('x'.repeat(1024 * 1024 + 1))).toThrow(
-      'replay envelope exceeds the 1 MiB limit'
-    )
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    expect(projector?.('x'.repeat(1024 * 1024 + 1))).toBeNull()
+    expect(consoleWarn).toHaveBeenCalledOnce()
+    consoleWarn.mockRestore()
   })
 })
 
@@ -424,6 +450,59 @@ describe('DeepSeek Responses replay', () => {
       input: [createRawSearchItem()],
       store: false
     })
+  })
+
+  it('removes only non-search OpenAI item IDs without mutating input messages', () => {
+    const messages: ChatMessage[] = [
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'answer',
+            provider_options: { openai: { itemId: 'text_item', retained: true } }
+          }
+        ],
+        provider_options: { openai: { itemId: 'message_item', retained: true } },
+        reasoning_content: 'reasoning',
+        reasoning_provider_options: { openai: { itemId: 'reasoning_item' } },
+        tool_calls: [
+          {
+            id: 'tool_1',
+            type: 'function',
+            function: { name: 'read_file', arguments: '{}' },
+            provider_options: { openai: { itemId: 'tool_item', retained: true } }
+          }
+        ]
+      }
+    ]
+
+    const prepared = createAdapter().prepareMessages(messages)
+
+    expect(prepared).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'answer',
+            provider_options: { openai: { retained: true } }
+          }
+        ],
+        provider_options: { openai: { retained: true } },
+        reasoning_content: 'reasoning',
+        reasoning_provider_options: undefined,
+        tool_calls: [
+          {
+            id: 'tool_1',
+            type: 'function',
+            function: { name: 'read_file', arguments: '{}' },
+            provider_options: { openai: { retained: true } }
+          }
+        ]
+      }
+    ])
+    expect(messages[0]?.provider_options?.openai.itemId).toBe('message_item')
   })
 
   it('fails unmatched markers before network I/O', async () => {
@@ -482,26 +561,31 @@ describe('DeepSeek Responses replay', () => {
     expect(baseFetch).not.toHaveBeenCalled()
   })
 
-  it('rejects malformed envelopes and unexpected request endpoints', async () => {
+  it('ignores corrupt persisted envelopes but keeps wire validation strict', async () => {
     const projector = createDeepSeekResponsesReplayProjector({
       providerId: 'deepseek',
       modelId: 'deepseek-v4-flash',
       baseUrl: 'https://api.deepseek.com/v1'
     })
     if (!projector) throw new Error('Expected DeepSeek replay projector')
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
-    expect(() => projector('{')).toThrow('replay envelope is not valid JSON')
+    expect(projector('{')).toBeNull()
+    const malformedPayload = JSON.stringify({
+      version: 1,
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      item: { ...createRawSearchItem(), status: 'failed' }
+    })
+    expect(projector(malformedPayload)).toBeNull()
+    expect(consoleWarn).toHaveBeenCalledTimes(2)
     expect(() =>
-      projector(
-        JSON.stringify({
-          version: 1,
-          providerId: 'deepseek',
-          modelId: 'deepseek-v4-flash',
-          item: { ...createRawSearchItem(), status: 'failed' }
-        })
-      )
+      createAdapter().mapReplay({ markerId: 'ws_1', payload: malformedPayload })
     ).toThrow('replay item is malformed')
+    consoleWarn.mockRestore()
+  })
 
+  it('rejects unexpected request endpoints before network I/O', async () => {
     const baseFetch = vi.fn(async () => new Response(null, { status: 204 }))
     await expect(
       createAdapter().wrapFetch(baseFetch)('https://user:secret@api.deepseek.com/responses', {
@@ -545,40 +629,40 @@ describe('DeepSeek Responses replay', () => {
     const replay = projector?.(projected.providerReplayJson)
     if (!replay) throw new Error('Expected DeepSeek replay marker')
 
-    const adapter = createAdapter()
-    const messages = mapMessagesToModelMessages(
-      [
-        { role: 'user', content: 'Find DeepChat.' },
-        { role: 'assistant', content: 'Before the search item.' },
-        { role: 'assistant', provider_replay: replay },
-        { role: 'assistant', content: 'After the search item.' },
-        { role: 'user', content: 'What was the result?' }
-      ],
+    const messages: ChatMessage[] = [
+      { role: 'user', content: 'Find DeepChat.' },
       {
-        tools: [],
-        supportsNativeTools: true,
-        mapProviderReplay: adapter.mapReplay
-      }
-    )
+        role: 'assistant',
+        content: 'Before the search item.',
+        provider_options: { openai: { itemId: 'persisted_text_item' } }
+      },
+      { role: 'assistant', provider_replay: replay },
+      {
+        role: 'assistant',
+        content: 'After the search item.',
+        reasoning_content: 'Persisted reasoning.',
+        reasoning_provider_options: { openai: { itemId: 'persisted_reasoning_item' } }
+      },
+      { role: 'user', content: 'What was the result?' }
+    ]
     const fetchMock = vi.fn(async () => {
       throw new Error('request captured')
     })
     vi.stubGlobal('fetch', fetchMock)
-    const context = createProviderContext(adapter)
 
-    await expect(
-      generateText({
-        model: context.model,
-        messages,
-        maxRetries: 0,
-        providerOptions: {
-          openai: {
-            previousResponseId: 'resp_should_be_removed',
-            store: true
-          }
-        }
-      })
-    ).rejects.toThrow('request captured')
+    const firstEvent = await runAiSdkCoreStream(
+      createRuntimeContext(),
+      messages,
+      DEEPSEEK_RESPONSES_MODEL_ID,
+      deepSeekModelConfig,
+      0.7,
+      1024,
+      []
+    ).next()
+    expect(firstEvent).toMatchObject({
+      done: false,
+      value: { type: 'error', error_message: 'request captured' }
+    })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.deepseek.com/responses')
@@ -603,5 +687,51 @@ describe('DeepSeek Responses replay', () => {
     expect(body).not.toHaveProperty('previous_response_id')
     expect(body).not.toHaveProperty('conversation')
     expect(body).not.toHaveProperty('truncation')
+  })
+
+  it('keeps replay registrations isolated across concurrent request adapters', async () => {
+    const firstItem = createRawSearchItem()
+    firstItem.action.query = 'first request'
+    const secondItem = createRawSearchItem()
+    secondItem.action.query = 'second request'
+    const target = {
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      baseUrl: 'https://api.deepseek.com/v1'
+    }
+    const projector = createDeepSeekResponsesReplayProjector(target)
+    if (!projector) throw new Error('Expected DeepSeek replay projector')
+
+    const firstAdapter = createAdapter()
+    const secondAdapter = createAdapter()
+    const firstProjection = firstAdapter.projectRawChunk({
+      type: 'response.output_item.done',
+      item: firstItem
+    })
+    const secondProjection = secondAdapter.projectRawChunk({
+      type: 'response.output_item.done',
+      item: secondItem
+    })
+    const firstReplay = firstProjection && projector(firstProjection.providerReplayJson)
+    const secondReplay = secondProjection && projector(secondProjection.providerReplayJson)
+    if (!firstReplay || !secondReplay) throw new Error('Expected isolated replay markers')
+    firstAdapter.mapReplay(firstReplay)
+    secondAdapter.mapReplay(secondReplay)
+
+    const firstFetch = vi.fn(async () => new Response(null, { status: 204 }))
+    const secondFetch = vi.fn(async () => new Response(null, { status: 204 }))
+    await Promise.all([
+      firstAdapter.wrapFetch(firstFetch)('https://api.deepseek.com/responses', {
+        body: JSON.stringify({ input: [{ type: 'item_reference', id: 'ws_1' }] })
+      }),
+      secondAdapter.wrapFetch(secondFetch)('https://api.deepseek.com/responses', {
+        body: JSON.stringify({ input: [{ type: 'item_reference', id: 'ws_1' }] })
+      })
+    ])
+
+    const firstBody = JSON.parse(String((firstFetch.mock.calls[0]?.[1] as RequestInit).body))
+    const secondBody = JSON.parse(String((secondFetch.mock.calls[0]?.[1] as RequestInit).body))
+    expect(firstBody.input[0].action.query).toBe('first request')
+    expect(secondBody.input[0].action.query).toBe('second request')
   })
 })

@@ -58,6 +58,7 @@ import {
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import { selectToolBatchExecutionMode } from './toolExecutionPolicy'
 import { resolveToolPermissionMode } from '@/tool/permission/permissionMode'
+import { segmentAssistantBlocksByProviderReplay } from './providerReplaySegments'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -411,11 +412,8 @@ function buildReplayAwareToolRoundMessages(
   toolCalls: ToolCallResult[],
   interleavedReasoning: InterleavedReasoningConfig
 ): ChatMessage[] | null {
-  const replayEntries = blocks.flatMap((block, index) => {
-    const replay = extractProviderReplay(block)
-    return replay ? [{ index, replay }] : []
-  })
-  if (replayEntries.length === 0) {
+  const replaySegments = segmentAssistantBlocksByProviderReplay(blocks, extractProviderReplay)
+  if (replaySegments.every((segment) => segment.replayAfter === null)) {
     return null
   }
 
@@ -463,20 +461,19 @@ function buildReplayAwareToolRoundMessages(
   }
 
   const messages: ChatMessage[] = []
-  let segmentStart = 0
-  for (const entry of replayEntries) {
-    const segment = buildSegment(segmentStart, entry.index, false)
-    if (segment) {
-      messages.push(segment)
+  replaySegments.forEach((segment, index) => {
+    const segmentMessage = buildSegment(
+      segment.startIndex,
+      segment.endIndex,
+      index === replaySegments.length - 1
+    )
+    if (segmentMessage) {
+      messages.push(segmentMessage)
     }
-    messages.push({ role: 'assistant', provider_replay: entry.replay })
-    segmentStart = entry.index + 1
-  }
-
-  const trailingSegment = buildSegment(segmentStart, blocks.length, true)
-  if (trailingSegment) {
-    messages.push(trailingSegment)
-  }
+    if (segment.replayAfter) {
+      messages.push({ role: 'assistant', provider_replay: segment.replayAfter })
+    }
+  })
   return messages
 }
 

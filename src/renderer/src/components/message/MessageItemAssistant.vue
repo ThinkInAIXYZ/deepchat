@@ -76,7 +76,7 @@
                 @toggle-collapse="handleCollapseToggle"
               />
               <MessageBlockSearch
-                v-else-if="item.block.type === 'search'"
+                v-else-if="isProviderSearchBlock(item.block)"
                 :block="item.block"
                 :thread-id="currentThreadId"
               />
@@ -236,7 +236,7 @@ import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockVideo from './MessageBlockVideo.vue'
 import MessageBlockActivityGroup from './MessageBlockActivityGroup.vue'
 import MessageBlockSearch from './MessageBlockSearch.vue'
-import { buildAssistantRenderItems } from './messageActivityGroups'
+import { buildAssistantRenderItems, isProviderSearchBlock } from './messageActivityGroups'
 
 import {
   Dialog,
