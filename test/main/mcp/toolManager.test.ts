@@ -1147,9 +1147,8 @@ describe('ToolManager', () => {
     })
 
     expect(result.isError).toBe(false)
-    expect(resolveCachedImageDataUrl).toHaveBeenCalledTimes(2)
+    expect(resolveCachedImageDataUrl).toHaveBeenCalledOnce()
     expect(resolveCachedImageDataUrl).toHaveBeenCalledWith('imgcache://generated.jpg', undefined)
-    expect(resolveCachedImageDataUrl).toHaveBeenCalledWith('IMGCACHE://generated.jpg', undefined)
     expect(client.callTool).toHaveBeenCalledWith(
       'echo',
       {
@@ -1161,6 +1160,68 @@ describe('ToolManager', () => {
         toolDefinition: expect.objectContaining({ name: 'echo' })
       })
     )
+  })
+
+  it('rejects more than eight cached image argument occurrences before MCP dispatch', async () => {
+    const client = createClient('open-server')
+    const providerSettings = createProviderSettings('open-server')
+    const resolveCachedImageDataUrl = vi.fn().mockResolvedValue('data:image/jpeg;base64,YWJj')
+    const manager = createToolManager(
+      providerSettings,
+      createServerManager([client]),
+      {},
+      {},
+      undefined,
+      resolveCachedImageDataUrl
+    )
+
+    const result = await manager.callTool({
+      id: 'tool-image-count-limit',
+      type: 'function',
+      function: {
+        name: 'echo',
+        arguments: JSON.stringify({ images: Array(9).fill('imgcache://generated.jpg') })
+      }
+    })
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: expect.stringContaining('more than 8 cached image references')
+    })
+    expect(resolveCachedImageDataUrl).toHaveBeenCalledOnce()
+    expect(client.callTool).not.toHaveBeenCalled()
+  })
+
+  it('rejects cached image arguments above the aggregate execution limit', async () => {
+    const client = createClient('open-server')
+    const providerSettings = createProviderSettings('open-server')
+    const dataUrl = `data:image/png;base64,${'A'.repeat(17 * 1024 * 1024)}`
+    const manager = createToolManager(
+      providerSettings,
+      createServerManager([client]),
+      {},
+      {},
+      undefined,
+      vi.fn().mockResolvedValue(dataUrl)
+    )
+
+    const result = await manager.callTool({
+      id: 'tool-image-size-limit',
+      type: 'function',
+      function: {
+        name: 'echo',
+        arguments: JSON.stringify({
+          first: 'imgcache://generated.jpg',
+          second: 'imgcache://generated.jpg'
+        })
+      }
+    })
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: expect.stringContaining('Expanded cached images exceed the 32 MiB limit')
+    })
+    expect(client.callTool).not.toHaveBeenCalled()
   })
 
   it('does not invoke MCP when a cached image reference cannot be resolved', async () => {

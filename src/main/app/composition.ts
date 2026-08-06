@@ -982,7 +982,7 @@ export async function createMainProcessControl(dependencies: {
     () => deepChatAgentHarness.refreshToolRegistry(),
     semanticNotifications,
     publishDeepchatEvent,
-    (data) => deviceService.cacheImage(data),
+    (data, options) => deviceService.cacheImage(data, options),
     pluginRuntimeSupervisor,
     computerUsePreviewPresenter,
     {

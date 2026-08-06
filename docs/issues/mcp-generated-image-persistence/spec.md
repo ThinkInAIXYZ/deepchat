@@ -27,6 +27,12 @@ A persistence-only fix must not discard the model's image reference. Follow-up r
 - Replacing the URL with a reference-free marker such as `[Image: image/jpeg]` prevents the model
   from identifying the source image in a later edit request.
 - Tool output can incorrectly imply that an image was saved locally when no durable asset exists.
+- A remote MCP server can make the main process download a loopback, link-local, or private-network
+  URL by returning it as an image reference.
+- An MCP result with many image references or large responses can consume unbounded time, memory,
+  and disk space during automatic caching.
+- A repeated `imgcache://` tool argument can expand a small model response into an excessively large
+  MCP request.
 
 ## Root Cause
 
@@ -46,6 +52,16 @@ The failure path is:
 
 The renderer is behaving correctly: it reloads the persisted remote URL, which is no longer
 authorized by its origin.
+
+The original cache helper also assumes that callers already trust remote URLs and response
+metadata. Automatic MCP text scanning crosses that trust boundary: it can pass MCP-controlled URLs
+to Axios without restricting network destinations, redirects, response size, or response MIME
+type. The extraction loop has no distinct-image cap, and aborting its caller stops waiting without
+cancelling the active HTTP request.
+
+Two additional normalization paths are insufficiently bounded. Global `replaceAll` can rewrite a
+valid image URL when it appears as the prefix of a different URL, and execution-only argument
+resolution has a per-file limit but no reference-count or aggregate serialized-size limit.
 
 ## Behavioral Contract
 
@@ -67,6 +83,18 @@ The canonical transcript remains stable:
 - Assistant Markdown is never edited after generation.
 - Presentation-only `image` blocks and Markdown deduplication do not participate in
   `recordToChatMessages`.
+- Remote HTTP and SSE MCP servers may cache only public HTTP(S) image destinations. Every redirect
+  target is checked under the same policy. Local stdio, in-memory, and managed plugin runtimes may
+  use private-network image URLs for local generators.
+- One tool result caches at most four distinct image references. Each image is limited to 8 MiB,
+  and the caller's cancellation signal reaches the underlying HTTP request.
+- Only supported image MIME types become durable cache entries. The saved extension and later data
+  URL use the same MIME mapping.
+- Content normalization replaces only complete extracted URL tokens, never prefix occurrences in a
+  different URL.
+- One MCP call resolves at most eight cached-image argument occurrences and rejects a serialized
+  execution payload above 32 MiB. Repeated references reuse one disk read but still count toward the
+  final payload limit.
 
 These rules preserve the byte-identical provider prefix required by the
 [cache-aware context runtime](../../architecture/cache-aware-context-runtime/spec.md).
@@ -134,6 +162,23 @@ Assistant response
 If Markdown contains no matching image node, the promoted image block remains visible. If no
 promoted block exists, Markdown rendering is unchanged.
 
+### 4. Bound Automatic Downloads And Follow-Up Expansion
+
+1. Pass the originating MCP transport class into image caching. Treat stdio, in-memory, and managed
+   plugin runtimes as local; treat HTTP, SSE, and unknown sources as remote.
+2. For remote sources, reject loopback, link-local, private, reserved, multicast, and unspecified
+   IPv4 or IPv6 targets. Disable automatic redirects, validate each redirect explicitly, and pin the
+   validated DNS result used by the connection.
+3. Limit automatic caching to four distinct images per tool result. Apply one 10-second budget and
+   an 8 MiB response limit to each image, pass cancellation to Axios, and preserve the original URL
+   whenever caching safely fails.
+4. Accept only the supported image MIME map when writing URL or data-URL cache files. Never default
+   unknown content to JPEG.
+5. Normalize text with the same HTTP tokenization used for extraction. Replace a token only when its
+   complete normalized value has a successful cache mapping.
+6. Memoize exact cached-image argument resolution per MCP call. Reject more than eight occurrences
+   or an execution payload above 32 MiB before invoking the client.
+
 ## End-To-End Data Flow
 
 ```text
@@ -170,6 +215,10 @@ use the stable local reference from their first persisted form onward.
 - Do not rewrite partial URI occurrences inside arbitrary tool argument strings.
 - Do not scan arbitrary HTTP(S) links as images or add provider-specific output parsing.
 - Do not add a database table, migration, dependency, setting, or user-facing copy.
+- Do not expose private-network fetching to remote MCP servers or add a user-configurable SSRF
+  bypass.
+- Do not introduce a general-purpose download-policy framework; keep these limits at the image-cache
+  and MCP execution boundaries that own the data.
 - Do not add a public-image upload service for tools that accept only HTTPS references.
 - Do not backfill existing sessions. If the source URL expired before it was cached, the image bytes
   are unavailable and regeneration is required.
@@ -196,6 +245,17 @@ use the stable local reference from their first persisted form onward.
 9. Cache failure preserves the original tool result and creates no false durable image reference.
 10. Existing structured MCP images, JSON image references, whole-string URLs, data URLs, CDP
     screenshots, cancellation, tool permissions, and result-size handling remain unchanged.
+11. A remote MCP image URL resolving to loopback, link-local, or private address space is not fetched,
+    including when a public URL redirects to that destination; local MCP transports retain local URL
+    support.
+12. Automatic caching processes at most four distinct references, rejects responses and data URLs
+    above 8 MiB, and aborts the active network request when the tool turn is cancelled.
+13. Supported response MIME types retain matching extensions, while HTML, JSON, octet-stream, and
+    unknown responses remain uncached.
+14. A cached `https://host/a.png` token does not alter a distinct
+    `https://host/a.png.json` occurrence.
+15. Repeated cached-image arguments perform one disk resolution and fail before MCP dispatch when
+    reference-count or 32 MiB serialized-payload limits are exceeded.
 
 ## Task Checklist
 
@@ -211,6 +271,13 @@ use the stable local reference from their first persisted form onward.
 - [x] Verify restart-equivalent context replay and follow-up edit argument resolution without the
       source URL.
 - [x] Run formatting, i18n, lint, type checking, and focused tests.
+- [x] Enforce transport-aware network destination and redirect validation for MCP image downloads.
+- [x] Bound automatic image count, response size, total request time, and underlying cancellation.
+- [x] Preserve supported MIME types and reject non-image responses.
+- [x] Replace only complete extracted HTTP URL tokens.
+- [x] Memoize cached-image argument resolution and enforce reference-count and aggregate-size limits.
+- [x] Add focused security, resource, normalization, and argument-expansion regression tests.
+- [x] Re-run formatting, i18n, lint, type checking, and focused tests after hardening.
 
 ## Validation
 
@@ -233,8 +300,9 @@ pnpm run typecheck
 
 Validation completed on 2026-08-06:
 
-- The nine focused test files pass with 288 tests, including persisted context reconstruction and
-  execution-only local-image resolution.
+- The nine focused test files pass with 301 tests, including persisted context reconstruction,
+  transport-aware SSRF rejection, bounded caching, exact URL replacement, and execution-only
+  local-image resolution limits.
 - Formatting, i18n validation, linting, and node/renderer type checking pass.
 
 A release smoke test should generate an image through an MCP text response, record the local cache

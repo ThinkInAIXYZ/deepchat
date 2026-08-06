@@ -21,6 +21,7 @@ const DATA_IMAGE_URL_PATTERN = /data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=
 const HTTP_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi
 const TRAILING_URL_PUNCTUATION_PATTERN = /[),.;:!?\]}，。；：！？）】]+$/
 const IMAGE_PATH_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|ico|avif|svg)$/i
+const MAX_TOOL_CALL_IMAGE_PREVIEWS = 4
 
 function parseJsonRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -71,6 +72,7 @@ function isImageReference(value: string): boolean {
   if (!trimmed) return false
   if (trimmed.startsWith('data:image/')) return true
   if (trimmed.startsWith('imgcache://')) return true
+  if (/\s/.test(trimmed)) return false
   try {
     const url = new URL(trimmed)
     return (
@@ -264,21 +266,19 @@ function replaceImageReferences(
     return content
   }
 
-  const replaceAll = (value: string): string => {
-    let result = value
-    const entries = Array.from(replacements).sort(([left], [right]) => right.length - left.length)
-    for (const [source, cached] of entries) {
-      result = result.replaceAll(source, cached)
-    }
-    return result
-  }
+  const replaceExtractedReferences = (value: string): string =>
+    value.replace(HTTP_URL_PATTERN, (match) => {
+      const reference = match.replace(TRAILING_URL_PUNCTUATION_PATTERN, '')
+      const cached = replacements.get(reference)
+      return cached ? `${cached}${match.slice(reference.length)}` : match
+    })
 
   if (typeof content === 'string') {
-    return replaceAll(content)
+    return replaceExtractedReferences(content)
   }
 
   return content.map((item) =>
-    item.type === 'text' ? { ...item, text: replaceAll(item.text) } : item
+    item.type === 'text' ? { ...item, text: replaceExtractedReferences(item.text) } : item
   )
 }
 
@@ -314,6 +314,9 @@ export async function prepareToolCallImageContent(
     const inputKey = input.data.trim()
     if (seenInputs.has(inputKey)) {
       continue
+    }
+    if (seenInputs.size >= MAX_TOOL_CALL_IMAGE_PREVIEWS) {
+      break
     }
     seenInputs.add(inputKey)
     const data = await cachePreviewData(input.data, params.cacheImage, params.signal)

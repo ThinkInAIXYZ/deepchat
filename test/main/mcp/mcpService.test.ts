@@ -58,6 +58,7 @@ vi.mock('../../../src/main/mcp/mcprouterManager', () => ({
 
 import { McpService } from '../../../src/main/mcp'
 import { ToolManager } from '../../../src/main/mcp/toolManager'
+import type { CacheImageOptions } from '../../../src/main/platform/imageCache'
 
 const installToolManagerMock = () => {
   vi.mocked(ToolManager).mockImplementation(
@@ -77,7 +78,7 @@ const createMcpService = (
   mcpApps?: {
     registry: { revokeByServer(serverId: string): void }
   },
-  cacheImage?: (data: string) => Promise<string>
+  cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>
 ) =>
   new McpService(
     providerSettings,
@@ -136,7 +137,9 @@ describe('McpService', () => {
     })
     const cacheImage = vi.fn().mockResolvedValue('imgcache://generated.jpg')
     const presenter = createMcpService(
-      createProviderSettings(true),
+      createProviderSettings(true, false, {
+        remote: { type: 'http' }
+      }),
       undefined,
       undefined,
       cacheImage
@@ -145,10 +148,14 @@ describe('McpService', () => {
     const result = await presenter.callTool({
       id: 'tool-image',
       type: 'function',
-      function: { name: 'draw', arguments: '{}' }
+      function: { name: 'draw', arguments: '{}' },
+      server: { name: 'remote', icons: '', description: '' }
     })
 
-    expect(cacheImage).toHaveBeenCalledWith(sourceUrl)
+    expect(cacheImage).toHaveBeenCalledWith(sourceUrl, {
+      signal: undefined,
+      allowPrivateNetwork: false
+    })
     expect(result.content).toBe('Success. Image URL(s): imgcache://generated.jpg')
     expect(result.rawData).toMatchObject({
       content: [
@@ -167,6 +174,36 @@ describe('McpService', () => {
       ]
     })
     expect(result.rawData.mcpResult).toBe(mcpResult)
+  })
+
+  it('allows local MCP transports to cache private-network image URLs', async () => {
+    const sourceUrl = 'http://127.0.0.1/generated.png'
+    toolManagerMocks.callTool.mockResolvedValue({
+      toolCallId: 'tool-local-image',
+      content: sourceUrl,
+      isError: false
+    })
+    const cacheImage = vi.fn().mockResolvedValue('imgcache://generated.png')
+    const presenter = createMcpService(
+      createProviderSettings(true, false, {
+        local: { type: 'stdio' }
+      }),
+      undefined,
+      undefined,
+      cacheImage
+    )
+
+    await presenter.callTool({
+      id: 'tool-local-image',
+      type: 'function',
+      function: { name: 'draw', arguments: '{}' },
+      server: { name: 'local', icons: '', description: '' }
+    })
+
+    expect(cacheImage).toHaveBeenCalledWith(sourceUrl, {
+      signal: undefined,
+      allowPrivateNetwork: true
+    })
   })
 
   afterEach(() => {

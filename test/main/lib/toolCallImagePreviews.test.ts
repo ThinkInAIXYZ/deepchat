@@ -73,6 +73,38 @@ describe('extractToolCallImagePreviews', () => {
     ])
   })
 
+  it('replaces only complete extracted image URL tokens', async () => {
+    const sourceUrl = 'https://example.com/output.png'
+    const relatedUrl = `${sourceUrl}.json`
+
+    const prepared = await prepareToolCallImageContent({
+      content: `Image: ${sourceUrl} Metadata: ${relatedUrl}`,
+      cacheImage: vi.fn().mockResolvedValue('imgcache://output.png')
+    })
+
+    expect(prepared.content).toBe(`Image: imgcache://output.png Metadata: ${relatedUrl}`)
+  })
+
+  it('caches at most four distinct images from one tool result', async () => {
+    const sourceUrls = Array.from(
+      { length: 5 },
+      (_, index) => `https://example.com/output-${index + 1}.png`
+    )
+    const cacheImage = vi.fn(async (source: string) =>
+      source.replace('https://example.com/', 'imgcache://')
+    )
+
+    const prepared = await prepareToolCallImageContent({
+      content: sourceUrls.join('\n'),
+      cacheImage
+    })
+
+    expect(cacheImage).toHaveBeenCalledTimes(4)
+    expect(prepared.imagePreviews).toHaveLength(4)
+    expect(prepared.content).toContain('imgcache://output-4.png')
+    expect(prepared.content).toContain(sourceUrls[4])
+  })
+
   it('extracts and caches MCP structured image output', async () => {
     const cacheImage = vi.fn(async () => 'imgcache://cached.png')
 
