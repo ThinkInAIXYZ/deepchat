@@ -152,6 +152,16 @@ describe('BrowserPanel', () => {
     expect(input.attributes('aria-label')).toBe('common.browser.addressLabel')
   })
 
+  it('navigates when the address form is submitted', async () => {
+    const { wrapper, browserClient } = await setup()
+
+    await wrapper.get('input').setValue('example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(browserClient.loadUrl).toHaveBeenCalledWith('session-a', 'https://example.com')
+  })
+
   it('waits for a stable rect before first attach and visible bounds sync', async () => {
     const rects = [makeRect(0, 0, 0, 0), makeRect(24, 48, 320, 480), makeRect(24, 48, 320, 480)]
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => {

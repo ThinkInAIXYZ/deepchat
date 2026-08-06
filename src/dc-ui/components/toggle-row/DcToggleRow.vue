@@ -38,7 +38,7 @@ const handleChecked = (value: boolean | 'indeterminate') => {
       cn('flex items-center gap-3', description ? 'flex-col items-start gap-1.5 py-1' : 'h-10')
     "
   >
-    <div class="flex min-w-0 flex-1 items-center gap-3">
+    <div class="flex w-full min-w-0 items-center gap-3">
       <Icon v-if="icon" :icon="icon" class="size-4 shrink-0 text-muted-foreground" />
       <Label
         :for="id"
@@ -47,7 +47,7 @@ const handleChecked = (value: boolean | 'indeterminate') => {
       >
         {{ label }}
       </Label>
-      <div class="flex shrink-0 items-center gap-3">
+      <div class="ml-auto flex shrink-0 items-center gap-3">
         <slot name="trailing" />
         <Switch
           :id="id"
@@ -58,7 +58,7 @@ const handleChecked = (value: boolean | 'indeterminate') => {
         />
       </div>
     </div>
-    <p v-if="description" class="pl-7 text-xs leading-5 text-muted-foreground">
+    <p v-if="description" :class="cn('text-xs leading-5 text-muted-foreground', icon && 'ps-7')">
       {{ description }}
     </p>
   </div>

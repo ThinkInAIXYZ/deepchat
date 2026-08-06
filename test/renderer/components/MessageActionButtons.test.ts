@@ -1,6 +1,19 @@
 import { mount } from '@vue/test-utils'
 import { describe, it, expect, vi } from 'vitest'
+import { h } from 'vue'
+import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import MessageActionButtons from '@/components/message/MessageActionButtons.vue'
+
+const mountMessageActionButtons = (props: InstanceType<typeof MessageActionButtons>['$props']) => {
+  const provider = mount(TooltipProvider, {
+    props: { delayDuration: 200 },
+    slots: {
+      default: () => h(MessageActionButtons, props)
+    }
+  })
+
+  return provider.getComponent(MessageActionButtons)
+}
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -10,8 +23,10 @@ vi.mock('vue-i18n', () => ({
 
 describe('MessageActionButtons', () => {
   it('emits events on clicks', async () => {
-    const wrapper = mount(MessageActionButtons, {
-      props: { showCleanButton: true, showScrollButton: true, showWorkspaceButton: true }
+    const wrapper = mountMessageActionButtons({
+      showCleanButton: true,
+      showScrollButton: true,
+      showWorkspaceButton: true
     })
 
     // Find buttons by their component type and index

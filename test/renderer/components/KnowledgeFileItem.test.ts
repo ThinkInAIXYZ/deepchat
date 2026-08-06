@@ -82,4 +82,14 @@ describe('KnowledgeFileItem', () => {
     expect((wrapper.vm as any).progressPercent).toBe(75)
     wrapper.unmount()
   })
+
+  it('renders translated labels in the destructive confirmation dialog', async () => {
+    const { wrapper } = await setup()
+
+    expect(wrapper.text()).toContain('common.confirm')
+    expect(wrapper.text()).toContain('common.cancel')
+    expect(wrapper.text()).not.toContain("t('common.confirm')")
+    expect(wrapper.text()).not.toContain("t('common.cancel')")
+    wrapper.unmount()
+  })
 })

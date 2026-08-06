@@ -125,7 +125,7 @@ const getResourceType = (uri: string) => {
     :title="props.serverName ? `${props.serverName} Resources` : 'MCP Resources'"
     :description="t('mcp.resources.dialogDescription')"
     icon="lucide:folder"
-    width-class="w-4/5 min-w-[80vw] max-w-[80vw]"
+    width-class="w-4/5 min-w-[80vw] max-w-[80vw] sm:max-w-[80vw]"
     :scroll-body="false"
   >
     <div class="flex flex-col flex-1 overflow-hidden">

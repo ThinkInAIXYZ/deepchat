@@ -197,7 +197,7 @@ const selectTool = (tool: MCPToolDefinition) => {
     :title="`${t('mcp.tools.title')} - ${serverName}`"
     :description="t('mcp.tools.dialogDescription')"
     icon="lucide:wrench"
-    width-class="w-4/5 min-w-[80vw] max-w-[80vw]"
+    width-class="w-4/5 min-w-[80vw] max-w-[80vw] sm:max-w-[80vw]"
     :scroll-body="false"
   >
     <div class="flex flex-col flex-1 overflow-hidden">

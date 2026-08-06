@@ -35,7 +35,9 @@ const emit = defineEmits<{
 const isPlain = computed(() => props.appearance === 'plain')
 
 const resolvedWidthClass = computed(
-  () => props.widthClass ?? (isPlain.value ? 'sm:max-w-xl' : 'sm:w-[min(48rem,92vw)]')
+  () =>
+    props.widthClass ??
+    (isPlain.value ? 'sm:max-w-xl' : 'sm:w-[min(48rem,92vw)] sm:max-w-[min(48rem,92vw)]')
 )
 
 const shouldScrollBody = computed(() => props.scrollBody ?? !isPlain.value)

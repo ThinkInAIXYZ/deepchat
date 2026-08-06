@@ -66,7 +66,7 @@ const handleOpenChange = (value: boolean) => {
 
       <AlertDialogFooter>
         <slot name="actions">
-          <AlertDialogCancel v-bind="cancelAttrs" :disabled="busy" @click="emit('cancel')">
+          <AlertDialogCancel v-bind="cancelAttrs" :disabled="busy">
             {{ resolvedCancelLabel }}
           </AlertDialogCancel>
           <AlertDialogAsyncAction

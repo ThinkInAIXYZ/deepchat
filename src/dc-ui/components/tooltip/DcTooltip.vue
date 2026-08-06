@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { HTMLAttributes } from 'vue'
 import {
   Tooltip,
   TooltipContent,
@@ -13,6 +14,7 @@ interface Props {
   sideOffset?: number
   disabled?: boolean
   delayDuration?: number
+  contentClass?: HTMLAttributes['class']
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -25,11 +27,15 @@ const props = withDefaults(defineProps<Props>(), {
 
 <template>
   <TooltipProvider :delay-duration="delayDuration">
-    <Tooltip :delay-duration="0" :ignore-non-keyboard-focus="true">
+    <Tooltip :delay-duration="delayDuration" :ignore-non-keyboard-focus="true">
       <TooltipTrigger as-child :disabled="disabled">
         <slot />
       </TooltipTrigger>
-      <TooltipContent :side="side" :side-offset="sideOffset" :class="cn(disabled && 'hidden')">
+      <TooltipContent
+        :side="side"
+        :side-offset="sideOffset"
+        :class="cn(contentClass, disabled && 'hidden')"
+      >
         {{ content }}
       </TooltipContent>
     </Tooltip>

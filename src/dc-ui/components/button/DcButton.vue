@@ -1,17 +1,12 @@
 <script setup lang="ts">
 import type { PrimitiveProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
-import { computed, useSlots } from 'vue'
+import { computed, useAttrs } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Primitive } from 'reka-ui'
 import { cn } from '@shadcn/lib/utils'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@shadcn/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import { dcButtonVariants, type DcButtonVariants } from './index'
 
 type DcIconSize = '3' | '3.5' | '4'
@@ -43,8 +38,7 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   active: false,
   tooltipSideOffset: 4,
-  // The original DcButton tooltip rendered immediately; retain that default.
-  tooltipDelayDuration: 0,
+  tooltipDelayDuration: 200,
   tooltipIgnoreNonKeyboardFocus: true
 })
 
@@ -52,13 +46,13 @@ defineOptions({
   inheritAttrs: false
 })
 
-const slots = useSlots()
+const attrs = useAttrs()
 
 const iconSizeClass = computed(
   () => ({ '3': 'size-3', '3.5': 'size-3.5', '4': 'size-4' })[props.iconSize]
 )
 
-const accessibleName = computed(() => props.label ?? props.tooltip ?? '')
+const accessibleName = computed(() => props.label ?? props.tooltip ?? attrs['aria-label'])
 
 const isIconOnly = computed(() =>
   ['icon', 'icon-sm', 'icon-xs', 'icon-lg'].includes(props.size ?? 'default')
@@ -75,54 +69,52 @@ const buttonClass = computed(() =>
   )
 )
 
-if (import.meta.env.DEV && !accessibleName.value && isIconOnly.value && !slots.default) {
-  console.warn('[DcButton] icon-only button requires `label` or `tooltip` for accessibility')
+if (import.meta.env.DEV && !accessibleName.value && isIconOnly.value) {
+  console.warn('[DcButton] icon-only button requires an accessible name')
 }
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="200">
-    <Tooltip
-      v-if="tooltip"
-      :delay-duration="tooltipDelayDuration"
-      :ignore-non-keyboard-focus="tooltipIgnoreNonKeyboardFocus"
-    >
-      <TooltipTrigger as-child>
-        <Primitive
-          data-slot="dc-button"
-          v-bind="$attrs"
-          :as="as"
-          :as-child="asChild"
-          :disabled="disabled"
-          :aria-label="accessibleName || undefined"
-          :class="buttonClass"
-        >
-          <Spinner v-if="loading" data-icon="inline-start" :class="iconSizeClass" />
-          <Icon v-else-if="icon" :icon="icon" :class="cn(iconSizeClass, iconClass)" />
-          <slot />
-        </Primitive>
-      </TooltipTrigger>
-      <TooltipContent
-        :side="tooltipSide"
-        :side-offset="tooltipSideOffset"
-        :class="tooltipContentClass"
+  <Tooltip
+    v-if="tooltip"
+    :delay-duration="tooltipDelayDuration"
+    :ignore-non-keyboard-focus="tooltipIgnoreNonKeyboardFocus"
+  >
+    <TooltipTrigger as-child>
+      <Primitive
+        data-slot="dc-button"
+        v-bind="$attrs"
+        :as="as"
+        :as-child="asChild"
+        :disabled="disabled"
+        :aria-label="accessibleName || undefined"
+        :class="buttonClass"
       >
-        {{ tooltip }}
-      </TooltipContent>
-    </Tooltip>
-    <Primitive
-      v-else
-      data-slot="dc-button"
-      v-bind="$attrs"
-      :as="as"
-      :as-child="asChild"
-      :disabled="disabled"
-      :aria-label="accessibleName || undefined"
-      :class="buttonClass"
+        <Spinner v-if="loading" data-icon="inline-start" :class="iconSizeClass" />
+        <Icon v-else-if="icon" :icon="icon" :class="cn(iconSizeClass, iconClass)" />
+        <slot />
+      </Primitive>
+    </TooltipTrigger>
+    <TooltipContent
+      :side="tooltipSide"
+      :side-offset="tooltipSideOffset"
+      :class="tooltipContentClass"
     >
-      <Spinner v-if="loading" data-icon="inline-start" :class="iconSizeClass" />
-      <Icon v-else-if="icon" :icon="icon" :class="cn(iconSizeClass, iconClass)" />
-      <slot />
-    </Primitive>
-  </TooltipProvider>
+      {{ tooltip }}
+    </TooltipContent>
+  </Tooltip>
+  <Primitive
+    v-else
+    data-slot="dc-button"
+    v-bind="$attrs"
+    :as="as"
+    :as-child="asChild"
+    :disabled="disabled"
+    :aria-label="accessibleName || undefined"
+    :class="buttonClass"
+  >
+    <Spinner v-if="loading" data-icon="inline-start" :class="iconSizeClass" />
+    <Icon v-else-if="icon" :icon="icon" :class="cn(iconSizeClass, iconClass)" />
+    <slot />
+  </Primitive>
 </template>
