@@ -106,11 +106,34 @@ const allRenderedMessages = computed(() => props.messages)
 const seenMessageIds = new Set<string>()
 const animatingMessageIds = ref(new Set<string>())
 
-onMounted(() => {
-  for (const message of props.messages) {
+const resetEntranceTracking = (messages: MessageListItem[]) => {
+  seenMessageIds.clear()
+  animatingMessageIds.value.clear()
+  for (const message of messages) {
     seenMessageIds.add(message.id)
   }
-})
+}
+
+onMounted(() => resetEntranceTracking(props.messages))
+
+watch(
+  () => props.conversationId,
+  () => resetEntranceTracking(props.messages)
+)
+
+watch(
+  () => props.messages,
+  (messages, previousMessages) => {
+    if (!previousMessages) return
+
+    const preservesMessageSequence = previousMessages.every(
+      (message, index) => messages[index]?.id === message.id
+    )
+    if (!preservesMessageSequence) {
+      resetEntranceTracking(messages)
+    }
+  }
+)
 
 watch(
   () => props.messages.at(-1),

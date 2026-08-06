@@ -50,7 +50,7 @@ const tabs = [
               {{ t(tab.label) }}
               <div
                 :class="[
-                  'absolute -bottom-1.5 left-0 h-0.5 w-full origin-left bg-primary transition-[transform,opacity] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none',
+                  'absolute -bottom-1.5 left-0 h-0.5 w-full origin-left bg-primary transition-[scale,opacity] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none',
                   activeTab === tab.id
                     ? 'scale-x-100 opacity-100'
                     : 'scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-50'

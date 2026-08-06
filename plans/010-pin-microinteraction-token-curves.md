@@ -109,8 +109,8 @@ else, and WAAPI cannot read CSS vars.)
 - **Feel check**: pin and unpin a session several times:
   - The glow/bloom/release feel identical to before (durations untouched); no curve change is
     perceptible by eye.
-  - `rg -n "cubic-bezier" src/renderer/src/components/WindowSideBarSessionItem.vue
-    src/renderer/src/components/WindowSideBar.vue` now returns only `var(--dc-ease-*)` references
-    (CSS) and the two inline WAAPI values.
-- **Done when**: no hand-typed cubic-bezier remains in these two files except the two WAAPI
-  strings, which match the token values exactly.
+  - Verify the targeted pin selectors use `var(--dc-ease-*)`, and that the two inline WAAPI
+    values in `WindowSideBar.vue` match the token curves. The unrelated curve in
+    `WindowSideBarSessionItem.vue` is outside this plan's scope.
+- **Done when**: the targeted pin selectors use shared easing tokens and the two WAAPI strings
+  match those token values exactly.

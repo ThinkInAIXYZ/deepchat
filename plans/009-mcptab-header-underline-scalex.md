@@ -48,7 +48,7 @@ Current code (`src/renderer/src/components/mcp-config/components/McpTabHeader.vu
 ## Target
 
 Tab button and icon: color-only transition at 140ms with the soft curve. Underline: scaleX with
-`origin-left` (grows from the left edge), transform+opacity at 140ms express:
+`origin-left` (grows from the left edge), scale+opacity at 140ms express:
 
 ```html
 'group flex items-center px-1 py-1.5 text-xs font-medium transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]'
@@ -59,14 +59,14 @@ Tab button and icon: color-only transition at 140ms with the soft curve. Underli
 ```
 
 ```html
-'absolute -bottom-1.5 left-0 h-0.5 bg-primary origin-left transition-[transform,opacity] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none',
+'absolute -bottom-1.5 left-0 h-0.5 w-full bg-primary origin-left transition-[scale,opacity] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none',
 activeTab === tab.id
   ? 'scale-x-100 opacity-100'
   : 'scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-50'
 ```
 
-The underline keeps its full width in layout (`h-0.5` + `left-0` + implicit full-width via the
-span's relative parent) — `scale-x-100`/`scale-x-0` shrink it visually without layout reflow.
+The underline keeps its full width in layout (`w-full` + `h-0.5` + `left-0`) —
+`scale-x-100`/`scale-x-0` shrink it visually without layout reflow.
 
 ## Repo conventions to follow
 

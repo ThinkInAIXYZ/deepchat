@@ -39,12 +39,11 @@ Current code (`src/renderer/src/components/WindowSideBar.vue:5`):
 >
 ```
 
-- `--dc-motion-fast` (140ms) halves the layout-animation window versus the current 220ms while
-  staying inside the playbook's standard-animation band (modals/drawers 200-500ms; this is a
-  structural snap, so 140ms is appropriately snappy).
-- `motion-reduce:transition-none` drops the movement entirely under `prefers-reduced-motion`
-  (the session column at line 142 keeps its own fade — which is exactly the playbook §6 pattern:
-  drop movement, keep opacity feedback).
+- `--dc-motion-fast` (140ms) shortens the current 220ms layout-animation window by 80ms
+  (about 36%) while staying inside the playbook's standard-animation band (modals/drawers
+  200-500ms; this is a structural snap, so 140ms is appropriately snappy).
+- `motion-reduce:transition-none` drops the shell movement entirely under `prefers-reduced-motion`.
+  The session column's reduced-motion rule also removes both its transform and opacity transitions.
 
 ## Repo conventions to follow
 
@@ -71,9 +70,8 @@ Current code (`src/renderer/src/components/WindowSideBar.vue:5`):
 - **Mechanical**: `pnpm exec vitest run test/renderer/components/WindowSideBar.test.ts` (50 tests)
   must pass — collapse/expand behavior is covered there.
 - **Feel check**: collapse/expand the sidebar repeatedly:
-  - The rail snaps into place in ~140ms with no visible intermediate jank; the chat area reflows
-    once at the end, not in visible steps.
-  - With `prefers-reduced-motion: reduce`, the width jumps instantly while the session column
-    still fades.
+  - Record a DevTools Performance trace while repeatedly toggling the sidebar: layout work stays
+    within each ~140ms transition window, frames remain responsive, and no visible jank occurs.
+  - With `prefers-reduced-motion: reduce`, the width and session-column state change instantly.
 - **Done when**: collapse feels responsive (not laggy), and DevTools Performance shows the width
   layout work confined to a single ~140ms window per toggle.

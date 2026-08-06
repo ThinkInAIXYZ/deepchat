@@ -247,6 +247,22 @@ describe('MessageList', () => {
     expect(wrapper.find('[data-message-id="a1"]').classes()).not.toContain('message-row-entrance')
   })
 
+  it('does not animate historical messages after replacing the conversation', async () => {
+    const wrapper = mount(MessageList, {
+      props: {
+        conversationId: 's1',
+        messages: [createMessage('u1', 'user', 1)]
+      }
+    })
+
+    await wrapper.setProps({
+      conversationId: 's2',
+      messages: [createMessage('u2', 'user', 1)]
+    })
+
+    expect(wrapper.find('[data-message-id="u2"]').classes()).not.toContain('message-row-entrance')
+  })
+
   it('marks only the streaming assistant message as streaming', () => {
     const wrapper = mount(MessageList, {
       props: {

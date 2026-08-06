@@ -2,10 +2,10 @@
   <TransitionGroup
     tag="div"
     class="absolute bottom-3 right-3 flex flex-col items-center gap-2 will-change-transform"
-    enter-active-class="transition-[opacity,transform] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+    enter-active-class="transition-[opacity,translate] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
     enter-from-class="opacity-0 translate-y-1"
     enter-to-class="opacity-100 translate-y-0"
-    leave-active-class="transition-[opacity,transform] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+    leave-active-class="transition-[opacity,translate] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
     leave-from-class="opacity-100 translate-y-0"
     leave-to-class="opacity-0 translate-y-1"
     move-class="message-actions-move"
@@ -109,6 +109,6 @@ const handleAfterLeave = (el: Element) => {
   /* 控制离场的属性过渡（和 template 中的 leave-* class 一起工作） */
   transition:
     opacity var(--dc-motion-default) var(--dc-ease-out-express),
-    transform var(--dc-motion-default) var(--dc-ease-out-express);
+    translate var(--dc-motion-default) var(--dc-ease-out-express);
 }
 </style>

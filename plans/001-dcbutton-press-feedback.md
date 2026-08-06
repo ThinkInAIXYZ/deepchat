@@ -26,15 +26,15 @@ export const dcButtonVariants = cva(
 ## Target
 
 Scale the button to 0.97 while pressed, using the repo's motion tokens (140ms + soft ease). Do NOT
-use `transition-colors` anymore — it would override the transform transition, so the property list
-must be explicit:
+use `transition-colors` anymore — it would omit the native `scale` transition, so the property
+list must be explicit:
 
 ```ts
-'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,transform] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*="size-"])]:size-4 [&_svg]:shrink-0 shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]'
+'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,scale] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] active:scale-[0.97] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*="size-"])]:size-4 [&_svg]:shrink-0 shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]'
 ```
 
-- `transition-[color,background-color,border-color,transform]` — hover color changes (all variants)
-  AND the press scale animate together, on-GPU (transform) plus paint (colors).
+- `transition-[color,background-color,border-color,scale]` — hover color changes (all variants)
+  AND the press scale animate together, using the native `scale` property plus paint (colors).
 - `active:scale-[0.97]` — the press effect; 0.97 is inside the playbook's 0.95–0.98 band.
 - `motion-reduce:active:scale-100` — under `prefers-reduced-motion`, keep color feedback, drop the
   positional press (playbook §6: reduced motion means fewer/gentler, drop movement keep feedback).
@@ -55,7 +55,7 @@ must be explicit:
 
 1. Open `src/dc-ui/components/button/index.ts:7`.
 2. Replace `transition-colors` with
-   `transition-[color,background-color,border-color,transform] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] active:scale-[0.97] motion-reduce:active:scale-100`.
+   `transition-[color,background-color,border-color,scale] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] active:scale-[0.97] motion-reduce:active:scale-100`.
    Keep every other class in the base string byte-for-byte. Do not touch the `variants` block.
 
 ## Boundaries

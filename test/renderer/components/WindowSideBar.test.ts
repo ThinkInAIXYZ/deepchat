@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPinia } from 'pinia'
-import { defineComponent, reactive, ref } from 'vue'
+import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
@@ -2081,14 +2081,14 @@ describe('WindowSideBar session row transitions', () => {
       const pageLoaded = new Promise<void>((resolve) => {
         resolvePage = resolve
       })
-      const groups = [
+      const groups = reactive([
         {
           id: 'common.time.today',
           label: 'common.time.today',
           labelKey: 'common.time.today',
           sessions: [{ id: 'session-1', title: 'Existing', status: 'none' }]
         }
-      ]
+      ])
       const { wrapper } = await setup({
         sessions: [{ id: 'session-1' }],
         hasMore: true,
@@ -2111,9 +2111,12 @@ describe('WindowSideBar session row transitions', () => {
 
       resolvePage?.()
       await flushPromises()
-      await wrapper.vm.$nextTick()
+      await nextTick()
+      await flushSidebarFillFrame()
+      await flushSidebarFillFrame()
 
-      expect(wrapper.find('.session-rows-static').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Loaded')
+      expect(wrapper.find('.session-rows-static').exists()).toBe(false)
 
       wrapper.unmount()
     },

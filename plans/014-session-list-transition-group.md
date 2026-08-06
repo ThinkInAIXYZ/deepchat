@@ -72,10 +72,25 @@ Scoped CSS (add to the component's style block):
   transition: transform var(--dc-motion-default) var(--dc-ease-out-express);
 }
 
+.session-rows-static .session-row-enter-active,
+.session-rows-static .session-row-move {
+  transition: none;
+}
+
+.session-rows-static .session-row-enter-from {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .session-row-enter-active,
   .session-row-move {
     transition: none;
+  }
+
+  .session-row-enter-from {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 ```
@@ -105,12 +120,9 @@ reorder cues carry the improvement.
 - Do NOT wrap the pinned list or group lists (pagination + pin-flight interactions live there).
 - Do NOT add a leave transition (measurement risk).
 - Do NOT touch `v-show` collapse behavior or the pin-flight clone logic.
-- Do NOT run this while `sessionStore.loading` — the pagination must not animate loaded pages;
-  if a load happens mid-flight, the enter transition is inert (rows render inside the group
-  without animation classes — verify no class is added for rows arriving via auto-fill: only
-  rows mounted fresh get the enter classes, which Vue applies to all new children — so if
-  auto-fill rows animate, scope the entrance behind `!sessionStore.loading` by keeping the
-  plain `v-for` when loading).
+- Keep pagination rows static while `sessionStore.loading` or `sessionStore.loadingMore` is true:
+  suppress enter/move transitions and override the enter-from state to the final visible state so
+  Vue's temporary class cannot flash.
 
 ## Verification
 
@@ -121,6 +133,6 @@ reorder cues carry the improvement.
     double-render flicker.
   - Delete a session: neighbors close the gap instantly (no distortion), then are stable.
   - Scroll a long list to trigger auto-fill: loaded rows do NOT animate.
-  - Toggle `prefers-reduced-motion: reduce`: everything snaps, no motion.
+  - Toggle `prefers-reduced-motion: reduce`: everything snaps with no entrance flash.
 - **Done when**: inserts/moves animate with tokens, pagination loads stay static, and all 50
   WindowSideBar tests pass.

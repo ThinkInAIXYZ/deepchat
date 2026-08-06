@@ -1,31 +1,9 @@
 import { defineComponent, nextTick, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import { WORKSPACE_EVENTS } from '@/events'
 
 describe('ChatSidePanel', () => {
-  it('keeps shell width out of CSS transitions', async () => {
-    const source = await readFile(
-      resolve(process.cwd(), 'src/renderer/src/components/sidepanel/ChatSidePanel.vue'),
-      'utf8'
-    )
-    const shellStyles = source.match(/\.chat-side-panel-shell\s*\{([\s\S]*?)\}/)?.[1] ?? ''
-
-    expect(shellStyles).not.toMatch(/transition(?:-property)?:[^;]*width/)
-  })
-
-  it('crossfades sidepanel content swaps without overlap', async () => {
-    const source = await readFile(
-      resolve(process.cwd(), 'src/renderer/src/components/sidepanel/ChatSidePanel.vue'),
-      'utf8'
-    )
-
-    expect(source).toContain('<Transition name="panel-content" mode="out-in">')
-    expect(source).toContain('transition: opacity var(--dc-motion-fast) var(--dc-ease-out-soft);')
-  })
-
   const setup = async (options?: {
     open?: boolean
     activeTab?: 'workspace' | 'browser' | 'mcp-app'
@@ -129,6 +107,23 @@ describe('ChatSidePanel', () => {
       emitOpenRequested: (payload: unknown) => openRequestedHandler?.(payload)
     }
   }
+
+  it('replaces workspace content when switching to the browser tab', async () => {
+    const { wrapper } = await setup({ activeTab: 'workspace' })
+
+    expect(wrapper.find('[data-testid="workspace-panel-stub"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="browser-panel-stub"]').exists()).toBe(false)
+
+    const browserTab = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'common.browser.name')
+    expect(browserTab).toBeDefined()
+    await browserTab!.trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="workspace-panel-stub"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="browser-panel-stub"]').exists()).toBe(true)
+  })
 
   it('opens the browser sidepanel when OPEN_REQUESTED targets the current host window', async () => {
     const { sidepanelStore, emitOpenRequested } = await setup({

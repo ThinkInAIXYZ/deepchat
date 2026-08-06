@@ -84,5 +84,5 @@ for all input types (playbook §6: keep opacity/color, drop movement on touch):
   - Emulated touch: tapping the card never lifts it; hover-style tap still shows color feedback.
   - Real mouse: card lifts 1px with the 140ms soft curve as before.
   - Toggle `prefers-reduced-motion: reduce` — lift effectively disappears (1ms transition).
-- **Done when**: no `ease` keyword or hardcoded ms duration remains in this style block, and the
-  positional hover only exists for fine pointers.
+- **Done when**: no bare `ease` keyword remains in this style block; the intentional 180ms
+  border, background, and shadow feedback remains; and positional hover only exists for fine pointers.

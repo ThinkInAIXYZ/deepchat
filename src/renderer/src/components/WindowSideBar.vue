@@ -2074,6 +2074,11 @@ onUnmounted(() => {
   transition: none;
 }
 
+.session-rows-static .session-row-enter-from {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 :deep(.sidebar-project-group-ghost) {
   opacity: 0.45;
 }
@@ -2154,6 +2159,11 @@ input {
   .session-row-enter-active,
   .session-row-move {
     transition: none;
+  }
+
+  .session-row-enter-from {
+    opacity: 1;
+    transform: translateY(0);
   }
 
   .theme-icon-enter-active,
