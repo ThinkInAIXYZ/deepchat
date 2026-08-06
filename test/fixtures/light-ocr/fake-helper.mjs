@@ -102,7 +102,7 @@ if (process.env.FAKE_OCR_START_COUNTER) {
 send({
   type: 'hello',
   protocolVersion: Number(process.env.FAKE_OCR_PROTOCOL_VERSION ?? 2),
-  nodeVersion: process.env.FAKE_OCR_NODE_VERSION ?? 'v24.14.1',
+  nodeVersion: process.env.FAKE_OCR_NODE_VERSION ?? 'v24.18.0',
   pid: process.pid
 })
 

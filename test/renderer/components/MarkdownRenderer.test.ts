@@ -123,6 +123,10 @@ const setup = async (props: Record<string, unknown> = {}) => {
         content: {
           type: String,
           default: ''
+        },
+        parseOptions: {
+          type: Object,
+          default: undefined
         }
       },
       emits: ['click', 'mouseover', 'mouseout', 'handleArtifactClick'],
@@ -343,6 +347,53 @@ describe('MarkdownRenderer', () => {
 
     expect(nodeRenderer.attributes('data-final')).toBe('false')
     expect(nodeRenderer.attributes('data-code-block-stream')).toBe('true')
+  })
+
+  it('suppresses only Markdown image nodes backed by promoted local images', async () => {
+    const { wrapper } = await setup({
+      hiddenImageSources: ['imgcache://generated.png']
+    })
+    const parseOptions = wrapper.findComponent({ name: 'NodeRenderer' }).props('parseOptions') as {
+      postTransformNodes(nodes: any[]): any[]
+    }
+    const nodes = [
+      {
+        type: 'paragraph',
+        raw: 'images',
+        children: [
+          {
+            type: 'image',
+            raw: '![generated](imgcache://generated.png)',
+            src: 'imgcache://generated.png',
+            alt: 'generated',
+            title: null
+          },
+          {
+            type: 'image',
+            raw: '![external](https://example.com/external.png)',
+            src: 'https://example.com/external.png',
+            alt: 'external',
+            title: null
+          }
+        ]
+      }
+    ]
+
+    expect(parseOptions.postTransformNodes(nodes)).toEqual([
+      {
+        type: 'paragraph',
+        raw: 'images',
+        children: [
+          {
+            type: 'image',
+            raw: '![external](https://example.com/external.png)',
+            src: 'https://example.com/external.png',
+            alt: 'external',
+            title: null
+          }
+        ]
+      }
+    ])
   })
 
   it('renders the first non-empty streaming update immediately', async () => {

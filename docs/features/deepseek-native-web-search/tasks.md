@@ -36,3 +36,4 @@
 - [x] Fail closed when invalid client message content contains opaque replay payloads.
 - [x] Keep provider stream invocation independent from mock call arity and report provider search
   separately from local tool-call counts.
+- [x] Reconcile the AI SDK dependency graph with the current `dev` runtime lockfile.

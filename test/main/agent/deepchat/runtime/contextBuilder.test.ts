@@ -983,6 +983,54 @@ describe('buildContext', () => {
     ])
   })
 
+  it('keeps cached image references stable while excluding promoted image blocks from history', () => {
+    const record = makeAssistantWithToolRecord(
+      2,
+      '![generated](imgcache://generated.jpg)',
+      'Generated image: imgcache://generated.jpg'
+    )
+    const blocks = JSON.parse(record.content)
+    blocks[1].tool_call.params = '{"image":"imgcache://generated.jpg"}'
+    const withoutPresentationBlock = recordToChatMessages(
+      { ...record, content: JSON.stringify(blocks) },
+      true
+    )
+    blocks.push({
+      type: 'image',
+      status: 'success',
+      timestamp: Date.now(),
+      image_data: { data: 'imgcache://generated.jpg', mimeType: 'image/jpeg' }
+    })
+
+    const restartedHistory = recordToChatMessages(
+      { ...record, content: JSON.stringify(blocks) },
+      true
+    )
+
+    expect(restartedHistory).toEqual(withoutPresentationBlock)
+    expect(restartedHistory).toEqual([
+      {
+        role: 'assistant',
+        content: '![generated](imgcache://generated.jpg)',
+        tool_calls: [
+          {
+            id: 'tc-2',
+            type: 'function',
+            function: {
+              name: 'example_tool',
+              arguments: '{"image":"imgcache://generated.jpg"}'
+            }
+          }
+        ]
+      },
+      {
+        role: 'tool',
+        tool_call_id: 'tc-2',
+        content: 'Generated image: imgcache://generated.jpg'
+      }
+    ])
+  })
+
   it('rebuilds a rejected truncated call with its matching error result', () => {
     const rejectedRecord = {
       id: 'asst-2',

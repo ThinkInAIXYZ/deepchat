@@ -40,7 +40,7 @@ import {
   MCP_CLIENT_CREDENTIALS_DRAFT_REVISION,
   McpOAuthManager
 } from './mcpOAuthManager'
-import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
+import { prepareToolCallImageContent } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { PrivacySettingsPort } from '@/app/privacy'
@@ -54,6 +54,8 @@ import type { ToolPermissionBroker } from '@/tool/permission'
 import type { McpAppSandboxRegistry } from './apps/sandboxRegistry'
 import { McpAppHost } from './apps/appHost'
 import { hasMcpIdentityBearingChange } from './serverIdentity'
+import type { CacheImageOptions } from '@/platform/imageCache'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 
 type McpToolAccessContext = {
   enabledTools?: string[]
@@ -99,7 +101,7 @@ export class McpService implements McpServicePort {
   private isInitialized: boolean = false
   // McpRouter
   private mcprouter?: McpRouterManager
-  private cacheImage?: (data: string) => Promise<string>
+  private cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>
   private readonly onRegistryChanged: () => void
   private shutdownPromise: Promise<void> | null = null
   private addMcpServerTail: Promise<void> = Promise.resolve()
@@ -164,7 +166,7 @@ export class McpService implements McpServicePort {
     onRegistryChanged: () => void,
     semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
-    cacheImage?: (data: string) => Promise<string>,
+    cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>,
     pluginRuntimeSupervisor?: PluginRuntimeSupervisor,
     computerUsePreviewObserver?: ComputerUsePreviewObserver,
     mcpApps?: {
@@ -1243,28 +1245,45 @@ export class McpService implements McpServicePort {
   ): Promise<{ content: string; rawData: MCPToolResponse }> {
     const toolCallResult = await this.toolManager.callTool(request, options)
     options?.signal?.throwIfAborted()
-    const imagePreviews = await extractToolCallImagePreviews({
+    const serverName = request.server?.name
+    const serverConfig = serverName
+      ? (await awaitWithAbort(this.mcpSettings.getMcpServers(), options?.signal))[serverName]
+      : undefined
+    const allowPrivateNetwork =
+      serverConfig?.type === 'stdio' ||
+      serverConfig?.type === 'inmemory' ||
+      Boolean(serverName && this.pluginRuntimeSupervisor.ownsServer(serverName))
+    const cacheImage = this.cacheImage
+    const preparedImages = await prepareToolCallImageContent({
       toolName: request.function.name,
       toolArgs: request.function.arguments,
       content: toolCallResult.content,
-      cacheImage: this.cacheImage,
+      cacheImage: cacheImage
+        ? (data) =>
+            cacheImage(data, {
+              signal: options?.signal,
+              allowPrivateNetwork
+            })
+        : undefined,
       signal: options?.signal
     })
+    const imagePreviews = preparedImages.imagePreviews
+    const normalizedContent = preparedImages.content
     options?.signal?.throwIfAborted()
 
     // Format tool call results into strings that are easy for large models to parse
     let formattedContent = ''
 
     // Determine content type
-    if (typeof toolCallResult.content === 'string') {
+    if (typeof normalizedContent === 'string') {
       // Content is already a string
-      formattedContent = toolCallResult.content
-    } else if (Array.isArray(toolCallResult.content)) {
+      formattedContent = normalizedContent
+    } else if (Array.isArray(normalizedContent)) {
       // Content is structured array, needs formatting
       const contentParts: string[] = []
 
       // Process each content item
-      for (const item of toolCallResult.content) {
+      for (const item of normalizedContent) {
         if (item.type === 'text') {
           contentParts.push(item.text)
         } else if (item.type === 'image') {
@@ -1296,6 +1315,7 @@ export class McpService implements McpServicePort {
       content: formattedContent,
       rawData: {
         ...toolCallResult,
+        content: normalizedContent,
         ...(imagePreviews.length > 0 ? { imagePreviews } : {})
       }
     }

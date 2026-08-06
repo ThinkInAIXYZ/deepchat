@@ -17,7 +17,8 @@ const serverManagerMocks = vi.hoisted(() => ({
 const toolManagerMocks = vi.hoisted(() => ({
   getAllToolDefinitions: vi.fn().mockResolvedValue([]),
   getRunningClients: vi.fn().mockResolvedValue([]),
-  invalidateRegistry: vi.fn()
+  invalidateRegistry: vi.fn(),
+  callTool: vi.fn()
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
@@ -46,7 +47,8 @@ vi.mock('../../../src/main/mcp/toolManager', () => ({
   ToolManager: vi.fn().mockImplementation(() => ({
     getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
     getRunningClients: toolManagerMocks.getRunningClients,
-    invalidateRegistry: toolManagerMocks.invalidateRegistry
+    invalidateRegistry: toolManagerMocks.invalidateRegistry,
+    callTool: toolManagerMocks.callTool
   }))
 }))
 
@@ -55,13 +57,28 @@ vi.mock('../../../src/main/mcp/mcprouterManager', () => ({
 }))
 
 import { McpService } from '../../../src/main/mcp'
+import { ToolManager } from '../../../src/main/mcp/toolManager'
+import type { CacheImageOptions } from '../../../src/main/platform/imageCache'
+
+const installToolManagerMock = () => {
+  vi.mocked(ToolManager).mockImplementation(
+    () =>
+      ({
+        getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
+        getRunningClients: toolManagerMocks.getRunningClients,
+        invalidateRegistry: toolManagerMocks.invalidateRegistry,
+        callTool: toolManagerMocks.callTool
+      }) as never
+  )
+}
 
 const createMcpService = (
   providerSettings: any,
   onRegistryChanged = vi.fn(),
   mcpApps?: {
     registry: { revokeByServer(serverId: string): void }
-  }
+  },
+  cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>
 ) =>
   new McpService(
     providerSettings,
@@ -74,7 +91,7 @@ const createMcpService = (
     onRegistryChanged,
     semanticNotificationsMock,
     publishDeepchatEventMock,
-    undefined,
+    cacheImage,
     undefined,
     undefined,
     mcpApps
@@ -92,6 +109,7 @@ describe('McpService', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
+    installToolManagerMock()
     serverManagerMocks.startServer.mockResolvedValue(undefined)
     serverManagerMocks.stopServer.mockResolvedValue(undefined)
     serverManagerMocks.isServerRunning.mockReturnValue(false)
@@ -101,6 +119,91 @@ describe('McpService', () => {
     serverManagerMocks.updateNpmRegistryInBackground.mockResolvedValue(undefined)
     serverManagerMocks.refreshNpmRegistry.mockResolvedValue('https://registry.npmjs.org/')
     toolManagerMocks.getAllToolDefinitions.mockResolvedValue([])
+    toolManagerMocks.callTool.mockReset()
+  })
+
+  it('caches embedded MCP image URLs before exposing the tool result to the model', async () => {
+    const sourceUrl = 'https://example.com/generated/output.jpeg?Expires=123'
+    const mcpResult = {
+      schemaVersion: 1,
+      toolName: 'draw',
+      content: [{ type: 'text', text: `Success. Image URL(s): ${sourceUrl}` }]
+    }
+    toolManagerMocks.callTool.mockResolvedValue({
+      toolCallId: 'tool-image',
+      content: [{ type: 'text', text: `Success. Image URL(s): ${sourceUrl}` }],
+      isError: false,
+      mcpResult
+    })
+    const cacheImage = vi.fn().mockResolvedValue('imgcache://generated.jpg')
+    const presenter = createMcpService(
+      createProviderSettings(true, false, {
+        remote: { type: 'http' }
+      }),
+      undefined,
+      undefined,
+      cacheImage
+    )
+
+    const result = await presenter.callTool({
+      id: 'tool-image',
+      type: 'function',
+      function: { name: 'draw', arguments: '{}' },
+      server: { name: 'remote', icons: '', description: '' }
+    })
+
+    expect(cacheImage).toHaveBeenCalledWith(sourceUrl, {
+      signal: undefined,
+      allowPrivateNetwork: false
+    })
+    expect(result.content).toBe('Success. Image URL(s): imgcache://generated.jpg')
+    expect(result.rawData).toMatchObject({
+      content: [
+        {
+          type: 'text',
+          text: 'Success. Image URL(s): imgcache://generated.jpg'
+        }
+      ],
+      mcpResult,
+      imagePreviews: [
+        {
+          data: 'imgcache://generated.jpg',
+          mimeType: 'image/jpeg',
+          source: 'tool_output'
+        }
+      ]
+    })
+    expect(result.rawData.mcpResult).toBe(mcpResult)
+  })
+
+  it('allows local MCP transports to cache private-network image URLs', async () => {
+    const sourceUrl = 'http://127.0.0.1/generated.png'
+    toolManagerMocks.callTool.mockResolvedValue({
+      toolCallId: 'tool-local-image',
+      content: sourceUrl,
+      isError: false
+    })
+    const cacheImage = vi.fn().mockResolvedValue('imgcache://generated.png')
+    const presenter = createMcpService(
+      createProviderSettings(true, false, {
+        local: { type: 'stdio' }
+      }),
+      undefined,
+      undefined,
+      cacheImage
+    )
+
+    await presenter.callTool({
+      id: 'tool-local-image',
+      type: 'function',
+      function: { name: 'draw', arguments: '{}' },
+      server: { name: 'local', icons: '', description: '' }
+    })
+
+    expect(cacheImage).toHaveBeenCalledWith(sourceUrl, {
+      signal: undefined,
+      allowPrivateNetwork: true
+    })
   })
 
   afterEach(() => {
@@ -726,6 +829,7 @@ describe('McpService sampling events', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
+    installToolManagerMock()
     serverManagerMocks.getRunningClients.mockResolvedValue([])
     toolManagerMocks.getAllToolDefinitions.mockResolvedValue([])
   })

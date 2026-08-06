@@ -23,7 +23,7 @@ const INTERNAL_STATUS: OcrRuntimeServiceStatus = {
   process: {
     state: 'ready',
     pid: 4242,
-    nodeVersion: 'v24.14.1',
+    nodeVersion: 'v24.18.0',
     queuedRequests: 0,
     pendingInputBytes: 0,
     stderrBytesCaptured: 17,
@@ -73,7 +73,7 @@ describe('OCR routes', () => {
       },
       process: {
         state: 'ready',
-        nodeVersion: 'v24.14.1',
+        nodeVersion: 'v24.18.0',
         queuedRequests: 0,
         pendingInputBytes: 0,
         engine: {

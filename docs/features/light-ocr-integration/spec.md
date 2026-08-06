@@ -70,7 +70,8 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 
 - Pin `@arcships/light-ocr` to exactly `0.3.4` and require model bundle
   `ppocrv6-small-native-20260719.1`.
-- Use a standalone helper launched with bundled Node `v24.14.1`; never fall back to system Node.
+- Use a standalone helper launched with the bundled Node version pinned in the
+  [runtime manifest](../../resources/runtime-versions.json); never fall back to system Node.
 - Pass an explicit packaged `bundlePath`; verify the package version, bundle identity and model
   checksums both during packaging and helper handshake.
 - Verify pinned Node and native source hashes before code signing. Final macOS smoke keeps exact

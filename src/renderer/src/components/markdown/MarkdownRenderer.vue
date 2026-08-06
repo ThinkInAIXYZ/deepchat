@@ -23,6 +23,7 @@
       :render-batch-budget-ms="renderBatchBudgetMs"
       :render-batch-idle-timeout-ms="renderBatchIdleTimeoutMs"
       :parse-coalesce-ms="parseCoalesceMs"
+      :parse-options="parseOptions"
       html-policy="safe"
       :defer-nodes-until-visible="shouldUseViewportPriority"
       :viewport-priority="shouldUseViewportPriority"
@@ -48,7 +49,11 @@ import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import NodeRenderer, { type CodeBlockPreviewPayload } from 'markstream-vue'
+import NodeRenderer, {
+  type CodeBlockPreviewPayload,
+  type ParsedNode,
+  type ParseOptions
+} from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useMarkdownLinkNavigation } from './useMarkdownLinkNavigation'
@@ -67,6 +72,7 @@ const props = withDefaults(
     final?: boolean
     virtualizeNodes?: boolean
     mode?: 'docs' | 'chat' | 'minimal'
+    hiddenImageSources?: readonly string[]
   }>(),
   {
     smoothStreaming: true,
@@ -133,6 +139,77 @@ const codeBlockProps = computed(() => ({
   themes: [...codeBlockThemes]
 }))
 const mermaidProps = { isStrict: true } as const
+const NESTED_NODE_ARRAY_KEYS = ['children', 'items', 'rows', 'cells', 'term', 'definition'] as const
+
+const isParsedNode = (value: unknown): value is ParsedNode =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { type?: unknown }).type === 'string' &&
+  typeof (value as { raw?: unknown }).raw === 'string'
+
+const removeHiddenImageNode = (
+  node: ParsedNode,
+  hiddenSources: ReadonlySet<string>
+): ParsedNode | null => {
+  if (
+    node.type === 'image' &&
+    'src' in node &&
+    typeof node.src === 'string' &&
+    hiddenSources.has(node.src.trim())
+  ) {
+    return null
+  }
+
+  const source = node as unknown as Record<string, unknown>
+  let result: Record<string, unknown> | undefined
+  for (const key of NESTED_NODE_ARRAY_KEYS) {
+    const value = source[key]
+    if (!Array.isArray(value) || value.length === 0 || !value.every(isParsedNode)) {
+      continue
+    }
+    const transformed = value
+      .map((child) => removeHiddenImageNode(child, hiddenSources))
+      .filter((child): child is ParsedNode => child !== null)
+    if (
+      transformed.length !== value.length ||
+      transformed.some((child, index) => child !== value[index])
+    ) {
+      result ??= { ...source }
+      result[key] = transformed
+    }
+  }
+
+  if (isParsedNode(source.header)) {
+    const transformedHeader = removeHiddenImageNode(source.header, hiddenSources)
+    if (transformedHeader !== source.header) {
+      result ??= { ...source }
+      result.header = transformedHeader
+    }
+  }
+
+  const transformedNode = (result ?? source) as unknown as ParsedNode
+  if (
+    transformedNode.type === 'paragraph' &&
+    Array.isArray(transformedNode.children) &&
+    transformedNode.children.length === 0
+  ) {
+    return null
+  }
+  return transformedNode
+}
+
+const parseOptions = computed<ParseOptions | undefined>(() => {
+  const hiddenSources = new Set(props.hiddenImageSources ?? [])
+  if (hiddenSources.size === 0) {
+    return undefined
+  }
+  return {
+    postTransformNodes: (nodes) =>
+      nodes
+        .map((node) => removeHiddenImageNode(node, hiddenSources))
+        .filter((node): node is ParsedNode => node !== null)
+  }
+})
 const isStreaming = computed(
   () => props.final === false || (props.streaming && props.final !== true)
 )

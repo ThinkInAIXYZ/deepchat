@@ -672,7 +672,7 @@ describe('package manifest staging', () => {
       JSON.stringify({
         version,
         devDependencies: {
-          electron: '40.10.5',
+          electron: '41.10.4',
           'electron-builder': '26.15.3'
         }
       })

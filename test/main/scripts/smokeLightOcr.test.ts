@@ -42,7 +42,7 @@ import {
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
 
 const runtimeVersions = {
-  node: 'v24.14.1',
+  node: 'v24.18.0',
   nodeArtifacts: {
     'darwin-arm64': {
       executableSha256: sha256('node')

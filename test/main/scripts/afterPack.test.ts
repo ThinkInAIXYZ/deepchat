@@ -100,7 +100,7 @@ const sha256 = (value: string) => createHash('sha256').update(value).digest('hex
 
 const testRuntimeVersions = {
   schemaVersion: 3,
-  node: 'v24.14.1',
+  node: 'v24.18.0',
   nodeArtifacts: Object.fromEntries(
     [
       'darwin-arm64',
@@ -546,7 +546,7 @@ describe('afterPack', () => {
       modelVersion: '0.3.4',
       nativeVersion: '0.5.7',
       pdfSupport: true,
-      nodeVersion: 'v24.14.1',
+      nodeVersion: 'v24.18.0',
       nodeSha256: sha256('node'),
       nativePayloadEncoding: 'gzip-base64-v1'
     })

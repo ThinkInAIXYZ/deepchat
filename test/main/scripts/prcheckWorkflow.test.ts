@@ -132,7 +132,7 @@ describe('PR Check workflow contracts', () => {
     expect(setupNodeSteps).toHaveLength(5)
     for (const step of setupNodeSteps) {
       expect(step.with).toMatchObject({
-        'node-version': '24.14.1',
+        'node-version': '24.18.0',
         'package-manager-cache': false
       })
     }

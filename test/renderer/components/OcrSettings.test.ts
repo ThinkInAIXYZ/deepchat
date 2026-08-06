@@ -435,7 +435,7 @@ describe('OcrSettings', () => {
       ...idleStatus,
       process: {
         state: 'busy',
-        nodeVersion: 'v24.14.1',
+        nodeVersion: 'v24.18.0',
         queuedRequests: 0,
         pendingInputBytes: 1024,
         engine: null
@@ -461,7 +461,7 @@ describe('OcrSettings', () => {
       ...AVAILABLE_STATUS,
       process: {
         state: 'busy',
-        nodeVersion: 'v24.14.1',
+        nodeVersion: 'v24.18.0',
         queuedRequests: 0,
         pendingInputBytes: 1024,
         engine: null

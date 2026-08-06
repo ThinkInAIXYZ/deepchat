@@ -83,10 +83,14 @@ vi.mock('@/components/markdown/MarkdownRenderer.vue', () => ({
       linkContext: {
         type: Object as () => MarkdownLinkContext | undefined,
         default: undefined
+      },
+      hiddenImageSources: {
+        type: Array,
+        default: undefined
       }
     },
     template:
-      '<div class="markdown-stub" :data-mode="mode" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-smooth-streaming="String(smoothStreaming)" :data-streaming="String(streaming)" :data-final="String(final)" :data-virtualize-nodes="String(virtualizeNodes)">{{ content }}</div>'
+      '<div class="markdown-stub" :data-mode="mode" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-smooth-streaming="String(smoothStreaming)" :data-streaming="String(streaming)" :data-final="String(final)" :data-virtualize-nodes="String(virtualizeNodes)" :data-hidden-image-sources="hiddenImageSources?.join(\',\')">{{ content }}</div>'
   })
 }))
 
@@ -188,6 +192,23 @@ describe('MessageBlockContent', () => {
     expect(markdown.attributes('data-link-source')).toBe('chat')
     expect(markdown.attributes('data-link-session-id')).toBe('s3')
     expect(markdown.text()).toContain('plain markdown content')
+  })
+
+  it('passes promoted local image sources to MarkdownRenderer', async () => {
+    const wrapper = mount(MessageBlockContent, {
+      props: {
+        block: createBlock({ content: '![image](imgcache://generated.png)' }),
+        messageId: 'm-image',
+        threadId: 's-image',
+        hiddenMarkdownImageSources: ['imgcache://generated.png']
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.get('.markdown-stub').attributes('data-hidden-image-sources')).toBe(
+      'imgcache://generated.png'
+    )
   })
 
   it('marks completed content blocks as final static markdown', async () => {

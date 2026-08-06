@@ -64,6 +64,7 @@
                 :thread-id="currentThreadId"
                 :is-search-result="isSearchResult"
                 :disable-markdown-virtualization="disableMarkdownVirtualization"
+                :hidden-markdown-image-sources="promotedImageSources"
               />
               <MessageBlockThink
                 v-else-if="
@@ -413,6 +414,21 @@ const currentContent = computed(() => {
 
   return filterRenderableAssistantBlocks(blocks ?? [])
 })
+
+const promotedImageSources = computed(() =>
+  Array.from(
+    new Set(
+      currentContent.value
+        .filter(
+          (block) =>
+            block.type === 'image' &&
+            block.image_data?.mimeType?.toLowerCase().startsWith('image/') &&
+            block.image_data.data.startsWith('imgcache://')
+        )
+        .map((block) => block.image_data!.data)
+    )
+  )
+)
 
 const shouldGroupActivity = computed(() => {
   // Row-level: only the actively streaming row stays ungrouped so its activity

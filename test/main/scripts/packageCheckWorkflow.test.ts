@@ -180,7 +180,7 @@ describe('PR package check workflow contracts', () => {
       'fetch-depth': 0
     })
     expect(actionSteps[1].with).toEqual({
-      'node-version': '24.14.1',
+      'node-version': '24.18.0',
       'package-manager-cache': false
     })
   })

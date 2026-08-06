@@ -32,6 +32,7 @@ import type {
   PluginRuntimeStartReason
 } from '@/plugin/runtimeSupervisor'
 import { createPersistedMcpToolResult, getToolVisibility } from './resultProjection'
+import { resolveCachedImageDataUrl as resolveCachedImageDataUrlFromDisk } from '@/platform/imageCache'
 import { findJsonValueDifference, type JsonValueDifference } from './schemaValidation'
 
 const isAbortError = (error: unknown): boolean =>
@@ -43,6 +44,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const PLUGIN_RUNTIME_DIAGNOSTIC_TIMEOUT_MS = 30_000
 const TOOL_CATALOG_VALIDATION_TIMEOUT_MS = 30_000
 const MAX_SCHEMA_DIFFERENCE_PATH_LENGTH = 512
+const MAX_CACHED_IMAGE_ARGUMENT_REFERENCES = 8
+const MAX_MCP_EXECUTION_ARGUMENT_BYTES = 32 * 1024 * 1024
+const CACHED_IMAGE_REFERENCE_PATTERN = /^imgcache:\/\/\S+$/i
+const CACHED_IMAGE_PREFIX_LENGTH = 'imgcache://'.length
 
 const SCHEMA_DIFFERENCE_REASONS: Record<JsonValueDifference['kind'], string> = {
   type: 'type differs',
@@ -89,6 +94,14 @@ export type ComputerUsePreviewObserver = {
 type ActiveToolDefinitionsRefresh = {
   completion: Promise<void>
   settle: () => void
+}
+
+type CachedImageDataUrlResolver = (source: string, signal?: AbortSignal) => Promise<string>
+
+type CachedImageResolutionContext = {
+  dataUrls: Map<string, Promise<string>>
+  referenceCount: number
+  expandedBytes: number
 }
 
 type PluginMcpOwnershipPort = {
@@ -169,7 +182,8 @@ export class ToolManager {
     private readonly semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
     private readonly pluginOwnership: PluginMcpOwnershipPort = NO_PLUGIN_OWNERSHIP,
-    private readonly computerUsePreviewObserver?: ComputerUsePreviewObserver
+    private readonly computerUsePreviewObserver?: ComputerUsePreviewObserver,
+    private readonly resolveCachedImageDataUrl: CachedImageDataUrlResolver = resolveCachedImageDataUrlFromDisk
   ) {
     this.agentSettings = agentSettings
     this.mcpSettings = mcpSettings
@@ -1151,11 +1165,33 @@ export class ToolManager {
     args: Record<string, unknown>,
     signal?: AbortSignal
   ): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; error: string }> {
-    if (!this.isCuaComputerUseServer(client)) {
-      return { ok: true, args }
+    let resolvedArgs: Record<string, unknown>
+    try {
+      const context: CachedImageResolutionContext = {
+        dataUrls: new Map(),
+        referenceCount: 0,
+        expandedBytes: 0
+      }
+      resolvedArgs = (await this.resolveCachedImageArguments(args, signal, context)) as Record<
+        string,
+        unknown
+      >
+      if (Buffer.byteLength(JSON.stringify(resolvedArgs)) > MAX_MCP_EXECUTION_ARGUMENT_BYTES) {
+        throw new Error('Expanded MCP tool arguments exceed the 32 MiB limit')
+      }
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) throw error
+      return {
+        ok: false,
+        error: `Unable to resolve cached image reference: ${error instanceof Error ? error.message : String(error)}`
+      }
     }
 
-    const normalizedArgs = normalizeCuaToolArguments(toolName, args)
+    if (!this.isCuaComputerUseServer(client)) {
+      return { ok: true, args: resolvedArgs }
+    }
+
+    const normalizedArgs = normalizeCuaToolArguments(toolName, resolvedArgs)
     const validationError = validateCuaSnapshotTargetArguments(toolName, normalizedArgs)
     if (validationError) {
       return { ok: false, error: validationError }
@@ -1165,6 +1201,53 @@ export class ToolManager {
     }
 
     return await this.prepareCuaWindowsLaunchArgs(client, normalizedArgs, signal)
+  }
+
+  private async resolveCachedImageArguments(
+    value: unknown,
+    signal: AbortSignal | undefined,
+    context: CachedImageResolutionContext
+  ): Promise<unknown> {
+    signal?.throwIfAborted()
+    if (typeof value === 'string') {
+      const reference = value.trim()
+      if (!CACHED_IMAGE_REFERENCE_PATTERN.test(reference)) {
+        return value
+      }
+      context.referenceCount += 1
+      if (context.referenceCount > MAX_CACHED_IMAGE_ARGUMENT_REFERENCES) {
+        throw new Error('MCP tool arguments contain more than 8 cached image references')
+      }
+      const normalizedReference =
+        reference.slice(0, CACHED_IMAGE_PREFIX_LENGTH).toLowerCase() +
+        reference.slice(CACHED_IMAGE_PREFIX_LENGTH)
+      let dataUrl = context.dataUrls.get(normalizedReference)
+      if (!dataUrl) {
+        dataUrl = this.resolveCachedImageDataUrl(reference, signal)
+        context.dataUrls.set(normalizedReference, dataUrl)
+      }
+      const resolved = await dataUrl
+      context.expandedBytes += Buffer.byteLength(resolved)
+      if (context.expandedBytes > MAX_MCP_EXECUTION_ARGUMENT_BYTES) {
+        throw new Error('Expanded cached images exceed the 32 MiB limit')
+      }
+      return resolved
+    }
+    if (Array.isArray(value)) {
+      const resolved: unknown[] = []
+      for (const item of value) {
+        resolved.push(await this.resolveCachedImageArguments(item, signal, context))
+      }
+      return resolved
+    }
+    if (isRecord(value)) {
+      const resolved: Record<string, unknown> = {}
+      for (const [key, item] of Object.entries(value)) {
+        resolved[key] = await this.resolveCachedImageArguments(item, signal, context)
+      }
+      return resolved
+    }
+    return value
   }
 
   private async prepareCuaWindowsLaunchArgs(

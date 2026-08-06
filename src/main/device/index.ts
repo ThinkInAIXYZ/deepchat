@@ -7,7 +7,7 @@ import fs from 'fs'
 import path from 'path'
 import { app, dialog } from 'electron'
 import { svgSanitizer } from '../lib/svgSanitizer'
-import { cacheImage } from '@/platform/imageCache'
+import { cacheImage, type CacheImageOptions } from '@/platform/imageCache'
 const execAsync = promisify(exec)
 
 export class DeviceService implements DeviceServicePort {
@@ -135,8 +135,8 @@ export class DeviceService implements DeviceServicePort {
    * @param imageData 图片数据，可以是URL或Base64编码
    * @returns 返回以imgcache://协议的图片URL或原始URL（下载失败时）
    */
-  async cacheImage(imageData: string): Promise<string> {
-    return cacheImage(imageData)
+  async cacheImage(imageData: string, options?: CacheImageOptions): Promise<string> {
+    return cacheImage(imageData, options)
   }
 
   async resetData(): Promise<void> {

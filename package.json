@@ -6,10 +6,10 @@
   "author": "ThinkInAIXYZ",
   "type": "module",
   "engines": {
-    "node": ">=24.14.1 <25",
-    "pnpm": ">=10.11.0"
+    "node": ">=24.18.0 <25",
+    "pnpm": ">=10.34.5 <11"
   },
-  "packageManager": "pnpm@10.33.4+sha512.1c67b3b359b2d408119ba1ed289f34b8fc3c6873412bec6fd264fbdc82489e510fcbecb9ce9d22dae7f3b76269d8441046014bdca53b9979cd7a561ad631b800",
+  "packageManager": "pnpm@10.34.5+sha512.a4ee05f2f73658255bd6a89859c065a45c28a57daefae2c893a168ee2b73168c37b91e83e57ea67654ad03f03031746430e8bce38e362e042605fb8abc80192e",
   "scripts": {
     "prebuild": "node scripts/generate-icon-collections.mjs && node scripts/fetch-provider-db.mjs && node scripts/fetch-acp-registry.mjs",
     "preinstall": "npx only-allow pnpm",
@@ -157,7 +157,7 @@
     "sharp": "^0.35.3",
     "tokenx": "0.4.1",
     "turndown": "^7.2.4",
-    "undici": "^7.28.0",
+    "undici": "^7.29.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "xml2js": "^0.6.2",
     "zod": "^4.4.3"
@@ -201,7 +201,7 @@
     "clsx": "^2.1.1",
     "cross-env": "^10.1.0",
     "dayjs": "^1.11.20",
-    "electron": "40.10.5",
+    "electron": "41.10.4",
     "electron-builder": "26.15.3",
     "electron-vite": "5.0.0",
     "jsdom": "^26.1.0",

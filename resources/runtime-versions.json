@@ -1,25 +1,25 @@
 {
   "schemaVersion": 3,
   "tinyRuntimeInjector": "1.2.0",
-  "node": "v24.14.1",
+  "node": "v24.18.0",
   "nodeArtifacts": {
     "darwin-arm64": {
-      "executableSha256": "35d4bc736bbe4161f0c074aa140ddb74586e46969bc2ad63d32c838bec4463ff"
+      "executableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a"
     },
     "darwin-x64": {
-      "executableSha256": "9ab4f6249a8de4671c3205ef58621dfb19d120a9c59fd96ed206571bafb0319c"
+      "executableSha256": "c5afe80c9fd47c0e1ba3a7221173d061dae04577acc67e21e945d16e34c696c8"
     },
     "linux-arm64": {
-      "executableSha256": "7fac13c04c19207c3e904a7721f8c045e6b99493471e2df85444f764cdd21934"
+      "executableSha256": "6bf69d0eda41a12030d5f28d958cd09ce323bc0c13f1ab4d8bb426933aa08812"
     },
     "linux-x64": {
-      "executableSha256": "bf9112eb83a827dc9f9c8d19bb7bddcbf00f7b2fedae18fdcaee05406981f20a"
+      "executableSha256": "41a74efb34cbde5c7632cdac0cf8bd1a14d0b8d73dc1e82755014d9a9ce70f5c"
     },
     "win32-arm64": {
-      "executableSha256": "557ba2ad04fd08464edc2ee3e399b58ff11eaba35a00bb05671661557dc6f79e"
+      "executableSha256": "c7225670c3f477778e18c43a55867f7a0d76468221245e5981ab80eb953c8102"
     },
     "win32-x64": {
-      "executableSha256": "58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f"
+      "executableSha256": "9a4eb5f1c29c6a2e93852ead46b999e284a6a5ca8bab4d4e241d587d025a52de"
     }
   },
   "uv": "0.9.18",
