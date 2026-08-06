@@ -224,7 +224,7 @@ describe('native package reusable workflows', () => {
       expect(sharpIndex).toBeLessThan(installs[1].index)
       const setupNode = steps.find((step) => step.uses?.startsWith('actions/setup-node@'))
       expect(setupNode?.with).toMatchObject({
-        'node-version': '24.14.1',
+        'node-version': '24.18.0',
         'package-manager-cache': false
       })
     }
