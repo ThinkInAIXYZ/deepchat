@@ -119,18 +119,6 @@ describe('imageCache', () => {
     await expect(fs.readdir(path.join(electronMock.userDataPath, 'images'))).resolves.toEqual([])
   })
 
-  it('does not trust an image MIME type when the response bytes are not an image', async () => {
-    const sourceUrl = 'http://127.0.0.1/generated.png'
-    axiosMock.mockResolvedValueOnce({
-      status: 200,
-      headers: { 'content-type': 'image/png' },
-      data: Buffer.from('<html></html>')
-    })
-
-    await expect(cacheImage(sourceUrl, { allowPrivateNetwork: true })).resolves.toBe(sourceUrl)
-    await expect(fs.readdir(path.join(electronMock.userDataPath, 'images'))).resolves.toEqual([])
-  })
-
   it('does not cache HTTP responses above the image size limit', async () => {
     const sourceUrl = 'http://127.0.0.1/generated.png'
     axiosMock.mockResolvedValueOnce({

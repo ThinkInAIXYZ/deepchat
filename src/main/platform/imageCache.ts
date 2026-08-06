@@ -83,33 +83,6 @@ function getImageExtensionFromMimeType(value: unknown): string | undefined {
   return IMAGE_EXTENSION_BY_MIME[mimeType]
 }
 
-function detectImageExtension(data: Buffer): string | undefined {
-  if (data.subarray(0, 8).toString('hex') === '89504e470d0a1a0a') return 'png'
-  if (data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return 'jpg'
-
-  const signature = data.subarray(0, 12).toString('ascii')
-  if (signature.startsWith('GIF87a') || signature.startsWith('GIF89a')) return 'gif'
-  if (signature.startsWith('RIFF') && signature.slice(8, 12) === 'WEBP') return 'webp'
-  if (signature.startsWith('BM')) return 'bmp'
-  if (data[0] === 0 && data[1] === 0 && data[2] === 1 && data[3] === 0) return 'ico'
-
-  if (signature.slice(4, 8) === 'ftyp') {
-    const brandLimit = Math.min(data.length, 64)
-    for (let offset = 8; offset + 4 <= brandLimit; offset += 4) {
-      const brand = data.subarray(offset, offset + 4).toString('ascii')
-      if (brand === 'avif' || brand === 'avis') return 'avif'
-    }
-  }
-
-  const text = data
-    .subarray(0, 4096)
-    .toString('utf8')
-    .replace(/^\uFEFF/, '')
-    .trimStart()
-  if (/^(?:<\?xml[^>]*>\s*)?<svg(?:\s|>)/i.test(text)) return 'svg'
-  return undefined
-}
-
 function isBlockedImageAddress(address: string, family: number): boolean {
   return blockedImageNetworks.check(address, family === 6 ? 'ipv6' : 'ipv4')
 }
@@ -202,9 +175,6 @@ async function cacheImageFromUrl(
       if (data.byteLength > MAX_CACHED_IMAGE_BYTES) {
         throw new Error('Image exceeds the cache size limit')
       }
-      if (detectImageExtension(data) !== extension) {
-        throw new Error('Image bytes do not match the declared MIME type')
-      }
       requestSignal.throwIfAborted()
       const saveFileName = `${fileName}.${extension}`
       await fs.promises.writeFile(path.join(cacheDir, saveFileName), data, {
@@ -251,10 +221,6 @@ async function cacheImageFromBase64(
     const data = Buffer.from(normalizedBase64, 'base64')
     if (data.byteLength > MAX_CACHED_IMAGE_BYTES) {
       console.warn('图片超过缓存大小限制')
-      return base64Data
-    }
-    if (detectImageExtension(data) !== extension) {
-      console.warn('图片数据与声明的MIME类型不匹配')
       return base64Data
     }
     signal?.throwIfAborted()

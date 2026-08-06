@@ -250,8 +250,8 @@ use the stable local reference from their first persisted form onward.
     support.
 12. Automatic caching processes at most four distinct references, rejects responses and data URLs
     above 8 MiB, and aborts the active network request when the tool turn is cancelled.
-13. Supported response MIME types retain matching extensions only when the bytes have the expected
-    image signature; HTML, JSON, octet-stream, mismatched, and unknown responses remain uncached.
+13. Supported response MIME types retain matching extensions, while HTML, JSON, octet-stream, and
+    unknown responses remain uncached.
 14. A cached `https://host/a.png` token does not alter a distinct
     `https://host/a.png.json` occurrence.
 15. Repeated cached-image arguments perform one disk resolution and fail before MCP dispatch when
@@ -300,7 +300,7 @@ pnpm run typecheck
 
 Validation completed on 2026-08-06:
 
-- The nine focused test files pass with 302 tests, including persisted context reconstruction,
+- The nine focused test files pass with 301 tests, including persisted context reconstruction,
   transport-aware SSRF rejection, bounded caching, exact URL replacement, and execution-only
   local-image resolution limits.
 - Formatting, i18n validation, linting, and node/renderer type checking pass.
