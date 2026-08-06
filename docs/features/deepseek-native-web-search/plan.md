@@ -28,6 +28,9 @@ Toolbar toggle
   -> raw response.output_item.done(web_search_call)
   -> provider_search event
   -> search block + search-result rows + providerReplayJson
+  -> AI SDK URL source parts
+  -> provider_url_source event
+  -> matching search block pages + search-result rows
 
 Next turn
   -> assistant blocks in context projection
@@ -48,6 +51,8 @@ Next turn
   payload JSON.
 - Add `provider_search` to `LLMCoreStreamEvent` with call ID, query label, normalized results, and
   replay JSON.
+- Add `provider_url_source` to `LLMCoreStreamEvent` with the owning search ID and a bounded,
+  normalized URL citation.
 
 ### Context projection
 
@@ -93,6 +98,8 @@ header, timeout, and abort behavior.
 - Preserve search during queue edits, steer materialization, and attachment retry payloads.
 - OR search values when steer payloads merge.
 - Add the provider-search block in the accumulator and persist its result rows in the stream process.
+- Associate normalized AI SDK URL sources with the latest search action in the same provider round,
+  deduplicate by canonical URL, and persist them through the same existing result table.
 - Reuse `block.extra`/`extra_json`; no schema change.
 - Add a capability-gated globe icon toggle to `ChatInputToolbar.vue`, using
   `chat.features.webSearch` for its tooltip.
@@ -103,7 +110,8 @@ header, timeout, and abort behavior.
 - Render normalized provider-search blocks in the existing assistant activity group. Search,
   open-page, and find-in-page actions use one compact presentation with safe links; the component
   must not inspect opaque replay JSON.
-- Keep page-navigation targets separate from citation sources. Only provider-declared source rows
+- Remove provider-owned call markers from visible search targets and let completed targets wrap.
+- Keep page-navigation targets separate from citation sources. Only normalized provider URL sources
   enter the citation lookup table.
 
 ## Compatibility
@@ -136,6 +144,7 @@ Focused tests will cover:
 - input normalization, queue snapshots, merged steer OR semantics, and optimistic projection;
 - toolbar capability, toggle, session switching, and unsupported-model behavior;
 - raw chunk validation, URL normalization, block ordering, and result persistence;
+- AI SDK URL source association, deduplication, unsafe URL filtering, and late block updates;
 - search-action presentation, first-session intent handoff, session switching, and deletion cleanup;
 - envelope compatibility, model switching, malformed data, duplicate IDs, and leftover markers;
 - token accounting and complete-turn truncation with replay payloads;

@@ -183,6 +183,32 @@ describe('DeepSeek Responses stream projection', () => {
     })
   })
 
+  it('omits provider call markers from the visible search target', () => {
+    const item = {
+      type: 'web_search_call',
+      id: 'call_00_search',
+      status: 'completed',
+      action: {
+        type: 'search',
+        query: 'ws_call_id=call_00_primary',
+        queries: [
+          '今日金价 2026年8月6日',
+          'gold price today August 6 2026',
+          'ws_call_id=call_00_Nsu9ZBqGih1ss045WEwp8768'
+        ]
+      }
+    }
+
+    const projected = createAdapter().projectRawChunk({
+      type: 'response.output_item.done',
+      item
+    })
+
+    expect(projected?.action.target).toBe('今日金价 2026年8月6日, gold price today August 6 2026')
+    expect(projected?.action.target).not.toContain('ws_call_id')
+    expect(JSON.parse(projected!.providerReplayJson).item).toEqual(item)
+  })
+
   it('rejects duplicate completed search items in one request scope', () => {
     const adapter = createAdapter()
     const raw = {

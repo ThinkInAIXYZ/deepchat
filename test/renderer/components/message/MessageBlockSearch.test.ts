@@ -72,6 +72,24 @@ describe('MessageBlockSearch', () => {
     expect(navigateLink).toHaveBeenCalledWith('https://deepchat.thinkinai.xyz/', expect.anything())
   })
 
+  it('wraps a completed search target instead of truncating it', () => {
+    const target =
+      '今日金价 2026年8月6日, gold price today August 6 2026, 国内金价 今日 上海黄金交易所'
+    const wrapper = mountSearch({
+      id: 'ws_1',
+      type: 'search',
+      content: target,
+      status: 'success',
+      timestamp: 1,
+      extra: { actionType: 'search' }
+    })
+
+    const targetElement = wrapper.get('[data-testid="search-action-text"]')
+    expect(targetElement.text()).toBe(target)
+    expect(targetElement.classes()).toContain('break-words')
+    expect(targetElement.classes()).not.toContain('truncate')
+  })
+
   it('shows an open-page target without claiming that zero results were found', async () => {
     const wrapper = mountSearch({
       id: 'ws_page_1',

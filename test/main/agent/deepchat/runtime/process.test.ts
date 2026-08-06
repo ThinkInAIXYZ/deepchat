@@ -349,6 +349,12 @@ describe('processStream', () => {
       rank: 0,
       searchId: 'ws_1'
     }
+    const citationRow = {
+      title: 'DeepChat Docs',
+      url: 'https://deepchat.thinkinai.xyz/docs',
+      rank: 1,
+      searchId: 'ws_1'
+    }
     const coreStream = vi.fn(async function* () {
       yield {
         type: 'provider_search',
@@ -361,6 +367,10 @@ describe('processStream', () => {
           providerReplayJson: '{"version":1}'
         }
       } as LLMCoreStreamEvent
+      yield {
+        type: 'provider_url_source',
+        provider_url_source: citationRow
+      } as LLMCoreStreamEvent
       yield { type: 'text', content: 'DeepChat is an AI client.' } as LLMCoreStreamEvent
       yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
     })
@@ -368,20 +378,41 @@ describe('processStream', () => {
 
     await expect(processStream(params)).resolves.toMatchObject({ status: 'completed' })
 
-    expect(messageStore.addSearchResult).toHaveBeenCalledTimes(1)
-    expect(messageStore.addSearchResult).toHaveBeenCalledWith({
+    expect(messageStore.addSearchResult).toHaveBeenCalledTimes(2)
+    expect(messageStore.addSearchResult).toHaveBeenNthCalledWith(1, {
       sessionId: params.run.sessionId,
       messageId: params.run.messageId,
       searchId: 'ws_1',
       rank: 0,
       result: resultRow
     })
+    expect(messageStore.addSearchResult).toHaveBeenNthCalledWith(2, {
+      sessionId: params.run.sessionId,
+      messageId: params.run.messageId,
+      searchId: 'ws_1',
+      rank: 1,
+      result: citationRow
+    })
     expect(params.run.streamState.blocks).toEqual([
       expect.objectContaining({
         id: 'ws_1',
         type: 'search',
         status: 'success',
-        extra: expect.objectContaining({ providerReplayJson: '{"version":1}' })
+        extra: expect.objectContaining({
+          total: 2,
+          pages: [
+            {
+              title: 'DeepChat',
+              url: 'https://deepchat.thinkinai.xyz/',
+              content: 'A privacy-first AI chat client.'
+            },
+            {
+              title: 'DeepChat Docs',
+              url: 'https://deepchat.thinkinai.xyz/docs'
+            }
+          ],
+          providerReplayJson: '{"version":1}'
+        })
       }),
       expect.objectContaining({
         type: 'content',

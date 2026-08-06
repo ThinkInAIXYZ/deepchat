@@ -17,6 +17,7 @@ export type StreamEventType =
   | 'image_data'
   | 'rate_limit'
   | 'provider_search'
+  | 'provider_url_source'
   | 'plan'
 
 export interface TextStreamEvent {
@@ -139,6 +140,18 @@ export interface ProviderSearchStreamEvent {
   provider_search: ProviderSearchPayload
 }
 
+export type ProviderUrlSourcePayload = {
+  searchId: string
+  title: string
+  url: string
+  rank: number
+}
+
+export interface ProviderUrlSourceStreamEvent {
+  type: 'provider_url_source'
+  provider_url_source: ProviderUrlSourcePayload
+}
+
 export interface PlanStreamEvent {
   type: 'plan'
   plan: AgentPlanItem[]
@@ -161,6 +174,7 @@ export type LLMCoreStreamEvent =
   | ImageDataStreamEvent
   | RateLimitStreamEvent
   | ProviderSearchStreamEvent
+  | ProviderUrlSourceStreamEvent
   | PlanStreamEvent
 
 export type {
@@ -277,6 +291,12 @@ export const createStreamEvent = {
   providerSearch: (provider_search: ProviderSearchPayload): ProviderSearchStreamEvent => ({
     type: 'provider_search',
     provider_search
+  }),
+  providerUrlSource: (
+    provider_url_source: ProviderUrlSourcePayload
+  ): ProviderUrlSourceStreamEvent => ({
+    type: 'provider_url_source',
+    provider_url_source
   })
 }
 

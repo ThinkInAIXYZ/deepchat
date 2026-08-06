@@ -301,6 +301,68 @@ describe('accumulate', () => {
     expect(state.dirty).toBe(true)
   })
 
+  it('adds provider URL citations without interrupting streamed text', () => {
+    accumulate(state, {
+      type: 'provider_search',
+      provider_search: {
+        id: 'ws_1',
+        action: { type: 'search', target: 'DeepChat' },
+        label: 'DeepChat',
+        provider: 'deepseek',
+        results: [],
+        providerReplayJson: '{"version":1}'
+      }
+    })
+    accumulate(state, { type: 'text', content: 'Answer in progress' })
+    state.dirty = false
+
+    const sourceEvent = {
+      type: 'provider_url_source' as const,
+      provider_url_source: {
+        searchId: 'ws_1',
+        title: 'DeepChat',
+        url: 'https://deepchat.thinkinai.xyz/',
+        rank: 0
+      }
+    }
+    accumulate(state, sourceEvent)
+
+    expect(state.blocks).toHaveLength(2)
+    expect(state.blocks[0]).toMatchObject({
+      id: 'ws_1',
+      type: 'search',
+      extra: {
+        total: 1,
+        pages: [{ title: 'DeepChat', url: 'https://deepchat.thinkinai.xyz/' }]
+      }
+    })
+    expect(state.blocks[1]).toMatchObject({
+      type: 'content',
+      content: 'Answer in progress',
+      status: 'pending'
+    })
+    expect(state.dirty).toBe(true)
+
+    state.dirty = false
+    accumulate(state, sourceEvent)
+    expect(state.blocks[0].extra?.total).toBe(1)
+    expect(state.dirty).toBe(false)
+
+    for (let rank = 1; rank < 7; rank += 1) {
+      accumulate(state, {
+        type: 'provider_url_source',
+        provider_url_source: {
+          searchId: 'ws_1',
+          title: `Source ${rank + 1}`,
+          url: `https://example.com/source-${rank + 1}`,
+          rank
+        }
+      })
+    }
+    expect(state.blocks[0].extra?.total).toBe(7)
+    expect(state.blocks[0].extra?.pages).toHaveLength(6)
+  })
+
   it('tool_call_end with complete args overrides accumulated chunks', () => {
     accumulate(state, {
       type: 'tool_call_start',

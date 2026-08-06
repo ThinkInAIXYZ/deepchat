@@ -976,6 +976,21 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                 })
               }
             }
+            if (event.type === 'provider_url_source') {
+              const source = event.provider_url_source
+              io.messageStore.addSearchResult({
+                sessionId: io.sessionId,
+                messageId: io.messageId,
+                searchId: source.searchId,
+                rank: source.rank,
+                result: {
+                  title: source.title,
+                  url: source.url,
+                  rank: source.rank,
+                  searchId: source.searchId
+                }
+              })
+            }
             if (event.type === 'plan' && state.latestAgentPlanSnapshot) {
               state.latestAgentPlanSnapshot = {
                 ...state.latestAgentPlanSnapshot,

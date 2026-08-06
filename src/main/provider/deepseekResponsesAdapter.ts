@@ -344,6 +344,24 @@ function normalizeDisplayTarget(value: unknown): string {
   return value.trim().slice(0, MAX_DISPLAY_TARGET_LENGTH)
 }
 
+function normalizeSearchQuery(value: unknown): string {
+  const query = normalizeDisplayTarget(value)
+  return /^ws_call_id\s*=\s*call_[a-z0-9_-]+$/i.test(query) ? '' : query
+}
+
+function normalizeSearchQueries(value: unknown): string {
+  if (!Array.isArray(value)) return ''
+
+  let target = ''
+  for (const entry of value) {
+    const query = normalizeSearchQuery(entry)
+    if (!query) continue
+    target = `${target}${target ? ', ' : ''}${query}`.slice(0, MAX_DISPLAY_TARGET_LENGTH)
+    if (target.length >= MAX_DISPLAY_TARGET_LENGTH) break
+  }
+  return target
+}
+
 function resolveSearchAction(item: DeepSeekWebSearchCall): ProviderSearchPayload['action'] {
   const action = isRecord(item.action) ? item.action : null
   if (!action) {
@@ -351,18 +369,7 @@ function resolveSearchAction(item: DeepSeekWebSearchCall): ProviderSearchPayload
   }
 
   if (item.action.type === 'search') {
-    const target =
-      normalizeDisplayTarget(action.query) ||
-      normalizeDisplayTarget(
-        Array.isArray(action.queries)
-          ? action.queries
-              .filter(
-                (query): query is string => typeof query === 'string' && Boolean(query.trim())
-              )
-              .map((query) => query.trim())
-              .join(', ')
-          : ''
-      )
+    const target = normalizeSearchQuery(action.query) || normalizeSearchQueries(action.queries)
     return { type: 'search', target }
   }
 
@@ -505,6 +512,7 @@ export function createDeepSeekResponsesAdapter(input: {
       if (seenRawItems.has(item.id)) {
         throw new Error(`Duplicate DeepSeek Web Search output item: ${item.id}`)
       }
+      const providerReplayJson = encodeEnvelope(item)
       seenRawItems.add(item.id)
       const action = resolveSearchAction(item)
       return {
@@ -513,7 +521,7 @@ export function createDeepSeekResponsesAdapter(input: {
         label: action.target || 'Web Search',
         provider: DEEPSEEK_PROVIDER_ID,
         results: normalizeSearchResults(item),
-        providerReplayJson: encodeEnvelope(item)
+        providerReplayJson
       }
     },
     isSearchToolName: (toolName) => toolName === DEEPSEEK_WEB_SEARCH_TOOL_NAME

@@ -55,14 +55,23 @@ feature.
 - A complete `response.output_item.done` item with type `web_search_call` produces one
   `provider_search` event.
 - The event creates one successful `search` block at the event's original position. Its normalized
-  action type and bounded display target serve the renderer, while provider-declared HTTP(S)
-  `action.sources` continue through the existing message search-result table.
+  action type and bounded display target serve the renderer. Optional provider-declared HTTP(S)
+  `action.sources` continue through the existing message search-result table, but DeepSeek's
+  Responses guide does not guarantee that field.
+- AI SDK URL `source` parts produce generic `provider_url_source` events associated with the latest
+  `search` action in the same provider round. Safe, deduplicated HTTP(S) citations update that
+  search block and the existing message search-result table; document sources and unsafe URLs are
+  ignored.
 - `search`, `open_page`, and `find_in_page` actions share one visible activity presentation.
   Safe page targets are clickable, and completed opaque actions never claim that zero results were
   found.
 - An `open_page.url` is a navigation target, not evidence cited by the model. It is displayed but is
-  not fabricated into a citation source. Translating provider URL-citation annotations into inline
-  numbered references requires a separate generic annotation contract and is outside this follow-up.
+  not fabricated into a citation source. URL citations render as clickable source rows; translating
+  them into inline numbered references remains outside this feature because normalized AI SDK
+  source parts do not retain text offsets.
+- Provider-owned `ws_call_id=...` query markers remain in the opaque replay envelope but are removed
+  from the visible search target. Completed search targets wrap instead of using single-line
+  truncation.
 - Provider-owned Web Search tool lifecycle events do not enter DeepChat's local tool execution
   loop and do not create a visible `tool_call` block.
 - Normalized search data serves UI, export, and citation lookup. It is never used to reconstruct the
@@ -156,7 +165,7 @@ After on every unsupported route, the layout remains unchanged.
 - A search stream creates a search block, normalized result rows, and a versioned opaque envelope,
   with no local tool execution.
 - Completed provider search, open-page, and find-in-page actions are visible inside the existing
-  assistant activity group, including safe clickable targets and normalized source rows.
+  assistant activity group, including safe clickable targets and normalized AI SDK URL source rows.
 - Switching provider or model excludes incompatible replay markers but preserves response text.
 - Malformed compatible envelopes and unmatched markers fail before fetch.
 - A local two-round conformance test proves that the second request contains the original

@@ -178,7 +178,7 @@ describe('AI SDK stream adapter', () => {
     ])
   })
 
-  it('projects raw provider search output while suppressing its tool lifecycle', async () => {
+  it('projects provider search sources while suppressing its tool lifecycle', async () => {
     const providerSearch = {
       id: 'ws_1',
       action: { type: 'search' as const, target: 'DeepChat' },
@@ -193,6 +193,41 @@ describe('AI SDK stream adapter', () => {
     const events = await collectEvents(
       [
         { type: 'raw', rawValue: { type: 'response.output_item.done' } },
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'citation-1',
+          url: 'https://deepchat.thinkinai.xyz/',
+          title: 'DeepChat'
+        },
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'citation-duplicate',
+          url: 'https://deepchat.thinkinai.xyz/',
+          title: 'Duplicate'
+        },
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'citation-unsafe',
+          url: 'javascript:alert(1)',
+          title: 'Unsafe'
+        },
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'citation-credentials',
+          url: 'https://user:secret@example.com/private',
+          title: 'Credentials'
+        },
+        {
+          type: 'source',
+          sourceType: 'document',
+          id: 'document-1',
+          mediaType: 'text/plain',
+          title: 'Document'
+        },
         {
           type: 'tool-input-start',
           id: 'ws_1',
@@ -230,6 +265,15 @@ describe('AI SDK stream adapter', () => {
     expect(events).toEqual([
       { type: 'provider_search', provider_search: providerSearch },
       {
+        type: 'provider_url_source',
+        provider_url_source: {
+          searchId: 'ws_1',
+          title: 'DeepChat',
+          url: 'https://deepchat.thinkinai.xyz/',
+          rank: 0
+        }
+      },
+      {
         type: 'tool_call_start',
         tool_call_id: 'local_1',
         tool_call_name: 'read_file'
@@ -251,6 +295,64 @@ describe('AI SDK stream adapter', () => {
       { type: 'stop', stop_reason: 'complete' }
     ])
     expect(projectRawChunk).toHaveBeenCalledWith({ type: 'response.output_item.done' })
+  })
+
+  it('keeps URL citations attached to the latest search action', async () => {
+    const search = {
+      id: 'ws_search',
+      action: { type: 'search' as const, target: 'current price' },
+      label: 'current price',
+      provider: 'deepseek',
+      results: [],
+      providerReplayJson: '{"search":true}'
+    }
+    const openPage = {
+      id: 'ws_page',
+      action: {
+        type: 'open_page' as const,
+        target: 'https://example.com/article',
+        url: 'https://example.com/article'
+      },
+      label: 'https://example.com/article',
+      provider: 'deepseek',
+      results: [],
+      providerReplayJson: '{"page":true}'
+    }
+    const projectRawChunk = vi.fn((rawValue: any) => rawValue.projected ?? null)
+
+    const events = await collectEvents(
+      [
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'orphan',
+          url: 'https://example.com/orphan'
+        },
+        { type: 'raw', rawValue: { projected: search } },
+        { type: 'raw', rawValue: { projected: openPage } },
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'citation-1',
+          url: 'https://example.com/source'
+        }
+      ],
+      { supportsNativeTools: true, projectRawChunk }
+    )
+
+    expect(events).toEqual([
+      { type: 'provider_search', provider_search: search },
+      { type: 'provider_search', provider_search: openPage },
+      {
+        type: 'provider_url_source',
+        provider_url_source: {
+          searchId: 'ws_search',
+          title: 'example.com',
+          url: 'https://example.com/source',
+          rank: 0
+        }
+      }
+    ])
   })
 
   it('preserves explicit zero cache usage reported by the provider', async () => {

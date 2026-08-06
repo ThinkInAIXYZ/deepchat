@@ -1,7 +1,12 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import type {
+  LLMCoreStreamEvent,
+  ProviderUrlSourcePayload
+} from '@shared/types/core/llm-events'
 import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { StreamState } from './types'
+
+const MAX_VISIBLE_SEARCH_PAGES = 6
 
 export function commitRoundUsage(state: StreamState): void {
   const roundUsage = state.roundUsage
@@ -80,6 +85,43 @@ function serializeProviderOptions(
   }
 
   return JSON.stringify(providerOptions)
+}
+
+function appendProviderUrlSource(
+  blocks: AssistantMessageBlock[],
+  source: ProviderUrlSourcePayload
+): boolean {
+  const block = blocks.findLast(
+    (candidate) => candidate.type === 'search' && candidate.id === source.searchId
+  )
+  if (!block) return false
+
+  const pages = Array.isArray(block.extra?.pages) ? block.extra.pages : []
+  if (
+    pages.some(
+      (page) =>
+        Boolean(page) &&
+        typeof page === 'object' &&
+        !Array.isArray(page) &&
+        (page as Record<string, unknown>).url === source.url
+    )
+  ) {
+    return false
+  }
+
+  const currentTotal =
+    typeof block.extra?.total === 'number' && Number.isFinite(block.extra.total)
+      ? Math.max(0, Math.floor(block.extra.total))
+      : pages.length
+  block.extra = {
+    ...block.extra,
+    total: Math.max(currentTotal, source.rank + 1),
+    pages:
+      pages.length < MAX_VISIBLE_SEARCH_PAGES
+        ? [...pages, { title: source.title, url: source.url }]
+        : pages
+  }
+  return true
 }
 
 function updateReasoningMetadata(state: StreamState, start: number, end: number): void {
@@ -255,6 +297,12 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       }
       state.blocks.push(block)
       state.dirty = true
+      break
+    }
+    case 'provider_url_source': {
+      if (appendProviderUrlSource(state.blocks, event.provider_url_source)) {
+        state.dirty = true
+      }
       break
     }
     case 'image_data': {

@@ -10,6 +10,44 @@ import { extractProviderFailureMetadata } from '../providerFailure'
 
 const FUNCTION_CALL_TAG = '<function_call>'
 const FUNCTION_CALL_CLOSE_TAG = '</function_call>'
+const MAX_PROVIDER_URL_SOURCES = 100
+const MAX_PROVIDER_SOURCE_URL_LENGTH = 8192
+const MAX_PROVIDER_SOURCE_TITLE_LENGTH = 512
+
+function normalizeProviderUrlSource(part: {
+  sourceType: string
+  url?: unknown
+  title?: unknown
+}): { title: string; url: string } | null {
+  if (
+    part.sourceType !== 'url' ||
+    typeof part.url !== 'string' ||
+    part.url.length > MAX_PROVIDER_SOURCE_URL_LENGTH
+  ) {
+    return null
+  }
+
+  let url: URL
+  try {
+    url = new URL(part.url)
+  } catch {
+    return null
+  }
+  if (
+    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+    url.username ||
+    url.password ||
+    url.href.length > MAX_PROVIDER_SOURCE_URL_LENGTH
+  ) {
+    return null
+  }
+
+  const title =
+    typeof part.title === 'string' && part.title.trim()
+      ? part.title.trim().slice(0, MAX_PROVIDER_SOURCE_TITLE_LENGTH)
+      : url.hostname
+  return { title, url: url.href }
+}
 
 function resolveSafeTextLength(buffer: string): number {
   const maxCheck = Math.min(buffer.length, FUNCTION_CALL_TAG.length - 1)
@@ -67,6 +105,9 @@ export async function* adaptAiSdkStream(
   const toolArgumentBuffers = new Map<string, string>()
   const endedToolCalls = new Set<string>()
   const suppressedToolCallIds = new Set<string>()
+  const seenProviderSourceUrls = new Set<string>()
+  let providerSourceSearchId: string | undefined
+  let providerSourceRank = 0
   let bufferedLegacyText = ''
   let legacyToolUseDetected = false
 
@@ -214,8 +255,38 @@ export async function* adaptAiSdkStream(
       case 'raw': {
         const projected = options.projectRawChunk?.(part.rawValue)
         if (projected) {
+          if (projected.action.type === 'search' || providerSourceSearchId === undefined) {
+            providerSourceSearchId = projected.id
+            seenProviderSourceUrls.clear()
+            for (const result of projected.results) {
+              seenProviderSourceUrls.add(result.url)
+            }
+            providerSourceRank = projected.results.length
+          }
           yield createStreamEvent.providerSearch(projected)
         }
+        break
+      }
+
+      case 'source': {
+        if (
+          providerSourceSearchId === undefined ||
+          seenProviderSourceUrls.size >= MAX_PROVIDER_URL_SOURCES
+        ) {
+          break
+        }
+        const source = normalizeProviderUrlSource(part)
+        if (!source || seenProviderSourceUrls.has(source.url)) {
+          break
+        }
+        seenProviderSourceUrls.add(source.url)
+        yield createStreamEvent.providerUrlSource({
+          searchId: providerSourceSearchId,
+          title: source.title,
+          url: source.url,
+          rank: providerSourceRank
+        })
+        providerSourceRank += 1
         break
       }
 

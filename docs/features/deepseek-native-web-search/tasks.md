@@ -19,3 +19,5 @@
 - [x] Run the full required validation and complete the severity-ordered pre-commit review.
 - [x] Confirm with a real key that the official Responses endpoint emits completed native `search`
   and `open_page` items; the independent second-turn replay canary remains pending.
+- [x] Capture normalized AI SDK URL sources in search blocks and the existing result table.
+- [x] Hide provider-owned search markers and wrap completed search targets without truncation.

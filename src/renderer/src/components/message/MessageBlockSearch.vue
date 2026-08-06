@@ -1,17 +1,25 @@
 <template>
   <div data-testid="message-block-search" class="w-full min-w-0 text-xs leading-5">
-    <div class="flex min-h-7 min-w-0 items-center gap-2 text-muted-foreground">
-      <Icon :icon="statusIcon" class="h-3.5 w-3.5 shrink-0" :class="isBusy ? 'animate-spin' : ''" />
+    <div class="flex min-h-7 min-w-0 items-start gap-2 text-muted-foreground">
+      <Icon
+        :icon="statusIcon"
+        class="mt-[3px] h-3.5 w-3.5 shrink-0"
+        :class="isBusy ? 'animate-spin' : ''"
+      />
       <a
         v-if="actionUrl"
         data-testid="search-action-link"
         :href="actionUrl"
-        class="min-w-0 flex-1 truncate text-foreground/80 underline-offset-2 hover:underline"
+        class="min-w-0 flex-1 break-words text-foreground/80 underline-offset-2 hover:underline"
         @click.prevent="openUrl(actionUrl, $event)"
       >
         {{ displayTarget }}
       </a>
-      <span v-else class="min-w-0 flex-1 truncate text-foreground/80">
+      <span
+        v-else
+        data-testid="search-action-text"
+        class="min-w-0 flex-1 break-words text-foreground/80"
+      >
         {{ displayTarget }}
       </span>
       <span v-if="statusText" class="max-w-[45%] shrink-0 truncate text-muted-foreground/80">
