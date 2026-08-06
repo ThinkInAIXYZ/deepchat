@@ -857,6 +857,37 @@ describe('WindowSideBar agent switch', () => {
   )
 
   it(
+    'keeps chat session rows static during a pin flight',
+    async () => {
+      const session = {
+        id: 'normal-1',
+        title: 'Normal Session',
+        status: 'none',
+        isPinned: false
+      }
+      const { wrapper } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [session]
+          }
+        ]
+      })
+      document.body.appendChild(wrapper.element)
+      const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
+      vi.spyOn(item.element, 'getBoundingClientRect').mockReturnValue(createDomRect(0, 0, 240, 48))
+
+      item.vm.$emit('toggle-pin', session)
+      await nextTick()
+
+      expect(wrapper.find('.chat-session-rows-static').exists()).toBe(true)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
     'toggles spotlight from the expanded sidebar search command',
     async () => {
       const { wrapper, spotlightStore } = await setup()
@@ -2107,7 +2138,7 @@ describe('WindowSideBar session row transitions', () => {
       await flushSidebarFillFrame()
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.find('.session-rows-static').exists()).toBe(true)
+      expect(wrapper.find('.chat-session-rows-static').exists()).toBe(true)
 
       resolvePage?.()
       await flushPromises()
@@ -2116,7 +2147,7 @@ describe('WindowSideBar session row transitions', () => {
       await flushSidebarFillFrame()
 
       expect(wrapper.text()).toContain('Loaded')
-      expect(wrapper.find('.session-rows-static').exists()).toBe(false)
+      expect(wrapper.find('.chat-session-rows-static').exists()).toBe(false)
 
       wrapper.unmount()
     },

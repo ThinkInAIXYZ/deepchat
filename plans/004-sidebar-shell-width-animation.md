@@ -40,8 +40,8 @@ Current code (`src/renderer/src/components/WindowSideBar.vue:5`):
 ```
 
 - `--dc-motion-fast` (140ms) shortens the current 220ms layout-animation window by 80ms
-  (about 36%) while staying inside the playbook's standard-animation band (modals/drawers
-  200-500ms; this is a structural snap, so 140ms is appropriately snappy).
+  (about 36%). It is an intentional structural-snap exception to the playbook's 200–500ms
+  standard-animation band for modals and drawers.
 - `motion-reduce:transition-none` drops the shell movement entirely under `prefers-reduced-motion`.
   The session column's reduced-motion rule also removes both its transform and opacity transitions.
 

@@ -313,10 +313,10 @@
 
             <TransitionGroup
               v-show="!isGroupCollapsed(chatSectionGroup)"
-              name="session-row"
+              name="chat-session-row"
               tag="div"
               class="space-y-0.5"
-              :class="{ 'session-rows-static': sessionRowsStatic }"
+              :class="{ 'chat-session-rows-static': chatSessionRowsStatic }"
             >
               <WindowSideBarSessionItem
                 v-for="session in chatSectionGroup.sessions"
@@ -778,7 +778,14 @@ const remoteControlIconClass = computed(() => {
 
 const isPinnedSectionCollapsed = ref(false)
 const collapsedGroupIds = ref<Set<string>>(new Set())
+const pinFlightSessionId = ref<string | null>(null)
+const pinDockedSessionId = ref<string | null>(null)
+const pinFeedbackSessionId = ref<string | null>(null)
+const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
 const sessionRowsStatic = ref(sessionStore.loading || sessionStore.loadingMore)
+const chatSessionRowsStatic = computed(
+  () => sessionRowsStatic.value || pinFlightSessionId.value !== null
+)
 const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLowerCase())
 const matchesSessionSearch = (session: UISession) => {
   if (!normalizedSessionSearchQuery.value) {
@@ -787,10 +794,6 @@ const matchesSessionSearch = (session: UISession) => {
 
   return session.title.toLowerCase().includes(normalizedSessionSearchQuery.value)
 }
-const pinFlightSessionId = ref<string | null>(null)
-const pinDockedSessionId = ref<string | null>(null)
-const pinFeedbackSessionId = ref<string | null>(null)
-const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
 const isProjectGroupDragging = ref(false)
 const projectGroupDragScrollTop = ref<number | null>(null)
 const projectEnvironmentMetadataReady = ref(false)
@@ -2054,27 +2057,27 @@ onUnmounted(() => {
   overflow-anchor: none;
 }
 
-.session-row-enter-active {
+.chat-session-row-enter-active {
   transition:
     opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
     transform var(--dc-motion-fast) var(--dc-ease-out-soft);
 }
 
-.session-row-enter-from {
+.chat-session-row-enter-from {
   opacity: 0;
   transform: translateY(-4px);
 }
 
-.session-row-move {
+.chat-session-row-move {
   transition: transform var(--dc-motion-default) var(--dc-ease-out-express);
 }
 
-.session-rows-static .session-row-enter-active,
-.session-rows-static .session-row-move {
+.chat-session-rows-static .chat-session-row-enter-active,
+.chat-session-rows-static .chat-session-row-move {
   transition: none;
 }
 
-.session-rows-static .session-row-enter-from {
+.chat-session-rows-static .chat-session-row-enter-from {
   opacity: 1;
   transform: translateY(0);
 }
@@ -2156,12 +2159,12 @@ input {
 @media (prefers-reduced-motion: reduce) {
   .window-sidebar-shell,
   .window-sidebar-session-column,
-  .session-row-enter-active,
-  .session-row-move {
+  .chat-session-row-enter-active,
+  .chat-session-row-move {
     transition: none;
   }
 
-  .session-row-enter-from {
+  .chat-session-row-enter-from {
     opacity: 1;
     transform: translateY(0);
   }

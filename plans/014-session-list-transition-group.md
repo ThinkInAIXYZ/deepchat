@@ -43,9 +43,10 @@ measurement code):
 ```html
 <TransitionGroup
   v-show="!isChatSectionCollapsed"
-  name="session-row"
+  name="chat-session-row"
   tag="div"
   class="space-y-0.5"
+  :class="{ 'chat-session-rows-static': chatSessionRowsStatic }"
 >
   <WindowSideBarSessionItem
     v-for="session in chatSessions"
@@ -58,37 +59,37 @@ measurement code):
 Scoped CSS (add to the component's style block):
 
 ```css
-.session-row-enter-active {
+.chat-session-row-enter-active {
   transition: opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
     transform var(--dc-motion-fast) var(--dc-ease-out-soft);
 }
 
-.session-row-enter-from {
+.chat-session-row-enter-from {
   opacity: 0;
   transform: translateY(-4px);
 }
 
-.session-row-move {
+.chat-session-row-move {
   transition: transform var(--dc-motion-default) var(--dc-ease-out-express);
 }
 
-.session-rows-static .session-row-enter-active,
-.session-rows-static .session-row-move {
+.chat-session-rows-static .chat-session-row-enter-active,
+.chat-session-rows-static .chat-session-row-move {
   transition: none;
 }
 
-.session-rows-static .session-row-enter-from {
+.chat-session-rows-static .chat-session-row-enter-from {
   opacity: 1;
   transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .session-row-enter-active,
-  .session-row-move {
+  .chat-session-row-enter-active,
+  .chat-session-row-move {
     transition: none;
   }
 
-  .session-row-enter-from {
+  .chat-session-row-enter-from {
     opacity: 1;
     transform: translateY(0);
   }
@@ -109,11 +110,14 @@ reorder cues carry the improvement.
 
 ## Steps
 
-1. Convert the chat-section list container to `<TransitionGroup name="session-row" tag="div">`
-   (keep `v-show`, `class="space-y-0.5"`).
-2. Add the CSS above to the component's `<style>` block.
+1. Convert the chat-section list container to
+   `<TransitionGroup name="chat-session-row" tag="div">` (keep `v-show`,
+   `class="space-y-0.5"`), and add `chat-session-rows-static` while rows load or a pin flight
+   is active.
+2. Add the chat-section-specific CSS above to the component's `<style>` block.
 3. Run the full WindowSideBar test suite; if any auto-fill / pin-flight / reorder test fails,
-   revert to enter-only (`session-row-move` removed) and re-run — do not improvise other changes.
+   revert to enter-only (`chat-session-row-move` removed) and re-run — do not improvise other
+   changes.
 
 ## Boundaries
 
@@ -123,6 +127,8 @@ reorder cues carry the improvement.
 - Keep pagination rows static while `sessionStore.loading` or `sessionStore.loadingMore` is true:
   suppress enter/move transitions and override the enter-from state to the final visible state so
   Vue's temporary class cannot flash.
+- Keep chat-section rows static for the full pin-flight lifecycle so source and target rectangle
+  measurements never observe an active FLIP move.
 
 ## Verification
 
