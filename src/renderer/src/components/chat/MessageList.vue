@@ -126,12 +126,11 @@ watch(
   (messages, previousMessages) => {
     if (!previousMessages) return
 
-    const preservesMessageSequence = previousMessages.every(
-      (message, index) => messages[index]?.id === message.id
-    )
-    if (!preservesMessageSequence) {
-      resetEntranceTracking(messages)
-    }
+    const isAppend =
+      previousMessages.length > 0 &&
+      messages.length >= previousMessages.length &&
+      previousMessages.every((message, index) => messages[index]?.id === message.id)
+    if (!isAppend) resetEntranceTracking(messages)
   }
 )
 

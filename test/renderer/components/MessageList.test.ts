@@ -247,20 +247,22 @@ describe('MessageList', () => {
     expect(wrapper.find('[data-message-id="a1"]').classes()).not.toContain('message-row-entrance')
   })
 
-  it('does not animate historical messages after replacing the conversation', async () => {
+  it('does not animate historical messages after replacing the messages collection', async () => {
     const wrapper = mount(MessageList, {
       props: {
-        conversationId: 's1',
-        messages: [createMessage('u1', 'user', 1)]
+        messages: [createMessage('u1', 'user', 1), createMessage('a1', 'assistant', 2)]
       }
     })
 
     await wrapper.setProps({
-      conversationId: 's2',
-      messages: [createMessage('u2', 'user', 1)]
+      messages: [
+        createMessage('u2', 'user', 1),
+        createMessage('a2', 'assistant', 2),
+        createMessage('u3', 'user', 3)
+      ]
     })
 
-    expect(wrapper.find('[data-message-id="u2"]').classes()).not.toContain('message-row-entrance')
+    expect(wrapper.find('[data-message-id="u3"]').classes()).not.toContain('message-row-entrance')
   })
 
   it('marks only the streaming assistant message as streaming', () => {
