@@ -11,6 +11,16 @@ const passthrough = (name: string) =>
     template: '<div><slot /></div>'
   })
 
+const confirmDialogStub = defineComponent({
+  name: 'DcConfirmDialog',
+  props: {
+    confirmLabel: String,
+    cancelLabel: String
+  },
+  template:
+    '<div data-testid="confirm-dialog" :data-confirm-label="confirmLabel" :data-cancel-label="cancelLabel" />'
+})
+
 type SetupOptions = {
   providerId: string
   modelId: string
@@ -186,6 +196,7 @@ const setup = async (options: SetupOptions) => {
         AlertDialogFooter: passthrough('AlertDialogFooter'),
         AlertDialogHeader: passthrough('AlertDialogHeader'),
         AlertDialogTitle: passthrough('AlertDialogTitle'),
+        DcConfirmDialog: confirmDialogStub,
         DcButton: passthrough('Button'),
         Input: passthrough('Input'),
         Label: passthrough('Label'),
@@ -203,6 +214,24 @@ const setup = async (options: SetupOptions) => {
 
   return { wrapper, modelConfigStore, modelStore, modelClient }
 }
+
+describe('ModelConfigDialog confirmation labels', () => {
+  it('passes translated labels to confirmation dialogs', async () => {
+    const { wrapper } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      modelName: 'GPT-4.1'
+    })
+
+    const dialogs = wrapper.findAll('[data-testid="confirm-dialog"]')
+    expect(dialogs[0].attributes('data-confirm-label')).toBe(
+      'settings.model.modelConfig.resetConfirm.confirm'
+    )
+    expect(dialogs[0].attributes('data-cancel-label')).toBe('settings.model.modelConfig.cancel')
+    expect(dialogs[1].attributes('data-confirm-label')).toBe('dialog.mutualExclusive.confirmEnable')
+    expect(dialogs[1].attributes('data-cancel-label')).toBe('dialog.cancel')
+  })
+})
 
 describe('ModelConfigDialog reasoning portraits', () => {
   it('renders the speech recognition model setting for chat models', async () => {
