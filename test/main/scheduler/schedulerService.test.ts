@@ -1568,6 +1568,78 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     }
   })
 
+  it('ignores a stale utility exit after restarting the scheduler', async () => {
+    class FakeHost extends EventEmitter {
+      constructor(readonly pid: number) {
+        super()
+      }
+
+      posted: unknown[] = []
+
+      postMessage(message: unknown): void {
+        this.posted.push(message)
+      }
+
+      kill(): boolean {
+        return true
+      }
+    }
+
+    const snapshot = {
+      enabledJobCount: 1,
+      nextRunAt: 100
+    }
+    const firstHost = new FakeHost(123)
+    const secondHost = new FakeHost(456)
+    let spawnCount = 0
+    const spawnHost = vi.fn(async () => {
+      spawnCount += 1
+      return spawnCount === 1 ? firstHost : secondHost
+    })
+    const manager = new SchedulerProcessManagerCtor({
+      dbPath: ':memory:',
+      getSnapshot: () => snapshot,
+      onRunDue: vi.fn(),
+      spawnHost: spawnHost as never
+    })
+
+    await manager.reconcile('initial')
+    await manager.restart()
+    firstHost.emit('exit', 0)
+
+    expect(manager.getStatus()).toEqual(
+      expect.objectContaining({
+        state: 'running',
+        pid: 456,
+        lastError: null
+      })
+    )
+    await manager.reconcile('after-stale-exit')
+    expect(spawnHost).toHaveBeenCalledTimes(2)
+  })
+
+  it('records a utility spawn failure in scheduler status', async () => {
+    const manager = new SchedulerProcessManagerCtor({
+      dbPath: ':memory:',
+      getSnapshot: () => ({ enabledJobCount: 1, nextRunAt: 100 }),
+      onRunDue: vi.fn(),
+      spawnHost: vi.fn(async () => {
+        throw new Error('Failed to spawn scheduler host.')
+      }) as never
+    })
+
+    await expect(manager.reconcile('spawn-failure')).rejects.toThrow(
+      'Failed to spawn scheduler host.'
+    )
+    expect(manager.getStatus()).toEqual(
+      expect.objectContaining({
+        state: 'error',
+        pid: null,
+        lastError: 'Failed to spawn scheduler host.'
+      })
+    )
+  })
+
   it('does not surface utility exit errors after the last job is disabled', async () => {
     class FakeHost extends EventEmitter {
       pid = 123

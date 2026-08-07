@@ -476,6 +476,26 @@ describe('CronJobsSettings', () => {
     expect(wrapper.text()).not.toContain('provider secret')
   })
 
+  it('reports a started manual run without treating it as a failure', async () => {
+    const { wrapper, notifyRenderer } = await setup({
+      runNow: async () => ({
+        job: cloneJob(),
+        run: { ...structuredClone(RUN_FIXTURE), status: 'running', completedAt: null },
+        schedulerStatus: cloneStatus()
+      })
+    })
+
+    await wrapper.get('button[title="Run now"]').trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.cronJobs.runStarted',
+      title: 'Run now',
+      description: 'Morning report'
+    })
+  })
+
   it('reports a completed manual run without adding inline feedback', async () => {
     const { wrapper, notifyRenderer } = await setup()
 

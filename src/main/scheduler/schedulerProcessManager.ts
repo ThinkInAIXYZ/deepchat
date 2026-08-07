@@ -151,6 +151,10 @@ export class SchedulerProcessManager {
     this.hostReady = this.spawnHost()
     try {
       return await this.hostReady
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.updateStatus({ state: 'error', pid: null, lastError: message })
+      throw error
     } finally {
       this.hostReady = null
     }
@@ -158,9 +162,12 @@ export class SchedulerProcessManager {
 
   private async spawnHost(): Promise<SchedulerUtilityProcess> {
     const host = this.deps.spawnHost ? await this.deps.spawnHost() : await this.spawnDefaultHost()
-    host.on('message', (message) => this.handleHostMessage(message))
-    host.on('exit', (code) => this.handleHostExit(code))
+    host.on('message', (message) => this.handleHostMessage(host, message))
+    host.on('exit', (code) => this.handleHostExit(host, code))
     host.on('error', (type, location) => {
+      if (this.host !== host) {
+        return
+      }
       const message = `Scheduler utility process error: ${type} at ${location}`
       console.error('[CronJobs] Scheduler utility process error:', { type, location })
       this.updateStatus({ state: 'error', lastError: message })
@@ -235,7 +242,10 @@ export class SchedulerProcessManager {
     return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0]
   }
 
-  private handleHostMessage(message: unknown): void {
+  private handleHostMessage(host: SchedulerUtilityProcess, message: unknown): void {
+    if (this.host !== host) {
+      return
+    }
     const event = unwrapSchedulerEvent(message)
     if (!event) {
       return
@@ -300,7 +310,10 @@ export class SchedulerProcessManager {
     }
   }
 
-  private handleHostExit(code: number): void {
+  private handleHostExit(host: SchedulerUtilityProcess, code: number): void {
+    if (this.host !== host) {
+      return
+    }
     const message = `Cron scheduler utility exited with code ${code}.`
     const hasEnabledJobs = this.deps.getSnapshot().enabledJobCount > 0
     const expectedExit = this.shuttingDown || !hasEnabledJobs

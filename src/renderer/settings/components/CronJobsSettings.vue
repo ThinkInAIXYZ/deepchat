@@ -1359,7 +1359,7 @@ const runJobNow = async (id: string) => {
     }
     void refreshRunDeliveries(response.run.id)
     setSchedulerStatus(response.schedulerStatus)
-    if (response.run.status !== 'completed') {
+    if (response.run.status === 'failed' || response.run.status === 'cancelled') {
       notifyRenderer({
         kind: 'error',
         code: 'settings.cronJobs.runFailed',
@@ -1369,8 +1369,14 @@ const runJobNow = async (id: string) => {
     }
     notifyRenderer({
       kind: 'success',
-      code: 'settings.cronJobs.runCompleted',
-      title: t('settings.cronJobs.runNowSuccess'),
+      code:
+        response.run.status === 'completed'
+          ? 'settings.cronJobs.runCompleted'
+          : 'settings.cronJobs.runStarted',
+      title:
+        response.run.status === 'completed'
+          ? t('settings.cronJobs.runNowSuccess')
+          : t('settings.cronJobs.actions.runNow'),
       description: response.job.name
     })
   } catch (error) {
