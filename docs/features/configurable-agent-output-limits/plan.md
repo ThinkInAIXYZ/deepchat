@@ -91,7 +91,16 @@ Run the smallest relevant suites while implementing, then run the repository han
 
 ```text
 pnpm exec vitest run --config vitest.config.ts --reporter=dot --silent=passed-only \
-  <10 focused main test files>
+  test/main/agent/deepchat/harness/deepChatAgentHarness.test.ts \
+  test/main/agent/deepchat/runtime/dispatch.test.ts \
+  test/main/agent/deepchat/runtime/process.test.ts \
+  test/main/agent/deepchat/runtime/toolAdapters.test.ts \
+  test/main/agent/deepchat/runtime/toolOutputGuard.test.ts \
+  test/main/agent/shared/process/backgroundExecSessionManager.test.ts \
+  test/main/shared/agentOutputLimits.test.ts \
+  test/main/skill/skillExecutionService.test.ts \
+  test/main/tool/agentTools/agentBashHandler.test.ts \
+  test/main/tool/agentTools/agentToolManagerRead.test.ts
 pnpm exec vitest run --config vitest.config.ts --reporter=dot --silent=passed-only \
   test/renderer/components/DeepChatAgentsSettings.test.ts
 pnpm format
@@ -100,5 +109,5 @@ pnpm lint
 pnpm typecheck
 ```
 
-The main suite passed 479 tests across 10 files. The renderer suite passed 27 tests. Final diff
+The main suite passed 481 tests across 10 files. The renderer suite passed 27 tests. Final diff
 inspection found no generated or temporary artifacts.

@@ -11402,6 +11402,63 @@ describe('DeepChatAgentHarness', () => {
       }
     })
 
+    it('does not persist a fitted tool response after the session is replaced', async () => {
+      const fitting = deferred<{
+        kind: 'ok'
+        content: string
+        offloaded: boolean
+      }>()
+      const fitSpy = vi
+        .spyOn(ToolOutputGuard.prototype, 'fitExistingToolOutput')
+        .mockImplementationOnce(() => fitting.promise)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'write_file',
+        serverName: 'agent-filesystem'
+      })
+      toolService.callTool.mockResolvedValueOnce({
+        content: 'done',
+        rawData: { content: 'done', isError: false }
+      })
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'write file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+
+      const resume = approvePendingTool()
+      await vi.waitFor(() => expect(fitSpy).toHaveBeenCalledOnce())
+      const persistedUpdateCount =
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+
+      fitting.resolve({ kind: 'ok', content: 'fitted', offloaded: false })
+
+      await expect(resume).resolves.toEqual({ resumed: false })
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).toHaveBeenCalledTimes(
+        persistedUpdateCount
+      )
+      expect(processStream).not.toHaveBeenCalled()
+      expect(replacement.getRuntimeState()?.status).toBe('idle')
+    })
+
     it('commits a denied permission before the final pending interaction resumes', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const row = makeAssistantRow({

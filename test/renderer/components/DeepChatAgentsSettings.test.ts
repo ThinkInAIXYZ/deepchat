@@ -313,17 +313,17 @@ describe('DeepChatAgentsSettings', () => {
     const toolInput = wrapper.get('[data-testid="tool-output-inline-chars-input"]')
     const commandInput = wrapper.get('[data-testid="command-output-inline-chars-input"]')
 
-    expect(readInput.element.getAttribute('value')).toBe('7000')
-    expect(toolInput.element.getAttribute('value')).toBe('8000')
-    expect(commandInput.element.getAttribute('value')).toBe('9000')
+    expect((readInput.element as HTMLInputElement).value).toBe('7000')
+    expect((toolInput.element as HTMLInputElement).value).toBe('8000')
+    expect((commandInput.element as HTMLInputElement).value).toBe('9000')
     const units = wrapper.findAll('[data-testid="agent-output-limit-unit"]')
     expect(units).toHaveLength(3)
     expect(units.every((unit) => unit.text() === 'settings.common.charactersUnit')).toBe(true)
 
     await wrapper.get('[data-testid="agent-output-limits-reset"]').trigger('click')
-    expect(readInput.element.getAttribute('value')).toBe('4500')
-    expect(toolInput.element.getAttribute('value')).toBe('5000')
-    expect(commandInput.element.getAttribute('value')).toBe('12000')
+    expect((readInput.element as HTMLInputElement).value).toBe('4500')
+    expect((toolInput.element as HTMLInputElement).value).toBe('5000')
+    expect((commandInput.element as HTMLInputElement).value).toBe('12000')
 
     await readInput.setValue('')
     await toolInput.setValue('8500.6')

@@ -1325,6 +1325,7 @@ export class TurnCoordinator {
         })
 
         if (resumeBudget?.kind === 'ok') {
+          scope.assertCurrent()
           updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.content, false)
           this.ports.messageStore.updateAssistantContent(messageId, initialBlocks)
           this.ports.messageProjection.refresh(sessionId, messageId)

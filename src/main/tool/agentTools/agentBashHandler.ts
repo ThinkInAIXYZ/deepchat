@@ -562,10 +562,10 @@ export class AgentBashHandler {
         if (startPosition > 0) {
           const firstNewline = content.indexOf('\n')
           if (firstNewline > 0) {
-            return content.slice(firstNewline + 1)
+            return content.slice(firstNewline + 1).slice(-maxChars)
           }
         }
-        return content
+        return content.slice(-maxChars)
       } finally {
         fs.closeSync(fd)
       }

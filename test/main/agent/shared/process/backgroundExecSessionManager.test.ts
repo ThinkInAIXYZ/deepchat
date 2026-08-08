@@ -334,6 +334,27 @@ describe('BackgroundExecSessionManager', () => {
     ])
   })
 
+  it('caps a persisted single-line completion preview', async () => {
+    const output = 'x'.repeat(500)
+    vi.mocked(fs.statSync).mockReturnValue({ size: output.length } as fs.Stats)
+    vi.spyOn(fs, 'openSync').mockReturnValue(1)
+    vi.spyOn(fs, 'readSync').mockImplementation((_fd, buffer, offset, length, position) => {
+      const start = position ?? 0
+      return Buffer.from(output).copy(buffer as Buffer, offset, start, start + length)
+    })
+    vi.spyOn(fs, 'closeSync').mockReturnValue(undefined)
+    setSession(
+      createSession({
+        totalOutputLength: output.length,
+        offloadThresholdChars: 1
+      })
+    )
+
+    const result = await manager.getCompletionResult('conv-1', 'bg_123', 100)
+
+    expect(result.output).toBe('x'.repeat(100))
+  })
+
   it('wraps Windows PowerShell commands before starting a session', async () => {
     Object.defineProperty(process, 'platform', {
       configurable: true,
