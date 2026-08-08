@@ -33,6 +33,10 @@ describe('tapeViewManifest', () => {
     expect(hashJson({ b: 1, a: { d: 4, c: 3 } })).toBe(hashJson({ a: { c: 3, d: 4 }, b: 1 }))
   })
 
+  it('preserves the legacy hash behavior for prototype-shaped keys', () => {
+    expect(hashJson(JSON.parse('{"__proto__":{"legacy":true}}'))).toBe(hashJson({}))
+  })
+
   it('builds refs from context metadata without copying raw message content', () => {
     const refs = buildIncludedRefs(
       {

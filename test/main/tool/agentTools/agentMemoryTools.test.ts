@@ -63,7 +63,8 @@ describe('Agent memory tools', () => {
       'deepchat',
       expect.objectContaining({ content }),
       'conversation-1',
-      expect.any(Object)
+      expect.any(Object),
+      undefined
     )
   })
 
@@ -97,13 +98,57 @@ describe('Agent memory tools', () => {
         importance: 0.1
       },
       'conv-1',
-      { providerId: 'openai', modelId: 'gpt-4.1' }
+      { providerId: 'openai', modelId: 'gpt-4.1' },
+      undefined
     )
     expect(JSON.parse(result.content)).toMatchObject({
       ok: true,
       action: 'created',
       id: 'mem-1'
     })
+  })
+
+  it('forwards a normalized commit boundary to the runtime owner', async () => {
+    const order: string[] = []
+    const rememberMemory = vi.fn().mockImplementation(async (...callArgs: unknown[]) => {
+      const commit = callArgs[4] as (() => void) | undefined
+      commit?.()
+      order.push('target')
+      return { action: 'created', id: 'mem-1' }
+    })
+    const forgetMemory = vi.fn().mockImplementation(async (...callArgs: unknown[]) => {
+      const commit = callArgs[2] as (() => void) | undefined
+      commit?.()
+      order.push('target')
+      return { action: 'applied' }
+    })
+    const runtimePort = buildRuntimePort({ rememberMemory, forgetMemory })
+    const handler = new AgentMemoryToolHandler(runtimePort, runtimePort)
+    const beforeMutation = vi.fn(() => {
+      order.push('commit')
+    })
+
+    await handler.call(MEMORY_TOOL_NAMES.remember, { content: '  repo uses pnpm  ' }, 'conv-1', {
+      beforeMutation
+    })
+
+    expect(beforeMutation).toHaveBeenCalledWith({
+      content: 'repo uses pnpm',
+      kind: 'semantic',
+      importance: 0.7
+    })
+    expect(order).toEqual(['commit', 'target'])
+
+    const journalError = new Error('journal unavailable')
+    await expect(
+      handler.call(MEMORY_TOOL_NAMES.forget, { memoryId: 'mem-1' }, 'conv-1', {
+        beforeMutation: () => {
+          throw journalError
+        }
+      })
+    ).rejects.toBe(journalError)
+    expect(runtimePort.forgetMemory).toHaveBeenCalledOnce()
+    expect(order).toEqual(['commit', 'target'])
   })
 
   it('requires an explicit user action when memory_remember matches a tombstone', async () => {
@@ -149,7 +194,7 @@ describe('Agent memory tools', () => {
 
     expect(forgetDef?.function.description).toContain('Archive')
     expect(forgetDef?.function.description).not.toContain('Delete')
-    expect(runtimePort.forgetMemory).toHaveBeenCalledWith('deepchat', 'mem-1')
+    expect(runtimePort.forgetMemory).toHaveBeenCalledWith('deepchat', 'mem-1', undefined)
     expect(JSON.parse(result.content)).toEqual({ ok: true })
     expect(JSON.stringify(result.rawData)).toContain('Archived the memory.')
     expect(JSON.stringify(result.rawData)).toContain('retained locally')

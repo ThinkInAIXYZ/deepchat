@@ -1,6 +1,6 @@
 # Agent 系统
 
-本文描述 `2026-07-24` 的当前合同。历史迁移方案、Presenter 拆分过程和已完成的分阶段
+本文描述 `2026-08-07` 的当前合同。历史迁移方案、Presenter 拆分过程和已完成的分阶段
 SDD 已删除；需要时从 Git 历史查询。
 
 ## 两种 Agent backend
@@ -53,7 +53,8 @@ flowchart TD
 - Session 拥有长期身份、settings、transcript、Tape 和 pending input。
 - DeepChat Agent 拥有自己的配置和物理 Skill root；Session 只保存 Agent assignment 和所选 Skill 名称。
 - 已载入 Session 在一个 backend 中最多有一个 instance。
-- 每次执行创建独立 Run，Run 拥有取消信号、logical round、request sequence、physical attempt 和临时输出。
+- 每次执行创建独立 UUID Run，Run 拥有取消信号、logical round、request sequence、physical attempt 和
+  临时输出；loop、resume 和 deferred tool execution 都不得复用旧 Run identity。
 - Window、Remote endpoint 和 Cron run 只保存各自 binding，不拥有 Agent instance。
 - 只读 list/query 不 hydrate backend；执行、完整 restore 或明确 backend 设置操作才允许 hydrate。
 
@@ -80,6 +81,10 @@ src/main/agent/deepchat/
 - `requestSeq` 标识一份确定的 provider payload 和 ViewManifest；`physicalAttempt` 标识该 request 的
   实际发送次数。context recovery 改变 payload，因此推进 requestSeq 并把 physicalAttempt 重置为 1；
   同 payload 的 transient retry 保持 requestSeq，只推进 physicalAttempt。
+- 工具 operation identity 为 `(runId, requestSeq, providerToolCallId)`。`run_started` 必须先于 Run
+  registration；dispatch fact 必须位于所有本地拒绝 gate 之后、真实副作用调用之前；known outcome
+  必须先于 result projection；terminal fact 必须先于 transcript、status、hook 和 renderer terminal
+  projection。任一 strict Journal commit 失败都阻止下游边界继续。
 - `DeepChatContextCoordinator.streamProviderAttempts` 是 transient retry 的唯一 owner。每个 logical
   round 最多重试两次，使用可取消的指数退避并服从有上限的 `Retry-After`；context recovery 不消耗
   logical-round 或 transient-retry budget，每次实际 attempt 都重新进入 provider rate gate。
@@ -101,6 +106,9 @@ src/main/agent/deepchat/
 - Run 的 effective Skills 是 Session 持久化选择与当前 Agent 有效、启用 Skill catalog 的交集；不得
   回退到 built-in Agent catalog。
 - paused interaction 按顺序结算；最后一项完成后创建新的 resume Run，不复用已经 settle 的 Run。
+- paused terminal 只允许 permission/question action 保持 pending。任何其他 `pending` 或 `loading`
+  block 都是 runtime invariant violation，必须在 paused terminal fact 之前转入 error settlement，不能
+  静默改成 success。
 - no-progress tool loop 由 `noProgressToolLoopGuard.ts` 终止；usage 由 runtime accumulator 跨 round
   累加。
 - provider terminal reason 必须无损正规化；普通 `stop` 只有在确实解析出 tool call 时才能变为

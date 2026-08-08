@@ -26,4 +26,9 @@ export interface TapeToolFactInput {
   provenance: TapeFactProvenance
 }
 
+export interface TapeMessageReplacementOptions {
+  reason: string
+  revisionKind: 'record' | 'order'
+}
+
 export type TapeFactSource = 'live' | 'backfill' | 'repair'

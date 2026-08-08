@@ -139,6 +139,11 @@ const mergeDeepChatConfig = (
       overrideConfig.autoCompactionRetainRecentPairs ??
       baseConfig.autoCompactionRetainRecentPairs ??
       2,
+    readFileAutoTruncateChars:
+      overrideConfig.readFileAutoTruncateChars ?? baseConfig.readFileAutoTruncateChars,
+    toolOutputInlineChars: overrideConfig.toolOutputInlineChars ?? baseConfig.toolOutputInlineChars,
+    commandOutputInlineChars:
+      overrideConfig.commandOutputInlineChars ?? baseConfig.commandOutputInlineChars,
     memoryEnabled: overrideConfig.memoryEnabled ?? baseConfig.memoryEnabled ?? false,
     memoryEmbedding: overrideConfig.memoryEmbedding ?? baseConfig.memoryEmbedding ?? null,
     memoryExtractionModel:

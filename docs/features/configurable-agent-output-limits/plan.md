@@ -66,16 +66,20 @@ Implemented and verified on `codex/configurable-agent-output-limits` against `de
 - Supply the command limit to `AgentBashHandler` and `SkillExecutionService`.
 - Allow the background execution manager to use a per-session offload threshold and foreground
   completion preview, bounded by its fixed internal ceiling.
+- Preserve the session preview for background completion and resolve the current Agent command
+  limit for explicit `process` polls.
 - Supply a per-session generic limit resolver to `ToolOutputGuard`.
 - On context overflow, offload eligible inline results before downgrading them; reuse generated
   command logs when present.
+- Fit deferred results against the effective model context budget, propagate cancellation, verify
+  turn ownership before persistence, and clean only guard-owned fallback files.
+- Preserve all three optional fields in the production repository merge path.
 
 ### 3. Renderer
 
 - Add the collapsed advanced-output section under Tools.
 - Extend form initialization, dirty-state diffing, load, save, reset, and numeric normalization.
-- Add locale keys to every settings locale, with native translations for the source English and
-  Chinese locales and safe English fallback copy elsewhere.
+- Add locale keys with native copy to every settings locale.
 
 ### 4. Regression coverage and cleanup
 
@@ -92,6 +96,7 @@ Run the smallest relevant suites while implementing, then run the repository han
 ```text
 pnpm exec vitest run --config vitest.config.ts --reporter=dot --silent=passed-only \
   test/main/agent/deepchat/harness/deepChatAgentHarness.test.ts \
+  test/main/agent/deepchat/deepChatAgentRepository.test.ts \
   test/main/agent/deepchat/runtime/dispatch.test.ts \
   test/main/agent/deepchat/runtime/process.test.ts \
   test/main/agent/deepchat/runtime/toolAdapters.test.ts \
@@ -101,7 +106,7 @@ pnpm exec vitest run --config vitest.config.ts --reporter=dot --silent=passed-on
   test/main/skill/skillExecutionService.test.ts \
   test/main/tool/agentTools/agentBashHandler.test.ts \
   test/main/tool/agentTools/agentToolManagerRead.test.ts
-pnpm exec vitest run --config vitest.config.ts --reporter=dot --silent=passed-only \
+pnpm exec vitest run --config vitest.config.renderer.ts --reporter=dot --silent=passed-only \
   test/renderer/components/DeepChatAgentsSettings.test.ts
 pnpm format
 pnpm i18n
@@ -109,5 +114,5 @@ pnpm lint
 pnpm typecheck
 ```
 
-The main suite passed 481 tests across 10 files. The renderer suite passed 27 tests. Final diff
+The main suite passed 572 tests across 11 files. The renderer suite passed 27 tests. Final diff
 inspection found no generated or temporary artifacts.

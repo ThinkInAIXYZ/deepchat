@@ -228,18 +228,21 @@ export class LiveDelegationService {
   async spawn(
     parentSessionId: string,
     input: SpawnLiveDelegationInput,
-    authorization?: LiveDelegationConsentReceipt
+    authorization?: LiveDelegationConsentReceipt,
+    beforeMutation?: () => void
   ): Promise<LiveDelegationDetail> {
     return await this.options.deletionGate.runWithSessionOperation(
       parentSessionId,
-      async () => await this.spawnUnderDeletionGate(parentSessionId, input, authorization)
+      async () =>
+        await this.spawnUnderDeletionGate(parentSessionId, input, authorization, beforeMutation)
     )
   }
 
   private async spawnUnderDeletionGate(
     parentSessionId: string,
     input: SpawnLiveDelegationInput,
-    authorization?: LiveDelegationConsentReceipt
+    authorization?: LiveDelegationConsentReceipt,
+    beforeMutation?: () => void
   ): Promise<LiveDelegationDetail> {
     this.assertStarted()
     const parent = await this.requireCapableParent(parentSessionId)
@@ -254,24 +257,38 @@ export class LiveDelegationService {
     const turnId = nanoid()
     const executionSnapshot = createTurnExecutionSnapshot(parent)
     const created = this.runAuthorizedStartMutation(parent, 'spawn', authorization, () =>
-      this.options.repository.create({
-        id: delegationId,
-        initialTurnId: turnId,
-        parentSessionId: parent.sessionId,
-        slotId: slot.id,
-        targetAgentId,
-        title: input.title,
-        prompt: input.prompt
-      })
+      this.options.repository.create(
+        {
+          id: delegationId,
+          initialTurnId: turnId,
+          parentSessionId: parent.sessionId,
+          slotId: slot.id,
+          targetAgentId,
+          title: input.title,
+          prompt: input.prompt
+        },
+        beforeMutation
+      )
     )
     this.publishChanged(created.delegation)
     this.scheduleTurn(created.delegation, created.turn, executionSnapshot)
     return this.inspect(parent.sessionId, delegationId)
   }
 
-  send(parentSessionId: string, delegationId: string, message: string): LiveDelegationDetail {
+  send(
+    parentSessionId: string,
+    delegationId: string,
+    message: string,
+    beforeMutation?: () => void
+  ): LiveDelegationDetail {
     this.assertStarted()
-    const event = this.options.repository.createMessage(parentSessionId, delegationId, message)
+    this.options.repository.requireOwned(parentSessionId, delegationId)
+    const event = this.options.repository.createMessage(
+      parentSessionId,
+      delegationId,
+      message,
+      beforeMutation
+    )
     this.publishChanged(this.options.repository.require(event.delegationId))
     return this.inspect(parentSessionId, delegationId)
   }
@@ -280,12 +297,19 @@ export class LiveDelegationService {
     parentSessionId: string,
     delegationId: string,
     task: string,
-    authorization?: LiveDelegationConsentReceipt
+    authorization?: LiveDelegationConsentReceipt,
+    beforeMutation?: () => void
   ): Promise<LiveDelegationDetail> {
     return await this.options.deletionGate.runWithSessionOperation(
       parentSessionId,
       async () =>
-        await this.followUpUnderParentGate(parentSessionId, delegationId, task, authorization)
+        await this.followUpUnderParentGate(
+          parentSessionId,
+          delegationId,
+          task,
+          authorization,
+          beforeMutation
+        )
     )
   }
 
@@ -293,7 +317,8 @@ export class LiveDelegationService {
     parentSessionId: string,
     delegationId: string,
     task: string,
-    authorization?: LiveDelegationConsentReceipt
+    authorization?: LiveDelegationConsentReceipt,
+    beforeMutation?: () => void
   ): Promise<LiveDelegationDetail> {
     this.assertStarted()
     const parent = await this.requireCapableParent(parentSessionId)
@@ -335,7 +360,9 @@ export class LiveDelegationService {
               currentParent.sessionId,
               delegation.id,
               nanoid(),
-              task
+              task,
+              undefined,
+              beforeMutation
             )
         )
         this.publishChanged(created.delegation)
@@ -667,15 +694,24 @@ export class LiveDelegationService {
     return createWaitResult(events, after, timedOut && events.length === 0)
   }
 
-  async interrupt(parentSessionId: string, delegationId: string): Promise<LiveDelegationDetail> {
+  async interrupt(
+    parentSessionId: string,
+    delegationId: string,
+    beforeMutation?: () => void
+  ): Promise<LiveDelegationDetail> {
     this.assertStarted()
     const delegation = this.options.repository.requireOwned(parentSessionId, delegationId)
-    return await this.interruptDelegation(delegation, 'Interrupted by the parent session.')
+    return await this.interruptDelegation(
+      delegation,
+      'Interrupted by the parent session.',
+      beforeMutation
+    )
   }
 
   private async interruptDelegation(
     delegation: LiveDelegation,
-    reason: string
+    reason: string,
+    beforeMutation?: () => void
   ): Promise<LiveDelegationDetail> {
     const active = [...this.activeTurns.values()].find(
       (candidate) => candidate.delegationId === delegation.id
@@ -686,7 +722,8 @@ export class LiveDelegationService {
         const settled = this.options.repository.finishTurn({
           turnId: turn.id,
           status: 'interrupted',
-          error: reason
+          error: reason,
+          beforeMutation
         })
         this.publishChanged(settled.delegation)
         this.notifyMailbox(delegation.parentSessionId, delegation.id)
@@ -704,6 +741,7 @@ export class LiveDelegationService {
       return this.inspect(delegation.parentSessionId, delegation.id)
     }
 
+    beforeMutation?.()
     active.controller.abort(reason)
     const pendingChildAcquisition = active.childAcquisition
     const pendingChildHandoff = active.childHandoff

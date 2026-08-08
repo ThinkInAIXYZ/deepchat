@@ -123,12 +123,16 @@ export class SchedulerService {
     }
   }
 
-  async upsert(input: CronJobsUpsertInput): Promise<{
+  async upsert(
+    input: CronJobsUpsertInput,
+    beforeMutation?: () => void
+  ): Promise<{
     job: CronJob
     schedulerStatus: CronJobsSchedulerStatus
   }> {
     const draft = this.buildJobDraft(input)
     const jobState = await this.computeJobState(draft, Date.now(), true)
+    beforeMutation?.()
     const job = this.repository.upsertJob({
       ...draft,
       enabled: jobState.enabled,
@@ -141,14 +145,17 @@ export class SchedulerService {
     return { job, schedulerStatus }
   }
 
-  async delete(id: string): Promise<CronJobsSchedulerStatus> {
+  async delete(id: string, beforeMutation?: () => void): Promise<CronJobsSchedulerStatus> {
+    this.repository.requireJob(id)
+    beforeMutation?.()
     this.repository.deleteJob(id)
     return await this.reconcileScheduler('job-delete')
   }
 
   async toggle(
     id: string,
-    enabled: boolean
+    enabled: boolean,
+    beforeMutation?: () => void
   ): Promise<{
     job: CronJob
     schedulerStatus: CronJobsSchedulerStatus
@@ -159,6 +166,7 @@ export class SchedulerService {
       enabled
     })
     const jobState = await this.computeJobState(draft, Date.now(), true)
+    beforeMutation?.()
     const job = this.repository.upsertJob({
       ...draft,
       enabled: jobState.enabled,
@@ -171,13 +179,17 @@ export class SchedulerService {
     return { job, schedulerStatus }
   }
 
-  async runNow(id: string): Promise<{
+  async runNow(
+    id: string,
+    beforeMutation?: () => void
+  ): Promise<{
     job: CronJob
     run: CronJobRun
     schedulerStatus: CronJobsSchedulerStatus
   }> {
     const job = this.repository.requireJob(id)
     await this.assertRunnable(job)
+    beforeMutation?.()
     const run = this.repository.queueRun({
       jobId: id,
       scheduledAt: Date.now(),

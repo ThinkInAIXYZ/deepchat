@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { requireExecutionRunId } from '@/tape/domain/executionJournal'
 import {
   aggregateNativeAgentEvalReports,
   runNativeAgentEvalScenario,
@@ -44,7 +45,7 @@ describe('native Agent deterministic behavior eval', () => {
       schemaVersion: 1,
       scenarioId: scenario.id,
       passed: true,
-      persistedRunId: `request-${scenario.id}`,
+      persistedRunId: expect.any(String),
       persistedRunOutcome: scenario.expected.persistedRunOutcome,
       persistedRunStopReason: scenario.expected.persistedRunStopReason,
       persistedProviderRounds: scenario.expected.providerRounds,
@@ -64,6 +65,7 @@ describe('native Agent deterministic behavior eval', () => {
       }
     })
     expect(report.expectationFailures, JSON.stringify(report, null, 2)).toEqual([])
+    expect(requireExecutionRunId(report.persistedRunId)).toBe(report.persistedRunId)
     expect(report.providerRounds).toBe(scenario.expected.providerRounds)
     expect(report.toolCalls.total).toBe(scenario.expected.toolCalls)
     expect(report.providerRounds).toBeLessThanOrEqual(scenario.budget.maxProviderRounds)

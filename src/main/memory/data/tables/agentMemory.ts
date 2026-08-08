@@ -1185,7 +1185,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     )
   }
 
-  private hasTombstoneForClaim(input: TombstoneClaimIdentityInput): boolean {
+  hasTombstoneForClaim(input: TombstoneClaimIdentityInput): boolean {
     return this.findTombstoneIdentitiesForClaim(input).length > 0
   }
 

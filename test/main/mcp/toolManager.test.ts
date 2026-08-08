@@ -119,6 +119,7 @@ describe('ToolManager', () => {
       }>
       ensureRunning?: (serverName: string, reason: PluginRuntimeStartReason) => Promise<void>
       unavailableServers?: Set<string>
+      publishEvent?: ReturnType<typeof vi.fn>
     } = {},
     computerUsePreviewObserver?: ComputerUsePreviewObserver,
     resolveCachedImageDataUrl?: (source: string, signal?: AbortSignal) => Promise<string>
@@ -128,7 +129,7 @@ describe('ToolManager', () => {
       providerSettings as never,
       serverManager as never,
       semanticNotifications,
-      vi.fn(),
+      runtime.publishEvent ?? vi.fn(),
       {
         ownsServer: (serverName) => Object.hasOwn(pluginOwners, serverName),
         isServerAvailable: (serverName) =>
@@ -1381,6 +1382,7 @@ describe('ToolManager', () => {
         bindingHash: 'binding-b'
       }
     })
+    const commitDispatch = vi.fn()
     const result = await manager.callTool(
       {
         id: 'bound-call',
@@ -1395,7 +1397,8 @@ describe('ToolManager', () => {
           configGeneration: definition.server.configGeneration!,
           bindingHash: definition.server.bindingHash!,
           originalName: definition.raw!.name
-        }
+        },
+        commitDispatch
       }
     )
 
@@ -1403,6 +1406,106 @@ describe('ToolManager', () => {
       isError: true,
       content: expect.stringContaining('server binding changed before dispatch')
     })
+    expect(commitDispatch).not.toHaveBeenCalled()
+    expect(client.callTool).not.toHaveBeenCalled()
+  })
+
+  it('commits resolved dispatch metadata immediately before the target call', async () => {
+    const serverName = 'dispatch-server'
+    const order: string[] = []
+    const publishEvent = vi.fn(() => order.push('projection'))
+    const outcomeProjections: Array<() => void> = []
+    const client = createClient(serverName)
+    client.callTool.mockImplementation(async () => {
+      order.push('target')
+      return { content: 'ok', isError: false }
+    })
+    const manager = createToolManager(
+      createProviderSettings(serverName),
+      createServerManager([client]),
+      {},
+      { publishEvent }
+    )
+    const commitDispatch = vi.fn((input) => {
+      order.push('journal')
+      expect(input).toEqual({
+        toolName: 'echo',
+        toolSource: 'mcp',
+        normalizedArguments: {},
+        target: { serverName, originalName: 'echo' }
+      })
+    })
+
+    await manager.callTool(
+      {
+        id: 'dispatch-call',
+        type: 'function',
+        function: { name: 'echo', arguments: '{}' }
+      },
+      {
+        commitDispatch,
+        registerOutcomeProjection: (projection) => outcomeProjections.push(projection)
+      }
+    )
+
+    expect(order).toEqual(['journal', 'target'])
+    expect(commitDispatch).toHaveBeenCalledOnce()
+    expect(publishEvent).not.toHaveBeenCalled()
+
+    expect(outcomeProjections).toHaveLength(1)
+    outcomeProjections[0]()
+    expect(order).toEqual(['journal', 'target', 'projection'])
+  })
+
+  it('returns a known target result when cancellation arrives as the target settles', async () => {
+    const serverName = 'dispatch-server'
+    const abortController = new AbortController()
+    const client = createClient(serverName)
+    client.callTool.mockImplementation(async () => {
+      abortController.abort()
+      return { content: 'known result', isError: false }
+    })
+    const manager = createToolManager(
+      createProviderSettings(serverName),
+      createServerManager([client])
+    )
+
+    await expect(
+      manager.callTool(
+        {
+          id: 'dispatch-call',
+          type: 'function',
+          function: { name: 'echo', arguments: '{}' }
+        },
+        { signal: abortController.signal }
+      )
+    ).resolves.toMatchObject({ content: 'known result', isError: false })
+  })
+
+  it('propagates dispatch commit failure and prevents the target call', async () => {
+    const serverName = 'dispatch-server'
+    const client = createClient(serverName)
+    const manager = createToolManager(
+      createProviderSettings(serverName),
+      createServerManager([client])
+    )
+    const journalError = new Error('journal unavailable')
+
+    await expect(
+      manager.callTool(
+        {
+          id: 'dispatch-call',
+          type: 'function',
+          function: { name: 'echo', arguments: '{}' }
+        },
+        {
+          commitDispatch: () => {
+            throw journalError
+          }
+        }
+      )
+    ).rejects.toBe(journalError)
+
     expect(client.callTool).not.toHaveBeenCalled()
   })
 
@@ -1909,6 +2012,55 @@ describe('ToolManager', () => {
     )
     expect(observer.failed).not.toHaveBeenCalled()
     expect(JSON.stringify(client.callTool.mock.calls)).not.toContain('run-1')
+  })
+
+  it('does not project a CUA preview when the dispatch commit fails', async () => {
+    const client = createClient(
+      'cua-driver',
+      [
+        {
+          name: 'get_window_state',
+          description: 'Read the current window',
+          inputSchema: { properties: {}, required: [] }
+        }
+      ],
+      { source: 'plugin', ownerPluginId: CUA_PLUGIN_ID }
+    )
+    const observer = {
+      started: vi.fn(),
+      completed: vi.fn(),
+      failed: vi.fn()
+    }
+    const manager = createToolManager(
+      createProviderSettings('cua-driver'),
+      createServerManager([client]),
+      { 'cua-driver': CUA_PLUGIN_ID },
+      { ensureRunning: vi.fn().mockResolvedValue(undefined) },
+      observer
+    )
+    const journalError = new Error('journal unavailable')
+
+    await expect(
+      manager.callTool(
+        {
+          id: 'cua-state-journal-failure',
+          type: 'function',
+          function: { name: 'get_window_state', arguments: '{}' },
+          conversationId: 'session-1'
+        },
+        {
+          runId: 'run-1',
+          commitDispatch: () => {
+            throw journalError
+          }
+        }
+      )
+    ).rejects.toBe(journalError)
+
+    expect(client.callTool).not.toHaveBeenCalled()
+    expect(observer.started).not.toHaveBeenCalled()
+    expect(observer.completed).not.toHaveBeenCalled()
+    expect(observer.failed).not.toHaveBeenCalled()
   })
 
   it('refreshes PiP after a trusted click without exposing or awaiting the private snapshot', async () => {

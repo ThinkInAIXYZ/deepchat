@@ -4,8 +4,20 @@ import type {
   DeepChatTapeViewManifestRecord
 } from '@shared/types/tape-view-manifest'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
-import type { TapeEntryRef, TapeToolFactInput } from '../domain/facts'
+import type {
+  TapeEntryRef,
+  TapeMessageReplacementOptions,
+  TapeToolFactInput
+} from '../domain/facts'
 import type { TapeProviderAttemptInput } from '../domain/providerAttempt'
+import type {
+  CommitExecutionDispatchInput,
+  CommitExecutionRunStartedInput,
+  CommitExecutionRunTerminalInput,
+  CommitExecutionToolOutcomeInput,
+  ExecutionJournalCommitReceipt,
+  ExecutionRecoveryReport
+} from '../domain/executionJournal'
 
 export type TapeMigrationState = 'none' | 'ready'
 
@@ -57,8 +69,19 @@ export interface TapeProviderAttemptReader {
   getMaxProviderAttemptRequestSeq(sessionId: string, messageId: string): number
 }
 
-// The DeepChat provider loop needs the whole set as one collaborator; splitting it across six
-// fields describes the capability types rather than the dependency.
+export interface ExecutionJournalWriter {
+  commitRunStarted(input: CommitExecutionRunStartedInput): ExecutionJournalCommitReceipt
+  commitDispatch(input: CommitExecutionDispatchInput): ExecutionJournalCommitReceipt
+  commitToolOutcome(input: CommitExecutionToolOutcomeInput): ExecutionJournalCommitReceipt
+  commitRunTerminal(input: CommitExecutionRunTerminalInput): ExecutionJournalCommitReceipt
+}
+
+export interface ExecutionJournalRecoveryReader {
+  classifyRecoveryCandidates(): ExecutionRecoveryReport[]
+}
+
+// The DeepChat provider loop needs the coordinated Tape contract as one collaborator; splitting it
+// into individual fields describes the capability types rather than the dependency.
 export interface DeepChatLoopTapePort
   extends
     TapeReconciliationPort,
@@ -66,11 +89,15 @@ export interface DeepChatLoopTapePort
     TapeViewManifestWriter,
     TapeToolFactWriter,
     TapeProviderAttemptWriter,
-    TapeProviderAttemptReader {}
+    TapeProviderAttemptReader,
+    ExecutionJournalWriter {}
 
 export interface TapeMessageFactWriter {
   appendMessageRecord(record: ChatMessageRecord): number
-  appendMessageReplacement(record: ChatMessageRecord, reason: string): number
+  appendMessageReplacement(
+    record: ChatMessageRecord,
+    options: TapeMessageReplacementOptions
+  ): number
   appendMessageRetraction(record: ChatMessageRecord, reason: string): number
 }
 

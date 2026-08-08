@@ -186,7 +186,8 @@ export class ChatSettingsToolHandler {
   async toggle(
     raw: unknown,
     conversationId?: string,
-    activeSkillNames?: string[]
+    activeSkillNames?: string[],
+    beforeMutation?: (normalizedArguments: Record<string, unknown>) => void
   ): Promise<ApplyChatSettingResult> {
     const guard = await this.ensureSkillActive(conversationId, activeSkillNames)
     if (guard) {
@@ -200,6 +201,7 @@ export class ChatSettingsToolHandler {
 
     const { setting, enabled } = parsed.data
     const previousValue = this.getCurrentValue(setting)
+    beforeMutation?.(parsed.data)
     try {
       switch (setting) {
         case 'copyWithCotEnabled':
@@ -228,7 +230,8 @@ export class ChatSettingsToolHandler {
   async setLanguage(
     raw: unknown,
     conversationId?: string,
-    activeSkillNames?: string[]
+    activeSkillNames?: string[],
+    beforeMutation?: (normalizedArguments: Record<string, unknown>) => void
   ): Promise<ApplyChatSettingResult> {
     const guard = await this.ensureSkillActive(conversationId, activeSkillNames)
     if (guard) {
@@ -246,6 +249,7 @@ export class ChatSettingsToolHandler {
 
     const { language } = parsed.data
     const previousValue = this.getCurrentValue('language')
+    beforeMutation?.(parsed.data)
     try {
       this.options.desktopSettings.setLanguage(language)
     } catch (error) {
@@ -268,7 +272,8 @@ export class ChatSettingsToolHandler {
   async setTheme(
     raw: unknown,
     conversationId?: string,
-    activeSkillNames?: string[]
+    activeSkillNames?: string[],
+    beforeMutation?: (normalizedArguments: Record<string, unknown>) => void
   ): Promise<ApplyChatSettingResult> {
     const guard = await this.ensureSkillActive(conversationId, activeSkillNames)
     if (guard) {
@@ -282,6 +287,7 @@ export class ChatSettingsToolHandler {
 
     const { theme } = parsed.data
     const previousValue = this.getCurrentValue('theme')
+    beforeMutation?.(parsed.data)
     try {
       this.options.desktopSettings.setTheme(theme)
     } catch (error) {
@@ -304,7 +310,8 @@ export class ChatSettingsToolHandler {
   async setFontSize(
     raw: unknown,
     conversationId?: string,
-    activeSkillNames?: string[]
+    activeSkillNames?: string[],
+    beforeMutation?: (normalizedArguments: Record<string, unknown>) => void
   ): Promise<ApplyChatSettingResult> {
     const guard = await this.ensureSkillActive(conversationId, activeSkillNames)
     if (guard) {
@@ -322,6 +329,7 @@ export class ChatSettingsToolHandler {
 
     const { level } = parsed.data
     const previousValue = this.getCurrentValue('fontSizeLevel')
+    beforeMutation?.(parsed.data)
     try {
       this.options.desktopSettings.setFontSizeLevel(level)
     } catch (error) {
@@ -344,7 +352,8 @@ export class ChatSettingsToolHandler {
   async open(
     raw: unknown,
     conversationId?: string,
-    activeSkillNames?: string[]
+    activeSkillNames?: string[],
+    beforeMutation?: (normalizedArguments: Record<string, unknown>) => void
   ): Promise<OpenChatSettingsResult> {
     const guard = await this.ensureSkillActive(conversationId, activeSkillNames)
     if (guard && !guard.ok) {
@@ -370,6 +379,7 @@ export class ChatSettingsToolHandler {
     const normalizedSection = normalizeSection(section)
     const routeName = normalizedSection ? SETTINGS_ROUTE_NAMES[normalizedSection] : undefined
 
+    beforeMutation?.(parsed.data)
     const windowId = await this.options.windowRuntime.createSettingsWindow()
     if (!windowId) {
       return {

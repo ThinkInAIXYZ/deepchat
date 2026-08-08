@@ -73,6 +73,10 @@ Steer: user message (Unread) -> claim (Read) -> new assistant message
 - 普通 list/history/binding query 不 hydrate Agent instance。
 - active session 的 pending-input restore 若发现 `pending` Steer，会唤醒对应 backend 的正常 drain；
   这是重启前已发送 `Unread` 消息的执行恢复点，不改变普通 transcript/history query。
+- DeepChat harness 构造时在 pending-input 与 transcript recovery 之前分类 Execution Journal。存在
+  dispatch-without-outcome、corruption 或缺失 terminal 的 Run 只输出结构化 parked 诊断，不依据该报告
+  自动重放遗留 operation；分类先于 runtime graph 构建，Journal 读取失败会阻止 harness 构造。诊断最多
+  输出 100 条清理过控制字符的明细，超出部分只输出分类汇总。v1 不新增持久化 Session parking 状态。
 - Session status 不持久化：已载入时来自 backend snapshot，未载入为 `idle`。
 - structured transcript 是当前 read model；legacy conversations/messages 仅用于一次性 import 和明确的
   export conversion。
@@ -89,9 +93,11 @@ Session data composition 创建一个 `SessionTape`，对外继续暴露现有 `
   SQLite transaction；
 - settings/compaction 只接收 anchor reader/writer 与 lifecycle admin；summary 更新和 anchor append
   继续使用同一个 connection；
-- loop runner 分别接收 reconciliation、ViewManifest reader/writer 和 tool fact writer；Turn coordinator
-  与 ACP compatibility 只接收 reconciliation；Memory 和 routes 分别接收自己的最小 Tape capability，
-  不接收物理 table；
+- loop runner 接收 Context Tape、provider attempt 与 strict Execution Journal writer；harness composition
+  只接收 Journal recovery reader。Turn coordinator 与 ACP compatibility 只接收 reconciliation；Memory
+  和 routes 分别接收自己的最小 Tape capability，不接收物理 table；
+- transcript backfill 只可生成 legacy Context facts，不能创建 `execution/*`；Run、dispatch、outcome 与
+  terminal facts 只能由 runtime 的 strict writer 在原生边界提交；
 - Tape 的运行中修订通过 append 表达；物理 delete/reset 只由 Session lifecycle 触发。
 
 `SessionTranscript` 和 `SessionSettingsStore` 不提供隐式 `new SessionTape(...)` fallback，必须由正常

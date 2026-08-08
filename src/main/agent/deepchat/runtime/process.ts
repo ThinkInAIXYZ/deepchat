@@ -13,6 +13,7 @@ import type {
 import { accumulate, commitRoundUsage, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import { startEcho } from './echo'
 import {
+  assertPausedProjectionReady,
   finalize,
   finalizeError,
   finalizePaused,
@@ -51,10 +52,6 @@ type ToolRoundBatch = {
   toolCalls: ToolCallResult[]
   disposition: ToolBatchDisposition
   nextAction: 'continue' | 'terminal'
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
 }
 
 function getLatestErrorMessage(state: StreamState): string | null {
@@ -314,6 +311,23 @@ function isTerminalPendingStatus(status: AssistantMessageBlock['status']): boole
   return status === 'pending' || status === 'loading'
 }
 
+function normalizeInheritedUnresolvedBlocks(blocks: AssistantMessageBlock[]): boolean {
+  let changed = false
+  for (const block of blocks) {
+    if (!isTerminalPendingStatus(block.status)) continue
+    if (
+      block.type === 'action' &&
+      block.status === 'pending' &&
+      (block.action_type === 'tool_call_permission' || block.action_type === 'question_request')
+    ) {
+      continue
+    }
+    block.status = 'error'
+    changed = true
+  }
+  return changed
+}
+
 function isUserCanceledAlreadyFinalized(io: IoParams): boolean {
   const message = io.messageStore.getMessage(io.messageId)
   if (!message || message.role !== 'assistant' || message.status !== 'error') {
@@ -567,14 +581,20 @@ function settleLoopOutcome(
   io: IoParams,
   eventCount: number,
   run: ProcessParams['run'],
-  outputSink: OutputSink
+  outputSink: OutputSink,
+  commitRunTerminal: ProcessParams['commitRunTerminal']
 ): ProcessResult {
   stampRunAccounting(state, run)
   if (outcome.type === 'thrown') {
     commitRoundUsage(state)
-    if (io.abortSignal.aborted || isAbortError(outcome.error)) {
+    if (io.abortSignal.aborted) {
       logger.info(`[ProcessStream] aborted via exception after ${eventCount} events`)
       stampRunOutcome(state, 'aborted', 'user_stop')
+      commitRunTerminal({
+        outcome: 'aborted',
+        stopReason: 'user_stop',
+        errorMessage: USER_CANCELED_GENERATION_ERROR
+      })
       finalizeUserCanceledErrorIfNeeded(state, io)
       return {
         status: 'aborted',
@@ -590,6 +610,7 @@ function settleLoopOutcome(
     const contextWindowError = isContextWindowErrorLike(outcome.error)
     const stopReason = contextWindowError ? 'context_window' : 'provider_error'
     stampRunOutcome(state, 'error', stopReason)
+    commitRunTerminal({ outcome: 'error', stopReason, errorMessage })
     outputSink.fail({
       runId: run.runId,
       sessionId: run.sessionId,
@@ -608,25 +629,33 @@ function settleLoopOutcome(
   if (outcome.type === 'halted') {
     const result = outcome.result
     if (result.status === 'paused') {
-      stampRunOutcome(state, 'paused', result.stopReason ?? 'interaction')
+      const stopReason = result.stopReason ?? 'interaction'
+      assertPausedProjectionReady(state)
+      stampRunOutcome(state, 'paused', stopReason)
+      commitRunTerminal({ outcome: 'paused', stopReason })
       finalizePaused(state, io)
     } else if (result.status === 'aborted') {
-      stampRunOutcome(state, 'aborted', result.stopReason ?? 'user_stop')
+      const stopReason = result.stopReason ?? 'user_stop'
+      const errorMessage = result.errorMessage ?? USER_CANCELED_GENERATION_ERROR
+      stampRunOutcome(state, 'aborted', stopReason)
+      commitRunTerminal({ outcome: 'aborted', stopReason, errorMessage })
       finalizeUserCanceledErrorIfNeeded(state, io)
     } else if (result.status === 'error') {
-      stampRunOutcome(
-        state,
-        'error',
+      const stopReason =
         result.stopReason ?? (result.terminalError ? 'tool_error' : 'provider_error')
-      )
+      const errorMessage = result.terminalError ?? result.errorMessage ?? 'Unknown error'
+      stampRunOutcome(state, 'error', stopReason)
+      commitRunTerminal({ outcome: 'error', stopReason, errorMessage })
       outputSink.fail({
         runId: run.runId,
         sessionId: run.sessionId,
         messageId: run.messageId,
-        error: result.terminalError ?? result.errorMessage ?? 'Unknown error'
+        error: errorMessage
       })
     } else {
-      stampRunOutcome(state, 'completed', result.stopReason ?? 'complete')
+      const stopReason = result.stopReason ?? 'complete'
+      stampRunOutcome(state, 'completed', stopReason)
+      commitRunTerminal({ outcome: 'completed', stopReason })
       outputSink.complete({
         runId: run.runId,
         sessionId: run.sessionId,
@@ -642,6 +671,7 @@ function settleLoopOutcome(
     const errorMessage = `Maximum agent turns exceeded (${outcome.limit}).`
     logger.info(`[ProcessStream] ${errorMessage}`)
     stampRunOutcome(state, 'error', 'max_turns')
+    commitRunTerminal({ outcome: 'error', stopReason: 'max_turns', errorMessage })
     outputSink.fail({
       runId: run.runId,
       sessionId: run.sessionId,
@@ -659,6 +689,11 @@ function settleLoopOutcome(
 
   if (io.abortSignal.aborted) {
     stampRunOutcome(state, 'aborted', 'user_stop')
+    commitRunTerminal({
+      outcome: 'aborted',
+      stopReason: 'user_stop',
+      errorMessage: USER_CANCELED_GENERATION_ERROR
+    })
     finalizeUserCanceledErrorIfNeeded(state, io)
     return {
       status: 'aborted',
@@ -674,6 +709,7 @@ function settleLoopOutcome(
     state.planTerminalReason = 'max_steps'
     markUnexecutedToolCallsForLimit(state)
     stampRunOutcome(state, 'completed', 'max_tool_calls')
+    commitRunTerminal({ outcome: 'completed', stopReason: 'max_tool_calls' })
     outputSink.complete({
       runId: run.runId,
       sessionId: run.sessionId,
@@ -690,6 +726,11 @@ function settleLoopOutcome(
   const terminalDecision = resolveProviderTerminalDecision(state)
   if (terminalDecision.type === 'error') {
     stampRunOutcome(state, 'error', terminalDecision.stopReason)
+    commitRunTerminal({
+      outcome: 'error',
+      stopReason: terminalDecision.stopReason,
+      errorMessage: terminalDecision.error
+    })
     outputSink.fail({
       runId: run.runId,
       sessionId: run.sessionId,
@@ -706,6 +747,7 @@ function settleLoopOutcome(
   }
 
   stampRunOutcome(state, 'completed', terminalDecision.stopReason)
+  commitRunTerminal({ outcome: 'completed', stopReason: terminalDecision.stopReason })
   outputSink.complete({
     runId: run.runId,
     sessionId: run.sessionId,
@@ -791,6 +833,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   }
   if (Array.isArray(initialBlocks) && initialBlocks.length > 0) {
     state.blocks = JSON.parse(JSON.stringify(initialBlocks)) as typeof state.blocks
+    state.dirty = normalizeInheritedUnresolvedBlocks(state.blocks) || state.dirty
   }
   state.metadata.runId = run.runId
   const echo = startEcho(state, io)
@@ -799,6 +842,11 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   let currentTools = run.resources.toolDefinitions
   let firstProviderRoundReady = false
   let truncatedToolRecoveryAttempts = 0
+  let terminalCommitAttempted = false
+  const commitRunTerminal: ProcessParams['commitRunTerminal'] = (selection) => {
+    terminalCommitAttempted = true
+    params.commitRunTerminal(selection)
+  }
   const noProgressToolLoopGuard = new NoProgressToolLoopGuard(state.metadata.noProgressToolLoop)
   const outputSink: OutputSink = {
     update: () => echo.flush(),
@@ -848,13 +896,38 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     },
     settleTurn: ({ outcome }) => {
       if (outcome.type === 'thrown') {
-        return settleLoopOutcome(outcome, state, io, eventCount, run, outputSink)
+        return settleLoopOutcome(
+          outcome,
+          state,
+          io,
+          eventCount,
+          run,
+          outputSink,
+          commitRunTerminal
+        )
       }
 
       try {
-        return settleLoopOutcome(outcome, state, io, eventCount, run, outputSink)
+        return settleLoopOutcome(
+          outcome,
+          state,
+          io,
+          eventCount,
+          run,
+          outputSink,
+          commitRunTerminal
+        )
       } catch (error) {
-        return settleLoopOutcome({ type: 'thrown', error }, state, io, eventCount, run, outputSink)
+        if (terminalCommitAttempted) throw error
+        return settleLoopOutcome(
+          { type: 'thrown', error },
+          state,
+          io,
+          eventCount,
+          run,
+          outputSink,
+          commitRunTerminal
+        )
       }
     }
   }
@@ -891,7 +964,8 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             io,
             eventCount,
             run,
-            outputSink
+            outputSink,
+            commitRunTerminal
           )
         }
       }
@@ -1070,7 +1144,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             requestedToolExecutionCount: completedToolCalls.length
           }
         },
-        settleToolBatch: async ({ batch }) => {
+        settleToolBatch: async ({ run, batch }) => {
           const completedToolBatch = batch.toolCalls.map((toolCall) => ({ ...toolCall }))
           const toolBatchMessageStart = conversationMessages.length
           let startedToolCallCount = 0
@@ -1089,6 +1163,11 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
               io,
               permissionMode,
               toolResults,
+              executionJournal: params.io.executionJournalWriter,
+              operationScope: {
+                runId: run.runId,
+                requestSeq: run.requestSeq
+              },
               contextLength:
                 providerId === 'acp'
                   ? Number.MAX_SAFE_INTEGER

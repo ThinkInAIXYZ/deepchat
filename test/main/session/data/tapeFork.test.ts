@@ -4,6 +4,7 @@ import {
   it,
   vi,
   SessionTape,
+  DeepChatExecutionJournalStore,
   DeepChatTapeEntriesTable,
   SqliteTapeLifecycleAdapter,
   DatabaseCtor,
@@ -392,6 +393,39 @@ describe('SessionTape forks', () => {
         'Fork discarded-native does not exist or has been discarded.'
       )
       expect(table.getBySession('parent').some((entry) => entry.name === 'fork/merge')).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
+  itIfSqlite('does not copy Execution Journal facts from a fork', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new DeepChatTapeEntriesTable(db)
+      const journalStore = new DeepChatExecutionJournalStore(db)
+      table.createTable()
+      const service = new SessionTape({
+        deepchatTapeEntriesTable: table,
+        deepchatExecutionJournalStore: journalStore,
+        deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+      } as any)
+
+      const fork = service.createFork('parent', 'journal-isolation')
+      journalStore.appendExecutionJournalEvent({
+        sessionId: fork.forkSessionId,
+        name: 'execution/run_started',
+        data: { marker: 'must-not-merge' }
+      })
+      expect(
+        table
+          .getBySession(fork.forkSessionId)
+          .some((entry) => entry.name === 'execution/run_started')
+      ).toBe(true)
+
+      expect(service.mergeFork('parent', 'journal-isolation')).toBe(0)
+      expect(
+        table.getBySession('parent').filter((entry) => entry.name?.startsWith('execution/'))
+      ).toEqual([])
     } finally {
       db.close()
     }

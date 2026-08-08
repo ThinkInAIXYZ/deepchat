@@ -10,6 +10,8 @@ import {
   type McpExpectedToolTarget,
   type Resource,
   type Tool,
+  type ToolDispatchCommit,
+  type ToolOutcomeProjectionRegistrar,
   type ToolCallResult
 } from '@shared/types/mcp'
 import type { AgentSettingsPort } from '@/agent/settings'
@@ -576,10 +578,15 @@ export class ToolManager {
       signal?: AbortSignal
       runId?: string
       expectedTarget?: McpExpectedToolTarget
+      commitDispatch?: ToolDispatchCommit
+      registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
     }
   ): Promise<MCPToolResponse> {
     let previewCall: ComputerUsePreviewCall | null = null
+    let previewStarted = false
     let previewTerminalNotified = false
+    let dispatchCommitFailed = false
+    let dispatchCommitted = false
     try {
       access?.signal?.throwIfAborted()
       const finalName = toolCall.function.name
@@ -798,8 +805,29 @@ export class ToolManager {
               runId: access?.runId
             })
           : null
+      const ownerPluginId = this.pluginOwnership.ownsServer(toolServerName)
+        ? this.pluginOwnership.getOwnerPluginId(toolServerName)
+        : undefined
+      access?.signal?.throwIfAborted()
+      try {
+        access?.commitDispatch?.({
+          toolName: finalName,
+          toolSource: 'mcp',
+          normalizedArguments: preparedArgs.args,
+          target: {
+            serverName: toolServerName,
+            originalName,
+            ...(ownerPluginId ? { ownerPluginId } : {})
+          }
+        })
+        dispatchCommitted = access?.commitDispatch !== undefined
+      } catch (error) {
+        dispatchCommitFailed = true
+        throw error
+      }
       if (previewCall) {
         this.notifyComputerUsePreview('started', previewCall)
+        previewStarted = true
       }
 
       // Call the tool on the target client using the ORIGINAL name
@@ -811,11 +839,6 @@ export class ToolManager {
         : await targetClient.callTool(originalName, preparedArgs.args, {
             toolDefinition: currentTarget.catalogTool
           })
-      access?.signal?.throwIfAborted()
-
-      const ownerPluginId = this.pluginOwnership.ownsServer(toolServerName)
-        ? this.pluginOwnership.getOwnerPluginId(toolServerName)
-        : undefined
       const formattedResponse = this.formatToolResponse(toolCall.id, result)
       const mcpResult = currentTarget.catalogTool
         ? createPersistedMcpToolResult({
@@ -840,33 +863,51 @@ export class ToolManager {
         ...(mcpResult ? { mcpResult } : {})
       }
 
-      if (previewCall) {
-        this.notifyComputerUsePreview('completed', previewCall, response)
-        previewTerminalNotified = true
+      const projectOutcome = () => {
+        if (previewCall) {
+          this.notifyComputerUsePreview('completed', previewCall, response)
+          previewTerminalNotified = true
+        }
+
+        this.publishEvent('mcp.toolCall.result', {
+          functionName: toolCall.function.name,
+          content: response.content,
+          version: Date.now()
+        })
+
+        this.scheduleComputerUsePreviewAfterClick({
+          client: targetClient,
+          toolCall,
+          toolName: originalName,
+          args: preparedArgs.args,
+          runId: access?.runId,
+          response,
+          signal: access?.signal
+        })
       }
-
-      this.publishEvent('mcp.toolCall.result', {
-        functionName: toolCall.function.name,
-        content: response.content,
-        version: Date.now()
-      })
-
-      this.scheduleComputerUsePreviewAfterClick({
-        client: targetClient,
-        toolCall,
-        toolName: originalName,
-        args: preparedArgs.args,
-        runId: access?.runId,
-        response,
-        signal: access?.signal
-      })
+      if (dispatchCommitted && access?.registerOutcomeProjection) {
+        access.registerOutcomeProjection(projectOutcome)
+      } else {
+        projectOutcome()
+      }
 
       return response
     } catch (error: unknown) {
-      if (previewCall && !previewTerminalNotified) {
-        this.notifyComputerUsePreview('failed', previewCall, error)
+      if (previewCall && previewStarted && !previewTerminalNotified) {
+        const projectFailure = () => {
+          this.notifyComputerUsePreview('failed', previewCall!, error)
+          previewTerminalNotified = true
+        }
+        if (dispatchCommitted && access?.registerOutcomeProjection) {
+          access.registerOutcomeProjection(projectFailure)
+        } else {
+          projectFailure()
+        }
       }
-      if (access?.signal?.aborted || isAbortError(error)) {
+      if (isAbortError(error) || (access?.signal?.aborted && !dispatchCommitted)) {
+        throw error
+      }
+      if (dispatchCommitFailed) {
         throw error
       }
 

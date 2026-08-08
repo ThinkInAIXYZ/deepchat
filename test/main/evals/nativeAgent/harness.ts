@@ -1,10 +1,12 @@
+import { randomUUID } from 'node:crypto'
+import { jsonrepair } from 'jsonrepair'
 import { vi } from 'vitest'
 import { ModelType } from '@shared/model'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { TOOL_EXECUTION, type MCPToolCall, type MCPToolDefinition } from '@shared/types/core/mcp'
-import type { ToolServicePort } from '@shared/types/tool'
+import type { ToolCallOptions, ToolServicePort } from '@shared/types/tool'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { processStream } from '@/agent/deepchat/runtime/process'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
@@ -235,6 +237,27 @@ function makeToolDefinition(name: string): MCPToolDefinition {
   }
 }
 
+function normalizeToolArguments(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function parseToolArguments(argumentsText: string): Record<string, unknown> {
+  const raw = argumentsText.trim()
+  if (!raw) return {}
+
+  try {
+    return normalizeToolArguments(JSON.parse(raw))
+  } catch {
+    try {
+      return normalizeToolArguments(JSON.parse(jsonrepair(raw)))
+    } catch {
+      return {}
+    }
+  }
+}
+
 function createToolService(behaviors: Record<string, ScriptedToolBehavior>): ToolServiceHarness {
   const calls: NativeAgentEvalToolCall[] = []
 
@@ -252,8 +275,17 @@ function createToolService(behaviors: Record<string, ScriptedToolBehavior>): Too
         description: permission.description
       }
     }),
-    callTool: vi.fn(async (request: MCPToolCall) => {
+    callTool: vi.fn(async (request: MCPToolCall, options?: ToolCallOptions) => {
       const behavior = behaviors[request.function.name] ?? {}
+      options?.commitDispatch?.({
+        toolName: request.function.name,
+        toolSource: 'agent',
+        normalizedArguments: parseToolArguments(request.function.arguments),
+        target: {
+          serverName: 'native-agent-eval',
+          originalName: request.function.name
+        }
+      })
       const call: NativeAgentEvalToolCall = {
         id: request.id,
         name: request.function.name,
@@ -335,7 +367,8 @@ function addMismatch(failures: string[], label: string, actual: unknown, expecte
 function evaluateReport(
   scenario: NativeAgentEvalScenario,
   report: Omit<NativeAgentEvalReport, 'passed' | 'expectationFailures'>,
-  providerInputs: ChatMessage[][]
+  providerInputs: ChatMessage[][],
+  runId: string
 ): string[] {
   const failures: string[] = []
   const expected = scenario.expected
@@ -343,7 +376,7 @@ function evaluateReport(
   addMismatch(failures, 'status', report.outcome.status, expected.status)
   addMismatch(failures, 'stopReason', report.outcome.stopReason, expected.stopReason)
   addMismatch(failures, 'persistedStatus', report.persistedStatus, expected.persistedStatus)
-  addMismatch(failures, 'persistedRunId', report.persistedRunId, `request-${scenario.id}`)
+  addMismatch(failures, 'persistedRunId', report.persistedRunId, runId)
   addMismatch(
     failures,
     'persistedRunOutcome',
@@ -453,7 +486,13 @@ export async function runNativeAgentEvalScenario(
   const toolOutputGuard = new ToolOutputGuard()
   const sessionId = toAppSessionId(`eval-${scenario.id}`)
   const messageId = `message-${scenario.id}`
-  const runId = `request-${scenario.id}`
+  const runId = randomUUID()
+  let journalEntryId = 0
+  const commitJournalFact = () => ({
+    sessionId,
+    entryId: ++journalEntryId,
+    created: true
+  })
   const params: ProcessParams = {
     run: createLoopRun({
       runId,
@@ -462,7 +501,8 @@ export async function runNativeAgentEvalScenario(
       abortController,
       messages: [{ role: 'user', content: `Eval scenario: ${scenario.id}` }],
       streamState: createState(),
-      resources: { toolDefinitions: tools, activeSkillNames: [] }
+      resources: { toolDefinitions: tools, activeSkillNames: [] },
+      initialRequestSeq: 1
     }),
     toolCatalog: {
       resolve: async () => tools
@@ -489,6 +529,7 @@ export async function runNativeAgentEvalScenario(
     permissionMode: scenario.permissionMode ?? 'full_access',
     maxProviderRounds: scenario.maxProviderRounds,
     shouldYieldForPendingInput: () => scenario.yieldForPendingInput === true,
+    commitRunTerminal: vi.fn(),
     notificationObserver: {
       isObserved: () => true,
       notify: (notification) => {
@@ -503,6 +544,10 @@ export async function runNativeAgentEvalScenario(
       publishSessionUpdate: vi.fn(),
       tapeToolFactWriter: {
         appendToolFact: async () => ({ sessionId, entryId: 1 })
+      },
+      executionJournalWriter: {
+        commitDispatch: vi.fn(commitJournalFact),
+        commitToolOutcome: vi.fn(commitJournalFact)
       }
     }
   }
@@ -545,7 +590,7 @@ export async function runNativeAgentEvalScenario(
     usage: normalizeUsage(result),
     finalText: collectFinalText(messageState.blocks)
   }
-  const expectationFailures = evaluateReport(scenario, baseReport, providerInputs)
+  const expectationFailures = evaluateReport(scenario, baseReport, providerInputs, runId)
 
   return {
     ...baseReport,

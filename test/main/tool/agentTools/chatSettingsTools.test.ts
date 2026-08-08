@@ -99,6 +99,21 @@ describe('ChatSettingsToolHandler', () => {
     expect(skillService.getActiveSkills).not.toHaveBeenCalled()
   })
 
+  it('propagates dispatch commit failure without changing settings', async () => {
+    const handler = buildHandler()
+    const journalError = new Error('journal unavailable')
+    const beforeMutation = vi.fn(() => {
+      throw journalError
+    })
+
+    await expect(
+      handler.setTheme({ theme: 'light' }, 'conv-1', [CHAT_SETTINGS_SKILL_NAME], beforeMutation)
+    ).rejects.toBe(journalError)
+
+    expect(beforeMutation).toHaveBeenCalledWith({ theme: 'light' })
+    expect(desktopSettings.setTheme).not.toHaveBeenCalled()
+  })
+
   it('opens settings and navigates to section', async () => {
     const handler = buildHandler()
     const result = await handler.open({ section: 'mcp' }, 'conv-1')

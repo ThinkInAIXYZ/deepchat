@@ -2,7 +2,12 @@ import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { MCPToolCall, MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
+import type {
+  MCPToolCall,
+  MCPToolDefinition,
+  MCPToolResponse,
+  ToolDispatchCommit
+} from '@shared/types/core/mcp'
 import type { ToolCallOptions, ToolPermissionPreCheckResult } from '@shared/types/tool'
 import type { ModelConfig } from '@shared/types/provider'
 import type { MemorySessionHandle } from '@/agent/deepchat/memory/memoryPromptContributor'
@@ -31,7 +36,9 @@ export interface ToolCatalogPort {
   resolve(input?: { activeSkillNames?: string[] }): Promise<MCPToolDefinition[]>
 }
 
-export type ToolExecutionOptions = ToolCallOptions
+export type ToolExecutionOptions = Omit<ToolCallOptions, 'commitDispatch'> & {
+  commitDispatch: ToolDispatchCommit
+}
 
 export interface ToolExecutionPort {
   preCheck(
@@ -40,7 +47,7 @@ export interface ToolExecutionPort {
   ): Promise<ToolPermissionPreCheckResult | null>
   execute(
     call: MCPToolCall,
-    options?: ToolExecutionOptions
+    options: ToolExecutionOptions
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 }
 

@@ -11,6 +11,7 @@ import { CompactionService } from '@/agent/deepchat/runtime/compactionService'
 import { DeepChatLoopRunner } from '@/agent/deepchat/runtime/deepChatLoopRunner'
 import { DeferredToolExecutor } from '@/agent/deepchat/runtime/deferredToolExecutor'
 import { InteractionCoordinator } from '@/agent/deepchat/runtime/interactionCoordinator'
+import { InteractionParkingRegistry } from '@/agent/deepchat/runtime/interactionParkingRegistry'
 import { MessageProjectionService } from '@/agent/deepchat/runtime/messageProjectionService'
 import { PendingInputAdmissionCoordinator } from '@/agent/deepchat/runtime/pendingInputAdmissionCoordinator'
 import { PendingInputPump } from '@/agent/deepchat/runtime/pendingInputPump'
@@ -40,6 +41,113 @@ import { TurnCoordinator } from '@/agent/deepchat/runtime/turnCoordinator'
 import { DeepChatAgentHarness } from './deepChatAgentHarness'
 import type { DeepChatHarnessDependencies, DeepChatRuntimeServices } from './runtimeServices'
 import { createPendingInputWakeupBinding } from './pendingInputWakeupBinding'
+import type {
+  ExecutionRecoveryClassification,
+  ExecutionRecoveryReport
+} from '@/tape/domain/executionJournal'
+import type { ExecutionJournalRecoveryReader } from '@/tape/ports/capabilities'
+
+const MAX_STARTUP_RECOVERY_DETAILS = 100
+const MAX_STARTUP_RECOVERY_DIAGNOSTIC_CHARS = 2_048
+const STARTUP_RECOVERY_TRUNCATION_MARKER = '...[truncated]'
+
+function requiresStartupRecoveryAttention(report: ExecutionRecoveryReport): boolean {
+  return (
+    report.classification === 'indeterminate' ||
+    report.classification === 'corruption' ||
+    report.terminalOutcome === null
+  )
+}
+
+function boundStartupRecoveryDiagnostic(value: string): string {
+  let sanitized = ''
+  for (
+    let index = 0;
+    index < value.length && index < MAX_STARTUP_RECOVERY_DIAGNOSTIC_CHARS;
+    index += 1
+  ) {
+    const codeUnit = value.charCodeAt(index)
+    sanitized += codeUnit <= 0x1f || codeUnit === 0x7f ? ' ' : value[index]
+  }
+  if (value.length <= MAX_STARTUP_RECOVERY_DIAGNOSTIC_CHARS) return sanitized
+
+  const prefixLength =
+    MAX_STARTUP_RECOVERY_DIAGNOSTIC_CHARS - STARTUP_RECOVERY_TRUNCATION_MARKER.length
+  let prefix = sanitized.slice(0, prefixLength)
+  const finalCodeUnit = prefix.charCodeAt(prefix.length - 1)
+  if (finalCodeUnit >= 0xd800 && finalCodeUnit <= 0xdbff) prefix = prefix.slice(0, -1)
+  return `${prefix}${STARTUP_RECOVERY_TRUNCATION_MARKER}`
+}
+
+function buildStartupRecoveryDiagnostic(report: ExecutionRecoveryReport) {
+  return {
+    ...report,
+    sessionId: boundStartupRecoveryDiagnostic(report.sessionId),
+    runId: boundStartupRecoveryDiagnostic(report.runId),
+    messageId: report.messageId === null ? null : boundStartupRecoveryDiagnostic(report.messageId),
+    reasons: report.reasons.map(boundStartupRecoveryDiagnostic),
+    disposition: 'parked' as const,
+    automaticRetry: false as const
+  }
+}
+
+function reportStartupExecutionRecovery(
+  reader: ExecutionJournalRecoveryReader
+): Map<string, Set<string>> {
+  const buckets: Record<ExecutionRecoveryClassification, ExecutionRecoveryReport[]> = {
+    corruption: [],
+    indeterminate: [],
+    completed: [],
+    not_dispatched: []
+  }
+  const forceRecoverMessagesBySession = new Map<string, Set<string>>()
+  for (const report of reader.classifyRecoveryCandidates()) {
+    if (!requiresStartupRecoveryAttention(report)) continue
+    buckets[report.classification].push(report)
+    if (report.classification !== 'not_dispatched' && report.messageId !== null) {
+      const messageIds = forceRecoverMessagesBySession.get(report.sessionId) ?? new Set<string>()
+      messageIds.add(report.messageId)
+      forceRecoverMessagesBySession.set(report.sessionId, messageIds)
+    }
+  }
+  const candidates = [
+    ...buckets.corruption,
+    ...buckets.indeterminate,
+    ...buckets.completed,
+    ...buckets.not_dispatched
+  ]
+  for (const report of candidates.slice(0, MAX_STARTUP_RECOVERY_DETAILS)) {
+    const diagnostic = buildStartupRecoveryDiagnostic(report)
+    if (report.classification === 'corruption') {
+      logger.error('[DeepChatAgent] Execution Journal recovery candidate parked', diagnostic)
+    } else {
+      logger.warn('[DeepChatAgent] Execution Journal recovery candidate parked', diagnostic)
+    }
+  }
+  if (candidates.length <= MAX_STARTUP_RECOVERY_DETAILS) return forceRecoverMessagesBySession
+
+  const classificationCounts: Record<ExecutionRecoveryClassification, number> = {
+    not_dispatched: 0,
+    completed: 0,
+    indeterminate: 0,
+    corruption: 0
+  }
+  for (const report of candidates) classificationCounts[report.classification] += 1
+  const summary = {
+    candidateCount: candidates.length,
+    reportedCount: MAX_STARTUP_RECOVERY_DETAILS,
+    omittedCount: candidates.length - MAX_STARTUP_RECOVERY_DETAILS,
+    classificationCounts,
+    disposition: 'parked' as const,
+    automaticRetry: false as const
+  }
+  if (classificationCounts.corruption > 0) {
+    logger.error('[DeepChatAgent] Execution Journal recovery diagnostics truncated', summary)
+  } else {
+    logger.warn('[DeepChatAgent] Execution Journal recovery diagnostics truncated', summary)
+  }
+  return forceRecoverMessagesBySession
+}
 
 /**
  * Single composition root for the DeepChat agent runtime. Owners are constructed in dependency
@@ -67,6 +175,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const messageStore = sessionData.transcript
   const tapeService = sessionData.tapeStore
   const pendingInputCoordinator = sessionData.pendingInputs
+
+  const forceRecoverMessagesBySession = reportStartupExecutionRecovery(tapeService)
 
   const runtime = new DeepChatAgentRuntime()
   const identity = new SessionIdentityService({ registry: runtime, database })
@@ -179,6 +289,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     promptAssembly,
     messageProjection
   })
+  const interactionParking = new InteractionParkingRegistry()
   const sessionLifecycle = new SessionLifecycleCoordinator({
     registry: runtime,
     providerSettings,
@@ -191,7 +302,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     sessionSettings,
     compaction,
     memory,
-    runLifecycle
+    runLifecycle,
+    interactionParking
   })
   const toolRuntimeBindings: ToolRuntimeBindingDependencies = {
     providerSettings,
@@ -221,7 +333,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     sessionSettings,
     sessionState,
     identity,
-    messageProjection
+    messageProjection,
+    executionJournal: tapeService
   })
   const inputPreparationCoordinator = new InputPreparationCoordinator()
   const contextCoordinator = new DeepChatContextCoordinator()
@@ -314,7 +427,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     messageProjection,
     hookSink,
     turnCoordinator,
-    continuationAdmission: deps.interactionContinuationAdmission
+    continuationAdmission: deps.interactionContinuationAdmission,
+    interactionParking
   })
   const transcriptMutation = new TranscriptMutationCoordinator({
     registry: runtime,
@@ -381,7 +495,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     )
   }
 
-  const recovered = messageStore.recoverPendingMessages()
+  const recovered = messageStore.recoverPendingMessages({ forceRecoverMessagesBySession })
   if (recovered > 0) {
     logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
   }

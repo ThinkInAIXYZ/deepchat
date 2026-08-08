@@ -5,6 +5,7 @@ import type {
   DeepChatTapeSourceType
 } from '../domain/entry'
 import type {
+  ExecutionJournalPersistenceStore,
   TapeBootstrapStore,
   TapeEntryLifecycleStore,
   TapeEntryStore,
@@ -148,6 +149,7 @@ export type TapeApplicationEntryStore = TapeEntryStore & TapeTransactionRunner &
 
 export interface TapeApplicationDatabase {
   readonly deepchatTapeEntriesTable: TapeApplicationEntryStore
+  readonly deepchatExecutionJournalStore: ExecutionJournalPersistenceStore
   readonly tapeLifecycle: TapeEntryLifecycleStore
   readonly deepchatTapeSearchProjectionTable: TapeSearchProjectionStore
   readonly newSessionsTable: TapeLineageSessionReader

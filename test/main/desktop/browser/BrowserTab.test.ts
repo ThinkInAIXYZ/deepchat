@@ -186,6 +186,88 @@ describe('BrowserTab', () => {
     expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
   })
 
+  it('commits immediately before sending a CDP command', async () => {
+    const { tab, webContents } = createTab()
+    const order: string[] = []
+    webContents.debugger.sendCommand.mockImplementation(async () => {
+      order.push('target')
+      return {}
+    })
+
+    await tab.sendCdpCommand('Page.reload', undefined, () => order.push('commit'))
+
+    expect(order).toEqual(['commit', 'target'])
+  })
+
+  it('does not commit when CDP readiness or session validation fails', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+    const beforeDispatch = vi.fn()
+
+    await expect(
+      tab.sendCdpCommand('Runtime.evaluate', undefined, beforeDispatch)
+    ).rejects.toMatchObject({ name: 'YoBrowserNotReadyError' })
+    expect(beforeDispatch).not.toHaveBeenCalled()
+
+    cdpManager.createSession.mockRejectedValueOnce(new Error('debugger unavailable'))
+    await expect(tab.sendCdpCommand('Page.reload', undefined, beforeDispatch)).rejects.toThrow(
+      'debugger unavailable'
+    )
+    expect(beforeDispatch).not.toHaveBeenCalled()
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('prevents CDP dispatch when the commit fails', async () => {
+    const { tab, webContents } = createTab()
+    const journalError = new Error('journal unavailable')
+
+    await expect(
+      tab.sendCdpCommand('Page.reload', undefined, () => {
+        throw journalError
+      })
+    ).rejects.toBe(journalError)
+
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('commits immediately before navigation and prevents it on commit failure', async () => {
+    const { tab, webContents } = createTab()
+    const order: string[] = []
+    webContents.loadURL.mockImplementationOnce((url: string) => {
+      order.push('target')
+      webContents.url = url
+      webContents.loading = true
+      webContents.emit('did-start-loading')
+      return new Promise<void>((resolve, reject) => {
+        webContents.pendingLoad = { resolve, reject }
+      })
+    })
+
+    const navigationPromise = tab.navigateUntilDomReady('https://example.com', 30000, () =>
+      order.push('commit')
+    )
+    await Promise.resolve()
+    expect(order).toEqual(['commit', 'target'])
+    webContents.emitDomReady()
+    await navigationPromise
+    webContents.finishLoad()
+
+    const journalError = new Error('journal unavailable')
+    await expect(
+      tab.navigateUntilDomReady('https://example.com/blocked', 30000, () => {
+        throw journalError
+      })
+    ).rejects.toBe(journalError)
+    expect(webContents.loadURL).toHaveBeenCalledOnce()
+
+    const beforeDispatch = vi.fn()
+    webContents.destroyed = true
+    await expect(
+      tab.navigateUntilDomReady('https://example.com/destroyed', 30000, beforeDispatch)
+    ).rejects.toThrow('Page is no longer available')
+    expect(beforeDispatch).not.toHaveBeenCalled()
+    expect(webContents.loadURL).toHaveBeenCalledOnce()
+  })
+
   it('allows cdp exploration after dom-ready even if loading restarts', async () => {
     const { tab, webContents } = createTab()
 

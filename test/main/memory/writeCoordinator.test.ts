@@ -269,6 +269,31 @@ describe('MemoryService write + two-phase embedding', () => {
     )
   })
 
+  it('does not swallow a commit callback error that resembles a uniqueness race', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const content = 'User likes durable writes'
+    repo.insert({
+      id: 'legacy',
+      agentId: 'a',
+      kind: 'semantic',
+      content,
+      provenanceKey: buildLegacyMemoryProvenanceKey('a', 'semantic', content)
+    })
+    const commitError = Object.assign(new Error('journal uniqueness failure'), {
+      code: 'SQLITE_CONSTRAINT_UNIQUE'
+    })
+
+    await expect(
+      presenter.rememberMemory({ kind: 'semantic', content }, { agentId: 'a' }, null, () => {
+        throw commitError
+      })
+    ).rejects.toBe(commitError)
+
+    expect(repo.getById('legacy')?.provenance_key).toBe(
+      buildLegacyMemoryProvenanceKey('a', 'semantic', content)
+    )
+  })
+
   it('treats a legacy FNV collision with different v2-normalized content as a new memory', () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     const legacyContent = 'collision-149599'
@@ -470,6 +495,81 @@ describe('MemoryService change events (onMemoryChanged)', () => {
     )
     expect(again).toEqual(expect.objectContaining({ action: 'noop', reason: 'duplicate' }))
     expect(onMemoryChanged).not.toHaveBeenCalled()
+  })
+
+  it('commits once immediately before a direct memory mutation', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const order: string[] = []
+    const originalInsert = repo.insertClaimUnlessTombstoned.bind(repo)
+    vi.spyOn(repo, 'insertClaimUnlessTombstoned').mockImplementation((input) => {
+      order.push('mutation')
+      return originalInsert(input)
+    })
+    const beforeMutation = vi.fn(() => order.push('commit'))
+
+    await expect(
+      presenter.rememberMemory(
+        { kind: 'semantic', content: 'user prefers durable journals' },
+        { agentId: 'a' },
+        null,
+        beforeMutation
+      )
+    ).resolves.toMatchObject({ action: 'created' })
+
+    expect(order).toEqual(['commit', 'mutation'])
+    expect(beforeMutation).toHaveBeenCalledOnce()
+  })
+
+  it('does not commit duplicate or tombstoned memory no-ops', async () => {
+    const { presenter } = makePresenter(enabledConfig)
+    const content = 'user prefers explicit recovery'
+    const created = await presenter.rememberMemory(
+      { kind: 'semantic', content },
+      { agentId: 'a' },
+      null
+    )
+    if (created.action !== 'created') throw new Error('expected memory creation')
+
+    const duplicateCommit = vi.fn()
+    await expect(
+      presenter.rememberMemory(
+        { kind: 'semantic', content },
+        { agentId: 'a' },
+        null,
+        duplicateCommit
+      )
+    ).resolves.toMatchObject({ action: 'noop', reason: 'duplicate' })
+    expect(duplicateCommit).not.toHaveBeenCalled()
+
+    await presenter.deleteMemory('a', created.id)
+    const tombstoneCommit = vi.fn()
+    await expect(
+      presenter.rememberMemory(
+        { kind: 'semantic', content },
+        { agentId: 'a' },
+        { providerId: 'p', modelId: 'm' },
+        tombstoneCommit
+      )
+    ).resolves.toEqual({ action: 'noop', reason: 'forgotten' })
+    expect(tombstoneCommit).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the memory commit boundary cannot persist', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const journalError = new Error('journal unavailable')
+
+    await expect(
+      presenter.rememberMemory(
+        { kind: 'semantic', content: 'do not write this memory' },
+        { agentId: 'a' },
+        null,
+        () => {
+          throw journalError
+        }
+      )
+    ).rejects.toBe(journalError)
+
+    expect(repo.countByAgent('a')).toBe(0)
   })
 
   it('emits "extract" when extraction writes new memories', async () => {

@@ -44,7 +44,7 @@ implementation details would produce misleading settings.
 - Restoring the removed `webContentLengthLimit` setting or the legacy chat-mode web pipeline.
 - Allowing an unlimited value such as `0`.
 - Estimating limits in tokens or bytes. The contract is JavaScript string characters.
-- Changing background `process` tool pagination or its default polling preview.
+- Changing background `process` tool pagination. Polling previews follow the Agent command limit.
 - Removing the final request-context safety check.
 - Adding a new settings store, persistence table, IPC route, dependency, or migration.
 
@@ -78,6 +78,8 @@ the contract. Missing fields resolve to defaults, so existing Agent records need
 ### Commands and skill scripts
 
 - `exec` and `skill_run` return at most the configured output preview plus terminal metadata.
+- Background sessions retain the Agent command limit that started them, while explicit `process`
+  polls use the current Agent command limit.
 - The fixed 10,000-character spooling ceiling remains an internal upper bound.
 - When the configured preview is lower, spooling begins at the lower value so omitted output stays
   recoverable from the generated log file.
@@ -94,6 +96,11 @@ request.
 4. For command output, an existing generated log path is reused.
 5. Only if the smaller stubs still do not fit does the existing tool-error/terminal-error fallback
    apply.
+
+Deferred-result fitting uses the model's effective context budget, observes cancellation, and
+checks turn ownership before mutating or persisting the resumed result. A fallback file created by
+an abandoned resume is removed; an existing command log remains owned by the command tool and is
+never removed by the context guard.
 
 ## Settings UI
 
@@ -130,6 +137,8 @@ collapsed state is local presentation state and is not persisted.
 
 - Source of truth: optional fields in `DeepChatAgentConfig`, persisted in the existing Agent config
   JSON.
+- Repository owner: `DeepChatAgentRepository` preserves the optional fields when merging saved
+  config with runtime defaults.
 - Renderer owner: `DeepChatAgentsSettings.vue`, alongside other per-Agent tool configuration.
 - Runtime normalization owner: a shared pure helper that supplies defaults and clamps defensive
   in-process reads.
@@ -159,7 +168,12 @@ collapsed state is local presentation state and is not persisted.
 - An explicit read `limit` overrides the configured auto-truncate value.
 - A guarded tool result uses a custom inline threshold.
 - `exec` and `skill_run` use a custom foreground preview and preserve overflow in a readable file.
+- Background command and skill sessions preserve their configured preview, and later `process`
+  polls use the current Agent command limit.
 - Context overflow reuses an existing command log path instead of creating a nested offload.
+- Deferred-result fitting stops on cancellation or stale turn ownership, removes only newly created
+  fallback files, and never removes a tool-owned command log.
+- Production Agent config resolution preserves all three saved values.
 - Existing defaults remain effective when the fields are absent.
 - Focus, keyboard input, save dirty-state tracking, and nearby Agent settings remain stable.
 
@@ -169,7 +183,7 @@ collapsed state is local presentation state and is not persisted.
 - `pnpm i18n`
 - `pnpm lint`
 - `pnpm typecheck`
-- Focused main-process regression suite: 10 files, 479 tests passed.
+- Focused main-process regression suite: 11 files, 572 tests passed.
 - Agent settings component suite: 1 file, 27 tests passed.
 - The final worktree contains only durable contract and regression tests; no temporary test files or
   implementation-only artifacts remain.

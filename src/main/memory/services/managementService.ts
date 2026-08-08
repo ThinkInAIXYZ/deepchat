@@ -236,7 +236,11 @@ export class ManagementService {
     return memoryCommandApplied()
   }
 
-  async forgetMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
+  async forgetMemory(
+    agentId: string,
+    memoryId: string,
+    beforeMutation?: () => void
+  ): Promise<MemoryCommandResult> {
     if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
@@ -246,6 +250,7 @@ export class ManagementService {
       return memoryCommandRejected('conflict')
     }
     if (isInternalMemoryKind(row)) return memoryCommandRejected('invalid-state')
+    beforeMutation?.()
     this.ctx.invalidateAgentOperations(agentId)
     const alreadyArchived = row.lifecycle_state === 'archived'
     let archived = alreadyArchived

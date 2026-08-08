@@ -1,13 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { FileItem } from './file'
-import type { MCPToolDefinition as CoreMCPToolDefinition } from './core/mcp'
+import type {
+  MCPToolDefinition as CoreMCPToolDefinition,
+  ToolDispatchCommit,
+  ToolOutcomeProjectionRegistrar
+} from './core/mcp'
 
 export { TOOL_EXECUTION, stripToolExecutionContract } from './core/mcp'
 export type {
   MCPToolDefinitionBase,
   ToolEffect,
+  ToolDispatchCommit,
+  ToolDispatchCommitInput,
   ToolExecutionContract,
-  ToolExecutionMode
+  ToolExecutionMode,
+  ToolOutcomeProjection,
+  ToolOutcomeProjectionRegistrar
 } from './core/mcp'
 
 export interface McpClient {
@@ -621,6 +629,8 @@ export interface McpServicePort {
       enabledServerIds?: string[]
       runId?: string
       expectedTarget?: McpExpectedToolTarget
+      commitDispatch?: ToolDispatchCommit
+      registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
     }
   ): Promise<{ content: string; rawData: MCPToolResponse }>
   handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision>

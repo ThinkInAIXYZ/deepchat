@@ -204,7 +204,7 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     }
   }
 
-  private hasTombstoneForClaim(
+  hasTombstoneForClaim(
     input: Pick<AgentMemoryInsertInput, 'agentId' | 'kind' | 'content' | 'provenanceKey' | 'scope'>
   ): boolean {
     if (!isTombstoneEligibleMemoryKind(input.kind)) return false
@@ -2216,6 +2216,7 @@ export function bindCapability<T extends object, K extends keyof T>(
 const READ_CAPABILITY_KEYS = [
   'getById',
   'getByProvenanceKey',
+  'hasTombstoneForClaim',
   'listByAgent',
   'listManagementPage',
   'listManagementVisibleByIds',

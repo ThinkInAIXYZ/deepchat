@@ -72,6 +72,8 @@ type SessionBrowserState = {
   previewClaimSequence: number
   previewSequence: number
   previewBurstUntil: number
+  targetDispatchObserved: boolean
+  createdEventPublished: boolean
 }
 
 type HostWindowListeners = {
@@ -129,7 +131,8 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     timeoutMs?: number,
     hostWindowId?: number,
     activitySource?: YoBrowserActivitySource,
-    agentRunId?: string
+    agentRunId?: string,
+    beforeDispatch?: () => void
   ): Promise<YoBrowserStatus> {
     const normalizedSessionId = sessionId.trim()
     if (!normalizedSessionId) {
@@ -144,41 +147,89 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       throw new Error('No host window available for YoBrowser')
     }
 
+    const stateAlreadyExisted = this.sessionBrowsers.has(normalizedSessionId)
     const state = this.ensureSessionBrowserState(normalizedSessionId)
-    this.updateOwner(state, activitySource, agentRunId)
-    if (activitySource === 'agent' && !state.visible) {
-      this.ensurePreviewHost(state)
-    } else if (activitySource !== 'agent' && state.previewHost) {
-      await this.releasePreviewHost(state)
+    try {
+      if (activitySource !== 'agent' && state.previewHost) {
+        await this.releasePreviewHost(state)
+      }
+      const projectDispatch = () => {
+        state.targetDispatchObserved = true
+        const publishCreated = () => {
+          if (!state.createdEventPublished) {
+            this.emitWindowCreated(normalizedSessionId)
+            state.createdEventPublished = true
+          }
+        }
+        const projectOwner = () => {
+          this.updateOwner(state, activitySource, agentRunId)
+          if (activitySource === 'agent' && !state.visible) {
+            this.ensurePreviewHost(state)
+          }
+        }
+        const publishOpenRequest = () => {
+          this.logLifecycle('open requested', {
+            sessionId: normalizedSessionId,
+            windowId: resolvedHostWindowId,
+            url
+          })
+          this.emitOpenRequested(
+            normalizedSessionId,
+            resolvedHostWindowId,
+            url,
+            activitySource ?? 'user',
+            state.agentRunId
+          )
+        }
+        if (activitySource === 'agent') {
+          this.runPostDispatchProjection(normalizedSessionId, 'navigation creation', publishCreated)
+          this.runPostDispatchProjection(normalizedSessionId, 'navigation ownership', projectOwner)
+          this.runPostDispatchProjection(
+            normalizedSessionId,
+            'navigation open request',
+            publishOpenRequest
+          )
+        } else {
+          publishCreated()
+          projectOwner()
+          publishOpenRequest()
+        }
+      }
+
+      if (activitySource === 'agent') {
+        await this.runAgentActivity(
+          normalizedSessionId,
+          { kind: 'navigation', action: 'navigate' },
+          (startActivity) =>
+            state.page.navigateUntilDomReady(url, timeoutMs ?? 30000, beforeDispatch, () => {
+              projectDispatch()
+              startActivity()
+            })
+        )
+      } else {
+        await state.page.navigateUntilDomReady(
+          url,
+          timeoutMs ?? 30000,
+          beforeDispatch,
+          projectDispatch
+        )
+      }
+
+      state.updatedAt = Date.now()
+      if (activitySource === 'agent') {
+        this.runPostDispatchProjection(normalizedSessionId, 'navigation completion', () => {
+          this.emitWindowUpdated(normalizedSessionId)
+        })
+      } else {
+        this.emitWindowUpdated(normalizedSessionId)
+      }
+      return this.toStatus(state)
+    } catch (error) {
+      if (!stateAlreadyExisted && !state.createdEventPublished) {
+        this.discardUnpublishedSessionBrowser(state)
+      }
+      throw error
     }
-    this.logLifecycle('open requested', {
-      sessionId: normalizedSessionId,
-      windowId: resolvedHostWindowId,
-      url
-    })
-
-    this.emitOpenRequested(
-      normalizedSessionId,
-      resolvedHostWindowId,
-      url,
-      activitySource ?? 'user',
-      state.agentRunId
-    )
-
-    const navigate = () => state.page.navigateUntilDomReady(url, timeoutMs ?? 30000)
-    if (activitySource === 'agent') {
-      await this.runAgentActivity(
-        normalizedSessionId,
-        { kind: 'navigation', action: 'navigate' },
-        navigate
-      )
-    } else {
-      await navigate()
-    }
-
-    state.updatedAt = Date.now()
-    this.emitWindowUpdated(normalizedSessionId)
-    return this.toStatus(state)
   }
 
   async attachSessionBrowser(sessionId: string, hostWindowId: number): Promise<boolean> {
@@ -464,33 +515,40 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     method: string,
     params?: Record<string, unknown>,
     activitySource?: YoBrowserActivitySource,
-    agentRunId?: string
+    agentRunId?: string,
+    beforeDispatch?: () => void
   ): Promise<unknown> {
     const state = this.sessionBrowsers.get(sessionId)
     if (!state) {
       throw new Error(`Session browser ${sessionId} is not initialized`)
     }
 
-    if (activitySource === 'agent') {
-      this.updateOwner(state, activitySource, agentRunId)
-      if (!state.visible) {
-        this.ensurePreviewHost(state)
-      }
-      const windowId = state.attachedWindowId ?? this.resolveHostWindowId()
-      if (windowId != null) {
-        this.emitOpenRequested(sessionId, windowId, state.page.url, 'agent', state.agentRunId)
-      }
-      this.emitWindowUpdated(sessionId)
-    }
-
     const descriptor = this.describeCdpActivity(method, params)
+    const projectDispatch = () => {
+      if (activitySource !== 'agent') return
+      this.runPostDispatchProjection(sessionId, `CDP ${method}`, () => {
+        state.targetDispatchObserved = true
+        this.updateOwner(state, activitySource, agentRunId)
+        if (!state.visible) {
+          this.ensurePreviewHost(state)
+        }
+        const windowId = state.attachedWindowId ?? this.resolveHostWindowId()
+        if (windowId != null) {
+          this.emitOpenRequested(sessionId, windowId, state.page.url, 'agent', state.agentRunId)
+        }
+        this.emitWindowUpdated(sessionId)
+      })
+    }
     if (activitySource === 'agent' && descriptor) {
-      return await this.runAgentActivity(sessionId, descriptor, () =>
-        state.page.sendCdpCommand(method, params)
+      return await this.runAgentActivity(sessionId, descriptor, (startActivity) =>
+        state.page.sendCdpCommand(method, params, beforeDispatch, () => {
+          projectDispatch()
+          startActivity()
+        })
       )
     }
 
-    return await state.page.sendCdpCommand(method, params)
+    return await state.page.sendCdpCommand(method, params, beforeDispatch, projectDispatch)
   }
 
   async startDownload(url: string, savePath?: string): Promise<DownloadInfo> {
@@ -578,13 +636,39 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       previewEpoch: 0,
       previewClaimSequence: 0,
       previewSequence: 0,
-      previewBurstUntil: 0
+      previewBurstUntil: 0,
+      targetDispatchObserved: false,
+      createdEventPublished: false
     }
 
     this.sessionBrowsers.set(sessionId, state)
     this.setupPageListeners(state, view.webContents)
-    this.emitWindowCreated(sessionId)
     return state
+  }
+
+  private discardUnpublishedSessionBrowser(state: SessionBrowserState): void {
+    if (state.createdEventPublished || this.sessionBrowsers.get(state.sessionId) !== state) {
+      return
+    }
+
+    this.sessionBrowsers.delete(state.sessionId)
+    state.page.destroy()
+    state.overlay.destroy()
+    if (!state.view.webContents.isDestroyed()) {
+      try {
+        state.view.webContents.close()
+      } catch {
+        // Ignore view shutdown failures.
+      }
+    }
+  }
+
+  private runPostDispatchProjection(sessionId: string, action: string, project: () => void): void {
+    try {
+      project()
+    } catch (error) {
+      logger.warn('[YoBrowser] Post-dispatch projection failed', { sessionId, action, error })
+    }
   }
 
   private async runBrowserDataMutation<T>(mutation: () => Promise<T>): Promise<T> {
@@ -1012,11 +1096,19 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   private emitWindowUpdated(sessionId: string): void {
-    const status = this.toStatus(this.sessionBrowsers.get(sessionId) ?? null)
+    const state = this.sessionBrowsers.get(sessionId)
+    if (!state?.targetDispatchObserved) {
+      return
+    }
+    if (!state.createdEventPublished) {
+      this.emitWindowCreated(sessionId)
+      state.createdEventPublished = true
+    }
+    const status = this.toStatus(state)
     this.publishEvent('browser.status.changed', {
       sessionId,
       reason: 'updated',
-      windowId: this.sessionBrowsers.get(sessionId)?.attachedWindowId ?? null,
+      windowId: state.attachedWindowId,
       status,
       version: Date.now()
     })
@@ -1056,17 +1148,32 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private async runAgentActivity<T>(
     sessionId: string,
     descriptor: BrowserActivityDescriptor,
-    run: () => Promise<T>
+    run: (startActivity: () => void) => Promise<T>
   ): Promise<T> {
     const activityId = nanoid(10)
-    this.emitBrowserActivity(sessionId, activityId, descriptor, 'started')
+    let started = false
+    const startActivity = () => {
+      if (started) return
+      started = true
+      this.runPostDispatchProjection(sessionId, `${descriptor.action} activity`, () => {
+        this.emitBrowserActivity(sessionId, activityId, descriptor, 'started')
+      })
+    }
 
     try {
-      const result = await run()
-      this.emitBrowserActivity(sessionId, activityId, descriptor, 'completed')
+      const result = await run(startActivity)
+      if (started) {
+        this.runPostDispatchProjection(sessionId, `${descriptor.action} completion`, () => {
+          this.emitBrowserActivity(sessionId, activityId, descriptor, 'completed')
+        })
+      }
       return result
     } catch (error) {
-      this.emitBrowserActivity(sessionId, activityId, descriptor, 'failed')
+      if (started) {
+        this.runPostDispatchProjection(sessionId, `${descriptor.action} failure`, () => {
+          this.emitBrowserActivity(sessionId, activityId, descriptor, 'failed')
+        })
+      }
       throw error
     }
   }

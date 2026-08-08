@@ -84,7 +84,8 @@ export class SkillTools {
 
   async handleSkillManage(
     conversationId: string | undefined,
-    request: SkillManageRequest
+    request: SkillManageRequest,
+    options: { beforeMutation?: () => void } = {}
   ): Promise<SkillManageResult> {
     if (!conversationId) {
       return {
@@ -94,6 +95,8 @@ export class SkillTools {
       }
     }
 
-    return await this.skillService.manageDraftSkill(conversationId, request)
+    return options.beforeMutation
+      ? await this.skillService.manageDraftSkill(conversationId, request, options)
+      : await this.skillService.manageDraftSkill(conversationId, request)
   }
 }

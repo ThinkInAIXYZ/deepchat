@@ -16,6 +16,8 @@ import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 
 // Configuration with environment variable support
 const FOREGROUND_PREVIEW_CHARS = 12000
+const FINISHED_SESSION_RETENTION_MS = 5 * 60 * 1000
+const COMPLETED_SESSION_RECONCILIATION_MS = 5 * 60 * 1000
 
 export const getBackgroundExecConfig = () => ({
   backgroundMs: parseInt(process.env.PI_BASH_YIELD_MS || '10000', 10),
@@ -75,6 +77,7 @@ interface BackgroundSession {
   outputFilePath: string | null
   outputWriteQueue: Promise<void>
   totalOutputLength: number
+  previewChars: number
   offloadThresholdChars: number
   offloadDisabled: boolean
   stdoutEof: boolean
@@ -157,6 +160,26 @@ interface TrackedSessionMeta {
   lastAccessedAt: number
 }
 
+interface CompletedTrackedSessionMeta extends TrackedSessionMeta {
+  status: SessionCompletionResult['status']
+  exitCode?: number
+  outputLength: number
+  offloaded: boolean
+  timedOut: boolean
+}
+
+function isMissingUtilitySessionError(
+  error: unknown,
+  conversationId: string,
+  sessionId: string
+): boolean {
+  if (!(error instanceof Error)) return false
+  return (
+    error.message === `Session ${sessionId} not found` ||
+    error.message === `No sessions found for conversation ${conversationId}`
+  )
+}
+
 export class BackgroundExecSessionManager {
   private sessions = new Map<string, Map<string, BackgroundSession>>()
   private cleanupIntervalId?: NodeJS.Timeout
@@ -173,6 +196,7 @@ export class BackgroundExecSessionManager {
       timeout?: number
       env?: Record<string, string>
       outputPrefix?: string
+      previewChars?: number
       offloadThresholdChars?: number
     }
   ): Promise<StartSessionResult> {
@@ -218,6 +242,7 @@ export class BackgroundExecSessionManager {
       outputFilePath,
       outputWriteQueue: Promise.resolve(),
       totalOutputLength: 0,
+      previewChars: Math.max(1, Math.round(options?.previewChars ?? config.maxOutputChars)),
       offloadThresholdChars: Math.min(
         config.offloadThresholdChars,
         Math.max(1, Math.round(options?.offloadThresholdChars ?? config.offloadThresholdChars))
@@ -269,16 +294,23 @@ export class BackgroundExecSessionManager {
     }))
   }
 
-  async poll(conversationId: string, sessionId: string): Promise<PollResult> {
+  async poll(
+    conversationId: string,
+    sessionId: string,
+    previewChars?: number
+  ): Promise<PollResult> {
     const session = this.getSession(conversationId, sessionId)
     session.lastAccessedAt = Date.now()
     await this.waitForSessionDrain(session)
 
-    const config = getConfig()
+    const maxChars = Math.max(
+      1,
+      Math.round(previewChars ?? session.previewChars ?? getConfig().maxOutputChars)
+    )
     const isOffloaded = this.hasPersistedOutput(session)
 
     if (isOffloaded && session.outputFilePath) {
-      const output = this.getRecentOutputFromSession(session, config.maxOutputChars)
+      const output = this.getRecentOutputFromSession(session, maxChars)
       return {
         status: session.status,
         output,
@@ -289,7 +321,7 @@ export class BackgroundExecSessionManager {
       }
     }
 
-    const output = this.getRecentOutput(session.outputBuffer, config.maxOutputChars)
+    const output = this.getRecentOutput(session.outputBuffer, maxChars)
     return {
       status: session.status,
       output,
@@ -384,7 +416,13 @@ export class BackgroundExecSessionManager {
     return this.buildCompletionResult(session, previewChars)
   }
 
-  write(conversationId: string, sessionId: string, data: string, eof = false): void {
+  write(
+    conversationId: string,
+    sessionId: string,
+    data: string,
+    eof = false,
+    beforeMutation?: () => void
+  ): void {
     const session = this.getSession(conversationId, sessionId)
 
     if (session.status !== 'running') {
@@ -395,6 +433,7 @@ export class BackgroundExecSessionManager {
       throw new Error(`Session ${sessionId} stdin is not available`)
     }
 
+    beforeMutation?.()
     session.child.stdin.write(data)
     if (eof) {
       session.child.stdin.end()
@@ -403,14 +442,21 @@ export class BackgroundExecSessionManager {
     session.lastAccessedAt = Date.now()
   }
 
-  async kill(conversationId: string, sessionId: string): Promise<void> {
+  async kill(
+    conversationId: string,
+    sessionId: string,
+    beforeMutation?: () => void
+  ): Promise<void> {
     const session = this.getSession(conversationId, sessionId)
+    if (session.status !== 'running') return
+    beforeMutation?.()
     await this.killInternal(session, 'user')
   }
 
-  clear(conversationId: string, sessionId: string): void {
+  clear(conversationId: string, sessionId: string, beforeMutation?: () => void): void {
     const session = this.getSession(conversationId, sessionId)
 
+    beforeMutation?.()
     session.outputBuffer = ''
     session.totalOutputLength = 0
 
@@ -421,7 +467,11 @@ export class BackgroundExecSessionManager {
     session.lastAccessedAt = Date.now()
   }
 
-  async remove(conversationId: string, sessionId: string): Promise<void> {
+  async remove(
+    conversationId: string,
+    sessionId: string,
+    beforeMutation?: () => void
+  ): Promise<void> {
     const conversationSessions = this.sessions.get(conversationId)
     if (!conversationSessions) {
       throw new Error(`No sessions found for conversation ${conversationId}`)
@@ -432,6 +482,7 @@ export class BackgroundExecSessionManager {
       throw new Error(`Session ${sessionId} not found`)
     }
 
+    beforeMutation?.()
     if (session.status === 'running') {
       await this.killInternal(session, 'remove')
     } else {
@@ -911,7 +962,10 @@ export class BackgroundExecSessionManager {
       for (const [sessionId, session] of sessions) {
         if (now - session.lastAccessedAt > config.cleanupMs) {
           expiredSessions.push({ conversationId, sessionId })
-        } else if (session.status !== 'running' && now - session.lastAccessedAt > 5 * 60 * 1000) {
+        } else if (
+          session.status !== 'running' &&
+          now - session.lastAccessedAt > FINISHED_SESSION_RETENTION_MS
+        ) {
           expiredSessions.push({ conversationId, sessionId })
         }
       }
@@ -939,7 +993,9 @@ class BackgroundExecUtilityProxy {
     }
   >()
   private readonly activeSessions = new Map<string, TrackedSessionMeta>()
+  private readonly completedSessions = new Map<string, CompletedTrackedSessionMeta>()
   private readonly crashedSessions = new Map<string, TrackedSessionMeta>()
+  private completedSessionReconciliationTimer: NodeJS.Timeout | null = null
 
   async start(
     conversationId: string,
@@ -949,6 +1005,7 @@ class BackgroundExecUtilityProxy {
       timeout?: number
       env?: Record<string, string>
       outputPrefix?: string
+      previewChars?: number
       offloadThresholdChars?: number
     }
   ): Promise<StartSessionResult> {
@@ -965,19 +1022,43 @@ class BackgroundExecUtilityProxy {
       createdAt: Date.now(),
       lastAccessedAt: Date.now()
     })
+    this.completedSessions.delete(result.sessionId)
+    this.crashedSessions.delete(result.sessionId)
+    this.stopCompletedSessionReconciliationIfIdle()
     return result
   }
 
   async list(conversationId: string): Promise<SessionMeta[]> {
+    const completedAtListStart = new Map(this.completedSessions)
     const active = Array.from(this.activeSessions.values())
       .filter((session) => session.conversationId === conversationId)
       .map((session) => this.toActiveSessionMeta(session))
-    const hostSessions = this.host
-      ? await this.request<SessionMeta[]>('list', [conversationId]).catch((error) => {
-          logger.warn('[BackgroundExecProxy] Failed to list utility sessions:', error)
-          return active
-        })
-      : active
+    const completed = Array.from(completedAtListStart.values())
+      .filter((session) => session.conversationId === conversationId)
+      .map((session) => this.toCompletedSessionMeta(session))
+    let hostListSucceeded = false
+    let hostSessions = [...active, ...completed]
+    if (this.host) {
+      try {
+        hostSessions = await this.request<SessionMeta[]>('list', [conversationId])
+        hostListSucceeded = true
+      } catch (error) {
+        logger.warn('[BackgroundExecProxy] Failed to list utility sessions:', error)
+      }
+    }
+    if (hostListSucceeded) {
+      const hostSessionIds = new Set(hostSessions.map((session) => session.sessionId))
+      for (const [sessionId, session] of completedAtListStart) {
+        if (
+          session.conversationId === conversationId &&
+          !hostSessionIds.has(sessionId) &&
+          this.completedSessions.get(sessionId) === session
+        ) {
+          this.completedSessions.delete(sessionId)
+        }
+      }
+      this.stopCompletedSessionReconciliationIfIdle()
+    }
     const crashed = Array.from(this.crashedSessions.values())
       .filter((session) => session.conversationId === conversationId)
       .map((session) => this.toCrashedSessionMeta(session))
@@ -992,13 +1073,21 @@ class BackgroundExecUtilityProxy {
     })
   }
 
-  async poll(conversationId: string, sessionId: string): Promise<PollResult> {
+  async poll(
+    conversationId: string,
+    sessionId: string,
+    previewChars?: number
+  ): Promise<PollResult> {
     const crashed = this.getCrashedSession(conversationId, sessionId)
     if (crashed) {
       return this.toCrashedPollResult(crashed)
     }
-    const result = await this.request<PollResult>('poll', [conversationId, sessionId])
-    this.touchOrCompleteSession(conversationId, sessionId, result.status)
+    const args =
+      previewChars === undefined
+        ? [conversationId, sessionId]
+        : [conversationId, sessionId, previewChars]
+    const result = await this.request<PollResult>('poll', args)
+    this.touchOrCompleteSession(conversationId, sessionId, result)
     return result
   }
 
@@ -1016,7 +1105,7 @@ class BackgroundExecUtilityProxy {
       }
     }
     const result = await this.request<LogResult>('log', [conversationId, sessionId, offset, limit])
-    this.touchOrCompleteSession(conversationId, sessionId, result.status)
+    this.touchOrCompleteSession(conversationId, sessionId, result)
     return result
   }
 
@@ -1041,7 +1130,7 @@ class BackgroundExecUtilityProxy {
       previewChars
     ])
     if (result.kind === 'completed') {
-      this.activeSessions.delete(sessionId)
+      this.markSessionCompleted(conversationId, sessionId, result.result)
     }
     return result
   }
@@ -1061,29 +1150,87 @@ class BackgroundExecUtilityProxy {
       sessionId,
       previewChars
     ])
-    this.activeSessions.delete(sessionId)
+    this.markSessionCompleted(conversationId, sessionId, result)
     return result
   }
 
-  async write(conversationId: string, sessionId: string, data: string, eof = false): Promise<void> {
+  async write(
+    conversationId: string,
+    sessionId: string,
+    data: string,
+    eof = false,
+    beforeMutation?: () => void
+  ): Promise<void> {
+    this.assertTrackedSessionOwner(conversationId, sessionId)
+    if (
+      this.getCrashedSession(conversationId, sessionId) ||
+      this.getCompletedSession(conversationId, sessionId)
+    ) {
+      throw new Error(`Session ${sessionId} is not running`)
+    }
+    beforeMutation?.()
     await this.request('write', [conversationId, sessionId, data, eof])
   }
 
-  async kill(conversationId: string, sessionId: string): Promise<void> {
+  async kill(
+    conversationId: string,
+    sessionId: string,
+    beforeMutation?: () => void
+  ): Promise<void> {
+    this.assertTrackedSessionOwner(conversationId, sessionId)
+    if (this.getCrashedSession(conversationId, sessionId)) return
+    if (this.getCompletedSession(conversationId, sessionId)) return
+    beforeMutation?.()
     await this.request('kill', [conversationId, sessionId])
   }
 
-  async clear(conversationId: string, sessionId: string): Promise<void> {
-    await this.request('clear', [conversationId, sessionId])
+  async clear(
+    conversationId: string,
+    sessionId: string,
+    beforeMutation?: () => void
+  ): Promise<void> {
+    this.assertTrackedSessionOwner(conversationId, sessionId)
+    if (this.getCrashedSession(conversationId, sessionId)) return
+    const completed = this.getCompletedSession(conversationId, sessionId)
+    beforeMutation?.()
+    try {
+      await this.request('clear', [conversationId, sessionId])
+      if (completed && this.completedSessions.get(sessionId) === completed) {
+        this.completedSessions.set(sessionId, {
+          ...completed,
+          outputLength: 0,
+          offloaded: false,
+          lastAccessedAt: Date.now()
+        })
+      }
+    } catch (error) {
+      if (!completed || !isMissingUtilitySessionError(error, conversationId, sessionId)) throw error
+      this.completedSessions.delete(sessionId)
+      this.stopCompletedSessionReconciliationIfIdle()
+    }
   }
 
-  async remove(conversationId: string, sessionId: string): Promise<void> {
-    this.activeSessions.delete(sessionId)
+  async remove(
+    conversationId: string,
+    sessionId: string,
+    beforeMutation?: () => void
+  ): Promise<void> {
+    this.assertTrackedSessionOwner(conversationId, sessionId)
     if (this.getCrashedSession(conversationId, sessionId)) {
+      beforeMutation?.()
       this.crashedSessions.delete(sessionId)
       return
     }
-    await this.request('remove', [conversationId, sessionId])
+    const completed = this.getCompletedSession(conversationId, sessionId)
+    beforeMutation?.()
+    try {
+      await this.request('remove', [conversationId, sessionId])
+    } catch (error) {
+      if (!completed || !isMissingUtilitySessionError(error, conversationId, sessionId)) throw error
+    }
+    this.activeSessions.delete(sessionId)
+    this.completedSessions.delete(sessionId)
+    this.stopCompletedSessionReconciliationIfIdle()
   }
 
   async cleanupConversation(conversationId: string): Promise<void> {
@@ -1097,6 +1244,12 @@ class BackgroundExecUtilityProxy {
         this.crashedSessions.delete(sessionId)
       }
     }
+    for (const [sessionId, session] of this.completedSessions) {
+      if (session.conversationId === conversationId) {
+        this.completedSessions.delete(sessionId)
+      }
+    }
+    this.stopCompletedSessionReconciliationIfIdle()
     await this.request('cleanupConversation', [conversationId])
   }
 
@@ -1107,11 +1260,14 @@ class BackgroundExecUtilityProxy {
         await this.request('shutdown', [])
       }
     } finally {
+      this.stopCompletedSessionReconciliation()
       this.host?.kill()
       this.host = null
       this.hostReady = null
       this.rejectPendingRequests(new Error('Background exec utility process shut down.'))
       this.activeSessions.clear()
+      this.completedSessions.clear()
+      this.crashedSessions.clear()
     }
   }
 
@@ -1190,6 +1346,7 @@ class BackgroundExecUtilityProxy {
       const onSpawn = () => {
         settle(() => {
           this.host = host
+          this.scheduleCompletedSessionReconciliation()
           resolve(host)
         })
       }
@@ -1257,6 +1414,7 @@ class BackgroundExecUtilityProxy {
     this.host = null
     this.hostReady = null
     this.activeSessions.clear()
+    this.stopCompletedSessionReconciliation()
     this.rejectPendingRequests(error)
   }
 
@@ -1267,8 +1425,26 @@ class BackgroundExecUtilityProxy {
     this.pendingRequests.clear()
   }
 
+  private assertTrackedSessionOwner(conversationId: string, sessionId: string): void {
+    const tracked =
+      this.activeSessions.get(sessionId) ??
+      this.completedSessions.get(sessionId) ??
+      this.crashedSessions.get(sessionId)
+    if (!tracked || tracked.conversationId !== conversationId) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+  }
+
   private getCrashedSession(conversationId: string, sessionId: string): TrackedSessionMeta | null {
     const session = this.crashedSessions.get(sessionId)
+    return session?.conversationId === conversationId ? session : null
+  }
+
+  private getCompletedSession(
+    conversationId: string,
+    sessionId: string
+  ): CompletedTrackedSessionMeta | null {
+    const session = this.completedSessions.get(sessionId)
     return session?.conversationId === conversationId ? session : null
   }
 
@@ -1281,24 +1457,85 @@ class BackgroundExecUtilityProxy {
       return null
     }
     session.lastAccessedAt = Date.now()
-    this.activeSessions.delete(sessionId)
     return this.toCrashedCompletionResult(session)
   }
 
   private touchOrCompleteSession(
     conversationId: string,
     sessionId: string,
-    status: PollResult['status']
+    result: PollResult | LogResult
   ): void {
     const session = this.activeSessions.get(sessionId)
     if (!session || session.conversationId !== conversationId) {
       return
     }
-    if (status === 'running') {
+    if (result.status === 'running') {
       session.lastAccessedAt = Date.now()
       return
     }
+    this.markSessionCompleted(conversationId, sessionId, result)
+  }
+
+  private markSessionCompleted(
+    conversationId: string,
+    sessionId: string,
+    result: SessionCompletionResult | PollResult | LogResult
+  ): void {
+    const session = this.activeSessions.get(sessionId)
+    if (!session || session.conversationId !== conversationId || result.status === 'running') {
+      return
+    }
     this.activeSessions.delete(sessionId)
+    this.completedSessions.set(sessionId, {
+      ...session,
+      status: result.status,
+      ...(typeof result.exitCode === 'number' ? { exitCode: result.exitCode } : {}),
+      outputLength: 'totalLength' in result ? result.totalLength : result.output.length,
+      offloaded: result.offloaded === true,
+      timedOut: result.timedOut === true,
+      lastAccessedAt: Date.now()
+    })
+    this.scheduleCompletedSessionReconciliation()
+  }
+
+  private scheduleCompletedSessionReconciliation(): void {
+    if (
+      this.completedSessionReconciliationTimer ||
+      this.completedSessions.size === 0 ||
+      !this.host ||
+      this.shuttingDown
+    ) {
+      return
+    }
+    this.completedSessionReconciliationTimer = setTimeout(() => {
+      this.completedSessionReconciliationTimer = null
+      void this.reconcileCompletedSessions().catch((error) => {
+        logger.warn('[BackgroundExecProxy] Failed to reconcile completed sessions:', error)
+      })
+    }, COMPLETED_SESSION_RECONCILIATION_MS)
+    this.completedSessionReconciliationTimer.unref?.()
+  }
+
+  private async reconcileCompletedSessions(): Promise<void> {
+    if (!this.host || this.completedSessions.size === 0) return
+    const conversationIds = new Set(
+      Array.from(this.completedSessions.values(), (session) => session.conversationId)
+    )
+    try {
+      await Promise.all(Array.from(conversationIds, (conversationId) => this.list(conversationId)))
+    } finally {
+      this.scheduleCompletedSessionReconciliation()
+    }
+  }
+
+  private stopCompletedSessionReconciliationIfIdle(): void {
+    if (this.completedSessions.size === 0) this.stopCompletedSessionReconciliation()
+  }
+
+  private stopCompletedSessionReconciliation(): void {
+    if (!this.completedSessionReconciliationTimer) return
+    clearTimeout(this.completedSessionReconciliationTimer)
+    this.completedSessionReconciliationTimer = null
   }
 
   private toCrashedSessionMeta(session: TrackedSessionMeta): SessionMeta {
@@ -1324,6 +1561,20 @@ class BackgroundExecUtilityProxy {
       outputLength: 0,
       offloaded: false,
       timedOut: false
+    }
+  }
+
+  private toCompletedSessionMeta(session: CompletedTrackedSessionMeta): SessionMeta {
+    return {
+      sessionId: session.sessionId,
+      command: session.command,
+      status: session.status,
+      createdAt: session.createdAt,
+      lastAccessedAt: session.lastAccessedAt,
+      ...(session.exitCode === undefined ? {} : { exitCode: session.exitCode }),
+      outputLength: session.outputLength,
+      offloaded: session.offloaded,
+      timedOut: session.timedOut
     }
   }
 

@@ -146,7 +146,10 @@ export class AgentMemoryToolHandler {
   async call(
     toolName: string,
     rawArgs: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options: {
+      beforeMutation?: (normalizedArguments: Record<string, unknown>) => void
+    } = {}
   ): Promise<AgentToolCallResult> {
     if (!this.isMemoryTool(toolName)) {
       throw new Error(`Unknown memory tool: ${toolName}`)
@@ -178,7 +181,8 @@ export class AgentMemoryToolHandler {
           importance: args.importance
         },
         conversationId,
-        session ? { providerId: session.providerId, modelId: session.modelId } : null
+        session ? { providerId: session.providerId, modelId: session.modelId } : null,
+        options.beforeMutation ? () => options.beforeMutation?.(args) : undefined
       )
       if (outcome.action === 'noop' && outcome.reason === 'forgotten') {
         return createMemoryResult(
@@ -204,7 +208,11 @@ export class AgentMemoryToolHandler {
     }
 
     const args = memoryToolSchemas[MEMORY_TOOL_NAMES.forget].parse(rawArgs)
-    const result = await this.memory.forgetMemory(agentId, args.memoryId)
+    const result = await this.memory.forgetMemory(
+      agentId,
+      args.memoryId,
+      options.beforeMutation ? () => options.beforeMutation?.(args) : undefined
+    )
     const ok = result.action === 'applied'
     return createMemoryResult(
       toolName,

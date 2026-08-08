@@ -206,6 +206,51 @@ describe('McpService', () => {
     })
   })
 
+  it('preserves a known MCP result when cancellation arrives before result preparation', async () => {
+    const abortController = new AbortController()
+    const providerSettings = createProviderSettings(true, false, {
+      remote: { type: 'http' }
+    })
+    const cacheImage = vi.fn().mockResolvedValue('imgcache://should-not-run.png')
+    toolManagerMocks.callTool.mockImplementation(async (_request, options) => {
+      options?.commitDispatch?.({
+        toolName: 'mutate',
+        toolSource: 'mcp',
+        normalizedArguments: {},
+        target: { serverName: 'remote', originalName: 'mutate' }
+      })
+      abortController.abort()
+      return {
+        toolCallId: 'known-result',
+        content: 'known result',
+        isError: false
+      }
+    })
+    const presenter = createMcpService(providerSettings, undefined, undefined, cacheImage)
+
+    await expect(
+      presenter.callTool(
+        {
+          id: 'known-result',
+          type: 'function',
+          function: { name: 'mutate', arguments: '{}' },
+          server: { name: 'remote', icons: '', description: '' }
+        },
+        { signal: abortController.signal, commitDispatch: vi.fn() }
+      )
+    ).resolves.toEqual({
+      content: 'known result',
+      rawData: {
+        toolCallId: 'known-result',
+        content: 'known result',
+        isError: false
+      }
+    })
+
+    expect(providerSettings.getMcpServers).not.toHaveBeenCalled()
+    expect(cacheImage).not.toHaveBeenCalled()
+  })
+
   afterEach(() => {
     vi.clearAllTimers()
     vi.useRealTimers()

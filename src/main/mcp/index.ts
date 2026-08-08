@@ -26,10 +26,13 @@ import {
   type MCPToolCall,
   type MCPToolDefinition,
   type MCPToolResponse,
+  type ToolDispatchCommit,
+  type ToolOutcomeProjectionRegistrar,
   type PromptListEntry,
   type Resource,
   type ResourceListEntry
 } from '@shared/types/mcp'
+import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import { ServerManager } from './serverManager'
 import type { McpClient as RuntimeMcpClient } from './mcpClient'
@@ -1241,35 +1244,59 @@ export class McpService implements McpServicePort {
       enabledServerIds?: string[]
       runId?: string
       expectedTarget?: McpExpectedToolTarget
+      commitDispatch?: ToolDispatchCommit
+      registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
     }
   ): Promise<{ content: string; rawData: MCPToolResponse }> {
-    const toolCallResult = await this.toolManager.callTool(request, options)
-    options?.signal?.throwIfAborted()
-    const serverName = request.server?.name
-    const serverConfig = serverName
-      ? (await awaitWithAbort(this.mcpSettings.getMcpServers(), options?.signal))[serverName]
-      : undefined
-    const allowPrivateNetwork =
-      serverConfig?.type === 'stdio' ||
-      serverConfig?.type === 'inmemory' ||
-      Boolean(serverName && this.pluginRuntimeSupervisor.ownsServer(serverName))
-    const cacheImage = this.cacheImage
-    const preparedImages = await prepareToolCallImageContent({
-      toolName: request.function.name,
-      toolArgs: request.function.arguments,
-      content: toolCallResult.content,
-      cacheImage: cacheImage
-        ? (data) =>
-            cacheImage(data, {
-              signal: options?.signal,
-              allowPrivateNetwork
-            })
-        : undefined,
-      signal: options?.signal
-    })
-    const imagePreviews = preparedImages.imagePreviews
-    const normalizedContent = preparedImages.content
-    options?.signal?.throwIfAborted()
+    let dispatchCommitted = false
+    const toolCallResult = await this.toolManager.callTool(
+      request,
+      options?.commitDispatch
+        ? {
+            ...options,
+            commitDispatch: (input) => {
+              options.commitDispatch?.(input)
+              dispatchCommitted = true
+            }
+          }
+        : options
+    )
+    if (!dispatchCommitted) {
+      options?.signal?.throwIfAborted()
+    }
+    let normalizedContent = toolCallResult.content
+    let imagePreviews: ToolCallImagePreview[] = []
+
+    if (!options?.signal?.aborted) {
+      try {
+        const serverName = request.server?.name
+        const serverConfig = serverName
+          ? (await awaitWithAbort(this.mcpSettings.getMcpServers(), options?.signal))[serverName]
+          : undefined
+        const allowPrivateNetwork =
+          serverConfig?.type === 'stdio' ||
+          serverConfig?.type === 'inmemory' ||
+          Boolean(serverName && this.pluginRuntimeSupervisor.ownsServer(serverName))
+        const cacheImage = this.cacheImage
+        const preparedImages = await prepareToolCallImageContent({
+          toolName: request.function.name,
+          toolArgs: request.function.arguments,
+          content: toolCallResult.content,
+          cacheImage: cacheImage
+            ? (data) =>
+                cacheImage(data, {
+                  signal: options?.signal,
+                  allowPrivateNetwork
+                })
+            : undefined,
+          signal: options?.signal
+        })
+        imagePreviews = preparedImages.imagePreviews
+        normalizedContent = preparedImages.content
+      } catch (error) {
+        if (!dispatchCommitted || !options?.signal?.aborted) throw error
+      }
+    }
 
     // Format tool call results into strings that are easy for large models to parse
     let formattedContent = ''
@@ -1309,6 +1336,10 @@ export class McpService implements McpServicePort {
     // Add error marker (if any)
     if (toolCallResult.isError) {
       formattedContent = `Error: ${formattedContent}`
+    }
+
+    if (!dispatchCommitted) {
+      options?.signal?.throwIfAborted()
     }
 
     return {

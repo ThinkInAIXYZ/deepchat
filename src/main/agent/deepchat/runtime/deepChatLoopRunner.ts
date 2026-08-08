@@ -18,6 +18,7 @@ import type {
   DeepChatTapeViewTaskType,
   DeepChatTapeViewTokenBudget
 } from '@shared/types/tape-view-manifest'
+import { randomUUID } from 'node:crypto'
 import { getReasoningEffectiveEnabledForProvider } from '@shared/types/model-db'
 import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
 import { nanoid } from 'nanoid'
@@ -60,6 +61,11 @@ import {
   type TapeViewContextSelection
 } from '@/tape/domain/viewManifest'
 import type { DeepChatLoopTapePort } from '@/tape/ports/capabilities'
+import {
+  ExecutionJournalCorruptionError,
+  ExecutionJournalError,
+  isExecutionJournalError
+} from '@/tape/domain/executionJournal'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { RuntimeHookSink } from './runtimeHookSink'
 import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
@@ -68,6 +74,7 @@ import type {
   DeepChatSessionUpdatePublisher,
   InterleavedReasoningConfig,
   ProcessResult,
+  ProcessTerminalSelection,
   StreamState
 } from '@/agent/deepchat/runtime/types'
 import { createState } from '@/agent/deepchat/runtime/types'
@@ -103,6 +110,41 @@ import type { PromptAssemblyService } from './promptAssemblyService'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { ToolPermissionReviewer } from './toolRuntimeBindings'
+import { CommittedRunProjectionError } from './runTerminalProjectionError'
+
+function wrapTerminalCommitFailure(
+  executionError: unknown,
+  terminalCommitError: unknown
+): ExecutionJournalError {
+  const terminalFailureCause = isExecutionJournalError(terminalCommitError)
+    ? terminalCommitError.cause
+    : terminalCommitError
+  const combinedCause =
+    terminalFailureCause === undefined || terminalFailureCause === executionError
+      ? executionError
+      : new AggregateError(
+          [executionError, terminalFailureCause],
+          'Run execution and terminal commit both failed.'
+        )
+
+  if (terminalCommitError instanceof ExecutionJournalCorruptionError) {
+    return new ExecutionJournalCorruptionError(terminalCommitError.message, {
+      cause: combinedCause
+    })
+  }
+  if (isExecutionJournalError(terminalCommitError)) {
+    return new ExecutionJournalError(terminalCommitError.message, terminalCommitError.code, {
+      cause: combinedCause
+    })
+  }
+  return new ExecutionJournalError(
+    terminalCommitError instanceof Error
+      ? terminalCommitError.message
+      : String(terminalCommitError),
+    'persistence_failed',
+    { cause: combinedCause }
+  )
+}
 
 type LoopRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
@@ -251,6 +293,38 @@ function buildProviderContextOverflowAfterRecoveryErrorMessage(
   ].join(' ')
 }
 
+function selectProcessTerminal(result: ProcessResult): ProcessTerminalSelection {
+  let stopReason = result.stopReason
+  if (!stopReason) {
+    switch (result.status) {
+      case 'paused':
+        stopReason = 'interaction'
+        break
+      case 'aborted':
+        stopReason = 'user_stop'
+        break
+      case 'error':
+        stopReason = result.terminalError ? 'tool_error' : 'provider_error'
+        break
+      case 'completed':
+        stopReason = 'complete'
+        break
+    }
+  }
+
+  const errorMessage =
+    result.status === 'error'
+      ? (result.terminalError ?? result.errorMessage ?? 'Unknown error')
+      : result.status === 'aborted'
+        ? result.errorMessage
+        : undefined
+  return {
+    outcome: result.status,
+    stopReason,
+    ...(errorMessage === undefined ? {} : { errorMessage })
+  }
+}
+
 export function buildTapeViewSelection(
   metadata: ContextBuildMetadata,
   newUserMessageId?: string | null
@@ -266,8 +340,6 @@ export function buildTapeViewSelection(
 }
 
 export class DeepChatLoopRunner {
-  private nextRunSequence = 0
-
   constructor(private readonly ports: DeepChatLoopRunnerPorts) {}
 
   async run(args: DeepChatLoopRunInput): Promise<{ runId: string; result: ProcessResult }> {
@@ -412,7 +484,7 @@ export class DeepChatLoopRunner {
 
     abortController.signal.throwIfAborted()
     const loopRun = createLoopRun<StreamState>({
-      runId: `${sessionId}:${++this.nextRunSequence}`,
+      runId: randomUUID(),
       sessionId: toAppSessionId(sessionId),
       messageId,
       abortController,
@@ -424,31 +496,84 @@ export class DeepChatLoopRunner {
       },
       initialRequestSeq
     })
-    const activeGeneration = this.ports.runLifecycle.registerRun(resourceScope, loopRun)
-    onRunRegistered?.(activeGeneration.runId)
-    const rateLimitMessageId = `${RATE_LIMIT_STREAM_MESSAGE_PREFIX}${activeGeneration.runId}`
-    let crossedPreStreamBoundary = false
-    const crossPreStreamBoundary = () => {
-      if (crossedPreStreamBoundary) return
-      crossedPreStreamBoundary = true
-      onBeforeProviderStream?.()
-    }
-    const ports = this.ports
-    const recoverRequestContextPressure = this.recoverRequestContextPressure.bind(this)
-    const appendTapeViewManifest = this.appendTapeViewManifest.bind(this)
-    const persistMessageTrace = this.persistMessageTrace.bind(this)
-    const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
-    const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
-
-    const hooks = this.ports.hookSink.scope({
+    const runStarted = this.ports.tape.commitRunStarted({
       sessionId,
+      runId: loopRun.runId,
       messageId,
-      providerId: state.providerId,
-      modelId: state.modelId,
-      projectDir
+      runKind: 'loop',
+      createdAt: loopRun.startedAt
     })
+    if (!runStarted.created) {
+      throw new ExecutionJournalCorruptionError(
+        `Execution Journal run identity ${loopRun.runId} was already committed.`
+      )
+    }
+
+    let terminalCommitAttempted = false
+    let committedTerminal: ProcessTerminalSelection | null = null
+    const commitRunTerminal = (selection: ProcessTerminalSelection): void => {
+      if (committedTerminal) {
+        if (
+          committedTerminal.outcome === selection.outcome &&
+          committedTerminal.stopReason === selection.stopReason &&
+          committedTerminal.errorMessage === selection.errorMessage
+        ) {
+          return
+        }
+        throw new ExecutionJournalCorruptionError(
+          `Run ${loopRun.runId} selected conflicting terminal outcomes.`
+        )
+      }
+      resourceScope.assertCurrent()
+      if (terminalCommitAttempted) {
+        throw new ExecutionJournalCorruptionError(
+          `Run ${loopRun.runId} repeated a failed terminal commit.`
+        )
+      }
+
+      terminalCommitAttempted = true
+      const receipt = this.ports.tape.commitRunTerminal({
+        sessionId,
+        runId: loopRun.runId,
+        messageId,
+        outcome: selection.outcome,
+        stopReason: selection.stopReason,
+        ...(selection.errorMessage === undefined
+          ? {}
+          : { errorMessage: selection.errorMessage })
+      })
+      if (!receipt.created) {
+        throw new ExecutionJournalCorruptionError(
+          `Execution Journal terminal for Run ${loopRun.runId} already existed.`
+        )
+      }
+      committedTerminal = { ...selection }
+    }
 
     try {
+      const activeGeneration = this.ports.runLifecycle.registerRun(resourceScope, loopRun)
+      onRunRegistered?.(activeGeneration.runId)
+      const rateLimitMessageId = `${RATE_LIMIT_STREAM_MESSAGE_PREFIX}${activeGeneration.runId}`
+      let crossedPreStreamBoundary = false
+      const crossPreStreamBoundary = () => {
+        if (crossedPreStreamBoundary) return
+        crossedPreStreamBoundary = true
+        onBeforeProviderStream?.()
+      }
+      const ports = this.ports
+      const recoverRequestContextPressure = this.recoverRequestContextPressure.bind(this)
+      const appendTapeViewManifest = this.appendTapeViewManifest.bind(this)
+      const persistMessageTrace = this.persistMessageTrace.bind(this)
+      const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
+      const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
+      const hooks = this.ports.hookSink.scope({
+        sessionId,
+        messageId,
+        providerId: state.providerId,
+        modelId: state.modelId,
+        projectDir
+      })
+
       hooks.emit({ event: 'SessionStart', promptPreview })
 
       let reviewConversationMessages = messages
@@ -757,20 +882,52 @@ export class DeepChatLoopRunner {
             })
           }
         },
+        commitRunTerminal,
         io: {
           messageStore: this.ports.messageStore,
           tapeToolFactWriter: this.ports.tape,
+          executionJournalWriter: this.ports.tape,
           publishEvent: this.ports.publishEvent,
           publishSessionUpdate: this.ports.publishSessionUpdate
         }
       })
+      resourceScope.assertCurrent()
+      commitRunTerminal(selectProcessTerminal(result))
       return {
         runId: activeGeneration.runId,
         result
       }
     } catch (error) {
-      this.ports.runLifecycle.clearRun(resourceScope, activeGeneration.runId)
-      throw error
+      let errorToPropagate: unknown =
+        committedTerminal && !isExecutionJournalError(error)
+          ? new CommittedRunProjectionError(loopRun.runId, committedTerminal, { cause: error })
+          : error
+      try {
+        if (!terminalCommitAttempted && resourceScope.isCurrent()) {
+          const aborted = abortSignal.aborted
+          const fallbackTerminal: ProcessTerminalSelection = {
+            outcome: aborted ? 'aborted' : 'error',
+            stopReason: aborted
+              ? 'user_stop'
+              : isContextWindowErrorLike(error)
+                ? 'context_window'
+                : 'pre_stream_error',
+            errorMessage: error instanceof Error ? error.message : String(error)
+          }
+          commitRunTerminal(fallbackTerminal)
+          errorToPropagate = new CommittedRunProjectionError(loopRun.runId, fallbackTerminal, {
+            cause: error
+          })
+        }
+      } catch (terminalCommitError) {
+        errorToPropagate =
+          terminalCommitError === error
+            ? error
+            : wrapTerminalCommitFailure(error, terminalCommitError)
+      } finally {
+        this.ports.runLifecycle.clearRun(resourceScope, loopRun.runId)
+      }
+      throw errorToPropagate
     }
   }
 

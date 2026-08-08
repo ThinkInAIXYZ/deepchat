@@ -20,6 +20,7 @@ import { sanitizeGenerationSettings } from './generationSettings'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
+import type { InteractionParkingRegistry } from './interactionParkingRegistry'
 
 export interface SessionInitConfig {
   agentId?: string
@@ -51,6 +52,7 @@ export interface SessionLifecycleCoordinatorDependencies {
     RunLifecycleCoordinator,
     'cancel' | 'clearFirstTurnReady' | 'cancelScopeOperations' | 'scopeFor'
   >
+  interactionParking: Pick<InteractionParkingRegistry, 'clearSession'>
 }
 
 export class SessionLifecycleCoordinator {
@@ -126,6 +128,7 @@ export class SessionLifecycleCoordinator {
     this.deps.pendingInputs.deleteBySession(sessionId)
     this.deps.transcript.deleteBySession(sessionId)
     this.deps.sessionStore.delete(sessionId)
+    this.deps.interactionParking.clearSession(sessionId)
     instance?.clearOwnedState()
     this.deps.registry.evict(toAppSessionId(sessionId))
     this.deps.memory.finishSessionDestroy(sessionId)

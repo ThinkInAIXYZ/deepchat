@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const sqlitePresenterModule = sqliteModule
@@ -13,16 +13,26 @@ const sessionDatabaseModule = sqliteModule
 const sessionTapeModule = sqliteModule
   ? await import('../../../../src/main/tape/application/sessionTape')
   : null
+const sessionTranscriptModule = sqliteModule
+  ? await import('../../../../src/main/session/data/transcript')
+  : null
+const effectiveTapeViewModule = sqliteModule
+  ? await import('../../../../src/main/tape/domain/effectiveView')
+  : null
 
 const Database = sqliteModule?.default
 const MainDatabase = sqlitePresenterModule?.MainDatabase
 const SessionSettingsStore = sessionStoreModule?.SessionSettingsStore
 const SessionDatabase = sessionDatabaseModule?.SessionDatabase
 const SessionTape = sessionTapeModule?.SessionTape
+const SessionTranscript = sessionTranscriptModule?.SessionTranscript
+const buildEffectiveTapeView = effectiveTapeViewModule?.buildEffectiveTapeView
 const MainDatabaseCtor = MainDatabase!
 const SessionSettingsStoreCtor = SessionSettingsStore!
 const SessionDatabaseCtor = SessionDatabase!
 const SessionTapeCtor = SessionTape!
+const SessionTranscriptCtor = SessionTranscript!
+const buildEffectiveTapeViewFn = buildEffectiveTapeView!
 
 let sqliteAvailable = false
 if (Database) {
@@ -394,5 +404,192 @@ describeIfSqlite('SessionSettingsStore tape summary state', () => {
     })
 
     connection.close()
+  })
+})
+
+describeIfSqlite('Session transcript and Tape order consistency', () => {
+  it('does not rewrite tool facts for repeated shifts or the following backfill', () => {
+    const connection = new MainDatabaseCtor(':memory:')
+    try {
+      const database = new SessionDatabaseCtor(connection)
+      const tape = new SessionTapeCtor(database)
+      const transcript = new SessionTranscriptCtor(database, tape)
+      const assistantMessageId = transcript.createAssistantMessage('s1', 1)
+      transcript.finalizeAssistantMessage(
+        assistantMessageId,
+        [
+          {
+            type: 'tool_call',
+            status: 'success',
+            timestamp: 100,
+            tool_call: {
+              id: 'tool-1',
+              name: 'search',
+              params: '{"q":"stable"}',
+              response: 'stable tool response'
+            }
+          }
+        ],
+        '{}'
+      )
+      const readToolRows = () =>
+        database.deepchatTapeEntriesTable
+          .getBySession('s1')
+          .filter((row) => row.kind === 'tool_call' || row.kind === 'tool_result')
+
+      expect(readToolRows()).toHaveLength(2)
+      transcript.createCompactionMessageAtOrderSeq('s1', 1, 'compacting', null, {
+        shiftExistingMessages: true
+      })
+      transcript.createCompactionMessageAtOrderSeq('s1', 1, 'compacting', null, {
+        shiftExistingMessages: true
+      })
+      expect(readToolRows()).toHaveLength(2)
+
+      tape.ensureSessionTapeReady('s1', transcript)
+
+      const persistedToolRows = readToolRows()
+      expect(persistedToolRows).toHaveLength(2)
+      expect(persistedToolRows.map((row) => JSON.parse(row.payload_json).orderSeq)).toEqual([1, 1])
+      const effectiveToolRows = buildEffectiveTapeViewFn(
+        database.deepchatTapeEntriesTable.getBySession('s1'),
+        { includePending: false }
+      ).rows.filter((row) => row.kind === 'tool_call' || row.kind === 'tool_result')
+      expect(effectiveToolRows.map((row) => JSON.parse(row.payload_json).orderSeq)).toEqual([3, 3])
+      expect(
+        tape.search('s1', 'stable tool response', { kinds: ['tool_result'] })[0]?.refs?.orderSeq
+      ).toBe(3)
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('materializes only shifted messages in bounded batches', () => {
+    const connection = new MainDatabaseCtor(':memory:')
+    try {
+      const database = new SessionDatabaseCtor(connection)
+      const messagesTable = database.deepchatMessagesTable
+      Object.defineProperty(database, 'deepchatMessagesTable', { value: messagesTable })
+      const tapeFacts = {
+        appendMessageRecord: vi.fn().mockReturnValue(1),
+        appendMessageReplacement: vi.fn().mockReturnValue(1),
+        appendMessageRetraction: vi.fn().mockReturnValue(1)
+      }
+      const transcript = new SessionTranscriptCtor(database, tapeFacts)
+      database.getDatabase().transaction(() => {
+        for (let orderSeq = 1; orderSeq <= 501; orderSeq += 1) {
+          messagesTable.insert({
+            id: `message-${orderSeq}`,
+            sessionId: 's1',
+            orderSeq,
+            role: 'user',
+            content: JSON.stringify({ text: `${orderSeq}`, files: [], links: [] }),
+            status: 'sent'
+          })
+        }
+      })()
+      const getBySessionAndIds = vi.spyOn(messagesTable, 'getBySessionAndIds')
+
+      transcript.createCompactionMessageAtOrderSeq('s1', 1, 'compacting', null, {
+        shiftExistingMessages: true
+      })
+
+      expect(getBySessionAndIds).toHaveBeenCalledTimes(2)
+      expect(getBySessionAndIds.mock.calls.map(([, ids]) => ids.length)).toEqual([500, 1])
+      expect(tapeFacts.appendMessageReplacement).toHaveBeenCalledTimes(501)
+      expect(
+        tapeFacts.appendMessageReplacement.mock.calls.every(
+          ([, options]) =>
+            options.reason === 'compaction_order_shifted' && options.revisionKind === 'order'
+        )
+      ).toBe(true)
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('records replacements for messages shifted by compaction insertion', () => {
+    const connection = new MainDatabaseCtor(':memory:')
+    try {
+      const database = new SessionDatabaseCtor(connection)
+      const tape = new SessionTapeCtor(database)
+      const transcript = new SessionTranscriptCtor(database, tape)
+      const firstMessageId = transcript.createUserMessage('s1', 1, {
+        text: 'first',
+        files: [],
+        links: [],
+        search: false,
+        think: false
+      })
+      const shiftedMessageId = transcript.createUserMessage('s1', 2, {
+        text: 'second',
+        files: [],
+        links: [],
+        search: false,
+        think: false
+      })
+
+      const shiftedCompactionMessageId = transcript.createCompactionMessageAtOrderSeq(
+        's1',
+        2,
+        'compacting',
+        null,
+        { shiftExistingMessages: true }
+      )
+      const latestCompactionMessageId = transcript.createCompactionMessageAtOrderSeq(
+        's1',
+        2,
+        'compacting',
+        null,
+        { shiftExistingMessages: true }
+      )
+
+      expect(
+        transcript.getMessages('s1').map((record) => ({ id: record.id, orderSeq: record.orderSeq }))
+      ).toEqual([
+        { id: firstMessageId, orderSeq: 1 },
+        { id: latestCompactionMessageId, orderSeq: 2 },
+        { id: shiftedCompactionMessageId, orderSeq: 3 },
+        { id: shiftedMessageId, orderSeq: 4 }
+      ])
+      const tapeRows = database.deepchatTapeEntriesTable.getBySession('s1')
+      expect(
+        buildEffectiveTapeViewFn(tapeRows, {
+          includePending: true
+        }).messageRecords.map((record) => ({ id: record.id, orderSeq: record.orderSeq }))
+      ).toEqual([
+        { id: firstMessageId, orderSeq: 1 },
+        { id: shiftedMessageId, orderSeq: 4 }
+      ])
+
+      const shiftedCompactionFacts = tapeRows.filter(
+        (row) => row.source_id === shiftedCompactionMessageId
+      )
+      expect(shiftedCompactionFacts.map((row) => row.name)).toEqual([
+        'message/compaction_indicator',
+        'message/compaction_indicator'
+      ])
+      expect(
+        shiftedCompactionFacts.map(
+          (row) => (JSON.parse(row.payload_json) as { data: { orderSeq: number } }).data.orderSeq
+        )
+      ).toEqual([2, 3])
+      expect(JSON.parse(shiftedCompactionFacts[1].meta_json)).toMatchObject({
+        correction: true,
+        reason: 'compaction_order_shifted',
+        orderSeq: 3
+      })
+      expect(shiftedCompactionFacts[1].provenance_key).toContain(':order_seq:3')
+      expect(
+        tapeRows.some(
+          (row) =>
+            row.source_id === shiftedCompactionMessageId &&
+            row.kind === 'message' &&
+            row.name === 'message/assistant'
+        )
+      ).toBe(false)
+    } finally {
+      connection.close()
+    }
   })
 })

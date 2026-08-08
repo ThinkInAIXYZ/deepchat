@@ -163,6 +163,38 @@ describe('Agent image generation tool', () => {
     })
   })
 
+  it('propagates dispatch commit failure without invoking the image provider', async () => {
+    const journalError = new Error('journal unavailable')
+    const commitDispatch = vi.fn((input) => {
+      expect(input).toEqual({
+        toolName: IMAGE_GENERATE_TOOL_NAME,
+        toolSource: 'agent',
+        normalizedArguments: {
+          prompt: 'A warm sunset over the ocean',
+          providerId: 'openai',
+          modelId: 'gpt-image-1'
+        },
+        target: {
+          serverName: 'agent-image-generation',
+          originalName: IMAGE_GENERATE_TOOL_NAME
+        }
+      })
+      throw journalError
+    })
+
+    await expect(
+      manager.callTool(
+        IMAGE_GENERATE_TOOL_NAME,
+        { prompt: '  A warm sunset over the ocean  ' },
+        'conv-1',
+        { commitDispatch }
+      )
+    ).rejects.toBe(journalError)
+
+    expect(commitDispatch).toHaveBeenCalledOnce()
+    expect(generateImageStandalone).not.toHaveBeenCalled()
+  })
+
   it('returns a recoverable tool error when the provider fails', async () => {
     generateImageStandalone.mockRejectedValue(new Error('quota exceeded'))
 

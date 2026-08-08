@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 import { TOOL_EXECUTION } from '@shared/types/mcp'
-import { LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT } from '@shared/orchestration/liveDelegation'
+import {
+  LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT,
+  LIVE_DELEGATION_MAX_MESSAGE_BYTES
+} from '@shared/orchestration/liveDelegation'
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import { SessionDeletionGate } from '@/session/deletionGate'
@@ -168,6 +171,60 @@ describeIfSqlite('LiveDelegationService', () => {
     ).resolves.toMatchObject({ delegation: { status: 'queued' } })
   })
 
+  it('claims dispatch only after live delegation authorization and target validation', async () => {
+    harness.parent.orchestrationPolicy = 'explicit'
+    const input = {
+      slotId: 'reviewer',
+      title: 'Review dispatch boundary',
+      prompt: 'Inspect the final mutation boundary.'
+    }
+    const beforeMutation = vi.fn(() => {
+      expect(repository.listByParent('parent')).toEqual([])
+    })
+
+    await expect(service.spawn('parent', input, undefined, beforeMutation)).rejects.toThrow(
+      'requires current user confirmation before spawn'
+    )
+    await expect(
+      service.spawn(
+        'parent',
+        { ...input, slotId: 'missing-slot' },
+        consentAuthority.issue({
+          parentSessionId: 'parent',
+          operation: 'spawn',
+          executionId: 'missing-slot'
+        }),
+        beforeMutation
+      )
+    ).rejects.toThrow('Subagent slot not found or not enabled')
+    expect(beforeMutation).not.toHaveBeenCalled()
+
+    const receipt = consentAuthority.issue({
+      parentSessionId: 'parent',
+      operation: 'spawn',
+      executionId: 'journal-failure'
+    })
+    const journalError = new Error('journal unavailable')
+    const failingCommit = vi.fn(() => {
+      throw journalError
+    })
+    await expect(service.spawn('parent', input, receipt, failingCommit)).rejects.toBe(journalError)
+    expect(repository.listByParent('parent')).toEqual([])
+    expect(
+      consentAuthority.isValid(receipt, { parentSessionId: 'parent', operation: 'spawn' })
+    ).toBe(true)
+
+    const validReceipt = consentAuthority.issue({
+      parentSessionId: 'parent',
+      operation: 'spawn',
+      executionId: 'valid-dispatch'
+    })
+    await expect(
+      service.spawn('parent', input, validReceipt, beforeMutation)
+    ).resolves.toMatchObject({ delegation: { status: 'queued' } })
+    expect(beforeMutation).toHaveBeenCalledOnce()
+  })
+
   it('retains explicit consent when parent capacity rejects persistence', async () => {
     harness.parent.orchestrationPolicy = 'explicit'
     for (let index = 0; index < LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT; index += 1) {
@@ -191,17 +248,39 @@ describeIfSqlite('LiveDelegationService', () => {
       title: 'Review persistence retry',
       prompt: 'Inspect whether the consent boundary supports a safe retry.'
     }
+    const beforeMutation = vi.fn()
 
-    await expect(service.spawn('parent', input, receipt)).rejects.toThrow(
+    await expect(service.spawn('parent', input, receipt, beforeMutation)).rejects.toThrow(
       `at most ${LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT} active live delegations`
     )
+    expect(beforeMutation).not.toHaveBeenCalled()
     expect(
       consentAuthority.isValid(receipt, { parentSessionId: 'parent', operation: 'spawn' })
     ).toBe(true)
     repository.finishTurn({ turnId: 'occupied-turn-0', status: 'completed' })
-    await expect(service.spawn('parent', input, receipt)).resolves.toMatchObject({
+    await expect(service.spawn('parent', input, receipt, beforeMutation)).resolves.toMatchObject({
       delegation: { status: 'queued' }
     })
+    expect(beforeMutation).toHaveBeenCalledOnce()
+  })
+
+  it('does not claim dispatch when a mailbox message fails local validation', async () => {
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Review mailbox validation',
+      prompt: 'Inspect mailbox boundaries.'
+    })
+    const beforeMutation = vi.fn()
+
+    expect(() =>
+      service.send(
+        'parent',
+        spawned.delegation.id,
+        'x'.repeat(LIVE_DELEGATION_MAX_MESSAGE_BYTES + 1),
+        beforeMutation
+      )
+    ).toThrow(`between 1 and ${LIVE_DELEGATION_MAX_MESSAGE_BYTES} UTF-8 bytes`)
+    expect(beforeMutation).not.toHaveBeenCalled()
   })
 
   it('revalidates consent after follow-up safety work and before persistence', async () => {
@@ -1123,10 +1202,18 @@ describeIfSqlite('LiveDelegationService', () => {
     await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
 
     harness.publish({ sessionId: childId, kind: 'status', updatedAt: 210, status: 'generating' })
+    const beforeMutation = vi.fn()
 
     await expect(
-      service.followUp('parent', spawned.delegation.id, 'Start a second task.')
+      service.followUp(
+        'parent',
+        spawned.delegation.id,
+        'Start a second task.',
+        undefined,
+        beforeMutation
+      )
     ).rejects.toThrow('while child session is generating')
+    expect(beforeMutation).not.toHaveBeenCalled()
     expect(repository.listTurns(spawned.delegation.id, 10)).toHaveLength(1)
     expect(harness.sessions.sendConversationMessage).toHaveBeenCalledTimes(1)
   })
@@ -1190,7 +1277,8 @@ describeIfSqlite('LiveDelegationService', () => {
       expect(repository.listTurns(spawned.delegation.id, 1)[0]?.status).toBe('running')
     )
     const childId = repository.require(spawned.delegation.id).childSessionId!
-    const interrupted = service.interrupt('parent', spawned.delegation.id)
+    const beforeMutation = vi.fn()
+    const interrupted = service.interrupt('parent', spawned.delegation.id, beforeMutation)
     harness.publish({ sessionId: childId, kind: 'status', updatedAt: 300, status: 'idle' })
 
     await expect(interrupted).resolves.toMatchObject({
@@ -1200,6 +1288,13 @@ describeIfSqlite('LiveDelegationService', () => {
     expect(harness.sessions.linkSubagentTape).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: 'cancelled' })
     )
+    expect(beforeMutation).toHaveBeenCalledOnce()
+
+    const terminalMutation = vi.fn()
+    await expect(
+      service.interrupt('parent', spawned.delegation.id, terminalMutation)
+    ).resolves.toMatchObject({ delegation: { status: 'interrupted' } })
+    expect(terminalMutation).not.toHaveBeenCalled()
   })
 
   it('interrupts active work before deleting its parent or bound child Session', async () => {

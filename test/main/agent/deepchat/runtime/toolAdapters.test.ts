@@ -156,6 +156,7 @@ describe('DeepChat tool adapters', () => {
     const permissionMode: PermissionMode = 'auto_approve'
     const abortController = new AbortController()
     const onProgress = vi.fn()
+    const commitDispatch = vi.fn()
 
     await port.preCheck(call, { permissionMode })
     await port.execute(call, {
@@ -164,7 +165,8 @@ describe('DeepChat tool adapters', () => {
       permissionMode,
       activeSkillNames: ['skill-a'],
       agentId: 'agent-1',
-      enabledMcpServerIds: ['mcp-1']
+      enabledMcpServerIds: ['mcp-1'],
+      commitDispatch
     })
 
     expect(preCheckToolPermission).toHaveBeenCalledWith(call, { permissionMode })
@@ -174,7 +176,8 @@ describe('DeepChat tool adapters', () => {
       permissionMode,
       activeSkillNames: ['skill-a'],
       agentId: 'agent-1',
-      enabledMcpServerIds: ['mcp-1']
+      enabledMcpServerIds: ['mcp-1'],
+      commitDispatch
     })
   })
 

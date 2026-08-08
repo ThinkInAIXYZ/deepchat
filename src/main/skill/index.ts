@@ -1675,9 +1675,19 @@ export class SkillService implements SkillServicePort {
 
   async manageDraftSkill(
     conversationId: string,
-    request: SkillManageRequest
+    request: SkillManageRequest,
+    options: { beforeMutation?: () => void } = {}
   ): Promise<SkillManageResult> {
     const action = request.action
+    let mutationCommitFailed = false
+    const commitMutation = () => {
+      try {
+        options.beforeMutation?.()
+      } catch (error) {
+        mutationCommitFailed = true
+        throw error
+      }
+    }
 
     try {
       switch (action) {
@@ -1686,6 +1696,10 @@ export class SkillService implements SkillServicePort {
           if (!parsed.success) {
             return { success: false, action, error: parsed.error }
           }
+          if (!this.validateDraftConversationId(conversationId)) {
+            return { success: false, action, error: 'Invalid conversationId for draft access' }
+          }
+          commitMutation()
           const { draftId, draftPath } = this.createDraftHandle(conversationId)
           this.atomicWriteFile(path.join(draftPath, 'SKILL.md'), request.content!)
           this.touchDraftActivity(draftPath)
@@ -1721,6 +1735,7 @@ export class SkillService implements SkillServicePort {
           if (!fs.existsSync(draftPath)) {
             return { success: false, action, error: 'Draft not found' }
           }
+          commitMutation()
           this.atomicWriteFile(path.join(draftPath, 'SKILL.md'), request.content!)
           this.touchDraftActivity(draftPath)
           return {
@@ -1770,6 +1785,7 @@ export class SkillService implements SkillServicePort {
               error: `Draft content rejected by security scan: ${blockedPattern}`
             }
           }
+          commitMutation()
           fs.mkdirSync(path.dirname(resolvedFilePath), { recursive: true })
           this.atomicWriteFile(resolvedFilePath, request.fileContent)
           this.touchDraftActivity(draftPath)
@@ -1811,6 +1827,7 @@ export class SkillService implements SkillServicePort {
           if (!fs.existsSync(resolvedFilePath)) {
             return { success: false, action, error: 'Draft file not found' }
           }
+          commitMutation()
           fs.rmSync(resolvedFilePath, { force: true })
           this.touchDraftActivity(draftPath)
           return {
@@ -1840,6 +1857,7 @@ export class SkillService implements SkillServicePort {
           if (!fs.existsSync(draftPath)) {
             return { success: false, action, error: 'Draft not found' }
           }
+          commitMutation()
           fs.rmSync(draftPath, { recursive: true, force: true })
           return { success: true, action, draftId }
         }
@@ -1847,6 +1865,7 @@ export class SkillService implements SkillServicePort {
           return { success: false, action, error: `Unsupported draft action: ${action}` }
       }
     } catch (error) {
+      if (mutationCommitFailed) throw error
       return {
         success: false,
         action,

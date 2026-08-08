@@ -1,6 +1,10 @@
 import type { AgentTapeHandoffState, ChatMessageRecord } from '@shared/types/agent-interface'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
-import type { TapeEntryRef, TapeToolFactInput } from '../domain/facts'
+import type {
+  TapeEntryRef,
+  TapeMessageReplacementOptions,
+  TapeToolFactInput
+} from '../domain/facts'
 import { buildEffectiveTapeView } from '../domain/effectiveView'
 import type {
   TapeAnchorWriter,
@@ -97,8 +101,11 @@ export class TapeFactService
     return appendMessageRecordToTape(this.table, { ...record, sessionId }, 'live')
   }
 
-  appendMessageReplacement(record: ChatMessageRecord, reason: string): number {
-    return appendMessageReplacementToTape(this.table, record, reason)
+  appendMessageReplacement(
+    record: ChatMessageRecord,
+    options: TapeMessageReplacementOptions
+  ): number {
+    return appendMessageReplacementToTape(this.table, record, options)
   }
 
   appendMessageRetraction(record: ChatMessageRecord, reason: string): number {
@@ -106,7 +113,7 @@ export class TapeFactService
   }
 
   async appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef> {
-    const row = appendTapeToolFact(this.table, input, 'live', 'tool_loop')
+    const row = appendTapeToolFact(this.table, input, 'live', { reason: 'tool_loop' })
     if (!row) throw new Error('Tape tool fact was not appendable.')
     return { sessionId: input.sessionId, entryId: row.entry_id }
   }

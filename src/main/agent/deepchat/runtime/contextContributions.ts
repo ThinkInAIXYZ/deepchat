@@ -104,13 +104,18 @@ export function buildContextCheckpoint(
   const reconstructionSourceEntryIds = reconstructionAnchor
     ? [reconstructionAnchor.entryId]
     : []
+  const anchorSummary =
+    readVisibleText(reconstructionAnchor?.state.summary) ??
+    readVisibleText(reconstructionAnchor?.state.summaryText)
+  const summarySourceEntryIds =
+    normalizedSummary && anchorSummary === normalizedSummary ? reconstructionSourceEntryIds : []
   const sections: string[] = []
   const contributions: DeepChatTapeViewSyntheticContribution[] = []
 
   if (normalizedSummary) {
     const content = buildUntrustedBlock('Persisted Rolling Summary', normalizedSummary)
     sections.push(content)
-    contributions.push(buildContribution('summary_checkpoint', content, []))
+    contributions.push(buildContribution('summary_checkpoint', content, summarySourceEntryIds))
   }
 
   const reconstructionContent = buildReconstructionContent(

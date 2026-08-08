@@ -68,7 +68,14 @@ export class BrowserTab {
     }
   }
 
-  async navigateUntilDomReady(url: string, timeoutMs: number = 30000): Promise<void> {
+  async navigateUntilDomReady(
+    url: string,
+    timeoutMs: number = 30000,
+    beforeDispatch?: () => void,
+    onDispatched?: () => void
+  ): Promise<void> {
+    this.ensureAvailable()
+    beforeDispatch?.()
     this.beginMainFrameNavigation(url)
 
     const loadPromise = this.webContents.loadURL(url)
@@ -80,6 +87,7 @@ export class BrowserTab {
         })
       }
     })
+    onDispatched?.()
 
     try {
       await Promise.race([this.waitForInteractiveReady(timeoutMs), loadPromise])
@@ -106,7 +114,12 @@ export class BrowserTab {
     return await this.cdpManager.evaluateScript(session, script)
   }
 
-  async sendCdpCommand(method: string, params?: Record<string, unknown>): Promise<unknown> {
+  async sendCdpCommand(
+    method: string,
+    params?: Record<string, unknown>,
+    beforeDispatch?: () => void,
+    onDispatched?: () => void
+  ): Promise<unknown> {
     if (NAVIGATION_CDP_METHODS.has(method)) {
       this.ensureAvailable()
     } else {
@@ -114,7 +127,10 @@ export class BrowserTab {
     }
 
     const session = await this.ensureSession()
-    const response = await session.sendCommand(method, params ?? {})
+    beforeDispatch?.()
+    const responsePromise = session.sendCommand(method, params ?? {})
+    onDispatched?.()
+    const response = await responsePromise
 
     if (method === 'Page.navigate') {
       const navigationResponse = response as {

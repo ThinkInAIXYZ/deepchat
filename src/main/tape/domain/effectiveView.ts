@@ -1,7 +1,9 @@
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { DeepChatTapeEntryKind, DeepChatTapeEntryRow, DeepChatTapeSearchInput } from './entry'
+import { EXECUTION_JOURNAL_EVENT_NAMES } from './executionJournal'
 import {
   parseNestedTapeJsonObject,
+  parseTapeJsonObject,
   readTapeMessageRetractionId,
   readTapeToolIdentity,
   tapeEntryToMessageRecord,
@@ -36,9 +38,36 @@ interface EffectiveTapeViewOptions {
   includeAuditEvents?: boolean
 }
 
+export const DEFAULT_EXCLUDED_TAPE_EVENT_NAMES = [
+  'message/retracted',
+  'message/compaction_indicator',
+  'migration/backfill',
+  ...EXECUTION_JOURNAL_EVENT_NAMES
+] as const
+
+const DEFAULT_EXCLUDED_TAPE_EVENT_NAME_SET = new Set<string>(DEFAULT_EXCLUDED_TAPE_EVENT_NAMES)
+
 type EffectiveMessageCandidate = {
   row: DeepChatTapeEntryRow
   record: ChatMessageRecord
+}
+
+export function projectTapeToolOrderSeq(
+  row: DeepChatTapeEntryRow,
+  effectiveMessageOrderSeqById: ReadonlyMap<string, number>
+): DeepChatTapeEntryRow {
+  const identity = readTapeToolIdentity(row)
+  if (!identity) return row
+
+  const effectiveOrderSeq = effectiveMessageOrderSeqById.get(identity.messageId)
+  if (effectiveOrderSeq === undefined) return row
+
+  const payload = parseTapeJsonObject(row.payload_json)
+  if (payload.orderSeq === effectiveOrderSeq) return row
+  return {
+    ...row,
+    payload_json: JSON.stringify({ ...payload, orderSeq: effectiveOrderSeq })
+  }
 }
 
 function compareSqliteBinaryText(left: string, right: string): number {
@@ -88,11 +117,7 @@ function shouldReplaceMessage(
 }
 
 function isAuditEvent(row: DeepChatTapeEntryRow): boolean {
-  return (
-    row.name === 'message/retracted' ||
-    row.name === 'message/compaction_indicator' ||
-    row.name === 'migration/backfill'
-  )
+  return row.name !== null && DEFAULT_EXCLUDED_TAPE_EVENT_NAME_SET.has(row.name)
 }
 
 function shouldReplaceToolRow(
@@ -205,9 +230,12 @@ export function buildEffectiveTapeView(
         compareSqliteBinaryText(left.record.id, right.record.id)
     )
   const effectiveMessageIds = new Set(messageRows.map((candidate) => candidate.record.id))
+  const effectiveMessageOrderSeqById = new Map(
+    messageRows.map((candidate) => [candidate.record.id, candidate.record.orderSeq])
+  )
   const effectiveToolRows = [...toolRows.values()]
     .filter((candidate) => effectiveMessageIds.has(candidate.messageId))
-    .map((candidate) => candidate.row)
+    .map((candidate) => projectTapeToolOrderSeq(candidate.row, effectiveMessageOrderSeqById))
   const effectiveRows = [
     ...anchorRows,
     ...eventRows,

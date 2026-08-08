@@ -1152,7 +1152,7 @@ export async function createMainProcessControl(dependencies: {
     },
     memory: {
       isMemoryEnabled: (agentId) => memoryService.isEnabled(agentId),
-      rememberMemory: async (agentId, input, sourceSession, model) =>
+      rememberMemory: async (agentId, input, sourceSession, model, beforeMutation) =>
         memoryService.rememberMemory(
           {
             kind: input.kind,
@@ -1161,7 +1161,8 @@ export async function createMainProcessControl(dependencies: {
             importance: input.importance
           },
           { agentId, sourceSession },
-          model
+          model,
+          beforeMutation
         ),
       recallMemory: async (agentId, query, scopeContext) => {
         const items = await memoryService.recall(agentId, query, undefined, scopeContext)
@@ -1171,16 +1172,19 @@ export async function createMainProcessControl(dependencies: {
           content: item.content
         }))
       },
-      forgetMemory: async (agentId, memoryId) => await memoryService.forgetMemory(agentId, memoryId)
+      forgetMemory: async (agentId, memoryId, beforeMutation) =>
+        await memoryService.forgetMemory(agentId, memoryId, beforeMutation)
     },
     cronJobs: {
       listCronJobs: async () => await cronJobs.list(),
-      upsertCronJob: async (input) => (await cronJobs.upsert(input)).job,
-      deleteCronJob: async (id) => {
-        await cronJobs.delete(id)
+      upsertCronJob: async (input, beforeMutation) =>
+        (await cronJobs.upsert(input, beforeMutation)).job,
+      deleteCronJob: async (id, beforeMutation) => {
+        await cronJobs.delete(id, beforeMutation)
       },
-      toggleCronJob: async (id, enabled) => (await cronJobs.toggle(id, enabled)).job,
-      runCronJobNow: async (id) => (await cronJobs.runNow(id)).run,
+      toggleCronJob: async (id, enabled, beforeMutation) =>
+        (await cronJobs.toggle(id, enabled, beforeMutation)).job,
+      runCronJobNow: async (id, beforeMutation) => (await cronJobs.runNow(id, beforeMutation)).run,
       listCronJobRuns: async (jobId, limit) => cronJobs.listRuns(jobId, limit),
       previewCronSchedule: async (input) => cronJobs.previewSchedule(input)
     },

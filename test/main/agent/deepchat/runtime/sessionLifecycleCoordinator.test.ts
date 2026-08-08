@@ -41,7 +41,8 @@ function createHarness() {
       clearFirstTurnReady: vi.fn(record('runLifecycle.clearFirstTurnReady')),
       cancelScopeOperations: vi.fn(record('runLifecycle.cancelScopeOperations')),
       scopeFor: vi.fn()
-    }
+    },
+    interactionParking: { clearSession: vi.fn(record('interactionParking.clearSession')) }
   } as unknown as SessionLifecycleCoordinatorDependencies
 
   return { cancel, coordinator: new SessionLifecycleCoordinator(deps), deps, order, runtime }
@@ -115,6 +116,7 @@ describe('SessionLifecycleCoordinator', () => {
       'pendingInputs.deleteBySession',
       'transcript.deleteBySession',
       'sessionStore.delete',
+      'interactionParking.clearSession',
       'memory.finishSessionDestroy',
       'toolService.clearConversationToolMapping'
     ])
@@ -133,6 +135,7 @@ describe('SessionLifecycleCoordinator', () => {
       'pendingInputs.deleteBySession',
       'transcript.deleteBySession',
       'sessionStore.delete',
+      'interactionParking.clearSession',
       'memory.finishSessionDestroy',
       'toolService.clearConversationToolMapping'
     ])

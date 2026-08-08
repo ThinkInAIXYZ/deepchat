@@ -49,6 +49,7 @@ export interface ExecuteCommandOptions {
   outputPrefix?: string
   outputPreviewChars?: number
   allowExternalCwd?: boolean
+  beforeExecute?: (normalizedArguments: Record<string, unknown>) => void
 }
 
 export interface AgentCommandEnvironmentPort {
@@ -158,6 +159,7 @@ export class AgentBashHandler {
       })
     }
 
+    const spawnCwd = resolveUsableSpawnCwd(cwd)
     let result: ShellProcessResult
 
     const resolvedEnvironment = this.resolveCommandEnvironment(command, options)
@@ -167,9 +169,22 @@ export class AgentBashHandler {
       resolvedEnvironment.preserveCommand
     )
 
+    options.beforeExecute?.({
+      command: prepared.command,
+      cwd: spawnCwd,
+      timeoutMs: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
+      background: false,
+      ...(prepared.rewritten
+        ? {
+            fallbackCommand: prepared.originalCommand,
+            fallbackPolicy: 'rtk_capability_error'
+          }
+        : {}),
+      ...(yieldMs === undefined ? {} : { yieldMs })
+    })
     result = await this.runShellProcess(
       prepared.command,
-      cwd,
+      spawnCwd,
       timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
       {
         ...options,
@@ -207,7 +222,7 @@ export class AgentBashHandler {
 
       result = await this.runShellProcess(
         prepared.originalCommand,
-        cwd,
+        spawnCwd,
         timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
         {
           ...options,
@@ -311,6 +326,7 @@ export class AgentBashHandler {
       timeout,
       env: options.env,
       outputPrefix: options.outputPrefix,
+      previewChars: options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS,
       offloadThresholdChars: Math.min(
         COMMAND_OFFLOAD_THRESHOLD,
         options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
@@ -372,11 +388,10 @@ export class AgentBashHandler {
     const outputFilePath = this.createOutputFilePath(options.conversationId, options.outputPrefix)
     const outputPreviewChars = options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
     const offloadThresholdChars = Math.min(COMMAND_OFFLOAD_THRESHOLD, outputPreviewChars)
-    const spawnCwd = resolveUsableSpawnCwd(cwd)
 
     return new Promise((resolve, reject) => {
       const child = spawn(shell, [...args, shellCommand], {
-        cwd: spawnCwd,
+        cwd,
         env: options.env ? { ...options.env } : { ...process.env },
         detached: process.platform !== 'win32',
         stdio: ['pipe', 'pipe', 'pipe']
@@ -399,7 +414,9 @@ export class AgentBashHandler {
         }
       }
 
-      const settle = async (payload: CompletedShellProcessResult) => {
+      const settle = async (
+        payload: Pick<CompletedShellProcessResult, 'exitCode' | 'timedOut'>
+      ) => {
         if (settled) return
         settled = true
         cleanupTimeout()
@@ -411,7 +428,17 @@ export class AgentBashHandler {
           // Already logged when flushing output.
         }
 
-        resolve(payload)
+        const preview =
+          offloaded && outputFilePath
+            ? this.readLastCharsFromFile(outputFilePath, outputPreviewChars)
+            : output.slice(-outputPreviewChars)
+        resolve({
+          kind: 'completed',
+          output: preview,
+          ...payload,
+          offloaded,
+          outputFilePath: outputFilePath ?? undefined
+        })
       }
 
       const appendOutput = (chunk: string) => {
@@ -461,19 +488,9 @@ export class AgentBashHandler {
             return
           }
 
-          outputDecoders.flush()
-          const preview =
-            offloaded && outputFilePath
-              ? this.readLastCharsFromFile(outputFilePath, outputPreviewChars)
-              : output.slice(-outputPreviewChars)
-
           void settle({
-            kind: 'completed',
-            output: preview,
             exitCode: null,
-            timedOut: true,
-            offloaded,
-            outputFilePath: outputFilePath ?? undefined
+            timedOut: true
           })
         })
       }, timeout)
@@ -484,20 +501,10 @@ export class AgentBashHandler {
         reject(error)
       })
 
-      child.on('close', async (code, signal) => {
-        outputDecoders.flush()
-        const preview =
-          offloaded && outputFilePath
-            ? this.readLastCharsFromFile(outputFilePath, outputPreviewChars)
-            : output.slice(-outputPreviewChars)
-
+      child.on('close', (code, signal) => {
         void settle({
-          kind: 'completed',
-          output: preview,
           exitCode: signal && timedOut ? null : (code ?? null),
-          timedOut,
-          offloaded,
-          outputFilePath: outputFilePath ?? undefined
+          timedOut
         })
       })
     })
@@ -610,6 +617,7 @@ export class AgentBashHandler {
       )
     }
 
+    const spawnCwd = resolveUsableSpawnCwd(cwd)
     const resolvedEnvironment = this.resolveCommandEnvironment(command, options)
     const prepared = await this.prepareCommand(
       command,
@@ -617,15 +625,27 @@ export class AgentBashHandler {
       resolvedEnvironment.preserveCommand
     )
 
-    const result = await backgroundExecSessionManager.start(conversationId, prepared.command, cwd, {
-      timeout: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
-      env: prepared.env,
-      outputPrefix: options.outputPrefix,
-      offloadThresholdChars: Math.min(
-        COMMAND_OFFLOAD_THRESHOLD,
-        options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
-      )
+    options.beforeExecute?.({
+      command: prepared.command,
+      cwd: spawnCwd,
+      timeoutMs: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
+      background: true
     })
+    const result = await backgroundExecSessionManager.start(
+      conversationId,
+      prepared.command,
+      spawnCwd,
+      {
+        timeout: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
+        env: prepared.env,
+        outputPrefix: options.outputPrefix,
+        previewChars: options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS,
+        offloadThresholdChars: Math.min(
+          COMMAND_OFFLOAD_THRESHOLD,
+          options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
+        )
+      }
+    )
 
     if (options.stdin !== undefined) {
       await backgroundExecSessionManager.write(

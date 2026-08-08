@@ -182,34 +182,53 @@ export class LiveDelegationAgentTool {
     options?: {
       signal?: AbortSignal
       liveDelegationAuthorization?: LiveDelegationStartAuthorization
+      beforeMutation?: (normalizedArguments: Record<string, unknown>) => void
     }
   ): Promise<AgentToolCallResult> {
     if (!conversationId)
       throw new Error(`${LIVE_DELEGATION_AGENT_TOOL_NAME} requires a conversationId.`)
     const args = liveDelegationSchema.parse(rawArgs)
+    const beforeMutation = options?.beforeMutation
+      ? () => options.beforeMutation?.(args)
+      : undefined
     let result: unknown
     switch (args.operation) {
-      case 'spawn':
-        result = await this.service.spawn(
-          conversationId,
-          {
-            slotId: args.slotId!,
-            title: args.title!,
-            prompt: args.prompt!
-          },
-          options?.liveDelegationAuthorization
-        )
+      case 'spawn': {
+        const input = {
+          slotId: args.slotId!,
+          title: args.title!,
+          prompt: args.prompt!
+        }
+        result = beforeMutation
+          ? await this.service.spawn(
+              conversationId,
+              input,
+              options?.liveDelegationAuthorization,
+              beforeMutation
+            )
+          : await this.service.spawn(conversationId, input, options?.liveDelegationAuthorization)
         break
+      }
       case 'send':
-        result = this.service.send(conversationId, args.delegationId!, args.message!)
+        result = beforeMutation
+          ? this.service.send(conversationId, args.delegationId!, args.message!, beforeMutation)
+          : this.service.send(conversationId, args.delegationId!, args.message!)
         break
       case 'follow_up':
-        result = await this.service.followUp(
-          conversationId,
-          args.delegationId!,
-          args.task!,
-          options?.liveDelegationAuthorization
-        )
+        result = beforeMutation
+          ? await this.service.followUp(
+              conversationId,
+              args.delegationId!,
+              args.task!,
+              options?.liveDelegationAuthorization,
+              beforeMutation
+            )
+          : await this.service.followUp(
+              conversationId,
+              args.delegationId!,
+              args.task!,
+              options?.liveDelegationAuthorization
+            )
         break
       case 'list':
         result = this.service.list(conversationId, args.limit)
@@ -233,7 +252,9 @@ export class LiveDelegationAgentTool {
         })
         break
       case 'interrupt':
-        result = await this.service.interrupt(conversationId, args.delegationId!)
+        result = beforeMutation
+          ? await this.service.interrupt(conversationId, args.delegationId!, beforeMutation)
+          : await this.service.interrupt(conversationId, args.delegationId!)
         break
     }
     const content = JSON.stringify(createChildAgentResultEnvelope(args.operation, result))

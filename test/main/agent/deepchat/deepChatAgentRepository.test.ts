@@ -462,6 +462,25 @@ describe('DeepChatAgentRepository', () => {
     })
   })
 
+  it('preserves persisted output limits through production config resolution', () => {
+    const { repository } = createMutableRepository()
+    const created = repository.create({ name: 'Writer' })
+
+    repository.update(created.id, {
+      config: {
+        readFileAutoTruncateChars: 7_000,
+        toolOutputInlineChars: 8_000,
+        commandOutputInlineChars: 9_000
+      }
+    })
+
+    expect(repository.resolveConfig(created.id)).toMatchObject({
+      readFileAutoTruncateChars: 7_000,
+      toolOutputInlineChars: 8_000,
+      commandOutputInlineChars: 9_000
+    })
+  })
+
   it('fails closed when a stored custom Agent config is unreadable', () => {
     const { repository, rows } = createMutableRepository()
     repository.ensureBuiltin({ config: { subagentEnabled: false } })

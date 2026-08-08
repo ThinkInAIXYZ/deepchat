@@ -1,4 +1,3 @@
-import { createHash } from 'crypto'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { stripToolExecutionContract, type MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
@@ -14,6 +13,9 @@ import type {
   DeepChatTapeViewTokenBudget
 } from '@shared/types/tape-view-manifest'
 import { estimateMessagesTokens } from '@shared/utils/messageTokens'
+import { hashJson } from './canonicalJson'
+
+export { hashJson, stableJsonStringify } from './canonicalJson'
 
 export type ContextSummaryCursorMetadata = {
   summaryCursorOrderSeq: number
@@ -115,35 +117,6 @@ export function resolveTapeViewManifestPolicy(
     policy: 'tool_loop_shadow',
     policyVersion: null
   }
-}
-
-function normalizeForStableJson(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(normalizeForStableJson)
-  }
-
-  if (!value || typeof value !== 'object') {
-    return value
-  }
-
-  const record = value as Record<string, unknown>
-  return Object.keys(record)
-    .sort()
-    .reduce<Record<string, unknown>>((result, key) => {
-      const nested = record[key]
-      if (nested !== undefined) {
-        result[key] = normalizeForStableJson(nested)
-      }
-      return result
-    }, {})
-}
-
-export function stableJsonStringify(value: unknown): string {
-  return JSON.stringify(normalizeForStableJson(value))
-}
-
-export function hashJson(value: unknown): string {
-  return createHash('sha256').update(stableJsonStringify(value)).digest('hex')
 }
 
 export const TAPE_VIEW_MANIFEST_HASH_VERSION = 2

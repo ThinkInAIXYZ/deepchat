@@ -15,7 +15,14 @@ import {
   type TapeAnchorAppendInput,
   type TapeEventAppendInput
 } from '@/tape/domain/entry'
+import { DEFAULT_EXCLUDED_TAPE_EVENT_NAMES } from '@/tape/domain/effectiveView'
+import {
+  EXECUTION_JOURNAL_EVENT_NAMES,
+  isExecutionJournalReservedName,
+  type ExecutionJournalEventName
+} from '@/tape/domain/executionJournal'
 import type {
+  ExecutionJournalPersistenceStore,
   TapeBootstrapStore,
   TapeEntryStore,
   TapeMutationProjection,
@@ -51,9 +58,50 @@ const TAPE_ENTRY_INDEX_SQL = `
     ON deepchat_tape_entries(session_id, name, entry_id);
   CREATE INDEX IF NOT EXISTS idx_deepchat_tape_entries_session_source
     ON deepchat_tape_entries(session_id, source_type, source_id, source_seq);
+  CREATE INDEX IF NOT EXISTS idx_deepchat_tape_entries_event_name
+    ON deepchat_tape_entries(name, session_id, entry_id)
+    WHERE kind = 'event';
+  CREATE INDEX IF NOT EXISTS idx_deepchat_tape_entries_execution_run
+    ON deepchat_tape_entries(name, session_id, source_id, entry_id)
+    WHERE kind = 'event' AND source_type = 'runtime_event';
   CREATE UNIQUE INDEX IF NOT EXISTS idx_deepchat_tape_entries_session_provenance
     ON deepchat_tape_entries(session_id, provenance_key)
     WHERE provenance_key IS NOT NULL;
+`
+
+const EXECUTION_JOURNAL_EVENT_NAMES_SQL = EXECUTION_JOURNAL_EVENT_NAMES.map(
+  (name) => `'${name}'`
+).join(', ')
+
+export const UNTERMINATED_EXECUTION_JOURNAL_EVENTS_SQL = `
+  WITH unterminated_runs AS (
+    SELECT DISTINCT started.session_id, started.source_id AS run_id
+    FROM deepchat_tape_entries AS started
+    WHERE started.kind = 'event'
+      AND started.name = 'execution/run_started'
+      AND started.source_type = 'runtime_event'
+      AND started.source_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM deepchat_tape_entries AS terminal
+        WHERE terminal.kind = 'event'
+          AND terminal.name = 'execution/run_terminal'
+          AND terminal.source_type = 'runtime_event'
+          AND terminal.source_seq = 0
+          AND terminal.session_id = started.session_id
+          AND terminal.source_id = started.source_id
+          AND terminal.entry_id > started.entry_id
+      )
+  )
+  SELECT journal.*
+  FROM unterminated_runs AS run
+  JOIN deepchat_tape_entries AS journal
+    ON journal.session_id = run.session_id
+   AND journal.source_id = run.run_id
+  WHERE journal.kind = 'event'
+    AND journal.source_type = 'runtime_event'
+    AND journal.name IN (${EXECUTION_JOURNAL_EVENT_NAMES_SQL})
+  ORDER BY journal.session_id ASC, journal.entry_id ASC
 `
 
 function safeJsonStringify(value: Record<string, unknown> | undefined): string {
@@ -133,6 +181,10 @@ const AUTHORIZED_TAPE_SOURCES_CTE_SQL = `
   )
 `
 
+const DEFAULT_EXCLUDED_TAPE_EVENT_NAMES_SQL = DEFAULT_EXCLUDED_TAPE_EVENT_NAMES.map(
+  (name) => `'${name.replaceAll("'", "''")}'`
+).join(', ')
+
 function effectiveTapeMessagePredicateSql(alias: string): string {
   return `
     json_type(${alias}.payload_json, '$.record') = 'object'
@@ -176,10 +228,64 @@ function tapeToolCallIdSql(alias: string): string {
   `
 }
 
+function effectiveTapeMessageOrderSeqSql(toolAlias: string, sourceAlias: string): string {
+  return `
+    SELECT json_extract(message.payload_json, '$.record.orderSeq')
+    FROM deepchat_tape_entries AS message
+    WHERE message.session_id = ${toolAlias}.session_id
+      AND message.entry_id <= ${sourceAlias}.max_entry_id
+      AND message.kind = 'message'
+      AND ${effectiveTapeMessagePredicateSql('message')}
+      AND json_extract(message.payload_json, '$.record.id') =
+        json_extract(${toolAlias}.payload_json, '$.messageId')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM deepchat_tape_entries AS later_message
+        WHERE later_message.session_id = message.session_id
+          AND later_message.entry_id > message.entry_id
+          AND later_message.entry_id <= ${sourceAlias}.max_entry_id
+          AND later_message.kind = 'message'
+          AND ${effectiveTapeMessagePredicateSql('later_message')}
+          AND json_extract(later_message.payload_json, '$.record.id') =
+            json_extract(message.payload_json, '$.record.id')
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM deepchat_tape_entries AS retraction
+        WHERE retraction.session_id = message.session_id
+          AND retraction.entry_id > message.entry_id
+          AND retraction.entry_id <= ${sourceAlias}.max_entry_id
+          AND retraction.kind = 'event'
+          AND retraction.name = 'message/retracted'
+          AND (${tapeRetractionMessageIdSql('retraction')}) =
+            json_extract(message.payload_json, '$.record.id')
+      )
+    ORDER BY message.entry_id DESC
+    LIMIT 1
+  `
+}
+
+function projectedTapePayloadSql(rowAlias: string, sourceAlias: string): string {
+  return `
+    CASE
+      WHEN ${rowAlias}.kind IN ('tool_call', 'tool_result')
+        THEN json_set(
+          ${rowAlias}.payload_json,
+          '$.orderSeq',
+          COALESCE(
+            (${effectiveTapeMessageOrderSeqSql(rowAlias, sourceAlias)}),
+            json_extract(${rowAlias}.payload_json, '$.orderSeq')
+          )
+        )
+      ELSE ${rowAlias}.payload_json
+    END
+  `
+}
+
 // These read-only SQL forms mirror deepchatTapeEffectiveSemantics. Search uses correlated
 // candidate validation to avoid materializing a whole linked Tape; context uses the complete
 // effective CTE because it needs stable neighboring-row positions. Native tests cover parity for
-// replacement, retraction, head cutoff, and window ordering.
+// replacement, retraction, head cutoff, window ordering, and derived tool order.
 const EFFECTIVE_TAPE_ROWS_CTE_SQL = `
   bounded_rows AS (
     SELECT tape.*
@@ -262,11 +368,7 @@ const EFFECTIVE_TAPE_ROWS_CTE_SQL = `
       provenance_key, payload_json, meta_json, created_at
     FROM bounded_rows
     WHERE kind = 'event'
-      AND (name IS NULL OR name NOT IN (
-        'message/retracted',
-        'message/compaction_indicator',
-        'migration/backfill'
-      ))
+      AND (name IS NULL OR name NOT IN (${DEFAULT_EXCLUDED_TAPE_EVENT_NAMES_SQL}))
     UNION ALL
     SELECT
       session_id, entry_id, kind, name, source_type, source_id, source_seq,
@@ -282,7 +384,11 @@ const EFFECTIVE_TAPE_ROWS_CTE_SQL = `
       ranked_tools.source_id,
       ranked_tools.source_seq,
       ranked_tools.provenance_key,
-      ranked_tools.payload_json,
+      json_set(
+        ranked_tools.payload_json,
+        '$.orderSeq',
+        json_extract(message.payload_json, '$.record.orderSeq')
+      ) AS payload_json,
       ranked_tools.meta_json,
       ranked_tools.created_at
     FROM ranked_tools
@@ -297,11 +403,10 @@ const EFFECTIVE_TAPE_SEARCH_ROW_PREDICATE_SQL = `
   candidate.kind = 'anchor'
   OR (
     candidate.kind = 'event'
-    AND (candidate.name IS NULL OR candidate.name NOT IN (
-      'message/retracted',
-      'message/compaction_indicator',
-      'migration/backfill'
-    ))
+    AND (
+      candidate.name IS NULL
+      OR candidate.name NOT IN (${DEFAULT_EXCLUDED_TAPE_EVENT_NAMES_SQL})
+    )
   )
   OR (
     candidate.kind = 'message'
@@ -435,7 +540,23 @@ export class DeepChatTapeEntriesTable
     return this.db.transaction(operation)()
   }
 
+  isInTransaction(): boolean {
+    return this.db.inTransaction
+  }
+
   append(input: DeepChatTapeAppendInput): DeepChatTapeEntryRow {
+    return this.appendInternal(input, false)
+  }
+
+  protected appendInternal(
+    input: DeepChatTapeAppendInput,
+    allowExecutionJournal: boolean
+  ): DeepChatTapeEntryRow {
+    if (!allowExecutionJournal && isExecutionJournalReservedName(input.name)) {
+      throw new Error(
+        'The execution/* namespace is reserved for the strict Execution Journal writer.'
+      )
+    }
     const append = this.db.transaction(() => {
       const provenanceKey = buildProvenanceKey(input)
       if (input.idempotent && provenanceKey) {
@@ -980,7 +1101,18 @@ export class DeepChatTapeEntriesTable
       .prepare(
         `WITH
          ${AUTHORIZED_TAPE_SOURCES_CTE_SQL}
-         SELECT candidate.*
+         SELECT
+           candidate.session_id,
+           candidate.entry_id,
+           candidate.kind,
+           candidate.name,
+           candidate.source_type,
+           candidate.source_id,
+           candidate.source_seq,
+           candidate.provenance_key,
+           ${projectedTapePayloadSql('candidate', 'source')} AS payload_json,
+           candidate.meta_json,
+           candidate.created_at
          FROM deepchat_tape_entries AS candidate
          INNER JOIN authorized_sources AS source
            ON source.session_id = candidate.session_id
@@ -1092,5 +1224,41 @@ export class DeepChatTapeEntriesTable
         this.db.exec(`ALTER TABLE deepchat_tape_entries ADD COLUMN ${columnName} ${columnType}`)
       }
     }
+  }
+}
+
+export class DeepChatExecutionJournalStore
+  extends DeepChatTapeEntriesTable
+  implements ExecutionJournalPersistenceStore
+{
+  listUnterminatedRunEvents(): Iterable<DeepChatTapeEntryRow> {
+    return this.db
+      .prepare(UNTERMINATED_EXECUTION_JOURNAL_EVENTS_SQL)
+      .iterate() as IterableIterator<DeepChatTapeEntryRow>
+  }
+
+  appendExecutionJournalEvent(
+    input: TapeEventAppendInput & { name: ExecutionJournalEventName }
+  ): DeepChatTapeEntryRow {
+    if (!EXECUTION_JOURNAL_EVENT_NAMES.includes(input.name)) {
+      throw new Error(`Unsupported Execution Journal event name: ${input.name}.`)
+    }
+    return this.appendInternal(
+      {
+        sessionId: input.sessionId,
+        kind: 'event',
+        name: input.name,
+        source: input.source,
+        provenanceKey: input.provenanceKey,
+        payload: {
+          name: input.name,
+          data: input.data
+        },
+        meta: input.meta,
+        createdAt: input.createdAt,
+        idempotent: input.idempotent
+      },
+      true
+    )
   }
 }

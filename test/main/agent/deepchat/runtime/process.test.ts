@@ -24,6 +24,7 @@ import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekRespo
 import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+const RUN_ID = '11111111-1111-4111-8111-111111111111'
 
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
@@ -168,6 +169,11 @@ function makeStreamEvents(...events: LLMCoreStreamEvent[]): LLMCoreStreamEvent[]
 describe('processStream', () => {
   let messageStore: ReturnType<typeof createMockMessageStore>
   let tapeToolFactWriter: { appendToolFact: ReturnType<typeof vi.fn> }
+  let executionJournalWriter: {
+    commitDispatch: ReturnType<typeof vi.fn>
+    commitToolOutcome: ReturnType<typeof vi.fn>
+  }
+  let commitRunTerminal: ReturnType<typeof vi.fn>
   let tempHome: string | null = null
   let homedirSpy: ReturnType<typeof vi.spyOn> | null = null
 
@@ -175,11 +181,16 @@ describe('processStream', () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     messageStore = createMockMessageStore()
+    commitRunTerminal = vi.fn()
     tapeToolFactWriter = {
       appendToolFact: vi.fn(async (input) => ({
         sessionId: input.sessionId,
         entryId: 1
       }))
+    }
+    executionJournalWriter = {
+      commitDispatch: vi.fn(() => ({ sessionId: 's1', entryId: 1, created: true })),
+      commitToolOutcome: vi.fn(() => ({ sessionId: 's1', entryId: 2, created: true }))
     }
   })
 
@@ -222,13 +233,14 @@ describe('processStream', () => {
       run:
         providedRun ??
         createLoopRun({
-          runId: 'req-1',
+          runId: RUN_ID,
           sessionId: toAppSessionId('s1'),
           messageId: 'm1',
           abortController,
           messages,
           streamState: createState(),
-          resources: { toolDefinitions: tools, activeSkillNames: [] }
+          resources: { toolDefinitions: tools, activeSkillNames: [] },
+          initialRequestSeq: 1
         }),
       toolCatalog: {
         resolve: vi.fn().mockResolvedValue(tools)
@@ -246,9 +258,11 @@ describe('processStream', () => {
       maxTokens: 4096,
       interleavedReasoning: DEFAULT_INTERLEAVED_REASONING,
       permissionMode: 'full_access',
+      commitRunTerminal,
       io: {
         messageStore,
         tapeToolFactWriter,
+        executionJournalWriter,
         publishEvent: publishDeepchatEventMock,
         publishSessionUpdate: vi.fn()
       },
@@ -271,6 +285,9 @@ describe('processStream', () => {
   }
 
   function observeCommitOrder(order: string[]): void {
+    commitRunTerminal.mockImplementation(() => {
+      order.push('journal:terminal')
+    })
     messageStore.updateAssistantContent.mockImplementation(() => {
       order.push('message:update')
     })
@@ -516,8 +533,14 @@ describe('processStream', () => {
       'tape:tool_call',
       'tape:tool_result'
     ]
-    const ERROR_TERMINAL_COMMIT_ORDER = ['message:error', 'renderer:update', 'renderer:error']
+    const ERROR_TERMINAL_COMMIT_ORDER = [
+      'journal:terminal',
+      'message:error',
+      'renderer:update',
+      'renderer:error'
+    ]
     const COMPLETED_TERMINAL_COMMIT_ORDER = [
+      'journal:terminal',
       'message:complete',
       'renderer:update',
       'renderer:complete'
@@ -555,16 +578,21 @@ describe('processStream', () => {
       expect(result.status).toBe('completed')
       expect(coreStream).toHaveBeenCalledTimes(1)
       expect(params.run.logicalRound).toBe(1)
-      expect(params.run.requestSeq).toBe(0)
+      expect(params.run.requestSeq).toBe(1)
       expect(order).toEqual([
         'renderer:update',
         'message:update',
         'renderer:update',
         'message:update',
+        'journal:terminal',
         'message:complete',
         'renderer:update',
         'renderer:complete'
       ])
+      expect(commitRunTerminal).toHaveBeenCalledWith({
+        outcome: 'completed',
+        stopReason: 'complete'
+      })
       expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
       expect(JSON.parse(messageStore.finalizeAssistantMessage.mock.calls[0][2])).toMatchObject({
         provider: 'openai',
@@ -573,11 +601,11 @@ describe('processStream', () => {
       expectDeepchatEvent('chat.stream.completed', {
         sessionId: 's1',
         messageId: 'm1',
-        requestId: 'req-1'
+        requestId: RUN_ID
       })
     })
 
-    it('keeps the legacy error fallback inside one settlement stage invocation', async () => {
+    it('does not select a conflicting terminal when projection fails after commit', async () => {
       const order: string[] = []
       observeCommitOrder(order)
       messageStore.finalizeAssistantMessage.mockImplementation(() => {
@@ -585,23 +613,48 @@ describe('processStream', () => {
         throw new Error('final write failed')
       })
 
-      const result = await processStream(createParams())
-
-      expect(result).toMatchObject({
-        status: 'error',
-        errorMessage: 'final write failed'
-      })
+      await expect(processStream(createParams())).rejects.toThrow('final write failed')
       expect(order).toEqual([
         'renderer:update',
         'message:update',
         'renderer:update',
         'message:update',
+        'journal:terminal',
         'message:complete',
-        ...ERROR_TERMINAL_COMMIT_ORDER
       ])
       expect(messageStore.finalizeAssistantMessage).toHaveBeenCalledTimes(1)
-      expect(messageStore.setMessageError).toHaveBeenCalledTimes(1)
+      expect(messageStore.setMessageError).not.toHaveBeenCalled()
+      expect(commitRunTerminal).toHaveBeenCalledOnce()
       expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
+    })
+
+    it('prevents terminal transcript and renderer projection when the journal commit fails', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      commitRunTerminal.mockImplementation(() => {
+        order.push('journal:terminal')
+        throw new Error('journal unavailable')
+      })
+
+      await expect(processStream(createParams())).rejects.toThrow('journal unavailable')
+
+      expect(order).toEqual([
+        'renderer:update',
+        'message:update',
+        'renderer:update',
+        'message:update',
+        'journal:terminal'
+      ])
+      expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
+      expect(messageStore.setMessageError).not.toHaveBeenCalled()
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'chat.stream.completed',
+        expect.anything()
+      )
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'chat.stream.failed',
+        expect.anything()
+      )
     })
 
     it('persists each tool round before entering the next provider round', async () => {
@@ -657,6 +710,7 @@ describe('processStream', () => {
         'tape:tool_result',
         'tape:tool_call',
         'tape:tool_result',
+        'journal:terminal',
         'message:complete',
         'renderer:update',
         'renderer:complete'
@@ -740,11 +794,69 @@ describe('processStream', () => {
         'message:update',
         'renderer:update',
         'message:update',
+        'journal:terminal',
         'message:update',
         'renderer:update',
         'renderer:complete'
       ])
+      expect(commitRunTerminal).toHaveBeenCalledWith({
+        outcome: 'paused',
+        stopReason: 'interaction'
+      })
       expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
+    })
+
+    it('normalizes an inherited unresolved block before a later interaction pause', async () => {
+      const order: string[] = []
+      observeCommitOrder(order)
+      const coreStream = vi.fn(async function* () {
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'question-1',
+          tool_call_name: 'deepchat_question'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'question-1',
+          tool_call_arguments_complete: JSON.stringify({
+            question: 'Continue?',
+            options: [{ label: 'Yes' }, { label: 'No' }]
+          })
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      }) as unknown as ProcessParams['coreStream']
+
+      const result = await processStream(
+        createParams({
+          coreStream,
+          tools: [makeTool('deepchat_question')],
+          initialBlocks: [
+            {
+              type: 'tool_call',
+              content: '',
+              status: 'loading',
+              timestamp: Date.now(),
+              tool_call: {
+                id: 'subagent-running',
+                name: 'agent',
+                params: '{}',
+                response: ''
+              }
+            }
+          ]
+        })
+      )
+
+      expect(result.status).toBe('paused')
+      expect(commitRunTerminal).toHaveBeenCalledOnce()
+      expect(commitRunTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({ outcome: 'paused', stopReason: 'interaction' })
+      )
+      const finalPauseCall = messageStore.updateAssistantContent.mock.calls.findLast(
+        (call) => typeof call[2] === 'string'
+      )
+      expect(finalPauseCall?.[1][0]).toMatchObject({ type: 'tool_call', status: 'error' })
+      expect(order.indexOf('journal:terminal')).toBeLessThan(order.lastIndexOf('message:update'))
     })
 
     it('accounts for executed tools before pausing a mixed tool batch', async () => {
@@ -890,17 +1002,23 @@ describe('processStream', () => {
       expect(order).toEqual([
         'renderer:update',
         'message:update',
+        'journal:terminal',
         'message:error',
         'renderer:update',
         'renderer:error'
       ])
+      expect(commitRunTerminal).toHaveBeenCalledWith({
+        outcome: 'error',
+        stopReason: 'provider_error',
+        errorMessage: 'Connection lost'
+      })
       expect(messageStore.setMessageError).toHaveBeenCalled()
       expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
       expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
       expectDeepchatEvent('chat.stream.failed', {
         sessionId: 's1',
         messageId: 'm1',
-        requestId: 'req-1',
+        requestId: RUN_ID,
         error: 'Connection lost'
       })
     })
@@ -921,10 +1039,16 @@ describe('processStream', () => {
       expect(order).toEqual([
         'renderer:update',
         'message:update',
+        'journal:terminal',
         'message:error',
         'renderer:update',
         'renderer:error'
       ])
+      expect(commitRunTerminal).toHaveBeenCalledWith({
+        outcome: 'aborted',
+        stopReason: 'user_stop',
+        errorMessage: 'common.error.userCanceledGeneration'
+      })
       expect(abortController.signal.aborted).toBe(true)
       const abortMetadata = JSON.parse(messageStore.setMessageError.mock.calls[0][2])
       expect(abortMetadata).toMatchObject({ provider: 'openai', model: 'gpt-4' })
@@ -933,7 +1057,7 @@ describe('processStream', () => {
       expectDeepchatEvent('chat.stream.failed', {
         sessionId: 's1',
         messageId: 'm1',
-        requestId: 'req-1',
+        requestId: RUN_ID,
         error: 'common.error.userCanceledGeneration'
       })
     })
@@ -1732,7 +1856,7 @@ describe('processStream', () => {
     await promise
   })
 
-  it('persists usage and aborted metadata when the provider throws AbortError', async () => {
+  it('records a provider AbortError as an error while the abort signal remains inactive', async () => {
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'
     const coreStream = vi.fn(async function* () {
@@ -1755,9 +1879,9 @@ describe('processStream', () => {
     const result = await promise
 
     expect(result).toMatchObject({
-      status: 'aborted',
-      stopReason: 'user_stop',
-      errorMessage: 'common.error.userCanceledGeneration'
+      status: 'error',
+      stopReason: 'provider_error',
+      errorMessage: 'Aborted'
     })
     expect(result.usage).toEqual({
       inputTokens: 11,
@@ -1769,8 +1893,8 @@ describe('processStream', () => {
     expect(messageStore.setMessageError).toHaveBeenCalledOnce()
     const metadata = JSON.parse(messageStore.setMessageError.mock.calls.at(-1)?.[2])
     expect(metadata).toMatchObject({
-      runOutcome: 'aborted',
-      runStopReason: 'user_stop',
+      runOutcome: 'error',
+      runStopReason: 'provider_error',
       inputTokens: 11,
       outputTokens: 7,
       totalTokens: 18,
@@ -1781,10 +1905,15 @@ describe('processStream', () => {
     })
     expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
     expectDeepchatEvent('chat.stream.failed', {
-      requestId: 'req-1',
+      requestId: RUN_ID,
       sessionId: 's1',
       messageId: 'm1',
-      error: 'common.error.userCanceledGeneration'
+      error: 'Aborted'
+    })
+    expect(commitRunTerminal).toHaveBeenCalledWith({
+      outcome: 'error',
+      stopReason: 'provider_error',
+      errorMessage: 'Aborted'
     })
   })
 
@@ -2800,7 +2929,7 @@ describe('processStream', () => {
     expectDeepchatEvent('chat.stream.completed', {
       sessionId: 's1',
       messageId: 'm1',
-      requestId: 'req-1'
+      requestId: RUN_ID
     })
   })
 
@@ -2857,6 +2986,7 @@ describe('processStream', () => {
   })
 
   it('publishes an aborted terminal marker when AbortError is thrown after a plan event', async () => {
+    const abortController = new AbortController()
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'
     const coreStream = vi.fn(async function* () {
@@ -2866,10 +2996,11 @@ describe('processStream', () => {
         revision: 1,
         updatedAt: '2026-05-18T00:00:00.000Z'
       } as LLMCoreStreamEvent
+      abortController.abort(abortError)
       throw abortError
     }) as unknown as ProcessParams['coreStream']
 
-    const result = await processStream(createParams({ coreStream }))
+    const result = await processStream(createParams({ coreStream, abortController }))
 
     expect(result).toMatchObject({
       status: 'aborted',
@@ -2903,6 +3034,7 @@ describe('processStream', () => {
   })
 
   it('persists finalized narrative blocks when AbortError is thrown after text and plan events', async () => {
+    const abortController = new AbortController()
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'
     const coreStream = vi.fn(async function* () {
@@ -2913,10 +3045,11 @@ describe('processStream', () => {
         revision: 1,
         updatedAt: '2026-05-18T00:00:00.000Z'
       } as LLMCoreStreamEvent
+      abortController.abort(abortError)
       throw abortError
     }) as unknown as ProcessParams['coreStream']
 
-    const result = await processStream(createParams({ coreStream }))
+    const result = await processStream(createParams({ coreStream, abortController }))
 
     expect(result).toMatchObject({
       status: 'aborted',

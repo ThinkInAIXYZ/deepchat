@@ -7,6 +7,7 @@ import type {
   TapeAnchorAppendInput,
   TapeEventAppendInput
 } from '../domain/entry'
+import type { ExecutionJournalEventName } from '../domain/executionJournal'
 
 export interface TapeMutationProjection {
   applyAppendedEntry(row: DeepChatTapeEntryRow, previousSessionMaxEntryId: number): boolean
@@ -62,11 +63,22 @@ export interface TapeEntryStore {
 
 export interface TapeTransactionRunner {
   runInTransaction<T>(operation: () => T): T
+  isInTransaction(): boolean
 }
 
 /** Transitional bootstrap capability until bootstrap orchestration lives in application services. */
 export interface TapeBootstrapStore {
   ensureBootstrapAnchor(sessionId: string): void
+}
+
+/** Strict Journal persistence is intentionally absent from the generic Context Tape store port. */
+export interface ExecutionJournalPersistenceStore
+  extends TapeTransactionRunner, TapeBootstrapStore {
+  appendExecutionJournalEvent(
+    input: TapeEventAppendInput & { name: ExecutionJournalEventName }
+  ): DeepChatTapeEntryRow
+  listUnterminatedRunEvents(): Iterable<DeepChatTapeEntryRow>
+  getByProvenanceKey(sessionId: string, provenanceKey: string): DeepChatTapeEntryRow | undefined
 }
 
 export interface TapeEntryLifecycleStore {

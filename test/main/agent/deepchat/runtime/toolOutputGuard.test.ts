@@ -204,4 +204,24 @@ describe('ToolOutputGuard', () => {
     })
     expect(result?.kind === 'ok' ? result.content : '').toContain(existingOffloadPath)
   })
+
+  it('stops fitting deferred tool output when the resume is already cancelled', async () => {
+    const guard = new ToolOutputGuard()
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      guard.fitExistingToolOutput({
+        sessionId: 's1',
+        conversationMessages: [],
+        toolDefinitions: [],
+        contextLength: 5_000,
+        maxTokens: 1_000,
+        toolCallId: 'call-3',
+        toolName: 'exec',
+        rawContent: 'output',
+        signal: controller.signal
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
 })

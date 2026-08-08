@@ -109,22 +109,27 @@ export interface AgentMemoryToolPort {
       importance?: number
     },
     sourceSession?: string | null,
-    model?: { providerId: string; modelId: string } | null
+    model?: { providerId: string; modelId: string } | null,
+    beforeMutation?: () => void
   ): Promise<MemoryWriteOutcome>
   recallMemory(
     agentId: string,
     query: string,
     scopeContext?: MemoryScopeContext
   ): Promise<Array<{ id: string; kind: string; content: string }>>
-  forgetMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult>
+  forgetMemory(
+    agentId: string,
+    memoryId: string,
+    beforeMutation?: () => void
+  ): Promise<MemoryCommandResult>
 }
 
 export interface AgentCronJobToolPort {
   listCronJobs(): Promise<{ jobs: CronJob[]; schedulerStatus: CronJobsSchedulerStatus }>
-  upsertCronJob(input: AgentToolCronJobUpsertInput): Promise<CronJob>
-  deleteCronJob(id: string): Promise<void>
-  toggleCronJob(id: string, enabled: boolean): Promise<CronJob>
-  runCronJobNow(id: string): Promise<CronJobRun>
+  upsertCronJob(input: AgentToolCronJobUpsertInput, beforeMutation?: () => void): Promise<CronJob>
+  deleteCronJob(id: string, beforeMutation?: () => void): Promise<void>
+  toggleCronJob(id: string, enabled: boolean, beforeMutation?: () => void): Promise<CronJob>
+  runCronJobNow(id: string, beforeMutation?: () => void): Promise<CronJobRun>
   listCronJobRuns(jobId: string, limit?: number): Promise<CronJobRun[]>
   previewCronSchedule(input: {
     cronExpr: string
@@ -147,14 +152,21 @@ export interface AgentLiveDelegationToolPort {
   spawn(
     parentSessionId: string,
     input: { slotId: string; title: string; prompt: string },
-    authorization?: LiveDelegationStartAuthorization
+    authorization?: LiveDelegationStartAuthorization,
+    beforeMutation?: () => void
   ): Promise<LiveDelegationDetail>
-  send(parentSessionId: string, delegationId: string, message: string): LiveDelegationDetail
+  send(
+    parentSessionId: string,
+    delegationId: string,
+    message: string,
+    beforeMutation?: () => void
+  ): LiveDelegationDetail
   followUp(
     parentSessionId: string,
     delegationId: string,
     task: string,
-    authorization?: LiveDelegationStartAuthorization
+    authorization?: LiveDelegationStartAuthorization,
+    beforeMutation?: () => void
   ): Promise<LiveDelegationDetail>
   list(parentSessionId: string, limit?: number): LiveDelegationSummary[]
   inspect(parentSessionId: string, delegationId: string): LiveDelegationDetail
@@ -172,7 +184,11 @@ export interface AgentLiveDelegationToolPort {
       signal?: AbortSignal
     }
   ): Promise<{ events: LiveDelegationEventSummary[]; cursor: number; timedOut: boolean }>
-  interrupt(parentSessionId: string, delegationId: string): Promise<LiveDelegationDetail>
+  interrupt(
+    parentSessionId: string,
+    delegationId: string,
+    beforeMutation?: () => void
+  ): Promise<LiveDelegationDetail>
 }
 
 export interface AgentBrowserToolPort {
@@ -181,7 +197,8 @@ export interface AgentBrowserToolPort {
     toolName: string,
     args: Record<string, unknown>,
     conversationId?: string,
-    runId?: string
+    runId?: string,
+    beforeInvoke?: (normalizedArguments: Record<string, unknown>) => void
   ): Promise<string>
 }
 

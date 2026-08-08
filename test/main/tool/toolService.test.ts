@@ -1079,6 +1079,8 @@ describe('ToolService', () => {
     expect((toolService as any).agentToolManager).toBe(runtimeManager)
     expect(runtimeManager.agentWorkspacePath).toBe('C:\\runtime-workspace')
 
+    const commitDispatch = vi.fn()
+    const registerOutcomeProjection = vi.fn()
     await toolService.callTool(
       {
         id: 'tool-1',
@@ -1086,7 +1088,12 @@ describe('ToolService', () => {
         function: { name: 'mcp_only', arguments: '{}' },
         conversationId: 'conv-1'
       },
-      { runId: 'run-1', permissionMode: 'full_access' }
+      {
+        runId: 'run-1',
+        permissionMode: 'full_access',
+        commitDispatch,
+        registerOutcomeProjection
+      }
     )
 
     expect(mcpService.callTool).toHaveBeenCalledWith(
@@ -1095,6 +1102,8 @@ describe('ToolService', () => {
         agentId: 'agent-1',
         enabledServerIds: ['mcp-server'],
         runId: 'run-1',
+        commitDispatch,
+        registerOutcomeProjection,
         expectedTarget: {
           finalName: 'mcp_only',
           serverName: 'mcp-server',
@@ -1340,10 +1349,63 @@ describe('ToolService', () => {
     })
     expect(runtimePort.cronJobs.listCronJobRuns).toHaveBeenCalledWith('job-1', 2)
     expect(runtimePort.cronJobs.upsertCronJob).toHaveBeenCalledTimes(2)
-    expect(runtimePort.cronJobs.toggleCronJob).toHaveBeenNthCalledWith(1, 'job-1', false)
-    expect(runtimePort.cronJobs.toggleCronJob).toHaveBeenNthCalledWith(2, 'job-1', true)
-    expect(runtimePort.cronJobs.runCronJobNow).toHaveBeenCalledWith('job-1')
-    expect(runtimePort.cronJobs.deleteCronJob).toHaveBeenCalledWith('job-1')
+    expect(runtimePort.cronJobs.toggleCronJob).toHaveBeenNthCalledWith(1, 'job-1', false, undefined)
+    expect(runtimePort.cronJobs.toggleCronJob).toHaveBeenNthCalledWith(2, 'job-1', true, undefined)
+    expect(runtimePort.cronJobs.runCronJobNow).toHaveBeenCalledWith('job-1', undefined)
+    expect(runtimePort.cronJobs.deleteCronJob).toHaveBeenCalledWith('job-1', undefined)
+  })
+
+  it('commits cron mutations before invoking the scheduler runtime', async () => {
+    const order: string[] = []
+    const upsertCronJob = vi.fn().mockImplementation(async (_input, beforeMutation) => {
+      beforeMutation?.()
+      order.push('target')
+      return cronJobFixture
+    })
+    const deleteCronJob = vi.fn().mockImplementation(async (_jobId, beforeMutation) => {
+      beforeMutation?.()
+      order.push('delete')
+    })
+    const runtimePort = buildAgentToolRuntimeMock({ upsertCronJob, deleteCronJob })
+    const handler = new CronJobToolHandler(runtimePort.cronJobs)
+    const beforeMutation = vi.fn(() => order.push('commit'))
+
+    await handler.call(
+      {
+        action: 'create',
+        job: {
+          name: 'Journaled task',
+          agentId: 'deepchat',
+          taskPrompt: 'Run report'
+        }
+      },
+      { beforeMutation }
+    )
+
+    expect(order).toEqual(['commit', 'target'])
+
+    const readCommit = vi.fn()
+    await handler.call({ action: 'list' }, { beforeMutation: readCommit })
+    expect(readCommit).not.toHaveBeenCalled()
+
+    const invalidCommit = vi.fn()
+    await expect(
+      handler.call({ action: 'create' }, { beforeMutation: invalidCommit })
+    ).rejects.toThrow('job is required for create.')
+    expect(invalidCommit).not.toHaveBeenCalled()
+
+    const journalError = new Error('journal unavailable')
+    await expect(
+      handler.call(
+        { action: 'delete', jobId: 'job-1' },
+        {
+          beforeMutation: () => {
+            throw journalError
+          }
+        }
+      )
+    ).rejects.toBe(journalError)
+    expect(order).not.toContain('delete')
   })
 
   it('requires approval for cronjob write actions', async () => {
@@ -1744,6 +1806,12 @@ describe('ToolService', () => {
       'Ask exactly one question per `deepchat_question` call. If multiple clarifications are needed, split them into multiple tool calls.'
     )
     expect(withQuestion).toContain(
+      'Each `options` item must be `{ "label": string, "description"?: string }`.'
+    )
+    expect(withQuestion).toContain(
+      'Use `header` only as the optional top-level question title, never inside `options`.'
+    )
+    expect(withQuestion).toContain(
       'Do not send `questions`, `allowOther`, or stringified `options` JSON.'
     )
   })
@@ -1916,9 +1984,40 @@ describe('ToolService', () => {
     expect((questionDef?.function.parameters as any)?.properties?.options?.description).toContain(
       'Do not pass a stringified JSON array.'
     )
+    expect(
+      (questionDef?.function.parameters as any)?.properties?.options?.items?.properties?.label
+        ?.description
+    ).toContain('Use `label`, not `header`')
+    expect(
+      (questionDef?.function.parameters as any)?.properties?.options?.items?.required
+    ).toContain('label')
     expect((questionDef?.function.parameters as any)?.properties?.custom?.description).toContain(
       'The field name is `custom`, not `allowOther`.'
     )
+
+    await expect(
+      toolService.callTool({
+        id: 'tool-alias',
+        type: 'function',
+        function: {
+          name: 'deepchat_question',
+          arguments: JSON.stringify({
+            question: 'Pick one',
+            options: [{ header: 'Option A', description: 'First option' }]
+          })
+        },
+        conversationId: 'conv-1'
+      })
+    ).resolves.toMatchObject({
+      rawData: {
+        toolResult: {
+          question: 'Pick one',
+          options: [{ label: 'Option A', description: 'First option' }],
+          multiple: false,
+          custom: true
+        }
+      }
+    })
 
     await expect(
       toolService.callTool({
@@ -1938,7 +2037,7 @@ describe('ToolService', () => {
         conversationId: 'conv-1'
       })
     ).rejects.toThrow(
-      'Use a single object with `header?`, `question`, `options`, `multiple?`, and `custom?`.'
+      'Use a single object with fields `header?`, `question`, `options`, `multiple?`, and `custom?`.'
     )
   })
 

@@ -93,6 +93,23 @@ export type MCPToolDefinition = MCPToolDefinitionBase & {
   readonly execution: ToolExecutionContract
 }
 
+export interface ToolDispatchCommitInput {
+  toolName: string
+  toolSource: 'agent' | 'mcp'
+  normalizedArguments: Record<string, unknown>
+  target: {
+    serverName: string
+    originalName?: string
+    ownerPluginId?: string
+  }
+}
+
+export type ToolDispatchCommit = (input: ToolDispatchCommitInput) => void
+
+export type ToolOutcomeProjection = () => void
+
+export type ToolOutcomeProjectionRegistrar = (projection: ToolOutcomeProjection) => void
+
 export function stripToolExecutionContract({
   execution: _execution,
   ...baseDefinition

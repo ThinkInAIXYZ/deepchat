@@ -1378,6 +1378,32 @@ describe('SkillService', () => {
       expect(fs.renameSync).toHaveBeenCalled()
     })
 
+    it('propagates a dispatch commit failure before creating a draft', async () => {
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'draft-skill', description: 'Draft' },
+        content: '# Draft body'
+      })
+      const journalError = new Error('journal unavailable')
+
+      await expect(
+        skillService.manageDraftSkill(
+          'conv-draft',
+          {
+            action: 'create',
+            content: '---\nname: draft-skill\ndescription: Draft\n---\n\n# Draft body'
+          },
+          {
+            beforeMutation: () => {
+              throw journalError
+            }
+          }
+        )
+      ).rejects.toBe(journalError)
+
+      expect(fs.writeFileSync).not.toHaveBeenCalled()
+      expect(fs.renameSync).not.toHaveBeenCalled()
+    })
+
     it('rejects invalid draft frontmatter', async () => {
       ;(matter as unknown as Mock).mockReturnValue({
         data: { description: 'Draft only' },

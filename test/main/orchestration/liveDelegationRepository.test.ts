@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const databaseModule = Database
@@ -116,6 +116,70 @@ describeIfSqlite('LiveDelegationRepository', () => {
         prompt: 'Do work.'
       })
     ).toThrow('parent session does not exist')
+  })
+
+  it('runs dispatch commits outside host transactions and retains them on mutation failure', () => {
+    db!.exec('CREATE TABLE journal_receipts (operation_id TEXT PRIMARY KEY)')
+    const transactionStates: boolean[] = []
+    const commitReceipt = (operationId: string) => () => {
+      transactionStates.push(db!.inTransaction)
+      db!.prepare('INSERT INTO journal_receipts (operation_id) VALUES (?)').run(operationId)
+    }
+
+    repository.create(
+      {
+        id: 'delegation-receipt',
+        initialTurnId: 'turn-receipt',
+        parentSessionId: 'parent',
+        slotId: 'reviewer',
+        targetAgentId: 'agent-1',
+        title: 'Commit before mutation',
+        prompt: 'Verify transaction ownership.',
+        now: 101
+      },
+      commitReceipt('receipt-success')
+    )
+
+    expect(() =>
+      repository.create(
+        {
+          id: 'delegation-receipt',
+          initialTurnId: 'turn-duplicate',
+          parentSessionId: 'parent',
+          slotId: 'reviewer',
+          targetAgentId: 'agent-1',
+          title: 'Duplicate mutation',
+          prompt: 'Fail after the receipt commits.',
+          now: 102
+        },
+        commitReceipt('receipt-before-failure')
+      )
+    ).toThrow()
+
+    expect(transactionStates).toEqual([false, false])
+    expect(
+      db!.prepare('SELECT operation_id FROM journal_receipts ORDER BY operation_id').all()
+    ).toEqual([{ operation_id: 'receipt-before-failure' }, { operation_id: 'receipt-success' }])
+  })
+
+  it('does not commit dispatch when delegation preflight rejects the request', () => {
+    const beforeMutation = vi.fn()
+
+    expect(() =>
+      repository.create(
+        {
+          id: 'orphan',
+          initialTurnId: 'orphan-turn',
+          parentSessionId: 'missing',
+          slotId: 'reviewer',
+          targetAgentId: 'agent-1',
+          title: 'Orphan',
+          prompt: 'Do work.'
+        },
+        beforeMutation
+      )
+    ).toThrow('parent session does not exist')
+    expect(beforeMutation).not.toHaveBeenCalled()
   })
 
   it('enforces parent active capacity atomically for initial and follow-up turns', () => {

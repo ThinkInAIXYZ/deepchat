@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
 import { appendMessageRecordToTape, appendToolFactsToTape } from '@/session/data/tapeFacts'
-import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
+import { buildEffectiveTapeView, projectTapeToolOrderSeq } from '@/tape/domain/effectiveView'
 import {
   messageRecordHasFinalToolUse,
   tapeToolRank
@@ -237,6 +237,24 @@ describe('appendToolFactsToTape', () => {
     const effectiveResults = effective.rows.filter((row) => row.kind === 'tool_result')
     expect(effectiveResults).toHaveLength(1)
     expect(JSON.parse(effectiveResults[0].payload_json).response).toBe('second')
+  })
+
+  it('derives tool order without mutating the persisted legacy fallback', () => {
+    const table = createTable()
+    appendMessageRecordToTape(
+      table as any,
+      assistantRecord([toolCallBlock('success', 'tc1', 'result')]),
+      'live'
+    )
+    const persisted = table.rows.find((row) => row.kind === 'tool_result')
+
+    expect(projectTapeToolOrderSeq(persisted, new Map())).toBe(persisted)
+    expect(JSON.parse(persisted.payload_json).orderSeq).toBe(2)
+
+    const projected = projectTapeToolOrderSeq(persisted, new Map([['a1', 7]]))
+    expect(projected).not.toBe(persisted)
+    expect(JSON.parse(projected.payload_json).orderSeq).toBe(7)
+    expect(JSON.parse(persisted.payload_json).orderSeq).toBe(2)
   })
 })
 

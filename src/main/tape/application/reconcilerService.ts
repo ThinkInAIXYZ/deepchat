@@ -1,7 +1,7 @@
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { TapeApplicationProviders } from '../ports/application'
 import type { TapeBackfillResult, TapeTranscriptReader } from '../ports/capabilities'
-import { appendMessageRecordToTape } from './factPersistence'
+import { appendMessageRecordToTape, buildTapeToolRevisionIndex } from './factPersistence'
 import type { TapeFactService } from './factService'
 import { migrationProvenanceKey } from './common'
 
@@ -40,8 +40,11 @@ export class TapeReconcilerService {
     table.ensureBootstrapAnchor(sessionId)
 
     let appendedFactCount = 0
+    const toolRevisionIndex = buildTapeToolRevisionIndex(table.getBySession(sessionId))
     for (const record of historyRecords) {
-      appendedFactCount += appendMessageRecordToTape(table, record, 'backfill')
+      appendedFactCount += appendMessageRecordToTape(table, record, 'backfill', {
+        toolRevisionIndex
+      })
     }
 
     this.backfillLegacySummaryAnchor(sessionId, historyRecords)

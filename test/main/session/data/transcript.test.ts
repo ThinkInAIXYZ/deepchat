@@ -1133,6 +1133,7 @@ describe('SessionTranscript', () => {
       sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
         {
           id: 'm1',
+          session_id: 's1',
           role: 'assistant',
           content: JSON.stringify([
             {
@@ -1147,6 +1148,7 @@ describe('SessionTranscript', () => {
         },
         {
           id: 'm2',
+          session_id: 's1',
           role: 'assistant',
           content: JSON.stringify([
             {
@@ -1184,10 +1186,69 @@ describe('SessionTranscript', () => {
       ])
     })
 
+    it('recovers a pending interaction when Journal evidence parks its message', () => {
+      sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
+        {
+          id: 'm1',
+          session_id: 's1',
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'action',
+              action_type: 'tool_call_permission',
+              status: 'pending',
+              timestamp: 1,
+              tool_call: { id: 'tc1' },
+              extra: { needsUserAction: true }
+            }
+          ])
+        }
+      ])
+
+      expect(
+        store.recoverPendingMessages({
+          forceRecoverMessagesBySession: new Map([['s1', new Set(['m1'])]])
+        })
+      ).toBe(1)
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
+        'm1',
+        expect.any(String),
+        'error'
+      )
+    })
+
+    it('does not apply Journal recovery evidence across sessions', () => {
+      sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
+        {
+          id: 'm1',
+          session_id: 's2',
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'action',
+              action_type: 'tool_call_permission',
+              status: 'pending',
+              timestamp: 1,
+              tool_call: { id: 'tc1' },
+              extra: { needsUserAction: true }
+            }
+          ])
+        }
+      ])
+
+      expect(
+        store.recoverPendingMessages({
+          forceRecoverMessagesBySession: new Map([['s1', new Set(['m1'])]])
+        })
+      ).toBe(0)
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
+    })
+
     it('adds an explicit error block when pending assistant content is empty', () => {
       sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
         {
           id: 'm3',
+          session_id: 's1',
           role: 'assistant',
           content: '[]'
         }

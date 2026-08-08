@@ -92,6 +92,9 @@ async function setup(options?: {
         }
         if (key === 'settings.provider.urlFormatFill') return 'Fill into API URL'
         if (key === 'settings.provider.dialog.baseUrlUnlock.confirm') return 'Continue'
+        if (key === 'settings.provider.amdDeveloperHint') {
+          return 'AMD GPU Cloud provides public model APIs through Radeon Token Factory. Get an API key from AMD to access the currently available models.'
+        }
         return key
       }
     })
@@ -289,6 +292,33 @@ describe('ProviderApiConfig', () => {
 
     expect(wrapper.find('input#custom-demo-url').exists()).toBe(true)
     expect(findButtonByText(wrapper, 'Modify')).toBeUndefined()
+  })
+
+  it('shows the AMD GPU Cloud hint and attributed Token Factory link', async () => {
+    const tokenFactoryUrl = 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat'
+    const { wrapper } = await setup({
+      provider: createProvider({
+        id: 'amd-developer',
+        name: 'AMD GPU Cloud',
+        apiType: 'openai-completions',
+        baseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
+      }),
+      providerWebsites: {
+        official: 'https://developer.amd.com.cn/radeon/',
+        apiKey: tokenFactoryUrl,
+        docs: 'https://developer.amd.com.cn/radeon/',
+        models: tokenFactoryUrl,
+        defaultBaseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
+      }
+    })
+
+    expect(wrapper.get('[data-testid="amd-developer-hint"]').text()).toBe(
+      'AMD GPU Cloud provides public model APIs through Radeon Token Factory. Get an API key from AMD to access the currently available models.'
+    )
+    const tokenFactoryLink = wrapper
+      .findAll('a')
+      .find((link) => link.attributes('href') === tokenFactoryUrl)
+    expect(tokenFactoryLink?.attributes('target')).toBe('_blank')
   })
 
   it('shows the metadata sync hint for DB-backed providers and delegates refresh to the provider client', async () => {

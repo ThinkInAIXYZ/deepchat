@@ -395,7 +395,8 @@ export class ToolService implements ToolServicePort {
           signal: options?.signal,
           allowExternalFileAccess: allowsExternalFileAccess(permissionMode),
           activeSkillNames: options?.activeSkillNames,
-          liveDelegationAuthorization
+          liveDelegationAuthorization,
+          commitDispatch: options?.commitDispatch
         }
       )
       const resolvedResponse = this.resolveAgentToolResponse(response)
@@ -471,7 +472,9 @@ export class ToolService implements ToolServicePort {
       enabledServerIds,
       runId: options?.runId,
       signal: options?.signal,
-      expectedTarget
+      expectedTarget,
+      commitDispatch: options?.commitDispatch,
+      registerOutcomeProjection: options?.registerOutcomeProjection
     })
   }
 
@@ -1100,7 +1103,9 @@ export class ToolService implements ToolServicePort {
       'If the answer would meaningfully change the work, prefer asking instead of guessing.',
       'Do not ask for facts you can discover from the repo, tools, or existing conversation context.',
       `Ask exactly one question per \`${QUESTION_TOOL_NAME}\` call. If multiple clarifications are needed, split them into multiple tool calls.`,
-      'Use only the existing fields `header`, `question`, `options`, `multiple`, and `custom`.',
+      'Use only the top-level fields `header`, `question`, `options`, `multiple`, and `custom`.',
+      'Each `options` item must be `{ "label": string, "description"?: string }`.',
+      'Use `header` only as the optional top-level question title, never inside `options`.',
       'Do not send `questions`, `allowOther`, or stringified `options` JSON.'
     ].join('\n')
   }

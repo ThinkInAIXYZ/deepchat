@@ -13,9 +13,11 @@ import {
   resolveAgentOutputLimits,
   type AgentOutputLimits
 } from '@shared/lib/agentOutputLimits'
+import { throwIfAbortRequested } from './abortErrors'
 import { preflightRequestContext } from './contextBudget'
 
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
+const TOOL_OUTPUT_OFFLOAD_MARKER = '[Tool output offloaded]'
 const TOOLS_REQUIRING_OFFLOAD = new Set(['ls', 'find', 'grep', 'cdp_send'])
 const CONTEXT_FALLBACK_OFFLOAD_TOOLS = new Set([
   ...TOOLS_REQUIRING_OFFLOAD,
@@ -50,6 +52,7 @@ interface PrepareToolOutputParams {
 
 interface ContextFallbackParams extends PrepareToolOutputParams {
   existingOffloadPath?: string
+  signal?: AbortSignal
 }
 
 interface GuardToolOutputParams extends PrepareToolOutputParams {
@@ -114,7 +117,7 @@ export class ToolOutputGuard {
   }
 
   private async offloadToolOutput(
-    params: PrepareToolOutputParams
+    params: PrepareToolOutputParams & { signal?: AbortSignal }
   ): Promise<PreparedToolOutput> {
     const { sessionId, toolCallId, toolName, rawContent } = params
     const filePath = resolveToolOffloadPath(sessionId, toolCallId)
@@ -126,9 +129,19 @@ export class ToolOutputGuard {
     }
 
     try {
+      throwIfAbortRequested(params.signal)
       await fs.mkdir(path.dirname(filePath), { recursive: true })
-      await fs.writeFile(filePath, rawContent, 'utf-8')
+      throwIfAbortRequested(params.signal)
+      await fs.writeFile(filePath, rawContent, {
+        encoding: 'utf-8',
+        signal: params.signal
+      })
+      throwIfAbortRequested(params.signal)
     } catch (error) {
+      if (params.signal?.aborted) {
+        await this.cleanupOffloadedOutput(filePath)
+        throw params.signal.reason ?? error
+      }
       console.warn('[ToolOutputGuard] Failed to offload tool output:', error)
       return {
         kind: 'tool_error',
@@ -149,7 +162,7 @@ export class ToolOutputGuard {
   ): Promise<PreparedToolOutput | null> {
     if (!CONTEXT_FALLBACK_OFFLOAD_TOOLS.has(params.toolName)) return null
     if (!params.rawContent) return null
-    if (params.rawContent.startsWith('[Tool output offloaded]')) return null
+    if (params.rawContent.startsWith(TOOL_OUTPUT_OFFLOAD_MARKER)) return null
 
     if (params.existingOffloadPath) {
       return {
@@ -163,9 +176,46 @@ export class ToolOutputGuard {
     return await this.offloadToolOutput(params)
   }
 
+  private async tryContextFallback(
+    params: ContextFallbackParams & ContextBudgetParams,
+    mode: ToolMessageUpdateMode
+  ): Promise<PreparedToolOutput | null> {
+    const fallback = await this.prepareContextFallback(params)
+    if (fallback?.kind !== 'ok') return null
+
+    try {
+      throwIfAbortRequested(params.signal)
+      const fallbackMessages = this.withToolMessage(
+        params.conversationMessages,
+        params.toolCallId,
+        fallback.content,
+        mode
+      )
+      if (
+        this.hasContextBudget({
+          conversationMessages: fallbackMessages,
+          toolDefinitions: params.toolDefinitions,
+          contextLength: params.contextLength,
+          maxTokens: params.maxTokens
+        })
+      ) {
+        throwIfAbortRequested(params.signal)
+        return fallback
+      }
+    } catch (error) {
+      await this.cleanupOffloadedOutput(fallback.offloadPath)
+      throw error
+    }
+
+    await this.cleanupOffloadedOutput(fallback.offloadPath)
+    throwIfAbortRequested(params.signal)
+    return null
+  }
+
   async fitExistingToolOutput(
-    params: GuardToolOutputParams & { existingOffloadPath?: string }
+    params: GuardToolOutputParams & { existingOffloadPath?: string; signal?: AbortSignal }
   ): Promise<ToolOutputGuardResult | null> {
+    throwIfAbortRequested(params.signal)
     if (
       this.hasContextBudget({
         conversationMessages: params.conversationMessages,
@@ -177,27 +227,10 @@ export class ToolOutputGuard {
       return null
     }
 
-    const fallback = await this.prepareContextFallback(params)
-    if (fallback?.kind === 'ok') {
-      const fallbackMessages = this.withToolMessage(
-        params.conversationMessages,
-        params.toolCallId,
-        fallback.content,
-        'replace'
-      )
-      if (
-        this.hasContextBudget({
-          conversationMessages: fallbackMessages,
-          toolDefinitions: params.toolDefinitions,
-          contextLength: params.contextLength,
-          maxTokens: params.maxTokens
-        })
-      ) {
-        return fallback
-      }
-      await this.cleanupOffloadedOutput(fallback.offloadPath)
-    }
+    const fallback = await this.tryContextFallback(params, 'replace')
+    if (fallback) return fallback
 
+    throwIfAbortRequested(params.signal)
     return this.fitToolError({
       ...params,
       errorMessage: this.buildContextOverflowMessage(params.toolCallId, params.toolName),
@@ -232,26 +265,8 @@ export class ToolOutputGuard {
     }
 
     if (!prepared.offloaded) {
-      const fallback = await this.prepareContextFallback(params)
-      if (fallback?.kind === 'ok') {
-        const fallbackMessages = this.withToolMessage(
-          params.conversationMessages,
-          params.toolCallId,
-          fallback.content,
-          'append'
-        )
-        if (
-          this.hasContextBudget({
-            conversationMessages: fallbackMessages,
-            toolDefinitions: params.toolDefinitions,
-            contextLength: params.contextLength,
-            maxTokens: params.maxTokens
-          })
-        ) {
-          return fallback
-        }
-        await this.cleanupOffloadedOutput(fallback.offloadPath)
-      }
+      const fallback = await this.tryContextFallback(params, 'append')
+      if (fallback) return fallback
     }
 
     const overflowResult = this.fitToolError({
@@ -298,7 +313,7 @@ export class ToolOutputGuard {
       if (
         current.isError ||
         current.offloadPath ||
-        current.responseText.startsWith('[Tool output offloaded]')
+        current.responseText.startsWith(TOOL_OUTPUT_OFFLOAD_MARKER)
       ) {
         continue
       }
@@ -541,7 +556,7 @@ export class ToolOutputGuard {
   private buildOffloadStub(rawContent: string, filePath: string): string {
     const preview = rawContent.slice(0, TOOL_OUTPUT_PREVIEW_LENGTH)
     return [
-      '[Tool output offloaded]',
+      TOOL_OUTPUT_OFFLOAD_MARKER,
       `Total characters: ${rawContent.length}`,
       `Offload file: ${filePath}`,
       `first ${preview.length} chars:`,
@@ -552,7 +567,7 @@ export class ToolOutputGuard {
   private buildExistingOffloadStub(inlineContent: string, filePath: string): string {
     const preview = inlineContent.slice(0, TOOL_OUTPUT_PREVIEW_LENGTH)
     return [
-      '[Tool output offloaded]',
+      TOOL_OUTPUT_OFFLOAD_MARKER,
       `Offload file: ${filePath}`,
       `Inline characters before context fallback: ${inlineContent.length}`,
       `first ${preview.length} chars:`,

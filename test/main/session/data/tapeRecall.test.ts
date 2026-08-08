@@ -38,7 +38,7 @@ function providerAttemptProvenance(overrides: Record<string, unknown> = {}) {
 
 describe('SessionTape recall', () => {
   it('invalidates projections written before atomic generation transitions', () => {
-    expect(DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION).toBeGreaterThan(2)
+    expect(DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION).toBeGreaterThan(5)
   })
 
   itIfSqlite('prunes legacy and metadata-orphaned search projections during initialization', () => {
@@ -1887,7 +1887,10 @@ describe('SessionTape recall', () => {
           updatedAt: 200
         }
         appendMessageRecordToTape(table, original, 'live')
-        appendMessageReplacementToTape(table, replacement, 'native_edit')
+        appendMessageReplacementToTape(table, replacement, {
+          reason: 'native_edit',
+          revisionKind: 'record'
+        })
         const replacementHead = table.getMaxEntryId('child-message')
         expect(
           table.searchEffectiveSourcesAtHeads(
@@ -1909,6 +1912,79 @@ describe('SessionTape recall', () => {
             )
             .map((row) => row.entry_id)
         ).toEqual([replacementHits[0].entry_id])
+
+        table.ensureBootstrapAnchor('child-tool')
+        appendMessageRecordToTape(
+          table,
+          createRecord({
+            id: 'tool-message',
+            sessionId: 'child-tool',
+            orderSeq: 7,
+            role: 'assistant',
+            content: '[]'
+          }),
+          'live'
+        )
+        const linkedToolResult = table.append({
+          sessionId: 'child-tool',
+          kind: 'tool_result',
+          name: 'search',
+          source: { type: 'tool_result', id: 'tool-message:tc1', seq: 0 },
+          payload: {
+            messageId: 'tool-message',
+            orderSeq: 2,
+            toolCallId: 'tc1',
+            response: 'linked tool order marker'
+          },
+          meta: { source: 'live', status: 'success' }
+        })
+        const toolHead = table.getMaxEntryId('child-tool')
+        const linkedToolHits = table.searchEffectiveSourcesAtHeads(
+          [{ sessionId: 'child-tool', maxEntryId: toolHead }],
+          'linked tool order marker'
+        )
+        expect(JSON.parse(linkedToolHits[0].payload_json).orderSeq).toBe(7)
+        const linkedToolContext = table.getEffectiveContextRowsAtHead(
+          { sessionId: 'child-tool', maxEntryId: toolHead },
+          [linkedToolResult.entry_id],
+          { before: 0, after: 0, limit: 1 }
+        )
+        expect(JSON.parse(linkedToolContext[0].payload_json).orderSeq).toBe(7)
+
+        const shiftedToolMessage = createRecord({
+          id: 'tool-message',
+          sessionId: 'child-tool',
+          orderSeq: 9,
+          role: 'assistant',
+          content: '[]',
+          updatedAt: 200
+        })
+        appendMessageReplacementToTape(table, shiftedToolMessage, {
+          reason: 'linked_order_shift',
+          revisionKind: 'order'
+        })
+        const shiftedToolHead = table.getMaxEntryId('child-tool')
+        const shiftedToolHits = table.searchEffectiveSourcesAtHeads(
+          [{ sessionId: 'child-tool', maxEntryId: shiftedToolHead }],
+          'linked tool order marker'
+        )
+        expect(JSON.parse(shiftedToolHits[0].payload_json).orderSeq).toBe(9)
+        expect(
+          JSON.parse(
+            table.searchEffectiveSourcesAtHeads(
+              [{ sessionId: 'child-tool', maxEntryId: toolHead }],
+              'linked tool order marker'
+            )[0].payload_json
+          ).orderSeq
+        ).toBe(7)
+
+        appendMessageRetractionToTape(table, shiftedToolMessage, 'linked_delete')
+        expect(
+          table.searchEffectiveSourcesAtHeads(
+            [{ sessionId: 'child-tool', maxEntryId: table.getMaxEntryId('child-tool') }],
+            'linked tool order marker'
+          )
+        ).toEqual([])
 
         table.append({
           sessionId: 'child-message',
@@ -2782,6 +2858,7 @@ describe('SessionTape recall', () => {
         const errorHits = service.search('s1', '42', { kinds: ['tool_result'], limit: 5 })
         expect(errorHits[0]).toMatchObject({
           refs: {
+            orderSeq: 1,
             toolCallId: 'tc1',
             exitStatus: 42
           }

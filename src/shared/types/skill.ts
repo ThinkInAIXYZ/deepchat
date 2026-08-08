@@ -315,7 +315,11 @@ export interface SkillServicePort {
   viewDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult>
   installDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult>
   discardDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult>
-  manageDraftSkill(conversationId: string, request: SkillManageRequest): Promise<SkillManageResult>
+  manageDraftSkill(
+    conversationId: string,
+    request: SkillManageRequest,
+    options?: { beforeMutation?: () => void }
+  ): Promise<SkillManageResult>
 
   // Installation and uninstallation
   installBuiltinSkills(): Promise<void>

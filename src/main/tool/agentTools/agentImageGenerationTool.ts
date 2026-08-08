@@ -119,7 +119,10 @@ export class AgentImageGenerationTool {
   async call(
     args: Record<string, unknown>,
     conversationId?: string,
-    options?: { signal?: AbortSignal }
+    options?: {
+      signal?: AbortSignal
+      beforeGenerate?: (normalizedArguments: Record<string, unknown>) => void
+    }
   ): Promise<AgentImageGenerationToolCallResult> {
     const parsed = imageGenerateSchema.safeParse(args)
     if (!parsed.success) {
@@ -136,6 +139,12 @@ export class AgentImageGenerationTool {
     }
 
     const imageOptions = this.toImageGenerationOptions(parsed.data)
+    options?.signal?.throwIfAborted()
+    options?.beforeGenerate?.({
+      ...parsed.data,
+      providerId: model.providerId,
+      modelId: model.modelId
+    })
 
     try {
       const result = await this.options.provider.generateImageStandalone(

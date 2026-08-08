@@ -226,6 +226,19 @@ export class DeepChatMessagesTable extends BaseTable {
       .all(sessionId, maxOrderSeq) as DeepChatMessageRow[]
   }
 
+  getBySessionAndIds(sessionId: string, messageIds: string[]): DeepChatMessageRow[] {
+    if (messageIds.length === 0) return []
+    const placeholders = messageIds.map(() => '?').join(', ')
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_messages
+         WHERE session_id = ? AND id IN (${placeholders})
+         ORDER BY order_seq, id`
+      )
+      .all(sessionId, ...messageIds) as DeepChatMessageRow[]
+  }
+
   getByStatus(status: 'pending' | 'sent' | 'error'): DeepChatMessageRow[] {
     return this.db
       .prepare('SELECT * FROM deepchat_messages WHERE status = ? ORDER BY updated_at DESC')
@@ -361,7 +374,12 @@ export class DeepChatMessagesTable extends BaseTable {
 
   getIdsFromOrderSeq(sessionId: string, fromOrderSeq: number): string[] {
     const rows = this.db
-      .prepare('SELECT id FROM deepchat_messages WHERE session_id = ? AND order_seq >= ?')
+      .prepare(
+        `SELECT id
+         FROM deepchat_messages
+         WHERE session_id = ? AND order_seq >= ?
+         ORDER BY order_seq, id`
+      )
       .all(sessionId, fromOrderSeq) as Array<{ id: string }>
     return rows.map((row) => row.id)
   }

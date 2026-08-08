@@ -6,6 +6,7 @@ import {
   buildContext,
   toAppSessionId,
   SessionTape,
+  appendMessageRecordToTape,
   appendMessageReplacementToTape,
   appendMessageRetractionToTape,
   createTapeTableMock,
@@ -14,6 +15,27 @@ import {
 } from './tapeTestHarness'
 
 describe('SessionTape reconciliation and facts', () => {
+  it('uses the explicit replacement revision kind instead of the reason text', () => {
+    const { table, entries } = createTapeTableMock()
+    appendMessageReplacementToTape(
+      table as any,
+      createRecord({ id: 'record-revision', orderSeq: 7, updatedAt: 300 }),
+      { reason: 'compaction_order_shifted', revisionKind: 'record' }
+    )
+    appendMessageReplacementToTape(
+      table as any,
+      createRecord({ id: 'order-revision', orderSeq: 7, updatedAt: 300 }),
+      { reason: 'test_edit', revisionKind: 'order' }
+    )
+
+    expect(entries.find((entry) => entry.source_id === 'record-revision')?.provenance_key).toBe(
+      'message:record-revision:revision:300'
+    )
+    expect(entries.find((entry) => entry.source_id === 'order-revision')?.provenance_key).toBe(
+      'message:order-revision:revision:300:order_seq:7'
+    )
+  })
+
   it('keeps unkeyed idempotent harness appends distinct like the SQLite store', () => {
     const { table, entries } = createTapeTableMock()
     const input = {
@@ -70,6 +92,151 @@ describe('SessionTape reconciliation and facts', () => {
     expect(entries.filter((entry) => entry.kind === 'tool_call')).toHaveLength(1)
     expect(entries.filter((entry) => entry.kind === 'tool_result')).toHaveLength(1)
     expect(entries.filter((entry) => entry.name === 'migration/backfill')).toHaveLength(1)
+  })
+
+  it('keeps A to B to A tool result revisions effective during backfill', () => {
+    const { table, entries } = createTapeTableMock()
+    let response = 'response-a'
+    let updatedAt = 100
+    const messageStore = {
+      getMessages: vi.fn(() => [
+        createRecord({
+          id: 'a1',
+          orderSeq: 2,
+          role: 'assistant',
+          status: 'error',
+          content: JSON.stringify([
+            {
+              type: 'tool_call',
+              status: 'error',
+              timestamp: 90,
+              tool_call: {
+                id: 'tc1',
+                name: 'search',
+                params: '{"q":"x"}',
+                response
+              }
+            }
+          ]),
+          updatedAt
+        })
+      ])
+    }
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    service.ensureSessionTapeReady('s1', messageStore as any)
+    response = 'response-b'
+    updatedAt = 200
+    service.ensureSessionTapeReady('s1', messageStore as any)
+    response = 'response-a'
+    updatedAt = 300
+    service.ensureSessionTapeReady('s1', messageStore as any)
+
+    const resultRows = entries.filter((entry) => entry.kind === 'tool_result')
+    expect(resultRows.map((row) => JSON.parse(row.payload_json).response)).toEqual([
+      'response-a',
+      'response-b',
+      'response-a'
+    ])
+    expect(resultRows.slice(1).every((row) => row.provenance_key.includes(':after_entry:'))).toBe(
+      true
+    )
+    expect(entries.filter((entry) => entry.kind === 'tool_call')).toHaveLength(1)
+    expect(service.search('s1', 'response-a', { kinds: ['tool_result'] })).toHaveLength(1)
+    expect(service.search('s1', 'response-b', { kinds: ['tool_result'] })).toEqual([])
+  })
+
+  it('keeps a reverted live tool result as the latest immutable revision', () => {
+    const { table, entries } = createTapeTableMock()
+    const record = (response: string, updatedAt: number) =>
+      createRecord({
+        id: 'a1',
+        orderSeq: 2,
+        role: 'assistant',
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status: 'success',
+            timestamp: 90,
+            tool_call: {
+              id: 'tc1',
+              name: 'search',
+              params: '{"q":"x"}',
+              response
+            }
+          }
+        ]),
+        updatedAt
+      })
+
+    appendMessageRecordToTape(table as any, record('response-a', 100), 'live')
+    appendMessageReplacementToTape(table as any, record('response-b', 200), {
+      reason: 'content_repaired',
+      revisionKind: 'record'
+    })
+    appendMessageReplacementToTape(table as any, record('response-a', 300), {
+      reason: 'content_repaired',
+      revisionKind: 'record'
+    })
+
+    const resultRows = entries.filter((entry) => entry.kind === 'tool_result')
+    expect(resultRows.map((row) => JSON.parse(row.payload_json).response)).toEqual([
+      'response-a',
+      'response-b',
+      'response-a'
+    ])
+    expect(JSON.parse(resultRows.at(-1).payload_json).response).toBe('response-a')
+  })
+
+  it('keeps status-only and result-name changes as immutable tool revisions', () => {
+    const { table, entries } = createTapeTableMock()
+    const record = (status: 'success' | 'error', name: string, updatedAt: number) =>
+      createRecord({
+        id: 'a1',
+        orderSeq: 2,
+        role: 'assistant',
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status,
+            timestamp: 90,
+            tool_call: {
+              id: 'tc1',
+              name,
+              params: '{"q":"x"}',
+              response: 'stable response'
+            }
+          }
+        ]),
+        updatedAt
+      })
+
+    appendMessageRecordToTape(table as any, record('error', 'search', 100), 'live')
+    appendMessageReplacementToTape(table as any, record('success', 'search', 200), {
+      reason: 'content_repaired',
+      revisionKind: 'record'
+    })
+    appendMessageReplacementToTape(table as any, record('success', 'lookup', 300), {
+      reason: 'content_repaired',
+      revisionKind: 'record'
+    })
+
+    const callRows = entries.filter((entry) => entry.kind === 'tool_call')
+    const resultRows = entries.filter((entry) => entry.kind === 'tool_result')
+    expect(callRows.map((row) => JSON.parse(row.meta_json).status)).toEqual([
+      'error',
+      'success',
+      'success'
+    ])
+    expect(resultRows.map((row) => JSON.parse(row.meta_json).status)).toEqual([
+      'error',
+      'success',
+      'success'
+    ])
+    expect(resultRows.map((row) => row.name)).toEqual(['search', 'search', 'lookup'])
   })
 
   it('appends live tool facts through the stable recorder port idempotently', async () => {
@@ -371,7 +538,7 @@ describe('SessionTape reconciliation and facts', () => {
         }),
         updatedAt: 300
       }),
-      'test_edit'
+      { reason: 'test_edit', revisionKind: 'record' }
     )
 
     expect(JSON.parse(service.getMessageRecords('s1')[0].content).text).toBe('edited')

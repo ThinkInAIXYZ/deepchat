@@ -3,6 +3,8 @@ import type {
   MCPContentItem,
   MCPResourceContent,
   MCPToolResponse,
+  ToolDispatchCommitInput,
+  ToolOutcomeProjection,
   ToolCallImagePreview
 } from '@shared/types/core/mcp'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
@@ -60,6 +62,16 @@ import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import { selectToolBatchExecutionMode } from './toolExecutionPolicy'
 import { resolveToolPermissionMode } from '@/tool/permission/permissionMode'
 import { segmentAssistantBlocksByProviderReplay } from './providerReplaySegments'
+import {
+  CommittedToolOutcomeProjectionError,
+  ExecutionJournalCorruptionError,
+  ExecutionJournalDuplicateDispatchError,
+  ExecutionJournalError,
+  isExecutionJournalError,
+  normalizeExecutionOperationIdentity,
+  type ExecutionOperationIdentity
+} from '@/tape/domain/executionJournal'
+import type { ExecutionJournalWriter } from '@/tape/ports/capabilities'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -97,6 +109,8 @@ type StagedToolResult = {
   skillDraftPrompt?: SkillDraftPromptPayload
   postHookKind: 'success' | 'failure'
   skippedReason?: 'max_tokens'
+  operation?: ExecutionOperationIdentity
+  outcomeCommitted?: true
 }
 
 type SkillDraftPromptPayload = {
@@ -213,6 +227,13 @@ async function commitStagedToolResults(
   } = params
 
   if (stagedResults.length > 0) {
+    for (const stagedResult of stagedResults) {
+      if (stagedResult.operation && !stagedResult.outcomeCommitted) {
+        throw new ExecutionJournalCorruptionError(
+          `Dispatched tool result was not committed for ${stagedResult.toolCallId}.`
+        )
+      }
+    }
     const fittedResults = await toolResults.fitBatch({
       sessionId: io.sessionId,
       conversationMessages: conversation,
@@ -850,7 +871,8 @@ function buildToolExecutionContext(
 
 function buildToolErrorOutcome(
   execution: ToolExecutionContext,
-  error: unknown
+  error: unknown,
+  operation?: ExecutionOperationIdentity
 ): Extract<ToolRunOutcome, { kind: 'staged' }> {
   const errorText = error instanceof Error ? error.message : String(error)
   return {
@@ -864,7 +886,8 @@ function buildToolErrorOutcome(
       responseText: `Error: ${errorText}`,
       isError: true,
       searchPayload: null,
-      postHookKind: 'failure'
+      postHookKind: 'failure',
+      operation
     },
     toolsChanged: false
   }
@@ -872,7 +895,8 @@ function buildToolErrorOutcome(
 
 function buildReturnedToolResultOutcome(
   execution: ToolExecutionContext,
-  rawData: MCPToolResponse
+  rawData: MCPToolResponse,
+  operation?: ExecutionOperationIdentity
 ): Extract<ToolRunOutcome, { kind: 'staged' }> {
   const responseText = toolResponseToText(rawData.content)
   const isError = rawData.isError === true
@@ -896,10 +920,34 @@ function buildReturnedToolResultOutcome(
       rtkFallbackReason: rawData.rtkFallbackReason,
       imagePreviews: rawData.imagePreviews,
       mcpResult: rawData.mcpResult,
-      postHookKind: isError ? 'failure' : 'success'
+      postHookKind: isError ? 'failure' : 'success',
+      operation
     },
     toolsChanged: false
   }
+}
+
+function commitDispatchedToolOutcome(
+  stagedResult: StagedToolResult,
+  executionJournal: Pick<ExecutionJournalWriter, 'commitToolOutcome'>,
+  io: Pick<IoParams, 'sessionId' | 'messageId'>
+): StagedToolResult {
+  if (!stagedResult.operation) {
+    return stagedResult
+  }
+  const receipt = executionJournal.commitToolOutcome({
+    sessionId: io.sessionId,
+    messageId: io.messageId,
+    operation: stagedResult.operation,
+    responseText: stagedResult.responseText,
+    isError: stagedResult.isError
+  })
+  if (!receipt.created) {
+    throw new ExecutionJournalCorruptionError(
+      `Execution Journal outcome already existed for tool operation ${stagedResult.toolCallId}.`
+    )
+  }
+  return { ...stagedResult, outcomeCommitted: true }
 }
 
 function scheduleRendererFlush(
@@ -981,12 +1029,15 @@ function applyFinalizedToolResults(params: {
   } = params
   const interactions: ToolBatchInteraction[] = []
 
+  if (stagedResults.length !== fittedResults.length) {
+    throw new Error(
+      `Tool result fitting returned ${fittedResults.length} results for ${stagedResults.length} staged calls.`
+    )
+  }
+
   for (let index = 0; index < stagedResults.length; index += 1) {
     const stagedResult = stagedResults[index]
     const fittedResult = fittedResults[index]
-    if (!fittedResult) {
-      continue
-    }
 
     if (appendToConversation) {
       conversation.push({
@@ -1530,6 +1581,8 @@ async function runToolCall(params: {
   rendererFlushHandle: RendererFlushHandle
   allowProgressUpdates: boolean
   onToolCallStarted?: (toolCallId: string) => void
+  executionJournal: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'>
+  operationScope: Pick<ExecutionOperationIdentity, 'runId' | 'requestSeq'>
 }): Promise<ToolRunOutcome> {
   const {
     execution,
@@ -1543,12 +1596,71 @@ async function runToolCall(params: {
     batchToolCallBlocks,
     rendererFlushHandle,
     allowProgressUpdates,
-    onToolCallStarted
+    onToolCallStarted,
+    executionJournal,
+    operationScope
   } = params
   const { completedToolCall, toolCall, toolContext } = execution
   let returnedToolResult: MCPToolResponse | null = null
+  let dispatchedOperation: ExecutionOperationIdentity | undefined
+  let committedOutcome: StagedToolResult | undefined
+  const pendingOutcomeProjections: ToolOutcomeProjection[] = []
+  const releaseOutcomeProjections = (outcomeCommitted: boolean): void => {
+    if (pendingOutcomeProjections.length === 0) return
+    if (!outcomeCommitted) {
+      throw new ExecutionJournalError(
+        `Tool ${completedToolCall.id} registered an outcome projection without a committed dispatch.`,
+        'invalid_fact'
+      )
+    }
+    for (const project of pendingOutcomeProjections.splice(0)) {
+      project()
+    }
+  }
+  const commitOutcome = (outcome: ToolRunOutcome): ToolRunOutcome => {
+    if (outcome.kind !== 'staged') {
+      return outcome
+    }
+    const stagedResult = commitDispatchedToolOutcome(
+      outcome.stagedResult,
+      executionJournal,
+      io
+    )
+    if (stagedResult.outcomeCommitted) {
+      committedOutcome = stagedResult
+    }
+    releaseOutcomeProjections(stagedResult.outcomeCommitted === true)
+    return { ...outcome, stagedResult }
+  }
+  const failPostDispatchPermission = (): void => {
+    if (!dispatchedOperation) return
+    const responseText = `Error: Tool ${toolContext.name} requested permission after dispatch.`
+    const stagedResult = commitDispatchedToolOutcome(
+      {
+        toolCallId: completedToolCall.id,
+        toolName: completedToolCall.name,
+        toolSource: execution.toolDef?.source,
+        serverName: toolContext.serverName,
+        toolArgs: completedToolCall.arguments,
+        responseText,
+        isError: true,
+        searchPayload: null,
+        postHookKind: 'failure',
+        operation: dispatchedOperation
+      },
+      executionJournal,
+      io
+    )
+    committedOutcome = stagedResult
+    releaseOutcomeProjections(true)
+    throw new ExecutionJournalError(responseText, 'invalid_fact')
+  }
 
   try {
+    const operation = normalizeExecutionOperationIdentity({
+      ...operationScope,
+      providerToolCallId: completedToolCall.id
+    })
     io.abortSignal.throwIfAborted()
     const applyProgressUpdate = (update: AgentToolProgressUpdate) => {
       if (
@@ -1589,7 +1701,20 @@ async function runToolCall(params: {
     }
 
     let toolCallStarted = false
+    const commitDispatch = (input: ToolDispatchCommitInput): void => {
+      const receipt = executionJournal.commitDispatch({
+        sessionId: io.sessionId,
+        messageId: io.messageId,
+        operation,
+        ...input
+      })
+      if (!receipt.created) {
+        throw new ExecutionJournalDuplicateDispatchError(operation)
+      }
+      dispatchedOperation = operation
+    }
     const callTool = async () => {
+      returnedToolResult = null
       io.abortSignal.throwIfAborted()
       if (!toolCallStarted) {
         toolCallStarted = true
@@ -1603,10 +1728,13 @@ async function runToolCall(params: {
         permissionMode: toolPermissionMode,
         activeSkillNames: controls?.getActiveSkillNames?.(),
         agentId: controls?.getAgentId?.(),
+        commitDispatch,
+        registerOutcomeProjection: (projection) => pendingOutcomeProjections.push(projection),
         ...(enabledMcpServerIds === null || enabledMcpServerIds === undefined
           ? {}
           : { enabledMcpServerIds })
       })
+      returnedToolResult = result.rawData.requiresPermission ? null : result.rawData
       return result
     }
 
@@ -1625,6 +1753,7 @@ async function runToolCall(params: {
       )
 
       if (pendingPermission) {
+        failPostDispatchPermission()
         if (pendingPermission.requiresUserConfirmation) {
           return {
             kind: 'permission',
@@ -1680,35 +1809,30 @@ async function runToolCall(params: {
         }
       )
       if (pendingPermission) {
+        failPostDispatchPermission()
         return {
           kind: 'permission',
           permission: pendingPermission,
           toolContext
         }
       }
-      return buildToolErrorOutcome(
-        execution,
-        new Error(`Tool ${toolContext.name} still requires permission after approval.`)
+      return commitOutcome(
+        buildToolErrorOutcome(
+          execution,
+          new Error(`Tool ${toolContext.name} still requires permission after approval.`),
+          dispatchedOperation
+        )
       )
     }
 
-    returnedToolResult = toolRawData
     if (io.abortSignal.aborted) {
-      return buildReturnedToolResultOutcome(execution, toolRawData)
+      return commitOutcome(
+        buildReturnedToolResultOutcome(execution, toolRawData, dispatchedOperation)
+      )
     }
 
     const subagentState = extractSubagentToolState(toolRawData)
-    if (allowProgressUpdates && (subagentState.subagentProgress || subagentState.subagentFinal)) {
-      updateSubagentToolCallBlock(
-        batchToolCallBlocks,
-        completedToolCall.id,
-        typeof toolRawData.content === 'string'
-          ? toolRawData.content
-          : toolResponseToText(toolRawData.content),
-        subagentState.subagentProgress,
-        subagentState.subagentFinal
-      )
-    }
+    const rawResponseText = toolResponseToText(toolRawData.content)
 
     const imagePreviews =
       toolRawData.imagePreviews ??
@@ -1754,14 +1878,8 @@ async function runToolCall(params: {
     const stagedIsError = preparedResult.kind === 'tool_error' || toolRawData.isError === true
 
     const activatedSkill = extractActivatedSkillAfterCall(completedToolCall.name, toolRawData)
-    if (activatedSkill) {
-      await controls?.activateSkill?.(activatedSkill)
-      io.abortSignal.throwIfAborted()
-    }
-
-    return {
-      kind: 'staged',
-      stagedResult: {
+    const stagedResult = commitDispatchedToolOutcome(
+      {
         toolCallId: completedToolCall.id,
         toolName: completedToolCall.name,
         toolSource: execution.toolDef?.source,
@@ -1778,16 +1896,52 @@ async function runToolCall(params: {
         imagePreviews,
         mcpResult: toolRawData.mcpResult,
         skillDraftPrompt: extractSkillDraftPromptPayload(toolRawData),
-        postHookKind: stagedIsError ? 'failure' : 'success'
+        postHookKind: stagedIsError ? 'failure' : 'success',
+        operation: dispatchedOperation
       },
+      executionJournal,
+      io
+    )
+    if (stagedResult.outcomeCommitted) {
+      committedOutcome = stagedResult
+    }
+    releaseOutcomeProjections(stagedResult.outcomeCommitted === true)
+    if (allowProgressUpdates && (subagentState.subagentProgress || subagentState.subagentFinal)) {
+      updateSubagentToolCallBlock(
+        batchToolCallBlocks,
+        completedToolCall.id,
+        rawResponseText,
+        subagentState.subagentProgress,
+        subagentState.subagentFinal
+      )
+    }
+    if (activatedSkill) {
+      await controls?.activateSkill?.(activatedSkill)
+      io.abortSignal.throwIfAborted()
+    }
+
+    return {
+      kind: 'staged',
+      stagedResult,
       toolsChanged: Boolean(activatedSkill)
     }
   } catch (err) {
+    if (isExecutionJournalError(err)) {
+      if (err.code === 'invalid_fact' && !dispatchedOperation) {
+        return buildToolErrorOutcome(execution, err)
+      }
+      throw err
+    }
+    if (committedOutcome?.operation) {
+      throw new CommittedToolOutcomeProjectionError(committedOutcome.operation, { cause: err })
+    }
     if (io.abortSignal.aborted && returnedToolResult) {
-      return buildReturnedToolResultOutcome(execution, returnedToolResult)
+      return commitOutcome(
+        buildReturnedToolResultOutcome(execution, returnedToolResult, dispatchedOperation)
+      )
     }
     if (io.abortSignal.aborted) throw err
-    return buildToolErrorOutcome(execution, err)
+    return commitOutcome(buildToolErrorOutcome(execution, err, dispatchedOperation))
   }
 }
 
@@ -1810,6 +1964,8 @@ export interface SettleToolBatchParams {
   providerReplayProjector?: ChatMessageProviderReplayProjector
   collaborators?: ToolDispatchCollaborators
   providerId?: string
+  executionJournal: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'>
+  operationScope: Pick<ExecutionOperationIdentity, 'runId' | 'requestSeq'>
 }
 
 export async function settleToolBatch(
@@ -1833,7 +1989,9 @@ export async function settleToolBatch(
     rendererFlushHandle,
     providerReplayProjector,
     collaborators,
-    providerId
+    providerId,
+    executionJournal,
+    operationScope
   } = params
   const { notificationObserver, controls, diagnostics, onToolCallStarted } = collaborators ?? {}
   if (disposition.kind === 'execute') {
@@ -2010,9 +2168,12 @@ export async function settleToolBatch(
             batchToolCallBlocks,
             rendererFlushHandle,
             allowProgressUpdates: false,
-            onToolCallStarted
+            onToolCallStarted,
+            executionJournal,
+            operationScope
           })
         } catch (error) {
+          if (isExecutionJournalError(error)) throw error
           if (io.abortSignal.aborted) throw error
           return buildToolErrorOutcome(execution, error)
         }
@@ -2023,6 +2184,8 @@ export async function settleToolBatch(
     for (const outcome of settledOutcomes) {
       if (outcome.status === 'fulfilled') {
         outcomes.push(outcome.value)
+      } else if (isExecutionJournalError(outcome.reason)) {
+        throw outcome.reason
       } else if (io.abortSignal.aborted) {
         cancellationError ??= outcome.reason
       } else {
@@ -2278,7 +2441,9 @@ export async function settleToolBatch(
         batchToolCallBlocks,
         rendererFlushHandle,
         allowProgressUpdates: true,
-        onToolCallStarted
+        onToolCallStarted,
+        executionJournal,
+        operationScope
       })
       batchState.invokedCallIds.add(tc.id)
 
@@ -2310,6 +2475,7 @@ export async function settleToolBatch(
       toolsChanged = toolsChanged || outcome.toolsChanged
       executed += 1
     } catch (err) {
+      if (isExecutionJournalError(err)) throw err
       if (io.abortSignal.aborted) {
         if (stagedResults.length > 0) {
           break
@@ -2363,19 +2529,24 @@ function stampGenerationTiming(state: StreamState): void {
   }
 }
 
-export function finalizePaused(state: StreamState, io: IoParams): void {
-  for (const block of state.blocks) {
-    if (
+export function assertPausedProjectionReady(state: StreamState): void {
+  const unresolvedIndex = state.blocks.findIndex((block) => {
+    if (block.status !== 'pending' && block.status !== 'loading') return false
+    return !(
       block.type === 'action' &&
-      (block.action_type === 'tool_call_permission' || block.action_type === 'question_request') &&
-      block.status === 'pending'
-    ) {
-      continue
-    }
-    if (block.status === 'pending') {
-      block.status = 'success'
-    }
-  }
+      block.status === 'pending' &&
+      (block.action_type === 'tool_call_permission' || block.action_type === 'question_request')
+    )
+  })
+  if (unresolvedIndex < 0) return
+
+  const block = state.blocks[unresolvedIndex]
+  const blockIdentity = `index=${unresolvedIndex} type=${block.type} status=${block.status}`
+  throw new Error(`Paused stream invariant violated: block ${blockIdentity} is unresolved.`)
+}
+
+export function finalizePaused(state: StreamState, io: IoParams): void {
+  assertPausedProjectionReady(state)
 
   stampGenerationTiming(state)
 

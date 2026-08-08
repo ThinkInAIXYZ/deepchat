@@ -5,6 +5,7 @@ import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SkillServicePort } from '../../../src/shared/types/skill'
 import { SkillExecutionService } from '../../../src/main/skill/skillExecutionService'
+import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 
 vi.mock('child_process', () => ({
   spawn: vi.fn()
@@ -262,6 +263,112 @@ describe('SkillExecutionService', () => {
         { conversationId: 'conv-1' }
       )
     ).rejects.toThrow(/not found/)
+  })
+
+  it('preserves the Agent preview limit for background skill sessions', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => true } as fs.Stats)
+    const plan = {
+      command: 'python',
+      args: ['script.py'],
+      cwd: '/skills/ocr',
+      env: { PATH: '/bin' },
+      shellCommand: 'python script.py',
+      outputPrefix: 'skill_ocr',
+      spawnMode: 'direct'
+    }
+    vi.spyOn(service as never, 'buildSpawnPlan' as never).mockResolvedValue(plan)
+    vi.spyOn(service as never, 'preparePlanForExecution' as never).mockResolvedValue(plan)
+    const start = vi
+      .spyOn(backgroundExecSessionManager, 'start')
+      .mockResolvedValue({ sessionId: 'bg_skill', status: 'running' })
+
+    await service.execute(
+      { skill: 'ocr', script: 'scripts/run.py', background: true },
+      { conversationId: 'conv-1', outputPreviewChars: 7_000 }
+    )
+
+    expect(start).toHaveBeenCalledWith(
+      'conv-1',
+      'python script.py',
+      resolvePath('/skills/ocr'),
+      expect.objectContaining({ previewChars: 7_000, offloadThresholdChars: 7_000 })
+    )
+  })
+
+  it('does not commit dispatch when the resolved spawn cwd is unusable', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    const plan = {
+      command: 'python',
+      args: ['/skills/ocr/scripts/run.py'],
+      cwd: '/missing/workspace',
+      env: { PATH: '/bin' },
+      shellCommand: "'python' '/skills/ocr/scripts/run.py'",
+      outputPrefix: 'skill_ocr',
+      spawnMode: 'direct' as const
+    }
+    vi.spyOn(service as never, 'buildSpawnPlan' as never).mockResolvedValue(plan)
+    vi.spyOn(service as never, 'preparePlanForExecution' as never).mockResolvedValue(plan)
+    const runForeground = vi.spyOn(service as never, 'runForeground' as never)
+    const beforeExecute = vi.fn()
+
+    await expect(
+      service.execute(
+        { skill: 'ocr', script: 'scripts/run.py' },
+        { conversationId: 'conv-1', beforeExecute }
+      )
+    ).rejects.toThrow('Working directory does not exist or is not accessible')
+
+    expect(beforeExecute).not.toHaveBeenCalled()
+    expect(runForeground).not.toHaveBeenCalled()
+  })
+
+  it('commits the resolved spawn plan before starting the skill process', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => true } as fs.Stats)
+    const plan = {
+      command: 'python',
+      args: ['/skills/ocr/scripts/run.py', '--lang', 'en'],
+      cwd: '/workspace/session',
+      env: { PATH: '/bin', API_KEY: 'secret' },
+      shellCommand: "'python' '/skills/ocr/scripts/run.py' '--lang' 'en'",
+      outputPrefix: 'skill_ocr',
+      spawnMode: 'direct' as const
+    }
+    vi.spyOn(service as never, 'buildSpawnPlan' as never).mockResolvedValue(plan)
+    vi.spyOn(service as never, 'preparePlanForExecution' as never).mockResolvedValue(plan)
+    const order: string[] = []
+    vi.spyOn(service as never, 'runForeground' as never).mockImplementation(async () => {
+      order.push('spawn')
+      return 'ok'
+    })
+    const beforeExecute = vi.fn(() => order.push('commit'))
+
+    await service.execute(
+      {
+        skill: 'ocr',
+        script: 'scripts/run.py',
+        args: ['--lang', 'en'],
+        stdin: 'input',
+        timeoutMs: 5000
+      },
+      { conversationId: 'conv-1', beforeExecute }
+    )
+
+    expect(order).toEqual(['commit', 'spawn'])
+    expect(beforeExecute).toHaveBeenCalledWith({
+      skill: 'ocr',
+      script: 'scripts/run.py',
+      args: ['--lang', 'en'],
+      stdin: 'input',
+      background: false,
+      timeoutMs: 5000,
+      resolvedCommand: 'python',
+      resolvedArgs: ['/skills/ocr/scripts/run.py', '--lang', 'en'],
+      resolvedCwd: path.resolve('/workspace/session'),
+      shellCommand: "'python' '/skills/ocr/scripts/run.py' '--lang' 'en'",
+      spawnMode: 'direct'
+    })
   })
 
   it('escapes percent signs for Windows shell quoting', () => {

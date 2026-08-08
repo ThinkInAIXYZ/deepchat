@@ -104,6 +104,16 @@ function materializedRowCount(value: unknown): number {
   return 0
 }
 
+function createOnceCallback(callback?: () => void): (() => void) | undefined {
+  if (!callback) return undefined
+  let called = false
+  return () => {
+    if (called) return
+    callback()
+    called = true
+  }
+}
+
 function observeRepository(
   repository: MemoryRepositoryPort,
   observer?: MemoryPerfObserver
@@ -466,8 +476,12 @@ export class MemoryService implements MemoryRuntimePort {
     return this.management.restoreMemory(agentId, memoryId)
   }
 
-  async forgetMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
-    return this.management.forgetMemory(agentId, memoryId)
+  async forgetMemory(
+    agentId: string,
+    memoryId: string,
+    beforeMutation?: () => void
+  ): Promise<MemoryCommandResult> {
+    return this.management.forgetMemory(agentId, memoryId, createOnceCallback(beforeMutation))
   }
 
   async archiveUserMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
@@ -491,7 +505,8 @@ export class MemoryService implements MemoryRuntimePort {
   async rememberMemory(
     candidate: MemoryCandidate,
     options: WriteMemoriesOptions,
-    model?: { providerId: string; modelId: string } | null
+    model?: { providerId: string; modelId: string } | null,
+    beforeMutation?: () => void
   ): Promise<MemoryWriteOutcome> {
     if (isSafeAgentId(options.agentId) && this.runtime.isManagedAgent(options.agentId)) {
       this.syncAgentExecutionConfig(options.agentId)
@@ -499,7 +514,12 @@ export class MemoryService implements MemoryRuntimePort {
     if (unicodeCodePointLength(candidate.content) > AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS) {
       return { action: 'noop', reason: 'content-too-large' }
     }
-    return this.writeCoordinator.rememberMemory(candidate, options, model)
+    return this.writeCoordinator.rememberMemory(
+      candidate,
+      options,
+      model,
+      createOnceCallback(beforeMutation)
+    )
   }
 
   async recall(

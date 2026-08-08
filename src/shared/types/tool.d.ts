@@ -2,7 +2,13 @@
  * Tool runtime types.
  */
 
-import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from '../core/mcp'
+import type {
+  MCPToolDefinition,
+  MCPToolCall,
+  MCPToolResponse,
+  ToolDispatchCommit,
+  ToolOutcomeProjectionRegistrar
+} from '../core/mcp'
 import type { DeepChatSubagentCapability, PermissionMode, SessionKind } from '../agent-interface'
 import type { AgentPlanSnapshot } from '../agent-plan'
 
@@ -41,6 +47,8 @@ export interface ToolCallOptions {
   activeSkillNames?: string[]
   agentId?: string
   enabledMcpServerIds?: string[]
+  commitDispatch?: ToolDispatchCommit
+  registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
 }
 
 export interface ToolPermissionPreCheckResult {

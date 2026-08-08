@@ -4,7 +4,9 @@ export type ResumeBudgetToolCall = {
   id: string
   name: string
   responseText?: string
+  /** Guard-created file that may be deleted after its persisted reference is replaced. */
   offloadPath?: string
+  /** Tool-created file that remains tool-owned and must never be deleted by the guard. */
   existingOffloadPath?: string
 }
 

@@ -118,6 +118,7 @@ describe('BackgroundExecSessionManager', () => {
     outputFilePath: '/mock/session/bgexec_bg_123.log',
     outputWriteQueue: Promise.resolve(),
     totalOutputLength: 10001,
+    previewChars: 500,
     offloadThresholdChars: 10000,
     offloadDisabled: false,
     stdoutEof: true,
@@ -276,6 +277,57 @@ describe('BackgroundExecSessionManager', () => {
     expect(log.timedOut).toBe(true)
     expect(poll.output).toBe('timeout tail')
     expect(log.output).toBe('timeout tail')
+  })
+
+  it('uses the session preview limit unless poll supplies a newer Agent limit', async () => {
+    setSession(
+      createSession({
+        outputBuffer: 'abcdefgh',
+        outputFilePath: null,
+        totalOutputLength: 8,
+        previewChars: 3
+      })
+    )
+
+    await expect(manager.poll('conv-1', 'bg_123')).resolves.toMatchObject({ output: 'fgh' })
+    await expect(manager.poll('conv-1', 'bg_123', 5)).resolves.toMatchObject({ output: 'defgh' })
+  })
+
+  it('commits a process write after session preflight and before stdin mutation', () => {
+    const order: string[] = []
+    const child = new MockChildProcess()
+    child.stdin.write.mockImplementation(() => {
+      order.push('target')
+      return true
+    })
+    setSession(createSession({ status: 'running', child }))
+
+    manager.write('conv-1', 'bg_123', 'continue', false, () => order.push('commit'))
+
+    expect(order).toEqual(['commit', 'target'])
+  })
+
+  it('does not commit process mutations rejected by local session preflight', async () => {
+    const beforeMutation = vi.fn()
+    setSession(createSession({ sessionId: 'bg_other', status: 'done' }))
+
+    expect(() => manager.write('conv-1', 'missing', 'data', false, beforeMutation)).toThrow(
+      'Session missing not found'
+    )
+    await expect(manager.kill('conv-1', 'missing', beforeMutation)).rejects.toThrow(
+      'Session missing not found'
+    )
+
+    expect(beforeMutation).not.toHaveBeenCalled()
+  })
+
+  it('does not commit a kill that is already a local no-op', async () => {
+    const beforeMutation = vi.fn()
+    setSession(createSession({ status: 'done' }))
+
+    await manager.kill('conv-1', 'bg_123', beforeMutation)
+
+    expect(beforeMutation).not.toHaveBeenCalled()
   })
 
   it('merges the prepared env on top of process env when starting a session', async () => {
@@ -465,10 +517,12 @@ describe('BackgroundExecSessionManager', () => {
 describe('backgroundExecSessionManager utility proxy', () => {
   const resetProxyState = () => {
     const proxy = backgroundExecSessionManager as any
+    proxy.stopCompletedSessionReconciliation()
     proxy.host = null
     proxy.hostReady = null
     proxy.shuttingDown = false
     proxy.activeSessions.clear()
+    proxy.completedSessions.clear()
     proxy.crashedSessions.clear()
     proxy.pendingRequests.clear()
   }
@@ -480,6 +534,8 @@ describe('backgroundExecSessionManager utility proxy', () => {
 
   afterEach(() => {
     resetProxyState()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('forks the dedicated entrypoint for the utility host', async () => {
@@ -532,6 +588,108 @@ describe('backgroundExecSessionManager utility proxy', () => {
     expect(mockUtilityProcessFork).not.toHaveBeenCalled()
   })
 
+  it('keeps completed sessions visible when the utility host cannot list them', async () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.activeSessions.set('bg_completed', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_completed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1
+    })
+    const request = vi.spyOn(proxy, 'request').mockResolvedValue({
+      status: 'done',
+      output: 'done',
+      exitCode: 0,
+      offloaded: false,
+      timedOut: false
+    })
+
+    await backgroundExecSessionManager.poll('conv-1', 'bg_completed')
+
+    await expect(backgroundExecSessionManager.list('conv-1')).resolves.toEqual([
+      {
+        sessionId: 'bg_completed',
+        command: 'pnpm test',
+        status: 'done',
+        exitCode: 0,
+        outputLength: 4,
+        offloaded: false,
+        timedOut: false,
+        createdAt: 1,
+        lastAccessedAt: expect.any(Number)
+      }
+    ])
+    expect(request).toHaveBeenCalledOnce()
+    expect(request).toHaveBeenCalledWith('poll', ['conv-1', 'bg_completed'])
+    expect(mockUtilityProcessFork).not.toHaveBeenCalled()
+  })
+
+  it('refreshes completed-session fallback metadata after clearing output', async () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.completedSessions.set('bg_completed', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_completed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1,
+      status: 'done',
+      exitCode: 0,
+      outputLength: 4096,
+      offloaded: true,
+      timedOut: false
+    })
+    const request = vi.spyOn(proxy, 'request').mockResolvedValue(undefined)
+
+    await backgroundExecSessionManager.clear('conv-1', 'bg_completed')
+
+    await expect(backgroundExecSessionManager.list('conv-1')).resolves.toEqual([
+      {
+        sessionId: 'bg_completed',
+        command: 'pnpm test',
+        status: 'done',
+        exitCode: 0,
+        outputLength: 0,
+        offloaded: false,
+        timedOut: false,
+        createdAt: 1,
+        lastAccessedAt: expect.any(Number)
+      }
+    ])
+    expect(request).toHaveBeenCalledOnce()
+    expect(request).toHaveBeenCalledWith('clear', ['conv-1', 'bg_completed'])
+  })
+
+  it('does not restore completed metadata removed while clear is in flight', async () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.completedSessions.set('bg_completed', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_completed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1,
+      status: 'done',
+      outputLength: 4096,
+      offloaded: true,
+      timedOut: false
+    })
+    let finishClear: (() => void) | undefined
+    vi.spyOn(proxy, 'request').mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishClear = resolve
+        })
+    )
+
+    const clearPromise = backgroundExecSessionManager.clear('conv-1', 'bg_completed')
+    await vi.waitFor(() => expect(finishClear).toBeTypeOf('function'))
+    proxy.completedSessions.delete('bg_completed')
+    finishClear?.()
+    await clearPromise
+
+    expect(proxy.completedSessions.has('bg_completed')).toBe(false)
+  })
+
   it('removes crashed sessions locally without RPC', async () => {
     const proxy = backgroundExecSessionManager as any
     proxy.crashedSessions.set('bg_crashed', {
@@ -547,4 +705,259 @@ describe('backgroundExecSessionManager utility proxy', () => {
     expect(proxy.crashedSessions.has('bg_crashed')).toBe(false)
     expect(mockUtilityProcessFork).not.toHaveBeenCalled()
   })
+
+  it('rejects unknown proxy mutations before committing dispatch', async () => {
+    const beforeMutation = vi.fn()
+
+    await expect(
+      backgroundExecSessionManager.write('conv-1', 'missing', 'data', false, beforeMutation)
+    ).rejects.toThrow('Session missing not found')
+
+    expect(beforeMutation).not.toHaveBeenCalled()
+    expect(mockUtilityProcessFork).not.toHaveBeenCalled()
+  })
+
+  it('commits tracked proxy writes before the utility-host request', async () => {
+    const proxy = backgroundExecSessionManager as any
+    const order: string[] = []
+    proxy.activeSessions.set('bg_active', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_active',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1
+    })
+    const request = vi.spyOn(proxy, 'request').mockImplementation(async () => {
+      order.push('target')
+    })
+
+    await backgroundExecSessionManager.write('conv-1', 'bg_active', 'data', false, () => {
+      order.push('commit')
+    })
+
+    expect(order).toEqual(['commit', 'target'])
+    expect(request).toHaveBeenCalledWith('write', ['conv-1', 'bg_active', 'data', false])
+  })
+
+  it.each([
+    ['poll', 'remove'],
+    ['log', 'clear']
+  ] as const)(
+    'allows the owning conversation to %s a completed session before %s',
+    async (observation, mutation) => {
+      const proxy = backgroundExecSessionManager as any
+      const sessionId = `bg_${mutation}`
+      proxy.activeSessions.set(sessionId, {
+        conversationId: 'conv-1',
+        sessionId,
+        command: 'pnpm test',
+        createdAt: 1,
+        lastAccessedAt: 1
+      })
+      const beforeMutation = vi.fn()
+      const request = vi.spyOn(proxy, 'request').mockImplementation(async (method: string) => {
+        if (method === 'poll') {
+          return {
+            status: 'done',
+            output: 'done',
+            exitCode: 0,
+            offloaded: false,
+            timedOut: false
+          }
+        }
+        if (method === 'log') {
+          return {
+            status: 'done',
+            output: 'done',
+            exitCode: 0,
+            offloaded: false,
+            timedOut: false,
+            totalLength: 4
+          }
+        }
+      })
+
+      await backgroundExecSessionManager[observation]('conv-1', sessionId)
+      await expect(
+        backgroundExecSessionManager[mutation]('conv-other', sessionId, beforeMutation)
+      ).rejects.toThrow(`Session ${sessionId} not found`)
+      await backgroundExecSessionManager[mutation]('conv-1', sessionId, beforeMutation)
+
+      expect(beforeMutation).toHaveBeenCalledOnce()
+      expect(request).toHaveBeenCalledWith(mutation, ['conv-1', sessionId])
+    }
+  )
+
+  it('treats killing a completed session as an authorized local no-op', async () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.completedSessions.set('bg_completed', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_completed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1,
+      status: 'done'
+    })
+    const beforeMutation = vi.fn()
+    const request = vi.spyOn(proxy, 'request')
+
+    await expect(
+      backgroundExecSessionManager.kill('conv-other', 'bg_completed', beforeMutation)
+    ).rejects.toThrow('Session bg_completed not found')
+    await expect(
+      backgroundExecSessionManager.kill('conv-1', 'bg_completed', beforeMutation)
+    ).resolves.toBeUndefined()
+
+    expect(beforeMutation).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
+    expect(proxy.completedSessions.has('bg_completed')).toBe(true)
+  })
+
+  it('preserves a completion replaced while host list reconciliation is in flight', async () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.host = new MockUtilityProcess()
+    const staleCompletion = {
+      conversationId: 'conv-1',
+      sessionId: 'bg_completed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1,
+      status: 'done'
+    }
+    const concurrentCompletion = {
+      ...staleCompletion,
+      lastAccessedAt: 2,
+      outputLength: 4
+    }
+    proxy.completedSessions.set('bg_completed', staleCompletion)
+    let finishList: ((sessions: unknown[]) => void) | undefined
+    vi.spyOn(proxy, 'request').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishList = resolve
+        })
+    )
+
+    const listPromise = backgroundExecSessionManager.list('conv-1')
+    await vi.waitFor(() => expect(finishList).toBeTypeOf('function'))
+    proxy.completedSessions.set('bg_completed', concurrentCompletion)
+    finishList?.([])
+    await listPromise
+
+    expect(proxy.completedSessions.get('bg_completed')).toBe(concurrentCompletion)
+  })
+
+  it('preserves completed metadata across host exit and resumes reconciliation after restart', async () => {
+    vi.useFakeTimers()
+    const proxy = backgroundExecSessionManager as any
+    proxy.completedSessions.set('bg_completed', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_completed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1,
+      status: 'done'
+    })
+    const firstHost = new MockUtilityProcess()
+    const secondHost = new MockUtilityProcess()
+    mockUtilityProcessFork.mockReturnValueOnce(firstHost).mockReturnValueOnce(secondHost)
+
+    const firstStart = proxy.startHost()
+    await vi.waitFor(() => expect(mockUtilityProcessFork).toHaveBeenCalledTimes(1))
+    firstHost.emit('spawn')
+    await firstStart
+    expect(proxy.completedSessionReconciliationTimer).not.toBeNull()
+
+    firstHost.emit('exit', 1)
+    expect(proxy.completedSessions.has('bg_completed')).toBe(true)
+    expect(proxy.completedSessionReconciliationTimer).toBeNull()
+
+    const secondStart = proxy.startHost()
+    await vi.waitFor(() => expect(mockUtilityProcessFork).toHaveBeenCalledTimes(2))
+    secondHost.emit('spawn')
+    await secondStart
+
+    expect(proxy.completedSessions.has('bg_completed')).toBe(true)
+    expect(proxy.completedSessionReconciliationTimer).not.toBeNull()
+  })
+
+  it('reconciles completed ownership after the utility-host cleanup interval', async () => {
+    vi.useFakeTimers()
+    const proxy = backgroundExecSessionManager as any
+    proxy.host = new MockUtilityProcess()
+    proxy.activeSessions.set('bg_completed', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_completed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1
+    })
+    const request = vi.spyOn(proxy, 'request').mockImplementation(async (method: string) => {
+      if (method === 'poll') {
+        return {
+          status: 'done',
+          output: 'done',
+          exitCode: 0,
+          offloaded: false,
+          timedOut: false
+        }
+      }
+      if (method === 'list') return []
+      throw new Error(`Unexpected method: ${method}`)
+    })
+
+    await backgroundExecSessionManager.poll('conv-1', 'bg_completed')
+    expect(proxy.completedSessions.has('bg_completed')).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+
+    expect(request).toHaveBeenCalledWith('list', ['conv-1'])
+    expect(proxy.completedSessions.has('bg_completed')).toBe(false)
+    expect(proxy.completedSessionReconciliationTimer).toBeNull()
+  })
+
+  it.each(['clear', 'remove'] as const)(
+    'treats %s as idempotent when host TTL cleanup already removed a completed session',
+    async (mutation) => {
+      const proxy = backgroundExecSessionManager as any
+      proxy.completedSessions.set('bg_expired', {
+        conversationId: 'conv-1',
+        sessionId: 'bg_expired',
+        command: 'pnpm test',
+        createdAt: 1,
+        lastAccessedAt: 1
+      })
+      const beforeMutation = vi.fn()
+      vi.spyOn(proxy, 'request').mockRejectedValue(new Error('Session bg_expired not found'))
+
+      await expect(
+        backgroundExecSessionManager[mutation]('conv-1', 'bg_expired', beforeMutation)
+      ).resolves.toBeUndefined()
+
+      expect(beforeMutation).toHaveBeenCalledOnce()
+      expect(proxy.completedSessions.has('bg_expired')).toBe(false)
+    }
+  )
+
+  it.each(['clear', 'remove'] as const)(
+    'does not hide unrelated utility-host errors during completed-session %s',
+    async (mutation) => {
+      const proxy = backgroundExecSessionManager as any
+      proxy.completedSessions.set('bg_completed', {
+        conversationId: 'conv-1',
+        sessionId: 'bg_completed',
+        command: 'pnpm test',
+        createdAt: 1,
+        lastAccessedAt: 1
+      })
+      const transportError = new Error('Utility host transport failed')
+      vi.spyOn(proxy, 'request').mockRejectedValue(transportError)
+
+      await expect(backgroundExecSessionManager[mutation]('conv-1', 'bg_completed')).rejects.toBe(
+        transportError
+      )
+
+      expect(proxy.completedSessions.has('bg_completed')).toBe(true)
+    }
+  )
 })

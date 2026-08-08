@@ -1063,7 +1063,8 @@ export class WriteCoordinator {
     model: MemoryModelRef,
     options: WriteMemoriesOptions,
     now: number,
-    operationFence: MemoryOperationFence
+    operationFence: MemoryOperationFence,
+    beforeMutation?: () => void
   ): Promise<MemoryWriteOutcome> {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const result = await this.coordinateWriteAttempt(
@@ -1073,7 +1074,8 @@ export class WriteCoordinator {
         options,
         now,
         operationFence,
-        attempt > 0
+        attempt > 0,
+        beforeMutation
       )
       if (result.action !== 'retry') return result
     }
@@ -1087,7 +1089,8 @@ export class WriteCoordinator {
     options: WriteMemoriesOptions,
     now: number,
     operationFence: MemoryOperationFence,
-    isRetry: boolean
+    isRetry: boolean,
+    beforeMutation?: () => void
   ): Promise<CoordinateWriteResult> {
     const normalized = normalizeMemoryCandidate(candidate)
     if (!normalized) return { action: 'noop', reason: 'empty' }
@@ -1097,14 +1100,25 @@ export class WriteCoordinator {
       return { action: 'noop', reason: 'disposed' }
     }
 
-    const duplicate = this.ports.rows.resolveProvenance(agentId, normalized.kind, content, scope)
+    const duplicate = this.ports.rows.resolveProvenance(
+      agentId,
+      normalized.kind,
+      content,
+      scope,
+      beforeMutation
+    )
     let decisionHead: AgentMemoryRow | null = null
     if (duplicate) {
       const hit = this.ports.rows.handleProvenanceHit(agentId, duplicate, {
         allowDecisionForSuperseded: true
       })
       if (hit.action === 'absorbed') {
-        return this.absorbArchivedProvenanceOwner(agentId, duplicate, normalized.temporal)
+        return this.absorbArchivedProvenanceOwner(
+          agentId,
+          duplicate,
+          normalized.temporal,
+          beforeMutation
+        )
           ? { action: 'updated', id: duplicate.id }
           : { action: 'noop', reason: 'concurrent-update', id: duplicate.id }
       }
@@ -1114,7 +1128,8 @@ export class WriteCoordinator {
           this.ports.rows.enrichEquivalentClaimTemporalMetadata(
             agentId,
             duplicate,
-            normalized.temporal
+            normalized.temporal,
+            beforeMutation
           )
         ) {
           return { action: 'updated', id: duplicate.id }
@@ -1128,6 +1143,20 @@ export class WriteCoordinator {
       if (isLiveDecisionTarget(agentId, head)) decisionHead = head
     }
 
+    if (
+      !duplicate &&
+      this.ports.repository.hasTombstoneForClaim({
+        agentId,
+        kind: normalized.kind,
+        content,
+        provenanceKey: buildScopedMemoryProvenanceKey(agentId, normalized.kind, content, scope),
+        scope
+      })
+    ) {
+      return { action: 'noop', reason: 'forgotten' }
+    }
+
+    beforeMutation?.()
     let neighbors: MemoryRecallItem[] = []
     try {
       const hits = await this.ports.retrieveForDecision(agentId, content, now, [scope])
@@ -1567,18 +1596,20 @@ export class WriteCoordinator {
   async rememberMemory(
     candidate: MemoryCandidate,
     options: WriteMemoriesOptions,
-    model?: MemoryModelRef | null
+    model?: MemoryModelRef | null,
+    beforeMutation?: () => void
   ): Promise<MemoryWriteOutcome> {
     // Runtime/model writes are not user authorization. They use the same tombstone-preserving
     // contract as extraction, maintenance, and replay.
-    return this.rememberMemoryWithPolicy(candidate, options, model, 'preserve')
+    return this.rememberMemoryWithPolicy(candidate, options, model, 'preserve', beforeMutation)
   }
 
   private async rememberMemoryWithPolicy(
     candidate: MemoryCandidate,
     options: WriteMemoriesOptions,
     model: MemoryModelRef | null | undefined,
-    tombstoneRelease: TombstoneReleasePolicy
+    tombstoneRelease: TombstoneReleasePolicy,
+    beforeMutation?: () => void
   ): Promise<MemoryWriteOutcome> {
     if (!this.ctx.canWriteAgentMemory(options.agentId)) {
       return { action: 'noop', reason: 'disposed' }
@@ -1591,7 +1622,13 @@ export class WriteCoordinator {
     const now = this.ctx.now()
     const explicitlyRelearned =
       tombstoneRelease === 'explicit-user-action'
-        ? this.tryExplicitRelearn(options.agentId, candidate, normalizedOptions, now)
+        ? this.tryExplicitRelearn(
+            options.agentId,
+            candidate,
+            normalizedOptions,
+            now,
+            beforeMutation
+          )
         : null
     const resolvedModel =
       explicitlyRelearned || !model ? null : this.ctx.resolveExtractionModel(options.agentId, model)
@@ -1604,9 +1641,10 @@ export class WriteCoordinator {
             resolvedModel,
             normalizedOptions,
             now,
-            operationFence
+            operationFence,
+            beforeMutation
           )
-        : this.directAddMemory(options.agentId, candidate, normalizedOptions, now))
+        : this.directAddMemory(options.agentId, candidate, normalizedOptions, now, beforeMutation))
     if (!this.ctx.canContinueOperation(operationFence)) {
       return { action: 'noop', reason: 'disposed' }
     }
@@ -1628,10 +1666,29 @@ export class WriteCoordinator {
     agentId: string,
     candidate: MemoryCandidate,
     options: WriteMemoriesOptions,
-    now: number
+    now: number,
+    beforeMutation?: () => void
   ): MemoryWriteOutcome | null {
     const normalized = normalizeMemoryCandidate(candidate)
     if (!normalized) return null
+    const scope = normalizeMemoryScope(options.scope)
+    if (
+      !this.ports.repository.hasTombstoneForClaim({
+        agentId,
+        kind: normalized.kind,
+        content: normalized.content,
+        provenanceKey: buildScopedMemoryProvenanceKey(
+          agentId,
+          normalized.kind,
+          normalized.content,
+          scope
+        ),
+        scope
+      })
+    ) {
+      return null
+    }
+    beforeMutation?.()
     const result = this.ports.rows.reauthorizeForgottenMemory(
       agentId,
       normalized,
@@ -1648,17 +1705,29 @@ export class WriteCoordinator {
     agentId: string,
     candidate: MemoryCandidate,
     options: WriteMemoriesOptions,
-    now: number
+    now: number,
+    beforeMutation?: () => void
   ): MemoryWriteOutcome {
     const normalized = normalizeMemoryCandidate(candidate)
     if (!normalized) return { action: 'noop', reason: 'empty' }
     const content = normalized.content
     const scope = normalizeMemoryScope(options.scope)
-    const duplicate = this.ports.rows.resolveProvenance(agentId, normalized.kind, content, scope)
+    const duplicate = this.ports.rows.resolveProvenance(
+      agentId,
+      normalized.kind,
+      content,
+      scope,
+      beforeMutation
+    )
     if (duplicate) {
       const hit = this.ports.rows.handleProvenanceHit(agentId, duplicate)
       if (hit.action === 'absorbed') {
-        return this.absorbArchivedProvenanceOwner(agentId, duplicate, normalized.temporal)
+        return this.absorbArchivedProvenanceOwner(
+          agentId,
+          duplicate,
+          normalized.temporal,
+          beforeMutation
+        )
           ? { action: 'updated', id: duplicate.id }
           : { action: 'noop', reason: 'concurrent-update', id: duplicate.id }
       }
@@ -1668,7 +1737,8 @@ export class WriteCoordinator {
         this.ports.rows.enrichEquivalentClaimTemporalMetadata(
           agentId,
           duplicate,
-          normalized.temporal
+          normalized.temporal,
+          beforeMutation
         )
       ) {
         return { action: 'updated', id: duplicate.id }
@@ -1676,6 +1746,18 @@ export class WriteCoordinator {
       const reason = hit.action === 'noop' ? hit.reason : 'duplicate'
       return { action: 'noop', reason, id: duplicate.id }
     }
+    if (
+      this.ports.repository.hasTombstoneForClaim({
+        agentId,
+        kind: normalized.kind,
+        content,
+        provenanceKey: buildScopedMemoryProvenanceKey(agentId, normalized.kind, content, scope),
+        scope
+      })
+    ) {
+      return { action: 'noop', reason: 'forgotten' }
+    }
+    beforeMutation?.()
     const insert = this.ports.rows.insertMemory(agentId, normalized, content, options, now)
     return insert.action === 'inserted'
       ? { action: 'created', id: insert.id }
@@ -1688,9 +1770,11 @@ export class WriteCoordinator {
   private absorbArchivedProvenanceOwner(
     agentId: string,
     existing: AgentMemoryRow,
-    temporal: MemoryTemporalMetadata
+    temporal: MemoryTemporalMetadata,
+    beforeMutation?: () => void
   ): boolean {
     let restored = false
+    beforeMutation?.()
     this.ports.repository.runInTransaction(() => {
       restored = this.ports.repository.restoreArchivedMemory({
         agentId,

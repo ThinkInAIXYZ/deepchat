@@ -69,6 +69,9 @@ import type {
 export interface MemoryReadRepositoryPort {
   getById(id: string): AgentMemoryRow | undefined
   getByProvenanceKey(agentId: string, provenanceKey: string): AgentMemoryRow | undefined
+  hasTombstoneForClaim(
+    input: Pick<AgentMemoryInsertInput, 'agentId' | 'kind' | 'content' | 'provenanceKey' | 'scope'>
+  ): boolean
   listByAgent(agentId: string, options?: AgentMemoryListOptions): AgentMemoryRow[]
   listManagementPage(
     agentId: string,
@@ -462,7 +465,8 @@ export interface MemoryProvenanceResolverPort {
     agentId: string,
     kind: string,
     content: string,
-    scope: MemoryScope
+    scope: MemoryScope,
+    beforeMutation?: () => void
   ): AgentMemoryRow | undefined
 }
 
@@ -497,7 +501,8 @@ export interface MemoryWriteMutationPort extends MemoryProvenanceResolverPort {
   enrichEquivalentClaimTemporalMetadata(
     agentId: string,
     existing: AgentMemoryRow,
-    incoming: MemoryTemporalMetadata
+    incoming: MemoryTemporalMetadata,
+    beforeMutation?: () => void
   ): boolean
   supersedeHead(agentId: string, row: AgentMemoryRow): AgentMemoryRow
   handleProvenanceHit(

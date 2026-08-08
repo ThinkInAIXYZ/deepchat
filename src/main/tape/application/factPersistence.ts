@@ -1,15 +1,58 @@
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
-import { toTapeSessionId, type TapeFactSource, type TapeToolFactInput } from '@/tape/domain/facts'
+import {
+  toTapeSessionId,
+  type TapeFactSource,
+  type TapeMessageReplacementOptions,
+  type TapeToolFactInput
+} from '@/tape/domain/facts'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import type { TapeBootstrapStore, TapeEntryStore } from '@/tape/ports/storage'
 import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
-import { parseAssistantBlocks } from '@/tape/domain/effectiveSemantics'
+import {
+  parseAssistantBlocks,
+  parseTapeJsonObject,
+  readTapeToolIdentity,
+  readTapeToolStatus
+} from '@/tape/domain/effectiveSemantics'
 import { hashJson } from '@/tape/domain/viewManifest'
 
 export { tapeEntryToMessageRecord } from '@/tape/domain/effectiveSemantics'
 export type { TapeFactSource } from '@/tape/domain/facts'
 
-type TapeFactStore = Pick<TapeEntryStore, 'append' | 'appendEvent'> & TapeBootstrapStore
+type TapeFactWriter = Pick<TapeEntryStore, 'append' | 'appendEvent'> & TapeBootstrapStore
+type TapeFactStore = TapeFactWriter & Pick<TapeEntryStore, 'getBySession'>
+
+interface TapeToolRevisionState {
+  semanticFingerprint: string
+  entryId: number
+}
+
+type TapeToolRevisionIndex = Map<string, TapeToolRevisionState>
+
+interface TapeMessageRecordAppendOptions {
+  toolRevisionIndex?: TapeToolRevisionIndex
+}
+
+interface TapeToolFactAppendOptions {
+  reason?: string
+  supersedesEntryId?: number
+}
+
+interface PreparedTapeToolFact {
+  identityKey: string
+  kind: 'tool_call' | 'tool_result'
+  name: string
+  payload: Record<string, unknown>
+  status: 'success' | 'error'
+  toolCallId: string
+}
+
+interface TapeToolFactSemanticContent {
+  kind: 'tool_call' | 'tool_result'
+  name: string | null
+  payload: Record<string, unknown>
+  status: 'success' | 'error'
+}
 
 function readCompactionStatus(record: ChatMessageRecord): string | null {
   try {
@@ -26,6 +69,46 @@ function readCompactionStatus(record: ChatMessageRecord): string | null {
   }
 }
 
+function appendCompactionIndicatorToTape(
+  table: TapeFactWriter,
+  record: ChatMessageRecord,
+  source: TapeFactSource,
+  compactionStatus: string,
+  correction?: TapeMessageReplacementOptions
+): void {
+  const orderRevision = correction?.revisionKind === 'order' ? `:order_seq:${record.orderSeq}` : ''
+  table.appendEvent({
+    sessionId: record.sessionId,
+    name: 'message/compaction_indicator',
+    source: {
+      type: 'message',
+      id: record.id,
+      seq: record.updatedAt
+    },
+    provenanceKey: `message:${record.id}:compaction_indicator:${compactionStatus}:${record.updatedAt}${orderRevision}`,
+    data: {
+      messageId: record.id,
+      orderSeq: record.orderSeq,
+      status: compactionStatus,
+      metadata: record.metadata
+    },
+    meta: correction
+      ? {
+          source,
+          status: compactionStatus,
+          correction: true,
+          reason: correction.reason,
+          orderSeq: record.orderSeq
+        }
+      : {
+          source,
+          status: compactionStatus
+        },
+    createdAt: record.updatedAt,
+    idempotent: true
+  })
+}
+
 function shouldUseRevisionProvenance(record: ChatMessageRecord, source: TapeFactSource): boolean {
   return source === 'repair' || record.status !== 'sent'
 }
@@ -40,13 +123,29 @@ function buildMessageProvenanceKey(
   return `message:${record.id}:revision:${record.status}:${record.updatedAt}`
 }
 
+function buildMessageReplacementProvenanceKey(
+  record: ChatMessageRecord,
+  options: TapeMessageReplacementOptions
+): string {
+  const orderRevision = options.revisionKind === 'order' ? `:order_seq:${record.orderSeq}` : ''
+  return `message:${record.id}:revision:${record.updatedAt}${orderRevision}`
+}
+
 function buildToolFactProvenanceKey(
   kind: 'tool_call' | 'tool_result',
   messageId: string,
   toolCallId: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  supersedesEntryId?: number
 ): string {
-  return `${kind}:${messageId}:${toolCallId}:${hashJson(payload)}`
+  const revision = supersedesEntryId === undefined ? '' : `:after_entry:${supersedesEntryId}`
+  return `${kind}:${messageId}:${toolCallId}:${hashJson(payload)}${revision}`
+}
+
+function buildToolFactSemanticFingerprint(fact: TapeToolFactSemanticContent): string {
+  const payload = { ...fact.payload }
+  delete payload.orderSeq
+  return hashJson({ kind: fact.kind, name: fact.name, payload, status: fact.status })
 }
 
 function collectPendingInteractionToolIds(blocks: AssistantMessageBlock[]): Set<string> {
@@ -102,12 +201,7 @@ export function buildTapeToolFactInputs(record: ChatMessageRecord): TapeToolFact
   return inputs
 }
 
-export function appendTapeToolFact(
-  table: TapeFactStore,
-  input: TapeToolFactInput,
-  source: TapeFactSource,
-  reason?: string
-): DeepChatTapeEntryRow | null {
+function prepareTapeToolFact(input: TapeToolFactInput): PreparedTapeToolFact | null {
   const block = input.block
   const toolCall = block.type === 'tool_call' ? block.tool_call : undefined
   if (
@@ -118,70 +212,155 @@ export function appendTapeToolFact(
     return null
   }
 
-  table.ensureBootstrapAnchor(input.sessionId)
-  const meta = reason
-    ? { source, role: 'assistant', status: block.status, reason }
-    : { source, role: 'assistant', status: block.status }
   if (input.provenance.source === 'tool_call') {
-    const payload = {
-      messageId: input.messageId,
-      orderSeq: input.orderSeq,
-      toolCall: {
-        id: toolCall.id,
-        name: toolCall.name,
-        params: toolCall.params,
-        serverName: toolCall.server_name,
-        serverIcons: toolCall.server_icons,
-        serverDescription: toolCall.server_description
-      }
-    }
-    return table.append({
-      sessionId: input.sessionId,
+    return {
+      identityKey: `tool_call:${input.messageId}:${toolCall.id}`,
       kind: 'tool_call',
       name: toolCall.name || 'unknown',
-      source: {
-        type: input.provenance.source,
-        id: input.provenance.sourceId,
-        seq: input.provenance.sequence
+      payload: {
+        messageId: input.messageId,
+        orderSeq: input.orderSeq,
+        toolCall: {
+          id: toolCall.id,
+          name: toolCall.name,
+          params: toolCall.params,
+          serverName: toolCall.server_name,
+          serverIcons: toolCall.server_icons,
+          serverDescription: toolCall.server_description
+        }
       },
-      provenanceKey: buildToolFactProvenanceKey('tool_call', input.messageId, toolCall.id, payload),
-      payload,
-      meta,
-      createdAt: block.timestamp,
-      idempotent: true
-    })
+      status: block.status,
+      toolCallId: toolCall.id
+    }
   }
 
   if (typeof toolCall.response !== 'string' || toolCall.response.length === 0) return null
-  const payload = {
-    messageId: input.messageId,
-    orderSeq: input.orderSeq,
-    toolCallId: toolCall.id,
-    response: toolCall.response,
-    rtkApplied: toolCall.rtkApplied,
-    rtkMode: toolCall.rtkMode,
-    rtkFallbackReason: toolCall.rtkFallbackReason,
-    imagePreviews: toolCall.imagePreviews
-  }
-  return table.append({
-    sessionId: input.sessionId,
+  return {
+    identityKey: `tool_result:${input.messageId}:${toolCall.id}`,
     kind: 'tool_result',
     name: toolCall.name || 'unknown',
+    payload: {
+      messageId: input.messageId,
+      orderSeq: input.orderSeq,
+      toolCallId: toolCall.id,
+      response: toolCall.response,
+      rtkApplied: toolCall.rtkApplied,
+      rtkMode: toolCall.rtkMode,
+      rtkFallbackReason: toolCall.rtkFallbackReason,
+      imagePreviews: toolCall.imagePreviews
+    },
+    status: block.status,
+    toolCallId: toolCall.id
+  }
+}
+
+function describeTapeToolFact(input: TapeToolFactInput): {
+  prepared: PreparedTapeToolFact
+  semanticFingerprint: string
+} | null {
+  const prepared = prepareTapeToolFact(input)
+  if (!prepared) return null
+  return {
+    prepared,
+    semanticFingerprint: buildToolFactSemanticFingerprint(prepared)
+  }
+}
+
+export function buildTapeToolRevisionIndex(rows: DeepChatTapeEntryRow[]): TapeToolRevisionIndex {
+  const revisions: TapeToolRevisionIndex = new Map()
+  for (const row of rows) {
+    const identity = readTapeToolIdentity(row)
+    const status = readTapeToolStatus(row)
+    if (
+      !identity ||
+      (row.kind !== 'tool_call' && row.kind !== 'tool_result') ||
+      (status !== 'success' && status !== 'error')
+    ) {
+      continue
+    }
+    const current = revisions.get(identity.key)
+    if (current && current.entryId > row.entry_id) continue
+    revisions.set(identity.key, {
+      semanticFingerprint: buildToolFactSemanticFingerprint({
+        kind: row.kind,
+        name: row.name,
+        payload: parseTapeJsonObject(row.payload_json),
+        status
+      }),
+      entryId: row.entry_id
+    })
+  }
+  return revisions
+}
+
+export function appendTapeToolFact(
+  table: TapeFactWriter,
+  input: TapeToolFactInput,
+  source: TapeFactSource,
+  options: TapeToolFactAppendOptions = {}
+): DeepChatTapeEntryRow | null {
+  const block = input.block
+  const described = describeTapeToolFact(input)
+  if (!described) return null
+  const { prepared } = described
+
+  table.ensureBootstrapAnchor(input.sessionId)
+  const meta = options.reason
+    ? { source, role: 'assistant', status: block.status, reason: options.reason }
+    : { source, role: 'assistant', status: block.status }
+  return table.append({
+    sessionId: input.sessionId,
+    kind: prepared.kind,
+    name: prepared.name,
     source: {
       type: input.provenance.source,
       id: input.provenance.sourceId,
       seq: input.provenance.sequence
     },
-    provenanceKey: buildToolFactProvenanceKey('tool_result', input.messageId, toolCall.id, payload),
-    payload,
+    provenanceKey: buildToolFactProvenanceKey(
+      prepared.kind,
+      input.messageId,
+      prepared.toolCallId,
+      prepared.payload,
+      options.supersedesEntryId
+    ),
+    payload: prepared.payload,
     meta,
     createdAt: block.timestamp,
     idempotent: true
   })
 }
 
+function appendToolFactInputsWithRevisionIndex(
+  table: TapeFactWriter,
+  inputs: TapeToolFactInput[],
+  source: TapeFactSource,
+  revisionIndex: TapeToolRevisionIndex,
+  reason?: string
+): number {
+  let appended = 0
+  for (const input of inputs) {
+    const described = describeTapeToolFact(input)
+    if (!described) continue
+    const current = revisionIndex.get(described.prepared.identityKey)
+    if (current?.semanticFingerprint === described.semanticFingerprint) continue
+
+    const row = appendTapeToolFact(table, input, source, {
+      reason,
+      supersedesEntryId: current?.entryId
+    })
+    if (!row) continue
+    revisionIndex.set(described.prepared.identityKey, {
+      semanticFingerprint: described.semanticFingerprint,
+      entryId: row.entry_id
+    })
+    appended += 1
+  }
+  return appended
+}
+
 export function appendToolFactsToTape(
-  table: TapeFactStore,
+  table: TapeFactWriter,
   record: ChatMessageRecord,
   source: TapeFactSource,
   reason?: string
@@ -191,42 +370,22 @@ export function appendToolFactsToTape(
   }
 
   return buildTapeToolFactInputs(record).reduce(
-    (appended, input) => appended + (appendTapeToolFact(table, input, source, reason) ? 1 : 0),
+    (appended, input) => appended + (appendTapeToolFact(table, input, source, { reason }) ? 1 : 0),
     0
   )
 }
 
 export function appendMessageRecordToTape(
-  table: TapeFactStore,
+  table: TapeFactWriter,
   record: ChatMessageRecord,
-  source: TapeFactSource
+  source: TapeFactSource,
+  options: TapeMessageRecordAppendOptions = {}
 ): number {
   table.ensureBootstrapAnchor(record.sessionId)
 
   const compactionStatus = readCompactionStatus(record)
   if (compactionStatus) {
-    table.appendEvent({
-      sessionId: record.sessionId,
-      name: 'message/compaction_indicator',
-      source: {
-        type: 'message',
-        id: record.id,
-        seq: record.updatedAt
-      },
-      provenanceKey: `message:${record.id}:compaction_indicator:${compactionStatus}:${record.updatedAt}`,
-      data: {
-        messageId: record.id,
-        orderSeq: record.orderSeq,
-        status: compactionStatus,
-        metadata: record.metadata
-      },
-      meta: {
-        source,
-        status: compactionStatus
-      },
-      createdAt: record.updatedAt,
-      idempotent: true
-    })
+    appendCompactionIndicatorToTape(table, record, source, compactionStatus)
     return 1
   }
 
@@ -265,15 +424,34 @@ export function appendMessageRecordToTape(
     idempotent: true
   })
 
-  return 1 + appendToolFactsToTape(table, record, source)
+  const toolInputs = buildTapeToolFactInputs(record)
+  return (
+    1 +
+    (options.toolRevisionIndex
+      ? appendToolFactInputsWithRevisionIndex(table, toolInputs, source, options.toolRevisionIndex)
+      : toolInputs.reduce(
+          (appended, input) => appended + (appendTapeToolFact(table, input, source) ? 1 : 0),
+          0
+        ))
+  )
 }
 
 export function appendMessageReplacementToTape(
   table: TapeFactStore,
   record: ChatMessageRecord,
-  reason: string
+  options: TapeMessageReplacementOptions
 ): number {
   table.ensureBootstrapAnchor(record.sessionId)
+  const compactionStatus = readCompactionStatus(record)
+  if (compactionStatus) {
+    appendCompactionIndicatorToTape(table, record, 'live', compactionStatus, options)
+    return 1
+  }
+
+  const toolInputs = options.revisionKind === 'record' ? buildTapeToolFactInputs(record) : []
+  const toolRevisionIndex =
+    toolInputs.length > 0 ? buildTapeToolRevisionIndex(table.getBySession(record.sessionId)) : null
+
   table.append({
     sessionId: record.sessionId,
     kind: 'message',
@@ -283,7 +461,7 @@ export function appendMessageReplacementToTape(
       id: record.id,
       seq: record.updatedAt
     },
-    provenanceKey: `message:${record.id}:revision:${record.updatedAt}`,
+    provenanceKey: buildMessageReplacementProvenanceKey(record, options),
     payload: {
       record: {
         id: record.id,
@@ -302,7 +480,7 @@ export function appendMessageReplacementToTape(
     meta: {
       source: 'live',
       correction: true,
-      reason,
+      reason: options.reason,
       orderSeq: record.orderSeq,
       role: record.role,
       status: record.status
@@ -311,11 +489,16 @@ export function appendMessageReplacementToTape(
     idempotent: true
   })
 
-  return 1 + appendToolFactsToTape(table, record, 'repair')
+  return (
+    1 +
+    (toolRevisionIndex
+      ? appendToolFactInputsWithRevisionIndex(table, toolInputs, 'repair', toolRevisionIndex)
+      : 0)
+  )
 }
 
 export function appendMessageRetractionToTape(
-  table: TapeFactStore,
+  table: TapeFactWriter,
   record: ChatMessageRecord,
   reason: string
 ): number {

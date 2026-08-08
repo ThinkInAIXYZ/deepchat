@@ -41,7 +41,10 @@ import type { MemoryRuntimePort } from '@/memory/injection'
 import { CompactionService } from '@/agent/deepchat/runtime/compactionService'
 import { reviewAutoApproveToolPermission } from '@/agent/deepchat/runtime/toolPermissionReviewer'
 import { normalizeToolResultContent } from '@/agent/deepchat/runtime/toolAdapters'
-import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
+import {
+  ToolOutputGuard,
+  type ToolOutputGuardResult
+} from '@/agent/deepchat/runtime/toolOutputGuard'
 import { DeferredToolExecutor } from '@/agent/deepchat/runtime/deferredToolExecutor'
 import { createState } from '@/agent/deepchat/runtime/types'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
@@ -54,10 +57,15 @@ import { nanoid } from 'nanoid'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 import { LiveDelegationAgentTool } from '@/tool/agentTools/liveDelegationTool'
+import {
+  ExecutionJournalCorruptionError,
+  ExecutionJournalError
+} from '@/tape/domain/executionJournal'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
 const publishDeepchatEvent = vi.fn()
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 vi.mock('@/events', () => ({
   SESSION_EVENTS: {
@@ -331,6 +339,7 @@ function createMockSqlitePresenter() {
     },
     deepchatTapeEntriesTable: (deepchatTapeEntriesTable = {
       runInTransaction: vi.fn((operation: () => unknown) => operation()),
+      isInTransaction: vi.fn(() => false),
       ensureBootstrapAnchor: vi.fn(),
       append: vi.fn((input: any) => {
         const provenanceKey =
@@ -392,6 +401,18 @@ function createMockSqlitePresenter() {
           payload: { name: input.name, data: input.data }
         })
       }),
+      appendExecutionJournalEvent: vi.fn((input: any) => {
+        return deepchatTapeEntriesTable.append({
+          ...input,
+          kind: 'event',
+          payload: { name: input.name, data: input.data }
+        })
+      }),
+      listUnterminatedRunEvents: vi.fn(() =>
+        tapeEntries.filter(
+          (entry) => entry.kind === 'event' && entry.name?.startsWith('execution/')
+        )
+      ),
       getBySession: vi.fn((sessionId: string) =>
         tapeEntries.filter((entry) => entry.session_id === sessionId)
       ),
@@ -469,6 +490,9 @@ function createMockSqlitePresenter() {
         memoryIngestionProjectionCurrent = false
       })
     }),
+    get deepchatExecutionJournalStore() {
+      return deepchatTapeEntriesTable
+    },
     tapeLifecycle: deepchatTapeEntriesTable,
     deepchatTapeSearchProjectionTable: {
       deleteBySession: vi.fn(),
@@ -2147,6 +2171,324 @@ describe('DeepChatAgentHarness', () => {
   }
 
   describe('constructor (crash recovery)', () => {
+    it('classifies Execution Journal facts before pending input and transcript recovery', () => {
+      const order: string[] = []
+      sqlitePresenter.deepchatTapeEntriesTable.listUnterminatedRunEvents.mockImplementation(() => {
+        order.push('journal')
+        return []
+      })
+      sqlitePresenter.deepchatPendingInputsTable.listActive.mockImplementation(() => {
+        order.push('pending-inputs')
+        return []
+      })
+      sqlitePresenter.deepchatMessagesTable.getByStatus.mockImplementation(() => {
+        order.push('transcript')
+        return []
+      })
+
+      createDeepChatAgentHarness({
+        ...createRuntimeDependencies({ skillService: getSkillServiceMock() }),
+        providerRuntime: llmProvider,
+        providerSettings,
+        agentSettings: providerSettings,
+        database: sqlitePresenter,
+        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+          publishPendingInputsChanged: vi.fn(),
+          publishMessagesChanged: vi.fn()
+        }),
+        toolService,
+        hookObserver: noopHookObserver
+      })
+
+      expect(order).toEqual(['journal', 'pending-inputs', 'transcript'])
+    })
+
+    it('parks an indeterminate Run without invoking or retrying its tool', () => {
+      const runId = '11111111-1111-4111-8111-111111111111'
+      sessionData.tapeStore.commitRunStarted({
+        sessionId: 's1',
+        runId,
+        messageId: 'm1',
+        runKind: 'loop'
+      })
+      sessionData.tapeStore.commitDispatch({
+        sessionId: 's1',
+        messageId: 'm1',
+        operation: { runId, requestSeq: 1, providerToolCallId: 'call-1' },
+        toolName: 'write_file',
+        toolSource: 'agent',
+        normalizedArguments: { path: 'a.txt' },
+        target: { serverName: 'agent-filesystem', originalName: 'write_file' }
+      })
+      const rowCountBeforeRecovery =
+        sqlitePresenter.deepchatTapeEntriesTable.getBySession('s1').length
+      const loggerWarnMock = vi.mocked(logger.warn)
+      loggerWarnMock.mockClear()
+      toolService.callTool.mockClear()
+
+      createDeepChatAgentHarness({
+        ...createRuntimeDependencies({ skillService: getSkillServiceMock() }),
+        providerRuntime: llmProvider,
+        providerSettings,
+        agentSettings: providerSettings,
+        database: sqlitePresenter,
+        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+          publishPendingInputsChanged: vi.fn(),
+          publishMessagesChanged: vi.fn()
+        }),
+        toolService,
+        hookObserver: noopHookObserver
+      })
+
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        '[DeepChatAgent] Execution Journal recovery candidate parked',
+        expect.objectContaining({
+          sessionId: 's1',
+          runId,
+          messageId: 'm1',
+          classification: 'indeterminate',
+          disposition: 'parked',
+          automaticRetry: false
+        })
+      )
+      expect(toolService.callTool).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession('s1')).toHaveLength(
+        rowCountBeforeRecovery
+      )
+    })
+
+    it('reports a completed operation when its Run terminal fact is missing', () => {
+      const runId = '22222222-2222-4222-8222-222222222222'
+      const operation = { runId, requestSeq: 1, providerToolCallId: 'call-1' }
+      sessionData.tapeStore.commitRunStarted({
+        sessionId: 's1',
+        runId,
+        messageId: 'm1',
+        runKind: 'loop'
+      })
+      sessionData.tapeStore.commitDispatch({
+        sessionId: 's1',
+        messageId: 'm1',
+        operation,
+        toolName: 'write_file',
+        toolSource: 'agent',
+        normalizedArguments: { path: 'a.txt' },
+        target: { serverName: 'agent-filesystem', originalName: 'write_file' }
+      })
+      sessionData.tapeStore.commitToolOutcome({
+        sessionId: 's1',
+        messageId: 'm1',
+        operation,
+        responseText: 'done',
+        isError: false
+      })
+      const loggerWarnMock = vi.mocked(logger.warn)
+      loggerWarnMock.mockClear()
+      const recoverySessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+        publishPendingInputsChanged: vi.fn(),
+        publishMessagesChanged: vi.fn()
+      })
+      const recoverPendingMessages = vi
+        .spyOn(recoverySessionData.transcript, 'recoverPendingMessages')
+        .mockReturnValue(0)
+
+      createDeepChatAgentHarness({
+        ...createRuntimeDependencies({ skillService: getSkillServiceMock() }),
+        providerRuntime: llmProvider,
+        providerSettings,
+        agentSettings: providerSettings,
+        database: sqlitePresenter,
+        sessionData: recoverySessionData,
+        toolService,
+        hookObserver: noopHookObserver
+      })
+
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        '[DeepChatAgent] Execution Journal recovery candidate parked',
+        expect.objectContaining({
+          runId,
+          classification: 'completed',
+          terminalOutcome: null,
+          disposition: 'parked',
+          automaticRetry: false
+        })
+      )
+      expect(recoverPendingMessages).toHaveBeenCalledWith({
+        forceRecoverMessagesBySession: new Map([['s1', new Set(['m1'])]])
+      })
+    })
+
+    it('bounds recovery detail logging and reports omitted classifications', () => {
+      for (let index = 0; index <= 100; index += 1) {
+        sessionData.tapeStore.commitRunStarted({
+          sessionId: 's1',
+          runId: `${index.toString(16).padStart(8, '0')}-1111-4111-8111-111111111111`,
+          messageId: `m${index}`,
+          runKind: 'loop'
+        })
+      }
+      const loggerWarnMock = vi.mocked(logger.warn)
+      loggerWarnMock.mockClear()
+
+      createDeepChatAgentHarness({
+        ...createRuntimeDependencies({ skillService: getSkillServiceMock() }),
+        providerRuntime: llmProvider,
+        providerSettings,
+        agentSettings: providerSettings,
+        database: sqlitePresenter,
+        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+          publishPendingInputsChanged: vi.fn(),
+          publishMessagesChanged: vi.fn()
+        }),
+        toolService,
+        hookObserver: noopHookObserver
+      })
+
+      const recoveryLogCalls = loggerWarnMock.mock.calls.filter(
+        ([message]) =>
+          message === '[DeepChatAgent] Execution Journal recovery candidate parked' ||
+          message === '[DeepChatAgent] Execution Journal recovery diagnostics truncated'
+      )
+      expect(recoveryLogCalls).toHaveLength(101)
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        '[DeepChatAgent] Execution Journal recovery diagnostics truncated',
+        {
+          candidateCount: 101,
+          reportedCount: 100,
+          omittedCount: 1,
+          classificationCounts: {
+            not_dispatched: 101,
+            completed: 0,
+            indeterminate: 0,
+            corruption: 0
+          },
+          disposition: 'parked',
+          automaticRetry: false
+        }
+      )
+    })
+
+    it('reports corruption before lower-severity candidates when recovery details are capped', () => {
+      const lowerSeverity = Array.from({ length: 101 }, (_, index) => ({
+        sessionId: 's1',
+        runId: `${index.toString(16).padStart(8, '0')}-1111-4111-8111-111111111111`,
+        messageId: `m${index}`,
+        classification: 'not_dispatched' as const,
+        dispatchCount: 0,
+        outcomeCount: 0,
+        terminalOutcome: null,
+        reasons: ['missing_run_terminal']
+      }))
+      const corruption = {
+        sessionId: 's-corrupt',
+        runId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+        messageId: 'm-corrupt',
+        classification: 'corruption' as const,
+        dispatchCount: 0,
+        outcomeCount: 1,
+        terminalOutcome: null,
+        reasons: ['outcome_without_dispatch']
+      }
+      const recoverySessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+        publishPendingInputsChanged: vi.fn(),
+        publishMessagesChanged: vi.fn()
+      })
+      vi.spyOn(recoverySessionData.tapeStore, 'classifyRecoveryCandidates').mockReturnValue([
+        ...lowerSeverity,
+        corruption
+      ])
+      const loggerErrorMock = vi.mocked(logger.error)
+      loggerErrorMock.mockClear()
+
+      createDeepChatAgentHarness({
+        ...createRuntimeDependencies({ skillService: getSkillServiceMock() }),
+        providerRuntime: llmProvider,
+        providerSettings,
+        agentSettings: providerSettings,
+        database: sqlitePresenter,
+        sessionData: recoverySessionData,
+        toolService,
+        hookObserver: noopHookObserver
+      })
+
+      expect(loggerErrorMock).toHaveBeenCalledWith(
+        '[DeepChatAgent] Execution Journal recovery candidate parked',
+        expect.objectContaining({
+          sessionId: corruption.sessionId,
+          runId: corruption.runId,
+          classification: 'corruption'
+        })
+      )
+    })
+
+    it('sanitizes malformed recovery identities before structured logging', () => {
+      sqlitePresenter.deepchatTapeEntriesTable.listUnterminatedRunEvents.mockReturnValue([
+        {
+          session_id: `unsafe\nsession-${'s'.repeat(3_000)}`,
+          entry_id: 1,
+          kind: 'event',
+          name: 'execution/run_started',
+          source_type: 'runtime_event',
+          source_id: `unsafe\rrun-${'r'.repeat(3_000)}`,
+          source_seq: 0,
+          provenance_key: 'malformed',
+          payload_json: '{}',
+          meta_json: '{}',
+          created_at: 1
+        }
+      ])
+      const loggerErrorMock = vi.mocked(logger.error)
+      loggerErrorMock.mockClear()
+
+      createDeepChatAgentHarness({
+        ...createRuntimeDependencies({ skillService: getSkillServiceMock() }),
+        providerRuntime: llmProvider,
+        providerSettings,
+        agentSettings: providerSettings,
+        database: sqlitePresenter,
+        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+          publishPendingInputsChanged: vi.fn(),
+          publishMessagesChanged: vi.fn()
+        }),
+        toolService,
+        hookObserver: noopHookObserver
+      })
+
+      const diagnostic = loggerErrorMock.mock.calls.find(
+        ([message]) => message === '[DeepChatAgent] Execution Journal recovery candidate parked'
+      )?.[1] as { sessionId: string; runId: string }
+      expect(diagnostic.sessionId).not.toMatch(/[\r\n]/)
+      expect(diagnostic.runId).not.toMatch(/[\r\n]/)
+      expect(diagnostic.sessionId.length).toBeLessThanOrEqual(2_048)
+      expect(diagnostic.runId.length).toBeLessThanOrEqual(2_048)
+    })
+
+    it('fails startup closed when journal recovery facts cannot be read', () => {
+      sqlitePresenter.deepchatTapeEntriesTable.listUnterminatedRunEvents.mockImplementation(() => {
+        throw new Error('journal read failed')
+      })
+      sqlitePresenter.deepchatPendingInputsTable.listActive.mockClear()
+      sqlitePresenter.deepchatMessagesTable.getByStatus.mockClear()
+
+      expect(() =>
+        createDeepChatAgentHarness({
+          ...createRuntimeDependencies({ skillService: getSkillServiceMock() }),
+          providerRuntime: llmProvider,
+          providerSettings,
+          agentSettings: providerSettings,
+          database: sqlitePresenter,
+          sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+            publishPendingInputsChanged: vi.fn(),
+            publishMessagesChanged: vi.fn()
+          }),
+          toolService,
+          hookObserver: noopHookObserver
+        })
+      ).toThrow('journal read failed')
+      expect(sqlitePresenter.deepchatPendingInputsTable.listActive).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.getByStatus).not.toHaveBeenCalled()
+    })
+
     it('calls pending status query on init', () => {
       expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')
     })
@@ -2500,11 +2842,251 @@ describe('DeepChatAgentHarness', () => {
         requestSeq: 0,
         physicalAttempt: 0
       })
+      expect(callArgs.run.runId).toMatch(UUID_PATTERN)
       expect(
         sqlitePresenter.deepchatMessagesTable.insert.mock.calls.some(
           ([row]) => row.id === 'mock-msg-id' && row.role === 'assistant'
         )
       ).toBe(true)
+    })
+
+    it('commits a UUID Run start before registration and a matching terminal after execution', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const order: string[] = []
+      const tape = sessionData.tapeStore
+      const commitRunStarted = tape.commitRunStarted.bind(tape)
+      const commitRunTerminal = tape.commitRunTerminal.bind(tape)
+      const registerActiveGeneration = instance.registerActiveGeneration.bind(instance)
+
+      vi.spyOn(tape, 'commitRunStarted').mockImplementation((input) => {
+        order.push('journal:started')
+        return commitRunStarted(input)
+      })
+      vi.spyOn(instance, 'registerActiveGeneration').mockImplementation((run) => {
+        order.push('runtime:registered')
+        return registerActiveGeneration(run)
+      })
+      vi.spyOn(tape, 'commitRunTerminal').mockImplementation((input) => {
+        order.push('journal:terminal')
+        return commitRunTerminal(input)
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+        order.push('process:entered')
+        return { status: 'completed', stopReason: 'complete' }
+      })
+
+      await agent.processMessage('s1', 'Hello')
+
+      expect(order).toEqual([
+        'journal:started',
+        'runtime:registered',
+        'process:entered',
+        'journal:terminal'
+      ])
+      const journalRows = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) => row.name?.startsWith('execution/'))
+      expect(journalRows).toHaveLength(2)
+      const started = JSON.parse(journalRows[0].payload_json).data
+      const terminal = JSON.parse(journalRows[1].payload_json).data
+      expect(started.runId).toMatch(UUID_PATTERN)
+      expect(terminal).toMatchObject({
+        runId: started.runId,
+        messageId: started.messageId,
+        outcome: 'completed',
+        stopReason: 'complete'
+      })
+    })
+
+    it('does not register or terminally project a Run when its start commit fails', async () => {
+      vi.spyOn(sessionData.tapeStore, 'commitRunStarted').mockImplementation(() => {
+        throw new ExecutionJournalError('run start unavailable', 'persistence_failed')
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await expect(agent.processMessage('s1', 'Hello')).rejects.toThrow('run start unavailable')
+
+      expect(processStream).not.toHaveBeenCalled()
+      expect(agent.getActiveGeneration('s1')).toBeNull()
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
+      expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
+    })
+
+    it('does not terminally project a Run when its terminal commit fails', async () => {
+      vi.spyOn(sessionData.tapeStore, 'commitRunTerminal').mockImplementation(() => {
+        throw new ExecutionJournalError('run terminal unavailable', 'persistence_failed')
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await expect(agent.processMessage('s1', 'Hello')).rejects.toThrow('run terminal unavailable')
+
+      expect(processStream).toHaveBeenCalledOnce()
+      expect(agent.getActiveGeneration('s1')).toBeNull()
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
+      expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
+    })
+
+    it('preserves execution and persistence causes when fallback terminal commit fails', async () => {
+      const executionError = new Error('provider failed')
+      const persistenceCause = new Error('database locked')
+      const terminalError = new ExecutionJournalError(
+        'run terminal unavailable',
+        'persistence_failed',
+        { cause: persistenceCause }
+      )
+      vi.spyOn(sessionData.tapeStore, 'commitRunTerminal').mockImplementation(() => {
+        throw terminalError
+      })
+      Object.freeze(terminalError)
+      ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(executionError)
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const propagated = await agent.processMessage('s1', 'Hello').catch((error) => error)
+
+      expect(propagated).toMatchObject({
+        name: 'ExecutionJournalError',
+        message: terminalError.message,
+        code: terminalError.code,
+        cause: expect.any(AggregateError)
+      })
+      expect(propagated).not.toBe(terminalError)
+      expect((propagated.cause as AggregateError).errors).toEqual([
+        executionError,
+        persistenceCause
+      ])
+      expect(terminalError.cause).toBe(persistenceCause)
+      expect(agent.getActiveGeneration('s1')).toBeNull()
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('preserves corruption identity when fallback terminal commit conflicts', async () => {
+      const executionError = new Error('provider failed')
+      const persistenceCause = new Error('conflicting terminal fact')
+      const terminalError = new ExecutionJournalCorruptionError('run terminal conflicted', {
+        cause: persistenceCause
+      })
+      vi.spyOn(sessionData.tapeStore, 'commitRunTerminal').mockImplementation(() => {
+        throw terminalError
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(executionError)
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const propagated = await agent.processMessage('s1', 'Hello').catch((error) => error)
+
+      expect(propagated).toBeInstanceOf(ExecutionJournalCorruptionError)
+      expect(propagated).toMatchObject({
+        name: 'ExecutionJournalCorruptionError',
+        message: terminalError.message,
+        code: terminalError.code,
+        cause: expect.any(AggregateError)
+      })
+      expect((propagated.cause as AggregateError).errors).toEqual([
+        executionError,
+        persistenceCause
+      ])
+    })
+
+    it('retains both failures when a terminal commit throws an untyped error', async () => {
+      const executionError = new Error('provider failed')
+      const terminalError = new Error('terminal storage failed')
+      vi.spyOn(sessionData.tapeStore, 'commitRunTerminal').mockImplementation(() => {
+        throw terminalError
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(executionError)
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const propagated = await agent.processMessage('s1', 'Hello').catch((error) => error)
+
+      expect(propagated).toMatchObject({
+        name: 'ExecutionJournalError',
+        message: terminalError.message,
+        code: 'persistence_failed',
+        cause: expect.any(AggregateError)
+      })
+      expect((propagated.cause as AggregateError).errors).toEqual([executionError, terminalError])
+    })
+
+    it('keeps a committed terminal authoritative when its projection fails', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        params.commitRunTerminal({ outcome: 'completed', stopReason: 'complete' })
+        throw new Error('terminal projection failed')
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await expect(agent.processMessage('s1', 'Hello')).rejects.toMatchObject({
+        name: 'CommittedRunProjectionError',
+        cause: expect.objectContaining({ message: 'terminal projection failed' })
+      })
+
+      expect(agent.getActiveGeneration('s1')).toBeNull()
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
+      expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
+      const terminalRow = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .find((row: any) => row.name === 'execution/run_terminal')
+      expect(JSON.parse(terminalRow.payload_json).data).toMatchObject({
+        outcome: 'completed',
+        stopReason: 'complete'
+      })
+    })
+
+    it('does not project a stale instance error after its terminal was committed', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        params.commitRunTerminal({ outcome: 'completed', stopReason: 'complete' })
+        await agent.destroySession('s1')
+        return { status: 'completed', stopReason: 'complete' }
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await expect(agent.processMessage('s1', 'Hello')).rejects.toMatchObject({
+        name: 'CommittedRunProjectionError',
+        terminal: { outcome: 'completed', stopReason: 'complete' }
+      })
+
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalled()
+      expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
+    })
+
+    it('projects a committed aborted terminal even when its projection throws a plain error', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        params.commitRunTerminal({ outcome: 'aborted', stopReason: 'user_stop' })
+        throw new Error('abort projection failed')
+      })
+      sqlitePresenter.deepchatMessagesTable.get.mockImplementation((id: string) =>
+        id === 'mock-msg-id'
+          ? {
+              id,
+              session_id: 's1',
+              order_seq: 2,
+              role: 'assistant',
+              content: '[]',
+              status: 'pending',
+              is_context_edge: 0,
+              metadata: null,
+              created_at: 1,
+              updated_at: 1
+            }
+          : undefined
+      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await expect(agent.processMessage('s1', 'Hello')).resolves.toEqual(
+        expect.objectContaining({ messageId: 'mock-msg-id' })
+      )
+
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      expect(
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.some(
+          ([messageId, , status, metadata]) =>
+            messageId === 'mock-msg-id' &&
+            status === 'error' &&
+            JSON.parse(metadata ?? '{}').runOutcome === 'aborted'
+        )
+      ).toBe(true)
+      expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
     })
 
     it('resets agent plan state for each new assistant turn', async () => {
@@ -2557,6 +3139,7 @@ describe('DeepChatAgentHarness', () => {
       await expect(agent.waitForFirstTurnReady('s1', { timeoutMs: 0 })).resolves.toBe(false)
       streamDone.resolve()
       await processPromise
+      expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession('s1')).toEqual([])
     })
 
     it('keeps rapid pre-stream Steers ordered and replies in one assistant row', async () => {
@@ -2631,6 +3214,46 @@ describe('DeepChatAgentHarness', () => {
       expect(sqlitePresenter.deepchatPendingInputsTable.get('steer-input')).toMatchObject({
         state: 'consumed'
       })
+    })
+
+    it('consumes a visible steer when the next Run start fact cannot commit', async () => {
+      installSessionRows([])
+      vi.mocked(nanoid)
+        .mockReturnValueOnce('journal-source-input')
+        .mockReturnValueOnce('journal-source-user')
+        .mockReturnValueOnce('journal-source-assistant')
+        .mockReturnValueOnce('journal-steer-user')
+        .mockReturnValueOnce('journal-steer-input')
+        .mockReturnValueOnce('journal-steer-assistant')
+      const initialStreamDone = deferred<void>()
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+        await initialStreamDone.promise
+        return { status: 'completed', stopReason: 'complete' }
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const initialProcess = agent.processMessage('s1', 'Initial prompt')
+      await vi.waitFor(() => expect(processStream).toHaveBeenCalledOnce())
+
+      await agent.steerActiveTurn('s1', 'Visible steer')
+      const [steer] = await agent.listPendingInputs('s1')
+      expect(steer).toMatchObject({ mode: 'steer', state: 'pending' })
+      const commitRunStarted = vi
+        .spyOn(sessionData.tapeStore, 'commitRunStarted')
+        .mockImplementationOnce(() => {
+          throw new ExecutionJournalError('run start unavailable', 'persistence_failed')
+        })
+
+      initialStreamDone.resolve()
+      await initialProcess
+      await vi.waitFor(() => expect(commitRunStarted).toHaveBeenCalledOnce())
+      await vi.waitFor(async () => expect(await agent.listPendingInputs('s1')).toEqual([]))
+
+      expect(sqlitePresenter.deepchatPendingInputsTable.get(steer.id)).toMatchObject({
+        state: 'consumed'
+      })
+      expect(processStream).toHaveBeenCalledOnce()
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
     })
 
     it('does not interrupt an active stream when steer attachment preflight needs user action', async () => {
@@ -3591,7 +4214,7 @@ describe('DeepChatAgentHarness', () => {
         blocks: []
       })
       expect(typedRateLimitShow).toMatchObject({
-        requestId: expect.stringMatching(/^s1:\d+$/),
+        requestId: callArgs.run.runId,
         sessionId: 's1',
         blocks: [
           expect.objectContaining({
@@ -3602,7 +4225,7 @@ describe('DeepChatAgentHarness', () => {
         ]
       })
       expect(typedRateLimitClear).toMatchObject({
-        requestId: expect.stringMatching(/^s1:\d+$/),
+        requestId: callArgs.run.runId,
         sessionId: 's1',
         blocks: []
       })
@@ -4743,12 +5366,10 @@ describe('DeepChatAgentHarness', () => {
       }
     )
 
-    it.each([
-      { errorName: 'Error', expectedStatus: 'error' },
-      { errorName: 'AbortError', expectedStatus: 'idle' }
-    ] as const)(
-      'observes a thrown $errorName initial turn exactly once before terminal projection',
-      async ({ errorName, expectedStatus }) => {
+    it.each(['Error', 'AbortError'] as const)(
+      'observes a thrown %s initial turn exactly once before terminal projection',
+      async (errorName) => {
+        const expectedStatus = 'error'
         const failure = new Error(`initial ${errorName}`)
         failure.name = errorName
         ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(failure)
@@ -4765,6 +5386,10 @@ describe('DeepChatAgentHarness', () => {
           outcome: { kind: 'thrown', error: failure }
         })
         expect((await agent.getSessionState('s1'))?.status).toBe(expectedStatus)
+        const terminalRow = sqlitePresenter.deepchatTapeEntriesTable
+          .getBySession('s1')
+          .find((row: any) => row.name === 'execution/run_terminal')
+        expect(JSON.parse(terminalRow.payload_json).data.outcome).toBe('error')
         const terminalProjectionOrder = publishDeepchatEvent.mock.calls.reduce(
           (latest, [event, payload], index) =>
             event === 'sessions.status.changed' && payload.status === expectedStatus
@@ -6689,6 +7314,55 @@ describe('DeepChatAgentHarness', () => {
   })
 
   describe('queuePendingInput', () => {
+    it('releases a claimed queue item when its Run start fact cannot commit', async () => {
+      const commitRunStarted = vi
+        .spyOn(sessionData.tapeStore, 'commitRunStarted')
+        .mockImplementation(() => {
+          throw new ExecutionJournalError('run start unavailable', 'persistence_failed')
+        })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const pending = await agent.queuePendingInput('s1', 'Retry after Journal recovery', {
+        source: 'queue'
+      })
+
+      await vi.waitFor(() => expect(commitRunStarted).toHaveBeenCalledOnce())
+      await vi.waitFor(async () => {
+        expect(await agent.listPendingInputs('s1')).toEqual([
+          expect.objectContaining({ id: pending.id, state: 'pending' })
+        ])
+      })
+      expect(processStream).not.toHaveBeenCalled()
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
+    })
+
+    it('removes a provisional assistant when an accepted send cannot commit its Run start', async () => {
+      const commitRunStarted = vi
+        .spyOn(sessionData.tapeStore, 'commitRunStarted')
+        .mockImplementation(() => {
+          throw new ExecutionJournalError('run start unavailable', 'persistence_failed')
+        })
+      vi.mocked(nanoid)
+        .mockReturnValueOnce('journal-send-pending')
+        .mockReturnValueOnce('journal-send-user')
+        .mockReturnValueOnce('journal-send-assistant')
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await agent.queuePendingInput('s1', 'Keep the committed user fact', { source: 'send' })
+
+      await vi.waitFor(() => expect(commitRunStarted).toHaveBeenCalledOnce())
+      await vi.waitFor(() =>
+        expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith(
+          'journal-send-assistant'
+        )
+      )
+      expect(await agent.listPendingInputs('s1')).toEqual([])
+      expect(processStream).not.toHaveBeenCalled()
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
+    })
+
     it('does not run destructive retry preparation when attachment preflight needs user action', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const beforeHistoryPreparation = vi.fn()
@@ -7351,7 +8025,7 @@ describe('DeepChatAgentHarness', () => {
       }
     })
 
-    it('does not persist terminal state for messages removed by pending-input rollback', async () => {
+    it('consumes queued input after its Run commits an error terminal', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       vi.mocked(nanoid)
         .mockReturnValueOnce('rollback-pending')
@@ -7413,24 +8087,25 @@ describe('DeepChatAgentHarness', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
       try {
-        const claimed = await agent.queuePendingInput('s1', 'Retry after provider failure', {
+        await agent.queuePendingInput('s1', 'Retry after provider failure', {
           source: 'queue'
         })
 
-        await vi.waitFor(async () => {
-          expect(await agent.listPendingInputs('s1')).toEqual([
-            expect.objectContaining({ id: claimed.id, state: 'pending' })
-          ])
-        })
+        await vi.waitFor(() => expect(processStream).toHaveBeenCalledOnce())
+        await vi.waitFor(async () => expect(await agent.listPendingInputs('s1')).toEqual([]))
 
-        expect(processStream).toHaveBeenCalledOnce()
-        expect(rows).toEqual([])
+        expect(rows).toHaveLength(2)
+        expect(sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq).not.toHaveBeenCalled()
+        const assistantMessageId = rows.find((row) => row.role === 'assistant')?.id
+        expect(assistantMessageId).toBe('rollback-assistant')
         expect(
           sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.some(
-            ([messageId]) => messageId === 'rollback-assistant'
+            ([messageId]) => messageId === assistantMessageId
           )
-        ).toBe(false)
-        expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
+        ).toBe(true)
+        expect(getPublishedPayloads('chat.stream.failed')).toEqual([
+          expect.objectContaining({ messageId: assistantMessageId, error: 'provider setup failed' })
+        ])
       } finally {
         errorSpy.mockRestore()
       }
@@ -9785,12 +10460,41 @@ describe('DeepChatAgentHarness', () => {
       }
     )
 
-    it.each([
-      { errorName: 'Error', expectedStatus: 'error', expectsCancellationResult: false },
-      { errorName: 'AbortError', expectedStatus: 'idle', expectsCancellationResult: true }
-    ] as const)(
-      'observes a thrown $errorName resume exactly once before terminal projection',
-      async ({ errorName, expectedStatus, expectsCancellationResult }) => {
+    it('preserves a resume Journal failure when rejected-turn observation also fails', async () => {
+      const journalError = new ExecutionJournalError(
+        'run terminal unavailable',
+        'persistence_failed'
+      )
+      vi.spyOn(sessionData.tapeStore, 'commitRunTerminal').mockImplementation(() => {
+        throw journalError
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        status: 'completed',
+        stopReason: 'complete'
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingQuestion()
+      vi.spyOn(agent.memoryIngestionObserver, 'afterTurnSettled').mockImplementationOnce(() => {
+        throw new Error('observer failed')
+      })
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+      try {
+        await expect(answerPendingQuestion()).rejects.toBe(journalError)
+        expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+        expect(warnSpy).toHaveBeenCalledWith(
+          '[DeepChatAgent] failed to observe rejected turn:',
+          expect.objectContaining({ message: 'observer failed' })
+        )
+      } finally {
+        warnSpy.mockRestore()
+      }
+    })
+
+    it.each(['Error', 'AbortError'] as const)(
+      'observes a thrown %s resume exactly once before terminal projection',
+      async (errorName) => {
+        const expectedStatus = 'error'
         const failure = new Error(`resume ${errorName}`)
         failure.name = errorName
         ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(failure)
@@ -9799,12 +10503,7 @@ describe('DeepChatAgentHarness', () => {
         const afterTurnSettled = vi.spyOn(agent.memoryIngestionObserver, 'afterTurnSettled')
         publishDeepchatEvent.mockClear()
 
-        const response = answerPendingQuestion()
-        if (expectsCancellationResult) {
-          await expect(response).resolves.toEqual({ resumed: false })
-        } else {
-          await expect(response).rejects.toBe(failure)
-        }
+        await expect(answerPendingQuestion()).rejects.toBe(failure)
 
         expect(afterTurnSettled).toHaveBeenCalledOnce()
         expect(afterTurnSettled).toHaveBeenCalledWith({
@@ -11402,15 +12101,20 @@ describe('DeepChatAgentHarness', () => {
       }
     })
 
-    it('does not persist a fitted tool response after the session is replaced', async () => {
-      const fitting = deferred<{
-        kind: 'ok'
-        content: string
-        offloaded: boolean
-      }>()
+    it('cleans only a newly fitted offload when the session is replaced', async () => {
+      const fitting = deferred<ToolOutputGuardResult>()
+      vi.spyOn(ToolOutputGuard.prototype, 'prepareToolOutput').mockResolvedValueOnce({
+        kind: 'ok',
+        content: 'prepared',
+        offloaded: true,
+        offloadPath: '/tmp/original-tool-output.offload'
+      })
       const fitSpy = vi
         .spyOn(ToolOutputGuard.prototype, 'fitExistingToolOutput')
         .mockImplementationOnce(() => fitting.promise)
+      const cleanupSpy = vi
+        .spyOn(ToolOutputGuard.prototype, 'cleanupOffloadedOutput')
+        .mockResolvedValue()
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       installPendingPermission({
@@ -11449,15 +12153,134 @@ describe('DeepChatAgentHarness', () => {
         permissionMode: 'default'
       })
 
-      fitting.resolve({ kind: 'ok', content: 'fitted', offloaded: false })
+      fitting.resolve({
+        kind: 'ok',
+        content: 'fitted',
+        offloaded: true,
+        offloadPath: '/tmp/resume-fallback.offload'
+      })
 
       await expect(resume).resolves.toEqual({ resumed: false })
       expect(sqlitePresenter.deepchatMessagesTable.updateContent).toHaveBeenCalledTimes(
         persistedUpdateCount
       )
+      expect(cleanupSpy).toHaveBeenCalledOnce()
+      expect(cleanupSpy).toHaveBeenCalledWith('/tmp/resume-fallback.offload')
+      expect(cleanupSpy).not.toHaveBeenCalledWith('/tmp/original-tool-output.offload')
       expect(processStream).not.toHaveBeenCalled()
       expect(replacement.getRuntimeState()?.status).toBe('idle')
     })
+
+    it('passes resume cancellation into tool-output fitting', async () => {
+      const fitStarted = deferred<AbortSignal>()
+      const fitSpy = vi
+        .spyOn(ToolOutputGuard.prototype, 'fitExistingToolOutput')
+        .mockImplementationOnce(async (params) => {
+          if (!params.signal) throw new Error('Missing resume fit signal')
+          fitStarted.resolve(params.signal)
+          return await new Promise<never>((_resolve, reject) => {
+            params.signal?.addEventListener('abort', () => reject(params.signal?.reason), {
+              once: true
+            })
+          })
+        })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'write_file',
+        serverName: 'agent-filesystem'
+      })
+      toolService.callTool.mockResolvedValueOnce({
+        content: 'done',
+        rawData: { content: 'done', isError: false }
+      })
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'write file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+
+      const resume = approvePendingTool()
+      const signal = await fitStarted.promise
+      await agent.cancelGeneration('s1')
+
+      expect(signal.aborted).toBe(true)
+      await expect(resume).resolves.toEqual({ resumed: false })
+      expect(fitSpy).toHaveBeenCalledOnce()
+      expect(processStream).not.toHaveBeenCalled()
+    })
+
+    it.each(['tool_error', 'terminal_error'] as const)(
+      'does not clean a referenced offload when a stale fit returns %s',
+      async (kind) => {
+        const fitting = deferred<ToolOutputGuardResult>()
+        vi.spyOn(ToolOutputGuard.prototype, 'prepareToolOutput').mockResolvedValueOnce({
+          kind: 'ok',
+          content: 'prepared',
+          offloaded: true,
+          offloadPath: '/tmp/original-tool-output.offload'
+        })
+        const fitSpy = vi
+          .spyOn(ToolOutputGuard.prototype, 'fitExistingToolOutput')
+          .mockImplementationOnce(() => fitting.promise)
+        const cleanupSpy = vi
+          .spyOn(ToolOutputGuard.prototype, 'cleanupOffloadedOutput')
+          .mockResolvedValue()
+
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        installPendingPermission({
+          toolName: 'write_file',
+          serverName: 'agent-filesystem'
+        })
+        toolService.callTool.mockResolvedValueOnce({
+          content: 'done',
+          rawData: { content: 'done', isError: false }
+        })
+        toolService.getAllToolDefinitions.mockResolvedValueOnce([
+          {
+            type: 'function',
+            source: 'agent',
+            function: {
+              name: 'write_file',
+              description: 'write file',
+              parameters: { type: 'object', properties: {} }
+            },
+            server: { name: 'agent-filesystem', icons: '', description: '' }
+          }
+        ])
+
+        const resume = approvePendingTool()
+        await vi.waitFor(() => expect(fitSpy).toHaveBeenCalledOnce())
+        const persistedUpdateCount =
+          sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length
+        const sessionId = toAppSessionId('s1')
+        expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+        const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+        replacement.setRuntimeState({
+          status: 'idle',
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          permissionMode: 'default'
+        })
+
+        fitting.resolve({ kind, message: 'context overflow' } as ToolOutputGuardResult)
+
+        await expect(resume).resolves.toEqual({ resumed: false })
+        expect(sqlitePresenter.deepchatMessagesTable.updateContent).toHaveBeenCalledTimes(
+          persistedUpdateCount
+        )
+        expect(cleanupSpy).not.toHaveBeenCalled()
+        expect(processStream).not.toHaveBeenCalled()
+        expect(replacement.getRuntimeState()?.status).toBe('idle')
+      }
+    )
 
     it('commits a denied permission before the final pending interaction resumes', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
@@ -12607,6 +13430,229 @@ describe('DeepChatAgentHarness', () => {
       }
     })
 
+    it('settles a deferred interaction after T2 persistence fails without replaying the tool', async () => {
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'Write a file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+      toolService.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+        options?.commitDispatch?.({
+          toolName: 'write_file',
+          toolSource: 'agent',
+          normalizedArguments: { path: 'a.txt' },
+          target: { serverName: 'agent-filesystem', originalName: 'write_file' }
+        })
+        return {
+          content: 'done',
+          rawData: { content: 'done', isError: false }
+        }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const row = installPendingPermission({
+        toolName: 'write_file',
+        params: '{"path":"a.txt"}'
+      })
+      vi.spyOn(sessionData.tapeStore, 'commitToolOutcome').mockImplementationOnce(() => {
+        throw new ExecutionJournalError('T2 unavailable', 'persistence_failed')
+      })
+
+      await expect(approvePendingTool()).resolves.toEqual({ resumed: false })
+      await expect(approvePendingTool()).rejects.toThrow(
+        'No pending interaction found in target message.'
+      )
+
+      expect(toolService.callTool).toHaveBeenCalledOnce()
+      expect(JSON.parse(row.content) as AssistantMessageBlock[]).toMatchObject([
+        { status: 'error', tool_call: { response: 'T2 unavailable' } },
+        { status: 'granted', extra: { needsUserAction: false } }
+      ])
+    })
+
+    it('parks a deferred interaction when its terminal fact cannot commit', async () => {
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'Write a file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+      toolService.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+        options?.commitDispatch?.({
+          toolName: 'write_file',
+          toolSource: 'agent',
+          normalizedArguments: { path: 'a.txt' },
+          target: { serverName: 'agent-filesystem', originalName: 'write_file' }
+        })
+        return {
+          content: 'done',
+          rawData: { content: 'done', isError: false }
+        }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const row = installPendingPermission({
+        toolName: 'write_file',
+        params: '{"path":"a.txt"}'
+      })
+      vi.spyOn(sessionData.tapeStore, 'commitRunTerminal').mockImplementationOnce(() => {
+        throw new ExecutionJournalError('run terminal unavailable', 'persistence_failed')
+      })
+
+      await expect(approvePendingTool()).rejects.toThrow('run terminal unavailable')
+      await expect(approvePendingTool()).rejects.toThrow(
+        'Execution is parked after an Execution Journal failure'
+      )
+
+      expect(toolService.callTool).toHaveBeenCalledOnce()
+      expect(JSON.parse(row.content) as AssistantMessageBlock[]).toMatchObject([
+        { status: 'success', tool_call: { response: 'done' } },
+        { status: 'granted', extra: { needsUserAction: false } }
+      ])
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalledWith(
+        'm1',
+        expect.any(String),
+        'error'
+      )
+      expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('retains deferred Journal parking across runtime cleanup after projection failure', async () => {
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'Write a file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+      toolService.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+        options?.commitDispatch?.({
+          toolName: 'write_file',
+          toolSource: 'agent',
+          normalizedArguments: { path: 'a.txt' },
+          target: { serverName: 'agent-filesystem', originalName: 'write_file' }
+        })
+        return {
+          content: 'done',
+          rawData: { content: 'done', isError: false }
+        }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'write_file',
+        params: '{"path":"a.txt"}'
+      })
+      vi.spyOn(sessionData.tapeStore, 'commitRunTerminal').mockImplementationOnce(() => {
+        throw new ExecutionJournalError('run terminal unavailable', 'persistence_failed')
+      })
+      sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementationOnce(() => {
+        throw new Error('projection unavailable')
+      })
+
+      await expect(approvePendingTool()).rejects.toMatchObject({
+        name: 'ExecutionJournalError',
+        code: 'projection_failed'
+      })
+      await agent.cleanupSession('s1')
+      await expect(approvePendingTool()).rejects.toThrow(
+        'Execution is parked after an Execution Journal failure'
+      )
+
+      expect(toolService.callTool).toHaveBeenCalledOnce()
+    })
+
+    it('preserves deferred Journal parking when cancellation races terminal commit', async () => {
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'Write a file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+      let deferredSignal: AbortSignal | undefined
+      toolService.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+        deferredSignal = options?.signal
+        options?.commitDispatch?.({
+          toolName: 'write_file',
+          toolSource: 'agent',
+          normalizedArguments: { path: 'a.txt' },
+          target: { serverName: 'agent-filesystem', originalName: 'write_file' }
+        })
+        return await new Promise((_, reject) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('Aborted')
+              error.name = 'AbortError'
+              reject(error)
+            },
+            { once: true }
+          )
+        })
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const row = installPendingPermission({
+        toolName: 'write_file',
+        params: '{"path":"a.txt"}'
+      })
+      const journalError = new ExecutionJournalError(
+        'run terminal unavailable',
+        'persistence_failed'
+      )
+      vi.spyOn(sessionData.tapeStore, 'commitRunTerminal').mockImplementationOnce(() => {
+        throw journalError
+      })
+
+      const approval = approvePendingTool()
+      await vi.waitFor(() => expect(deferredSignal).toBeDefined())
+      await agent.cancelGeneration('s1')
+
+      await expect(approval).rejects.toBe(journalError)
+      expect(JSON.parse(row.content) as AssistantMessageBlock[]).toMatchObject([
+        {
+          status: 'error',
+          tool_call: {
+            response:
+              'Tool dispatch was recorded, but its outcome is indeterminate. It will not be retried automatically.'
+          }
+        },
+        { status: 'granted', extra: { needsUserAction: false } }
+      ])
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalledWith(
+        'm1',
+        expect.any(String),
+        'error'
+      )
+      expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
     it('passes provider and hydrated permission mode to deferred MCP tool calls', async () => {
       toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
@@ -12853,12 +13899,20 @@ describe('DeepChatAgentHarness', () => {
           server: { name: 'agent', icons: '', description: '' }
         }
       ])
-      toolService.callTool.mockResolvedValueOnce({
-        content: 'Final summary',
-        rawData: {
+      toolService.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+        options?.commitDispatch?.({
+          toolName: 'subagent_orchestrator',
+          toolSource: 'agent',
+          normalizedArguments: {},
+          target: { serverName: 'agent', originalName: 'subagent_orchestrator' }
+        })
+        return {
           content: 'Final summary',
-          isError: false,
-          toolResult: { subagentFinal }
+          rawData: {
+            content: 'Final summary',
+            isError: false,
+            toolResult: { subagentFinal }
+          }
         }
       })
 

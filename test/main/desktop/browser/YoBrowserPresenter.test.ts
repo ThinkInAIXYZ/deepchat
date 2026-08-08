@@ -20,6 +20,8 @@ const nativeIsCurrentMock = vi.fn(() => true)
 let nativeActionHandler:
   | ((action: 'activate' | 'dismiss' | 'superseded', target: Record<string, unknown>) => void)
   | null = null
+let loadUrlObserver: (() => void) | null = null
+let cdpCommandObserver: ((method: string) => void) | null = null
 
 class MockWebContents extends EventEmitter {
   id: number
@@ -35,7 +37,10 @@ class MockWebContents extends EventEmitter {
     isAttached: vi.fn(() => false),
     detach: vi.fn(),
     attach: vi.fn(),
-    sendCommand: vi.fn(async () => ({}))
+    sendCommand: vi.fn(async (method: string) => {
+      cdpCommandObserver?.(method)
+      return {}
+    })
   }
   session = {}
   navigationHistory = {
@@ -43,6 +48,7 @@ class MockWebContents extends EventEmitter {
     canGoForward: vi.fn(() => false)
   }
   loadURL = vi.fn((url: string) => {
+    loadUrlObserver?.()
     this.url = url
     this.loading = true
     this.emit('did-start-loading')
@@ -164,6 +170,7 @@ describe('YoBrowserPresenter', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    sendToAllWindowsMock.mockReset()
     overlayUpdateBoundsMock.mockClear()
     overlaySendActivityMock.mockClear()
     overlayHideMock.mockClear()
@@ -176,6 +183,8 @@ describe('YoBrowserPresenter', () => {
     nativeDismissMock.mockReturnValue(true)
     nativeIsCurrentMock.mockReturnValue(true)
     nativeActionHandler = null
+    loadUrlObserver = null
+    cdpCommandObserver = null
     vi.useFakeTimers()
   })
 
@@ -343,6 +352,220 @@ describe('YoBrowserPresenter', () => {
     webContents?.emitDomReady()
     await loadPromise
     webContents?.finishLoad()
+  })
+
+  it('does not commit navigation when no host window is available', async () => {
+    const { presenter } = await setupPresenter()
+    const beforeDispatch = vi.fn()
+
+    await expect(
+      presenter.loadUrl(
+        'session-a',
+        'https://example.com',
+        undefined,
+        undefined,
+        'agent',
+        'run-a',
+        beforeDispatch
+      )
+    ).rejects.toThrow('No host window available for YoBrowser')
+
+    expect(beforeDispatch).not.toHaveBeenCalled()
+  })
+
+  it('publishes agent navigation state only after the dispatch commit', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const order: string[] = []
+    sendToAllWindowsMock.mockImplementation((_channel, envelope) => {
+      if (envelope.name === 'browser.status.changed') {
+        order.push(`${envelope.name}:${envelope.payload.reason}`)
+      } else if (envelope.name.startsWith('browser.')) {
+        order.push(envelope.name)
+      }
+    })
+    const beforeDispatch = vi.fn(() => order.push('commit'))
+    loadUrlObserver = () => order.push('target')
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      undefined,
+      'agent',
+      'run-a',
+      beforeDispatch
+    )
+    await Promise.resolve()
+
+    expect(order.slice(0, 3)).toEqual(['commit', 'target', 'browser.status.changed:created'])
+    expect(order).toEqual(
+      expect.arrayContaining([
+        'browser.status.changed:created',
+        'browser.open.requested',
+        'browser.activity.changed'
+      ])
+    )
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+  })
+
+  it('retries creation after an agent projection failure without dropping later state', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const successfulEvents: string[] = []
+    let rejectCreated = true
+    sendToAllWindowsMock.mockImplementation((_channel, envelope) => {
+      const event = `${envelope.name}:${envelope.payload.reason ?? ''}`
+      if (
+        rejectCreated &&
+        envelope.name === 'browser.status.changed' &&
+        envelope.payload.reason === 'created'
+      ) {
+        rejectCreated = false
+        throw new Error('renderer unavailable')
+      }
+      successfulEvents.push(event)
+    })
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      undefined,
+      'agent',
+      'run-a',
+      vi.fn()
+    )
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+
+    expect(successfulEvents).toContain('browser.status.changed:created')
+    expect(successfulEvents).toContain('browser.status.changed:updated')
+    expect(successfulEvents).toContain('browser.open.requested:')
+    expect(successfulEvents.indexOf('browser.status.changed:created')).toBeLessThan(
+      successfulEvents.indexOf('browser.status.changed:updated')
+    )
+    await expect(presenter.getBrowserStatus('session-a')).resolves.toMatchObject({
+      initialized: true,
+      owner: 'agent',
+      agentRunId: 'run-a'
+    })
+  })
+
+  it('does not publish agent navigation state when the dispatch commit fails', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const journalError = new Error('journal unavailable')
+    sendToAllWindowsMock.mockClear()
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      undefined,
+      'agent',
+      'run-a',
+      () => {
+        throw journalError
+      }
+    )
+    const webContents = getSessionWebContents('session-a')
+
+    await expect(loadPromise).rejects.toBe(journalError)
+
+    expect(sendToAllWindowsMock).not.toHaveBeenCalled()
+    expect(webContents?.loadURL).not.toHaveBeenCalled()
+    expect(webContents?.close).toHaveBeenCalledOnce()
+    await expect(presenter.getBrowserStatus('session-a')).resolves.toMatchObject({
+      initialized: false
+    })
+  })
+
+  it('does not publish agent CDP state when the dispatch commit fails', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const initialLoad = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await initialLoad
+    sendToAllWindowsMock.mockClear()
+    webContents?.debugger.sendCommand.mockClear()
+    const journalError = new Error('journal unavailable')
+
+    await expect(
+      presenter.sendCdpCommand('session-a', 'Page.reload', undefined, 'agent', 'run-a', () => {
+        throw journalError
+      })
+    ).rejects.toBe(journalError)
+
+    expect(sendToAllWindowsMock).not.toHaveBeenCalled()
+    expect(webContents).not.toBeNull()
+    expect(webContents!.debugger.sendCommand.mock.calls.map(([method]) => method)).not.toContain(
+      'Page.reload'
+    )
+  })
+
+  it('publishes agent CDP state only after the dispatch reaches the target', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const initialLoad = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await initialLoad
+    const order: string[] = []
+    sendToAllWindowsMock.mockImplementation((_channel, envelope) => {
+      if (envelope.name.startsWith('browser.')) order.push(envelope.name)
+    })
+    cdpCommandObserver = (method) => {
+      if (method === 'Page.reload') order.push('target')
+    }
+
+    await presenter.sendCdpCommand('session-a', 'Page.reload', undefined, 'agent', 'run-a', () =>
+      order.push('commit')
+    )
+
+    expect(order.slice(0, 2)).toEqual(['commit', 'target'])
+    expect(order).toEqual(
+      expect.arrayContaining(['browser.open.requested', 'browser.status.changed'])
+    )
+  })
+
+  it('preserves an existing browser when an agent navigation commit fails', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const initialLoad = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await initialLoad
+    sendToAllWindowsMock.mockClear()
+    webContents?.loadURL.mockClear()
+    const journalError = new Error('journal unavailable')
+
+    await expect(
+      presenter.loadUrl(
+        'session-a',
+        'https://example.org',
+        undefined,
+        undefined,
+        'agent',
+        'run-a',
+        () => {
+          throw journalError
+        }
+      )
+    ).rejects.toBe(journalError)
+
+    expect(sendToAllWindowsMock).not.toHaveBeenCalled()
+    expect(webContents?.loadURL).not.toHaveBeenCalled()
+    expect(webContents?.close).not.toHaveBeenCalled()
+    await expect(presenter.getBrowserStatus('session-a')).resolves.toMatchObject({
+      initialized: true
+    })
   })
 
   it('resolves loadUrl only after the first dom-ready', async () => {

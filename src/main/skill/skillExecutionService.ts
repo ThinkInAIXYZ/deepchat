@@ -24,6 +24,7 @@ import {
   prepareShellCommandForUtf8Output
 } from '@/agent/shared/process/shellOutputEncoding'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
+import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import type { SettingsStore } from '@/config/settingsStore'
 
@@ -46,6 +47,7 @@ export interface SkillRunOptions {
   conversationId: string
   activeSkillNames?: string[]
   outputPreviewChars?: number
+  beforeExecute?: (normalizedArguments: Record<string, unknown>) => void
 }
 
 interface SkillExecutionServiceOptions {
@@ -92,10 +94,24 @@ export class SkillExecutionService {
   }
 
   async execute(input: SkillRunRequest, options: SkillRunOptions): Promise<SkillExecutionResult> {
-    const plan = await this.preparePlanForExecution(
+    const preparedPlan = await this.preparePlanForExecution(
       await this.buildSpawnPlan(input, options.conversationId, options.activeSkillNames)
     )
+    const plan = { ...preparedPlan, cwd: resolveUsableSpawnCwd(preparedPlan.cwd) }
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    options.beforeExecute?.({
+      skill: input.skill,
+      script: input.script,
+      args: input.args ?? [],
+      ...(input.stdin === undefined ? {} : { stdin: input.stdin }),
+      background: input.background === true,
+      timeoutMs,
+      resolvedCommand: plan.command,
+      resolvedArgs: plan.args,
+      resolvedCwd: plan.cwd,
+      shellCommand: plan.shellCommand,
+      spawnMode: plan.spawnMode
+    })
 
     if (input.background) {
       const result = await backgroundExecSessionManager.start(
@@ -105,6 +121,7 @@ export class SkillExecutionService {
         {
           timeout: timeoutMs,
           env: plan.env,
+          previewChars: options.outputPreviewChars ?? FOREGROUND_PREVIEW_CHARS,
           offloadThresholdChars: Math.min(
             FOREGROUND_OFFLOAD_THRESHOLD,
             options.outputPreviewChars ?? FOREGROUND_PREVIEW_CHARS
