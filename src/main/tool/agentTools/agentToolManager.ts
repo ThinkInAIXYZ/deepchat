@@ -63,6 +63,7 @@ import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import { LiveDelegationAgentTool } from './liveDelegationTool'
 import { normalizeOrchestrationPolicy } from '@shared/orchestration/policy'
+import { resolveAgentOutputLimits, type AgentOutputLimits } from '@shared/lib/agentOutputLimits'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -83,6 +84,7 @@ export interface AgentToolCallResult {
     rtkApplied?: boolean
     rtkMode?: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
+    outputOffloadPath?: string
     fffSearch?: FffSearchMetadata
     imagePreviews?: ToolCallImagePreview[]
     requiresPermission?: boolean
@@ -176,8 +178,6 @@ export class AgentToolManager {
   private readonly memoryToolHandler: AgentMemoryToolHandler
   private readonly cronJobToolHandler: CronJobToolHandler
   private readonly fffSearchService = new FffSearchService()
-  private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
-
   private readonly fileSystemSchemas = {
     read: z.object({
       path: z.string(),
@@ -701,6 +701,27 @@ export class AgentToolManager {
     return null
   }
 
+  private async resolveOutputLimitsForConversation(
+    conversationId?: string
+  ): Promise<AgentOutputLimits> {
+    if (!conversationId) return resolveAgentOutputLimits()
+
+    try {
+      const sessionInfo =
+        await this.dependencies.sessions.resolveConversationSessionInfo(conversationId)
+      if (!sessionInfo?.agentId) return resolveAgentOutputLimits()
+      return resolveAgentOutputLimits(
+        await this.agentSettings.resolveDeepChatAgentConfig(sessionInfo.agentId)
+      )
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to resolve Agent output limits', {
+        conversationId,
+        error
+      })
+      return resolveAgentOutputLimits()
+    }
+  }
+
   private isConversationNotFoundError(error: unknown): boolean {
     if (!(error instanceof Error)) return false
     return /Conversation\s+.+\s+not found/i.test(error.message)
@@ -715,7 +736,7 @@ export class AgentToolManager {
         function: {
           name: 'read',
           description:
-            "Read the contents of a file. Supports pagination via offset/limit for large files (auto-truncated at 4500 chars if not specified). For image files, returns an English description of visible content instead of raw pixels. When invoked from a skill context with relative paths, provide base_directory as the skill's root directory.",
+            "Read the contents of a file. Supports pagination via offset/limit for large files (auto-truncated using the Agent's configured output limit if not specified). For image files, returns an English description of visible content instead of raw pixels. When invoked from a skill context with relative paths, provide base_directory as the skill's root directory.",
           parameters: toDeepChatJsonSchema(schemas.read) as {
             type: string
             properties: Record<string, unknown>
@@ -1047,6 +1068,7 @@ export class AgentToolManager {
       if (!this.bashHandler) {
         throw new Error('Bash handler not initialized for exec tool')
       }
+      const outputLimits = await this.resolveOutputLimitsForConversation(conversationId)
       const bashHandler = new AgentBashHandler(
         allowedDirectories,
         this.settings,
@@ -1082,7 +1104,8 @@ export class AgentToolManager {
         },
         {
           conversationId,
-          allowExternalCwd: allowExternalFileAccess
+          allowExternalCwd: allowExternalFileAccess,
+          outputPreviewChars: outputLimits.commandOutputInlineChars
         }
       )
       const content =
@@ -1095,7 +1118,8 @@ export class AgentToolManager {
           content,
           rtkApplied: commandResult.rtkApplied,
           rtkMode: commandResult.rtkMode,
-          rtkFallbackReason: commandResult.rtkFallbackReason
+          rtkFallbackReason: commandResult.rtkFallbackReason,
+          outputOffloadPath: commandResult.outputOffloadPath
         }
       }
     }
@@ -1160,9 +1184,17 @@ export class AgentToolManager {
             }
           }
 
+          const readOutputLimits = await this.resolveOutputLimitsForConversation(conversationId)
+          const readFileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
+            conversationId,
+            allowExternalAccess: allowExternalFileAccess,
+            readFileAutoTruncateChars: readOutputLimits.readFileAutoTruncateChars,
+            protectedDirectoryRules
+          })
+
           if (this.shouldUseRawTextRead(mimeType)) {
             return {
-              content: await fileSystemHandler.readFile(
+              content: await readFileSystemHandler.readFile(
                 {
                   paths: [readArgs.path],
                   offset: readArgs.offset,
@@ -1183,7 +1215,8 @@ export class AgentToolManager {
               readArgs.path,
               prepared.content || '',
               readArgs.offset,
-              readArgs.limit
+              readArgs.limit,
+              readOutputLimits.readFileAutoTruncateChars
             )
           }
         }
@@ -1560,18 +1593,16 @@ export class AgentToolManager {
     pathLabel: string,
     fullContent: string,
     offset?: number,
-    limit?: number
+    limit?: number,
+    autoTruncateChars = resolveAgentOutputLimits().readFileAutoTruncateChars
   ): string {
     const start = Math.max(0, offset ?? 0)
     const totalLength = fullContent.length
 
     let effectiveLimit = limit
     let autoTruncated = false
-    if (
-      effectiveLimit === undefined &&
-      totalLength - start > AgentToolManager.READ_FILE_AUTO_TRUNCATE_THRESHOLD
-    ) {
-      effectiveLimit = AgentToolManager.READ_FILE_AUTO_TRUNCATE_THRESHOLD
+    if (effectiveLimit === undefined && totalLength - start > autoTruncateChars) {
+      effectiveLimit = autoTruncateChars
       autoTruncated = true
     }
 
@@ -2455,7 +2486,9 @@ export class AgentToolManager {
 
     const result = await this.getSkillExecutionService().execute(validationResult.data, {
       conversationId,
-      activeSkillNames: options?.activeSkillNames
+      activeSkillNames: options?.activeSkillNames,
+      outputPreviewChars: (await this.resolveOutputLimitsForConversation(conversationId))
+        .commandOutputInlineChars
     })
     const content =
       typeof result.output === 'string' ? result.output : JSON.stringify(result.output, null, 2)
@@ -2466,7 +2499,8 @@ export class AgentToolManager {
         content,
         rtkApplied: result.rtkApplied,
         rtkMode: result.rtkMode,
-        rtkFallbackReason: result.rtkFallbackReason
+        rtkFallbackReason: result.rtkFallbackReason,
+        outputOffloadPath: result.outputOffloadPath
       }
     }
   }

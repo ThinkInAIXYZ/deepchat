@@ -75,6 +75,7 @@ interface BackgroundSession {
   outputFilePath: string | null
   outputWriteQueue: Promise<void>
   totalOutputLength: number
+  offloadThresholdChars: number
   offloadDisabled: boolean
   stdoutEof: boolean
   stderrEof: boolean
@@ -172,6 +173,7 @@ export class BackgroundExecSessionManager {
       timeout?: number
       env?: Record<string, string>
       outputPrefix?: string
+      offloadThresholdChars?: number
     }
   ): Promise<StartSessionResult> {
     const config = getConfig()
@@ -216,6 +218,10 @@ export class BackgroundExecSessionManager {
       outputFilePath,
       outputWriteQueue: Promise.resolve(),
       totalOutputLength: 0,
+      offloadThresholdChars: Math.min(
+        config.offloadThresholdChars,
+        Math.max(1, Math.round(options?.offloadThresholdChars ?? config.offloadThresholdChars))
+      ),
       offloadDisabled: false,
       stdoutEof: false,
       stderrEof: false,
@@ -225,7 +231,7 @@ export class BackgroundExecSessionManager {
       timedOut: false
     }
 
-    this.setupOutputHandling(session, config)
+    this.setupOutputHandling(session)
     this.setupProcessLifecycle(session)
 
     const timeout = options?.timeout ?? config.timeoutSec * 1000
@@ -258,7 +264,7 @@ export class BackgroundExecSessionManager {
       pid: session.child.pid,
       exitCode: session.exitCode,
       outputLength: session.totalOutputLength,
-      offloaded: this.hasPersistedOutput(session, getConfig()),
+      offloaded: this.hasPersistedOutput(session),
       timedOut: session.timedOut
     }))
   }
@@ -269,7 +275,7 @@ export class BackgroundExecSessionManager {
     await this.waitForSessionDrain(session)
 
     const config = getConfig()
-    const isOffloaded = this.hasPersistedOutput(session, config)
+    const isOffloaded = this.hasPersistedOutput(session)
 
     if (isOffloaded && session.outputFilePath) {
       const output = this.getRecentOutputFromSession(session, config.maxOutputChars)
@@ -303,12 +309,11 @@ export class BackgroundExecSessionManager {
     session.lastAccessedAt = Date.now()
     await this.waitForSessionDrain(session)
 
-    const config = getConfig()
-    const isOffloaded = this.hasPersistedOutput(session, config)
+    const isOffloaded = this.hasPersistedOutput(session)
 
     let output: string
     if (isOffloaded && session.outputFilePath) {
-      output = this.readOutputFromSession(session, offset, limit, config)
+      output = this.readOutputFromSession(session, offset, limit)
     } else {
       output = session.outputBuffer.slice(offset, offset + limit)
     }
@@ -327,7 +332,8 @@ export class BackgroundExecSessionManager {
   async waitForCompletionOrYield(
     conversationId: string,
     sessionId: string,
-    yieldMs = getConfig().backgroundMs
+    yieldMs = getConfig().backgroundMs,
+    previewChars = FOREGROUND_PREVIEW_CHARS
   ): Promise<WaitForCompletionOrYieldResult> {
     const session = this.getSession(conversationId, sessionId)
     session.lastAccessedAt = Date.now()
@@ -335,7 +341,7 @@ export class BackgroundExecSessionManager {
     if (session.status !== 'running') {
       return {
         kind: 'completed',
-        result: await this.getCompletionResult(conversationId, sessionId)
+        result: await this.getCompletionResult(conversationId, sessionId, previewChars)
       }
     }
 
@@ -357,7 +363,7 @@ export class BackgroundExecSessionManager {
     if (session.status !== 'running') {
       return {
         kind: 'completed',
-        result: await this.getCompletionResult(conversationId, sessionId)
+        result: await this.getCompletionResult(conversationId, sessionId, previewChars)
       }
     }
 
@@ -500,13 +506,8 @@ export class BackgroundExecSessionManager {
     return session
   }
 
-  private setupOutputHandling(
-    session: BackgroundSession,
-    config: ReturnType<typeof getConfig>
-  ): void {
-    const outputDecoders = createUtf8OutputDecoderPair((data) =>
-      this.appendOutput(session, data, config)
-    )
+  private setupOutputHandling(session: BackgroundSession): void {
+    const outputDecoders = createUtf8OutputDecoderPair((data) => this.appendOutput(session, data))
     session.flushOutputDecoders = outputDecoders.flush
 
     const stdoutHandler = (data: Buffer | string) => {
@@ -531,17 +532,13 @@ export class BackgroundExecSessionManager {
     })
   }
 
-  private appendOutput(
-    session: BackgroundSession,
-    data: string,
-    config: ReturnType<typeof getConfig>
-  ): void {
+  private appendOutput(session: BackgroundSession, data: string): void {
     session.totalOutputLength += data.length
 
     const shouldOffload =
       !session.offloadDisabled &&
       session.outputFilePath !== null &&
-      session.totalOutputLength > config.offloadThresholdChars
+      session.totalOutputLength > session.offloadThresholdChars
 
     if (shouldOffload) {
       const chunk = session.outputBuffer + data
@@ -562,7 +559,7 @@ export class BackgroundExecSessionManager {
         cwd: session.cwd
       })
       session.errorMessage = errorMessage
-      this.appendOutput(session, `${errorMessage}\n`, getConfig())
+      this.appendOutput(session, `${errorMessage}\n`)
       logger.error(`[BackgroundExec] Session ${session.sessionId} error:`, {
         error,
         cwd: session.cwd,
@@ -621,20 +618,14 @@ export class BackgroundExecSessionManager {
     return buffer.slice(-maxChars)
   }
 
-  private hasPersistedOutput(
-    session: BackgroundSession,
-    config: ReturnType<typeof getConfig>
-  ): boolean {
+  private hasPersistedOutput(session: BackgroundSession): boolean {
     return (
-      session.outputFilePath !== null && session.totalOutputLength > config.offloadThresholdChars
+      session.outputFilePath !== null && session.totalOutputLength > session.offloadThresholdChars
     )
   }
 
-  private getPersistedOutputLength(
-    session: BackgroundSession,
-    config: ReturnType<typeof getConfig>
-  ): number {
-    if (!this.hasPersistedOutput(session, config)) {
+  private getPersistedOutputLength(session: BackgroundSession): number {
+    if (!this.hasPersistedOutput(session)) {
       return 0
     }
 
@@ -654,17 +645,12 @@ export class BackgroundExecSessionManager {
     return this.getRecentOutput(filePreview + session.outputBuffer, maxChars)
   }
 
-  private readOutputFromSession(
-    session: BackgroundSession,
-    offset: number,
-    limit: number,
-    config: ReturnType<typeof getConfig>
-  ): string {
+  private readOutputFromSession(session: BackgroundSession, offset: number, limit: number): string {
     if (!session.outputFilePath) {
       return session.outputBuffer.slice(offset, offset + limit)
     }
 
-    const persistedLength = this.getPersistedOutputLength(session, config)
+    const persistedLength = this.getPersistedOutputLength(session)
     if (persistedLength <= 0) {
       return session.outputBuffer.slice(offset, offset + limit)
     }
@@ -827,8 +813,7 @@ export class BackgroundExecSessionManager {
     session: BackgroundSession,
     previewChars: number
   ): SessionCompletionResult {
-    const config = getConfig()
-    const offloaded = this.hasPersistedOutput(session, config)
+    const offloaded = this.hasPersistedOutput(session)
     const output =
       offloaded && session.outputFilePath
         ? this.getRecentOutputFromSession(session, previewChars)
@@ -964,6 +949,7 @@ class BackgroundExecUtilityProxy {
       timeout?: number
       env?: Record<string, string>
       outputPrefix?: string
+      offloadThresholdChars?: number
     }
   ): Promise<StartSessionResult> {
     const result = await this.request<StartSessionResult>('start', [
@@ -1037,7 +1023,8 @@ class BackgroundExecUtilityProxy {
   async waitForCompletionOrYield(
     conversationId: string,
     sessionId: string,
-    yieldMs = getConfig().backgroundMs
+    yieldMs = getConfig().backgroundMs,
+    previewChars = FOREGROUND_PREVIEW_CHARS
   ): Promise<WaitForCompletionOrYieldResult> {
     const crashed = this.getCrashedCompletionResult(conversationId, sessionId)
     if (crashed) {
@@ -1050,7 +1037,8 @@ class BackgroundExecUtilityProxy {
     const result = await this.request<WaitForCompletionOrYieldResult>('waitForCompletionOrYield', [
       conversationId,
       sessionId,
-      yieldMs
+      yieldMs,
+      previewChars
     ])
     if (result.kind === 'completed') {
       this.activeSessions.delete(sessionId)

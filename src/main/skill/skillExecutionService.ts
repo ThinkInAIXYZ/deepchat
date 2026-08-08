@@ -45,6 +45,7 @@ export interface SkillRunRequest {
 export interface SkillRunOptions {
   conversationId: string
   activeSkillNames?: string[]
+  outputPreviewChars?: number
 }
 
 interface SkillExecutionServiceOptions {
@@ -56,6 +57,7 @@ interface SkillExecutionResult {
   rtkApplied: boolean
   rtkMode: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
+  outputOffloadPath?: string
 }
 
 interface RuntimeCommand {
@@ -102,7 +104,11 @@ export class SkillExecutionService {
         plan.cwd,
         {
           timeout: timeoutMs,
-          env: plan.env
+          env: plan.env,
+          offloadThresholdChars: Math.min(
+            FOREGROUND_OFFLOAD_THRESHOLD,
+            options.outputPreviewChars ?? FOREGROUND_PREVIEW_CHARS
+          )
         }
       )
 
@@ -122,10 +128,18 @@ export class SkillExecutionService {
       }
     }
 
+    const foregroundResult = await this.runForeground(
+      plan,
+      timeoutMs,
+      options.conversationId,
+      input.stdin,
+      options.outputPreviewChars ?? FOREGROUND_PREVIEW_CHARS
+    )
     return {
-      output: await this.runForeground(plan, timeoutMs, options.conversationId, input.stdin),
+      output: foregroundResult.output,
       rtkApplied: plan.spawnMode === 'shell',
-      rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass'
+      rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass',
+      outputOffloadPath: foregroundResult.outputOffloadPath
     }
   }
 
@@ -431,9 +445,11 @@ export class SkillExecutionService {
     plan: SpawnPlan,
     timeoutMs: number,
     conversationId: string,
-    stdin?: string
-  ): Promise<string> {
+    stdin?: string,
+    outputPreviewChars = FOREGROUND_PREVIEW_CHARS
+  ): Promise<{ output: string; outputOffloadPath?: string }> {
     const outputFilePath = this.createForegroundOutputPath(conversationId, plan.outputPrefix)
+    const offloadThresholdChars = Math.min(FOREGROUND_OFFLOAD_THRESHOLD, outputPreviewChars)
 
     return await new Promise((resolve, reject) => {
       const shellRuntime = plan.spawnMode === 'shell' ? getUserShell() : null
@@ -502,7 +518,7 @@ export class SkillExecutionService {
 
         const preview =
           offloaded && activeOutputFilePath
-            ? this.readLastCharsFromFile(activeOutputFilePath, FOREGROUND_PREVIEW_CHARS)
+            ? this.readLastCharsFromFile(activeOutputFilePath, outputPreviewChars)
             : outputBuffer
 
         const lines: string[] = []
@@ -516,7 +532,10 @@ export class SkillExecutionService {
         if (offloaded && activeOutputFilePath) {
           lines.push(`Output offloaded: ${activeOutputFilePath}`)
         }
-        resolve(lines.join('\n'))
+        resolve({
+          output: lines.join('\n'),
+          outputOffloadPath: offloaded ? (activeOutputFilePath ?? undefined) : undefined
+        })
       }
 
       const appendToOutputBuffer = (data: string) => {
@@ -525,15 +544,15 @@ export class SkillExecutionService {
         }
 
         outputBuffer += data
-        if (outputBuffer.length > FOREGROUND_PREVIEW_CHARS) {
-          outputBuffer = outputBuffer.slice(-FOREGROUND_PREVIEW_CHARS)
+        if (outputBuffer.length > outputPreviewChars) {
+          outputBuffer = outputBuffer.slice(-outputPreviewChars)
         }
       }
 
       const disableOffload = (data: string) => {
         const filePreview =
           offloaded && activeOutputFilePath
-            ? this.readLastCharsFromFile(activeOutputFilePath, FOREGROUND_PREVIEW_CHARS)
+            ? this.readLastCharsFromFile(activeOutputFilePath, outputPreviewChars)
             : ''
 
         offloaded = false
@@ -579,7 +598,7 @@ export class SkillExecutionService {
         const shouldOffload =
           !offloadDisabled &&
           activeOutputFilePath !== null &&
-          (offloaded || totalOutputLength > FOREGROUND_OFFLOAD_THRESHOLD)
+          (offloaded || totalOutputLength > offloadThresholdChars)
 
         if (!shouldOffload) {
           appendToOutputBuffer(data)

@@ -108,6 +108,7 @@ export interface ToolBatchOutputCandidate {
   responseText: string
   isError: boolean
   offloadPath?: string
+  existingOffloadPath?: string
 }
 
 export interface ToolBatchOutputFitItem extends ToolBatchOutputCandidate {
@@ -156,6 +157,7 @@ export interface ToolResultPort {
     rawContent: string
   }): Promise<PreparedToolOutput>
   fitBatch(input: {
+    sessionId: string
     conversationMessages: ChatMessage[]
     toolDefinitions: MCPToolDefinition[]
     contextLength: number

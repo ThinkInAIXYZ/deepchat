@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
+import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
 import * as sessionVisionResolverModule from '@/agent/vision/sessionVisionResolver'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
@@ -153,6 +154,58 @@ describe('AgentToolManager read routing', () => {
     expect(result.content).toContain('note.txt')
     expect(result.content).toContain('hello text')
     expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
+  })
+
+  it('uses the Agent auto-truncate limit while preserving an explicit read limit', async () => {
+    const filePath = path.join(workspaceDir, 'large-note.txt')
+    await fs.writeFile(filePath, 'x'.repeat(1_500), 'utf-8')
+    fileService.getMimeType.mockResolvedValue('text/plain')
+    providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
+      readFileAutoTruncateChars: 1_000
+    })
+
+    const automatic = (await manager.callTool('read', { path: 'large-note.txt' }, 'conv1')) as {
+      content: string
+    }
+    const explicit = (await manager.callTool(
+      'read',
+      { path: 'large-note.txt', limit: 1_200 },
+      'conv1'
+    )) as { content: string }
+
+    expect(automatic.content).toContain('chars 0-1000 of 1500')
+    expect(automatic.content).toContain('auto-truncated')
+    expect(explicit.content).toContain('chars 0-1200 of 1500')
+    expect(explicit.content).not.toContain('auto-truncated')
+  })
+
+  it('passes the Agent command preview limit into exec', async () => {
+    providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
+      commandOutputInlineChars: 7_000
+    })
+    const executeCommand = vi
+      .spyOn(AgentBashHandler.prototype, 'executeCommand')
+      .mockResolvedValue({
+        output: 'ok\nExit Code: 0',
+        rtkApplied: false,
+        rtkMode: 'bypass'
+      })
+
+    try {
+      const result = (await manager.callTool(
+        'exec',
+        { command: 'printf ok', description: 'Print text' },
+        'conv1'
+      )) as { content: string }
+
+      expect(executeCommand).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'printf ok' }),
+        expect.objectContaining({ conversationId: 'conv1', outputPreviewChars: 7_000 })
+      )
+      expect(result.content).toContain('ok')
+    } finally {
+      executeCommand.mockRestore()
+    }
   })
 
   it('allows reading outside the workspace when external file access is enabled', async () => {
@@ -328,6 +381,23 @@ describe('AgentToolManager read routing', () => {
     expect(result.content).toContain('chars 2-5')
     expect(result.content).toContain('CDE')
     expect(fileService.prepareFileCompletely).toHaveBeenCalled()
+  })
+
+  it('uses the Agent auto-truncate limit for prepared document content', async () => {
+    const filePath = path.join(workspaceDir, 'large-report.pdf')
+    await fs.writeFile(filePath, 'pdf-binary', 'utf-8')
+    fileService.getMimeType.mockResolvedValue('application/pdf')
+    fileService.prepareFileCompletely.mockResolvedValue({ content: 'x'.repeat(1_500) })
+    providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
+      readFileAutoTruncateChars: 1_100
+    })
+
+    const result = (await manager.callTool('read', { path: 'large-report.pdf' }, 'conv1')) as {
+      content: string
+    }
+
+    expect(result.content).toContain('chars 0-1100 of 1500')
+    expect(result.content).toContain('auto-truncated')
   })
 
   it('prefers the current session model for image files when it supports vision', async () => {

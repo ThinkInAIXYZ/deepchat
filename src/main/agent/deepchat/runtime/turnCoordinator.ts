@@ -1312,16 +1312,28 @@ export class TurnCoordinator {
       const contextContributions = preparedContext.contributions
       let resumeContext = resumeContextBuild.messages
       if (budgetToolCall?.id && budgetToolCall.name && useContextBudget) {
-        const resumeBudget = this.fitResumeBudgetForToolCall({
+        const resumeBudget = await this.fitResumeBudgetForToolCall({
+          sessionId,
           resumeContext,
           toolDefinitions: tools,
           contextLength: generationSettings.contextLength,
           maxTokens,
           toolCallId: budgetToolCall.id,
-          toolName: budgetToolCall.name
+          toolName: budgetToolCall.name,
+          rawContent: budgetToolCall.responseText ?? '',
+          existingOffloadPath: budgetToolCall.existingOffloadPath
         })
 
-        if (resumeBudget?.kind === 'tool_error') {
+        if (resumeBudget?.kind === 'ok') {
+          updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.content, false)
+          this.ports.messageStore.updateAssistantContent(messageId, initialBlocks)
+          this.ports.messageProjection.refresh(sessionId, messageId)
+          resumeContext = this.ports.toolOutputGuard.replaceToolMessageContent(
+            resumeContext,
+            budgetToolCall.id,
+            resumeBudget.content
+          )
+        } else if (resumeBudget?.kind === 'tool_error') {
           await this.runPreStreamStep(
             { sessionId, messageId, step: 'tool-output-cleanup' },
             () => this.ports.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
@@ -1546,37 +1558,27 @@ export class TurnCoordinator {
     }
   }
 
-  private fitResumeBudgetForToolCall(params: {
+  private async fitResumeBudgetForToolCall(params: {
+    sessionId: string
     resumeContext: ChatMessage[]
     toolDefinitions: MCPToolDefinition[]
     contextLength: number
     maxTokens: number
     toolCallId: string
     toolName: string
+    rawContent: string
+    existingOffloadPath?: string
   }) {
-    if (
-      this.ports.toolOutputGuard.hasContextBudget({
-        conversationMessages: params.resumeContext,
-        toolDefinitions: params.toolDefinitions,
-        contextLength: params.contextLength,
-        maxTokens: params.maxTokens
-      })
-    ) {
-      return null
-    }
-
-    return this.ports.toolOutputGuard.fitToolError({
+    return await this.ports.toolOutputGuard.fitExistingToolOutput({
+      sessionId: params.sessionId,
       conversationMessages: params.resumeContext,
       toolDefinitions: params.toolDefinitions,
       contextLength: params.contextLength,
       maxTokens: params.maxTokens,
       toolCallId: params.toolCallId,
       toolName: params.toolName,
-      errorMessage: this.ports.toolOutputGuard.buildContextOverflowMessage(
-        params.toolCallId,
-        params.toolName
-      ),
-      mode: 'replace'
+      rawContent: params.rawContent,
+      existingOffloadPath: params.existingOffloadPath
     })
   }
 

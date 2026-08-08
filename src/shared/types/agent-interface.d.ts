@@ -641,6 +641,9 @@ export interface DeepChatAgentConfig {
   autoCompactionEnabled?: boolean
   autoCompactionTriggerThreshold?: number
   autoCompactionRetainRecentPairs?: number
+  readFileAutoTruncateChars?: number
+  toolOutputInlineChars?: number
+  commandOutputInlineChars?: number
   memoryEnabled?: boolean
   memoryEmbedding?: DeepChatAgentMemoryEmbedding | null
   memoryExtractionModel?: DeepChatAgentModelSelection | null

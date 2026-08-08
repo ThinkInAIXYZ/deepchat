@@ -118,6 +118,7 @@ describe('BackgroundExecSessionManager', () => {
     outputFilePath: '/mock/session/bgexec_bg_123.log',
     outputWriteQueue: Promise.resolve(),
     totalOutputLength: 10001,
+    offloadThresholdChars: 10000,
     offloadDisabled: false,
     stdoutEof: true,
     stderrEof: true,
@@ -176,13 +177,7 @@ describe('BackgroundExecSessionManager', () => {
 
       expect(session.offloadDisabled).toBe(true)
       expect(session.outputBuffer).toBe('failed-')
-      ;(manager as never).appendOutput(session, 'later', {
-        backgroundMs: 10000,
-        timeoutSec: 1800,
-        cleanupMs: 1800000,
-        maxOutputChars: 500,
-        offloadThresholdChars: 10000
-      })
+      ;(manager as never).appendOutput(session, 'later')
 
       expect(appendFileMock).toHaveBeenCalledTimes(1)
       expect(session.outputBuffer).toBe('failed-later')
@@ -316,6 +311,27 @@ describe('BackgroundExecSessionManager', () => {
     } finally {
       delete process.env.BASELINE_FLAG
     }
+  })
+
+  it('spools output at a lower per-session threshold', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    const appendFile = vi.spyOn(fs.promises, 'appendFile').mockResolvedValue(undefined)
+
+    const result = await manager.start('conv-1', 'echo test', '/workspace', {
+      timeout: 0,
+      offloadThresholdChars: 1_000
+    })
+    child.stdout.emit('data', 'x'.repeat(1_001))
+
+    await vi.waitFor(() => expect(appendFile).toHaveBeenCalledOnce())
+    expect(manager.list('conv-1')).toEqual([
+      expect.objectContaining({
+        sessionId: result.sessionId,
+        outputLength: 1_001,
+        offloaded: true
+      })
+    ])
   })
 
   it('wraps Windows PowerShell commands before starting a session', async () => {

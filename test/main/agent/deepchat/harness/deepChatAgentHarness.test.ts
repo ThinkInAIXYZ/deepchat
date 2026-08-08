@@ -11355,7 +11355,13 @@ describe('DeepChatAgentHarness', () => {
       })
 
       const hasContextBudgetSpy = vi.spyOn(ToolOutputGuard.prototype, 'hasContextBudget')
-      hasContextBudgetSpy.mockReturnValueOnce(false).mockReturnValueOnce(true)
+      hasContextBudgetSpy.mockImplementation(({ conversationMessages }) =>
+        conversationMessages.some(
+          (message) =>
+            typeof message.content === 'string' &&
+            message.content.includes('remaining context window is insufficient')
+        )
+      )
 
       try {
         const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {

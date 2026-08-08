@@ -9,11 +9,19 @@ import type {
   ToolBatchOutputFit,
   ToolBatchOutputFitItem
 } from '@/agent/deepchat/loop/ports'
+import {
+  resolveAgentOutputLimits,
+  type AgentOutputLimits
+} from '@shared/lib/agentOutputLimits'
 import { preflightRequestContext } from './contextBudget'
 
-const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
-const TOOLS_REQUIRING_OFFLOAD = new Set(['exec', 'ls', 'find', 'grep', 'cdp_send'])
+const TOOLS_REQUIRING_OFFLOAD = new Set(['ls', 'find', 'grep', 'cdp_send'])
+const CONTEXT_FALLBACK_OFFLOAD_TOOLS = new Set([
+  ...TOOLS_REQUIRING_OFFLOAD,
+  'exec',
+  'skill_run'
+])
 
 type ToolMessageUpdateMode = 'append' | 'replace'
 
@@ -40,6 +48,10 @@ interface PrepareToolOutputParams {
   rawContent: string
 }
 
+interface ContextFallbackParams extends PrepareToolOutputParams {
+  existingOffloadPath?: string
+}
+
 interface GuardToolOutputParams extends PrepareToolOutputParams {
   conversationMessages: ChatMessage[]
   toolDefinitions: MCPToolDefinition[]
@@ -62,14 +74,24 @@ interface FitToolErrorParams extends ContextBudgetParams {
 }
 
 interface FitToolBatchOutputsParams extends ContextBudgetParams {
+  sessionId: string
   results: ToolBatchOutputCandidate[]
 }
 
+type AgentOutputLimitsResolver = (
+  sessionId: string
+) => AgentOutputLimits | Promise<AgentOutputLimits>
+
 export class ToolOutputGuard {
+  constructor(
+    private readonly resolveOutputLimits: AgentOutputLimitsResolver = () =>
+      resolveAgentOutputLimits()
+  ) {}
+
   async prepareToolOutput(params: PrepareToolOutputParams): Promise<PreparedToolOutput> {
     const { sessionId, toolCallId, toolName, rawContent } = params
 
-    if (!this.requiresOffload(toolName) || rawContent.length <= TOOL_OUTPUT_OFFLOAD_THRESHOLD) {
+    if (!this.requiresOffload(toolName)) {
       return {
         kind: 'ok',
         content: rawContent,
@@ -78,6 +100,23 @@ export class ToolOutputGuard {
       }
     }
 
+    const outputLimits = await this.getOutputLimits(sessionId)
+    if (rawContent.length <= outputLimits.toolOutputInlineChars) {
+      return {
+        kind: 'ok',
+        content: rawContent,
+        offloaded: false,
+        offloadPath: undefined
+      }
+    }
+
+    return await this.offloadToolOutput({ sessionId, toolCallId, toolName, rawContent })
+  }
+
+  private async offloadToolOutput(
+    params: PrepareToolOutputParams
+  ): Promise<PreparedToolOutput> {
+    const { sessionId, toolCallId, toolName, rawContent } = params
     const filePath = resolveToolOffloadPath(sessionId, toolCallId)
     if (!filePath) {
       return {
@@ -105,6 +144,67 @@ export class ToolOutputGuard {
     }
   }
 
+  private async prepareContextFallback(
+    params: ContextFallbackParams
+  ): Promise<PreparedToolOutput | null> {
+    if (!CONTEXT_FALLBACK_OFFLOAD_TOOLS.has(params.toolName)) return null
+    if (!params.rawContent) return null
+    if (params.rawContent.startsWith('[Tool output offloaded]')) return null
+
+    if (params.existingOffloadPath) {
+      return {
+        kind: 'ok',
+        content: this.buildExistingOffloadStub(params.rawContent, params.existingOffloadPath),
+        offloaded: true,
+        offloadPath: undefined
+      }
+    }
+
+    return await this.offloadToolOutput(params)
+  }
+
+  async fitExistingToolOutput(
+    params: GuardToolOutputParams & { existingOffloadPath?: string }
+  ): Promise<ToolOutputGuardResult | null> {
+    if (
+      this.hasContextBudget({
+        conversationMessages: params.conversationMessages,
+        toolDefinitions: params.toolDefinitions,
+        contextLength: params.contextLength,
+        maxTokens: params.maxTokens
+      })
+    ) {
+      return null
+    }
+
+    const fallback = await this.prepareContextFallback(params)
+    if (fallback?.kind === 'ok') {
+      const fallbackMessages = this.withToolMessage(
+        params.conversationMessages,
+        params.toolCallId,
+        fallback.content,
+        'replace'
+      )
+      if (
+        this.hasContextBudget({
+          conversationMessages: fallbackMessages,
+          toolDefinitions: params.toolDefinitions,
+          contextLength: params.contextLength,
+          maxTokens: params.maxTokens
+        })
+      ) {
+        return fallback
+      }
+      await this.cleanupOffloadedOutput(fallback.offloadPath)
+    }
+
+    return this.fitToolError({
+      ...params,
+      errorMessage: this.buildContextOverflowMessage(params.toolCallId, params.toolName),
+      mode: 'replace'
+    })
+  }
+
   async guardToolOutput(params: GuardToolOutputParams): Promise<ToolOutputGuardResult> {
     const prepared = await this.prepareToolOutput(params)
     if (prepared.kind === 'tool_error') {
@@ -129,6 +229,29 @@ export class ToolOutputGuard {
       })
     ) {
       return prepared
+    }
+
+    if (!prepared.offloaded) {
+      const fallback = await this.prepareContextFallback(params)
+      if (fallback?.kind === 'ok') {
+        const fallbackMessages = this.withToolMessage(
+          params.conversationMessages,
+          params.toolCallId,
+          fallback.content,
+          'append'
+        )
+        if (
+          this.hasContextBudget({
+            conversationMessages: fallbackMessages,
+            toolDefinitions: params.toolDefinitions,
+            contextLength: params.contextLength,
+            maxTokens: params.maxTokens
+          })
+        ) {
+          return fallback
+        }
+        await this.cleanupOffloadedOutput(fallback.offloadPath)
+      }
     }
 
     const overflowResult = this.fitToolError({
@@ -167,6 +290,50 @@ export class ToolOutputGuard {
       return {
         kind: 'ok',
         results: fittedResults
+      }
+    }
+
+    for (let index = fittedResults.length - 1; index >= 0; index -= 1) {
+      const current = fittedResults[index]
+      if (
+        current.isError ||
+        current.offloadPath ||
+        current.responseText.startsWith('[Tool output offloaded]')
+      ) {
+        continue
+      }
+
+      const fallback = await this.prepareContextFallback({
+        sessionId: params.sessionId,
+        toolCallId: current.toolCallId,
+        toolName: current.toolName,
+        rawContent: current.responseText,
+        existingOffloadPath: current.existingOffloadPath
+      })
+      if (!fallback || fallback.kind === 'tool_error') continue
+
+      fittedResults[index] = {
+        ...current,
+        responseText: fallback.content,
+        contextResponseText: fallback.content,
+        offloadPath: fallback.offloadPath
+      }
+
+      if (
+        this.hasContextBudget({
+          conversationMessages: this.withToolBatchMessages(
+            params.conversationMessages,
+            fittedResults
+          ),
+          toolDefinitions: params.toolDefinitions,
+          contextLength: params.contextLength,
+          maxTokens: params.maxTokens
+        })
+      ) {
+        return {
+          kind: 'ok',
+          results: fittedResults
+        }
       }
     }
 
@@ -299,6 +466,15 @@ export class ToolOutputGuard {
     return TOOLS_REQUIRING_OFFLOAD.has(toolName)
   }
 
+  private async getOutputLimits(sessionId: string): Promise<AgentOutputLimits> {
+    try {
+      return await this.resolveOutputLimits(sessionId)
+    } catch (error) {
+      console.warn('[ToolOutputGuard] Failed to resolve Agent output limits:', error)
+      return resolveAgentOutputLimits()
+    }
+  }
+
   private withToolMessage(
     conversationMessages: ChatMessage[],
     toolCallId: string,
@@ -368,6 +544,17 @@ export class ToolOutputGuard {
       '[Tool output offloaded]',
       `Total characters: ${rawContent.length}`,
       `Offload file: ${filePath}`,
+      `first ${preview.length} chars:`,
+      preview
+    ].join('\n')
+  }
+
+  private buildExistingOffloadStub(inlineContent: string, filePath: string): string {
+    const preview = inlineContent.slice(0, TOOL_OUTPUT_PREVIEW_LENGTH)
+    return [
+      '[Tool output offloaded]',
+      `Offload file: ${filePath}`,
+      `Inline characters before context fallback: ${inlineContent.length}`,
       `first ${preview.length} chars:`,
       preview
     ].join('\n')

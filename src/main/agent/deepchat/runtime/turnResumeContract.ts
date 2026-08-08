@@ -3,7 +3,9 @@ import type { AssistantMessageBlock, MessageMetadata } from '@shared/types/agent
 export type ResumeBudgetToolCall = {
   id: string
   name: string
+  responseText?: string
   offloadPath?: string
+  existingOffloadPath?: string
 }
 
 /**

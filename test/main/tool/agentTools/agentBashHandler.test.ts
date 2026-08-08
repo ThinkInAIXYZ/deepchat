@@ -420,7 +420,7 @@ describe('AgentBashHandler', () => {
         env: { PATH: '/bin' }
       })
     )
-    expect(waitSpy).toHaveBeenCalledWith('conv-1', 'bg_yield', 250)
+    expect(waitSpy).toHaveBeenCalledWith('conv-1', 'bg_yield', 250, 12_000)
     expect(removeSpy).not.toHaveBeenCalled()
     expect(result.output).toEqual({ status: 'running', sessionId: 'bg_yield' })
   })
@@ -490,21 +490,23 @@ describe('AgentBashHandler', () => {
       rtkMode: 'bypass'
     })
 
-    vi.spyOn(backgroundExecSessionManager, 'start').mockResolvedValue({
+    const startSpy = vi.spyOn(backgroundExecSessionManager, 'start').mockResolvedValue({
       sessionId: 'bg_offloaded',
       status: 'running'
     })
-    vi.spyOn(backgroundExecSessionManager, 'waitForCompletionOrYield').mockResolvedValue({
-      kind: 'completed',
-      result: {
-        status: 'done',
-        output: 'last lines',
-        exitCode: 0,
-        offloaded: true,
-        outputFilePath: '/tmp/bgexec_bg_offloaded.log',
-        timedOut: false
-      }
-    })
+    const waitSpy = vi
+      .spyOn(backgroundExecSessionManager, 'waitForCompletionOrYield')
+      .mockResolvedValue({
+        kind: 'completed',
+        result: {
+          status: 'done',
+          output: 'last lines',
+          exitCode: 0,
+          offloaded: true,
+          outputFilePath: '/tmp/bgexec_bg_offloaded.log',
+          timedOut: false
+        }
+      })
     const writeSpy = vi.spyOn(backgroundExecSessionManager, 'write').mockImplementation(() => {})
     const removeSpy = vi.spyOn(backgroundExecSessionManager, 'remove').mockResolvedValue()
 
@@ -514,14 +516,23 @@ describe('AgentBashHandler', () => {
         description: 'Run tests'
       },
       {
-        conversationId: 'conv-1'
+        conversationId: 'conv-1',
+        outputPreviewChars: 7_000
       }
     )
 
+    expect(startSpy).toHaveBeenCalledWith(
+      'conv-1',
+      'pnpm test --reporter=json',
+      workspaceRoot,
+      expect.objectContaining({ offloadThresholdChars: 7_000 })
+    )
+    expect(waitSpy).toHaveBeenCalledWith('conv-1', 'bg_offloaded', 10_000, 7_000)
     expect(writeSpy).toHaveBeenCalledWith('conv-1', 'bg_offloaded', '', true)
     expect(removeSpy).not.toHaveBeenCalled()
     expect(result.output).toContain('last lines')
     expect(result.output).toContain('Exit Code: 0')
     expect(result.output).toContain('Output offloaded: /tmp/bgexec_bg_offloaded.log')
+    expect(result.outputOffloadPath).toBe('/tmp/bgexec_bg_offloaded.log')
   })
 })

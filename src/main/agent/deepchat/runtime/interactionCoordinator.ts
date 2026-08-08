@@ -366,7 +366,9 @@ export class InteractionCoordinator {
           resumeBudgetToolCall = {
             id: toolCall.id,
             name: toolCall.name || '',
-            offloadPath: execution.offloadPath
+            responseText: execution.responseText,
+            offloadPath: execution.offloadPath,
+            existingOffloadPath: execution.existingOffloadPath
           }
 
           if (execution.requiresPermission && execution.permissionRequest) {

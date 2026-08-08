@@ -328,8 +328,8 @@ describe('SkillExecutionService', () => {
         shell: false
       })
     )
-    expect(result).toContain('ok')
-    expect(result).toContain('Exit Code: 0')
+    expect(result.output).toContain('ok')
+    expect(result.output).toContain('Exit Code: 0')
   })
 
   it('decodes split UTF-8 foreground output', async () => {
@@ -388,8 +388,8 @@ describe('SkillExecutionService', () => {
         })
       })
     )
-    expect(result).toContain('中文.txt')
-    expect(result).toContain('Exit Code: 0')
+    expect(result.output).toContain('中文.txt')
+    expect(result.output).toContain('Exit Code: 0')
   })
 
   it('escalates to SIGKILL when foreground timeout grace expires', async () => {
@@ -441,8 +441,8 @@ describe('SkillExecutionService', () => {
     expect(child.kill).toHaveBeenCalledWith('SIGKILL')
 
     const result = await resultPromise
-    expect(result).toContain('Timed out')
-    expect(result).toContain('Exit Code: null')
+    expect(result.output).toContain('Timed out')
+    expect(result.output).toContain('Exit Code: null')
   })
 
   it('falls back to capped in-memory buffering when foreground offload fails', async () => {
@@ -487,10 +487,12 @@ describe('SkillExecutionService', () => {
         outputPrefix: 'skill_ocr'
       },
       1000,
-      'conv-1'
+      'conv-1',
+      undefined,
+      1_000
     )
 
-    const firstChunk = 'a'.repeat(10001)
+    const firstChunk = 'a'.repeat(1_001)
     child.stdout.emit('data', firstChunk)
     await Promise.resolve()
     await Promise.resolve()
@@ -503,9 +505,9 @@ describe('SkillExecutionService', () => {
 
       expect(appendFileMock).toHaveBeenCalledTimes(1)
       expect(previewSpy).toHaveBeenCalledTimes(1)
-      expect(result).not.toContain('Output offloaded:')
-      expect(result).toContain('tail')
-      expect(result).toContain('Exit Code: 0')
+      expect(result.output).not.toContain('Output offloaded:')
+      expect(result.output).toContain('tail')
+      expect(result.output).toContain('Exit Code: 0')
     } finally {
       Object.defineProperty(fs.promises, 'appendFile', {
         configurable: true,

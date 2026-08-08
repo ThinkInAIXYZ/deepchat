@@ -242,6 +242,7 @@ export interface MCPToolResponse {
   rtkApplied?: boolean
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
+  outputOffloadPath?: string
   imagePreviews?: ToolCallImagePreview[]
   requiresPermission?: boolean
   permissionRequest?: {
