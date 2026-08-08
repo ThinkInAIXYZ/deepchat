@@ -5,6 +5,7 @@ import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SkillServicePort } from '../../../src/shared/types/skill'
 import { SkillExecutionService } from '../../../src/main/skill/skillExecutionService'
+import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 
 vi.mock('child_process', () => ({
   spawn: vi.fn()
@@ -264,6 +265,37 @@ describe('SkillExecutionService', () => {
     ).rejects.toThrow(/not found/)
   })
 
+  it('preserves the Agent preview limit for background skill sessions', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => true } as fs.Stats)
+    const plan = {
+      command: 'python',
+      args: ['script.py'],
+      cwd: '/skills/ocr',
+      env: { PATH: '/bin' },
+      shellCommand: 'python script.py',
+      outputPrefix: 'skill_ocr',
+      spawnMode: 'direct'
+    }
+    vi.spyOn(service as never, 'buildSpawnPlan' as never).mockResolvedValue(plan)
+    vi.spyOn(service as never, 'preparePlanForExecution' as never).mockResolvedValue(plan)
+    const start = vi
+      .spyOn(backgroundExecSessionManager, 'start')
+      .mockResolvedValue({ sessionId: 'bg_skill', status: 'running' })
+
+    await service.execute(
+      { skill: 'ocr', script: 'scripts/run.py', background: true },
+      { conversationId: 'conv-1', outputPreviewChars: 7_000 }
+    )
+
+    expect(start).toHaveBeenCalledWith(
+      'conv-1',
+      'python script.py',
+      resolvePath('/skills/ocr'),
+      expect.objectContaining({ previewChars: 7_000, offloadThresholdChars: 7_000 })
+    )
+  })
+
   it('does not commit dispatch when the resolved spawn cwd is unusable', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
     const plan = {
@@ -403,8 +435,8 @@ describe('SkillExecutionService', () => {
         shell: false
       })
     )
-    expect(result).toContain('ok')
-    expect(result).toContain('Exit Code: 0')
+    expect(result.output).toContain('ok')
+    expect(result.output).toContain('Exit Code: 0')
   })
 
   it('decodes split UTF-8 foreground output', async () => {
@@ -463,8 +495,8 @@ describe('SkillExecutionService', () => {
         })
       })
     )
-    expect(result).toContain('中文.txt')
-    expect(result).toContain('Exit Code: 0')
+    expect(result.output).toContain('中文.txt')
+    expect(result.output).toContain('Exit Code: 0')
   })
 
   it('escalates to SIGKILL when foreground timeout grace expires', async () => {
@@ -516,8 +548,8 @@ describe('SkillExecutionService', () => {
     expect(child.kill).toHaveBeenCalledWith('SIGKILL')
 
     const result = await resultPromise
-    expect(result).toContain('Timed out')
-    expect(result).toContain('Exit Code: null')
+    expect(result.output).toContain('Timed out')
+    expect(result.output).toContain('Exit Code: null')
   })
 
   it('falls back to capped in-memory buffering when foreground offload fails', async () => {
@@ -562,10 +594,12 @@ describe('SkillExecutionService', () => {
         outputPrefix: 'skill_ocr'
       },
       1000,
-      'conv-1'
+      'conv-1',
+      undefined,
+      1_000
     )
 
-    const firstChunk = 'a'.repeat(10001)
+    const firstChunk = 'a'.repeat(1_001)
     child.stdout.emit('data', firstChunk)
     await Promise.resolve()
     await Promise.resolve()
@@ -578,9 +612,9 @@ describe('SkillExecutionService', () => {
 
       expect(appendFileMock).toHaveBeenCalledTimes(1)
       expect(previewSpy).toHaveBeenCalledTimes(1)
-      expect(result).not.toContain('Output offloaded:')
-      expect(result).toContain('tail')
-      expect(result).toContain('Exit Code: 0')
+      expect(result.output).not.toContain('Output offloaded:')
+      expect(result.output).toContain('tail')
+      expect(result.output).toContain('Exit Code: 0')
     } finally {
       Object.defineProperty(fs.promises, 'appendFile', {
         configurable: true,

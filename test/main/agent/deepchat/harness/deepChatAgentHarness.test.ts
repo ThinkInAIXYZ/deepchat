@@ -41,7 +41,10 @@ import type { MemoryRuntimePort } from '@/memory/injection'
 import { CompactionService } from '@/agent/deepchat/runtime/compactionService'
 import { reviewAutoApproveToolPermission } from '@/agent/deepchat/runtime/toolPermissionReviewer'
 import { normalizeToolResultContent } from '@/agent/deepchat/runtime/toolAdapters'
-import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
+import {
+  ToolOutputGuard,
+  type ToolOutputGuardResult
+} from '@/agent/deepchat/runtime/toolOutputGuard'
 import { DeferredToolExecutor } from '@/agent/deepchat/runtime/deferredToolExecutor'
 import { createState } from '@/agent/deepchat/runtime/types'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
@@ -12051,7 +12054,13 @@ describe('DeepChatAgentHarness', () => {
       })
 
       const hasContextBudgetSpy = vi.spyOn(ToolOutputGuard.prototype, 'hasContextBudget')
-      hasContextBudgetSpy.mockReturnValueOnce(false).mockReturnValueOnce(true)
+      hasContextBudgetSpy.mockImplementation(({ conversationMessages }) =>
+        conversationMessages.some(
+          (message) =>
+            typeof message.content === 'string' &&
+            message.content.includes('remaining context window is insufficient')
+        )
+      )
 
       try {
         const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
@@ -12091,6 +12100,187 @@ describe('DeepChatAgentHarness', () => {
         hasContextBudgetSpy.mockRestore()
       }
     })
+
+    it('cleans only a newly fitted offload when the session is replaced', async () => {
+      const fitting = deferred<ToolOutputGuardResult>()
+      vi.spyOn(ToolOutputGuard.prototype, 'prepareToolOutput').mockResolvedValueOnce({
+        kind: 'ok',
+        content: 'prepared',
+        offloaded: true,
+        offloadPath: '/tmp/original-tool-output.offload'
+      })
+      const fitSpy = vi
+        .spyOn(ToolOutputGuard.prototype, 'fitExistingToolOutput')
+        .mockImplementationOnce(() => fitting.promise)
+      const cleanupSpy = vi
+        .spyOn(ToolOutputGuard.prototype, 'cleanupOffloadedOutput')
+        .mockResolvedValue()
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'write_file',
+        serverName: 'agent-filesystem'
+      })
+      toolService.callTool.mockResolvedValueOnce({
+        content: 'done',
+        rawData: { content: 'done', isError: false }
+      })
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'write file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+
+      const resume = approvePendingTool()
+      await vi.waitFor(() => expect(fitSpy).toHaveBeenCalledOnce())
+      const persistedUpdateCount =
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length
+
+      const sessionId = toAppSessionId('s1')
+      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      replacement.setRuntimeState({
+        status: 'idle',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+
+      fitting.resolve({
+        kind: 'ok',
+        content: 'fitted',
+        offloaded: true,
+        offloadPath: '/tmp/resume-fallback.offload'
+      })
+
+      await expect(resume).resolves.toEqual({ resumed: false })
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).toHaveBeenCalledTimes(
+        persistedUpdateCount
+      )
+      expect(cleanupSpy).toHaveBeenCalledOnce()
+      expect(cleanupSpy).toHaveBeenCalledWith('/tmp/resume-fallback.offload')
+      expect(cleanupSpy).not.toHaveBeenCalledWith('/tmp/original-tool-output.offload')
+      expect(processStream).not.toHaveBeenCalled()
+      expect(replacement.getRuntimeState()?.status).toBe('idle')
+    })
+
+    it('passes resume cancellation into tool-output fitting', async () => {
+      const fitStarted = deferred<AbortSignal>()
+      const fitSpy = vi
+        .spyOn(ToolOutputGuard.prototype, 'fitExistingToolOutput')
+        .mockImplementationOnce(async (params) => {
+          if (!params.signal) throw new Error('Missing resume fit signal')
+          fitStarted.resolve(params.signal)
+          return await new Promise<never>((_resolve, reject) => {
+            params.signal?.addEventListener('abort', () => reject(params.signal?.reason), {
+              once: true
+            })
+          })
+        })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'write_file',
+        serverName: 'agent-filesystem'
+      })
+      toolService.callTool.mockResolvedValueOnce({
+        content: 'done',
+        rawData: { content: 'done', isError: false }
+      })
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'write file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+
+      const resume = approvePendingTool()
+      const signal = await fitStarted.promise
+      await agent.cancelGeneration('s1')
+
+      expect(signal.aborted).toBe(true)
+      await expect(resume).resolves.toEqual({ resumed: false })
+      expect(fitSpy).toHaveBeenCalledOnce()
+      expect(processStream).not.toHaveBeenCalled()
+    })
+
+    it.each(['tool_error', 'terminal_error'] as const)(
+      'does not clean a referenced offload when a stale fit returns %s',
+      async (kind) => {
+        const fitting = deferred<ToolOutputGuardResult>()
+        vi.spyOn(ToolOutputGuard.prototype, 'prepareToolOutput').mockResolvedValueOnce({
+          kind: 'ok',
+          content: 'prepared',
+          offloaded: true,
+          offloadPath: '/tmp/original-tool-output.offload'
+        })
+        const fitSpy = vi
+          .spyOn(ToolOutputGuard.prototype, 'fitExistingToolOutput')
+          .mockImplementationOnce(() => fitting.promise)
+        const cleanupSpy = vi
+          .spyOn(ToolOutputGuard.prototype, 'cleanupOffloadedOutput')
+          .mockResolvedValue()
+
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        installPendingPermission({
+          toolName: 'write_file',
+          serverName: 'agent-filesystem'
+        })
+        toolService.callTool.mockResolvedValueOnce({
+          content: 'done',
+          rawData: { content: 'done', isError: false }
+        })
+        toolService.getAllToolDefinitions.mockResolvedValueOnce([
+          {
+            type: 'function',
+            source: 'agent',
+            function: {
+              name: 'write_file',
+              description: 'write file',
+              parameters: { type: 'object', properties: {} }
+            },
+            server: { name: 'agent-filesystem', icons: '', description: '' }
+          }
+        ])
+
+        const resume = approvePendingTool()
+        await vi.waitFor(() => expect(fitSpy).toHaveBeenCalledOnce())
+        const persistedUpdateCount =
+          sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length
+        const sessionId = toAppSessionId('s1')
+        expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+        const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+        replacement.setRuntimeState({
+          status: 'idle',
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          permissionMode: 'default'
+        })
+
+        fitting.resolve({ kind, message: 'context overflow' } as ToolOutputGuardResult)
+
+        await expect(resume).resolves.toEqual({ resumed: false })
+        expect(sqlitePresenter.deepchatMessagesTable.updateContent).toHaveBeenCalledTimes(
+          persistedUpdateCount
+        )
+        expect(cleanupSpy).not.toHaveBeenCalled()
+        expect(processStream).not.toHaveBeenCalled()
+        expect(replacement.getRuntimeState()?.status).toBe('idle')
+      }
+    )
 
     it('commits a denied permission before the final pending interaction resumes', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })

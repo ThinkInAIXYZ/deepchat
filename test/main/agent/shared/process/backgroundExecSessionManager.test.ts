@@ -118,6 +118,8 @@ describe('BackgroundExecSessionManager', () => {
     outputFilePath: '/mock/session/bgexec_bg_123.log',
     outputWriteQueue: Promise.resolve(),
     totalOutputLength: 10001,
+    previewChars: 500,
+    offloadThresholdChars: 10000,
     offloadDisabled: false,
     stdoutEof: true,
     stderrEof: true,
@@ -176,13 +178,7 @@ describe('BackgroundExecSessionManager', () => {
 
       expect(session.offloadDisabled).toBe(true)
       expect(session.outputBuffer).toBe('failed-')
-      ;(manager as never).appendOutput(session, 'later', {
-        backgroundMs: 10000,
-        timeoutSec: 1800,
-        cleanupMs: 1800000,
-        maxOutputChars: 500,
-        offloadThresholdChars: 10000
-      })
+      ;(manager as never).appendOutput(session, 'later')
 
       expect(appendFileMock).toHaveBeenCalledTimes(1)
       expect(session.outputBuffer).toBe('failed-later')
@@ -283,6 +279,20 @@ describe('BackgroundExecSessionManager', () => {
     expect(log.output).toBe('timeout tail')
   })
 
+  it('uses the session preview limit unless poll supplies a newer Agent limit', async () => {
+    setSession(
+      createSession({
+        outputBuffer: 'abcdefgh',
+        outputFilePath: null,
+        totalOutputLength: 8,
+        previewChars: 3
+      })
+    )
+
+    await expect(manager.poll('conv-1', 'bg_123')).resolves.toMatchObject({ output: 'fgh' })
+    await expect(manager.poll('conv-1', 'bg_123', 5)).resolves.toMatchObject({ output: 'defgh' })
+  })
+
   it('commits a process write after session preflight and before stdin mutation', () => {
     const order: string[] = []
     const child = new MockChildProcess()
@@ -353,6 +363,48 @@ describe('BackgroundExecSessionManager', () => {
     } finally {
       delete process.env.BASELINE_FLAG
     }
+  })
+
+  it('spools output at a lower per-session threshold', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    const appendFile = vi.spyOn(fs.promises, 'appendFile').mockResolvedValue(undefined)
+
+    const result = await manager.start('conv-1', 'echo test', '/workspace', {
+      timeout: 0,
+      offloadThresholdChars: 1_000
+    })
+    child.stdout.emit('data', 'x'.repeat(1_001))
+
+    await vi.waitFor(() => expect(appendFile).toHaveBeenCalledOnce())
+    expect(manager.list('conv-1')).toEqual([
+      expect.objectContaining({
+        sessionId: result.sessionId,
+        outputLength: 1_001,
+        offloaded: true
+      })
+    ])
+  })
+
+  it('caps a persisted single-line completion preview', async () => {
+    const output = 'x'.repeat(500)
+    vi.mocked(fs.statSync).mockReturnValue({ size: output.length } as fs.Stats)
+    vi.spyOn(fs, 'openSync').mockReturnValue(1)
+    vi.spyOn(fs, 'readSync').mockImplementation((_fd, buffer, offset, length, position) => {
+      const start = position ?? 0
+      return Buffer.from(output).copy(buffer as Buffer, offset, start, start + length)
+    })
+    vi.spyOn(fs, 'closeSync').mockReturnValue(undefined)
+    setSession(
+      createSession({
+        totalOutputLength: output.length,
+        offloadThresholdChars: 1
+      })
+    )
+
+    const result = await manager.getCompletionResult('conv-1', 'bg_123', 100)
+
+    expect(result.output).toBe('x'.repeat(100))
   })
 
   it('wraps Windows PowerShell commands before starting a session', async () => {

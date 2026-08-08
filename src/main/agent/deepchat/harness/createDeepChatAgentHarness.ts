@@ -30,6 +30,7 @@ import {
 } from '@/agent/deepchat/runtime/toolAdapters'
 import { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
+import { resolveAgentOutputLimits } from '@shared/lib/agentOutputLimits'
 import {
   createToolPermissionReviewer,
   createToolResultNormalizer,
@@ -313,7 +314,11 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     identity,
     runLifecycle
   }
-  const toolOutputGuard = new ToolOutputGuard()
+  const toolOutputGuard = new ToolOutputGuard(async (sessionId) =>
+    resolveAgentOutputLimits(
+      await agentSettings.resolveDeepChatAgentConfig(identity.getAgentId(sessionId) ?? 'deepchat')
+    )
+  )
   const toolExecutionPort = createToolExecutionPort(toolService)
   const toolResultPort = createToolResultPort({
     outputGuard: toolOutputGuard,

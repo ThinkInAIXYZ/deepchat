@@ -37,6 +37,7 @@ export type DeferredToolExecutionResult = {
   toolSource?: 'mcp' | 'agent'
   serverName?: string
   offloadPath?: string
+  existingOffloadPath?: string
   rtkApplied?: boolean
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
@@ -517,6 +518,7 @@ export class DeferredToolExecutor {
         toolSource: toolDefinition.source,
         serverName: toolDefinition.server.name,
         offloadPath: prepared.offloadPath,
+        existingOffloadPath: rawData.outputOffloadPath,
         rtkApplied: rawData.rtkApplied,
         rtkMode: rawData.rtkMode,
         rtkFallbackReason: rawData.rtkFallbackReason,

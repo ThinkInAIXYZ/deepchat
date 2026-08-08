@@ -562,6 +562,130 @@
               </div>
             </div>
           </div>
+
+          <Collapsible v-model:open="outputLimitsOpen" class="rounded-xl border border-border/70">
+            <CollapsibleTrigger
+              data-testid="agent-output-limits-trigger"
+              class="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+            >
+              <span>
+                <span class="block text-sm font-medium">
+                  {{ t('settings.deepchatAgents.outputLimitsTitle') }}
+                </span>
+                <span class="mt-0.5 block text-xs text-muted-foreground">
+                  {{ t('settings.deepchatAgents.outputLimitsDescription') }}
+                </span>
+              </span>
+              <Icon
+                :icon="outputLimitsOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                class="h-4 w-4 shrink-0 text-muted-foreground"
+              />
+            </CollapsibleTrigger>
+
+            <CollapsibleContent class="space-y-4 border-t border-border/70 p-3">
+              <div class="flex items-start justify-between gap-3">
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.deepchatAgents.outputLimitsSafetyHint') }}
+                </p>
+                <DcButton
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 shrink-0 px-2 text-xs"
+                  data-testid="agent-output-limits-reset"
+                  @click="resetOutputLimits"
+                >
+                  {{ t('settings.deepchatAgents.outputLimitsReset') }}
+                </DcButton>
+              </div>
+
+              <div class="grid gap-4 md:grid-cols-3">
+                <label class="space-y-2">
+                  <span class="block text-sm font-medium">
+                    {{ t('settings.deepchatAgents.outputLimitsReadFile') }}
+                  </span>
+                  <InputGroup>
+                    <InputGroupInput
+                      v-model="form.readFileAutoTruncateChars"
+                      data-testid="read-file-auto-truncate-chars-input"
+                      type="number"
+                      :min="AGENT_OUTPUT_LIMIT_MIN_CHARS"
+                      :max="AGENT_OUTPUT_LIMIT_MAX_CHARS"
+                      step="1"
+                      aria-describedby="read-file-auto-truncate-chars-hint"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText data-testid="agent-output-limit-unit">
+                        {{ t('settings.common.charactersUnit') }}
+                      </InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <span
+                    id="read-file-auto-truncate-chars-hint"
+                    class="block text-[11px] text-muted-foreground"
+                  >
+                    {{ t('settings.deepchatAgents.outputLimitsReadFileHint') }}
+                  </span>
+                </label>
+
+                <label class="space-y-2">
+                  <span class="block text-sm font-medium">
+                    {{ t('settings.deepchatAgents.outputLimitsTool') }}
+                  </span>
+                  <InputGroup>
+                    <InputGroupInput
+                      v-model="form.toolOutputInlineChars"
+                      data-testid="tool-output-inline-chars-input"
+                      type="number"
+                      :min="AGENT_OUTPUT_LIMIT_MIN_CHARS"
+                      :max="AGENT_OUTPUT_LIMIT_MAX_CHARS"
+                      step="1"
+                      aria-describedby="tool-output-inline-chars-hint"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText data-testid="agent-output-limit-unit">
+                        {{ t('settings.common.charactersUnit') }}
+                      </InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <span
+                    id="tool-output-inline-chars-hint"
+                    class="block text-[11px] text-muted-foreground"
+                  >
+                    {{ t('settings.deepchatAgents.outputLimitsToolHint') }}
+                  </span>
+                </label>
+
+                <label class="space-y-2">
+                  <span class="block text-sm font-medium">
+                    {{ t('settings.deepchatAgents.outputLimitsCommand') }}
+                  </span>
+                  <InputGroup>
+                    <InputGroupInput
+                      v-model="form.commandOutputInlineChars"
+                      data-testid="command-output-inline-chars-input"
+                      type="number"
+                      :min="AGENT_OUTPUT_LIMIT_MIN_CHARS"
+                      :max="AGENT_OUTPUT_LIMIT_MAX_CHARS"
+                      step="1"
+                      aria-describedby="command-output-inline-chars-hint"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText data-testid="agent-output-limit-unit">
+                        {{ t('settings.common.charactersUnit') }}
+                      </InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <span
+                    id="command-output-inline-chars-hint"
+                    class="block text-[11px] text-muted-foreground"
+                  >
+                    {{ t('settings.deepchatAgents.outputLimitsCommandHint') }}
+                  </span>
+                </label>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </section>
 
         <section class="space-y-4 rounded-2xl border border-border p-5">
@@ -707,8 +831,19 @@ import {
 } from '@shadcn/components/ui/dropdown-menu'
 import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { Input } from '@shadcn/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText
+} from '@shadcn/components/ui/input-group'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { Switch } from '@shadcn/components/ui/switch'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@shadcn/components/ui/collapsible'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { useRouter } from 'vue-router'
@@ -745,6 +880,11 @@ import {
   createDefaultDeepChatSubagentSlots,
   normalizeDeepChatSubagentSlots
 } from '@shared/lib/deepchatSubagents'
+import {
+  AGENT_OUTPUT_LIMIT_MAX_CHARS,
+  AGENT_OUTPUT_LIMIT_MIN_CHARS,
+  DEFAULT_AGENT_OUTPUT_LIMITS
+} from '@shared/lib/agentOutputLimits'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 type ModelKey = 'chatModel' | 'assistantModel' | 'visionModel' | 'imageGenerationModel'
@@ -794,6 +934,9 @@ type FormState = {
   autoCompactionEnabled: boolean
   autoCompactionTriggerThreshold: EditableNumberValue
   autoCompactionRetainRecentPairs: EditableNumberValue
+  readFileAutoTruncateChars: EditableNumberValue
+  toolOutputInlineChars: EditableNumberValue
+  commandOutputInlineChars: EditableNumberValue
   memoryEnabled: boolean
 }
 
@@ -820,6 +963,9 @@ const CONFIG_DIFF_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
   'autoCompactionEnabled',
   'autoCompactionTriggerThreshold',
   'autoCompactionRetainRecentPairs',
+  'readFileAutoTruncateChars',
+  'toolOutputInlineChars',
+  'commandOutputInlineChars',
   'memoryEnabled'
 ]
 const GROUP_ORDER = [
@@ -851,6 +997,7 @@ const chatOpen = ref(false)
 const assistantOpen = ref(false)
 const visionOpen = ref(false)
 const imageGenerationOpen = ref(false)
+const outputLimitsOpen = ref(false)
 const systemPromptDialogOpen = ref(false)
 const loadingSystemPrompts = ref(false)
 const systemPromptTemplates = ref<SystemPrompt[]>([])
@@ -888,6 +1035,9 @@ const form = reactive<FormState>({
   autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
   autoCompactionTriggerThreshold: String(uiSettingsStore.autoCompactionTriggerThreshold),
   autoCompactionRetainRecentPairs: String(uiSettingsStore.autoCompactionRetainRecentPairs),
+  readFileAutoTruncateChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars),
+  toolOutputInlineChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.toolOutputInlineChars),
+  commandOutputInlineChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.commandOutputInlineChars),
   memoryEnabled: false
 })
 
@@ -1141,6 +1291,9 @@ const emptyForm = (): FormState => ({
   autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
   autoCompactionTriggerThreshold: String(uiSettingsStore.autoCompactionTriggerThreshold),
   autoCompactionRetainRecentPairs: String(uiSettingsStore.autoCompactionRetainRecentPairs),
+  readFileAutoTruncateChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars),
+  toolOutputInlineChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.toolOutputInlineChars),
+  commandOutputInlineChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.commandOutputInlineChars),
   memoryEnabled: false
 })
 
@@ -1192,6 +1345,13 @@ const normalizeAutoCompactionRetainRecentPairs = (value: EditableNumberValue | n
     max: AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX,
     integer: true
   })
+const normalizeOutputLimit = (value: EditableNumberValue | null | undefined, fallback: number) =>
+  normalizeNumericInput(value, {
+    fallback,
+    min: AGENT_OUTPUT_LIMIT_MIN_CHARS,
+    max: AGENT_OUTPUT_LIMIT_MAX_CHARS,
+    integer: true
+  })
 const buildEditableConfig = (state: FormState): DeepChatAgentConfig => {
   const config: DeepChatAgentConfig = {
     defaultModelPreset: buildModelSelection(state.chatModel),
@@ -1210,6 +1370,18 @@ const buildEditableConfig = (state: FormState): DeepChatAgentConfig => {
     ),
     autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
       state.autoCompactionRetainRecentPairs
+    ),
+    readFileAutoTruncateChars: normalizeOutputLimit(
+      state.readFileAutoTruncateChars,
+      DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars
+    ),
+    toolOutputInlineChars: normalizeOutputLimit(
+      state.toolOutputInlineChars,
+      DEFAULT_AGENT_OUTPUT_LIMITS.toolOutputInlineChars
+    ),
+    commandOutputInlineChars: normalizeOutputLimit(
+      state.commandOutputInlineChars,
+      DEFAULT_AGENT_OUTPUT_LIMITS.commandOutputInlineChars
     ),
     memoryEnabled: state.memoryEnabled
   }
@@ -1332,6 +1504,15 @@ const fromAgent = (agent?: Agent | null): FormState => {
     autoCompactionRetainRecentPairs: numText(
       config.autoCompactionRetainRecentPairs ?? AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT
     ),
+    readFileAutoTruncateChars: numText(
+      config.readFileAutoTruncateChars ?? DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars
+    ),
+    toolOutputInlineChars: numText(
+      config.toolOutputInlineChars ?? DEFAULT_AGENT_OUTPUT_LIMITS.toolOutputInlineChars
+    ),
+    commandOutputInlineChars: numText(
+      config.commandOutputInlineChars ?? DEFAULT_AGENT_OUTPUT_LIMITS.commandOutputInlineChars
+    ),
     memoryEnabled: config.memoryEnabled ?? false
   }
 }
@@ -1410,6 +1591,11 @@ const clearModel = (key: ModelKey) => {
 }
 const setMemoryEnabled = (value: boolean) => {
   form.memoryEnabled = value
+}
+const resetOutputLimits = () => {
+  form.readFileAutoTruncateChars = String(DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars)
+  form.toolOutputInlineChars = String(DEFAULT_AGENT_OUTPUT_LIMITS.toolOutputInlineChars)
+  form.commandOutputInlineChars = String(DEFAULT_AGENT_OUTPUT_LIMITS.commandOutputInlineChars)
 }
 const openMemorySettings = () => {
   if (!form.id || form.id === DRAFT_AGENT_ID) return

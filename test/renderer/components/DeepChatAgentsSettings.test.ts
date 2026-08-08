@@ -250,8 +250,15 @@ describe('DeepChatAgentsSettings', () => {
           DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
+          InputGroup: passthrough('InputGroup'),
+          InputGroupAddon: passthrough('InputGroupAddon'),
+          InputGroupInput: InputStub,
+          InputGroupText: passthrough('InputGroupText'),
           Textarea: TextareaStub,
           Switch: SwitchStub,
+          Collapsible: passthrough('Collapsible'),
+          CollapsibleContent: passthrough('CollapsibleContent'),
+          CollapsibleTrigger: passthrough('CollapsibleTrigger'),
           Dialog: DialogStub,
           DialogContent: passthrough('DialogContent'),
           DialogHeader: passthrough('DialogHeader'),
@@ -286,6 +293,51 @@ describe('DeepChatAgentsSettings', () => {
       projectPresenter
     }
   }
+
+  it('loads, resets, normalizes, and saves per-Agent output limits', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      avatar: null,
+      config: {
+        readFileAutoTruncateChars: 7_000,
+        toolOutputInlineChars: 8_000,
+        commandOutputInlineChars: 9_000
+      }
+    }
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
+    const readInput = wrapper.get('[data-testid="read-file-auto-truncate-chars-input"]')
+    const toolInput = wrapper.get('[data-testid="tool-output-inline-chars-input"]')
+    const commandInput = wrapper.get('[data-testid="command-output-inline-chars-input"]')
+
+    expect((readInput.element as HTMLInputElement).value).toBe('7000')
+    expect((toolInput.element as HTMLInputElement).value).toBe('8000')
+    expect((commandInput.element as HTMLInputElement).value).toBe('9000')
+    const units = wrapper.findAll('[data-testid="agent-output-limit-unit"]')
+    expect(units).toHaveLength(3)
+    expect(units.every((unit) => unit.text() === 'settings.common.charactersUnit')).toBe(true)
+
+    await wrapper.get('[data-testid="agent-output-limits-reset"]').trigger('click')
+    expect((readInput.element as HTMLInputElement).value).toBe('4500')
+    expect((toolInput.element as HTMLInputElement).value).toBe('5000')
+    expect((commandInput.element as HTMLInputElement).value).toBe('12000')
+
+    await readInput.setValue('')
+    await toolInput.setValue('8500.6')
+    await commandInput.setValue('250000')
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
+    await flushPromises()
+
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config).toEqual({
+      readFileAutoTruncateChars: 4_500,
+      toolOutputInlineChars: 8_501,
+      commandOutputInlineChars: 200_000
+    })
+  })
 
   it('shows pending and success feedback while deriving save availability from canonical data', async () => {
     const existingAgent = {

@@ -57,7 +57,7 @@ import {
   buildTapeResumeView
 } from './tapeViewAssembler'
 import type { DeepChatToolResolver } from './toolResolver'
-import type { ToolOutputGuard } from './toolOutputGuard'
+import type { ToolOutputGuard, ToolOutputGuardResult } from './toolOutputGuard'
 import type { ResumeBudgetToolCall } from './turnResumeContract'
 import { parseMessageMetadata } from '@/session/usageStats'
 import { extractUserMessageInput } from '@/session/data/userMessageContent'
@@ -1370,21 +1370,39 @@ export class TurnCoordinator {
       const contextContributions = preparedContext.contributions
       let resumeContext = resumeContextBuild.messages
       if (budgetToolCall?.id && budgetToolCall.name && useContextBudget) {
-        const resumeBudget = this.fitResumeBudgetForToolCall({
-          resumeContext,
-          toolDefinitions: tools,
-          contextLength: generationSettings.contextLength,
-          maxTokens,
-          toolCallId: budgetToolCall.id,
-          toolName: budgetToolCall.name
-        })
-
-        if (resumeBudget?.kind === 'tool_error') {
-          await this.runPreStreamStep(
-            { sessionId, messageId, step: 'tool-output-cleanup' },
-            () => this.ports.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
-          )
+        let resumeBudget: ToolOutputGuardResult | null = null
+        try {
+          resumeBudget = await this.fitResumeBudgetForToolCall({
+            sessionId,
+            resumeContext,
+            toolDefinitions: tools,
+            contextLength: contextBudgetLength,
+            maxTokens,
+            toolCallId: budgetToolCall.id,
+            toolName: budgetToolCall.name,
+            rawContent: budgetToolCall.responseText ?? '',
+            existingOffloadPath: budgetToolCall.existingOffloadPath,
+            signal: preStreamAbortSignal
+          })
+          throwIfAbortRequested(preStreamAbortSignal)
           scope.assertCurrent()
+        } catch (error) {
+          if (resumeBudget?.kind === 'ok') {
+            await this.ports.toolOutputGuard.cleanupOffloadedOutput(resumeBudget.offloadPath)
+          }
+          throw error
+        }
+
+        if (resumeBudget?.kind === 'ok') {
+          updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.content, false)
+          this.ports.messageStore.updateAssistantContent(messageId, initialBlocks)
+          this.ports.messageProjection.refresh(sessionId, messageId)
+          resumeContext = this.ports.toolOutputGuard.replaceToolMessageContent(
+            resumeContext,
+            budgetToolCall.id,
+            resumeBudget.content
+          )
+        } else if (resumeBudget?.kind === 'tool_error') {
           updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
           this.ports.messageStore.updateAssistantContent(messageId, initialBlocks)
           this.ports.messageProjection.refresh(sessionId, messageId)
@@ -1393,12 +1411,11 @@ export class TurnCoordinator {
             budgetToolCall.id,
             resumeBudget.message
           )
-        } else if (resumeBudget?.kind === 'terminal_error') {
           await this.runPreStreamStep(
             { sessionId, messageId, step: 'tool-output-cleanup' },
             () => this.ports.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
           )
-          scope.assertCurrent()
+        } else if (resumeBudget?.kind === 'terminal_error') {
           updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
           const terminalMetadata = stampTerminalMetadata(
             resumeAccounting,
@@ -1430,6 +1447,10 @@ export class TurnCoordinator {
             origin: 'resume',
             outcome: { kind: 'returned', status: 'error' }
           })
+          await this.runPreStreamStep(
+            { sessionId, messageId, step: 'tool-output-cleanup' },
+            () => this.ports.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
+          )
           return false
         }
       }
@@ -1634,37 +1655,29 @@ export class TurnCoordinator {
     }
   }
 
-  private fitResumeBudgetForToolCall(params: {
+  private async fitResumeBudgetForToolCall(params: {
+    sessionId: string
     resumeContext: ChatMessage[]
     toolDefinitions: MCPToolDefinition[]
     contextLength: number
     maxTokens: number
     toolCallId: string
     toolName: string
+    rawContent: string
+    existingOffloadPath?: string
+    signal?: AbortSignal
   }) {
-    if (
-      this.ports.toolOutputGuard.hasContextBudget({
-        conversationMessages: params.resumeContext,
-        toolDefinitions: params.toolDefinitions,
-        contextLength: params.contextLength,
-        maxTokens: params.maxTokens
-      })
-    ) {
-      return null
-    }
-
-    return this.ports.toolOutputGuard.fitToolError({
+    return await this.ports.toolOutputGuard.fitExistingToolOutput({
+      sessionId: params.sessionId,
       conversationMessages: params.resumeContext,
       toolDefinitions: params.toolDefinitions,
       contextLength: params.contextLength,
       maxTokens: params.maxTokens,
       toolCallId: params.toolCallId,
       toolName: params.toolName,
-      errorMessage: this.ports.toolOutputGuard.buildContextOverflowMessage(
-        params.toolCallId,
-        params.toolName
-      ),
-      mode: 'replace'
+      rawContent: params.rawContent,
+      existingOffloadPath: params.existingOffloadPath,
+      signal: params.signal
     })
   }
 

@@ -18,6 +18,10 @@ import {
   VerbositySchema
 } from '../types/model-db'
 import { ConflictStrategy } from '../types/skillSync'
+import {
+  AGENT_OUTPUT_LIMIT_MAX_CHARS,
+  AGENT_OUTPUT_LIMIT_MIN_CHARS
+} from '../lib/agentOutputLimits'
 
 export const ThemeModeSchema = z.enum(['dark', 'light', 'system'])
 
@@ -719,7 +723,25 @@ export const DeepChatAgentConfigSchema = z.looseObject({
   enabledSkillNames: z.array(z.string()).nullable().optional(),
   enabledMcpServerIds: z.array(z.string()).nullable().optional(),
   subagentEnabled: z.boolean().optional(),
-  defaultProjectPath: z.string().nullable().optional()
+  defaultProjectPath: z.string().nullable().optional(),
+  readFileAutoTruncateChars: z
+    .number()
+    .int()
+    .min(AGENT_OUTPUT_LIMIT_MIN_CHARS)
+    .max(AGENT_OUTPUT_LIMIT_MAX_CHARS)
+    .optional(),
+  toolOutputInlineChars: z
+    .number()
+    .int()
+    .min(AGENT_OUTPUT_LIMIT_MIN_CHARS)
+    .max(AGENT_OUTPUT_LIMIT_MAX_CHARS)
+    .optional(),
+  commandOutputInlineChars: z
+    .number()
+    .int()
+    .min(AGENT_OUTPUT_LIMIT_MIN_CHARS)
+    .max(AGENT_OUTPUT_LIMIT_MAX_CHARS)
+    .optional()
 })
 
 export const ConfigValueSchema = z.union([

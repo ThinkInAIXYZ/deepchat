@@ -47,6 +47,7 @@ export interface ExecuteCommandOptions {
   env?: Record<string, string>
   stdin?: string
   outputPrefix?: string
+  outputPreviewChars?: number
   allowExternalCwd?: boolean
   beforeExecute?: (normalizedArguments: Record<string, unknown>) => void
 }
@@ -124,6 +125,7 @@ export class AgentBashHandler {
     rtkApplied: boolean
     rtkMode: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
+    outputOffloadPath?: string
   }> {
     const parsed = ExecuteCommandArgsSchema.safeParse(args)
     if (!parsed.success) {
@@ -247,7 +249,8 @@ export class AgentBashHandler {
       output: this.formatCompletedResult(result),
       rtkApplied: prepared.rtkApplied,
       rtkMode: prepared.rtkMode,
-      rtkFallbackReason: prepared.rtkFallbackReason
+      rtkFallbackReason: prepared.rtkFallbackReason,
+      outputOffloadPath: result.offloaded ? result.outputFilePath : undefined
     }
   }
 
@@ -322,7 +325,12 @@ export class AgentBashHandler {
     const session = await backgroundExecSessionManager.start(conversationId, command, cwd, {
       timeout,
       env: options.env,
-      outputPrefix: options.outputPrefix
+      outputPrefix: options.outputPrefix,
+      previewChars: options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS,
+      offloadThresholdChars: Math.min(
+        COMMAND_OFFLOAD_THRESHOLD,
+        options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
+      )
     })
 
     await backgroundExecSessionManager.write(
@@ -335,7 +343,8 @@ export class AgentBashHandler {
     const yielded = await backgroundExecSessionManager.waitForCompletionOrYield(
       conversationId,
       session.sessionId,
-      options.yieldMs ?? getBackgroundExecConfig().backgroundMs
+      options.yieldMs ?? getBackgroundExecConfig().backgroundMs,
+      options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
     )
 
     if (yielded.kind === 'running') {
@@ -377,6 +386,8 @@ export class AgentBashHandler {
     const { shell, args } = getUserShell()
     const shellCommand = prepareShellCommandForUtf8Output(shell, command)
     const outputFilePath = this.createOutputFilePath(options.conversationId, options.outputPrefix)
+    const outputPreviewChars = options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
+    const offloadThresholdChars = Math.min(COMMAND_OFFLOAD_THRESHOLD, outputPreviewChars)
 
     return new Promise((resolve, reject) => {
       const child = spawn(shell, [...args, shellCommand], {
@@ -403,7 +414,9 @@ export class AgentBashHandler {
         }
       }
 
-      const settle = async (payload: CompletedShellProcessResult) => {
+      const settle = async (
+        payload: Pick<CompletedShellProcessResult, 'exitCode' | 'timedOut'>
+      ) => {
         if (settled) return
         settled = true
         cleanupTimeout()
@@ -415,13 +428,23 @@ export class AgentBashHandler {
           // Already logged when flushing output.
         }
 
-        resolve(payload)
+        const preview =
+          offloaded && outputFilePath
+            ? this.readLastCharsFromFile(outputFilePath, outputPreviewChars)
+            : output.slice(-outputPreviewChars)
+        resolve({
+          kind: 'completed',
+          output: preview,
+          ...payload,
+          offloaded,
+          outputFilePath: outputFilePath ?? undefined
+        })
       }
 
       const appendOutput = (chunk: string) => {
         totalOutputLength += chunk.length
         const shouldOffload =
-          outputFilePath !== null && (offloaded || totalOutputLength > COMMAND_OFFLOAD_THRESHOLD)
+          outputFilePath !== null && (offloaded || totalOutputLength > offloadThresholdChars)
 
         if (!shouldOffload) {
           output += chunk
@@ -465,19 +488,9 @@ export class AgentBashHandler {
             return
           }
 
-          outputDecoders.flush()
-          const preview =
-            offloaded && outputFilePath
-              ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)
-              : output
-
           void settle({
-            kind: 'completed',
-            output: preview,
             exitCode: null,
-            timedOut: true,
-            offloaded,
-            outputFilePath: outputFilePath ?? undefined
+            timedOut: true
           })
         })
       }, timeout)
@@ -488,20 +501,10 @@ export class AgentBashHandler {
         reject(error)
       })
 
-      child.on('close', async (code, signal) => {
-        outputDecoders.flush()
-        const preview =
-          offloaded && outputFilePath
-            ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)
-            : output
-
+      child.on('close', (code, signal) => {
         void settle({
-          kind: 'completed',
-          output: preview,
           exitCode: signal && timedOut ? null : (code ?? null),
-          timedOut,
-          offloaded,
-          outputFilePath: outputFilePath ?? undefined
+          timedOut
         })
       })
     })
@@ -566,10 +569,10 @@ export class AgentBashHandler {
         if (startPosition > 0) {
           const firstNewline = content.indexOf('\n')
           if (firstNewline > 0) {
-            return content.slice(firstNewline + 1)
+            return content.slice(firstNewline + 1).slice(-maxChars)
           }
         }
-        return content
+        return content.slice(-maxChars)
       } finally {
         fs.closeSync(fd)
       }
@@ -635,7 +638,12 @@ export class AgentBashHandler {
       {
         timeout: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
         env: prepared.env,
-        outputPrefix: options.outputPrefix
+        outputPrefix: options.outputPrefix,
+        previewChars: options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS,
+        offloadThresholdChars: Math.min(
+          COMMAND_OFFLOAD_THRESHOLD,
+          options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
+        )
       }
     )
 

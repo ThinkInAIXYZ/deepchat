@@ -1,9 +1,15 @@
+import { EventEmitter } from 'events'
+import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
 import { CommandPermissionService } from '@/tool/permission/commandPermissionService'
+
+vi.mock('child_process', () => ({
+  spawn: vi.fn()
+}))
 
 const createPermissionService = (): CommandPermissionService => {
   const service = new CommandPermissionService()
@@ -510,7 +516,7 @@ describe('AgentBashHandler', () => {
         env: { PATH: '/bin' }
       })
     )
-    expect(waitSpy).toHaveBeenCalledWith('conv-1', 'bg_yield', 250)
+    expect(waitSpy).toHaveBeenCalledWith('conv-1', 'bg_yield', 250, 12_000)
     expect(removeSpy).not.toHaveBeenCalled()
     expect(result.output).toEqual({ status: 'running', sessionId: 'bg_yield' })
   })
@@ -580,21 +586,23 @@ describe('AgentBashHandler', () => {
       rtkMode: 'bypass'
     })
 
-    vi.spyOn(backgroundExecSessionManager, 'start').mockResolvedValue({
+    const startSpy = vi.spyOn(backgroundExecSessionManager, 'start').mockResolvedValue({
       sessionId: 'bg_offloaded',
       status: 'running'
     })
-    vi.spyOn(backgroundExecSessionManager, 'waitForCompletionOrYield').mockResolvedValue({
-      kind: 'completed',
-      result: {
-        status: 'done',
-        output: 'last lines',
-        exitCode: 0,
-        offloaded: true,
-        outputFilePath: '/tmp/bgexec_bg_offloaded.log',
-        timedOut: false
-      }
-    })
+    const waitSpy = vi
+      .spyOn(backgroundExecSessionManager, 'waitForCompletionOrYield')
+      .mockResolvedValue({
+        kind: 'completed',
+        result: {
+          status: 'done',
+          output: 'last lines',
+          exitCode: 0,
+          offloaded: true,
+          outputFilePath: '/tmp/bgexec_bg_offloaded.log',
+          timedOut: false
+        }
+      })
     const writeSpy = vi.spyOn(backgroundExecSessionManager, 'write').mockImplementation(() => {})
     const removeSpy = vi.spyOn(backgroundExecSessionManager, 'remove').mockResolvedValue()
 
@@ -604,14 +612,81 @@ describe('AgentBashHandler', () => {
         description: 'Run tests'
       },
       {
-        conversationId: 'conv-1'
+        conversationId: 'conv-1',
+        outputPreviewChars: 7_000
       }
     )
 
+    expect(startSpy).toHaveBeenCalledWith(
+      'conv-1',
+      'pnpm test --reporter=json',
+      workspaceRoot,
+      expect.objectContaining({ previewChars: 7_000, offloadThresholdChars: 7_000 })
+    )
+    expect(waitSpy).toHaveBeenCalledWith('conv-1', 'bg_offloaded', 10_000, 7_000)
     expect(writeSpy).toHaveBeenCalledWith('conv-1', 'bg_offloaded', '', true)
     expect(removeSpy).not.toHaveBeenCalled()
     expect(result.output).toContain('last lines')
     expect(result.output).toContain('Exit Code: 0')
     expect(result.output).toContain('Output offloaded: /tmp/bgexec_bg_offloaded.log')
+    expect(result.outputOffloadPath).toBe('/tmp/bgexec_bg_offloaded.log')
+  })
+
+  it('drains offloaded writes before reading a detached command preview', async () => {
+    class MockStream extends EventEmitter {}
+    class MockChild extends EventEmitter {
+      stdout = new MockStream()
+      stderr = new MockStream()
+      stdin = { write: vi.fn(), end: vi.fn(), destroyed: false }
+      pid = 123
+    }
+
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      { get: () => undefined },
+      createPermissionService()
+    )
+    const child = new MockChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    vi.spyOn(handler as never, 'createOutputFilePath' as never).mockReturnValue('/tmp/exec.log')
+    const readPreview = vi
+      .spyOn(handler as never, 'readLastCharsFromFile' as never)
+      .mockReturnValue('tail')
+    let finishWrite = () => {}
+    const pendingWrite = new Promise<void>((resolve) => {
+      finishWrite = () => resolve()
+    })
+    const originalAppendFile = fs.promises.appendFile
+    const appendFile = vi.fn().mockReturnValue(pendingWrite)
+    Object.defineProperty(fs.promises, 'appendFile', {
+      configurable: true,
+      value: appendFile
+    })
+
+    try {
+      const resultPromise = (handler as never).runDetachedShellProcess(
+        'printf abcdef',
+        workspaceRoot,
+        1_000,
+        { outputPreviewChars: 3 }
+      )
+      child.stdout.emit('data', 'abcdef')
+      child.emit('close', 0, null)
+
+      await vi.waitFor(() => expect(appendFile).toHaveBeenCalledOnce())
+      expect(readPreview).not.toHaveBeenCalled()
+      finishWrite()
+
+      await expect(resultPromise).resolves.toMatchObject({
+        output: 'tail',
+        offloaded: true
+      })
+      expect(readPreview).toHaveBeenCalledWith('/tmp/exec.log', 3)
+    } finally {
+      Object.defineProperty(fs.promises, 'appendFile', {
+        configurable: true,
+        value: originalAppendFile
+      })
+    }
   })
 })
