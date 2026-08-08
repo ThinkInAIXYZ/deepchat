@@ -540,7 +540,7 @@ describe('YoBrowserPresenter', () => {
 
     expect(previewHosts).toHaveLength(1)
     expect(previewHosts[0].options).toMatchObject({
-      show: process.platform !== 'darwin',
+      show: true,
       fullscreenable: process.platform !== 'darwin'
     })
     expect(webContents?.capturePage).toHaveBeenCalledWith(

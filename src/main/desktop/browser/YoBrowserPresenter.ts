@@ -1355,7 +1355,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
         y: -10000,
         width: PREVIEW_VIEWPORT.width,
         height: PREVIEW_VIEWPORT.height,
-        show: !isMac,
+        show: true,
         fullscreenable: !isMac,
         opacity: 0,
         focusable: false,
