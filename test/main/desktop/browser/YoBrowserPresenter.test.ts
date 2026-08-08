@@ -149,6 +149,7 @@ class MockBaseWindow extends EventEmitter {
   contentView = new MockContentView()
   destroyed = false
   setIgnoreMouseEvents = vi.fn()
+  showInactive = vi.fn()
 
   constructor(readonly options: Record<string, unknown>) {
     super()
@@ -540,9 +541,12 @@ describe('YoBrowserPresenter', () => {
 
     expect(previewHosts).toHaveLength(1)
     expect(previewHosts[0].options).toMatchObject({
-      show: true,
+      show: process.platform !== 'darwin',
       fullscreenable: process.platform !== 'darwin'
     })
+    expect(previewHosts[0].showInactive).toHaveBeenCalledTimes(
+      process.platform === 'darwin' ? 1 : 0
+    )
     expect(webContents?.capturePage).toHaveBeenCalledWith(
       { x: 0, y: 0, width: 1280, height: 800 },
       { stayHidden: true }
@@ -607,6 +611,53 @@ describe('YoBrowserPresenter', () => {
 
     expect(previewHosts[0].destroyed).toBe(true)
     expect(webContents?.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
+  })
+
+  it('resumes preview capture after a previous capture times out while stopping', async () => {
+    const { presenter, windows, previewHosts, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const firstLoad = presenter.loadUrl(
+      'session-a',
+      'https://example.com/first',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await firstLoad
+    webContents?.capturePage.mockImplementationOnce(() => new Promise(() => undefined))
+
+    await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(1)
+
+    const release = presenter.releaseInactivePreview('session-a')
+    await vi.advanceTimersByTimeAsync(500)
+    await release
+
+    const secondLoad = presenter.loadUrl(
+      'session-a',
+      'https://example.com/second',
+      undefined,
+      1,
+      'agent',
+      'run-2'
+    )
+    await Promise.resolve()
+    webContents?.emitDomReady()
+    await secondLoad
+
+    expect(previewHosts).toHaveLength(2)
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-2')).toEqual({
+      updated: true,
+      surface: 'renderer-canvas'
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(2)
   })
 
   it('uses the idle preview cadence after browser activity settles', async () => {

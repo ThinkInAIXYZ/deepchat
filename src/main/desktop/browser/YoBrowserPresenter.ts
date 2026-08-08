@@ -1355,7 +1355,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
         y: -10000,
         width: PREVIEW_VIEWPORT.width,
         height: PREVIEW_VIEWPORT.height,
-        show: true,
+        show: !isMac,
         fullscreenable: !isMac,
         opacity: 0,
         focusable: false,
@@ -1373,6 +1373,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       state.view.setBounds({ x: 0, y: 0, ...PREVIEW_VIEWPORT })
       state.view.setVisible(true)
       state.page.contents.setBackgroundThrottling(false)
+      if (isMac) {
+        host.showInactive()
+      }
       state.previewHost = host
       host.once('closed', () => {
         if (state.previewHost === host) {
@@ -1419,6 +1422,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       ])
       if (timeout) {
         clearTimeout(timeout)
+      }
+      if (state.previewCapture === capture) {
+        state.previewCapture = null
       }
     }
   }
