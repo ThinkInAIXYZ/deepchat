@@ -100,6 +100,7 @@ describe('MessageToolbar trace button visibility', () => {
 
     expect(toolbar.classes()).toContain('group-focus-within:opacity-100')
     expect(copyButton?.classes()).toContain('relative')
+    expect(copyButton?.attributes('size')).toBe(imageButton?.attributes('size'))
     expect(imageButton).toBeDefined()
     expect(imageButton?.classes()).toContain('relative')
     expect(imageButton?.attributes('aria-keyshortcuts')).toBe('Enter Space Shift+Enter Shift+Space')
