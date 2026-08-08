@@ -85,9 +85,9 @@ type HostWindowListeners = {
 }
 
 const PREVIEW_VIEWPORT = { width: 1280, height: 800 }
-const PREVIEW_FRAME = { width: 480, height: 300 }
-const PREVIEW_ACTIVE_INTERVAL_MS = 250
-const PREVIEW_IDLE_INTERVAL_MS = 1000
+const PREVIEW_FRAME = { width: 400, height: 250 }
+const PREVIEW_ACTIVE_INTERVAL_MS = 500
+const PREVIEW_IDLE_INTERVAL_MS = 2000
 const PREVIEW_MAX_BYTES = 512 * 1024
 
 export class YoBrowserPresenter implements IYoBrowserPresenter {
@@ -360,6 +360,22 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       this.emitPreviewSurface(state)
     }
     return dismissed
+  }
+
+  async releaseInactivePreview(sessionId: string): Promise<void> {
+    const state = this.sessionBrowsers.get(sessionId)
+    const runId = state?.agentRunId
+    if (!state || !runId) {
+      return
+    }
+
+    this.previewCoordinator.hide({ source: 'browser', sessionId, runId })
+    await this.stopPreviewCapture(state)
+    if (state.agentRunId !== runId) {
+      return
+    }
+    this.disposePreviewHost(state)
+    this.previewCoordinator.releaseClaim({ source: 'browser', sessionId, runId })
   }
 
   async destroySessionBrowser(sessionId: string): Promise<void> {
@@ -1333,12 +1349,14 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
     let host: BaseWindow | null = null
     try {
+      const isMac = process.platform === 'darwin'
       host = new BaseWindow({
         x: -10000,
         y: -10000,
         width: PREVIEW_VIEWPORT.width,
         height: PREVIEW_VIEWPORT.height,
-        show: true,
+        show: !isMac,
+        fullscreenable: !isMac,
         opacity: 0,
         focusable: false,
         skipTaskbar: true,

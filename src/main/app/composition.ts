@@ -1427,7 +1427,17 @@ export async function createMainProcessControl(dependencies: {
     toolService,
     hookObserver: hookService,
     publishEvent: publishDeepchatEvent,
-    publishSessionUpdate: (update) => sessionRuntimeEvents.publish(update),
+    publishSessionUpdate: (update) => {
+      sessionRuntimeEvents.publish(update)
+      if (update.kind === 'status' && (update.status === 'idle' || update.status === 'error')) {
+        void yoBrowserPresenter.releaseInactivePreview(update.sessionId).catch((error) => {
+          logger.warn('[YoBrowser] Failed to release inactive preview', {
+            sessionId: update.sessionId,
+            error
+          })
+        })
+      }
+    },
     providerCatalogPort,
     sessionPermissionPort,
     acpAsLlmProviderPermission: acpAsLlmProviderPermission,
@@ -1575,7 +1585,9 @@ export async function createMainProcessControl(dependencies: {
     },
     runtime: {
       cleanupSessionBackends: async (sessionId) =>
-        await agentManager.cleanupSessionBackends(sessionId)
+        await agentManager.cleanupSessionBackends(sessionId),
+      destroySessionBrowser: async (sessionId) =>
+        await yoBrowserPresenter.destroySessionBrowser(sessionId)
     },
     state: deepChatAgentHarness,
     permissions: sessionPermissionPort,

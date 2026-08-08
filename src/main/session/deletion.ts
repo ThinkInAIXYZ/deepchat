@@ -45,6 +45,12 @@ export class SessionDeletion implements SessionLifecycleDeletionPort {
       console.warn(`[SessionDeletion] backend cleanup failed for ${sessionId}:`, error)
     }
     try {
+      await this.dependencies.runtime.destroySessionBrowser(toAppSessionId(sessionId))
+    } catch (error) {
+      stageErrors.push({ stage: 'browser', error })
+      console.warn(`[SessionDeletion] browser cleanup failed for ${sessionId}:`, error)
+    }
+    try {
       await this.dependencies.orchestration.prepareSessionDeletion(sessionId)
     } catch (error) {
       stageErrors.push({ stage: 'orchestration', error })

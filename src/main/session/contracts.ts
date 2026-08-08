@@ -594,6 +594,7 @@ export interface SessionDeletionStorePort {
 
 export interface SessionDeletionRuntimePort {
   cleanupSessionBackends(sessionId: AppSessionId): Promise<void>
+  destroySessionBrowser(sessionId: AppSessionId): Promise<void>
 }
 
 export interface SessionDeletionOrchestrationPort {
