@@ -1016,6 +1016,7 @@
     "urlFormat": "API 샘플 : {defaultUrl}",
     "urlFormatFill": "API URL에 입력",
     "openaiResponsesNotice": "OpenAI 공식 서비스는 기본적으로 Responses API를 사용합니다. 서드파티 엔드포인트가 Chat Completions만 지원하는 경우 OpenAI Completions 공급자를 사용하세요.",
+    "amdDeveloperHint": "AMD GPU Cloud는 Radeon Token Factory를 통해 공개 모델 API를 제공합니다. 현재 사용 가능한 모델에 액세스하려면 AMD에서 API 키를 발급받으세요.",
     "modifyBaseUrl": "수정",
     "baseUrlLockedHint": "이 제공자는 잘못된 설정을 줄이기 위해 권장 기본 URL로 고정되어 있습니다.",
     "refreshModelsWithMetadataHint": "이 공급자를 새로 고치면 먼저 상위 메타데이터를 동기화한 뒤 로컬 모델 목록을 다시 구성합니다.",

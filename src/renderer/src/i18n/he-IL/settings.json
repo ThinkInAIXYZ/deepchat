@@ -881,6 +881,7 @@
     "urlFormat": "דוגמת API: {defaultUrl}",
     "urlFormatFill": "מילוי בכתובת ה-API",
     "openaiResponsesNotice": "OpenAI משתמשת כברירת מחדל ב-Responses API. אם endpoint של צד שלישי תומך רק ב-Chat Completions, השתמש בספק OpenAI Completions.",
+    "amdDeveloperHint": "AMD GPU Cloud מספק ממשקי API ציבוריים למודלים דרך Radeon Token Factory. יש לקבל מפתח API מ-AMD כדי לגשת למודלים הזמינים כעת.",
     "modifyBaseUrl": "ערוך",
     "baseUrlLockedHint": "הספק הזה נעול לכתובת הבסיס המומלצת כדי לצמצם שגיאות תצורה.",
     "refreshModelsWithMetadataHint": "רענון הספק הזה יסנכרן קודם את המטא־דאטה במעלה הזרם ולאחר מכן יבנה מחדש את רשימת המודלים המקומית.",

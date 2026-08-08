@@ -47,6 +47,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'amd-developer',
+    name: 'AMD GPU Cloud',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://developer.amd.com.cn/radeon/api/v1',
+    enable: false,
+    websites: {
+      official: 'https://developer.amd.com.cn/radeon/',
+      apiKey: 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat',
+      docs: 'https://developer.amd.com.cn/radeon/',
+      models: 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat',
+      defaultBaseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
+    }
+  },
+  {
     id: 'qiniu',
     name: 'Qiniu',
     apiType: 'openai-completions',

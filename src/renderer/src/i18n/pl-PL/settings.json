@@ -1235,6 +1235,7 @@
     "urlFormat": "API Przykład: {defaultUrl}",
     "urlFormatFill": "Wypełnij API URL",
     "openaiResponsesNotice": "OpenAI domyślnie odpowiada odpowiedziom API. Jeśli punkt końcowy innej firmy obsługuje tylko uzupełnienia czatu, użyj dostawcy uzupełnień OpenAI.",
+    "amdDeveloperHint": "AMD GPU Cloud udostępnia publiczne interfejsy API modeli za pośrednictwem Radeon Token Factory. Uzyskaj klucz API od AMD, aby korzystać z obecnie dostępnych modeli.",
     "modifyBaseUrl": "Modyfikuj",
     "baseUrlLockedHint": "Ten dostawca jest przypięty do zalecanej wersji Base URL, aby ograniczyć błędną konfigurację.",
     "refreshModelsWithMetadataHint": "Odświeżenie tego dostawcy spowoduje najpierw zsynchronizowanie metadanych nadrzędnych, a następnie odbudowanie listy modeli lokalnych.",

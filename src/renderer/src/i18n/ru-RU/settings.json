@@ -1016,6 +1016,7 @@
     "urlFormat": "Образец API: {defaultUrl}",
     "urlFormatFill": "Подставить в URL API",
     "openaiResponsesNotice": "OpenAI по умолчанию использует Responses API. Если сторонний endpoint поддерживает только Chat Completions, используйте провайдера OpenAI Completions.",
+    "amdDeveloperHint": "AMD GPU Cloud предоставляет общедоступные API моделей через Radeon Token Factory. Получите API-ключ у AMD, чтобы обращаться к доступным в данный момент моделям.",
     "modifyBaseUrl": "Изменить",
     "baseUrlLockedHint": "Этот провайдер закреплён за рекомендуемым базовым URL, чтобы снизить риск ошибочной настройки.",
     "refreshModelsWithMetadataHint": "Обновление этого провайдера сначала синхронизирует метаданные из upstream, а затем пересоберёт локальный список моделей.",

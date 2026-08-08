@@ -881,6 +881,7 @@
     "urlFormat": "API例：{defaultUrl}",
     "urlFormatFill": "API URL に入力",
     "openaiResponsesNotice": "OpenAI 公式サービスはデフォルトで Responses API を使用します。サードパーティのエンドポイントが Chat Completions のみをサポートしている場合は、OpenAI Completions プロバイダーを使用してください。",
+    "amdDeveloperHint": "AMD GPU Cloud は Radeon Token Factory を通じて公開モデル API を提供します。現在利用可能なモデルにアクセスするには、AMD から API キーを取得してください。",
     "modifyBaseUrl": "変更",
     "baseUrlLockedHint": "このプロバイダーは設定ミスを減らすため、推奨されるベースURLに固定されています。",
     "refreshModelsWithMetadataHint": "このプロバイダーを更新すると、まず上流メタデータを同期し、その後ローカルのモデル一覧を再構築します。",

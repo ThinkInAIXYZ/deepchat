@@ -802,6 +802,7 @@
     "urlFormat": "API-eksempel: {defaultUrl}",
     "urlFormatFill": "Udfyld API-URL",
     "openaiResponsesNotice": "OpenAI bruger som standard Responses API. Hvis et tredjeparts-endpoint kun understøtter Chat Completions, skal du bruge OpenAI Completions-udbyderen.",
+    "amdDeveloperHint": "AMD GPU Cloud leverer offentlige model-API'er via Radeon Token Factory. Hent en API-nøgle fra AMD for at få adgang til de modeller, der er tilgængelige i øjeblikket.",
     "modifyBaseUrl": "Rediger",
     "baseUrlLockedHint": "Denne udbyder er låst til den anbefalede basis-URL for at mindske fejlkonfiguration.",
     "refreshModelsWithMetadataHint": "Opdatering af denne udbyder synkroniserer først upstream-metadata og genopbygger derefter den lokale modelliste.",

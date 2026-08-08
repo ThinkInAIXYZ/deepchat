@@ -1236,6 +1236,7 @@
     "urlFormat": "API örneği: {defaultUrl}",
     "urlFormatFill": "API URL alanını doldurun",
     "openaiResponsesNotice": "OpenAI varsayılan olarak Responses API değerine sahiptir. Üçüncü taraf uç noktası yalnızca Chat Completions'yi destekliyorsa OpenAI Completions sağlayıcısını kullanın.",
+    "amdDeveloperHint": "AMD GPU Cloud, Radeon Token Factory üzerinden genel kullanıma açık model API'leri sunar. Şu anda kullanılabilen modellere erişmek için AMD'den bir API anahtarı alın.",
     "modifyBaseUrl": "Değiştir",
     "baseUrlLockedHint": "Bu sağlayıcı, yanlış yapılandırmayı azaltmak için önerilen Base URL'ye sabitlenmiştir.",
     "refreshModelsWithMetadataHint": "Bu sağlayıcının yenilenmesi, önce yukarı akış meta verilerini senkronize edecek, ardından yerel model listesini yeniden oluşturacaktır.",

@@ -131,6 +131,13 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'amd-developer',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key'
+    })
+  ],
+  [
     'alibaba-token-plan',
     createDefinition({
       ...ENGLISH_SUMMARY_OPENAI,

@@ -1236,6 +1236,7 @@
     "urlFormat": "API-Beispiel: {defaultUrl}",
     "urlFormatFill": "In API URL einfügen",
     "openaiResponsesNotice": "Der offizielle OpenAI-Dienst verwendet standardmäßig die Responses API; wenn ein Drittanbieter nur Chat Completions unterstützt, verwenden Sie den OpenAI Completions provider.",
+    "amdDeveloperHint": "AMD GPU Cloud stellt öffentliche Modell-APIs über Radeon Token Factory bereit. Rufen Sie bei AMD einen API-Schlüssel ab, um auf die derzeit verfügbaren Modelle zuzugreifen.",
     "modifyBaseUrl": "Ändern",
     "baseUrlLockedHint": "Dieser provider-Typ ist standardmäßig auf die empfohlene Base URL festgelegt, um Fehlkonfigurationen zu vermeiden.",
     "refreshModelsWithMetadataHint": "Beim Aktualisieren dieses Anbieters werden zuerst Upstream-Metadaten synchronisiert und dann die lokale Modellliste neu erstellt.",

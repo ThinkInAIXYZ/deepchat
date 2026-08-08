@@ -1236,6 +1236,7 @@
     "urlFormat": "Sampel API: {defaultUrl}",
     "urlFormatFill": "pad kepada API URL",
     "openaiResponsesNotice": "Perkhidmatan rasmi OpenAI menggunakan Responses API secara lalai; jika pihak ketiga hanya menyokong Chat Completions, sila gunakan pembekal perkhidmatan OpenAI Completions.",
+    "amdDeveloperHint": "AMD GPU Cloud menyediakan API model awam melalui Radeon Token Factory. Dapatkan kunci API daripada AMD untuk mengakses model yang tersedia pada masa ini.",
     "modifyBaseUrl": "Semak semula",
     "baseUrlLockedHint": "Jenis provider ini ditetapkan pada Base URL yang disyorkan secara lalai untuk mengelakkan pengubahsuaian yang salah yang menyebabkan pengecualian permintaan.",
     "refreshModelsWithMetadataHint": "Apabila menyegarkan penyedia perkhidmatan, metadata huluan akan disegerakkan dahulu, dan kemudian senarai model tempatan akan dibina semula.",

@@ -2,6 +2,25 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 
 describe('DEFAULT_PROVIDERS', () => {
+  it('includes AMD GPU Cloud as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'amd-developer',
+        name: 'AMD GPU Cloud',
+        apiType: 'openai-completions',
+        baseUrl: 'https://developer.amd.com.cn/radeon/api/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://developer.amd.com.cn/radeon/',
+          apiKey: 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat',
+          docs: 'https://developer.amd.com.cn/radeon/',
+          models: 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat',
+          defaultBaseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
+        })
+      })
+    )
+  })
+
   it('includes OrcaRouter as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

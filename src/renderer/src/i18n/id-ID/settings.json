@@ -1236,6 +1236,7 @@
     "urlFormat": "API contoh: {defaultUrl}",
     "urlFormatFill": "Isi ke API URL",
     "openaiResponsesNotice": "OpenAI Layanan resmi menggunakan Responses API secara default; jika pihak ketiga hanya mendukung Penyelesaian Obrolan, silakan gunakan penyedia layanan Penyelesaian OpenAI.",
+    "amdDeveloperHint": "AMD GPU Cloud menyediakan API model publik melalui Radeon Token Factory. Dapatkan kunci API dari AMD untuk mengakses model yang tersedia saat ini.",
     "modifyBaseUrl": "Ubah",
     "baseUrlLockedHint": "Jenis provider ini ditetapkan ke Base URL yang direkomendasikan secara default untuk menghindari modifikasi yang salah yang menyebabkan pengecualian permintaan.",
     "refreshModelsWithMetadataHint": "Saat menyegarkan penyedia layanan, metadata upstream akan disinkronkan terlebih dahulu, dan kemudian daftar model lokal akan dibuat ulang.",

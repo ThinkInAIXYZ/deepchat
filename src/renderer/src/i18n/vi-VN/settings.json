@@ -1235,6 +1235,7 @@
     "urlFormat": "API Ví dụ: {defaultUrl}",
     "urlFormatFill": "Điền vào API URL",
     "openaiResponsesNotice": "OpenAI mặc định là Phản hồi API. Nếu điểm cuối của bên thứ ba chỉ hỗ trợ Hoàn thành trò chuyện, hãy sử dụng nhà cung cấp Hoàn thành OpenAI.",
+    "amdDeveloperHint": "AMD GPU Cloud cung cấp các API mô hình công khai thông qua Radeon Token Factory. Hãy lấy khóa API từ AMD để truy cập các mô hình hiện có.",
     "modifyBaseUrl": "sửa đổi",
     "baseUrlLockedHint": "Nhà cung cấp này được ghim vào Base URL được đề xuất để giảm cấu hình sai.",
     "refreshModelsWithMetadataHint": "Việc làm mới nhà cung cấp này sẽ đồng bộ hóa siêu dữ liệu ngược dòng trước, sau đó xây dựng lại danh sách mô hình cục bộ.",
