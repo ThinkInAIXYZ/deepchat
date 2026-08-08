@@ -1744,6 +1744,12 @@ describe('ToolService', () => {
       'Ask exactly one question per `deepchat_question` call. If multiple clarifications are needed, split them into multiple tool calls.'
     )
     expect(withQuestion).toContain(
+      'Each `options` item must be `{ "label": string, "description"?: string }`.'
+    )
+    expect(withQuestion).toContain(
+      'Use `header` only as the optional top-level question title, never inside `options`.'
+    )
+    expect(withQuestion).toContain(
       'Do not send `questions`, `allowOther`, or stringified `options` JSON.'
     )
   })
@@ -1916,9 +1922,40 @@ describe('ToolService', () => {
     expect((questionDef?.function.parameters as any)?.properties?.options?.description).toContain(
       'Do not pass a stringified JSON array.'
     )
+    expect(
+      (questionDef?.function.parameters as any)?.properties?.options?.items?.properties?.label
+        ?.description
+    ).toContain('Use `label`, not `header`')
+    expect(
+      (questionDef?.function.parameters as any)?.properties?.options?.items?.required
+    ).toContain('label')
     expect((questionDef?.function.parameters as any)?.properties?.custom?.description).toContain(
       'The field name is `custom`, not `allowOther`.'
     )
+
+    await expect(
+      toolService.callTool({
+        id: 'tool-alias',
+        type: 'function',
+        function: {
+          name: 'deepchat_question',
+          arguments: JSON.stringify({
+            question: 'Pick one',
+            options: [{ header: 'Option A', description: 'First option' }]
+          })
+        },
+        conversationId: 'conv-1'
+      })
+    ).resolves.toMatchObject({
+      rawData: {
+        toolResult: {
+          question: 'Pick one',
+          options: [{ label: 'Option A', description: 'First option' }],
+          multiple: false,
+          custom: true
+        }
+      }
+    })
 
     await expect(
       toolService.callTool({
@@ -1938,7 +1975,7 @@ describe('ToolService', () => {
         conversationId: 'conv-1'
       })
     ).rejects.toThrow(
-      'Use a single object with `header?`, `question`, `options`, `multiple?`, and `custom?`.'
+      'Use a single object with fields `header?`, `question`, `options`, `multiple?`, and `custom?`.'
     )
   })
 

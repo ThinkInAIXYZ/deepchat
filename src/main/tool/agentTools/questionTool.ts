@@ -4,7 +4,7 @@ import type { QuestionInfo } from '@shared/types/core/question'
 
 export const QUESTION_TOOL_NAME = 'deepchat_question'
 export const QUESTION_TOOL_CONTRACT_HINT =
-  'Use a single object with fields `header?`, `question`, `options`, `multiple?`, and `custom?`. Ask exactly one question per tool call. Use `custom`, not `allowOther`, and pass `options` as an array of option objects, not a stringified JSON array.'
+  'Use a single object with fields `header?`, `question`, `options`, `multiple?`, and `custom?`. Each `options` item must use `label` and optional `description`; `header` is only for the top-level question. Ask exactly one question per tool call. Use `custom`, not `allowOther`, and pass `options` as an array of option objects, not a stringified JSON array.'
 
 const questionOptionSchema = z.object({
   label: z
@@ -12,7 +12,9 @@ const questionOptionSchema = z.object({
     .trim()
     .min(1)
     .max(30)
-    .describe('Short option label shown to the user. Keep it concise and concrete.'),
+    .describe(
+      'Required short option label shown to the user. Use `label`, not `header`, inside each option.'
+    ),
   description: z
     .string()
     .trim()
@@ -28,7 +30,9 @@ export const questionToolSchema = z
       .trim()
       .max(30)
       .optional()
-      .describe('Optional short title for this single question.'),
+      .describe(
+        'Optional short title for this single question. Use `header` only here; option objects use `label`.'
+      ),
     question: z
       .string()
       .trim()
@@ -42,7 +46,7 @@ export const questionToolSchema = z
       .min(1)
       .max(10)
       .describe(
-        'Array of option objects for this one question. Do not pass a stringified JSON array. Usually 2-5 options is best.'
+        'Array of `{ label: string, description?: string }` objects for this one question. Never use `header` inside an option. Do not pass a stringified JSON array. Usually 2-5 options is best.'
       ),
     multiple: z
       .boolean()
@@ -65,6 +69,32 @@ export const questionToolSchema = z
 
 export type QuestionToolInput = z.infer<typeof questionToolSchema>
 
+type QuestionToolParseResult =
+  | { success: true; data: QuestionInfo }
+  | { success: false; error: string }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const normalizeQuestionOptionAliases = (input: unknown): unknown => {
+  if (!isRecord(input) || !Array.isArray(input.options)) {
+    return input
+  }
+
+  let changed = false
+  const options = input.options.map((option) => {
+    if (!isRecord(option) || Object.hasOwn(option, 'label') || typeof option.header !== 'string') {
+      return option
+    }
+
+    const { header, ...rest } = option
+    changed = true
+    return { ...rest, label: header }
+  })
+
+  return changed ? { ...input, options } : input
+}
+
 const normalizeQuestionInfo = (input: QuestionToolInput): QuestionInfo => {
   const header = input.header?.trim()
   const question = input.question.trim()
@@ -85,9 +115,19 @@ const normalizeQuestionInfo = (input: QuestionToolInput): QuestionInfo => {
   }
 }
 
-export const parseQuestionToolArgs = (
-  rawArgs: string
-): { success: true; data: QuestionInfo } | { success: false; error: string } => {
+export const parseQuestionToolInput = (input: unknown): QuestionToolParseResult => {
+  const result = questionToolSchema.safeParse(normalizeQuestionOptionAliases(input))
+  if (!result.success) {
+    return {
+      success: false,
+      error: `Invalid arguments for ${QUESTION_TOOL_NAME}. ${QUESTION_TOOL_CONTRACT_HINT} Validation details: ${result.error.message}`
+    }
+  }
+
+  return { success: true, data: normalizeQuestionInfo(result.data) }
+}
+
+export const parseQuestionToolArgs = (rawArgs: string): QuestionToolParseResult => {
   let parsed: unknown = {}
   if (rawArgs && rawArgs.trim()) {
     try {
@@ -104,13 +144,5 @@ export const parseQuestionToolArgs = (
     }
   }
 
-  const result = questionToolSchema.safeParse(parsed)
-  if (!result.success) {
-    return {
-      success: false,
-      error: `Invalid arguments for ${QUESTION_TOOL_NAME}. ${QUESTION_TOOL_CONTRACT_HINT} Validation details: ${result.error.message}`
-    }
-  }
-
-  return { success: true, data: normalizeQuestionInfo(result.data) }
+  return parseQuestionToolInput(parsed)
 }

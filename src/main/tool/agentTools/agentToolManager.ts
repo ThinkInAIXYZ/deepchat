@@ -25,7 +25,7 @@ import {
 import { FffSearchService, type FffSearchMetadata } from '@/platform/fileSearch/fffSearchService'
 import { SkillTools } from '../../skill/skillTools'
 import { SkillExecutionService } from '../../skill/skillExecutionService'
-import { questionToolSchema, QUESTION_TOOL_NAME } from './questionTool'
+import { parseQuestionToolInput, questionToolSchema, QUESTION_TOOL_NAME } from './questionTool'
 import {
   ChatSettingsToolHandler,
   buildChatSettingsToolDefinitions,
@@ -579,18 +579,16 @@ export class AgentToolManager {
     }
 
     if (toolName === QUESTION_TOOL_NAME) {
-      const validationResult = questionToolSchema.safeParse(args)
-      if (!validationResult.success) {
-        throw new Error(
-          `Invalid arguments for ${QUESTION_TOOL_NAME}. Use a single object with \`header?\`, \`question\`, \`options\`, \`multiple?\`, and \`custom?\`. Ask exactly one question per tool call. Do not use \`questions\` or \`allowOther\`, and do not pass stringified \`options\` JSON. Validation details: ${validationResult.error.message}`
-        )
+      const parsedQuestion = parseQuestionToolInput(args)
+      if (!parsedQuestion.success) {
+        throw new Error(parsedQuestion.error)
       }
       return {
         content: 'question_requested',
         rawData: {
           content: 'question_requested',
           isError: false,
-          toolResult: validationResult.data
+          toolResult: parsedQuestion.data
         }
       }
     }
