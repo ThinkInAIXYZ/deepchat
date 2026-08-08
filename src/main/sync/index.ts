@@ -43,10 +43,14 @@ const MIGRATED_APP_SETTINGS_KEYS = new Set([
   'customPrompts',
   'systemPrompts'
 ])
-// Cloud sync credentials are machine-local (secret encrypted via safeStorage). They must never
-// travel inside a backup: the secret can't be decrypted on another machine, and importing a
-// foreign machine's cloud config would clobber the local one. Stripped on backup, preserved on import.
-const CLOUD_SYNC_APP_SETTINGS_KEYS = ['cloudSyncConfig', 'cloudSyncSecret'] as const
+// These values are meaningful only on the machine that created them. Cloud secrets cannot be
+// decrypted elsewhere, and executable paths must not overwrite another device's local selection.
+// Strip them from backups and preserve the receiving machine's values on import.
+const MACHINE_LOCAL_APP_SETTINGS_KEYS = [
+  'cloudSyncConfig',
+  'cloudSyncSecret',
+  'agentCommandShell'
+] as const
 const KNOWN_IMPORT_ERRORS = new Set([
   'sync.error.noValidBackup',
   'sync.error.unsupportedBackupVersion',
@@ -421,7 +425,7 @@ export class SyncService {
           } else {
             configImportService.importLegacyConfig(extractionDir, 'overwrite')
           }
-          this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+          this.mergeAppSettingsPreservingMachineLocal(backupAppSettingsPath, this.APP_SETTINGS_PATH)
 
           if (fs.existsSync(backupCustomPromptsPath)) {
             this.copyFile(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
@@ -456,7 +460,7 @@ export class SyncService {
           } else {
             configImportService.importLegacyConfig(extractionDir, 'increment')
           }
-          this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+          this.mergeAppSettingsPreservingMachineLocal(backupAppSettingsPath, this.APP_SETTINGS_PATH)
           if (fs.existsSync(backupCustomPromptsPath)) {
             this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
           }
@@ -478,7 +482,7 @@ export class SyncService {
           extractionDir,
           importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
         )
-        this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+        this.mergeAppSettingsPreservingMachineLocal(backupAppSettingsPath, this.APP_SETTINGS_PATH)
         if (fs.existsSync(backupCustomPromptsPath)) {
           this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
         }
@@ -772,7 +776,7 @@ export class SyncService {
         if (MIGRATED_APP_SETTINGS_KEYS.has(key)) {
           return false
         }
-        if ((CLOUD_SYNC_APP_SETTINGS_KEYS as readonly string[]).includes(key)) {
+        if ((MACHINE_LOCAL_APP_SETTINGS_KEYS as readonly string[]).includes(key)) {
           return false
         }
         if (key.startsWith('model_status_') || key.startsWith('custom_models_')) {
@@ -926,12 +930,12 @@ export class SyncService {
       }
       return parsed as Record<string, unknown>
     } catch (error) {
-      console.error('Failed to read settings file for cloud config preservation:', error)
+      console.error('Failed to read settings file for machine-local setting preservation:', error)
       throw new Error('sync.error.importFailed')
     }
   }
 
-  private mergeAppSettingsPreservingSync(backupPath: string, targetPath: string): void {
+  private mergeAppSettingsPreservingMachineLocal(backupPath: string, targetPath: string): void {
     if (!fs.existsSync(backupPath)) {
       return
     }
@@ -961,10 +965,9 @@ export class SyncService {
     preservedSettings.syncFolderPath = this.settings.getFolderPath()
     preservedSettings.lastSyncTime = this.settings.getLastSyncTime()
 
-    // Keep the local machine's cloud credentials — a backup never carries them (see
-    // CLOUD_SYNC_APP_SETTINGS_KEYS), so read them back from the current target file before overwrite.
+    // A backup never carries machine-local settings, so restore them from the receiving target.
     const localSettings = this.readSettingsFile(targetPath)
-    for (const key of CLOUD_SYNC_APP_SETTINGS_KEYS) {
+    for (const key of MACHINE_LOCAL_APP_SETTINGS_KEYS) {
       if (localSettings && key in localSettings) {
         preservedSettings[key] = localSettings[key]
       }

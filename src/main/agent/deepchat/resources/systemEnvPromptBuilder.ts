@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 import logger from '@shared/logger'
+import type { ResolvedCommandShell } from '@shared/commandShell'
 import type { ProviderCatalogPort } from '@/provider/ports'
 
 export interface BuildSystemEnvPromptOptions {
@@ -10,6 +11,7 @@ export interface BuildSystemEnvPromptOptions {
   platform?: NodeJS.Platform
   now?: Date
   agentsFilePath?: string
+  commandShell: ResolvedCommandShell
   modelLookup?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
 }
 
@@ -22,6 +24,7 @@ export interface RuntimeCapabilitiesPromptOptions {
 const SYSTEM_ENV_SLOW_STEP_MS = 500
 const AGENTS_READ_BUDGET_MS = 200
 const AGENTS_CACHE_TTL_MS = 30_000
+const MAX_SHELL_DISPLAY_NAME_CHARS = 128
 
 type AgentsCacheEntry = {
   content: string
@@ -91,6 +94,28 @@ function resolveWorkdir(workdir?: string | null): string {
     return path.resolve(normalized)
   }
   return process.cwd()
+}
+
+function sanitizeShellDisplayName(value: string): string {
+  const trimmed = value.trim()
+  return /^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(trimmed)
+    ? trimmed.slice(0, MAX_SHELL_DISPLAY_NAME_CHARS)
+    : ''
+}
+
+export function buildCommandShellPromptLine(commandShell: ResolvedCommandShell): string {
+  switch (commandShell.profile) {
+    case 'windows-powershell':
+      return 'Shell: Windows PowerShell. It does not support && or ||; use ; for unconditional sequential execution.'
+    case 'cmd':
+      return 'Shell: Command Prompt. It supports && and ||.'
+    case 'git-bash':
+      return 'Shell: Git Bash using POSIX syntax. Use Windows-native paths with file tools; MSYS drive paths such as /c/... are for shell commands.'
+    case 'posix': {
+      const displayName = sanitizeShellDisplayName(commandShell.displayName) || 'POSIX shell'
+      return `Shell: ${displayName}.`
+    }
+  }
 }
 
 function isGitRepository(workdir: string): boolean {
@@ -221,9 +246,7 @@ export function buildRuntimeCapabilitiesPrompt(
   return lines.length > 1 ? lines.join('\n') : ''
 }
 
-export async function buildSystemEnvPrompt(
-  options: BuildSystemEnvPromptOptions = {}
-): Promise<string> {
+export async function buildSystemEnvPrompt(options: BuildSystemEnvPromptOptions): Promise<string> {
   const now = options.now ?? new Date()
   const platform = options.platform ?? process.platform
   const workdir = resolveWorkdir(options.workdir)
@@ -252,6 +275,7 @@ export async function buildSystemEnvPrompt(
     `Working directory: ${workdir}`,
     `Is directory a git repo: ${isGitRepo ? 'yes' : 'no'}`,
     `Platform: ${platform}`,
+    buildCommandShellPromptLine(options.commandShell),
     `Today's date: ${now.toDateString()}`,
     '</env>'
   ]

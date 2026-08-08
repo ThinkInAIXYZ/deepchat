@@ -16,6 +16,7 @@ import {
   SessionStatusPublisher,
   type SessionStatusPublisherPorts
 } from '@/agent/deepchat/runtime/sessionStatusPublisher'
+import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 const SESSION_ID = 'session'
 
@@ -41,7 +42,7 @@ function createRun(
     abortController,
     messages: [],
     streamState: {},
-    resources: { toolDefinitions: [], activeSkillNames: [] }
+    resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL }
   })
 }
 

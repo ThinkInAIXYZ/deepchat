@@ -15,6 +15,7 @@ import type { SessionPermissionPort, SessionUiPort } from '@/session/contracts'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import type { CommandShellService } from '@/agent/shared/process/commandShellService'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryIngestionProjection } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { CompactionRuntimeCoordinator } from '@/agent/deepchat/runtime/compactionRuntimeCoordinator'
@@ -71,6 +72,7 @@ export interface DeepChatHarnessDependencies {
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
   attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
   interactionContinuationAdmission: InteractionContinuationAdmissionPort
+  commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
 }
 
 /**

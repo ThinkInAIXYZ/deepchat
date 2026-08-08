@@ -47,6 +47,7 @@ import { createState } from '@/agent/deepchat/runtime/types'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
+import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
@@ -746,6 +747,7 @@ function createRuntimeDependencies(
     sessionPermissionPort?: {
       clearSessionPermissions: ReturnType<typeof vi.fn>
       approvePermission: ReturnType<typeof vi.fn>
+      revokeOneShotCommandPermission: ReturnType<typeof vi.fn>
     }
     resolveAgentPermission?: ReturnType<typeof vi.fn>
     traceSettings?: { isEnabled(): boolean }
@@ -769,7 +771,8 @@ function createRuntimeDependencies(
     },
     sessionPermissionPort: options.sessionPermissionPort ?? {
       clearSessionPermissions: vi.fn(),
-      approvePermission: vi.fn().mockResolvedValue(undefined)
+      approvePermission: vi.fn().mockResolvedValue('command-grant-default'),
+      revokeOneShotCommandPermission: vi.fn()
     },
     acpAsLlmProviderPermission: {
       resolveAgentPermission: options.resolveAgentPermission ?? vi.fn().mockResolvedValue(undefined)
@@ -797,6 +800,10 @@ function createRuntimeDependencies(
     interactionContinuationAdmission: options.interactionContinuationAdmission ?? {
       resume: vi.fn().mockResolvedValue(false),
       suspend: vi.fn()
+    },
+    commandShell: {
+      resolveForTurn: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL),
+      resolveProfile: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL)
     }
   }
 }
@@ -910,6 +917,7 @@ describe('DeepChatAgentHarness', () => {
   let sessionPermissionPort: {
     clearSessionPermissions: ReturnType<typeof vi.fn>
     approvePermission: ReturnType<typeof vi.fn>
+    revokeOneShotCommandPermission: ReturnType<typeof vi.fn>
   }
   let agent: DeepChatAgentHarness
   let runtimeDependencies: ReturnType<typeof createRuntimeDependencies>
@@ -1074,6 +1082,9 @@ describe('DeepChatAgentHarness', () => {
     params?: string
     serverName?: string
     permissionType?: string
+    command?: string
+    commandSignature?: string
+    shellProfile?: 'posix' | 'cmd' | 'windows-powershell' | 'git-bash'
   }) => {
     const messageId = input.messageId ?? 'm1'
     const toolCallId = input.toolCallId ?? 'tc1'
@@ -1108,6 +1119,9 @@ describe('DeepChatAgentHarness', () => {
               permissionType: input.permissionType ?? 'write',
               description: 'Need permission',
               toolName: input.toolName,
+              ...(input.command ? { command: input.command } : {}),
+              ...(input.commandSignature ? { commandSignature: input.commandSignature } : {}),
+              ...(input.shellProfile ? { shellProfile: input.shellProfile } : {}),
               ...(input.serverName ? { serverName: input.serverName } : {})
             })
           }
@@ -1175,7 +1189,8 @@ describe('DeepChatAgentHarness', () => {
     toolService = createMockToolService()
     sessionPermissionPort = {
       clearSessionPermissions: vi.fn(),
-      approvePermission: vi.fn().mockResolvedValue(undefined)
+      approvePermission: vi.fn().mockResolvedValue('command-grant-default'),
+      revokeOneShotCommandPermission: vi.fn()
     }
     hookDispatcher = { dispatchEvent: vi.fn() }
     sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
@@ -7298,7 +7313,11 @@ describe('DeepChatAgentHarness', () => {
           abortController: controller,
           messages: [],
           streamState: createState(),
-          resources: { toolDefinitions: [], activeSkillNames: [] }
+          resources: {
+            toolDefinitions: [],
+            activeSkillNames: [],
+            commandShell: POSIX_COMMAND_SHELL
+          }
         })
       )
 
@@ -10413,7 +10432,7 @@ describe('DeepChatAgentHarness', () => {
         abortController,
         messages: [],
         streamState,
-        resources: { toolDefinitions: [], activeSkillNames: [] }
+        resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL }
       })
       instance.registerActiveGeneration(run)
       setRuntimeStatus(agent, 's1', 'generating')
@@ -12787,6 +12806,40 @@ describe('DeepChatAgentHarness', () => {
       )
       expect(getRuntimeState(agent, 's1').status).toBe('error')
     })
+
+    it('revokes a deferred command grant when approval completion observes cancellation', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const row = installPendingPermission({
+        toolName: 'exec',
+        params: '{"command":"npm test"}',
+        permissionType: 'command',
+        command: 'npm test',
+        commandSignature: 'posix:npm test',
+        shellProfile: 'posix'
+      })
+      const { abortController } = registerActiveInteractionRun(
+        'm1',
+        JSON.parse(row.content) as AssistantMessageBlock[]
+      )
+      sessionPermissionPort.approvePermission.mockImplementationOnce(async () => {
+        abortController.abort()
+        return 'command-grant-cancelled'
+      })
+      const executeDeferredToolCallSpy = vi.spyOn(DeferredToolExecutor.prototype, 'execute')
+
+      try {
+        await expect(approvePendingTool()).resolves.toEqual({ resumed: false })
+
+        expect(sessionPermissionPort.revokeOneShotCommandPermission).toHaveBeenCalledWith(
+          's1',
+          'posix:npm test',
+          'command-grant-cancelled'
+        )
+        expect(executeDeferredToolCallSpy).not.toHaveBeenCalled()
+      } finally {
+        executeDeferredToolCallSpy.mockRestore()
+      }
+    })
   })
 
   describe('permission mode', () => {
@@ -13195,7 +13248,9 @@ describe('DeepChatAgentHarness', () => {
                 permissionType: 'command',
                 description: 'Need permission',
                 toolName: 'run_shell',
-                command: 'dir'
+                command: 'dir',
+                commandSignature: 'posix:test-signature',
+                shellProfile: 'posix'
               })
             }
           }
@@ -13235,6 +13290,29 @@ describe('DeepChatAgentHarness', () => {
             error: 'terminal failure'
           })
         )
+      } finally {
+        executeDeferredToolCallSpy.mockRestore()
+      }
+    })
+
+    it('fails closed when a deferred command approval lacks its shell identity', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'run_shell',
+        params: '{"command":"dir"}',
+        permissionType: 'command'
+      })
+      const executeDeferredToolCallSpy = vi.spyOn(DeferredToolExecutor.prototype, 'execute')
+
+      try {
+        await expect(
+          agent.respondToolInteraction('s1', 'm1', 'tc1', {
+            kind: 'permission',
+            granted: true
+          })
+        ).rejects.toThrow('Command approval is missing a valid shell profile and signature.')
+        expect(sessionPermissionPort.approvePermission).not.toHaveBeenCalled()
+        expect(executeDeferredToolCallSpy).not.toHaveBeenCalled()
       } finally {
         executeDeferredToolCallSpy.mockRestore()
       }

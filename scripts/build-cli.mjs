@@ -21,6 +21,12 @@ runtime_node="$script_dir/../runtime/node/bin/node"
 if [ ! -x "$runtime_node" ]; then
   runtime_node="$script_dir/../../runtime/node/bin/node"
 fi
+if [ ! -x "$runtime_node" ]; then
+  runtime_node="$script_dir/../runtime/node/node.exe"
+fi
+if [ ! -x "$runtime_node" ]; then
+  runtime_node="$script_dir/../../runtime/node/node.exe"
+fi
 cli_module="$script_dir/deepchat.mjs"
 if [ -x "$runtime_node" ] && [ -f "$cli_module" ]; then
   exec "$runtime_node" "$cli_module" "$@"

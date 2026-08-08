@@ -1,10 +1,12 @@
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
 
 export interface LoopRunResources {
   toolDefinitions: MCPToolDefinition[]
   activeSkillNames: string[]
+  commandShell: ResolvedCommandShell
 }
 
 export interface LoopRunProviderRecovery {
@@ -38,6 +40,7 @@ export interface CreateLoopRunInput<TStreamState> {
   resources: {
     toolDefinitions: readonly MCPToolDefinition[]
     activeSkillNames: readonly string[]
+    commandShell: ResolvedCommandShell
   }
   initialRequestSeq?: number
   initialLogicalRound?: number
@@ -52,6 +55,11 @@ export function createLoopRun<TStreamState>(
   input: CreateLoopRunInput<TStreamState>
 ): LoopRun<TStreamState> {
   const initialRequestSeq = normalizeInitialCounter(input.initialRequestSeq)
+  const parsedCommandShell = ResolvedCommandShellSchema.parse(input.resources.commandShell)
+  const commandShell = Object.freeze({
+    ...parsedCommandShell,
+    args: Object.freeze([...parsedCommandShell.args])
+  }) as ResolvedCommandShell
   return {
     runId: input.runId,
     sessionId: input.sessionId,
@@ -66,7 +74,8 @@ export function createLoopRun<TStreamState>(
     streamState: input.streamState,
     resources: {
       toolDefinitions: [...input.resources.toolDefinitions],
-      activeSkillNames: [...input.resources.activeSkillNames]
+      activeSkillNames: [...input.resources.activeSkillNames],
+      commandShell
     },
     providerRecovery: {
       contextOverflowHandoffAttempted: false,

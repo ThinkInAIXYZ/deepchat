@@ -4,6 +4,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
+import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
 import * as sessionVisionResolverModule from '@/agent/vision/sessionVisionResolver'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
@@ -239,13 +240,19 @@ describe('AgentToolManager read routing', () => {
   it('requests permission for external reads in default access mode', async () => {
     const externalFile = path.join(path.parse(workspaceDir).root, 'deepchat-outside-default.txt')
 
-    const permission = await manager.preCheckToolPermission('read', { path: externalFile }, 'conv1')
+    const permission = await manager.preCheckToolPermission(
+      'read',
+      { path: externalFile },
+      'conv1',
+      { commandShell: POSIX_COMMAND_SHELL }
+    )
 
     expect(permission).toEqual(
       expect.objectContaining({
         needsPermission: true,
         permissionType: 'read',
-        paths: [externalFile]
+        paths: [externalFile],
+        shellProfile: 'posix'
       })
     )
   })

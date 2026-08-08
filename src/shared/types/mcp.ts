@@ -270,6 +270,7 @@ export interface MCPToolResponse {
     description: string
     command?: string
     commandSignature?: string
+    shellProfile?: import('../commandShell').CommandShellProfile
     commandInfo?: {
       command: string
       riskLevel: 'low' | 'medium' | 'high' | 'critical'

@@ -6,6 +6,7 @@ import {
   enterLogicalRound,
   enterPhysicalAttempt
 } from '@/agent/deepchat/loop/loopRun'
+import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 function createRun(sessionId: string, initialRequestSeq = 0) {
   return createLoopRun({
@@ -17,7 +18,8 @@ function createRun(sessionId: string, initialRequestSeq = 0) {
     streamState: { blocks: [] as string[] },
     resources: {
       toolDefinitions: [],
-      activeSkillNames: [`${sessionId}-skill`]
+      activeSkillNames: [`${sessionId}-skill`],
+      commandShell: POSIX_COMMAND_SHELL
     },
     initialRequestSeq,
     startedAt: 100
@@ -25,6 +27,27 @@ function createRun(sessionId: string, initialRequestSeq = 0) {
 }
 
 describe('LoopRun', () => {
+  it('rejects a missing or contradictory command shell contract', () => {
+    expect(() =>
+      createLoopRun({
+        runId: 'invalid-shell',
+        sessionId: toAppSessionId('session'),
+        messageId: 'message',
+        abortController: new AbortController(),
+        messages: [],
+        streamState: {},
+        resources: {
+          toolDefinitions: [],
+          activeSkillNames: [],
+          commandShell: {
+            ...POSIX_COMMAND_SHELL,
+            dialect: 'powershell'
+          } as never
+        }
+      })
+    ).toThrow()
+  })
+
   it('keeps mutable turn state isolated between sessions', () => {
     const first = createRun('first')
     const second = createRun('second')
@@ -76,7 +99,7 @@ describe('LoopRun', () => {
         abortController: new AbortController(),
         messages: [],
         streamState: {},
-        resources: { toolDefinitions: [], activeSkillNames: [] },
+        resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL },
         initialLogicalRound: 3
       }).logicalRound
     ).toBe(3)
@@ -89,7 +112,7 @@ describe('LoopRun', () => {
         abortController: new AbortController(),
         messages: [],
         streamState: {},
-        resources: { toolDefinitions: [], activeSkillNames: [] },
+        resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL },
         initialLogicalRound: 1.5
       }).logicalRound
     ).toBe(0)

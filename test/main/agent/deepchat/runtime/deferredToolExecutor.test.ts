@@ -4,6 +4,10 @@ import {
   type DeferredToolExecutorDependencies
 } from '@/agent/deepchat/runtime/deferredToolExecutor'
 import { ExecutionJournalError } from '@/tape/domain/executionJournal'
+import {
+  GIT_BASH_COMMAND_SHELL,
+  POSIX_COMMAND_SHELL
+} from '../../../../helpers/commandShell'
 
 const SESSION_ID = 'session-1'
 const MESSAGE_ID = 'message-1'
@@ -118,6 +122,10 @@ function createHarness(
     },
     identity: { getAgentId: vi.fn(() => 'deepchat') },
     messageProjection: { updateSubagentToolCallProgress: vi.fn() },
+    commandShell: {
+      resolveForTurn: vi.fn(async () => POSIX_COMMAND_SHELL),
+      resolveProfile: vi.fn(async () => GIT_BASH_COMMAND_SHELL)
+    },
     executionJournal
   } as unknown as DeferredToolExecutorDependencies
 
@@ -132,7 +140,7 @@ function createHarness(
 
 describe('DeferredToolExecutor Execution Journal', () => {
   it('commits deferred boundaries before target invocation and result projection', async () => {
-    const { executionJournal, executor, order } = createHarness()
+    const { dependencies, executionJournal, executor, order } = createHarness()
     const onToolCallStarted = vi.fn(() => order.push('tool.started'))
 
     await expect(
@@ -151,6 +159,10 @@ describe('DeferredToolExecutor Execution Journal', () => {
       'outcome.projection',
       'journal.terminal'
     ])
+    expect(dependencies.toolExecutionPort.execute).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ commandShell: POSIX_COMMAND_SHELL })
+    )
     const started = executionJournal.commitRunStarted.mock.calls[0][0]
     const dispatch = executionJournal.commitDispatch.mock.calls[0][0]
     const outcome = executionJournal.commitToolOutcome.mock.calls[0][0]
@@ -174,6 +186,41 @@ describe('DeferredToolExecutor Execution Journal', () => {
       outcome: 'completed',
       stopReason: 'tool_result'
     })
+  })
+
+  it('resolves a stored shell profile instead of the current preference', async () => {
+    const { dependencies, executor } = createHarness()
+
+    await executor.execute(
+      SESSION_ID,
+      MESSAGE_ID,
+      TOOL_CALL,
+      undefined,
+      'git-bash',
+      'command-grant-deferred'
+    )
+
+    expect(dependencies.commandShell.resolveProfile).toHaveBeenCalledWith('git-bash')
+    expect(dependencies.commandShell.resolveForTurn).not.toHaveBeenCalled()
+    expect(dependencies.toolExecutionPort.execute).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        commandShell: GIT_BASH_COMMAND_SHELL,
+        oneShotCommandGrantId: 'command-grant-deferred'
+      })
+    )
+  })
+
+  it('fails closed for an invalid persisted shell profile', async () => {
+    const { dependencies, executor } = createHarness()
+
+    await expect(
+      executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL, undefined, 'unknown-shell' as never)
+    ).resolves.toMatchObject({ isError: true, invoked: false })
+
+    expect(dependencies.commandShell.resolveProfile).not.toHaveBeenCalled()
+    expect(dependencies.commandShell.resolveForTurn).not.toHaveBeenCalled()
+    expect(dependencies.toolExecutionPort.execute).not.toHaveBeenCalled()
   })
 
   it('returns a non-retryable terminal error when T2 persistence fails', async () => {

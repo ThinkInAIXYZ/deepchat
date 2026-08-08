@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
 import { CommandPermissionService } from '@/tool/permission/commandPermissionService'
+import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
 
 const createPermissionService = (): CommandPermissionService => {
   const service = new CommandPermissionService()
@@ -64,10 +65,13 @@ describe('AgentBashHandler', () => {
         offloaded: false
       })
 
-    const result = await handler.executeCommand({
-      command: originalCommand,
-      description: 'List source files'
-    })
+    const result = await handler.executeCommand(
+      {
+        command: originalCommand,
+        description: 'List source files'
+      },
+      { commandShell: POSIX_COMMAND_SHELL }
+    )
 
     expect(runShellProcess).toHaveBeenCalledTimes(2)
     expect(runShellProcess).toHaveBeenNthCalledWith(
@@ -119,10 +123,13 @@ describe('AgentBashHandler', () => {
         offloaded: false
       })
 
-    const result = await handler.executeCommand({
-      command: 'node scripts/check.js',
-      description: 'Run project check'
-    })
+    const result = await handler.executeCommand(
+      {
+        command: 'node scripts/check.js',
+        description: 'Run project check'
+      },
+      { commandShell: POSIX_COMMAND_SHELL }
+    )
 
     expect(runShellProcess).toHaveBeenCalledTimes(1)
     expect(result.rtkApplied).toBe(true)
@@ -134,7 +141,8 @@ describe('AgentBashHandler', () => {
 
   it('creates a scoped command environment only after command approval', async () => {
     const permissionService = new CommandPermissionService()
-    permissionService.approve('conv-1', 'deepchat model', false)
+    const oneShotCommandGrantId = permissionService.approve('conv-1', 'posix:deepchat model', false)
+    expect(oneShotCommandGrantId).not.toBeNull()
     const commandEnvironment = {
       createEnvironment: vi.fn(() => ({
         variables: { DEEPCHAT_CLI_AGENT_TOKEN: 'scoped-token' },
@@ -170,7 +178,9 @@ describe('AgentBashHandler', () => {
         description: 'Invoke model'
       },
       {
+        commandShell: POSIX_COMMAND_SHELL,
         conversationId: 'conv-1',
+        oneShotCommandGrantId: oneShotCommandGrantId ?? undefined,
         env: {
           PATH: ['/controlled/bin', '/shared/bin'].join(path.delimiter),
           CONTROLLED_VALUE: 'preserved'
@@ -180,7 +190,8 @@ describe('AgentBashHandler', () => {
 
     expect(commandEnvironment.createEnvironment).toHaveBeenCalledWith(
       'conv-1',
-      'deepchat model invoke --prompt hello'
+      'deepchat model invoke --prompt hello',
+      POSIX_COMMAND_SHELL
     )
     expect(prepareCommand).toHaveBeenCalledWith(
       'deepchat model invoke --prompt hello',
@@ -219,7 +230,7 @@ describe('AgentBashHandler', () => {
           command: 'deepchat model invoke --prompt hello',
           description: 'Invoke model'
         },
-        { conversationId: 'conv-1' }
+        { conversationId: 'conv-1', commandShell: POSIX_COMMAND_SHELL }
       )
     ).rejects.toMatchObject({ name: 'Error', message: 'Command permission required' })
     expect(commandEnvironment.createEnvironment).not.toHaveBeenCalled()
@@ -251,11 +262,14 @@ describe('AgentBashHandler', () => {
         offloaded: false
       })
 
-    const result = await handler.executeCommand({
-      command: 'find . -name "*.ts"',
-      description: 'Search ts files',
-      timeout: 1000
-    })
+    const result = await handler.executeCommand(
+      {
+        command: 'find . -name "*.ts"',
+        description: 'Search ts files',
+        timeout: 1000
+      },
+      { commandShell: POSIX_COMMAND_SHELL }
+    )
 
     expect(runShellProcess).toHaveBeenCalledTimes(1)
     expect(result.rtkApplied).toBe(true)
@@ -298,6 +312,7 @@ describe('AgentBashHandler', () => {
         background: true
       },
       {
+        commandShell: POSIX_COMMAND_SHELL,
         conversationId: 'conv-1',
         beforeExecute
       }
@@ -362,6 +377,7 @@ describe('AgentBashHandler', () => {
         cwd: externalCwd
       },
       {
+        commandShell: POSIX_COMMAND_SHELL,
         allowExternalCwd: true
       }
     )
@@ -384,11 +400,14 @@ describe('AgentBashHandler', () => {
     const runShellProcess = vi.spyOn(handler as never, 'runShellProcess' as never)
 
     await expect(
-      handler.executeCommand({
-        command: 'pwd',
-        description: 'Print cwd',
-        cwd: externalCwd
-      })
+      handler.executeCommand(
+        {
+          command: 'pwd',
+          description: 'Print cwd',
+          cwd: externalCwd
+        },
+        { commandShell: POSIX_COMMAND_SHELL }
+      )
     ).rejects.toThrow('Working directory is not allowed')
 
     expect(runShellProcess).not.toHaveBeenCalled()
@@ -410,7 +429,7 @@ describe('AgentBashHandler', () => {
           command: 'pwd',
           description: 'Print working directory'
         },
-        { beforeExecute }
+        { beforeExecute, commandShell: POSIX_COMMAND_SHELL }
       )
     ).rejects.toThrow('Working directory does not exist or is not accessible')
 
@@ -450,7 +469,7 @@ describe('AgentBashHandler', () => {
         command: 'find . -name "*.ts"',
         description: 'Find TypeScript files'
       },
-      { beforeExecute }
+      { beforeExecute, commandShell: POSIX_COMMAND_SHELL }
     )
 
     expect(order).toEqual(['commit', 'spawn'])
@@ -496,6 +515,7 @@ describe('AgentBashHandler', () => {
         yieldMs: 250
       },
       {
+        commandShell: POSIX_COMMAND_SHELL,
         conversationId: 'conv-1'
       }
     )
@@ -554,6 +574,7 @@ describe('AgentBashHandler', () => {
         description: 'Show help'
       },
       {
+        commandShell: POSIX_COMMAND_SHELL,
         conversationId: 'conv-1'
       }
     )
@@ -604,6 +625,7 @@ describe('AgentBashHandler', () => {
         description: 'Run tests'
       },
       {
+        commandShell: POSIX_COMMAND_SHELL,
         conversationId: 'conv-1'
       }
     )

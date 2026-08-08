@@ -3,10 +3,13 @@ import {
   configGetEntriesRoute,
   configUpdateEntriesRoute,
   settingsActivityListRoute,
+  settingsCheckCommandShellRoute,
+  settingsGetCommandShellRoute,
   settingsGetPublicRoute,
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdatePublicRoute,
+  settingsUpdateCommandShellRoute,
   settingsUpdateRoute,
   type ConfigEntryKey,
   type ConfigEntryValues,
@@ -23,6 +26,7 @@ import type { FontSettings } from '@/desktop/fontSettings'
 import type { LoggingService } from './logging'
 import type { OcrSettingsPort } from '@/ocr/ocrSettings'
 import type { SettingsStore } from '@/config/settingsStore'
+import type { CommandShellService } from '@/agent/shared/process/commandShellService'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createAppSettingsRoutes(deps: {
@@ -34,6 +38,7 @@ export function createAppSettingsRoutes(deps: {
   fonts: FontSettings
   logging: LoggingService
   ocr: OcrSettingsPort
+  commandShell: Pick<CommandShellService, 'getConfig' | 'setConfig' | 'checkGitBash'>
   applyContentProtection(enabled: boolean): void
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
@@ -233,6 +238,44 @@ export function createAppSettingsRoutes(deps: {
         settingsListSystemFontsRoute.input.parse(rawInput)
         return settingsListSystemFontsRoute.output.parse({
           fonts: await deps.fonts.getSystemFonts()
+        })
+      }
+    ],
+    [
+      settingsGetCommandShellRoute.name,
+      async (rawInput) => {
+        settingsGetCommandShellRoute.input.parse(rawInput)
+        return settingsGetCommandShellRoute.output.parse({
+          config: deps.commandShell.getConfig()
+        })
+      }
+    ],
+    [
+      settingsUpdateCommandShellRoute.name,
+      async (rawInput) => {
+        const input = settingsUpdateCommandShellRoute.input.parse(rawInput)
+        const config = deps.commandShell.setConfig(input.config)
+        deps.recordActivity({
+          category: 'agent',
+          action: 'updated',
+          targetType: 'setting',
+          targetId: 'agentCommandShell',
+          targetLabel: 'agentCommandShell',
+          routeName: 'settings-common',
+          summaryKey: 'settings.controlCenter.activity.settingUpdated',
+          summaryParams: { key: 'agentCommandShell' }
+        })
+        return settingsUpdateCommandShellRoute.output.parse({ config })
+      }
+    ],
+    [
+      settingsCheckCommandShellRoute.name,
+      async (rawInput) => {
+        const input = settingsCheckCommandShellRoute.input.parse(rawInput)
+        return settingsCheckCommandShellRoute.output.parse({
+          gitBash: await deps.commandShell.checkGitBash({
+            forceRefresh: input.forceRefresh
+          })
         })
       }
     ],

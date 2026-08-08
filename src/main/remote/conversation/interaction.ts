@@ -4,6 +4,7 @@ import type {
   RemotePendingInteractionPermission,
   RemotePermissionCommandInfo
 } from '../types'
+import { CommandShellProfileSchema } from '@shared/commandShell'
 
 type RemotePendingInteractionWithOrder = RemotePendingInteraction & {
   messageOrderSeq: number
@@ -139,6 +140,11 @@ export const parsePermissionPayload = (
             : {}),
           ...(typeof parsed.commandSignature === 'string' && parsed.commandSignature.trim()
             ? { commandSignature: parsed.commandSignature.trim() }
+            : {}),
+          ...(CommandShellProfileSchema.safeParse(parsed.shellProfile).success
+            ? {
+                shellProfile: CommandShellProfileSchema.parse(parsed.shellProfile)
+              }
             : {}),
           ...(Array.isArray(parsed.paths)
             ? {

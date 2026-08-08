@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -69,6 +69,8 @@ describe('CLI bundle', () => {
       )
       expect(POSIX_LAUNCHER).toContain('../runtime/node/bin/node')
       expect(POSIX_LAUNCHER).toContain('../../runtime/node/bin/node')
+      expect(POSIX_LAUNCHER).toContain('../runtime/node/node.exe')
+      expect(POSIX_LAUNCHER).toContain('../../runtime/node/node.exe')
       expect(POSIX_LAUNCHER).not.toContain('command -v node')
       expect(WINDOWS_LAUNCHER).toContain('..\\runtime\\node\\node.exe')
       expect(WINDOWS_LAUNCHER).toContain('..\\..\\runtime\\node\\node.exe')
@@ -78,6 +80,33 @@ describe('CLI bundle', () => {
       await rm(temporaryDirectory, { recursive: true })
     }
   }, CLI_BUILD_TEST_TIMEOUT_MS)
+
+  it.skipIf(process.platform === 'win32')(
+    'runs the POSIX launcher against the packaged Windows Node layout',
+    async () => {
+      const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'deepchat-cli-msys-'))
+      const outputDirectory = path.join(temporaryDirectory, 'cli')
+      const runtimeNode = path.join(temporaryDirectory, 'runtime', 'node', 'node.exe')
+      try {
+        await mkdir(outputDirectory, { recursive: true })
+        await mkdir(path.dirname(runtimeNode), { recursive: true })
+        await symlink(process.execPath, runtimeNode)
+        await writeFile(path.join(outputDirectory, 'deepchat'), POSIX_LAUNCHER, { mode: 0o755 })
+        await chmod(path.join(outputDirectory, 'deepchat'), 0o755)
+        await writeFile(
+          path.join(outputDirectory, 'deepchat.mjs'),
+          "console.log(process.argv.slice(2).join(','))\n",
+          'utf8'
+        )
+
+        const result = await execFileAsync(path.join(outputDirectory, 'deepchat'), ['status'])
+
+        expect(result.stdout.trim()).toBe('status')
+      } finally {
+        await rm(temporaryDirectory, { recursive: true })
+      }
+    }
+  )
 
   it('packages only generated CLI resources outside app.asar', async () => {
     const config = parse(await readFile(path.resolve('electron-builder.yml'), 'utf8')) as {

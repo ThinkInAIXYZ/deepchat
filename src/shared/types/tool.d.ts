@@ -11,6 +11,7 @@ import type {
 } from '../core/mcp'
 import type { DeepChatSubagentCapability, PermissionMode, SessionKind } from '../agent-interface'
 import type { AgentPlanSnapshot } from '../agent-plan'
+import type { CommandShellProfile, ResolvedCommandShell } from '../commandShell'
 
 export type AgentToolProgressUpdate =
   | {
@@ -49,6 +50,8 @@ export interface ToolCallOptions {
   enabledMcpServerIds?: string[]
   commitDispatch?: ToolDispatchCommit
   registerOutcomeProjection?: ToolOutcomeProjectionRegistrar
+  commandShell?: ResolvedCommandShell
+  oneShotCommandGrantId?: string
 }
 
 export interface ToolPermissionPreCheckResult {
@@ -60,6 +63,7 @@ export interface ToolPermissionPreCheckResult {
   paths?: string[]
   command?: string
   commandSignature?: string
+  shellProfile?: CommandShellProfile
   commandInfo?: {
     command: string
     riskLevel: 'low' | 'medium' | 'high' | 'critical'
@@ -118,6 +122,7 @@ export interface ToolServicePort {
     options?: {
       permissionMode?: PermissionMode
       signal?: AbortSignal
+      commandShell?: ResolvedCommandShell
     }
   ): Promise<ToolPermissionPreCheckResult | null>
 

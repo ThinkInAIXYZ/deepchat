@@ -12,9 +12,16 @@ import {
 import type { CommandPermissionService } from '@/tool/permission/commandPermissionService'
 import type { AgentCliTokenAuthority } from './agentTokenAuthority'
 import { getCliSurfaceEntry } from './surface'
+import type { ResolvedCommandShell } from '@shared/commandShell'
 
 const AGENT_CLI_COMMAND_PATTERN = /^deepchat\s+([a-z][a-z0-9-]*)\s+([a-z][a-z0-9-]*)(?:\s|$)/
 const AGENT_CLI_COMMAND_TOKEN_TTL_MS = 5 * 60_000
+
+function referencesAgentToken(command: string, commandShell: ResolvedCommandShell): boolean {
+  return commandShell.dialect === 'posix'
+    ? command.includes(LOCAL_CONTROL_AGENT_TOKEN_ENV)
+    : command.toUpperCase().includes(LOCAL_CONTROL_AGENT_TOKEN_ENV)
+}
 
 export type AgentCommandEnvironment = Readonly<{
   variables: Readonly<Record<string, string>>
@@ -91,7 +98,11 @@ export function resolveBundledCliDirectory(
 export class AgentCliCommandAccess {
   constructor(private readonly options: AgentCliCommandAccessOptions) {}
 
-  createEnvironment(conversationId: string, command: string): AgentCommandEnvironment | undefined {
+  createEnvironment(
+    conversationId: string,
+    command: string,
+    commandShell: ResolvedCommandShell
+  ): AgentCommandEnvironment | undefined {
     const normalizedConversationId = conversationId.trim()
     const normalizedCommand = command.trim()
     if (!normalizedConversationId) return undefined
@@ -104,9 +115,12 @@ export class AgentCliCommandAccess {
 
     const commandMatch = AGENT_CLI_COMMAND_PATTERN.exec(normalizedCommand)
     if (
-      this.options.commandPermission.hasShellControlSyntax(normalizedCommand) ||
+      this.options.commandPermission.hasShellControlSyntax(
+        normalizedCommand,
+        commandShell.dialect
+      ) ||
       !commandMatch ||
-      normalizedCommand.includes(LOCAL_CONTROL_AGENT_TOKEN_ENV)
+      referencesAgentToken(normalizedCommand, commandShell)
     ) {
       return unprivilegedAgentEnvironment(true)
     }

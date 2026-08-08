@@ -420,10 +420,13 @@ import {
 } from './routes/plugins.routes'
 import {
   settingsActivityListRoute,
+  settingsCheckCommandShellRoute,
+  settingsGetCommandShellRoute,
   settingsGetPublicRoute,
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdatePublicRoute,
+  settingsUpdateCommandShellRoute,
   settingsUpdateRoute
 } from './routes/settings.routes'
 import {
@@ -890,6 +893,9 @@ const DEEPCHAT_ROUTE_CATALOG_PART_3 = {
   [settingsGetSnapshotRoute.name]: settingsGetSnapshotRoute,
   [settingsGetPublicRoute.name]: settingsGetPublicRoute,
   [settingsListSystemFontsRoute.name]: settingsListSystemFontsRoute,
+  [settingsGetCommandShellRoute.name]: settingsGetCommandShellRoute,
+  [settingsUpdateCommandShellRoute.name]: settingsUpdateCommandShellRoute,
+  [settingsCheckCommandShellRoute.name]: settingsCheckCommandShellRoute,
   [settingsUpdateRoute.name]: settingsUpdateRoute,
   [settingsUpdatePublicRoute.name]: settingsUpdatePublicRoute,
   [settingsActivityListRoute.name]: settingsActivityListRoute,

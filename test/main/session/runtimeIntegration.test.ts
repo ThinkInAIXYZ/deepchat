@@ -1,5 +1,6 @@
 import { AppSessionService } from '@/agent/shared/appSessionService'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import * as fs from 'node:fs'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/deepchat/harness'
 import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
 import { createHookObserver, noopHookObserver } from '../hook/hookObserverFixture'
@@ -14,6 +15,7 @@ import { createSessionFixture } from './sessionFixture'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 import { createPassthroughModelRequestPolicy } from '@shared/modelRequestPolicy'
+import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -39,6 +41,16 @@ vi.mock('@/events', async (importOriginal) => {
       END: 'stream:end',
       ERROR: 'stream:error'
     }
+  }
+})
+
+beforeEach(() => {
+  vi.mocked(fs.promises.readFile).mockResolvedValue('')
+})
+
+afterEach(() => {
+  for (const [filePath] of vi.mocked(fs.promises.readFile).mock.calls) {
+    expect(String(filePath)).toMatch(/(?:^|[/\\])AGENTS\.md$/)
   }
 })
 
@@ -791,7 +803,8 @@ function createRuntimeDependencies() {
     },
     sessionPermissionPort: {
       clearSessionPermissions: vi.fn(),
-      approvePermission: vi.fn().mockResolvedValue(undefined)
+      approvePermission: vi.fn().mockResolvedValue(null),
+      revokeOneShotCommandPermission: vi.fn()
     },
     acpAsLlmProviderPermission: {
       resolveAgentPermission: vi.fn().mockResolvedValue(undefined)
@@ -813,6 +826,10 @@ function createRuntimeDependencies() {
         content,
         summary: { status: 'ready' as const, issues: [], suggestedActions: [] }
       }))
+    },
+    commandShell: {
+      resolveForTurn: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL),
+      resolveProfile: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL)
     },
     skillService: {
       getMetadataList: vi.fn().mockResolvedValue([]),
@@ -1256,6 +1273,7 @@ describe('Integration: multi-turn context', () => {
     const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
     expect(secondCallMessages[0].role).toBe('system')
     expect(secondCallMessages[0].content).toContain('You are a helpful assistant.')
+    expect(secondCallMessages[0].content).toContain('Shell: sh.')
     // Should contain prior user and assistant messages before the new user message
     expect(secondCallMessages.length).toBeGreaterThanOrEqual(3) // system + at least history + new user
     expect(secondCallMessages[secondCallMessages.length - 1]).toEqual({

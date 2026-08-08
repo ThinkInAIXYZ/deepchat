@@ -5,6 +5,7 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ModelConfig } from '@shared/types/provider'
+import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 function createRun(messages: ChatMessage[] = [{ role: 'user', content: 'hello' }]) {
   return createLoopRun({
@@ -14,7 +15,7 @@ function createRun(messages: ChatMessage[] = [{ role: 'user', content: 'hello' }
     abortController: new AbortController(),
     messages,
     streamState: {},
-    resources: { toolDefinitions: [], activeSkillNames: [] },
+    resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL },
     initialLogicalRound: 1
   })
 }

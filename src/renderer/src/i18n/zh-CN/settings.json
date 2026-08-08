@@ -1,6 +1,29 @@
 {
   "title": "设置",
   "common": {
+    "commandShell": {
+      "title": "Agent 命令 Shell",
+      "auto": "自动",
+      "windowsPowerShell": "Windows PowerShell",
+      "gitBash": "Git Bash",
+      "executable": "Git Bash 可执行文件",
+      "autoDetect": "自动检测",
+      "browse": "选择 Git Bash",
+      "clearOverride": "清除自定义路径",
+      "checking": "正在检查 Git Bash...",
+      "available": "可用：{path}",
+      "refresh": "重新检查",
+      "updateFailed": "无法更新命令 Shell 设置。",
+      "checkFailed": "无法检查 Git Bash 是否可用。",
+      "browseFailed": "无法选择 Git Bash 可执行文件。",
+      "loadFailed": "无法加载命令 Shell 设置。",
+      "errors": {
+        "unsupported-platform": "仅 Windows 支持选择 Git Bash。",
+        "override-invalid": "自定义路径必须指向现有的 bash.exe。",
+        "not-found": "未在此设备上找到 Git Bash。",
+        "validation-failed": "检测到的可执行文件未通过 Git Bash 验证。"
+      }
+    },
     "title": "通用设置",
     "resetData": "重置数据",
     "language": "语言",

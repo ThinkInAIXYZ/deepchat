@@ -6,8 +6,19 @@ import { LOCAL_CONTROL_AGENT_TOKEN_ENV } from '@shared/contracts/localControl'
 import { AgentCliCommandAccess, resolveBundledCliDirectory } from '@/cli/agentCommandAccess'
 import { AgentCliTokenAuthority } from '@/cli/agentTokenAuthority'
 import { CommandPermissionService } from '@/tool/permission/commandPermissionService'
+import {
+  CMD_COMMAND_SHELL,
+  POSIX_COMMAND_SHELL,
+  WINDOWS_POWERSHELL_COMMAND_SHELL
+} from '../../helpers/commandShell'
 
 const temporaryDirectories: string[] = []
+
+const createEnvironment = (
+  access: AgentCliCommandAccess,
+  conversationId: string,
+  command: string
+) => access.createEnvironment(conversationId, command, POSIX_COMMAND_SHELL)
 
 async function createCliDirectory(platform: NodeJS.Platform = 'darwin') {
   const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-agent-cli-'))
@@ -39,7 +50,8 @@ describe('AgentCliCommandAccess', () => {
       resolveCliDirectory: () => directory
     })
 
-    const environment = access.createEnvironment(
+    const environment = createEnvironment(
+      access,
       ' conversation-1 ',
       'deepchat model invoke --prompt hello --jsonl'
     )
@@ -80,7 +92,53 @@ describe('AgentCliCommandAccess', () => {
       resolveCliDirectory: () => directory
     })
 
-    expect(access.createEnvironment('conversation-1', command)).toEqual({
+    expect(createEnvironment(access, 'conversation-1', command)).toEqual({
+      variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
+      prependPath: [],
+      preserveCommand: true
+    })
+    expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
+  })
+
+  it('blocks case-insensitive token references under Windows PowerShell', async () => {
+    const { directory } = await createCliDirectory('win32')
+    const authority = new AgentCliTokenAuthority()
+    const access = new AgentCliCommandAccess({
+      tokenAuthority: authority,
+      commandPermission: new CommandPermissionService(),
+      resolveCliDirectory: () => directory
+    })
+
+    expect(
+      access.createEnvironment(
+        'conversation-1',
+        'deepchat model invoke --prompt $env:deepchat_cli_agent_token',
+        WINDOWS_POWERSHELL_COMMAND_SHELL
+      )
+    ).toEqual({
+      variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
+      prependPath: [],
+      preserveCommand: true
+    })
+    expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
+  })
+
+  it('does not issue a scoped token for CMD caret syntax', async () => {
+    const { directory } = await createCliDirectory('win32')
+    const authority = new AgentCliTokenAuthority()
+    const access = new AgentCliCommandAccess({
+      tokenAuthority: authority,
+      commandPermission: new CommandPermissionService(),
+      resolveCliDirectory: () => directory
+    })
+
+    expect(
+      access.createEnvironment(
+        'conversation-1',
+        'deepchat model invoke ^" & whoami"',
+        CMD_COMMAND_SHELL
+      )
+    ).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
       prependPath: [],
       preserveCommand: true
@@ -97,12 +155,12 @@ describe('AgentCliCommandAccess', () => {
       resolveCliDirectory: () => directory
     })
 
-    expect(access.createEnvironment('conversation-1', 'ls -la')).toEqual({
+    expect(createEnvironment(access, 'conversation-1', 'ls -la')).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
       prependPath: [],
       preserveCommand: false
     })
-    expect(access.createEnvironment('conversation-1', '"deepchat" model invoke')).toEqual({
+    expect(createEnvironment(access, 'conversation-1', '"deepchat" model invoke')).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
       prependPath: [],
       preserveCommand: false
@@ -119,7 +177,7 @@ describe('AgentCliCommandAccess', () => {
       resolveCliDirectory: () => directory
     })
 
-    expect(access.createEnvironment('conversation-1', 'deepchat help')).toEqual({
+    expect(createEnvironment(access, 'conversation-1', 'deepchat help')).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
       prependPath: [directory],
       preserveCommand: true
@@ -141,7 +199,8 @@ describe('AgentCliCommandAccess', () => {
     })
 
     expect(
-      access.createEnvironment(
+      createEnvironment(
+        access,
         'conversation-1',
         'deepchat audio transcribe --artifact artifact-1 --provider p --model m'
       )
@@ -161,7 +220,7 @@ describe('AgentCliCommandAccess', () => {
       resolveCliDirectory: () => null
     })
 
-    expect(access.createEnvironment('conversation-1', 'deepchat system status')).toEqual({
+    expect(createEnvironment(access, 'conversation-1', 'deepchat system status')).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
       prependPath: [],
       preserveCommand: true

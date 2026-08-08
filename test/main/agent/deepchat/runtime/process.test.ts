@@ -22,6 +22,7 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
 import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
+import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 const RUN_ID = '11111111-1111-4111-8111-111111111111'
@@ -239,7 +240,11 @@ describe('processStream', () => {
           abortController,
           messages,
           streamState: createState(),
-          resources: { toolDefinitions: tools, activeSkillNames: [] },
+          resources: {
+            toolDefinitions: tools,
+            activeSkillNames: [],
+            commandShell: POSIX_COMMAND_SHELL
+          },
           initialRequestSeq: 1
         }),
       toolCatalog: {
@@ -1769,7 +1774,8 @@ describe('processStream', () => {
           permissionType: 'command',
           server_name: 'Claude Agent',
           command: 'dir',
-          commandSignature: 'dir',
+          commandSignature: 'cmd:dir',
+          shellProfile: 'cmd',
           paths: ['C:/tmp/a.txt', '', 123 as unknown as string],
           commandInfo: {
             command: 'dir',
@@ -1830,7 +1836,8 @@ describe('processStream', () => {
         requestId: 'req-acp-1',
         permissionType: 'command',
         command: 'dir',
-        commandSignature: 'dir',
+        commandSignature: 'cmd:dir',
+        shellProfile: 'cmd',
         paths: ['C:/tmp/a.txt'],
         commandInfo: {
           command: 'dir',

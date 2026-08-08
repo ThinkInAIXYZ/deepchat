@@ -36,6 +36,8 @@ import {
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   settingsGetSnapshotRoute,
+  settingsCheckCommandShellRoute,
+  settingsUpdateCommandShellRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
   sessionsCreateRoute,
@@ -896,6 +898,35 @@ describe('main kernel contracts', () => {
 
     expect(() =>
       settingsUpdateRoute.input.parse({ changes: [{ key: 'ocrBackend', value: 'metal' }] })
+    ).toThrow()
+  })
+
+  it('validates command shell configuration and availability structurally', () => {
+    expect(
+      settingsUpdateCommandShellRoute.input.parse({
+        config: {
+          preference: 'git-bash',
+          gitBashExecutableOverride: ' C:\\Program Files\\Git\\bin\\bash.exe '
+        }
+      })
+    ).toEqual({
+      config: {
+        preference: 'git-bash',
+        gitBashExecutableOverride: 'C:\\Program Files\\Git\\bin\\bash.exe'
+      }
+    })
+    expect(() =>
+      settingsUpdateCommandShellRoute.input.parse({ config: { preference: 'pwsh' } })
+    ).toThrow()
+    expect(() =>
+      settingsCheckCommandShellRoute.output.parse({
+        gitBash: {
+          supported: true,
+          available: true,
+          executable: 'C:\\Git\\bin\\bash.exe',
+          source: 'unknown'
+        }
+      })
     ).toThrow()
   })
 

@@ -36,7 +36,8 @@ export function createSettingsStore(): SettingsStore {
         enableSkills: true,
         skillDraftSuggestionsEnabled: false,
         appVersion: app.getVersion(),
-        hooksNotifications: { hooks: [] }
+        hooksNotifications: { hooks: [] },
+        agentCommandShell: { preference: 'auto' }
       }
     }) as unknown as StoreLike<Record<string, unknown>>
   )

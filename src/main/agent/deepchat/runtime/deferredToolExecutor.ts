@@ -29,6 +29,8 @@ import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { SessionStateResolver } from './sessionStateResolver'
 import { toolContentToText } from './toolAdapters'
 import { isUserConfigurableAgentTool } from '@shared/agentTools'
+import { CommandShellProfileSchema, type CommandShellProfile } from '@shared/commandShell'
+import type { CommandShellService } from '@/agent/shared/process/commandShellService'
 
 export type DeferredToolExecutionResult = {
   responseText: string
@@ -65,6 +67,7 @@ export interface DeferredToolExecutorDependencies {
   identity: Pick<SessionIdentityService, 'getAgentId'>
   messageProjection: Pick<MessageProjectionService, 'updateSubagentToolCallProgress'>
   executionJournal: ExecutionJournalWriter
+  commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
 }
 
 function throwIfAbortRequested(signal?: AbortSignal): void {
@@ -97,7 +100,9 @@ export class DeferredToolExecutor {
     sessionId: string,
     messageId: string,
     toolCall: NonNullable<AssistantMessageBlock['tool_call']>,
-    onToolCallStarted?: () => void
+    onToolCallStarted?: () => void,
+    commandShellProfile?: CommandShellProfile,
+    oneShotCommandGrantId?: string
   ): Promise<DeferredToolExecutionResult> {
     const toolName = toolCall.name
     if (!toolName) {
@@ -279,6 +284,10 @@ export class DeferredToolExecutor {
 
     try {
       throwIfAbortRequested(deferredAbortSignal)
+      const parsedCommandShellProfile =
+        commandShellProfile === undefined
+          ? undefined
+          : CommandShellProfileSchema.parse(commandShellProfile)
       const projectDir = this.dependencies.sessionSettings.resolveProjectDir(sessionId)
       const toolDefinitions = await awaitWithAbort(
         this.dependencies.toolResolver.loadToolDefinitionsForSession(sessionId, projectDir),
@@ -327,6 +336,13 @@ export class DeferredToolExecutor {
           isError: true
         }
       }
+      const commandShell = await awaitWithAbort(
+        parsedCommandShellProfile
+          ? this.dependencies.commandShell.resolveProfile(parsedCommandShellProfile)
+          : this.dependencies.commandShell.resolveForTurn(),
+        deferredAbortSignal
+      )
+      throwIfAbortRequested(deferredAbortSignal)
       const request: MCPToolCall = {
         id: toolCallId,
         type: 'function',
@@ -394,6 +410,8 @@ export class DeferredToolExecutor {
           dispatchCommitted = true
         },
         registerOutcomeProjection: (projection) => pendingOutcomeProjections.push(projection),
+        commandShell,
+        oneShotCommandGrantId,
         signal: deferredAbortSignal
       })
       const rawData = result.rawData as MCPToolResponse

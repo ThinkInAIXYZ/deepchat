@@ -25,6 +25,7 @@ import { resolveInterleavedReasoningConfig } from './generationSettings'
 import { resolveProviderInputCapabilities } from './providerInputCapabilities'
 import { resolveProviderModelRuntimeFacts } from './providerModelRuntimeFacts'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import type { CommandShellService } from '@/agent/shared/process/commandShellService'
 
 type ManualCompactionLifecycle = Pick<
   RunLifecycleCoordinator,
@@ -78,6 +79,7 @@ export interface CompactionRuntimeCoordinatorDependencies {
   registry: SessionScopeRegistry
   sessionState: Pick<SessionStateResolver, 'getSummary'>
   promptAssembly: Pick<PromptAssemblyService, 'createBasePromptAssembler'>
+  commandShell: Pick<CommandShellService, 'resolveForTurn'>
   messageProjection: Pick<MessageProjectionService, 'refresh'>
   publishEvent: DeepChatEventPublisher
 }
@@ -209,12 +211,17 @@ export class CompactionRuntimeCoordinator {
         compactionAbortSignal
       )
       const toolReserveTokens = estimateToolReserveTokens(tools)
+      const commandShell = await awaitWithAbort(
+        this.deps.commandShell.resolveForTurn(),
+        compactionAbortSignal
+      )
       const baseSystemPrompt = await awaitWithAbort(
         this.deps.promptAssembly.createBasePromptAssembler(instance).assemble({
           sessionId: toAppSessionId(sessionId),
           configuredPrompt: generationSettings.systemPrompt,
           toolDefinitions: tools,
-          activeSkillNames
+          activeSkillNames,
+          commandShell
         }),
         compactionAbortSignal
       )

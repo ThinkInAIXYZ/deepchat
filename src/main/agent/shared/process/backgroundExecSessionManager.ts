@@ -4,10 +4,12 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import type { UtilityProcess } from 'electron'
 import { nanoid } from 'nanoid'
+import { z } from 'zod'
 import logger from './backgroundExecLogger'
-import { getUserShell } from './shellEnvHelper'
+import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
 import {
   createUtf8OutputDecoderPair,
+  prepareProcessEnvForUtf8Output,
   prepareShellCommandForUtf8Output
 } from './shellOutputEncoding'
 import { describeSpawnFailure, resolveUsableSpawnCwd } from './spawnGuard'
@@ -56,6 +58,24 @@ export interface SessionCompletionResult {
   outputFilePath?: string
   timedOut: boolean
 }
+
+export interface BackgroundExecStartOptions {
+  commandShell: ResolvedCommandShell
+  directInvocation?: {
+    executable: string
+    args: string[]
+  }
+  timeout?: number
+  env?: Record<string, string>
+  outputPrefix?: string
+}
+
+const DirectInvocationSchema = z
+  .object({
+    executable: z.string().min(1),
+    args: z.array(z.string())
+  })
+  .strict()
 
 export type WaitForCompletionOrYieldResult =
   | { kind: 'running'; sessionId: string }
@@ -190,16 +210,30 @@ export class BackgroundExecSessionManager {
     conversationId: string,
     command: string,
     cwd: string,
-    options?: {
-      timeout?: number
-      env?: Record<string, string>
-      outputPrefix?: string
-    }
+    options: BackgroundExecStartOptions
   ): Promise<StartSessionResult> {
     const config = getConfig()
     const sessionId = `bg_${nanoid(12)}`
-    const { shell, args } = getUserShell()
-    const shellCommand = prepareShellCommandForUtf8Output(shell, command)
+    const commandShell = ResolvedCommandShellSchema.parse(options.commandShell)
+    const profileMatchesPlatform =
+      process.platform === 'win32'
+        ? commandShell.profile !== 'posix'
+        : commandShell.profile === 'posix'
+    if (!profileMatchesPlatform) {
+      throw new Error(
+        `Command shell profile "${commandShell.profile}" is unavailable on ${process.platform}.`
+      )
+    }
+    const directInvocation = options.directInvocation
+      ? DirectInvocationSchema.parse(options.directInvocation)
+      : null
+    const executable = directInvocation?.executable ?? commandShell.executable
+    const args = directInvocation
+      ? directInvocation.args
+      : [...commandShell.args, prepareShellCommandForUtf8Output(commandShell.executable, command)]
+    const preparedEnv = directInvocation
+      ? prepareProcessEnvForUtf8Output(options.env ?? {})
+      : options.env
     const spawnCwd = resolveUsableSpawnCwd(cwd)
 
     const sessionDir = resolveSessionDir(conversationId)
@@ -211,10 +245,11 @@ export class BackgroundExecSessionManager {
       ? this.createOutputFilePath(sessionDir, sessionId, options?.outputPrefix)
       : null
 
-    const child = spawn(shell, [...args, shellCommand], {
+    const child = spawn(executable, args, {
       cwd: spawnCwd,
-      env: { ...process.env, ...options?.env },
+      env: { ...process.env, ...preparedEnv },
       detached: process.platform !== 'win32',
+      windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe']
     })
 
@@ -229,7 +264,7 @@ export class BackgroundExecSessionManager {
       conversationId,
       command,
       cwd: spawnCwd,
-      shell,
+      shell: executable,
       child,
       status: 'running',
       createdAt: now,
@@ -1006,11 +1041,7 @@ class BackgroundExecUtilityProxy {
     conversationId: string,
     command: string,
     cwd: string,
-    options?: {
-      timeout?: number
-      env?: Record<string, string>
-      outputPrefix?: string
-    }
+    options: BackgroundExecStartOptions
   ): Promise<StartSessionResult> {
     const result = await this.request<StartSessionResult>('start', [
       conversationId,

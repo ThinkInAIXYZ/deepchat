@@ -113,6 +113,7 @@ import { createAppRoutes } from './routes'
 import { ApprovalBroker, createApprovalRoutes } from '@/approval'
 import {
   CommandPermissionService,
+  isCommandSignatureForProfile,
   FilePermissionService,
   SettingsPermissionService,
   ToolPermissionBroker
@@ -177,6 +178,7 @@ import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
 import { AgentRepository } from '../agent/repository'
 import { AgentDatabase } from '@/agent/data/database'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
+import { CommandShellService } from '@/agent/shared/process/commandShellService'
 import { AgentTraceSettings } from '../agent/traceSettings'
 import type { MainDatabase } from '../data/mainDatabase'
 import {
@@ -761,6 +763,7 @@ export async function createMainProcessControl(dependencies: {
         values: { [key]: value }
       })
   })
+  const commandShellService = new CommandShellService({ settings: dependencies.settingsStore })
   const unsubscribeProviderDbCatalog = providerDbLoader.subscribeCatalogChanges((change) => {
     if (change.reason === 'updated') {
       providerRuntime.handleProviderDbUpdated()
@@ -1322,22 +1325,19 @@ export async function createMainProcessControl(dependencies: {
     },
     approvePermission: async (sessionId, permission) => {
       if (permission.requestId && toolPermissionBroker.approve(permission.requestId, sessionId)) {
-        return
+        return null
       }
       const permissionType = permission.permissionType
       const serverName = permission.serverName || ''
       const toolName = permission.toolName || ''
 
       if (permissionType === 'command') {
-        const command = permission.command || permission.commandInfo?.command || ''
-        const signature =
-          permission.commandSignature ||
-          permission.commandInfo?.signature ||
-          (command ? commandPermissionService.extractCommandSignature(command) : '')
-        if (signature) {
-          commandPermissionService.approve(sessionId, signature, false)
+        const signature = permission.commandSignature?.trim()
+        const shellProfile = permission.shellProfile
+        if (!signature || !shellProfile || !isCommandSignatureForProfile(signature, shellProfile)) {
+          throw new Error('Command approval is missing a valid shell profile and signature.')
         }
-        return
+        return commandPermissionService.approve(sessionId, signature, false)
       }
 
       if (
@@ -1346,18 +1346,22 @@ export async function createMainProcessControl(dependencies: {
         permission.paths.length > 0
       ) {
         filePermissionService.approve(sessionId, permission.paths, permissionType, false)
-        return
+        return null
       }
 
       if (serverName === 'deepchat-settings' && toolName) {
         settingsPermissionService.approve(sessionId, toolName, false)
-        return
+        return null
       }
 
       // MCP execution uses the one-time request handled above.
+      return null
     },
     denyPermission: async (sessionId, requestId) => {
       toolPermissionBroker.deny(requestId, sessionId)
+    },
+    revokeOneShotCommandPermission: (sessionId, signature, oneShotGrantId) => {
+      commandPermissionService.revokeOnce(sessionId, signature, oneShotGrantId)
     }
   }
   // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
@@ -1442,6 +1446,7 @@ export async function createMainProcessControl(dependencies: {
     skillService: skillService,
     skillSettings,
     traceSettings,
+    commandShell: commandShellService,
     promptSettings,
     attachmentRouter,
     interactionContinuationAdmission: {
@@ -2420,6 +2425,7 @@ export async function createMainProcessControl(dependencies: {
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),
       logging: loggingService,
       ocr: ocrSettings,
+      commandShell: commandShellService,
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)

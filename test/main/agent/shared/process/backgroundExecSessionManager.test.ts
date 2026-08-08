@@ -40,6 +40,11 @@ import {
   BackgroundExecSessionManager,
   backgroundExecSessionManager
 } from '@/agent/shared/process/backgroundExecSessionManager'
+import {
+  CMD_COMMAND_SHELL,
+  POSIX_COMMAND_SHELL,
+  WINDOWS_POWERSHELL_COMMAND_SHELL
+} from '../../../../helpers/commandShell'
 
 class MockStream extends EventEmitter {}
 
@@ -327,6 +332,7 @@ describe('BackgroundExecSessionManager', () => {
 
     try {
       const result = await manager.start('conv-1', 'echo test', '/workspace', {
+        commandShell: POSIX_COMMAND_SHELL,
         timeout: 0,
         env: {
           PATH: '/prepared/bin:/usr/local/bin',
@@ -364,7 +370,10 @@ describe('BackgroundExecSessionManager', () => {
     const child = new MockChildProcess()
     vi.mocked(spawn).mockReturnValue(child as never)
 
-    await manager.start('conv-1', 'dir', '/workspace', { timeout: 0 })
+    await manager.start('conv-1', 'dir', '/workspace', {
+      commandShell: WINDOWS_POWERSHELL_COMMAND_SHELL,
+      timeout: 0
+    })
 
     expect(spawn).toHaveBeenCalledWith(
       'powershell.exe',
@@ -375,7 +384,69 @@ describe('BackgroundExecSessionManager', () => {
     )
   })
 
-  it('falls back to an available shell when the configured POSIX shell is missing', async () => {
+  it('spawns direct invocations without interpreting model-controlled arguments', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    const args = [
+      'script path.js',
+      'value%PATH%',
+      '"quoted"',
+      '& whoami',
+      '!delayed!',
+      'line one\r\nline two',
+      'trailing\\'
+    ]
+
+    await manager.start('conv-1', 'node.exe (direct invocation)', '/workspace', {
+      commandShell: CMD_COMMAND_SHELL,
+      directInvocation: {
+        executable: 'node.exe',
+        args
+      },
+      timeout: 0,
+      env: { CUSTOM_FLAG: '1' }
+    })
+
+    expect(spawn).toHaveBeenCalledWith(
+      'node.exe',
+      args,
+      expect.objectContaining({
+        detached: false,
+        windowsHide: true,
+        env: expect.objectContaining({
+          CUSTOM_FLAG: '1',
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUTF8: '1'
+        })
+      })
+    )
+  })
+
+  it.each([
+    { executable: '', args: [] },
+    { executable: 'node.exe', args: ['valid', 1] }
+  ])('rejects malformed direct invocations before spawning', async (directInvocation) => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+
+    await expect(
+      manager.start('conv-1', 'invalid direct invocation', '/workspace', {
+        commandShell: CMD_COMMAND_SHELL,
+        directInvocation: directInvocation as never,
+        timeout: 0
+      })
+    ).rejects.toThrow()
+
+    expect(spawn).not.toHaveBeenCalled()
+  })
+
+  it('uses the required POSIX shell spec without resolving utility-host environment state', async () => {
     Object.defineProperty(process, 'platform', {
       configurable: true,
       value: 'darwin'
@@ -403,7 +474,10 @@ describe('BackgroundExecSessionManager', () => {
     const child = new MockChildProcess()
     vi.mocked(spawn).mockReturnValue(child as never)
 
-    await manager.start('conv-1', 'echo test', '/workspace', { timeout: 0 })
+    await manager.start('conv-1', 'echo test', '/workspace', {
+      commandShell: POSIX_COMMAND_SHELL,
+      timeout: 0
+    })
 
     expect(spawn).toHaveBeenCalledWith(
       '/bin/sh',
@@ -412,6 +486,21 @@ describe('BackgroundExecSessionManager', () => {
         cwd: expect.stringMatching(/[\\/]workspace$/)
       })
     )
+  })
+
+  it.each([
+    undefined,
+    { ...POSIX_COMMAND_SHELL, dialect: 'powershell' as const },
+    WINDOWS_POWERSHELL_COMMAND_SHELL
+  ])('rejects a missing or contradictory command shell before spawning', async (commandShell) => {
+    await expect(
+      manager.start('conv-1', 'echo test', '/workspace', {
+        commandShell: commandShell as never,
+        timeout: 0
+      })
+    ).rejects.toThrow()
+
+    expect(spawn).not.toHaveBeenCalled()
   })
 
   it('rejects missing working directories before spawn can report a misleading shell ENOENT', async () => {
@@ -428,7 +517,10 @@ describe('BackgroundExecSessionManager', () => {
     )
 
     await expect(
-      manager.start('conv-1', 'echo test', '/missing/workspace', { timeout: 0 })
+      manager.start('conv-1', 'echo test', '/missing/workspace', {
+        commandShell: POSIX_COMMAND_SHELL,
+        timeout: 0
+      })
     ).rejects.toThrow('Working directory does not exist or is not accessible')
 
     expect(spawn).not.toHaveBeenCalled()
@@ -438,7 +530,10 @@ describe('BackgroundExecSessionManager', () => {
     const child = new MockChildProcess()
     vi.mocked(spawn).mockReturnValue(child as never)
 
-    const result = await manager.start('conv-1', 'echo test', '/workspace', { timeout: 0 })
+    const result = await manager.start('conv-1', 'echo test', '/workspace', {
+      commandShell: POSIX_COMMAND_SHELL,
+      timeout: 0
+    })
     const bytes = Buffer.from('中文.txt\n', 'utf8')
 
     child.stdout.emit('data', bytes.subarray(0, 2))

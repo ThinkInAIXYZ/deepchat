@@ -434,7 +434,11 @@ describe('SyncService backup import', () => {
         model_status_openai_gpt4: true,
         openai_models: [{ id: 'gpt-4' }],
         custom_models_openai: [{ id: 'custom-gpt' }],
-        recent_models: ['local-history']
+        recent_models: ['local-history'],
+        agentCommandShell: {
+          preference: 'git-bash',
+          gitBashExecutableOverride: 'C:\\Program Files\\Git\\bin\\bash.exe'
+        }
       },
       customPrompts: { prompts: [] },
       systemPrompts: { prompts: [] },
@@ -484,13 +488,21 @@ describe('SyncService backup import', () => {
     expect(appSettings.model_status_openai_gpt4).toBeUndefined()
     expect(appSettings.openai_models).toBeUndefined()
     expect(appSettings.custom_models_openai).toBeUndefined()
+    expect(appSettings.agentCommandShell).toBeUndefined()
     expect(appSettings.recent_models).toEqual(['local-history'])
   })
 
   it('imports backup incrementally without overwriting existing data', async () => {
     createLocalState(userDataDir, {
       conversations: [{ id: 'conv-1', title: 'Local conversation' }],
-      appSettings: { theme: 'light', locale: 'en' },
+      appSettings: {
+        theme: 'light',
+        locale: 'en',
+        agentCommandShell: {
+          preference: 'git-bash',
+          gitBashExecutableOverride: 'C:\\Local Git\\bin\\bash.exe'
+        }
+      },
       customPrompts: {
         prompts: [{ id: 'prompt-local', title: 'Local prompt' }]
       },
@@ -511,7 +523,13 @@ describe('SyncService backup import', () => {
         { id: 'conv-1', title: 'Local conversation' },
         { id: 'conv-2', title: 'Imported conversation' }
       ],
-      appSettings: { theme: 'dark', locale: 'zh' },
+      appSettings: {
+        theme: 'dark',
+        locale: 'zh',
+        agentCommandShell: { preference: 'windows-powershell' },
+        cloudSyncConfig: { provider: 's3', bucket: 'foreign-device' },
+        cloudSyncSecret: 'foreign-wrapped-secret'
+      },
       customPrompts: {
         prompts: [
           { id: 'prompt-local', title: 'Local prompt (ignored)' },
@@ -565,10 +583,16 @@ describe('SyncService backup import', () => {
     expect(appSettings).toEqual({
       theme: 'dark',
       locale: 'zh',
+      agentCommandShell: {
+        preference: 'git-bash',
+        gitBashExecutableOverride: 'C:\\Local Git\\bin\\bash.exe'
+      },
       syncEnabled: true,
       syncFolderPath: syncDir,
       lastSyncTime: 0
     })
+    expect(appSettings.cloudSyncConfig).toBeUndefined()
+    expect(appSettings.cloudSyncSecret).toBeUndefined()
 
     const customPrompts = JSON.parse(
       fs.readFileSync(path.join(userDataDir, 'custom_prompts.json'), 'utf-8')

@@ -18,6 +18,7 @@ import { createState } from '@/agent/deepchat/runtime/types'
 import type { ProcessParams, ProcessResult } from '@/agent/deepchat/runtime/types'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
 
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
@@ -501,7 +502,11 @@ export async function runNativeAgentEvalScenario(
       abortController,
       messages: [{ role: 'user', content: `Eval scenario: ${scenario.id}` }],
       streamState: createState(),
-      resources: { toolDefinitions: tools, activeSkillNames: [] },
+      resources: {
+        toolDefinitions: tools,
+        activeSkillNames: [],
+        commandShell: POSIX_COMMAND_SHELL
+      },
       initialRequestSeq: 1
     }),
     toolCatalog: {

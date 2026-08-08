@@ -6,6 +6,7 @@ import type { MCPToolDefinition } from "@shared/types/core/mcp";
 import type { ToolServicePort } from "@shared/types/tool";
 import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAgentInstance";
 import type { ProviderCatalogPort } from '@/provider/ports'
+import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
 import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from "./systemEnvPromptBuilder";
 import type { SkillSettingsPort } from "@/skill/settings";
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
@@ -47,6 +48,7 @@ export interface SystemPromptBuildInput {
   toolDefinitions: MCPToolDefinition[];
   activeSkillNamesOverride?: string[];
   orchestrationPolicy?: OrchestrationPolicy
+  commandShell: ResolvedCommandShell
   resourceInstance: DeepChatAgentInstance;
 }
 
@@ -92,6 +94,7 @@ export async function buildSystemPromptWithSkills(
 ): Promise<string> {
   const { sessionId, basePrompt, toolDefinitions, activeSkillNamesOverride, resourceInstance } =
     input;
+  const commandShell = ResolvedCommandShellSchema.parse(input.commandShell)
   dependencies.assertCurrent(sessionId, resourceInstance);
   const normalizedBase = basePrompt?.trim() ?? "";
   const state = resourceInstance.getRuntimeState();
@@ -236,6 +239,7 @@ export async function buildSystemPromptWithSkills(
       modelId,
       workdir,
       now,
+      commandShell,
       modelLookup: dependencies.providerCatalogPort,
     });
     dependencies.logSlowStep(sessionId, "system-prompt.env-prompt", stepStartedAt);

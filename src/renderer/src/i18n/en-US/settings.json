@@ -1,6 +1,29 @@
 {
   "title": "Settings",
   "common": {
+    "commandShell": {
+      "title": "Agent command shell",
+      "auto": "Auto",
+      "windowsPowerShell": "Windows PowerShell",
+      "gitBash": "Git Bash",
+      "executable": "Git Bash executable",
+      "autoDetect": "Detect automatically",
+      "browse": "Browse for Git Bash",
+      "clearOverride": "Clear custom path",
+      "checking": "Checking Git Bash...",
+      "available": "Available: {path}",
+      "refresh": "Check again",
+      "updateFailed": "The command shell setting could not be updated.",
+      "checkFailed": "Git Bash availability could not be checked.",
+      "browseFailed": "The Git Bash executable could not be selected.",
+      "loadFailed": "The command shell setting could not be loaded.",
+      "errors": {
+        "unsupported-platform": "Git Bash selection is available only on Windows.",
+        "override-invalid": "The custom path must point to an existing bash.exe.",
+        "not-found": "Git Bash was not found on this device.",
+        "validation-failed": "The detected executable did not pass Git Bash validation."
+      }
+    },
     "title": "Common Settings",
     "resetData": "Reset Data",
     "language": "Language",

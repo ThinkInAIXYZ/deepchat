@@ -69,6 +69,26 @@ describe('AgentFffSearchHandler', () => {
     expect(service.grep).not.toHaveBeenCalled()
   })
 
+  it('applies the resolved command-shell path style to search scopes', async () => {
+    const service = {
+      grep: vi.fn()
+    }
+    const handler = new AgentFffSearchHandler({
+      workspaceRoot: '/workspace',
+      allowedDirectories: ['/workspace'],
+      commandShellPathStyle: 'msys',
+      service: service as any
+    })
+
+    await expect(
+      handler.grep({
+        query: 'secret',
+        pathScope: ['/usr/bin']
+      })
+    ).rejects.toThrow('Unsupported MSYS path')
+    expect(service.grep).not.toHaveBeenCalled()
+  })
+
   it('normalizes extensionless file scopes exactly and directory scopes with a slash', async () => {
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'fff-handler-scope-'))
     await fs.writeFile(path.join(workspaceRoot, 'Dockerfile'), 'FROM scratch', 'utf-8')

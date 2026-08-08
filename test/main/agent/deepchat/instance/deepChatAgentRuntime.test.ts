@@ -6,6 +6,7 @@ import {
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 const TOOL_DEFINITION: MCPToolDefinition = {
   execution: TOOL_EXECUTION.read.parallel,
@@ -32,7 +33,7 @@ function createRun(
     abortController,
     messages: [],
     streamState: {},
-    resources: { toolDefinitions: [], activeSkillNames: [] }
+    resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL }
   })
 }
 

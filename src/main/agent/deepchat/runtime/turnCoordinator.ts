@@ -87,6 +87,7 @@ import type {
   TurnCompletion
 } from './pendingInputContracts'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
+import type { CommandShellService } from '@/agent/shared/process/commandShellService'
 
 type TurnRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
@@ -145,6 +146,7 @@ export interface TurnCoordinatorPorts {
     'resolveProjectDir' | 'getEffectiveGenerationSettings'
   >
   promptAssembly: Pick<PromptAssemblyService, 'createBasePromptAssembler'>
+  commandShell: Pick<CommandShellService, 'resolveForTurn'>
   loopRunner: Pick<DeepChatLoopRunner, 'run'>
   messageProjection: Pick<MessageProjectionService, 'refresh'>
   hookSink: Pick<RuntimeHookSink, 'scope'>
@@ -244,6 +246,11 @@ export class TurnCoordinator {
     )
     const toolReserveTokens = estimateToolReserveTokens(tools)
     throwIfAbortRequested(signal)
+    const commandShell = await this.runPreStreamStep(
+      { sessionId, messageId, step: 'command-shell', signal },
+      () => awaitWithAbort(this.ports.commandShell.resolveForTurn(), signal)
+    )
+    throwIfAbortRequested(signal)
     const basePromptAssembler = this.ports.promptAssembly.createBasePromptAssembler(instance)
     const baseSystemPrompt = await this.runPreStreamStep(
       { sessionId, messageId, step: 'system-prompt', signal },
@@ -253,7 +260,8 @@ export class TurnCoordinator {
             sessionId: toAppSessionId(sessionId),
             configuredPrompt: generationSettings.systemPrompt,
             toolDefinitions: tools,
-            activeSkillNames
+            activeSkillNames,
+            commandShell
           }),
           signal
         )
@@ -269,6 +277,7 @@ export class TurnCoordinator {
       activeSkillNames,
       tools,
       toolReserveTokens,
+      commandShell,
       basePromptAssembler,
       baseSystemPrompt
     }
@@ -500,6 +509,7 @@ export class TurnCoordinator {
         activeSkillNames: effectiveActiveSkillNames,
         tools,
         toolReserveTokens,
+        commandShell,
         basePromptAssembler,
         baseSystemPrompt: unguardedBaseSystemPrompt
       } = await this.prepareTurnResources({
@@ -819,6 +829,7 @@ export class TurnCoordinator {
           promptPreview: content.text,
           search,
           tools,
+          commandShell,
           baseSystemPrompt,
           contextContributions,
           resourceInstance: instance,
@@ -831,7 +842,8 @@ export class TurnCoordinator {
               sessionId: toAppSessionId(sessionId),
               configuredPrompt: generationSettings.systemPrompt,
               toolDefinitions: refreshedTools,
-              activeSkillNames: activeSkillNames ?? effectiveActiveSkillNames
+              activeSkillNames: activeSkillNames ?? effectiveActiveSkillNames,
+              commandShell
             })
             return shouldGuardAttachmentText
               ? appendAttachmentTextSafetyRule(refreshedBasePrompt)
@@ -1221,6 +1233,7 @@ export class TurnCoordinator {
         activeSkillNames: effectiveActiveSkillNames,
         tools,
         toolReserveTokens,
+        commandShell,
         basePromptAssembler,
         baseSystemPrompt: unguardedBaseSystemPrompt
       } = await this.prepareTurnResources({
@@ -1456,6 +1469,7 @@ export class TurnCoordinator {
           providerModelFacts,
           abortController: preStreamAbortController,
           tools,
+          commandShell,
           baseSystemPrompt,
           contextContributions,
           initialBlocks,
@@ -1468,7 +1482,8 @@ export class TurnCoordinator {
               sessionId: toAppSessionId(sessionId),
               configuredPrompt: generationSettings.systemPrompt,
               toolDefinitions: refreshedTools,
-              activeSkillNames: activeSkillNames ?? effectiveActiveSkillNames
+              activeSkillNames: activeSkillNames ?? effectiveActiveSkillNames,
+              commandShell
             })
             return shouldGuardAttachmentText
               ? appendAttachmentTextSafetyRule(refreshedBasePrompt)

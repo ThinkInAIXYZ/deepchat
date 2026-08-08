@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned.
+Implemented; packaged Windows validation is pending.
 
 ## Problem
 
@@ -140,9 +140,12 @@ Git Bash resolution uses the following precedence:
 2. known Git for Windows installation paths;
 3. paths derived from `where git` results.
 
-A candidate is available only after DeepChat successfully runs `bash --version` with a bounded
-timeout. File existence alone is insufficient. Discovery and probing occur only when Git Bash is
-explicitly selected or the user requests an availability check; `auto` never probes Git Bash.
+A candidate is available only after DeepChat successfully runs `bash --version` and confirms a
+non-empty `$BASH_VERSION` with MSYS `$OSTYPE` semantics. Validation does not parse localized
+`--version` prose. Each process probe has a bounded timeout and the complete candidate search shares
+one monotonic deadline. File existence alone is insufficient, and WSL/Cygwin Bash must not satisfy
+the `git-bash` profile. Discovery and probing occur only when Git Bash is explicitly selected or the
+user requests an availability check; `auto` never probes Git Bash.
 User-controlled overrides must resolve to a validated `bash.exe`; candidates are passed as
 executable arguments and are never interpolated into a command string.
 
@@ -186,6 +189,13 @@ Legacy or malformed pending command approvals without both `shellProfile` and a 
 the command or the current platform. Existing payload fields required to display and dispatch the
 tool call remain unchanged. A one-shot approval granted before deferred dispatch must be revoked
 precisely if dispatch fails before the command consumes it; unrelated approvals remain untouched.
+Each in-memory one-shot grant receives an ephemeral lease ID so concurrent grants for the same
+session and signature can be consumed or revoked independently. The lease is scoped to the approved
+tool invocation and is never persisted in the pending interaction.
+
+Local file-tool permissions also carry `shellProfile` when deferred execution must preserve the
+path interpretation used during precheck. `commandSignature` remains specific to command
+authorization.
 
 Permission parsing uses the resolved dialect rather than `process.platform`. PowerShell handling
 must recognize its single-quote and backtick semantics, command substitution, and destructive
@@ -200,9 +210,13 @@ allowed-directory checks. Traversal is resolved before containment checks. It do
 general POSIX path translation layer and does not accept ambiguous MSYS forms outside the supported
 drive mapping.
 
-The Windows shell skill runtime is enabled only for `git-bash`. Existing direct executable script
-execution remains direct and is not unnecessarily wrapped in a shell. Shell quoting is derived from
-the resolved dialect.
+The Windows shell skill runtime is enabled only for `git-bash`. Direct foreground and background
+executable/script execution passes an executable and argv without shell serialization. Only an RTK
+rewrite or another genuine shell plan is interpreted by the resolved shell. Shell quoting is
+derived from the resolved dialect.
+
+The bundled POSIX `deepchat` launcher recognizes the Windows `node.exe` runtime layout so Agent CLI
+commands remain available when Git Bash resolves the launcher from `PATH`.
 
 ## Persistence And Backup
 
@@ -226,6 +240,7 @@ does not overwrite another device's executable override.
 - A pre-dispatch failure revokes only the corresponding one-shot authorization.
 - Git Bash `/c/...` paths are converted before filesystem authorization checks.
 - Windows shell skills run only when Git Bash is the resolved profile.
+- The bundled DeepChat CLI launcher resolves the packaged Windows runtime under Git Bash.
 - Both Windows spawn paths use `windowsHide: true`.
 - macOS and Linux preserve current shell resolution and execution behavior.
 - Device-local command-shell settings are excluded from backup and preserved on import.
@@ -258,6 +273,7 @@ Windows validation must cover:
 - invalid, missing, and later-uninstalled Git Bash overrides;
 - spaces and non-ASCII characters in executable and working-directory paths;
 - Git Bash environment, locale, standard tools, and non-login startup behavior;
+- bundled `deepchat` CLI invocation from Git Bash;
 - no console-window flash in managed and detached execution;
 - pausing for permission, changing the preference, then approving;
 - restarting while a permission interaction is pending;

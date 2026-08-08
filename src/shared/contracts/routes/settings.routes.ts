@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AgentCommandShellConfigSchema, GitBashAvailabilitySchema } from '../../commandShell'
 import { TimestampMsSchema, defineRouteContract } from '../common'
 
 export const SETTINGS_KEYS = [
@@ -132,6 +133,36 @@ export const settingsListSystemFontsRoute = defineRouteContract({
   input: z.object({}).default({}),
   output: z.object({
     fonts: z.array(z.string())
+  })
+})
+
+export const settingsGetCommandShellRoute = defineRouteContract({
+  name: 'settings.commandShell.get',
+  input: z.object({}).default({}),
+  output: z.object({
+    config: AgentCommandShellConfigSchema
+  })
+})
+
+export const settingsUpdateCommandShellRoute = defineRouteContract({
+  name: 'settings.commandShell.update',
+  input: z.object({
+    config: AgentCommandShellConfigSchema
+  }),
+  output: z.object({
+    config: AgentCommandShellConfigSchema
+  })
+})
+
+export const settingsCheckCommandShellRoute = defineRouteContract({
+  name: 'settings.commandShell.check',
+  input: z
+    .object({
+      forceRefresh: z.boolean().optional()
+    })
+    .default({}),
+  output: z.object({
+    gitBash: GitBashAvailabilitySchema
   })
 })
 

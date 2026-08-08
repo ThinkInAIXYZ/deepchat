@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { DeepChatLoopEngine } from '@/agent/deepchat/loop/deepChatLoopEngine'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 function createRun() {
   return createLoopRun({
@@ -11,7 +12,7 @@ function createRun() {
     abortController: new AbortController(),
     messages: [{ role: 'user', content: 'Hello' }],
     streamState: {},
-    resources: { toolDefinitions: [], activeSkillNames: [] }
+    resources: { toolDefinitions: [], activeSkillNames: [], commandShell: POSIX_COMMAND_SHELL }
   })
 }
 

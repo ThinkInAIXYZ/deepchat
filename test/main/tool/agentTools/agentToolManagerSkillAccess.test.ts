@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
+import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
 
@@ -172,7 +173,8 @@ describe('AgentToolManager skill file access', () => {
         content: 'updated',
         base_directory: skillRoot
       },
-      'conv1'
+      'conv1',
+      { commandShell: POSIX_COMMAND_SHELL }
     )
 
     expect(permission).toBeNull()
@@ -276,14 +278,16 @@ describe('AgentToolManager skill file access', () => {
         description: 'Print cwd',
         cwd: skillRoot
       },
-      'conv1'
+      'conv1',
+      { commandShell: POSIX_COMMAND_SHELL }
     )
 
     expect(permission).toEqual(
       expect.objectContaining({
         needsPermission: true,
         permissionType: 'all',
-        paths: [skillRoot]
+        paths: [skillRoot],
+        shellProfile: 'posix'
       })
     )
 
@@ -295,7 +299,8 @@ describe('AgentToolManager skill file access', () => {
           description: 'Print cwd',
           cwd: skillRoot
         },
-        'conv1'
+        'conv1',
+        { commandShell: POSIX_COMMAND_SHELL }
       )
     ).rejects.toThrow(`Working directory is not allowed: ${skillRoot}`)
   })
@@ -329,7 +334,8 @@ describe('AgentToolManager skill file access', () => {
       },
       'conv1',
       {
-        allowExternalFileAccess: true
+        allowExternalFileAccess: true,
+        commandShell: POSIX_COMMAND_SHELL
       }
     )
 
@@ -354,7 +360,7 @@ describe('AgentToolManager skill file access', () => {
           cwd: otherSkillRoot
         },
         'conv1',
-        { allowExternalFileAccess: true }
+        { allowExternalFileAccess: true, commandShell: POSIX_COMMAND_SHELL }
       )
     ).rejects.toThrow('another Agent Skill scope')
   })

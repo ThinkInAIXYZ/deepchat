@@ -20,6 +20,9 @@ before the deeper authorization and execution changes.
    - discovers and validates Git Bash asynchronously;
    - wraps current POSIX `$SHELL -c` behavior without changing it;
    - can resolve a stored profile independently of the current preference for deferred execution.
+   Git Bash validation checks both GNU Bash identity and MSYS path semantics so WSL/Cygwin do not
+   enter the profile through an override. The complete candidate search shares one monotonic
+   deadline so damaged installations cannot multiply the per-process timeout across every path.
 3. Cache successful Git Bash validation in memory by canonical path and effective configuration;
    invalidate on settings changes and explicit refresh without persisting discovery results.
 4. Keep bootstrap-environment behavior compatible. Git Bash-specific environment adjustments are
@@ -74,8 +77,9 @@ profile fields. It does not call the preference resolver.
    approval adapter. Missing fields fail closed with a diagnostic error.
 5. For deferred execution, resolve the persisted profile and rebuild `ToolCallOptions` with that
    spec instead of the current preference.
-6. Add a keyed one-shot revocation operation to the permission cache/service. If dispatch fails
-   before the tool consumes approval, revoke that exact session/signature grant.
+6. Give each in-memory one-shot authorization an ephemeral lease ID and carry it only through the
+   approved tool invocation. Permission checks and pre-dispatch cleanup consume or revoke that exact
+   lease so concurrent grants with the same session/signature cannot interfere.
 
 Session-scoped approvals, where present, remain namespaced. Conversation cloning keeps its existing
 session-only behavior.
@@ -87,7 +91,10 @@ session-only behavior.
    allowed-directory authorization. Reject malformed or unsupported MSYS forms conservatively.
 3. Pass the shell spec into skill run options.
 4. Permit Windows `runtime: shell` only for Git Bash, and derive shell quoting from dialect.
-5. Preserve direct foreground executable/script spawning where no shell interpretation is needed.
+5. Preserve direct foreground and background executable/script spawning with executable/argv where
+   no shell interpretation is needed.
+6. Let the bundled POSIX CLI launcher resolve the packaged Windows `node.exe` layout under Git
+   Bash.
 
 ## Compatibility And Failure Semantics
 
@@ -125,9 +132,11 @@ session-only behavior.
 - conservative CMD/unknown syntax behavior.
 - malformed legacy payload fail-closed behavior.
 - settings switch and restart between request and delayed approval.
-- exact one-shot revocation on every pre-dispatch failure path.
+- exact one-shot lease consumption and revocation on every pre-dispatch failure path, including
+  concurrent identical signatures.
 - `/c/...` conversion before containment and allowed-directory checks, including traversal and
   unsupported forms.
+- bundled CLI launcher resolution under the Windows Git Bash runtime layout.
 
 ### Validation
 

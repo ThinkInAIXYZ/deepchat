@@ -24,6 +24,7 @@ import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/projec
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope, type DeepchatEventPublisher } from '@shared/contracts/events'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
+import type { AgentCommandShellConfig } from '@shared/commandShell'
 import {
   createEmptyArchiveCandidateLifecyclePreview,
   createEmptyMemoryHealth,
@@ -157,7 +158,8 @@ function createRuntime() {
     customProxyUrl: '',
     updateChannel: 'stable' as 'stable' | 'beta',
     skillDraftSuggestionsEnabled: false,
-    defaultProjectPath: null as string | null
+    defaultProjectPath: null as string | null,
+    agentCommandShell: { preference: 'auto' } as AgentCommandShellConfig
   }
   const knowledgeConfigs = [
     {
@@ -982,6 +984,18 @@ function createRuntime() {
       settings.ocrBackend = value
     })
   }
+  const commandShell = {
+    getConfig: vi.fn(() => settings.agentCommandShell),
+    setConfig: vi.fn((value: AgentCommandShellConfig) => {
+      settings.agentCommandShell = value
+      return value
+    }),
+    checkGitBash: vi.fn(async () => ({
+      supported: true as const,
+      available: false as const,
+      error: 'not-found' as const
+    }))
+  }
   const testHookCommand = vi.fn().mockResolvedValue({
     success: true,
     durationMs: 10,
@@ -1717,6 +1731,7 @@ function createRuntime() {
     applyContentProtection,
     logging: loggingService as never,
     ocr: ocrSettings,
+    commandShell,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },
@@ -1803,6 +1818,7 @@ function createRuntime() {
     applyContentProtection,
     loggingService,
     ocrSettings,
+    commandShell,
     testHookCommand,
     providerRuntime,
     acpProviderAdminPort,
@@ -3182,6 +3198,39 @@ describe('dispatchDeepchatRoute', () => {
         ocrBackend: 'cpu'
       }
     })
+  })
+
+  it('reads, atomically updates, and checks the device command shell', async () => {
+    const { runtime, settings, commandShell, sqlitePresenter } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+
+    await expect(
+      dispatchDeepchatRoute(runtime, 'settings.commandShell.get', {}, context)
+    ).resolves.toEqual({ config: { preference: 'auto' } })
+
+    const config = {
+      preference: 'git-bash' as const,
+      gitBashExecutableOverride: 'C:\\Program Files\\Git\\bin\\bash.exe'
+    }
+    await expect(
+      dispatchDeepchatRoute(runtime, 'settings.commandShell.update', { config }, context)
+    ).resolves.toEqual({ config })
+    expect(commandShell.setConfig).toHaveBeenCalledWith(config)
+    expect(settings.agentCommandShell).toEqual(config)
+    expect(sqlitePresenter.recordSettingsActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'agent',
+        targetId: 'agentCommandShell',
+        routeName: 'settings-common'
+      })
+    )
+
+    await expect(
+      dispatchDeepchatRoute(runtime, 'settings.commandShell.check', { forceRefresh: true }, context)
+    ).resolves.toEqual({
+      gitBash: { supported: true, available: false, error: 'not-found' }
+    })
+    expect(commandShell.checkGitBash).toHaveBeenCalledWith({ forceRefresh: true })
   })
 
   it('limits each public settings mutation to one typed change', async () => {

@@ -157,6 +157,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     agentSettings,
     attachmentRouter,
     cacheImage,
+    commandShell,
     database,
     hookObserver,
     providerRuntime,
@@ -286,6 +287,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     registry: runtime,
     sessionState,
     promptAssembly,
+    commandShell,
     messageProjection
   })
   const interactionParking = new InteractionParkingRegistry()
@@ -329,6 +331,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     sessionState,
     identity,
     messageProjection,
+    commandShell,
     executionJournal: tapeService
   })
   const inputPreparationCoordinator = new InputPreparationCoordinator()
@@ -384,6 +387,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     attachmentRouter,
     sessionSettings,
     promptAssembly,
+    commandShell,
     loopRunner,
     messageProjection,
     hookSink
@@ -473,7 +477,14 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
         getGenerationSettings: async (sessionId, instance) =>
           await sessionSettings.getEffectiveGenerationSettings(sessionId, instance),
         buildSystemPrompt: async (sessionId, basePrompt, tools, activeSkills, instance) =>
-          await promptAssembly.build(sessionId, basePrompt, tools, activeSkills, instance),
+          await promptAssembly.build(
+            sessionId,
+            basePrompt,
+            tools,
+            await commandShell.resolveForTurn(),
+            activeSkills,
+            instance
+          ),
         emitRateLimitWaitingMessage: (sessionId, messageId, requestId, snapshot) =>
           loopRunner.emitRateLimitWaitingMessage(sessionId, messageId, requestId, snapshot),
         clearRateLimitWaitingMessage: (sessionId, messageId, requestId) =>

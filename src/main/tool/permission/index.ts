@@ -1,4 +1,8 @@
-export { CommandPermissionService } from './commandPermissionService'
+export {
+  buildCommandPermissionSignature,
+  CommandPermissionService,
+  isCommandSignatureForProfile
+} from './commandPermissionService'
 export { CommandPermissionCache } from './commandPermissionCache'
 export { FilePermissionService, FilePermissionRequiredError } from './filePermissionService'
 export { SettingsPermissionService } from './settingsPermissionService'

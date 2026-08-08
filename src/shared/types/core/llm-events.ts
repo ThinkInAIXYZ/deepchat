@@ -329,6 +329,7 @@ export interface PermissionRequestPayload {
   server_icons?: string
   command?: string
   commandSignature?: string
+  shellProfile?: import('../../commandShell').CommandShellProfile
   paths?: string[]
   commandInfo?: {
     command: string

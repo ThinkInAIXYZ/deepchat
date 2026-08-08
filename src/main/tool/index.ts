@@ -395,6 +395,8 @@ export class ToolService implements ToolServicePort {
           signal: options?.signal,
           allowExternalFileAccess: allowsExternalFileAccess(permissionMode),
           activeSkillNames: options?.activeSkillNames,
+          commandShell: options?.commandShell,
+          oneShotCommandGrantId: options?.oneShotCommandGrantId,
           liveDelegationAuthorization,
           commitDispatch: options?.commitDispatch
         }
@@ -484,7 +486,11 @@ export class ToolService implements ToolServicePort {
    */
   async preCheckToolPermission(
     request: MCPToolCall,
-    options?: { permissionMode?: PermissionMode; signal?: AbortSignal }
+    options?: {
+      permissionMode?: PermissionMode
+      signal?: AbortSignal
+      commandShell?: ToolCallOptions['commandShell']
+    }
   ): Promise<ToolPermissionPreCheckResult | null> {
     options?.signal?.throwIfAborted()
     const toolName = request.function.name
@@ -508,7 +514,8 @@ export class ToolService implements ToolServicePort {
 
       const result = await awaitWithAbort(
         this.agentToolManager.preCheckToolPermission(toolName, args, request.conversationId, {
-          allowExternalFileAccess: allowsExternalFileAccess(permissionMode)
+          allowExternalFileAccess: allowsExternalFileAccess(permissionMode),
+          commandShell: options?.commandShell
         }),
         options?.signal
       )

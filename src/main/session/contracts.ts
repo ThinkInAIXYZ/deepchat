@@ -47,6 +47,7 @@ import type { OrchestrationPolicy } from '@shared/orchestration/policy'
 import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
+import type { CommandShellProfile } from '@shared/commandShell'
 import type { DeepChatMessageRow } from '../session/data/tables/deepchatMessages'
 import type { DeepChatMessageSearchResultRow } from '../session/data/tables/deepchatMessageSearchResults'
 import type { DeepChatMessageTraceRow } from '../session/data/tables/deepchatMessageTraces'
@@ -57,6 +58,7 @@ export type SessionPermissionRequest = {
   toolName?: string
   command?: string
   commandSignature?: string
+  shellProfile?: CommandShellProfile
   paths?: string[]
   commandInfo?: {
     command: string
@@ -71,7 +73,8 @@ export type SessionPermissionRequest = {
 export interface SessionPermissionPort {
   clearSessionPermissions(sessionId: string): void
   cloneSessionPermissions?(sourceSessionId: string, targetSessionId: string): void
-  approvePermission(sessionId: string, permission: SessionPermissionRequest): Promise<void>
+  approvePermission(sessionId: string, permission: SessionPermissionRequest): Promise<string | null>
+  revokeOneShotCommandPermission(sessionId: string, signature: string, oneShotGrantId: string): void
   denyPermission?(sessionId: string, requestId: string): Promise<void>
 }
 

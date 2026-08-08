@@ -33,6 +33,7 @@ vi.mock('@/agent/shared/process/shellEnvHelper', async (importOriginal) => {
 })
 
 import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
+import { WINDOWS_POWERSHELL_COMMAND_SHELL } from '../../../helpers/commandShell'
 import { CommandPermissionService } from '@/tool/permission/commandPermissionService'
 
 class MockStream extends EventEmitter {}
@@ -84,7 +85,9 @@ describe('AgentBashHandler output encoding', () => {
           options: Record<string, unknown>
         ) => Promise<{ output: string; exitCode: number | null }>
       }
-    ).runDetachedShellProcess('dir', '/workspace', 1000, {})
+    ).runDetachedShellProcess('dir', '/workspace', 1000, {
+      commandShell: WINDOWS_POWERSHELL_COMMAND_SHELL
+    })
 
     const bytes = Buffer.from('中文.txt\n', 'utf8')
     child.stdout.emit('data', bytes.subarray(0, 2))
@@ -97,7 +100,8 @@ describe('AgentBashHandler output encoding', () => {
       ['-NoProfile', '-Command', expect.stringContaining('[Console]::OutputEncoding')],
       expect.objectContaining({
         cwd: expect.stringMatching(/[\\/]workspace$/),
-        detached: false
+        detached: false,
+        windowsHide: true
       })
     )
     expect(result.output).toBe('中文.txt\n')

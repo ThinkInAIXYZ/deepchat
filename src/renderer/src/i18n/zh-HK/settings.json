@@ -1,6 +1,29 @@
 {
   "title": "設置",
   "common": {
+    "commandShell": {
+      "title": "Agent 命令 Shell",
+      "auto": "自動",
+      "windowsPowerShell": "Windows PowerShell",
+      "gitBash": "Git Bash",
+      "executable": "Git Bash 可執行檔",
+      "autoDetect": "自動偵測",
+      "browse": "選擇 Git Bash",
+      "clearOverride": "清除自訂路徑",
+      "checking": "正在檢查 Git Bash...",
+      "available": "可用：{path}",
+      "refresh": "重新檢查",
+      "updateFailed": "無法更新命令 Shell 設定。",
+      "checkFailed": "無法檢查 Git Bash 是否可用。",
+      "browseFailed": "無法選擇 Git Bash 可執行檔。",
+      "loadFailed": "無法載入命令 Shell 設定。",
+      "errors": {
+        "unsupported-platform": "只有 Windows 支援選擇 Git Bash。",
+        "override-invalid": "自訂路徑必須指向現有的 bash.exe。",
+        "not-found": "未在此裝置上找到 Git Bash。",
+        "validation-failed": "偵測到的可執行檔未通過 Git Bash 驗證。"
+      }
+    },
     "title": "通用設置",
     "resetData": "重置數據",
     "language": "語言",

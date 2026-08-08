@@ -1,13 +1,17 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
+import type { AgentCommandShellConfig } from '@shared/commandShell'
 import { settingsChangedEvent } from '@shared/contracts/events'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import {
   configGetEntriesRoute,
   configUpdateEntriesRoute,
+  settingsCheckCommandShellRoute,
+  settingsGetCommandShellRoute,
   settingsGetSnapshotRoute,
   settingsActivityListRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
+  settingsUpdateCommandShellRoute,
   systemOpenSettingsRoute,
   type ConfigEntryChange,
   type ConfigEntryKey,
@@ -50,6 +54,21 @@ export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge(
   async function getSystemFonts(): Promise<string[]> {
     const result = await bridge.invoke(settingsListSystemFontsRoute.name, {})
     return result.fonts
+  }
+
+  async function getCommandShell() {
+    const result = await bridge.invoke(settingsGetCommandShellRoute.name, {})
+    return result.config
+  }
+
+  async function updateCommandShell(config: AgentCommandShellConfig) {
+    const result = await bridge.invoke(settingsUpdateCommandShellRoute.name, { config })
+    return result.config
+  }
+
+  async function checkCommandShell(forceRefresh = false) {
+    const result = await bridge.invoke(settingsCheckCommandShellRoute.name, { forceRefresh })
+    return result.gitBash
   }
 
   async function getConfigEntries(keys?: ConfigEntryKey[]): Promise<Partial<ConfigEntryValues>> {
@@ -102,6 +121,9 @@ export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge(
   return {
     getSnapshot,
     getSystemFonts,
+    getCommandShell,
+    updateCommandShell,
+    checkCommandShell,
     getConfigEntries,
     updateConfigEntries,
     getConfigEntry,

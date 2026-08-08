@@ -24,6 +24,7 @@ import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
 import { nanoid } from 'nanoid'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import type { ResolvedCommandShell } from '@shared/commandShell'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { SessionPendingInputs } from '@/session/data/pendingInputs'
 import {
@@ -180,6 +181,7 @@ export type DeepChatLoopRunInput = {
   resourceInstance?: DeepChatAgentInstance
   providerModelFacts?: ProviderModelRuntimeFacts
   tools?: MCPToolDefinition[]
+  commandShell: ResolvedCommandShell
   baseSystemPrompt?: string
   contextContributions?: ContextRuntimeContributions
   initialBlocks?: AssistantMessageBlock[]
@@ -351,6 +353,7 @@ export class DeepChatLoopRunner {
       resourceInstance: providedResourceInstance,
       providerModelFacts: providedProviderModelFacts,
       tools: providedTools,
+      commandShell,
       baseSystemPrompt,
       contextContributions,
       initialBlocks,
@@ -492,7 +495,8 @@ export class DeepChatLoopRunner {
       streamState: createState(),
       resources: {
         toolDefinitions: tools,
-        activeSkillNames: getEffectiveRuntimeSkillNames()
+        activeSkillNames: getEffectiveRuntimeSkillNames(),
+        commandShell
       },
       initialRequestSeq
     })
@@ -596,7 +600,8 @@ export class DeepChatLoopRunner {
             sessionId: toAppSessionId(sessionId),
             configuredPrompt: generationSettings.systemPrompt,
             toolDefinitions: refreshedTools,
-            activeSkillNames: getEffectiveRuntimeSkillNames(activeSkillNames)
+            activeSkillNames: getEffectiveRuntimeSkillNames(activeSkillNames),
+            commandShell: loopRun.resources.commandShell
           })
         },
         toolExecution: this.ports.toolExecutionPort,
@@ -848,8 +853,14 @@ export class DeepChatLoopRunner {
               commitDecision
             )
           },
-          autoGrantPermission: async (permission) => {
-            await this.ports.sessionPermissionPort.approvePermission(sessionId, permission)
+          autoGrantPermission: async (permission) =>
+            await this.ports.sessionPermissionPort.approvePermission(sessionId, permission),
+          revokeOneShotCommandPermission: (signature, oneShotGrantId) => {
+            this.ports.sessionPermissionPort.revokeOneShotCommandPermission(
+              sessionId,
+              signature,
+              oneShotGrantId
+            )
           },
           reviewToolPermission: async (request) =>
             await this.ports.reviewToolPermission(request, {

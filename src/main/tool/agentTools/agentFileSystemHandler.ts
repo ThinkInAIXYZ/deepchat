@@ -9,6 +9,8 @@ import { diffLines } from 'diff'
 import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import { glob } from 'glob'
+import type { CommandShellPathStyle } from '@shared/commandShell'
+import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
 
 // Auto-truncate threshold for read to avoid triggering tool output offload
 const READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
@@ -195,6 +197,7 @@ export class AgentFileSystemHandler {
   private conversationId?: string
   private readonly sessionsRoot: string
   private readonly allowExternalAccess: boolean
+  private readonly commandShellPathStyle: CommandShellPathStyle
   private readonly protectedDirectoryRules: Array<{
     roots: string[]
     allowedRoots: string[]
@@ -206,6 +209,7 @@ export class AgentFileSystemHandler {
       conversationId?: string
       allowExternalAccess?: boolean
       protectedDirectoryRules?: ProtectedDirectoryRule[]
+      commandShellPathStyle?: CommandShellPathStyle
     } = {}
   ) {
     if (allowedDirectories.length === 0) {
@@ -214,6 +218,7 @@ export class AgentFileSystemHandler {
     this.allowedDirectories = allowedDirectories.map((dir) =>
       this.normalizePath(path.resolve(this.expandHome(dir)))
     )
+    this.commandShellPathStyle = options.commandShellPathStyle ?? 'native'
     this.allowedDirectoryRoots = Array.from(
       new Set(
         this.allowedDirectories.flatMap((dir) => {
@@ -324,10 +329,17 @@ export class AgentFileSystemHandler {
   }
 
   resolvePath(requestedPath: string, baseDirectory?: string): string {
-    const expandedPath = this.expandHome(requestedPath)
+    const shellNormalizedPath = normalizeCommandShellFilePath(
+      requestedPath,
+      this.commandShellPathStyle
+    )
+    const expandedPath = this.expandHome(shellNormalizedPath)
+    const normalizedBaseDirectory = baseDirectory
+      ? normalizeCommandShellFilePath(baseDirectory, this.commandShellPathStyle)
+      : undefined
     const absolute = path.isAbsolute(expandedPath)
       ? path.resolve(expandedPath)
-      : path.resolve(baseDirectory ?? this.allowedDirectories[0], expandedPath)
+      : path.resolve(normalizedBaseDirectory ?? this.allowedDirectories[0], expandedPath)
     return this.normalizePath(absolute)
   }
 

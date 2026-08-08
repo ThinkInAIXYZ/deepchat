@@ -518,6 +518,7 @@ export interface RemotePendingInteractionPermission {
   rememberable?: boolean
   command?: string
   commandSignature?: string
+  shellProfile?: import('@shared/commandShell').CommandShellProfile
   paths?: string[]
   commandInfo?: RemotePermissionCommandInfo
 }

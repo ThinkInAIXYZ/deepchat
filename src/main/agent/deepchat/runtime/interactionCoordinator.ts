@@ -50,6 +50,8 @@ import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { RuntimeHookScope, RuntimeHookSink } from './runtimeHookSink'
 import { ExecutionJournalError, isExecutionJournalError } from '@/tape/domain/executionJournal'
 import type { InteractionParkingRegistry } from './interactionParkingRegistry'
+import { CommandShellProfileSchema } from '@shared/commandShell'
+import { isCommandSignatureForProfile } from '@/tool/permission'
 
 const DEFERRED_INTERACTION_PARKED_ERROR =
   'Execution is parked after an Execution Journal failure and will not be retried automatically.'
@@ -257,58 +259,77 @@ export class InteractionCoordinator {
 
         if (response.granted) {
           await resumeWaitingAdmission()
-          await awaitWithAbort(
-            this.grantPermissionForPayload(sessionId, permissionPayload, toolCall),
-            interactionAbortSignal
-          )
-          const nextToolCallAccounting = incrementToolCallAccounting(resumeAccounting)
-          let deferredToolCallCounted = false
-          const markDeferredToolCallStarted = () => {
-            if (deferredToolCallCounted) {
-              return
-            }
-            deferredToolCallCounted = true
-            resumeAccounting = nextToolCallAccounting
-            accountingChanged = true
-            this.ports.messageStore.updateAssistantMetadata(
-              messageId,
-              JSON.stringify(resumeAccounting)
-            )
-          }
+          let grantedCommandPermission: {
+            signature: string
+            oneShotGrantId: string
+          } | null = null
           let execution: DeferredToolExecutionResult
-          if ((nextToolCallAccounting.toolCalls ?? 0) > MAX_TOOL_CALLS) {
-            execution = {
-              responseText: MAX_TOOL_CALLS_SKIPPED_ERROR,
-              isError: true
-            }
-          } else {
-            hooks.emit({
-              event: 'PreToolUse',
-              tool: { callId: toolCall.id, name: toolCall.name, params: toolCall.params }
-            })
-            execution = await this.ports.deferredToolExecutor.execute(
+          try {
+            // Await the cache mutation directly so cleanup always owns the exact grant lease.
+            grantedCommandPermission = await this.grantPermissionForPayload(
               sessionId,
-              messageId,
-              toolCall,
-              markDeferredToolCallStarted
+              permissionPayload,
+              toolCall
             )
-            const refreshedInteraction = this.readLatestPendingInteraction(
-              sessionId,
-              messageId,
-              toolCall.id
-            )
-            if (!refreshedInteraction) {
-              return { resumed: false }
+            throwIfAbortRequested(interactionAbortSignal)
+            const nextToolCallAccounting = incrementToolCallAccounting(resumeAccounting)
+            let deferredToolCallCounted = false
+            const markDeferredToolCallStarted = () => {
+              if (deferredToolCallCounted) {
+                return
+              }
+              deferredToolCallCounted = true
+              resumeAccounting = nextToolCallAccounting
+              accountingChanged = true
+              this.ports.messageStore.updateAssistantMetadata(
+                messageId,
+                JSON.stringify(resumeAccounting)
+              )
             }
-            blocks = refreshedInteraction.blocks
-            actionBlock = refreshedInteraction.actionBlock
-            if (
-              (execution.invoked ||
-                execution.terminalError ||
-                execution.journalFailure?.dispatchCommitted) &&
-              !deferredToolCallCounted
-            ) {
-              markDeferredToolCallStarted()
+            if ((nextToolCallAccounting.toolCalls ?? 0) > MAX_TOOL_CALLS) {
+              execution = {
+                responseText: MAX_TOOL_CALLS_SKIPPED_ERROR,
+                isError: true
+              }
+            } else {
+              hooks.emit({
+                event: 'PreToolUse',
+                tool: { callId: toolCall.id, name: toolCall.name, params: toolCall.params }
+              })
+              execution = await this.ports.deferredToolExecutor.execute(
+                sessionId,
+                messageId,
+                toolCall,
+                markDeferredToolCallStarted,
+                permissionPayload?.shellProfile,
+                grantedCommandPermission?.oneShotGrantId
+              )
+              const refreshedInteraction = this.readLatestPendingInteraction(
+                sessionId,
+                messageId,
+                toolCall.id
+              )
+              if (!refreshedInteraction) {
+                return { resumed: false }
+              }
+              blocks = refreshedInteraction.blocks
+              actionBlock = refreshedInteraction.actionBlock
+              if (
+                (execution.invoked ||
+                  execution.terminalError ||
+                  execution.journalFailure?.dispatchCommitted) &&
+                !deferredToolCallCounted
+              ) {
+                markDeferredToolCallStarted()
+              }
+            }
+          } finally {
+            if (grantedCommandPermission) {
+              this.ports.sessionPermissionPort.revokeOneShotCommandPermission(
+                sessionId,
+                grantedCommandPermission.signature,
+                grantedCommandPermission.oneShotGrantId
+              )
             }
           }
           if (execution.journalFailure) {
@@ -708,8 +729,8 @@ export class InteractionCoordinator {
     sessionId: string,
     payload: PendingToolInteraction['permission'] | undefined,
     toolCall: NonNullable<AssistantMessageBlock['tool_call']>
-  ): Promise<void> {
-    if (!payload) return
+  ): Promise<{ signature: string; oneShotGrantId: string } | null> {
+    if (!payload) return null
 
     const sessionPermissionPort = this.ports.sessionPermissionPort
     const permissionType = payload.permissionType
@@ -718,16 +739,26 @@ export class InteractionCoordinator {
 
     if (permissionType === 'command') {
       const command = payload.command || payload.commandInfo?.command || ''
-      const signature = payload.commandSignature || payload.commandInfo?.signature || command
-      if (signature) {
-        await sessionPermissionPort.approvePermission(sessionId, {
-          permissionType: 'command',
-          command,
-          commandSignature: signature,
-          commandInfo: payload.commandInfo
-        })
+      const signature = payload.commandSignature?.trim()
+      const parsedProfile = CommandShellProfileSchema.safeParse(payload.shellProfile)
+      if (
+        !signature ||
+        !parsedProfile.success ||
+        !isCommandSignatureForProfile(signature, parsedProfile.data)
+      ) {
+        throw new Error('Command approval is missing a valid shell profile and signature.')
       }
-      return
+      const oneShotGrantId = await sessionPermissionPort.approvePermission(sessionId, {
+        permissionType: 'command',
+        command,
+        commandSignature: signature,
+        shellProfile: parsedProfile.data,
+        commandInfo: payload.commandInfo
+      })
+      if (!oneShotGrantId) {
+        throw new Error('Command approval did not return a one-shot grant lease.')
+      }
+      return { signature, oneShotGrantId }
     }
 
     if (serverName === 'agent-filesystem' && Array.isArray(payload.paths) && payload.paths.length) {
@@ -740,7 +771,7 @@ export class InteractionCoordinator {
         toolName,
         paths: payload.paths
       })
-      return
+      return null
     }
 
     if (serverName === 'deepchat-settings' && toolName) {
@@ -749,7 +780,7 @@ export class InteractionCoordinator {
         serverName,
         toolName
       })
-      return
+      return null
     }
 
     if (
@@ -763,5 +794,6 @@ export class InteractionCoordinator {
         requestId: payload.requestId
       })
     }
+    return null
   }
 }

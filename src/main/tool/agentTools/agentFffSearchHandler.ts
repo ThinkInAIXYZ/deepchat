@@ -10,6 +10,7 @@ import {
   type FffGrepOptions,
   type FffSearchMetadata
 } from '@/platform/fileSearch/fffSearchService'
+import type { CommandShellPathStyle } from '@shared/commandShell'
 
 export const GLOB_TOOL_NAME = 'glob'
 export const GREP_TOOL_NAME = 'grep'
@@ -43,6 +44,7 @@ type AgentFffSearchHandlerOptions = {
   conversationId?: string
   allowExternalFileAccess?: boolean
   protectedDirectoryRules?: ProtectedDirectoryRule[]
+  commandShellPathStyle?: CommandShellPathStyle
   signal?: AbortSignal
   service?: FffSearchService
 }
@@ -75,7 +77,8 @@ export class AgentFffSearchHandler {
     this.fileSystemHandler = new AgentFileSystemHandler(options.allowedDirectories, {
       conversationId: options.conversationId,
       allowExternalAccess: options.allowExternalFileAccess,
-      protectedDirectoryRules: options.protectedDirectoryRules
+      protectedDirectoryRules: options.protectedDirectoryRules,
+      commandShellPathStyle: options.commandShellPathStyle
     })
   }
 

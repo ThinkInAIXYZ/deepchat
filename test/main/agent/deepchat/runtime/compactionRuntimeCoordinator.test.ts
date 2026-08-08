@@ -13,6 +13,7 @@ import type {
 } from '@shared/types/agent-interface'
 import { ModelType } from '@shared/model'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 const SESSION_ID = 'session'
 
@@ -255,6 +256,9 @@ function createHarness(options?: {
       createBasePromptAssembler: () => ({
         assemble: vi.fn().mockResolvedValue('Assembled system prompt')
       })
+    },
+    commandShell: {
+      resolveForTurn: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL)
     },
     messageProjection: { refresh: emitMessageRefresh },
     publishEvent: (event, payload) => publishedEvents.push({ event, payload })

@@ -13,11 +13,7 @@ import {
   RTK_ENABLED_SETTING_KEY,
   rtkRuntimeService
 } from '@/agent/shared/process/rtkRuntimeService'
-import {
-  getShellEnvironment,
-  getUserShell,
-  mergeCommandEnvironment
-} from '@/agent/shared/process/shellEnvHelper'
+import { getShellEnvironment, mergeCommandEnvironment } from '@/agent/shared/process/shellEnvHelper'
 import {
   createUtf8OutputDecoderPair,
   prepareProcessEnvForUtf8Output,
@@ -27,6 +23,7 @@ import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import type { SettingsStore } from '@/config/settingsStore'
+import type { CommandShellDialect, ResolvedCommandShell } from '@shared/commandShell'
 
 const DEFAULT_TIMEOUT_MS = 120000
 const FOREGROUND_OFFLOAD_THRESHOLD = 10000
@@ -45,6 +42,7 @@ export interface SkillRunRequest {
 
 export interface SkillRunOptions {
   conversationId: string
+  commandShell: ResolvedCommandShell
   activeSkillNames?: string[]
   beforeExecute?: (normalizedArguments: Record<string, unknown>) => void
 }
@@ -71,7 +69,7 @@ interface SpawnPlan {
   args: string[]
   cwd: string
   env: Record<string, string>
-  shellCommand: string
+  shellCommand?: string
   outputPrefix: string
   spawnMode: 'direct' | 'shell'
 }
@@ -93,7 +91,13 @@ export class SkillExecutionService {
 
   async execute(input: SkillRunRequest, options: SkillRunOptions): Promise<SkillExecutionResult> {
     const preparedPlan = await this.preparePlanForExecution(
-      await this.buildSpawnPlan(input, options.conversationId, options.activeSkillNames)
+      await this.buildSpawnPlan(
+        input,
+        options.conversationId,
+        options.commandShell,
+        options.activeSkillNames
+      ),
+      options.commandShell
     )
     const plan = { ...preparedPlan, cwd: resolveUsableSpawnCwd(preparedPlan.cwd) }
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
@@ -107,16 +111,27 @@ export class SkillExecutionService {
       resolvedCommand: plan.command,
       resolvedArgs: plan.args,
       resolvedCwd: plan.cwd,
-      shellCommand: plan.shellCommand,
+      ...(plan.shellCommand === undefined ? {} : { shellCommand: plan.shellCommand }),
       spawnMode: plan.spawnMode
     })
 
     if (input.background) {
+      const displayCommand =
+        plan.shellCommand ?? this.formatDirectInvocation(plan.command, plan.args)
       const result = await backgroundExecSessionManager.start(
         options.conversationId,
-        plan.shellCommand,
+        displayCommand,
         plan.cwd,
         {
+          commandShell: options.commandShell,
+          ...(plan.spawnMode === 'direct'
+            ? {
+                directInvocation: {
+                  executable: plan.command,
+                  args: plan.args
+                }
+              }
+            : {}),
           timeout: timeoutMs,
           env: plan.env
         }
@@ -139,7 +154,13 @@ export class SkillExecutionService {
     }
 
     return {
-      output: await this.runForeground(plan, timeoutMs, options.conversationId, input.stdin),
+      output: await this.runForeground(
+        plan,
+        timeoutMs,
+        options.conversationId,
+        options.commandShell,
+        input.stdin
+      ),
       rtkApplied: plan.spawnMode === 'shell',
       rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass'
     }
@@ -148,6 +169,7 @@ export class SkillExecutionService {
   private async buildSpawnPlan(
     input: SkillRunRequest,
     conversationId: string,
+    commandShell: ResolvedCommandShell,
     activeSkillNames?: string[]
   ): Promise<SpawnPlan> {
     const activeSkills =
@@ -189,7 +211,8 @@ export class SkillExecutionService {
       script,
       extension,
       metadata.skillRoot,
-      mergedEnv
+      mergedEnv,
+      commandShell
     )
     const args = this.buildRuntimeArgs(runtime, script, metadata.skillRoot, input.args ?? [])
 
@@ -198,7 +221,9 @@ export class SkillExecutionService {
       args,
       cwd: executionCwd,
       env: mergedEnv,
-      shellCommand: this.buildShellCommand(runtime.command, args),
+      ...(commandShell.dialect === 'cmd'
+        ? {}
+        : { shellCommand: this.buildShellCommand(runtime.command, args, commandShell.dialect) }),
       outputPrefix: `skillrun_${input.skill.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
       spawnMode: 'direct'
     }
@@ -306,14 +331,14 @@ export class SkillExecutionService {
     script: SkillScriptDescriptor,
     extension: SkillExtensionConfig,
     skillRoot: string,
-    env: Record<string, string>
+    env: Record<string, string>,
+    commandShell: ResolvedCommandShell
   ): Promise<RuntimeCommand> {
     if (script.runtime === 'shell') {
-      if (process.platform === 'win32') {
-        throw new Error('Shell skill scripts are not supported on Windows')
+      if (commandShell.profile !== 'posix' && commandShell.profile !== 'git-bash') {
+        throw new Error('Shell skill scripts on Windows require the Git Bash command shell')
       }
-      const { shell } = getUserShell()
-      return { command: shell, mode: 'shell' }
+      return { command: commandShell.executable, mode: 'shell' }
     }
 
     if (script.runtime === 'node') {
@@ -447,23 +472,29 @@ export class SkillExecutionService {
     plan: SpawnPlan,
     timeoutMs: number,
     conversationId: string,
+    commandShell: ResolvedCommandShell,
     stdin?: string
   ): Promise<string> {
     const outputFilePath = this.createForegroundOutputPath(conversationId, plan.outputPrefix)
 
     return await new Promise((resolve, reject) => {
-      const shellRuntime = plan.spawnMode === 'shell' ? getUserShell() : null
-      const command = shellRuntime ? shellRuntime.shell : plan.command
+      const shellRuntime = plan.spawnMode === 'shell' ? commandShell : null
+      if (shellRuntime && plan.shellCommand === undefined) {
+        reject(new Error('Shell spawn plan is missing a serialized command'))
+        return
+      }
+      const command = shellRuntime ? shellRuntime.executable : plan.command
       const shellCommand = shellRuntime
-        ? prepareShellCommandForUtf8Output(shellRuntime.shell, plan.shellCommand)
-        : plan.shellCommand
-      const args = shellRuntime ? [...shellRuntime.args, shellCommand] : plan.args
+        ? prepareShellCommandForUtf8Output(shellRuntime.executable, plan.shellCommand ?? '')
+        : undefined
+      const args = shellRuntime ? [...shellRuntime.args, shellCommand ?? ''] : plan.args
       const env = shellRuntime ? plan.env : prepareProcessEnvForUtf8Output(plan.env)
       const child = spawn(command, args, {
         cwd: plan.cwd,
         env,
         stdio: ['pipe', 'pipe', 'pipe'],
-        shell: false
+        shell: false,
+        windowsHide: true
       })
 
       let outputBuffer = ''
@@ -653,7 +684,25 @@ export class SkillExecutionService {
     })
   }
 
-  private async preparePlanForExecution(plan: SpawnPlan): Promise<SpawnPlan> {
+  private async preparePlanForExecution(
+    plan: SpawnPlan,
+    commandShell: ResolvedCommandShell
+  ): Promise<SpawnPlan> {
+    if (commandShell.dialect === 'cmd') {
+      if (plan.spawnMode === 'shell') {
+        throw new Error('Skill shell execution is unavailable under Command Prompt')
+      }
+      return {
+        ...plan,
+        shellCommand: undefined,
+        env: await rtkRuntimeService.prepareExecutionEnv(plan.env)
+      }
+    }
+
+    if (plan.shellCommand === undefined) {
+      throw new Error('Shell-capable skill plan is missing a serialized command')
+    }
+
     const prepared = await rtkRuntimeService.prepareShellCommand(
       plan.shellCommand,
       plan.env,
@@ -675,15 +724,24 @@ export class SkillExecutionService {
     }
   }
 
-  private buildShellCommand(command: string, args: string[]): string {
-    return [command, ...args].map((token) => this.quoteForShell(token)).join(' ')
+  private buildShellCommand(
+    command: string,
+    args: string[],
+    dialect: Exclude<CommandShellDialect, 'cmd'>
+  ): string {
+    const invocation = [command, ...args]
+      .map((token) => this.quoteForShell(token, dialect))
+      .join(' ')
+    return dialect === 'powershell' ? `& ${invocation}` : invocation
   }
 
-  private quoteForShell(token: string): string {
-    if (process.platform === 'win32') {
-      return `"${token.replace(/%/g, '%%').replace(/"/g, '\\"')}"`
-    }
+  private quoteForShell(token: string, dialect: Exclude<CommandShellDialect, 'cmd'>): string {
+    if (dialect === 'powershell') return `'${token.replace(/'/g, "''")}'`
     return `'${token.replace(/'/g, `'\\''`)}'`
+  }
+
+  private formatDirectInvocation(command: string, args: string[]): string {
+    return [command, ...args].map((token) => JSON.stringify(token)).join(' ')
   }
 
   private getBundledRuntimeCommand(command: 'uv' | 'node'): string | null {
