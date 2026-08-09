@@ -7,83 +7,111 @@
           {{ t('settings.provider.dialog.addCustomProvider.description') }}
         </DialogDescription>
       </DialogHeader>
-      <DcForm class="grid gap-4 py-4" @submit="handleSubmit" @error="handleSubmitError">
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="name" class="text-right">
-            {{ t('settings.provider.dialog.addCustomProvider.name') }}
-          </Label>
-          <Input
-            id="name"
-            v-model="formData.name"
-            class="col-span-3"
-            :placeholder="t('settings.provider.dialog.addCustomProvider.namePlaceholder')"
-            required
-          />
-        </div>
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="apiType" class="text-right">
-            {{ t('settings.provider.dialog.addCustomProvider.apiType') }}
-          </Label>
-          <Select v-model="formData.apiType" required>
-            <SelectTrigger class="col-span-3">
-              <SelectValue
-                :placeholder="t('settings.provider.dialog.addCustomProvider.apiTypePlaceholder')"
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="openai">OpenAI</SelectItem>
-              <SelectItem value="openai-completions">OpenAI Completions</SelectItem>
-              <SelectItem value="gemini">Gemini</SelectItem>
-              <SelectItem value="anthropic">Anthropic</SelectItem>
-              <SelectItem value="ollama">Ollama</SelectItem>
-              <SelectItem value="mistral">Mistral AI</SelectItem>
-              <!-- <SelectItem value="groq">Groq</SelectItem>
-                <SelectItem value="cohere">Cohere</SelectItem>
-                <SelectItem value="zhinao">智脑</SelectItem>
-                <SelectItem value="custom">自定义</SelectItem> -->
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="apiKey" class="text-right">
-            {{ t('settings.provider.dialog.addCustomProvider.apiKey') }}
-          </Label>
-          <Input
-            id="apiKey"
-            v-model="formData.apiKey"
-            class="col-span-3"
-            :placeholder="t('settings.provider.dialog.addCustomProvider.apiKeyPlaceholder')"
-            :required="formData.apiType !== 'ollama'"
-          />
-        </div>
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="baseUrl" class="text-right">
-            {{ t('settings.provider.dialog.addCustomProvider.baseUrl') }}
-          </Label>
-          <span class="col-span-3 flex flex-col">
-            <Input
-              id="baseUrl"
-              v-model="formData.baseUrl"
-              class="col-span-3"
-              :placeholder="t('settings.provider.dialog.addCustomProvider.baseUrlPlaceholder')"
-              required
-            />
-            <div v-if="apiEndpointSuffix" class="text-xs text-muted-foreground mt-1">
-              {{ `${formData.baseUrl ?? ''}${apiEndpointSuffix}` }}
+      <DcForm
+        class="grid gap-4 py-4"
+        :validation-schema="validationSchema"
+        @submit="handleSubmit"
+        @error="handleSubmitError"
+      >
+        <FormField v-slot="{ componentField }" v-model="formData.name" name="name">
+          <FormItem class="grid grid-cols-4 items-start gap-4">
+            <FormLabel class="pt-2 text-right">
+              {{ t('settings.provider.dialog.addCustomProvider.name') }}
+            </FormLabel>
+            <div class="col-span-3 grid gap-2">
+              <FormControl>
+                <Input
+                  v-bind="componentField"
+                  :placeholder="t('settings.provider.dialog.addCustomProvider.namePlaceholder')"
+                />
+              </FormControl>
+              <FormMessage />
             </div>
-          </span>
-        </div>
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="enable" class="text-right">
-            {{ t('settings.provider.dialog.addCustomProvider.enable') }}
-          </Label>
-          <div class="flex items-center space-x-2 col-span-3">
-            <Switch id="enable" v-model="formData.enable" />
-            <Label for="enable">{{
-              formData.enable ? t('common.enabled') : t('common.disabled')
-            }}</Label>
-          </div>
-        </div>
+          </FormItem>
+        </FormField>
+        <FormField v-slot="{ componentField }" v-model="formData.apiType" name="apiType">
+          <FormItem class="grid grid-cols-4 items-start gap-4">
+            <FormLabel class="pt-2 text-right">
+              {{ t('settings.provider.dialog.addCustomProvider.apiType') }}
+            </FormLabel>
+            <div class="col-span-3 grid gap-2">
+              <Select v-bind="componentField">
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue
+                      :placeholder="
+                        t('settings.provider.dialog.addCustomProvider.apiTypePlaceholder')
+                      "
+                    />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="openai">OpenAI</SelectItem>
+                  <SelectItem value="openai-completions">OpenAI Completions</SelectItem>
+                  <SelectItem value="gemini">Gemini</SelectItem>
+                  <SelectItem value="anthropic">Anthropic</SelectItem>
+                  <SelectItem value="ollama">Ollama</SelectItem>
+                  <SelectItem value="mistral">Mistral AI</SelectItem>
+                  <!-- <SelectItem value="groq">Groq</SelectItem>
+                    <SelectItem value="cohere">Cohere</SelectItem>
+                    <SelectItem value="zhinao">智脑</SelectItem>
+                    <SelectItem value="custom">自定义</SelectItem> -->
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </div>
+          </FormItem>
+        </FormField>
+        <FormField v-slot="{ componentField }" v-model="formData.apiKey" name="apiKey">
+          <FormItem class="grid grid-cols-4 items-start gap-4">
+            <FormLabel class="pt-2 text-right">
+              {{ t('settings.provider.dialog.addCustomProvider.apiKey') }}
+            </FormLabel>
+            <div class="col-span-3 grid gap-2">
+              <FormControl>
+                <Input
+                  v-bind="componentField"
+                  :placeholder="t('settings.provider.dialog.addCustomProvider.apiKeyPlaceholder')"
+                />
+              </FormControl>
+              <FormMessage />
+            </div>
+          </FormItem>
+        </FormField>
+        <FormField v-slot="{ componentField }" v-model="formData.baseUrl" name="baseUrl">
+          <FormItem class="grid grid-cols-4 items-start gap-4">
+            <FormLabel class="pt-2 text-right">
+              {{ t('settings.provider.dialog.addCustomProvider.baseUrl') }}
+            </FormLabel>
+            <div class="col-span-3 grid gap-2">
+              <FormControl>
+                <Input
+                  v-bind="componentField"
+                  :placeholder="t('settings.provider.dialog.addCustomProvider.baseUrlPlaceholder')"
+                />
+              </FormControl>
+              <div v-if="apiEndpointSuffix" class="text-xs text-muted-foreground">
+                {{ `${formData.baseUrl ?? ''}${apiEndpointSuffix}` }}
+              </div>
+              <FormMessage />
+            </div>
+          </FormItem>
+        </FormField>
+        <FormField v-slot="{ componentField }" v-model="formData.enable" name="enable">
+          <FormItem class="grid grid-cols-4 items-center gap-4">
+            <FormLabel class="text-right">
+              {{ t('settings.provider.dialog.addCustomProvider.enable') }}
+            </FormLabel>
+            <div class="col-span-3 flex items-center space-x-2">
+              <FormControl>
+                <Switch id="enable" v-bind="componentField" />
+              </FormControl>
+              <Label for="enable">
+                {{ formData.enable ? t('common.enabled') : t('common.disabled') }}
+              </Label>
+            </div>
+          </FormItem>
+        </FormField>
         <DialogFooter>
           <DcFormActions
             :cancel-label="t('dialog.cancel')"
@@ -110,6 +138,13 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { DcForm } from '@dc-ui/components/form'
 import { DcFormActions } from '@dc-ui/components/form-actions'
+import {
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from '@shadcn/components/ui/form'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -121,10 +156,22 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { GenericValidateFunction } from 'vee-validate'
 import { useProviderStore } from '@/stores/providerStore'
 
 const { t } = useI18n()
 const providerStore = useProviderStore()
+const hasText = (value: unknown) => typeof value === 'string' && value.trim().length > 0
+const requiredRule: GenericValidateFunction = (value) =>
+  hasText(value) || t('components.promptParamsDialog.required')
+const apiKeyRule: GenericValidateFunction = (value, { form }) =>
+  form.apiType === 'ollama' || hasText(value) || t('components.promptParamsDialog.required')
+const validationSchema = {
+  name: requiredRule,
+  apiType: requiredRule,
+  apiKey: apiKeyRule,
+  baseUrl: requiredRule
+}
 
 const props = defineProps<{
   open: boolean

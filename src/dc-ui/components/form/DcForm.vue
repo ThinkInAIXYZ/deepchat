@@ -5,6 +5,8 @@ import { Form } from '@shadcn/components/ui/form'
 import { DC_FORM_INJECTION_KEY, type DcFormContext } from './useDcForm'
 import { useDcFormSubmit } from './useDcFormSubmit'
 
+defineOptions({ inheritAttrs: false })
+
 interface Props {
   successDuration?: number
   errorDuration?: number
