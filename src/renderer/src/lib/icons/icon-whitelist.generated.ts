@@ -96,6 +96,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'file-json-2',
     'file-search',
     'file-spreadsheet',
+    'file-terminal',
     'file-text',
     'file-type',
     'file-up',
