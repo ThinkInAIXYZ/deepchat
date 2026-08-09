@@ -27,6 +27,7 @@ import type { LoggingService } from './logging'
 import type { OcrSettingsPort } from '@/ocr/ocrSettings'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createAppSettingsRoutes(deps: {
@@ -39,6 +40,7 @@ export function createAppSettingsRoutes(deps: {
   logging: LoggingService
   ocr: OcrSettingsPort
   commandShell: Pick<CommandShellService, 'getConfig' | 'setConfig' | 'checkGitBash'>
+  publishEvent: DeepchatEventPublisher
   applyContentProtection(enabled: boolean): void
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
@@ -255,6 +257,7 @@ export function createAppSettingsRoutes(deps: {
       async (rawInput) => {
         const input = settingsUpdateCommandShellRoute.input.parse(rawInput)
         const config = deps.commandShell.setConfig(input.config)
+        const output = settingsUpdateCommandShellRoute.output.parse({ config })
         deps.recordActivity({
           category: 'agent',
           action: 'updated',
@@ -265,7 +268,11 @@ export function createAppSettingsRoutes(deps: {
           summaryKey: 'settings.controlCenter.activity.settingUpdated',
           summaryParams: { key: 'agentCommandShell' }
         })
-        return settingsUpdateCommandShellRoute.output.parse({ config })
+        deps.publishEvent('settings.commandShell.changed', {
+          config: output.config,
+          version: Date.now()
+        })
+        return output
       }
     ],
     [

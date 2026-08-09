@@ -93,6 +93,7 @@ import {
 import {
   settingsCheckForUpdatesRequestedEvent,
   settingsChangedEvent,
+  settingsCommandShellChangedEvent,
   settingsNavigateRequestedEvent,
   settingsProviderInstallRequestedEvent
 } from './events/settings.events'
@@ -194,6 +195,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [browserOpenRequestedEvent.name]: browserOpenRequestedEvent,
   [browserStatusChangedEvent.name]: browserStatusChangedEvent,
   [settingsChangedEvent.name]: settingsChangedEvent,
+  [settingsCommandShellChangedEvent.name]: settingsCommandShellChangedEvent,
   [settingsNavigateRequestedEvent.name]: settingsNavigateRequestedEvent,
   [settingsProviderInstallRequestedEvent.name]: settingsProviderInstallRequestedEvent,
   [settingsCheckForUpdatesRequestedEvent.name]: settingsCheckForUpdatesRequestedEvent,

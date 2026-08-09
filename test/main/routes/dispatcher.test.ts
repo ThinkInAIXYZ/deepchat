@@ -1732,6 +1732,7 @@ function createRuntime() {
     logging: loggingService as never,
     ocr: ocrSettings,
     commandShell,
+    publishEvent: publishDeepchatEvent,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },
@@ -3201,7 +3202,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('reads, atomically updates, and checks the device command shell', async () => {
-    const { runtime, settings, commandShell, sqlitePresenter } = createRuntime()
+    const { runtime, settings, commandShell, sqlitePresenter, windowPresenter } = createRuntime()
     const context = createRendererRouteContext(42, 7)
 
     await expect(
@@ -3224,6 +3225,13 @@ describe('dispatchDeepchatRoute', () => {
         routeName: 'settings-common'
       })
     )
+    expect(windowPresenter.sendToAllWindows).toHaveBeenCalledWith(DEEPCHAT_EVENT_CHANNEL, {
+      name: 'settings.commandShell.changed',
+      payload: {
+        config,
+        version: expect.any(Number)
+      }
+    })
 
     await expect(
       dispatchDeepchatRoute(runtime, 'settings.commandShell.check', { forceRefresh: true }, context)

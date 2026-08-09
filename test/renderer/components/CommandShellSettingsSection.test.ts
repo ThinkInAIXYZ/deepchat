@@ -7,30 +7,54 @@ const SELECT_UPDATE_KEY = Symbol('command-shell-select-update')
 
 const passthrough = (name: string) => defineComponent({ name, template: '<div><slot /></div>' })
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 async function setup(options: {
   platform?: NodeJS.Platform
   config?: AgentCommandShellConfig
   availability?: GitBashAvailability
+  availabilityPromise?: Promise<GitBashAvailability>
+  updatePromise?: Promise<AgentCommandShellConfig>
   selectedFile?: string
   updateError?: Error
   checkError?: Error
 }) {
   vi.resetModules()
   const savedConfig = options.config ?? { preference: 'auto' }
+  let commandShellChangedListener:
+    | ((payload: { config: AgentCommandShellConfig; version: number }) => void)
+    | undefined
+  const stopCommandShellChanged = vi.fn()
   const settingsClient = {
     getCommandShell: vi.fn().mockResolvedValue(savedConfig),
     updateCommandShell: options.updateError
       ? vi.fn().mockRejectedValue(options.updateError)
-      : vi.fn(async (config: AgentCommandShellConfig) => config),
+      : options.updatePromise
+        ? vi.fn().mockReturnValue(options.updatePromise)
+        : vi.fn(async (config: AgentCommandShellConfig) => config),
     checkCommandShell: options.checkError
       ? vi.fn().mockRejectedValue(options.checkError)
-      : vi.fn().mockResolvedValue(
-          options.availability ?? {
-            supported: true,
-            available: false,
-            error: 'not-found'
-          }
-        )
+      : options.availabilityPromise
+        ? vi.fn().mockReturnValue(options.availabilityPromise)
+        : vi.fn().mockResolvedValue(
+            options.availability ?? {
+              supported: true,
+              available: false,
+              error: 'not-found'
+            }
+          ),
+    onCommandShellChanged: vi.fn(
+      (listener: (payload: { config: AgentCommandShellConfig; version: number }) => void) => {
+        commandShellChangedListener = listener
+        return stopCommandShellChanged
+      }
+    )
   }
   const deviceClient = {
     getDeviceInfo: vi.fn().mockResolvedValue({
@@ -104,7 +128,15 @@ async function setup(options: {
   })
   await flushPromises()
 
-  return { wrapper, settingsClient, deviceClient }
+  return {
+    wrapper,
+    settingsClient,
+    deviceClient,
+    stopCommandShellChanged,
+    emitCommandShellChanged(config: AgentCommandShellConfig) {
+      commandShellChangedListener?.({ config, version: Date.now() })
+    }
+  }
 }
 
 describe('CommandShellSettingsSection', () => {
@@ -292,5 +324,76 @@ describe('CommandShellSettingsSection', () => {
       gitBashExecutableOverride: executable
     })
     expect(settingsClient.checkCommandShell).toHaveBeenLastCalledWith(true)
+  })
+
+  it('applies command shell changes from another settings window and unsubscribes', async () => {
+    const executable = 'D:\\Portable Git\\bin\\bash.exe'
+    const { wrapper, settingsClient, emitCommandShellChanged, stopCommandShellChanged } =
+      await setup({ config: { preference: 'auto' } })
+
+    emitCommandShellChanged({
+      preference: 'git-bash',
+      gitBashExecutableOverride: executable
+    })
+    await flushPromises()
+
+    expect(wrapper.getComponent({ name: 'Select' }).props('modelValue')).toBe('git-bash')
+    expect(wrapper.get('[data-testid="command-shell-executable"]').element).toHaveProperty(
+      'value',
+      executable
+    )
+    expect(settingsClient.updateCommandShell).not.toHaveBeenCalled()
+    expect(settingsClient.checkCommandShell).toHaveBeenCalledWith(false)
+
+    wrapper.unmount()
+    expect(stopCommandShellChanged).toHaveBeenCalledOnce()
+  })
+
+  it('does not let an older save response overwrite a published configuration', async () => {
+    const update = createDeferred<AgentCommandShellConfig>()
+    const { wrapper, emitCommandShellChanged } = await setup({
+      config: { preference: 'auto' },
+      updatePromise: update.promise
+    })
+
+    await wrapper.get('[data-value="git-bash"]').trigger('click')
+    emitCommandShellChanged({ preference: 'windows-powershell' })
+    update.resolve({ preference: 'git-bash' })
+    await flushPromises()
+
+    expect(wrapper.getComponent({ name: 'Select' }).props('modelValue')).toBe('windows-powershell')
+    expect(wrapper.find('[data-testid="command-shell-executable"]').exists()).toBe(false)
+  })
+
+  it('discards an availability result for a configuration replaced by an event', async () => {
+    const availability = createDeferred<GitBashAvailability>()
+    const { wrapper, settingsClient, emitCommandShellChanged } = await setup({
+      config: { preference: 'git-bash' },
+      availabilityPromise: availability.promise
+    })
+
+    emitCommandShellChanged({ preference: 'windows-powershell' })
+    settingsClient.checkCommandShell.mockResolvedValue({
+      supported: true,
+      available: false,
+      error: 'not-found'
+    })
+    availability.resolve({
+      supported: true,
+      available: true,
+      executable: 'C:\\Stale\\bash.exe',
+      source: 'override'
+    })
+    await flushPromises()
+
+    emitCommandShellChanged({ preference: 'git-bash' })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="command-shell-status"]').text()).toContain(
+      'settings.common.commandShell.errors.not-found'
+    )
+    expect(wrapper.get('[data-testid="command-shell-status"]').text()).not.toContain(
+      'C:\\Stale\\bash.exe'
+    )
   })
 })

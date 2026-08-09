@@ -1957,6 +1957,7 @@ describe('main kernel contracts', () => {
         'sessions.updated',
         'settings.checkForUpdatesRequested',
         'settings.changed',
+        'settings.commandShell.changed',
         'settings.navigateRequested',
         'settings.providerInstallRequested',
         'startup.workload.changed',

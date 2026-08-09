@@ -111,7 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { createDeviceClient } from '@api/DeviceClient'
@@ -148,7 +148,10 @@ const overrideDraft = ref('')
 const availability = ref<GitBashAvailability | null>(null)
 let configRequestId = 0
 let availabilityRequestId = 0
+let configLoadRequestId = 0
 let suppressOverrideBlur = false
+let stopCommandShellChanged: (() => void) | null = null
+let disposed = false
 
 const statusIcon = computed(() => {
   if (checking.value) return 'lucide:loader-circle'
@@ -210,6 +213,20 @@ const refreshAvailability = async (forceRefresh = false) => {
     }
   } finally {
     if (requestId === availabilityRequestId) checking.value = false
+  }
+}
+
+const handlePublishedConfig = (value: AgentCommandShellConfig) => {
+  configLoadRequestId += 1
+  configRequestId += 1
+  availabilityRequestId += 1
+  saving.value = false
+  checking.value = false
+  operationError.value = ''
+  availability.value = null
+  applyConfig(value)
+  if (isWindows.value && value.preference === 'git-bash') {
+    void refreshAvailability()
   }
 }
 
@@ -299,21 +316,43 @@ const clearOverride = async () => {
 }
 
 onMounted(async () => {
+  stopCommandShellChanged = settingsClient.onCommandShellChanged(({ config: publishedConfig }) => {
+    if (!disposed) handlePublishedConfig(publishedConfig)
+  })
   let shouldCheckAvailability = false
+  let currentConfigLoadRequestId: number | null = null
   try {
     const deviceInfo = await deviceClient.getDeviceInfo()
+    if (disposed) return
     isWindows.value = deviceInfo.platform === 'win32'
     if (!isWindows.value) return
 
+    currentConfigLoadRequestId = ++configLoadRequestId
     const savedConfig = await settingsClient.getCommandShell()
+    if (disposed || currentConfigLoadRequestId !== configLoadRequestId) return
     applyConfig(savedConfig)
     shouldCheckAvailability = savedConfig.preference === 'git-bash'
   } catch (error) {
+    if (
+      disposed ||
+      (currentConfigLoadRequestId !== null && currentConfigLoadRequestId !== configLoadRequestId)
+    ) {
+      return
+    }
     console.error('[CommandShellSettings] Failed to load command shell settings:', error)
     operationError.value = t('settings.common.commandShell.loadFailed')
   } finally {
     loading.value = false
   }
   if (shouldCheckAvailability) await refreshAvailability()
+})
+
+onBeforeUnmount(() => {
+  disposed = true
+  configLoadRequestId += 1
+  configRequestId += 1
+  availabilityRequestId += 1
+  stopCommandShellChanged?.()
+  stopCommandShellChanged = null
 })
 </script>

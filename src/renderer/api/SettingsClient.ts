@@ -1,6 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import type { AgentCommandShellConfig } from '@shared/commandShell'
-import { settingsChangedEvent } from '@shared/contracts/events'
+import { settingsChangedEvent, settingsCommandShellChangedEvent } from '@shared/contracts/events'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import {
   configGetEntriesRoute,
@@ -118,6 +118,12 @@ export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge(
     return bridge.on(settingsChangedEvent.name, listener)
   }
 
+  function onCommandShellChanged(
+    listener: (payload: { config: AgentCommandShellConfig; version: number }) => void
+  ) {
+    return bridge.on(settingsCommandShellChangedEvent.name, listener)
+  }
+
   return {
     getSnapshot,
     getSystemFonts,
@@ -131,7 +137,8 @@ export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge(
     update,
     listRecentActivity,
     openSettings,
-    onChanged
+    onChanged,
+    onCommandShellChanged
   }
 }
 

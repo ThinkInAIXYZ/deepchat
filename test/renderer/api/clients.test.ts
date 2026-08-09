@@ -1298,6 +1298,7 @@ describe('renderer api clients', () => {
     await client.update([{ key: 'fontSizeLevel', value: 3 }])
     await client.openSettings({ routeName: 'settings-display', section: 'fonts' })
     client.onChanged(vi.fn())
+    client.onCommandShellChanged(vi.fn())
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'settings.getSnapshot', {
       keys: ['fontSizeLevel']
@@ -1318,6 +1319,7 @@ describe('renderer api clients', () => {
       section: 'fonts'
     })
     expect(bridge.on).toHaveBeenCalledWith('settings.changed', expect.any(Function))
+    expect(bridge.on).toHaveBeenCalledWith('settings.commandShell.changed', expect.any(Function))
   })
 
   it('routes sessions.steerPendingInput through the registry name', async () => {

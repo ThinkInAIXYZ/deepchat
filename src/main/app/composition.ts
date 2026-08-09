@@ -2377,6 +2377,7 @@ export async function createMainProcessControl(dependencies: {
       logging: loggingService,
       ocr: ocrSettings,
       commandShell: commandShellService,
+      publishEvent: publishDeepchatEvent,
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
