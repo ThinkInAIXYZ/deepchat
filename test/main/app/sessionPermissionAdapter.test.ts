@@ -78,7 +78,11 @@ describe('createSessionPermissionPort', () => {
         commandSignature: '  git-bash:npm install  ',
         shellProfile: 'git-bash'
       })
-    ).resolves.toBe('grant-1')
+    ).resolves.toEqual({
+      kind: 'command',
+      signature: 'git-bash:npm install',
+      oneShotGrantId: 'grant-1'
+    })
 
     expect(commandPermissionService.approve).toHaveBeenCalledWith(
       'session-1',
@@ -86,5 +90,30 @@ describe('createSessionPermissionPort', () => {
       false
     )
     expect(toolPermissionBroker.approve).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when command approval cannot issue a lease', async () => {
+    commandPermissionService.approve.mockReturnValueOnce(null)
+    const port = createPort()
+
+    await expect(
+      port.approvePermission('session-1', {
+        permissionType: 'command',
+        commandSignature: 'posix:npm install',
+        shellProfile: 'posix'
+      })
+    ).rejects.toThrow('Command approval did not return a one-shot grant lease.')
+  })
+
+  it('returns a non-command grant without a lease', async () => {
+    toolPermissionBroker.approve.mockReturnValueOnce(true)
+    const port = createPort()
+
+    await expect(
+      port.approvePermission('session-1', {
+        permissionType: 'write',
+        requestId: 'request-1'
+      })
+    ).resolves.toEqual({ kind: 'granted' })
   })
 })

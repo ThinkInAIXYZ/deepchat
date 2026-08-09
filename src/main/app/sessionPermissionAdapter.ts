@@ -63,11 +63,15 @@ export function createSessionPermissionPort(dependencies: {
         ) {
           throw new Error('Command approval is missing a valid shell profile and signature.')
         }
-        return commandPermissionService.approve(sessionId, signature, false)
+        const oneShotGrantId = commandPermissionService.approve(sessionId, signature, false)
+        if (!oneShotGrantId) {
+          throw new Error('Command approval did not return a one-shot grant lease.')
+        }
+        return { kind: 'command', signature, oneShotGrantId }
       }
 
       if (permission.requestId && toolPermissionBroker.approve(permission.requestId, sessionId)) {
-        return null
+        return { kind: 'granted' }
       }
 
       if (
@@ -76,16 +80,16 @@ export function createSessionPermissionPort(dependencies: {
         permission.paths.length > 0
       ) {
         filePermissionService.approve(sessionId, permission.paths, permissionType, false)
-        return null
+        return { kind: 'granted' }
       }
 
       if (serverName === 'deepchat-settings' && toolName) {
         settingsPermissionService.approve(sessionId, toolName, false)
-        return null
+        return { kind: 'granted' }
       }
 
       // MCP execution uses the one-time request handled above.
-      return null
+      return { kind: 'granted' }
     },
     denyPermission: async (sessionId, requestId) => {
       toolPermissionBroker.deny(requestId, sessionId)

@@ -1193,7 +1193,7 @@ function normalizePermissionRequest(
 async function autoGrantPermission(
   controls: ProcessControlCollaborators | undefined,
   permission: NonNullable<PendingToolInteraction['permission']>
-): Promise<string | null> {
+): ReturnType<NonNullable<ProcessControlCollaborators['autoGrantPermission']>> {
   if (controls?.autoGrantPermission) {
     return (await controls.autoGrantPermission(permission)) ?? null
   }
@@ -1216,17 +1216,29 @@ async function runWithAutoGrantedPermission<T>(
   permission: NonNullable<PendingToolInteraction['permission']>,
   run: (oneShotCommandGrantId?: string) => Promise<T>
 ): Promise<T> {
-  const signature = getOneShotCommandSignature(permission)
-  let oneShotCommandGrantId: string | null = null
+  const expectedCommandSignature = getOneShotCommandSignature(permission)
+  if (permission.permissionType === 'command' && !expectedCommandSignature) {
+    throw new Error('Command approval is missing a valid shell profile and signature.')
+  }
+  let grant: Awaited<ReturnType<typeof autoGrantPermission>> = null
   try {
-    oneShotCommandGrantId = await autoGrantPermission(controls, permission)
-    if (signature && !oneShotCommandGrantId) {
-      throw new Error('Command approval did not return a one-shot grant lease.')
+    grant = await autoGrantPermission(controls, permission)
+    if (expectedCommandSignature) {
+      if (grant?.kind !== 'command') {
+        throw new Error('Command approval did not return a one-shot grant lease.')
+      }
+      if (grant.signature !== expectedCommandSignature) {
+        throw new Error('Command approval returned a lease for another signature.')
+      }
+      return await run(grant.oneShotGrantId)
     }
-    return await run(signature ? (oneShotCommandGrantId ?? undefined) : undefined)
+    if (grant?.kind === 'command') {
+      throw new Error('Non-command approval returned a command grant lease.')
+    }
+    return await run()
   } finally {
-    if (signature && oneShotCommandGrantId) {
-      controls?.revokeOneShotCommandPermission?.(signature, oneShotCommandGrantId)
+    if (grant?.kind === 'command') {
+      controls?.revokeOneShotCommandPermission?.(grant.signature, grant.oneShotGrantId)
     }
   }
 }

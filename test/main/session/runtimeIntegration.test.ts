@@ -803,7 +803,7 @@ function createRuntimeDependencies() {
     },
     sessionPermissionPort: {
       clearSessionPermissions: vi.fn(),
-      approvePermission: vi.fn().mockResolvedValue(null),
+      approvePermission: vi.fn().mockResolvedValue({ kind: 'granted' }),
       revokeOneShotCommandPermission: vi.fn()
     },
     acpAsLlmProviderPermission: {

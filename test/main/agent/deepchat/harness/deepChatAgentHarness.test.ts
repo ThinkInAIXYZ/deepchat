@@ -771,7 +771,15 @@ function createRuntimeDependencies(
     },
     sessionPermissionPort: options.sessionPermissionPort ?? {
       clearSessionPermissions: vi.fn(),
-      approvePermission: vi.fn().mockResolvedValue('command-grant-default'),
+      approvePermission: vi.fn(async (_sessionId, permission) =>
+        permission.permissionType === 'command'
+          ? {
+              kind: 'command' as const,
+              signature: permission.commandSignature ?? '',
+              oneShotGrantId: 'command-grant-default'
+            }
+          : { kind: 'granted' as const }
+      ),
       revokeOneShotCommandPermission: vi.fn()
     },
     acpAsLlmProviderPermission: {
@@ -1191,7 +1199,15 @@ describe('DeepChatAgentHarness', () => {
     toolService = createMockToolService()
     sessionPermissionPort = {
       clearSessionPermissions: vi.fn(),
-      approvePermission: vi.fn().mockResolvedValue('command-grant-default'),
+      approvePermission: vi.fn(async (_sessionId, permission) =>
+        permission.permissionType === 'command'
+          ? {
+              kind: 'command' as const,
+              signature: permission.commandSignature ?? '',
+              oneShotGrantId: 'command-grant-default'
+            }
+          : { kind: 'granted' as const }
+      ),
       revokeOneShotCommandPermission: vi.fn()
     }
     hookDispatcher = { dispatchEvent: vi.fn() }
@@ -12831,7 +12847,11 @@ describe('DeepChatAgentHarness', () => {
       )
       sessionPermissionPort.approvePermission.mockImplementationOnce(async () => {
         abortController.abort()
-        return 'command-grant-cancelled'
+        return {
+          kind: 'command',
+          signature: 'posix:npm test',
+          oneShotGrantId: 'command-grant-cancelled'
+        }
       })
       const executeDeferredToolCallSpy = vi.spyOn(DeferredToolExecutor.prototype, 'execute')
 
@@ -12844,6 +12864,91 @@ describe('DeepChatAgentHarness', () => {
           'command-grant-cancelled'
         )
         expect(executeDeferredToolCallSpy).not.toHaveBeenCalled()
+      } finally {
+        executeDeferredToolCallSpy.mockRestore()
+      }
+    })
+
+    it('rejects and revokes a deferred command lease for another signature', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const row = installPendingPermission({
+        toolName: 'exec',
+        params: '{"command":"npm test"}',
+        serverName: 'agent-filesystem',
+        permissionType: 'command',
+        command: 'npm test',
+        commandSignature: 'posix:npm test',
+        shellProfile: 'posix'
+      })
+      sessionPermissionPort.approvePermission.mockResolvedValueOnce({
+        kind: 'command',
+        signature: 'git-bash:npm test',
+        oneShotGrantId: 'wrong-command-grant'
+      })
+      const executeDeferredToolCallSpy = vi.spyOn(DeferredToolExecutor.prototype, 'execute')
+
+      try {
+        await expect(approvePendingTool()).rejects.toThrow(
+          'Command approval returned a lease for another signature.'
+        )
+
+        expect(sessionPermissionPort.revokeOneShotCommandPermission).toHaveBeenCalledWith(
+          's1',
+          'git-bash:npm test',
+          'wrong-command-grant'
+        )
+        expect(executeDeferredToolCallSpy).not.toHaveBeenCalled()
+        expect(JSON.parse(row.content)).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'action',
+              status: 'pending',
+              extra: expect.objectContaining({ needsUserAction: true })
+            })
+          ])
+        )
+      } finally {
+        executeDeferredToolCallSpy.mockRestore()
+      }
+    })
+
+    it('rejects and revokes a command lease returned for a deferred file approval', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const row = installPendingPermission({
+        toolName: 'write',
+        params: '{"path":"notes.txt","content":"updated"}',
+        serverName: 'agent-filesystem',
+        permissionType: 'write',
+        shellProfile: 'posix',
+        paths: ['/workspace/notes.txt']
+      })
+      sessionPermissionPort.approvePermission.mockResolvedValueOnce({
+        kind: 'command',
+        signature: 'posix:npm test',
+        oneShotGrantId: 'unexpected-command-grant'
+      })
+      const executeDeferredToolCallSpy = vi.spyOn(DeferredToolExecutor.prototype, 'execute')
+
+      try {
+        await expect(approvePendingTool()).rejects.toThrow(
+          'Non-command approval returned an unexpected grant result.'
+        )
+
+        expect(sessionPermissionPort.revokeOneShotCommandPermission).toHaveBeenCalledWith(
+          's1',
+          'posix:npm test',
+          'unexpected-command-grant'
+        )
+        expect(executeDeferredToolCallSpy).not.toHaveBeenCalled()
+        expect(JSON.parse(row.content)).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'action',
+              status: 'pending',
+              extra: expect.objectContaining({ needsUserAction: true })
+            })
+          ])
+        )
       } finally {
         executeDeferredToolCallSpy.mockRestore()
       }
@@ -13448,7 +13553,11 @@ describe('DeepChatAgentHarness', () => {
       })
       sessionPermissionPort = {
         clearSessionPermissions: vi.fn(),
-        approvePermission: vi.fn().mockResolvedValue('command-grant-after-restart'),
+        approvePermission: vi.fn(async (_sessionId, permission) => ({
+          kind: 'command' as const,
+          signature: permission.commandSignature ?? '',
+          oneShotGrantId: 'command-grant-after-restart'
+        })),
         revokeOneShotCommandPermission: vi.fn()
       }
       sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {

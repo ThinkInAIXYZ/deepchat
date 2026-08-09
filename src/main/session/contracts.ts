@@ -70,10 +70,21 @@ export type SessionPermissionRequest = {
   requestId?: string
 }
 
+export type SessionPermissionGrant =
+  | Readonly<{
+      kind: 'command'
+      signature: string
+      oneShotGrantId: string
+    }>
+  | Readonly<{ kind: 'granted' }>
+
 export interface SessionPermissionPort {
   clearSessionPermissions(sessionId: string): void
   cloneSessionPermissions?(sourceSessionId: string, targetSessionId: string): void
-  approvePermission(sessionId: string, permission: SessionPermissionRequest): Promise<string | null>
+  approvePermission(
+    sessionId: string,
+    permission: SessionPermissionRequest
+  ): Promise<SessionPermissionGrant>
   revokeOneShotCommandPermission(sessionId: string, signature: string, oneShotGrantId: string): void
   denyPermission?(sessionId: string, requestId: string): Promise<void>
 }

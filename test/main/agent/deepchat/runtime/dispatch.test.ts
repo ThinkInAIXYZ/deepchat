@@ -2454,7 +2454,11 @@ describe('dispatch', () => {
         const revokeOneShotCommandPermission = vi.fn()
         const autoGrantPermission = vi.fn(async () => {
           abortController.abort()
-          return 'command-grant-cancelled'
+          return {
+            kind: 'command' as const,
+            signature: 'posix:npm install',
+            oneShotGrantId: 'command-grant-cancelled'
+          }
         })
         state.blocks.push({
           type: 'tool_call',
@@ -2512,7 +2516,11 @@ describe('dispatch', () => {
         commandSignature: 'posix:npm install',
         shellProfile: 'posix'
       })
-      const autoGrantPermission = vi.fn().mockResolvedValue('command-grant-exec')
+      const autoGrantPermission = vi.fn().mockResolvedValue({
+        kind: 'command',
+        signature: 'posix:npm install',
+        oneShotGrantId: 'command-grant-exec'
+      })
       const revokeOneShotCommandPermission = vi.fn()
       state.blocks.push({
         type: 'tool_call',
@@ -2554,6 +2562,153 @@ describe('dispatch', () => {
         'command-grant-exec'
       )
       expect(result.type).toBe('completed')
+    })
+
+    it.each([
+      [
+        'a non-command grant',
+        { kind: 'granted' as const },
+        'Command approval did not return a one-shot grant lease.',
+        null
+      ],
+      [
+        'a lease for another signature',
+        {
+          kind: 'command' as const,
+          signature: 'git-bash:npm install',
+          oneShotGrantId: 'wrong-command-grant'
+        },
+        'Command approval returned a lease for another signature.',
+        ['git-bash:npm install', 'wrong-command-grant']
+      ]
+    ] as const)(
+      'fails closed when command approval returns %s',
+      async (_description, grant, expectedError, expectedRevocation) => {
+        const tools = [makeAgentTool('exec')]
+        const toolService = createMockToolService() as ToolServicePort & {
+          preCheckToolPermission: ReturnType<typeof vi.fn>
+        }
+        toolService.preCheckToolPermission.mockResolvedValue({
+          needsPermission: true,
+          permissionType: 'command',
+          description: 'Need command permission',
+          toolName: 'exec',
+          serverName: 'agent-filesystem',
+          command: 'npm install',
+          commandSignature: 'posix:npm install',
+          shellProfile: 'posix'
+        })
+        const autoGrantPermission = vi.fn().mockResolvedValue(grant)
+        const revokeOneShotCommandPermission = vi.fn()
+        state.blocks.push({
+          type: 'tool_call',
+          content: '',
+          status: 'pending',
+          timestamp: Date.now(),
+          tool_call: {
+            id: 'tc-exec',
+            name: 'exec',
+            params: '{"command":"npm install"}',
+            response: ''
+          }
+        })
+        state.completedToolCalls = [
+          { id: 'tc-exec', name: 'exec', arguments: '{"command":"npm install"}' }
+        ]
+
+        const result = await settleToolBatch(
+          state,
+          [],
+          0,
+          tools,
+          toolService,
+          'gpt-4',
+          io,
+          'full_access',
+          new ToolOutputGuard(),
+          32000,
+          1024,
+          { autoGrantPermission, revokeOneShotCommandPermission }
+        )
+
+        expect(result.type).toBe('completed')
+        expect(result.executionState.invokedCallIds).toEqual([])
+        expect(state.blocks[0]).toMatchObject({
+          status: 'error',
+          tool_call: { response: `Error: ${expectedError}` }
+        })
+        expect(toolService.callTool).not.toHaveBeenCalled()
+        if (expectedRevocation) {
+          expect(revokeOneShotCommandPermission).toHaveBeenCalledWith(...expectedRevocation)
+        } else {
+          expect(revokeOneShotCommandPermission).not.toHaveBeenCalled()
+        }
+      }
+    )
+
+    it('revokes a command lease returned for a non-command approval', async () => {
+      const tools = [makeAgentTool('write')]
+      const toolService = createMockToolService() as ToolServicePort & {
+        preCheckToolPermission: ReturnType<typeof vi.fn>
+      }
+      toolService.preCheckToolPermission.mockResolvedValue({
+        needsPermission: true,
+        permissionType: 'write',
+        description: 'Need write permission',
+        toolName: 'write',
+        serverName: 'agent-filesystem',
+        paths: ['/tmp/secret.txt']
+      })
+      const autoGrantPermission = vi.fn().mockResolvedValue({
+        kind: 'command',
+        signature: 'posix:npm install',
+        oneShotGrantId: 'unexpected-command-grant'
+      })
+      const revokeOneShotCommandPermission = vi.fn()
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-write',
+          name: 'write',
+          params: '{"path":"/tmp/secret.txt"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-write', name: 'write', arguments: '{"path":"/tmp/secret.txt"}' }
+      ]
+
+      const result = await settleToolBatch(
+        state,
+        [],
+        0,
+        tools,
+        toolService,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        { autoGrantPermission, revokeOneShotCommandPermission }
+      )
+
+      expect(result.type).toBe('completed')
+      expect(result.executionState.invokedCallIds).toEqual([])
+      expect(state.blocks[0]).toMatchObject({
+        status: 'error',
+        tool_call: {
+          response: 'Error: Non-command approval returned a command grant lease.'
+        }
+      })
+      expect(toolService.callTool).not.toHaveBeenCalled()
+      expect(revokeOneShotCommandPermission).toHaveBeenCalledWith(
+        'posix:npm install',
+        'unexpected-command-grant'
+      )
     })
 
     it('pauses post-call user confirmation without attempting an automatic grant', async () => {

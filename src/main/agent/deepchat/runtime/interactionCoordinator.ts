@@ -5,7 +5,11 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import type { SessionPermissionPort } from '@/session/contracts'
+import type {
+  SessionPermissionGrant,
+  SessionPermissionPort,
+  SessionPermissionRequest
+} from '@/session/contracts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   insertBlocksAfterToolCall,
@@ -780,17 +784,28 @@ export class InteractionCoordinator {
       ) {
         throw new Error('Command approval is missing a valid shell profile and signature.')
       }
-      const oneShotGrantId = await sessionPermissionPort.approvePermission(sessionId, {
+      const grant = await sessionPermissionPort.approvePermission(sessionId, {
         permissionType: 'command',
         command,
         commandSignature: signature,
         shellProfile: parsedProfile.data,
         commandInfo: payload.commandInfo
       })
-      if (!oneShotGrantId) {
+      if (!grant || grant.kind !== 'command') {
         throw new Error('Command approval did not return a one-shot grant lease.')
       }
-      return { serverName, command: { signature, oneShotGrantId } }
+      if (grant.signature !== signature) {
+        sessionPermissionPort.revokeOneShotCommandPermission(
+          sessionId,
+          grant.signature,
+          grant.oneShotGrantId
+        )
+        throw new Error('Command approval returned a lease for another signature.')
+      }
+      return {
+        serverName,
+        command: { signature: grant.signature, oneShotGrantId: grant.oneShotGrantId }
+      }
     }
 
     if (serverName === 'agent-filesystem') {
@@ -805,7 +820,7 @@ export class InteractionCoordinator {
       ) {
         throw new Error('File approval is missing valid paths.')
       }
-      await sessionPermissionPort.approvePermission(sessionId, {
+      await this.grantNonCommandPermission(sessionId, {
         permissionType:
           permissionType === 'read' || permissionType === 'write' || permissionType === 'all'
             ? permissionType
@@ -819,7 +834,7 @@ export class InteractionCoordinator {
     }
 
     if (serverName === 'deepchat-settings' && toolName) {
-      await sessionPermissionPort.approvePermission(sessionId, {
+      await this.grantNonCommandPermission(sessionId, {
         permissionType: 'write',
         serverName,
         toolName
@@ -831,7 +846,7 @@ export class InteractionCoordinator {
       serverName &&
       (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
     ) {
-      await sessionPermissionPort.approvePermission(sessionId, {
+      await this.grantNonCommandPermission(sessionId, {
         permissionType,
         serverName,
         toolName,
@@ -839,5 +854,22 @@ export class InteractionCoordinator {
       })
     }
     return { serverName }
+  }
+
+  private async grantNonCommandPermission(
+    sessionId: string,
+    permission: SessionPermissionRequest
+  ): Promise<void> {
+    const grant: SessionPermissionGrant =
+      await this.ports.sessionPermissionPort.approvePermission(sessionId, permission)
+    if (grant?.kind === 'granted') return
+    if (grant?.kind === 'command') {
+      this.ports.sessionPermissionPort.revokeOneShotCommandPermission(
+        sessionId,
+        grant.signature,
+        grant.oneShotGrantId
+      )
+    }
+    throw new Error('Non-command approval returned an unexpected grant result.')
   }
 }
