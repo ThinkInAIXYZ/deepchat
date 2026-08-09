@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
+import { getSessionsRoot } from '@/agent/shared/storage/sessionPaths'
 import { AgentFileSystemHandler } from '@/tool/agentTools/agentFileSystemHandler'
 
 describe('AgentFileSystemHandler diff responses', () => {
@@ -157,5 +158,99 @@ describe('AgentFileSystemHandler diff responses', () => {
 
     const updatedContent = await fs.readFile(filePath, 'utf-8')
     expect(updatedContent).toContain('line2-updated')
+  })
+})
+
+describe('AgentFileSystemHandler path authorization', () => {
+  it('normalizes MSYS paths before case-insensitive Windows containment checks', () => {
+    const handler = new AgentFileSystemHandler(['C:/Users/Me/Project'], {
+      commandShellPathStyle: 'msys'
+    })
+
+    const resolved = handler.resolvePath('/c/users/me/project/src/file.ts')
+
+    expect(resolved).toBe('C:\\users\\me\\project\\src\\file.ts')
+    expect(handler.isPathAllowedAbsolute(resolved)).toBe(true)
+  })
+
+  it.each([
+    ['/c/Users/Me/Project/../../Windows/system.ini', 'C:\\Users\\Windows\\system.ini'],
+    ['/c/Users/Me/Outside/file.ts', 'C:\\Users\\Me\\Outside\\file.ts'],
+    ['/c/Users/Me/Project-sibling/file.ts', 'C:\\Users\\Me\\Project-sibling\\file.ts']
+  ])('rejects MSYS paths outside the allowed root: %s', (requestedPath, expectedResolved) => {
+    const handler = new AgentFileSystemHandler(['C:\\Users\\Me\\Project'], {
+      commandShellPathStyle: 'msys'
+    })
+
+    const resolved = handler.resolvePath(requestedPath)
+
+    expect(resolved).toBe(expectedResolved)
+    expect(handler.isPathAllowedAbsolute(resolved)).toBe(false)
+  })
+
+  it('rejects an MSYS traversal through the write authorization entry point', async () => {
+    const handler = new AgentFileSystemHandler(['C:\\Allowed'], {
+      commandShellPathStyle: 'msys'
+    })
+
+    await expect(
+      handler.writeFile({ path: '/c/Allowed/../../outside.txt', content: 'blocked' })
+    ).rejects.toThrow('Access denied - path outside allowed directories')
+  })
+
+  it('handles Windows drive and UNC root boundaries without prefix leakage', () => {
+    const driveHandler = new AgentFileSystemHandler(['C:\\'], {
+      commandShellPathStyle: 'msys'
+    })
+    const uncHandler = new AgentFileSystemHandler(['\\\\server\\share\\Project'], {
+      commandShellPathStyle: 'msys'
+    })
+
+    expect(driveHandler.isPathAllowedAbsolute('C:\\Users\\Me\\file.ts')).toBe(true)
+    expect(driveHandler.isPathAllowedAbsolute('D:\\Users\\Me\\file.ts')).toBe(false)
+    expect(uncHandler.isPathAllowedAbsolute('\\\\SERVER\\SHARE\\project\\file.ts')).toBe(true)
+    expect(uncHandler.isPathAllowedAbsolute('\\\\server\\share\\Project-other\\file.ts')).toBe(
+      false
+    )
+  })
+
+  it('keeps session reads scoped to the current conversation across Windows casing', () => {
+    const conversationId = 'current-conversation'
+    const handler = new AgentFileSystemHandler(['C:\\'], {
+      commandShellPathStyle: 'msys',
+      conversationId
+    })
+    const sessionsRoot = path.win32.normalize(getSessionsRoot()).toUpperCase()
+    const currentFile = path.win32.join(sessionsRoot, conversationId.toUpperCase(), 'data.json')
+    const otherFile = path.win32.join(sessionsRoot, 'OTHER-CONVERSATION', 'data.json')
+
+    expect(() => handler.assertReadAllowedAbsolute(currentFile)).not.toThrow()
+    expect(() => handler.assertReadAllowedAbsolute(otherFile)).toThrow(
+      'Access denied - session files outside current conversation'
+    )
+  })
+
+  it('preserves protected Agent Skill scopes across Windows casing', () => {
+    const handler = new AgentFileSystemHandler(['C:\\'], {
+      commandShellPathStyle: 'msys',
+      protectedDirectoryRules: [
+        {
+          root: 'C:\\Skills\\.agent-scopes',
+          allowedDirectories: ['C:\\Skills\\.agent-scopes\\active']
+        }
+      ]
+    })
+
+    expect(handler.isPathAllowedAbsolute('c:\\skills\\.AGENT-SCOPES\\active\\file.ts')).toBe(true)
+    expect(handler.isPathAllowedAbsolute('c:\\skills\\.AGENT-SCOPES\\inactive\\file.ts')).toBe(
+      false
+    )
+  })
+
+  it('preserves case-sensitive POSIX containment', () => {
+    const handler = new AgentFileSystemHandler(['/workspace/Project'])
+
+    expect(handler.isPathAllowedAbsolute('/workspace/Project/src/file.ts')).toBe(true)
+    expect(handler.isPathAllowedAbsolute('/workspace/project/src/file.ts')).toBe(false)
   })
 })
