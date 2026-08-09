@@ -52,6 +52,7 @@ vi.mock('@/agent/shared/process/rtkRuntimeService', () => ({
 
 import { spawn } from 'child_process'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
+import { getShellEnvironment } from '@/agent/shared/process/shellEnvHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 
 describe('SkillExecutionService', () => {
@@ -62,6 +63,8 @@ describe('SkillExecutionService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(spawn).mockReset()
+    vi.mocked(getShellEnvironment).mockResolvedValue({ PATH: '/shell/bin' })
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
     vi.spyOn(fs, 'mkdirSync').mockReturnValue(undefined)
     vi.mocked(fs.promises.stat).mockResolvedValue({
@@ -118,6 +121,24 @@ describe('SkillExecutionService', () => {
   })
 
   const resolvePath = (targetPath: string) => path.resolve(targetPath)
+
+  it('hides the Windows console for runtime availability probes', async () => {
+    const child = new EventEmitter()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const available = (service as never).hasCommand('uv.exe', ['--version'], {
+      PATH: 'C:\\runtime'
+    })
+    child.emit('close', 0)
+
+    await expect(available).resolves.toBe(true)
+    expect(spawn).toHaveBeenCalledWith('uv.exe', ['--version'], {
+      env: { PATH: 'C:\\runtime' },
+      stdio: 'ignore',
+      shell: false,
+      windowsHide: true
+    })
+  })
 
   it('builds spawn plan with session workdir cwd and skill root env', async () => {
     vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({

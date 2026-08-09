@@ -767,7 +767,8 @@ export class SkillExecutionService {
       const child = spawn(command, args, {
         env,
         stdio: 'ignore',
-        shell: false
+        shell: false,
+        windowsHide: true
       })
 
       child.on('error', () => resolve(false))

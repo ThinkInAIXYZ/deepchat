@@ -68,7 +68,8 @@ describe('terminateProcessTree', () => {
 
     await expect(terminateProcessTree(child as never, { graceMs: 10 })).resolves.toBe(true)
     expect(spawn).toHaveBeenCalledWith('taskkill', ['/PID', '321', '/T', '/F'], {
-      stdio: 'ignore'
+      stdio: 'ignore',
+      windowsHide: true
     })
   })
 

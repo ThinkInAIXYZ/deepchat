@@ -1,7 +1,14 @@
+import { EventEmitter } from 'events'
 import * as os from 'os'
 import * as path from 'path'
 import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('child_process', () => ({
+  spawn: vi.fn()
+}))
+
 import { RtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
+import { spawn } from 'child_process'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs')>()
@@ -302,5 +309,51 @@ describe('RtkRuntimeService', () => {
       ['rtk', ['--version']]
     ])
     expectNoHealthCommandProbes(runCommand.mock.calls)
+  })
+
+  it('hides the Windows console for default RTK subprocesses', async () => {
+    class MockStream extends EventEmitter {
+      setEncoding = vi.fn()
+    }
+
+    class MockChild extends EventEmitter {
+      stdout = new MockStream()
+      stderr = new MockStream()
+      kill = vi.fn()
+    }
+
+    vi.mocked(spawn).mockImplementation(() => {
+      const child = new MockChild()
+      queueMicrotask(() => child.emit('close', 0, null))
+      return child as never
+    })
+    const service = new RtkRuntimeService({
+      runtimeHelper: {
+        initializeRuntimes: vi.fn(),
+        refreshRuntimes: vi.fn(),
+        replaceWithRuntimeCommand: vi.fn((command: string) =>
+          command === 'rtk' ? '/runtime/rtk/rtk.exe' : command
+        ),
+        getRtkRuntimePath: vi.fn().mockReturnValue('/runtime/rtk'),
+        prependBundledRuntimeToEnv: vi.fn((env: Record<string, string>) => env)
+      },
+      getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' }),
+      getPath: (name) =>
+        name === 'userData'
+          ? path.join(os.tmpdir(), 'deepchat-rtk-userData')
+          : path.join(os.tmpdir(), 'deepchat-rtk-temp')
+    })
+
+    await expect(service.startHealthCheck()).resolves.toMatchObject({ health: 'healthy' })
+    expect(spawn).toHaveBeenCalledTimes(2)
+    for (const [, , options] of vi.mocked(spawn).mock.calls) {
+      expect(options).toEqual(
+        expect.objectContaining({
+          shell: false,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          windowsHide: true
+        })
+      )
+    }
   })
 })

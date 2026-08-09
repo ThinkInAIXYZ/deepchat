@@ -44,7 +44,10 @@ function waitForClose(child: ChildProcess, timeoutMs: number): Promise<boolean> 
 async function spawnAndWait(command: string, args: string[]): Promise<void> {
   await new Promise<void>((resolve) => {
     try {
-      const child = spawn(command, args, { stdio: 'ignore' })
+      const child = spawn(command, args, {
+        stdio: 'ignore',
+        ...(process.platform === 'win32' ? { windowsHide: true } : {})
+      })
       child.on('error', () => resolve())
       child.on('close', () => resolve())
     } catch {
