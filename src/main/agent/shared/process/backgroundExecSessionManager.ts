@@ -230,7 +230,7 @@ export class BackgroundExecSessionManager {
     const executable = directInvocation?.executable ?? commandShell.executable
     const args = directInvocation
       ? directInvocation.args
-      : [...commandShell.args, prepareShellCommandForUtf8Output(commandShell.executable, command)]
+      : [...commandShell.args, prepareShellCommandForUtf8Output(commandShell.dialect, command)]
     const preparedEnv = directInvocation
       ? prepareProcessEnvForUtf8Output(options.env ?? {})
       : options.env

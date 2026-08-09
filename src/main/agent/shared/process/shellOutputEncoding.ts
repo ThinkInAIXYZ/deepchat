@@ -1,5 +1,5 @@
-import path from 'path'
 import { StringDecoder } from 'string_decoder'
+import type { CommandShellDialect } from '@shared/commandShell'
 
 const POWERSHELL_UTF8_PREAMBLE =
   '[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false); ' +
@@ -22,26 +22,22 @@ export function prepareProcessEnvForUtf8Output(
   }
 }
 
-export function prepareShellCommandForUtf8Output(shell: string, command: string): string {
+export function prepareShellCommandForUtf8Output(
+  dialect: CommandShellDialect,
+  command: string
+): string {
   if (process.platform !== 'win32') {
     return command
   }
 
-  const shellName = path.basename(shell).toLowerCase()
-  if (
-    shellName === 'powershell.exe' ||
-    shellName === 'powershell' ||
-    shellName === 'pwsh.exe' ||
-    shellName === 'pwsh'
-  ) {
-    return `${POWERSHELL_UTF8_PREAMBLE}; ${command}`
+  switch (dialect) {
+    case 'powershell':
+      return `${POWERSHELL_UTF8_PREAMBLE}; ${command}`
+    case 'cmd':
+      return `${CMD_UTF8_PREAMBLE} && ${command}`
+    case 'posix':
+      return command
   }
-
-  if (shellName === 'cmd.exe' || shellName === 'cmd') {
-    return `${CMD_UTF8_PREAMBLE} && ${command}`
-  }
-
-  return command
 }
 
 export function createUtf8StreamDecoder(onText: (text: string) => void): {

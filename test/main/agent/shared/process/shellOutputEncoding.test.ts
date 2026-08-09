@@ -20,7 +20,7 @@ describe('shellOutputEncoding', () => {
       value: 'win32'
     })
 
-    const command = prepareShellCommandForUtf8Output('powershell.exe', 'dir')
+    const command = prepareShellCommandForUtf8Output('powershell', 'dir')
 
     expect(command).toContain('[Console]::OutputEncoding')
     expect(command).toContain('$OutputEncoding')
@@ -33,7 +33,16 @@ describe('shellOutputEncoding', () => {
       value: 'win32'
     })
 
-    expect(prepareShellCommandForUtf8Output('cmd.exe', 'dir')).toBe('chcp 65001 > nul && dir')
+    expect(prepareShellCommandForUtf8Output('cmd', 'dir')).toBe('chcp 65001 > nul && dir')
+  })
+
+  it('keeps Windows POSIX shell commands unchanged', () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+
+    expect(prepareShellCommandForUtf8Output('posix', 'printf hello')).toBe('printf hello')
   })
 
   it('keeps non-Windows commands unchanged', () => {
@@ -42,7 +51,7 @@ describe('shellOutputEncoding', () => {
       value: 'linux'
     })
 
-    expect(prepareShellCommandForUtf8Output('/bin/zsh', 'ls')).toBe('ls')
+    expect(prepareShellCommandForUtf8Output('posix', 'ls')).toBe('ls')
   })
 
   it('adds Python UTF-8 environment for Windows direct processes', () => {

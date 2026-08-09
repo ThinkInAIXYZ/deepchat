@@ -396,8 +396,8 @@ export class AgentBashHandler {
     timeout: number,
     options: ExecuteCommandOptions
   ): Promise<CompletedShellProcessResult> {
-    const { executable: shell, args } = options.commandShell
-    const shellCommand = prepareShellCommandForUtf8Output(shell, command)
+    const { executable: shell, args, dialect } = options.commandShell
+    const shellCommand = prepareShellCommandForUtf8Output(dialect, command)
     const outputFilePath = this.createOutputFilePath(options.conversationId, options.outputPrefix)
 
     return new Promise((resolve, reject) => {
