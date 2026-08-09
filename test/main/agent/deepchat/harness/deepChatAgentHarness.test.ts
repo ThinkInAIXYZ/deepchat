@@ -13318,6 +13318,101 @@ describe('DeepChatAgentHarness', () => {
       }
     })
 
+    it('rehydrates a pending command approval with its stored shell policy and a fresh lease', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const row = installPendingPermission({
+        toolName: 'exec',
+        params: '{"command":"npm install react"}',
+        permissionType: 'command',
+        command: 'npm install react',
+        commandSignature: 'git-bash:npm install',
+        shellProfile: 'git-bash'
+      })
+      const persistedBlocks = JSON.parse(row.content) as AssistantMessageBlock[]
+      const persistedPermission = JSON.parse(
+        String(persistedBlocks[1].extra?.permissionRequest)
+      ) as Record<string, unknown>
+      expect(persistedPermission).toMatchObject({
+        commandSignature: 'git-bash:npm install',
+        shellProfile: 'git-bash'
+      })
+      expect(persistedPermission).not.toHaveProperty('oneShotGrantId')
+
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's1',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'default'
+      })
+      sessionPermissionPort = {
+        clearSessionPermissions: vi.fn(),
+        approvePermission: vi.fn().mockResolvedValue('command-grant-after-restart'),
+        revokeOneShotCommandPermission: vi.fn()
+      }
+      sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+        publishPendingInputsChanged: vi.fn(),
+        publishMessagesChanged: vi.fn()
+      })
+      agent = createDeepChatAgentHarness({
+        ...runtimeDependencies,
+        sessionPermissionPort,
+        database: sqlitePresenter,
+        sessionData,
+        toolService,
+        providerRuntime: llmProvider,
+        providerSettings,
+        agentSettings: providerSettings,
+        hookObserver: createHookObserver(hookDispatcher)
+      })
+
+      await expect(agent.getSessionState('s1')).resolves.toMatchObject({ status: 'generating' })
+      const rehydratedInstance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
+      expect(rehydratedInstance?.getPendingInteractions()).toEqual([
+        {
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          origin: 'pre-check-permission',
+          order: 0
+        }
+      ])
+
+      const executeDeferredToolCallSpy = vi
+        .spyOn(DeferredToolExecutor.prototype, 'execute')
+        .mockResolvedValue({
+          responseText: 'terminal failure',
+          isError: true,
+          terminalError: 'terminal failure'
+        })
+
+      try {
+        await expect(approvePendingTool()).resolves.toEqual({ resumed: false })
+
+        expect(sessionPermissionPort.approvePermission).toHaveBeenCalledWith(
+          's1',
+          expect.objectContaining({
+            permissionType: 'command',
+            commandSignature: 'git-bash:npm install',
+            shellProfile: 'git-bash'
+          })
+        )
+        expect(executeDeferredToolCallSpy).toHaveBeenCalledWith(
+          's1',
+          'm1',
+          expect.objectContaining({ id: 'tc1', name: 'exec' }),
+          expect.any(Function),
+          'git-bash',
+          'command-grant-after-restart'
+        )
+        expect(sessionPermissionPort.revokeOneShotCommandPermission).toHaveBeenCalledWith(
+          's1',
+          'git-bash:npm install',
+          'command-grant-after-restart'
+        )
+      } finally {
+        executeDeferredToolCallSpy.mockRestore()
+      }
+    })
+
     it('settles a deferred interaction after T2 persistence fails without replaying the tool', async () => {
       toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
