@@ -297,6 +297,13 @@ export class DeferredToolExecutor {
           invoked
         }
       }
+      if (!parsedCommandShellProfile && oneShotCommandGrantId !== undefined) {
+        return {
+          responseText: 'Deferred command execution is missing its shell profile.',
+          isError: true,
+          invoked
+        }
+      }
       const projectDir = this.dependencies.sessionSettings.resolveProjectDir(sessionId)
       const toolDefinitions = await awaitWithAbort(
         this.dependencies.toolResolver.loadToolDefinitionsForSession(sessionId, projectDir),

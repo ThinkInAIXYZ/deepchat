@@ -550,6 +550,11 @@ describe('BackgroundExecSessionManager', () => {
     { ...POSIX_COMMAND_SHELL, dialect: 'powershell' as const },
     WINDOWS_POWERSHELL_COMMAND_SHELL
   ])('rejects a missing or contradictory command shell before spawning', async (commandShell) => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'linux'
+    })
+
     await expect(
       manager.start('conv-1', 'echo test', '/workspace', {
         commandShell: commandShell as never,

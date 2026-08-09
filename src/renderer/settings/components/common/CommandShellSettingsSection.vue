@@ -19,10 +19,15 @@
             class="h-8! w-full border-border text-sm hover:bg-accent"
             :aria-label="t('settings.common.commandShell.title')"
             @mousedown.capture="suppressOverrideBlurForPointerFocus"
+            @blur="saveOverride"
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent align="end" @pointerdown.capture="suppressOverrideBlurForPointerFocus">
+          <SelectContent
+            align="end"
+            @pointerdown.capture="suppressOverrideBlurForPointerFocus"
+            @focusout="saveOverride"
+          >
             <SelectItem value="auto">{{ t('settings.common.commandShell.auto') }}</SelectItem>
             <SelectItem value="windows-powershell">
               {{ t('settings.common.commandShell.windowsPowerShell') }}
@@ -258,7 +263,12 @@ const suppressOverrideBlurForPointerFocus = () => {
   })
 }
 
-const saveOverride = async () => {
+const isPreferenceFocusTarget = (target: EventTarget | null): boolean =>
+  target instanceof Element &&
+  Boolean(target.closest('[data-slot="select-trigger"], [data-slot="select-content"]'))
+
+const saveOverride = async (event?: FocusEvent) => {
+  if (event && isPreferenceFocusTarget(event.relatedTarget)) return
   if (saving.value || suppressOverrideBlur) return
   const normalized = overrideDraft.value.trim()
   if (normalized === (config.value.gitBashExecutableOverride ?? '')) {

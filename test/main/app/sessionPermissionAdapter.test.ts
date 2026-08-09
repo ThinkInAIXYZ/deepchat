@@ -38,7 +38,7 @@ describe('createSessionPermissionPort', () => {
     })
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   it.each([
@@ -115,5 +115,46 @@ describe('createSessionPermissionPort', () => {
         requestId: 'request-1'
       })
     ).resolves.toEqual({ kind: 'granted' })
+  })
+
+  it('grants deferred filesystem paths without issuing a command lease', async () => {
+    const port = createPort()
+
+    await expect(
+      port.approvePermission('session-1', {
+        permissionType: 'write',
+        serverName: 'agent-filesystem',
+        toolName: 'write',
+        paths: ['/workspace/note.txt'],
+        shellProfile: 'posix'
+      })
+    ).resolves.toEqual({ kind: 'granted' })
+
+    expect(filePermissionService.approve).toHaveBeenCalledWith(
+      'session-1',
+      ['/workspace/note.txt'],
+      'write',
+      false
+    )
+    expect(commandPermissionService.approve).not.toHaveBeenCalled()
+  })
+
+  it('grants deferred settings tools without issuing a command lease', async () => {
+    const port = createPort()
+
+    await expect(
+      port.approvePermission('session-1', {
+        permissionType: 'write',
+        serverName: 'deepchat-settings',
+        toolName: 'set_language'
+      })
+    ).resolves.toEqual({ kind: 'granted' })
+
+    expect(settingsPermissionService.approve).toHaveBeenCalledWith(
+      'session-1',
+      'set_language',
+      false
+    )
+    expect(commandPermissionService.approve).not.toHaveBeenCalled()
   })
 })

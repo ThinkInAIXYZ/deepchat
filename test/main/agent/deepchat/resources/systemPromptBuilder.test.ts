@@ -10,11 +10,18 @@ import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 describe('DeepChat system prompt builder', () => {
   it('rejects an invalid command shell before optional prompt contributors can mask it', async () => {
+    const assertCurrent = vi.fn()
+
     await expect(
-      buildSystemPromptWithSkills({} as never, {
-        commandShell: { ...POSIX_COMMAND_SHELL, pathStyle: 'win32' }
-      } as never)
+      buildSystemPromptWithSkills(
+        { assertCurrent } as never,
+        {
+          commandShell: { ...POSIX_COMMAND_SHELL, pathStyle: 'win32' }
+        } as never
+      )
     ).rejects.toThrow()
+
+    expect(assertCurrent).not.toHaveBeenCalled()
   })
 
   it('assembles byte-identical prompts without a composed-prompt memo', async () => {

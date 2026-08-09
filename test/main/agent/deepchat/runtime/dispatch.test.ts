@@ -2451,7 +2451,11 @@ describe('dispatch', () => {
           commandSignature: 'posix:npm install',
           shellProfile: 'posix'
         })
-        const revokeOneShotCommandPermission = vi.fn()
+        const revocationError = new Error('permission store unavailable')
+        const revokeOneShotCommandPermission = vi.fn(() => {
+          throw revocationError
+        })
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
         const autoGrantPermission = vi.fn(async () => {
           abortController.abort()
           return {
@@ -2476,32 +2480,37 @@ describe('dispatch', () => {
           { id: 'tc-exec', name: 'exec', arguments: '{"command":"npm install"}' }
         ]
 
-        await expect(
-          settleToolBatch(
-            state,
-            [],
-            0,
-            tools,
-            toolService,
-            'gpt-4',
-            abortIo,
-            'full_access',
-            new ToolOutputGuard(),
-            32000,
-            1024,
-            { autoGrantPermission, revokeOneShotCommandPermission }
-          )
-        ).rejects.toMatchObject({ name: 'AbortError' })
+        try {
+          await expect(
+            settleToolBatch(
+              state,
+              [],
+              0,
+              tools,
+              toolService,
+              'gpt-4',
+              abortIo,
+              'full_access',
+              new ToolOutputGuard(),
+              32000,
+              1024,
+              { autoGrantPermission, revokeOneShotCommandPermission }
+            )
+          ).rejects.toMatchObject({ name: 'AbortError' })
 
-        expect(toolService.callTool).not.toHaveBeenCalled()
-        expect(revokeOneShotCommandPermission).toHaveBeenCalledWith(
-          'posix:npm install',
-          'command-grant-cancelled'
-        )
+          expect(toolService.callTool).not.toHaveBeenCalled()
+          expect(revokeOneShotCommandPermission).toHaveBeenCalledWith(
+            'posix:npm install',
+            'command-grant-cancelled'
+          )
+          expect(warn).toHaveBeenCalledOnce()
+        } finally {
+          warn.mockRestore()
+        }
       }
     )
 
-    it('scopes an auto-granted command lease to the matching tool execution', async () => {
+    it('preserves a successful command result when lease cleanup fails', async () => {
       const tools = [makeAgentTool('exec')]
       const toolService = createMockToolService({ exec: 'done' }) as ToolServicePort & {
         preCheckToolPermission: ReturnType<typeof vi.fn>
@@ -2521,7 +2530,11 @@ describe('dispatch', () => {
         signature: 'posix:npm install',
         oneShotGrantId: 'command-grant-exec'
       })
-      const revokeOneShotCommandPermission = vi.fn()
+      const revocationError = new Error('permission store unavailable')
+      const revokeOneShotCommandPermission = vi.fn(() => {
+        throw revocationError
+      })
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
       state.blocks.push({
         type: 'tool_call',
         content: '',
@@ -2538,30 +2551,39 @@ describe('dispatch', () => {
         { id: 'tc-exec', name: 'exec', arguments: '{"command":"npm install"}' }
       ]
 
-      const result = await settleToolBatch(
-        state,
-        [],
-        0,
-        tools,
-        toolService,
-        'gpt-4',
-        io,
-        'full_access',
-        new ToolOutputGuard(),
-        32000,
-        1024,
-        { autoGrantPermission, revokeOneShotCommandPermission }
-      )
+      try {
+        const result = await settleToolBatch(
+          state,
+          [],
+          0,
+          tools,
+          toolService,
+          'gpt-4',
+          io,
+          'full_access',
+          new ToolOutputGuard(),
+          32000,
+          1024,
+          { autoGrantPermission, revokeOneShotCommandPermission }
+        )
 
-      expect(toolService.callTool).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'tc-exec' }),
-        expect.objectContaining({ oneShotCommandGrantId: 'command-grant-exec' })
-      )
-      expect(revokeOneShotCommandPermission).toHaveBeenCalledWith(
-        'posix:npm install',
-        'command-grant-exec'
-      )
-      expect(result.type).toBe('completed')
+        expect(toolService.callTool).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'tc-exec' }),
+          expect.objectContaining({ oneShotCommandGrantId: 'command-grant-exec' })
+        )
+        expect(revokeOneShotCommandPermission).toHaveBeenCalledWith(
+          'posix:npm install',
+          'command-grant-exec'
+        )
+        expect(result.type).toBe('completed')
+        expect(state.blocks[0]).toMatchObject({
+          status: 'success',
+          tool_call: { response: 'done' }
+        })
+        expect(warn).toHaveBeenCalledOnce()
+      } finally {
+        warn.mockRestore()
+      }
     })
 
     it.each([

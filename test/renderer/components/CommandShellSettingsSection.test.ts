@@ -97,7 +97,10 @@ async function setup(options: {
           },
           template: '<div><slot /></div>'
         }),
-        SelectContent: passthrough('SelectContent'),
+        SelectContent: defineComponent({
+          name: 'SelectContent',
+          template: '<div data-slot="select-content"><slot /></div>'
+        }),
         SelectItem: defineComponent({
           name: 'SelectItem',
           props: ['value'],
@@ -105,9 +108,12 @@ async function setup(options: {
             return { selectValue: inject<(value: string) => void>(SELECT_UPDATE_KEY) }
           },
           template:
-            '<button type="button" :data-value="value" @click="selectValue?.(value)"><slot /></button>'
+            '<button type="button" :data-value="value" @click="selectValue?.(value)" @keydown.enter="selectValue?.(value)"><slot /></button>'
         }),
-        SelectTrigger: passthrough('SelectTrigger'),
+        SelectTrigger: defineComponent({
+          name: 'SelectTrigger',
+          template: '<button type="button" data-slot="select-trigger"><slot /></button>'
+        }),
         SelectValue: passthrough('SelectValue'),
         Input: defineComponent({
           name: 'Input',
@@ -274,6 +280,32 @@ describe('CommandShellSettingsSection', () => {
       .element.dispatchEvent(new FocusEvent('blur'))
     item.element.dispatchEvent(new Event('pointerup', { bubbles: true, cancelable: true }))
     item.element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    await flushPromises()
+
+    expect(settingsClient.updateCommandShell).toHaveBeenCalledOnce()
+    expect(settingsClient.updateCommandShell).toHaveBeenCalledWith({
+      preference: 'windows-powershell',
+      gitBashExecutableOverride: editedExecutable
+    })
+  })
+
+  it('keeps a keyboard preference change atomic with an edited executable', async () => {
+    const existingExecutable = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    const editedExecutable = 'D:\\Portable Git\\bin\\bash.exe'
+    const { wrapper, settingsClient } = await setup({
+      config: {
+        preference: 'git-bash',
+        gitBashExecutableOverride: existingExecutable
+      }
+    })
+    const input = wrapper.get('[data-testid="command-shell-executable"]')
+    const trigger = wrapper.get('[data-testid="command-shell-preference"]')
+    const item = wrapper.get('[data-value="windows-powershell"]')
+    await input.setValue(editedExecutable)
+
+    input.element.dispatchEvent(new FocusEvent('blur', { relatedTarget: trigger.element }))
+    trigger.element.dispatchEvent(new FocusEvent('blur', { relatedTarget: item.element }))
+    await item.trigger('keydown', { key: 'Enter' })
     await flushPromises()
 
     expect(settingsClient.updateCommandShell).toHaveBeenCalledOnce()

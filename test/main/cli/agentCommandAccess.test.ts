@@ -146,6 +146,29 @@ describe('AgentCliCommandAccess', () => {
     expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
   })
 
+  it('blocks case-insensitive CMD token expansion without issuing authority', async () => {
+    const { directory } = await createCliDirectory('win32')
+    const authority = new AgentCliTokenAuthority()
+    const access = new AgentCliCommandAccess({
+      tokenAuthority: authority,
+      commandPermission: new CommandPermissionService(),
+      resolveCliDirectory: () => directory
+    })
+
+    expect(
+      access.createEnvironment(
+        'conversation-1',
+        'deepchat model invoke --prompt %deepchat_cli_agent_token%',
+        CMD_COMMAND_SHELL
+      )
+    ).toEqual({
+      variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
+      prependPath: [],
+      preserveCommand: true
+    })
+    expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
+  })
+
   it('marks non-CLI commands as unprivileged without suppressing command rewriting', async () => {
     const { directory } = await createCliDirectory()
     const authority = new AgentCliTokenAuthority()

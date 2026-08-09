@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events'
 import * as os from 'os'
 import * as path from 'path'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('child_process', () => ({
   spawn: vi.fn()
@@ -9,6 +9,10 @@ vi.mock('child_process', () => ({
 
 import { RtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { spawn } from 'child_process'
+
+beforeEach(() => {
+  vi.mocked(spawn).mockReset()
+})
 
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs')>()

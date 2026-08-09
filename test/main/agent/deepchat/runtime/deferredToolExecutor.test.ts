@@ -298,6 +298,35 @@ describe('DeferredToolExecutor Execution Journal', () => {
     expect(dependencies.toolExecutionPort.execute).toHaveBeenCalledOnce()
   })
 
+  it('fails closed when a deferred command grant lacks its stored shell profile', async () => {
+    const { dependencies, executionJournal, executor } = createHarness()
+
+    await expect(
+      executor.execute(
+        SESSION_ID,
+        MESSAGE_ID,
+        { ...TOOL_CALL, name: 'echo', server_name: 'mcp-server' },
+        undefined,
+        undefined,
+        'command-grant-without-profile'
+      )
+    ).resolves.toMatchObject({
+      responseText: 'Deferred command execution is missing its shell profile.',
+      isError: true,
+      invoked: false
+    })
+
+    expect(dependencies.toolResolver.loadToolDefinitionsForSession).not.toHaveBeenCalled()
+    expect(dependencies.commandShell.resolveProfile).not.toHaveBeenCalled()
+    expect(dependencies.commandShell.resolveForTurn).not.toHaveBeenCalled()
+    expect(dependencies.toolExecutionPort.execute).not.toHaveBeenCalled()
+    expect(executionJournal.commitRunStarted).not.toHaveBeenCalled()
+    expect(executionJournal.commitDispatch).not.toHaveBeenCalled()
+    expect(executionJournal.commitToolOutcome).not.toHaveBeenCalled()
+    expect(executionJournal.commitRunTerminal).not.toHaveBeenCalled()
+    expect(dependencies.runLifecycle.clearDeferredToolController).toHaveBeenCalledOnce()
+  })
+
   it('returns a non-retryable terminal error when T2 persistence fails', async () => {
     const { execute, executionJournal, order } = createHarness()
     executionJournal.commitToolOutcome.mockImplementationOnce(() => {

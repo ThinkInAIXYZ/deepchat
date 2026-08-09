@@ -27,7 +27,20 @@ function createRun(sessionId: string, initialRequestSeq = 0) {
 }
 
 describe('LoopRun', () => {
-  it('rejects a missing or contradictory command shell contract', () => {
+  it.each([
+    ['missing', { toolDefinitions: [], activeSkillNames: [] }],
+    [
+      'contradictory',
+      {
+        toolDefinitions: [],
+        activeSkillNames: [],
+        commandShell: {
+          ...POSIX_COMMAND_SHELL,
+          dialect: 'powershell'
+        }
+      }
+    ]
+  ] as const)('rejects a %s command shell contract', (_kind, resources) => {
     expect(() =>
       createLoopRun({
         runId: 'invalid-shell',
@@ -36,14 +49,7 @@ describe('LoopRun', () => {
         abortController: new AbortController(),
         messages: [],
         streamState: {},
-        resources: {
-          toolDefinitions: [],
-          activeSkillNames: [],
-          commandShell: {
-            ...POSIX_COMMAND_SHELL,
-            dialect: 'powershell'
-          } as never
-        }
+        resources: resources as never
       })
     ).toThrow()
   })

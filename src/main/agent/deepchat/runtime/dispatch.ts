@@ -1170,6 +1170,7 @@ function normalizePermissionRequest(
     typeof request?.description === 'string' && request.description.trim().length > 0
       ? request.description
       : fallback.description
+  const parsedShellProfile = CommandShellProfileSchema.safeParse(request?.shellProfile)
 
   return {
     permissionType,
@@ -1183,9 +1184,7 @@ function normalizePermissionRequest(
     command: typeof request?.command === 'string' ? request.command : undefined,
     commandSignature:
       typeof request?.commandSignature === 'string' ? request.commandSignature : undefined,
-    shellProfile: CommandShellProfileSchema.safeParse(request?.shellProfile).success
-      ? (request?.shellProfile as CommandShellProfile)
-      : undefined,
+    shellProfile: parsedShellProfile.success ? parsedShellProfile.data : undefined,
     paths: Array.isArray(request?.paths)
       ? request.paths.filter((item): item is string => typeof item === 'string' && item.length > 0)
       : undefined,
@@ -1241,7 +1240,11 @@ async function runWithAutoGrantedPermission<T>(
     return await run()
   } finally {
     if (grant?.kind === 'command') {
-      controls?.revokeOneShotCommandPermission?.(grant.signature, grant.oneShotGrantId)
+      try {
+        controls?.revokeOneShotCommandPermission?.(grant.signature, grant.oneShotGrantId)
+      } catch (error) {
+        console.warn('[DeepChatDispatch] Failed to revoke one-shot command grant:', error)
+      }
     }
   }
 }
