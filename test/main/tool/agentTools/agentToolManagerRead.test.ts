@@ -221,20 +221,37 @@ describe('AgentToolManager read routing', () => {
     expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
   })
 
-  it('reads UTF-16 code files reported as application/octet-stream', async () => {
-    const filePath = path.join(workspaceDir, '.tmp-change.diff')
-    await fs.writeFile(
-      filePath,
+  it.each([
+    [
+      'UTF-16LE',
+      '.tmp-change-le.diff',
       Buffer.from(`\uFEFFdiff --git a/file.ts b/file.ts\n+const value = 1\n`, 'utf16le')
-    )
+    ],
+    [
+      'UTF-16BE',
+      '.tmp-change-be.diff',
+      Buffer.from(`\uFEFFdiff --git a/file.ts b/file.ts\n+const value = 1\n`, 'utf16le').swap16()
+    ],
+    [
+      'UTF-8 BOM',
+      '.tmp-change-utf8.diff',
+      Buffer.concat([
+        Buffer.from([0xef, 0xbb, 0xbf]),
+        Buffer.from(`diff --git a/file.ts b/file.ts\n+const value = 1\n`, 'utf8')
+      ])
+    ]
+  ])('reads %s code files reported as application/octet-stream', async (_encoding, name, bytes) => {
+    const filePath = path.join(workspaceDir, name)
+    await fs.writeFile(filePath, bytes)
     fileService.getMimeType.mockResolvedValue('application/octet-stream')
 
-    const result = (await manager.callTool('read', { path: '.tmp-change.diff' }, 'conv1')) as {
+    const result = (await manager.callTool('read', { path: name }, 'conv1')) as {
       content: string
     }
 
     expect(result.content).toContain('diff --git a/file.ts b/file.ts')
     expect(result.content).toContain('+const value = 1')
+    expect(result.content).not.toContain('\uFEFF')
     expect(result.content).not.toContain('\u0000')
     expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
   })
