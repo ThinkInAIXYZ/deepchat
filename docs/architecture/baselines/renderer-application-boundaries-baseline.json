@@ -188,6 +188,10 @@
       "specifier": "@/stores/uiSettingsStore"
     },
     {
+      "file": "src/renderer/settings/components/common/CommandShellSettingsSection.vue",
+      "specifier": "@/stores/language"
+    },
+    {
       "file": "src/renderer/settings/components/common/DefaultModelSettingsSection.vue",
       "specifier": "@/components/icons/ModelIcon.vue"
     },
@@ -572,5 +576,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 130
+  "settingsToChatAppImportCount": 131
 }
