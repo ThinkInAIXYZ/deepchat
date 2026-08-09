@@ -57,6 +57,10 @@ interface PrepareShellCommandResult {
   rtkFallbackReason?: string
 }
 
+interface PrepareShellCommandOptions {
+  allowRewrite?: boolean
+}
+
 type RtkRewriteResult =
   | { status: 'rewritten'; command: string }
   | { status: 'bypass'; message: string }
@@ -342,7 +346,8 @@ export class RtkRuntimeService {
   async prepareShellCommand(
     rawCommand: string,
     env: Record<string, string>,
-    userEnabled: boolean
+    userEnabled: boolean,
+    options: PrepareShellCommandOptions = {}
   ): Promise<PrepareShellCommandResult> {
     const preparedEnv = await this.prepareExecutionEnv(env)
 
@@ -382,6 +387,19 @@ export class RtkRuntimeService {
         usedRtk: true,
         rtkApplied: true,
         rtkMode: 'direct'
+      }
+    }
+
+    if (options.allowRewrite === false) {
+      return {
+        originalCommand: rawCommand,
+        command: rawCommand,
+        env: preparedEnv,
+        rewritten: false,
+        usedRtk: false,
+        rtkApplied: false,
+        rtkMode: 'bypass',
+        rtkFallbackReason: 'RTK rewrite is unavailable for this command shell'
       }
     }
 

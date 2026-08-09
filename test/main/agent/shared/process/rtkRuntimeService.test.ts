@@ -195,6 +195,34 @@ describe('RtkRuntimeService', () => {
     expect(result.rtkMode).toBe('rewrite')
   })
 
+  it('bypasses automatic rewrites while preserving explicit RTK commands', async () => {
+    const runCommand = vi.fn()
+    const service = createService(runCommand)
+
+    const bypassed = await service.prepareShellCommand('Get-ChildItem', {}, true, {
+      allowRewrite: false
+    })
+    const direct = await service.prepareShellCommand('rtk git status', {}, true, {
+      allowRewrite: false
+    })
+
+    expect(runCommand).not.toHaveBeenCalled()
+    expect(bypassed).toMatchObject({
+      command: 'Get-ChildItem',
+      rewritten: false,
+      rtkApplied: false,
+      rtkMode: 'bypass',
+      rtkFallbackReason: 'RTK rewrite is unavailable for this command shell'
+    })
+    expect(direct).toMatchObject({
+      command: 'rtk git status',
+      rewritten: false,
+      usedRtk: true,
+      rtkApplied: true,
+      rtkMode: 'direct'
+    })
+  })
+
   it.each([
     'find . -type f -name "*.ts" -o -name "*.vue"',
     'find . -type f ! -name "*.test.ts"',

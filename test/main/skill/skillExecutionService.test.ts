@@ -426,6 +426,32 @@ describe('SkillExecutionService', () => {
     expect(rtkRuntimeService.prepareShellCommand).not.toHaveBeenCalled()
   })
 
+  it('keeps PowerShell skill plans direct and bypasses POSIX RTK rewriting', async () => {
+    vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
+      command: 'node.exe',
+      mode: 'node'
+    })
+
+    const plan = await (service as never).buildSpawnPlan(
+      {
+        skill: 'ocr',
+        script: 'scripts/run.py',
+        args: ['value;still-an-argument']
+      },
+      'conv-1',
+      WINDOWS_POWERSHELL_COMMAND_SHELL
+    )
+    const prepared = await (service as never).preparePlanForExecution(
+      plan,
+      WINDOWS_POWERSHELL_COMMAND_SHELL
+    )
+
+    expect(prepared.spawnMode).toBe('direct')
+    expect(prepared.shellCommand).toBeUndefined()
+    expect(rtkRuntimeService.prepareExecutionEnv).toHaveBeenCalledWith(plan.env)
+    expect(rtkRuntimeService.prepareShellCommand).not.toHaveBeenCalled()
+  })
+
   it('passes background skill arguments as a direct invocation', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true)
     vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => true } as fs.Stats)

@@ -699,6 +699,17 @@ export class SkillExecutionService {
       }
     }
 
+    if (commandShell.dialect === 'powershell') {
+      if (plan.spawnMode === 'shell') {
+        throw new Error('Skill shell execution is unavailable under Windows PowerShell')
+      }
+      return {
+        ...plan,
+        shellCommand: undefined,
+        env: await rtkRuntimeService.prepareExecutionEnv(plan.env)
+      }
+    }
+
     if (plan.shellCommand === undefined) {
       throw new Error('Shell-capable skill plan is missing a serialized command')
     }

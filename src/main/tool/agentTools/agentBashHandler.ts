@@ -179,6 +179,7 @@ export class AgentBashHandler {
     const prepared = await this.prepareCommand(
       command,
       resolvedEnvironment.env,
+      options.commandShell,
       resolvedEnvironment.preserveCommand
     )
 
@@ -651,6 +652,7 @@ export class AgentBashHandler {
     const prepared = await this.prepareCommand(
       command,
       resolvedEnvironment.env,
+      options.commandShell,
       resolvedEnvironment.preserveCommand
     )
 
@@ -691,14 +693,16 @@ export class AgentBashHandler {
 
   private async prepareCommand(
     command: string,
-    env?: Record<string, string>,
+    env: Record<string, string> | undefined,
+    commandShell: ResolvedCommandShell,
     preserveCommand = false
   ): Promise<PreparedCommand> {
     const baseEnv = env ?? {}
     const prepared = await rtkRuntimeService.prepareShellCommand(
       command,
       baseEnv,
-      !preserveCommand && this.settings.get<boolean>(RTK_ENABLED_SETTING_KEY) !== false
+      !preserveCommand && this.settings.get<boolean>(RTK_ENABLED_SETTING_KEY) !== false,
+      { allowRewrite: commandShell.dialect === 'posix' }
     )
     return {
       originalCommand: prepared.originalCommand,
@@ -709,7 +713,9 @@ export class AgentBashHandler {
       rtkMode: prepared.rtkMode,
       rtkFallbackReason: preserveCommand
         ? 'RTK rewrite bypassed for scoped command authority'
-        : prepared.rtkFallbackReason
+        : commandShell.dialect !== 'posix' && prepared.rtkMode !== 'direct'
+          ? 'RTK rewrite bypassed for non-POSIX command shell'
+          : prepared.rtkFallbackReason
     }
   }
 

@@ -2,9 +2,13 @@ import fs from 'fs'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
+import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
 import { CommandPermissionService } from '@/tool/permission/commandPermissionService'
-import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
+import {
+  POSIX_COMMAND_SHELL,
+  WINDOWS_POWERSHELL_COMMAND_SHELL
+} from '../../../helpers/commandShell'
 
 const createPermissionService = (): CommandPermissionService => {
   const service = new CommandPermissionService()
@@ -199,6 +203,7 @@ describe('AgentBashHandler', () => {
         DEEPCHAT_CLI_AGENT_TOKEN: 'scoped-token',
         CONTROLLED_VALUE: 'preserved'
       }),
+      POSIX_COMMAND_SHELL,
       true
     )
     const preparedEnvironment = prepareCommand.mock.calls[0]?.[1] as Record<string, string>
@@ -207,6 +212,42 @@ describe('AgentBashHandler', () => {
       '/controlled/bin',
       '/shared/bin'
     ])
+  })
+
+  it('bypasses RTK rewrites for PowerShell commands', async () => {
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      { get: () => true },
+      createPermissionService()
+    )
+    const prepareShellCommand = vi
+      .spyOn(rtkRuntimeService, 'prepareShellCommand')
+      .mockResolvedValue({
+        originalCommand: 'Get-ChildItem',
+        command: 'Get-ChildItem',
+        env: { PATH: 'C:\\Windows' },
+        rewritten: false,
+        usedRtk: false,
+        rtkApplied: false,
+        rtkMode: 'bypass',
+        rtkFallbackReason: 'RTK rewrite is unavailable for this command shell'
+      })
+
+    const prepared = await (handler as never).prepareCommand(
+      'Get-ChildItem',
+      {},
+      WINDOWS_POWERSHELL_COMMAND_SHELL
+    )
+
+    expect(prepareShellCommand).toHaveBeenCalledWith('Get-ChildItem', {}, true, {
+      allowRewrite: false
+    })
+    expect(prepared).toMatchObject({
+      command: 'Get-ChildItem',
+      rewritten: false,
+      rtkApplied: false,
+      rtkFallbackReason: 'RTK rewrite bypassed for non-POSIX command shell'
+    })
   })
 
   it('does not issue a scoped environment while command approval is pending', async () => {
