@@ -56,6 +56,14 @@ import { isCommandSignatureForProfile } from '@/tool/permission'
 const DEFERRED_INTERACTION_PARKED_ERROR =
   'Execution is parked after an Execution Journal failure and will not be retried automatically.'
 
+type DeferredPermissionGrant = {
+  serverName: string
+  command?: {
+    signature: string
+    oneShotGrantId: string
+  }
+}
+
 type InteractionRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
   | 'clearOperationController'
@@ -259,14 +267,11 @@ export class InteractionCoordinator {
 
         if (response.granted) {
           await resumeWaitingAdmission()
-          let grantedCommandPermission: {
-            signature: string
-            oneShotGrantId: string
-          } | null = null
+          let permissionGrant: DeferredPermissionGrant | null = null
           let execution: DeferredToolExecutionResult
           try {
             // Await the cache mutation directly so cleanup always owns the exact grant lease.
-            grantedCommandPermission = await this.grantPermissionForPayload(
+            permissionGrant = await this.grantPermissionForPayload(
               sessionId,
               permissionPayload,
               toolCall
@@ -299,10 +304,12 @@ export class InteractionCoordinator {
               execution = await this.ports.deferredToolExecutor.execute(
                 sessionId,
                 messageId,
-                toolCall,
+                toolCall.server_name === permissionGrant.serverName
+                  ? toolCall
+                  : { ...toolCall, server_name: permissionGrant.serverName },
                 markDeferredToolCallStarted,
                 permissionPayload?.shellProfile,
-                grantedCommandPermission?.oneShotGrantId
+                permissionGrant.command?.oneShotGrantId
               )
               const refreshedInteraction = this.readLatestPendingInteraction(
                 sessionId,
@@ -324,11 +331,11 @@ export class InteractionCoordinator {
               }
             }
           } finally {
-            if (grantedCommandPermission) {
+            if (permissionGrant?.command) {
               this.ports.sessionPermissionPort.revokeOneShotCommandPermission(
                 sessionId,
-                grantedCommandPermission.signature,
-                grantedCommandPermission.oneShotGrantId
+                permissionGrant.command.signature,
+                permissionGrant.command.oneShotGrantId
               )
             }
           }
@@ -729,13 +736,38 @@ export class InteractionCoordinator {
     sessionId: string,
     payload: PendingToolInteraction['permission'] | undefined,
     toolCall: NonNullable<AssistantMessageBlock['tool_call']>
-  ): Promise<{ signature: string; oneShotGrantId: string } | null> {
-    if (!payload) return null
+  ): Promise<DeferredPermissionGrant> {
+    if (!payload) {
+      throw new Error('Permission approval payload is unavailable.')
+    }
 
     const sessionPermissionPort = this.ports.sessionPermissionPort
     const permissionType = payload.permissionType
-    const serverName = payload.serverName || toolCall.server_name || ''
-    const toolName = payload.toolName || toolCall.name || ''
+    const payloadServerName = payload.serverName?.trim()
+    const toolCallServerName = toolCall.server_name?.trim()
+    if (
+      payloadServerName &&
+      toolCallServerName &&
+      payloadServerName !== toolCallServerName
+    ) {
+      throw new Error('Permission approval tool server identity does not match the tool call.')
+    }
+    const serverName = toolCallServerName || payloadServerName
+    if (!serverName) {
+      throw new Error('Permission approval is missing its tool server identity.')
+    }
+
+    const payloadToolName = payload.toolName?.trim()
+    const toolCallName = toolCall.name?.trim()
+    if (
+      (serverName === 'agent-filesystem' || serverName === 'deepchat-settings') &&
+      payloadToolName &&
+      toolCallName &&
+      payloadToolName !== toolCallName
+    ) {
+      throw new Error('Permission approval tool identity does not match the tool call.')
+    }
+    const toolName = toolCallName || payloadToolName || ''
 
     if (permissionType === 'command') {
       const command = payload.command || payload.commandInfo?.command || ''
@@ -758,10 +790,21 @@ export class InteractionCoordinator {
       if (!oneShotGrantId) {
         throw new Error('Command approval did not return a one-shot grant lease.')
       }
-      return { signature, oneShotGrantId }
+      return { serverName, command: { signature, oneShotGrantId } }
     }
 
-    if (serverName === 'agent-filesystem' && Array.isArray(payload.paths) && payload.paths.length) {
+    if (serverName === 'agent-filesystem') {
+      const parsedProfile = CommandShellProfileSchema.safeParse(payload.shellProfile)
+      if (!parsedProfile.success) {
+        throw new Error('File approval is missing a valid shell profile.')
+      }
+      if (
+        !Array.isArray(payload.paths) ||
+        payload.paths.length === 0 ||
+        payload.paths.some((filePath) => typeof filePath !== 'string' || !filePath.trim())
+      ) {
+        throw new Error('File approval is missing valid paths.')
+      }
       await sessionPermissionPort.approvePermission(sessionId, {
         permissionType:
           permissionType === 'read' || permissionType === 'write' || permissionType === 'all'
@@ -769,9 +812,10 @@ export class InteractionCoordinator {
             : 'write',
         serverName,
         toolName,
-        paths: payload.paths
+        paths: payload.paths,
+        shellProfile: parsedProfile.data
       })
-      return null
+      return { serverName }
     }
 
     if (serverName === 'deepchat-settings' && toolName) {
@@ -780,7 +824,7 @@ export class InteractionCoordinator {
         serverName,
         toolName
       })
-      return null
+      return { serverName }
     }
 
     if (
@@ -794,6 +838,6 @@ export class InteractionCoordinator {
         requestId: payload.requestId
       })
     }
-    return null
+    return { serverName }
   }
 }

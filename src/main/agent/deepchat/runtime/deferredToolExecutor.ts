@@ -288,6 +288,14 @@ export class DeferredToolExecutor {
         commandShellProfile === undefined
           ? undefined
           : CommandShellProfileSchema.parse(commandShellProfile)
+      const targetServerName = toolCall.server_name?.trim()
+      if (!targetServerName) {
+        return {
+          responseText: 'Deferred tool execution is missing its server identity.',
+          isError: true,
+          invoked
+        }
+      }
       const projectDir = this.dependencies.sessionSettings.resolveProjectDir(sessionId)
       const toolDefinitions = await awaitWithAbort(
         this.dependencies.toolResolver.loadToolDefinitionsForSession(sessionId, projectDir),
@@ -296,13 +304,11 @@ export class DeferredToolExecutor {
       throwIfAbortRequested(deferredAbortSignal)
 
       const toolDefinition = toolDefinitions.find((definition) => {
-        if (definition.function.name !== toolName) {
-          return false
-        }
-        if (toolCall.server_name) {
-          return definition.server.name === toolCall.server_name
-        }
-        return true
+        return (
+          definition.function.name === toolName &&
+          definition.server.name === targetServerName &&
+          (targetServerName !== 'agent-filesystem' || definition.source === 'agent')
+        )
       })
 
       if (!toolDefinition) {
@@ -313,6 +319,17 @@ export class DeferredToolExecutor {
               ? `Tool '${toolName}' is disabled for the current session.`
               : `Tool '${toolName}' is no longer available in the current session.`,
           isError: true
+        }
+      }
+
+      if (
+        !parsedCommandShellProfile &&
+        targetServerName === 'agent-filesystem'
+      ) {
+        return {
+          responseText: 'Deferred file execution is missing its shell profile.',
+          isError: true,
+          invoked
         }
       }
 

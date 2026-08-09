@@ -15,7 +15,8 @@ const TOOL_CALL = {
   id: 'call-1',
   name: 'write_file',
   params: '{"path":"a.txt"}',
-  response: ''
+  response: '',
+  server_name: 'agent-filesystem'
 }
 
 type ToolExecutionOptions = Parameters<
@@ -124,28 +125,41 @@ function createHarness(
     messageProjection: { updateSubagentToolCallProgress: vi.fn() },
     commandShell: {
       resolveForTurn: vi.fn(async () => POSIX_COMMAND_SHELL),
-      resolveProfile: vi.fn(async () => GIT_BASH_COMMAND_SHELL)
+      resolveProfile: vi.fn(async (profile) =>
+        profile === 'git-bash' ? GIT_BASH_COMMAND_SHELL : POSIX_COMMAND_SHELL
+      )
     },
     executionJournal
   } as unknown as DeferredToolExecutorDependencies
 
+  const executor = new DeferredToolExecutor(dependencies)
   return {
     abortController,
     dependencies,
+    execute: (onToolCallStarted?: () => void) =>
+      executor.execute(
+        SESSION_ID,
+        MESSAGE_ID,
+        TOOL_CALL,
+        onToolCallStarted,
+        'posix'
+      ),
     executionJournal,
-    executor: new DeferredToolExecutor(dependencies),
+    executor,
     order
   }
 }
 
 describe('DeferredToolExecutor Execution Journal', () => {
   it('commits deferred boundaries before target invocation and result projection', async () => {
-    const { dependencies, executionJournal, executor, order } = createHarness()
+    const { dependencies, execute, executionJournal, order } = createHarness()
     const onToolCallStarted = vi.fn(() => order.push('tool.started'))
 
-    await expect(
-      executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL, onToolCallStarted)
-    ).resolves.toMatchObject({ responseText: 'done', isError: false, invoked: true })
+    await expect(execute(onToolCallStarted)).resolves.toMatchObject({
+      responseText: 'done',
+      isError: false,
+      invoked: true
+    })
 
     expect(order).toEqual([
       'journal.run_started',
@@ -223,14 +237,75 @@ describe('DeferredToolExecutor Execution Journal', () => {
     expect(dependencies.toolExecutionPort.execute).not.toHaveBeenCalled()
   })
 
+  it('fails closed when deferred Agent filesystem execution lacks a stored shell profile', async () => {
+    const { dependencies, executionJournal, executor } = createHarness()
+
+    await expect(executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)).resolves.toMatchObject({
+      responseText: 'Deferred file execution is missing its shell profile.',
+      isError: true,
+      invoked: false
+    })
+
+    expect(dependencies.commandShell.resolveProfile).not.toHaveBeenCalled()
+    expect(dependencies.commandShell.resolveForTurn).not.toHaveBeenCalled()
+    expect(dependencies.toolExecutionPort.execute).not.toHaveBeenCalled()
+    expect(executionJournal.commitRunStarted).not.toHaveBeenCalled()
+    expect(executionJournal.commitDispatch).not.toHaveBeenCalled()
+    expect(executionJournal.commitToolOutcome).not.toHaveBeenCalled()
+    expect(executionJournal.commitRunTerminal).not.toHaveBeenCalled()
+    expect(dependencies.runLifecycle.clearDeferredToolController).toHaveBeenCalledOnce()
+  })
+
+  it('fails closed before resolving a deferred tool without a server identity', async () => {
+    const { dependencies, executionJournal, executor } = createHarness()
+    const { server_name: _serverName, ...unboundToolCall } = TOOL_CALL
+
+    await expect(
+      executor.execute(SESSION_ID, MESSAGE_ID, unboundToolCall, undefined, 'posix')
+    ).resolves.toMatchObject({
+      responseText: 'Deferred tool execution is missing its server identity.',
+      isError: true,
+      invoked: false
+    })
+
+    expect(dependencies.toolResolver.loadToolDefinitionsForSession).not.toHaveBeenCalled()
+    expect(dependencies.commandShell.resolveProfile).not.toHaveBeenCalled()
+    expect(dependencies.commandShell.resolveForTurn).not.toHaveBeenCalled()
+    expect(dependencies.toolExecutionPort.execute).not.toHaveBeenCalled()
+    expect(executionJournal.commitRunStarted).not.toHaveBeenCalled()
+    expect(dependencies.runLifecycle.clearDeferredToolController).toHaveBeenCalledOnce()
+  })
+
+  it('keeps current-shell fallback for an explicitly bound non-filesystem tool', async () => {
+    const { dependencies, executor } = createHarness()
+    vi.mocked(dependencies.toolResolver.loadToolDefinitionsForSession).mockResolvedValueOnce([
+      {
+        type: 'function',
+        source: 'mcp',
+        function: { name: 'echo' },
+        server: { name: 'mcp-server' }
+      }
+    ] as never)
+
+    await executor.execute(SESSION_ID, MESSAGE_ID, {
+      ...TOOL_CALL,
+      name: 'echo',
+      server_name: 'mcp-server'
+    })
+
+    expect(dependencies.commandShell.resolveForTurn).toHaveBeenCalledOnce()
+    expect(dependencies.commandShell.resolveProfile).not.toHaveBeenCalled()
+    expect(dependencies.toolExecutionPort.execute).toHaveBeenCalledOnce()
+  })
+
   it('returns a non-retryable terminal error when T2 persistence fails', async () => {
-    const { executionJournal, executor, order } = createHarness()
+    const { execute, executionJournal, order } = createHarness()
     executionJournal.commitToolOutcome.mockImplementationOnce(() => {
       order.push('journal.outcome.failed')
       throw new ExecutionJournalError('T2 unavailable', 'persistence_failed')
     })
 
-    await expect(executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)).resolves.toMatchObject({
+    await expect(execute()).resolves.toMatchObject({
       isError: true,
       invoked: true,
       terminalError: 'T2 unavailable'
@@ -252,13 +327,13 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('does not reach the target when the dispatch commit fails', async () => {
-    const { executionJournal, executor, order } = createHarness()
+    const { execute, executionJournal, order } = createHarness()
     executionJournal.commitDispatch.mockImplementationOnce(() => {
       order.push('journal.dispatch.failed')
       throw new Error('storage offline')
     })
 
-    await expect(executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)).resolves.toMatchObject({
+    await expect(execute()).resolves.toMatchObject({
       isError: true,
       responseText: 'Error: Failed to commit deferred tool dispatch_committed.',
       terminalError: 'Failed to commit deferred tool dispatch_committed.'
@@ -272,7 +347,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('does not claim dispatch when both T1 and terminal persistence fail', async () => {
-    const { executionJournal, executor } = createHarness()
+    const { execute, executionJournal } = createHarness()
     executionJournal.commitDispatch.mockImplementationOnce(() => {
       throw new Error('dispatch storage offline')
     })
@@ -280,7 +355,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
       throw new Error('terminal storage offline')
     })
 
-    await expect(executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)).resolves.toMatchObject({
+    await expect(execute()).resolves.toMatchObject({
       responseText: 'Tool dispatch was not recorded because Execution Journal persistence failed.',
       isError: true,
       journalFailure: {
@@ -293,13 +368,13 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('returns a committed outcome only as a non-terminal parked projection', async () => {
-    const { executionJournal, executor, order } = createHarness()
+    const { execute, executionJournal, order } = createHarness()
     executionJournal.commitRunTerminal.mockImplementationOnce(() => {
       order.push('journal.terminal.failed')
       throw new Error('storage offline')
     })
 
-    const result = await executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)
+    const result = await execute()
 
     expect(result).toMatchObject({
       responseText: 'done',
@@ -326,7 +401,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('pauses a pre-dispatch permission response without fabricating T1 or T2', async () => {
-    const { executionJournal, executor } = createHarness(async () => ({
+    const { execute, executionJournal } = createHarness(async () => ({
       content: 'approval required',
       rawData: {
         content: 'approval required',
@@ -336,7 +411,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
       }
     }))
 
-    await expect(executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)).resolves.toMatchObject({
+    await expect(execute()).resolves.toMatchObject({
       requiresPermission: true,
       isError: true
     })
@@ -349,11 +424,11 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('records an ordinary pre-dispatch failure as an error terminal without T1 or T2', async () => {
-    const { executionJournal, executor } = createHarness(async () => {
+    const { execute, executionJournal } = createHarness(async () => {
       throw new Error('local preflight failed')
     })
 
-    await expect(executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)).resolves.toMatchObject({
+    await expect(execute()).resolves.toMatchObject({
       responseText: 'Error: local preflight failed',
       isError: true
     })
@@ -370,7 +445,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('fails closed when permission is requested after dispatch', async () => {
-    const { executionJournal, executor } = createHarness(
+    const { execute, executionJournal } = createHarness(
       async ({ options, abortController }) => {
         options.commitDispatch?.(dispatchInput())
         abortController.abort()
@@ -386,7 +461,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
       }
     )
 
-    await expect(executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)).resolves.toMatchObject({
+    await expect(execute()).resolves.toMatchObject({
       isError: true,
       terminalError: expect.stringContaining('requested permission after dispatch')
     })
@@ -400,7 +475,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('leaves T1 indeterminate when aborted before a target result is known', async () => {
-    const { executionJournal, executor } = createHarness(
+    const { execute, executionJournal } = createHarness(
       async ({ options, abortController }) => {
         options.commitDispatch?.(dispatchInput())
         abortController.abort()
@@ -410,7 +485,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
       }
     )
 
-    await expect(executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)).rejects.toMatchObject({
+    await expect(execute()).rejects.toMatchObject({
       name: 'AbortError'
     })
 
@@ -422,7 +497,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('commits a returned result before recording a later local abort', async () => {
-    const { abortController, dependencies, executionJournal, executor, order } = createHarness()
+    const { abortController, dependencies, execute, executionJournal, order } = createHarness()
     vi.mocked(dependencies.toolResultPort.normalize).mockImplementationOnce(async () => {
       abortController.abort()
       const error = new Error('Aborted')
@@ -430,7 +505,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
       throw error
     })
 
-    await expect(executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)).rejects.toMatchObject({
+    await expect(execute()).rejects.toMatchObject({
       name: 'AbortError'
     })
 
