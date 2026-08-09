@@ -273,7 +273,7 @@ function isImplicitlySafeCommand(
   command: string,
   baseCommand: string,
   dialect: CommandShellDialect,
-  profile?: CommandShellProfile
+  profile: CommandShellProfile
 ): boolean {
   const normalizedBaseCommand = dialect === 'posix' ? baseCommand : baseCommand.toLowerCase()
   if (!SAFE_COMMANDS[dialect].has(normalizedBaseCommand)) return false
@@ -449,10 +449,10 @@ export class CommandPermissionService {
     }
   }
 
-  assessCommandRisk(
+  private assessCommandRisk(
     command: string,
     dialect: CommandShellDialect,
-    profile?: CommandShellProfile
+    profile: CommandShellProfile
   ): CommandRiskAssessment {
     if (!command.trim()) {
       return { level: 'critical', suggestion: SUGGESTION_KEYS.critical }
@@ -493,10 +493,6 @@ export class CommandPermissionService {
 
   extractBaseCommand(command: string): string {
     return extractBaseCommandValue(command)
-  }
-
-  extractCommandSignature(command: string, dialect: CommandShellDialect): string {
-    return extractCommandSignatureValue(command, dialect)
   }
 
   buildCommandInfo(command: string, commandShell: CommandShellIdentity): CommandInfo {

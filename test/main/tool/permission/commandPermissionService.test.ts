@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { CommandPermissionCache, CommandPermissionService } from '@/tool/permission'
+import {
+  buildCommandPermissionSignature,
+  CommandPermissionCache,
+  CommandPermissionService
+} from '@/tool/permission'
 import {
   CMD_COMMAND_SHELL,
   GIT_BASH_COMMAND_SHELL,
@@ -51,15 +55,16 @@ describe('CommandPermissionService', () => {
 
   it('flags destructive commands as critical', () => {
     const service = new CommandPermissionService()
-    const result = service.assessCommandRisk('rm -rf /', 'posix')
+    const result = checkPosix(service, 'conv-1', 'rm -rf /')
 
-    expect(result.level).toBe('critical')
+    expect(result.risk.level).toBe('critical')
   })
 
-  it('extracts command signatures', () => {
-    const service = new CommandPermissionService()
-    expect(service.extractCommandSignature('git pull origin main', 'posix')).toBe('git pull')
-    expect(service.extractCommandSignature('rm -rf /', 'posix')).toBe('rm -rf /')
+  it('builds namespaced command signatures', () => {
+    expect(buildCommandPermissionSignature('git pull origin main', POSIX_COMMAND_SHELL)).toBe(
+      'posix:git pull'
+    )
+    expect(buildCommandPermissionSignature('rm -rf /', POSIX_COMMAND_SHELL)).toBe('posix:rm -rf /')
   })
 
   it('keeps deepchat outside the implicit safe-command set', () => {
@@ -142,7 +147,7 @@ describe('CommandPermissionService', () => {
   it('allows only the exact shell expression that was approved', () => {
     const service = new CommandPermissionService()
     const command = 'deepchat model invoke --prompt hello > output.txt'
-    const signature = `posix:${service.extractCommandSignature(command, 'posix')}`
+    const signature = buildCommandPermissionSignature(command, POSIX_COMMAND_SHELL)
     const grantId = service.approve('conv-1', signature, false)
     if (!grantId) throw new Error('Expected one-shot grant')
 
@@ -205,15 +210,19 @@ describe('CommandPermissionService', () => {
       ).risk.level
     ).toBe('critical')
     expect(
-      service.assessCommandRisk('Remove-Item C:\\data -Recurse -Force', 'powershell').level
+      service.checkPermission(
+        'conv-1',
+        'Remove-Item C:\\data -Recurse -Force',
+        WINDOWS_POWERSHELL_COMMAND_SHELL
+      ).risk.level
     ).toBe('critical')
   })
 
   it('preserves case-sensitive POSIX risk matching', () => {
     const service = new CommandPermissionService()
 
-    expect(service.assessCommandRisk('RM target', 'posix').level).toBe('medium')
-    expect(service.assessCommandRisk('CURL https://example.com', 'posix').level).toBe('medium')
+    expect(checkPosix(service, 'conv-1', 'RM target').risk.level).toBe('medium')
+    expect(checkPosix(service, 'conv-1', 'CURL https://example.com').risk.level).toBe('medium')
   })
 
   it('requires exact approval for PowerShell parenthesized expressions', () => {
