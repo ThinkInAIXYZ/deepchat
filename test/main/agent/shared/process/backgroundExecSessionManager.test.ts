@@ -379,7 +379,11 @@ describe('BackgroundExecSessionManager', () => {
       'powershell.exe',
       ['-NoProfile', '-Command', expect.stringContaining('[Console]::OutputEncoding')],
       expect.objectContaining({
-        detached: false
+        detached: false,
+        env: expect.objectContaining({
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUTF8: '1'
+        })
       })
     )
   })

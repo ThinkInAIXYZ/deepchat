@@ -488,7 +488,7 @@ export class SkillExecutionService {
         ? prepareShellCommandForUtf8Output(shellRuntime.dialect, plan.shellCommand ?? '')
         : undefined
       const args = shellRuntime ? [...shellRuntime.args, shellCommand ?? ''] : plan.args
-      const env = shellRuntime ? plan.env : prepareProcessEnvForUtf8Output(plan.env)
+      const env = prepareProcessEnvForUtf8Output(plan.env)
       const child = spawn(command, args, {
         cwd: plan.cwd,
         env,

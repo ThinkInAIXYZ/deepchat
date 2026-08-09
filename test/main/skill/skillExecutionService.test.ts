@@ -562,7 +562,11 @@ describe('SkillExecutionService', () => {
       'powershell.exe',
       ['-NoProfile', '-Command', expect.stringContaining('[Console]::OutputEncoding')],
       expect.objectContaining({
-        shell: false
+        shell: false,
+        env: expect.objectContaining({
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUTF8: '1'
+        })
       })
     )
     expect(result).toContain('ok')

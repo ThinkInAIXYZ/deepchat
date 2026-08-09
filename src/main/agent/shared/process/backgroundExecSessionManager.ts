@@ -231,9 +231,7 @@ export class BackgroundExecSessionManager {
     const args = directInvocation
       ? directInvocation.args
       : [...commandShell.args, prepareShellCommandForUtf8Output(commandShell.dialect, command)]
-    const preparedEnv = directInvocation
-      ? prepareProcessEnvForUtf8Output(options.env ?? {})
-      : options.env
+    const preparedEnv = prepareProcessEnvForUtf8Output(options.env ?? {})
     const spawnCwd = resolveUsableSpawnCwd(cwd)
 
     const sessionDir = resolveSessionDir(conversationId)
