@@ -301,21 +301,26 @@ export class CommandShellService {
       throw new Error(`The ${profile} command shell profile is available only on Windows`)
     }
 
-    if (profile === 'cmd') return resolveCmdShell()
-    if (profile === 'windows-powershell') return resolveWindowsPowerShell()
-
-    const availability = await this.checkGitBash()
-    if (!availability.available) {
-      throw new CommandShellUnavailableError(profile, availability.error)
+    switch (profile) {
+      case 'cmd':
+        return resolveCmdShell()
+      case 'windows-powershell':
+        return resolveWindowsPowerShell()
+      case 'git-bash': {
+        const availability = await this.checkGitBash()
+        if (!availability.available) {
+          throw new CommandShellUnavailableError(profile, availability.error)
+        }
+        return freezeResolvedCommandShell({
+          profile: 'git-bash',
+          dialect: 'posix',
+          pathStyle: 'msys',
+          executable: availability.executable,
+          args: ['-c'],
+          displayName: 'Git Bash'
+        })
+      }
     }
-    return freezeResolvedCommandShell({
-      profile: 'git-bash',
-      dialect: 'posix',
-      pathStyle: 'msys',
-      executable: availability.executable,
-      args: ['-c'],
-      displayName: 'Git Bash'
-    })
   }
 
   async checkGitBash(options: { forceRefresh?: boolean } = {}): Promise<GitBashAvailability> {
