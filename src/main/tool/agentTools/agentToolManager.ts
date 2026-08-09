@@ -697,7 +697,7 @@ export class AgentToolManager {
       }
       const commandShell = this.requireCommandShell(options?.commandShell)
       return await this.callFileSystemTool(toolName, args, conversationId, {
-        ...(options ?? {}),
+        ...options,
         commandShell
       })
     }
