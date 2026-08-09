@@ -118,10 +118,11 @@ describe('CommandShellService', () => {
   })
 
   it('treats an invalid explicit override as authoritative and does not fall through', async () => {
-    const { service, runCommand } = createHarness({
+    const executable = 'C:\\Missing\\bash.exe'
+    const { service, runCommand, normalizedFiles } = createHarness({
       config: {
         preference: 'git-bash',
-        gitBashExecutableOverride: 'C:\\Missing\\bash.exe'
+        gitBashExecutableOverride: executable
       }
     })
 
@@ -138,6 +139,14 @@ describe('CommandShellService', () => {
         reason: 'override-invalid'
       })
     )
+
+    normalizedFiles.set(executable.toLowerCase(), fileStat())
+    await expect(service.checkGitBash()).resolves.toMatchObject({
+      available: true,
+      executable,
+      source: 'override'
+    })
+    expect(runCommand).toHaveBeenCalledTimes(2)
   })
 
   it('validates a common installation with bash --version and caches the file identity', async () => {
@@ -168,6 +177,139 @@ describe('CommandShellService', () => {
 
     await service.checkGitBash({ forceRefresh: true })
     expect(runCommand).toHaveBeenCalledTimes(6)
+  })
+
+  it('caches discovery failures briefly and retries after the TTL', async () => {
+    let now = 0
+    let whereProbeCount = 0
+    const firstWhereResult = createDeferred<{ stdout: string; stderr: string }>()
+    const { service, runCommand } = createHarness({
+      config: { preference: 'git-bash' },
+      now: () => now,
+      runCommand: async (command) => {
+        if (command.toLowerCase().endsWith('\\system32\\where.exe')) {
+          whereProbeCount += 1
+          return whereProbeCount === 1 ? firstWhereResult.promise : { stdout: '', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      }
+    })
+
+    const firstCheck = service.checkGitBash()
+    await vi.waitFor(() => expect(whereProbeCount).toBe(1))
+    now = 10_000
+    firstWhereResult.resolve({ stdout: '', stderr: '' })
+    await expect(firstCheck).resolves.toMatchObject({
+      available: false,
+      error: 'not-found'
+    })
+    now = 39_999
+    await expect(service.checkGitBash()).resolves.toMatchObject({
+      available: false,
+      error: 'not-found'
+    })
+    expect(runCommand).toHaveBeenCalledTimes(1)
+
+    now = 40_000
+    await expect(service.checkGitBash()).resolves.toMatchObject({
+      available: false,
+      error: 'not-found'
+    })
+    expect(runCommand).toHaveBeenCalledTimes(2)
+  })
+
+  it('isolates cached failures from caller mutation', async () => {
+    const { service } = createHarness({ config: { preference: 'git-bash' } })
+
+    await service.checkGitBash()
+    const cachedResult = await service.checkGitBash()
+    if (cachedResult.available || !cachedResult.supported) {
+      throw new Error('Expected a supported Git Bash discovery failure')
+    }
+    cachedResult.error = 'validation-failed'
+
+    await expect(service.checkGitBash()).resolves.toEqual({
+      supported: true,
+      available: false,
+      error: 'not-found'
+    })
+  })
+
+  it('invalidates cached failures on refresh and configuration changes', async () => {
+    const { service, runCommand } = createHarness({ config: { preference: 'git-bash' } })
+
+    await service.checkGitBash()
+    await service.checkGitBash({ forceRefresh: true })
+    service.setConfig({ preference: 'windows-powershell' })
+    await service.checkGitBash()
+
+    expect(runCommand).toHaveBeenCalledTimes(3)
+  })
+
+  it('shares one in-flight discovery across concurrent callers', async () => {
+    const whereResult = createDeferred<{ stdout: string; stderr: string }>()
+    const { service, runCommand } = createHarness({
+      config: { preference: 'git-bash' },
+      runCommand: async (command) => {
+        if (command.toLowerCase().endsWith('\\system32\\where.exe')) {
+          return whereResult.promise
+        }
+        return { stdout: '', stderr: '' }
+      }
+    })
+
+    const first = service.checkGitBash()
+    await vi.waitFor(() => expect(runCommand).toHaveBeenCalledOnce())
+    const second = service.checkGitBash()
+    expect(runCommand).toHaveBeenCalledOnce()
+
+    whereResult.resolve({ stdout: '', stderr: '' })
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { supported: true, available: false, error: 'not-found' },
+      { supported: true, available: false, error: 'not-found' }
+    ])
+    expect(runCommand).toHaveBeenCalledOnce()
+  })
+
+  it('does not let an old discovery cache a failure over a refreshed success', async () => {
+    const executable = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    const oldWhereResult = createDeferred<{ stdout: string; stderr: string }>()
+    const { service, normalizedFiles, runCommand } = createHarness({
+      config: { preference: 'git-bash' },
+      runCommand: async (command, args) => {
+        if (command.toLowerCase().endsWith('\\system32\\where.exe')) {
+          return oldWhereResult.promise
+        }
+        return args[0] === '-c'
+          ? { stdout: 'deepchat-bash:5.2.37(1)-release:msys', stderr: '' }
+          : { stdout: 'GNU bash, version 5.2.37(1)-release', stderr: '' }
+      }
+    })
+
+    const oldCheck = service.checkGitBash()
+    await vi.waitFor(() =>
+      expect(runCommand).toHaveBeenCalledWith(
+        'C:\\Windows\\System32\\where.exe',
+        ['git'],
+        expect.any(Number)
+      )
+    )
+
+    normalizedFiles.set(executable.toLowerCase(), fileStat())
+    await expect(service.checkGitBash({ forceRefresh: true })).resolves.toMatchObject({
+      available: true,
+      executable
+    })
+
+    oldWhereResult.resolve({ stdout: '', stderr: '' })
+    await expect(oldCheck).resolves.toMatchObject({
+      available: false,
+      error: 'validation-failed'
+    })
+    await expect(service.checkGitBash()).resolves.toMatchObject({
+      available: true,
+      executable
+    })
   })
 
   it('returns an in-flight success after refresh without deleting the new validation', async () => {

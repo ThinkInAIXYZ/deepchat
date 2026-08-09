@@ -150,9 +150,10 @@ User-controlled overrides must resolve to a validated `bash.exe`; candidates are
 executable arguments and are never interpolated into a command string.
 
 Successful validation may be cached in memory by canonical candidate path and effective
-configuration. The cache is invalidated when the setting changes or an explicit refresh is
-requested. It is never persisted, and execution errors still surface if a previously validated
-binary is removed or replaced.
+configuration. Failed discovery and validation may be cached for at most 30 seconds so repeated
+turn preparation does not rerun the complete bounded search. Both caches are invalidated when the
+setting changes or an explicit refresh is requested. They are never persisted, and execution
+errors still surface if a previously validated binary is removed or replaced.
 
 MSYS environment inheritance, `PATH`, locale, `SHELL`, non-login behavior, and window visibility
 remain explicit Windows manual-validation items. DeepChat may prepend Git's `usr/bin` directory if

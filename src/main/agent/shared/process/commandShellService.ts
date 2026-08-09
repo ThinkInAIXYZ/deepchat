@@ -19,6 +19,7 @@ import { getUserShell } from './shellEnvHelper'
 
 const GIT_BASH_PROBE_TIMEOUT_MS = 5_000
 const GIT_BASH_DISCOVERY_TIMEOUT_MS = 15_000
+const GIT_BASH_FAILURE_CACHE_TTL_MS = 30_000
 const COMMAND_PROBE_MAX_BUFFER_BYTES = 64 * 1_024
 const GIT_BASH_IDENTITY_PROBE = 'printf "deepchat-bash:%s:%s" "$BASH_VERSION" "$OSTYPE"'
 
@@ -58,9 +59,26 @@ interface PendingCandidateValidation {
   promise: Promise<boolean>
 }
 
+type AvailableGitBash = Extract<GitBashAvailability, { available: true }>
+
 interface CandidateValidationResult {
-  availability: Extract<GitBashAvailability, { available: true }>
+  availability: AvailableGitBash
   cacheGeneration: number
+}
+
+type SupportedGitBashAvailability = Extract<GitBashAvailability, { supported: true }>
+
+interface CachedGitBashFailure {
+  availability: Extract<SupportedGitBashAvailability, { available: false }>
+  configKey: string
+  expiresAt: number
+  generation: number
+}
+
+interface PendingGitBashCheck {
+  configKey: string
+  generation: number
+  promise: Promise<GitBashAvailability>
 }
 
 export class CommandShellUnavailableError extends Error {
@@ -163,6 +181,10 @@ function dedupeCandidates(candidates: GitBashCandidate[]): GitBashCandidate[] {
   })
 }
 
+function getConfigCacheKey(config: AgentCommandShellConfig): string {
+  return JSON.stringify([config.preference, config.gitBashExecutableOverride ?? null])
+}
+
 function getCommonGitBashCandidates(environment: NodeJS.ProcessEnv): GitBashCandidate[] {
   const roots = [
     path.win32.join(environment.ProgramFiles || 'C:\\Program Files', 'Git'),
@@ -211,6 +233,8 @@ export class CommandShellService {
   private readonly validatedCandidates = new Map<string, ValidatedCandidateCacheEntry>()
   private readonly pendingValidations = new Map<string, PendingCandidateValidation>()
   private resolvedGitBashCandidate: GitBashCandidate | null = null
+  private cachedGitBashFailure: CachedGitBashFailure | null = null
+  private pendingGitBashCheck: PendingGitBashCheck | null = null
   private validationGeneration = 0
 
   constructor(private readonly dependencies: CommandShellServiceDependencies) {
@@ -238,6 +262,8 @@ export class CommandShellService {
     this.validatedCandidates.clear()
     this.pendingValidations.clear()
     this.resolvedGitBashCandidate = null
+    this.cachedGitBashFailure = null
+    this.pendingGitBashCheck = null
   }
 
   async resolveForTurn(): Promise<ResolvedCommandShell> {
@@ -297,9 +323,55 @@ export class CommandShellService {
       return { supported: false, available: false, error: 'unsupported-platform' }
     }
     if (options.forceRefresh) this.clearValidationCache()
-    const deadline = this.now() + GIT_BASH_DISCOVERY_TIMEOUT_MS
-
+    const generation = this.validationGeneration
     const config = this.getConfig()
+    const configKey = getConfigCacheKey(config)
+    const cachedFailure = this.cachedGitBashFailure
+    if (
+      cachedFailure?.generation === generation &&
+      cachedFailure.configKey === configKey &&
+      this.now() < cachedFailure.expiresAt
+    ) {
+      return { ...cachedFailure.availability }
+    }
+    if (cachedFailure) this.cachedGitBashFailure = null
+
+    const pendingCheck = this.pendingGitBashCheck
+    if (pendingCheck?.generation === generation && pendingCheck.configKey === configKey) {
+      return pendingCheck.promise
+    }
+
+    const promise = this.discoverGitBash(config, generation).then((availability) => {
+      if (generation === this.validationGeneration) {
+        if (availability.available || availability.error === 'override-invalid') {
+          this.cachedGitBashFailure = null
+        } else {
+          this.cachedGitBashFailure = {
+            availability: { ...availability },
+            configKey,
+            expiresAt: this.now() + GIT_BASH_FAILURE_CACHE_TTL_MS,
+            generation
+          }
+        }
+      }
+      return availability
+    })
+    const pending = { configKey, generation, promise }
+    this.pendingGitBashCheck = pending
+    const clearPending = (): void => {
+      if (this.pendingGitBashCheck === pending) {
+        this.pendingGitBashCheck = null
+      }
+    }
+    void promise.then(clearPending, clearPending)
+    return promise
+  }
+
+  private async discoverGitBash(
+    config: AgentCommandShellConfig,
+    generation: number
+  ): Promise<SupportedGitBashAvailability> {
+    const deadline = this.now() + GIT_BASH_DISCOVERY_TIMEOUT_MS
     const override = config.gitBashExecutableOverride
     if (override) {
       const normalized = normalizeWindowsExecutable(override)
@@ -308,7 +380,8 @@ export class CommandShellService {
       }
       const result = await this.validateCandidate(
         { executable: normalized, source: 'override' },
-        deadline
+        deadline,
+        generation
       )
       return (
         result?.availability ?? {
@@ -321,7 +394,7 @@ export class CommandShellService {
 
     if (this.resolvedGitBashCandidate) {
       const cachedCandidate = this.resolvedGitBashCandidate
-      const cachedResult = await this.validateCandidate(cachedCandidate, deadline)
+      const cachedResult = await this.validateCandidate(cachedCandidate, deadline, generation)
       if (cachedResult) return cachedResult.availability
       if (this.resolvedGitBashCandidate === cachedCandidate) {
         this.resolvedGitBashCandidate = null
@@ -330,11 +403,11 @@ export class CommandShellService {
 
     const environment = this.getEnvironment()
     const commonCandidates = getCommonGitBashCandidates(environment)
-    const commonResult = await this.findValidatedCandidate(commonCandidates, deadline)
+    const commonResult = await this.findValidatedCandidate(commonCandidates, deadline, generation)
     if (commonResult) return commonResult
 
     const gitCandidates = await this.findCandidatesFromGitPath(environment, deadline)
-    const gitResult = await this.findValidatedCandidate(gitCandidates, deadline)
+    const gitResult = await this.findValidatedCandidate(gitCandidates, deadline, generation)
     if (gitResult) return gitResult
 
     const hasExistingCandidate = [...commonCandidates, ...gitCandidates].some((candidate) =>
@@ -369,12 +442,13 @@ export class CommandShellService {
 
   private async findValidatedCandidate(
     candidates: GitBashCandidate[],
-    deadline: number
-  ): Promise<GitBashAvailability | null> {
+    deadline: number,
+    generation: number
+  ): Promise<AvailableGitBash | null> {
     for (const candidate of dedupeCandidates(candidates)) {
       if (this.now() >= deadline) return null
       if (!this.statFile(candidate.executable)) continue
-      const result = await this.validateCandidate(candidate, deadline)
+      const result = await this.validateCandidate(candidate, deadline, generation)
       if (result) {
         if (result.cacheGeneration === this.validationGeneration) {
           this.resolvedGitBashCandidate = {
@@ -390,7 +464,8 @@ export class CommandShellService {
 
   private async validateCandidate(
     candidate: GitBashCandidate,
-    deadline: number
+    deadline: number,
+    generation: number
   ): Promise<CandidateValidationResult | null> {
     const normalized = normalizeWindowsExecutable(candidate.executable)
     if (!normalized) return null
@@ -399,8 +474,10 @@ export class CommandShellService {
     if (!stat) return null
     const cacheKey = normalized.toLowerCase()
     const fileIdentity = [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(':')
-    const generation = this.validationGeneration
-    if (this.validatedCandidates.get(cacheKey)?.fileIdentity === fileIdentity) {
+    if (
+      generation === this.validationGeneration &&
+      this.validatedCandidates.get(cacheKey)?.fileIdentity === fileIdentity
+    ) {
       return {
         availability: {
           supported: true,
@@ -412,7 +489,8 @@ export class CommandShellService {
       }
     }
 
-    let pending = this.pendingValidations.get(cacheKey)
+    let pending =
+      generation === this.validationGeneration ? this.pendingValidations.get(cacheKey) : undefined
     if (!pending || pending.fileIdentity !== fileIdentity || pending.generation !== generation) {
       const versionTimeoutMs = this.remainingProbeTimeout(deadline)
       if (versionTimeoutMs === null) return null
@@ -429,12 +507,14 @@ export class CommandShellService {
         })
         .catch(() => false)
       pending = { fileIdentity, generation, promise }
-      this.pendingValidations.set(cacheKey, pending)
-      void promise.finally(() => {
-        if (this.pendingValidations.get(cacheKey)?.promise === promise) {
-          this.pendingValidations.delete(cacheKey)
-        }
-      })
+      if (generation === this.validationGeneration) {
+        this.pendingValidations.set(cacheKey, pending)
+        void promise.finally(() => {
+          if (this.pendingValidations.get(cacheKey)?.promise === promise) {
+            this.pendingValidations.delete(cacheKey)
+          }
+        })
+      }
     }
 
     const valid = await pending.promise

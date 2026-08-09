@@ -23,8 +23,10 @@ before the deeper authorization and execution changes.
    Git Bash validation checks both GNU Bash identity and MSYS path semantics so WSL/Cygwin do not
    enter the profile through an override. The complete candidate search shares one monotonic
    deadline so damaged installations cannot multiply the per-process timeout across every path.
-3. Cache successful Git Bash validation in memory by canonical path and effective configuration;
-   invalidate on settings changes and explicit refresh without persisting discovery results.
+3. Cache successful Git Bash validation in memory by canonical path and effective configuration.
+   Briefly cache failed discovery and validation so repeated turn preparation does not rerun the
+   complete bounded search; invalidate both caches on settings changes and explicit refresh without
+   persisting discovery results.
 4. Keep bootstrap-environment behavior compatible. Git Bash-specific environment adjustments are
    added only if Windows validation demonstrates a requirement.
 
