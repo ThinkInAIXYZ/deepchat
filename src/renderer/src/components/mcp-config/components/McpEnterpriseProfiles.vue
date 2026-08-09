@@ -6,6 +6,13 @@ import { useI18n } from 'vue-i18n'
 import { DcForm } from '@dc-ui/components/form'
 import { DcFormActions } from '@dc-ui/components/form-actions'
 import { DcButton } from '@dc-ui/components/button'
+import {
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from '@shadcn/components/ui/form'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Spinner } from '@shadcn/components/ui/spinner'
@@ -27,9 +34,18 @@ import {
 import type { McpEnterpriseIdentityProfile, McpEnterpriseIdentityStatus } from '@shared/types/mcp'
 import { createMcpClient } from '@api/McpClient'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import type { GenericValidateFunction } from 'vee-validate'
 
 const { t } = useI18n()
 const mcpClient = createMcpClient()
+const hasText = (value: unknown) => typeof value === 'string' && value.trim().length > 0
+const requiredRule: GenericValidateFunction = (value) =>
+  hasText(value) || t('components.promptParamsDialog.required')
+const validationSchema = {
+  label: requiredRule,
+  issuer: requiredRule,
+  clientId: requiredRule
+}
 
 const isOpen = ref(false)
 const isLoading = ref(false)
@@ -221,31 +237,36 @@ onBeforeUnmount(() => {
         v-else-if="editingProfile"
         class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto"
         :success-duration="1600"
+        :validation-schema="validationSchema"
         @submit="handleProfileSubmit"
       >
-        <div class="space-y-2">
-          <Label for="enterprise-profile-label">
-            {{ t('settings.mcp.enterpriseProfiles.label') }}
-          </Label>
-          <Input id="enterprise-profile-label" v-model="editingProfile.label" required />
-        </div>
-        <div class="space-y-2">
-          <Label for="enterprise-profile-issuer">
-            {{ t('settings.mcp.enterpriseProfiles.issuer') }}
-          </Label>
-          <Input
-            id="enterprise-profile-issuer"
-            v-model="editingProfile.issuer"
-            placeholder="https://id.example.com"
-            required
-          />
-        </div>
-        <div class="space-y-2">
-          <Label for="enterprise-profile-client-id">
-            {{ t('settings.mcp.enterpriseProfiles.clientId') }}
-          </Label>
-          <Input id="enterprise-profile-client-id" v-model="editingProfile.clientId" required />
-        </div>
+        <FormField v-slot="{ componentField }" v-model="editingProfile.label" name="label">
+          <FormItem class="space-y-2">
+            <FormLabel>{{ t('settings.mcp.enterpriseProfiles.label') }}</FormLabel>
+            <FormControl>
+              <Input v-bind="componentField" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        </FormField>
+        <FormField v-slot="{ componentField }" v-model="editingProfile.issuer" name="issuer">
+          <FormItem class="space-y-2">
+            <FormLabel>{{ t('settings.mcp.enterpriseProfiles.issuer') }}</FormLabel>
+            <FormControl>
+              <Input v-bind="componentField" placeholder="https://id.example.com" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        </FormField>
+        <FormField v-slot="{ componentField }" v-model="editingProfile.clientId" name="clientId">
+          <FormItem class="space-y-2">
+            <FormLabel>{{ t('settings.mcp.enterpriseProfiles.clientId') }}</FormLabel>
+            <FormControl>
+              <Input v-bind="componentField" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        </FormField>
         <div class="space-y-2">
           <Label for="enterprise-profile-scopes">
             {{ t('settings.mcp.enterpriseProfiles.scopes') }}
