@@ -1240,7 +1240,7 @@ export class AgentToolManager {
           )
           const mimeType = await this.getFileService().getMimeType(validPath)
 
-          if (await shouldRejectAgentBinaryRead(validPath, mimeType)) {
+          if (shouldRejectAgentBinaryRead(mimeType)) {
             return {
               content: buildBinaryReadGuidance(validPath, mimeType, 'agent')
             }
@@ -1678,7 +1678,7 @@ export class AgentToolManager {
     if (mimeType === 'text/csv') {
       return false
     }
-    if (mimeType.startsWith('text/')) {
+    if (mimeType.startsWith('text/') || mimeType === 'application/octet-stream') {
       return true
     }
 

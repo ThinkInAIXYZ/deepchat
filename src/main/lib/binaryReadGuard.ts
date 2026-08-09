@@ -11,17 +11,6 @@ const TEXT_LIKE_MIMES = new Set([
   'application/x-sh'
 ])
 
-const DOCUMENT_MIMES = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.oasis.opendocument.spreadsheet'
-])
-
 const ALWAYS_BINARY_MIMES = new Set([
   'application/zip',
   'application/x-zip',
@@ -34,10 +23,6 @@ const ALWAYS_BINARY_MIMES = new Set([
 
 export function isTextLikeMime(mimeType: string): boolean {
   return mimeType.startsWith('text/') || TEXT_LIKE_MIMES.has(mimeType)
-}
-
-export function isDocumentMime(mimeType: string): boolean {
-  return DOCUMENT_MIMES.has(mimeType)
 }
 
 export async function shouldRejectAcpTextRead(filePath: string): Promise<{
@@ -58,31 +43,16 @@ export async function shouldRejectAcpTextRead(filePath: string): Promise<{
   return { reject: true, mimeType }
 }
 
-export async function shouldRejectAgentBinaryRead(
-  filePath: string,
-  mimeType: string
-): Promise<boolean> {
+export function shouldRejectAgentBinaryRead(mimeType: string): boolean {
   if (mimeType.startsWith('image/')) {
     return false
   }
 
-  if (isTextLikeMime(mimeType) || isDocumentMime(mimeType) || mimeType === 'text/csv') {
-    return false
-  }
-
-  if (
+  return (
     ALWAYS_BINARY_MIMES.has(mimeType) ||
     mimeType.startsWith('audio/') ||
     mimeType.startsWith('video/')
-  ) {
-    return true
-  }
-
-  if (mimeType === 'application/octet-stream') {
-    return !(await isLikelyTextFile(filePath))
-  }
-
-  return false
+  )
 }
 
 export function buildBinaryReadGuidance(

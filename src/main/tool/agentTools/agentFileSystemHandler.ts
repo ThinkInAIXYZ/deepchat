@@ -804,7 +804,15 @@ export class AgentFileSystemHandler {
             enforceAllowed: false,
             accessType: 'read'
           })
-          const fullContent = await fs.readFile(validPath, 'utf-8')
+          const bytes = await fs.readFile(validPath)
+          let fullContent: string
+          if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+            fullContent = bytes.subarray(2).toString('utf16le')
+          } else if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+            fullContent = new TextDecoder('utf-16be').decode(bytes.subarray(2))
+          } else {
+            fullContent = bytes.toString('utf8').replace(/^\uFEFF/, '')
+          }
           const totalLength = fullContent.length
 
           // Determine effective limit

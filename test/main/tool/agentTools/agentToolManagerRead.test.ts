@@ -221,6 +221,24 @@ describe('AgentToolManager read routing', () => {
     expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
   })
 
+  it('reads UTF-16 code files reported as application/octet-stream', async () => {
+    const filePath = path.join(workspaceDir, '.tmp-change.diff')
+    await fs.writeFile(
+      filePath,
+      Buffer.from(`\uFEFFdiff --git a/file.ts b/file.ts\n+const value = 1\n`, 'utf16le')
+    )
+    fileService.getMimeType.mockResolvedValue('application/octet-stream')
+
+    const result = (await manager.callTool('read', { path: '.tmp-change.diff' }, 'conv1')) as {
+      content: string
+    }
+
+    expect(result.content).toContain('diff --git a/file.ts b/file.ts')
+    expect(result.content).toContain('+const value = 1')
+    expect(result.content).not.toContain('\u0000')
+    expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
+  })
+
   it('uses the Agent auto-truncate limit while preserving an explicit read limit', async () => {
     const filePath = path.join(workspaceDir, 'large-note.txt')
     await fs.writeFile(filePath, 'x'.repeat(1_500), 'utf-8')

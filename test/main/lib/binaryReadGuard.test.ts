@@ -1,30 +1,19 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { shouldRejectAgentBinaryRead } from '../../../src/main/lib/binaryReadGuard'
-import { isLikelyTextFile } from '@/file/mime'
-
-vi.mock('@/file/mime', () => ({
-  detectMimeType: vi.fn(),
-  isLikelyTextFile: vi.fn()
-}))
 
 describe('binaryReadGuard', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  it('allows application/octet-stream without binary sniffing', () => {
+    expect(shouldRejectAgentBinaryRead('application/octet-stream')).toBe(false)
   })
 
-  it('falls back to text detection for application/octet-stream', async () => {
-    vi.mocked(isLikelyTextFile).mockResolvedValue(true)
+  it.each(['application/zip', 'application/wasm', 'audio/mpeg', 'video/mp4'])(
+    'still rejects known binary MIME %s',
+    (mimeType) => {
+      expect(shouldRejectAgentBinaryRead(mimeType)).toBe(true)
+    }
+  )
 
-    await expect(
-      shouldRejectAgentBinaryRead('/tmp/maybe-text.bin', 'application/octet-stream')
-    ).resolves.toBe(false)
-  })
-
-  it('still rejects octet-stream files that do not look like text', async () => {
-    vi.mocked(isLikelyTextFile).mockResolvedValue(false)
-
-    await expect(
-      shouldRejectAgentBinaryRead('/tmp/blob.bin', 'application/octet-stream')
-    ).resolves.toBe(true)
+  it('keeps images available for vision reads', () => {
+    expect(shouldRejectAgentBinaryRead('image/png')).toBe(false)
   })
 })
