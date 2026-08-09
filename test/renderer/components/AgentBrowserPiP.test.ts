@@ -296,15 +296,15 @@ describe('AgentBrowserPiP', () => {
       sessionId: 'session-1',
       runId: 'run-1',
       sequence: 1,
-      width: 480,
-      height: 300,
+      width: 400,
+      height: 250,
       mimeType: 'image/jpeg',
       data: new Uint8Array([1, 2, 3]),
       timestamp: Date.now()
     })
     await flushPromises()
 
-    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 480, 300)
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 400, 250)
     expect(close).toHaveBeenCalled()
     expect(wrapper.find('[data-testid="agent-browser-pip-placeholder"]').exists()).toBe(false)
 
@@ -312,8 +312,8 @@ describe('AgentBrowserPiP', () => {
       sessionId: 'session-1',
       runId: 'run-1',
       sequence: 2,
-      width: 480,
-      height: 300,
+      width: 400,
+      height: 250,
       mimeType: 'image/jpeg',
       data: new Uint8Array([4, 5, 6]),
       timestamp: Date.now()
@@ -338,8 +338,8 @@ describe('AgentBrowserPiP', () => {
       sessionId: 'session-1',
       runId: 'run-1',
       sequence: 1,
-      width: 480,
-      height: 300,
+      width: 400,
+      height: 250,
       mimeType: 'image/jpeg',
       data: new Uint8Array([1, 2, 3]),
       timestamp: Date.now()
@@ -383,8 +383,8 @@ describe('AgentBrowserPiP', () => {
       sessionId: 'session-1',
       runId: 'run-1',
       sequence: 10,
-      width: 480,
-      height: 300,
+      width: 400,
+      height: 250,
       mimeType: 'image/jpeg',
       data: new Uint8Array([1]),
       timestamp: Date.now()
@@ -399,8 +399,8 @@ describe('AgentBrowserPiP', () => {
       sessionId: 'session-1',
       runId: 'run-2',
       sequence: 0,
-      width: 480,
-      height: 300,
+      width: 400,
+      height: 250,
       mimeType: 'image/jpeg',
       data: new Uint8Array([2]),
       timestamp: Date.now()

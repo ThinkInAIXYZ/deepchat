@@ -46,6 +46,37 @@ describe('parseQuestionToolArgs', () => {
     })
   })
 
+  it('normalizes option header aliases emitted by models', () => {
+    const result = parseQuestionToolArgs(
+      JSON.stringify({
+        question: 'Your message seems incomplete. What would you like help with?',
+        options: [
+          {
+            header: 'Continue working on DeepChat',
+            description: 'Proceed with the current DeepChat project work'
+          },
+          { header: 'Something else', description: 'I will clarify what I need' }
+        ]
+      })
+    )
+
+    expect(result).toEqual({
+      success: true,
+      data: {
+        question: 'Your message seems incomplete. What would you like help with?',
+        options: [
+          {
+            label: 'Continue working on DeepChat',
+            description: 'Proceed with the current DeepChat project work'
+          },
+          { label: 'Something else', description: 'I will clarify what I need' }
+        ],
+        multiple: false,
+        custom: true
+      }
+    })
+  })
+
   it('returns a contract hint when the JSON is not parseable', () => {
     expect(parseQuestionToolArgs('{"question":"\\uZZZZ"}')).toEqual({
       success: false,

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ProviderHelper } from '../../../src/main/provider/providerHelper'
+import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 
 class MockElectronStore {
@@ -54,5 +55,34 @@ describe('ProviderHelper.removeProviderAtomic', () => {
     expect(store.get('providers')).toEqual([createProvider('anthropic')])
     expect(deleteProviderModelStatuses).toHaveBeenCalledWith('openai')
     expect(clearProviderModelStore).toHaveBeenCalledWith('openai')
+  })
+})
+
+describe('ProviderHelper provider persistence', () => {
+  it('keeps AMD GPU Cloud settings after recreating the helper', () => {
+    const store = new MockElectronStore()
+    const createHelper = () =>
+      new ProviderHelper({
+        store: store as any,
+        setSetting: (key, value) => store.set(key, value),
+        defaultProviders: structuredClone(DEFAULT_PROVIDERS),
+        publishEvent: vi.fn()
+      })
+    const helper = createHelper()
+
+    expect(helper.getProviderById('amd-developer')).toBeDefined()
+    helper.updateProviderAtomic('amd-developer', {
+      apiKey: 'amd-test-key',
+      baseUrl: 'https://amd.example/v1',
+      enable: true
+    })
+
+    const reloadedHelper = createHelper()
+    expect(reloadedHelper.getProviderById('amd-developer')).toMatchObject({
+      id: 'amd-developer',
+      apiKey: 'amd-test-key',
+      baseUrl: 'https://amd.example/v1',
+      enable: true
+    })
   })
 })

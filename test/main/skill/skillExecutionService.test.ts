@@ -328,6 +328,45 @@ describe('SkillExecutionService', () => {
     ).rejects.toThrow(/not found/)
   })
 
+  it('preserves the Agent preview limit for background skill sessions', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => true } as fs.Stats)
+    const plan = {
+      command: 'python',
+      args: ['script.py'],
+      cwd: '/skills/ocr',
+      env: { PATH: '/bin' },
+      shellCommand: 'python script.py',
+      outputPrefix: 'skill_ocr',
+      spawnMode: 'direct'
+    }
+    vi.spyOn(service as never, 'buildSpawnPlan' as never).mockResolvedValue(plan)
+    vi.spyOn(service as never, 'preparePlanForExecution' as never).mockResolvedValue(plan)
+    const start = vi
+      .spyOn(backgroundExecSessionManager, 'start')
+      .mockResolvedValue({ sessionId: 'bg_skill', status: 'running' })
+
+    await service.execute(
+      { skill: 'ocr', script: 'scripts/run.py', background: true },
+      {
+        conversationId: 'conv-1',
+        commandShell: POSIX_COMMAND_SHELL,
+        outputPreviewChars: 7_000
+      }
+    )
+
+    expect(start).toHaveBeenCalledWith(
+      'conv-1',
+      'python script.py',
+      resolvePath('/skills/ocr'),
+      expect.objectContaining({
+        commandShell: POSIX_COMMAND_SHELL,
+        previewChars: 7_000,
+        offloadThresholdChars: 7_000
+      })
+    )
+  })
+
   it('does not commit dispatch when the resolved spawn cwd is unusable', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
     const plan = {
@@ -372,7 +411,7 @@ describe('SkillExecutionService', () => {
     const order: string[] = []
     vi.spyOn(service as never, 'runForeground' as never).mockImplementation(async () => {
       order.push('spawn')
-      return 'ok'
+      return { output: 'ok' }
     })
     const beforeExecute = vi.fn(() => order.push('commit'))
 
@@ -499,7 +538,9 @@ describe('SkillExecutionService', () => {
           args
         },
         timeout: 120000,
-        env: { PATH: 'C:\\runtime' }
+        env: { PATH: 'C:\\runtime' },
+        previewChars: 12000,
+        offloadThresholdChars: 10000
       }
     )
   })
@@ -569,8 +610,8 @@ describe('SkillExecutionService', () => {
         })
       })
     )
-    expect(result).toContain('ok')
-    expect(result).toContain('Exit Code: 0')
+    expect(result.output).toContain('ok')
+    expect(result.output).toContain('Exit Code: 0')
   })
 
   it('decodes split UTF-8 foreground output', async () => {
@@ -630,8 +671,8 @@ describe('SkillExecutionService', () => {
         })
       })
     )
-    expect(result).toContain('中文.txt')
-    expect(result).toContain('Exit Code: 0')
+    expect(result.output).toContain('中文.txt')
+    expect(result.output).toContain('Exit Code: 0')
   })
 
   it('escalates to SIGKILL when foreground timeout grace expires', async () => {
@@ -684,8 +725,8 @@ describe('SkillExecutionService', () => {
     expect(child.kill).toHaveBeenCalledWith('SIGKILL')
 
     const result = await resultPromise
-    expect(result).toContain('Timed out')
-    expect(result).toContain('Exit Code: null')
+    expect(result.output).toContain('Timed out')
+    expect(result.output).toContain('Exit Code: null')
   })
 
   it('falls back to capped in-memory buffering when foreground offload fails', async () => {
@@ -731,10 +772,12 @@ describe('SkillExecutionService', () => {
       },
       1000,
       'conv-1',
-      POSIX_COMMAND_SHELL
+      POSIX_COMMAND_SHELL,
+      undefined,
+      1_000
     )
 
-    const firstChunk = 'a'.repeat(10001)
+    const firstChunk = 'a'.repeat(1_001)
     child.stdout.emit('data', firstChunk)
     await Promise.resolve()
     await Promise.resolve()
@@ -747,9 +790,9 @@ describe('SkillExecutionService', () => {
 
       expect(appendFileMock).toHaveBeenCalledTimes(1)
       expect(previewSpy).toHaveBeenCalledTimes(1)
-      expect(result).not.toContain('Output offloaded:')
-      expect(result).toContain('tail')
-      expect(result).toContain('Exit Code: 0')
+      expect(result.output).not.toContain('Output offloaded:')
+      expect(result.output).toContain('tail')
+      expect(result.output).toContain('Exit Code: 0')
     } finally {
       Object.defineProperty(fs.promises, 'appendFile', {
         configurable: true,

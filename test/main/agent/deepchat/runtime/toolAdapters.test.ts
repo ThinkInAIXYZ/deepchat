@@ -229,6 +229,7 @@ describe('DeepChat tool adapters', () => {
       rawContent: 'English screenshot summary'
     })
     await port.fitBatch({
+      sessionId: 'session-1',
       conversationMessages: [],
       toolDefinitions: [makeTool('cdp_send')],
       contextLength: 32_000,

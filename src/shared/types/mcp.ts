@@ -261,6 +261,7 @@ export interface MCPToolResponse {
   mcpResult?: PersistedMcpToolResult
   ownerPluginId?: string
   toolResult?: unknown
+  outputOffloadPath?: string
   imagePreviews?: import('./core/mcp').ToolCallImagePreview[]
   requiresPermission?: boolean
   permissionRequest?: {

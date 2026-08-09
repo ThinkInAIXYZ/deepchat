@@ -205,6 +205,13 @@
       <p v-if="shouldRefreshProviderDbFirst" class="text-xs leading-5 text-muted-foreground">
         {{ t('settings.provider.refreshModelsWithMetadataHint') }}
       </p>
+      <p
+        v-if="provider.id === 'amd-developer'"
+        data-testid="amd-developer-hint"
+        class="text-xs leading-5 text-muted-foreground"
+      >
+        {{ t('settings.provider.amdDeveloperHint') }}
+      </p>
       <div v-if="!provider.custom" class="text-xs text-muted-foreground">
         {{ t('settings.provider.howToGet') }}: {{ t('settings.provider.getKeyTip') }}
         <a :href="providerApiKeyUrl" target="_blank" class="text-primary">{{ provider.name }}</a>

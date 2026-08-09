@@ -158,6 +158,78 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('discovers AMD GPU Cloud models through the OpenAI-compatible endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        object: 'list',
+        data: [
+          { id: 'DeepSeek-V4-Flash', owned_by: 'deepseek' },
+          { id: 'Qwen3.6-35B-A3B', owned_by: 'qwen' },
+          { id: 'MiniCPM5-1B', owned_by: 'openbmb' },
+          { id: 'MiniCPM-V46', owned_by: 'openbmb' }
+        ]
+      })
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'amd-developer',
+        name: 'AMD GPU Cloud',
+        baseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
+      }),
+      createProviderSettings()
+    )
+    const models = await provider.fetchModels()
+
+    expect(resolveAiSdkProviderDefinition(createProvider({ id: 'amd-developer' }))).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'openai'
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://developer.amd.com.cn/radeon/api/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+    expect(models.map(({ id }) => id)).toEqual([
+      'DeepSeek-V4-Flash',
+      'Qwen3.6-35B-A3B',
+      'MiniCPM5-1B',
+      'MiniCPM-V46'
+    ])
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'DeepSeek-V4-Flash',
+        providerId: 'amd-developer',
+        ownedBy: 'deepseek'
+      }),
+      expect.objectContaining({
+        id: 'Qwen3.6-35B-A3B',
+        providerId: 'amd-developer',
+        ownedBy: 'qwen'
+      }),
+      expect.objectContaining({
+        id: 'MiniCPM5-1B',
+        providerId: 'amd-developer',
+        ownedBy: 'openbmb'
+      }),
+      expect.objectContaining({
+        id: 'MiniCPM-V46',
+        providerId: 'amd-developer',
+        ownedBy: 'openbmb'
+      })
+    ])
+  })
+
   it('discovers OrcaRouter models through the OpenAI-compatible endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

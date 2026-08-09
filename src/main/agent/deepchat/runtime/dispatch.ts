@@ -108,6 +108,7 @@ type StagedToolResult = {
   responseText: string
   isError: boolean
   offloadPath?: string
+  existingOffloadPath?: string
   searchPayload: ExtractedSearchPayload
   rtkApplied?: boolean
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
@@ -244,13 +245,15 @@ async function commitStagedToolResults(
       }
     }
     const fittedResults = await toolResults.fitBatch({
+      sessionId: io.sessionId,
       conversationMessages: conversation,
       results: stagedResults.map((result) => ({
         toolCallId: result.toolCallId,
         toolName: result.toolName,
         responseText: result.responseText,
         isError: result.isError,
-        offloadPath: result.offloadPath
+        offloadPath: result.offloadPath,
+        existingOffloadPath: result.existingOffloadPath
       })),
       toolDefinitions: tools,
       contextLength,
@@ -1964,6 +1967,7 @@ async function runToolCall(params: {
         responseText: stagedResponseText,
         isError: stagedIsError,
         offloadPath: preparedResult.kind === 'ok' ? preparedResult.offloadPath : undefined,
+        existingOffloadPath: toolRawData.outputOffloadPath,
         searchPayload,
         rtkApplied: toolRawData.rtkApplied,
         rtkMode: toolRawData.rtkMode,

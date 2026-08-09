@@ -11,9 +11,7 @@ import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import { glob } from 'glob'
 import type { CommandShellPathStyle } from '@shared/commandShell'
 import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
-
-// Auto-truncate threshold for read to avoid triggering tool output offload
-const READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
+import { DEFAULT_AGENT_OUTPUT_LIMITS } from '@shared/lib/agentOutputLimits'
 
 const ReadFileArgsSchema = z.object({
   paths: z.array(z.string()).min(1).describe('Array of file paths to read'),
@@ -200,6 +198,7 @@ export class AgentFileSystemHandler {
   private readonly commandShellPathStyle: CommandShellPathStyle
   private readonly pathApi: path.PlatformPath
   private readonly caseInsensitivePathComparison: boolean
+  private readonly readFileAutoTruncateChars: number
   private readonly protectedDirectoryRules: Array<{
     roots: string[]
     allowedRoots: string[]
@@ -210,6 +209,7 @@ export class AgentFileSystemHandler {
     options: {
       conversationId?: string
       allowExternalAccess?: boolean
+      readFileAutoTruncateChars?: number
       protectedDirectoryRules?: ProtectedDirectoryRule[]
       commandShellPathStyle?: CommandShellPathStyle
     } = {}
@@ -240,6 +240,8 @@ export class AgentFileSystemHandler {
     this.conversationId = options.conversationId
     this.sessionsRoot = this.normalizePath(getSessionsRoot())
     this.allowExternalAccess = options.allowExternalAccess === true
+    this.readFileAutoTruncateChars =
+      options.readFileAutoTruncateChars ?? DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars
     this.protectedDirectoryRules = (options.protectedDirectoryRules ?? []).map((rule) => ({
       roots: this.resolveDirectoryRoots([rule.root]),
       allowedRoots: this.resolveDirectoryRoots(rule.allowedDirectories)
@@ -816,8 +818,8 @@ export class AgentFileSystemHandler {
           let autoTruncated = false
 
           // Auto-truncate large files when no explicit limit specified
-          if (limit === undefined && totalLength - offset > READ_FILE_AUTO_TRUNCATE_THRESHOLD) {
-            effectiveLimit = READ_FILE_AUTO_TRUNCATE_THRESHOLD
+          if (limit === undefined && totalLength - offset > this.readFileAutoTruncateChars) {
+            effectiveLimit = this.readFileAutoTruncateChars
             autoTruncated = true
           }
 

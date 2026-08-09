@@ -70,8 +70,9 @@
               class="text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
               @click="emit('next')"
             />
-            <DcCopyButton
-              size="xs"
+            <DcButton
+              size="icon-sm"
+              icon="lucide:copy"
               icon-size="3"
               variant="ghost"
               :tooltip="t('thread.toolbar.copy')"
@@ -85,7 +86,7 @@
               >
                 {{ t('common.copySuccess') }}
               </span>
-            </DcCopyButton>
+            </DcButton>
             <DcButton
               v-if="isAssistant"
               variant="ghost"
@@ -201,7 +202,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
-import { DcCopyButton } from '@dc-ui/components/copy-button'
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { useI18n } from 'vue-i18n'

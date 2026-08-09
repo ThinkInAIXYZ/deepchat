@@ -155,6 +155,11 @@ class MockBaseWindow extends EventEmitter {
   contentView = new MockContentView()
   destroyed = false
   setIgnoreMouseEvents = vi.fn()
+  showInactive = vi.fn()
+
+  constructor(readonly options: Record<string, unknown>) {
+    super()
+  }
 
   isDestroyed() {
     return this.destroyed
@@ -217,8 +222,8 @@ describe('YoBrowserPresenter', () => {
           getPath: vi.fn(() => 'C:/mock-user-data')
         },
         BaseWindow: class extends MockBaseWindow {
-          constructor() {
-            super()
+          constructor(options: Record<string, unknown>) {
+            super(options)
             previewHosts.push(this)
           }
         },
@@ -755,9 +760,16 @@ describe('YoBrowserPresenter', () => {
       updated: true,
       surface: 'renderer-canvas'
     })
-    await vi.advanceTimersByTimeAsync(1)
+    await vi.advanceTimersByTimeAsync(0)
 
     expect(previewHosts).toHaveLength(1)
+    expect(previewHosts[0].options).toMatchObject({
+      show: process.platform !== 'darwin',
+      fullscreenable: process.platform !== 'darwin'
+    })
+    expect(previewHosts[0].showInactive).toHaveBeenCalledTimes(
+      process.platform === 'darwin' ? 1 : 0
+    )
     expect(webContents?.capturePage).toHaveBeenCalledWith(
       { x: 0, y: 0, width: 1280, height: 800 },
       { stayHidden: true }
@@ -769,13 +781,19 @@ describe('YoBrowserPresenter', () => {
         payload: expect.objectContaining({
           sessionId: 'session-a',
           runId: 'run-1',
-          width: 480,
-          height: 300,
+          width: 400,
+          height: 250,
           mimeType: 'image/jpeg'
         })
       }),
       1
     )
+
+    const activeCaptureCount = webContents?.capturePage.mock.calls.length ?? 0
+    await vi.advanceTimersByTimeAsync(499)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(activeCaptureCount)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(activeCaptureCount + 1)
 
     const captureCount = webContents?.capturePage.mock.calls.length
     expect(await presenter.setPreviewMode('session-a', 'rendering', 1, 'run-1')).toEqual({
@@ -790,6 +808,107 @@ describe('YoBrowserPresenter', () => {
       surface: 'none'
     })
     expect(previewHosts[0].destroyed).toBe(true)
+  })
+
+  it('releases the hidden preview host when its Agent session becomes inactive', async () => {
+    const { presenter, windows, previewHosts, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await loadPromise
+
+    expect(previewHosts).toHaveLength(1)
+    expect(previewHosts[0].destroyed).toBe(false)
+
+    await presenter.releaseInactivePreview('session-a')
+
+    expect(previewHosts[0].destroyed).toBe(true)
+    expect(webContents?.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
+  })
+
+  it('resumes preview capture after a previous capture times out while stopping', async () => {
+    const { presenter, windows, previewHosts, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const firstLoad = presenter.loadUrl(
+      'session-a',
+      'https://example.com/first',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await firstLoad
+    webContents?.capturePage.mockImplementationOnce(() => new Promise(() => undefined))
+
+    await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(1)
+
+    const release = presenter.releaseInactivePreview('session-a')
+    await vi.advanceTimersByTimeAsync(500)
+    await release
+
+    const secondLoad = presenter.loadUrl(
+      'session-a',
+      'https://example.com/second',
+      undefined,
+      1,
+      'agent',
+      'run-2'
+    )
+    await Promise.resolve()
+    webContents?.emitDomReady()
+    await secondLoad
+
+    expect(previewHosts).toHaveLength(2)
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-2')).toEqual({
+      updated: true,
+      surface: 'renderer-canvas'
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the idle preview cadence after browser activity settles', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.finishLoad()
+    await loadPromise
+    await vi.advanceTimersByTimeAsync(1501)
+
+    await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1999)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(2)
   })
 
   it('loads NativeKit only when Browser capture is requested', async () => {
