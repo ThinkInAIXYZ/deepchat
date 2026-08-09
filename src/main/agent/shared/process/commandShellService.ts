@@ -54,7 +54,13 @@ interface ValidatedCandidateCacheEntry {
 
 interface PendingCandidateValidation {
   fileIdentity: string
+  generation: number
   promise: Promise<boolean>
+}
+
+interface CandidateValidationResult {
+  availability: Extract<GitBashAvailability, { available: true }>
+  cacheGeneration: number
 }
 
 export class CommandShellUnavailableError extends Error {
@@ -300,11 +306,12 @@ export class CommandShellService {
       if (!normalized || !this.statFile(normalized)) {
         return { supported: true, available: false, error: 'override-invalid' }
       }
+      const result = await this.validateCandidate(
+        { executable: normalized, source: 'override' },
+        deadline
+      )
       return (
-        (await this.validateCandidate(
-          { executable: normalized, source: 'override' },
-          deadline
-        )) ?? {
+        result?.availability ?? {
           supported: true,
           available: false,
           error: 'validation-failed'
@@ -313,9 +320,12 @@ export class CommandShellService {
     }
 
     if (this.resolvedGitBashCandidate) {
-      const cachedResult = await this.validateCandidate(this.resolvedGitBashCandidate, deadline)
-      if (cachedResult) return cachedResult
-      this.resolvedGitBashCandidate = null
+      const cachedCandidate = this.resolvedGitBashCandidate
+      const cachedResult = await this.validateCandidate(cachedCandidate, deadline)
+      if (cachedResult) return cachedResult.availability
+      if (this.resolvedGitBashCandidate === cachedCandidate) {
+        this.resolvedGitBashCandidate = null
+      }
     }
 
     const environment = this.getEnvironment()
@@ -366,8 +376,13 @@ export class CommandShellService {
       if (!this.statFile(candidate.executable)) continue
       const result = await this.validateCandidate(candidate, deadline)
       if (result) {
-        this.resolvedGitBashCandidate = candidate
-        return result
+        if (result.cacheGeneration === this.validationGeneration) {
+          this.resolvedGitBashCandidate = {
+            executable: result.availability.executable,
+            source: candidate.source
+          }
+        }
+        return result.availability
       }
     }
     return null
@@ -376,7 +391,7 @@ export class CommandShellService {
   private async validateCandidate(
     candidate: GitBashCandidate,
     deadline: number
-  ): Promise<GitBashAvailability | null> {
+  ): Promise<CandidateValidationResult | null> {
     const normalized = normalizeWindowsExecutable(candidate.executable)
     if (!normalized) return null
 
@@ -384,18 +399,21 @@ export class CommandShellService {
     if (!stat) return null
     const cacheKey = normalized.toLowerCase()
     const fileIdentity = [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(':')
+    const generation = this.validationGeneration
     if (this.validatedCandidates.get(cacheKey)?.fileIdentity === fileIdentity) {
       return {
-        supported: true,
-        available: true,
-        executable: normalized,
-        source: candidate.source
+        availability: {
+          supported: true,
+          available: true,
+          executable: normalized,
+          source: candidate.source
+        },
+        cacheGeneration: generation
       }
     }
 
-    const generation = this.validationGeneration
     let pending = this.pendingValidations.get(cacheKey)
-    if (!pending || pending.fileIdentity !== fileIdentity) {
+    if (!pending || pending.fileIdentity !== fileIdentity || pending.generation !== generation) {
       const versionTimeoutMs = this.remainingProbeTimeout(deadline)
       if (versionTimeoutMs === null) return null
       const promise = this.runCommand(normalized, ['--version'], versionTimeoutMs)
@@ -410,7 +428,7 @@ export class CommandShellService {
           return /^deepchat-bash:[^:\r\n]+:msys2?$/i.test(identity.stdout.trim())
         })
         .catch(() => false)
-      pending = { fileIdentity, promise }
+      pending = { fileIdentity, generation, promise }
       this.pendingValidations.set(cacheKey, pending)
       void promise.finally(() => {
         if (this.pendingValidations.get(cacheKey)?.promise === promise) {
@@ -420,13 +438,18 @@ export class CommandShellService {
     }
 
     const valid = await pending.promise
-    if (!valid || generation !== this.validationGeneration) return null
-    this.validatedCandidates.set(cacheKey, { fileIdentity })
+    if (!valid) return null
+    if (generation === this.validationGeneration) {
+      this.validatedCandidates.set(cacheKey, { fileIdentity })
+    }
     return {
-      supported: true,
-      available: true,
-      executable: normalized,
-      source: candidate.source
+      availability: {
+        supported: true,
+        available: true,
+        executable: normalized,
+        source: candidate.source
+      },
+      cacheGeneration: generation
     }
   }
 

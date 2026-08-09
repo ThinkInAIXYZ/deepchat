@@ -7,6 +7,16 @@ import {
 } from '@/agent/shared/process/commandShellService'
 import type { AgentCommandShellConfig } from '@shared/commandShell'
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 function fileStat(size = 100, mtimeMs = 1): fs.Stats {
   return {
     isFile: () => true,
@@ -53,17 +63,20 @@ function createHarness(options: {
         return { stdout: '', stderr: '' }
       })
   )
+  const statFile = vi.fn(
+    (candidate: string) => normalizedFiles.get(candidate.toLowerCase()) ?? null
+  )
   const service = new CommandShellService({
     settings: settings as never,
     getPlatform: () => options.platform ?? 'win32',
     getEnvironment: () => options.environment ?? {},
     runCommand,
-    statFile: (candidate) => normalizedFiles.get(candidate.toLowerCase()) ?? null,
+    statFile,
     resolvePosixShell: options.resolvePosixShell,
     now: options.now
   })
 
-  return { runCommand, service, settings, normalizedFiles }
+  return { runCommand, service, settings, normalizedFiles, statFile }
 }
 
 describe('CommandShellService', () => {
@@ -155,6 +168,150 @@ describe('CommandShellService', () => {
 
     await service.checkGitBash({ forceRefresh: true })
     expect(runCommand).toHaveBeenCalledTimes(6)
+  })
+
+  it('returns an in-flight success after refresh without deleting the new validation', async () => {
+    const executable = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    const firstVersion = createDeferred<void>()
+    const secondVersion = createDeferred<void>()
+    let versionProbeCount = 0
+    const { service, runCommand } = createHarness({
+      config: { preference: 'git-bash' },
+      files: { [executable]: fileStat() },
+      runCommand: async (_command, args) => {
+        if (args[0] === '--version') {
+          versionProbeCount += 1
+          await (versionProbeCount === 1 ? firstVersion.promise : secondVersion.promise)
+          return { stdout: 'GNU bash, version 5.2.37(1)-release', stderr: '' }
+        }
+        return { stdout: 'deepchat-bash:5.2.37(1)-release:msys', stderr: '' }
+      }
+    })
+
+    const inFlight = service.checkGitBash()
+    await vi.waitFor(() => expect(versionProbeCount).toBe(1))
+
+    const refreshed = service.checkGitBash({ forceRefresh: true })
+    await vi.waitFor(() => expect(versionProbeCount).toBe(2))
+
+    firstVersion.resolve()
+    await expect(inFlight).resolves.toMatchObject({ available: true, executable })
+    const joinedRefresh = service.checkGitBash()
+    let joinedRefreshSettled = false
+    void joinedRefresh.finally(() => {
+      joinedRefreshSettled = true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(versionProbeCount).toBe(2)
+    expect(joinedRefreshSettled).toBe(false)
+
+    secondVersion.resolve()
+    await expect(Promise.all([refreshed, joinedRefresh])).resolves.toEqual([
+      expect.objectContaining({ available: true, executable }),
+      expect.objectContaining({ available: true, executable })
+    ])
+    expect(runCommand.mock.calls.filter(([, args]) => args[0] === '--version')).toHaveLength(2)
+  })
+
+  it('does not let an old-generation success overwrite the current resolved candidate', async () => {
+    const oldExecutable = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    const currentExecutable = 'C:\\Program Files\\Git\\usr\\bin\\bash.exe'
+    const oldVersion = createDeferred<void>()
+    const currentVersion = createDeferred<void>()
+    const { service, normalizedFiles, statFile } = createHarness({
+      config: { preference: 'git-bash' },
+      files: { [oldExecutable]: fileStat() },
+      runCommand: async (command, args) => {
+        if (args[0] === '--version') {
+          await (command === oldExecutable ? oldVersion.promise : currentVersion.promise)
+          return { stdout: 'GNU bash, version 5.2.37(1)-release', stderr: '' }
+        }
+        return { stdout: 'deepchat-bash:5.2.37(1)-release:msys', stderr: '' }
+      }
+    })
+
+    const earlierCheck = service.checkGitBash()
+    await vi.waitFor(() =>
+      expect(statFile).toHaveBeenCalledWith(expect.stringMatching(/Git\\bin\\bash\.exe$/))
+    )
+
+    normalizedFiles.delete(oldExecutable.toLowerCase())
+    normalizedFiles.set(currentExecutable.toLowerCase(), fileStat())
+    service.setConfig({ preference: 'windows-powershell' })
+    const currentCheck = service.checkGitBash()
+
+    currentVersion.resolve()
+    await expect(currentCheck).resolves.toMatchObject({
+      available: true,
+      executable: currentExecutable
+    })
+
+    oldVersion.resolve()
+    await expect(earlierCheck).resolves.toMatchObject({
+      available: true,
+      executable: oldExecutable
+    })
+
+    statFile.mockClear()
+    await expect(service.checkGitBash()).resolves.toMatchObject({
+      available: true,
+      executable: currentExecutable
+    })
+    expect(statFile.mock.calls[0]?.[0]).toBe(currentExecutable)
+  })
+
+  it('does not let an old-generation failure clear the current resolved candidate', async () => {
+    const oldExecutable = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    const currentExecutable = 'C:\\Program Files\\Git\\usr\\bin\\bash.exe'
+    const staleVersion = createDeferred<void>()
+    let now = 0
+    let oldVersionProbeCount = 0
+    const { service, normalizedFiles, statFile } = createHarness({
+      config: { preference: 'git-bash' },
+      files: { [oldExecutable]: fileStat(100, 1) },
+      now: () => now,
+      runCommand: async (command, args) => {
+        if (command === oldExecutable && args[0] === '--version') {
+          oldVersionProbeCount += 1
+          if (oldVersionProbeCount === 2) await staleVersion.promise
+        }
+        return args[0] === '-c'
+          ? { stdout: 'deepchat-bash:5.2.37(1)-release:msys', stderr: '' }
+          : { stdout: 'GNU bash, version 5.2.37(1)-release', stderr: '' }
+      }
+    })
+
+    await expect(service.checkGitBash()).resolves.toMatchObject({
+      available: true,
+      executable: oldExecutable
+    })
+    normalizedFiles.set(oldExecutable.toLowerCase(), fileStat(101, 2))
+    const staleCheck = service.checkGitBash()
+    await vi.waitFor(() => expect(oldVersionProbeCount).toBe(2))
+
+    normalizedFiles.delete(oldExecutable.toLowerCase())
+    normalizedFiles.set(currentExecutable.toLowerCase(), fileStat())
+    await expect(service.checkGitBash({ forceRefresh: true })).resolves.toMatchObject({
+      available: true,
+      executable: currentExecutable
+    })
+
+    now = 15_000
+    staleVersion.reject(new Error('stale probe failed'))
+    await expect(staleCheck).resolves.toEqual({
+      supported: true,
+      available: false,
+      error: 'validation-failed'
+    })
+
+    now = 16_000
+    statFile.mockClear()
+    await expect(service.checkGitBash()).resolves.toMatchObject({
+      available: true,
+      executable: currentExecutable
+    })
+    expect(statFile.mock.calls[0]?.[0]).toBe(currentExecutable)
   })
 
   it('derives Git Bash from where git after common paths miss', async () => {
