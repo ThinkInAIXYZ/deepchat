@@ -3,6 +3,7 @@ import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME } from '@/tool/agentTools/agentFffSearchHandler'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
+import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
 
 const fffMock = vi.hoisted(() => ({
   finder: {
@@ -153,10 +154,15 @@ describe('AgentToolManager FFF search tools', () => {
       expect.arrayContaining([GLOB_TOOL_NAME, GREP_TOOL_NAME])
     )
 
-    const result = (await manager.callTool(GLOB_TOOL_NAME, {
-      query: 'example',
-      options: { maxResults: 5 }
-    })) as { content: string; rawData?: { fffSearch?: { source: string } } }
+    const result = (await manager.callTool(
+      GLOB_TOOL_NAME,
+      {
+        query: 'example',
+        options: { maxResults: 5 }
+      },
+      undefined,
+      { commandShell: POSIX_COMMAND_SHELL }
+    )) as { content: string; rawData?: { fffSearch?: { source: string } } }
 
     expect(JSON.parse(result.content)).toEqual([{ path: 'src/main/example.ts', score: 123 }])
     expect(result.rawData?.fffSearch?.source).toBe('fff')
@@ -175,12 +181,17 @@ describe('AgentToolManager FFF search tools', () => {
       dependencies: buildRuntimePort()
     })
 
-    const result = (await manager.callTool(GREP_TOOL_NAME, {
-      query: 'needle',
-      pathScope: ['src/main'],
-      contextLines: 0,
-      maxResults: 5
-    })) as { content: string; rawData?: { fffSearch?: { source: string } } }
+    const result = (await manager.callTool(
+      GREP_TOOL_NAME,
+      {
+        query: 'needle',
+        pathScope: ['src/main'],
+        contextLines: 0,
+        maxResults: 5
+      },
+      undefined,
+      { commandShell: POSIX_COMMAND_SHELL }
+    )) as { content: string; rawData?: { fffSearch?: { source: string } } }
 
     expect(JSON.parse(result.content)).toEqual([
       {
@@ -212,7 +223,8 @@ describe('AgentToolManager FFF search tools', () => {
         query: 'needle',
         pathScope: ['/outside/example.ts']
       },
-      'conv1'
+      'conv1',
+      { commandShell: POSIX_COMMAND_SHELL }
     )
 
     expect(permission).toEqual(

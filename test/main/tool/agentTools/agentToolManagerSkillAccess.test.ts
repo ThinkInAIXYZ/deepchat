@@ -61,8 +61,8 @@ describe('AgentToolManager skill file access', () => {
     getSkillExtension: ReturnType<typeof vi.fn>
   }
 
-  const buildManager = () =>
-    new AgentToolManager({
+  const buildManager = () => {
+    const manager = new AgentToolManager({
       skillSettings: { isEnabled: () => true } as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
@@ -89,6 +89,23 @@ describe('AgentToolManager skill file access', () => {
         consumeSettingsApproval: vi.fn().mockReturnValue(false)
       })
     })
+    const callTool = manager.callTool.bind(manager)
+    const preCheckToolPermission = manager.preCheckToolPermission.bind(manager)
+    vi.spyOn(manager, 'callTool').mockImplementation((toolName, args, conversationId, options) =>
+      callTool(toolName, args, conversationId, {
+        commandShell: POSIX_COMMAND_SHELL,
+        ...options
+      })
+    )
+    vi.spyOn(manager, 'preCheckToolPermission').mockImplementation(
+      (toolName, args, conversationId, options) =>
+        preCheckToolPermission(toolName, args, conversationId, {
+          commandShell: POSIX_COMMAND_SHELL,
+          ...options
+        })
+    )
+    return manager
+  }
 
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -230,7 +247,8 @@ describe('AgentToolManager skill file access', () => {
             permissionRequest: expect.objectContaining({
               toolName,
               permissionType,
-              paths: [await fs.realpath(otherAgentSkillFilePath)]
+              paths: [await fs.realpath(otherAgentSkillFilePath)],
+              shellProfile: 'posix'
             })
           })
         })
