@@ -14,8 +14,12 @@ const checkPosix = (
   oneShotGrantId?: string
 ) => service.checkPermission(conversationId, command, POSIX_COMMAND_SHELL, oneShotGrantId)
 
-const checkGitBash = (service: CommandPermissionService, conversationId: string, command: string) =>
-  service.checkPermission(conversationId, command, GIT_BASH_COMMAND_SHELL)
+const checkGitBash = (
+  service: CommandPermissionService,
+  conversationId: string,
+  command: string,
+  oneShotGrantId?: string
+) => service.checkPermission(conversationId, command, GIT_BASH_COMMAND_SHELL, oneShotGrantId)
 
 describe('CommandPermissionService', () => {
   it('allows whitelisted commands without approval', () => {
@@ -159,6 +163,28 @@ describe('CommandPermissionService', () => {
       service.checkPermission('conv-1', command, WINDOWS_POWERSHELL_COMMAND_SHELL).allowed
     ).toBe(false)
     expect(checkPosix(service, 'conv-1', command, grantId).allowed).toBe(true)
+  })
+
+  it('isolates approvals between profiles that share the POSIX dialect', () => {
+    const service = new CommandPermissionService()
+    const command = 'npm install react'
+    const posixSignature = checkPosix(service, 'conv-1', command).signature
+    const gitBashSignature = checkGitBash(service, 'conv-1', command).signature
+
+    expect(posixSignature).toBe('posix:npm install')
+    expect(gitBashSignature).toBe('git-bash:npm install')
+
+    const posixGrantId = service.approve('conv-1', posixSignature, false)
+    if (!posixGrantId) throw new Error('Expected POSIX one-shot grant')
+
+    expect(checkGitBash(service, 'conv-1', command, posixGrantId).allowed).toBe(false)
+    expect(checkPosix(service, 'conv-1', command, posixGrantId).allowed).toBe(true)
+
+    const gitBashGrantId = service.approve('conv-1', gitBashSignature, false)
+    if (!gitBashGrantId) throw new Error('Expected Git Bash one-shot grant')
+
+    expect(checkPosix(service, 'conv-1', command, gitBashGrantId).allowed).toBe(false)
+    expect(checkGitBash(service, 'conv-1', command, gitBashGrantId).allowed).toBe(true)
   })
 
   it('models PowerShell single quotes, substitution, and destructive removal', () => {
