@@ -26,7 +26,7 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock(
-  '@dc-ui/components/button',
+  '@dc-ui/components',
   () => ({
     DcButton: {
       name: 'Button',
@@ -34,6 +34,13 @@ vi.mock(
       props: ['icon'],
       template:
         '<button v-bind="$attrs" @click="$emit(\'click\')"><span v-if="icon" :data-icon="icon"></span><slot /></button>'
+    },
+    DcCopyButton: {
+      name: 'CopyButton',
+      inheritAttrs: false,
+      props: ['icon', 'copyText'],
+      template:
+        '<button v-bind="$attrs"><span :data-icon="icon || \'lucide:copy\'"></span><slot /></button>'
     }
   }),
   { virtual: true }
@@ -79,7 +86,8 @@ const baseProps = {
   isCapturingImage: false,
   showTrace: true,
   isInGeneratingThread: false,
-  isReadOnly: false
+  isReadOnly: false,
+  copyText: 'copy me'
 }
 
 const mountToolbar = () =>
