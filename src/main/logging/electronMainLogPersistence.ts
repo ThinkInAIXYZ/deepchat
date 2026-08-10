@@ -39,6 +39,8 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
   private readonly fs: MainLogFs
   private readonly transport: MainJsonlTransport
   private logPath: string | undefined
+  private descriptor: number | undefined
+  private activeSize = 0
   private enabled = false
   private failed = false
 
@@ -92,6 +94,11 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
   disable(): void {
     this.enabled = false
     this.transport.level = false
+    try {
+      this.closeActiveFile()
+    } catch {
+      this.failed = true
+    }
   }
 
   write(level: MainLogLevel, line: string): boolean {
@@ -110,9 +117,30 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
   private appendLine(line: string): void {
     if (!this.logPath) throw new Error('Main JSONL path is unavailable')
     const encoded = Buffer.from(`${line}\n`, 'utf8')
-    const activeSize = this.getActiveSize(this.logPath)
-    if (activeSize > 0 && activeSize + encoded.length > MAX_MAIN_LOG_FILE_BYTES) {
+    this.openActiveFile()
+    if (this.activeSize > 0 && this.activeSize + encoded.length > MAX_MAIN_LOG_FILE_BYTES) {
       this.rotate()
+      this.openActiveFile()
+    }
+
+    if (this.descriptor === undefined) throw new Error('Main JSONL descriptor is unavailable')
+    if (this.fs.writeSync(this.descriptor, encoded, 0, encoded.length) !== encoded.length) {
+      throw new Error('Main JSONL record was not fully written')
+    }
+    this.activeSize += encoded.length
+  }
+
+  private openActiveFile(): void {
+    if (this.descriptor !== undefined) return
+    if (!this.logPath) throw new Error('Main JSONL path is unavailable')
+
+    try {
+      const fileStat = this.fs.lstatSync(this.logPath)
+      if (fileStat.isSymbolicLink() || !fileStat.isFile()) {
+        throw new Error('Main JSONL active path is not a regular file')
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
 
     const noFollow = this.fs.constants.O_NOFOLLOW ?? 0
@@ -125,32 +153,25 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
       0o600
     )
     try {
-      if (!this.fs.fstatSync(descriptor).isFile()) {
+      const descriptorStat = this.fs.fstatSync(descriptor)
+      if (!descriptorStat.isFile()) {
         throw new Error('Main JSONL descriptor is not a regular file')
       }
-      if (this.fs.writeSync(descriptor, encoded, 0, encoded.length) !== encoded.length) {
-        throw new Error('Main JSONL record was not fully written')
-      }
-    } finally {
-      this.fs.closeSync(descriptor)
-    }
-  }
-
-  private getActiveSize(filePath: string): number {
-    try {
-      const fileStat = this.fs.lstatSync(filePath)
-      if (fileStat.isSymbolicLink() || !fileStat.isFile()) {
-        throw new Error('Main JSONL active path is not a regular file')
-      }
-      return fileStat.size
+      this.descriptor = descriptor
+      this.activeSize = descriptorStat.size
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0
+      try {
+        this.fs.closeSync(descriptor)
+      } catch {
+        // Preserve the validation failure that made the descriptor unsafe to retain.
+      }
       throw error
     }
   }
 
   private rotate(): void {
     if (!this.logPath) throw new Error('Main JSONL path is unavailable')
+    this.closeActiveFile()
     const activeStat = this.fs.lstatSync(this.logPath)
     if (activeStat.isSymbolicLink() || !activeStat.isFile()) {
       throw new Error('Main JSONL active path is not a regular file')
@@ -158,6 +179,13 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
 
     const archivePath = path.join(path.dirname(this.logPath), 'main.old.jsonl')
     this.fs.renameSync(this.logPath, archivePath)
+  }
+
+  private closeActiveFile(): void {
+    const descriptor = this.descriptor
+    this.descriptor = undefined
+    this.activeSize = 0
+    if (descriptor !== undefined) this.fs.closeSync(descriptor)
   }
 
   private repairIncompleteTail(filePath: string): void {
@@ -201,7 +229,7 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
         }
         scanEnd = scanStart
       }
-      if (truncateAt === 0 && scanFloor > 0) {
+      if (size - truncateAt >= MAX_MAIN_LOG_RECORD_BYTES) {
         throw new Error('Main JSONL incomplete tail exceeds the maximum record size')
       }
       this.fs.ftruncateSync(descriptor, truncateAt)
@@ -217,7 +245,13 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
 
   private fail(): void {
     this.failed = true
-    this.disable()
+    this.enabled = false
+    this.transport.level = false
+    try {
+      this.closeActiveFile()
+    } catch {
+      // Persistence is already permanently disabled for this process.
+    }
   }
 }
 

@@ -98,8 +98,10 @@ Required invariants:
 - Newlines and control characters inside accepted strings are escaped by JSON serialization, so one
   event always occupies one physical line.
 - No free-form persisted `message`, `args`, or `metadata` escape hatch exists.
-- Invalid or oversized events are dropped. Production emits one rate-limited, payload-free native
-  console warning; development and focused tests may surface the contract violation.
+- Invalid or oversized events that reach projection are dropped. Production emits one rate-limited,
+  payload-free native console warning; development and focused tests may surface the contract
+  violation. A fully disabled logger with no console sink does no projection, sequence allocation,
+  serialization, or warning work.
 
 The console renderer may produce a fixed human-readable description from the event name and safe
 projected context. Console rendering is not a second persisted log.
@@ -246,6 +248,10 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 - Maximum record: 16 KiB.
 - Writes remain synchronous after event selection keeps volume low. This preserves ordering and
   crash-tail reliability without an async flush lifecycle.
+- The adapter reuses one validated append descriptor and its observed file size between records.
+  Disablement, transport failure, and rotation close that descriptor; rotation validates and opens
+  the new active file before its first append. This keeps the steady-state path to one write syscall
+  without weakening the regular-file check.
 - Rotation asks the filesystem to replace the previous archive by renaming the complete active file
   over it, without an application-level pre-delete. It never crops a byte range, truncates the active
   file to satisfy the cap, appends a human-readable crop marker, adds a suffix or writes a non-JSON
@@ -256,8 +262,9 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
   is emitted.
 - Before the first enabled append, an incomplete final line from an interrupted prior write is
   removed without changing complete preceding records. Tail repair scans at most one maximum-sized
-  record plus its delimiter; a longer incomplete tail disables persistence instead of blocking Main
-  with an unbounded scan.
+  record plus its delimiter. Because the physical limit includes LF, an unterminated tail of 16 KiB
+  or more cannot be a partial valid record and disables persistence instead of blocking Main with an
+  unbounded scan.
 - Transport, projection, serialization, repair, and rotation failures never affect application
   behavior.
 - JSONL is best-effort local diagnostics, not an audit log, transaction journal, or power-loss-safe

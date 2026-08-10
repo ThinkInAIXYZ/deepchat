@@ -569,6 +569,7 @@ export async function createMainProcessControl(dependencies: {
   let hasInitialized = false
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
   let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
+  let shutdownStepFailures = 0
   let pluginInitializationPromise: Promise<void> | null = null
   let skillInitializationPromise: Promise<void> | null = null
   let skillSyncScanPromise: Promise<void> | null = null
@@ -2488,6 +2489,7 @@ export async function createMainProcessControl(dependencies: {
         `[Main] destroy.${stepName} done durationMs=${(performance.now() - startedAt).toFixed(1)}`
       )
     } catch (error) {
+      shutdownStepFailures += 1
       logger.warn(
         `[Main] destroy.${stepName} failed durationMs=${(performance.now() - startedAt).toFixed(1)}`,
         error
@@ -2986,6 +2988,7 @@ export async function createMainProcessControl(dependencies: {
 
   const shutdownCoordinator = new MainShutdownCoordinator(
     async () => {
+      shutdownStepFailures = 0
       appLifecycleState = 'stopping'
       windowPresenter.setApplicationQuitting(true)
       startupWorkloadCoordinator.cancelTarget('main')
@@ -2996,6 +2999,7 @@ export async function createMainProcessControl(dependencies: {
         unsubscribeStartupWorkload()
         appLifecycleState = 'stopped'
       }
+      return shutdownStepFailures === 0 ? 'completed' : 'failed'
     },
     {
       started: (reason) => mainLogger.emit('app.shutdown.started', { reason }),

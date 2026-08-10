@@ -123,4 +123,20 @@ describe('MainShutdownCoordinator', () => {
       durationMs: expect.any(Number)
     })
   })
+
+  it('reports best-effort teardown degradation without blocking the terminal action', async () => {
+    const observer = { started: vi.fn(), terminal: vi.fn() }
+    const action = vi.fn()
+    const coordinator = new MainShutdownCoordinator(
+      async () => 'failed',
+      observer,
+      () => 10
+    )
+
+    const claim = await coordinator.request('app_quit')
+    await claim?.run(action)
+
+    expect(observer.terminal).toHaveBeenCalledWith({ outcome: 'failed', durationMs: 0 })
+    expect(action).toHaveBeenCalledOnce()
+  })
 })

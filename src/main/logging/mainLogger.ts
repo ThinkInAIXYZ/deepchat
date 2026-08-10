@@ -56,18 +56,23 @@ export class MainLogger {
   private startupDropped = 0
   private readonly emittedWarnings = new Set<MainLogInternalWarning>()
   private readonly now: () => Date
-  private readonly writeConsole: (level: MainLogLevel, text: string) => void
+  private readonly writeConsole: ((level: MainLogLevel, text: string) => void) | undefined
   private readonly warn: (warning: MainLogInternalWarning) => void
 
   constructor(private readonly options: MainLoggerOptions) {
     this.now = options.now ?? (() => new Date())
-    this.writeConsole = options.writeConsole ?? (() => undefined)
+    this.writeConsole = options.writeConsole
     this.warn = options.warn ?? (() => undefined)
   }
 
   emit<TEvent extends MainLogEventName>(event: TEvent, input: MainLogEventInputMap[TEvent]): void {
+    if (this.persistenceState === 'disabled' && !this.writeConsole) return
+
     try {
       const projected = projectMainLogEvent(event, input)
+      this.writeConsoleSafely(projected.level, event, projected.context)
+      if (this.persistenceState === 'disabled') return
+
       const seq = this.nextSequence()
       const record: MainLogRecordV1 = {
         v: MAIN_LOG_RECORD_VERSION,
@@ -83,7 +88,6 @@ export class MainLogger {
       const line = JSON.stringify(record)
       const bytes = Buffer.byteLength(line, 'utf8') + 1
 
-      this.writeConsoleSafely(projected.level, event, projected.context)
       if (bytes > MAX_MAIN_LOG_RECORD_BYTES) {
         this.warnOnce('record_oversized')
         return
@@ -187,6 +191,7 @@ export class MainLogger {
     event: MainLogEventName,
     context: MainLogContext
   ): void {
+    if (!this.writeConsole) return
     try {
       this.writeConsole(level, `[main] ${event} ${JSON.stringify(context)}`)
     } catch {

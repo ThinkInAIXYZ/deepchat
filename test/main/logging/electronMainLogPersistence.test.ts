@@ -7,9 +7,11 @@ import { MAX_MAIN_LOG_RECORD_BYTES } from '@/logging/mainLogger'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const temporaryDirectories: string[] = []
+const persistenceInstances: ElectronMainLogPersistence[] = []
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 
 afterEach(() => {
+  for (const persistence of persistenceInstances.splice(0)) persistence.disable()
   for (const directory of temporaryDirectories.splice(0)) {
     fs.rmSync(directory, { recursive: true, force: true })
   }
@@ -42,6 +44,7 @@ function createPersistence(userData: string, overrides: Record<string, unknown> 
     log: log as never,
     fs: { ...fs, ...overrides } as never
   })
+  persistenceInstances.push(persistence)
   return { log, persistence }
 }
 
@@ -79,6 +82,7 @@ describe('ElectronMainLogPersistence', () => {
       log: log as never,
       fs
     })
+    persistenceInstances.push(persistence)
 
     expect(getUserDataPath).not.toHaveBeenCalled()
     expect(log.transports.file.level).toBe(false)
@@ -100,12 +104,33 @@ describe('ElectronMainLogPersistence', () => {
     const originalConsoleLevel = electronLog.transports.console.level
 
     const persistence = new ElectronMainLogPersistence({ getUserDataPath: () => userData, fs })
+    persistenceInstances.push(persistence)
     expect(persistence.enable()).toBe(true)
     expect(persistence.write('info', validLine())).toBe(true)
 
     expect(electronLog.transports.file.level).toBe(false)
     expect(electronLog.transports.console.level).toBe(originalConsoleLevel)
     expect(fs.readFileSync(path.join(userData, 'logs/main.jsonl'), 'utf8')).toBe(`${validLine()}\n`)
+  })
+
+  it('reuses one validated append descriptor until persistence is disabled', () => {
+    const userData = createUserData()
+    const openSync = vi.fn((...args: Parameters<typeof fs.openSync>) =>
+      fs.openSync(...args)
+    ) as typeof fs.openSync
+    const fstatSync = vi.fn((descriptor: number) => fs.fstatSync(descriptor))
+    const closeSync = vi.fn((descriptor: number) => fs.closeSync(descriptor))
+    const { persistence } = createPersistence(userData, { openSync, fstatSync, closeSync })
+    expect(persistence.enable()).toBe(true)
+
+    expect(persistence.write('info', validLine())).toBe(true)
+    expect(persistence.write('info', validLine(2))).toBe(true)
+
+    expect(openSync).toHaveBeenCalledOnce()
+    expect(fstatSync).toHaveBeenCalledOnce()
+    expect(closeSync).not.toHaveBeenCalled()
+    persistence.disable()
+    expect(closeSync).toHaveBeenCalledOnce()
   })
 
   it('repairs only an incomplete active-file tail and leaves legacy logs untouched', () => {
@@ -152,7 +177,8 @@ describe('ElectronMainLogPersistence', () => {
   })
 
   it.each([
-    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES, enabled: true },
+    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES - 1, enabled: true },
+    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES, enabled: false },
     { tailBytes: MAX_MAIN_LOG_RECORD_BYTES + 1, enabled: false }
   ])(
     'handles an incomplete tail of $tailBytes bytes at the repair boundary',
@@ -167,6 +193,21 @@ describe('ElectronMainLogPersistence', () => {
 
       expect(persistence.enable()).toBe(enabled)
       expect(fs.readFileSync(activePath)).toEqual(enabled ? prefix : original)
+    }
+  )
+
+  it.each([MAX_MAIN_LOG_RECORD_BYTES, MAX_MAIN_LOG_RECORD_BYTES + 1])(
+    'preserves and rejects a %i-byte incomplete tail without a complete prefix',
+    (tailBytes) => {
+      const userData = createUserData()
+      const activePath = path.join(userData, 'logs/main.jsonl')
+      const original = Buffer.alloc(tailBytes, 0x78)
+      fs.mkdirSync(path.dirname(activePath), { recursive: true })
+      fs.writeFileSync(activePath, original)
+      const { persistence } = createPersistence(userData)
+
+      expect(persistence.enable()).toBe(false)
+      expect(fs.readFileSync(activePath)).toEqual(original)
     }
   )
 

@@ -56,6 +56,8 @@ adapter:
   transition;
 - provides a non-throwing setting gate used by Main startup and `LoggingService`;
 - provides safe archive rotation and incomplete-tail repair;
+- reuses one validated append descriptor so steady-state synchronous persistence performs one write
+  syscall per selected record;
 - rate-limits logger-internal native-console warnings.
 
 The adapter resolves `app.getPath('userData')` only when persistence is enabled, after explicit

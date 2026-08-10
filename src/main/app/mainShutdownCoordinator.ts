@@ -15,18 +15,20 @@ export interface MainShutdownActionClaim {
   abandon(): void
 }
 
+export type MainShutdownTeardownOutcome = 'completed' | 'failed'
+
 export class MainShutdownCoordinator {
-  private teardownPromise: Promise<void> | undefined
+  private teardownPromise: Promise<MainShutdownTeardownOutcome | void> | undefined
   private actionClaim: symbol | undefined
 
   constructor(
-    private readonly teardown: () => Promise<void>,
+    private readonly teardown: () => Promise<MainShutdownTeardownOutcome | void>,
     private readonly observer: MainShutdownObserver,
     private readonly now: () => number = performance.now.bind(performance)
   ) {}
 
-  cleanup(): Promise<void> {
-    return this.ensureTeardown()
+  async cleanup(): Promise<void> {
+    await this.ensureTeardown()
   }
 
   async request(reason: MainLogShutdownReason): Promise<MainShutdownActionClaim | undefined> {
@@ -40,9 +42,9 @@ export class MainShutdownCoordinator {
     const startedAt = this.now()
     this.observe(() => this.observer.started(reason))
     try {
-      await this.ensureTeardown()
+      const teardownOutcome = (await this.ensureTeardown()) ?? 'completed'
       this.observe(() =>
-        this.observer.terminal({ outcome: 'completed', durationMs: this.now() - startedAt })
+        this.observer.terminal({ outcome: teardownOutcome, durationMs: this.now() - startedAt })
       )
       let state: 'ready' | 'running' | 'succeeded' | 'released' = 'ready'
       const abandon = () => {
@@ -76,7 +78,7 @@ export class MainShutdownCoordinator {
     }
   }
 
-  private ensureTeardown(): Promise<void> {
+  private ensureTeardown(): Promise<MainShutdownTeardownOutcome | void> {
     if (!this.teardownPromise) {
       try {
         this.teardownPromise = this.teardown()

@@ -18,18 +18,20 @@ function createLogger(
   overrides: {
     persistence?: ReturnType<typeof createPersistence>
     appVersion?: string
-    writeConsole?: ReturnType<typeof vi.fn>
+    writeConsole?: ReturnType<typeof vi.fn> | false
     warn?: ReturnType<typeof vi.fn>
+    now?: ReturnType<typeof vi.fn>
   } = {}
 ) {
   const persistence = overrides.persistence ?? createPersistence()
-  const writeConsole = overrides.writeConsole ?? vi.fn()
+  const writeConsole =
+    overrides.writeConsole === false ? undefined : (overrides.writeConsole ?? vi.fn())
   const warn = overrides.warn ?? vi.fn()
   const logger = new MainLogger({
     persistence,
     appVersion: overrides.appVersion ?? '1.2.3',
     processInstanceId: '3f70b2a5-b28b-4786-8e45-e50ec018a02f',
-    now: () => new Date('2026-08-10T12:34:56.789Z'),
+    now: overrides.now ?? (() => new Date('2026-08-10T12:34:56.789Z')),
     writeConsole,
     warn
   })
@@ -120,8 +122,27 @@ describe('MainLogger', () => {
     logger.setPersistenceEnabled(true)
     emitShutdown(logger, 3)
 
-    expect(parseWrittenLines(persistence).map(({ seq }) => seq)).toEqual([3])
+    expect(parseWrittenLines(persistence).map(({ seq }) => seq)).toEqual([2])
     expect(persistence.disable).toHaveBeenCalledTimes(1)
+  })
+
+  it('does no projection or record allocation while all output is disabled', () => {
+    const now = vi.fn(() => new Date('2026-08-10T12:34:56.789Z'))
+    const { logger, persistence, warn } = createLogger({ writeConsole: false, now })
+    logger.setPersistenceEnabled(false)
+
+    emitShutdown(logger, Number.NaN)
+    emitShutdown(logger, 1)
+    expect(now).not.toHaveBeenCalled()
+    expect(warn).not.toHaveBeenCalled()
+
+    logger.setPersistenceEnabled(true)
+    emitShutdown(logger, 2)
+
+    expect(parseWrittenLines(persistence)).toEqual([
+      expect.objectContaining({ seq: 1, context: { outcome: 'completed', durationMs: 2 } })
+    ])
+    expect(now).toHaveBeenCalledOnce()
   })
 
   it('enforces the startup buffer byte limit independently of its record limit', () => {
