@@ -27,7 +27,10 @@ import {
   runsTurnFailedEvent
 } from '@shared/contracts/events'
 import { extractUserMessageInput } from '@/session/data/userMessageContent'
-import { buildAssistantResponseMarkdown } from '@/agent/deepchat/runtime/sessionUpdates'
+import {
+  buildAssistantResponseMarkdown,
+  hasWaitingInteraction
+} from '@/agent/deepchat/runtime/sessionUpdates'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import {
   createRouteMap,
@@ -59,6 +62,7 @@ type RunTurnPort = Readonly<{
 
 type RunProjectionPort = Readonly<{
   getSession(sessionId: string): Promise<SessionWithState | null>
+  getMessages(sessionId: string): Promise<ChatMessageRecord[]>
   listMessagesPage(
     sessionId: string,
     options?: { limit?: number; cursor?: MessagePageCursor | null }
@@ -74,6 +78,7 @@ export type CliRunServiceOptions = Readonly<{
   turn: RunTurnPort
   projection: RunProjectionPort
   sessions: RunSessionStorePort
+  hasWaitingDescendantInteraction(runId: string): boolean
   eventHub: TypedEventHub
   now?: () => number
   log?: Pick<Console, 'warn'>
@@ -109,6 +114,27 @@ function messageText(message: ChatMessageRecord): string {
   } catch {
     return message.content
   }
+}
+
+function runPhase(
+  status: SessionWithState['status'],
+  messages: readonly ChatMessageRecord[],
+  hasWaitingDescendantInteraction: boolean
+): PublicRunSnapshot['phase'] {
+  if (status !== 'generating') return 'terminal'
+  if (hasWaitingDescendantInteraction) return 'awaiting_interaction'
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue
+    try {
+      const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
+      if (Array.isArray(blocks) && hasWaitingInteraction(blocks)) {
+        return 'awaiting_interaction'
+      }
+    } catch {
+      // A malformed transcript cannot manufacture an interaction wait.
+    }
+  }
+  return 'running'
 }
 
 function toPublicMessage(message: ChatMessageRecord): PublicRunMessage {
@@ -412,7 +438,6 @@ export class CliRunService {
     const payload = data as { runId?: unknown; sessionId?: unknown; status?: unknown }
     if (event === runsTurnFailedEvent.name) return payload.runId === runId
     if (payload.sessionId !== runId) return false
-    if (event === 'chat.stream.completed' || event === 'chat.stream.failed') return true
     if (event !== 'sessions.status.changed') return false
     const status = payload.status
     return status === 'idle' || status === 'error'
@@ -450,6 +475,10 @@ export class CliRunService {
       this.requireRunSnapshot(runId),
       this.options.projection.listMessagesPage(runId, { limit, cursor: cursor ?? null })
     ])
+    const phaseMessages =
+      session.status === 'generating' && (cursor != null || page.hasMore)
+        ? await this.options.projection.getMessages(runId)
+        : page.messages
     const projectedPage = projectMessagePage(page)
     return runsGetRoute.output.parse({
       runId,
@@ -457,6 +486,11 @@ export class CliRunService {
       agentId: session.agentId,
       title: session.title,
       status: session.status,
+      phase: runPhase(
+        session.status,
+        phaseMessages,
+        session.status === 'generating' && this.options.hasWaitingDescendantInteraction(runId)
+      ),
       providerId: session.providerId,
       modelId: session.modelId,
       createdAt: session.createdAt,

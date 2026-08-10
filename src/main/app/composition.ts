@@ -1728,6 +1728,14 @@ export async function createMainProcessControl(dependencies: {
     turn: sessionTurn,
     projection: sessionQuery,
     sessions: appSessionService,
+    hasWaitingDescendantInteraction: (runId) =>
+      liveDelegationRepository
+        .listActiveTurns()
+        .some(
+          ({ delegation, turn }) =>
+            (turn.status === 'waiting_permission' || turn.status === 'waiting_question') &&
+            resolveSessionRunId(delegation.parentSessionId) === runId
+        ),
     eventHub: typedEventHub,
     log: logger
   })

@@ -73,26 +73,69 @@ export const buildAssistantDeliverySegments = (
   blocks: AssistantMessageBlock[]
 ): AssistantDeliverySegment[] => buildDeliverySegments(messageId, blocks)
 
+function isWaitingInteractionBlock(block: AssistantMessageBlock): boolean {
+  return (
+    block.type === 'action' &&
+    block.status === 'pending' &&
+    block.extra?.needsUserAction !== false &&
+    Boolean(block.tool_call?.id) &&
+    (block.action_type === 'tool_call_permission' || block.action_type === 'question_request')
+  )
+}
+
+function hasSubagentWaitingInteraction(block: AssistantMessageBlock): boolean {
+  if (block.type !== 'tool_call' || block.tool_call?.name !== 'subagent_orchestrator') return false
+  const rawProgress = block.extra?.subagentProgress
+  if (typeof rawProgress !== 'string' || !rawProgress.trim()) return false
+  try {
+    const progress = JSON.parse(rawProgress) as { tasks?: unknown }
+    if (!Array.isArray(progress?.tasks)) return false
+    return progress.tasks.some((task) => {
+      if (!task || typeof task !== 'object' || Array.isArray(task)) return false
+      const candidate = task as { sessionId?: unknown; waitingInteraction?: unknown }
+      if (typeof candidate.sessionId !== 'string' || !candidate.sessionId) return false
+      const waiting = candidate.waitingInteraction
+      if (!waiting || typeof waiting !== 'object' || Array.isArray(waiting)) return false
+      const interaction = waiting as {
+        type?: unknown
+        messageId?: unknown
+        toolCallId?: unknown
+        actionBlock?: unknown
+      }
+      return (
+        (interaction.type === 'permission' || interaction.type === 'question') &&
+        typeof interaction.messageId === 'string' &&
+        Boolean(interaction.messageId) &&
+        typeof interaction.toolCallId === 'string' &&
+        Boolean(interaction.toolCallId) &&
+        Boolean(interaction.actionBlock) &&
+        typeof interaction.actionBlock === 'object' &&
+        !Array.isArray(interaction.actionBlock)
+      )
+    })
+  } catch {
+    return false
+  }
+}
+
+export const hasWaitingInteraction = (blocks: AssistantMessageBlock[]): boolean =>
+  blocks.some((block) => isWaitingInteractionBlock(block) || hasSubagentWaitingInteraction(block))
+
 export const extractWaitingInteraction = (
   blocks: AssistantMessageBlock[],
   messageId: string
 ): DeepChatInternalSessionWaitingInteraction | null => {
   for (let index = 0; index < blocks.length; index += 1) {
     const block = blocks[index]
-    if (
-      block.type !== 'action' ||
-      block.status !== 'pending' ||
-      block.extra?.needsUserAction !== true ||
-      !block.tool_call?.id
-    ) {
-      continue
-    }
+    if (!isWaitingInteractionBlock(block)) continue
+    const toolCallId = block.tool_call?.id
+    if (!toolCallId) continue
 
     if (block.action_type === 'tool_call_permission') {
       return {
         type: 'permission',
         messageId,
-        toolCallId: block.tool_call.id,
+        toolCallId,
         actionBlock: JSON.parse(JSON.stringify(block)) as AssistantMessageBlock
       }
     }
@@ -101,7 +144,7 @@ export const extractWaitingInteraction = (
       return {
         type: 'question',
         messageId,
-        toolCallId: block.tool_call.id,
+        toolCallId,
         actionBlock: JSON.parse(JSON.stringify(block)) as AssistantMessageBlock
       }
     }

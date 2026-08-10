@@ -442,10 +442,15 @@ describe('CLI local transport', () => {
   it('enforces protocol versions and the explicit surface before dispatch', async () => {
     const { descriptor, dispatch } = await createTestServer()
 
-    const incompatible = await rpcRequest(descriptor, { protocolVersion: 2 })
+    const incompatibleProtocol = await rpcRequest(descriptor, { protocolVersion: 2 })
+    const legacySurface = await rpcRequest(descriptor, { surfaceVersion: 1 })
     const hidden = await rpcRequest(descriptor, { method: 'settings.getSnapshot' })
 
-    expect(incompatible).toMatchObject({
+    expect(incompatibleProtocol).toMatchObject({
+      status: 409,
+      body: { ok: false, error: { code: 'unsupported_version' } }
+    })
+    expect(legacySurface).toMatchObject({
       status: 409,
       body: { ok: false, error: { code: 'unsupported_version' } }
     })

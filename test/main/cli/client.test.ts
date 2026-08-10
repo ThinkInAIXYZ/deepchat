@@ -22,7 +22,7 @@ const temporaryDirectories: string[] = []
 
 const testDescriptor: LocalControlDescriptor = {
   protocolVersion: 1,
-  surfaceVersion: 1,
+  surfaceVersion: 2,
   appVersion: '9.8.7',
   endpoint: { kind: 'unix', path: '/tmp/deepchat-test.sock' },
   pid: 1,
@@ -189,7 +189,7 @@ describe('bundled CLI client', () => {
 
     await expect(invocation.result).resolves.toBe(0)
     expect(invocation.stdout.read()).toContain('DeepChat 9.8.7')
-    expect(invocation.stdout.read()).toContain('Protocol 1, surface 1')
+    expect(invocation.stdout.read()).toContain('Protocol 1, surface 2')
     expect(invocation.stderr.read()).toBe('')
     expect(dispatch).toHaveBeenCalledOnce()
   })
@@ -315,7 +315,7 @@ describe('bundled CLI client', () => {
     const invokeRpc = vi.fn(async (invocation) =>
       LocalControlRpcResponseSchema.parse({
         protocolVersion: 1,
-        surfaceVersion: 1,
+        surfaceVersion: 2,
         id: invocation.id,
         ok: true,
         result: {
@@ -363,7 +363,7 @@ describe('bundled CLI client', () => {
       await onEvent(
         LocalControlEventEnvelopeSchema.parse({
           protocolVersion: 1,
-          surfaceVersion: 1,
+          surfaceVersion: 2,
           sequence: 0,
           timestamp: 1_000,
           requestId: invocation.id,
@@ -380,7 +380,7 @@ describe('bundled CLI client', () => {
       )
       return LocalControlRpcResponseSchema.parse({
         protocolVersion: 1,
-        surfaceVersion: 1,
+        surfaceVersion: 2,
         id: invocation.id,
         ok: true,
         result: { runId: 'run-1', lastCursor: 'epoch-1:7' }
@@ -423,7 +423,7 @@ describe('bundled CLI client', () => {
       await onEvent(
         LocalControlEventEnvelopeSchema.parse({
           protocolVersion: 1,
-          surfaceVersion: 1,
+          surfaceVersion: 2,
           sequence: 0,
           timestamp: 1_000,
           requestId: invocation.id,
@@ -466,7 +466,7 @@ describe('bundled CLI client', () => {
       await onEvent(
         LocalControlEventEnvelopeSchema.parse({
           protocolVersion: 1,
-          surfaceVersion: 1,
+          surfaceVersion: 2,
           sequence: 0,
           timestamp: 1_000,
           requestId: invocation.id,
@@ -504,7 +504,7 @@ describe('bundled CLI client', () => {
       await onEvent(
         LocalControlEventEnvelopeSchema.parse({
           protocolVersion: 1,
-          surfaceVersion: 1,
+          surfaceVersion: 2,
           sequence: 0,
           timestamp: 1_000,
           requestId: invocation.id,
@@ -514,7 +514,7 @@ describe('bundled CLI client', () => {
       )
       return LocalControlRpcResponseSchema.parse({
         protocolVersion: 1,
-        surfaceVersion: 1,
+        surfaceVersion: 2,
         id: invocation.id,
         ok: true,
         result: {
@@ -671,7 +671,7 @@ describe('bundled CLI client', () => {
     const invokeUpload = vi.fn(async (invocation) =>
       LocalControlRpcResponseSchema.parse({
         protocolVersion: 1,
-        surfaceVersion: 1,
+        surfaceVersion: 2,
         id: invocation.id,
         ok: true,
         result: {
@@ -756,7 +756,7 @@ describe('bundled CLI client', () => {
     const invokeRpc = vi.fn(async (invocation) =>
       LocalControlRpcResponseSchema.parse({
         protocolVersion: 1,
-        surfaceVersion: 1,
+        surfaceVersion: 2,
         id: invocation.id,
         ok: true,
         result: {
@@ -810,7 +810,7 @@ describe('bundled CLI client', () => {
     const invokeRpc = vi.fn(async (invocation) =>
       LocalControlRpcResponseSchema.parse({
         protocolVersion: 1,
-        surfaceVersion: 1,
+        surfaceVersion: 2,
         id: invocation.id,
         ok: true,
         result: { config }
@@ -851,7 +851,7 @@ describe('bundled CLI client', () => {
     const invokeRpc = vi.fn(async (invocation) =>
       LocalControlRpcResponseSchema.parse({
         protocolVersion: 1,
-        surfaceVersion: 1,
+        surfaceVersion: 2,
         id: invocation.id,
         ok: true,
         result: {

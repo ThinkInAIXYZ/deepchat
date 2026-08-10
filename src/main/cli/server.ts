@@ -52,7 +52,7 @@ import {
   type CliControlLayout
 } from './descriptor'
 import { CliRequestError } from './errors'
-import { CLI_SURFACE_V1 } from './surface'
+import { CLI_SURFACE_V2 } from './surface'
 import type { CliSurfaceEntry } from './surface'
 import type { CliRuntimeStatus } from './routes'
 import type { ArtifactSpool } from './artifactSpool'
@@ -287,7 +287,7 @@ export class CliServer {
     this.platform = dependencies.platform ?? process.platform
     this.pid = dependencies.pid ?? process.pid
     this.log = dependencies.log ?? console
-    this.surface = new Map(dependencies.surface ?? CLI_SURFACE_V1)
+    this.surface = new Map(dependencies.surface ?? CLI_SURFACE_V2)
   }
 
   getStatus(): CliRuntimeStatus {
@@ -658,7 +658,7 @@ export class CliServer {
         routeMethod = declaredMethod
         entry = this.surface.get(declaredMethod)
         if (!entry || entry.transport !== requestTransport) {
-          throw new CliRequestError('not_found', 'Method is not exposed by CLI surface V1', {
+          throw new CliRequestError('not_found', 'Method is not exposed by the CLI surface', {
             httpStatus: 404
           })
         }
@@ -711,7 +711,7 @@ export class CliServer {
       }
       entry ??= this.surface.get(rpcRequest.method)
       if (!entry || entry.transport !== requestTransport) {
-        throw new CliRequestError('not_found', 'Method is not exposed by CLI surface V1', {
+        throw new CliRequestError('not_found', 'Method is not exposed by the CLI surface', {
           httpStatus: 404
         })
       }

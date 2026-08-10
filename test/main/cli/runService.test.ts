@@ -72,11 +72,79 @@ function createMessage(overrides: Partial<ChatMessageRecord>): ChatMessageRecord
   }
 }
 
+function createInteractionMessage(
+  actionType: 'tool_call_permission' | 'question_request',
+  needsUserAction: boolean | undefined = true
+): ChatMessageRecord {
+  return createMessage({
+    id: `message-${actionType}`,
+    orderSeq: 2,
+    role: 'assistant',
+    status: 'pending',
+    content: JSON.stringify([
+      {
+        type: 'action',
+        action_type: actionType,
+        status: 'pending',
+        timestamp: 100,
+        tool_call: { id: `tool-${actionType}`, name: 'test_tool', params: '{}' },
+        extra: needsUserAction === undefined ? {} : { needsUserAction }
+      }
+    ])
+  })
+}
+
+function createSubagentInteractionMessage(
+  type: 'permission' | 'question',
+  waiting = true,
+  progress?: string
+): ChatMessageRecord {
+  return createMessage({
+    id: `message-subagent-${type}`,
+    orderSeq: 2,
+    role: 'assistant',
+    status: 'pending',
+    content: JSON.stringify([
+      {
+        type: 'tool_call',
+        status: 'loading',
+        timestamp: 100,
+        tool_call: { id: 'subagent-orchestrator', name: 'subagent_orchestrator', params: '{}' },
+        extra: {
+          subagentProgress:
+            progress ??
+            JSON.stringify({
+              tasks: [
+                {
+                  sessionId: 'child-session',
+                  waitingInteraction: waiting
+                    ? {
+                        type,
+                        messageId: 'child-message',
+                        toolCallId: 'child-tool',
+                        actionBlock: {
+                          type: 'action',
+                          status: 'pending',
+                          action_type:
+                            type === 'question' ? 'question_request' : 'tool_call_permission'
+                        }
+                      }
+                    : null
+                }
+              ]
+            })
+        }
+      }
+    ])
+  })
+}
+
 function createHarness(
   overrides: {
     session?: SessionWithState
     storedSession?: SessionRecord | null
     messages?: ChatMessageRecord[]
+    hasWaitingDescendantInteraction?: boolean
   } = {}
 ): {
   service: CliRunService
@@ -97,6 +165,7 @@ function createHarness(
   }
   const projection = {
     getSession: vi.fn(async () => session),
+    getMessages: vi.fn(async () => overrides.messages ?? []),
     listMessagesPage: vi.fn(async () => ({
       messages: overrides.messages ?? [],
       nextCursor: null,
@@ -120,6 +189,9 @@ function createHarness(
       turn,
       projection,
       sessions,
+      hasWaitingDescendantInteraction: vi.fn(
+        () => overrides.hasWaitingDescendantInteraction ?? false
+      ),
       eventHub: hub,
       now: () => 200,
       log
@@ -148,6 +220,43 @@ async function nextEvent(events: AsyncIterable<TypedEventRecord>): Promise<Typed
   const result = await events[Symbol.asyncIterator]().next()
   if (result.done) throw new Error('Expected an event')
   return result.value
+}
+
+async function startRunWatcher(service: CliRunService): Promise<{
+  emitted: string[]
+  result: Promise<unknown>
+}> {
+  const emitted: string[] = []
+  let snapshotEmitted!: () => void
+  const snapshotReady = new Promise<void>((resolve) => {
+    snapshotEmitted = resolve
+  })
+  const result = service.dispatchStream(
+    eventsSubscribeRoute.name,
+    { runId: 'run-1' },
+    humanCaller,
+    new AbortController().signal,
+    async (event) => {
+      emitted.push(event)
+      if (event === 'runs.snapshot') snapshotEmitted()
+    }
+  )
+  await snapshotReady
+  return { emitted, result }
+}
+
+async function expectWatcherPending(result: Promise<unknown>): Promise<void> {
+  let settled = false
+  void result.then(
+    () => {
+      settled = true
+    },
+    () => {
+      settled = true
+    }
+  )
+  await Promise.resolve()
+  expect(settled).toBe(false)
 }
 
 describe('CliRunService', () => {
@@ -257,10 +366,107 @@ describe('CliRunService', () => {
 
     expect(result.messages[0]).toMatchObject({ role: 'user', text: 'hello' })
     expect(result.messages[1].textTruncated).toBe(true)
+    expect(result.phase).toBe('running')
     expect(Buffer.byteLength(result.messages[1].text, 'utf8')).toBeLessThanOrEqual(
       RUN_MESSAGE_MAX_TEXT_BYTES
     )
     expect(JSON.stringify(result)).not.toContain('private-provider-detail')
+  })
+
+  it.each([
+    ['permission', 'tool_call_permission', true, 'awaiting_interaction'],
+    ['question', 'question_request', true, 'awaiting_interaction'],
+    ['recovered question', 'question_request', undefined, 'awaiting_interaction'],
+    ['resolved permission', 'tool_call_permission', false, 'running'],
+    ['resolved question', 'question_request', false, 'running']
+  ] as const)(
+    'projects a %s with the correct phase',
+    async (_kind, actionType, needsAction, phase) => {
+      const { service } = createHarness({
+        messages: [createInteractionMessage(actionType, needsAction)]
+      })
+
+      await expect(
+        invokeRoute(service, runsGetRoute.name, { runId: 'run-1' })
+      ).resolves.toMatchObject({
+        phase,
+        status: 'generating'
+      })
+    }
+  )
+
+  it.each([
+    ['permission', true, 'awaiting_interaction'],
+    ['question', true, 'awaiting_interaction'],
+    ['cleared interaction', false, 'running']
+  ] as const)(
+    'projects a legacy subagent %s with the correct phase',
+    async (_kind, waiting, phase) => {
+      const type = _kind === 'question' ? 'question' : 'permission'
+      const { service } = createHarness({
+        messages: [createSubagentInteractionMessage(type, waiting)]
+      })
+
+      await expect(
+        invokeRoute(service, runsGetRoute.name, { runId: 'run-1' })
+      ).resolves.toMatchObject({ phase })
+    }
+  )
+
+  it('projects a current live-delegation wait as awaiting_interaction', async () => {
+    const { service } = createHarness({ hasWaitingDescendantInteraction: true })
+
+    await expect(
+      invokeRoute(service, runsGetRoute.name, { runId: 'run-1' })
+    ).resolves.toMatchObject({ phase: 'awaiting_interaction' })
+  })
+
+  it('ignores malformed subagent progress when projecting phase', async () => {
+    const { service } = createHarness({
+      messages: [createSubagentInteractionMessage('permission', true, '{')]
+    })
+
+    await expect(
+      invokeRoute(service, runsGetRoute.name, { runId: 'run-1' })
+    ).resolves.toMatchObject({ phase: 'running' })
+  })
+
+  it('derives phase from the latest message when reading an older transcript page', async () => {
+    const { service, projection } = createHarness()
+    vi.mocked(projection.listMessagesPage).mockResolvedValueOnce({
+      messages: [createMessage({})],
+      nextCursor: null,
+      hasMore: false
+    })
+    vi.mocked(projection.getMessages).mockResolvedValueOnce([
+      createInteractionMessage('question_request')
+    ])
+
+    await expect(
+      invokeRoute(service, runsGetRoute.name, {
+        runId: 'run-1',
+        cursor: { orderSeq: 2, id: 'message-2' }
+      })
+    ).resolves.toMatchObject({ phase: 'awaiting_interaction' })
+    expect(projection.getMessages).toHaveBeenCalledWith('run-1')
+  })
+
+  it('derives phase independently of a limited transcript page', async () => {
+    const { service, projection } = createHarness()
+    vi.mocked(projection.listMessagesPage).mockResolvedValueOnce({
+      messages: [createMessage({})],
+      nextCursor: { orderSeq: 1, id: 'message-1' },
+      hasMore: true
+    })
+    vi.mocked(projection.getMessages).mockResolvedValueOnce([
+      createMessage({}),
+      createInteractionMessage('tool_call_permission')
+    ])
+
+    await expect(
+      invokeRoute(service, runsGetRoute.name, { runId: 'run-1', limit: 1 })
+    ).resolves.toMatchObject({ phase: 'awaiting_interaction' })
+    expect(projection.getMessages).toHaveBeenCalledWith('run-1')
   })
 
   it('enforces the public message limit in UTF-8 bytes', () => {
@@ -368,8 +574,10 @@ describe('CliRunService', () => {
     })
   })
 
-  it('emits a recovery snapshot and then terminates on a targeted completion event', async () => {
-    const { service, hub } = createHarness()
+  it('keeps watching after a provider round and terminates on the root Session status', async () => {
+    const { service, hub } = createHarness({
+      messages: [createInteractionMessage('tool_call_permission')]
+    })
     const emitted: Array<{ event: string; data: unknown; context: unknown }> = []
     let snapshotEmitted!: () => void
     const snapshotReady = new Promise<void>((resolve) => {
@@ -398,62 +606,177 @@ describe('CliRunService', () => {
       },
       { kind: 'run', runId: 'run-1' }
     )
-
-    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:1' })
-    expect(emitted.map((entry) => entry.event)).toEqual(['runs.snapshot', 'chat.stream.completed'])
-    expect(emitted[0].context).toEqual({ runId: 'run-1', cursor: 'test-epoch_1:0' })
-  })
-
-  it('does not terminate a root run watcher when a descendant session completes', async () => {
-    const { service, hub } = createHarness()
-    const emitted: string[] = []
-    let snapshotEmitted!: () => void
-    const snapshotReady = new Promise<void>((resolve) => {
-      snapshotEmitted = resolve
-    })
-    const result = service.dispatchStream(
-      eventsSubscribeRoute.name,
-      { runId: 'run-1' },
-      humanCaller,
-      new AbortController().signal,
-      async (event) => {
-        emitted.push(event)
-        if (event === 'runs.snapshot') snapshotEmitted()
+    await vi.waitFor(() =>
+      expect(emitted.map((entry) => entry.event)).toContain('chat.stream.completed')
+    )
+    let settled = false
+    void result.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
       }
     )
-    await snapshotReady
-
-    hub.publish(
-      'chat.stream.completed',
-      {
-        requestId: 'request-child',
-        sessionId: 'child-session',
-        messageId: 'message-child',
-        completedAt: 300
-      },
-      { kind: 'run', runId: 'run-1' }
-    )
-    await vi.waitFor(() => expect(emitted).toContain('chat.stream.completed'))
-    let settled = false
-    void result.finally(() => {
-      settled = true
-    })
     await Promise.resolve()
     expect(settled).toBe(false)
 
     hub.publish(
-      'chat.stream.completed',
-      {
-        requestId: 'request-root',
-        sessionId: 'run-1',
-        messageId: 'message-root',
-        completedAt: 301
-      },
+      'sessions.status.changed',
+      { sessionId: 'run-1', status: 'idle', version: 301 },
       { kind: 'run', runId: 'run-1' }
     )
 
     await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
-    expect(emitted).toEqual(['runs.snapshot', 'chat.stream.completed', 'chat.stream.completed'])
+    expect(emitted.map((entry) => entry.event)).toEqual([
+      'runs.snapshot',
+      'chat.stream.completed',
+      'sessions.status.changed'
+    ])
+    expect(emitted[0].data).toMatchObject({
+      run: { phase: 'awaiting_interaction' }
+    })
+    expect(emitted[0].context).toEqual({ runId: 'run-1', cursor: 'test-epoch_1:0' })
+  })
+
+  it('keeps watching after a provider failure until the root Session enters error', async () => {
+    const { service, hub } = createHarness()
+    const { emitted, result } = await startRunWatcher(service)
+
+    hub.publish(
+      'chat.stream.failed',
+      {
+        requestId: 'request-1',
+        sessionId: 'run-1',
+        messageId: 'message-2',
+        failedAt: 300,
+        error: 'provider round failed'
+      },
+      { kind: 'run', runId: 'run-1' }
+    )
+    await vi.waitFor(() => expect(emitted).toContain('chat.stream.failed'))
+    await expectWatcherPending(result)
+
+    hub.publish(
+      'sessions.status.changed',
+      { sessionId: 'run-1', status: 'error', version: 301 },
+      { kind: 'run', runId: 'run-1' }
+    )
+
+    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
+    expect(emitted).toEqual(['runs.snapshot', 'chat.stream.failed', 'sessions.status.changed'])
+  })
+
+  it('keeps watching after replaying a provider terminal event from a cursor', async () => {
+    const { service, hub } = createHarness()
+    hub.publish(
+      'chat.stream.completed',
+      {
+        requestId: 'request-1',
+        sessionId: 'run-1',
+        messageId: 'message-2',
+        completedAt: 300
+      },
+      { kind: 'run', runId: 'run-1' }
+    )
+    const emitted: string[] = []
+    const controller = new AbortController()
+    const result = service.dispatchStream(
+      eventsSubscribeRoute.name,
+      { runId: 'run-1', cursor: 'test-epoch_1:0' },
+      humanCaller,
+      controller.signal,
+      async (event) => {
+        emitted.push(event)
+      }
+    )
+
+    await vi.waitFor(() => expect(emitted).toEqual(['chat.stream.completed']))
+    await expectWatcherPending(result)
+
+    hub.publish(
+      'sessions.status.changed',
+      { sessionId: 'run-1', status: 'idle', version: 301 },
+      { kind: 'run', runId: 'run-1' }
+    )
+
+    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
+    expect(emitted).toEqual(['chat.stream.completed', 'sessions.status.changed'])
+  })
+
+  it('finishes when cursor catch-up includes an already-terminal root Session', async () => {
+    const idleSession = { ...baseSession, status: 'idle' as const }
+    const { service, hub } = createHarness({ session: idleSession })
+    hub.publish(
+      'chat.stream.completed',
+      {
+        requestId: 'request-1',
+        sessionId: 'run-1',
+        messageId: 'message-2',
+        completedAt: 300
+      },
+      { kind: 'run', runId: 'run-1' }
+    )
+    hub.publish(
+      'sessions.status.changed',
+      { sessionId: 'run-1', status: 'idle', version: 301 },
+      { kind: 'run', runId: 'run-1' }
+    )
+    const emitted: string[] = []
+
+    await expect(
+      service.dispatchStream(
+        eventsSubscribeRoute.name,
+        { runId: 'run-1', cursor: 'test-epoch_1:0' },
+        humanCaller,
+        new AbortController().signal,
+        async (event) => {
+          emitted.push(event)
+        }
+      )
+    ).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
+    expect(emitted).toEqual(['chat.stream.completed', 'sessions.status.changed'])
+  })
+
+  it('terminates a watcher when detached initial-turn startup fails', async () => {
+    const { service, hub } = createHarness()
+    const { emitted, result } = await startRunWatcher(service)
+
+    hub.publish(
+      'runs.turn.failed',
+      {
+        runId: 'run-1',
+        sessionId: 'run-1',
+        failedAt: 300,
+        error: 'Detached Agent run could not start'
+      },
+      { kind: 'run', runId: 'run-1' }
+    )
+
+    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:1' })
+    expect(emitted).toEqual(['runs.snapshot', 'runs.turn.failed'])
+  })
+
+  it('does not terminate a root run watcher when a descendant Session becomes terminal', async () => {
+    const { service, hub } = createHarness()
+    const { emitted, result } = await startRunWatcher(service)
+
+    hub.publish(
+      'sessions.status.changed',
+      { sessionId: 'child-session', status: 'idle', version: 300 },
+      { kind: 'run', runId: 'run-1' }
+    )
+    await vi.waitFor(() => expect(emitted).toContain('sessions.status.changed'))
+    await expectWatcherPending(result)
+
+    hub.publish(
+      'sessions.status.changed',
+      { sessionId: 'run-1', status: 'idle', version: 301 },
+      { kind: 'run', runId: 'run-1' }
+    )
+
+    await expect(result).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:2' })
+    expect(emitted).toEqual(['runs.snapshot', 'sessions.status.changed', 'sessions.status.changed'])
   })
 
   it('returns immediately after recovering an already-terminal run', async () => {
@@ -472,7 +795,10 @@ describe('CliRunService', () => {
     ).resolves.toEqual({ runId: 'run-1', lastCursor: 'test-epoch_1:0' })
     expect(emit).toHaveBeenCalledWith(
       'runs.snapshot',
-      expect.objectContaining({ recoveryReason: 'cursor_missing' }),
+      expect.objectContaining({
+        recoveryReason: 'cursor_missing',
+        run: expect.objectContaining({ phase: 'terminal' })
+      }),
       { runId: 'run-1', cursor: 'test-epoch_1:0' }
     )
   })

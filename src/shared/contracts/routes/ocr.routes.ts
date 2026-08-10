@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineRouteContract } from '../common'
+import { LOCAL_CONTROL_PROTOCOL_VERSION, LOCAL_CONTROL_SURFACE_VERSION } from '../localControl'
 import {
   ATTACHMENT_OCR_MAX_TEXT_CHARACTERS,
   ATTACHMENT_PDF_OCR_MAX_PAGE_SPANS,
@@ -138,8 +139,8 @@ export const OcrBenchmarkSchema = z
     inputBytes: z.number().int().positive().max(OCR_EXTRACTION_MAX_INPUT_BYTES),
     durationMs: OcrPublicTimingSchema,
     appVersion: z.string().min(1).max(128),
-    protocolVersion: z.literal(1),
-    surfaceVersion: z.literal(1)
+    protocolVersion: z.literal(LOCAL_CONTROL_PROTOCOL_VERSION),
+    surfaceVersion: z.literal(LOCAL_CONTROL_SURFACE_VERSION)
   })
   .strict()
   .superRefine((benchmark, context) => {
