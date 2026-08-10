@@ -108,7 +108,12 @@ function messageText(message: ChatMessageRecord): string {
   if (message.status !== 'sent') return ''
   try {
     const blocks = AssistantMessageBlocksSchema.safeParse(JSON.parse(message.content))
-    return blocks.success ? projectFinalAssistantAnswer(blocks.data as AssistantMessageBlock[]) : ''
+    if (!blocks.success) return ''
+    const validatedBlocks = blocks.data as AssistantMessageBlock[]
+    if (validatedBlocks.some((block) => block.type === 'content' && block.status !== 'success')) {
+      return ''
+    }
+    return projectFinalAssistantAnswer(validatedBlocks)
   } catch {
     return ''
   }

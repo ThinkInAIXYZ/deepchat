@@ -343,7 +343,7 @@ describe('CliRunService', () => {
     expect(JSON.stringify(result)).not.toContain('private')
   })
 
-  it('keeps pending and failed assistant text empty while preserving statuses', async () => {
+  it('keeps non-final assistant text empty while preserving statuses', async () => {
     const failedSession = { ...baseSession, status: 'error' as const }
     const { service } = createHarness({
       session: failedSession,
@@ -386,6 +386,32 @@ describe('CliRunService', () => {
               content: 'private failure detail'
             }
           ])
+        }),
+        createMessage({
+          id: 'message-3',
+          orderSeq: 3,
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'content',
+              status: 'pending',
+              timestamp: 1,
+              content: 'private pending content in sent message'
+            }
+          ])
+        }),
+        createMessage({
+          id: 'message-4',
+          orderSeq: 4,
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'content',
+              status: 'error',
+              timestamp: 1,
+              content: 'private errored content in sent message'
+            }
+          ])
         })
       ]
     })
@@ -397,7 +423,9 @@ describe('CliRunService', () => {
     expect(result.status).toBe('error')
     expect(result.messages).toEqual([
       expect.objectContaining({ role: 'assistant', status: 'pending', text: '' }),
-      expect.objectContaining({ role: 'assistant', status: 'error', text: '' })
+      expect.objectContaining({ role: 'assistant', status: 'error', text: '' }),
+      expect.objectContaining({ role: 'assistant', status: 'sent', text: '' }),
+      expect.objectContaining({ role: 'assistant', status: 'sent', text: '' })
     ])
   })
 
@@ -413,6 +441,12 @@ describe('CliRunService', () => {
           orderSeq: 2,
           role: 'assistant',
           content: JSON.stringify({ content: 'private non-array content' })
+        }),
+        createMessage({
+          id: 'message-3',
+          orderSeq: 3,
+          role: 'assistant',
+          content: '{'
         })
       ]
     })
@@ -422,6 +456,7 @@ describe('CliRunService', () => {
     )
 
     expect(result.messages).toEqual([
+      expect.objectContaining({ role: 'assistant', status: 'sent', text: '' }),
       expect.objectContaining({ role: 'assistant', status: 'sent', text: '' }),
       expect.objectContaining({ role: 'assistant', status: 'sent', text: '' })
     ])
