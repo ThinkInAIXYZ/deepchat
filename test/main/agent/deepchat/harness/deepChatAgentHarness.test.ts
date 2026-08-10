@@ -7632,7 +7632,7 @@ describe('DeepChatAgentHarness', () => {
   })
 
   describe('queuePendingInput', () => {
-    it('releases a claimed queue item when its Run start fact cannot commit', async () => {
+    it('marks a claimed queue item retry-required when its Run start fact cannot commit', async () => {
       const commitRunStarted = vi
         .spyOn(sessionData.tapeStore, 'commitRunStarted')
         .mockImplementation(() => {
@@ -7647,7 +7647,7 @@ describe('DeepChatAgentHarness', () => {
       await vi.waitFor(() => expect(commitRunStarted).toHaveBeenCalledOnce())
       await vi.waitFor(async () => {
         expect(await agent.listPendingInputs('s1')).toEqual([
-          expect.objectContaining({ id: pending.id, state: 'pending' })
+          expect.objectContaining({ id: pending.id, state: 'retry_required' })
         ])
       })
       expect(processStream).not.toHaveBeenCalled()
@@ -7927,7 +7927,7 @@ describe('DeepChatAgentHarness', () => {
       await vi.waitFor(() => expect(processStream).toHaveBeenCalledTimes(2))
     })
 
-    it('releases an accepted send when stop cancels attachment recheck before its user fact', async () => {
+    it('marks an accepted send retry-required when stop cancels attachment recheck', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const dispatchPreflightStarted = deferred<void>()
       const ready = { status: 'ready' as const, issues: [], suggestedActions: [] }
@@ -7967,7 +7967,7 @@ describe('DeepChatAgentHarness', () => {
       await vi.waitFor(async () => {
         expect(await agent.listPendingInputs('s1')).toEqual([
           expect.objectContaining({
-            state: 'pending',
+            state: 'retry_required',
             payload: expect.objectContaining({ text: '' })
           })
         ])
@@ -8556,7 +8556,7 @@ describe('DeepChatAgentHarness', () => {
       }
     )
 
-    it('releases a partially claimed queue item when claim publication throws', async () => {
+    it('marks a partially claimed queue item retry-required when claim publication throws', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const pendingInputCoordinator = sessionData.pendingInputs
       const pending = pendingInputCoordinator.queuePendingInput('s1', {
@@ -8577,7 +8577,7 @@ describe('DeepChatAgentHarness', () => {
         await vi.waitFor(async () => {
           expect(claimQueuedInput).toHaveBeenCalledOnce()
           expect(await agent.listPendingInputs('s1')).toEqual([
-            expect.objectContaining({ id: pending.id, state: 'pending' })
+            expect.objectContaining({ id: pending.id, state: 'retry_required' })
           ])
         })
         expect(
