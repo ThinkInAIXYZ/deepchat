@@ -9,7 +9,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -162,7 +161,7 @@ const readMainProcessLogs = (): string => {
     return `No main process log directory found at ${logDir}`
   }
 
-  const files = readdirSync(logDir)
+  const files = ['main.old.jsonl', 'main.jsonl']
     .map((fileName) => resolve(logDir, fileName))
     .filter((filePath) => {
       try {
@@ -171,7 +170,6 @@ const readMainProcessLogs = (): string => {
         return false
       }
     })
-    .sort()
 
   if (files.length === 0) {
     return `No main process log files found at ${logDir}`
@@ -195,6 +193,7 @@ const seedE2eUserDataDir = (userDataDir: string): void => {
     JSON.stringify(
       {
         init_complete: true,
+        loggingEnabled: true,
         guidedOnboardingState: {
           version: GUIDED_ONBOARDING_VERSION,
           status: 'completed',

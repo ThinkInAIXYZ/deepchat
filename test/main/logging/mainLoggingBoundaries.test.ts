@@ -34,16 +34,20 @@ describe('Main logging boundaries', () => {
     expect(importers).toEqual(['main/logging/electronMainLogPersistence.ts'])
   })
 
-  it('does not intercept global console methods or retain the legacy Main log path', async () => {
+  it('does not expose another file transport or retain the legacy Main log path', async () => {
     const sourceRoot = path.resolve(process.cwd(), 'src')
     const files = [
       ...(await readTypeScriptFiles(path.join(sourceRoot, 'main'))),
       ...(await readTypeScriptFiles(path.join(sourceRoot, 'shared')))
     ]
 
-    for (const { source } of files) {
+    for (const { path: filePath, source } of files) {
       expect(source).not.toMatch(/console\.(?:log|error|warn|info|debug|trace)\s*=/)
       expect(source).not.toContain('logs/main.log')
+      if (!filePath.endsWith(path.join('main', 'logging', 'electronMainLogPersistence.ts'))) {
+        expect(source).not.toContain('transports.file')
+        expect(source).not.toContain('resolvePathFn')
+      }
     }
   })
 })

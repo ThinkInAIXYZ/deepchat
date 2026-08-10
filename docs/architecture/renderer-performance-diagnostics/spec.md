@@ -9,7 +9,7 @@
 ## 目标
 
 1. 对 chat main 建立从 renderer shell 到 startup workload、session 首屏恢复的结构化性能记录链。
-2. 在用户已启用本地日志时，将经过 schema 校验和隐私裁剪的 NDJSON 记录写入 userData 的 logs 目录；文件可与现有 `main.log` 一同通过日志目录入口获取。
+2. 在用户已启用本地日志时，将经过 schema 校验和隐私裁剪的 NDJSON 记录写入 userData 的 logs 目录；文件可与 Main 进程的 `main.jsonl` 一同通过日志目录入口获取，但保持独立 schema、文件和轮转策略。
 3. 将记录关联到 `startupRunId`、阶段、相对耗时、fallback 结果和 workload task 完成状态，不记录会话内容、session ID、项目路径、模型/Provider 配置、错误原文或密钥。
 4. 保持 owner：`ChatMainApp` 负责 app shell 阶段，`ChatTabView` 负责 bootstrap/route/interactive/deferred 阶段，ChatPage feature 只负责其 session viewport 阶段；主进程只负责持久化已校验的诊断记录。
 5. 诊断路径失败、日志关闭、写入失败或性能 API 不可用时均不能阻塞启动、会话恢复或用户交互。

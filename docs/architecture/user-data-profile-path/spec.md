@@ -40,7 +40,8 @@ The explicit profile path is process-local and does not migrate, copy, or delete
 - Modules that resolve profile paths before normal startup must follow the same rule. They may either delay path
   resolution until after startup applies `app.setPath('userData', ...)`, or read `DEEPCHAT_E2E_USER_DATA_DIR` directly
   and fall back to Electron's default path.
-- Main-process logs must be written under `<profile-path>/logs/main.log`.
+- Main-process logs must be written as JSONL under `<profile-path>/logs/main.jsonl`, with at most one
+  rotated archive at `<profile-path>/logs/main.old.jsonl`.
 - Provider database cache files must be written under `<profile-path>/provider-db/`.
 - While an explicit profile is in effect, the process must confine all profile-scoped reads and writes to that
   profile and must not touch the default profile path, so a default-profile build and an explicit-profile build can
@@ -70,7 +71,7 @@ application settings (`app-settings.json`), SQLite databases (`app_db/`), OAuth 
 
 | Resolver | File | Provides | Rationale (Why not `app.getPath`) |
 | --- | --- | --- | --- |
-| `log.transports.file.resolvePathFn` | `src/shared/logger.ts` | log `logs/main.log` | `appMain.ts` → `logger.ts` |
+| `ElectronMainLogPersistence.resolveLogDirectory` | `src/main/logging/electronMainLogPersistence.ts` | logs `logs/main.jsonl` and `logs/main.old.jsonl` | Main logging is enabled only after profile selection and settings hydration |
 | `ProviderDbLoader.userDataDir` | `src/main/provider/providerDbLoader.ts` | model provider `provider-db/` | `appMain.ts` → `app/mainProcess.ts` → `app/composition.ts` → `providerDbLoader.ts` |
 | `getDefaultUserDataDir()` | `test/e2e/fixtures/electronApp.ts` | profile root | No Electron `app` |
 
@@ -81,7 +82,8 @@ application settings (`app-settings.json`), SQLite databases (`app_db/`), OAuth 
 - With `DEEPCHAT_E2E_USER_DATA_DIR` set to a non-empty absolute path, startup applies that path before profile-backed
   runtime initialization.
 - In application startup and early path resolvers, whitespace-only `DEEPCHAT_E2E_USER_DATA_DIR` is treated as unset.
-- Main-process logs are created under `<profile-path>/logs/main.log`.
+- Main-process logs are created under `<profile-path>/logs/main.jsonl`; rotation uses
+  `<profile-path>/logs/main.old.jsonl`.
 - Provider database cache files are created under `<profile-path>/provider-db/`.
 - With `DEEPCHAT_E2E_USER_DATA_DIR` already set, the E2E fixture uses that directory and must not delete it.
 - With `DEEPCHAT_E2E_USER_DATA_DIR` unset, the E2E fixture creates a temporary profile and deletes only that
@@ -97,7 +99,8 @@ application settings (`app-settings.json`), SQLite databases (`app_db/`), OAuth 
 
 - Launch with `DEEPCHAT_E2E_USER_DATA_DIR` set to a profile directory and verify profile-backed files appear under
   that directory.
-- Verify `logs/main.log` is created under the selected profile path.
+- Verify `logs/main.jsonl` is created under the selected profile path and rotation retains only
+  `logs/main.old.jsonl`.
 - Verify provider DB cache files are created under the selected profile path.
 - Run a Playwright spec with `DEEPCHAT_E2E_USER_DATA_DIR` unset and verify the fixture-owned temporary directory is
   deleted.
