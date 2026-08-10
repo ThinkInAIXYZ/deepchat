@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ElectronMainLogPersistence } from '@/logging/electronMainLogPersistence'
+import { MAX_MAIN_LOG_RECORD_BYTES } from '@/logging/mainLogger'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const temporaryDirectories: string[] = []
@@ -121,6 +122,53 @@ describe('ElectronMainLogPersistence', () => {
     expect(fs.readFileSync(activePath, 'utf8')).toBe('{"seq":1}\n')
     expect(fs.readFileSync(legacyPath, 'utf8')).toBe('legacy text\n')
   })
+
+  it('disables persistence after a bounded scan of an oversized incomplete tail', () => {
+    const userData = createUserData()
+    const activePath = path.join(userData, 'logs/main.jsonl')
+    fs.mkdirSync(path.dirname(activePath), { recursive: true })
+    const descriptor = fs.openSync(activePath, 'w')
+    try {
+      fs.ftruncateSync(descriptor, MAX_FILE_BYTES * 100)
+    } finally {
+      fs.closeSync(descriptor)
+    }
+    const readSync = vi.fn(
+      (
+        fd: number,
+        buffer: NodeJS.ArrayBufferView,
+        offset: number,
+        length: number,
+        position: number | null
+      ) => fs.readSync(fd, buffer, offset, length, position)
+    )
+    const { persistence } = createPersistence(userData, { readSync })
+
+    expect(persistence.enable()).toBe(false)
+    expect(readSync.mock.calls.reduce((total, call) => total + call[3], 0)).toBeLessThanOrEqual(
+      MAX_MAIN_LOG_RECORD_BYTES + 2
+    )
+    expect(fs.statSync(activePath).size).toBe(MAX_FILE_BYTES * 100)
+  })
+
+  it.each([
+    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES, enabled: true },
+    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES + 1, enabled: false }
+  ])(
+    'handles an incomplete tail of $tailBytes bytes at the repair boundary',
+    ({ tailBytes, enabled }) => {
+      const userData = createUserData()
+      const activePath = path.join(userData, 'logs/main.jsonl')
+      const prefix = Buffer.from('{"seq":1}\n')
+      const original = Buffer.concat([prefix, Buffer.alloc(tailBytes, 0x78)])
+      fs.mkdirSync(path.dirname(activePath), { recursive: true })
+      fs.writeFileSync(activePath, original)
+      const { persistence } = createPersistence(userData)
+
+      expect(persistence.enable()).toBe(enabled)
+      expect(fs.readFileSync(activePath)).toEqual(enabled ? prefix : original)
+    }
+  )
 
   it('rotates before crossing the limit and retains one complete archive', () => {
     const userData = createUserData()

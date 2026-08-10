@@ -191,11 +191,12 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
       }
       if (lastByte[0] === 0x0a) return
 
-      const chunk = Buffer.allocUnsafe(Math.min(TAIL_SCAN_CHUNK_BYTES, size))
+      const scanFloor = Math.max(0, size - (MAX_MAIN_LOG_RECORD_BYTES + 1))
+      const chunk = Buffer.allocUnsafe(Math.min(TAIL_SCAN_CHUNK_BYTES, size - scanFloor))
       let scanEnd = size
       let truncateAt = 0
-      while (scanEnd > 0) {
-        const scanStart = Math.max(0, scanEnd - chunk.length)
+      while (scanEnd > scanFloor) {
+        const scanStart = Math.max(scanFloor, scanEnd - chunk.length)
         const readLength = scanEnd - scanStart
         const bytesRead = this.fs.readSync(descriptor, chunk, 0, readLength, scanStart)
         if (bytesRead !== readLength) throw new Error('Main JSONL tail could not be read')
@@ -205,6 +206,9 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
           break
         }
         scanEnd = scanStart
+      }
+      if (truncateAt === 0 && scanFloor > 0) {
+        throw new Error('Main JSONL incomplete tail exceeds the maximum record size')
       }
       this.fs.ftruncateSync(descriptor, truncateAt)
     } finally {

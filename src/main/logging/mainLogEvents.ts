@@ -318,6 +318,9 @@ export interface MainLogEventInputMap {
     turnId: string
     reason: 'recovered_result_predates_turn'
   }
+  'orchestration.delegation.observations.dropped': {
+    droppedCount: number
+  }
 }
 
 export type MainLogEventName = keyof MainLogEventInputMap
@@ -1038,6 +1041,11 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       ...projectDelegationIdentity(input),
       reason: oneOf('reason', input.reason, STALE_RESULT_REASONS)
     })
+  },
+  'orchestration.delegation.observations.dropped': {
+    inputFields: ['droppedCount'],
+    level: 'warn',
+    project: (input) => ({ droppedCount: positiveCount('droppedCount', input.droppedCount) })
   }
 }
 

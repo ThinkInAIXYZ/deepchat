@@ -445,6 +445,9 @@ function emitLiveDelegationObservation(observation: LiveDelegationLifecycleObser
     case 'stale_result_rejected':
       mainLogger.emit('orchestration.delegation.stale_result.rejected', observation)
       break
+    case 'observations_dropped':
+      mainLogger.emit('orchestration.delegation.observations.dropped', observation)
+      break
   }
 }
 

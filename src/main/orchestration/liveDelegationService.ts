@@ -195,6 +195,10 @@ export type LiveDelegationLifecycleObservation =
       childSessionId: string
       reason: 'recovered_result_predates_turn'
     })
+  | {
+      type: 'observations_dropped'
+      droppedCount: number
+    }
 
 type ActiveTurn = {
   delegationId: string
@@ -251,6 +255,7 @@ export class LiveDelegationService {
     observation: LiveDelegationLifecycleObservation
   ) => void | Promise<void>
   private readonly now: () => number
+  private observationsDropped = 0
   private observationDrain: NodeJS.Immediate | undefined
   private unsubscribeRuntime: (() => void) | null = null
   private reconcilePromise: Promise<void> | null = null
@@ -1936,6 +1941,7 @@ export class LiveDelegationService {
   private notifyObserver(observation: LiveDelegationLifecycleObservation): void {
     if (this.pendingObservations.length >= MAX_PENDING_LIFECYCLE_OBSERVATIONS) {
       this.pendingObservations.shift()
+      this.observationsDropped += 1
     }
     this.pendingObservations.push(observation)
     this.scheduleObservationDrain()
@@ -1962,18 +1968,31 @@ export class LiveDelegationService {
   private drainObservations(): void {
     const observations = this.pendingObservations.splice(0, LIFECYCLE_OBSERVATION_DRAIN_BATCH_SIZE)
     for (const observation of observations) {
-      try {
-        void Promise.resolve(this.observe(observation)).catch(() => undefined)
-      } catch {
-        // Diagnostics must not alter durable delegation state, recovery, or child execution.
-      }
+      this.dispatchObservation(observation)
     }
     if (this.pendingObservations.length > 0) {
       this.scheduleObservationDrain()
       return
     }
+    if (this.observationsDropped > 0) {
+      const droppedCount = this.observationsDropped
+      this.observationsDropped = 0
+      this.dispatchObservation({ type: 'observations_dropped', droppedCount })
+      if (this.pendingObservations.length > 0) {
+        this.scheduleObservationDrain()
+        return
+      }
+    }
     for (const resolve of this.observationFlushWaiters) resolve()
     this.observationFlushWaiters.clear()
+  }
+
+  private dispatchObservation(observation: LiveDelegationLifecycleObservation): void {
+    try {
+      void Promise.resolve(this.observe(observation)).catch(() => undefined)
+    } catch {
+      // Diagnostics must not alter durable delegation state, recovery, or child execution.
+    }
   }
 
   private publishChanged(delegation: LiveDelegation): void {

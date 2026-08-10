@@ -64,6 +64,18 @@ describe('Main log event projection', () => {
     expect(JSON.stringify(projected)).not.toContain('SECRET_')
   })
 
+  it('projects delegation observation loss as one count-only warning', () => {
+    expect(
+      projectMainLogEvent('orchestration.delegation.observations.dropped', {
+        droppedCount: 7,
+        prompt: 'SECRET_PROMPT'
+      } as never)
+    ).toEqual({ level: 'warn', context: { droppedCount: 7 } })
+    expect(() =>
+      projectMainLogEvent('orchestration.delegation.observations.dropped', { droppedCount: 0 })
+    ).toThrow(MainLogEventProjectionError)
+  })
+
   it('rejects invalid identifiers without copying their values into the error', () => {
     let projectionError: unknown
     try {

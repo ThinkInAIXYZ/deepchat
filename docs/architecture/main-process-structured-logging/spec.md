@@ -103,16 +103,13 @@ projected context. Console rendering is not a second persisted log.
 
 ## Event Catalog Rules
 
-The initial catalog covers low-frequency operational boundaries in these components:
+The V1 catalog is deliberately limited to these low-frequency operational boundaries:
 
 - `app.startup`, `app.shutdown`, `app.update`, and `process`;
-- database, settings migration, file watcher, scheduler, updater, MCP process, remote channel, and
-  other host lifecycle boundaries;
-- `agent.run`, `agent.turn`, `agent.admission`, `agent.session`, and `agent.acp.process`;
+- database initialization and fixed startup-component degradation;
+- `agent.run` and `agent.admission`;
 - `orchestration.delegation`;
-- provider attempt summaries, authorization outcomes, and rate-limit/degradation transitions;
-- tool permission/dispatch/outcome summaries using content-free identities and counts;
-- Tape Journal, reconciliation, projection, recovery, and integrity failures.
+- durable Run and delegation reconciliation failures.
 
 The catalog must not contain events for individual provider stream chunks, ACP protocol messages,
 PTY chunks, window focus changes, normal queue mutations, or normal refresh loops.
@@ -213,6 +210,11 @@ Recent wait and hold distributions retain at most 256 samples. They are process-
 reset on restart, and are not recovery or accounting facts. The admission implementation owns its
 collector instead of coupling to the Memory diagnostics lifecycle.
 
+Delegation lifecycle observations use a bounded ordered queue. If that queue overflows, one
+`orchestration.delegation.observations.dropped` warning reports the coalesced loss count after the
+surviving backlog is dispatched. Teardown dispatches that warning before resolving, but does not
+wait for asynchronous logging work.
+
 ## Logging Setting And Startup
 
 Persistence has three states: `unknown`, `enabled`, and `disabled`.
@@ -246,7 +248,9 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 - If archive removal or rename fails, the active file remains intact, persistence is disabled for
   the rest of the process, and one payload-free native console warning is emitted.
 - Before the first enabled append, an incomplete final line from an interrupted prior write is
-  removed without changing complete preceding records.
+  removed without changing complete preceding records. Tail repair scans at most one maximum-sized
+  record plus its delimiter; a longer incomplete tail disables persistence instead of blocking Main
+  with an unbounded scan.
 - Transport, projection, serialization, repair, and rotation failures never affect application
   behavior.
 - JSONL is best-effort local diagnostics, not an audit log, transaction journal, or power-loss-safe

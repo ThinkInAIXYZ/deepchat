@@ -291,6 +291,41 @@ describeIfSqlite('LiveDelegationService', () => {
     )
   })
 
+  it('reports bounded lifecycle observation loss before stop resolves', async () => {
+    observations.splice(0)
+    let reentered = false
+    dispatchObservation = (observation) => {
+      observations.push(observation)
+      if (observation.type === 'observations_dropped' && !reentered) {
+        reentered = true
+        ;(service as any).notifyObserver({
+          type: 'turn_queued',
+          parentSessionId: 'parent',
+          delegationId: 'delegation-reentrant',
+          turnId: 'turn-reentrant',
+          turnKind: 'follow_up'
+        })
+      }
+    }
+    for (let index = 0; index < 520; index += 1) {
+      ;(service as any).notifyObserver({
+        type: 'turn_queued',
+        parentSessionId: 'parent',
+        delegationId: `delegation-${index}`,
+        turnId: `turn-${index}`,
+        turnKind: 'initial'
+      })
+    }
+
+    await service.stop()
+
+    expect(observations).toHaveLength(514)
+    expect(observations[0]).toMatchObject({ delegationId: 'delegation-8' })
+    expect(observations[511]).toMatchObject({ delegationId: 'delegation-519' })
+    expect(observations[512]).toEqual({ type: 'observations_dropped', droppedCount: 8 })
+    expect(observations[513]).toMatchObject({ delegationId: 'delegation-reentrant' })
+  })
+
   it('defers lifecycle observer reentrancy until turn scheduling is established', async () => {
     let interruption: Promise<LiveDelegationDetail> | undefined
     dispatchObservation = (observation) => {
