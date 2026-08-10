@@ -75,6 +75,9 @@ function normalizedPath(candidate: unknown): string {
   return String(candidate).replace(/\\/g, '/')
 }
 
+const PLATFORM_COMMAND_SHELL =
+  process.platform === 'win32' ? WINDOWS_POWERSHELL_COMMAND_SHELL : POSIX_COMMAND_SHELL
+
 describe('BackgroundExecSessionManager', () => {
   let manager: BackgroundExecSessionManager
   const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
@@ -342,7 +345,7 @@ describe('BackgroundExecSessionManager', () => {
 
     try {
       const result = await manager.start('conv-1', 'echo test', '/workspace', {
-        commandShell: POSIX_COMMAND_SHELL,
+        commandShell: PLATFORM_COMMAND_SHELL,
         timeout: 0,
         env: {
           PATH: '/prepared/bin:/usr/local/bin',
@@ -377,7 +380,7 @@ describe('BackgroundExecSessionManager', () => {
     const appendFile = vi.spyOn(fs.promises, 'appendFile').mockResolvedValue(undefined)
 
     const result = await manager.start('conv-1', 'echo test', '/workspace', {
-      commandShell: POSIX_COMMAND_SHELL,
+      commandShell: PLATFORM_COMMAND_SHELL,
       timeout: 0,
       offloadThresholdChars: 1_000
     })
@@ -593,7 +596,7 @@ describe('BackgroundExecSessionManager', () => {
     vi.mocked(spawn).mockReturnValue(child as never)
 
     const result = await manager.start('conv-1', 'echo test', '/workspace', {
-      commandShell: POSIX_COMMAND_SHELL,
+      commandShell: PLATFORM_COMMAND_SHELL,
       timeout: 0
     })
     const bytes = Buffer.from('中文.txt\n', 'utf8')

@@ -247,7 +247,7 @@ describe('AgentFileSystemHandler path authorization', () => {
     )
   })
 
-  it('preserves case-sensitive POSIX containment', () => {
+  it.runIf(process.platform !== 'win32')('preserves case-sensitive POSIX containment', () => {
     const handler = new AgentFileSystemHandler(['/workspace/Project'])
 
     expect(handler.isPathAllowedAbsolute('/workspace/Project/src/file.ts')).toBe(true)
