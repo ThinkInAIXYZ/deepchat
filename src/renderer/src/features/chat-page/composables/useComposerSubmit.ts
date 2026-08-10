@@ -212,10 +212,30 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   let pendingHandleRestoreSessionId: string | null = null
   let searchCapabilityRequestId = 0
 
-  const initialDraft = createEmptyComposerDraft()
+  const storedInitialDraft = loadComposerDraftFromStorage(activeDraftSessionId)
+  const initialDraft = storedInitialDraft ?? createEmptyComposerDraft()
+  if (storedInitialDraft) {
+    sessionDrafts.set(activeDraftSessionId, copyComposerDraft(storedInitialDraft))
+  }
   draftRevisions.set(activeDraftSessionId, initialDraft.revision)
   observedDraftFingerprints.set(activeDraftSessionId, composerDraftFingerprint(initialDraft))
-  observedSkillSelections.set(activeDraftSessionId, [])
+  observedSkillSelections.set(activeDraftSessionId, [...initialDraft.activeSkills])
+  if (storedInitialDraft) {
+    message.value = storedInitialDraft.rawMessage
+    attachedFiles.value = copyComposerFiles(storedInitialDraft.files)
+    if (chatInputRef.value) {
+      if (storedInitialDraft.activeSkills.length === 0) {
+        chatInputRef.value.clearPendingSkills?.()
+      } else {
+        chatInputRef.value.setPendingSkills?.([...storedInitialDraft.activeSkills])
+      }
+      chatInputRef.value.restoreDocumentSnapshot?.(
+        copyComposerDocument(storedInitialDraft.document)
+      )
+    } else {
+      pendingHandleRestoreSessionId = activeDraftSessionId
+    }
+  }
 
   const attachmentPreparationSummary = computed(
     () => blockedComposerAttempts.get(options.sessionId())?.summary ?? null

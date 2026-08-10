@@ -32,6 +32,32 @@ describe('composerDraftPersistence', () => {
     expect(loadComposerDraftFromStorage('s1')).toEqual(draft)
   })
 
+  it('stores only bounded attachment descriptors', () => {
+    saveComposerDraftToStorage('s1', {
+      ...createDraft('with file'),
+      files: [
+        {
+          name: 'image.png',
+          path: '/tmp/image.png',
+          mimeType: 'image/png',
+          content: 'raw-base64-image',
+          thumbnail: 'raw-base64-thumbnail',
+          resolvedRepresentation: { kind: 'image' }
+        }
+      ]
+    })
+
+    const raw = localStorage.getItem('deepchat.composerDraft.v1.s1') ?? ''
+    expect(raw).not.toContain('raw-base64-image')
+    expect(raw).not.toContain('raw-base64-thumbnail')
+    const loaded = loadComposerDraftFromStorage('s1')
+    expect(loaded?.files[0]).toEqual({
+      name: 'image.png',
+      path: '/tmp/image.png',
+      mimeType: 'image/png'
+    })
+  })
+
   it('does not store empty drafts and clears an existing key', () => {
     saveComposerDraftToStorage('s1', createDraft('filled'))
     saveComposerDraftToStorage('s1', createEmptyComposerDraft())

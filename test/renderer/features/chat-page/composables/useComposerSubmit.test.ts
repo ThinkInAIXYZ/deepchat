@@ -2,7 +2,10 @@ import { computed, effectScope, nextTick, ref, shallowReactive } from 'vue'
 import type { JSONContent } from '@tiptap/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerSubmit } from '@/features/chat-page/composables/useComposerSubmit'
-import { saveComposerDraftToStorage } from '@/features/chat-page/model/composerDraftPersistence'
+import {
+  loadComposerDraftFromStorage,
+  saveComposerDraftToStorage
+} from '@/features/chat-page/model/composerDraftPersistence'
 import type {
   AttachmentPreparationSummary,
   ChatMessageRecord,
@@ -1032,6 +1035,27 @@ describe('useComposerSubmit attachment preflight', () => {
       harness.stop()
       vi.useRealTimers()
     }
+  })
+
+  it('restores a persisted draft during initial mount', () => {
+    saveComposerDraftToStorage('s1', {
+      revision: 2,
+      rawMessage: 'draft from previous mount',
+      files: [],
+      activeSkills: [],
+      document: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'draft from previous mount' }] }
+        ]
+      }
+    })
+
+    const harness = createHarness()
+
+    expect(harness.actions.message.value).toBe('draft from previous mount')
+    harness.stop()
+    expect(loadComposerDraftFromStorage('s1')?.rawMessage).toBe('draft from previous mount')
   })
 
   it('restores a persisted draft when switching to its session', () => {

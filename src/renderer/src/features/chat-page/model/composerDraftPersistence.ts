@@ -86,6 +86,32 @@ function isMessageFile(value: unknown): value is MessageFile {
   )
 }
 
+function toPersistableFile(file: MessageFile): MessageFile {
+  return {
+    name: file.name,
+    path: file.path,
+    ...(file.type !== undefined ? { type: file.type } : {}),
+    ...(file.size !== undefined ? { size: file.size } : {}),
+    ...(file.mimeType !== undefined ? { mimeType: file.mimeType } : {}),
+    ...(file.token !== undefined ? { token: file.token } : {}),
+    ...(file.requestedRepresentation !== undefined
+      ? { requestedRepresentation: file.requestedRepresentation }
+      : {}),
+    ...(file.pdfTextCoverage !== undefined ? { pdfTextCoverage: file.pdfTextCoverage } : {}),
+    ...(file.metadata !== undefined ? { metadata: file.metadata } : {})
+  }
+}
+
+function toPersistableDraft(draft: ComposerSessionDraft): ComposerSessionDraft {
+  return {
+    revision: draft.revision,
+    rawMessage: draft.rawMessage,
+    files: draft.files.map(toPersistableFile),
+    activeSkills: [...draft.activeSkills],
+    document: draft.document
+  }
+}
+
 function parseComposerDraft(value: unknown): ComposerSessionDraft | null {
   if (
     !isRecord(value) ||
@@ -139,7 +165,7 @@ export function saveComposerDraftToStorage(sessionId: string, draft: ComposerSes
       storage.removeItem(storageKey(sessionId))
       return
     }
-    storage.setItem(storageKey(sessionId), JSON.stringify(draft))
+    storage.setItem(storageKey(sessionId), JSON.stringify(toPersistableDraft(draft)))
   } catch {
     // Storage can be unavailable (private mode, quota). Draft persistence is best-effort.
   }
