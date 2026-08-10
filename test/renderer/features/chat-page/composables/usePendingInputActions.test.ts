@@ -19,13 +19,20 @@ function createHarness() {
     queueItems: [
       {
         id: 'item-1',
+        state: 'pending',
         payload: {
           text: 'draft',
           files: [{ name: 'file.txt' }],
           search: true,
           activeSkills: ['skill-a'],
-          inlineItems: [{ type: 'file', path: 'workspace://file.txt' }]
+          inlineItems: [{ type: 'file', path: 'workspace://file.txt' }],
+          attachmentFallbackPolicy: 'send_without_image_content'
         }
+      },
+      {
+        id: 'retry-1',
+        state: 'retry_required',
+        payload: { text: 'retry', files: [] }
       }
     ],
     updateQueueInput: vi.fn().mockResolvedValue(undefined),
@@ -33,6 +40,7 @@ function createHarness() {
     deleteInput: vi.fn().mockResolvedValue(undefined),
     steerPendingInput: vi.fn().mockResolvedValue(undefined),
     resumeQueue: vi.fn().mockResolvedValue(true),
+    retryQueueInput: vi.fn().mockResolvedValue({ accepted: true, started: false }),
     resolveBlockedInput: vi.fn().mockResolvedValue(undefined)
   }
   const beginPlanTurn = vi.fn()
@@ -106,6 +114,42 @@ describe('usePendingInputActions', () => {
     harness.stop()
   })
 
+  it('retries only retry-required items and rebaselines plan state only when a turn starts', async () => {
+    const harness = createHarness()
+
+    await harness.actions.onPendingInputRetry('item-1')
+    expect(harness.pendingInputStore.retryQueueInput).not.toHaveBeenCalled()
+
+    await harness.actions.onPendingInputRetry('retry-1')
+    expect(harness.pendingInputStore.retryQueueInput).toHaveBeenCalledWith('s1', 'retry-1')
+    expect(harness.beginPlanTurn).not.toHaveBeenCalled()
+
+    harness.pendingInputStore.retryQueueInput.mockResolvedValueOnce({
+      accepted: true,
+      started: true
+    })
+    await harness.actions.onPendingInputRetry('retry-1')
+    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
+    harness.stop()
+  })
+
+  it('reports Queue retry failures without changing plan state', async () => {
+    const harness = createHarness()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.pendingInputStore.retryQueueInput.mockRejectedValueOnce(new Error('retry failed'))
+
+    await harness.actions.onPendingInputRetry('retry-1')
+
+    expect(harness.notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.pendingInput.retryFailed',
+      title: 'chat.pendingInput.retryFailed'
+    })
+    expect(harness.beginPlanTurn).not.toHaveBeenCalled()
+    consoleError.mockRestore()
+    harness.stop()
+  })
+
   it('updates an existing queue item without dropping files, search, or skills', async () => {
     const harness = createHarness()
 
@@ -116,7 +160,8 @@ describe('usePendingInputActions', () => {
       files: [{ name: 'file.txt' }],
       search: true,
       activeSkills: ['skill-a'],
-      inlineItems: [{ type: 'file', path: 'workspace://file.txt' }]
+      inlineItems: [{ type: 'file', path: 'workspace://file.txt' }],
+      attachmentFallbackPolicy: 'send_without_image_content'
     })
 
     await harness.actions.onPendingInputUpdate({ itemId: 'missing', text: 'ignored' })

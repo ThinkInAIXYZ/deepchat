@@ -44,6 +44,7 @@ const setupStore = async () => {
   const sessionClient = {
     listPendingInputs: vi.fn(),
     resumePendingQueue: vi.fn(),
+    retryPendingQueueInput: vi.fn(),
     queuePendingInput: vi.fn(),
     updateQueuedInput: vi.fn(),
     moveQueuedInput: vi.fn(),
@@ -85,6 +86,34 @@ describe('pendingInput store', () => {
     expect(store.resumingQueue).toBe(false)
     expect(store.items).toEqual([])
     expect(store.resumeAvailable).toBe(false)
+  })
+
+  it('deduplicates item retry and treats accepted-but-deferred work as success', async () => {
+    const { store, sessionClient } = await setupStore()
+    const released = {
+      ...createPendingItem('q1', 's1'),
+      state: 'retry_required' as const
+    }
+    const retry = createDeferred<{ accepted: boolean; started: boolean }>()
+    sessionClient.listPendingInputs
+      .mockResolvedValueOnce(createPendingResult([released]))
+      .mockResolvedValueOnce(createPendingResult([createPendingItem('q1', 's1')]))
+    sessionClient.retryPendingQueueInput.mockReturnValueOnce(retry.promise)
+    await store.loadPendingInputs('s1')
+
+    const operation = store.retryQueueInput('s1', 'q1')
+    expect(store.retryingItemId).toBe('q1')
+    await expect(store.retryQueueInput('s1', 'q1')).resolves.toEqual({
+      accepted: false,
+      started: false
+    })
+    expect(sessionClient.retryPendingQueueInput).toHaveBeenCalledOnce()
+
+    retry.resolve({ accepted: true, started: false })
+    await expect(operation).resolves.toEqual({ accepted: true, started: false })
+    expect(store.retryingItemId).toBeNull()
+    expect(store.items[0]?.state).toBe('pending')
+    expect(store.error).toBeNull()
   })
 
   it('ignores stale load results after the active session changes', async () => {

@@ -243,6 +243,7 @@ export type SessionTurnRuntimeSession =
       }
       isPendingQueueResumeAvailable(): Promise<boolean>
       resumePendingQueue(): Promise<boolean>
+      retryPendingQueueInput(itemId: string): Promise<{ accepted: boolean; started: boolean }>
     })
   | (SessionTurnRuntimeBase & { readonly kind: 'acp' })
 
@@ -293,6 +294,10 @@ export interface SessionTurnPort {
   listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]>
   isPendingQueueResumeAvailable(sessionId: string): Promise<boolean>
   resumePendingQueue(sessionId: string): Promise<boolean>
+  retryPendingQueueInput(
+    sessionId: string,
+    itemId: string
+  ): Promise<{ accepted: boolean; started: boolean }>
   queuePendingInput(
     sessionId: string,
     content: string | SendMessageInput

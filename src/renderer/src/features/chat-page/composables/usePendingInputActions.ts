@@ -35,7 +35,8 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
       files: target.payload.files ?? [],
       search: target.payload.search === true,
       activeSkills: target.payload.activeSkills ?? [],
-      inlineItems: target.payload.inlineItems ?? []
+      inlineItems: target.payload.inlineItems ?? [],
+      attachmentFallbackPolicy: target.payload.attachmentFallbackPolicy
     })
   }
 
@@ -94,6 +95,27 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
     }
   }
 
+  async function onPendingInputRetry(itemId: string) {
+    if (options.isReadOnlySession.value) return
+    const target = options.pendingInputStore.queueItems.find((item) => item.id === itemId)
+    if (target?.state !== 'retry_required') return
+
+    const sessionId = options.sessionId()
+    try {
+      const result = await options.pendingInputStore.retryQueueInput(sessionId, itemId)
+      if (result.started) {
+        options.beginPlanTurn(sessionId)
+      }
+    } catch (error) {
+      console.error('[ChatPage] retry queued input failed:', error)
+      options.notify({
+        kind: 'error',
+        code: 'chat.pendingInput.retryFailed',
+        title: options.t('chat.pendingInput.retryFailed')
+      })
+    }
+  }
+
   async function onPendingInputResolve(payload: {
     itemId: string
     action: 'retry' | 'send_without_image_content'
@@ -126,6 +148,7 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
     onPendingInputDelete,
     onPendingInputSteer,
     onPendingInputResume,
+    onPendingInputRetry,
     onPendingInputResolve
   }
 }

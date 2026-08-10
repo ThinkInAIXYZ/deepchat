@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "Lanjutkan antrean",
     "resumeFailed": "Gagal melanjutkan antrean",
+    "retry": "Coba lagi",
+    "retryRequired": "Perlu dicoba lagi",
+    "retryRequiredDescription": "Pesan ini tidak terkirim. Coba lagi untuk melanjutkan antrean.",
+    "retryFailed": "Gagal mencoba kembali pesan dalam antrean",
     "steer": "panduan",
     "queueCount": "Siap dikirim {count}/{max}",
     "toSteer": "Sela & kirim",

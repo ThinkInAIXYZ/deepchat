@@ -257,7 +257,12 @@ export interface SendMessageInput {
 }
 
 export type PendingSessionInputMode = 'queue' | 'steer'
-export type PendingSessionInputState = 'pending' | 'claimed' | 'blocked' | 'consumed'
+export type PendingSessionInputState =
+  | 'pending'
+  | 'claimed'
+  | 'blocked'
+  | 'retry_required'
+  | 'consumed'
 
 export interface PendingSessionInputRecord {
   id: string

@@ -80,6 +80,10 @@
   "pendingInput": {
     "resume": "Fortsæt kø",
     "resumeFailed": "Kunne ikke fortsætte køen",
+    "retry": "Prøv igen",
+    "retryRequired": "Kræver nyt forsøg",
+    "retryRequiredDescription": "Denne besked blev ikke sendt. Prøv igen for at fortsætte køen.",
+    "retryFailed": "Kunne ikke prøve beskeden igen",
     "steer": "Styring",
     "queueCount": "Afventer {count}/{max}",
     "toSteer": "Afbryd og send",

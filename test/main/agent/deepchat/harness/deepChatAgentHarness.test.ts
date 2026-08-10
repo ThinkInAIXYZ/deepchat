@@ -8033,7 +8033,7 @@ describe('DeepChatAgentHarness', () => {
 
         await vi.waitFor(async () => {
           expect(await agent.listPendingInputs('s1')).toEqual([
-            expect.objectContaining({ id: claimed.id, state: 'pending' })
+            expect.objectContaining({ id: claimed.id, state: 'retry_required' })
           ])
         })
         expect(getRuntimeState(agent, 's1').status).toBe('generating')
@@ -8175,7 +8175,7 @@ describe('DeepChatAgentHarness', () => {
       const applyCompaction = vi
         .spyOn(CompactionService.prototype, 'applyCompaction')
         .mockRejectedValue(new Error('compaction failed after append'))
-      const releaseClaim = vi.spyOn(sessionData.pendingInputs, 'releaseClaimedQueueInput')
+      const releaseClaim = vi.spyOn(sessionData.pendingInputs, 'releaseClaimedQueueInputForRetry')
       let persistedUserRow: any
       sqlitePresenter.deepchatMessagesTable.insert.mockImplementation((row: any) => {
         if (row.role !== 'user') return
@@ -8205,7 +8205,7 @@ describe('DeepChatAgentHarness', () => {
 
         await vi.waitFor(async () => {
           expect(await agent.listPendingInputs('s1')).toEqual([
-            expect.objectContaining({ id: claimed.id, state: 'pending' })
+            expect.objectContaining({ id: claimed.id, state: 'retry_required' })
           ])
         })
 
@@ -8253,7 +8253,7 @@ describe('DeepChatAgentHarness', () => {
       sqlitePresenter.deepchatMessagesTable.get.mockImplementation((id: string) =>
         persistedUserRow?.id === id ? persistedUserRow : undefined
       )
-      const releaseSpy = vi.spyOn(sessionData.pendingInputs, 'releaseClaimedQueueInput')
+      const releaseSpy = vi.spyOn(sessionData.pendingInputs, 'releaseClaimedQueueInputForRetry')
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
       try {
@@ -8264,7 +8264,7 @@ describe('DeepChatAgentHarness', () => {
 
         await vi.waitFor(async () => {
           expect(await agent.listPendingInputs('s1')).toEqual([
-            expect.objectContaining({ id: claimed.id, state: 'pending' })
+            expect.objectContaining({ id: claimed.id, state: 'retry_required' })
           ])
         })
 
@@ -8309,7 +8309,7 @@ describe('DeepChatAgentHarness', () => {
         status: 'error',
         stopReason: 'provider_error'
       })
-      const releaseClaim = vi.spyOn(sessionData.pendingInputs, 'releaseClaimedQueueInput')
+      const releaseClaim = vi.spyOn(sessionData.pendingInputs, 'releaseClaimedQueueInputForRetry')
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 

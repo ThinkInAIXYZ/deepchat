@@ -1663,7 +1663,8 @@ export async function createMainProcessControl(dependencies: {
                 compact: () => handle.deepchat.compact()
               },
               isPendingQueueResumeAvailable: () => handle.deepchat.isPendingQueueResumeAvailable(),
-              resumePendingQueue: () => handle.deepchat.resumePendingQueue()
+              resumePendingQueue: () => handle.deepchat.resumePendingQueue(),
+              retryPendingQueueInput: (itemId) => handle.deepchat.retryPendingQueueInput(itemId)
             }
           : { ...turn, kind: handle.kind }
       }

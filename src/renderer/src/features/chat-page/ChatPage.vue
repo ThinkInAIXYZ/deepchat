@@ -150,12 +150,14 @@
               :show-resume-action="showPendingQueueResume"
               :resume-disabled="disablePendingQueueResume"
               :resume-loading="pendingInputStore.resumingQueue"
+              :retrying-item-id="pendingInputStore.retryingItemId"
               class="mx-auto mb-1.5 max-w-4xl"
               @update-queue="onPendingInputUpdate"
               @move-queue="onPendingInputMove"
               @steer-queue="onPendingInputSteer"
               @delete-queue="onPendingInputDelete"
               @resume-queue="onPendingInputResume"
+              @retry-queue="onPendingInputRetry"
               @resolve-blocked="onPendingInputResolve"
             />
             <!-- Anchor the plan/question float to the outer .relative (which includes the queue lane)
@@ -1279,6 +1281,7 @@ const {
   onPendingInputDelete,
   onPendingInputSteer,
   onPendingInputResume,
+  onPendingInputRetry,
   onPendingInputResolve
 } = usePendingInputActions({
   sessionId: () => props.sessionId,

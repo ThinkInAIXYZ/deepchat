@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "Warteschlange fortsetzen",
     "resumeFailed": "Warteschlange konnte nicht fortgesetzt werden",
+    "retry": "Erneut versuchen",
+    "retryRequired": "Erneuter Versuch erforderlich",
+    "retryRequiredDescription": "Diese Nachricht wurde nicht gesendet. Versuche es erneut, um die Warteschlange fortzusetzen.",
+    "retryFailed": "Die Nachricht konnte nicht erneut versucht werden",
     "steer": "Steuern",
     "queueCount": "Ausstehend {count}/{max}",
     "toSteer": "Unterbrechen & senden",

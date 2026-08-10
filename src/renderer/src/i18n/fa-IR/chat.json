@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "ادامه صف",
     "resumeFailed": "ازسرگیری صف انجام نشد",
+    "retry": "تلاش مجدد",
+    "retryRequired": "نیاز به تلاش مجدد",
+    "retryRequiredDescription": "این پیام ارسال نشد. برای ادامه صف دوباره تلاش کنید.",
+    "retryFailed": "تلاش مجدد برای پیام صف‌شده انجام نشد",
     "steer": "هدایت",
     "queueCount": "در انتظار ارسال {count}/{max}",
     "toSteer": "وقفه و ارسال",

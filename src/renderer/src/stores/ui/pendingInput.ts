@@ -13,6 +13,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   const resumeAvailable = ref(false)
   const loading = ref(false)
   const resumingSessionId = ref<string | null>(null)
+  const retryingItemId = ref<string | null>(null)
   const error = ref<string | null>(null)
   let latestLoadRequestId = 0
 
@@ -106,6 +107,31 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     }
   }
 
+  async function retryQueueInput(
+    sessionId: string,
+    itemId: string
+  ): Promise<{ accepted: boolean; started: boolean }> {
+    if (retryingItemId.value !== null) {
+      return { accepted: false, started: false }
+    }
+    retryingItemId.value = itemId
+    let result = { accepted: false, started: false }
+    try {
+      await runSessionScopedMutation(
+        sessionId,
+        async () => {
+          result = await sessionClient.retryPendingQueueInput(sessionId, itemId)
+        },
+        'Failed to retry queued message'
+      )
+      return result
+    } finally {
+      if (retryingItemId.value === itemId) {
+        retryingItemId.value = null
+      }
+    }
+  }
+
   async function updateQueueInput(
     sessionId: string,
     itemId: string,
@@ -161,6 +187,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     resumeAvailable.value = false
     loading.value = false
     resumingSessionId.value = null
+    retryingItemId.value = null
     error.value = null
   }
 
@@ -180,6 +207,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     resumeAvailable,
     loading,
     resumingQueue,
+    retryingItemId,
     error,
     queueItems,
     activeCount,
@@ -187,6 +215,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     loadPendingInputs,
     queueInput,
     resumeQueue,
+    retryQueueInput,
     updateQueueInput,
     moveQueueInput,
     steerPendingInput,

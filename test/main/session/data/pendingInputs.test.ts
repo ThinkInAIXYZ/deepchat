@@ -29,8 +29,11 @@ function createRecord(
 
 function createCoordinator(records: Map<string, PendingSessionInputRecord>) {
   const store = {
+    runInTransaction: vi.fn((operation: () => unknown) => operation()),
     getInput: vi.fn((itemId: string) => records.get(itemId) ?? null),
     releaseClaimedQueueInput: vi.fn((itemId: string) => records.get(itemId)!),
+    releaseClaimedQueueInputForRetry: vi.fn((itemId: string) => records.get(itemId)!),
+    retryReleasedQueueInput: vi.fn((itemId: string) => records.get(itemId)!),
     releaseClaimedInput: vi.fn((itemId: string) => records.get(itemId)!),
     consumeQueueInput: vi.fn((itemId: string) => {
       records.delete(itemId)
@@ -83,6 +86,21 @@ describe('SessionPendingInputs claimed input ownership', () => {
       'does not belong to session session-1'
     )
     expect(store.consumeSteerInput).not.toHaveBeenCalled()
+  })
+
+  it('does not retry a released queue input from another session', () => {
+    const released = {
+      ...createRecord('queue-1', 'session-2', 'queue'),
+      state: 'retry_required' as const,
+      claimedAt: null
+    }
+    const records = new Map<string, PendingSessionInputRecord>([['queue-1', released]])
+    const { coordinator, store } = createCoordinator(records)
+
+    expect(() => coordinator.retryReleasedQueueInput('session-1', 'queue-1')).toThrow(
+      'does not belong to session session-1'
+    )
+    expect(store.retryReleasedQueueInput).not.toHaveBeenCalled()
   })
 })
 
@@ -169,6 +187,10 @@ function createRecoveryCoordinator(initialRecords: PendingSessionInputRecord[]) 
     releaseClaimedQueueInput: vi.fn((itemId: string) =>
       replace(itemId, { state: 'pending', claimedAt: null, messageIds: [] })
     ),
+    releaseClaimedQueueInputForRetry: vi.fn((itemId: string) =>
+      replace(itemId, { state: 'retry_required', claimedAt: null, messageIds: [] })
+    ),
+    retryReleasedQueueInput: vi.fn((itemId: string) => replace(itemId, { state: 'pending' })),
     releaseClaimedInput: vi.fn((itemId: string) =>
       replace(itemId, { state: 'pending', claimedAt: null })
     ),
@@ -202,6 +224,22 @@ function createRecoveryCoordinator(initialRecords: PendingSessionInputRecord[]) 
 }
 
 describe('SessionPendingInputs restart reconciliation', () => {
+  it('preserves retry-required Queue inputs without adding a restart hold', () => {
+    const released = {
+      ...createRecord('queue-retry', 'session-1', 'queue'),
+      state: 'retry_required' as const,
+      claimedAt: null
+    }
+    const { coordinator, records, store } = createRecoveryCoordinator([released])
+
+    const recovery = coordinator.recoverInputsAfterRestart()
+
+    expect(recovery.heldQueueInputIds).toEqual(new Set())
+    expect(recovery.affectedSessionIds).toEqual(new Set(['session-1']))
+    expect(records.get(released.id)?.state).toBe('retry_required')
+    expect(store.releaseClaimedQueueInput).not.toHaveBeenCalled()
+  })
+
   it('holds retained Queue drafts and consumes only a Queue with a materialized user fact', () => {
     const pending = {
       ...createRecord('queue-pending', 'session-1', 'queue'),

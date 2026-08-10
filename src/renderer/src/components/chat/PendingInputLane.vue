@@ -55,7 +55,7 @@
           item-key="id"
           handle=".pending-input-drag"
           :animation="150"
-          :disabled="Boolean(editingItemId) || hasBlockedQueueItem"
+          :disabled="Boolean(editingItemId) || hasBlockedQueueItem || hasRetryRequiredQueueItem"
           ghost-class="pending-input-ghost"
           class="space-y-1"
           @end="onDragEnd"
@@ -82,7 +82,11 @@
                   type="button"
                   class="pending-input-drag inline-flex h-6 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
                   :title="t('chat.pendingInput.reorder')"
-                  :disabled="Boolean(editingItemId) || element.state === 'blocked'"
+                  :disabled="
+                    Boolean(editingItemId) ||
+                    element.state === 'blocked' ||
+                    element.state === 'retry_required'
+                  "
                 >
                   <Icon icon="lucide:grip-vertical" class="h-3.5 w-3.5" />
                 </button>
@@ -146,6 +150,12 @@
                     >
                       {{ formatBlockingText(element) }}
                     </span>
+                    <span
+                      v-else-if="element.state === 'retry_required'"
+                      class="block truncate text-[11px] leading-4 text-amber-600"
+                    >
+                      {{ t('chat.pendingInput.retryRequiredDescription') }}
+                    </span>
                   </button>
                 </div>
 
@@ -193,6 +203,29 @@
                       "
                     >
                       <Icon icon="lucide:file-x-2" class="h-3.5 w-3.5" />
+                    </DcButton>
+                  </template>
+                  <template v-else-if="element.state === 'retry_required'">
+                    <span
+                      class="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[11px] leading-none text-amber-700 dark:text-amber-300"
+                    >
+                      {{ t('chat.pendingInput.retryRequired') }}
+                    </span>
+                    <DcButton
+                      variant="ghost"
+                      size="icon"
+                      data-testid="pending-released-retry"
+                      class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+                      :tooltip="t('chat.pendingInput.retry')"
+                      :aria-label="t('chat.pendingInput.retry')"
+                      :disabled="retryingItemId === element.id"
+                      @click.stop="emit('retry-queue', element.id)"
+                    >
+                      <Icon
+                        icon="lucide:refresh-cw"
+                        class="h-3.5 w-3.5"
+                        :class="retryingItemId === element.id ? 'animate-spin' : ''"
+                      />
                     </DcButton>
                   </template>
                   <DcButton
@@ -256,6 +289,7 @@ const props = withDefaults(
     showResumeAction?: boolean
     resumeDisabled?: boolean
     resumeLoading?: boolean
+    retryingItemId?: string | null
   }>(),
   {
     activeLimit: 5,
@@ -263,7 +297,8 @@ const props = withDefaults(
     disableQueueSteerAction: false,
     showResumeAction: false,
     resumeDisabled: false,
-    resumeLoading: false
+    resumeLoading: false,
+    retryingItemId: null
   }
 )
 
@@ -273,6 +308,7 @@ const emit = defineEmits<{
   'steer-queue': [itemId: string]
   'delete-queue': [itemId: string]
   'resume-queue': []
+  'retry-queue': [itemId: string]
   'resolve-blocked': [payload: { itemId: string; action: 'retry' | 'send_without_image_content' }]
 }>()
 const { t } = useI18n()
@@ -287,6 +323,9 @@ const blockedCount = computed(
 )
 const hasBlockedQueueItem = computed(() =>
   props.queueItems.some((item) => item.state === 'blocked')
+)
+const hasRetryRequiredQueueItem = computed(() =>
+  props.queueItems.some((item) => item.state === 'retry_required')
 )
 const isScrollable = computed(() => props.queueItems.length > 3 || Boolean(editingItemId.value))
 const listMaxHeightClass = computed(() => (editingItemId.value ? 'max-h-[220px]' : 'max-h-[116px]'))
@@ -327,9 +366,13 @@ function formatPayloadText(item: PendingSessionInputRecord): string {
 }
 
 function formatPayloadTitle(item: PendingSessionInputRecord): string {
-  return item.state === 'blocked'
-    ? `${formatPayloadText(item)} — ${formatBlockingText(item)}`
-    : formatPayloadText(item)
+  if (item.state === 'blocked') {
+    return `${formatPayloadText(item)} — ${formatBlockingText(item)}`
+  }
+  if (item.state === 'retry_required') {
+    return `${formatPayloadText(item)} — ${t('chat.pendingInput.retryRequiredDescription')}`
+  }
+  return formatPayloadText(item)
 }
 
 function beginEdit(item: PendingSessionInputRecord): void {

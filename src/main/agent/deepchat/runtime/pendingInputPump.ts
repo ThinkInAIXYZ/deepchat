@@ -46,6 +46,7 @@ export type PendingInputPumpStorePort = Pick<
   | 'listPendingInputs'
   | 'releaseClaimedInput'
   | 'releaseClaimedQueueInput'
+  | 'releaseClaimedQueueInputForRetry'
 >
 
 type PendingInputPumpLifecyclePort = Pick<
@@ -160,11 +161,15 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
           this.id,
           disposition.attachmentPreparation
         )
+      case 'release-for-mutation':
+        return this.source === 'steer'
+          ? this.pendingInputs.releaseClaimedInput(this.sessionId, this.id)
+          : this.pendingInputs.releaseClaimedQueueInput(this.sessionId, this.id)
       case 'release-before-user-fact':
       case 'release-after-rollback':
         return this.source === 'steer'
           ? this.pendingInputs.releaseClaimedInput(this.sessionId, this.id)
-          : this.pendingInputs.releaseClaimedQueueInput(this.sessionId, this.id)
+          : this.pendingInputs.releaseClaimedQueueInputForRetry(this.sessionId, this.id)
     }
   }
 
@@ -197,9 +202,14 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
           : record === null
       case 'block':
         return record?.mode === expectedMode && record.state === 'blocked'
+      case 'release-for-mutation':
+        return record?.mode === expectedMode && record.state === 'pending'
       case 'release-before-user-fact':
       case 'release-after-rollback':
-        return record?.mode === expectedMode && record.state === 'pending'
+        return (
+          record?.mode === expectedMode &&
+          record.state === (this.source === 'queue' ? 'retry_required' : 'pending')
+        )
     }
   }
 }
@@ -224,25 +234,35 @@ export class PendingInputPump {
   }
 
   releaseRestartHoldForSession(sessionId: string): boolean {
-    const heldQueueInputs = this.ports.pendingInputs
+    const queueInputs = this.ports.pendingInputs
       .listPendingInputs(sessionId)
-      .filter((input) => input.mode === 'queue' && this.restartHeldQueueInputIds.has(input.id))
+      .filter((input) => input.mode === 'queue')
       .sort((left, right) => (left.queueOrder ?? 0) - (right.queueOrder ?? 0))
-    const resumedHead = heldQueueInputs[0]
-    if (!resumedHead) {
+    const resumedHead = queueInputs[0]
+    if (
+      !resumedHead ||
+      resumedHead.state !== 'pending' ||
+      !this.restartHeldQueueInputIds.has(resumedHead.id)
+    ) {
       return false
     }
-    for (const input of heldQueueInputs) {
-      this.restartHeldQueueInputIds.delete(input.id)
+    for (const input of queueInputs) {
+      if (this.restartHeldQueueInputIds.has(input.id)) {
+        this.restartHeldQueueInputIds.delete(input.id)
+      }
     }
     this.manuallyResumedQueueInputIds.add(resumedHead.id)
     return true
   }
 
   hasRestartHeldQueueInputs(sessionId: string): boolean {
-    return this.ports.pendingInputs
+    const head = this.ports.pendingInputs
       .listPendingInputs(sessionId)
-      .some((input) => input.mode === 'queue' && this.restartHeldQueueInputIds.has(input.id))
+      .filter((input) => input.mode === 'queue')
+      .sort((left, right) => (left.queueOrder ?? 0) - (right.queueOrder ?? 0))[0]
+    return Boolean(
+      head?.state === 'pending' && this.restartHeldQueueInputIds.has(head.id)
+    )
   }
 
   hasOnlyRestartHeldQueueInputs(sessionId: string): boolean {
@@ -288,17 +308,21 @@ export class PendingInputPump {
       !this.ports.pendingInputs.hasBlockingInput(sessionId) &&
       !this.ports.pendingInputs.hasClaimedInput(sessionId) &&
       !instance?.isPendingQueueDraining()
+    const hasRetryRequiredInput = this.ports.pendingInputs
+      .listPendingInputs(sessionId)
+      .some((input) => input.mode === 'queue' && input.state === 'retry_required')
 
-    if (isUnclaimedQuestionFollowUp) {
+    if (isUnclaimedQuestionFollowUp && !hasRetryRequiredInput) {
       return true
     }
     if (!this.canDrainWithSnapshot(sessionId, status, 'enqueue', snapshot)) {
       return false
     }
     const hasWaitingTurnInput =
-      source === 'send'
+      hasRetryRequiredInput ||
+      (source === 'send'
         ? this.hasExecutablePendingTurnInput(sessionId)
-        : this.ports.pendingInputs.hasPendingTurnInput(sessionId)
+        : this.ports.pendingInputs.hasPendingTurnInput(sessionId))
     return (
       !hasWaitingTurnInput &&
       !this.ports.pendingInputs.hasBlockingInput(sessionId) &&
@@ -572,11 +596,15 @@ export class PendingInputPump {
     reason: PendingInputWakeReason
   ): Promise<void> {
     try {
-      const releasedInputIsWaitingForRetry = this.ports.pendingInputs
+      const releasedInputIsStillWaiting = this.ports.pendingInputs
         .listPendingInputs(sessionId)
-        .some((item) => item.id === claimedInputId && item.state === 'pending')
+        .some(
+          (item) =>
+            item.id === claimedInputId &&
+            (item.state === 'pending' || item.state === 'retry_required')
+        )
       if (
-        !releasedInputIsWaitingForRetry &&
+        !releasedInputIsStillWaiting &&
         this.ports.pendingInputs.hasPendingTurnInput(sessionId) &&
         (await this.ports.sessionState.get(sessionId))?.status === 'idle' &&
         !this.hasInteractionBlocker(sessionId)

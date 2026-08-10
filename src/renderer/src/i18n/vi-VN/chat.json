@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "Tiếp tục hàng đợi",
     "resumeFailed": "Không thể tiếp tục hàng đợi",
+    "retry": "Thử lại",
+    "retryRequired": "Cần thử lại",
+    "retryRequiredDescription": "Tin nhắn này chưa được gửi. Hãy thử lại để tiếp tục hàng đợi.",
+    "retryFailed": "Không thể thử lại tin nhắn trong hàng đợi",
     "steer": "Chỉ đạo",
     "queueCount": "Đang chờ gửi {count}/{max}",
     "toSteer": "Ngắt & gửi",

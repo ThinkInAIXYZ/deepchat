@@ -169,7 +169,11 @@
     "steerUnavailable": "当前无法打断",
     "steerFailed": "打断失败",
     "resume": "继续队列",
-    "resumeFailed": "无法继续队列"
+    "resumeFailed": "无法继续队列",
+    "retry": "重试",
+    "retryRequired": "需要重试",
+    "retryRequiredDescription": "此消息未能发送，请重试以继续队列。",
+    "retryFailed": "无法重试队列消息"
   },
   "features": {
     "webSearch": "联网搜索",

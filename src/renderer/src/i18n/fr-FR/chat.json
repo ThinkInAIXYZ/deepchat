@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "Reprendre la file",
     "resumeFailed": "Impossible de reprendre la file",
+    "retry": "Réessayer",
+    "retryRequired": "Nouvel essai requis",
+    "retryRequiredDescription": "Ce message n'a pas été envoyé. Réessayez pour reprendre la file.",
+    "retryFailed": "Impossible de réessayer le message en attente",
     "steer": "Guidage",
     "queueCount": "En attente {count}/{max}",
     "toSteer": "Interrompre et envoyer",

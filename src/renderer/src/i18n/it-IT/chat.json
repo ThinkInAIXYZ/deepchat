@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "Riprendi coda",
     "resumeFailed": "Impossibile riprendere la coda",
+    "retry": "Riprova",
+    "retryRequired": "Nuovo tentativo richiesto",
+    "retryRequiredDescription": "Questo messaggio non è stato inviato. Riprova per continuare la coda.",
+    "retryFailed": "Impossibile riprovare il messaggio in coda",
     "steer": "Guida",
     "queueCount": "In attesa {count}/{max}",
     "toSteer": "Interrompi e invia",

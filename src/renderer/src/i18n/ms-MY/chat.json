@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "Sambung baris gilir",
     "resumeFailed": "Gagal menyambung baris gilir",
+    "retry": "Cuba lagi",
+    "retryRequired": "Percubaan semula diperlukan",
+    "retryRequiredDescription": "Mesej ini tidak dihantar. Cuba lagi untuk meneruskan baris gilir.",
+    "retryFailed": "Gagal mencuba semula mesej dalam baris gilir",
     "steer": "panduan",
     "queueCount": "Sedia untuk menghantar {count}/{max}",
     "toSteer": "Ganggu & hantar",

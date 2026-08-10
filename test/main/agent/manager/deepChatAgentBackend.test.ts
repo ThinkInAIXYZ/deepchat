@@ -21,6 +21,7 @@ const createPort = (): DeepChatAgentBackendPort => {
     listPendingInputs: vi.fn().mockResolvedValue([]),
     isPendingQueueResumeAvailable: vi.fn().mockResolvedValue(false),
     resumePendingQueue: vi.fn().mockResolvedValue(false),
+    retryPendingQueueInput: vi.fn().mockResolvedValue({ accepted: true, started: false }),
     steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
     updateQueuedInput: vi.fn().mockResolvedValue({}),
     moveQueuedInput: vi.fn().mockResolvedValue([]),
@@ -83,6 +84,17 @@ describe('DeepChatAgentBackend', () => {
         projectDir: '/tmp'
       }
     )
+  })
+
+  it('delegates explicit Queue retry through the DeepChat control facet', async () => {
+    const port = createPort()
+    const handle = createDeepChatAgentBackendFixture(port).open(toAppSessionId('session'))
+
+    await expect(handle.deepchat.retryPendingQueueInput('pending-1')).resolves.toEqual({
+      accepted: true,
+      started: false
+    })
+    expect(port.retryPendingQueueInput).toHaveBeenCalledWith('session', 'pending-1')
   })
 
   it('uses lightweight snapshots and delegates cancel and close exactly once', async () => {

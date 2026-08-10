@@ -307,6 +307,22 @@ export class SessionPendingInputs {
     return record
   }
 
+  releaseClaimedQueueInputForRetry(sessionId: string, itemId: string): PendingSessionInputRecord {
+    this.assertQueueInputForSession(sessionId, itemId)
+    const record = this.store.releaseClaimedQueueInputForRetry(itemId)
+    this.emitUpdated(sessionId)
+    return record
+  }
+
+  retryReleasedQueueInput(sessionId: string, itemId: string): PendingSessionInputRecord {
+    const record = this.store.runInTransaction(() => {
+      this.assertQueueInputForSession(sessionId, itemId)
+      return this.store.retryReleasedQueueInput(itemId)
+    })
+    this.emitUpdated(sessionId)
+    return record
+  }
+
   releaseClaimedInput(sessionId: string, itemId: string): PendingSessionInputRecord {
     this.assertInputOwnedBySession(sessionId, itemId)
     const claimed = this.store.getInput(itemId)
@@ -385,8 +401,10 @@ export class SessionPendingInputs {
               heldQueueInputIds.add(input.id)
             }
             affectedSessionIds.add(input.sessionId)
-          } else {
+          } else if (input.state !== 'retry_required') {
             heldQueueInputIds.add(input.id)
+            affectedSessionIds.add(input.sessionId)
+          } else {
             affectedSessionIds.add(input.sessionId)
           }
           continue

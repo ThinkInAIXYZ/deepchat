@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "대기열 재개",
     "resumeFailed": "대기열을 재개하지 못했습니다",
+    "retry": "다시 시도",
+    "retryRequired": "다시 시도 필요",
+    "retryRequiredDescription": "이 메시지는 전송되지 않았습니다. 대기열을 계속하려면 다시 시도하세요.",
+    "retryFailed": "대기 중인 메시지를 다시 시도하지 못했습니다",
     "steer": "유도",
     "queueCount": "전송 대기 {count}/{max}",
     "toSteer": "중단하고 보내기",

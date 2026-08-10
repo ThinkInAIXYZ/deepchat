@@ -44,6 +44,7 @@ export type PendingInputAdmissionStorePort = Pick<
   | 'promoteQueuedInputToSteerMessage'
   | 'queuePendingInput'
   | 'retryBlockedInput'
+  | 'retryReleasedQueueInput'
   | 'updateQueuedInput'
 >
 
@@ -352,7 +353,7 @@ export class PendingInputAdmissionCoordinator {
         }
       }
 
-      claim.settle({ kind: 'release-before-user-fact' })
+      claim.settle({ kind: 'release-for-mutation' })
       this.ports.pendingInputs.updateQueuedInput(sessionId, itemId, prepared.content)
 
       const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
@@ -427,6 +428,56 @@ export class PendingInputAdmissionCoordinator {
         : this.ports.pendingInputs.degradeBlockedInput(sessionId, itemId)
     this.ports.pump.schedule(sessionId, 'enqueue')
     return record
+  }
+
+  async retryPendingQueueInput(
+    sessionId: string,
+    itemId: string
+  ): Promise<{ accepted: boolean; started: boolean }> {
+    await this.ensureSessionReady(sessionId)
+    const input = this.ports.pendingInputs.getInput(sessionId, itemId)
+    if (!input) {
+      throw new Error(`Pending input not found: ${itemId}`)
+    }
+    if (input.mode !== 'queue') {
+      throw new Error('Only a released queue input can be retried.')
+    }
+    if (input.state !== 'retry_required') {
+      return { accepted: false, started: false }
+    }
+    const queueHead = this.ports.pendingInputs
+      .listPendingInputs(sessionId)
+      .filter((item) => item.mode === 'queue')
+      .sort((left, right) => (left.queueOrder ?? 0) - (right.queueOrder ?? 0))[0]
+    if (queueHead?.id !== itemId) {
+      return { accepted: false, started: false }
+    }
+
+    try {
+      this.ports.pendingInputs.retryReleasedQueueInput(sessionId, itemId)
+    } catch (error) {
+      const persisted = this.ports.pendingInputs.getInput(sessionId, itemId)
+      if (persisted?.mode !== 'queue' || persisted.state !== 'pending') {
+        throw error
+      }
+      logger.error(
+        `[DeepChatAgent] retry pending queue publication failed session=${sessionId}`,
+        redactRuntimeErrorForLog(error)
+      )
+    }
+    let started = false
+    try {
+      started = await this.ports.pump.drain(sessionId, 'manual')
+    } catch (error) {
+      logger.error(
+        `[DeepChatAgent] retry pending queue drain failed session=${sessionId}`,
+        redactRuntimeErrorForLog(error)
+      )
+    }
+    if (!started) {
+      this.ports.pump.schedule(sessionId, 'enqueue')
+    }
+    return { accepted: true, started }
   }
 
   async resumePendingQueue(sessionId: string): Promise<boolean> {

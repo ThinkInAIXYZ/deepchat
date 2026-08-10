@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "キューを再開",
     "resumeFailed": "キューを再開できませんでした",
+    "retry": "再試行",
+    "retryRequired": "再試行が必要",
+    "retryRequiredDescription": "このメッセージは送信されませんでした。キューを続行するには再試行してください。",
+    "retryFailed": "キュー内のメッセージを再試行できませんでした",
     "steer": "誘導",
     "queueCount": "送信待ち {count}/{max}",
     "toSteer": "中断して送信",

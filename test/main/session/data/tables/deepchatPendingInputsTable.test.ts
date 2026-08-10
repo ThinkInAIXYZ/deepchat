@@ -66,6 +66,38 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
     }
   })
 
+  it('persists explicit retry state across store reconstruction without dispatching past it', () => {
+    const { db, store, table } = createStore()
+    try {
+      const first = store.createQueueInputWithState(
+        's1',
+        { text: 'retry me', files: [] },
+        'claimed'
+      )
+      const second = store.createQueueInput('s1', { text: 'later', files: [] })
+
+      store.releaseClaimedQueueInputForRetry(first.id)
+      const reconstructed = new SessionPendingInputStore({
+        deepchatPendingInputsTable: table
+      } as never)
+
+      expect(reconstructed.getInput(first.id)?.state).toBe('retry_required')
+      expect(reconstructed.getNextPendingQueueInput('s1')).toBeNull()
+      expect(reconstructed.listPendingInputs('s1').map((item) => item.id)).toEqual([
+        first.id,
+        second.id
+      ])
+
+      expect(reconstructed.retryReleasedQueueInput(first.id).state).toBe('pending')
+      expect(reconstructed.getNextPendingQueueInput('s1')?.id).toBe(first.id)
+      expect(() => reconstructed.retryReleasedQueueInput(first.id)).toThrow(
+        `Pending queue item ${first.id} does not require retry.`
+      )
+    } finally {
+      db.close()
+    }
+  })
+
   it('turns an explicit degraded action into a pending metadata-only retry', () => {
     const { db, store } = createStore()
     try {

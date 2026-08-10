@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "המשך תור",
     "resumeFailed": "לא ניתן להמשיך את התור",
+    "retry": "נסה שוב",
+    "retryRequired": "נדרש ניסיון חוזר",
+    "retryRequiredDescription": "ההודעה לא נשלחה. נסה שוב כדי להמשיך את התור.",
+    "retryFailed": "לא ניתן היה לנסות שוב את ההודעה שבתור",
     "steer": "הכוונה",
     "queueCount": "ממתין לשליחה {count}/{max}",
     "toSteer": "להפסיק ולשלוח",

@@ -73,6 +73,10 @@
   "pendingInput": {
     "resume": "Reanudar cola",
     "resumeFailed": "No se pudo reanudar la cola",
+    "retry": "Reintentar",
+    "retryRequired": "Se requiere reintento",
+    "retryRequiredDescription": "Este mensaje no se envió. Reinténtalo para continuar la cola.",
+    "retryFailed": "No se pudo reintentar el mensaje en cola",
     "steer": "Guiar",
     "queueCount": "En cola {count}/{max}",
     "toSteer": "Interrumpir y enviar",

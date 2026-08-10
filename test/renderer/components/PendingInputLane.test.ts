@@ -33,6 +33,12 @@ vi.mock('vue-i18n', () => ({
           return 'Steer failed'
         case 'chat.pendingInput.resume':
           return 'Resume queue'
+        case 'chat.pendingInput.retry':
+          return 'Retry'
+        case 'chat.pendingInput.retryRequired':
+          return 'Retry required'
+        case 'chat.pendingInput.retryRequiredDescription':
+          return "This message wasn't sent. Retry it to continue the queue."
         case 'chat.attachments.pending.blockedCount':
           return `${params?.count} blocked`
         case 'chat.attachments.pending.blocked':
@@ -263,5 +269,39 @@ describe('PendingInputLane', () => {
       [{ itemId: 'queue-1', action: 'retry' }],
       [{ itemId: 'queue-1', action: 'send_without_image_content' }]
     ])
+  })
+
+  it('exposes retry only for a retry-required Queue head and keeps edit-as-retry available', async () => {
+    const released = buildPendingInput('queue-1', 'queue', { state: 'retry_required' })
+    const wrapper = mount(PendingInputLane, {
+      props: {
+        queueItems: [released],
+        retryingItemId: 'queue-1'
+      }
+    })
+
+    expect(wrapper.text()).toContain("This message wasn't sent")
+    expect(wrapper.get('[data-testid="draggable"]').attributes('data-disabled')).toBe('true')
+    expect(wrapper.find('[data-testid="pending-row-steer"]').exists()).toBe(false)
+    expect(
+      (wrapper.get('[data-testid="pending-released-retry"]').element as HTMLButtonElement).disabled
+    ).toBe(true)
+
+    await wrapper.setProps({ retryingItemId: null })
+    await wrapper.get('[data-testid="pending-released-retry"]').trigger('click')
+    expect(wrapper.emitted('retry-queue')).toEqual([['queue-1']])
+
+    await wrapper.get('[data-testid="pending-row-main"]').trigger('click')
+    expect(wrapper.find('[data-testid="pending-edit-textarea"]').exists()).toBe(true)
+  })
+
+  it('does not show explicit retry for an ordinary pending Queue row', () => {
+    const wrapper = mount(PendingInputLane, {
+      props: {
+        queueItems: [buildPendingInput('queue-1', 'queue')]
+      }
+    })
+
+    expect(wrapper.find('[data-testid="pending-released-retry"]').exists()).toBe(false)
   })
 })

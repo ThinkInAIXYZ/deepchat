@@ -207,12 +207,12 @@ export class SessionPendingInputStore {
     if (row.mode !== 'queue') {
       throw new Error(`Pending input ${itemId} is not a queue item.`)
     }
-    if (row.state !== 'pending' && row.state !== 'blocked') {
+    if (row.state !== 'pending' && row.state !== 'blocked' && row.state !== 'retry_required') {
       throw new Error(`Pending queue item ${itemId} is not editable.`)
     }
     this.database.deepchatPendingInputsTable.update(itemId, {
       payload_json: JSON.stringify(input),
-      ...(row.state === 'blocked'
+      ...(row.state !== 'pending'
         ? { state: 'pending' as const, blocking_json: null, claimed_at: null }
         : {})
     })
@@ -224,6 +224,9 @@ export class SessionPendingInputStore {
     const fromIndex = queueRows.findIndex((row) => row.id === itemId)
     if (fromIndex === -1) {
       throw new Error(`Pending queue item not found: ${itemId}`)
+    }
+    if (queueRows[0]?.state === 'retry_required') {
+      throw new Error('Retry or edit the released queue input before reordering the queue.')
     }
 
     const clampedIndex = Math.max(0, Math.min(toIndex, queueRows.length - 1))
@@ -334,19 +337,29 @@ export class SessionPendingInputStore {
   }
 
   releaseClaimedQueueInput(itemId: string): PendingSessionInputRecord {
+    return this.releaseClaimedQueueInputTo(itemId, 'pending')
+  }
+
+  releaseClaimedQueueInputForRetry(itemId: string): PendingSessionInputRecord {
+    return this.releaseClaimedQueueInputTo(itemId, 'retry_required')
+  }
+
+  retryReleasedQueueInput(itemId: string): PendingSessionInputRecord {
     const row = this.requireRow(itemId)
     if (row.mode !== 'queue') {
       throw new Error(`Pending input ${itemId} is not a queue item.`)
     }
-    if (row.state !== 'claimed') {
-      return this.toRecord(row)
+    if (row.state !== 'retry_required') {
+      throw new Error(`Pending queue item ${itemId} does not require retry.`)
+    }
+    if (this.getWaitingQueueRows(row.session_id)[0]?.id !== itemId) {
+      throw new Error(`Pending queue item ${itemId} is not the queue head.`)
     }
 
     this.database.deepchatPendingInputsTable.update(itemId, {
       state: 'pending',
       claimed_at: null,
-      blocking_json: null,
-      message_ids_json: '[]'
+      blocking_json: null
     })
     return this.toRecord(this.requireRow(itemId, row.session_id))
   }
@@ -461,7 +474,7 @@ export class SessionPendingInputStore {
 
   private getWaitingQueueRows(sessionId: string): DeepChatPendingInputRow[] {
     return this.getQueueRows(sessionId).filter(
-      (row) => row.state === 'pending' || row.state === 'blocked'
+      (row) => row.state === 'pending' || row.state === 'blocked' || row.state === 'retry_required'
     )
   }
 
@@ -488,6 +501,27 @@ export class SessionPendingInputStore {
         queue_order: index + 1
       })
     })
+  }
+
+  private releaseClaimedQueueInputTo(
+    itemId: string,
+    state: 'pending' | 'retry_required'
+  ): PendingSessionInputRecord {
+    const row = this.requireRow(itemId)
+    if (row.mode !== 'queue') {
+      throw new Error(`Pending input ${itemId} is not a queue item.`)
+    }
+    if (row.state !== 'claimed') {
+      return this.toRecord(row)
+    }
+
+    this.database.deepchatPendingInputsTable.update(itemId, {
+      state,
+      claimed_at: null,
+      blocking_json: null,
+      message_ids_json: '[]'
+    })
+    return this.toRecord(this.requireRow(itemId, row.session_id))
   }
 
   private requireRow(itemId: string, expectedSessionId?: string): DeepChatPendingInputRow {

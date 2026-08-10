@@ -54,6 +54,10 @@ export interface DeepChatAgentBackendPort {
   listPendingInputs(sessionId: AppSessionId): Promise<PendingSessionInputRecord[]>
   isPendingQueueResumeAvailable(sessionId: AppSessionId): Promise<boolean>
   resumePendingQueue(sessionId: AppSessionId): Promise<boolean>
+  retryPendingQueueInput(
+    sessionId: AppSessionId,
+    itemId: string
+  ): Promise<{ accepted: boolean; started: boolean }>
   queuePendingInput(
     sessionId: AppSessionId,
     content: SendMessageInput,
@@ -201,7 +205,8 @@ export function createDeepChatAgentBackend(
         getCompactionState: () => port.getSessionCompactionState(sessionId),
         compact: () => port.compactSession(sessionId),
         isPendingQueueResumeAvailable: () => port.isPendingQueueResumeAvailable(sessionId),
-        resumePendingQueue: () => port.resumePendingQueue(sessionId)
+        resumePendingQueue: () => port.resumePendingQueue(sessionId),
+        retryPendingQueueInput: (itemId) => port.retryPendingQueueInput(sessionId, itemId)
       }
     }
     handles.set(sessionId, handle)

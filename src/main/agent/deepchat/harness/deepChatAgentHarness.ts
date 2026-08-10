@@ -122,6 +122,13 @@ export class DeepChatAgentHarness
     return await this.services.pendingInputAdmission.resumePendingQueue(sessionId)
   }
 
+  async retryPendingQueueInput(
+    sessionId: string,
+    itemId: string
+  ): Promise<{ accepted: boolean; started: boolean }> {
+    return await this.services.pendingInputAdmission.retryPendingQueueInput(sessionId, itemId)
+  }
+
   async queuePendingInput(
     sessionId: string,
     content: string | SendMessageInput,

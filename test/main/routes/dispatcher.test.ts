@@ -479,6 +479,7 @@ function createRuntime() {
     listPendingInputs: vi.fn().mockResolvedValue([]),
     isPendingQueueResumeAvailable: vi.fn().mockResolvedValue(false),
     resumePendingQueue: vi.fn().mockResolvedValue(false),
+    retryPendingQueueInput: vi.fn().mockResolvedValue({ accepted: false, started: false }),
     queuePendingInput: vi.fn().mockResolvedValue({}),
     updateQueuedInput: vi.fn().mockResolvedValue({}),
     moveQueuedInput: vi.fn().mockResolvedValue([]),
@@ -4642,6 +4643,24 @@ describe('dispatchDeepchatRoute', () => {
       )
     ).resolves.toEqual({ started: true })
     expect(sessionTurnPort.resumePendingQueue).toHaveBeenCalledWith('session-1')
+  })
+
+  it('dispatches an item-scoped pending Queue retry request', async () => {
+    const { runtime, sessionTurnPort } = createRuntime()
+    sessionTurnPort.retryPendingQueueInput.mockResolvedValueOnce({
+      accepted: true,
+      started: false
+    })
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.retryPendingQueueInput',
+        { sessionId: 'session-1', itemId: 'pending-1' },
+        createRendererRouteContext(88, 3)
+      )
+    ).resolves.toEqual({ accepted: true, started: false })
+    expect(sessionTurnPort.retryPendingQueueInput).toHaveBeenCalledWith('session-1', 'pending-1')
   })
 
   it('dispatches session generation settings routes without dropping timeout', async () => {

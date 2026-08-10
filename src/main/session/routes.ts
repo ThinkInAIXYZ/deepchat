@@ -45,6 +45,7 @@ import {
   sessionsRestoreRoute,
   sessionsResolveBlockedPendingInputRoute,
   sessionsRetryMessageRoute,
+  sessionsRetryPendingQueueInputRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsSearchHistoryRoute,
   sessionsSetAcpSessionConfigOptionRoute,
@@ -263,6 +264,15 @@ export function createSessionRoutes(deps: {
         return sessionsResumePendingQueueRoute.output.parse({
           started: await deps.turn.resumePendingQueue(input.sessionId)
         })
+      }
+    ],
+    [
+      sessionsRetryPendingQueueInputRoute.name,
+      async (rawInput) => {
+        const input = sessionsRetryPendingQueueInputRoute.input.parse(rawInput)
+        return sessionsRetryPendingQueueInputRoute.output.parse(
+          await deps.turn.retryPendingQueueInput(input.sessionId, input.itemId)
+        )
       }
     ],
     [

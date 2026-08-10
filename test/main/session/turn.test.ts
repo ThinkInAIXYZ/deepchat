@@ -96,6 +96,7 @@ function createHarness(
   }
   const isPendingQueueResumeAvailable = vi.fn().mockResolvedValue(true)
   const resumePendingQueue = vi.fn().mockResolvedValue(true)
+  const retryPendingQueueInput = vi.fn().mockResolvedValue({ accepted: true, started: false })
   const runtimeSession =
     options.kind === 'acp'
       ? ({ kind: 'acp', pending, toolInteractions, send, cancel, snapshot } as const)
@@ -108,7 +109,8 @@ function createHarness(
           snapshot,
           compaction,
           isPendingQueueResumeAvailable,
-          resumePendingQueue
+          resumePendingQueue,
+          retryPendingQueueInput
         } as const)
   const resolveSession = vi.fn(() => runtimeSession)
   const sessions = {
@@ -164,6 +166,7 @@ function createHarness(
     compaction,
     isPendingQueueResumeAvailable,
     resumePendingQueue,
+    retryPendingQueueInput,
     transcript,
     workdir,
     projection
@@ -201,6 +204,30 @@ describe('SessionTurn', () => {
       'Pending queue resume is only available for DeepChat sessions.'
     )
     expect(harness.resumePendingQueue).not.toHaveBeenCalled()
+  })
+
+  it('retries a DeepChat Queue item under the Session operation gate', async () => {
+    const harness = createHarness()
+
+    await expect(harness.coordinator.retryPendingQueueInput('s1', 'pending-1')).resolves.toEqual({
+      accepted: true,
+      started: false
+    })
+
+    expect(harness.retryPendingQueueInput).toHaveBeenCalledWith('pending-1')
+    expect(harness.workdir.runWithSessionOperationGate).toHaveBeenCalledWith(
+      's1',
+      expect.any(Function)
+    )
+  })
+
+  it('rejects Queue item retry for ACP sessions', async () => {
+    const harness = createHarness({ kind: 'acp' })
+
+    await expect(harness.coordinator.retryPendingQueueInput('s1', 'pending-1')).rejects.toThrow(
+      'Pending queue retry is only available for DeepChat sessions.'
+    )
+    expect(harness.retryPendingQueueInput).not.toHaveBeenCalled()
   })
 
   it('propagates initial attachment cancellation instead of converting it to user action', async () => {

@@ -169,7 +169,11 @@
     "steerUnavailable": "Can't interrupt right now",
     "steerFailed": "Couldn't interrupt this turn",
     "resume": "Resume queue",
-    "resumeFailed": "Couldn't resume the queue"
+    "resumeFailed": "Couldn't resume the queue",
+    "retry": "Retry",
+    "retryRequired": "Retry required",
+    "retryRequiredDescription": "This message wasn't sent. Retry it to continue the queue.",
+    "retryFailed": "Couldn't retry the queued message"
   },
   "features": {
     "webSearch": "Web Search",

@@ -227,6 +227,20 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     })
   }
 
+  async retryPendingQueueInput(
+    sessionId: string,
+    itemId: string
+  ): Promise<{ accepted: boolean; started: boolean }> {
+    return await this.dependencies.workdir.runWithSessionOperationGate(sessionId, async () => {
+      this.requireSession(sessionId)
+      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+      if (runtime.kind !== 'deepchat') {
+        throw new Error('Pending queue retry is only available for DeepChat sessions.')
+      }
+      return await runtime.retryPendingQueueInput(itemId)
+    })
+  }
+
   async queuePendingInput(
     sessionId: string,
     content: string | SendMessageInput

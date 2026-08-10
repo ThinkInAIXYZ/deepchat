@@ -236,6 +236,18 @@ export const sessionsResumePendingQueueRoute = defineRouteContract({
   })
 })
 
+export const sessionsRetryPendingQueueInputRoute = defineRouteContract({
+  name: 'sessions.retryPendingQueueInput',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    itemId: EntityIdSchema
+  }),
+  output: z.object({
+    accepted: z.boolean(),
+    started: z.boolean()
+  })
+})
+
 const PendingInputPayloadSchema = z.union([z.string(), SendMessageInputSchema])
 
 export const sessionsQueuePendingInputRoute = defineRouteContract({
