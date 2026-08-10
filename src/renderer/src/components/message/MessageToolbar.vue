@@ -72,6 +72,7 @@
               :tooltip-ignore-non-keyboard-focus="true"
               :copy-text="copyText"
               class="relative text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+              @copied="emit('copy')"
             />
             <DcButton
               v-if="isAssistant"

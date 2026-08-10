@@ -6,14 +6,19 @@ import { type DcButtonProps } from './props'
 import DcButton from './DcButton.vue'
 
 interface DcCopyButtonProps extends DcButtonProps {
-  copyText?: string
+  copyText: string
 }
+
+type ClickHandler = (event: MouseEvent) => void
 
 export default defineComponent({
   name: 'DcCopyButton',
   inheritAttrs: false,
   props: {
-    copyText: String,
+    copyText: {
+      type: String,
+      required: true
+    },
     variant: {
       type: String as PropType<DcCopyButtonProps['variant']>,
       default: 'ghost'
@@ -30,7 +35,6 @@ export default defineComponent({
     const icon = computed(() => (copied.value ? 'lucide:check' : 'lucide:copy'))
 
     const copyText = async () => {
-      if (!props.copyText) return
       try {
         await copy(props.copyText)
         copied.value = true
@@ -45,12 +49,24 @@ export default defineComponent({
       }
     }
 
+    const callClickHandler = (handler: unknown, event: MouseEvent) => {
+      if (Array.isArray(handler)) {
+        handler.forEach((item) => callClickHandler(item, event))
+        return
+      }
+      if (typeof handler === 'function') {
+        const clickHandler = handler as ClickHandler
+        clickHandler(event)
+      }
+    }
+
     onUnmounted(() => clearTimeout(timer))
 
     return () => {
       const inheritedAttrs = attrs as Partial<DcButtonProps> & Record<string, unknown>
       const { copyText: _copyText, ...buttonProps } = props
       const accessibleName = inheritedAttrs.label ?? inheritedAttrs.tooltip ?? _copyText
+      const inheritedClick = inheritedAttrs.onClick
 
       return h(
         DcButton,
@@ -69,7 +85,10 @@ export default defineComponent({
             copied.value ? 'text-emerald-600 dark:text-emerald-400' : '',
             inheritedAttrs.class
           ),
-          onClick: copyText
+          onClick: (event: MouseEvent) => {
+            callClickHandler(inheritedClick, event)
+            void copyText()
+          }
         },
         slots
       )

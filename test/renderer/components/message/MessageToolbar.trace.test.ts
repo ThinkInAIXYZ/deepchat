@@ -39,8 +39,9 @@ vi.mock(
       name: 'CopyButton',
       inheritAttrs: false,
       props: ['icon', 'copyText'],
+      emits: ['copied'],
       template:
-        '<button v-bind="$attrs"><span :data-icon="icon || \'lucide:copy\'"></span><slot /></button>'
+        '<button v-bind="$attrs" @click="$emit(\'copied\')"><span :data-icon="icon || \'lucide:copy\'"></span><slot /></button>'
     }
   }),
   { virtual: true }
@@ -120,6 +121,14 @@ describe('MessageToolbar trace button visibility', () => {
 
     expect(wrapper.emitted().copyImage).toHaveLength(2)
     expect(wrapper.emitted().copyImageFromTop).toHaveLength(2)
+  })
+
+  it('preserves the copy event contract', async () => {
+    const wrapper = mountToolbar()
+
+    await wrapper.find('[data-icon="lucide:copy"]').trigger('click')
+
+    expect(wrapper.emitted().copy).toHaveLength(1)
   })
 
   it('shows trace button only when trace debug is enabled and message allows trace', async () => {

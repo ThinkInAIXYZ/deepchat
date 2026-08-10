@@ -192,7 +192,10 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     schedulePostSubmitScrollToBottom,
     openModelPicker,
     notify,
-    stop: () => scope.stop()
+    stop: () => {
+      actions.dispose()
+      scope.stop()
+    }
   }
 }
 
@@ -1069,7 +1072,7 @@ describe('useComposerSubmit attachment preflight', () => {
     // dispose() flush must persist the draft so a later mount of the same session restores it.
     const first = createHarness()
     first.actions.message.value = 'draft before unmount'
-    first.actions.dispose()
+    first.stop()
 
     const second = createHarness()
     second.actions.switchComposerSession(undefined, 's1')
