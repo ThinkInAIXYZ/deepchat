@@ -199,7 +199,7 @@ describe('build-cua-plugin-runtime', () => {
     const outputPath = path.join(tempRoot, 'tool-catalog.json')
     const readCommand = vi.fn(() =>
       JSON.stringify({
-        version: '0.17.0',
+        version: '0.19.2',
         tools: [
           {
             name: 'click',
@@ -220,11 +220,11 @@ describe('build-cua-plugin-runtime', () => {
     )
 
     await expect(
-      generateCuaToolCatalog('/runtime/cua-driver', outputPath, '0.17.0', {
+      generateCuaToolCatalog('/runtime/cua-driver', outputPath, '0.19.2', {
         readCommand
       })
     ).resolves.toMatchObject({
-      version: '0.17.0',
+      version: '0.19.2',
       tools: [{ name: 'click' }]
     })
     expect(readCommand).toHaveBeenCalledWith(
@@ -235,7 +235,7 @@ describe('build-cua-plugin-runtime', () => {
         windowsHide: true
       }
     )
-    await expect(readFile(outputPath, 'utf8')).resolves.toContain('"version": "0.17.0"')
+    await expect(readFile(outputPath, 'utf8')).resolves.toContain('"version": "0.19.2"')
   })
 
   it('rejects a generated catalog with a different driver version', async () => {
@@ -245,7 +245,7 @@ describe('build-cua-plugin-runtime', () => {
       generateCuaToolCatalog(
         '/runtime/cua-driver',
         path.join(tempRoot, 'tool-catalog.json'),
-        '0.17.0',
+        '0.19.2',
         {
           readCommand: () =>
             JSON.stringify({
@@ -263,7 +263,7 @@ describe('build-cua-plugin-runtime', () => {
             })
         }
       )
-    ).rejects.toThrow(/Expected 0\.17\.0, got 0\.13\.0/)
+    ).rejects.toThrow(/Expected 0\.19\.2, got 0\.13\.0/)
   })
 
   it('rejects malformed safety annotations instead of emitting a partial catalog', async () => {
@@ -271,10 +271,10 @@ describe('build-cua-plugin-runtime', () => {
     const outputPath = path.join(tempRoot, 'tool-catalog.json')
 
     await expect(
-      generateCuaToolCatalog('/runtime/cua-driver', outputPath, '0.17.0', {
+      generateCuaToolCatalog('/runtime/cua-driver', outputPath, '0.19.2', {
         readCommand: () =>
           JSON.stringify({
-            version: '0.17.0',
+            version: '0.19.2',
             tools: [
               {
                 name: 'click',

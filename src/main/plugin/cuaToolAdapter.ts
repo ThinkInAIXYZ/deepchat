@@ -79,7 +79,7 @@ const CUA_DEGRADED_REASON_CODES = [
 const CUA_WINDOW_ESCALATION_TARGETS = new Set(['px', 'foreground'])
 
 const CUA_REFUSAL_CODE_PATTERN = /^[a-z][a-z0-9_]{0,127}$/
-// Lexical trust-boundary checks for the exact 0.17.0 contract. Callers still treat both handles
+// Lexical trust-boundary checks for cua-driver-contract 0.6.0. Callers still treat both handles
 // as opaque and never derive, increment, or synthesize them.
 const CUA_SNAPSHOT_ID_PATTERN = /^s[0-9a-f]{8}$/
 const CUA_ELEMENT_TOKEN_PATTERN = /^s[0-9a-f]{8}:[0-9]+$/

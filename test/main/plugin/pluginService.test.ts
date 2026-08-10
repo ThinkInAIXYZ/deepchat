@@ -1785,13 +1785,13 @@ describe('PluginService', () => {
     )
     expect(manifest.runtime.adapterContract).toEqual({
       hostBundleId: 'com.wefonk.deepchat',
-      driverVersion: '0.17.0',
+      driverVersion: '0.19.2',
       contractVersion: '0.6.0',
       toolsListSchemaVersion: '1',
       capabilityVersion: '1',
       mcpProtocolVersion: '2025-06-18'
     })
-    expect(manifest.runtime.install.minVersion).toBe('0.17.0')
+    expect(manifest.runtime.install.minVersion).toBe('0.19.2')
     expect(server.args).toEqual(['mcp', '--embedded'])
     expect(server.env).toBeUndefined()
     expect(mcpConfig.env).toBeUndefined()
@@ -1812,7 +1812,7 @@ describe('PluginService', () => {
     )
   })
 
-  it('keeps CUA v0.17.0 tool policies explicit and conservative', async () => {
+  it('keeps CUA v0.19.2 tool policies explicit and conservative', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
     const manifestTools = manifest.toolPolicies.find(
@@ -1924,33 +1924,33 @@ describe('PluginService', () => {
       sourceKind: 'upstream-release',
       upstreamRepo: 'https://github.com/trycua/cua.git',
       upstreamSubdir: 'libs/cua-driver/rust',
-      tag: 'cua-driver-rs-v0.17.0',
-      commit: '10279552e2bbe479e367a082f78b1b98ee85a697',
-      version: '0.17.0',
-      checksumsSha256: 'a3d58c35df49b35c63135a5b969879a7bd831f7d59d9d76b44c6c341ce1bfd7f',
+      tag: 'cua-driver-rs-v0.19.2',
+      commit: '20bb34b16ad7c6c56221c332e46b1875e9d8af8c',
+      version: '0.19.2',
+      checksumsSha256: '2aa497943793980bba915ebd6ebfab3aae9b7837064464055804862fd03068b4',
       supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
       unsupportedTargets: ['linux/arm64']
     })
     expect(metadata.assets).toEqual({
       'darwin-arm64': {
-        name: 'cua-driver-rs-0.17.0-darwin-arm64.tar.gz',
-        sha256: '55ed672850492080ff4e7dab4948b4f3bc70c3b84884a89b1eb8521a5d8177a8'
+        name: 'cua-driver-rs-0.19.2-darwin-arm64.tar.gz',
+        sha256: 'c30a81f6b5cfd44d40653f7549d7d714b445e9cbd0ed012c4c524f1c43d2872b'
       },
       'darwin-x64': {
-        name: 'cua-driver-rs-0.17.0-darwin-x86_64.tar.gz',
-        sha256: 'cbabf2f71a25b6b158a42384b775d3a75fac15185280d2036d175ee8b49301ae'
+        name: 'cua-driver-rs-0.19.2-darwin-x86_64.tar.gz',
+        sha256: 'a9c0ae771f984077dfaddde50f340e52e8b9919f2b8f5917f44334bce92e92de'
       },
       'windows-x64': {
-        name: 'cua-driver-rs-0.17.0-windows-x86_64-binary.zip',
-        sha256: 'f7e366edc4b7148b4f6f78957782b2a2d962620b0daaeb99df7cf9dce6176193'
+        name: 'cua-driver-rs-0.19.2-windows-x86_64-binary.zip',
+        sha256: '9868b60999e64ed1028a0f65082624dab7523b06f33b68d582fa0a187d1bf618'
       },
       'windows-arm64': {
-        name: 'cua-driver-rs-0.17.0-windows-arm64-binary.zip',
-        sha256: 'bd3febdabff06331efd0951495f34ef7a5fb2cc230fd5270bd34292bc7ee036a'
+        name: 'cua-driver-rs-0.19.2-windows-arm64-binary.zip',
+        sha256: '3976148f985912d03c1876766284898dfbe672db5cc2daa2fb03a0ccb755a1fd'
       },
       'linux-x64': {
-        name: 'cua-driver-rs-0.17.0-linux-x86_64-binary.tar.gz',
-        sha256: 'd8fc3e69fc83f01e6c3a70acef1b16e59a2dfc3c91aa98276360a6d211a61017'
+        name: 'cua-driver-rs-0.19.2-linux-x86_64-binary.tar.gz',
+        sha256: '13372e584fcfe4020fe0c5a70ac8d4f0e1c37125f104702d0156d0dddf98fc15'
       }
     })
     for (const asset of Object.values(metadata.assets) as Array<{ sha256: string }>) {
