@@ -18,6 +18,12 @@ export const MAIN_LOG_ERROR_CATEGORIES = [
 
 export type MainLogErrorCategory = (typeof MAIN_LOG_ERROR_CATEGORIES)[number]
 export type MainLogLevel = 'error' | 'warn' | 'info'
+export type MainLogShutdownReason =
+  | 'all_windows_closed'
+  | 'app_quit'
+  | 'restart'
+  | 'update_install'
+  | 'unknown'
 
 export interface SafeLogError {
   category: MainLogErrorCategory
@@ -144,7 +150,7 @@ export interface MainLogEventInputMap {
     startupRunId: string
   } & MainLogAppTerminalInput
   'app.shutdown.started': {
-    reason: 'all_windows_closed' | 'app_quit' | 'restart' | 'update_install' | 'unknown'
+    reason: MainLogShutdownReason
   }
   'app.shutdown.terminal': MainLogAppTerminalInput
   'agent.run.started': MainLogRunStartedInput
@@ -319,7 +325,7 @@ const SHUTDOWN_REASONS = [
   'restart',
   'update_install',
   'unknown'
-] as const
+] as const satisfies readonly MainLogShutdownReason[]
 const RELEASE_REASONS = ['permit_released', 'lease_suspended', 'lease_released'] as const
 const REJECTION_REASONS = ['queue_full', 'aborted', 'closed'] as const
 const TURN_KINDS = ['initial', 'follow_up'] as const
@@ -914,4 +920,67 @@ export function projectMainLogEvent<TEvent extends MainLogEventName>(
 
 export function isMainLogEventName(value: unknown): value is MainLogEventName {
   return typeof value === 'string' && Object.hasOwn(EVENT_DEFINITIONS, value)
+}
+
+export function isProjectedMainLogEvent(
+  event: MainLogEventName,
+  level: MainLogLevel,
+  context: unknown
+): context is MainLogContext {
+  if (event === 'process.uncaught_exception' || event === 'process.unhandled_rejection') {
+    return level === 'error' && isProjectedFatalContext(context)
+  }
+  try {
+    const projected = projectMainLogEvent(event, context as never)
+    return (
+      projected.level === level && JSON.stringify(projected.context) === JSON.stringify(context)
+    )
+  } catch {
+    return false
+  }
+}
+
+function isProjectedFatalContext(context: unknown): context is MainLogContext {
+  if (!isPlainRecord(context) || Object.keys(context).join(',') !== 'error') return false
+  const error = context.error
+  if (!isPlainRecord(error)) return false
+  if (
+    error.category !== 'aborted' &&
+    error.category !== 'timeout' &&
+    error.category !== 'unknown'
+  ) {
+    return false
+  }
+  const normalizedError: Record<string, MainLogJsonValue> = { category: error.category }
+  if (error.stack !== undefined) {
+    if (
+      !Array.isArray(error.stack) ||
+      error.stack.length < 1 ||
+      error.stack.length > MAX_FATAL_STACK_FRAMES ||
+      !error.stack.every(isProjectedStackFrame)
+    ) {
+      return false
+    }
+    normalizedError.stack = error.stack
+  }
+  return JSON.stringify(context) === JSON.stringify({ error: normalizedError })
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  )
+}
+
+function isProjectedStackFrame(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= MAX_FATAL_STACK_FRAME_LENGTH &&
+    /^at (?:(?:[A-Za-z0-9_.$<>[\]-]{1,160} \(<app>\/)|(?:<app>\/))(?:src|out)\/main\/[A-Za-z0-9_./-]{1,320}(?::\d{1,10}){0,2}\)?$/.test(
+      value
+    )
+  )
 }

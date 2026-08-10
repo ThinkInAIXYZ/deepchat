@@ -217,8 +217,13 @@ describe('session boundary composition', () => {
       path.resolve(process.cwd(), 'src/main/app/composition.ts'),
       'utf8'
     )
+    const shutdownSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/mainShutdownCoordinator.ts'),
+      'utf8'
+    )
 
-    expect(compositionSource).toContain('if (stopPromise) return stopPromise')
+    expect(shutdownSource).toContain('if (!this.teardownPromise)')
+    expect(shutdownSource).toContain('if (this.actionClaimed)')
     expect(compositionSource).toContain("appLifecycleState = 'stopping'")
     expect(compositionSource).toContain("appLifecycleState = 'stopped'")
     expect(compositionSource).toContain('throw new Error(`App lifecycle is ${appLifecycleState}`)')

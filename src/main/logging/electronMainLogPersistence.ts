@@ -1,7 +1,7 @@
 import electronLog from 'electron-log'
 import fs from 'node:fs'
 import path from 'node:path'
-import { isMainLogEventName, type MainLogLevel } from './mainLogEvents'
+import { isMainLogEventName, isProjectedMainLogEvent, type MainLogLevel } from './mainLogEvents'
 import { MAX_MAIN_LOG_RECORD_BYTES, type MainLogPersistence } from './mainLogger'
 
 type MainLogFs = Pick<
@@ -44,6 +44,7 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
   private failed = false
 
   constructor(private readonly options: ElectronMainLogPersistenceOptions) {
+    if (!options.log) electronLog.transports.file.level = false
     this.log = options.log ?? electronLog.create({ logId: MAIN_JSONL_LOG_ID })
     this.fs = options.fs ?? fs
     this.log.transports.file.level = false
@@ -236,6 +237,7 @@ function isMainLogRecordLine(level: MainLogLevel, line: string): boolean {
     const record = value as Record<string, unknown>
     const context = record.context
     return (
+      hasExactRecordFields(record) &&
       record.v === 1 &&
       typeof record.ts === 'string' &&
       isIsoTimestamp(record.ts) &&
@@ -247,13 +249,29 @@ function isMainLogRecordLine(level: MainLogLevel, line: string): boolean {
       record.process === 'main' &&
       typeof record.processInstanceId === 'string' &&
       typeof record.appVersion === 'string' &&
-      typeof context === 'object' &&
-      context !== null &&
-      !Array.isArray(context)
+      isProjectedMainLogEvent(record.event, level, context)
     )
   } catch {
     return false
   }
+}
+
+function hasExactRecordFields(record: Record<string, unknown>): boolean {
+  const fields = [
+    'v',
+    'ts',
+    'seq',
+    'level',
+    'event',
+    'process',
+    'processInstanceId',
+    'appVersion',
+    'context'
+  ]
+  return (
+    Object.keys(record).length === fields.length &&
+    fields.every((field) => Object.hasOwn(record, field))
+  )
 }
 
 function isIsoTimestamp(value: string): boolean {

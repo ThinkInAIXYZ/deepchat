@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import log from 'electron-log'
 import { z } from 'zod'
 import {
   DEFAULT_IMPORTANT_HOOK_EVENTS,
@@ -48,7 +47,7 @@ const warnUnknownKeys = (label: string, value: unknown, allowed: string[]) => {
 
   const unknownKeys = Object.keys(value).filter((key) => !allowed.includes(key))
   if (unknownKeys.length > 0) {
-    log.warn(`[HooksNotifications] Unknown keys at ${label}: ${unknownKeys.join(', ')}`)
+    console.warn(`[HooksNotifications] Unknown configuration keys at ${label}`)
   }
 }
 
@@ -93,7 +92,7 @@ export const normalizeHooksNotificationsConfig = (input: unknown): HooksNotifica
   const defaults = createDefaultHooksNotificationsConfig()
   const parsed = HooksNotificationsSchema.safeParse(input)
   if (!parsed.success) {
-    log.warn('[HooksNotifications] Invalid config, using defaults:', parsed.error?.message)
+    console.warn('[HooksNotifications] Invalid configuration; using defaults')
     return defaults
   }
 
@@ -101,9 +100,7 @@ export const normalizeHooksNotificationsConfig = (input: unknown): HooksNotifica
   const hooks = rawHooks.reduce<HookCommandItem[]>((items, item, index) => {
     const parsedItem = HookCommandItemSchema.safeParse(item)
     if (!parsedItem.success) {
-      log.warn(
-        `[HooksNotifications] Invalid hook at index ${index}, skipping: ${parsedItem.error?.message}`
-      )
+      console.warn(`[HooksNotifications] Invalid hook at index ${index}; skipping`)
       return items
     }
 

@@ -1,4 +1,6 @@
 import logger from '@shared/logger'
+import { mainLogger, setMainLoggingEnabled } from '@/logging'
+import type { MainLogShutdownReason } from '@/logging/mainLogEvents'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
 import {
   approvalClosedEvent,
@@ -254,6 +256,7 @@ import { TypedEventHub } from '@/events/typedEventHub'
 import { SessionEventRouter } from '@/events/sessionEventRouter'
 import { createMemoryProviderBindings } from './memoryProviderBindings'
 import { createSessionPermissionPort } from './sessionPermissionAdapter'
+import { MainShutdownCoordinator } from './mainShutdownCoordinator'
 import {
   EpisodeRegistry,
   TimeoutNotificationScheduler,
@@ -270,7 +273,8 @@ export interface MainProcessControl {
   confirmShutdown(): Promise<boolean>
   cancelShutdown(): void
   hasMainWindows(): boolean
-  stop(): Promise<void>
+  stop(reason: MainLogShutdownReason): Promise<boolean>
+  stopForCleanup(): Promise<void>
 }
 
 function createLivePort<T extends object>(resolve: () => T): T {
@@ -379,7 +383,6 @@ export async function createMainProcessControl(dependencies: {
   let hasInitialized = false
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
   let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
-  let stopPromise: Promise<void> | null = null
   let pluginInitializationPromise: Promise<void> | null = null
   let skillInitializationPromise: Promise<void> | null = null
   let skillSyncScanPromise: Promise<void> | null = null
@@ -863,7 +866,8 @@ export async function createMainProcessControl(dependencies: {
     () => {
       restartApplication().catch((error) => logger.error('Application restart failed:', error))
     },
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    setMainLoggingEnabled
   )
   const rendererPerformanceLogService = new RendererPerformanceLogService(
     dependencies.settingsStore
@@ -2739,11 +2743,9 @@ export async function createMainProcessControl(dependencies: {
     )
   }
 
-  function stop(): Promise<void> {
-    if (stopPromise) return stopPromise
-
-    appLifecycleState = 'stopping'
-    stopPromise = (async () => {
+  const shutdownCoordinator = new MainShutdownCoordinator(
+    async () => {
+      appLifecycleState = 'stopping'
       windowPresenter.setApplicationQuitting(true)
       startupWorkloadCoordinator.cancelTarget('main')
       await runDestroyStep('acpInitTerminal.kill', () => killTerminal())
@@ -2753,8 +2755,32 @@ export async function createMainProcessControl(dependencies: {
         unsubscribeStartupWorkload()
         appLifecycleState = 'stopped'
       }
-    })()
-    return stopPromise
+    },
+    {
+      started: (reason) => mainLogger.emit('app.shutdown.started', { reason }),
+      terminal: (observation) => {
+        if (observation.outcome === 'completed') {
+          mainLogger.emit('app.shutdown.terminal', {
+            outcome: 'completed',
+            durationMs: observation.durationMs
+          })
+          return
+        }
+        mainLogger.emit('app.shutdown.terminal', {
+          outcome: 'failed',
+          durationMs: observation.durationMs,
+          error: { category: 'unknown' }
+        })
+      }
+    }
+  )
+
+  function stop(reason: MainLogShutdownReason): Promise<boolean> {
+    return shutdownCoordinator.request(reason)
+  }
+
+  function stopForCleanup(): Promise<void> {
+    return shutdownCoordinator.cleanup()
   }
 
   function assertRouteAllowedDuringDatabaseMaintenance(routeName: string): void {
@@ -2835,7 +2861,7 @@ export async function createMainProcessControl(dependencies: {
       databaseMaintenanceState = 'running'
     } catch (error) {
       databaseMaintenanceState = 'failed'
-      await stop()
+      await stopForCleanup()
       throw error
     }
 
@@ -2881,14 +2907,15 @@ export async function createMainProcessControl(dependencies: {
     await coordinateApplicationDataReset(resetType, {
       cliLauncher: cliLauncherService,
       logger,
-      stop,
+      stop: async () => {
+        if (!(await stop('restart'))) throw new Error('Application shutdown is already owned')
+      },
       resetDataByType: (type) => deviceService.resetDataByType(type)
     })
   }
 
   async function restartApplication(): Promise<void> {
-    await stop()
-    await deviceService.restartApp()
+    if (await stop('restart')) await deviceService.restartApp()
   }
 
   async function openRemoteSession(sessionId: string): Promise<boolean> {
@@ -2943,7 +2970,8 @@ export async function createMainProcessControl(dependencies: {
     confirmShutdown: async () => await knowledgeService.confirmShutdown(),
     cancelShutdown: () => windowPresenter.setApplicationQuitting(false),
     hasMainWindows: () => windowPresenter.getAllWindows().length > 0,
-    stop
+    stop,
+    stopForCleanup
   }
 
   dependencies.bindControl(control)

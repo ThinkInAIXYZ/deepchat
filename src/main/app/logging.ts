@@ -8,7 +8,8 @@ export class LoggingService {
   constructor(
     private readonly settings: SettingsStore,
     private readonly restartApp: () => void,
-    private readonly publishEvent: DeepchatEventPublisher
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly setMainPersistenceEnabled: (enabled: boolean) => void
   ) {}
 
   getEnabled(): boolean {
@@ -18,6 +19,7 @@ export class LoggingService {
   setEnabled(enabled: boolean): void {
     const value = Boolean(enabled)
     this.settings.set('loggingEnabled', value)
+    this.setMainPersistenceEnabled(value)
     this.publishEvent('settings.changed', {
       changedKeys: ['loggingEnabled'],
       version: Date.now(),

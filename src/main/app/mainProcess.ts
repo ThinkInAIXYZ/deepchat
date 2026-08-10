@@ -1,6 +1,5 @@
 import { electronApp } from '@electron-toolkit/utils'
 import { app } from 'electron'
-import { setLoggingEnabled } from '@shared/logger'
 import { createSettingsStore } from '@/config/settingsStore'
 import { SecretStore } from '@/config/secretStore'
 import { DatabaseSecurityService } from './databaseSecurity'
@@ -20,6 +19,7 @@ import { migrateConfigStorage } from '@/config/migration'
 import { ProviderDatabase } from '@/provider/data/database'
 import { McpDatabase } from '@/mcp/data/database'
 import { AgentDatabase } from '@/agent/data/database'
+import { setMainLoggingEnabled } from '@/logging'
 
 export type { MainProcessControl } from './composition'
 
@@ -83,7 +83,7 @@ export async function startMainProcess(
     if (configMigration.appVersionChanged) {
       mcpSettings.onUpgrade(configMigration.previousAppVersion)
     }
-    setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
+    setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
     await registerProtocols(mcpAppSandboxRegistry)
 
@@ -116,7 +116,7 @@ export async function startMainProcess(
   } catch (error) {
     await splashWindow.close()
     if (mainProcess) {
-      await mainProcess.stop()
+      await mainProcess.stopForCleanup()
     } else {
       database?.close()
     }

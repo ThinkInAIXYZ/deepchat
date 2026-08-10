@@ -1,7 +1,5 @@
-import logger from '@shared/logger'
 import { app, dialog } from 'electron'
 import { StartupWorkloadCoordinator } from './app/startupWorkloadCoordinator'
-import log from 'electron-log'
 import { registerWorkspacePreviewSchemes } from './workspace/workspacePreviewProtocol'
 import { registerMcpAppScheme } from './mcp/apps/sandboxProtocol'
 import {
@@ -13,6 +11,8 @@ import {
 import { isInsecureTlsAllowed } from './lib/insecureTls'
 import { ensureRegularAppOnMac } from './lib/activateApp'
 import { startMainProcess, type MainProcessControl } from './app/mainProcess'
+import { mainLogger } from './logging'
+import type { MainLogShutdownReason } from './logging/mainLogEvents'
 
 let appStarted = false
 const APP_NAME = 'DeepChat'
@@ -45,14 +45,15 @@ export function startApp(): void {
   let mainProcess: MainProcessControl | undefined
   let allowQuit = false
   let shutdownPromise: Promise<void> | undefined
+  let shutdownReason: MainLogShutdownReason = 'app_quit'
 
   // Handle unhandled exceptions to prevent app crash or error dialogs
   process.on('uncaughtException', (error) => {
-    log.error('Uncaught Exception:', error)
+    mainLogger.emit('process.uncaught_exception', { error })
   })
 
   process.on('unhandledRejection', (reason) => {
-    log.error('Unhandled Rejection:', reason)
+    mainLogger.emit('process.unhandled_rejection', { error: reason })
   })
 
   // Set application command line arguments
@@ -77,31 +78,24 @@ export function startApp(): void {
 
   const gotSingleInstanceLock = app.requestSingleInstanceLock()
   if (!gotSingleInstanceLock) {
-    logger.info('Another DeepChat instance is already running. Exiting current process.')
     app.quit()
     return
   }
 
-  logger.info('Main process starting, checking for deeplink...')
-  logger.info('Startup arguments received', { argc: process.argv.length })
   const startupDeepLink = findStartupDeepLink(process.argv, process.env)
   if (startupDeepLink) {
-    logger.info('Found startup deeplink during initialization')
     storeStartupDeepLink(startupDeepLink)
-  } else {
-    logger.info('No startup deeplink detected during initialization')
   }
 
   const focusExistingAppWindow = () => {
     mainProcess?.focusPrimaryWindow()
   }
 
-  const routeIncomingDeeplink = (url: string, source: string) => {
+  const routeIncomingDeeplink = (url: string) => {
     if (!isDeepLinkUrl(url)) {
       return
     }
 
-    logger.info(source)
     const normalizedUrl = storeStartupDeepLink(url)
     if (!normalizedUrl) {
       return
@@ -116,24 +110,29 @@ export function startApp(): void {
   // This must be set before app.whenReady() because open-url events can fire before that
   app.on('open-url', (event, url) => {
     event.preventDefault()
-    routeIncomingDeeplink(url, 'Received open-url event')
+    routeIncomingDeeplink(url)
   })
 
   // Also listen for second-instance events (Windows/Linux)
   if (gotSingleInstanceLock) {
     app.on('second-instance', (_event, commandLine) => {
-      logger.info('Received second-instance event', { argc: commandLine.length })
       focusExistingAppWindow()
 
       const deepLinkUrl = findDeepLinkArg(commandLine)
       if (deepLinkUrl) {
-        routeIncomingDeeplink(deepLinkUrl, 'Received second-instance deeplink')
+        routeIncomingDeeplink(deepLinkUrl)
       }
     })
   }
 
   const startupWorkloadCoordinator = new StartupWorkloadCoordinator()
   const mainStartupRunId = startupWorkloadCoordinator.createRun('main')
+  const startupStartedAt = performance.now()
+  mainLogger.emit('app.startup.started', {
+    startupRunId: mainStartupRunId,
+    argumentCount: process.argv.length,
+    deepLinkPresent: startupDeepLink !== null
+  })
 
   const requestUpdateInstall = async (installAction: () => void): Promise<void> => {
     const activeMainProcess = mainProcess
@@ -145,7 +144,11 @@ export function startApp(): void {
     }
 
     activeMainProcess.clearPermissionCaches()
-    shutdownPromise = activeMainProcess.stop()
+    shutdownPromise = (async () => {
+      if (!(await activeMainProcess.stop('update_install'))) {
+        throw new Error('Application shutdown is already owned by another action')
+      }
+    })()
     await shutdownPromise
     allowQuit = true
     installAction()
@@ -154,15 +157,23 @@ export function startApp(): void {
   app.whenReady().then(async () => {
     ensureRegularAppOnMac()
     try {
-      logger.info('main: Application startup')
       mainProcess = await startMainProcess(
         startupWorkloadCoordinator,
         mainStartupRunId,
         requestUpdateInstall
       )
-      logger.info('main: Application startup completed successfully')
+      mainLogger.emit('app.startup.terminal', {
+        startupRunId: mainStartupRunId,
+        outcome: 'completed',
+        durationMs: performance.now() - startupStartedAt
+      })
     } catch (error) {
-      console.error('main: Application startup failed:', error)
+      mainLogger.emit('app.startup.terminal', {
+        startupRunId: mainStartupRunId,
+        outcome: 'failed',
+        durationMs: performance.now() - startupStartedAt,
+        error: { category: 'unknown' }
+      })
       dialog.showErrorBox(
         'Application startup failed',
         error instanceof Error ? error.message : String(error)
@@ -195,14 +206,13 @@ export function startApp(): void {
       if (!confirmed) {
         activeMainProcess.cancelShutdown()
         shutdownPromise = undefined
+        shutdownReason = 'app_quit'
         return
       }
 
       try {
-        await activeMainProcess.stop()
-      } catch (error) {
-        logger.error('main: Application shutdown failed:', error)
-      }
+        if (!(await activeMainProcess.stop(shutdownReason))) return
+      } catch {}
 
       allowQuit = true
       app.quit()
@@ -216,7 +226,7 @@ export function startApp(): void {
 
     if (!mainProcess.hasMainWindows()) {
       // When only floating button windows exist, quit app on non-macOS platforms
-      logger.info('main: All main windows closed, requesting shutdown')
+      shutdownReason = 'all_windows_closed'
       app.quit() // Keep this event to avoid unexpected situations
     }
   })

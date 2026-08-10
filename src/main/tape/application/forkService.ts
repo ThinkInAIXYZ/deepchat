@@ -1,5 +1,4 @@
 import { nanoid } from 'nanoid'
-import logger from 'electron-log'
 import type { DeepChatTapeEntryRow } from '../domain/entry'
 import { isContractTapeReservedName } from '../domain/contractFacts'
 import { isExecutionJournalReservedName } from '../domain/executionJournal'
@@ -280,9 +279,7 @@ export class TapeForkService {
         idempotent: true
       })
     })
-    if (cleanupError) {
-      logger.warn(`[Tape] failed to delete fork Tape generation: ${String(cleanupError)}`)
-    }
+    if (cleanupError) console.warn('[Tape] Failed to delete fork generation')
   }
 
   recordExternalForkMerge(

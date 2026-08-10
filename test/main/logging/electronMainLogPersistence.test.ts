@@ -94,16 +94,15 @@ describe('ElectronMainLogPersistence', () => {
     )
   })
 
-  it('creates a dedicated electron-log instance without mutating the default singleton', () => {
+  it('creates a dedicated logger and disables the unused default file sink', () => {
     const userData = createUserData()
-    const originalFileLevel = electronLog.transports.file.level
     const originalConsoleLevel = electronLog.transports.console.level
 
     const persistence = new ElectronMainLogPersistence({ getUserDataPath: () => userData, fs })
     expect(persistence.enable()).toBe(true)
     expect(persistence.write('info', validLine())).toBe(true)
 
-    expect(electronLog.transports.file.level).toBe(originalFileLevel)
+    expect(electronLog.transports.file.level).toBe(false)
     expect(electronLog.transports.console.level).toBe(originalConsoleLevel)
     expect(fs.readFileSync(path.join(userData, 'logs/main.jsonl'), 'utf8')).toBe(`${validLine()}\n`)
   })
@@ -199,5 +198,39 @@ describe('ElectronMainLogPersistence', () => {
     expect(persistence.write('info', '[]')).toBe(false)
     expect(persistence.write('info', '{"v":1}\n{"v":2}')).toBe(false)
     expect(log.processMessage).not.toHaveBeenCalled()
+  })
+
+  it('rejects fields outside the selected event schema', () => {
+    const userData = createUserData()
+    const { log, persistence } = createPersistence(userData)
+    expect(persistence.enable()).toBe(true)
+
+    const contextPayload = JSON.parse(validLine())
+    contextPayload.context.prompt = 'SECRET_PROMPT'
+    expect(persistence.write('info', JSON.stringify(contextPayload))).toBe(false)
+
+    const envelopePayload = JSON.parse(validLine())
+    envelopePayload.toolResponse = 'SECRET_TOOL_RESPONSE'
+    expect(persistence.write('info', JSON.stringify(envelopePayload))).toBe(false)
+    expect(log.processMessage).not.toHaveBeenCalled()
+  })
+
+  it('accepts only the bounded projected shape for fatal events', () => {
+    const userData = createUserData()
+    const { persistence } = createPersistence(userData)
+    expect(persistence.enable()).toBe(true)
+    const fatalRecord = JSON.parse(validLine())
+    fatalRecord.level = 'error'
+    fatalRecord.event = 'process.uncaught_exception'
+    fatalRecord.context = {
+      error: {
+        category: 'unknown',
+        stack: ['at explode (<app>/src/main/example.ts:10:2)']
+      }
+    }
+
+    expect(persistence.write('error', JSON.stringify(fatalRecord))).toBe(true)
+    fatalRecord.context.error.message = 'SECRET_ERROR_MESSAGE'
+    expect(persistence.write('error', JSON.stringify(fatalRecord))).toBe(false)
   })
 })
