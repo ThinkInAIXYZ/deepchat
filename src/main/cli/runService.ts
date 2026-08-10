@@ -62,7 +62,6 @@ type RunTurnPort = Readonly<{
 
 type RunProjectionPort = Readonly<{
   getSession(sessionId: string): Promise<SessionWithState | null>
-  getMessages(sessionId: string): Promise<ChatMessageRecord[]>
   listMessagesPage(
     sessionId: string,
     options?: { limit?: number; cursor?: MessagePageCursor | null }
@@ -78,6 +77,7 @@ export type CliRunServiceOptions = Readonly<{
   turn: RunTurnPort
   projection: RunProjectionPort
   sessions: RunSessionStorePort
+  getPendingAssistantMessages(runId: string): ChatMessageRecord[]
   hasWaitingDescendantInteraction(runId: string): boolean
   eventHub: TypedEventHub
   now?: () => number
@@ -483,7 +483,7 @@ export class CliRunService {
     ])
     const phaseMessages =
       session.status === 'generating' && (cursor != null || page.hasMore)
-        ? await this.options.projection.getMessages(runId)
+        ? this.options.getPendingAssistantMessages(runId)
         : page.messages
     const projectedPage = projectMessagePage(page)
     return runsGetRoute.output.parse({

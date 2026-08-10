@@ -1728,6 +1728,8 @@ export async function createMainProcessControl(dependencies: {
     turn: sessionTurn,
     projection: sessionQuery,
     sessions: appSessionService,
+    getPendingAssistantMessages: (runId) =>
+      sessionData.transcript.getPendingAssistantMessages(runId),
     hasWaitingDescendantInteraction: (runId) =>
       liveDelegationRepository
         .listActiveTurns()

@@ -241,7 +241,7 @@ Public method names describe their domain (`models.invoke`, `providers.listPubli
 `sessions.runDetached`). The `cli.*` namespace is reserved for behavior that exists only to operate
 or diagnose the bundled CLI.
 
-### V1 Capability Matrix
+### V2 Capability Matrix
 
 `H` means an authenticated human CLI connection. `A` means a short-lived Agent connection with the
 listed scope. “Policy” means the renderer-only effect policy may be required; it never means a CLI

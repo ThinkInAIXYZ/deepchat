@@ -153,6 +153,7 @@ function createHarness(
   turn: CliRunServiceOptions['turn']
   projection: CliRunServiceOptions['projection']
   sessions: CliRunServiceOptions['sessions']
+  getPendingAssistantMessages: ReturnType<typeof vi.fn>
   log: { warn: ReturnType<typeof vi.fn> }
 } {
   const session = overrides.session ?? baseSession
@@ -165,13 +166,17 @@ function createHarness(
   }
   const projection = {
     getSession: vi.fn(async () => session),
-    getMessages: vi.fn(async () => overrides.messages ?? []),
     listMessagesPage: vi.fn(async () => ({
       messages: overrides.messages ?? [],
       nextCursor: null,
       hasMore: false
     }))
   }
+  const getPendingAssistantMessages = vi.fn(() =>
+    (overrides.messages ?? []).filter(
+      (message) => message.role === 'assistant' && message.status === 'pending'
+    )
+  )
   const sessions = {
     get: vi.fn(() =>
       overrides.storedSession === undefined ? (session as SessionRecord) : overrides.storedSession
@@ -189,6 +194,7 @@ function createHarness(
       turn,
       projection,
       sessions,
+      getPendingAssistantMessages,
       hasWaitingDescendantInteraction: vi.fn(
         () => overrides.hasWaitingDescendantInteraction ?? false
       ),
@@ -201,6 +207,7 @@ function createHarness(
     turn,
     projection,
     sessions,
+    getPendingAssistantMessages,
     log
   }
 }
@@ -246,17 +253,14 @@ async function startRunWatcher(service: CliRunService): Promise<{
 }
 
 async function expectWatcherPending(result: Promise<unknown>): Promise<void> {
-  let settled = false
-  void result.then(
-    () => {
-      settled = true
-    },
-    () => {
-      settled = true
-    }
-  )
-  await Promise.resolve()
-  expect(settled).toBe(false)
+  const outcome = await Promise.race([
+    result.then(
+      () => 'settled' as const,
+      () => 'settled' as const
+    ),
+    new Promise<'pending'>((resolve) => setTimeout(() => resolve('pending'), 10))
+  ])
+  expect(outcome).toBe('pending')
 }
 
 describe('CliRunService', () => {
@@ -433,16 +437,17 @@ describe('CliRunService', () => {
     ).resolves.toMatchObject({ phase: 'running' })
   })
 
-  it('derives phase from the latest message when reading an older transcript page', async () => {
-    const { service, projection } = createHarness()
+  it.each([
+    ['direct question', createInteractionMessage('question_request')],
+    ['legacy subagent wait', createSubagentInteractionMessage('permission')]
+  ])('derives phase from a pending %s outside an older transcript page', async (_kind, message) => {
+    const { service, projection, getPendingAssistantMessages } = createHarness()
     vi.mocked(projection.listMessagesPage).mockResolvedValueOnce({
       messages: [createMessage({})],
       nextCursor: null,
       hasMore: false
     })
-    vi.mocked(projection.getMessages).mockResolvedValueOnce([
-      createInteractionMessage('question_request')
-    ])
+    getPendingAssistantMessages.mockReturnValueOnce([message])
 
     await expect(
       invokeRoute(service, runsGetRoute.name, {
@@ -450,25 +455,24 @@ describe('CliRunService', () => {
         cursor: { orderSeq: 2, id: 'message-2' }
       })
     ).resolves.toMatchObject({ phase: 'awaiting_interaction' })
-    expect(projection.getMessages).toHaveBeenCalledWith('run-1')
+    expect(getPendingAssistantMessages).toHaveBeenCalledWith('run-1')
   })
 
   it('derives phase independently of a limited transcript page', async () => {
-    const { service, projection } = createHarness()
+    const { service, projection, getPendingAssistantMessages } = createHarness()
     vi.mocked(projection.listMessagesPage).mockResolvedValueOnce({
       messages: [createMessage({})],
       nextCursor: { orderSeq: 1, id: 'message-1' },
       hasMore: true
     })
-    vi.mocked(projection.getMessages).mockResolvedValueOnce([
-      createMessage({}),
+    getPendingAssistantMessages.mockReturnValueOnce([
       createInteractionMessage('tool_call_permission')
     ])
 
     await expect(
       invokeRoute(service, runsGetRoute.name, { runId: 'run-1', limit: 1 })
     ).resolves.toMatchObject({ phase: 'awaiting_interaction' })
-    expect(projection.getMessages).toHaveBeenCalledWith('run-1')
+    expect(getPendingAssistantMessages).toHaveBeenCalledWith('run-1')
   })
 
   it('returns only the final assistant answer without exposing process blocks', async () => {
@@ -813,17 +817,7 @@ describe('CliRunService', () => {
     await vi.waitFor(() =>
       expect(emitted.map((entry) => entry.event)).toContain('chat.stream.completed')
     )
-    let settled = false
-    void result.then(
-      () => {
-        settled = true
-      },
-      () => {
-        settled = true
-      }
-    )
-    await Promise.resolve()
-    expect(settled).toBe(false)
+    await expectWatcherPending(result)
 
     hub.publish(
       'sessions.status.changed',

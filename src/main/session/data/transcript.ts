@@ -445,6 +445,11 @@ export class SessionTranscript {
     return this.toRecords(rows)
   }
 
+  getPendingAssistantMessages(sessionId: string): ChatMessageRecord[] {
+    const rows = this.database.deepchatMessagesTable.getPendingAssistantBySession(sessionId)
+    return this.toRecords(rows)
+  }
+
   hasMessages(sessionId: string): boolean {
     return this.database.deepchatMessagesTable.hasBySession(sessionId)
   }

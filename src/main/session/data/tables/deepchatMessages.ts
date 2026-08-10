@@ -32,9 +32,20 @@ export interface DeepChatAssistantMessageIdentityRow {
   updated_at: number
 }
 
+const PENDING_ASSISTANT_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_deepchat_messages_pending_assistant
+    ON deepchat_messages(session_id, order_seq, id)
+    WHERE role = 'assistant' AND status = 'pending';
+`
+
 export class DeepChatMessagesTable extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'deepchat_messages')
+  }
+
+  override createTable(): void {
+    super.createTable()
+    this.db.exec(PENDING_ASSISTANT_INDEX_SQL)
   }
 
   getCreateTableSQL(): string {
@@ -52,6 +63,7 @@ export class DeepChatMessagesTable extends BaseTable {
         updated_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_deepchat_messages_session ON deepchat_messages(session_id, order_seq);
+      ${PENDING_ASSISTANT_INDEX_SQL}
     `
   }
 
@@ -155,6 +167,16 @@ export class DeepChatMessagesTable extends BaseTable {
   getBySession(sessionId: string): DeepChatMessageRow[] {
     return this.db
       .prepare('SELECT * FROM deepchat_messages WHERE session_id = ? ORDER BY order_seq')
+      .all(sessionId) as DeepChatMessageRow[]
+  }
+
+  getPendingAssistantBySession(sessionId: string): DeepChatMessageRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM deepchat_messages
+         WHERE session_id = ? AND role = 'assistant' AND status = 'pending'
+         ORDER BY order_seq, id`
+      )
       .all(sessionId) as DeepChatMessageRow[]
   }
 
