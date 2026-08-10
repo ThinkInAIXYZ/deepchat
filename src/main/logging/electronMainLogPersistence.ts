@@ -33,6 +33,7 @@ export interface ElectronMainLogPersistenceOptions {
 const MAX_MAIN_LOG_FILE_BYTES = 10 * 1024 * 1024
 const TAIL_SCAN_CHUNK_BYTES = 64 * 1024
 const MAIN_JSONL_LOG_ID = 'deepchat-main-jsonl'
+const MAX_SAFE_FILE_SIZE = BigInt(Number.MAX_SAFE_INTEGER)
 
 export class ElectronMainLogPersistence implements MainLogPersistence {
   private readonly log: typeof electronLog
@@ -153,12 +154,9 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
       0o600
     )
     try {
-      const descriptorStat = this.fs.fstatSync(descriptor)
-      if (!descriptorStat.isFile()) {
-        throw new Error('Main JSONL descriptor is not a regular file')
-      }
+      const descriptorSize = this.validateActiveFileIdentity(this.logPath, descriptor)
       this.descriptor = descriptor
-      this.activeSize = descriptorStat.size
+      this.activeSize = descriptorSize
     } catch (error) {
       try {
         this.fs.closeSync(descriptor)
@@ -171,6 +169,8 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
 
   private rotate(): void {
     if (!this.logPath) throw new Error('Main JSONL path is unavailable')
+    if (this.descriptor === undefined) throw new Error('Main JSONL descriptor is unavailable')
+    this.validateActiveFileIdentity(this.logPath, this.descriptor)
     this.closeActiveFile()
     const activeStat = this.fs.lstatSync(this.logPath)
     if (activeStat.isSymbolicLink() || !activeStat.isFile()) {
@@ -202,9 +202,7 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
     const noFollow = this.fs.constants.O_NOFOLLOW ?? 0
     const descriptor = this.fs.openSync(filePath, this.fs.constants.O_RDWR | noFollow)
     try {
-      const descriptorStat = this.fs.fstatSync(descriptor)
-      if (!descriptorStat.isFile()) throw new Error('Main JSONL descriptor is not a regular file')
-      const size = descriptorStat.size
+      const size = this.validateActiveFileIdentity(filePath, descriptor)
       if (size === 0) return
 
       const lastByte = Buffer.allocUnsafe(1)
@@ -236,6 +234,31 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
     } finally {
       this.fs.closeSync(descriptor)
     }
+  }
+
+  private validateActiveFileIdentity(filePath: string, descriptor: number): number {
+    const descriptorStat = this.fs.fstatSync(descriptor, { bigint: true })
+    if (!descriptorStat.isFile()) {
+      throw new Error('Main JSONL descriptor is not a regular file')
+    }
+
+    const directoryStat = this.fs.lstatSync(path.dirname(filePath), { bigint: true })
+    if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
+      throw new Error('Main JSONL directory is no longer a regular directory')
+    }
+
+    const pathStat = this.fs.lstatSync(filePath, { bigint: true })
+    if (pathStat.isSymbolicLink() || !pathStat.isFile()) {
+      throw new Error('Main JSONL active path is no longer a regular file')
+    }
+    if (pathStat.dev !== descriptorStat.dev || pathStat.ino !== descriptorStat.ino) {
+      throw new Error('Main JSONL active path does not match the opened descriptor')
+    }
+    if (descriptorStat.size > MAX_SAFE_FILE_SIZE) {
+      throw new Error('Main JSONL active file exceeds the safe supported size')
+    }
+
+    return Number(descriptorStat.size)
   }
 
   private rejectWrite(): false {

@@ -252,6 +252,11 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
   Disablement, transport failure, and rotation close that descriptor; rotation validates and opens
   the new active file before its first append. This keeps the steady-state path to one write syscall
   without weakening the regular-file check.
+- Before any read, append, or tail truncation, the adapter revalidates the log directory and active
+  path after open and requires its exact 64-bit filesystem identity to match the opened descriptor.
+  A symlink or file replacement race disables persistence without mutating the opened target.
+  Rotation repeats the identity check before closing the retained descriptor. This also preserves
+  the boundary on platforms where `O_NOFOLLOW` is unavailable.
 - Rotation asks the filesystem to replace the previous archive by renaming the complete active file
   over it, without an application-level pre-delete. It never crops a byte range, truncates the active
   file to satisfy the cap, appends a human-readable crop marker, adds a suffix or writes a non-JSON

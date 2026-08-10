@@ -23,6 +23,14 @@ function createUserData(): string {
   return directory
 }
 
+function fstatWithOptions(descriptor: number, options?: { bigint?: boolean }) {
+  return options?.bigint ? fs.fstatSync(descriptor, { bigint: true }) : fs.fstatSync(descriptor)
+}
+
+function lstatWithOptions(filePath: fs.PathLike, options?: { bigint?: boolean }) {
+  return options?.bigint ? fs.lstatSync(filePath, { bigint: true }) : fs.lstatSync(filePath)
+}
+
 function createElectronLog() {
   const fileTransport = { level: 'info' as string | false }
   const consoleTransport = { level: 'info' as string | false }
@@ -118,7 +126,7 @@ describe('ElectronMainLogPersistence', () => {
     const openSync = vi.fn((...args: Parameters<typeof fs.openSync>) =>
       fs.openSync(...args)
     ) as typeof fs.openSync
-    const fstatSync = vi.fn((descriptor: number) => fs.fstatSync(descriptor))
+    const fstatSync = vi.fn(fstatWithOptions)
     const closeSync = vi.fn((descriptor: number) => fs.closeSync(descriptor))
     const { persistence } = createPersistence(userData, { openSync, fstatSync, closeSync })
     expect(persistence.enable()).toBe(true)
@@ -229,6 +237,44 @@ describe('ElectronMainLogPersistence', () => {
     expect(fs.readFileSync(activePath, 'utf8')).toBe(`${line}\n`)
   })
 
+  it('does not rotate a path that changed after its append descriptor was opened', () => {
+    const userData = createUserData()
+    const logDirectory = path.join(userData, 'logs')
+    const activePath = path.join(logDirectory, 'main.jsonl')
+    const replacementPath = path.join(logDirectory, 'replacement.jsonl')
+    const replacementContents = '{"replacement":true}\n'
+    fs.mkdirSync(logDirectory, { recursive: true })
+    writeCompleteFileAtLimit(activePath)
+    fs.writeFileSync(replacementPath, replacementContents)
+    let appendDescriptorOpened = false
+    let postOpenPathChecks = 0
+    const openSync = vi.fn(
+      (filePath: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode | null): number => {
+        const descriptor = fs.openSync(filePath, flags, mode)
+        if (typeof flags === 'number' && (flags & fs.constants.O_APPEND) !== 0) {
+          appendDescriptorOpened = true
+        }
+        return descriptor
+      }
+    )
+    const lstatSync = vi.fn((filePath: fs.PathLike, options?: { bigint?: boolean }) => {
+      if (filePath === activePath && appendDescriptorOpened && ++postOpenPathChecks === 2) {
+        return lstatWithOptions(replacementPath, options)
+      }
+      return lstatWithOptions(filePath, options)
+    })
+    const renameSync = vi.fn((oldPath: fs.PathLike, newPath: fs.PathLike) =>
+      fs.renameSync(oldPath, newPath)
+    )
+    const { persistence } = createPersistence(userData, { lstatSync, openSync, renameSync })
+    expect(persistence.enable()).toBe(true)
+
+    expect(persistence.write('info', validLine())).toBe(false)
+    expect(renameSync).not.toHaveBeenCalled()
+    expect(fs.statSync(activePath).size).toBe(MAX_FILE_BYTES)
+    expect(fs.readFileSync(replacementPath, 'utf8')).toBe(replacementContents)
+  })
+
   it('disables persistence permanently after rotation or write failure', () => {
     const userData = createUserData()
     const activePath = path.join(userData, 'logs/main.jsonl')
@@ -280,6 +326,126 @@ describe('ElectronMainLogPersistence', () => {
 
     expect(linkedFilePersistence.enable()).toBe(false)
     expect(fs.readFileSync(externalFile, 'utf8')).toBe('{"safe":true}\n')
+  })
+
+  it('rejects a file replaced by a symlink between validation and open', () => {
+    const userData = createUserData()
+    const externalDirectory = createUserData()
+    const activePath = path.join(userData, 'logs/main.jsonl')
+    const externalFile = path.join(externalDirectory, 'external.jsonl')
+    const externalContents = '{"safe":true}\n'
+    fs.mkdirSync(path.dirname(activePath), { recursive: true })
+    fs.writeFileSync(externalFile, externalContents)
+    const closeSync = vi.fn((descriptor: number) => fs.closeSync(descriptor))
+    const openSync = vi.fn(
+      (filePath: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode | null): number => {
+        if (filePath === activePath) fs.symlinkSync(externalFile, activePath)
+        return fs.openSync(filePath, flags, mode)
+      }
+    )
+    const { persistence } = createPersistence(userData, {
+      closeSync,
+      constants: { ...fs.constants, O_NOFOLLOW: 0 },
+      openSync
+    })
+    expect(persistence.enable()).toBe(true)
+
+    expect(persistence.write('info', validLine())).toBe(false)
+    expect(closeSync).toHaveBeenCalledOnce()
+    expect(fs.readFileSync(externalFile, 'utf8')).toBe(externalContents)
+  })
+
+  it('rejects a regular file replaced after open before repairing its tail', () => {
+    const userData = createUserData()
+    const logDirectory = path.join(userData, 'logs')
+    const activePath = path.join(logDirectory, 'main.jsonl')
+    const replacementPath = path.join(logDirectory, 'replacement.jsonl')
+    const originalContents = '{"seq":1}\n{"partial":true'
+    const replacementContents = '{"replacement":true}\n'
+    fs.mkdirSync(logDirectory, { recursive: true })
+    fs.writeFileSync(activePath, originalContents)
+    fs.writeFileSync(replacementPath, replacementContents)
+    const closeSync = vi.fn((descriptor: number) => fs.closeSync(descriptor))
+    const ftruncateSync = vi.fn((descriptor: number, length?: number) =>
+      fs.ftruncateSync(descriptor, length)
+    )
+    let activePathChecks = 0
+    const lstatSync = vi.fn((filePath: fs.PathLike, options?: { bigint?: boolean }) => {
+      if (filePath === activePath && ++activePathChecks === 2) {
+        return lstatWithOptions(replacementPath, options)
+      }
+      return lstatWithOptions(filePath, options)
+    })
+    const { persistence } = createPersistence(userData, {
+      closeSync,
+      ftruncateSync,
+      lstatSync
+    })
+
+    expect(persistence.enable()).toBe(false)
+    expect(closeSync).toHaveBeenCalledOnce()
+    expect(ftruncateSync).not.toHaveBeenCalled()
+    expect(fs.readFileSync(activePath, 'utf8')).toBe(originalContents)
+    expect(fs.readFileSync(replacementPath, 'utf8')).toBe(replacementContents)
+  })
+
+  it('compares file identities without rounding distinct 64-bit inode values', () => {
+    const userData = createUserData()
+    const logDirectory = path.join(userData, 'logs')
+    const activePath = path.join(logDirectory, 'main.jsonl')
+    const originalContents = '{"safe":true}\n'
+    const descriptorInode = 9_007_199_254_740_992n
+    const pathInode = descriptorInode + 1n
+    fs.mkdirSync(logDirectory, { recursive: true })
+    fs.writeFileSync(activePath, originalContents)
+    const fstatSync = vi.fn((descriptor: number, options?: { bigint?: boolean }) => {
+      const stat = fstatWithOptions(descriptor, options)
+      return new Proxy(stat, {
+        get: (target, property, receiver) =>
+          property === 'ino' ? descriptorInode : Reflect.get(target, property, receiver)
+      })
+    })
+    const lstatSync = vi.fn((filePath: fs.PathLike, options?: { bigint?: boolean }) => {
+      const stat = lstatWithOptions(filePath, options)
+      if (filePath !== activePath || !options?.bigint) return stat
+      return new Proxy(stat, {
+        get: (target, property, receiver) =>
+          property === 'ino' ? pathInode : Reflect.get(target, property, receiver)
+      })
+    })
+    const { persistence } = createPersistence(userData, { fstatSync, lstatSync })
+
+    expect(Number(descriptorInode)).toBe(Number(pathInode))
+    expect(persistence.enable()).toBe(false)
+    expect(fs.readFileSync(activePath, 'utf8')).toBe(originalContents)
+  })
+
+  it('rejects a log directory replaced by a symlink while opening the active file', () => {
+    const userData = createUserData()
+    const externalDirectory = createUserData()
+    const logDirectory = path.join(userData, 'logs')
+    const parkedDirectory = path.join(userData, 'original-logs')
+    const activePath = path.join(logDirectory, 'main.jsonl')
+    const externalFile = path.join(externalDirectory, 'main.jsonl')
+    const externalContents = '{"safe":true}\n'
+    fs.mkdirSync(logDirectory, { recursive: true })
+    fs.writeFileSync(externalFile, externalContents)
+    const closeSync = vi.fn((descriptor: number) => fs.closeSync(descriptor))
+    const openSync = vi.fn(
+      (filePath: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode | null): number => {
+        if (filePath === activePath) {
+          fs.renameSync(logDirectory, parkedDirectory)
+          fs.symlinkSync(externalDirectory, logDirectory)
+        }
+        return fs.openSync(filePath, flags, mode)
+      }
+    )
+    const { persistence } = createPersistence(userData, { closeSync, openSync })
+    expect(persistence.enable()).toBe(true)
+
+    expect(persistence.write('info', validLine())).toBe(false)
+    expect(closeSync).toHaveBeenCalledOnce()
+    expect(fs.readFileSync(externalFile, 'utf8')).toBe(externalContents)
   })
 
   it('rejects non-object JSON and physical newlines before dispatch', () => {
