@@ -1073,4 +1073,41 @@ describe('MessageBlockToolCall', () => {
 
     expect(selectSessionMock).toHaveBeenCalledWith('child-alpha')
   })
+
+  it('renders the resolved permission badge on the tool pill', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock(),
+        permissionStatus: 'granted'
+      }
+    })
+
+    const badge = wrapper.find('[data-testid="tool-call-permission-badge"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.attributes('data-permission-status')).toBe('granted')
+    expect(badge.text()).toBe('toolCall.badge.allowed')
+  })
+
+  it('renders a denied permission badge distinct from success styling', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({ status: 'error' }),
+        permissionStatus: 'denied'
+      }
+    })
+
+    const badge = wrapper.find('[data-testid="tool-call-permission-badge"]')
+    expect(badge.attributes('data-permission-status')).toBe('denied')
+    expect(badge.text()).toBe('toolCall.badge.denied')
+  })
+
+  it('renders no permission badge when no permission outcome is associated', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock()
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-permission-badge"]').exists()).toBe(false)
+  })
 })

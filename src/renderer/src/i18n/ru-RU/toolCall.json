@@ -19,7 +19,9 @@
   "title": "Вызов инструмента",
   "terminalOutput": "Выходной терминал",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "Разрешено",
+    "denied": "Отклонено"
   },
   "replacementsCount": "Выполнено {count} замен"
 }

@@ -19,7 +19,9 @@
   "title": "Værktøjskald",
   "terminalOutput": "Terminaludgang",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "Tilladt",
+    "denied": "Afvist"
   },
   "replacementsCount": "Udført {count} erstatninger"
 }

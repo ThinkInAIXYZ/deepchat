@@ -13,7 +13,9 @@
   "imagePreviewCount": "Không có bản xem trước hình ảnh | Xem trước một hình ảnh | Xem trước hình ảnh {count}",
   "terminalOutput": "Đầu ra thiết bị đầu cuối",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "Đã cho phép",
+    "denied": "Đã từ chối"
   },
   "replacementsCount": "Đã hoàn thành việc thay thế {count}",
   "fileOperation": "Thao tác với tệp",

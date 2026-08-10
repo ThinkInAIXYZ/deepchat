@@ -51,6 +51,9 @@
             :thread-id="threadId"
             :read-only="readOnly"
             render-mode="tool-only"
+            :permission-status="
+              block.tool_call?.id ? permissionStatusByToolCallId?.[block.tool_call.id] : undefined
+            "
           />
           <MessageBlockSearch
             v-else-if="block.type === 'search'"
@@ -69,7 +72,8 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import type {
   DisplayAssistantMessageBlock,
-  DisplayMessageUsage
+  DisplayMessageUsage,
+  ResolvedPermissionStatus
 } from '@/features/chat-page/model/displayMessage'
 import { formatActivityDuration } from './messageActivityGroups'
 import MessageBlockThink from './MessageBlockThink.vue'
@@ -85,6 +89,7 @@ const props = defineProps<{
   reasoningCount: number
   toolCallCount: number
   readOnly?: boolean
+  permissionStatusByToolCallId?: Record<string, ResolvedPermissionStatus>
 }>()
 
 const emit = defineEmits<{

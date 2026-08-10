@@ -13,7 +13,9 @@
   "imagePreviewCount": "No image previews | One image preview | {count} image previews",
   "terminalOutput": "Terminal Output",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "Allowed",
+    "denied": "Denied"
   },
   "replacementsCount": "Completed {count} replacements",
   "fileOperation": "File Operation",

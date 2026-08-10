@@ -13,7 +13,9 @@
   "imagePreviewCount": "Nessuna anteprima immagine | {count} anteprima immagine | {count} anteprime immagine",
   "terminalOutput": "Output terminale",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "Consentito",
+    "denied": "Negato"
   },
   "replacementsCount": "{count} sostituzioni completate",
   "fileOperation": "Operazione file",

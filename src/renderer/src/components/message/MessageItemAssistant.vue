@@ -48,6 +48,7 @@
                 :reasoning-count="item.reasoningCount"
                 :tool-call-count="item.toolCallCount"
                 :read-only="isReadOnly"
+                :permission-status-by-tool-call-id="permissionStatusByToolCallId"
                 @toggle-collapse="handleCollapseToggle"
               />
               <MessageBlockToolCall
@@ -88,6 +89,11 @@
                 :thread-id="currentThreadId"
                 :read-only="isReadOnly"
                 :render-mode="item.block.tool_call?.mcpResult?.app ? 'tool-only' : 'full'"
+                :permission-status="
+                  item.block.tool_call?.id
+                    ? permissionStatusByToolCallId[item.block.tool_call.id]
+                    : undefined
+                "
               />
               <MessageBlockQuestionRequest
                 v-else-if="
@@ -217,7 +223,9 @@ import { ref, computed, watch } from 'vue'
 import {
   type DisplayAssistantMessage,
   type DisplayAssistantMessageBlock,
+  buildResolvedPermissionStatusByToolCallId,
   filterRenderableAssistantBlocks,
+  getResolvedPermissionStatus,
   isInternalAssistantToolCallBlock
 } from '@/features/chat-page/model/displayMessage'
 import MessageBlockContent from './MessageBlockContent.vue'
@@ -437,9 +445,23 @@ const shouldGroupActivity = computed(() => {
   return currentMessage.value.status !== 'pending'
 })
 
+const permissionStatusByToolCallId = computed(() =>
+  buildResolvedPermissionStatusByToolCallId(currentContent.value)
+)
+
+// Resolved permission outcomes merge into their tool card; the standalone
+// action card only remains as a fallback when the tool card is missing.
+const currentVisibleContent = computed(() =>
+  currentContent.value.filter((block) => {
+    const status = getResolvedPermissionStatus(block)
+    const toolCallId = block.tool_call?.id
+    return !(status && toolCallId && permissionStatusByToolCallId.value[toolCallId])
+  })
+)
+
 const currentRenderItems = computed(() =>
   buildAssistantRenderItems({
-    blocks: currentContent.value,
+    blocks: currentVisibleContent.value,
     messageId: currentMessage.value.id,
     messageUpdatedAt: currentMessage.value.updatedAt,
     shouldGroup: shouldGroupActivity.value,

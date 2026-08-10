@@ -44,6 +44,21 @@
         </span>
       </div>
       <span
+        v-if="permissionStatus"
+        data-testid="tool-call-permission-badge"
+        :data-permission-status="permissionStatus"
+        :class="[
+          'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium',
+          permissionStatus === 'granted'
+            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+            : 'border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300'
+        ]"
+      >
+        {{
+          permissionStatus === 'granted' ? t('toolCall.badge.allowed') : t('toolCall.badge.denied')
+        }}
+      </span>
+      <span
         v-if="showRtkBadge"
         data-testid="tool-call-rtk-badge"
         class="shrink-0 rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700 dark:text-emerald-300"
@@ -263,6 +278,7 @@ const props = defineProps<{
   threadId?: string
   readOnly?: boolean
   renderMode?: 'full' | 'tool-only' | 'app-only'
+  permissionStatus?: 'granted' | 'denied'
 }>()
 
 type ExpansionSource = 'auto' | 'manual' | null

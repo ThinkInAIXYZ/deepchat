@@ -77,6 +77,76 @@ describe('MessageBlock basics', () => {
     expect(wrapper.emitted('continue')).toEqual([['s1', 'm1']])
   })
 
+  const createPermissionBlock = (
+    status: DisplayAssistantMessageBlock['status'],
+    overrides: Partial<DisplayAssistantMessageBlock> = {}
+  ): DisplayAssistantMessageBlock =>
+    createBlock({
+      action_type: 'tool_call_permission',
+      status,
+      tool_call: { id: 'tc1', name: 'run_command' },
+      ...overrides
+    })
+
+  it('renders granted permission outcome instead of the generic continued label', () => {
+    const wrapper = mount(MessageBlockAction, {
+      props: {
+        messageId: 'm1',
+        conversationId: 's1',
+        block: createPermissionBlock('granted')
+      }
+    })
+
+    const label = wrapper.find('[data-testid="permission-resolved-label"]')
+    expect(label.exists()).toBe(true)
+    expect(label.attributes('data-permission-status')).toBe('granted')
+    expect(wrapper.text()).toContain('components.messageBlockPermissionRequest.granted')
+    expect(wrapper.text()).not.toContain('components.messageBlockAction.continued')
+  })
+
+  it('renders denied permission outcome without any success affordance', () => {
+    const wrapper = mount(MessageBlockAction, {
+      props: {
+        messageId: 'm1',
+        conversationId: 's1',
+        block: createPermissionBlock('denied', { content: 'User denied the request.' })
+      }
+    })
+
+    const label = wrapper.find('[data-testid="permission-resolved-label"]')
+    expect(label.attributes('data-permission-status')).toBe('denied')
+    expect(wrapper.text()).toContain('components.messageBlockPermissionRequest.denied')
+    expect(wrapper.text()).not.toContain('components.messageBlockAction.continued')
+    expect(wrapper.findAll('button')).toHaveLength(0)
+  })
+
+  it('keeps denied rendering identical in read-only history', () => {
+    const wrapper = mount(MessageBlockAction, {
+      props: {
+        messageId: 'm1',
+        conversationId: 's1',
+        isReadOnly: true,
+        block: createPermissionBlock('denied')
+      }
+    })
+
+    expect(
+      wrapper.find('[data-testid="permission-resolved-label"]').attributes('data-permission-status')
+    ).toBe('denied')
+  })
+
+  it('does not mark pending permission requests as resolved', () => {
+    const wrapper = mount(MessageBlockAction, {
+      props: {
+        messageId: 'm1',
+        conversationId: 's1',
+        block: createPermissionBlock('pending', { extra: { needsUserAction: true } })
+      }
+    })
+
+    expect(wrapper.find('[data-testid="permission-resolved-label"]').exists()).toBe(false)
+  })
+
   it('renders a compact rate limit status block', () => {
     const wrapper = mount(MessageBlockAction, {
       props: {
