@@ -67,13 +67,18 @@ export default defineComponent({
       const { copyText: _copyText, ...buttonProps } = props
       const accessibleName = inheritedAttrs.label ?? inheritedAttrs.tooltip ?? _copyText
       const inheritedClick = inheritedAttrs.onClick
+      const fallbackSlots = {
+        ...slots,
+        default:
+          slots.default ??
+          (() => (typeof inheritedAttrs.label === 'string' ? inheritedAttrs.label : undefined))
+      }
 
       return h(
         DcButton,
         {
           ...inheritedAttrs,
           ...buttonProps,
-          key: icon.value,
           icon: icon.value,
           iconClass: cn(
             inheritedAttrs.iconClass,
@@ -90,7 +95,7 @@ export default defineComponent({
             void copyText()
           }
         },
-        slots
+        fallbackSlots
       )
     }
   }

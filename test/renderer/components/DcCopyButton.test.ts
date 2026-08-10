@@ -29,30 +29,50 @@ describe('DcCopyButton', () => {
   })
 
   afterEach(() => {
+    document.body.innerHTML = ''
     vi.useRealTimers()
   })
 
-  it('copies copyText, emits copied, and resets the success state', async () => {
+  it('renders label as visible fallback text', () => {
+    const wrapper = mount(DcCopyButton, {
+      props: {
+        copyText: 'hello'
+      },
+      attrs: {
+        label: 'Copy visible text'
+      }
+    })
+
+    expect(wrapper.text()).toContain('Copy visible text')
+  })
+
+  it('copies copyText, emits copied, preserves focus, and resets the success state', async () => {
     const wrapper = mount(DcCopyButton, {
       props: {
         copyText: 'hello'
       },
       attrs: {
         label: 'Copy'
-      }
+      },
+      attachTo: document.body
     })
 
-    await wrapper.get('button').trigger('click')
+    const button = wrapper.get('button')
+    button.element.focus()
+
+    await button.trigger('click')
 
     await vi.waitFor(() => expect(copyMock).toHaveBeenCalledWith('hello'))
     await vi.waitFor(() => expect(wrapper.emitted('copied')).toHaveLength(1))
     expect(wrapper.find('[data-icon="lucide:check"]').exists()).toBe(true)
     expect(wrapper.get('button').classes()).toContain('text-emerald-600')
+    expect(document.activeElement).toBe(button.element)
 
     await vi.advanceTimersByTimeAsync(1200)
     await nextTick()
 
     expect(wrapper.find('[data-icon="lucide:copy"]').exists()).toBe(true)
+    expect(document.activeElement).toBe(button.element)
   })
 
   it('emits error when clipboard copying fails', async () => {
