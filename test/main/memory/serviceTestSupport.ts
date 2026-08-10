@@ -77,7 +77,7 @@ type MemoryServiceRuntimeTestSeams = {
     'repairConflictIntegrity' | 'resolveConflict' | 'runChallengeResolutionPass'
   >
   maintenance: Pick<MaintenanceService, 'clearCooldown'>
-  diagnostics: Pick<MemoryDiagnosticsCollector, 'cleanupAgent'>
+  diagnostics: Pick<MemoryDiagnosticsCollector, 'cleanupAgent' | 'recordRecall'>
 }
 
 export function memoryRuntimeForTests(presenter: MemoryService) {

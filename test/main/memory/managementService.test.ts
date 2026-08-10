@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { isSafeAgentId } from '@/memory'
+import { MEMORY_PROVIDER_CANCELLATION_CODE } from '@/memory/core/providerCancellation'
 import { buildMemoryProvenanceKey } from '@/memory/core/scoring'
-import { WARM_DIMENSION_FAILURE_COOLDOWN_MS } from '@/memory/runtimeConstants'
+import {
+  RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS,
+  RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_WINDOW_MS,
+  WARM_DIMENSION_FAILURE_COOLDOWN_MS
+} from '@/memory/runtimeConstants'
 import { type IMemoryVectorStore } from '@/memory/types'
 import { createEmptyMemoryHealth } from '@shared/contracts/routes'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
@@ -1025,20 +1030,34 @@ describe('MemoryService management', () => {
     }
   })
 
-  it('starts a fresh query embedding after the prior absolute deadline', async () => {
+  it('opens after repeated query deadlines and recovers through one half-open probe', async () => {
     vi.useFakeTimers()
     try {
       const repo = createFakeRepository()
       const store = new FakeVectorStore()
-      let blockQueryEmbedding = false
+      let queryMode: 'healthy' | 'timeout' | 'probe' = 'healthy'
       let queryEmbeddingCalls = 0
-      const getEmbeddings = vi.fn((_p: string, _m: string, texts: string[]) => {
-        if (blockQueryEmbedding && texts[0] !== 'memory warmup') {
-          queryEmbeddingCalls += 1
-          return new Promise<number[][]>(() => undefined)
+      let resolveProbe: ((vectors: number[][]) => void) | null = null
+      const getEmbeddings = vi.fn(
+        (_p: string, _m: string, texts: string[], signal?: AbortSignal) => {
+          if (queryMode !== 'healthy' && texts[0] !== 'memory warmup') {
+            queryEmbeddingCalls += 1
+            if (queryMode === 'probe') {
+              return new Promise<number[][]>((resolve) => {
+                resolveProbe = resolve
+              })
+            }
+            return new Promise<number[][]>((_resolve, reject) => {
+              signal?.addEventListener(
+                'abort',
+                () => reject(Object.assign(new Error('cancelled'), { name: 'AbortError' })),
+                { once: true }
+              )
+            })
+          }
+          return Promise.resolve(texts.map((text) => textToVector(text)))
         }
-        return Promise.resolve(texts.map((text) => textToVector(text)))
-      })
+      )
       const presenter = new MemoryService({
         repository: repo,
         resolveAgentConfig: () => enabledConfig,
@@ -1053,7 +1072,7 @@ describe('MemoryService management', () => {
       )
       await presenter.processPendingEmbeddings('a')
 
-      blockQueryEmbedding = true
+      queryMode = 'timeout'
       const first = presenter.recall('a', 'redis setup')
       await vi.advanceTimersByTimeAsync(801)
       expect((await first).map((item) => item.id)).toEqual([memoryId])
@@ -1064,9 +1083,419 @@ describe('MemoryService management', () => {
 
       expect((await second).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(2)
+
+      await expect(presenter.recall('a', 'redis setup')).resolves.toEqual([
+        expect.objectContaining({ id: memoryId, sources: { fts: true } })
+      ])
+      expect(queryEmbeddingCalls).toBe(2)
+      expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+        state: 'open',
+        failures: 2,
+        openCount: 1,
+        skipped: 1
+      })
+      expect(
+        presenter.getHealth('a').runtime.agent.retrieval.recall.degradationCounts
+          .embeddingCircuitOpen
+      ).toBe(1)
+
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS)
+      const failedProbe = presenter.recall('a', 'redis setup')
+      expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit.state).toBe('halfOpen')
+      await expect(presenter.recall('a', 'redis setup')).resolves.toEqual([
+        expect.objectContaining({ id: memoryId, sources: { fts: true } })
+      ])
+      await vi.advanceTimersByTimeAsync(801)
+      await expect(failedProbe).resolves.toEqual([
+        expect.objectContaining({ id: memoryId, sources: { fts: true } })
+      ])
+      expect(queryEmbeddingCalls).toBe(3)
+      expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+        state: 'open',
+        failures: 3,
+        openCount: 2,
+        skipped: 2
+      })
+
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS - 100)
+      await expect(presenter.recall('a', 'redis setup')).resolves.toEqual([
+        expect.objectContaining({ id: memoryId, sources: { fts: true } })
+      ])
+      expect(queryEmbeddingCalls).toBe(3)
+      await vi.advanceTimersByTimeAsync(100)
+
+      queryMode = 'probe'
+      resolveProbe = null
+      const probeController = new AbortController()
+      const cancelledProbe = presenter.buildInjection('a', 'redis setup', {
+        signal: probeController.signal
+      })
+      await flushMicrotasks(10)
+      expect(resolveProbe).not.toBeNull()
+      expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit.state).toBe('halfOpen')
+      probeController.abort()
+      resolveProbe?.([textToVector('redis setup')])
+      await expect(cancelledProbe).rejects.toMatchObject({ name: 'AbortError' })
+      expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+        state: 'open',
+        failures: 3,
+        openCount: 2,
+        skipped: 3
+      })
+
+      resolveProbe = null
+      const recovery = presenter.recall('a', 'redis setup')
+      await flushMicrotasks(10)
+      expect(resolveProbe).not.toBeNull()
+      expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit.state).toBe('halfOpen')
+      expect(queryEmbeddingCalls).toBe(5)
+      await expect(presenter.recall('a', 'redis setup')).resolves.toEqual([
+        expect.objectContaining({ id: memoryId, sources: { fts: true } })
+      ])
+
+      resolveProbe?.([textToVector('redis setup')])
+      await expect(recovery).resolves.toEqual([
+        expect.objectContaining({ id: memoryId, sources: { vec: true, fts: true } })
+      ])
+      expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+        state: 'closed',
+        failures: 3,
+        openCount: 2,
+        skipped: 4
+      })
+
+      queryMode = 'healthy'
+      await expect(presenter.recall('a', 'redis setup')).resolves.toEqual([
+        expect.objectContaining({ id: memoryId, sources: { vec: true, fts: true } })
+      ])
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('stays open when a request admitted before opening succeeds later', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    let queryMode: 'healthy' | 'fail' | 'pending' = 'healthy'
+    const pendingQueries = new Map<
+      string,
+      { resolve: (vectors: number[][]) => void; reject: (error: Error) => void }
+    >()
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
+      const [text] = texts
+      if (queryMode === 'fail') throw new Error('transport unavailable')
+      if (queryMode === 'pending') {
+        return new Promise<number[][]>((resolve, reject) => {
+          pendingQueries.set(text, { resolve, reject })
+        })
+      }
+      return texts.map((value) => textToVector(value))
+    })
+    const presenter = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync(
+      [
+        { kind: 'semantic', content: 'redis alpha' },
+        { kind: 'semantic', content: 'redis beta' }
+      ],
+      { agentId: 'a' }
+    )
+    await presenter.processPendingEmbeddings('a')
+
+    queryMode = 'fail'
+    await presenter.recall('a', 'redis seed')
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit.failures).toBe(1)
+
+    queryMode = 'pending'
+    const failingRecall = presenter.recall('a', 'redis alpha')
+    const lateSuccessRecall = presenter.recall('a', 'redis beta')
+    await flushMicrotasks(10)
+    expect([...pendingQueries.keys()]).toEqual(['redis alpha', 'redis beta'])
+
+    pendingQueries.get('redis alpha')?.reject(new Error('transport unavailable'))
+    await failingRecall
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit.state).toBe('open')
+
+    pendingQueries.get('redis beta')?.resolve([textToVector('redis beta')])
+    await lateSuccessRecall
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+      state: 'open',
+      failures: 2,
+      openCount: 1,
+      skipped: 0
+    })
+
+    const callsBeforeSkip = getEmbeddings.mock.calls.length
+    await presenter.recall('a', 'redis alpha')
+    expect(getEmbeddings).toHaveBeenCalledTimes(callsBeforeSkip)
+    await presenter.dispose()
+  })
+
+  it('expires isolated failures outside the query embedding breaker window', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(0)
+      const repo = createFakeRepository()
+      const store = new FakeVectorStore()
+      let failQueries = false
+      const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
+        if (failQueries) throw new Error('transport unavailable')
+        return texts.map((text) => textToVector(text))
+      })
+      const presenter = new MemoryService({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings,
+        getDimensions: embeddingDimensions,
+        createVectorStore: async () => store,
+        resetVectorStore: async () => undefined
+      })
+      const [memoryId] = presenter.writeMemoriesSync(
+        [{ kind: 'semantic', content: 'redis setup' }],
+        { agentId: 'a' }
+      )
+      await presenter.processPendingEmbeddings('a')
+      const clearReady = vi.spyOn(memoryRuntimeForTests(presenter).vectorStoreService, 'clearReady')
+
+      failQueries = true
+      await presenter.recall('a', 'redis setup')
+      vi.setSystemTime(RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_WINDOW_MS + 1)
+      await presenter.recall('a', 'redis setup')
+
+      expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+        state: 'closed',
+        failures: 2,
+        openCount: 0,
+        skipped: 0
+      })
+      expect(clearReady).not.toHaveBeenCalled()
+
+      await presenter.recall('a', 'redis setup')
+      expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit.state).toBe('open')
+      await expect(presenter.recall('a', 'redis setup')).resolves.toEqual([
+        expect.objectContaining({ id: memoryId, sources: { fts: true } })
+      ])
+      await presenter.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('isolates circuits by Agent and clears stale state on model changes and cleanup', async () => {
+    const repo = createFakeRepository()
+    const modelByAgent = new Map([
+      ['a', 'm'],
+      ['b', 'm']
+    ])
+    let failQueries = false
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
+      if (failQueries) throw new Error('transport unavailable')
+      return texts.map((text) => textToVector(text))
+    })
+    const presenter = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: (agentId) => ({
+        memoryEnabled: true,
+        memoryEmbedding: { providerId: 'p', modelId: modelByAgent.get(agentId) ?? 'm' }
+      }),
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    const [memoryA] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis alpha' }], {
+      agentId: 'a'
+    })
+    const [memoryB] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis beta' }], {
+      agentId: 'b'
+    })
+    await presenter.processPendingEmbeddings('a')
+    await presenter.processPendingEmbeddings('b')
+
+    failQueries = true
+    await presenter.recall('a', 'redis alpha')
+    await presenter.recall('a', 'redis alpha')
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit.state).toBe('open')
+
+    const diagnostics = memoryRuntimeForTests(presenter).diagnosticsCollector
+    for (let index = 0; index < 64; index += 1) {
+      diagnostics.recordRecall(`diagnostic-${index}`, {
+        purpose: 'recall',
+        latencyMs: { total: 1 },
+        ftsCandidates: 0,
+        vectorCandidates: 0,
+        selected: 0,
+        outcome: 'completed',
+        degradations: []
+      })
+    }
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+      state: 'open',
+      failures: 0,
+      openCount: 0,
+      skipped: 0
+    })
+    await presenter.recall('a', 'redis alpha')
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+      state: 'open',
+      failures: 0,
+      openCount: 0,
+      skipped: 1
+    })
+
+    failQueries = false
+    await expect(presenter.recall('b', 'redis beta')).resolves.toEqual([
+      expect.objectContaining({ id: memoryB, sources: { vec: true, fts: true } })
+    ])
+    expect(presenter.getHealth('b').runtime.agent.queryEmbeddingCircuit.state).toBe('closed')
+
+    modelByAgent.set('a', 'm2')
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+      state: 'closed',
+      failures: 0,
+      openCount: 0,
+      skipped: 0
+    })
+
+    failQueries = true
+    await presenter.recall('b', 'redis beta')
+    await presenter.recall('b', 'redis beta')
+    expect(presenter.getHealth('b').runtime.agent.queryEmbeddingCircuit.state).toBe('open')
+    await presenter.cleanupDeletedAgentResources('b')
+    expect(presenter.getHealth('b').runtime.agent.queryEmbeddingCircuit).toEqual({
+      state: 'closed',
+      failures: 0,
+      openCount: 0,
+      skipped: 0
+    })
+    expect(repo.getById(memoryA)).toBeDefined()
+    await presenter.dispose()
+  })
+
+  it('does not admit an old-model query after immediate configuration invalidation', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    let modelId = 'm'
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
+      texts.map((text) => textToVector(text))
+    )
+    const presenter = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => ({
+        memoryEnabled: true,
+        memoryEmbedding: { providerId: 'p', modelId }
+      }),
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis setup' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    getEmbeddings.mockClear()
+
+    const staleRecall = presenter.recall('a', 'redis setup')
+    modelId = 'm2'
+    presenter.onAgentMemoryMaintenanceConfigChanged('a')
+
+    await expect(staleRecall).resolves.toEqual([])
+    expect(getEmbeddings).not.toHaveBeenCalled()
+    await presenter.dispose()
+  })
+
+  it('does not count query embedding cancellation as a circuit failure', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    let cancelQueries = false
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
+      if (cancelQueries) {
+        throw Object.assign(new Error('cancelled'), {
+          name: 'AbortError',
+          code: MEMORY_PROVIDER_CANCELLATION_CODE
+        })
+      }
+      return texts.map((text) => textToVector(text))
+    })
+    const presenter = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    const [memoryId] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis setup' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    cancelQueries = true
+    await expect(presenter.recall('a', 'redis setup')).resolves.toEqual([
+      expect.objectContaining({ id: memoryId, sources: { fts: true } })
+    ])
+    await expect(presenter.recall('a', 'redis setup')).resolves.toEqual([
+      expect.objectContaining({ id: memoryId, sources: { fts: true } })
+    ])
+
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+      state: 'closed',
+      failures: 0,
+      openCount: 0,
+      skipped: 0
+    })
+    await presenter.dispose()
+  })
+
+  it('settles shared query health from the live consumer when another consumer cancels', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    let resolveQuery: ((vectors: number[][]) => void) | null = null
+    const getEmbeddings = vi.fn((_p: string, _m: string, texts: string[]) => {
+      if (texts[0] === 'redis') {
+        return new Promise<number[][]>((resolve) => {
+          resolveQuery = resolve
+        })
+      }
+      return Promise.resolve(texts.map((text) => textToVector(text)))
+    })
+    const presenter = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis setup' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    getEmbeddings.mockClear()
+
+    const controller = new AbortController()
+    const cancelled = presenter.buildInjection('a', 'redis', { signal: controller.signal })
+    const live = presenter.buildInjection('a', 'redis')
+    await flushMicrotasks(10)
+    expect(getEmbeddings).toHaveBeenCalledTimes(1)
+    controller.abort()
+    resolveQuery?.([textToVector('redis')])
+
+    await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(live).resolves.toMatchObject({
+      payload: { memories: [expect.objectContaining({ content: 'redis setup' })] }
+    })
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+      state: 'closed',
+      failures: 0,
+      openCount: 0,
+      skipped: 0
+    })
+    await presenter.dispose()
   })
 
   it('shares identical concurrent query embeddings and returns vector hits to both callers', async () => {

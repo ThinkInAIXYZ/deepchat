@@ -18,6 +18,8 @@ SQL, stacks, or other free text.
 | `agent.retrieval.*.{ftsCandidates,vectorCandidates,selected}` | Count | Authoritative revalidation and fusion completion | Per-Agent counter; same Agent cleanup | Aggregate count |
 | `agent.retrieval.*.outcomeCounts.*` | Count by closed outcome | Operation `finally` | Per-Agent counter; same Agent cleanup | Closed enum |
 | `agent.retrieval.*.degradationCounts.*` | Count by closed cause | Operation `finally`; one operation may record multiple causes | Per-Agent counter; same Agent cleanup | Closed enum |
+| `agent.queryEmbeddingCircuit.state` | Closed state (`closed`, `open`, `halfOpen`) | Query-embedding circuit transition | Current provider/model only; reset by configuration change and Agent cleanup | Closed enum |
+| `agent.queryEmbeddingCircuit.{failures,openCount,skipped}` | Count | Qualifying provider failure, open transition, or skipped query embedding | Per-Agent counter; same configuration and Agent cleanup | Aggregate count |
 | `agent.extraction.{chunksCompleted,chunksCancelled,chunksFailed,llmCalls,casRetries}` | Count | Chunk settlement or actual second CAS apply | Per-Agent counter; same Agent cleanup | Aggregate count |
 | `agent.embedding.batchSize` | Row distribution | Embedding drain batch settlement | 256 samples; same Agent cleanup | Aggregate count |
 | `agent.embedding.drainDurationMs` | Millisecond distribution | Embedding drain batch settlement | 256 samples; same Agent cleanup | Content-free timing |

@@ -74,6 +74,12 @@ type RetrievalDiagnosticsState = {
 type AgentDiagnosticsState = {
   lastTouchedAt: number
   retrieval: Record<MemoryRetrievalPurpose, RetrievalDiagnosticsState>
+  queryEmbeddingCircuit: {
+    state: 'closed' | 'open' | 'halfOpen'
+    failures: number
+    openCount: number
+    skipped: number
+  }
   extraction: {
     chunksCompleted: number
     chunksCancelled: number
@@ -169,6 +175,36 @@ export class MemoryDiagnosticsCollector {
           ? degradation
           : 'unknown'
         state.degradationCounts[normalized] += 1
+      }
+    })
+  }
+
+  recordQueryEmbeddingCircuitEvent(
+    agentId: string,
+    event: 'failure' | 'opened' | 'halfOpen' | 'closed' | 'probeCancelled' | 'skipped'
+  ): void {
+    this.safely(() => {
+      const circuit = this.agent(agentId).queryEmbeddingCircuit
+      if (event === 'failure') circuit.failures += 1
+      else if (event === 'opened') {
+        circuit.state = 'open'
+        circuit.openCount += 1
+      } else if (event === 'halfOpen') circuit.state = 'halfOpen'
+      else if (event === 'closed') circuit.state = 'closed'
+      else if (event === 'probeCancelled') circuit.state = 'open'
+      else circuit.skipped += 1
+    })
+  }
+
+  resetQueryEmbeddingCircuit(agentId: string): void {
+    this.safely(() => {
+      const state = this.agents.get(agentId)
+      if (!state) return
+      state.queryEmbeddingCircuit = {
+        state: 'closed',
+        failures: 0,
+        openCount: 0,
+        skipped: 0
       }
     })
   }
@@ -300,6 +336,7 @@ export class MemoryDiagnosticsCollector {
               ]
             })
           ) as MemoryRuntimeDiagnosticsDto['agent']['retrieval'],
+          queryEmbeddingCircuit: { ...state.queryEmbeddingCircuit },
           extraction: { ...state.extraction },
           embedding: {
             batchSize: distribution(state.embedding.batchSize.snapshot()),
@@ -392,6 +429,12 @@ export class MemoryDiagnosticsCollector {
       retrieval: Object.fromEntries(
         MEMORY_RETRIEVAL_PURPOSES.map((purpose) => [purpose, retrievalState()])
       ) as Record<MemoryRetrievalPurpose, RetrievalDiagnosticsState>,
+      queryEmbeddingCircuit: {
+        state: 'closed',
+        failures: 0,
+        openCount: 0,
+        skipped: 0
+      },
       extraction: {
         chunksCompleted: 0,
         chunksCancelled: 0,

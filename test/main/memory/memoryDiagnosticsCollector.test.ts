@@ -152,6 +152,31 @@ describe('MemoryDiagnosticsCollector', () => {
     })
   })
 
+  it('tracks and resets content-free query embedding circuit diagnostics', () => {
+    const collector = new MemoryDiagnosticsCollector()
+    collector.recordQueryEmbeddingCircuitEvent('agent', 'failure')
+    collector.recordQueryEmbeddingCircuitEvent('agent', 'opened')
+    collector.recordQueryEmbeddingCircuitEvent('agent', 'skipped')
+    collector.recordQueryEmbeddingCircuitEvent('agent', 'halfOpen')
+
+    expect(collector.snapshot('agent').agent.queryEmbeddingCircuit).toEqual({
+      state: 'halfOpen',
+      failures: 1,
+      openCount: 1,
+      skipped: 1
+    })
+
+    collector.recordQueryEmbeddingCircuitEvent('agent', 'closed')
+    expect(collector.snapshot('agent').agent.queryEmbeddingCircuit.state).toBe('closed')
+    collector.resetQueryEmbeddingCircuit('agent')
+    expect(collector.snapshot('agent').agent.queryEmbeddingCircuit).toEqual({
+      state: 'closed',
+      failures: 0,
+      openCount: 0,
+      skipped: 0
+    })
+  })
+
   it('returns immutable snapshots containing only bounded diagnostic fields', () => {
     const collector = new MemoryDiagnosticsCollector()
     collector.recordRecall('agent', recallSample(10))

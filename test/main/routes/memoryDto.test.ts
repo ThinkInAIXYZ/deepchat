@@ -359,6 +359,12 @@ describe('memory.getHealth route contract', () => {
     expect(Object.keys(runtime.agent.retrieval.recall.degradationCounts)).toEqual(
       MEMORY_RETRIEVAL_DEGRADATION_CAUSES
     )
+    expect(runtime.agent.queryEmbeddingCircuit).toEqual({
+      state: 'closed',
+      failures: 0,
+      openCount: 0,
+      skipped: 0
+    })
     expect(Object.keys(runtime.agent.maintenance.budgetDeniedByStep)).toEqual(
       MEMORY_MAINTENANCE_BUDGET_STEPS
     )
@@ -390,6 +396,12 @@ describe('memory.getHealth route contract', () => {
     runtime.agent.retrieval.recall.vectorCandidates = 5
     runtime.agent.retrieval.recall.selected = 3
     runtime.agent.retrieval.recall.degradationCounts.vectorCold = 2
+    runtime.agent.queryEmbeddingCircuit = {
+      state: 'halfOpen',
+      failures: 3,
+      openCount: 1,
+      skipped: 4
+    }
     runtime.agent.extraction = {
       chunksCompleted: 4,
       chunksCancelled: 2,

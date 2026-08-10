@@ -458,6 +458,7 @@ export class MemoryService implements MemoryRuntimePort {
       agentId,
       resolveMemoryEmbedding(config)
     )
+    if (embeddingIdentityChanged) this.retrieval.onEmbeddingConfigChanged(agentId)
     if (embeddingIdentityChanged && observation !== 'changed') {
       this.runtime.invalidateAgentOperations(agentId)
     }
@@ -742,7 +743,10 @@ export class MemoryService implements MemoryRuntimePort {
   }
 
   getHealth(agentId: string): MemoryHealthDto {
-    return this.management.getHealth(agentId)
+    const health = this.management.getHealth(agentId)
+    health.runtime.agent.queryEmbeddingCircuit.state =
+      this.retrieval.getQueryEmbeddingCircuitState(agentId)
+    return health
   }
 
   async deleteMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {

@@ -102,6 +102,8 @@ metric calculation remain isolated from credentials, providers, and external net
 - Recorders accept only numbers, booleans, timestamps, and closed enums.
 - Diagnostics never retain query text, memory content, prompts, vectors, provider responses, API keys, SQL,
   stacks, exception messages, or other free text.
+- Query-embedding circuit diagnostics retain only closed/open/half-open state and aggregate failure, open, and
+  skip counts; provider/model identity remains internal to the circuit owner.
 - Collector failures are swallowed and cannot change business results.
 
 ### AC-6 — Metric Semantics
@@ -117,6 +119,8 @@ metric calculation remain isolated from credentials, providers, and external net
 - Maintenance reports cheap/heavy outcomes, calls, tokens, and every denied budget step.
 - Vector warmup distinguishes succeeded, deferred, and failed outcomes.
 - Provider diagnostics separate admission decisions from deadline, abort, and late-settle race events.
+- Query-embedding circuit skips use a closed retrieval degradation cause; cancellation and local control
+  rejection never increment its provider-health failure count.
 - Process gauges receive absolute values from resource owners and never aggregate retained Agent state.
 
 ### AC-7 — Typed Health Contract and UI

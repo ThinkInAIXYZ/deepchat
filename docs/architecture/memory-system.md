@@ -93,6 +93,12 @@ Memory contribution 必须等待到 soft deadline，成功时限制 token/字符
 文本、selection manifest 与成功持久化的 `memory/view_assembled` anchor ID；不能接收或重写 base
 system prompt。
 
+Warm recall 的 query embedding 按 Agent 与当前 provider/model identity 使用进程内有界熔断：短窗口内
+连续 deadline/transport failure 会临时跳过 vector path 并直接使用已生成的 FTS candidates；冷却后只
+允许一个 half-open probe，成功自动恢复。取消和本地 capacity rejection 不计 provider health failure；
+配置切换、Agent cleanup 与 presenter disposal 清除旧状态。熔断不应用于 embedding batch、warmup、
+dimension discovery 或 text generation，也不改变健康路径的 scoring。
+
 FTS 在 SQL `LIMIT` 前应用 Agent 和 scope predicate。Vector store 仍按 Agent namespace 查询，使用
 有上限的 oversampling，并在 ranking 前通过 SQLite authoritative row 重新校验 owner、scope、
 lifecycle、revision 和 embedding identity；不得依赖 vector candidate 本身做授权判断。过滤后不足

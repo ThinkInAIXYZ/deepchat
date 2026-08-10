@@ -61,6 +61,7 @@ export const MEMORY_RETRIEVAL_DEGRADATION_CAUSES = [
   'vectorCold',
   'embeddingTimeout',
   'embeddingError',
+  'embeddingCircuitOpen',
   'storeUnusable',
   'storeTimeout',
   'storeError',

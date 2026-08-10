@@ -413,6 +413,12 @@ export const MemoryRuntimeDiagnosticsSchema = z.object({
         typeof MemoryRetrievalDiagnosticsSchema
       >
     ),
+    queryEmbeddingCircuit: z.object({
+      state: z.enum(['closed', 'open', 'halfOpen']),
+      failures: NonnegativeCountSchema,
+      openCount: NonnegativeCountSchema,
+      skipped: NonnegativeCountSchema
+    }),
     extraction: z.object({
       chunksCompleted: NonnegativeCountSchema,
       chunksCancelled: NonnegativeCountSchema,
@@ -690,6 +696,12 @@ export function createEmptyMemoryRuntimeDiagnostics(): MemoryRuntimeDiagnosticsD
           }
         ])
       ) as MemoryRuntimeDiagnosticsDto['agent']['retrieval'],
+      queryEmbeddingCircuit: {
+        state: 'closed',
+        failures: 0,
+        openCount: 0,
+        skipped: 0
+      },
       extraction: {
         chunksCompleted: 0,
         chunksCancelled: 0,
