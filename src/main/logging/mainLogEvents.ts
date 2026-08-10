@@ -31,6 +31,10 @@ export interface SafeLogError {
   retryable?: boolean
 }
 
+interface MainLogDatabaseError {
+  category: 'integrity' | 'persistence'
+}
+
 export type MainLogJsonValue =
   | string
   | number
@@ -86,6 +90,20 @@ type MainLogAppTerminalInput =
       durationMs: number
       error: SafeLogError
     }
+
+type MainLogDatabaseInitializationInput = {
+  durationMs: number
+  repairAttempted: boolean
+  schemaDiagnosis: 'completed' | 'unavailable' | 'not_completed'
+  repairableIssueCount: number
+  manualIssueCount: number
+} & (
+  | { outcome: 'completed' }
+  | {
+      outcome: 'failed'
+      error: MainLogDatabaseError
+    }
+)
 
 interface MainLogRunIdentity {
   runId: string
@@ -153,6 +171,7 @@ export interface MainLogEventInputMap {
     reason: MainLogShutdownReason
   }
   'app.shutdown.terminal': MainLogAppTerminalInput
+  'database.initialization.terminal': MainLogDatabaseInitializationInput
   'agent.run.started': MainLogRunStartedInput
   'agent.run.terminal': MainLogRunTerminalInput
   'agent.admission.queued': MainLogAdmissionCorrelation & {
@@ -283,7 +302,7 @@ const MAX_FATAL_STACK_FRAME_LENGTH = 512
 const MAX_FATAL_STACK_SOURCE_LENGTH = 32 * 1024
 const MAX_ERROR_NAME_LENGTH = 128
 const MAX_DISTRIBUTION_SAMPLES = 256
-const MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1000
+export const MAX_MAIN_LOG_DURATION_MS = 30 * 24 * 60 * 60 * 1000
 const NATIVE_ERROR_STACK_GETTER = Object.getOwnPropertyDescriptor(new Error(), 'stack')?.get
 
 const RUN_KIND_VALUES = {
@@ -327,6 +346,8 @@ const SHUTDOWN_REASONS = [
   'update_install',
   'unknown'
 ] as const satisfies readonly MainLogShutdownReason[]
+const DATABASE_INITIALIZATION_OUTCOMES = ['completed', 'failed'] as const
+const DATABASE_SCHEMA_DIAGNOSIS_OUTCOMES = ['completed', 'unavailable', 'not_completed'] as const
 const RELEASE_REASONS = ['permit_released', 'lease_suspended', 'lease_released'] as const
 const REJECTION_REASONS = ['queue_full', 'aborted', 'closed'] as const
 const TURN_KINDS = ['initial', 'follow_up'] as const
@@ -391,7 +412,7 @@ function duration(field: string, value: unknown): number {
     typeof value !== 'number' ||
     !Number.isFinite(value) ||
     value < 0 ||
-    value > MAX_DURATION_MS
+    value > MAX_MAIN_LOG_DURATION_MS
   ) {
     throw new MainLogEventProjectionError(field)
   }
@@ -468,6 +489,14 @@ function projectSafeError(value: SafeLogError): MainLogContext {
 
 function failureError(required: boolean, value: unknown): MainLogContext | undefined {
   return required ? projectSafeError(value as SafeLogError) : undefined
+}
+
+function databaseFailureError(required: boolean, value: unknown): MainLogContext | undefined {
+  if (!required) return undefined
+  const snapshot = snapshotDataObject('error', value as MainLogDatabaseError, ['category'])
+  return {
+    category: oneOf('error.category', snapshot.category, ['integrity', 'persistence'] as const)
+  }
 }
 
 function ownDataString(value: unknown, key: string): string | undefined {
@@ -650,6 +679,45 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       return {
         outcome,
         durationMs: duration('durationMs', input.durationMs),
+        ...(error ? { error } : {})
+      }
+    }
+  },
+  'database.initialization.terminal': {
+    inputFields: [
+      'outcome',
+      'durationMs',
+      'repairAttempted',
+      'schemaDiagnosis',
+      'repairableIssueCount',
+      'manualIssueCount',
+      'error'
+    ],
+    level: (input) =>
+      input.outcome === 'failed'
+        ? 'error'
+        : input.schemaDiagnosis === 'unavailable' ||
+            input.repairableIssueCount > 0 ||
+            input.manualIssueCount > 0
+          ? 'warn'
+          : 'info',
+    project: (input) => {
+      const outcome = oneOf('outcome', input.outcome, DATABASE_INITIALIZATION_OUTCOMES)
+      const error = databaseFailureError(
+        outcome === 'failed',
+        'error' in input ? input.error : undefined
+      )
+      return {
+        outcome,
+        durationMs: duration('durationMs', input.durationMs),
+        repairAttempted: booleanValue('repairAttempted', input.repairAttempted),
+        schemaDiagnosis: oneOf(
+          'schemaDiagnosis',
+          input.schemaDiagnosis,
+          DATABASE_SCHEMA_DIAGNOSIS_OUTCOMES
+        ),
+        repairableIssueCount: count('repairableIssueCount', input.repairableIssueCount),
+        manualIssueCount: count('manualIssueCount', input.manualIssueCount),
         ...(error ? { error } : {})
       }
     }

@@ -19,7 +19,7 @@ import { migrateConfigStorage } from '@/config/migration'
 import { ProviderDatabase } from '@/provider/data/database'
 import { McpDatabase } from '@/mcp/data/database'
 import { AgentDatabase } from '@/agent/data/database'
-import { setMainLoggingEnabled } from '@/logging'
+import { mainLogger, setMainLoggingEnabled } from '@/logging'
 
 export type { MainProcessControl } from './composition'
 
@@ -60,7 +60,30 @@ export async function startMainProcess(
       safeStorageAvailable: databaseSecurityService.getStatus().safeStorageAvailable
     })
 
-    const databaseInitializer = new DatabaseInitializer({ password })
+    const databaseInitializer = new DatabaseInitializer({
+      password,
+      observe: (observation) => {
+        const context = {
+          durationMs: observation.durationMs,
+          repairAttempted: observation.repairAttempted,
+          schemaDiagnosis: observation.schemaDiagnosis,
+          repairableIssueCount: observation.repairableIssueCount,
+          manualIssueCount: observation.manualIssueCount
+        }
+        if (observation.outcome === 'failed') {
+          mainLogger.emit('database.initialization.terminal', {
+            ...context,
+            outcome: 'failed',
+            error: { category: observation.errorCategory }
+          })
+        } else {
+          mainLogger.emit('database.initialization.terminal', {
+            ...context,
+            outcome: 'completed'
+          })
+        }
+      }
+    })
     database = await databaseInitializer.initialize()
     await databaseInitializer.migrate()
     const settingsDatabase = new SettingsDatabase(database)

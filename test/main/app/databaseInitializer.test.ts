@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_MAIN_LOG_DURATION_MS } from '../../../src/main/logging/mainLogEvents'
 
 const startupSchemaCatalog = [
   {
@@ -33,6 +34,8 @@ async function createInitializerWithMocks(input: {
   isDestructiveDatabaseError?: ReturnType<typeof vi.fn>
   classifySchemaError?: ReturnType<typeof vi.fn>
   getStartupSchemaCatalog?: ReturnType<typeof vi.fn>
+  observe?: ReturnType<typeof vi.fn>
+  now?: () => number
 }) {
   const repairSQLiteDatabaseFile = input.repairSQLiteDatabaseFile ?? vi.fn()
   const isDestructiveDatabaseError =
@@ -40,6 +43,7 @@ async function createInitializerWithMocks(input: {
   const classifySchemaError = input.classifySchemaError ?? vi.fn().mockReturnValue(null)
   const getStartupSchemaCatalog =
     input.getStartupSchemaCatalog ?? vi.fn().mockReturnValue(startupSchemaCatalog)
+  const observe = input.observe ?? vi.fn()
 
   vi.doMock('electron', () => ({
     app: {
@@ -62,12 +66,15 @@ async function createInitializerWithMocks(input: {
 
   return {
     initializer: new DatabaseInitializer({
-      dbPath: 'C:/tmp/deepchat-agent.db'
+      dbPath: 'C:/tmp/deepchat-agent.db',
+      observe,
+      now: input.now ?? (() => 100)
     }),
     repairSQLiteDatabaseFile,
     isDestructiveDatabaseError,
     classifySchemaError,
-    getStartupSchemaCatalog
+    getStartupSchemaCatalog,
+    observe
   }
 }
 
@@ -94,7 +101,7 @@ describe('DatabaseInitializer', () => {
       dedupeKey: 'missing-column:reasoning_visibility'
     })
 
-    const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
+    const { initializer, repairSQLiteDatabaseFile, observe } = await createInitializerWithMocks({
       MainDatabase,
       classifySchemaError
     })
@@ -108,6 +115,14 @@ describe('DatabaseInitializer', () => {
     expect(presenterInstance.diagnoseSchema).toHaveBeenCalledTimes(1)
     expect(presenterInstance.diagnoseSchema).toHaveBeenCalledWith(startupSchemaCatalog)
     expect(result).toBe(presenterInstance)
+    expect(observe).toHaveBeenCalledWith({
+      outcome: 'completed',
+      durationMs: 0,
+      repairAttempted: true,
+      schemaDiagnosis: 'completed',
+      repairableIssueCount: 0,
+      manualIssueCount: 0
+    })
   })
 
   it('does not repair healthy schema after successful initialization', async () => {
@@ -138,7 +153,7 @@ describe('DatabaseInitializer', () => {
     }
 
     const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
-    const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
+    const { initializer, repairSQLiteDatabaseFile, observe } = await createInitializerWithMocks({
       MainDatabase
     })
     const result = await initializer.initialize()
@@ -147,6 +162,13 @@ describe('DatabaseInitializer', () => {
     expect(repairSQLiteDatabaseFile).not.toHaveBeenCalled()
     expect(presenterInstance.close).not.toHaveBeenCalled()
     expect(result).toBe(presenterInstance)
+    expect(observe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'completed',
+        schemaDiagnosis: 'unavailable',
+        repairAttempted: false
+      })
+    )
   })
 
   it('repairs diagnosed schema drift and retries initialization', async () => {
@@ -211,7 +233,7 @@ describe('DatabaseInitializer', () => {
       .mockImplementationOnce(() => driftedPresenter)
       .mockImplementationOnce(() => stillDriftedPresenter)
 
-    const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
+    const { initializer, repairSQLiteDatabaseFile, observe } = await createInitializerWithMocks({
       MainDatabase
     })
     const result = await initializer.initialize()
@@ -220,6 +242,15 @@ describe('DatabaseInitializer', () => {
     expect(repairSQLiteDatabaseFile).toHaveBeenCalledTimes(1)
     expect(stillDriftedPresenter.close).not.toHaveBeenCalled()
     expect(result).toBe(stillDriftedPresenter)
+    expect(observe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'completed',
+        repairAttempted: true,
+        schemaDiagnosis: 'completed',
+        repairableIssueCount: 1,
+        manualIssueCount: 0
+      })
+    )
   })
 
   it('allows manual schema issues without automatic repair', async () => {
@@ -265,7 +296,7 @@ describe('DatabaseInitializer', () => {
       dedupeKey: 'missing-table:deepchat_sessions'
     })
 
-    const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
+    const { initializer, repairSQLiteDatabaseFile, observe } = await createInitializerWithMocks({
       MainDatabase,
       isDestructiveDatabaseError,
       classifySchemaError
@@ -274,5 +305,82 @@ describe('DatabaseInitializer', () => {
     await expect(initializer.initialize()).rejects.toThrow('database disk image is malformed')
     expect(MainDatabase).toHaveBeenCalledTimes(1)
     expect(repairSQLiteDatabaseFile).not.toHaveBeenCalled()
+    expect(observe).toHaveBeenCalledWith({
+      outcome: 'failed',
+      durationMs: 0,
+      repairAttempted: false,
+      schemaDiagnosis: 'not_completed',
+      repairableIssueCount: 0,
+      manualIssueCount: 0,
+      errorCategory: 'integrity'
+    })
+  })
+
+  it('keeps observer failures outside database initialization behavior', async () => {
+    const presenterInstance = {
+      runTransaction: vi.fn().mockResolvedValue(undefined),
+      diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
+      close: vi.fn()
+    }
+    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const observe = vi.fn(() => {
+      throw new Error('diagnostic sink failed')
+    })
+    const { initializer } = await createInitializerWithMocks({ MainDatabase, observe })
+
+    await expect(initializer.initialize()).resolves.toBe(presenterInstance)
+    expect(observe).toHaveBeenCalledOnce()
+  })
+
+  it('keeps asynchronous observer failures outside database initialization behavior', async () => {
+    const presenterInstance = {
+      runTransaction: vi.fn().mockResolvedValue(undefined),
+      diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
+      close: vi.fn()
+    }
+    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const observe = vi.fn().mockRejectedValue(new Error('diagnostic sink failed'))
+    const { initializer } = await createInitializerWithMocks({ MainDatabase, observe })
+
+    await expect(initializer.initialize()).resolves.toBe(presenterInstance)
+    await Promise.resolve()
+    expect(observe).toHaveBeenCalledOnce()
+  })
+
+  it('uses zero duration when the monotonic clock moves backwards', async () => {
+    const presenterInstance = {
+      runTransaction: vi.fn().mockResolvedValue(undefined),
+      diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
+      close: vi.fn()
+    }
+    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const now = vi.fn().mockReturnValueOnce(100).mockReturnValueOnce(99)
+    const { initializer, observe } = await createInitializerWithMocks({ MainDatabase, now })
+
+    await initializer.initialize()
+
+    expect(observe).toHaveBeenCalledOnce()
+    expect(observe).toHaveBeenCalledWith(expect.objectContaining({ durationMs: 0 }))
+  })
+
+  it('bounds duration before notifying the initialization observer', async () => {
+    const presenterInstance = {
+      runTransaction: vi.fn().mockResolvedValue(undefined),
+      diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
+      close: vi.fn()
+    }
+    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const now = vi
+      .fn()
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(MAX_MAIN_LOG_DURATION_MS + 1)
+    const { initializer, observe } = await createInitializerWithMocks({ MainDatabase, now })
+
+    await initializer.initialize()
+
+    expect(observe).toHaveBeenCalledOnce()
+    expect(observe).toHaveBeenCalledWith(
+      expect.objectContaining({ durationMs: MAX_MAIN_LOG_DURATION_MS })
+    )
   })
 })

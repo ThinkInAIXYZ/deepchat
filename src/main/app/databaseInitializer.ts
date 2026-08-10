@@ -10,11 +10,32 @@ import {
 import { getStartupSchemaCatalog } from '@/data/schemaCatalog'
 import { classifySchemaError } from '@/data/schemaErrorClassifier'
 import type { SchemaTableSpec } from '@/data/schemaTypes'
+import { MAX_MAIN_LOG_DURATION_MS } from '@/logging/mainLogEvents'
 
 type DatabaseInitializerOptions = {
   password?: string
   dbPath?: string
+  observe?: (observation: DatabaseInitializationObservation) => void | Promise<void>
+  now?: () => number
 }
+
+export type DatabaseSchemaDiagnosisOutcome = 'completed' | 'unavailable' | 'not_completed'
+
+export type DatabaseInitializationObservation = {
+  durationMs: number
+  repairAttempted: boolean
+  schemaDiagnosis: DatabaseSchemaDiagnosisOutcome
+  repairableIssueCount: number
+  manualIssueCount: number
+} & ({ outcome: 'completed' } | { outcome: 'failed'; errorCategory: 'integrity' | 'persistence' })
+
+type StartupSchemaDiagnosisResult =
+  | {
+      outcome: 'completed'
+      catalog: SchemaTableSpec[]
+      diagnosis: DatabaseSchemaDiagnosis
+    }
+  | { outcome: 'unavailable' }
 
 /**
  * Database initialization interface
@@ -32,19 +53,27 @@ export class DatabaseInitializer implements IDatabaseInitializer {
   private dbPath: string
   private password?: string
   private database?: MainDatabase
+  private readonly observe: (observation: DatabaseInitializationObservation) => void | Promise<void>
+  private readonly now: () => number
 
   constructor(options?: DatabaseInitializerOptions) {
     // Initialize database path
     const dbDir = path.join(app.getPath('userData'), 'app_db')
     this.dbPath = options?.dbPath ?? path.join(dbDir, 'agent.db')
     this.password = options?.password
+    this.observe = options?.observe ?? (() => undefined)
+    this.now = options?.now ?? performance.now.bind(performance)
   }
 
   /**
    * Initialize the database connection and perform setup
    */
   async initialize(): Promise<MainDatabase> {
+    const startedAt = this.readMonotonicNow()
     let repairAttempted = false
+    let schemaDiagnosis: DatabaseSchemaDiagnosisOutcome = 'not_completed'
+    let repairableIssueCount = 0
+    let manualIssueCount = 0
 
     try {
       logger.info('DatabaseInitializer: Starting database initialization')
@@ -61,12 +90,26 @@ export class DatabaseInitializer implements IDatabaseInitializer {
           // Startup checks use the fresh-install catalog so automatic repair does not create
           // retired legacy conversation tables. Manual settings repair still uses the full catalog.
           const startupDiagnosis = await this.diagnoseStartupSchema()
-          if (!startupDiagnosis) {
+          if (startupDiagnosis.outcome === 'unavailable') {
+            schemaDiagnosis = 'unavailable'
+            repairableIssueCount = 0
+            manualIssueCount = 0
             logger.info('DatabaseInitializer: Database initialization completed successfully')
+            this.notifyInitializationObserver({
+              outcome: 'completed',
+              durationMs: this.elapsedSince(startedAt),
+              repairAttempted,
+              schemaDiagnosis,
+              repairableIssueCount,
+              manualIssueCount
+            })
             return this.database
           }
 
           const { catalog, diagnosis } = startupDiagnosis
+          schemaDiagnosis = 'completed'
+          repairableIssueCount = diagnosis.repairableIssues.length
+          manualIssueCount = diagnosis.manualIssues.length
           if (diagnosis.repairableIssues.length > 0) {
             if (repairAttempted) {
               console.warn(
@@ -78,6 +121,14 @@ export class DatabaseInitializer implements IDatabaseInitializer {
               logger.info(
                 'DatabaseInitializer: Database initialization continued with residual startup schema issues'
               )
+              this.notifyInitializationObserver({
+                outcome: 'completed',
+                durationMs: this.elapsedSince(startedAt),
+                repairAttempted,
+                schemaDiagnosis,
+                repairableIssueCount,
+                manualIssueCount
+              })
               return this.database
             }
 
@@ -96,6 +147,14 @@ export class DatabaseInitializer implements IDatabaseInitializer {
           this.warnManualSchemaIssues(diagnosis)
 
           logger.info('DatabaseInitializer: Database initialization completed successfully')
+          this.notifyInitializationObserver({
+            outcome: 'completed',
+            durationMs: this.elapsedSince(startedAt),
+            repairAttempted,
+            schemaDiagnosis,
+            repairableIssueCount,
+            manualIssueCount
+          })
           return this.database
         } catch (error) {
           this.database?.close()
@@ -120,6 +179,15 @@ export class DatabaseInitializer implements IDatabaseInitializer {
       }
     } catch (error) {
       console.error('DatabaseInitializer: Database initialization failed:', error)
+      this.notifyInitializationObserver({
+        outcome: 'failed',
+        durationMs: this.elapsedSince(startedAt),
+        repairAttempted,
+        schemaDiagnosis,
+        repairableIssueCount,
+        manualIssueCount,
+        errorCategory: this.classifyInitializationFailure(error)
+      })
       throw error
     }
   }
@@ -168,18 +236,16 @@ export class DatabaseInitializer implements IDatabaseInitializer {
       .join(', ')
   }
 
-  private async diagnoseStartupSchema(): Promise<{
-    catalog: SchemaTableSpec[]
-    diagnosis: DatabaseSchemaDiagnosis
-  } | null> {
+  private async diagnoseStartupSchema(): Promise<StartupSchemaDiagnosisResult> {
     if (!this.database) {
-      return null
+      return { outcome: 'unavailable' }
     }
 
     const start = performance.now()
     try {
       const catalog = getStartupSchemaCatalog()
       return {
+        outcome: 'completed',
         catalog,
         diagnosis: await this.database.diagnoseSchema(catalog)
       }
@@ -188,7 +254,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
         'DatabaseInitializer: Startup schema diagnosis failed; continuing startup:',
         error
       )
-      return null
+      return { outcome: 'unavailable' }
     } finally {
       logger.info(
         `DatabaseInitializer: phase=diagnose duration=${(performance.now() - start).toFixed(2)}ms`
@@ -217,5 +283,39 @@ export class DatabaseInitializer implements IDatabaseInitializer {
         diagnosis.manualIssues
       )}`
     )
+  }
+
+  private readMonotonicNow(): number | undefined {
+    try {
+      const value = this.now()
+      return Number.isFinite(value) && value >= 0 ? value : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  private elapsedSince(startedAt: number | undefined): number {
+    if (startedAt === undefined) return 0
+    const completedAt = this.readMonotonicNow()
+    if (completedAt === undefined || completedAt < startedAt) return 0
+    return Math.min(completedAt - startedAt, MAX_MAIN_LOG_DURATION_MS)
+  }
+
+  private notifyInitializationObserver(observation: DatabaseInitializationObservation): void {
+    try {
+      void Promise.resolve(this.observe(observation)).catch(() => undefined)
+    } catch {
+      // Diagnostics must not alter database initialization or recovery behavior.
+    }
+  }
+
+  private classifyInitializationFailure(error: unknown): 'integrity' | 'persistence' {
+    try {
+      return isDestructiveDatabaseError(error) || classifySchemaError(error)
+        ? 'integrity'
+        : 'persistence'
+    } catch {
+      return 'persistence'
+    }
   }
 }

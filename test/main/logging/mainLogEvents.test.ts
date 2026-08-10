@@ -106,6 +106,69 @@ describe('Main log event projection', () => {
     expect(JSON.stringify(projected)).not.toContain('SECRET_')
   })
 
+  it('projects database initialization health without schema or error content', () => {
+    const degraded = projectMainLogEvent('database.initialization.terminal', {
+      outcome: 'completed',
+      durationMs: 42.1256,
+      repairAttempted: true,
+      schemaDiagnosis: 'completed',
+      repairableIssueCount: 1,
+      manualIssueCount: 2,
+      issues: ['SECRET_TABLE.SECRET_COLUMN']
+    } as never)
+    expect(degraded).toEqual({
+      level: 'warn',
+      context: {
+        outcome: 'completed',
+        durationMs: 42.126,
+        repairAttempted: true,
+        schemaDiagnosis: 'completed',
+        repairableIssueCount: 1,
+        manualIssueCount: 2
+      }
+    })
+
+    const failed = projectMainLogEvent('database.initialization.terminal', {
+      outcome: 'failed',
+      durationMs: 10,
+      repairAttempted: false,
+      schemaDiagnosis: 'not_completed',
+      repairableIssueCount: 0,
+      manualIssueCount: 0,
+      error: { category: 'integrity' }
+    })
+    expect(failed.level).toBe('error')
+    expect(failed.context.error).toEqual({ category: 'integrity' })
+    expect(JSON.stringify([degraded, failed])).not.toContain('SECRET_')
+  })
+
+  it('rejects broad database error categories and drops enriched error fields', () => {
+    const broadCategory = {
+      outcome: 'failed',
+      durationMs: 14,
+      repairAttempted: false,
+      schemaDiagnosis: 'not_completed',
+      repairableIssueCount: 0,
+      manualIssueCount: 0,
+      error: { category: 'provider' }
+    }
+    const enrichedError = {
+      ...broadCategory,
+      error: { category: 'persistence', code: 'SECRET_COLUMN', retryable: true }
+    }
+
+    expect(() =>
+      projectMainLogEvent('database.initialization.terminal', broadCategory as never)
+    ).toThrow(MainLogEventProjectionError)
+    const projected = projectMainLogEvent(
+      'database.initialization.terminal',
+      enrichedError as never
+    )
+    expect(projected.context.error).toEqual({ category: 'persistence' })
+    expect(JSON.stringify(projected)).not.toContain('SECRET_COLUMN')
+    expect(projected.context.error).not.toHaveProperty('retryable')
+  })
+
   it('projects fatal stack frames without the message or absolute paths', () => {
     const error = new Error('SECRET_FATAL_MESSAGE')
     error.stack = [
