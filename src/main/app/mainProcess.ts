@@ -37,6 +37,7 @@ export async function startMainProcess(
   try {
     electronApp.setAppUserModelId('com.wefonk.deepchat')
     const settingsStore = createSettingsStore()
+    setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     const secretStore = new SecretStore(settingsStore)
     const privacySettings = new PrivacySettings(settingsStore)
     const proxySettings = new ProxySettings(settingsStore)
@@ -106,7 +107,6 @@ export async function startMainProcess(
     if (configMigration.appVersionChanged) {
       mcpSettings.onUpgrade(configMigration.previousAppVersion)
     }
-    setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
     await registerProtocols(mcpAppSandboxRegistry)
 

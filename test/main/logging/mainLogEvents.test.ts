@@ -25,7 +25,7 @@ describe('Main log event projection', () => {
       durationMs: 123.4567,
       logicalRounds: 2,
       toolCalls: 1,
-      error: { category: 'provider', code: 'RATE_LIMITED', retryable: true }
+      error: { category: 'provider', retryable: true }
     })
 
     expect(projected).toEqual({
@@ -40,7 +40,7 @@ describe('Main log event projection', () => {
         durationMs: 123.457,
         logicalRounds: 2,
         toolCalls: 1,
-        error: { category: 'provider', code: 'RATE_LIMITED', retryable: true }
+        error: { category: 'provider', retryable: true }
       }
     })
   })
@@ -91,7 +91,7 @@ describe('Main log event projection', () => {
       durationMs: 10,
       error: {
         category: 'persistence',
-        code: 'SQLITE_BUSY',
+        code: 'SECRET_FREE_FORM_CODE',
         retryable: true,
         message: 'SECRET_ERROR_MESSAGE',
         responseBody: 'SECRET_RESPONSE'
@@ -101,7 +101,7 @@ describe('Main log event projection', () => {
     expect(projected.context).toEqual({
       outcome: 'failed',
       durationMs: 10,
-      error: { category: 'persistence', code: 'SQLITE_BUSY', retryable: true }
+      error: { category: 'persistence', retryable: true }
     })
     expect(JSON.stringify(projected)).not.toContain('SECRET_')
   })
@@ -247,12 +247,13 @@ describe('Main log event projection', () => {
     expect(projected.context.error).not.toHaveProperty('retryable')
   })
 
-  it('projects fatal stack frames without the message or absolute paths', () => {
-    const error = new Error('SECRET_FATAL_MESSAGE')
+  it('projects fatal errors as category-only even when message text resembles a stack frame', () => {
+    const error = new Error(
+      'SECRET_FATAL_MESSAGE\nat LEAK_SECRET (/tmp/src/main/LEAK_SECRET.ts:1:1)'
+    )
     error.stack = [
-      'Error: SECRET_FATAL_MESSAGE',
-      '    at explode (/Users/alice/deepchat/src/main/example.ts:10:2)',
-      '    at dependency (/Users/alice/deepchat/node_modules/example/index.js:4:1)'
+      'Error: SECRET_OVERWRITTEN_STACK',
+      '    at LEAK_SECRET (/Users/alice/deepchat/src/main/LEAK_SECRET.ts:1:1)'
     ].join('\n')
 
     const projected = projectMainLogEvent('process.uncaught_exception', { error })
@@ -261,13 +262,12 @@ describe('Main log event projection', () => {
     expect(projected).toEqual({
       level: 'error',
       context: {
-        error: {
-          category: 'unknown',
-          stack: ['at explode (<app>/src/main/example.ts:10:2)']
-        }
+        error: { category: 'unknown' }
       }
     })
     expect(serialized).not.toContain('SECRET_FATAL_MESSAGE')
+    expect(serialized).not.toContain('SECRET_OVERWRITTEN_STACK')
+    expect(serialized).not.toContain('LEAK_SECRET')
     expect(serialized).not.toContain('/Users/alice')
   })
 
@@ -307,9 +307,13 @@ describe('Main log event projection', () => {
         return 'SECRET_ERROR_CODE'
       }
     })
-    expect(() => projectMainLogEvent('app.shutdown.terminal', nestedGetterInput as never)).toThrow(
-      MainLogEventProjectionError
-    )
+    expect(
+      projectMainLogEvent('app.shutdown.terminal', nestedGetterInput as never).context
+    ).toEqual({
+      outcome: 'failed',
+      durationMs: 10,
+      error: { category: 'persistence' }
+    })
 
     const knownGetterInput = { outcome: 'completed' }
     Object.defineProperty(knownGetterInput, 'durationMs', {
@@ -405,7 +409,7 @@ describe('Main log event projection', () => {
     expect(projected.context).toEqual({ outcome: 'completed', durationMs: 10 })
   })
 
-  it('bounds durations, error codes, and fatal stack frames', () => {
+  it('bounds durations and rejects invalid retryability', () => {
     expect(() =>
       projectMainLogEvent('app.shutdown.terminal', {
         outcome: 'completed',
@@ -416,14 +420,9 @@ describe('Main log event projection', () => {
       projectMainLogEvent('app.shutdown.terminal', {
         outcome: 'failed',
         durationMs: 10,
-        error: { category: 'persistence', code: 'NOT\nA_CODE' }
+        error: { category: 'persistence', retryable: 'SECRET_NOT_BOOLEAN' }
       })
     ).toThrow(MainLogEventProjectionError)
-
-    const error = new Error('SECRET')
-    error.stack = `Error: SECRET\n    at ${'x'.repeat(600)}`
-    const projected = projectMainLogEvent('process.uncaught_exception', { error })
-    expect(projected.context).toEqual({ error: { category: 'unknown' } })
   })
 
   it('rejects unknown event names including object prototype properties', () => {

@@ -132,7 +132,7 @@ The following content is prohibited from every persisted event, including error 
 - SQL text with values, bound parameters, database passwords, or database row content;
 - command text or arguments, environment values, complete `PATH`, or process option dumps;
 - absolute paths, user-controlled filenames, Electron/native objects, or arbitrary object graphs;
-- arbitrary `Error.message`, enumerable Error properties, or a message-bearing stack first line.
+- arbitrary `Error.message`, stack, cause, or enumerable Error properties.
 
 Paths are represented as controlled logical categories when required. URLs are represented only by
 an allowlisted provider/channel identity or a normalized host when the event explicitly permits it.
@@ -157,18 +157,14 @@ interface SafeLogError {
     | 'configuration'
     | 'resource'
     | 'unknown'
-  code?: string
   retryable?: boolean
 }
 ```
 
 An event projector may derive this structure from a known typed error, but it may not serialize the
-source object. `code` is accepted only when it is a bounded primitive matching the event's allowed
-code set or normalization rule.
-
-`process.uncaught_exception` and `process.unhandled_rejection` may include an optional crash-only
-stack projection. It removes the message-bearing first line, absolute paths, source excerpts, and
-arguments, and keeps a bounded number of application frames. Normal events do not persist stacks.
+source object. Event-specific classifications may add a closed enum field, but the shared error
+shape accepts no free-form code. `process.uncaught_exception` and `process.unhandled_rejection`
+persist category only; V1 does not persist stack frames.
 
 ## Correlation Contract
 
@@ -222,7 +218,7 @@ collector instead of coupling to the Memory diagnostics lifecycle.
 Persistence has three states: `unknown`, `enabled`, and `disabled`.
 
 - The file transport starts disabled and does not create a log file or directory.
-- While the authoritative database-backed setting is unknown, validated typed records enter an
+- While the authoritative persisted setting is unknown, validated typed records enter an
   in-memory buffer bounded to 64 records and 64 KiB.
 - When either bound is exceeded, the oldest buffered records are removed until both bounds hold. The
   logger retains only a dropped-record count; sequence numbers are not reused, so a later file may

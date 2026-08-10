@@ -215,7 +215,7 @@ describe('ElectronMainLogPersistence', () => {
     expect(log.processMessage).not.toHaveBeenCalled()
   })
 
-  it('accepts only the bounded projected shape for fatal events', () => {
+  it('accepts only the category-only projected shape for fatal events', () => {
     const userData = createUserData()
     const { persistence } = createPersistence(userData)
     expect(persistence.enable()).toBe(true)
@@ -224,13 +224,12 @@ describe('ElectronMainLogPersistence', () => {
     fatalRecord.event = 'process.uncaught_exception'
     fatalRecord.context = {
       error: {
-        category: 'unknown',
-        stack: ['at explode (<app>/src/main/example.ts:10:2)']
+        category: 'unknown'
       }
     }
 
     expect(persistence.write('error', JSON.stringify(fatalRecord))).toBe(true)
-    fatalRecord.context.error.message = 'SECRET_ERROR_MESSAGE'
+    fatalRecord.context.error.stack = ['at explode (<app>/src/main/example.ts:10:2)']
     expect(persistence.write('error', JSON.stringify(fatalRecord))).toBe(false)
   })
 })

@@ -96,6 +96,20 @@ describe('session boundary composition', () => {
     expect(mainProcessSource).not.toContain('providerSettings.attachDatabase(')
   })
 
+  it('applies the persisted logging gate before database initialization can fail', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const mainProcessSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/mainProcess.ts'),
+      'utf8'
+    )
+    const loggingGate = mainProcessSource.indexOf('setMainLoggingEnabled(')
+    const databaseInitialization = mainProcessSource.indexOf('new DatabaseInitializer(')
+
+    expect(loggingGate).toBeGreaterThanOrEqual(0)
+    expect(loggingGate).toBeLessThan(databaseInitialization)
+    expect(mainProcessSource.match(/setMainLoggingEnabled\(/g)).toHaveLength(1)
+  })
+
   it('has no late Provider runtime connection or ready fallback', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const compositionSource = readFileSync(

@@ -244,6 +244,57 @@ describe('UpgradeService', () => {
     expect(service.getUpdateStatus().status).toBe('error')
   })
 
+  it('deduplicates one check failure reported by updater event and promise rejection', async () => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+    const errorHandler = autoUpdaterState.listeners.get('error')
+    vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockImplementation(async () => {
+      errorHandler!(new Error('SECRET_EVENT_UPDATE_ERROR'))
+      throw new Error('SECRET_REJECTED_UPDATE_ERROR')
+    })
+
+    await service.checkUpdate('autoCheck')
+
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'check',
+      errorCategory: 'provider'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_')
+  })
+
+  it('reports a native updater error outside an active operation as a runtime failure', () => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+
+    autoUpdaterState.listeners.get('error')!(new Error('SECRET_NATIVE_RUNTIME_ERROR'))
+
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'runtime',
+      errorCategory: 'unknown'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_NATIVE_RUNTIME_ERROR')
+  })
+
   it('starts a new automatic check failure episode after a successful check', async () => {
     const settings = {
       getChannel: vi.fn(() => 'stable')
@@ -298,6 +349,46 @@ describe('UpgradeService', () => {
     expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_DOWNLOAD_RESPONSE')
   })
 
+  it('deduplicates one download failure reported by updater event and promise rejection', async () => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+    const errorHandler = autoUpdaterState.listeners.get('error')
+    vi.mocked(electronUpdater.autoUpdater.downloadUpdate).mockImplementation(async () => {
+      autoUpdaterState.listeners.get('update-downloaded')!({
+        version: '1.1.0',
+        releaseDate: '2026-08-01',
+        releaseNotes: ''
+      })
+      errorHandler!(new Error('SECRET_EVENT_DOWNLOAD_ERROR'))
+      throw new Error('SECRET_REJECTED_DOWNLOAD_ERROR')
+    })
+    autoUpdaterState.listeners.get('update-available')!({
+      version: '1.1.0',
+      releaseDate: '2026-08-01',
+      releaseNotes: ''
+    })
+
+    expect(service.startDownloadUpdate()).toBe(true)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'download',
+      errorCategory: 'provider'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_')
+  })
+
   it('reports install handoff failures and restores the updating flag', async () => {
     const settings = {
       getChannel: vi.fn(() => 'stable')
@@ -324,6 +415,32 @@ describe('UpgradeService', () => {
       errorCategory: 'unknown'
     })
     expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_INSTALL_ERROR')
+  })
+
+  it('reports an event-only native updater failure during install', async () => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+    ;(service as any)._status = 'downloaded'
+
+    expect(service.restartToUpdate()).toBe(true)
+    await Promise.resolve()
+    autoUpdaterState.listeners.get('error')!(new Error('SECRET_NATIVE_INSTALL_ERROR'))
+
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'install',
+      errorCategory: 'unknown'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_NATIVE_INSTALL_ERROR')
   })
 
   it('ignores cross-channel downgrades when current install is a prerelease', () => {

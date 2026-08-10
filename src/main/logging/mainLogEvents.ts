@@ -27,7 +27,6 @@ export type MainLogShutdownReason =
 
 export interface SafeLogError {
   category: MainLogErrorCategory
-  code?: string
   retryable?: boolean
 }
 
@@ -56,6 +55,7 @@ export type MainLogUpdateOperation =
   | 'install_verification'
   | 'marker_reconcile'
   | 'marker_write'
+  | 'runtime'
 
 export type MainLogStartupComponent =
   | 'acp_install_compensation'
@@ -340,16 +340,10 @@ type MainLogEventDefinitions = {
 }
 
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9._:-]+$/
-const CODE_PATTERN = /^[A-Za-z0-9._:-]+$/
 const MAX_IDENTIFIER_LENGTH = 256
-const MAX_CODE_LENGTH = 128
-const MAX_FATAL_STACK_FRAMES = 20
-const MAX_FATAL_STACK_FRAME_LENGTH = 512
-const MAX_FATAL_STACK_SOURCE_LENGTH = 32 * 1024
 const MAX_ERROR_NAME_LENGTH = 128
 const MAX_DISTRIBUTION_SAMPLES = 256
 export const MAX_MAIN_LOG_DURATION_MS = 30 * 24 * 60 * 60 * 1000
-const NATIVE_ERROR_STACK_GETTER = Object.getOwnPropertyDescriptor(new Error(), 'stack')?.get
 
 const RUN_KIND_VALUES = {
   loop: 'loop',
@@ -419,7 +413,8 @@ const UPDATE_OPERATIONS = [
   'install',
   'install_verification',
   'marker_reconcile',
-  'marker_write'
+  'marker_write',
+  'runtime'
 ] as const satisfies readonly MainLogUpdateOperation[]
 const UPDATE_OPERATION_ERROR_CATEGORIES = ['persistence', 'provider', 'unknown'] as const
 const RELEASE_REASONS = ['permit_released', 'lease_suspended', 'lease_released'] as const
@@ -537,26 +532,13 @@ function snapshotDataObject<T extends object>(
 }
 
 function projectSafeError(value: SafeLogError): MainLogContext {
-  const snapshot = snapshotDataObject('error', value, ['category', 'code', 'retryable'])
+  const snapshot = snapshotDataObject('error', value, ['category', 'retryable'])
   const category = oneOf('error.category', snapshot.category, MAIN_LOG_ERROR_CATEGORIES)
-  let code: string | undefined
-  if (snapshot.code !== undefined) {
-    if (
-      typeof snapshot.code !== 'string' ||
-      snapshot.code.length < 1 ||
-      snapshot.code.length > MAX_CODE_LENGTH ||
-      !CODE_PATTERN.test(snapshot.code)
-    ) {
-      throw new MainLogEventProjectionError('error.code')
-    }
-    code = snapshot.code
-  }
   if (snapshot.retryable !== undefined && typeof snapshot.retryable !== 'boolean') {
     throw new MainLogEventProjectionError('error.retryable')
   }
   return {
     category,
-    ...(code ? { code } : {}),
     ...(snapshot.retryable === undefined ? {} : { retryable: snapshot.retryable })
   }
 }
@@ -597,37 +579,12 @@ function ownDataString(value: unknown, key: string): string | undefined {
       if (descriptor && 'value' in descriptor) {
         return typeof descriptor.value === 'string' ? descriptor.value : undefined
       }
-      const getter = descriptor?.get
-      if (
-        key === 'stack' &&
-        utilTypes.isNativeError(value) &&
-        getter !== undefined &&
-        getter === NATIVE_ERROR_STACK_GETTER
-      ) {
-        const nativeValue = getter.call(value)
-        return typeof nativeValue === 'string' ? nativeValue : undefined
-      }
       current = Object.getPrototypeOf(current)
     }
   } catch {
     return undefined
   }
   return undefined
-}
-
-function projectStackFrame(line: string): string | undefined {
-  const trimmed = line.trim()
-  if (!trimmed.startsWith('at ') || trimmed.length > MAX_FATAL_STACK_FRAME_LENGTH) return undefined
-
-  const functionName = trimmed.match(/^at ([A-Za-z0-9_.$<>[\]-]{1,160})/)?.[1]
-  const applicationLocation = trimmed.match(
-    /(?:src|out)[\\/]main[\\/][A-Za-z0-9_./\\-]{1,320}(?::\d{1,10}){0,2}/
-  )?.[0]
-  if (!applicationLocation) return undefined
-  const normalizedLocation = applicationLocation.replaceAll('\\', '/')
-  return functionName
-    ? `at ${functionName} (<app>/${normalizedLocation})`
-    : `at <app>/${normalizedLocation}`
 }
 
 function projectFatalError(value: unknown): MainLogContext {
@@ -640,18 +597,7 @@ function projectFatalError(value: unknown): MainLogContext {
       : name?.toLowerCase().includes('timeout')
         ? 'timeout'
         : 'unknown'
-  const stack = ownDataString(value, 'stack')
-  const frames = stack
-    ?.slice(0, MAX_FATAL_STACK_SOURCE_LENGTH)
-    ?.split(/\r?\n/)
-    .slice(1)
-    .map(projectStackFrame)
-    .filter((frame): frame is string => frame !== undefined)
-    .slice(0, MAX_FATAL_STACK_FRAMES)
-  return {
-    category,
-    ...(frames && frames.length > 0 ? { stack: frames } : {})
-  }
+  return { category }
 }
 
 function projectDistribution(field: string, value: MainLogDistribution): MainLogContext {
@@ -1146,19 +1092,7 @@ function isProjectedFatalContext(context: unknown): context is MainLogContext {
   ) {
     return false
   }
-  const normalizedError: Record<string, MainLogJsonValue> = { category: error.category }
-  if (error.stack !== undefined) {
-    if (
-      !Array.isArray(error.stack) ||
-      error.stack.length < 1 ||
-      error.stack.length > MAX_FATAL_STACK_FRAMES ||
-      !error.stack.every(isProjectedStackFrame)
-    ) {
-      return false
-    }
-    normalizedError.stack = error.stack
-  }
-  return JSON.stringify(context) === JSON.stringify({ error: normalizedError })
+  return JSON.stringify(context) === JSON.stringify({ error: { category: error.category } })
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -1167,15 +1101,5 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
     value !== null &&
     !Array.isArray(value) &&
     Object.getPrototypeOf(value) === Object.prototype
-  )
-}
-
-function isProjectedStackFrame(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value.length <= MAX_FATAL_STACK_FRAME_LENGTH &&
-    /^at (?:(?:[A-Za-z0-9_.$<>[\]-]{1,160} \(<app>\/)|(?:<app>\/))(?:src|out)\/main\/[A-Za-z0-9_./-]{1,320}(?::\d{1,10}){0,2}\)?$/.test(
-      value
-    )
   )
 }

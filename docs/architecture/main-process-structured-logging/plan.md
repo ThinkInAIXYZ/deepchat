@@ -27,7 +27,8 @@ Add a Main-owned event catalog with:
 - an event-specific TypeScript context for each name;
 - a fixed severity and component description;
 - a runtime projector that constructs a new output object from allowed fields only;
-- shared bounded primitive helpers for identifiers, counts, durations, enums, and safe error codes.
+- shared bounded primitive helpers for identifiers, counts, durations, enums, and safe error
+  categories.
 
 The emitter accepts only a catalog event and its matching context. It has no free-form message,
 unknown metadata, generic `Record<string, unknown>`, or variadic overload.
@@ -91,10 +92,9 @@ contract changes.
 Replace generic Error serialization and the current `{ name: 'Error' }` runtime projection with
 operation-owned safe classification:
 
-- known error classes map to stable categories and bounded codes;
+- known error classes map to stable categories;
 - arbitrary Error properties, messages, response payloads, URLs, causes, and stacks are not copied;
-- only fatal process events may project bounded application stack frames after removing the
-  message-bearing line and absolute paths;
+- fatal process events persist category only because stack lines can contain message-derived text;
 - worker/utility boundaries send typed safe error categories rather than arbitrary Error objects.
 
 Tests include third-party-style errors carrying secret sentinels in message, cause, headers,
@@ -156,7 +156,7 @@ migrated, but no commit writes both files and no released final state contains c
 - sequence/order is stable across startup buffering;
 - invalid/oversized events fail safely;
 - maximum line size and physical one-line behavior;
-- safe error classification and fatal stack projection.
+- safe error classification, including category-only fatal events.
 
 ### File transport tests
 
@@ -223,7 +223,7 @@ No commit message describes work as a generic review fix. No remote Git operatio
 | Typed-looking generic metadata reintroduces payload logging | No free-form message/metadata/record context; event-specific projectors construct output fields |
 | Important diagnostics disappear when console interception is removed | Complete subsystem classification before cutover; acceptance event inventory and focused lifecycle tests |
 | Synchronous JSONL harms Main responsiveness | Persist only low-volume events, cap records at 16 KiB, prohibit events in chunk/protocol loops, benchmark formatter and representative bursts |
-| Error text leaks user/provider content | Persist categories/codes only; crash stack removes message and absolute paths |
+| Error text leaks user/provider content | Persist closed categories only; omit crash stacks and free-form codes |
 | Early startup writes despite logging being disabled | Initial disabled transport plus bounded unknown-state buffer |
 | Rotation corrupts JSONL | Whole-file rename only; no crop fallback; line cap, tail repair, parse tests |
 | Admission instrumentation changes fairness or leaks permits | Fail-open observer, monotonic injected clock, accounting/race regression tests |

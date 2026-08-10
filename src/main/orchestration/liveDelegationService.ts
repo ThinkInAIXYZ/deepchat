@@ -246,6 +246,7 @@ export class LiveDelegationService {
   private readonly childSafetyTails = new Map<string, Promise<void>>()
   private readonly waiters = new Set<MailboxWaiter>()
   private readonly pendingObservations: LiveDelegationLifecycleObservation[] = []
+  private readonly observationFlushWaiters = new Set<() => void>()
   private readonly observe: (
     observation: LiveDelegationLifecycleObservation
   ) => void | Promise<void>
@@ -253,6 +254,7 @@ export class LiveDelegationService {
   private observationDrain: NodeJS.Immediate | undefined
   private unsubscribeRuntime: (() => void) | null = null
   private reconcilePromise: Promise<void> | null = null
+  private stopPromise: Promise<void> | null = null
   private started = false
 
   constructor(private readonly options: LiveDelegationServiceOptions) {
@@ -261,7 +263,7 @@ export class LiveDelegationService {
   }
 
   start(): void {
-    if (this.started) return
+    if (this.started || this.stopPromise) return
     const activeRecords = this.options.repository.listActiveTurnIdentities()
     const observedAt = this.readMonotonicNow()
     this.childToTurn.clear()
@@ -304,8 +306,22 @@ export class LiveDelegationService {
     )
   }
 
-  async stop(): Promise<void> {
-    if (!this.started) return
+  stop(): Promise<void> {
+    if (this.stopPromise) return this.stopPromise
+    const stopPromise = this.stopOnce()
+    this.stopPromise = stopPromise
+    const clearStopPromise = () => {
+      if (this.stopPromise === stopPromise) this.stopPromise = null
+    }
+    void stopPromise.then(clearStopPromise, clearStopPromise)
+    return stopPromise
+  }
+
+  private async stopOnce(): Promise<void> {
+    if (!this.started) {
+      await this.flushObservations()
+      return
+    }
     this.started = false
     this.unsubscribeRuntime?.()
     this.unsubscribeRuntime = null
@@ -345,6 +361,7 @@ export class LiveDelegationService {
     this.childSafetyTails.clear()
     for (const waiter of this.waiters) waiter.resolve()
     this.waiters.clear()
+    await this.flushObservations()
   }
 
   async spawn(
@@ -1932,6 +1949,16 @@ export class LiveDelegationService {
     })
   }
 
+  private flushObservations(): Promise<void> {
+    if (this.pendingObservations.length === 0 && !this.observationDrain) {
+      return Promise.resolve()
+    }
+    return new Promise((resolve) => {
+      this.observationFlushWaiters.add(resolve)
+      this.scheduleObservationDrain()
+    })
+  }
+
   private drainObservations(): void {
     const observations = this.pendingObservations.splice(0, LIFECYCLE_OBSERVATION_DRAIN_BATCH_SIZE)
     for (const observation of observations) {
@@ -1941,7 +1968,12 @@ export class LiveDelegationService {
         // Diagnostics must not alter durable delegation state, recovery, or child execution.
       }
     }
-    if (this.pendingObservations.length > 0) this.scheduleObservationDrain()
+    if (this.pendingObservations.length > 0) {
+      this.scheduleObservationDrain()
+      return
+    }
+    for (const resolve of this.observationFlushWaiters) resolve()
+    this.observationFlushWaiters.clear()
   }
 
   private publishChanged(delegation: LiveDelegation): void {

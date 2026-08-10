@@ -52,6 +52,7 @@ export type UpgradeFailureObservation = {
     | 'install_verification'
     | 'marker_reconcile'
     | 'marker_write'
+    | 'runtime'
   errorCategory: 'persistence' | 'provider' | 'unknown'
 }
 
@@ -128,6 +129,11 @@ export class UpgradeService {
   private _isUpdating: boolean = false // Flag to track if update installation is in progress
   private _isMockUpdate: boolean = false
   private _automaticCheckFailureActive: boolean = false
+  private _activeCheckOperations: number = 0
+  private _downloadOperationActive: boolean = false
+  private _checkFailureObserved: boolean = false
+  private _downloadFailureObserved: boolean = false
+  private _installFailureObserved: boolean = false
   private readonly requestUpdateInstall: (installAction: () => void) => Promise<void>
 
   private emitStatusChanged(payload: {
@@ -180,6 +186,11 @@ export class UpgradeService {
 
     // 错误处理
     autoUpdater.on('error', (e) => {
+      const operation = this.currentUpdaterOperation()
+      this.notifyUpdaterFailure(
+        operation,
+        operation === 'check' || operation === 'download' ? 'provider' : 'unknown'
+      )
       logger.info('自动更新失败', e.message)
       this._lock = false
       this._status = 'error'
@@ -440,11 +451,13 @@ export class UpgradeService {
     }
 
     const checkType = type ?? 'manualCheck'
+    this._activeCheckOperations += 1
     try {
       this._status = 'checking'
       this._error = null
       this._progress = null
       this._lastCheckType = checkType
+      this._checkFailureObserved = false
       this.emitStatusChanged({
         status: this._status
       })
@@ -457,16 +470,15 @@ export class UpgradeService {
       this._lastCheckTime = Date.now()
       this._automaticCheckFailureActive = false
     } catch (error: Error | unknown) {
-      if (checkType !== 'autoCheck' || !this._automaticCheckFailureActive) {
-        this.notifyFailure('check', 'unknown')
-      }
-      if (checkType === 'autoCheck') this._automaticCheckFailureActive = true
+      this.notifyUpdaterFailure('check', 'unknown')
       this._status = 'error'
       this._error = error instanceof Error ? error.message : String(error)
       this.emitStatusChanged({
         status: this._status,
         error: this._error
       })
+    } finally {
+      if (this._activeCheckOperations > 0) this._activeCheckOperations -= 1
     }
   }
 
@@ -507,8 +519,10 @@ export class UpgradeService {
     if (this._status !== 'available') {
       return false
     }
+    this._downloadFailureObserved = false
     try {
       this._status = 'downloading'
+      this._downloadOperationActive = true
       this.emitStatusChanged({
         status: this._status,
         info: this._versionInfo // 使用已保存的版本信息
@@ -524,7 +538,7 @@ export class UpgradeService {
           }
         })
         .catch((error: Error | unknown) => {
-          this.notifyFailure('download', 'provider')
+          this.notifyUpdaterFailure('download', 'provider')
           this._lock = false
           this._status = 'error'
           this._error = error instanceof Error ? error.message : String(error)
@@ -534,9 +548,13 @@ export class UpgradeService {
             info: this._versionInfo
           })
         })
+        .finally(() => {
+          this._downloadOperationActive = false
+        })
       return true
     } catch (error: Error | unknown) {
-      this.notifyFailure('download', 'unknown')
+      this._downloadOperationActive = false
+      this.notifyUpdaterFailure('download', 'unknown')
       this._status = 'error'
       this._error = error instanceof Error ? error.message : String(error)
       this.emitStatusChanged({
@@ -572,10 +590,11 @@ export class UpgradeService {
   }
 
   private beginInstallFlow(installAction: () => void): void {
+    this._installFailureObserved = false
     this.emitWillRestart()
     this.setUpdatingFlag(true)
     void this.requestUpdateInstall(installAction).catch((error) => {
-      this.notifyFailure('install', 'unknown')
+      this.notifyUpdaterFailure('install', 'unknown')
       console.error('Failed to start update installation flow', error)
       this.setUpdatingFlag(false)
       this.emitError(error instanceof Error ? error.message : String(error))
@@ -639,7 +658,7 @@ export class UpgradeService {
       this._doQuitAndInstall()
       return true
     } catch (e) {
-      this.notifyFailure('install', 'unknown')
+      this.notifyUpdaterFailure('install', 'unknown')
       console.error('重启更新失败', e)
       this.emitError(e instanceof Error ? e.message : String(e))
       return false
@@ -681,5 +700,35 @@ export class UpgradeService {
     } catch {
       // Diagnostics must not change updater state or user-facing recovery behavior.
     }
+  }
+
+  private currentUpdaterOperation(): 'check' | 'download' | 'install' | 'runtime' {
+    if (this._isUpdating) return 'install'
+    if (this._downloadOperationActive) return 'download'
+    if (this._activeCheckOperations > 0) return 'check'
+    return 'runtime'
+  }
+
+  private notifyUpdaterFailure(
+    operation: 'check' | 'download' | 'install' | 'runtime',
+    errorCategory: 'provider' | 'unknown'
+  ): void {
+    if (operation === 'check') {
+      if (this._checkFailureObserved) return
+      this._checkFailureObserved = true
+    }
+    if (operation === 'check' && this._lastCheckType === 'autoCheck') {
+      if (this._automaticCheckFailureActive) return
+      this._automaticCheckFailureActive = true
+    }
+    if (operation === 'download') {
+      if (this._downloadFailureObserved) return
+      this._downloadFailureObserved = true
+    }
+    if (operation === 'install') {
+      if (this._installFailureObserved) return
+      this._installFailureObserved = true
+    }
+    this.notifyFailure(operation, errorCategory)
   }
 }

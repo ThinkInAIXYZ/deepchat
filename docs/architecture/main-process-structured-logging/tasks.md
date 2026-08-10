@@ -12,7 +12,7 @@
       retaining required lifecycle/degradation/terminal events.
 - [ ] Audit and classify Agent, ACP, Provider, Tool, Orchestration, and Tape logs; remove prompt,
       protocol, PTY, command, provider body, tool payload, environment, path, and raw error logging.
-- [ ] Replace runtime generic Error redaction with operation-owned safe categories/codes and add
+- [ ] Replace runtime generic Error redaction with operation-owned safe categories and add
       privacy regression tests using secret-bearing third-party-style Error objects.
 - [ ] Add Agent admission wait/hold timing, bounded distributions, correlation context, close
       summary, richer snapshot, observer failure isolation, and race/fairness tests.

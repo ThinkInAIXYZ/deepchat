@@ -244,6 +244,53 @@ describeIfSqlite('LiveDelegationService', () => {
     }
   })
 
+  it('drains interruption observations before service stop resolves', async () => {
+    const detail = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Drain shutdown diagnostics',
+      prompt: 'Remain active until the service stops.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childSessionId = repository.require(detail.delegation.id).childSessionId!
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    observations.splice(0)
+    monotonicNow = 150
+
+    await service.stop()
+
+    expect(observations).toContainEqual({
+      type: 'turn_terminal',
+      parentSessionId: 'parent',
+      childSessionId,
+      delegationId: detail.delegation.id,
+      turnId: detail.turns[0]!.id,
+      status: 'interrupted',
+      durationMs: 50
+    })
+  })
+
+  it('does not await asynchronous lifecycle observers while flushing stop observations', async () => {
+    const detail = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Do not await diagnostics',
+      prompt: 'Remain active until the service stops.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    const observer = vi.fn(() => new Promise<void>(() => undefined))
+    dispatchObservation = observer
+
+    await service.stop()
+
+    expect(observer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'turn_terminal',
+        delegationId: detail.delegation.id,
+        status: 'interrupted'
+      })
+    )
+  })
+
   it('defers lifecycle observer reentrancy until turn scheduling is established', async () => {
     let interruption: Promise<LiveDelegationDetail> | undefined
     dispatchObservation = (observation) => {
@@ -1911,16 +1958,23 @@ describeIfSqlite('LiveDelegationService', () => {
     })
     await vi.waitFor(() => expect(harness.sessions.createSubagentSession).toHaveBeenCalledOnce())
 
-    let stopResolved = false
-    const stopping = service.stop().then(() => {
-      stopResolved = true
+    let firstStopResolved = false
+    let secondStopResolved = false
+    const firstStop = service.stop().then(() => {
+      firstStopResolved = true
     })
+    const secondStop = service.stop().then(() => {
+      secondStopResolved = true
+    })
+    service.start()
     await new Promise<void>((resolve) => setImmediate(resolve))
-    expect(stopResolved).toBe(false)
+    expect(firstStopResolved).toBe(false)
+    expect(secondStopResolved).toBe(false)
+    expect(harness.sessions.subscribeSessionRuntimeUpdates).toHaveBeenCalledOnce()
 
     const child = harness.addChild('child-created-during-stop', spawned.delegation.id, 'idle')
     resolveCreation(child)
-    await stopping
+    await Promise.all([firstStop, secondStop])
 
     expect(repository.require(spawned.delegation.id)).toMatchObject({
       childSessionId: child.sessionId,
@@ -1928,6 +1982,13 @@ describeIfSqlite('LiveDelegationService', () => {
     })
     expect(harness.sessions.cancelConversation).toHaveBeenCalledWith(child.sessionId)
     expect(harness.sessions.sendConversationMessage).not.toHaveBeenCalled()
+    expect(observations).toContainEqual(
+      expect.objectContaining({
+        type: 'turn_terminal',
+        delegationId: spawned.delegation.id,
+        status: 'interrupted'
+      })
+    )
   })
 
   it('rechecks durable mailbox events after registering a waiter', async () => {
