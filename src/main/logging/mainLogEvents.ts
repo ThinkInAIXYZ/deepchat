@@ -335,6 +335,25 @@ const DELEGATION_TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'inter
 const RECONCILIATION_OUTCOMES = ['resumed', 'settled', 'quarantined', 'failed'] as const
 const STALE_RESULT_REASONS = ['recovered_result_predates_turn'] as const
 
+export function normalizeMainLogRunStopReason(
+  value: string,
+  outcome: ExecutionRunOutcome
+): MainLogRunStopReason {
+  if ((RUN_STOP_REASONS as readonly string[]).includes(value)) {
+    return value as MainLogRunStopReason
+  }
+  switch (outcome) {
+    case 'completed':
+      return 'complete'
+    case 'paused':
+      return 'interaction'
+    case 'aborted':
+      return 'user_stop'
+    case 'error':
+      return 'provider_error'
+  }
+}
+
 export class MainLogEventProjectionError extends Error {
   constructor(field: string) {
     super(`Invalid Main log event field: ${field}`)

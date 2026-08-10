@@ -84,9 +84,10 @@ import type {
   InterleavedReasoningConfig,
   ProcessResult,
   ProcessTerminalSelection,
+  RunJournalObserver,
   StreamState
 } from '@/agent/deepchat/runtime/types'
-import { createState } from '@/agent/deepchat/runtime/types'
+import { createState, notifyRunJournalObserver } from '@/agent/deepchat/runtime/types'
 import type {
   ProviderRequestTraceContext,
   ProviderRequestTracePayload
@@ -268,6 +269,7 @@ export interface DeepChatLoopRunnerPorts {
   reviewToolPermission: ToolPermissionReviewer
   hookSink: Pick<RuntimeHookSink, 'scope'>
   compaction: Pick<CompactionRuntimeCoordinator, 'apply'>
+  runJournalObserver?: RunJournalObserver
 }
 
 function createAbortError(): Error {
@@ -557,6 +559,15 @@ export class DeepChatLoopRunner {
         `Execution Journal run identity ${loopRun.runId} was already committed.`
       )
     }
+    const observedRunStartedAt = performance.now()
+    notifyRunJournalObserver(this.ports.runJournalObserver, {
+      type: 'started',
+      runKind: 'loop',
+      runId: loopRun.runId,
+      sessionId,
+      messageId,
+      initialRequestSeq: loopRun.initialRequestSeq
+    })
 
     let terminalCommitAttempted = false
     let committedTerminal: ProcessTerminalSelection | null = null
@@ -597,6 +608,18 @@ export class DeepChatLoopRunner {
         )
       }
       committedTerminal = { ...selection }
+      notifyRunJournalObserver(this.ports.runJournalObserver, {
+        type: 'terminal',
+        runKind: 'loop',
+        runId: loopRun.runId,
+        sessionId,
+        messageId,
+        outcome: selection.outcome,
+        stopReason: selection.stopReason,
+        durationMs: Math.max(0, performance.now() - observedRunStartedAt),
+        logicalRounds: loopRun.logicalRound,
+        toolCalls: loopRun.streamState.toolCallCount
+      })
     }
 
     try {

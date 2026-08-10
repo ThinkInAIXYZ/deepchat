@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { MainLogEventProjectionError, projectMainLogEvent } from '@/logging/mainLogEvents'
+import {
+  MainLogEventProjectionError,
+  normalizeMainLogRunStopReason,
+  projectMainLogEvent
+} from '@/logging/mainLogEvents'
 
 describe('Main log event projection', () => {
+  it('normalizes unknown durable stop reasons without persisting their text', () => {
+    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'completed')).toBe('complete')
+    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'paused')).toBe('interaction')
+    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'aborted')).toBe('user_stop')
+    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'error')).toBe('provider_error')
+    expect(normalizeMainLogRunStopReason('journal_error', 'error')).toBe('journal_error')
+  })
+
   it('projects an Agent terminal event with fixed severity and strict fields', () => {
     const projected = projectMainLogEvent('agent.run.terminal', {
       runId: '0d1d17d8-e069-4b9f-9867-bf05fd6f8276',

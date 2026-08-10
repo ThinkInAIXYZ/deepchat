@@ -183,6 +183,18 @@ Correlation fields are event-specific because identities appear at different lif
 Permit queue events must not require a `runId`: admission occurs before child Session and Loop Run
 creation. A generic `sessionId` must not be used when parent and child ownership could be confused.
 
+## Run Diagnostics
+
+`agent.run.started` and `agent.run.terminal` are emitted only after the matching Execution Journal
+commit returns a newly-created receipt. A failed or conflicting Journal commit produces no matching
+diagnostic event. Loop terminal events include monotonic duration, logical-round count, and tool-call
+count; deferred-tool terminal events include monotonic duration only.
+
+The internal observer receives identities, kind, outcome, the durable stop reason, duration, and
+counts. It never receives Journal payloads, prompts, tool input/output, or terminal error text. The
+Main logging adapter maps unknown durable stop reasons to an outcome-specific safe fallback before
+persistence. Observation failures cannot change the durable Run lifecycle.
+
 ## Admission Diagnostics
 
 `AgentInvocationAdmission` records both low-volume lifecycle events and bounded in-memory

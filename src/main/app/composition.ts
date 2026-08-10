@@ -1,6 +1,11 @@
 import logger from '@shared/logger'
 import { mainLogger, setMainLoggingEnabled } from '@/logging'
-import type { MainLogShutdownReason } from '@/logging/mainLogEvents'
+import {
+  normalizeMainLogRunStopReason,
+  type MainLogRunStopReason,
+  type MainLogShutdownReason,
+  type SafeLogError
+} from '@/logging/mainLogEvents'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
 import {
   approvalClosedEvent,
@@ -148,6 +153,7 @@ import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 import { SessionTurn } from '@/session/turn'
 import { SessionLifecycle } from '@/session/lifecycle'
 import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/deepchat/harness'
+import type { RunJournalObservation } from '@/agent/deepchat/runtime/types'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
 import { createAcpRoutes } from '@/agent/acp/routes'
@@ -275,6 +281,101 @@ export interface MainProcessControl {
   hasMainWindows(): boolean
   stop(reason: MainLogShutdownReason): Promise<boolean>
   stopForCleanup(): Promise<void>
+}
+
+function classifyRunError(stopReason: MainLogRunStopReason): SafeLogError {
+  switch (stopReason) {
+    case 'journal_error':
+      return { category: 'persistence' }
+    case 'provider_error':
+      return { category: 'provider' }
+    case 'post_dispatch_permission':
+      return { category: 'permission' }
+    case 'context_window':
+    case 'max_tokens':
+    case 'max_tool_calls':
+    case 'max_turn_requests':
+    case 'max_turns':
+      return { category: 'resource' }
+    default:
+      return { category: 'unknown' }
+  }
+}
+
+function emitRunJournalObservation(observation: RunJournalObservation): void {
+  if (observation.type === 'started') {
+    if (observation.runKind === 'loop') {
+      mainLogger.emit('agent.run.started', {
+        runId: observation.runId,
+        sessionId: observation.sessionId,
+        messageId: observation.messageId,
+        runKind: 'loop',
+        initialRequestSeq: observation.initialRequestSeq
+      })
+    } else {
+      mainLogger.emit('agent.run.started', {
+        runId: observation.runId,
+        sessionId: observation.sessionId,
+        messageId: observation.messageId,
+        runKind: 'deferred_tool'
+      })
+    }
+    return
+  }
+
+  const stopReason = normalizeMainLogRunStopReason(observation.stopReason, observation.outcome)
+  if (observation.runKind === 'loop') {
+    if (observation.outcome === 'error') {
+      mainLogger.emit('agent.run.terminal', {
+        runId: observation.runId,
+        sessionId: observation.sessionId,
+        messageId: observation.messageId,
+        runKind: 'loop',
+        outcome: 'error',
+        stopReason,
+        durationMs: observation.durationMs,
+        logicalRounds: observation.logicalRounds,
+        toolCalls: observation.toolCalls,
+        error: classifyRunError(stopReason)
+      })
+      return
+    }
+    mainLogger.emit('agent.run.terminal', {
+      runId: observation.runId,
+      sessionId: observation.sessionId,
+      messageId: observation.messageId,
+      runKind: 'loop',
+      outcome: observation.outcome,
+      stopReason,
+      durationMs: observation.durationMs,
+      logicalRounds: observation.logicalRounds,
+      toolCalls: observation.toolCalls
+    })
+    return
+  }
+
+  if (observation.outcome === 'error') {
+    mainLogger.emit('agent.run.terminal', {
+      runId: observation.runId,
+      sessionId: observation.sessionId,
+      messageId: observation.messageId,
+      runKind: 'deferred_tool',
+      outcome: 'error',
+      stopReason,
+      durationMs: observation.durationMs,
+      error: classifyRunError(stopReason)
+    })
+    return
+  }
+  mainLogger.emit('agent.run.terminal', {
+    runId: observation.runId,
+    sessionId: observation.sessionId,
+    messageId: observation.messageId,
+    runKind: 'deferred_tool',
+    outcome: observation.outcome,
+    stopReason,
+    durationMs: observation.durationMs
+  })
 }
 
 function createLivePort<T extends object>(resolve: () => T): T {
@@ -1488,6 +1589,7 @@ export async function createMainProcessControl(dependencies: {
     memoryPort: memoryService,
     getMemoryIngestionProjection: () => memoryDatabase.ingestionProjectionTable,
     cacheImage: (data) => deviceService.cacheImage(data),
+    runJournalObserver: emitRunJournalObservation,
     skillService: skillService,
     skillSettings,
     traceSettings,

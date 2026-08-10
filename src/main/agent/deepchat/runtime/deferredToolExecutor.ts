@@ -20,7 +20,11 @@ import {
   type ExecutionRunOutcome
 } from '@/tape/domain/executionJournal'
 import type { ExecutionJournalWriter } from '@/tape/ports/capabilities'
-import type { PendingToolInteraction } from './types'
+import {
+  notifyRunJournalObserver,
+  type PendingToolInteraction,
+  type RunJournalObserver
+} from './types'
 import type { DeepChatToolResolver } from './toolResolver'
 import type { MessageProjectionService } from './messageProjectionService'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -70,6 +74,7 @@ export interface DeferredToolExecutorDependencies {
   messageProjection: Pick<MessageProjectionService, 'updateSubagentToolCallProgress'>
   executionJournal: ExecutionJournalWriter
   commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
+  runJournalObserver?: RunJournalObserver
 }
 
 function throwIfAbortRequested(signal?: AbortSignal): void {
@@ -131,6 +136,7 @@ export class DeferredToolExecutor {
     let invoked = false
     let runId: string | null = null
     let runStartedCommitted = false
+    let observedRunStartedAt: number | null = null
     let terminalCommitAttempted = false
     let terminalCommitted = false
     let dispatchCommitted = false
@@ -180,6 +186,19 @@ export class DeferredToolExecutor {
         )
       }
       terminalCommitted = true
+      notifyRunJournalObserver(this.dependencies.runJournalObserver, {
+        type: 'terminal',
+        runKind: 'deferred_tool',
+        runId: committedRunId,
+        sessionId,
+        messageId,
+        outcome: input.outcome,
+        stopReason: input.stopReason,
+        durationMs:
+          observedRunStartedAt === null
+            ? 0
+            : Math.max(0, performance.now() - observedRunStartedAt)
+      })
     }
     const releaseOutcomeProjections = (): void => {
       if (pendingOutcomeProjections.length === 0) return
@@ -398,6 +417,14 @@ export class DeferredToolExecutor {
         )
       }
       runStartedCommitted = true
+      observedRunStartedAt = performance.now()
+      notifyRunJournalObserver(this.dependencies.runJournalObserver, {
+        type: 'started',
+        runKind: 'deferred_tool',
+        runId: deferredRunId,
+        sessionId,
+        messageId
+      })
 
       throwIfAbortRequested(deferredAbortSignal)
       invoked = true

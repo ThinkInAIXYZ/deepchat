@@ -168,7 +168,8 @@ function createHarness(
         profile === 'git-bash' ? GIT_BASH_COMMAND_SHELL : POSIX_COMMAND_SHELL
       )
     },
-    executionJournal
+    executionJournal,
+    runJournalObserver: vi.fn()
   } as unknown as DeferredToolExecutorDependencies
 
   const executor = new DeferredToolExecutor(dependencies)
@@ -194,6 +195,9 @@ describe('DeferredToolExecutor Execution Journal', () => {
   it('commits deferred boundaries before target invocation and result projection', async () => {
     const { dependencies, execute, executionJournal, order } = createHarness()
     const onToolCallStarted = vi.fn(() => order.push('tool.started'))
+    vi.mocked(dependencies.runJournalObserver!).mockImplementation((observation) =>
+      order.push(`observe.${observation.type}`)
+    )
 
     await expect(execute(onToolCallStarted)).resolves.toMatchObject({
       responseText: 'done',
@@ -203,6 +207,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
 
     expect(order).toEqual([
       'journal.run_started',
+      'observe.started',
       'tool.started',
       'tool.execute',
       'journal.dispatch',
@@ -211,7 +216,8 @@ describe('DeferredToolExecutor Execution Journal', () => {
       'result.prepare',
       'journal.outcome',
       'outcome.projection',
-      'journal.terminal'
+      'journal.terminal',
+      'observe.terminal'
     ])
     expect(dependencies.toolExecutionPort.execute).toHaveBeenCalledWith(
       expect.any(Object),
@@ -240,6 +246,39 @@ describe('DeferredToolExecutor Execution Journal', () => {
       outcome: 'completed',
       stopReason: 'tool_result'
     })
+    expect(dependencies.runJournalObserver).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        type: 'started',
+        runKind: 'deferred_tool',
+        runId: started.runId,
+        sessionId: SESSION_ID,
+        messageId: MESSAGE_ID
+      })
+    )
+    expect(dependencies.runJournalObserver).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        type: 'terminal',
+        runKind: 'deferred_tool',
+        runId: started.runId,
+        outcome: 'completed',
+        stopReason: 'tool_result',
+        durationMs: expect.any(Number)
+      })
+    )
+  })
+
+  it('contains Run observation failures after durable receipts', async () => {
+    const { dependencies, execute, executionJournal } = createHarness()
+    vi.mocked(dependencies.runJournalObserver!).mockImplementation(() => {
+      throw new Error('observer failed')
+    })
+
+    await expect(execute()).resolves.toMatchObject({ responseText: 'done', isError: false })
+
+    expect(executionJournal.commitRunStarted).toHaveBeenCalledOnce()
+    expect(executionJournal.commitRunTerminal).toHaveBeenCalledOnce()
   })
 
   it('uses the originating provider View identity while journaling a distinct deferred run', async () => {
@@ -473,7 +512,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('returns a committed outcome only as a non-terminal parked projection', async () => {
-    const { execute, executionJournal, order } = createHarness()
+    const { dependencies, execute, executionJournal, order } = createHarness()
     executionJournal.commitRunTerminal.mockImplementationOnce(() => {
       order.push('journal.terminal.failed')
       throw new Error('storage offline')
@@ -491,6 +530,10 @@ describe('DeferredToolExecutor Execution Journal', () => {
       }
     })
     expect(result).not.toHaveProperty('terminalError')
+    expect(dependencies.runJournalObserver).toHaveBeenCalledOnce()
+    expect(dependencies.runJournalObserver).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'started' })
+    )
 
     expect(order).toEqual([
       'journal.run_started',

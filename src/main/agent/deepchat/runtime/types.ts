@@ -32,7 +32,56 @@ import type {
 } from '@/agent/deepchat/loop/ports'
 import type { CommandShellProfile } from '@shared/commandShell'
 import type { ExecutionJournalWriter, TapeToolFactWriter } from '@/tape/ports/capabilities'
+import type { ExecutionRunOutcome } from '@/tape/domain/executionJournal'
 import type { SessionPermissionGrant } from '@/session/contracts'
+
+interface RunJournalObservationIdentity {
+  runId: string
+  sessionId: string
+  messageId: string
+}
+
+export type RunJournalObservation =
+  | (RunJournalObservationIdentity &
+      (
+        | {
+            type: 'started'
+            runKind: 'loop'
+            initialRequestSeq: number
+          }
+        | {
+            type: 'started'
+            runKind: 'deferred_tool'
+          }
+      ))
+  | (RunJournalObservationIdentity & {
+      type: 'terminal'
+      outcome: ExecutionRunOutcome
+      stopReason: string
+      durationMs: number
+    } & (
+        | {
+            runKind: 'loop'
+            logicalRounds: number
+            toolCalls: number
+          }
+        | {
+            runKind: 'deferred_tool'
+          }
+      ))
+
+export type RunJournalObserver = (observation: RunJournalObservation) => void
+
+export function notifyRunJournalObserver(
+  observer: RunJournalObserver | undefined,
+  observation: RunJournalObservation
+): void {
+  try {
+    observer?.(observation)
+  } catch {
+    // Diagnostics must never alter the durable Run lifecycle.
+  }
+}
 
 export interface InterleavedReasoningConfig {
   preserveReasoningContent: boolean

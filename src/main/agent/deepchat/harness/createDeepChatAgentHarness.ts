@@ -165,6 +165,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     providerSettings,
     publishEvent,
     publishSessionUpdate,
+    runJournalObserver,
     sessionData,
     sessionPermissionPort,
     skillService,
@@ -337,7 +338,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     identity,
     messageProjection,
     commandShell,
-    executionJournal: tapeService
+    executionJournal: tapeService,
+    runJournalObserver
   })
   const inputPreparationCoordinator = new InputPreparationCoordinator()
   const contextCoordinator = new DeepChatContextCoordinator()
@@ -368,7 +370,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     sessionPermissionPort,
     reviewToolPermission: createToolPermissionReviewer(toolRuntimeBindings),
     hookSink,
-    compaction
+    compaction,
+    runJournalObserver
   })
   const turnCoordinator = new TurnCoordinator({
     publishEvent,
