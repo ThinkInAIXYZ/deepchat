@@ -194,7 +194,8 @@ export class McpService implements McpServicePort {
           approvedHash: string
         }
       ): boolean
-    }
+    },
+    private readonly onInitializationFailed: () => void = () => undefined
   ) {
     logger.info('Initializing MCP service')
 
@@ -392,6 +393,11 @@ export class McpService implements McpServicePort {
       console.error('[MCP] Initialization failed:', error)
       // Mark as complete even if initialization fails to avoid system stuck in uninitialized state
       this.isInitialized = true
+      try {
+        this.onInitializationFailed()
+      } catch {
+        // Diagnostics must not alter MCP initialization compatibility.
+      }
     }
   }
 

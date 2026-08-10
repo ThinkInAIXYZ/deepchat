@@ -4,6 +4,8 @@ import {
   normalizeMainLogRunStopReason,
   type MainLogRunStopReason,
   type MainLogShutdownReason,
+  type MainLogStartupComponent,
+  type MainLogStartupComponentFailureCategory,
   type SafeLogError
 } from '@/logging/mainLogEvents'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
@@ -444,6 +446,18 @@ function emitLiveDelegationObservation(observation: LiveDelegationLifecycleObser
       mainLogger.emit('orchestration.delegation.stale_result.rejected', observation)
       break
   }
+}
+
+function emitStartupComponentFailure(
+  startupRunId: string,
+  component: MainLogStartupComponent,
+  category: MainLogStartupComponentFailureCategory
+): void {
+  mainLogger.emit('app.startup.component.failed', {
+    startupRunId,
+    component,
+    error: { category }
+  })
 }
 
 function createLivePort<T extends object>(resolve: () => T): T {
@@ -1197,7 +1211,8 @@ export async function createMainProcessControl(dependencies: {
           toolInput,
           context
         )
-    }
+    },
+    () => emitStartupComponentFailure(dependencies.startupRunId, 'mcp', 'unknown')
   )
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
@@ -2192,6 +2207,7 @@ export async function createMainProcessControl(dependencies: {
       await floatingButtonPresenter.initialize()
       logger.info('FloatingButtonPresenter initialized successfully')
     } catch (error) {
+      emitStartupComponentFailure(dependencies.startupRunId, 'floating_widget', 'resource')
       console.error('Failed to initialize FloatingButtonPresenter:', error)
     }
   }
@@ -2251,6 +2267,7 @@ export async function createMainProcessControl(dependencies: {
           await skillSyncService.scanAndDetectNewDiscoveries()
           logger.info('SkillSyncService background scan completed')
         } catch (error) {
+          emitStartupComponentFailure(dependencies.startupRunId, 'skill_sync', 'unknown')
           console.error('Failed to run SkillSyncService background scan:', error)
         }
       })()
@@ -2268,20 +2285,30 @@ export async function createMainProcessControl(dependencies: {
     try {
       await initializePlugins()
     } catch (error) {
+      emitStartupComponentFailure(dependencies.startupRunId, 'plugin_host', 'unknown')
       console.error('[PluginHost] Failed to initialize plugins:', error)
     }
 
     try {
       await mcpService.initialize()
-      try {
-        await pluginRuntimeSupervisor.reconcileAll()
-      } catch (error) {
-        console.error('[PluginHost] Failed to reconcile eager plugin runtimes:', error)
-      }
+    } catch (error) {
+      emitStartupComponentFailure(dependencies.startupRunId, 'mcp', 'unknown')
+      console.error('Failed to initialize McpService:', error)
+      return
+    }
+    try {
+      await pluginRuntimeSupervisor.reconcileAll()
+    } catch (error) {
+      emitStartupComponentFailure(dependencies.startupRunId, 'plugin_runtime', 'unknown')
+      console.error('[PluginHost] Failed to reconcile eager plugin runtimes:', error)
+    }
+
+    try {
       deepChatAgentHarness.refreshToolRegistry()
       deeplinkService.processPendingMcpInstall()
     } catch (error) {
-      console.error('Failed to initialize McpService:', error)
+      emitStartupComponentFailure(dependencies.startupRunId, 'mcp_integration', 'unknown')
+      console.error('Failed to finish MCP startup integration:', error)
     }
   }
 
@@ -2289,6 +2316,7 @@ export async function createMainProcessControl(dependencies: {
     try {
       await remoteService.initialize()
     } catch (error) {
+      emitStartupComponentFailure(dependencies.startupRunId, 'remote_runtime', 'unknown')
       console.error('RemoteService.initialize failed:', error)
     }
   }
@@ -2841,12 +2869,22 @@ export async function createMainProcessControl(dependencies: {
     try {
       await service.runIfNeeded()
     } catch (error) {
+      emitStartupComponentFailure(
+        dependencies.startupRunId,
+        'acp_registry_migration',
+        'persistence'
+      )
       console.error('Failed to migrate ACP registry references:', error)
     }
 
     try {
       await service.compensateEnabledRegistryAgentInstalls()
     } catch (error) {
+      emitStartupComponentFailure(
+        dependencies.startupRunId,
+        'acp_install_compensation',
+        'persistence'
+      )
       console.error('Failed to compensate ACP install states:', error)
     }
   }
@@ -3199,12 +3237,14 @@ export async function createMainProcessControl(dependencies: {
     await artifactSpool.initialize()
     await cliServer.start()
   } catch (error) {
+    emitStartupComponentFailure(dependencies.startupRunId, 'cli_control', 'unknown')
     logger.error('[CLI] Failed to start local control server', error)
   }
   if (cliServer.getStatus().running) {
     try {
       await cliLauncherService.ensureInstalled()
     } catch (error) {
+      emitStartupComponentFailure(dependencies.startupRunId, 'cli_launcher', 'unknown')
       logger.warn('[CLI] Failed to install or refresh the command launcher', error)
     }
   }

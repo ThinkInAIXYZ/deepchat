@@ -142,6 +142,49 @@ describe('Main log event projection', () => {
     expect(JSON.stringify([degraded, failed])).not.toContain('SECRET_')
   })
 
+  it('projects fixed startup component failures without source error content', () => {
+    const projected = projectMainLogEvent('app.startup.component.failed', {
+      startupRunId: 'main:123:1',
+      component: 'remote_runtime',
+      error: {
+        category: 'configuration',
+        message: 'SECRET_REMOTE_URL',
+        retryable: true
+      }
+    } as never)
+
+    expect(projected).toEqual({
+      level: 'warn',
+      context: {
+        startupRunId: 'main:123:1',
+        component: 'remote_runtime',
+        error: { category: 'configuration' }
+      }
+    })
+    expect(JSON.stringify(projected)).not.toContain('SECRET_REMOTE_URL')
+    expect(projected.context.error).not.toHaveProperty('retryable')
+  })
+
+  it('rejects unknown startup components and broad error categories independently', () => {
+    const unknownComponent = {
+      startupRunId: 'main:123:1',
+      component: 'provider_request',
+      error: { category: 'unknown' }
+    }
+    const broadCategory = {
+      startupRunId: 'main:123:1',
+      component: 'remote_runtime',
+      error: { category: 'provider' }
+    }
+
+    expect(() =>
+      projectMainLogEvent('app.startup.component.failed', unknownComponent as never)
+    ).toThrow(MainLogEventProjectionError)
+    expect(() =>
+      projectMainLogEvent('app.startup.component.failed', broadCategory as never)
+    ).toThrow(MainLogEventProjectionError)
+  })
+
   it('rejects broad database error categories and drops enriched error fields', () => {
     const broadCategory = {
       outcome: 'failed',

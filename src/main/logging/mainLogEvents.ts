@@ -35,6 +35,29 @@ interface MainLogDatabaseError {
   category: 'integrity' | 'persistence'
 }
 
+export type MainLogStartupComponentFailureCategory =
+  | 'configuration'
+  | 'persistence'
+  | 'resource'
+  | 'unknown'
+
+interface MainLogStartupComponentError {
+  category: MainLogStartupComponentFailureCategory
+}
+
+export type MainLogStartupComponent =
+  | 'acp_install_compensation'
+  | 'acp_registry_migration'
+  | 'cli_control'
+  | 'cli_launcher'
+  | 'floating_widget'
+  | 'mcp'
+  | 'mcp_integration'
+  | 'plugin_host'
+  | 'plugin_runtime'
+  | 'remote_runtime'
+  | 'skill_sync'
+
 export type MainLogJsonValue =
   | string
   | number
@@ -105,6 +128,12 @@ type MainLogDatabaseInitializationInput = {
     }
 )
 
+type MainLogStartupComponentFailureInput = {
+  startupRunId: string
+  component: MainLogStartupComponent
+  error: MainLogStartupComponentError
+}
+
 interface MainLogRunIdentity {
   runId: string
   sessionId: string
@@ -167,6 +196,7 @@ export interface MainLogEventInputMap {
   'app.startup.terminal': {
     startupRunId: string
   } & MainLogAppTerminalInput
+  'app.startup.component.failed': MainLogStartupComponentFailureInput
   'app.shutdown.started': {
     reason: MainLogShutdownReason
   }
@@ -348,6 +378,25 @@ const SHUTDOWN_REASONS = [
 ] as const satisfies readonly MainLogShutdownReason[]
 const DATABASE_INITIALIZATION_OUTCOMES = ['completed', 'failed'] as const
 const DATABASE_SCHEMA_DIAGNOSIS_OUTCOMES = ['completed', 'unavailable', 'not_completed'] as const
+const STARTUP_COMPONENTS = [
+  'acp_install_compensation',
+  'acp_registry_migration',
+  'cli_control',
+  'cli_launcher',
+  'floating_widget',
+  'mcp',
+  'mcp_integration',
+  'plugin_host',
+  'plugin_runtime',
+  'remote_runtime',
+  'skill_sync'
+] as const satisfies readonly MainLogStartupComponent[]
+const STARTUP_COMPONENT_ERROR_CATEGORIES = [
+  'configuration',
+  'persistence',
+  'resource',
+  'unknown'
+] as const
 const RELEASE_REASONS = ['permit_released', 'lease_suspended', 'lease_released'] as const
 const REJECTION_REASONS = ['queue_full', 'aborted', 'closed'] as const
 const TURN_KINDS = ['initial', 'follow_up'] as const
@@ -496,6 +545,13 @@ function databaseFailureError(required: boolean, value: unknown): MainLogContext
   const snapshot = snapshotDataObject('error', value as MainLogDatabaseError, ['category'])
   return {
     category: oneOf('error.category', snapshot.category, ['integrity', 'persistence'] as const)
+  }
+}
+
+function startupComponentError(value: unknown): MainLogContext {
+  const snapshot = snapshotDataObject('error', value as MainLogStartupComponentError, ['category'])
+  return {
+    category: oneOf('error.category', snapshot.category, STARTUP_COMPONENT_ERROR_CATEGORIES)
   }
 }
 
@@ -664,6 +720,15 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
         ...(error ? { error } : {})
       }
     }
+  },
+  'app.startup.component.failed': {
+    inputFields: ['startupRunId', 'component', 'error'],
+    level: 'warn',
+    project: (input) => ({
+      startupRunId: identifier('startupRunId', input.startupRunId),
+      component: oneOf('component', input.component, STARTUP_COMPONENTS),
+      error: startupComponentError(input.error)
+    })
   },
   'app.shutdown.started': {
     inputFields: ['reason'],
