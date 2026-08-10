@@ -7,6 +7,7 @@ import {
   providersTestPublicConnectionRoute,
   providersUpdatePublicRoute
 } from '@shared/contracts/routes'
+import { JsonValueSchema } from '@shared/contracts/json'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import { createCliProviderModelAdminRoutes } from '@/cli/providerModelAdminRoutes'
 import type { CliRouteCaller, RouteContext } from '@/routes/routeRegistry'
@@ -255,7 +256,7 @@ describe('CLI provider administration routes', () => {
     ).toBe(true)
   })
 
-  it('uses strict public model config input and strips main-owned identity fields', async () => {
+  it('returns sparse public model configs as redacted JSON values', async () => {
     const provider: LLM_PROVIDER = {
       id: 'provider-1',
       name: 'Provider',
@@ -291,17 +292,62 @@ describe('CLI provider administration routes', () => {
       }).success
     ).toBe(false)
 
-    harness.modelConfigs.set(`${provider.id}:model-1`, {
+    const sparseStoredConfig = {
       ...config,
+      temperature: undefined,
+      topP: undefined,
+      imageGeneration: {
+        size: undefined,
+        quality: 'high'
+      },
+      videoGeneration: {
+        seconds: undefined,
+        watermark: false,
+        inputReference: { data: 'reference-image', mimeType: undefined },
+        references: [
+          {
+            type: 'image',
+            url: 'https://example.com/reference.png',
+            data: undefined,
+            mimeType: undefined
+          }
+        ]
+      },
+      tts: { voice: undefined, speed: 1 },
       conversationId: 'private-session',
-      ownedBy: 'internal-owner'
-    } as ModelConfig)
+      ownedBy: 'internal-owner',
+      futureSecret: 'secret'
+    } as ModelConfig & { futureSecret: string }
+    const publicSparseConfig = {
+      ...config,
+      imageGeneration: { quality: 'high' as const },
+      videoGeneration: {
+        watermark: false,
+        inputReference: { data: 'reference-image' },
+        references: [{ type: 'image' as const, url: 'https://example.com/reference.png' }]
+      },
+      tts: { speed: 1 }
+    }
+    harness.modelConfigs.set(`${provider.id}:model-1`, sparseStoredConfig)
     const result = await harness.invoke(modelsGetPublicConfigRoute.name, {
       providerId: provider.id,
       modelId: 'model-1'
     })
-    expect(result).toEqual({ config })
+    expect(result).toEqual({ config: publicSparseConfig })
+    expect(JsonValueSchema.safeParse(result).success).toBe(true)
     expect(JSON.stringify(result)).not.toContain('private-session')
+    expect(JSON.stringify(result)).not.toContain('futureSecret')
+
+    harness.setModelConfig.mockImplementationOnce((modelId, providerId) => {
+      harness.modelConfigs.set(`${providerId}:${modelId}`, sparseStoredConfig)
+    })
+    const setResult = await harness.invoke(modelsSetPublicConfigRoute.name, {
+      providerId: provider.id,
+      modelId: 'model-1',
+      config
+    })
+    expect(setResult).toEqual({ config: publicSparseConfig })
+    expect(JsonValueSchema.safeParse(setResult).success).toBe(true)
   })
 
   it('normalizes mutation storage failures without exposing their details', async () => {

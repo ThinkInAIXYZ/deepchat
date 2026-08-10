@@ -873,17 +873,25 @@ export class CliServer {
     rawOutput: unknown,
     routeMethod: string
   ): JsonValue {
-    const parsedOutput = entry.contract.output.safeParse(rawOutput)
-    const parsedResult = parsedOutput.success
-      ? JsonValueSchema.safeParse(parsedOutput.data)
-      : { success: false as const }
-    if (!parsedOutput.success || !parsedResult.success) {
-      this.log.error('[CLI] Route returned invalid output', { method: routeMethod })
+    const fail = (stage: 'route' | 'json', error: z.ZodError): never => {
+      this.log.error('[CLI] Route returned invalid output', {
+        method: routeMethod,
+        stage,
+        issueCount: error.issues.length,
+        issueCodes: Array.from(new Set(error.issues.slice(0, 16).map((issue) => issue.code)))
+      })
       throw new CliRequestError('internal_error', 'Route returned an invalid result', {
         httpStatus: 500
       })
     }
-    return parsedResult.data as JsonValue
+
+    const parsedOutput = entry.contract.output.safeParse(rawOutput)
+    if (!parsedOutput.success) return fail('route', parsedOutput.error)
+
+    const parsedResult = JsonValueSchema.safeParse(parsedOutput.data)
+    if (!parsedResult.success) return fail('json', parsedResult.error)
+
+    return parsedResult.data
   }
 
   private async dispatchStreamResponse(

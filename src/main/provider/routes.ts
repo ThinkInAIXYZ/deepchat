@@ -1,6 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { OAuthServicePort } from '@shared/types/oauth'
 import type { AcpProviderAdminPort } from '@/provider/ports'
+import type { MODEL_META } from '@shared/types/provider'
 import {
   configGetAwsBedrockCredentialRoute,
   configGetAzureApiVersionRoute,
@@ -73,6 +74,33 @@ import type { ProviderImportService } from './providerImportService'
 import { ProviderService, type ProviderQueryScheduler } from './providerService'
 import type { ProviderRuntime } from '.'
 import { CliRequestError } from '@/cli/errors'
+
+function toRuntimeModelDto(model: MODEL_META): MODEL_META {
+  return {
+    id: model.id,
+    name: model.name,
+    group: model.group,
+    providerId: model.providerId,
+    ...(model.enabled !== undefined ? { enabled: model.enabled } : {}),
+    ...(model.isCustom !== undefined ? { isCustom: model.isCustom } : {}),
+    ...(model.vision !== undefined ? { vision: model.vision } : {}),
+    ...(model.functionCall !== undefined ? { functionCall: model.functionCall } : {}),
+    ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+    ...(model.enableSearch !== undefined ? { enableSearch: model.enableSearch } : {}),
+    ...(model.type !== undefined ? { type: model.type } : {}),
+    ...(model.contextLength !== undefined ? { contextLength: model.contextLength } : {}),
+    ...(model.maxTokens !== undefined ? { maxTokens: model.maxTokens } : {}),
+    ...(model.description !== undefined ? { description: model.description } : {}),
+    ...(model.supportedEndpointTypes !== undefined
+      ? { supportedEndpointTypes: model.supportedEndpointTypes }
+      : {}),
+    ...(model.selectableEndpointTypes !== undefined
+      ? { selectableEndpointTypes: model.selectableEndpointTypes }
+      : {}),
+    ...(model.endpointType !== undefined ? { endpointType: model.endpointType } : {}),
+    ...(model.ownedBy !== undefined ? { ownedBy: model.ownedBy } : {})
+  }
+}
 
 export function createProviderRoutes(deps: {
   providerSettings: ProviderSettingsPort
@@ -520,7 +548,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = modelsListRuntimeRoute.input.parse(rawInput)
         return modelsListRuntimeRoute.output.parse({
-          models: await providerRuntime.getModelList(input.providerId)
+          models: (await providerRuntime.getModelList(input.providerId)).map(toRuntimeModelDto)
         })
       }
     ],

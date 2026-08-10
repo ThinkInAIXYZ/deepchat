@@ -11,7 +11,7 @@ import {
   type PublicProviderSummary,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import type { ProviderRuntime } from '@/provider'
 import type { ProviderQueryScheduler } from '@/provider/providerService'
 import type { ProviderSettingsPort } from '@/provider/settings'
@@ -71,6 +71,129 @@ export function toPublicProviderSummary(provider: LLM_PROVIDER): PublicProviderS
     enabled: provider.enable,
     custom: provider.custom === true,
     storedCredentialConfigured: hasStoredCredential(provider)
+  })
+}
+
+function toPublicModelConfig(config: ModelConfig) {
+  const imageGeneration =
+    config.imageGeneration === undefined
+      ? undefined
+      : {
+          ...(config.imageGeneration.size !== undefined
+            ? { size: config.imageGeneration.size }
+            : {}),
+          ...(config.imageGeneration.quality !== undefined
+            ? { quality: config.imageGeneration.quality }
+            : {}),
+          ...(config.imageGeneration.outputFormat !== undefined
+            ? { outputFormat: config.imageGeneration.outputFormat }
+            : {}),
+          ...(config.imageGeneration.outputCompression !== undefined
+            ? { outputCompression: config.imageGeneration.outputCompression }
+            : {}),
+          ...(config.imageGeneration.background !== undefined
+            ? { background: config.imageGeneration.background }
+            : {}),
+          ...(config.imageGeneration.moderation !== undefined
+            ? { moderation: config.imageGeneration.moderation }
+            : {})
+        }
+  const videoGeneration =
+    config.videoGeneration === undefined
+      ? undefined
+      : {
+          ...(config.videoGeneration.seconds !== undefined
+            ? { seconds: config.videoGeneration.seconds }
+            : {}),
+          ...(config.videoGeneration.size !== undefined
+            ? { size: config.videoGeneration.size }
+            : {}),
+          ...(config.videoGeneration.ratio !== undefined
+            ? { ratio: config.videoGeneration.ratio }
+            : {}),
+          ...(config.videoGeneration.duration !== undefined
+            ? { duration: config.videoGeneration.duration }
+            : {}),
+          ...(config.videoGeneration.resolution !== undefined
+            ? { resolution: config.videoGeneration.resolution }
+            : {}),
+          ...(config.videoGeneration.watermark !== undefined
+            ? { watermark: config.videoGeneration.watermark }
+            : {}),
+          ...(config.videoGeneration.generateAudio !== undefined
+            ? { generateAudio: config.videoGeneration.generateAudio }
+            : {}),
+          ...(config.videoGeneration.inputReference !== undefined
+            ? {
+                inputReference:
+                  typeof config.videoGeneration.inputReference === 'string'
+                    ? config.videoGeneration.inputReference
+                    : {
+                        data: config.videoGeneration.inputReference.data,
+                        ...(config.videoGeneration.inputReference.mimeType !== undefined
+                          ? { mimeType: config.videoGeneration.inputReference.mimeType }
+                          : {})
+                      }
+              }
+            : {}),
+          ...(config.videoGeneration.references !== undefined
+            ? {
+                references: config.videoGeneration.references.map((reference) => ({
+                  type: reference.type,
+                  ...(reference.url !== undefined ? { url: reference.url } : {}),
+                  ...(reference.data !== undefined ? { data: reference.data } : {}),
+                  ...(reference.mimeType !== undefined ? { mimeType: reference.mimeType } : {})
+                }))
+              }
+            : {})
+        }
+  const tts =
+    config.tts === undefined
+      ? undefined
+      : {
+          ...(config.tts.voice !== undefined ? { voice: config.tts.voice } : {}),
+          ...(config.tts.responseFormat !== undefined
+            ? { responseFormat: config.tts.responseFormat }
+            : {}),
+          ...(config.tts.speed !== undefined ? { speed: config.tts.speed } : {}),
+          ...(config.tts.instructions !== undefined
+            ? { instructions: config.tts.instructions }
+            : {})
+        }
+
+  return PublicModelConfigSchema.parse({
+    maxTokens: config.maxTokens,
+    contextLength: config.contextLength,
+    vision: config.vision,
+    functionCall: config.functionCall,
+    reasoning: config.reasoning,
+    type: config.type,
+    ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
+    ...(config.topP !== undefined ? { topP: config.topP } : {}),
+    ...(config.speechRecognition !== undefined
+      ? { speechRecognition: config.speechRecognition }
+      : {}),
+    ...(config.isUserDefined !== undefined ? { isUserDefined: config.isUserDefined } : {}),
+    ...(config.thinkingBudget !== undefined ? { thinkingBudget: config.thinkingBudget } : {}),
+    ...(config.forceInterleavedThinkingCompat !== undefined
+      ? { forceInterleavedThinkingCompat: config.forceInterleavedThinkingCompat }
+      : {}),
+    ...(config.reasoningEffort !== undefined ? { reasoningEffort: config.reasoningEffort } : {}),
+    ...(config.reasoningVisibility !== undefined
+      ? { reasoningVisibility: config.reasoningVisibility }
+      : {}),
+    ...(config.verbosity !== undefined ? { verbosity: config.verbosity } : {}),
+    ...(config.maxCompletionTokens !== undefined
+      ? { maxCompletionTokens: config.maxCompletionTokens }
+      : {}),
+    ...(config.apiEndpoint !== undefined ? { apiEndpoint: config.apiEndpoint } : {}),
+    ...(config.endpointType !== undefined ? { endpointType: config.endpointType } : {}),
+    ...(config.enableSearch !== undefined ? { enableSearch: config.enableSearch } : {}),
+    ...(config.forcedSearch !== undefined ? { forcedSearch: config.forcedSearch } : {}),
+    ...(config.searchStrategy !== undefined ? { searchStrategy: config.searchStrategy } : {}),
+    ...(imageGeneration !== undefined ? { imageGeneration } : {}),
+    ...(videoGeneration !== undefined ? { videoGeneration } : {}),
+    ...(tts !== undefined ? { tts } : {})
   })
 }
 
@@ -258,7 +381,7 @@ export function createCliProviderModelAdminRoutes(
         const input = modelsGetPublicConfigRoute.input.parse(rawInput)
         requireModel(input.providerId, input.modelId)
         return modelsGetPublicConfigRoute.output.parse({
-          config: PublicModelConfigSchema.parse(
+          config: toPublicModelConfig(
             dependencies.providerSettings.getModelConfig(input.modelId, input.providerId)
           )
         })
@@ -277,7 +400,7 @@ export function createCliProviderModelAdminRoutes(
             input.config
           )
         )
-        const config = PublicModelConfigSchema.parse(
+        const config = toPublicModelConfig(
           dependencies.providerSettings.getModelConfig(input.modelId, input.providerId)
         )
         return modelsSetPublicConfigRoute.output.parse({ config })

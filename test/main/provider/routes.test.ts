@@ -4,6 +4,7 @@ import { createProviderRoutes } from '@/provider/routes'
 import {
   modelsGetCapabilitiesRoute,
   modelsGetProviderCatalogRoute,
+  modelsListRuntimeRoute,
   modelsSetStatusRoute,
   providersImportApplyRoute,
   providersImportScanRoute,
@@ -11,6 +12,7 @@ import {
   providersRemoveRoute,
   providersUpdateRoute
 } from '@shared/contracts/routes'
+import { JsonValueSchema } from '@shared/contracts/json'
 import { ModelType } from '@shared/model'
 
 const context = createRendererRouteContext(42, 7)
@@ -79,6 +81,101 @@ describe('Provider routes', () => {
       )
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(updateModelStatus).not.toHaveBeenCalled()
+  })
+
+  it('returns JSON-safe runtime models across providers', async () => {
+    const getModelList = vi.fn(async (providerId: string) => {
+      if (providerId === 'empty-provider') return []
+      if (providerId === 'custom-provider') {
+        return [
+          {
+            id: 'custom-model',
+            name: 'Custom model',
+            group: 'custom',
+            providerId,
+            enabled: false,
+            isCustom: true,
+            vision: false,
+            functionCall: true,
+            reasoning: false,
+            enableSearch: true,
+            type: ModelType.Chat,
+            contextLength: 128_000,
+            maxTokens: 16_384,
+            description: 'User-defined model',
+            supportedEndpointTypes: ['openai-response', 'anthropic'],
+            selectableEndpointTypes: ['openai-response'],
+            endpointType: 'openai-response',
+            ownedBy: 'model-owner',
+            internalCredential: 'must-not-leak'
+          }
+        ]
+      }
+      return [
+        {
+          id: 'builtin-model',
+          name: 'Built-in model',
+          group: 'default',
+          providerId,
+          enabled: undefined,
+          isCustom: undefined,
+          vision: undefined,
+          functionCall: undefined,
+          reasoning: undefined,
+          enableSearch: undefined,
+          contextLength: undefined,
+          maxTokens: undefined,
+          description: undefined
+        }
+      ]
+    })
+    const routes = createRoutes({ providerSettings: {}, providerRuntime: { getModelList } })
+    const invoke = async (providerId: string) =>
+      await routes.get(modelsListRuntimeRoute.name)?.({ providerId }, context)
+
+    const builtinResult = await invoke('builtin-provider')
+    const customResult = await invoke('custom-provider')
+    const emptyResult = await invoke('empty-provider')
+
+    expect(builtinResult).toEqual({
+      models: [
+        {
+          id: 'builtin-model',
+          name: 'Built-in model',
+          group: 'default',
+          providerId: 'builtin-provider'
+        }
+      ]
+    })
+    expect(customResult).toEqual({
+      models: [
+        {
+          id: 'custom-model',
+          name: 'Custom model',
+          group: 'custom',
+          providerId: 'custom-provider',
+          enabled: false,
+          isCustom: true,
+          vision: false,
+          functionCall: true,
+          reasoning: false,
+          enableSearch: true,
+          type: ModelType.Chat,
+          contextLength: 128_000,
+          maxTokens: 16_384,
+          description: 'User-defined model',
+          supportedEndpointTypes: ['openai-response', 'anthropic'],
+          selectableEndpointTypes: ['openai-response'],
+          endpointType: 'openai-response',
+          ownedBy: 'model-owner'
+        }
+      ]
+    })
+    expect(emptyResult).toEqual({ models: [] })
+    for (const result of [builtinResult, customResult, emptyResult]) {
+      expect(JsonValueSchema.safeParse(result).success).toBe(true)
+      expect(JSON.stringify(result)).not.toContain('must-not-leak')
+    }
   })
 
   it('returns one authoritative capability snapshot and forwards draft route metadata', async () => {
