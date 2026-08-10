@@ -19,6 +19,7 @@ import {
   type RunDetachedInput,
   type RunGetInput
 } from '@shared/contracts/routes'
+import { AssistantMessageBlockSchema } from '@shared/contracts/common'
 import {
   runsCancelRequestedEvent,
   runsCreatedEvent,
@@ -27,7 +28,7 @@ import {
   runsTurnFailedEvent
 } from '@shared/contracts/events'
 import { extractUserMessageInput } from '@/session/data/userMessageContent'
-import { buildAssistantResponseMarkdown } from '@/agent/deepchat/runtime/sessionUpdates'
+import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegments'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import {
   createRouteMap,
@@ -43,6 +44,7 @@ import type { CliStreamEmitter } from './server'
 const DEFAULT_MESSAGE_LIMIT = 50
 const RUN_SNAPSHOT_MESSAGE_BUDGET_BYTES = 8 * 1024 * 1024
 const RUN_START_FAILURE_MESSAGE = 'Detached Agent run could not start'
+const AssistantMessageBlocksSchema = AssistantMessageBlockSchema.array()
 
 type RunLifecyclePort = Readonly<{
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
@@ -103,11 +105,12 @@ function truncateUtf8(value: string, maxBytes: number): { value: string; truncat
 
 function messageText(message: ChatMessageRecord): string {
   if (message.role === 'user') return extractUserMessageInput(message.content).text
+  if (message.status !== 'sent') return ''
   try {
-    const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
-    return Array.isArray(blocks) ? buildAssistantResponseMarkdown(blocks) : message.content
+    const blocks = AssistantMessageBlocksSchema.safeParse(JSON.parse(message.content))
+    return blocks.success ? projectFinalAssistantAnswer(blocks.data as AssistantMessageBlock[]) : ''
   } catch {
-    return message.content
+    return ''
   }
 }
 

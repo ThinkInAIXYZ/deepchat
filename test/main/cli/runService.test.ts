@@ -246,7 +246,9 @@ describe('CliRunService', () => {
           id: 'message-2',
           orderSeq: 2,
           role: 'assistant',
-          content: JSON.stringify([{ type: 'content', content: oversized }])
+          content: JSON.stringify([
+            { type: 'content', status: 'success', timestamp: 1, content: oversized }
+          ])
         })
       ]
     })
@@ -261,6 +263,168 @@ describe('CliRunService', () => {
       RUN_MESSAGE_MAX_TEXT_BYTES
     )
     expect(JSON.stringify(result)).not.toContain('private-provider-detail')
+  })
+
+  it('returns only the final assistant answer without exposing process blocks', async () => {
+    const { service } = createHarness({
+      messages: [
+        createMessage({
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'reasoning_content',
+              status: 'success',
+              timestamp: 1,
+              content: 'private reasoning'
+            },
+            {
+              type: 'content',
+              status: 'success',
+              timestamp: 2,
+              content: 'I will inspect the file first.'
+            },
+            {
+              type: 'tool_call',
+              status: 'success',
+              timestamp: 3,
+              tool_call: {
+                id: 'tool-1',
+                name: 'read_file',
+                params: '{"path":"/private/input.txt"}',
+                response: 'private tool response'
+              },
+              extra: { toolCallArgsComplete: true }
+            },
+            {
+              type: 'tool_call',
+              status: 'error',
+              timestamp: 4,
+              tool_call: {
+                id: 'tool-2',
+                name: 'exec',
+                params: '{"command":"inspect"}',
+                response: 'private tool error'
+              },
+              extra: { toolCallArgsComplete: true }
+            },
+            {
+              type: 'action',
+              action_type: 'tool_call_permission',
+              status: 'denied',
+              timestamp: 5,
+              content: 'private permission copy'
+            },
+            {
+              type: 'error',
+              status: 'error',
+              timestamp: 6,
+              content: 'private internal error'
+            },
+            {
+              type: 'content',
+              status: 'success',
+              timestamp: 7,
+              content: 'Final answer'
+            }
+          ])
+        })
+      ]
+    })
+
+    const result = runsGetRoute.output.parse(
+      await invokeRoute(service, runsGetRoute.name, { runId: 'run-1' })
+    )
+
+    expect(result.messages[0]).toMatchObject({
+      role: 'assistant',
+      text: 'Final answer',
+      textTruncated: false
+    })
+    expect(JSON.stringify(result)).not.toContain('private')
+  })
+
+  it('keeps pending and failed assistant text empty while preserving statuses', async () => {
+    const failedSession = { ...baseSession, status: 'error' as const }
+    const { service } = createHarness({
+      session: failedSession,
+      messages: [
+        createMessage({
+          role: 'assistant',
+          status: 'pending',
+          content: JSON.stringify([
+            {
+              type: 'content',
+              status: 'pending',
+              timestamp: 1,
+              content: 'private partial answer'
+            },
+            {
+              type: 'action',
+              action_type: 'question_request',
+              status: 'pending',
+              timestamp: 2,
+              content: 'private pending question'
+            }
+          ])
+        }),
+        createMessage({
+          id: 'message-2',
+          orderSeq: 2,
+          role: 'assistant',
+          status: 'error',
+          content: JSON.stringify([
+            {
+              type: 'content',
+              status: 'success',
+              timestamp: 1,
+              content: 'private partial answer'
+            },
+            {
+              type: 'error',
+              status: 'error',
+              timestamp: 2,
+              content: 'private failure detail'
+            }
+          ])
+        })
+      ]
+    })
+
+    const result = runsGetRoute.output.parse(
+      await invokeRoute(service, runsGetRoute.name, { runId: 'run-1' })
+    )
+
+    expect(result.status).toBe('error')
+    expect(result.messages).toEqual([
+      expect.objectContaining({ role: 'assistant', status: 'pending', text: '' }),
+      expect.objectContaining({ role: 'assistant', status: 'error', text: '' })
+    ])
+  })
+
+  it('fails closed for malformed sent assistant payloads', async () => {
+    const { service } = createHarness({
+      messages: [
+        createMessage({
+          role: 'assistant',
+          content: JSON.stringify([{ type: 'content', content: 'private malformed block content' }])
+        }),
+        createMessage({
+          id: 'message-2',
+          orderSeq: 2,
+          role: 'assistant',
+          content: JSON.stringify({ content: 'private non-array content' })
+        })
+      ]
+    })
+
+    const result = runsGetRoute.output.parse(
+      await invokeRoute(service, runsGetRoute.name, { runId: 'run-1' })
+    )
+
+    expect(result.messages).toEqual([
+      expect.objectContaining({ role: 'assistant', status: 'sent', text: '' }),
+      expect.objectContaining({ role: 'assistant', status: 'sent', text: '' })
+    ])
   })
 
   it('enforces the public message limit in UTF-8 bytes', () => {
@@ -294,7 +458,12 @@ describe('CliRunService', () => {
         orderSeq: index + 1,
         role: 'assistant',
         content: JSON.stringify([
-          { type: 'content', content: '\0'.repeat(RUN_MESSAGE_MAX_TEXT_BYTES) }
+          {
+            type: 'content',
+            status: 'success',
+            timestamp: index + 1,
+            content: '\0'.repeat(RUN_MESSAGE_MAX_TEXT_BYTES)
+          }
         ])
       })
     )
