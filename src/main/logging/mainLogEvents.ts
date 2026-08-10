@@ -191,6 +191,7 @@ export interface MainLogEventInputMap {
     pendingHighWater: number
     granted: number
     rejected: number
+    observationsDropped: number
     waitMs: MainLogDistribution
     holdMs: MainLogDistribution
   }
@@ -785,6 +786,7 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       'pendingHighWater',
       'granted',
       'rejected',
+      'observationsDropped',
       'waitMs',
       'holdMs'
     ],
@@ -805,6 +807,7 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
         pendingHighWater,
         granted: count('granted', input.granted),
         rejected: count('rejected', input.rejected),
+        observationsDropped: count('observationsDropped', input.observationsDropped),
         waitMs: projectDistribution('waitMs', input.waitMs),
         holdMs: projectDistribution('holdMs', input.holdMs)
       }

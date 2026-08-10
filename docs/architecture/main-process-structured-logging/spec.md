@@ -192,11 +192,14 @@ distributions:
 - `agent.admission.granted` with `waitMs`, acquisition sequence, active/pending counts;
 - `agent.admission.released` with active `holdMs` and release reason;
 - `agent.admission.rejected` with `queue_full`, `aborted`, or `closed`;
-- `agent.admission.closed` with terminal counts and p50/p95/max summaries.
+- `agent.admission.closed` with terminal counts, dropped-observation count, and p50/p95/max
+  summaries.
 
 Timing uses a monotonic clock. Each resume starts a new wait interval; each grant starts a new hold
 interval; suspend/release ends the current hold interval. Suspended time is not hold time. Observer
-and metric failures are swallowed and cannot change admission accounting.
+and metric failures are swallowed and cannot change admission accounting. Observations leave the
+permit critical path through a bounded, ordered queue; teardown drains that queue before later
+infrastructure is closed.
 
 Recent wait and hold distributions retain at most 256 samples. They are process-local diagnostics,
 reset on restart, and are not recovery or accounting facts. The admission implementation owns its

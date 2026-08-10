@@ -1098,7 +1098,27 @@ export async function createMainProcessControl(dependencies: {
     log: logger
   })
 
-  const agentInvocationAdmission = new AgentInvocationAdmission()
+  const agentInvocationAdmission = new AgentInvocationAdmission(undefined, undefined, {
+    observe: (observation) => {
+      switch (observation.type) {
+        case 'queued':
+          mainLogger.emit('agent.admission.queued', observation)
+          break
+        case 'granted':
+          mainLogger.emit('agent.admission.granted', observation)
+          break
+        case 'released':
+          mainLogger.emit('agent.admission.released', observation)
+          break
+        case 'rejected':
+          mainLogger.emit('agent.admission.rejected', observation)
+          break
+        case 'closed':
+          mainLogger.emit('agent.admission.closed', observation)
+          break
+      }
+    }
+  })
   const agentToolDependencies: AgentToolDependencies = {
     agentInvocationAdmission,
     sessions: {
@@ -2150,6 +2170,10 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('artifactSpool.close', () => artifactSpool.close())
     await runDestroyStep('providerCatalog.unsubscribe', () => unsubscribeProviderDbCatalog())
     await runDestroyStep('liveDelegationService.stop', () => liveDelegationService.stop())
+    await runDestroyStep('agentInvocationAdmission.close', () => agentInvocationAdmission.close())
+    await runDestroyStep('agentInvocationAdmission.flushObservations', () =>
+      agentInvocationAdmission.flushObservations()
+    )
     await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('hookService.stop', () => hookService.stop())

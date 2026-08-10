@@ -315,6 +315,7 @@ describe('Main log event projection', () => {
       pendingHighWater: 8,
       granted: 20,
       rejected: 2,
+      observationsDropped: 0,
       waitMs: { samples: 20, p50: 4, p95: 80, max: 120 },
       holdMs: { samples: 20, p50: 100, p95: 800, max: 1200 }
     })
@@ -337,7 +338,8 @@ describe('Main log event projection', () => {
       activeHighWater: 0,
       pendingHighWater: 0,
       granted: 0,
-      rejected: 0
+      rejected: 0,
+      observationsDropped: 0
     }
 
     expect(() =>

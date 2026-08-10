@@ -242,6 +242,15 @@ describe('session boundary composition', () => {
     expect(destroySource.indexOf("'remoteService.destroy'")).toBeLessThan(
       destroySource.indexOf("'sessionRuntimes.suspend'")
     )
+    expect(destroySource.indexOf("'liveDelegationService.stop'")).toBeLessThan(
+      destroySource.indexOf("'agentInvocationAdmission.close'")
+    )
+    expect(destroySource.indexOf("'agentInvocationAdmission.close'")).toBeLessThan(
+      destroySource.indexOf("'agentInvocationAdmission.flushObservations'")
+    )
+    expect(destroySource.indexOf("'agentInvocationAdmission.flushObservations'")).toBeLessThan(
+      destroySource.indexOf("'cronJobs.destroy'")
+    )
     expect(destroySource.indexOf("'sessionRuntimes.suspend'")).toBeLessThan(
       destroySource.indexOf("'skillInitialization.drain'")
     )

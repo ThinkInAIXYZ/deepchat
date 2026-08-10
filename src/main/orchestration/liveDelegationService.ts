@@ -871,7 +871,13 @@ export class LiveDelegationService {
       admissionLease: this.options.admission.createLease({
         ownerId: `live-delegation:${delegation.parentSessionId}`,
         maxActiveForOwner: LIVE_DELEGATION_OWNER_LIMIT,
-        signal: controller.signal
+        signal: controller.signal,
+        correlation: {
+          kind: 'live_delegation',
+          parentSessionId: delegation.parentSessionId,
+          delegationId: delegation.id,
+          turnId: turn.id
+        }
       }),
       completion: createDeferred(),
       answerMarkdown: '',

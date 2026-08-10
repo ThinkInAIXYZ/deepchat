@@ -16,6 +16,7 @@ import {
   type MemoryRetrievalPurpose
 } from '@shared/types/agent-memory'
 import type { MemoryPerfObserver } from '../../ports'
+import { BoundedNumberRing, summarizeNumberDistribution } from '@/lib/boundedNumberRing'
 
 const DEFAULT_MAX_AGENTS = 64
 const DEFAULT_SAMPLE_CAPACITY = 256
@@ -27,39 +28,8 @@ function normalizePositiveInteger(value: number | undefined, fallback: number): 
   return normalized > 0 ? normalized : fallback
 }
 
-class BoundedNumberRing {
-  private readonly values: number[]
-  private nextIndex = 0
-  private size = 0
-
-  constructor(private readonly capacity: number) {
-    this.values = Array<number>(capacity)
-  }
-
-  push(value: number): void {
-    if (!Number.isFinite(value) || value < 0) return
-    this.values[this.nextIndex] = value
-    this.nextIndex = (this.nextIndex + 1) % this.capacity
-    this.size = Math.min(this.size + 1, this.capacity)
-  }
-
-  snapshot(): number[] {
-    if (this.size < this.capacity) return this.values.slice(0, this.size)
-    return [...this.values.slice(this.nextIndex), ...this.values.slice(0, this.nextIndex)]
-  }
-}
-
 function distribution(values: number[]): MemoryDistributionDto {
-  if (values.length === 0) return { samples: 0, p50: null, p95: null, max: null }
-  const sorted = [...values].sort((left, right) => left - right)
-  const nearestRank = (percentile: number) =>
-    sorted[Math.max(0, Math.ceil(percentile * sorted.length) - 1)]
-  return {
-    samples: sorted.length,
-    p50: nearestRank(0.5),
-    p95: nearestRank(0.95),
-    max: sorted.at(-1) ?? null
-  }
+  return summarizeNumberDistribution(values)
 }
 
 type RetrievalDiagnosticsState = {
