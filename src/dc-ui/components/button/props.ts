@@ -1,8 +1,7 @@
-
 import type { PrimitiveProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
 
- export interface DcButtonProps extends PrimitiveProps {
+export interface DcButtonProps extends PrimitiveProps {
   variant?: DcButtonVariants['variant']
   size?: DcButtonVariants['size']
   icon?: string

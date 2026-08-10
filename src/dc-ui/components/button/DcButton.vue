@@ -12,7 +12,6 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { dcButtonVariants, DcButtonProps } from './props'
 
-
 const props = withDefaults(defineProps<DcButtonProps>(), {
   as: 'button',
   iconSize: '4',
