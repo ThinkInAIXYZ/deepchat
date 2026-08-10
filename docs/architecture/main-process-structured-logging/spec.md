@@ -2,11 +2,11 @@
 
 ## Background
 
-DeepChat currently routes Main-process `console.*` calls through `electron-log` and persists them as
-free-form text in `logs/main.log`. The persistence boundary accepts arbitrary arguments, so it cannot
-enforce stable event identities, correlation fields, record-size bounds, or content privacy. Important
-Agent failures lose their error classification, while high-frequency protocol and process logs can
-persist payload-shaped data that has little operational value.
+DeepChat previously routed Main-process `console.*` calls through `electron-log` and persisted them as
+free-form text in `logs/main.log`. That persistence boundary accepted arbitrary arguments, so it could
+not enforce stable event identities, correlation fields, record-size bounds, or content privacy.
+Important Agent failures lost their error classification, while high-frequency protocol and process
+logs could persist payload-shaped data that had little operational value.
 
 The Main process needs one local, queryable diagnostic stream that answers operational questions
 without becoming telemetry, an audit history, or a second source of execution truth.
@@ -246,10 +246,14 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 - Maximum record: 16 KiB.
 - Writes remain synchronous after event selection keeps volume low. This preserves ordering and
   crash-tail reliability without an async flush lifecycle.
-- Rotation removes the previous archive and renames the complete active file. It never crops a byte
-  suffix or writes a non-JSON marker.
-- If archive removal or rename fails, the active file remains intact, persistence is disabled for
-  the rest of the process, and one payload-free native console warning is emitted.
+- Rotation asks the filesystem to replace the previous archive by renaming the complete active file
+  over it, without an application-level pre-delete. It never crops a byte range, truncates the active
+  file to satisfy the cap, appends a human-readable crop marker, adds a suffix or writes a non-JSON
+  marker.
+- An ordinary replacement failure before mutation leaves the active file and existing archive
+  intact. A storage-level I/O failure may leave filesystem state indeterminate. In either case,
+  persistence is disabled for the rest of the process and one payload-free native console warning
+  is emitted.
 - Before the first enabled append, an incomplete final line from an interrupted prior write is
   removed without changing complete preceding records. Tail repair scans at most one maximum-sized
   record plus its delimiter; a longer incomplete tail disables persistence instead of blocking Main

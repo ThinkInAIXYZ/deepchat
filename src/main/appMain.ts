@@ -11,6 +11,7 @@ import {
 import { isInsecureTlsAllowed } from './lib/insecureTls'
 import { ensureRegularAppOnMac } from './lib/activateApp'
 import { startMainProcess, type MainProcessControl } from './app/mainProcess'
+import type { MainShutdownActionClaim } from './app/mainShutdownCoordinator'
 import { mainLogger } from './logging'
 import type { MainLogShutdownReason } from './logging/mainLogEvents'
 
@@ -144,14 +145,24 @@ export function startApp(): void {
     }
 
     activeMainProcess.clearPermissionCaches()
+    let actionClaim: MainShutdownActionClaim | undefined
     shutdownPromise = (async () => {
-      if (!(await activeMainProcess.stop('update_install'))) {
+      actionClaim = await activeMainProcess.stop('update_install')
+      if (!actionClaim) {
         throw new Error('Application shutdown is already owned by another action')
       }
     })()
-    await shutdownPromise
-    allowQuit = true
-    installAction()
+    try {
+      await shutdownPromise
+      if (!actionClaim) throw new Error('Application shutdown claim is unavailable')
+      allowQuit = true
+      await actionClaim.run(installAction)
+    } catch (error) {
+      allowQuit = false
+      actionClaim?.abandon()
+      shutdownPromise = undefined
+      throw error
+    }
   }
 
   app.whenReady().then(async () => {
@@ -210,12 +221,29 @@ export function startApp(): void {
         return
       }
 
+      let actionClaim: MainShutdownActionClaim | undefined
       try {
-        if (!(await activeMainProcess.stop(shutdownReason))) return
+        actionClaim = await activeMainProcess.stop(shutdownReason)
+        if (!actionClaim) {
+          shutdownPromise = undefined
+          shutdownReason = 'app_quit'
+          return
+        }
       } catch {}
 
       allowQuit = true
-      app.quit()
+      try {
+        if (actionClaim) {
+          await actionClaim.run(() => app.quit())
+        } else {
+          app.quit()
+        }
+      } catch {
+        allowQuit = false
+        actionClaim?.abandon()
+        shutdownPromise = undefined
+        shutdownReason = 'app_quit'
+      }
     })()
   })
 

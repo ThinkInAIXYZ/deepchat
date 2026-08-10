@@ -39,7 +39,7 @@
 
 - `pnpm run format:check`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck:node`,
   `pnpm run typecheck:web`, and `pnpm run build` passed.
-- `pnpm run test:main` passed 552 test files and 6,787 tests; 29 files were skipped entirely and 403
+- `pnpm run test:main` passed 552 test files and 6,791 tests; 29 files were skipped entirely and 403
   tests were skipped in total. Of those tests, 399 were blocked because the installed native SQLite
   module targets Node ABI 145 while the active Node runtime requires ABI 137; this includes all 56
   `liveDelegationService` tests. The remaining four skips require an unavailable DuckDB VSS

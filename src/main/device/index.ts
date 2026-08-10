@@ -282,23 +282,26 @@ export class DeviceService implements DeviceServicePort {
           throw new Error(`Unknown reset type: ${resetType}`)
       }
 
-      this.restartAppWithDelay()
+      await this.restartAppWithDelay()
     } catch (error) {
       console.error('resetDataByType failed:', error)
       throw error
     }
   }
 
-  private restartAppWithDelay(): void {
-    try {
+  private restartAppWithDelay(): Promise<void> {
+    return new Promise((resolve, reject) => {
       setTimeout(() => {
-        app.relaunch()
-        app.exit()
+        try {
+          app.relaunch()
+          app.exit()
+          resolve()
+        } catch (error) {
+          console.error('重启失败:', error)
+          reject(error)
+        }
       }, 1000)
-    } catch (error) {
-      console.error('重启失败:', error)
-      throw error
-    }
+    })
   }
 
   /**

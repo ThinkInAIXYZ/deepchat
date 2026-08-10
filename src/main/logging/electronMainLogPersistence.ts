@@ -15,7 +15,6 @@ type MainLogFs = Pick<
   | 'openSync'
   | 'readSync'
   | 'renameSync'
-  | 'unlinkSync'
   | 'writeSync'
 >
 
@@ -158,11 +157,6 @@ export class ElectronMainLogPersistence implements MainLogPersistence {
     }
 
     const archivePath = path.join(path.dirname(this.logPath), 'main.old.jsonl')
-    try {
-      this.fs.unlinkSync(archivePath)
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    }
     this.fs.renameSync(this.logPath, archivePath)
   }
 

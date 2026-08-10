@@ -10,9 +10,14 @@ export interface MainShutdownObserver {
   terminal(observation: MainShutdownTerminalObservation): void
 }
 
+export interface MainShutdownActionClaim {
+  run(action: () => void | Promise<void>): Promise<void>
+  abandon(): void
+}
+
 export class MainShutdownCoordinator {
   private teardownPromise: Promise<void> | undefined
-  private actionClaimed = false
+  private actionClaim: symbol | undefined
 
   constructor(
     private readonly teardown: () => Promise<void>,
@@ -24,13 +29,14 @@ export class MainShutdownCoordinator {
     return this.ensureTeardown()
   }
 
-  async request(reason: MainLogShutdownReason): Promise<boolean> {
-    if (this.actionClaimed) {
+  async request(reason: MainLogShutdownReason): Promise<MainShutdownActionClaim | undefined> {
+    if (this.actionClaim) {
       await this.ensureTeardown()
-      return false
+      return undefined
     }
 
-    this.actionClaimed = true
+    const actionClaim = Symbol(reason)
+    this.actionClaim = actionClaim
     const startedAt = this.now()
     this.observe(() => this.observer.started(reason))
     try {
@@ -38,8 +44,31 @@ export class MainShutdownCoordinator {
       this.observe(() =>
         this.observer.terminal({ outcome: 'completed', durationMs: this.now() - startedAt })
       )
-      return true
+      let state: 'ready' | 'running' | 'succeeded' | 'released' = 'ready'
+      const abandon = () => {
+        if (state !== 'ready') return
+        state = 'released'
+        if (this.actionClaim === actionClaim) this.actionClaim = undefined
+      }
+      return {
+        run: async (action) => {
+          if (state !== 'ready' || this.actionClaim !== actionClaim) {
+            throw new Error('Main shutdown action claim is not active')
+          }
+          state = 'running'
+          try {
+            await action()
+            state = 'succeeded'
+          } catch (error) {
+            state = 'released'
+            if (this.actionClaim === actionClaim) this.actionClaim = undefined
+            throw error
+          }
+        },
+        abandon
+      }
     } catch (error) {
+      if (this.actionClaim === actionClaim) this.actionClaim = undefined
       this.observe(() =>
         this.observer.terminal({ outcome: 'failed', durationMs: this.now() - startedAt })
       )

@@ -237,7 +237,7 @@ describe('session boundary composition', () => {
     )
 
     expect(shutdownSource).toContain('if (!this.teardownPromise)')
-    expect(shutdownSource).toContain('if (this.actionClaimed)')
+    expect(shutdownSource).toContain('if (this.actionClaim)')
     expect(compositionSource).toContain("appLifecycleState = 'stopping'")
     expect(compositionSource).toContain("appLifecycleState = 'stopped'")
     expect(compositionSource).toContain('throw new Error(`App lifecycle is ${appLifecycleState}`)')

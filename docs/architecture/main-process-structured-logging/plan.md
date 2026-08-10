@@ -171,7 +171,8 @@ write persistent records.
 - `main.jsonl` and `main.old.jsonl` naming;
 - active/archive files parse line-by-line;
 - incomplete-tail repair;
-- unlink/rename/write failures disable persistence without throwing;
+- rename/write failures disable persistence without throwing or performing an application-level
+  archive pre-delete;
 - rotation never writes crop markers or partial records;
 - legacy `main.log` is not touched.
 

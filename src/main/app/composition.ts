@@ -267,7 +267,7 @@ import { TypedEventHub } from '@/events/typedEventHub'
 import { SessionEventRouter } from '@/events/sessionEventRouter'
 import { createMemoryProviderBindings } from './memoryProviderBindings'
 import { createSessionPermissionPort } from './sessionPermissionAdapter'
-import { MainShutdownCoordinator } from './mainShutdownCoordinator'
+import { MainShutdownCoordinator, type MainShutdownActionClaim } from './mainShutdownCoordinator'
 import {
   EpisodeRegistry,
   TimeoutNotificationScheduler,
@@ -284,7 +284,7 @@ export interface MainProcessControl {
   confirmShutdown(): Promise<boolean>
   cancelShutdown(): void
   hasMainWindows(): boolean
-  stop(reason: MainLogShutdownReason): Promise<boolean>
+  stop(reason: MainLogShutdownReason): Promise<MainShutdownActionClaim | undefined>
   stopForCleanup(): Promise<void>
 }
 
@@ -3016,7 +3016,7 @@ export async function createMainProcessControl(dependencies: {
     }
   )
 
-  function stop(reason: MainLogShutdownReason): Promise<boolean> {
+  function stop(reason: MainLogShutdownReason): Promise<MainShutdownActionClaim | undefined> {
     return shutdownCoordinator.request(reason)
   }
 
@@ -3145,18 +3145,30 @@ export async function createMainProcessControl(dependencies: {
   async function resetApplicationData(
     resetType: 'chat' | 'knowledge' | 'config' | 'all'
   ): Promise<void> {
-    await coordinateApplicationDataReset(resetType, {
-      cliLauncher: cliLauncherService,
-      logger,
-      stop: async () => {
-        if (!(await stop('restart'))) throw new Error('Application shutdown is already owned')
-      },
-      resetDataByType: (type) => deviceService.resetDataByType(type)
-    })
+    let actionClaim: MainShutdownActionClaim | undefined
+    try {
+      await coordinateApplicationDataReset(resetType, {
+        cliLauncher: cliLauncherService,
+        logger,
+        stop: async () => {
+          actionClaim = await stop('restart')
+          if (!actionClaim) throw new Error('Application shutdown is already owned')
+        },
+        resetDataByType: (type) => {
+          if (!actionClaim) throw new Error('Application shutdown claim is unavailable')
+          return actionClaim.run(() => deviceService.resetDataByType(type))
+        }
+      })
+    } catch (error) {
+      actionClaim?.abandon()
+      throw error
+    }
   }
 
   async function restartApplication(): Promise<void> {
-    if (await stop('restart')) await deviceService.restartApp()
+    const actionClaim = await stop('restart')
+    if (!actionClaim) return
+    await actionClaim.run(() => deviceService.restartApp())
   }
 
   async function openRemoteSession(sessionId: string): Promise<boolean> {

@@ -17,8 +17,8 @@ describe('MainShutdownCoordinator', () => {
     const restart = coordinator.request('restart')
     completeTeardown()
 
-    await expect(update).resolves.toBe(true)
-    await expect(restart).resolves.toBe(false)
+    expect(await update).toEqual({ run: expect.any(Function), abandon: expect.any(Function) })
+    await expect(restart).resolves.toBeUndefined()
     expect(teardown).toHaveBeenCalledOnce()
     expect(observer.started).toHaveBeenCalledOnce()
     expect(observer.started).toHaveBeenCalledWith('update_install')
@@ -38,9 +38,68 @@ describe('MainShutdownCoordinator', () => {
     expect(observer.started).not.toHaveBeenCalled()
     expect(observer.terminal).not.toHaveBeenCalled()
 
-    await expect(coordinator.request('app_quit')).resolves.toBe(true)
+    expect(await coordinator.request('app_quit')).toEqual({
+      run: expect.any(Function),
+      abandon: expect.any(Function)
+    })
     expect(observer.started).toHaveBeenCalledWith('app_quit')
     expect(observer.terminal).toHaveBeenCalledWith({ outcome: 'completed', durationMs: 0 })
+  })
+
+  it('lets a later quit own the terminal action when the winning action fails', async () => {
+    const observer = { started: vi.fn(), terminal: vi.fn() }
+    const coordinator = new MainShutdownCoordinator(async () => undefined, observer)
+
+    const restartClaim = await coordinator.request('restart')
+    expect(restartClaim).toBeDefined()
+
+    await expect(
+      restartClaim?.run(async () => {
+        throw new Error('restart failed')
+      })
+    ).rejects.toThrow('restart failed')
+    const quitClaim = await coordinator.request('app_quit')
+
+    expect(quitClaim).toBeDefined()
+    expect(observer.started.mock.calls.map(([reason]) => reason)).toEqual(['restart', 'app_quit'])
+  })
+
+  it('rejects a stale claim after a later request owns the terminal action', async () => {
+    const observer = { started: vi.fn(), terminal: vi.fn() }
+    const coordinator = new MainShutdownCoordinator(async () => undefined, observer)
+    const staleClaim = await coordinator.request('restart')
+    staleClaim?.abandon()
+    expect(await coordinator.request('app_quit')).toBeDefined()
+    const staleAction = vi.fn()
+
+    await expect(staleClaim?.run(staleAction)).rejects.toThrow(
+      'Main shutdown action claim is not active'
+    )
+    expect(staleAction).not.toHaveBeenCalled()
+  })
+
+  it('runs a terminal action once and keeps ownership after success', async () => {
+    let completeAction!: () => void
+    const action = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          completeAction = resolve
+        })
+    )
+    const coordinator = new MainShutdownCoordinator(async () => undefined, {
+      started: vi.fn(),
+      terminal: vi.fn()
+    })
+    const claim = await coordinator.request('restart')
+    const firstRun = claim?.run(action)
+
+    await expect(claim?.run(action)).rejects.toThrow('Main shutdown action claim is not active')
+    completeAction()
+    await firstRun
+    claim?.abandon()
+
+    expect(action).toHaveBeenCalledOnce()
+    await expect(coordinator.request('app_quit')).resolves.toBeUndefined()
   })
 
   it('contains observer failures without changing teardown failure behavior', async () => {

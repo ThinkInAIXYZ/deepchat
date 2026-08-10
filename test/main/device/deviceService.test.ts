@@ -56,8 +56,11 @@ describe('DeviceService', () => {
       vi.useFakeTimers()
       const presenter = new DeviceService()
 
-      ;(presenter as unknown as { restartAppWithDelay: () => void }).restartAppWithDelay()
+      const restartPromise = (
+        presenter as unknown as { restartAppWithDelay: () => Promise<void> }
+      ).restartAppWithDelay()
       await vi.advanceTimersByTimeAsync(1000)
+      await restartPromise
 
       expect(appRelaunchMock).toHaveBeenCalledTimes(1)
       expect(appExitMock).toHaveBeenCalledTimes(1)
@@ -76,6 +79,23 @@ describe('DeviceService', () => {
 
       expect(appRelaunchMock).toHaveBeenCalledTimes(1)
       expect(appExitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('reports a delayed relaunch failure to the shutdown owner', async () => {
+      vi.useFakeTimers()
+      vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+      const failure = new Error('relaunch failed')
+      appRelaunchMock.mockImplementationOnce(() => {
+        throw failure
+      })
+      const presenter = new DeviceService()
+
+      const resetPromise = presenter.resetDataByType('all')
+      const rejection = expect(resetPromise).rejects.toBe(failure)
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await rejection
+      expect(appExitMock).not.toHaveBeenCalled()
     })
   })
 })

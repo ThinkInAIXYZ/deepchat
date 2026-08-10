@@ -191,8 +191,11 @@ describe('ElectronMainLogPersistence', () => {
   it('disables persistence permanently after rotation or write failure', () => {
     const userData = createUserData()
     const activePath = path.join(userData, 'logs/main.jsonl')
+    const archivePath = path.join(userData, 'logs/main.old.jsonl')
+    const archiveContents = '{"seq":0}\n'
     fs.mkdirSync(path.dirname(activePath), { recursive: true })
     writeCompleteFileAtLimit(activePath)
+    fs.writeFileSync(archivePath, archiveContents)
     const rotationFailure = createPersistence(userData, {
       renameSync: vi.fn(() => {
         throw Object.assign(new Error('rename failed'), { code: 'EACCES' })
@@ -203,6 +206,7 @@ describe('ElectronMainLogPersistence', () => {
     expect(rotationFailure.write('info', validLine())).toBe(false)
     expect(rotationFailure.enable()).toBe(false)
     expect(fs.statSync(activePath).size).toBe(MAX_FILE_BYTES)
+    expect(fs.readFileSync(archivePath, 'utf8')).toBe(archiveContents)
 
     fs.rmSync(activePath)
     const writeFailure = createPersistence(userData, {
