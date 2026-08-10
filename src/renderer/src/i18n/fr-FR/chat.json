@@ -350,6 +350,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Ajouter un espace de travail",
+    "emptyWorkspace": "Vide",
+    "addWorkspaceFailed": "Échec de l’ajout de l’espace de travail",
     "searchLoadedRangeDescription": "Affichage des résultats des conversations chargées. Faites défiler pour charger plus d’historique."
   },
   "floatingWidget": {

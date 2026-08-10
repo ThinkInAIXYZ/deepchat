@@ -366,6 +366,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Tambah ruang kerja",
+    "emptyWorkspace": "Kosong",
+    "addWorkspaceFailed": "Gagal menambahkan ruang kerja",
     "searchLoadedRangeDescription": "Menampilkan kecocokan dari percakapan yang dimuat. Gulir untuk memuat riwayat lainnya."
   },
   "spotlight": {

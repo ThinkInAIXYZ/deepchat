@@ -366,6 +366,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Çalışma alanı ekle",
+    "emptyWorkspace": "Boş",
+    "addWorkspaceFailed": "Çalışma alanı eklenemedi",
     "searchLoadedRangeDescription": "Yüklenen konuşmalardaki eşleşmeler gösteriliyor. Daha fazla geçmiş yüklemek için kaydırın."
   },
   "spotlight": {

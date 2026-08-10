@@ -350,6 +350,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Tilføj arbejdsområde",
+    "emptyWorkspace": "Tom",
+    "addWorkspaceFailed": "Arbejdsområdet kunne ikke tilføjes",
     "searchLoadedRangeDescription": "Viser resultater fra indlæste samtaler. Rul for at indlæse mere historik."
   },
   "floatingWidget": {

@@ -427,6 +427,9 @@
     "searchCommand": "搜索",
     "chatSection": "Chat",
     "workspace": "工作区",
+    "addWorkspace": "添加工作区",
+    "emptyWorkspace": "空",
+    "addWorkspaceFailed": "添加工作区失败",
     "remoteControlDisabled": "未启用",
     "remoteControlStatus": {
       "disabled": "远程控制已禁用",

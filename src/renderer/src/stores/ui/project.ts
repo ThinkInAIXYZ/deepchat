@@ -14,6 +14,10 @@ export interface UIProject {
 
 type ProjectSelectionSource = 'none' | 'manual' | 'default'
 
+type OpenFolderPickerOptions = {
+  select?: boolean
+}
+
 type ProjectSnapshot = {
   version: number
   projects: Project[]
@@ -262,15 +266,28 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  async function openFolderPicker(): Promise<void> {
+  async function openFolderPicker(options: OpenFolderPickerOptions = {}): Promise<string | null> {
     try {
       const selectedPath = await projectClient.selectDirectory()
-      if (selectedPath) {
-        selectProject(selectedPath, 'manual')
-        await refreshProjectSnapshot()
+      if (!selectedPath) {
+        return null
       }
+
+      if (options.select !== false) {
+        selectProject(selectedPath, 'manual')
+      }
+
+      await refreshProjectSnapshot()
+      if (error.value) {
+        throw new Error(error.value)
+      }
+      if (!environments.value.some((environment) => environment.path === selectedPath)) {
+        throw new Error('Selected workspace is missing from the project snapshot')
+      }
+      return selectedPath
     } catch (cause) {
       error.value = `Failed to open folder picker: ${cause}`
+      throw cause
     }
   }
 

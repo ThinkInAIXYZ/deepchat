@@ -11,7 +11,13 @@ management never deletes real files.
 ## Active directory behavior
 
 - Existing users without custom order see default directory first, then recent usage, then stable path order.
+- Active managed directories are sidebar entities independently of Session history. In project grouping, an
+  eligible zero-Session directory remains visible and can start its first scoped draft. The sidebar registration
+  and merge contract is maintained in
+  [`sidebar-workspace-registration`](../sidebar-workspace-registration/spec.md).
 - Active non-temporary directories support persisted reorder from Settings and project-group sidebar mode.
+- A directory newly registered or reactivated through the directory picker is persisted at the top of the
+  active order. Selecting an already-active directory does not change its position.
 - Sidebar reorder is disabled outside project grouping or while search is active; sessions inside a group keep
   their normal activity ordering.
 - The Chat and project-group section actions create a new draft with the relevant workspace context.
@@ -22,6 +28,9 @@ management never deletes real files.
 
 - Archive hides a directory from active management/project picker surfaces but preserves Session data and
   filesystem content.
+- Active workspace rows expose Archive behind a confirmation dialog even when reorder is unavailable. A
+  zero-Session row disappears after archive; existing Session history remains discoverable as a non-active
+  historical group.
 - Restore returns it to the active list near the top.
 - Remove requires confirmation and means “remove from DeepChat”, never filesystem deletion.
 - Removing a regular directory clears `projectDir` on associated regular Sessions.
@@ -37,9 +46,10 @@ block opening DeepChat; the UI exposes the missing state and lets the user recov
 
 ## UI and compatibility
 
-Settings provides active/archived views, accessible move actions and confirmation dialogs. Drag is only a
-shortcut; keyboard/menu actions must produce the same order. All strings use i18n and the route/client/store
-path remains typed.
+Settings provides active/archived views and the full lifecycle surface. The project-group sidebar exposes
+active reorder and confirmed Archive; Restore and Remove remain in Settings. Drag is only a shortcut;
+keyboard/menu actions must produce the same order. All strings use i18n and the route/client/store path
+remains typed.
 
 Existing `new_environments` usage data is migrated without losing Session/project associations. Derived usage
 rows are not the sole source of archive/remove/order truth.

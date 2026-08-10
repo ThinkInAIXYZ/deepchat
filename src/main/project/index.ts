@@ -250,9 +250,19 @@ export class ProjectService {
 
     const dirPath = result.filePaths[0]
     const dirName = path.basename(dirPath)
+    const activeEnvironmentPaths = (await this.getEnvironments()).map(
+      (environment) => environment.path
+    )
+    const wasActive = activeEnvironmentPaths.includes(dirPath)
 
     this.sqlitePresenter.newProjectsTable.upsert(dirPath, dirName)
     this.sqlitePresenter.newEnvironmentPreferencesTable.markActive(dirPath)
+    if (!wasActive) {
+      this.sqlitePresenter.newEnvironmentPreferencesTable.reorderActive([
+        dirPath,
+        ...activeEnvironmentPaths
+      ])
+    }
     this.bumpSnapshotVersion()
     return dirPath
   }

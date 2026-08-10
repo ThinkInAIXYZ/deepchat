@@ -1289,14 +1289,22 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function toggleGroupMode(): Promise<void> {
+  async function setGroupMode(mode: GroupMode): Promise<void> {
+    if (!hasLoadedGroupMode) {
+      await ensureGroupModeLoaded()
+    }
     const previousMode = groupMode.value
-    groupMode.value = previousMode === 'time' ? 'project' : 'time'
+    if (previousMode === mode) {
+      await groupModeWritePromise
+      return
+    }
+
+    groupMode.value = mode
     const localVersion = ++groupModeUpdateVersion
 
-    groupModeWritePromise = groupModeWritePromise.then(async () => {
+    const writePromise = groupModeWritePromise.then(async () => {
       try {
-        await configClient.setSetting(SIDEBAR_GROUP_MODE_KEY, groupMode.value)
+        await configClient.setSetting(SIDEBAR_GROUP_MODE_KEY, mode)
         if (localVersion !== groupModeUpdateVersion) {
           return
         }
@@ -1305,10 +1313,23 @@ export const useSessionStore = defineStore('session', () => {
           groupMode.value = previousMode
         }
         console.warn('[sessionStore] Failed to persist sidebar group mode:', persistError)
+        throw persistError
       }
     })
 
-    await groupModeWritePromise
+    groupModeWritePromise = writePromise.catch(() => undefined)
+    await writePromise
+  }
+
+  async function toggleGroupMode(): Promise<void> {
+    try {
+      if (!hasLoadedGroupMode) {
+        await ensureGroupModeLoaded()
+      }
+      await setGroupMode(groupMode.value === 'time' ? 'project' : 'time')
+    } catch {
+      // setGroupMode already restores the visible state and records the failure.
+    }
   }
 
   function getPinnedSessions(agentId: string | null): UISession[] {
@@ -1412,6 +1433,7 @@ export const useSessionStore = defineStore('session', () => {
     deleteSession,
     setSessionProjectDir,
     moveSessionToAgent,
+    setGroupMode,
     toggleGroupMode,
     getPinnedSessions,
     getFilteredGroups

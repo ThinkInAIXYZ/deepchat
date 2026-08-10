@@ -227,4 +227,58 @@ describe('projectStore snapshot ownership', () => {
     expect(projectClient.getSnapshot).toHaveBeenCalledTimes(3)
     expect(store.projects.value.map((project) => project.path)).toEqual(['/work/after-event'])
   })
+
+  it('treats folder picker cancellation as a no-op', async () => {
+    const { store, projectClient } = await setupStore()
+
+    await expect(store.openFolderPicker()).resolves.toBeNull()
+
+    expect(projectClient.getSnapshot).not.toHaveBeenCalled()
+    expect(store.selectedProjectPath.value).toBeNull()
+    expect(store.selectionSource.value).toBe('none')
+  })
+
+  it('returns and selects a picked workspace by default', async () => {
+    const { store, projectClient } = await setupStore()
+    projectClient.selectDirectory.mockResolvedValue('/work/new')
+    projectClient.getSnapshot.mockResolvedValue(snapshot(2, ['/work/new']))
+
+    await expect(store.openFolderPicker()).resolves.toBe('/work/new')
+
+    expect(store.selectedProjectPath.value).toBe('/work/new')
+    expect(store.selectionSource.value).toBe('manual')
+    expect(store.environments.value.map((item) => item.path)).toEqual(['/work/new'])
+  })
+
+  it('registers a picked workspace without replacing the current selection', async () => {
+    const { store, projectClient } = await setupStore()
+    store.selectProject('/work/current', 'manual')
+    projectClient.selectDirectory.mockResolvedValue('/work/new')
+    projectClient.getSnapshot.mockResolvedValue(snapshot(2, ['/work/new', '/work/current']))
+
+    await expect(store.openFolderPicker({ select: false })).resolves.toBe('/work/new')
+
+    expect(store.selectedProjectPath.value).toBe('/work/current')
+    expect(store.selectionSource.value).toBe('manual')
+    expect(store.environments.value.map((item) => item.path)).toEqual([
+      '/work/new',
+      '/work/current'
+    ])
+  })
+
+  it('rejects picker and uncommitted snapshot failures', async () => {
+    const { store, projectClient } = await setupStore()
+    const pickerFailure = new Error('picker failed')
+    projectClient.selectDirectory.mockRejectedValueOnce(pickerFailure)
+
+    await expect(store.openFolderPicker()).rejects.toBe(pickerFailure)
+
+    projectClient.selectDirectory.mockResolvedValueOnce('/work/uncommitted')
+    projectClient.getSnapshot.mockRejectedValueOnce(new Error('snapshot failed'))
+
+    await expect(store.openFolderPicker({ select: false })).rejects.toThrow(
+      'Failed to load project snapshot'
+    )
+    expect(store.environments.value).toEqual([])
+  })
 })

@@ -350,6 +350,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "افزودن فضای کاری",
+    "emptyWorkspace": "خالی",
+    "addWorkspaceFailed": "افزودن فضای کاری ناموفق بود",
     "searchLoadedRangeDescription": "نتایج گفت‌وگوهای بارگذاری‌شده نمایش داده می‌شوند. برای بارگذاری تاریخچه بیشتر پیمایش کنید."
   },
   "floatingWidget": {

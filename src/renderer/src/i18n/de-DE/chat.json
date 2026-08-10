@@ -366,6 +366,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Arbeitsbereich hinzufügen",
+    "emptyWorkspace": "Leer",
+    "addWorkspaceFailed": "Arbeitsbereich konnte nicht hinzugefügt werden",
     "searchLoadedRangeDescription": "Es werden Treffer aus geladenen Unterhaltungen angezeigt. Scrolle, um weiteren Verlauf zu laden."
   },
   "spotlight": {

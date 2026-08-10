@@ -16,6 +16,7 @@ type SetupStoreOptions = {
   initialSettings?: Record<string, unknown>
   failGetSetting?: boolean
   failSetSetting?: boolean
+  getSettingPromise?: Promise<unknown>
   selectedAgentId?: string | null
   enabledAgents?: Array<{ id: string; name?: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
   onboardingCurrentStepId?:
@@ -273,6 +274,9 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     getSetting: vi.fn(async <T>(key: string) => {
       if (options.failGetSetting) {
         throw new Error('failed to read setting')
+      }
+      if (options.getSettingPromise) {
+        return (await options.getSettingPromise) as T
       }
       return settings[key] as T | undefined
     }),
@@ -778,11 +782,29 @@ describe('sessionStore group mode preferences', () => {
     const { store, settings, configClient } = await setupStore()
 
     await store.fetchSessions()
+    await store.setGroupMode('project')
+
+    expect(configClient.setSetting).not.toHaveBeenCalled()
+
     await store.toggleGroupMode()
 
     expect(store.groupMode.value).toBe('time')
     expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
     expect(settings[SIDEBAR_GROUP_MODE_KEY]).toBe('time')
+  })
+
+  it('does not let a delayed saved preference overwrite an explicit project-mode request', async () => {
+    const savedPreference = createDeferred<unknown>()
+    const { store, configClient } = await setupStore({
+      getSettingPromise: savedPreference.promise
+    })
+
+    const request = store.setGroupMode('project')
+    savedPreference.resolve('time')
+    await request
+
+    expect(store.groupMode.value).toBe('project')
+    expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'project')
   })
 
   it('rolls back the group mode when persistence fails', async () => {
@@ -791,7 +813,7 @@ describe('sessionStore group mode preferences', () => {
     })
 
     await store.fetchSessions()
-    await store.toggleGroupMode()
+    await expect(store.setGroupMode('time')).rejects.toThrow('failed to write setting')
 
     expect(store.groupMode.value).toBe('project')
     expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')

@@ -350,6 +350,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Добавить рабочее пространство",
+    "emptyWorkspace": "Пусто",
+    "addWorkspaceFailed": "Не удалось добавить рабочее пространство",
     "searchLoadedRangeDescription": "Показаны совпадения из загруженных бесед. Прокрутите, чтобы загрузить больше истории."
   },
   "floatingWidget": {

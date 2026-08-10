@@ -350,6 +350,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "작업 공간 추가",
+    "emptyWorkspace": "비어 있음",
+    "addWorkspaceFailed": "작업 공간을 추가하지 못했습니다",
     "searchLoadedRangeDescription": "불러온 대화의 일치 항목을 표시하고 있습니다. 스크롤하여 이전 기록을 더 불러오세요."
   },
   "floatingWidget": {

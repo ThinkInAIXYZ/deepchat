@@ -350,6 +350,9 @@
     "searchCommand": "搜尋",
     "chatSection": "Chat",
     "workspace": "工作區",
+    "addWorkspace": "新增工作區",
+    "emptyWorkspace": "空白",
+    "addWorkspaceFailed": "新增工作區失敗",
     "searchLoadedRangeDescription": "正在顯示已載入對話中的相符結果。向下捲動以載入更多歷史記錄。"
   },
   "floatingWidget": {

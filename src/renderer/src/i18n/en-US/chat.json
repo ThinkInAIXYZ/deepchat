@@ -427,6 +427,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Add workspace",
+    "emptyWorkspace": "Empty",
+    "addWorkspaceFailed": "Failed to add workspace",
     "remoteControlDisabled": "Disabled",
     "remoteControlStatus": {
       "disabled": "Remote control disabled",

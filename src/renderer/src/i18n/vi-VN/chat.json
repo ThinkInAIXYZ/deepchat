@@ -366,6 +366,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Thêm không gian làm việc",
+    "emptyWorkspace": "Trống",
+    "addWorkspaceFailed": "Không thể thêm không gian làm việc",
     "searchLoadedRangeDescription": "Đang hiển thị kết quả khớp từ các cuộc trò chuyện đã tải. Cuộn để tải thêm lịch sử."
   },
   "spotlight": {

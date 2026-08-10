@@ -422,6 +422,34 @@ describe('ProjectService', () => {
   })
 
   describe('getEnvironments', () => {
+    it('includes an active preference before the workspace has any sessions', async () => {
+      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
+        {
+          path: '/work/new',
+          status: 'active',
+          sort_order: 0,
+          archived_at: null,
+          removed_at: null,
+          updated_at: 1000
+        }
+      ])
+
+      await expect(presenter.getEnvironments()).resolves.toEqual([
+        {
+          path: '/work/new',
+          name: 'new',
+          sessionCount: 0,
+          lastUsedAt: 1000,
+          isTemp: false,
+          exists: true,
+          status: 'active',
+          sortOrder: 0,
+          archivedAt: null,
+          removedAt: null
+        }
+      ])
+    })
+
     it('maps environment rows with temp and exists metadata', async () => {
       sqlitePresenter.newEnvironmentsTable.list.mockReturnValue([
         {
@@ -665,7 +693,25 @@ describe('ProjectService', () => {
       expect(result).toBeNull()
     })
 
-    it('upserts project and returns path on selection', async () => {
+    it('registers a new directory at the top of the active order', async () => {
+      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
+        {
+          path: '/work/alpha',
+          status: 'active',
+          sort_order: 0,
+          archived_at: null,
+          removed_at: null,
+          updated_at: 100
+        },
+        {
+          path: '/work/beta',
+          status: 'active',
+          sort_order: 1,
+          archived_at: null,
+          removed_at: null,
+          updated_at: 200
+        }
+      ])
       deviceService.selectDirectory.mockResolvedValue({
         canceled: false,
         filePaths: ['/Users/test/my-project']
@@ -681,6 +727,75 @@ describe('ProjectService', () => {
       expect(sqlitePresenter.newEnvironmentPreferencesTable.markActive).toHaveBeenCalledWith(
         '/Users/test/my-project'
       )
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.reorderActive).toHaveBeenCalledWith([
+        '/Users/test/my-project',
+        '/work/alpha',
+        '/work/beta'
+      ])
+    })
+
+    it('keeps the persisted order when selecting an already active directory', async () => {
+      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
+        {
+          path: '/work/alpha',
+          status: 'active',
+          sort_order: 0,
+          archived_at: null,
+          removed_at: null,
+          updated_at: 100
+        },
+        {
+          path: '/work/existing',
+          status: 'active',
+          sort_order: 1,
+          archived_at: null,
+          removed_at: null,
+          updated_at: 200
+        }
+      ])
+      deviceService.selectDirectory.mockResolvedValue({
+        canceled: false,
+        filePaths: ['/work/existing']
+      })
+
+      await presenter.selectDirectory()
+
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.markActive).toHaveBeenCalledWith(
+        '/work/existing'
+      )
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.reorderActive).not.toHaveBeenCalled()
+    })
+
+    it('reactivates an archived directory at the top of the active order', async () => {
+      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
+        {
+          path: '/work/alpha',
+          status: 'active',
+          sort_order: 0,
+          archived_at: null,
+          removed_at: null,
+          updated_at: 100
+        },
+        {
+          path: '/work/archived',
+          status: 'archived',
+          sort_order: 1,
+          archived_at: 200,
+          removed_at: null,
+          updated_at: 200
+        }
+      ])
+      deviceService.selectDirectory.mockResolvedValue({
+        canceled: false,
+        filePaths: ['/work/archived']
+      })
+
+      await presenter.selectDirectory()
+
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.reorderActive).toHaveBeenCalledWith([
+        '/work/archived',
+        '/work/alpha'
+      ])
     })
   })
 })

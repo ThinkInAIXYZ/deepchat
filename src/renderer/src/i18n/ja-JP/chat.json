@@ -350,6 +350,9 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "ワークスペースを追加",
+    "emptyWorkspace": "空",
+    "addWorkspaceFailed": "ワークスペースを追加できませんでした",
     "searchLoadedRangeDescription": "読み込み済みの会話から一致する項目を表示しています。スクロールして履歴をさらに読み込めます。"
   },
   "floatingWidget": {

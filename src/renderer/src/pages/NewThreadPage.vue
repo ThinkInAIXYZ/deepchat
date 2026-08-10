@@ -89,7 +89,7 @@
               icon="lucide:folder-open"
               :label="t('common.project.openFolder')"
               class="text-xs py-1.5 px-2"
-              @select="projectStore.openFolderPicker()"
+              @select="handleOpenFolderPicker"
             />
           </DropdownMenuContent>
         </DropdownMenu>
@@ -1315,6 +1315,20 @@ function onPendingSkillsChange(skills: string[]) {
 
 function clearSelectedProject() {
   projectStore.selectProject(null, 'manual')
+}
+
+async function handleOpenFolderPicker() {
+  try {
+    await projectStore.openFolderPicker()
+  } catch (error) {
+    console.warn('[NewThreadPage] Failed to open folder picker:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.workspace.selectFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed')
+    })
+  }
 }
 
 const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
