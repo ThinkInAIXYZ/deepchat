@@ -4,7 +4,8 @@ import { TOOL_EXECUTION } from '@shared/types/mcp'
 import {
   LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT,
   LIVE_DELEGATION_MAX_MESSAGE_BYTES,
-  LiveDelegationDetailSchema
+  LiveDelegationDetailSchema,
+  type LiveDelegationDetail
 } from '@shared/orchestration/liveDelegation'
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
@@ -12,6 +13,7 @@ import { SessionDeletionGate } from '@/session/deletionGate'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 import { createLiveDelegationTaskContractInput } from '@/orchestration/liveDelegationTaskContract'
+import type { LiveDelegationLifecycleObservation } from '@/orchestration/liveDelegationService'
 
 const databaseModule = Database
   ? await import('@/orchestration/data/database').catch(() => null)
@@ -77,6 +79,9 @@ describeIfSqlite('LiveDelegationService', () => {
   let deletionGate: SessionDeletionGate
   let admission: AgentInvocationAdmission
   let consentAuthority: LiveDelegationConsentAuthority
+  let observations: LiveDelegationLifecycleObservation[]
+  let dispatchObservation: (observation: LiveDelegationLifecycleObservation) => void | Promise<void>
+  let monotonicNow: number
 
   beforeEach(() => {
     db = new DatabaseCtor(':memory:')
@@ -103,13 +108,18 @@ describeIfSqlite('LiveDelegationService', () => {
     deletionGate = new SessionDeletionGate()
     admission = new AgentInvocationAdmission(2, 10)
     consentAuthority = new LiveDelegationConsentAuthority()
+    observations = []
+    dispatchObservation = (observation) => observations.push(observation)
+    monotonicNow = 100
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
       admission,
-      deletionGate
+      deletionGate,
+      observe: (observation) => dispatchObservation(observation),
+      now: () => monotonicNow
     })
     service.start()
   })
@@ -133,6 +143,7 @@ describeIfSqlite('LiveDelegationService', () => {
     const delegationId = detail.delegation.id
     const childId = repository.require(delegationId).childSessionId!
     const waiting = service.wait('parent', { after: 0, timeoutMs: 1_000 })
+    monotonicNow = 125
     harness.publishAnswer(childId, '## Handoff\nThe boundary is sound.\0', 200)
     harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
 
@@ -158,6 +169,43 @@ describeIfSqlite('LiveDelegationService', () => {
       status: 'completed',
       evaluation: { evaluationKind: 'handoff_format', formatStatus: 'invalid' }
     })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(observations).toEqual([
+      {
+        type: 'turn_queued',
+        parentSessionId: 'parent',
+        delegationId,
+        turnId: detail.turns[0]!.id,
+        turnKind: 'initial'
+      },
+      {
+        type: 'child_bound',
+        parentSessionId: 'parent',
+        childSessionId: childId,
+        delegationId,
+        turnId: detail.turns[0]!.id
+      },
+      {
+        type: 'turn_started',
+        parentSessionId: 'parent',
+        childSessionId: childId,
+        delegationId,
+        turnId: detail.turns[0]!.id,
+        turnKind: 'initial'
+      },
+      {
+        type: 'turn_terminal',
+        parentSessionId: 'parent',
+        childSessionId: childId,
+        delegationId,
+        turnId: detail.turns[0]!.id,
+        status: 'completed',
+        durationMs: 25
+      }
+    ])
+    const serializedObservations = JSON.stringify(observations)
+    expect(serializedObservations).not.toContain('Inspect module boundaries.')
+    expect(serializedObservations).not.toContain('The boundary is sound.')
     expect(harness.sessions.linkSubagentTape).toHaveBeenCalledWith(
       expect.objectContaining({
         parentSessionId: 'parent',
@@ -166,6 +214,57 @@ describeIfSqlite('LiveDelegationService', () => {
         outcome: 'completed'
       })
     )
+  })
+
+  it('keeps delegation execution fail-open when lifecycle diagnostics throw', async () => {
+    const unhandledRejection = vi.fn()
+    process.on('unhandledRejection', unhandledRejection)
+    dispatchObservation = async () => {
+      throw new Error('diagnostic sink failed')
+    }
+    try {
+      const detail = await service.spawn('parent', {
+        slotId: 'reviewer',
+        title: 'Ignore diagnostic failure',
+        prompt: 'Keep durable execution independent from diagnostics.'
+      })
+      await vi.waitFor(() =>
+        expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce()
+      )
+
+      await expect(service.interrupt('parent', detail.delegation.id)).resolves.toMatchObject({
+        delegation: { status: 'interrupted' }
+      })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(repository.requireTurn(detail.turns[0]!.id).status).toBe('interrupted')
+      expect(unhandledRejection).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandledRejection)
+    }
+  })
+
+  it('defers lifecycle observer reentrancy until turn scheduling is established', async () => {
+    let interruption: Promise<LiveDelegationDetail> | undefined
+    dispatchObservation = (observation) => {
+      if (observation.type === 'turn_queued' && !interruption) {
+        interruption = service.interrupt(observation.parentSessionId, observation.delegationId)
+        return interruption.then(() => undefined)
+      }
+    }
+
+    const detail = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Interrupt from diagnostics',
+      prompt: 'Do not schedule stale work after a reentrant interruption.'
+    })
+    await vi.waitFor(() => expect(interruption).toBeDefined())
+    await interruption
+    const createdChildren = harness.sessions.createSubagentSession.mock.calls.length
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect(repository.requireTurn(detail.turns[0]!.id).status).toBe('interrupted')
+    expect(harness.sessions.createSubagentSession).toHaveBeenCalledTimes(createdChildren)
   })
 
   it('surfaces one valid Handoff format evaluation through wait, inspect, and read_result', async () => {
@@ -1248,6 +1347,17 @@ describeIfSqlite('LiveDelegationService', () => {
       }
     })
     expect(repository.listTurns(spawned.delegation.id, 1)[0]?.status).toBe('waiting_question')
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(
+      observations.filter(
+        (observation) =>
+          observation.type === 'turn_suspended' || observation.type === 'turn_resumed'
+      )
+    ).toEqual([
+      expect.objectContaining({ type: 'turn_suspended', reason: 'permission' }),
+      expect.objectContaining({ type: 'turn_resumed' }),
+      expect.objectContaining({ type: 'turn_suspended', reason: 'question' })
+    ])
   })
 
   it('releases a waiting child permit and reacquires before continuation', async () => {
@@ -1645,6 +1755,7 @@ describeIfSqlite('LiveDelegationService', () => {
   })
 
   it('settles a write-ahead turn when handoff delivery fails', async () => {
+    monotonicNow = -10
     harness.sessions.sendConversationMessage.mockRejectedValueOnce(new Error('handoff failed'))
     const spawned = await service.spawn('parent', {
       slotId: 'reviewer',
@@ -1658,6 +1769,17 @@ describeIfSqlite('LiveDelegationService', () => {
       status: 'failed',
       error: 'handoff failed'
     })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(observations).not.toContainEqual(
+      expect.objectContaining({ type: 'turn_started', turnId: spawned.turns[0]!.id })
+    )
+    expect(observations).toContainEqual(
+      expect.objectContaining({
+        type: 'turn_terminal',
+        turnId: spawned.turns[0]!.id,
+        durationMs: 0
+      })
+    )
     expect(repository.countActiveByParent('parent')).toBe(0)
     expect(harness.sessions.linkSubagentTape).not.toHaveBeenCalled()
   })
@@ -1895,6 +2017,38 @@ describeIfSqlite('LiveDelegationService', () => {
     })
   })
 
+  it('classifies persisted result lookup failures without exposing their error', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Classify result lookup',
+      prompt: 'Keep persistence failures separate from missing child output.'
+    })
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    harness.sessions.getAssistantResult.mockRejectedValueOnce(
+      new Error('secret database lookup failure')
+    )
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 200, status: 'idle' })
+
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('failed'))
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(observations).toContainEqual(
+      expect.objectContaining({
+        type: 'turn_terminal',
+        delegationId: spawned.delegation.id,
+        turnId: spawned.turns[0]!.id,
+        status: 'failed',
+        errorCategory: 'persistence'
+      })
+    )
+    expect(JSON.stringify(observations)).not.toContain('secret database lookup failure')
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[LiveDelegationService] Failed to resolve persisted child result:',
+      expect.objectContaining({ turnId: spawned.turns[0]!.id })
+    )
+  })
+
   it('reconciles an idle child after restart', async () => {
     await service.stop()
     const created = repository.create({
@@ -1919,7 +2073,9 @@ describeIfSqlite('LiveDelegationService', () => {
       safety: harness.safety,
       consent: consentAuthority,
       admission: new AgentInvocationAdmission(2, 10),
-      deletionGate
+      deletionGate,
+      observe: (observation) => dispatchObservation(observation),
+      now: () => monotonicNow
     })
     service.start()
     const result = await service.wait('parent', { after: 0, timeoutMs: 1_000 })
@@ -1933,6 +2089,15 @@ describeIfSqlite('LiveDelegationService', () => {
       })
     ])
     expect(repository.require(created.delegation.id).status).toBe('idle')
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(observations).toContainEqual(
+      expect.objectContaining({
+        type: 'reconciliation_terminal',
+        delegationId: created.delegation.id,
+        turnId: created.turn.id,
+        outcome: 'settled'
+      })
+    )
   })
 
   it('freezes and inherits a compatibility contract before resuming a legacy active child', async () => {
@@ -2012,10 +2177,13 @@ describeIfSqlite('LiveDelegationService', () => {
       safety: harness.safety,
       consent: consentAuthority,
       admission: new AgentInvocationAdmission(2, 10),
-      deletionGate
+      deletionGate,
+      observe: (observation) => dispatchObservation(observation),
+      now: () => monotonicNow
     })
     service.start()
     await vi.waitFor(() => expect(repository.require(created.delegation.id).status).toBe('failed'))
+    await new Promise<void>((resolve) => setImmediate(resolve))
 
     expect(repository.requireTurn(created.turn.id)).toMatchObject({
       status: 'failed',
@@ -2027,6 +2195,14 @@ describeIfSqlite('LiveDelegationService', () => {
       '[LiveDelegationService] Ignored a stale recovered child result:',
       expect.objectContaining({ turnId: created.turn.id })
     )
+    expect(observations).toContainEqual({
+      type: 'stale_result_rejected',
+      parentSessionId: 'parent',
+      childSessionId: 'child-stale-result',
+      delegationId: created.delegation.id,
+      turnId: created.turn.id,
+      reason: 'recovered_result_predates_turn'
+    })
   })
 
   it('indexes active child effects synchronously before restart reconciliation', async () => {
@@ -2102,15 +2278,27 @@ describeIfSqlite('LiveDelegationService', () => {
       safety: harness.safety,
       consent: consentAuthority,
       admission: new AgentInvocationAdmission(2, 10),
-      deletionGate
+      deletionGate,
+      observe: (observation) => dispatchObservation(observation),
+      now: () => monotonicNow
     })
     service.start()
     await vi.waitFor(() =>
       expect(harness.sessions.cancelConversation).toHaveBeenCalledWith('child-contract-quarantine')
     )
+    await new Promise<void>((resolve) => setImmediate(resolve))
 
     expect(repository.requireTurn(created.turn.id).status).toBe('running')
     expect(repository.listEvents('parent')).toEqual([])
+    expect(observations).toContainEqual({
+      type: 'reconciliation_terminal',
+      parentSessionId: 'parent',
+      childSessionId: 'child-contract-quarantine',
+      delegationId: created.delegation.id,
+      turnId: created.turn.id,
+      outcome: 'quarantined',
+      errorCategory: 'integrity'
+    })
     expect(() => service.prepareTaskContractContext('child-contract-quarantine')).toThrow(
       /is quarantined after TaskContract reconciliation failed/u
     )

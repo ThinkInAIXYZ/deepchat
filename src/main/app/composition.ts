@@ -173,7 +173,10 @@ import { createOrchestrationRoutes } from '@/orchestration/routes'
 import { OrchestrationCapabilityResolver } from '@/orchestration/capability'
 import { LiveDelegationDatabase } from '@/orchestration/data/database'
 import { LiveDelegationRepository } from '@/orchestration/liveDelegationRepository'
-import { LiveDelegationService } from '@/orchestration/liveDelegationService'
+import {
+  LiveDelegationService,
+  type LiveDelegationLifecycleObservation
+} from '@/orchestration/liveDelegationService'
 import { LiveDelegationSafetyCoordinator } from '@/orchestration/liveDelegationSafety'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { TaskContractService } from '@/tape/application/taskContractService'
@@ -376,6 +379,71 @@ function emitRunJournalObservation(observation: RunJournalObservation): void {
     stopReason,
     durationMs: observation.durationMs
   })
+}
+
+function emitLiveDelegationObservation(observation: LiveDelegationLifecycleObservation): void {
+  switch (observation.type) {
+    case 'turn_queued':
+      mainLogger.emit('orchestration.delegation.turn.queued', observation)
+      break
+    case 'child_bound':
+      mainLogger.emit('orchestration.delegation.child.bound', observation)
+      break
+    case 'turn_started':
+      mainLogger.emit('orchestration.delegation.turn.started', observation)
+      break
+    case 'turn_suspended':
+      mainLogger.emit('orchestration.delegation.turn.suspended', observation)
+      break
+    case 'turn_resumed':
+      mainLogger.emit('orchestration.delegation.turn.resumed', observation)
+      break
+    case 'turn_terminal':
+      if (observation.status === 'failed') {
+        mainLogger.emit('orchestration.delegation.turn.terminal', {
+          parentSessionId: observation.parentSessionId,
+          ...(observation.childSessionId ? { childSessionId: observation.childSessionId } : {}),
+          delegationId: observation.delegationId,
+          turnId: observation.turnId,
+          status: observation.status,
+          durationMs: observation.durationMs,
+          error: { category: observation.errorCategory }
+        })
+      } else {
+        mainLogger.emit('orchestration.delegation.turn.terminal', {
+          parentSessionId: observation.parentSessionId,
+          ...(observation.childSessionId ? { childSessionId: observation.childSessionId } : {}),
+          delegationId: observation.delegationId,
+          turnId: observation.turnId,
+          status: observation.status,
+          durationMs: observation.durationMs
+        })
+      }
+      break
+    case 'reconciliation_terminal':
+      if (observation.outcome === 'failed' || observation.outcome === 'quarantined') {
+        mainLogger.emit('orchestration.delegation.reconciliation.terminal', {
+          parentSessionId: observation.parentSessionId,
+          ...(observation.childSessionId ? { childSessionId: observation.childSessionId } : {}),
+          delegationId: observation.delegationId,
+          turnId: observation.turnId,
+          outcome: observation.outcome,
+          error: { category: observation.errorCategory }
+        })
+      } else {
+        mainLogger.emit('orchestration.delegation.reconciliation.terminal', {
+          parentSessionId: observation.parentSessionId,
+          ...(observation.childSessionId ? { childSessionId: observation.childSessionId } : {}),
+          delegationId: observation.delegationId,
+          turnId: observation.turnId,
+          outcome: observation.outcome
+        })
+      }
+      break
+    case 'stale_result_rejected':
+      mainLogger.emit('orchestration.delegation.stale_result.rejected', observation)
+      break
+  }
 }
 
 function createLivePort<T extends object>(resolve: () => T): T {
@@ -1952,6 +2020,7 @@ export async function createMainProcessControl(dependencies: {
           }
         }
       },
+      observe: emitLiveDelegationObservation,
       onChanged: (parentSessionId, delegationId) => {
         sessionQuery.notify({ sessionIds: [parentSessionId], reason: 'updated' })
         try {
