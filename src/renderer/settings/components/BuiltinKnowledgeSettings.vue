@@ -165,7 +165,6 @@
                 <Input
                   id="edit-builtin-config-description"
                   v-model="editingBuiltinConfig.description"
-                  required
                   :placeholder="t('settings.knowledgeBase.descriptionPlaceholder')"
                 />
               </div>
