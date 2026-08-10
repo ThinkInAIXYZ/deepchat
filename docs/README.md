@@ -38,6 +38,7 @@
 | [architecture/chat-scroll-ownership/](./architecture/chat-scroll-ownership/) | chat viewport ownership、windowing 与真实 Chromium 验证进行中 |
 | [architecture/memory-quality-gates-and-observability/](./architecture/memory-quality-gates-and-observability/) | retrieval artifact upload 待完成 |
 | [architecture/memory-vector-store-v2/](./architecture/memory-vector-store-v2/) | v2 已落地，保留 migration window 后的 VSS removal follow-up |
+| [architecture/main-process-structured-logging/](./architecture/main-process-structured-logging/) | Main JSONL、日志隐私治理与 Agent 并发诊断待实施 |
 | [issues/chat-history-search-scroll-coordinates/](./issues/chat-history-search-scroll-coordinates/) | 等待 Electron/macOS 物理滚动验证 |
 
 ## 保留的产品合同
