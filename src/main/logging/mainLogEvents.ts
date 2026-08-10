@@ -898,7 +898,7 @@ export function projectMainLogEvent<TEvent extends MainLogEventName>(
   event: TEvent,
   input: MainLogEventInputMap[TEvent]
 ): ProjectedMainLogEvent {
-  if (typeof event !== 'string' || !Object.hasOwn(EVENT_DEFINITIONS, event)) {
+  if (!isMainLogEventName(event)) {
     throw new MainLogEventProjectionError('event')
   }
   const definition = EVENT_DEFINITIONS[event] as MainLogEventDefinition<
@@ -910,4 +910,8 @@ export function projectMainLogEvent<TEvent extends MainLogEventName>(
     level: typeof definition.level === 'function' ? definition.level(safeInput) : definition.level,
     context
   }
+}
+
+export function isMainLogEventName(value: unknown): value is MainLogEventName {
+  return typeof value === 'string' && Object.hasOwn(EVENT_DEFINITIONS, value)
 }

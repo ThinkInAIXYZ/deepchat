@@ -42,7 +42,7 @@ export interface MainLoggerOptions {
 }
 
 const MAIN_LOG_RECORD_VERSION = 1 as const
-const MAX_MAIN_LOG_RECORD_BYTES = 16 * 1024
+export const MAX_MAIN_LOG_RECORD_BYTES = 16 * 1024
 const MAX_STARTUP_BUFFER_RECORDS = 64
 const MAX_STARTUP_BUFFER_BYTES = 64 * 1024
 
