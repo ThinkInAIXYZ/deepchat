@@ -69,9 +69,11 @@ application settings (`app-settings.json`), SQLite databases (`app_db/`), OAuth 
 **Early path resolvers** run before startup applies `app.setPath('userData', ...)`, so they should read
 `DEEPCHAT_E2E_USER_DATA_DIR` first and fall back to the default profile path.
 
-| Resolver | File | Provides | Rationale (Why not `app.getPath`) |
+The maintained profile-path consumers use these timing rules:
+
+| Consumer | File | Provides | Path timing |
 | --- | --- | --- | --- |
-| `ElectronMainLogPersistence.resolveLogDirectory` | `src/main/logging/electronMainLogPersistence.ts` | logs `logs/main.jsonl` and `logs/main.old.jsonl` | Main logging is enabled only after profile selection and settings hydration |
+| `ElectronMainLogPersistence.enable` | `src/main/logging/electronMainLogPersistence.ts` | logs `logs/main.jsonl` and `logs/main.old.jsonl` | Uses the injected Electron `userData` path after profile selection and settings hydration |
 | `ProviderDbLoader.userDataDir` | `src/main/provider/providerDbLoader.ts` | model provider `provider-db/` | `appMain.ts` → `app/mainProcess.ts` → `app/composition.ts` → `providerDbLoader.ts` |
 | `getDefaultUserDataDir()` | `test/e2e/fixtures/electronApp.ts` | profile root | No Electron `app` |
 

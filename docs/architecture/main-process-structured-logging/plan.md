@@ -16,8 +16,10 @@ Main business owner
                       └─ development console: fixed human-readable projection
 ```
 
-The implementation replaces the current shared variadic logger and global console interception. It
-does not add a second persisted Agent log or a released dual-write stage.
+The implementation replaces the shared variadic logger as a persistence API and removes global
+console interception. A console-only compatibility façade may remain for legacy diagnostics, but it
+cannot write files. The implementation does not add a second persisted Agent log or a released
+dual-write stage.
 
 ## 1. Typed Event Catalog
 
@@ -38,8 +40,9 @@ characters, prohibited secret sentinels, and maximum encoded size.
 
 ## 2. Main JSONL Adapter
 
-Replace `src/shared/logger.ts` with Main-owned logger modules under `src/main/app` after call-site
-migration. The final adapter:
+Add Main-owned logger modules under `src/main/logging`; `src/shared/logger.ts` remains a console-only
+compatibility façade until its subsystem owners remove or sanitize those diagnostics. The final
+adapter:
 
 - is the only importer of `electron-log`;
 - creates `MainLogRecordV1` with ISO timestamp, monotonic sequence, process UUID, app version, fixed
@@ -60,15 +63,15 @@ profile selection has run.
 
 ## 3. Call-Site Classification And Privacy Audit
 
-Audit Main call sites by subsystem. Every current persisted `logger.*`, intercepted `console.*`, and
-direct `electron-log` call is assigned one final disposition:
+Audit Main call sites by subsystem. Every `logger.*`, intercepted `console.*`, and direct
+`electron-log` call that previously reached the Main file is assigned one persistent disposition:
 
 1. typed persisted event;
-2. safe development-only native console output;
+2. non-persistent native console compatibility output;
 3. aggregate/rate-limited event;
-4. removal.
+4. exclusion from persistence.
 
-Prioritize removal or replacement of known high-risk paths:
+Prioritize exclusion from persistence or replacement with typed summaries for known high-risk paths:
 
 - raw MCP stderr and protocol payloads;
 - ACP PTY/protocol/update payloads and process environment/path dumps;
@@ -80,9 +83,10 @@ Prioritize removal or replacement of known high-risk paths:
 - shell command/arguments, tool raw input/output, and absolute paths;
 - whole Electron window/native object dumps.
 
-Normal high-frequency window, queue, refresh, chunk, retry, and capability logs are removed,
-converted to safe console debug output, or aggregated. State transitions, final failures, recovery,
-degradation and restoration remain persisted.
+Normal high-frequency window, queue, refresh, chunk, retry, and capability logs are excluded from
+persistence or aggregated. State transitions, final failures, recovery, degradation and restoration
+remain persisted. Repository-wide safety cleanup of non-persistent console arguments is outside this
+cutover and remains the responsibility of their subsystem owners.
 
 Each subsystem audit lands as a reviewable commit with focused tests where a security or observable
 contract changes.
@@ -95,10 +99,11 @@ operation-owned safe classification:
 - known error classes map to stable categories;
 - arbitrary Error properties, messages, response payloads, URLs, causes, and stacks are not copied;
 - fatal process events persist category only because stack lines can contain message-derived text;
-- worker/utility boundaries send typed safe error categories rather than arbitrary Error objects.
+- any worker/utility error selected for persistence crosses into Main as a typed safe category;
+  legacy worker/utility error IPC and console output remain outside the persistent contract.
 
-Tests include third-party-style errors carrying secret sentinels in message, cause, headers,
-response body, request config, and enumerable fields.
+Tests cover native Error message/stack content, payload-shaped unknown fields, nested getters, and
+Proxy inputs carrying secret sentinels.
 
 ## 5. Agent Admission Diagnostics
 
@@ -136,7 +141,7 @@ No title, prompt, handoff, answer, result summary, error text, Tape payload, or 
 Once all persistent call sites use the typed API:
 
 - remove the global console hook;
-- remove the variadic logger façade;
+- disconnect the variadic compatibility façade from every file transport;
 - migrate fatal process handlers and the remaining direct `electron-log` imports;
 - move logger ownership from `src/shared` to Main;
 - switch the active path to `logs/main.jsonl`;
@@ -144,8 +149,9 @@ Once all persistent call sites use the typed API:
 - update test setup mocks to the typed API;
 - update the maintained user-data profile contract and renderer performance references.
 
-Intermediate branch commits may retain the old logger while event definitions and call sites are
-migrated, but no commit writes both files and no released final state contains compatibility APIs.
+Intermediate branch commits may retain the old file transport while event definitions and call sites
+are migrated, but no commit writes both files and no released final state lets a compatibility API
+write persistent records.
 
 ## 8. Validation Strategy
 

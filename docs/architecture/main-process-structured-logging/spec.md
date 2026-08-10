@@ -25,8 +25,10 @@ it does not dual-write a new `main.log`. An old `main.log` left by a previous ve
 migrated, appended, nor deleted.
 
 Only an explicit, typed Main logger may persist records. Native `console.*` remains available for
-development output but is not intercepted or redirected to the JSONL file. `electron-log` remains an
-internal synchronous transport owned by one Main module; no business module may import it directly.
+non-persistent compatibility and development output but is not intercepted or redirected to the
+JSONL file. `electron-log` remains an internal synchronous transport owned by one Main module; no
+business module may import it directly. This architecture does not certify arbitrary legacy console
+arguments as content-safe; their removal or sanitization remains a separate subsystem concern.
 
 ## Goals
 
@@ -50,14 +52,15 @@ internal synchronous transport owned by one Main module; no business module may 
 
 ## Log Value Policy
 
-Every existing Main log call must be classified before the cutover.
+Every existing Main log call that previously reached the file through interception must be
+classified for its persistent disposition before the cutover.
 
 | Classification | Persistent behavior | Examples |
 | --- | --- | --- |
 | Required | Typed event in `main.jsonl` | startup terminal, database migration failure, process crash, Run terminal, delegation settlement, queue-full admission |
-| Development-only | Safe native console output | capability counts, normal refresh details, window focus, protocol type summaries |
+| Console-only | No file output | legacy diagnostics that remain outside the persistent contract |
 | Aggregate or rate-limit | Typed summary or transition event | repeated provider fallback, watcher restart, embedding retry, tool catalog degradation |
-| Remove | No persistent or content-bearing console output | stream chunks, PTY/stdout/stderr text, prompt/messages, tool payloads, full URLs, SQL/params, environment dumps |
+| Exclude | No persistent output | stream chunks, PTY/stdout/stderr text, prompt/messages, tool payloads, full URLs, SQL/params, environment dumps |
 | Add | New typed event or bounded metric | Agent admission wait/hold, Run start/terminal, delegation child bind/suspend/resume/terminal |
 
 An event is valuable only when it can change a diagnosis or an operational action. A log that merely
@@ -90,8 +93,8 @@ Required invariants:
 - Severity is owned by the event definition, not chosen independently at each call site.
 - Each event has an event-specific context type and runtime projector. Unknown fields are never
   copied into the persisted record.
-- The maximum encoded record size is 16 KiB. Optional fields are omitted before serialization;
-  serialized JSON bytes are never cut in the middle.
+- The maximum physical record size is 16 KiB, including its trailing LF delimiter. Optional fields
+  are omitted before serialization; serialized JSON bytes are never cut in the middle.
 - Newlines and control characters inside accepted strings are escaped by JSON serialization, so one
   event always occupies one physical line.
 - No free-form persisted `message`, `args`, or `metadata` escape hatch exists.
@@ -261,8 +264,9 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 - Only the Main logger adapter may import `electron-log`.
 - Main business modules emit typed events through the event catalog.
 - Native `console.*` is never persisted automatically.
-- Utility processes and workers do not write `main.jsonl`. They send bounded typed lifecycle/error
-  events to Main; Main validates and persists them.
+- Utility processes and workers do not write `main.jsonl` directly. Any diagnostic selected for
+  persistence must reach Main as a bounded typed event for validation; legacy worker/utility error
+  IPC and console output remain outside the persistent contract.
 - Renderer/preload console output is outside this architecture. Existing renderer performance
   NDJSON and CLI audit JSONL retain their own schemas, gates, and retention behavior.
 
@@ -288,7 +292,8 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 6. Tests prove prohibited sentinel values cannot enter a record through typed contexts, errors,
    unknown fields, oversized values, rotation failures, or startup buffering.
 7. Rotation preserves complete JSON lines and never invokes crop behavior.
-8. Existing high-risk payload logs are removed or replaced with safe summaries before cutover.
+8. Existing high-risk payload logs cannot reach the persistent transport after cutover; required
+   diagnostics are represented by safe typed summaries.
 9. High-frequency success/protocol/stream logs do not persist; required lifecycle and terminal
    events remain available.
 10. Run, Delegation, Turn, child binding, suspend/resume, and terminal events carry the identities
@@ -297,7 +302,8 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
     release, close, wait/hold timing, bounded distributions, and observer failure isolation.
 12. Logging and observation failures do not change Main startup, shutdown, provider, tool, Tape,
     delegation, or admission behavior.
-13. Targeted tests, format, i18n, lint, node/web typecheck, and relevant Main suites pass.
+13. Targeted tests, format, i18n, lint, node/web typecheck, and relevant Main suites pass, except for
+    environment-gated coverage whose blocker and skipped tests are documented explicitly.
 14. Every implementation commit is reviewed for hidden side effects, compatibility, edge cases,
     performance, security, naming, tests, and maintenance cost before commit.
 15. No remote Git operation is performed.
@@ -319,6 +325,8 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 - Persistent metric history beyond the bounded Main JSONL stream.
 - Replacing CLI audit or renderer performance diagnostics.
 - Migrating, parsing, rewriting, or deleting historical `main.log` files.
+- Repository-wide removal or sanitization of legacy native-console diagnostics; they remain outside
+  the persistent transport and are not certified by this file-format privacy contract.
 - Logging every function, request, protocol message, provider chunk, or state mutation.
 
 ## Open Questions
