@@ -223,6 +223,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'shield-alert',
     'shield-check',
     'shield-off',
+    'shield-x',
     'shopping-bag',
     'sliders-horizontal',
     'smartphone',
