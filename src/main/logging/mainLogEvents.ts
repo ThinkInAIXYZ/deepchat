@@ -45,6 +45,18 @@ interface MainLogStartupComponentError {
   category: MainLogStartupComponentFailureCategory
 }
 
+interface MainLogUpdateOperationError {
+  category: 'persistence' | 'provider' | 'unknown'
+}
+
+export type MainLogUpdateOperation =
+  | 'check'
+  | 'download'
+  | 'install'
+  | 'install_verification'
+  | 'marker_reconcile'
+  | 'marker_write'
+
 export type MainLogStartupComponent =
   | 'acp_install_compensation'
   | 'acp_registry_migration'
@@ -197,6 +209,10 @@ export interface MainLogEventInputMap {
     startupRunId: string
   } & MainLogAppTerminalInput
   'app.startup.component.failed': MainLogStartupComponentFailureInput
+  'app.update.operation.failed': {
+    operation: MainLogUpdateOperation
+    error: MainLogUpdateOperationError
+  }
   'app.shutdown.started': {
     reason: MainLogShutdownReason
   }
@@ -397,6 +413,15 @@ const STARTUP_COMPONENT_ERROR_CATEGORIES = [
   'resource',
   'unknown'
 ] as const
+const UPDATE_OPERATIONS = [
+  'check',
+  'download',
+  'install',
+  'install_verification',
+  'marker_reconcile',
+  'marker_write'
+] as const satisfies readonly MainLogUpdateOperation[]
+const UPDATE_OPERATION_ERROR_CATEGORIES = ['persistence', 'provider', 'unknown'] as const
 const RELEASE_REASONS = ['permit_released', 'lease_suspended', 'lease_released'] as const
 const REJECTION_REASONS = ['queue_full', 'aborted', 'closed'] as const
 const TURN_KINDS = ['initial', 'follow_up'] as const
@@ -552,6 +577,13 @@ function startupComponentError(value: unknown): MainLogContext {
   const snapshot = snapshotDataObject('error', value as MainLogStartupComponentError, ['category'])
   return {
     category: oneOf('error.category', snapshot.category, STARTUP_COMPONENT_ERROR_CATEGORIES)
+  }
+}
+
+function updateOperationError(value: unknown): MainLogContext {
+  const snapshot = snapshotDataObject('error', value as MainLogUpdateOperationError, ['category'])
+  return {
+    category: oneOf('error.category', snapshot.category, UPDATE_OPERATION_ERROR_CATEGORIES)
   }
 }
 
@@ -728,6 +760,14 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
       startupRunId: identifier('startupRunId', input.startupRunId),
       component: oneOf('component', input.component, STARTUP_COMPONENTS),
       error: startupComponentError(input.error)
+    })
+  },
+  'app.update.operation.failed': {
+    inputFields: ['operation', 'error'],
+    level: 'warn',
+    project: (input) => ({
+      operation: oneOf('operation', input.operation, UPDATE_OPERATIONS),
+      error: updateOperationError(input.error)
     })
   },
   'app.shutdown.started': {

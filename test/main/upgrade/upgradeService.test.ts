@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -88,6 +88,7 @@ describe('UpgradeService', () => {
     appGetVersionMock.mockReset()
     appGetVersionMock.mockReturnValue('1.0.0')
     vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockReset()
+    vi.mocked(electronUpdater.autoUpdater.downloadUpdate).mockReset()
   })
 
   afterEach(async () => {
@@ -183,6 +184,148 @@ describe('UpgradeService', () => {
     expect(electronUpdater.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
   })
 
+  it('reports update-check failures without exposing the source error', async () => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn(() => {
+      throw new Error('diagnostic sink failed')
+    })
+    vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockRejectedValue(
+      new Error('SECRET_UPDATE_RESPONSE')
+    )
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+
+    await expect(service.checkUpdate()).resolves.toBeUndefined()
+
+    expect(service.getUpdateStatus()).toMatchObject({
+      status: 'error',
+      error: 'SECRET_UPDATE_RESPONSE'
+    })
+    expect(publishEventMock).toHaveBeenCalledWith(
+      'upgrade.status.changed',
+      expect.objectContaining({ status: 'error', error: 'SECRET_UPDATE_RESPONSE' })
+    )
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'check',
+      errorCategory: 'unknown'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_UPDATE_RESPONSE')
+  })
+
+  it('reports one diagnostic episode for concurrent and repeated automatic check failures', async () => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockRejectedValue(
+      new Error('automatic check failed')
+    )
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+
+    await Promise.all([service.checkUpdate('autoCheck'), service.checkUpdate('autoCheck')])
+    await service.checkUpdate('autoCheck')
+
+    expect(electronUpdater.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(3)
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(service.getUpdateStatus().status).toBe('error')
+  })
+
+  it('starts a new automatic check failure episode after a successful check', async () => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    vi.mocked(electronUpdater.autoUpdater.checkForUpdates)
+      .mockRejectedValueOnce(new Error('first outage'))
+      .mockResolvedValueOnce(undefined as never)
+      .mockRejectedValueOnce(new Error('second outage'))
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+
+    await service.checkUpdate('autoCheck')
+    await service.checkUpdate('autoCheck')
+    await service.checkUpdate('autoCheck')
+
+    expect(observeFailure).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports asynchronous update-download failures without exposing the source error', async () => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    vi.mocked(electronUpdater.autoUpdater.downloadUpdate).mockRejectedValue(
+      new Error('SECRET_DOWNLOAD_RESPONSE')
+    )
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+    const available = autoUpdaterState.listeners.get('update-available')
+    available!({ version: '1.1.0', releaseDate: '2026-08-01', releaseNotes: '' })
+
+    expect(service.startDownloadUpdate()).toBe(true)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'download',
+      errorCategory: 'provider'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_DOWNLOAD_RESPONSE')
+  })
+
+  it('reports install handoff failures and restores the updating flag', async () => {
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    requestUpdateInstallMock.mockRejectedValue(new Error('SECRET_INSTALL_ERROR'))
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+    ;(service as any)._status = 'downloaded'
+
+    expect(service.restartToUpdate()).toBe(true)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(service.isUpdatingInProgress()).toBe(false)
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'install',
+      errorCategory: 'unknown'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_INSTALL_ERROR')
+  })
+
   it('ignores cross-channel downgrades when current install is a prerelease', () => {
     appGetVersionMock.mockReturnValue('1.0.5-beta.5')
     const settings = {
@@ -250,6 +393,63 @@ describe('UpgradeService', () => {
     expect((service as any)._versionInfo?.version).toBe('1.0.5')
   })
 
+  it('reports malformed update-marker reconciliation and still removes the marker', async () => {
+    const markerPath = path.join(userDataDirectory, 'auto_update_marker.json')
+    await writeFile(markerPath, '{SECRET_MALFORMED_MARKER')
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn(() => {
+      throw new Error('diagnostic sink failed')
+    })
+
+    new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'marker_reconcile',
+      errorCategory: 'unknown'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_MALFORMED_MARKER')
+    expect(existsSync(markerPath)).toBe(false)
+  })
+
+  it('reports marker-write failure but still publishes downloaded status', async () => {
+    const markerPath = path.join(userDataDirectory, 'auto_update_marker.json')
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
+    const observeFailure = vi.fn()
+    new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock,
+      observeFailure
+    )
+    await mkdir(markerPath)
+    const downloaded = autoUpdaterState.listeners.get('update-downloaded')
+
+    downloaded!({ version: '1.1.0', releaseDate: '2026-08-01', releaseNotes: 'SECRET_NOTES' })
+
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'marker_write',
+      errorCategory: 'persistence'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('SECRET_NOTES')
+    expect(publishEventMock).toHaveBeenCalledWith(
+      'upgrade.status.changed',
+      expect.objectContaining({ status: 'downloaded' })
+    )
+  })
+
   it('coerces a Date releaseDate from electron-updater into an ISO string for the IPC contract', () => {
     // electron-updater parses latest*.yml via js-yaml, which turns an unquoted
     // ISO releaseDate into a Date object. The service must normalize it before
@@ -298,16 +498,27 @@ describe('UpgradeService', () => {
     const settings = {
       getChannel: vi.fn(() => 'stable')
     } as any
+    const observeFailure = vi.fn(() => {
+      throw new Error('diagnostic sink failed')
+    })
 
     const service = new UpgradeService(
       settings,
       () => false,
       requestUpdateInstallMock,
-      publishEventMock
+      publishEventMock,
+      observeFailure
     )
 
     expect((service as any)._status).toBe('error')
     expect((service as any)._previousUpdateFailed).toBe(true)
+    expect(observeFailure).toHaveBeenCalledOnce()
+    expect(observeFailure).toHaveBeenCalledWith({
+      operation: 'install_verification',
+      errorCategory: 'unknown'
+    })
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('Release notes')
+    expect(JSON.stringify(observeFailure.mock.calls)).not.toContain('deepchatai.cn')
     expect(publishEventMock).toHaveBeenCalledWith(
       'upgrade.status.changed',
       expect.objectContaining({

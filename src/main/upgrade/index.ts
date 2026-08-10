@@ -44,6 +44,17 @@ type UpdateStatus =
   | 'downloaded'
   | 'error'
 
+export type UpgradeFailureObservation = {
+  operation:
+    | 'check'
+    | 'download'
+    | 'install'
+    | 'install_verification'
+    | 'marker_reconcile'
+    | 'marker_write'
+  errorCategory: 'persistence' | 'provider' | 'unknown'
+}
+
 interface UpdateProgress {
   bytesPerSecond: number
   percent: number
@@ -116,6 +127,7 @@ export class UpgradeService {
   private _previousUpdateFailed: boolean = false // 标记上次更新是否失败
   private _isUpdating: boolean = false // Flag to track if update installation is in progress
   private _isMockUpdate: boolean = false
+  private _automaticCheckFailureActive: boolean = false
   private readonly requestUpdateInstall: (installAction: () => void) => Promise<void>
 
   private emitStatusChanged(payload: {
@@ -154,7 +166,9 @@ export class UpgradeService {
     private readonly settings: UpdateSettings,
     private readonly isPrivacyModeEnabled: () => boolean,
     requestUpdateInstall: (installAction: () => void) => Promise<void>,
-    private readonly publishEvent: DeepchatEventPublisher
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly observeFailure: (observation: UpgradeFailureObservation) => void = () =>
+      undefined
   ) {
     this.requestUpdateInstall = requestUpdateInstall
     this._updateMarkerPath = getUpdateMarkerFilePath()
@@ -324,6 +338,7 @@ export class UpgradeService {
         this._error = '上次自动更新未完成'
         this._versionInfo = updateInfo
         this._previousUpdateFailed = true // 标记上次更新失败
+        this.notifyFailure('install_verification', 'unknown')
 
         // 删除标记文件
         fs.unlinkSync(this._updateMarkerPath)
@@ -342,6 +357,7 @@ export class UpgradeService {
         })
       }
     } catch (error) {
+      this.notifyFailure('marker_reconcile', 'unknown')
       console.error('检查未完成更新失败', error)
       // 出错时尝试删除标记文件
       try {
@@ -369,6 +385,7 @@ export class UpgradeService {
       fs.writeFileSync(this._updateMarkerPath, JSON.stringify(updateInfo, null, 2), 'utf8')
       logger.info('写入更新标记文件成功', this._updateMarkerPath)
     } catch (error) {
+      this.notifyFailure('marker_write', 'persistence')
       console.error('写入更新标记文件失败', error)
     }
   }
@@ -385,6 +402,7 @@ export class UpgradeService {
     }
 
     if (!this._versionInfo) {
+      this.notifyFailure('download', 'unknown')
       console.warn('Downloaded update is missing version info, skipping renderer broadcast.')
       return
     }
@@ -421,11 +439,12 @@ export class UpgradeService {
       return
     }
 
+    const checkType = type ?? 'manualCheck'
     try {
       this._status = 'checking'
       this._error = null
       this._progress = null
-      this._lastCheckType = type ?? 'manualCheck'
+      this._lastCheckType = checkType
       this.emitStatusChanged({
         status: this._status
       })
@@ -436,7 +455,12 @@ export class UpgradeService {
 
       await autoUpdater.checkForUpdates()
       this._lastCheckTime = Date.now()
+      this._automaticCheckFailureActive = false
     } catch (error: Error | unknown) {
+      if (checkType !== 'autoCheck' || !this._automaticCheckFailureActive) {
+        this.notifyFailure('check', 'unknown')
+      }
+      if (checkType === 'autoCheck') this._automaticCheckFailureActive = true
       this._status = 'error'
       this._error = error instanceof Error ? error.message : String(error)
       this.emitStatusChanged({
@@ -500,6 +524,7 @@ export class UpgradeService {
           }
         })
         .catch((error: Error | unknown) => {
+          this.notifyFailure('download', 'provider')
           this._lock = false
           this._status = 'error'
           this._error = error instanceof Error ? error.message : String(error)
@@ -511,6 +536,7 @@ export class UpgradeService {
         })
       return true
     } catch (error: Error | unknown) {
+      this.notifyFailure('download', 'unknown')
       this._status = 'error'
       this._error = error instanceof Error ? error.message : String(error)
       this.emitStatusChanged({
@@ -549,6 +575,7 @@ export class UpgradeService {
     this.emitWillRestart()
     this.setUpdatingFlag(true)
     void this.requestUpdateInstall(installAction).catch((error) => {
+      this.notifyFailure('install', 'unknown')
       console.error('Failed to start update installation flow', error)
       this.setUpdatingFlag(false)
       this.emitError(error instanceof Error ? error.message : String(error))
@@ -612,6 +639,7 @@ export class UpgradeService {
       this._doQuitAndInstall()
       return true
     } catch (e) {
+      this.notifyFailure('install', 'unknown')
       console.error('重启更新失败', e)
       this.emitError(e instanceof Error ? e.message : String(e))
       return false
@@ -642,5 +670,16 @@ export class UpgradeService {
   // Get update flag
   isUpdatingInProgress(): boolean {
     return this._isUpdating
+  }
+
+  private notifyFailure(
+    operation: UpgradeFailureObservation['operation'],
+    errorCategory: UpgradeFailureObservation['errorCategory']
+  ): void {
+    try {
+      this.observeFailure({ operation, errorCategory })
+    } catch {
+      // Diagnostics must not change updater state or user-facing recovery behavior.
+    }
   }
 }

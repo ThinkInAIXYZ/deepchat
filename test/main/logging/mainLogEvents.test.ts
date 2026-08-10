@@ -185,6 +185,41 @@ describe('Main log event projection', () => {
     ).toThrow(MainLogEventProjectionError)
   })
 
+  it('projects updater failures without version, URL, or source error content', () => {
+    const projected = projectMainLogEvent('app.update.operation.failed', {
+      operation: 'download',
+      error: {
+        category: 'provider',
+        message: 'SECRET_DOWNLOAD_URL',
+        version: 'SECRET_VERSION'
+      }
+    } as never)
+
+    expect(projected).toEqual({
+      level: 'warn',
+      context: {
+        operation: 'download',
+        error: { category: 'provider' }
+      }
+    })
+    expect(JSON.stringify(projected)).not.toContain('SECRET_')
+  })
+
+  it('rejects unknown updater operations and unrelated error categories', () => {
+    expect(() =>
+      projectMainLogEvent('app.update.operation.failed', {
+        operation: 'download_progress',
+        error: { category: 'provider' }
+      } as never)
+    ).toThrow(MainLogEventProjectionError)
+    expect(() =>
+      projectMainLogEvent('app.update.operation.failed', {
+        operation: 'download',
+        error: { category: 'permission' }
+      } as never)
+    ).toThrow(MainLogEventProjectionError)
+  })
+
   it('rejects broad database error categories and drops enriched error fields', () => {
     const broadCategory = {
       outcome: 'failed',

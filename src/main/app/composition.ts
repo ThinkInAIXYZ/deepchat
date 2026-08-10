@@ -1081,7 +1081,12 @@ export async function createMainProcessControl(dependencies: {
     updateSettings,
     () => dependencies.privacySettings.isEnabled(),
     dependencies.requestUpdateInstall,
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    (observation) =>
+      mainLogger.emit('app.update.operation.failed', {
+        operation: observation.operation,
+        error: { category: observation.errorCategory }
+      })
   )
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
   fileService = new FileService(dependencies.settingsStore)
