@@ -3,9 +3,14 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises
 import os from 'node:os'
 import path from 'node:path'
 import { unzipSync } from 'fflate'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { parseCuaRuntimeIntegrityDescriptor } from '@/plugin/cuaRuntimeIntegrity'
+
+vi.unmock('fs')
+vi.unmock('node:fs')
+vi.unmock('path')
+vi.unmock('node:path')
 
 const ROOT = process.cwd()
 const tempRoots: string[] = []
@@ -184,6 +189,18 @@ function runPackagePlugin(
       }
     }
   )
+}
+
+async function loadPackagePlugin() {
+  return (await import('../../../scripts/package-plugin.mjs')) as {
+    writeCuaRuntimeIntegrityDescriptor: (
+      pluginDir: string,
+      args: { targetPlatform: string; targetArch: string; purpose?: string }
+    ) => {
+      descriptor: Record<string, unknown>
+      descriptorPath: string
+    }
+  }
 }
 
 describe('package-plugin', () => {
@@ -367,6 +384,39 @@ describe('package-plugin', () => {
       Buffer.from(files['runtime/win32/x64/integrity.json']).toString('utf8')
     )
     expect(integrity.files).not.toHaveProperty('integrity.json')
+  })
+
+  it('writes the integrity descriptor required by directory development', async () => {
+    const fixture = await createCuaPluginFixture()
+    const { writeCuaRuntimeIntegrityDescriptor } = await loadPackagePlugin()
+    const integrityPath = path.join(
+      fixture.pluginDir,
+      'runtime',
+      'win32',
+      'x64',
+      'integrity.json'
+    )
+    await writeFile(integrityPath, 'stale descriptor')
+
+    const { descriptor, descriptorPath } = writeCuaRuntimeIntegrityDescriptor(
+      fixture.pluginDir,
+      {
+        targetPlatform: 'win32',
+        targetArch: 'x64'
+      }
+    )
+
+    expect(descriptorPath).toBe(integrityPath)
+    expect(JSON.parse(await readFile(descriptorPath, 'utf8'))).toEqual(descriptor)
+    expect(descriptor).toMatchObject({
+      runtimeVersion: '0.19.2',
+      target: 'win32/x64',
+      runtimeRoot: 'runtime/win32/x64'
+    })
+    expect((descriptor.files as Record<string, string>)).not.toHaveProperty('integrity.json')
+    expect(() =>
+      parseCuaRuntimeIntegrityDescriptor(descriptor, 'directory development fixture')
+    ).not.toThrow()
   })
 
   it('records the explicit macOS distribution identity in the integrity descriptor', async () => {

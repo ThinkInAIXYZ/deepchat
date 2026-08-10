@@ -16,6 +16,7 @@ import {
 } from './cua-macos-contract.mjs'
 import { signMacHelper } from './sign-cua-helper.mjs'
 import { parseCuaToolCatalog } from './cua-tool-catalog-contract.mjs'
+import { writeCuaRuntimeIntegrityDescriptor } from './package-plugin.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = process.env.DEEPCHAT_ROOT_DIR
@@ -675,12 +676,12 @@ export function enforceDarwinLoadPathContract(
 
 async function signDarwinHelper(runtimeDir, targetPlatform, packagePurpose) {
   if (targetPlatform !== 'darwin' || process.platform !== 'darwin') {
-    return
+    return null
   }
   ensureTool('codesign', ['--version'])
   const helperAppPath = path.join(runtimeDir, darwinHelperAppDirName)
   const entitlementsPath = path.join(pluginDir, 'build', 'entitlements.plist')
-  await signMacHelper({
+  return signMacHelper({
     appPath: helperAppPath,
     entitlementsPath,
     purpose: packagePurpose,
@@ -734,19 +735,27 @@ async function main() {
     if (targetPlatform === 'darwin' && process.platform === 'darwin') {
       enforceDarwinLoadPathContract(executable)
     }
-    await signDarwinHelper(runtimeDir, targetPlatform, packagePurpose)
+    const signingResult = await signDarwinHelper(runtimeDir, targetPlatform, packagePurpose)
     smokeCheck(executable, targetPlatform, targetArch)
     await generateCuaToolCatalog(
       executable,
       path.join(runtimeDir, 'tool-catalog.json'),
       metadata.version
     )
-
-    const relativeRuntimePath = path.relative(rootDir, runtimeDir)
     const stat = await fs.stat(executable)
     if (stat.size === 0) {
       throw new Error('Staged CUA runtime is invalid')
     }
+    const { descriptorPath } = writeCuaRuntimeIntegrityDescriptor(pluginDir, {
+      targetPlatform,
+      targetArch,
+      purpose: signingResult?.purpose ?? packagePurpose
+    })
+    console.log(
+      `Generated CUA runtime integrity descriptor: ${path.relative(rootDir, descriptorPath)}`
+    )
+
+    const relativeRuntimePath = path.relative(rootDir, runtimeDir)
     console.log(`CUA Driver ${metadata.tag} staged at ${relativeRuntimePath}`)
   } catch (error) {
     buildError = error
