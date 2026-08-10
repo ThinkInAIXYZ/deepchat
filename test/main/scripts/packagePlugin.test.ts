@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import fs from 'node:fs'
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { unzipSync } from 'fflate'
@@ -417,6 +418,45 @@ describe('package-plugin', () => {
     expect(() =>
       parseCuaRuntimeIntegrityDescriptor(descriptor, 'directory development fixture')
     ).not.toThrow()
+  })
+
+  it('restores the previous descriptor when replacement fails', async () => {
+    const fixture = await createCuaPluginFixture()
+    const { writeCuaRuntimeIntegrityDescriptor } = await loadPackagePlugin()
+    const runtimeDir = path.join(fixture.pluginDir, 'runtime', 'win32', 'x64')
+    const integrityPath = path.join(runtimeDir, 'integrity.json')
+    const previousDescriptor = 'previous descriptor'
+    await writeFile(integrityPath, previousDescriptor)
+
+    const renameSync = fs.renameSync.bind(fs)
+    let replacementAttempts = 0
+    const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation((source, destination) => {
+      if (String(source).endsWith('.tmp') && String(destination) === integrityPath) {
+        replacementAttempts += 1
+        throw Object.assign(
+          new Error(replacementAttempts === 1 ? 'target exists' : 'replacement failed'),
+          { code: replacementAttempts === 1 ? 'EEXIST' : 'EIO' }
+        )
+      }
+      renameSync(source, destination)
+    })
+
+    try {
+      expect(() =>
+        writeCuaRuntimeIntegrityDescriptor(fixture.pluginDir, {
+          targetPlatform: 'win32',
+          targetArch: 'x64'
+        })
+      ).toThrow('replacement failed')
+    } finally {
+      renameSpy.mockRestore()
+    }
+
+    expect(replacementAttempts).toBe(2)
+    expect(await readFile(integrityPath, 'utf8')).toBe(previousDescriptor)
+    expect(
+      (await readdir(runtimeDir)).filter((name) => name.startsWith('.integrity.json-'))
+    ).toEqual([])
   })
 
   it('records the explicit macOS distribution identity in the integrity descriptor', async () => {

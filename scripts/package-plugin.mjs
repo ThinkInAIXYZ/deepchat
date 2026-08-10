@@ -674,6 +674,7 @@ export function writeCuaRuntimeIntegrityDescriptor(pluginDir, args) {
     path.dirname(descriptorPath),
     `.${path.basename(descriptorPath)}-${randomUUID()}.tmp`
   )
+  const backupPath = `${temporaryPath}.backup`
   fs.mkdirSync(path.dirname(descriptorPath), { recursive: true })
   try {
     fs.writeFileSync(temporaryPath, `${JSON.stringify(descriptor, null, 2)}\n`, { flag: 'wx' })
@@ -681,14 +682,26 @@ export function writeCuaRuntimeIntegrityDescriptor(pluginDir, args) {
       fs.renameSync(temporaryPath, descriptorPath)
     } catch (error) {
       if (
-        process.platform !== 'win32' ||
         !(error instanceof Error) ||
         !['EEXIST', 'EPERM'].includes(error.code)
       ) {
         throw error
       }
-      fs.rmSync(descriptorPath, { force: true })
-      fs.renameSync(temporaryPath, descriptorPath)
+      fs.renameSync(descriptorPath, backupPath)
+      try {
+        fs.renameSync(temporaryPath, descriptorPath)
+      } catch (replacementError) {
+        try {
+          fs.renameSync(backupPath, descriptorPath)
+        } catch (restoreError) {
+          throw new AggregateError(
+            [replacementError, restoreError],
+            'CUA runtime integrity descriptor replacement and rollback failed'
+          )
+        }
+        throw replacementError
+      }
+      fs.rmSync(backupPath, { force: true })
     }
   } finally {
     fs.rmSync(temporaryPath, { force: true })
