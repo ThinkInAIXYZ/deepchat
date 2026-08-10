@@ -35,10 +35,13 @@ const handleChecked = (value: boolean | 'indeterminate') => {
 <template>
   <div
     :class="
-      cn('flex items-center gap-3', description ? 'flex-col items-start gap-1.5 py-1' : 'h-10')
+      cn(
+        'w-full flex items-center gap-3',
+        description ? 'flex-col items-start gap-1.5 py-1' : 'h-10'
+      )
     "
   >
-    <div class="flex min-w-0 flex-1 items-center gap-3">
+    <div class="flex min-w-0 w-full flex-1 items-center gap-3">
       <Icon v-if="icon" :icon="icon" class="size-4 shrink-0 text-muted-foreground" />
       <Label
         :for="id"

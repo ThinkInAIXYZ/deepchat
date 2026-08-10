@@ -136,6 +136,7 @@
             :show-trace="showTrace"
             :show-memory="memoryActivity.enabled && !isReadOnly"
             :is-read-only="isReadOnly"
+            :copy-text="copyText"
             @retry="handleAction('retry')"
             @delete="handleAction('delete')"
             @copy="handleAction('copy')"
@@ -415,6 +416,31 @@ const currentContent = computed(() => {
   return filterRenderableAssistantBlocks(blocks ?? [])
 })
 
+const copyText = computed(() =>
+  currentContent.value
+    .filter((block) => {
+      if (
+        (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
+        !uiSettingsStore.copyWithCotEnabled
+      ) {
+        return false
+      }
+      return true
+    })
+    .map((block) => {
+      const trimmedContent = (block.content ?? '').trim()
+      if (
+        (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
+        uiSettingsStore.copyWithCotEnabled
+      ) {
+        return `<think>\n${trimmedContent}\n</think>`
+      }
+      return trimmedContent
+    })
+    .join('\n')
+    .trim()
+)
+
 const promotedImageSources = computed(() =>
   Array.from(
     new Set(
@@ -642,30 +668,7 @@ const handleAction = (action: HandleActionType) => {
   } else if (action === 'delete') {
     emit('delete', currentMessage.value.id)
   } else if (action === 'copy') {
-    deviceClient.copyText(
-      currentContent.value
-        .filter((block) => {
-          if (
-            (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
-            !uiSettingsStore.copyWithCotEnabled
-          ) {
-            return false
-          }
-          return true
-        })
-        .map((block) => {
-          const trimmedContent = (block.content ?? '').trim()
-          if (
-            (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
-            uiSettingsStore.copyWithCotEnabled
-          ) {
-            return `<think>\n${trimmedContent}\n</think>`
-          }
-          return trimmedContent
-        })
-        .join('\n')
-        .trim()
-    )
+    deviceClient.copyText(copyText.value)
   } else if (action === 'prev' || action === 'next') {
     if (!useLegacyActions.value) {
       return

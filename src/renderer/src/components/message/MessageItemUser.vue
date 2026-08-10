@@ -109,6 +109,7 @@
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
         :is-read-only="effectiveReadOnly"
+        :copy-text="copyText"
         @retry="onRetryAction"
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
@@ -323,6 +324,8 @@ const getCopyText = () => {
   }
   return props.message.content.text || ''
 }
+
+const copyText = computed(() => getCopyText())
 
 const cancelEdit = () => {
   isEditMode.value = false

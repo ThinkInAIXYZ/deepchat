@@ -32,6 +32,11 @@ import {
   type ComposerSessionDraft,
   type ComposerSubmissionSnapshot
 } from '../model/composerDraftState'
+import {
+  DRAFT_PERSISTENCE_DEBOUNCE_MS,
+  loadComposerDraftFromStorage,
+  saveComposerDraftToStorage
+} from '../model/composerDraftPersistence'
 import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
 
 type MessageStore = ReturnType<typeof useMessageStore>
@@ -486,6 +491,66 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     return copyComposerDocument(document ?? createComposerTextDocument(rawMessage))
   }
 
+  let composerDraftPersistTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * Read-only snapshot of the live composer for persistence. Unlike `captureLiveDraft` it never
+   * bumps revisions or fingerprints, so a debounced background timer cannot perturb draft tracking.
+   */
+  function captureDraftForPersistence(sessionId: string): ComposerSessionDraft {
+    const deferredDraft =
+      !chatInputRef.value && pendingHandleRestoreSessionId === sessionId
+        ? sessionDrafts.get(sessionId)
+        : undefined
+    return {
+      revision: draftRevisions.get(sessionId) ?? 0,
+      rawMessage: message.value,
+      files: copyComposerFiles(attachedFiles.value),
+      activeSkills: deferredDraft ? [...deferredDraft.activeSkills] : getComposerSkillsSnapshot(),
+      document: deferredDraft
+        ? copyComposerDocument(deferredDraft.document)
+        : getComposerDocumentSnapshot(message.value)
+    }
+  }
+
+  function persistComposerDraft(sessionId: string): void {
+    if (!sessionId) {
+      return
+    }
+    saveComposerDraftToStorage(sessionId, captureDraftForPersistence(sessionId))
+  }
+
+  function scheduleComposerDraftPersist(sessionId: string): void {
+    if (!sessionId) {
+      return
+    }
+    if (composerDraftPersistTimer) {
+      clearTimeout(composerDraftPersistTimer)
+    }
+    composerDraftPersistTimer = setTimeout(() => {
+      composerDraftPersistTimer = null
+      persistComposerDraft(sessionId)
+    }, DRAFT_PERSISTENCE_DEBOUNCE_MS)
+  }
+
+  function flushComposerDraftPersist(): void {
+    if (composerDraftPersistTimer) {
+      clearTimeout(composerDraftPersistTimer)
+      composerDraftPersistTimer = null
+    }
+    if (activeDraftSessionId) {
+      persistComposerDraft(activeDraftSessionId)
+    }
+  }
+
+  // Window teardown (app close / crash-free reload) can bypass the component unmount hook in
+  // Electron, so flush synchronously on pagehide/beforeunload as well.
+  const flushComposerDraftOnPageHide = () => flushComposerDraftPersist()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', flushComposerDraftOnPageHide)
+    window.addEventListener('beforeunload', flushComposerDraftOnPageHide)
+  }
+
   function captureLiveDraft(sessionId: string): ComposerSessionDraft {
     let revision = draftRevisions.get(sessionId) ?? 0
     const deferredDraft =
@@ -558,11 +623,13 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       }
       suppressedDraftMutations = Math.max(0, suppressedDraftMutations - 1)
     })
+    scheduleComposerDraftPersist(sessionId)
   }
 
   function markCurrentDraftChanged(): void {
     if (suppressedDraftMutations > 0 || !activeDraftSessionId) return
     nextRevision(activeDraftSessionId)
+    scheduleComposerDraftPersist(activeDraftSessionId)
   }
 
   function recordComposerDocumentChange(): void {
@@ -580,18 +647,34 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   function switchComposerSession(previousSessionId: string | undefined, sessionId: string): void {
+    // Flush any pending debounce before the editor starts to show another session's content, so a
+    // late timer can never persist the incoming draft under the outgoing session's storage key.
+    if (composerDraftPersistTimer) {
+      clearTimeout(composerDraftPersistTimer)
+      composerDraftPersistTimer = null
+    }
     const outgoingSessionId = previousSessionId || activeDraftSessionId
-    if (outgoingSessionId && outgoingSessionId === activeDraftSessionId) {
+    // On initial mount previousSessionId is undefined and outgoing === incoming, so there is no
+    // draft to take away — persisting the empty initial draft there would wipe a stored draft
+    // before it can be restored below.
+    if (
+      outgoingSessionId &&
+      outgoingSessionId === activeDraftSessionId &&
+      outgoingSessionId !== sessionId
+    ) {
       const outgoingDraft = applyPendingAcceptedSubmissions(
         outgoingSessionId,
         captureLiveDraft(outgoingSessionId)
       )
       sessionDrafts.set(outgoingSessionId, outgoingDraft)
       observedDraftFingerprints.set(outgoingSessionId, composerDraftFingerprint(outgoingDraft))
+      saveComposerDraftToStorage(outgoingSessionId, outgoingDraft)
     }
 
     const storedIncomingDraft =
-      sessionDrafts.get(sessionId) ?? createEmptyComposerDraft(draftRevisions.get(sessionId) ?? 0)
+      sessionDrafts.get(sessionId) ??
+      loadComposerDraftFromStorage(sessionId) ??
+      createEmptyComposerDraft(draftRevisions.get(sessionId) ?? 0)
     const incomingDraft = applyPendingAcceptedSubmissions(sessionId, storedIncomingDraft)
     applyLiveDraft(sessionId, incomingDraft)
   }
@@ -642,6 +725,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       sessionDrafts.set(sessionId, copyComposerDraft(nextDraft))
       observedDraftFingerprints.set(sessionId, composerDraftFingerprint(nextDraft))
       draftRevisions.set(sessionId, nextDraft.revision)
+      saveComposerDraftToStorage(sessionId, nextDraft)
     }
   }
 
@@ -1090,6 +1174,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     }
     sessionDrafts.set(sessionId, nextDraft)
     observedDraftFingerprints.set(sessionId, composerDraftFingerprint(nextDraft))
+    saveComposerDraftToStorage(sessionId, nextDraft)
   }
 
   function restoreInitialBlockedDraft(
@@ -1179,6 +1264,11 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   function dispose(): void {
+    flushComposerDraftPersist()
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', flushComposerDraftOnPageHide)
+      window.removeEventListener('beforeunload', flushComposerDraftOnPageHide)
+    }
     searchCapabilityRequestId += 1
     stopSearchCapabilityWatch()
     removeProvidersChangedListener()

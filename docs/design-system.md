@@ -618,7 +618,7 @@
 | `useDcFormSubmit` | `@dc-ui/components/form` | 提交状态机 composable：`{ status, run, reset }`；`run(fn)` 驱动 idle→submitting→success/error，成功/失败按时长自动回退 |
 | `useDcForm` | `@dc-ui/components/form` | 读取 `DcForm` 注入上下文（`DC_FORM_INJECTION_KEY`），供自定义提交控件使用 |
 | `DcBadge` | `@dc-ui/components/badge` | shadcn Badge 语义化封装：default/secondary/outline/destructive 透传 + `success`/`warning`/`danger`/`active`/`neutral`（带 dark 变体，与 DcStatusPill 色系一致） |
-| `DcCopyButton` | `@dc-ui/components/copy-button` | 复制按钮：`copy-text` + `navigator.clipboard`，成功图标短暂变 ✅（`success-duration`）；`label`/`show-toast` 可选；`@copied`/`@error` 事件 |
+| `DcCopyButton` | `@dc-ui/components/button` | 复制按钮：复用 `DcButton` 契约，`variant` 缺省 `ghost`；`copy-text` 必填触发复制（`useClipboard`），成功图标切 ✅（1200ms 自动回退、色值变 emerald）；`@copied`/`@error` 事件；`label`/`tooltip` 提供可访问名，`copy-text` 兜底 |
 | `DcDropdownActionItem` | `@dc-ui/components/dropdown-action-item` | 菜单动作项：`icon`/`label`/`danger`（destructive 变体）/`disabled`/`inset` + `@select`，收敛 `Icon mr-2 + span` 散写 |
 | `DcFormActions` | `@dc-ui/components/form-actions` | 表单底部操作组：「取消 + 提交（DcSubmitButton）」+ 中间插槽；`submit-status`/`cancel-label`/`submit-label`/`danger-submit` |
 
@@ -635,9 +635,10 @@
 - **tooltip 补齐边界**：只为可操作的 icon-only 控件补齐；文字按钮、纯展示 Icon、以及说明型 Switch/Checkbox/链接提示维持原行为，不为统一形式强行增加 tooltip。
 - 新增 dc-ui 组件需先证明既有组件无法覆盖；在本文档登记聚合后的完整契约，并符合 §20/§21 的密度与 token 规则。
 
-### 22.3 迁移状态（2026-08 批次，未提交）
+### 22.3 迁移状态（2026-08 批次）
 
 - **`DcButton` 聚合**：`DcIconButton` 已并入并删除（13 处调用迁入）；手写 Tooltip+按钮迁移 10 文件 30 处（MessageToolbar 12 / WindowSideBar 8 / ChatStatusBar 2 / ModelConfigItem / MessageBlockImage / MessageBlockToolCallImagePreview / SkillsIndicator / SkillsPanel / ChatInputToolbar 4）。`DcButton` 已补齐 tooltip 定位、延迟、content class 与 keyboard-focus 参数，保留复杂提示契约。
+- **`DcCopyButton` 归位**：由 `@dc-ui/components/copy-button` 并入 `@dc-ui/components/button`（旧目录删除），消费方（MessageToolbar / ArtifactBlock / CodeArtifact / McpJsonViewer / McpServers / TraceDialog / MessageBlockToolCall）全部经 `copy-text` 传入复制内容，MessageToolbar 增加 `copy-text` prop。
 - **`DcConfirmDialog`**：迁移 5 文件 7 框（ChatPage / ModelConfigDialog ×2 / KnowledgeFileItem ×2 / SkillInstallDialog / SkillDetailDialog ×2）+ ChatPage.test.ts 适配。
 - **`DcEmpty`**：迁移 10 文件 12 处空态（含 MemoryEmptyState 用 `#action` 插槽，组件接口不变）。
 - **`DcSectionCard`** 4 文件 11 卡（MemoryDiagnosticsPanel / MemoryDirectivesPanel / MemoryConfigInlinePanel / OfficialPluginDetailPage）；**`DcStatusPill`** 2 文件（RemoteSettings 5 渠道 / AcpDebugDialog）；**`DcInlineError`** 12 文件（McpServerForm 5 处等）。

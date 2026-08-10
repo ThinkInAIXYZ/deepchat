@@ -15,7 +15,7 @@ import {
   DialogDescription
 } from '@shadcn/components/ui/dialog'
 import { Input } from '@shadcn/components/ui/input'
-import { DcCopyButton } from '@dc-ui/components/copy-button'
+import { DcCopyButton } from '@dc-ui/components'
 import { DcSheetPanel } from '@dc-ui/components/sheet-panel'
 import { DcStatusPill } from '@dc-ui/components/status-pill'
 import { useMcpStore } from '@/stores/mcp'

@@ -248,7 +248,7 @@ import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/di
 import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
 import LiveDelegationToolCallCard from './LiveDelegationToolCallCard.vue'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
-import { DcCopyButton } from '@dc-ui/components/copy-button'
+import { DcCopyButton } from '@dc-ui/components'
 
 const McpAppView = defineAsyncComponent(() => import('@/components/mcp/McpAppView.vue'))
 
