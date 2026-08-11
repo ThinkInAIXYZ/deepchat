@@ -15,6 +15,16 @@ describe('StartupWorkloadCoordinator', () => {
     vi.useRealTimers()
   })
 
+  it('distinguishes expected cancellation from workload failure', async () => {
+    const { isStartupWorkloadCancellation } = await import('@/app/startupWorkloadCoordinator')
+    const cancellation = new Error('cancelled')
+    cancellation.name = 'AbortError'
+
+    expect(isStartupWorkloadCancellation(cancellation)).toBe(true)
+    expect(isStartupWorkloadCancellation(new Error('migration failed'))).toBe(false)
+    expect(isStartupWorkloadCancellation({ name: 'AbortError' })).toBe(true)
+  })
+
   it('prefers higher-priority pending work when a resource lane frees up', async () => {
     const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
     const coordinator = new StartupWorkloadCoordinator()

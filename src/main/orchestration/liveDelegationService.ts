@@ -50,7 +50,8 @@ import {
   LiveDelegationTaskContractError,
   type ActiveLiveDelegationTurn,
   type ActiveLiveDelegationTurnIdentity,
-  type LiveDelegationRepository
+  type LiveDelegationRepository,
+  type LiveDelegationWithTurn
 } from './liveDelegationRepository'
 import type {
   LiveDelegationSafetyPort,
@@ -184,7 +185,7 @@ export type LiveDelegationLifecycleObservation =
       type: 'reconciliation_terminal'
       childSessionId?: string
     } & (
-        | { outcome: 'resumed' | 'settled' }
+        | { outcome: 'settled' }
         | {
             outcome: 'quarantined' | 'failed'
             errorCategory: LiveDelegationFailureCategory
@@ -1348,13 +1349,17 @@ export class LiveDelegationService {
       status: 'completed' | 'failed' | 'cancelled' | 'interrupted'
       error?: string | null
     }
-  ): Promise<void> {
-    if (active.settling) return await active.completion.promise
+  ): Promise<LiveDelegationWithTurn | null> {
+    if (active.settling) {
+      await active.completion.promise
+      return null
+    }
     active.settling = true
     active.admissionLease.release()
     let fallbackSummary: string | null = null
     let fallbackTapeReceipt: SubagentTapeLinkReceipt | null = null
     let failureCategory: LiveDelegationFailureCategory = 'unknown'
+    let terminalSettlement: LiveDelegationWithTurn | null = null
     try {
       const delegation = this.options.repository.require(active.delegationId)
       const persistedResultResolution = await this.resolvePersistedResult(active)
@@ -1401,7 +1406,7 @@ export class LiveDelegationService {
       error = error
         ? truncateUtf8(sanitizeDelegationText(error), LIVE_DELEGATION_MAX_HANDOFF_BYTES)
         : null
-      const settled = this.options.repository.finishTurn({
+      terminalSettlement = this.options.repository.finishTurn({
         turnId: active.turnId,
         status,
         summary: summary || null,
@@ -1410,10 +1415,12 @@ export class LiveDelegationService {
         tapeReceipt,
         candidateResult: persistedResult?.answerMarkdown.trim() || null
       })
+      const settled = terminalSettlement
       this.observeTerminalTurn(settled, failureCategory)
       this.publishChanged(settled.delegation)
       this.notifyMailbox(settled.delegation.parentSessionId, settled.delegation.id)
     } catch (error) {
+      if (terminalSettlement) return terminalSettlement
       console.error('[LiveDelegationService] Failed to settle child turn:', {
         delegationId: active.delegationId,
         turnId: active.turnId,
@@ -1430,10 +1437,10 @@ export class LiveDelegationService {
               error
             }
           )
-          return
+          return null
         }
         if (turn && isActiveTurnStatus(turn.status)) {
-          const settled = this.options.repository.finishTurn({
+          terminalSettlement = this.options.repository.finishTurn({
             turnId: active.turnId,
             status: 'failed',
             summary: fallbackSummary,
@@ -1443,6 +1450,7 @@ export class LiveDelegationService {
             ),
             tapeReceipt: fallbackTapeReceipt
           })
+          const settled = terminalSettlement
           this.observeTerminalTurn(settled, 'persistence')
           this.publishChanged(settled.delegation)
           this.notifyMailbox(settled.delegation.parentSessionId, settled.delegation.id)
@@ -1456,7 +1464,7 @@ export class LiveDelegationService {
         try {
           const turn = this.options.repository.getTurn(active.turnId)
           if (turn && isActiveTurnStatus(turn.status)) {
-            const settled = this.options.repository.finishTurn({
+            terminalSettlement = this.options.repository.finishTurn({
               turnId: active.turnId,
               status: 'failed',
               error: truncateUtf8(
@@ -1467,6 +1475,7 @@ export class LiveDelegationService {
                 LIVE_DELEGATION_MAX_HANDOFF_BYTES
               )
             })
+            const settled = terminalSettlement
             this.observeTerminalTurn(settled, 'persistence')
             this.publishChanged(settled.delegation)
             this.notifyMailbox(settled.delegation.parentSessionId, settled.delegation.id)
@@ -1485,6 +1494,7 @@ export class LiveDelegationService {
       this.activeTurns.delete(active.turnId)
       active.completion.resolve()
     }
+    return terminalSettlement
   }
 
   private async resolvePersistedResult(active: ActiveTurn): Promise<PersistedResultResolution> {
@@ -1606,7 +1616,6 @@ export class LiveDelegationService {
     this.childToTurn.set(child.sessionId, turn.id)
     if (child.status === 'generating') {
       if (turn.status === 'waiting_permission' || turn.status === 'waiting_question') {
-        this.observeReconciliation(delegation, turn, { outcome: 'resumed' })
         return
       }
       if (turn.startedAt === null) {
@@ -1622,14 +1631,12 @@ export class LiveDelegationService {
         })
       }
       void this.runWithAdmission(active, async () => await active.completion.promise)
-      this.observeReconciliation(delegation, turn, { outcome: 'resumed' })
       return
     }
     if (turn.startedAt === null) {
       if (turn.taskContract) {
         active.runtimeStatus = null
         this.scheduleTurn(delegation, turn, createTurnExecutionSnapshot(child))
-        this.observeReconciliation(delegation, turn, { outcome: 'resumed' })
         return
       }
       const settled = this.options.repository.finishTurn({
@@ -1646,15 +1653,12 @@ export class LiveDelegationService {
       active.completion.resolve()
       return
     }
-    await this.settle(active, {
+    const settled = await this.settle(active, {
       status: child.status === 'error' ? 'failed' : 'completed',
       ...(child.status === 'error' ? { error: 'Child session was in an error state.' } : {})
     })
-    const reconciled = this.options.repository.getTurn(turn.id)
-    if (reconciled && !isActiveTurnStatus(reconciled.status)) {
-      this.observeReconciliation(this.options.repository.require(delegation.id), reconciled, {
-        outcome: 'settled'
-      })
+    if (settled) {
+      this.observeReconciliation(settled.delegation, settled.turn, { outcome: 'settled' })
     } else {
       this.observeReconciliation(delegation, turn, {
         outcome: 'failed',
@@ -1903,7 +1907,7 @@ export class LiveDelegationService {
     delegation: LiveDelegation,
     turn: LiveDelegationTurn,
     outcome:
-      | { outcome: 'resumed' | 'settled' }
+      | { outcome: 'settled' }
       | {
           outcome: 'quarantined' | 'failed'
           errorCategory: LiveDelegationFailureCategory

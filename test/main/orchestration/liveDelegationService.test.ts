@@ -2196,6 +2196,71 @@ describeIfSqlite('LiveDelegationService', () => {
     )
   })
 
+  it('does not turn a settled reconciliation into failure when its record is deleted', async () => {
+    await service.stop()
+    const created = repository.create({
+      id: 'delegation-deleted-after-settle',
+      initialTurnId: 'turn-deleted-after-settle',
+      parentSessionId: 'parent',
+      slotId: 'reviewer',
+      targetAgentId: 'agent-1',
+      title: 'Recover then delete',
+      prompt: 'Complete before concurrent deletion.',
+      taskContract: createLiveDelegationTaskContractInput(null),
+      now: 100
+    })
+    harness.addChild('child-deleted-after-settle', created.delegation.id, 'idle')
+    repository.bindChild(created.delegation.id, 'child-deleted-after-settle', 110)
+    repository.markTurnStarted(created.turn.id, 120)
+    harness.setAssistantResult(
+      'child-deleted-after-settle',
+      'Recovered result.',
+      'recovered-message'
+    )
+    const finishTurn = repository.finishTurn.bind(repository)
+    let deleted = false
+    vi.spyOn(repository, 'finishTurn').mockImplementation((input) => {
+      const settled = finishTurn(input)
+      if (!deleted && settled.turn.id === created.turn.id) {
+        deleted = true
+        db!
+          .prepare('DELETE FROM live_delegations WHERE delegation_id = ?')
+          .run(created.delegation.id)
+      }
+      return settled
+    })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    service = new LiveDelegationServiceCtor({
+      repository,
+      sessions: harness.sessions,
+      safety: harness.safety,
+      consent: consentAuthority,
+      admission: new AgentInvocationAdmission(2, 10),
+      deletionGate,
+      observe: (observation) => dispatchObservation(observation),
+      now: () => monotonicNow
+    })
+    service.start()
+
+    await vi.waitFor(() =>
+      expect(observations).toContainEqual(
+        expect.objectContaining({
+          type: 'reconciliation_terminal',
+          delegationId: created.delegation.id,
+          turnId: created.turn.id,
+          outcome: 'settled'
+        })
+      )
+    )
+    expect(deleted).toBe(true)
+    expect(
+      errorSpy.mock.calls.some(([message]) =>
+        String(message).includes('Failed to reconcile child turn')
+      )
+    ).toBe(false)
+  })
+
   it('freezes and inherits a compatibility contract before resuming a legacy active child', async () => {
     await service.stop()
     const created = repository.create({

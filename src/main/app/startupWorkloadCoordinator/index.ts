@@ -35,6 +35,19 @@ type StartupWorkloadTaskOptions<T> = {
   run: (context: StartupWorkloadTaskContext) => Promise<T>
 }
 
+export function isStartupWorkloadCancellation(error: unknown): boolean {
+  try {
+    return Boolean(
+      error &&
+      typeof error === 'object' &&
+      'name' in error &&
+      (error as { name?: string }).name === 'AbortError'
+    )
+  } catch {
+    return false
+  }
+}
+
 type StartupWorkloadRunState = {
   runId: string
   visibleTasks: Map<StartupWorkloadTaskId, StartupTaskRecord<unknown>>
@@ -332,7 +345,7 @@ export class StartupWorkloadCoordinator {
       task.resolve(result)
       this.finishTask(task, 'completed')
     } catch (error) {
-      if (task.controller.signal.aborted || this.isAbortError(error)) {
+      if (task.controller.signal.aborted || isStartupWorkloadCancellation(error)) {
         task.reject(this.createAbortError(task.id))
         this.finishTask(task, 'cancelled')
         return
@@ -419,15 +432,6 @@ export class StartupWorkloadCoordinator {
     const error = new Error(`Startup workload task "${taskId}" was cancelled`)
     error.name = 'AbortError'
     return error
-  }
-
-  private isAbortError(error: unknown): boolean {
-    return Boolean(
-      error &&
-      typeof error === 'object' &&
-      'name' in error &&
-      (error as { name?: string }).name === 'AbortError'
-    )
   }
 }
 

@@ -132,7 +132,8 @@ Instrument existing ownership boundaries rather than provider content paths:
 - Run terminal selection after the durable terminal fact and before/after safe projection as defined
   by the Journal contract;
 - delegation turn queue, child bind, handoff acceptance, suspend/resume, terminal settlement,
-  reconciliation terminal, stale-result rejection, and quarantine;
+  reconciliation terminal outcomes or failures (not normal resumed recovery), stale-result
+  rejection, and quarantine;
 - child Session and Loop Run correlation only after those identities exist.
 
 Durations use monotonic timestamps already owned by the relevant Run/turn or a local injected clock.

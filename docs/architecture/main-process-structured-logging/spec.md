@@ -114,7 +114,8 @@ The V1 catalog is deliberately limited to these low-frequency operational bounda
 - database initialization and fixed startup-component degradation;
 - `agent.run` and `agent.admission`;
 - `orchestration.delegation`;
-- durable Run and delegation reconciliation failures.
+- durable Run diagnostics and delegation reconciliation terminal outcomes or failures; normal
+  resumed recovery is not a terminal event.
 
 The catalog must not contain events for individual provider stream chunks, ACP protocol messages,
 PTY chunks, window focus changes, normal queue mutations, or normal refresh loops.

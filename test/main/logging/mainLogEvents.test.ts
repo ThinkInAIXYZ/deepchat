@@ -178,6 +178,48 @@ describe('Main log event projection', () => {
     expect(projected.context.error).not.toHaveProperty('retryable')
   })
 
+  it.each([
+    'disabled_agent_tool_capability_cleanup',
+    'legacy_import',
+    'rtk_health_check',
+    'sqlite_mainline_normalization',
+    'usage_stats_backfill'
+  ] as const)('accepts the background startup component %s', (component) => {
+    expect(
+      projectMainLogEvent('app.startup.component.failed', {
+        startupRunId: 'main:123:1',
+        component,
+        error: { category: component === 'rtk_health_check' ? 'resource' : 'persistence' }
+      }).context
+    ).toEqual({
+      startupRunId: 'main:123:1',
+      component,
+      error: { category: component === 'rtk_health_check' ? 'resource' : 'persistence' }
+    })
+  })
+
+  it('keeps reconciliation terminal events terminal-only', () => {
+    const identity = {
+      parentSessionId: 'parent_1',
+      childSessionId: 'child_1',
+      delegationId: 'delegation_1',
+      turnId: 'turn_1'
+    }
+
+    expect(
+      projectMainLogEvent('orchestration.delegation.reconciliation.terminal', {
+        ...identity,
+        outcome: 'settled'
+      })
+    ).toEqual({ level: 'info', context: { ...identity, outcome: 'settled' } })
+    expect(() =>
+      projectMainLogEvent('orchestration.delegation.reconciliation.terminal', {
+        ...identity,
+        outcome: 'resumed'
+      } as never)
+    ).toThrow(MainLogEventProjectionError)
+  })
+
   it('rejects unknown startup components and broad error categories independently', () => {
     const unknownComponent = {
       startupRunId: 'main:123:1',

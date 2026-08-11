@@ -211,7 +211,10 @@ import type {
   ProviderCatalogPort
 } from '../provider/ports'
 import type { SessionPermissionPort, SessionUiPort } from '../session/contracts'
-import { StartupWorkloadCoordinator } from '../app/startupWorkloadCoordinator'
+import {
+  isStartupWorkloadCancellation,
+  StartupWorkloadCoordinator
+} from '../app/startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from '../app/startupWorkloadCoordinator'
 import { LegacyChatImportService } from './startupMigrations/legacyChatImportService'
 import { UsageStatsService } from '../session/usageStatsService'
@@ -2902,9 +2905,20 @@ export async function createMainProcessControl(dependencies: {
   function scheduleBackgroundWork(): void {
     const schedule = (
       task: Parameters<StartupWorkloadCoordinator['scheduleTask']>[0],
-      errorMessage: string
+      errorMessage: string,
+      failure: {
+        component: MainLogStartupComponent
+        category: MainLogStartupComponentFailureCategory
+      }
     ) => {
       void startupWorkloadCoordinator.scheduleTask(task).catch((error) => {
+        if (!isStartupWorkloadCancellation(error)) {
+          emitStartupComponentFailure(
+            dependencies.startupRunId,
+            failure.component,
+            failure.category
+          )
+        }
         console.error(errorMessage, error)
       })
     }
@@ -2918,7 +2932,8 @@ export async function createMainProcessControl(dependencies: {
         labelKey: 'startup.main.legacyImport',
         run: async () => legacyChatImportService.start(false)
       },
-      'Failed to start legacy import task:'
+      'Failed to start legacy import task:',
+      { component: 'legacy_import', category: 'persistence' }
     )
 
     schedule(
@@ -2935,7 +2950,8 @@ export async function createMainProcessControl(dependencies: {
           taskContext.reportProgress(1)
         }
       },
-      'Failed to start RTK health check:'
+      'Failed to start RTK health check:',
+      { component: 'rtk_health_check', category: 'resource' }
     )
 
     schedule(
@@ -2947,7 +2963,8 @@ export async function createMainProcessControl(dependencies: {
         labelKey: 'startup.main.usageStatsBackfill',
         run: async (taskContext) => usageStatsService.startBackfill(taskContext)
       },
-      'Failed to start usage stats backfill:'
+      'Failed to start usage stats backfill:',
+      { component: 'usage_stats_backfill', category: 'persistence' }
     )
 
     schedule(
@@ -2963,7 +2980,8 @@ export async function createMainProcessControl(dependencies: {
             taskContext
           )
       },
-      'Failed to start normalization backfill:'
+      'Failed to start normalization backfill:',
+      { component: 'sqlite_mainline_normalization', category: 'persistence' }
     )
 
     schedule(
@@ -2982,7 +3000,8 @@ export async function createMainProcessControl(dependencies: {
             taskContext
           )
       },
-      'Failed to start disabled agent tool capability cleanup:'
+      'Failed to start disabled agent tool capability cleanup:',
+      { component: 'disabled_agent_tool_capability_cleanup', category: 'persistence' }
     )
   }
 

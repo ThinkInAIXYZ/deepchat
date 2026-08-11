@@ -62,13 +62,18 @@ export type MainLogStartupComponent =
   | 'acp_registry_migration'
   | 'cli_control'
   | 'cli_launcher'
+  | 'disabled_agent_tool_capability_cleanup'
   | 'floating_widget'
+  | 'legacy_import'
   | 'mcp'
   | 'mcp_integration'
   | 'plugin_host'
   | 'plugin_runtime'
   | 'remote_runtime'
+  | 'rtk_health_check'
   | 'skill_sync'
+  | 'sqlite_mainline_normalization'
+  | 'usage_stats_backfill'
 
 export type MainLogJsonValue =
   | string
@@ -308,10 +313,7 @@ export interface MainLogEventInputMap {
     childSessionId?: string
     delegationId: string
     turnId: string
-  } & (
-    | { outcome: 'resumed' | 'settled' }
-    | { outcome: 'quarantined' | 'failed'; error: SafeLogError }
-  )
+  } & ({ outcome: 'settled' } | { outcome: 'quarantined' | 'failed'; error: SafeLogError })
   'orchestration.delegation.stale_result.rejected': {
     parentSessionId: string
     childSessionId: string
@@ -402,13 +404,18 @@ const STARTUP_COMPONENTS = [
   'acp_registry_migration',
   'cli_control',
   'cli_launcher',
+  'disabled_agent_tool_capability_cleanup',
   'floating_widget',
+  'legacy_import',
   'mcp',
   'mcp_integration',
   'plugin_host',
   'plugin_runtime',
   'remote_runtime',
-  'skill_sync'
+  'rtk_health_check',
+  'skill_sync',
+  'sqlite_mainline_normalization',
+  'usage_stats_backfill'
 ] as const satisfies readonly MainLogStartupComponent[]
 const STARTUP_COMPONENT_ERROR_CATEGORIES = [
   'configuration',
@@ -431,7 +438,7 @@ const REJECTION_REASONS = ['queue_full', 'aborted', 'closed'] as const
 const TURN_KINDS = ['initial', 'follow_up'] as const
 const DELEGATION_SUSPEND_REASONS = ['permission', 'question'] as const
 const DELEGATION_TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'interrupted'] as const
-const RECONCILIATION_OUTCOMES = ['resumed', 'settled', 'quarantined', 'failed'] as const
+const RECONCILIATION_OUTCOMES = ['settled', 'quarantined', 'failed'] as const
 const STALE_RESULT_REASONS = ['recovered_result_predates_turn'] as const
 
 export function normalizeMainLogRunStopReason(
