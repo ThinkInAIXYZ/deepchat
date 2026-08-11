@@ -55,8 +55,12 @@ export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.exists
   }
 
+  async function selectDirectoryWithVersion() {
+    return await bridge.invoke(projectSelectDirectoryRoute.name, {})
+  }
+
   async function selectDirectory() {
-    const result = await bridge.invoke(projectSelectDirectoryRoute.name, {})
+    const result = await selectDirectoryWithVersion()
     return result.path
   }
 
@@ -80,6 +84,7 @@ export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()
     removeEnvironment,
     openDirectory,
     pathExists,
+    selectDirectoryWithVersion,
     selectDirectory,
     onEnvironmentsChanged
   }

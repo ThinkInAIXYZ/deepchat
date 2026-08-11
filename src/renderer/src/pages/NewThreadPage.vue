@@ -224,6 +224,7 @@ import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
 import { isAbortError } from '@/lib/errors'
 import { isAttachmentPreparationCandidate } from '@shared/utils/attachmentRepresentation'
+import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/chatInputHero'
 
@@ -404,11 +405,9 @@ const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
-const normalizeComparableProjectPath = (value: string | null | undefined) =>
-  normalizeProjectPath(value)?.replace(/[\\/]+$/, '') ?? null
 const isDefaultChatWorkspaceProject = (path: string | null | undefined) => {
-  const chatWorkspacePath = normalizeComparableProjectPath(projectStore.defaultChatWorkspacePath)
-  return Boolean(chatWorkspacePath) && normalizeComparableProjectPath(path) === chatWorkspacePath
+  const chatWorkspacePath = normalizeWorkspacePath(projectStore.defaultChatWorkspacePath)
+  return Boolean(chatWorkspacePath) && normalizeWorkspacePath(path) === chatWorkspacePath
 }
 const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
 const archivedProjectPaths = computed(

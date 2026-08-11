@@ -54,24 +54,38 @@ type SetupOptions = {
   openFolderPickerError?: Error
   setGroupModeError?: Error
   defaultChatWorkspacePath?: string | null
+  projectSnapshotReady?: boolean
   currentRouteName?: string
 }
 
 const createEnvironment = (
   environment: Partial<EnvironmentSummary> & Pick<EnvironmentSummary, 'path'>,
   fallbackStatus: EnvironmentSummary['status'] = 'active'
-): EnvironmentSummary => ({
-  path: environment.path,
-  name: environment.name ?? environment.path.split(/[\\/]/).pop() ?? environment.path,
-  sessionCount: environment.sessionCount ?? 1,
-  lastUsedAt: environment.lastUsedAt ?? 0,
-  isTemp: environment.isTemp ?? false,
-  exists: environment.exists ?? true,
-  status: environment.status ?? fallbackStatus,
-  sortOrder: environment.sortOrder ?? 0,
-  archivedAt: environment.archivedAt ?? null,
-  removedAt: environment.removedAt ?? null
-})
+): EnvironmentSummary => {
+  const status = environment.status ?? fallbackStatus
+  return {
+    path: environment.path,
+    name: environment.name ?? environment.path.split(/[\\/]/).pop() ?? environment.path,
+    sessionCount: environment.sessionCount ?? 1,
+    lastUsedAt: environment.lastUsedAt ?? 0,
+    isTemp: environment.isTemp ?? false,
+    exists: environment.exists ?? true,
+    status,
+    sortOrder: environment.sortOrder ?? 0,
+    archivedAt:
+      environment.archivedAt !== undefined
+        ? environment.archivedAt
+        : status === 'archived'
+          ? 100
+          : null,
+    removedAt:
+      environment.removedAt !== undefined
+        ? environment.removedAt
+        : status === 'removed'
+          ? 100
+          : null
+  }
+}
 
 const TEST_TIMEOUT_MS = 20000
 
@@ -280,6 +294,7 @@ const setup = async (options: SetupOptions = {}) => {
     ),
     error: null as string | null,
     defaultChatWorkspacePath: options.defaultChatWorkspacePath ?? null,
+    snapshotReady: options.projectSnapshotReady ?? true,
     fetchEnvironments: vi.fn().mockResolvedValue(undefined),
     reorderEnvironments: vi.fn().mockResolvedValue(undefined),
     archiveEnvironment: vi.fn().mockResolvedValue(undefined),
@@ -986,6 +1001,53 @@ describe('WindowSideBar agent switch', () => {
     expect(wrapper.text()).toContain('Session First')
   })
 
+  it('uses Project-store readiness and recovers after a later snapshot commit', async () => {
+    const { wrapper, projectStore } = await setup({
+      groupMode: 'project',
+      projectSnapshotReady: false,
+      projectEnvironments: [{ path: '/work/recovered', sessionCount: 0 }]
+    })
+
+    expect(wrapper.find('[data-group-id="/work/recovered"]').exists()).toBe(false)
+
+    projectStore.snapshotReady = true
+    await flushPromises()
+
+    expect(wrapper.find('[data-group-id="/work/recovered"]').exists()).toBe(true)
+  })
+
+  it('merges trailing-separator identities while preserving the managed action path', async () => {
+    const { wrapper, projectStore, sessionStore } = await setup({
+      groupMode: 'project',
+      projectEnvironments: [{ path: '/work/design/', sessionCount: 1 }],
+      groups: [
+        {
+          id: '/work/design',
+          label: 'design',
+          sessions: [
+            {
+              id: 'design-session',
+              title: 'Design Session',
+              status: 'none',
+              projectDir: '/work/design'
+            }
+          ]
+        }
+      ]
+    })
+
+    expect(wrapper.findAll('[data-group-id="/work/design"]')).toHaveLength(1)
+
+    await wrapper.get('[data-testid="window-sidebar-project-new-button"]').trigger('click')
+    await flushPromises()
+
+    expect(projectStore.selectProject).toHaveBeenCalledWith('/work/design/', 'manual')
+    expect(sessionStore.startNewConversation).toHaveBeenCalledWith({
+      refresh: true,
+      projectDir: '/work/design/'
+    })
+  })
+
   it('uses durable counts for empty semantics and hides synthesized rows during search', async () => {
     const { wrapper, sessionStore } = await setup({
       groupMode: 'project',
@@ -1045,7 +1107,7 @@ describe('WindowSideBar agent switch', () => {
       expect(
         wrapper.findAll('[data-group-id]').map((group) => group.attributes('data-group-id'))
       ).toEqual(['/work/new', '/work/existing'])
-      expect(focusSpy).toHaveBeenCalled()
+      expect(focusSpy.mock.instances).toContain(wrapper.get('[data-group-id="/work/new"]').element)
     },
     TEST_TIMEOUT_MS
   )
@@ -1067,7 +1129,9 @@ describe('WindowSideBar agent switch', () => {
     expect(projectStore.selectProject).not.toHaveBeenCalled()
     expect(wrapper.find(`[data-group-id="${chatWorkspacePath}"]`).exists()).toBe(false)
     expect(wrapper.find('[data-testid="app-new-chat-button"]').exists()).toBe(true)
-    expect(focusSpy).toHaveBeenCalled()
+    expect(focusSpy.mock.instances).toContain(
+      wrapper.get('[data-testid="app-new-chat-button"]').element
+    )
   })
 
   it('keeps cancellation side-effect free and guards concurrent folder pickers', async () => {
@@ -1081,9 +1145,9 @@ describe('WindowSideBar agent switch', () => {
         })
     )
 
-    const firstRequest = (wrapper.vm as any).handleAddWorkspace()
-    const secondRequest = (wrapper.vm as any).handleAddWorkspace()
-    await nextTick()
+    const addWorkspaceButton = wrapper.get('[data-testid="window-sidebar-add-workspace-button"]')
+    await addWorkspaceButton.trigger('click')
+    await addWorkspaceButton.trigger('click')
 
     expect(projectStore.openFolderPicker).toHaveBeenCalledTimes(1)
     expect(
@@ -1094,7 +1158,6 @@ describe('WindowSideBar agent switch', () => {
     ).toBe(true)
 
     finishPicker(null)
-    await Promise.all([firstRequest, secondRequest])
     await flushPromises()
 
     expect(sessionStore.setGroupMode).not.toHaveBeenCalled()
@@ -1136,7 +1199,11 @@ describe('WindowSideBar agent switch', () => {
       ]
     })
 
-    expect(wrapper.find('[data-testid="window-sidebar-workspace-unavailable"]').exists()).toBe(true)
+    const unavailableIcon = wrapper.get('[data-testid="window-sidebar-workspace-unavailable"]')
+    expect(unavailableIcon.element.parentElement?.getAttribute('title')).toBe(
+      'chat.input.workspaceUnavailableTooltip'
+    )
+    expect(unavailableIcon.element.parentElement?.classList.contains('ms-auto')).toBe(true)
     expect(wrapper.find('[data-testid="window-sidebar-project-new-button"]').exists()).toBe(false)
 
     await wrapper.get('[data-group-id="/work/missing"]').trigger('click')

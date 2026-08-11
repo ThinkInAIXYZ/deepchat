@@ -61,8 +61,9 @@ openFolderPicker(options?: { select?: boolean }): Promise<string | null>
 Add an idempotent `sessionStore.setGroupMode(mode)` action and keep `toggleGroupMode()` as its UI
 wrapper. Add success needs a deterministic project-mode request after a modal picker; calling a
 toggle based on stale pre-picker state can switch in the wrong direction if the user or another
-window changes the setting while the picker is open. Reuse the current serialized persistence and
-rollback behavior.
+window changes the setting while the picker is open. Serialize requested writes, track the last
+persisted mode separately, and return the exact in-flight promise to same-target callers. A failed
+write rolls back only the latest visible request to the last successfully persisted mode.
 
 ## Sidebar View Model
 
@@ -83,9 +84,9 @@ at render time. Do not add this renderer-only metadata to shared contracts.
 1. Build filtered Session groups exactly as today, retaining only groups with at least one matching
    Session when search is active.
 2. Extract the Chat/no-project groups before the workspace merge.
-3. Build exact-path maps for active, archived, and removed Project summaries. Continue using the
-   current path normalization only for the built-in Chat comparison; do not introduce unsafe
-   cross-platform case folding in the renderer.
+3. Build path-identity maps for active, archived, and removed Project summaries. Comparison removes
+   trailing separators from ordinary paths while preserving POSIX and Windows drive roots. Do not
+   introduce unsafe cross-platform case folding or separator rewriting in the renderer.
 4. Once Project metadata is ready and Session search is empty, iterate active environments in
    persisted order:
    - skip `defaultChatWorkspacePath`;
@@ -96,8 +97,9 @@ at render time. Do not add this renderer-only metadata to shared contracts.
 5. Mark consumed Session groups by path, then append remaining Session-derived workspace groups in
    their existing stable order. Classify known archived/removed paths as historical and disable
    reorder/new-conversation actions.
-6. If Project metadata is not ready, fall back to the current Session-only rendering and keep
-   reorder disabled. Never fabricate active metadata from a failed snapshot.
+6. Use the Project store's committed-snapshot readiness as the only metadata readiness signal. If
+   Project metadata is not ready, fall back to the current Session-only rendering and keep reorder
+   disabled. Never fabricate active metadata from a failed snapshot.
 7. During Session search, do not synthesize active rows without matching children. Existing active
    matches still use Project order; historical matches remain after active matches.
 
@@ -145,8 +147,8 @@ not roll it back.
   Keep move items disabled through `canMoveProjectGroup`; place Archive after a separator.
 - Archive opens a local guarded confirmation dialog using the existing
   `settings.environments.confirm.*`, `actions.archive`, and `errors.archiveTitle` copy. On confirm,
-  call `projectStore.archiveEnvironment(path)` and let the versioned Project refresh determine
-  whether the row disappears or becomes historical.
+  call `projectStore.archiveEnvironment(path)` and keep the dialog open until the archive route's
+  returned snapshot version is committed and the path is projected as archived.
 - Keep the dialog open and notify on archive failure. Disable cancel and confirmation while the
   request is pending so the mutation cannot be submitted twice.
 - Use `sessions.length > 0` as a safety override when a Session event arrives before the updated
@@ -158,26 +160,31 @@ Session route is required.
 
 ## Main Process And Contracts
 
-A small main-process ordering change is required without changing the shared route:
+A small main-process ordering change is required:
 
-- Before mutation, `ProjectService.selectDirectory()` reads the current active paths in their
-  authoritative order.
-- It upserts the recent project and marks the selected preference active as before.
-- If the path was not already active, it persists `[selectedPath, ...currentActivePaths]` through
-  the existing `reorderActive` owner. A duplicate active selection skips this reorder.
-- It increments the snapshot version and returns the selected path as before.
+- `NewEnvironmentPreferencesTable.activateAtTop()` uses one upsert to preserve an already-active
+  path's order or assign a newly active path before the current minimum explicit order.
+- `ProjectService.selectDirectory()` wraps recent-project upsert and preference activation in one
+  database transaction. It does not call `getEnvironments()` or synchronously check unrelated
+  filesystem paths.
+- It increments the snapshot version and returns that exact version with the selected path.
 - `ProjectService.getSnapshot()` already unions usage with preferences, so a selected zero-Session
   path appears in `environments`.
-- `project.selectDirectory` already publishes a versioned `select` event.
+- `project.selectDirectory` publishes the same version in its `select` event.
 - first non-draft Session persistence already refreshes environment usage and notifies the Project
   snapshot owner.
 
 Keep the ordering decision in Project rather than synthesizing a temporary renderer order. Do not
 add a parallel `workspace.add` route or another table.
 
-Sidebar archive needs no main-process, store, shared-contract, or i18n-key change. It reuses the
-existing typed `project.archiveEnvironment` route, `projectStore.archiveEnvironment`, Project
-snapshot refresh, and directory-management translations.
+Sidebar archive adds the mutation version to the existing typed `project.archiveEnvironment`
+result. The Project store requires that version and the archived lifecycle projection before the
+dialog can close. No new route or i18n key is required.
+
+`ProjectSnapshot` also carries `defaultChatWorkspacePath`. The Project store marks snapshot
+readiness when it commits that complete projection; the sidebar does not maintain a second local
+readiness flag. A committed lifecycle snapshot clears a manually selected path when that path is
+archived or removed.
 
 ## Compatibility And Edge Cases
 
@@ -213,14 +220,19 @@ snapshot refresh, and directory-management translations.
 Expected implementation surface:
 
 - `src/main/project/index.ts`
+- `src/main/project/data/tables/newEnvironmentPreferences.ts`
+- `src/main/project/routes.ts`
 - `src/renderer/src/components/WindowSideBar.vue`
 - `src/renderer/src/stores/ui/project.ts`
 - `src/renderer/src/stores/ui/session.ts`
 - `src/renderer/src/pages/NewThreadPage.vue`
+- `src/shared/contracts/routes/project.routes.ts`
+- `src/shared/utils/filesystem.ts`
 - `src/renderer/src/i18n/*/chat.json`
 - focused renderer and Project service tests
 
-No shared contract or schema change is required.
+The archive result and Project snapshot gain required fields. No database schema or new route is
+required.
 
 ## Test Strategy
 
@@ -237,7 +249,9 @@ No shared contract or schema change is required.
 
 - `setGroupMode('project')` is idempotent and persists once;
 - concurrent set/toggle requests serialize and the last requested mode wins;
-- persistence failure rolls back only the corresponding current request.
+- persistence failure rolls back only the corresponding current request;
+- consecutive failed writes roll back to the last persisted mode, and same-target callers observe
+  the in-flight failure.
 
 ### Sidebar Component
 
@@ -257,6 +271,18 @@ No shared contract or schema change is required.
   Session history;
 - Session-first and Project-first first-Session updates produce one populated row and preserve
   collapse identity.
+- POSIX and Windows drive roots remain workspace identities rather than collapsing into Chat or a
+  drive-relative path.
+- initial Project failure followed by a later successful store refresh enables the merged
+  projection without remounting the sidebar.
+
+### Project Main Process
+
+- selecting a directory performs no environment projection or unrelated filesystem existence
+  checks;
+- recent-project and preference activation execute in one transaction;
+- new/reactivated paths sort first while duplicate active selection retains its explicit order;
+- archive responses expose the exact committed snapshot version.
 
 ### Main And Integration
 

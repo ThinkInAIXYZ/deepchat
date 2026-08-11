@@ -62,6 +62,17 @@
 - [x] Cover single-row availability, successful lifecycle projection, and failure retention.
 - [x] Run focused and repository validation.
 
+## Stability Hardening
+
+- [x] Return the archive mutation version and keep confirmation open until that snapshot commits.
+- [x] Make Project-store snapshot readiness authoritative and include Chat workspace identity in
+  the snapshot.
+- [x] Clear manually selected New Thread paths when lifecycle state becomes archived or removed.
+- [x] Preserve POSIX and Windows drive roots in workspace grouping identity.
+- [x] Roll group-mode failures back to the latest persisted mode and propagate coalesced failures.
+- [x] Replace directory-selection projection scans with one transactional database activation.
+- [x] Add focused regression coverage for every hardening contract.
+
 ## Validation
 
 - [x] Run focused main and renderer Vitest suites.
@@ -73,13 +84,13 @@
 
 ## Validation Notes
 
-- Renderer validation passes: Project store 13/13, full Session store 80/80 (with an 8 GB Node
-  heap because the default 4 GB runner exhausts memory), sidebar 62/62, and New Thread 43/43.
-- Focused Project service validation for environment projection and directory selection passes 9/9,
-  including new/reactivated top insertion and duplicate active order stability.
+- Renderer validation passes: Project store 15/15, full Session store 83/83, sidebar 64/64, both
+  New Thread suites 42/42, and Project client coverage 43/43. The Session suite requires an 8 GB
+  worker heap because the default 4 GB runner exhausts memory.
+- Focused main validation passes 139 tests across Project service, route contracts/dispatch, and
+  shared filesystem utilities.
 - The native SQLite preference-table suite is skipped because its optional native runtime is not
-  available in this workspace; the reactivation/order regression is included for CI hosts with
-  that runtime.
-- The full `projectService.test.ts` file has two existing Windows-only failures: its default
-  workspace assertions expect `/mock/...`, while Node resolves the mocked path as `C:\mock\...`.
-  The failures do not execute the changed renderer code or the added selection-order contracts.
+  available in this workspace. Its five regression tests remain enabled for CI hosts with that
+  runtime, and the exact activation SQL was exercised successfully with the system SQLite runtime.
+- Formatting, i18n validation, lint, node/web typecheck, and the renderer architecture baseline
+  check pass.

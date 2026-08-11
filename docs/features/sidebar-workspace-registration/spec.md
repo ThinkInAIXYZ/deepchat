@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented on `codex/issue-2115-workspace-sidebar-spec` on 2026-08-10. Native Windows and POSIX
+Implemented on `codex/issue-2115-workspace-sidebar-spec` as of 2026-08-11. Native Windows and POSIX
 manual validation remains pending. Linked GitHub issue:
 [#2115](https://github.com/ThinkInAIXYZ/deepchat/issues/2115).
 
@@ -100,8 +100,8 @@ visible rather than hover-only so the next step is apparent.
    one sidebar cannot open competing pickers.
 3. Cancellation changes no selection, search query, grouping mode, or persisted state.
 4. Successful selection registers or reactivates the path through `project.selectDirectory`, moves
-   a newly active path to the top of the persisted active order, and waits for the versioned Project
-   snapshot.
+   a newly active path to the top of the persisted active order without scanning every managed path,
+   and waits for the versioned Project snapshot.
 5. The sidebar clears its Session search, switches deterministically to project grouping, scrolls
    the resulting row into view, and returns focus to that row.
 6. The action does **not** create a draft and does **not** replace the current New Thread project
@@ -125,7 +125,8 @@ step fails.
 3. Archive opens the same confirmation contract used by directory Settings. The description states
    that Sessions, messages, and the real folder are retained.
 4. Confirmation calls the existing `projectStore.archiveEnvironment(path)` action and waits for the
-   committed Project snapshot. It never edits Session rows or filesystem content in the renderer.
+   exact mutation version to be committed by the Project snapshot. It never edits Session rows or
+   filesystem content in the renderer.
 5. A successful zero-Session archive disappears from Workspace. A workspace with Session history
    remains as the existing historical group, outside active reorder and new-conversation actions.
 6. Failure keeps the confirmation open, keeps the active row intact, and reports a localized error.
@@ -189,6 +190,18 @@ conversation.
    single row, search, loading, or animation while the active row remains archivable.
 10. Sidebar archive is the existing reversible Project lifecycle mutation. It must confirm first
     and must not delete Sessions, messages, or filesystem content.
+11. Project snapshot readiness is Project-store state. The same snapshot carries the built-in Chat
+    workspace identity, so the sidebar cannot synthesize a duplicate while startup bootstrap and
+    Project refresh race.
+12. Workspace identity removes trailing separators only for comparison and preserves POSIX and
+    Windows drive roots. It does not case-fold or rewrite separator style.
+13. Archiving or removing the manually selected New Thread workspace invalidates that selection;
+    the next draft must not reuse a non-active path.
+14. Group-mode persistence is serialized. On failure, the visible mode rolls back to the latest
+    successfully persisted mode, and every caller observes the failure of the write it awaited.
+15. Directory registration writes recent-project and active-order state in one database
+    transaction. Reactivation/new registration moves to the top with one preference-table write;
+    selecting an already-active path preserves its order.
 
 ## Acceptance Criteria
 
@@ -207,7 +220,8 @@ conversation.
 - Every active managed workspace has a keyboard-accessible Archive menu action, including a single
   workspace and an active missing workspace.
 - Archive requires confirmation, uses the existing typed Project action, preserves Session and
-  filesystem data, and reports failures without dismissing the dialog or hiding the row.
+  filesystem data, and dismisses the dialog only after the exact archive snapshot version commits.
+  Failures keep the dialog and row visible.
 - Archived zero-Session rows disappear; archived rows with Session history retain only historical
   navigation behavior.
 - A true empty, existing workspace opens a new draft with the exact path carried through the
@@ -218,6 +232,11 @@ conversation.
 - Search, agent filtering, pinning, pagination, project reorder, archived history, removed
   tombstones, missing paths, and default Chat behavior follow the matrix above.
 - Picker, snapshot, and grouping-persistence failures are observable and do not fabricate a row.
+- A failed pair of concurrent group-mode writes restores the last persisted mode, and a coalesced
+  caller receives the same write failure instead of a false success.
+- `/` and Windows drive roots remain valid workspace groups; trailing separators do not create a
+  duplicate group for ordinary paths.
+- Archiving or removing the current manual New Thread workspace clears that draft selection.
 - Focus, disabled state, unavailable state, and Empty text are accessible without relying on hover
   or color alone.
 
@@ -228,6 +247,7 @@ conversation.
 - Add no database table or schema migration; current environment preferences already persist a
   selected zero-Session path.
 - Preserve the versioned Project snapshot/event owner and its stale-read fencing.
+- Keep directory-picker registration free of synchronous existence checks over unrelated paths.
 - Use vue-i18n and existing `DcButton`, tooltip, notification, dropdown, and draggable primitives.
 - Preserve the existing Sidebar pagination, scroll restoration, shortcut badges, pin animation,
   and drag gates.

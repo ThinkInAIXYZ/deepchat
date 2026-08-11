@@ -431,26 +431,30 @@
                     <span
                       v-if="isTrueEmptyWorkspaceGroup(group)"
                       data-testid="window-sidebar-empty-workspace-label"
-                      class="ml-auto shrink-0 text-[10px] font-normal text-muted-foreground/70"
+                      class="ms-auto shrink-0 text-[10px] font-normal text-muted-foreground/70"
                     >
                       {{ t('chat.sidebar.emptyWorkspace') }}
                     </span>
-                    <Icon
+                    <span
                       v-if="isWorkspaceUnavailable(group)"
-                      icon="lucide:circle-alert"
-                      data-testid="window-sidebar-workspace-unavailable"
-                      aria-hidden="true"
-                      class="ml-auto size-3.5 shrink-0 text-amber-500"
+                      class="ms-auto flex shrink-0 items-center"
                       :title="
                         t('chat.input.workspaceUnavailableTooltip', {
-                          path: getGroupIdentifier(group)
+                          path: getWorkspacePath(group)
                         })
                       "
-                    />
+                    >
+                      <Icon
+                        icon="lucide:circle-alert"
+                        data-testid="window-sidebar-workspace-unavailable"
+                        aria-hidden="true"
+                        class="size-3.5 text-amber-500"
+                      />
+                    </span>
                     <span v-if="isWorkspaceUnavailable(group)" class="sr-only">
                       {{
                         t('chat.input.workspaceUnavailableTooltip', {
-                          path: getGroupIdentifier(group)
+                          path: getWorkspacePath(group)
                         })
                       }}
                     </span>
@@ -471,13 +475,12 @@
                         ? 'opacity-100'
                         : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
                     "
-                    @click.stop="handleNewChatForProject(group.id)"
+                    @click.stop="handleNewChatForProject(getWorkspacePath(group))"
                   />
 
                   <DropdownMenu v-if="isActiveProjectDirectoryGroup(group)">
                     <DropdownMenuTrigger as-child>
                       <DcButton
-                        v-if="isProjectDirectoryGroup(group)"
                         type="button"
                         size="icon-sm"
                         icon="lucide:ellipsis"
@@ -687,6 +690,7 @@ import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 import type { EnvironmentSummary } from '@shared/types/agent-interface'
 import type { RemoteChannel, RemoteRuntimeState } from '@shared/types/remote'
+import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
@@ -904,7 +908,6 @@ const matchesSessionSearch = (session: UISession) => {
 }
 const isProjectGroupDragging = ref(false)
 const projectGroupDragScrollTop = ref<number | null>(null)
-const projectEnvironmentMetadataReady = ref(false)
 const pinnedSessions = computed(() =>
   sessionStore.getPinnedSessions(sidebarSelectedAgentId.value).filter(matchesSessionSearch)
 )
@@ -919,30 +922,40 @@ const baseFilteredGroups = computed(() =>
     }))
     .filter((group) => group.sessions.length > 0)
 )
-const normalizeProjectPath = (projectPath: string | null | undefined) =>
-  projectPath?.trim().replace(/[\\/]+$/, '') ?? ''
 const defaultChatWorkspacePath = computed(() =>
-  normalizeProjectPath(projectStore.defaultChatWorkspacePath)
+  normalizeWorkspacePath(projectStore.defaultChatWorkspacePath)
 )
 const projectOrderIndex = computed(
-  () => new Map(projectStore.environments.map((environment, index) => [environment.path, index]))
+  () =>
+    new Map(
+      projectStore.environments.map((environment, index) => [
+        normalizeWorkspacePath(environment.path),
+        index
+      ])
+    )
 )
 const activeProjectEnvironmentByPath = computed(
-  () => new Map(projectStore.environments.map((environment) => [environment.path, environment]))
+  () =>
+    new Map(
+      projectStore.environments.map((environment) => [
+        normalizeWorkspacePath(environment.path),
+        environment
+      ])
+    )
 )
 const historicalProjectEnvironmentByPath = computed(
   () =>
     new Map(
       [...projectStore.archivedEnvironments, ...projectStore.removedEnvironments].map(
-        (environment) => [environment.path, environment]
+        (environment) => [normalizeWorkspacePath(environment.path), environment]
       )
     )
 )
 const selectableProjectPathSet = computed(
-  () => new Set(projectStore.projects.map((project) => project.path))
+  () => new Set(projectStore.projects.map((project) => normalizeWorkspacePath(project.path)))
 )
 const isChatSession = (session: UISession) => {
-  const projectPath = normalizeProjectPath(session.projectDir)
+  const projectPath = normalizeWorkspacePath(session.projectDir)
   return (
     projectPath.length === 0 ||
     (defaultChatWorkspacePath.value.length > 0 && projectPath === defaultChatWorkspacePath.value)
@@ -951,7 +964,7 @@ const isChatSession = (session: UISession) => {
 const isChatProjectGroup = (group: SessionGroup) =>
   group.id === NO_PROJECT_GROUP_ID ||
   (defaultChatWorkspacePath.value.length > 0 &&
-    normalizeProjectPath(group.id) === defaultChatWorkspacePath.value)
+    normalizeWorkspacePath(group.id) === defaultChatWorkspacePath.value)
 const isProjectDirectoryGroup = (group: SessionGroup) =>
   sessionStore.groupMode === 'project' &&
   group.id !== NO_PROJECT_GROUP_ID &&
@@ -973,19 +986,18 @@ const isTrueEmptyWorkspaceGroup = (group: SessionGroup) => {
     group.sessions.length === 0
   )
 }
-const getProjectGroupRank = (group: SessionGroup) => {
-  return isActiveProjectDirectoryGroup(group) ? 0 : 1
-}
 const compareProjectGroups = (left: SessionGroup, right: SessionGroup) => {
-  const leftRank = getProjectGroupRank(left)
-  const rightRank = getProjectGroupRank(right)
+  const leftRank = isActiveProjectDirectoryGroup(left) ? 0 : 1
+  const rightRank = isActiveProjectDirectoryGroup(right) ? 0 : 1
 
   if (leftRank !== rightRank) {
     return leftRank - rightRank
   }
 
-  const leftOrder = projectOrderIndex.value.get(left.id) ?? Number.MAX_SAFE_INTEGER
-  const rightOrder = projectOrderIndex.value.get(right.id) ?? Number.MAX_SAFE_INTEGER
+  const leftOrder =
+    projectOrderIndex.value.get(normalizeWorkspacePath(left.id)) ?? Number.MAX_SAFE_INTEGER
+  const rightOrder =
+    projectOrderIndex.value.get(normalizeWorkspacePath(right.id)) ?? Number.MAX_SAFE_INTEGER
   if (leftOrder !== rightOrder) {
     return leftOrder - rightOrder
   }
@@ -1000,36 +1012,35 @@ const decorateWorkspaceGroup = (
   ...(environment ? { environment } : {})
 })
 const sortProjectGroups = (groups: SidebarWorkspaceGroup[]) =>
-  groups
-    .map((group, index) => ({ group, index }))
-    .sort(
-      (left, right) => compareProjectGroups(left.group, right.group) || left.index - right.index
-    )
-    .map(({ group }) => group)
+  [...groups].sort(compareProjectGroups)
 const mergeProjectWorkspaceGroups = (sessionGroups: SessionGroup[]) => {
   const decoratedSessionGroups = sessionGroups.map((group) => {
+    const pathIdentity = normalizeWorkspacePath(group.id)
     const environment =
-      activeProjectEnvironmentByPath.value.get(group.id) ??
-      historicalProjectEnvironmentByPath.value.get(group.id)
+      activeProjectEnvironmentByPath.value.get(pathIdentity) ??
+      historicalProjectEnvironmentByPath.value.get(pathIdentity)
     return decorateWorkspaceGroup(group, environment)
   })
 
-  if (!projectEnvironmentMetadataReady.value || normalizedSessionSearchQuery.value.length > 0) {
+  if (!projectStore.snapshotReady || normalizedSessionSearchQuery.value.length > 0) {
     return sortProjectGroups(decoratedSessionGroups)
   }
 
-  const sessionGroupByPath = new Map(decoratedSessionGroups.map((group) => [group.id, group]))
+  const sessionGroupByPath = new Map(
+    decoratedSessionGroups.map((group) => [normalizeWorkspacePath(group.id), group])
+  )
   const activeGroups = projectStore.environments
     .filter(
       (environment) =>
-        normalizeProjectPath(environment.path) !== defaultChatWorkspacePath.value &&
+        normalizeWorkspacePath(environment.path) !== defaultChatWorkspacePath.value &&
         (!environment.isTemp ||
-          selectableProjectPathSet.value.has(environment.path) ||
-          sessionGroupByPath.has(environment.path))
+          selectableProjectPathSet.value.has(normalizeWorkspacePath(environment.path)) ||
+          sessionGroupByPath.has(normalizeWorkspacePath(environment.path)))
     )
     .map((environment): SidebarWorkspaceGroup => {
-      const sessionGroup = sessionGroupByPath.get(environment.path)
-      sessionGroupByPath.delete(environment.path)
+      const pathIdentity = normalizeWorkspacePath(environment.path)
+      const sessionGroup = sessionGroupByPath.get(pathIdentity)
+      sessionGroupByPath.delete(pathIdentity)
       return {
         id: environment.path,
         label: sessionGroup?.label ?? environment.name,
@@ -1039,7 +1050,7 @@ const mergeProjectWorkspaceGroups = (sessionGroups: SessionGroup[]) => {
       }
     })
   const historicalGroups = decoratedSessionGroups.filter((group) =>
-    sessionGroupByPath.has(group.id)
+    sessionGroupByPath.has(normalizeWorkspacePath(group.id))
   )
 
   return [...activeGroups, ...historicalGroups]
@@ -1143,7 +1154,7 @@ const canReorderProjectGroups = computed(
     sessionStore.groupMode === 'project' &&
     normalizedSessionSearchQuery.value.length === 0 &&
     !pinFlightSessionId.value &&
-    projectEnvironmentMetadataReady.value &&
+    projectStore.snapshotReady &&
     sessionStore.hasLoadedInitialPage &&
     !sessionStore.loading &&
     projectReorderableGroups.value.length > 1
@@ -1173,7 +1184,8 @@ const archiveWorkspaceDialogOpen = computed({
   }
 })
 
-const getGroupIdentifier = (group: SessionGroup) => group.id
+const getGroupIdentifier = (group: SessionGroup) => normalizeWorkspacePath(group.id)
+const getWorkspacePath = (group: SessionGroup) => getWorkspaceEnvironment(group)?.path ?? group.id
 
 const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
 const getGroupIcon = (group: SessionGroup) =>
@@ -1274,7 +1286,7 @@ const toggleGroup = (group: SessionGroup) => {
 
 const handleWorkspaceGroupClick = (group: SessionGroup) => {
   if (isTrueEmptyWorkspaceGroup(group)) {
-    void handleNewChatForProject(group.id)
+    void handleNewChatForProject(getWorkspacePath(group))
     return
   }
 
@@ -1287,12 +1299,12 @@ const getCurrentProjectOrderPaths = () => {
   const environmentPaths = projectStore.environments.map((environment) => environment.path)
   return environmentPaths.length > 0
     ? environmentPaths
-    : projectReorderableGroups.value.map((group) => group.id)
+    : projectReorderableGroups.value.map(getWorkspacePath)
 }
 
 const commitVisibleProjectGroupOrder = async (nextVisiblePaths: string[]) => {
   const currentOrder = getCurrentProjectOrderPaths()
-  const previousVisiblePaths = projectReorderableGroups.value.map((group) => group.id)
+  const previousVisiblePaths = projectReorderableGroups.value.map(getWorkspacePath)
   const previousVisiblePathSet = new Set(previousVisiblePaths)
   const nextOrder = [...currentOrder]
   let nextVisibleIndex = 0
@@ -1323,7 +1335,7 @@ const handleProjectGroupModelUpdate = (nextGroups: SessionGroup[]) => {
     return
   }
 
-  const nextVisiblePaths = nextGroups.filter(isActiveProjectDirectoryGroup).map((group) => group.id)
+  const nextVisiblePaths = nextGroups.filter(isActiveProjectDirectoryGroup).map(getWorkspacePath)
   void commitVisibleProjectGroupOrder(nextVisiblePaths).catch((error) => {
     console.warn('[WindowSideBar] Failed to reorder project groups:', error)
   })
@@ -1335,7 +1347,9 @@ const canMoveProjectGroup = (group: SessionGroup, delta: -1 | 1) => {
   }
 
   const groups = projectReorderableGroups.value
-  const index = groups.findIndex((candidate) => candidate.id === group.id)
+  const index = groups.findIndex(
+    (candidate) => getGroupIdentifier(candidate) === getGroupIdentifier(group)
+  )
   if (index < 0) {
     return false
   }
@@ -1348,8 +1362,8 @@ const handleMoveProjectGroup = (group: SessionGroup, target: ProjectGroupMoveTar
     return
   }
 
-  const paths = projectReorderableGroups.value.map((candidate) => candidate.id)
-  const currentIndex = paths.indexOf(group.id)
+  const paths = projectReorderableGroups.value.map(getWorkspacePath)
+  const currentIndex = paths.indexOf(getWorkspacePath(group))
   if (currentIndex < 0) {
     return
   }
@@ -1544,22 +1558,11 @@ const refreshRemoteControlStatus = async (): Promise<boolean> => {
   }
 }
 
-const refreshProjectEnvironmentMetadata = async () => {
-  try {
-    await projectStore.fetchEnvironments()
-    if (projectStore.error) {
-      throw new Error(projectStore.error)
-    }
-    projectEnvironmentMetadataReady.value = true
-  } catch (error) {
-    console.warn('[WindowSideBar] Failed to refresh project environment metadata:', error)
-  }
-}
-
 const revealWorkspaceGroup = async (projectPath: string) => {
   await nextTick()
-  const isChatWorkspace = normalizeProjectPath(projectPath) === defaultChatWorkspacePath.value
-  const groupId = isChatWorkspace ? CHAT_SECTION_GROUP_ID : projectPath
+  const pathIdentity = normalizeWorkspacePath(projectPath)
+  const isChatWorkspace = pathIdentity === defaultChatWorkspacePath.value
+  const groupId = isChatWorkspace ? CHAT_SECTION_GROUP_ID : pathIdentity
   const groupTarget = Array.from(
     sessionListRef.value?.querySelectorAll<HTMLElement>('[data-group-id]') ?? []
   ).find((element) => element.dataset.groupId === groupId)
@@ -1597,7 +1600,6 @@ const handleAddWorkspace = async () => {
       return
     }
 
-    projectEnvironmentMetadataReady.value = true
     sessionSearchQuery.value = ''
     await sessionStore.setGroupMode('project')
     await revealWorkspaceGroup(selectedPath)
@@ -2282,7 +2284,7 @@ const handleDeleteConfirm = async () => {
 
 onMounted(() => {
   remoteControlStatusUnmounted = false
-  void refreshProjectEnvironmentMetadata()
+  void projectStore.fetchEnvironments()
   void loadShortcutPlatform()
   window.addEventListener('keydown', handleWindowShortcutKeydown)
   window.addEventListener('keyup', handleWindowShortcutKeyup)

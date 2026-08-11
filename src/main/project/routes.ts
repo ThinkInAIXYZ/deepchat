@@ -99,9 +99,9 @@ export function createProjectRoutes(deps: {
       projectArchiveEnvironmentRoute.name,
       async (rawInput) => {
         const input = projectArchiveEnvironmentRoute.input.parse(rawInput)
-        await projectService.archiveEnvironment(input.path)
-        publishEnvironmentsChanged('archive', input.path, projectService.getSnapshotVersion())
-        return projectArchiveEnvironmentRoute.output.parse({ updated: true })
+        const version = await projectService.archiveEnvironment(input.path)
+        publishEnvironmentsChanged('archive', input.path, version)
+        return projectArchiveEnvironmentRoute.output.parse({ updated: true, version })
       }
     ],
     [
@@ -145,11 +145,11 @@ export function createProjectRoutes(deps: {
       projectSelectDirectoryRoute.name,
       async (rawInput) => {
         projectSelectDirectoryRoute.input.parse(rawInput)
-        const path = await projectService.selectDirectory()
-        if (path) {
-          publishEnvironmentsChanged('select', path, projectService.getSnapshotVersion())
+        const result = await projectService.selectDirectory()
+        if (result.path) {
+          publishEnvironmentsChanged('select', result.path, result.version)
         }
-        return projectSelectDirectoryRoute.output.parse({ path })
+        return projectSelectDirectoryRoute.output.parse(result)
       }
     ]
   ])

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isHardlinkUnavailableError } from '@shared/utils/filesystem'
+import { isHardlinkUnavailableError, normalizeWorkspacePath } from '@shared/utils/filesystem'
 
 describe('filesystem utilities', () => {
   it('recognizes hardlink capability errors without assuming an Error object', () => {
@@ -13,5 +13,15 @@ describe('filesystem utilities', () => {
     expect(
       isHardlinkUnavailableError(Object.assign(new Error('missing'), { code: 'ENOENT' }))
     ).toBe(false)
+  })
+
+  it('normalizes trailing separators without collapsing filesystem roots', () => {
+    expect(normalizeWorkspacePath('/workspace/')).toBe('/workspace')
+    expect(normalizeWorkspacePath('C:\\workspace\\')).toBe('C:\\workspace')
+    expect(normalizeWorkspacePath('/')).toBe('/')
+    expect(normalizeWorkspacePath('///')).toBe('/')
+    expect(normalizeWorkspacePath('C:\\')).toBe('C:\\')
+    expect(normalizeWorkspacePath('C:////')).toBe('C:/')
+    expect(normalizeWorkspacePath('  ')).toBe('')
   })
 })

@@ -68,6 +68,48 @@ export class NewEnvironmentPreferencesTable extends BaseTable {
     this.setStatus(environmentPath, 'active')
   }
 
+  activateAtTop(environmentPath: string): void {
+    const normalizedPath = this.normalizePath(environmentPath)
+    if (!normalizedPath) {
+      return
+    }
+
+    const now = Date.now()
+    this.db
+      .prepare(
+        `INSERT INTO new_environment_preferences (
+          path,
+          status,
+          sort_order,
+          archived_at,
+          removed_at,
+          updated_at
+        ) VALUES (
+          ?,
+          'active',
+          COALESCE((
+            SELECT MIN(sort_order) - 1
+            FROM new_environment_preferences
+            WHERE status = 'active' AND sort_order < ${DEFAULT_ENVIRONMENT_SORT_ORDER}
+          ), 0),
+          NULL,
+          NULL,
+          ?
+        )
+        ON CONFLICT(path) DO UPDATE SET
+          status = 'active',
+          sort_order = CASE
+            WHEN new_environment_preferences.status = 'active'
+              THEN new_environment_preferences.sort_order
+            ELSE excluded.sort_order
+          END,
+          archived_at = NULL,
+          removed_at = NULL,
+          updated_at = excluded.updated_at`
+      )
+      .run(normalizedPath, now)
+  }
+
   markArchived(environmentPath: string): void {
     this.setStatus(environmentPath, 'archived')
   }

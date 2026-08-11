@@ -51,6 +51,7 @@ function createMockSqlitePresenter() {
     newEnvironmentPreferencesTable: {
       list: vi.fn().mockReturnValue([]),
       get: vi.fn(),
+      activateAtTop: vi.fn(),
       reorderActive: vi.fn(),
       markActive: vi.fn(),
       markArchived: vi.fn(),
@@ -143,6 +144,7 @@ describe('ProjectService', () => {
       expect(initial.archivedEnvironments.map((item) => item.path)).toEqual(['/work/archived'])
       expect(initial.removedEnvironments.map((item) => item.path)).toEqual(['/work/removed'])
       expect(initial.defaultProjectPath).toBe('/work/default')
+      expect(initial.defaultChatWorkspacePath).toBeNull()
       expect(updated.version).toBe(1)
     })
 
@@ -595,8 +597,9 @@ describe('ProjectService', () => {
     })
 
     it('archives an environment through environment preferences', async () => {
-      await presenter.archiveEnvironment('/work/app')
+      const version = await presenter.archiveEnvironment('/work/app')
 
+      expect(version).toBe(1)
       expect(sqlitePresenter.newEnvironmentPreferencesTable.markArchived).toHaveBeenCalledWith(
         '/work/app'
       )
@@ -682,7 +685,7 @@ describe('ProjectService', () => {
 
       const result = await presenter.selectDirectory()
 
-      expect(result).toBeNull()
+      expect(result).toEqual({ path: null, version: 0 })
     })
 
     it('returns null when no path selected', async () => {
@@ -690,28 +693,10 @@ describe('ProjectService', () => {
 
       const result = await presenter.selectDirectory()
 
-      expect(result).toBeNull()
+      expect(result).toEqual({ path: null, version: 0 })
     })
 
     it('registers a new directory at the top of the active order', async () => {
-      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
-        {
-          path: '/work/alpha',
-          status: 'active',
-          sort_order: 0,
-          archived_at: null,
-          removed_at: null,
-          updated_at: 100
-        },
-        {
-          path: '/work/beta',
-          status: 'active',
-          sort_order: 1,
-          archived_at: null,
-          removed_at: null,
-          updated_at: 200
-        }
-      ])
       deviceService.selectDirectory.mockResolvedValue({
         canceled: false,
         filePaths: ['/Users/test/my-project']
@@ -719,40 +704,19 @@ describe('ProjectService', () => {
 
       const result = await presenter.selectDirectory()
 
-      expect(result).toBe('/Users/test/my-project')
+      expect(result).toEqual({ path: '/Users/test/my-project', version: 1 })
       expect(sqlitePresenter.newProjectsTable.upsert).toHaveBeenCalledWith(
         '/Users/test/my-project',
         'my-project'
       )
-      expect(sqlitePresenter.newEnvironmentPreferencesTable.markActive).toHaveBeenCalledWith(
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop).toHaveBeenCalledWith(
         '/Users/test/my-project'
       )
-      expect(sqlitePresenter.newEnvironmentPreferencesTable.reorderActive).toHaveBeenCalledWith([
-        '/Users/test/my-project',
-        '/work/alpha',
-        '/work/beta'
-      ])
+      expect(sqlitePresenter.getDatabase).toHaveBeenCalledTimes(1)
+      expect(existsSyncMock).not.toHaveBeenCalled()
     })
 
     it('keeps the persisted order when selecting an already active directory', async () => {
-      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
-        {
-          path: '/work/alpha',
-          status: 'active',
-          sort_order: 0,
-          archived_at: null,
-          removed_at: null,
-          updated_at: 100
-        },
-        {
-          path: '/work/existing',
-          status: 'active',
-          sort_order: 1,
-          archived_at: null,
-          removed_at: null,
-          updated_at: 200
-        }
-      ])
       deviceService.selectDirectory.mockResolvedValue({
         canceled: false,
         filePaths: ['/work/existing']
@@ -760,31 +724,12 @@ describe('ProjectService', () => {
 
       await presenter.selectDirectory()
 
-      expect(sqlitePresenter.newEnvironmentPreferencesTable.markActive).toHaveBeenCalledWith(
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop).toHaveBeenCalledWith(
         '/work/existing'
       )
-      expect(sqlitePresenter.newEnvironmentPreferencesTable.reorderActive).not.toHaveBeenCalled()
     })
 
     it('reactivates an archived directory at the top of the active order', async () => {
-      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
-        {
-          path: '/work/alpha',
-          status: 'active',
-          sort_order: 0,
-          archived_at: null,
-          removed_at: null,
-          updated_at: 100
-        },
-        {
-          path: '/work/archived',
-          status: 'archived',
-          sort_order: 1,
-          archived_at: 200,
-          removed_at: null,
-          updated_at: 200
-        }
-      ])
       deviceService.selectDirectory.mockResolvedValue({
         canceled: false,
         filePaths: ['/work/archived']
@@ -792,10 +737,27 @@ describe('ProjectService', () => {
 
       await presenter.selectDirectory()
 
-      expect(sqlitePresenter.newEnvironmentPreferencesTable.reorderActive).toHaveBeenCalledWith([
-        '/work/archived',
-        '/work/alpha'
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop).toHaveBeenCalledWith(
+        '/work/archived'
+      )
+    })
+
+    it('keeps concurrent selections on distinct snapshot versions', async () => {
+      deviceService.selectDirectory
+        .mockResolvedValueOnce({ canceled: false, filePaths: ['/work/first'] })
+        .mockResolvedValueOnce({ canceled: false, filePaths: ['/work/second'] })
+
+      const results = await Promise.all([presenter.selectDirectory(), presenter.selectDirectory()])
+
+      expect(results).toEqual([
+        { path: '/work/first', version: 1 },
+        { path: '/work/second', version: 2 }
       ])
+      expect(
+        sqlitePresenter.newEnvironmentPreferencesTable.activateAtTop.mock.calls.map(
+          ([environmentPath]) => environmentPath
+        )
+      ).toEqual(['/work/first', '/work/second'])
     })
   })
 })
