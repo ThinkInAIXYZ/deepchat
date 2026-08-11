@@ -26,9 +26,10 @@ migrated, appended, nor deleted.
 
 Only an explicit, typed Main logger may persist records. Native `console.*` remains available for
 non-persistent compatibility and development output but is not intercepted or redirected to the
-JSONL file. `electron-log` remains an internal synchronous transport owned by one Main module; no
-business module may import it directly. This architecture does not certify arbitrary legacy console
-arguments as content-safe; their removal or sanitization remains a separate subsystem concern.
+JSONL file. A dedicated synchronous persistence adapter owns validated appends directly; no shared
+logging singleton or business module may write the file. This architecture does not certify
+arbitrary legacy console arguments as content-safe; their removal or sanitization remains a separate
+subsystem concern.
 
 ## Goals
 
@@ -271,8 +272,13 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 - Before the first enabled append, an incomplete final line from an interrupted prior write is
   removed without changing complete preceding records. Tail repair scans at most one maximum-sized
   record plus its delimiter. Because the physical limit includes LF, an unterminated tail of 16 KiB
-  or more cannot be a partial valid record and disables persistence instead of blocking Main with an
-  unbounded scan.
+  or more cannot be a partial valid record; the complete damaged active file is retained as the one
+  archive and a clean active stream resumes. An archive/recovery I/O failure disables persistence
+  instead of blocking Main with an unbounded scan.
+- A record rejected by the persistence contract is dropped in isolation. The logger continues with
+  later records and emits one payload-free `logging.record.dropped` event identifying the rejected
+  sequence and fixed reason. Only storage, descriptor, or file-identity failures disable persistence
+  for the rest of the process.
 - Transport, projection, serialization, repair, and rotation failures never affect application
   behavior.
 - JSONL is best-effort local diagnostics, not an audit log, transaction journal, or power-loss-safe
@@ -280,7 +286,7 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 
 ## Source Boundaries
 
-- Only the Main logger adapter may import `electron-log`.
+- Main and shared runtime code do not import `electron-log`.
 - Main business modules emit typed events through the event catalog.
 - Native `console.*` is never persisted automatically.
 - Utility processes and workers do not write `main.jsonl` directly. Any diagnostic selected for
@@ -302,7 +308,9 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 
 1. An enabled process creates `logs/main.jsonl` under the effective profile and never appends a new
    `main.log`.
-2. Every non-empty line in active and archived Main files parses as one `MainLogRecordV1`.
+2. Every non-empty line in the active file and a normal-rotation archive parses as one
+   `MainLogRecordV1`. A damaged-tail recovery archive preserves all preceding valid records and may
+   retain one final opaque unterminated tail that readers must ignore.
 3. Disabled logging creates neither the Main JSONL file nor its directory solely because the logger
    loaded; unknown-state buffering is bounded and discarded when disabled.
 4. Console output remains human-readable and is not duplicated into a text file.

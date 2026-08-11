@@ -21,12 +21,19 @@ export interface MainLogRecordV1 {
 export interface MainLogPersistence {
   enable(): boolean
   disable(): void
-  write(level: MainLogLevel, line: string): boolean
+  write(level: MainLogLevel, line: string): MainLogWriteResult
 }
 
-export type MainLogInternalWarning = 'event_rejected' | 'record_oversized' | 'persistence_failed'
+export type MainLogWriteResult = 'written' | 'rejected' | 'failed'
+
+export type MainLogInternalWarning =
+  | 'event_rejected'
+  | 'record_oversized'
+  | 'record_rejected'
+  | 'persistence_failed'
 
 interface BufferedMainLogRecord {
+  seq: number
   level: MainLogLevel
   line: string
   bytes: number
@@ -54,6 +61,7 @@ export class MainLogger {
   private readonly startupBuffer: BufferedMainLogRecord[] = []
   private startupBufferBytes = 0
   private startupDropped = 0
+  private reportingRecordDrop = false
   private readonly emittedWarnings = new Set<MainLogInternalWarning>()
   private readonly now: () => Date
   private readonly writeConsole: ((level: MainLogLevel, text: string) => void) | undefined
@@ -90,15 +98,17 @@ export class MainLogger {
 
       if (bytes > MAX_MAIN_LOG_RECORD_BYTES) {
         this.warnOnce('record_oversized')
+        this.reportRecordDrop(seq, 'record_oversized')
         return
       }
 
       if (this.persistenceState === 'unknown') {
-        this.buffer({ level: projected.level, line, bytes })
+        this.buffer({ seq, level: projected.level, line, bytes })
         return
       }
       if (this.persistenceState === 'enabled') {
-        this.persist({ level: projected.level, line, bytes })
+        const result = this.persist({ seq, level: projected.level, line, bytes })
+        if (result === 'rejected') this.reportRecordDrop(seq, 'record_rejected')
       }
     } catch {
       this.warnOnce('event_rejected')
@@ -129,8 +139,15 @@ export class MainLogger {
     this.startupBufferBytes = 0
     this.startupDropped = 0
 
+    const rejectedSequences: number[] = []
     for (const record of buffered) {
-      if (!this.persist(record)) return
+      const result = this.persist(record)
+      if (result === 'failed') return
+      if (result === 'rejected') rejectedSequences.push(record.seq)
+    }
+    for (const seq of rejectedSequences) {
+      if (this.persistenceState !== 'enabled') return
+      this.reportRecordDrop(seq, 'record_rejected')
     }
     if (dropped > 0 && this.persistenceState === 'enabled') {
       this.emit('logging.startup_buffer.dropped', { droppedCount: dropped })
@@ -159,14 +176,32 @@ export class MainLogger {
     }
   }
 
-  private persist(record: BufferedMainLogRecord): boolean {
+  private persist(record: BufferedMainLogRecord): MainLogWriteResult {
     try {
-      if (this.options.persistence.write(record.level, record.line)) return true
+      const result = this.options.persistence.write(record.level, record.line)
+      if (result === 'written') return result
+      if (result === 'rejected') {
+        this.warnOnce('record_rejected')
+        return result
+      }
     } catch {
       // Persistence is best-effort and must not affect application behavior.
     }
     this.failPersistence()
-    return false
+    return 'failed'
+  }
+
+  private reportRecordDrop(
+    recordSeq: number,
+    reason: 'record_oversized' | 'record_rejected'
+  ): void {
+    if (this.reportingRecordDrop) return
+    this.reportingRecordDrop = true
+    try {
+      this.emit('logging.record.dropped', { recordSeq, reason })
+    } finally {
+      this.reportingRecordDrop = false
+    }
   }
 
   private disablePersistence(): void {

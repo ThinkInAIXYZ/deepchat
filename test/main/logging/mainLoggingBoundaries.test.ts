@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
-async function readTypeScriptFiles(root: string): Promise<Array<{ path: string; source: string }>> {
+async function readSourceFiles(root: string): Promise<Array<{ path: string; source: string }>> {
   const { readFileSync, readdirSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
   const files: Array<{ path: string; source: string }> = []
   const visit = (directory: string): void => {
@@ -9,7 +9,7 @@ async function readTypeScriptFiles(root: string): Promise<Array<{ path: string; 
       const entryPath = path.join(directory, entry.name)
       if (entry.isDirectory()) {
         visit(entryPath)
-      } else if (entry.isFile() && entry.name.endsWith('.ts')) {
+      } else if (entry.isFile() && /\.(?:ts|js|vue)$/.test(entry.name)) {
         files.push({ path: entryPath, source: readFileSync(entryPath, 'utf8') })
       }
     }
@@ -19,32 +19,31 @@ async function readTypeScriptFiles(root: string): Promise<Array<{ path: string; 
 }
 
 describe('Main logging boundaries', () => {
-  it('keeps electron-log inside the dedicated JSONL persistence adapter', async () => {
+  it('keeps electron-log out of runtime source code', async () => {
     const sourceRoot = path.resolve(process.cwd(), 'src')
-    const files = [
-      ...(await readTypeScriptFiles(path.join(sourceRoot, 'main'))),
-      ...(await readTypeScriptFiles(path.join(sourceRoot, 'shared')))
-    ]
+    const files = await readSourceFiles(sourceRoot)
     const importers = files
       .filter(({ source }) =>
-        /from ['"]electron-log['"]|require\(['"]electron-log['"]\)/.test(source)
+        /from ['"]electron-log(?:\/[^'"]+)?['"]|require\(['"]electron-log(?:\/[^'"]+)?['"]\)/.test(
+          source
+        )
       )
       .map(({ path: filePath }) => path.relative(sourceRoot, filePath))
 
-    expect(importers).toEqual(['main/logging/electronMainLogPersistence.ts'])
+    expect(importers).toEqual([])
   })
 
   it('does not expose another file transport or retain the legacy Main log path', async () => {
     const sourceRoot = path.resolve(process.cwd(), 'src')
     const files = [
-      ...(await readTypeScriptFiles(path.join(sourceRoot, 'main'))),
-      ...(await readTypeScriptFiles(path.join(sourceRoot, 'shared')))
+      ...(await readSourceFiles(path.join(sourceRoot, 'main'))),
+      ...(await readSourceFiles(path.join(sourceRoot, 'shared')))
     ]
 
     for (const { path: filePath, source } of files) {
       expect(source).not.toMatch(/console\.(?:log|error|warn|info|debug|trace)\s*=/)
       expect(source).not.toContain('logs/main.log')
-      if (!filePath.endsWith(path.join('main', 'logging', 'electronMainLogPersistence.ts'))) {
+      if (!filePath.endsWith(path.join('main', 'logging', 'mainJsonlPersistence.ts'))) {
         expect(source).not.toContain('transports.file')
         expect(source).not.toContain('resolvePathFn')
       }

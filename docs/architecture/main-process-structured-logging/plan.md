@@ -12,7 +12,7 @@ Main business owner
                  └─ Main JSONL adapter
                       ├─ unknown: bounded memory buffer
                       ├─ disabled: no-op
-                      ├─ enabled: synchronous electron-log file transport
+                      ├─ enabled: synchronous validated JSONL append
                       └─ development console: fixed human-readable projection
 ```
 
@@ -44,7 +44,7 @@ Add Main-owned logger modules under `src/main/logging`; `src/shared/logger.ts` r
 compatibility façade until its subsystem owners remove or sanitize those diagnostics. The final
 adapter:
 
-- is the only importer of `electron-log`;
+- owns the validated JSONL append without a shared logging singleton;
 - creates `MainLogRecordV1` with ISO timestamp, monotonic sequence, process UUID, app version, fixed
   event severity, and projected context;
 - returns one pre-serialized JSON string to the file formatter;
@@ -191,7 +191,7 @@ write persistent records.
 
 ### Repository guards
 
-- only the adapter imports `electron-log`;
+- Main and shared runtime code do not import `electron-log`;
 - no Main persistent variadic logger remains;
 - no global console interception remains;
 - high-risk payload logging patterns have focused regression coverage or source guards where useful.

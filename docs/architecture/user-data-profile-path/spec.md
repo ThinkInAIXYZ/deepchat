@@ -73,7 +73,7 @@ The maintained profile-path consumers use these timing rules:
 
 | Consumer | File | Provides | Path timing |
 | --- | --- | --- | --- |
-| `ElectronMainLogPersistence.enable` | `src/main/logging/electronMainLogPersistence.ts` | logs `logs/main.jsonl` and `logs/main.old.jsonl` | Uses the injected Electron `userData` path after profile selection and settings hydration |
+| `MainJsonlPersistence.enable` | `src/main/logging/mainJsonlPersistence.ts` | logs `logs/main.jsonl` and `logs/main.old.jsonl` | Uses the injected Electron `userData` path after profile selection and settings hydration |
 | `ProviderDbLoader.userDataDir` | `src/main/provider/providerDbLoader.ts` | model provider `provider-db/` | `appMain.ts` → `app/mainProcess.ts` → `app/composition.ts` → `providerDbLoader.ts` |
 | `getDefaultUserDataDir()` | `test/e2e/fixtures/electronApp.ts` | profile root | No Electron `app` |
 

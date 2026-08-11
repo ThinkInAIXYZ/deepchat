@@ -1,13 +1,12 @@
-import electronLog from 'electron-log'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ElectronMainLogPersistence } from '@/logging/electronMainLogPersistence'
+import { MainJsonlPersistence } from '@/logging/mainJsonlPersistence'
 import { MAX_MAIN_LOG_RECORD_BYTES } from '@/logging/mainLogger'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const temporaryDirectories: string[] = []
-const persistenceInstances: ElectronMainLogPersistence[] = []
+const persistenceInstances: MainJsonlPersistence[] = []
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 
 afterEach(() => {
@@ -31,29 +30,13 @@ function lstatWithOptions(filePath: fs.PathLike, options?: { bigint?: boolean })
   return options?.bigint ? fs.lstatSync(filePath, { bigint: true }) : fs.lstatSync(filePath)
 }
 
-function createElectronLog() {
-  const fileTransport = { level: 'info' as string | false }
-  const consoleTransport = { level: 'info' as string | false }
-  const processMessage = vi.fn(
-    (message: { data: unknown[] }, options: { transports: Array<(message: unknown) => void> }) => {
-      for (const transport of options.transports) transport(message)
-    }
-  )
-  return {
-    transports: { file: fileTransport, console: consoleTransport },
-    processMessage
-  }
-}
-
 function createPersistence(userData: string, overrides: Record<string, unknown> = {}) {
-  const log = createElectronLog()
-  const persistence = new ElectronMainLogPersistence({
+  const persistence = new MainJsonlPersistence({
     getUserDataPath: () => userData,
-    log: log as never,
     fs: { ...fs, ...overrides } as never
   })
   persistenceInstances.push(persistence)
-  return { log, persistence }
+  return persistence
 }
 
 function writeCompleteFileAtLimit(filePath: string): void {
@@ -80,44 +63,32 @@ function validLine(seq = 1): string {
   })
 }
 
-describe('ElectronMainLogPersistence', () => {
+describe('MainJsonlPersistence', () => {
   it('stays inert until enabled and writes one LF-terminated JSON object', () => {
     const userData = createUserData()
     const getUserDataPath = vi.fn(() => userData)
-    const log = createElectronLog()
-    const persistence = new ElectronMainLogPersistence({
+    const persistence = new MainJsonlPersistence({
       getUserDataPath,
-      log: log as never,
       fs
     })
     persistenceInstances.push(persistence)
 
     expect(getUserDataPath).not.toHaveBeenCalled()
-    expect(log.transports.file.level).toBe(false)
-    expect(log.transports.console.level).toBe(false)
     expect(persistence.enable()).toBe(true)
     expect(fs.existsSync(path.join(userData, 'logs/main.jsonl'))).toBe(false)
 
     const line = validLine()
-    expect(persistence.write('info', line)).toBe(true)
+    expect(persistence.write('info', line)).toBe('written')
     expect(fs.readFileSync(path.join(userData, 'logs/main.jsonl'), 'utf8')).toBe(`${line}\n`)
-    expect(log.processMessage).toHaveBeenCalledWith(
-      { data: [line], date: expect.any(Date), level: 'info' },
-      { transports: [expect.any(Function)] }
-    )
   })
 
-  it('creates a dedicated logger and disables the unused default file sink', () => {
+  it('does not change global console behavior while writing JSONL', () => {
     const userData = createUserData()
-    const originalConsoleLevel = electronLog.transports.console.level
-
-    const persistence = new ElectronMainLogPersistence({ getUserDataPath: () => userData, fs })
+    const persistence = new MainJsonlPersistence({ getUserDataPath: () => userData, fs })
     persistenceInstances.push(persistence)
     expect(persistence.enable()).toBe(true)
-    expect(persistence.write('info', validLine())).toBe(true)
+    expect(persistence.write('info', validLine())).toBe('written')
 
-    expect(electronLog.transports.file.level).toBe(false)
-    expect(electronLog.transports.console.level).toBe(originalConsoleLevel)
     expect(fs.readFileSync(path.join(userData, 'logs/main.jsonl'), 'utf8')).toBe(`${validLine()}\n`)
   })
 
@@ -128,11 +99,11 @@ describe('ElectronMainLogPersistence', () => {
     ) as typeof fs.openSync
     const fstatSync = vi.fn(fstatWithOptions)
     const closeSync = vi.fn((descriptor: number) => fs.closeSync(descriptor))
-    const { persistence } = createPersistence(userData, { openSync, fstatSync, closeSync })
+    const persistence = createPersistence(userData, { openSync, fstatSync, closeSync })
     expect(persistence.enable()).toBe(true)
 
-    expect(persistence.write('info', validLine())).toBe(true)
-    expect(persistence.write('info', validLine(2))).toBe(true)
+    expect(persistence.write('info', validLine())).toBe('written')
+    expect(persistence.write('info', validLine(2))).toBe('written')
 
     expect(openSync).toHaveBeenCalledOnce()
     expect(fstatSync).toHaveBeenCalledOnce()
@@ -147,16 +118,16 @@ describe('ElectronMainLogPersistence', () => {
     const activePath = path.join(logDirectory, 'main.jsonl')
     const legacyPath = path.join(logDirectory, 'main.log')
     fs.mkdirSync(logDirectory, { recursive: true })
-    fs.writeFileSync(activePath, '{"seq":1}\n{"seq":2')
+    fs.writeFileSync(activePath, `${validLine()}\n{"seq":2`)
     fs.writeFileSync(legacyPath, 'legacy text\n')
-    const { persistence } = createPersistence(userData)
+    const persistence = createPersistence(userData)
 
     expect(persistence.enable()).toBe(true)
-    expect(fs.readFileSync(activePath, 'utf8')).toBe('{"seq":1}\n')
+    expect(fs.readFileSync(activePath, 'utf8')).toBe(`${validLine()}\n`)
     expect(fs.readFileSync(legacyPath, 'utf8')).toBe('legacy text\n')
   })
 
-  it('disables persistence after a bounded scan of an oversized incomplete tail', () => {
+  it('recovers after a bounded scan of an oversized incomplete tail', () => {
     const userData = createUserData()
     const activePath = path.join(userData, 'logs/main.jsonl')
     fs.mkdirSync(path.dirname(activePath), { recursive: true })
@@ -166,6 +137,7 @@ describe('ElectronMainLogPersistence', () => {
     } finally {
       fs.closeSync(descriptor)
     }
+    fs.writeFileSync(path.join(userData, 'logs/main.old.jsonl'), `${validLine(99)}\n`)
     const readSync = vi.fn(
       (
         fd: number,
@@ -175,32 +147,50 @@ describe('ElectronMainLogPersistence', () => {
         position: number | null
       ) => fs.readSync(fd, buffer, offset, length, position)
     )
-    const { persistence } = createPersistence(userData, { readSync })
+    const persistence = createPersistence(userData, { readSync })
 
-    expect(persistence.enable()).toBe(false)
+    expect(persistence.enable()).toBe(true)
     expect(readSync.mock.calls.reduce((total, call) => total + call[3], 0)).toBeLessThanOrEqual(
       MAX_MAIN_LOG_RECORD_BYTES + 2
     )
-    expect(fs.statSync(activePath).size).toBe(MAX_FILE_BYTES * 100)
+    expect(fs.statSync(path.join(userData, 'logs/main.old.jsonl')).size).toBe(MAX_FILE_BYTES * 100)
+    expect(fs.existsSync(activePath)).toBe(false)
+
+    expect(persistence.write('info', validLine())).toBe('written')
+    persistence.disable()
+    const restarted = createPersistence(userData)
+    expect(restarted.enable()).toBe(true)
+    expect(restarted.write('info', validLine(2))).toBe('written')
+    expect(fs.readFileSync(activePath, 'utf8')).toBe(`${validLine()}\n${validLine(2)}\n`)
   })
 
   it.each([
-    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES - 1, enabled: true },
-    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES, enabled: false },
-    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES + 1, enabled: false }
+    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES - 1, repairedInPlace: true },
+    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES, repairedInPlace: false },
+    { tailBytes: MAX_MAIN_LOG_RECORD_BYTES + 1, repairedInPlace: false }
   ])(
     'handles an incomplete tail of $tailBytes bytes at the repair boundary',
-    ({ tailBytes, enabled }) => {
+    ({ tailBytes, repairedInPlace }) => {
       const userData = createUserData()
       const activePath = path.join(userData, 'logs/main.jsonl')
-      const prefix = Buffer.from('{"seq":1}\n')
+      const prefix = Buffer.from(`${validLine()}\n`)
       const original = Buffer.concat([prefix, Buffer.alloc(tailBytes, 0x78)])
       fs.mkdirSync(path.dirname(activePath), { recursive: true })
       fs.writeFileSync(activePath, original)
-      const { persistence } = createPersistence(userData)
+      const persistence = createPersistence(userData)
 
-      expect(persistence.enable()).toBe(enabled)
-      expect(fs.readFileSync(activePath)).toEqual(enabled ? prefix : original)
+      expect(persistence.enable()).toBe(true)
+      if (repairedInPlace) {
+        expect(fs.readFileSync(activePath)).toEqual(prefix)
+      } else {
+        expect(fs.existsSync(activePath)).toBe(false)
+        const archived = fs.readFileSync(path.join(userData, 'logs/main.old.jsonl'))
+        expect(archived).toEqual(original)
+        expect(JSON.parse(archived.subarray(0, prefix.length - 1).toString('utf8'))).toMatchObject({
+          v: 1,
+          seq: 1
+        })
+      }
     }
   )
 
@@ -212,10 +202,11 @@ describe('ElectronMainLogPersistence', () => {
       const original = Buffer.alloc(tailBytes, 0x78)
       fs.mkdirSync(path.dirname(activePath), { recursive: true })
       fs.writeFileSync(activePath, original)
-      const { persistence } = createPersistence(userData)
+      const persistence = createPersistence(userData)
 
-      expect(persistence.enable()).toBe(false)
-      expect(fs.readFileSync(activePath)).toEqual(original)
+      expect(persistence.enable()).toBe(true)
+      expect(fs.existsSync(activePath)).toBe(false)
+      expect(fs.readFileSync(path.join(userData, 'logs/main.old.jsonl'))).toEqual(original)
     }
   )
 
@@ -227,14 +218,56 @@ describe('ElectronMainLogPersistence', () => {
     fs.mkdirSync(logDirectory, { recursive: true })
     writeCompleteFileAtLimit(activePath)
     fs.writeFileSync(archivePath, '{"seq":0}\n')
-    const { persistence } = createPersistence(userData)
+    const persistence = createPersistence(userData)
     expect(persistence.enable()).toBe(true)
 
     const line = validLine(2)
-    expect(persistence.write('info', line)).toBe(true)
+    expect(persistence.write('info', line)).toBe('written')
 
     expect(fs.statSync(archivePath).size).toBe(MAX_FILE_BYTES)
     expect(fs.readFileSync(activePath, 'utf8')).toBe(`${line}\n`)
+  })
+
+  it('keeps the validated descriptor open until rotation is complete', () => {
+    const userData = createUserData()
+    const activePath = path.join(userData, 'logs/main.jsonl')
+    fs.mkdirSync(path.dirname(activePath), { recursive: true })
+    writeCompleteFileAtLimit(activePath)
+    const operations: string[] = []
+    const renameSync = vi.fn((oldPath: fs.PathLike, newPath: fs.PathLike) => {
+      operations.push('rename')
+      fs.renameSync(oldPath, newPath)
+    })
+    const closeSync = vi.fn((descriptor: number) => {
+      operations.push('close')
+      fs.closeSync(descriptor)
+    })
+    const persistence = createPersistence(userData, { closeSync, renameSync })
+    expect(persistence.enable()).toBe(true)
+    operations.length = 0
+
+    expect(persistence.write('info', validLine())).toBe('written')
+
+    expect(operations.slice(0, 2)).toEqual(['rename', 'close'])
+  })
+
+  it('completes legal short writes without leaving a partial JSONL record', () => {
+    const userData = createUserData()
+    let firstWrite = true
+    const writeSync = vi.fn(
+      (descriptor: number, buffer: Uint8Array, offset: number, length: number): number => {
+        const writeLength = firstWrite ? Math.max(1, Math.floor(length / 2)) : length
+        firstWrite = false
+        return fs.writeSync(descriptor, buffer, offset, writeLength)
+      }
+    )
+    const persistence = createPersistence(userData, { writeSync })
+    expect(persistence.enable()).toBe(true)
+
+    expect(persistence.write('info', validLine())).toBe('written')
+
+    expect(writeSync).toHaveBeenCalledTimes(2)
+    expect(fs.readFileSync(path.join(userData, 'logs/main.jsonl'), 'utf8')).toBe(`${validLine()}\n`)
   })
 
   it('does not rotate a path that changed after its append descriptor was opened', () => {
@@ -266,10 +299,10 @@ describe('ElectronMainLogPersistence', () => {
     const renameSync = vi.fn((oldPath: fs.PathLike, newPath: fs.PathLike) =>
       fs.renameSync(oldPath, newPath)
     )
-    const { persistence } = createPersistence(userData, { lstatSync, openSync, renameSync })
+    const persistence = createPersistence(userData, { lstatSync, openSync, renameSync })
     expect(persistence.enable()).toBe(true)
 
-    expect(persistence.write('info', validLine())).toBe(false)
+    expect(persistence.write('info', validLine())).toBe('failed')
     expect(renameSync).not.toHaveBeenCalled()
     expect(fs.statSync(activePath).size).toBe(MAX_FILE_BYTES)
     expect(fs.readFileSync(replacementPath, 'utf8')).toBe(replacementContents)
@@ -287,10 +320,10 @@ describe('ElectronMainLogPersistence', () => {
       renameSync: vi.fn(() => {
         throw Object.assign(new Error('rename failed'), { code: 'EACCES' })
       })
-    }).persistence
+    })
     expect(rotationFailure.enable()).toBe(true)
 
-    expect(rotationFailure.write('info', validLine())).toBe(false)
+    expect(rotationFailure.write('info', validLine())).toBe('failed')
     expect(rotationFailure.enable()).toBe(false)
     expect(fs.statSync(activePath).size).toBe(MAX_FILE_BYTES)
     expect(fs.readFileSync(archivePath, 'utf8')).toBe(archiveContents)
@@ -300,17 +333,17 @@ describe('ElectronMainLogPersistence', () => {
       writeSync: vi.fn(() => {
         throw Object.assign(new Error('write failed'), { code: 'EIO' })
       })
-    }).persistence
+    })
     expect(writeFailure.enable()).toBe(true)
-    expect(writeFailure.write('info', validLine())).toBe(false)
-    expect(writeFailure.write('info', validLine(2))).toBe(false)
+    expect(writeFailure.write('info', validLine())).toBe('failed')
+    expect(writeFailure.write('info', validLine(2))).toBe('failed')
   })
 
   it('refuses symlinked log directories and active files', () => {
     const externalDirectory = createUserData()
     const linkedDirectoryProfile = createUserData()
     fs.symlinkSync(externalDirectory, path.join(linkedDirectoryProfile, 'logs'))
-    const linkedDirectoryPersistence = createPersistence(linkedDirectoryProfile).persistence
+    const linkedDirectoryPersistence = createPersistence(linkedDirectoryProfile)
 
     expect(linkedDirectoryPersistence.enable()).toBe(false)
     expect(fs.existsSync(path.join(externalDirectory, 'main.jsonl'))).toBe(false)
@@ -322,10 +355,26 @@ describe('ElectronMainLogPersistence', () => {
     fs.mkdirSync(linkedFileDirectory)
     fs.writeFileSync(externalFile, '{"safe":true}\n')
     fs.symlinkSync(externalFile, linkedFile)
-    const linkedFilePersistence = createPersistence(linkedFileProfile).persistence
+    const linkedFilePersistence = createPersistence(linkedFileProfile)
 
     expect(linkedFilePersistence.enable()).toBe(false)
     expect(fs.readFileSync(externalFile, 'utf8')).toBe('{"safe":true}\n')
+  })
+
+  it('refuses a hardlinked active file without modifying its other link', () => {
+    const userData = createUserData()
+    const externalDirectory = createUserData()
+    const activePath = path.join(userData, 'logs/main.jsonl')
+    const externalFile = path.join(externalDirectory, 'external.jsonl')
+    const originalContents = `${validLine()}\npartial`
+    fs.mkdirSync(path.dirname(activePath), { recursive: true })
+    fs.writeFileSync(externalFile, originalContents)
+    fs.linkSync(externalFile, activePath)
+    const persistence = createPersistence(userData)
+
+    expect(persistence.enable()).toBe(false)
+    expect(fs.readFileSync(externalFile, 'utf8')).toBe(originalContents)
+    expect(fs.readFileSync(activePath, 'utf8')).toBe(originalContents)
   })
 
   it('rejects a file replaced by a symlink between validation and open', () => {
@@ -343,14 +392,14 @@ describe('ElectronMainLogPersistence', () => {
         return fs.openSync(filePath, flags, mode)
       }
     )
-    const { persistence } = createPersistence(userData, {
+    const persistence = createPersistence(userData, {
       closeSync,
       constants: { ...fs.constants, O_NOFOLLOW: 0 },
       openSync
     })
     expect(persistence.enable()).toBe(true)
 
-    expect(persistence.write('info', validLine())).toBe(false)
+    expect(persistence.write('info', validLine())).toBe('failed')
     expect(closeSync).toHaveBeenCalledOnce()
     expect(fs.readFileSync(externalFile, 'utf8')).toBe(externalContents)
   })
@@ -376,7 +425,7 @@ describe('ElectronMainLogPersistence', () => {
       }
       return lstatWithOptions(filePath, options)
     })
-    const { persistence } = createPersistence(userData, {
+    const persistence = createPersistence(userData, {
       closeSync,
       ftruncateSync,
       lstatSync
@@ -413,7 +462,7 @@ describe('ElectronMainLogPersistence', () => {
           property === 'ino' ? pathInode : Reflect.get(target, property, receiver)
       })
     })
-    const { persistence } = createPersistence(userData, { fstatSync, lstatSync })
+    const persistence = createPersistence(userData, { fstatSync, lstatSync })
 
     expect(Number(descriptorInode)).toBe(Number(pathInode))
     expect(persistence.enable()).toBe(false)
@@ -440,43 +489,43 @@ describe('ElectronMainLogPersistence', () => {
         return fs.openSync(filePath, flags, mode)
       }
     )
-    const { persistence } = createPersistence(userData, { closeSync, openSync })
+    const persistence = createPersistence(userData, { closeSync, openSync })
     expect(persistence.enable()).toBe(true)
 
-    expect(persistence.write('info', validLine())).toBe(false)
+    expect(persistence.write('info', validLine())).toBe('failed')
     expect(closeSync).toHaveBeenCalledOnce()
     expect(fs.readFileSync(externalFile, 'utf8')).toBe(externalContents)
   })
 
   it('rejects non-object JSON and physical newlines before dispatch', () => {
     const userData = createUserData()
-    const { log, persistence } = createPersistence(userData)
+    const persistence = createPersistence(userData)
     expect(persistence.enable()).toBe(true)
 
-    expect(persistence.write('info', 'plain text')).toBe(false)
-    expect(persistence.write('info', '[]')).toBe(false)
-    expect(persistence.write('info', '{"v":1}\n{"v":2}')).toBe(false)
-    expect(log.processMessage).not.toHaveBeenCalled()
+    expect(persistence.write('info', 'plain text')).toBe('rejected')
+    expect(persistence.write('info', '[]')).toBe('rejected')
+    expect(persistence.write('info', '{"v":1}\n{"v":2}')).toBe('rejected')
+    expect(persistence.write('info', validLine())).toBe('written')
   })
 
   it('rejects fields outside the selected event schema', () => {
     const userData = createUserData()
-    const { log, persistence } = createPersistence(userData)
+    const persistence = createPersistence(userData)
     expect(persistence.enable()).toBe(true)
 
     const contextPayload = JSON.parse(validLine())
     contextPayload.context.prompt = 'SECRET_PROMPT'
-    expect(persistence.write('info', JSON.stringify(contextPayload))).toBe(false)
+    expect(persistence.write('info', JSON.stringify(contextPayload))).toBe('rejected')
 
     const envelopePayload = JSON.parse(validLine())
     envelopePayload.toolResponse = 'SECRET_TOOL_RESPONSE'
-    expect(persistence.write('info', JSON.stringify(envelopePayload))).toBe(false)
-    expect(log.processMessage).not.toHaveBeenCalled()
+    expect(persistence.write('info', JSON.stringify(envelopePayload))).toBe('rejected')
+    expect(persistence.write('info', validLine())).toBe('written')
   })
 
   it('accepts only the category-only projected shape for fatal events', () => {
     const userData = createUserData()
-    const { persistence } = createPersistence(userData)
+    const persistence = createPersistence(userData)
     expect(persistence.enable()).toBe(true)
     const fatalRecord = JSON.parse(validLine())
     fatalRecord.level = 'error'
@@ -487,8 +536,8 @@ describe('ElectronMainLogPersistence', () => {
       }
     }
 
-    expect(persistence.write('error', JSON.stringify(fatalRecord))).toBe(true)
+    expect(persistence.write('error', JSON.stringify(fatalRecord))).toBe('written')
     fatalRecord.context.error.stack = ['at explode (<app>/src/main/example.ts:10:2)']
-    expect(persistence.write('error', JSON.stringify(fatalRecord))).toBe(false)
+    expect(persistence.write('error', JSON.stringify(fatalRecord))).toBe('rejected')
   })
 })

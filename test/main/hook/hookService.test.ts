@@ -11,13 +11,6 @@ import { DEFAULT_IMPORTANT_HOOK_EVENTS } from '../../../src/shared/hooksNotifica
 const { spawnMock } = vi.hoisted(() => ({ spawnMock: vi.fn() }))
 
 vi.mock('child_process', () => ({ spawn: spawnMock }))
-vi.mock('electron-log', () => ({
-  default: {
-    warn: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn()
-  }
-}))
 
 import { expandHookCommandPlaceholders, HookService, truncateText } from '../../../src/main/hook'
 import {

@@ -1,11 +1,156 @@
 import { describe, expect, it } from 'vitest'
 import {
+  isProjectedMainLogEvent,
   MainLogEventProjectionError,
   normalizeMainLogRunStopReason,
-  projectMainLogEvent
+  projectMainLogEvent,
+  type MainLogEventInputMap,
+  type MainLogEventName
 } from '@/logging/mainLogEvents'
 
 describe('Main log event projection', () => {
+  it('round-trips every catalog projector through persisted-context validation', () => {
+    const admission = {
+      kind: 'live_delegation' as const,
+      parentSessionId: 'parent_1',
+      delegationId: 'delegation_1',
+      turnId: 'turn_1'
+    }
+    const delegation = {
+      parentSessionId: 'parent_1',
+      childSessionId: 'child_1',
+      delegationId: 'delegation_1',
+      turnId: 'turn_1'
+    }
+    const inputs = {
+      'logging.startup_buffer.dropped': { droppedCount: 1 },
+      'logging.record.dropped': { recordSeq: 1, reason: 'record_rejected' },
+      'process.uncaught_exception': { error: new Error('not persisted') },
+      'process.unhandled_rejection': { error: new DOMException('not persisted', 'AbortError') },
+      'app.startup.started': {
+        startupRunId: 'startup_1',
+        argumentCount: 1,
+        deepLinkPresent: false
+      },
+      'app.startup.terminal': {
+        startupRunId: 'startup_1',
+        outcome: 'completed',
+        durationMs: 10
+      },
+      'app.startup.component.failed': {
+        startupRunId: 'startup_1',
+        component: 'legacy_import',
+        error: { category: 'persistence' }
+      },
+      'app.update.operation.failed': {
+        operation: 'download',
+        error: { category: 'provider' }
+      },
+      'app.shutdown.started': { reason: 'app_quit' },
+      'app.shutdown.terminal': { outcome: 'completed', durationMs: 10 },
+      'database.initialization.terminal': {
+        outcome: 'completed',
+        durationMs: 10,
+        repairAttempted: false,
+        schemaDiagnosis: 'completed',
+        repairableIssueCount: 0,
+        manualIssueCount: 0
+      },
+      'agent.run.started': {
+        runId: 'run_1',
+        sessionId: 'session_1',
+        messageId: 'message_1',
+        runKind: 'loop',
+        initialRequestSeq: 0
+      },
+      'agent.run.terminal': {
+        runId: 'run_1',
+        sessionId: 'session_1',
+        messageId: 'message_1',
+        runKind: 'loop',
+        outcome: 'completed',
+        stopReason: 'complete',
+        durationMs: 10,
+        logicalRounds: 1,
+        toolCalls: 0
+      },
+      'agent.admission.queued': {
+        ...admission,
+        acquisitionSeq: 1,
+        capacity: 6,
+        active: 6,
+        pending: 1
+      },
+      'agent.admission.granted': {
+        ...admission,
+        acquisitionSeq: 1,
+        waitMs: 10,
+        capacity: 6,
+        active: 6,
+        pending: 0
+      },
+      'agent.admission.released': {
+        ...admission,
+        acquisitionSeq: 1,
+        holdMs: 10,
+        reason: 'permit_released',
+        active: 5,
+        pending: 0
+      },
+      'agent.admission.rejected': {
+        ...admission,
+        acquisitionSeq: 1,
+        waitMs: 10,
+        reason: 'queue_full',
+        capacity: 6,
+        active: 6,
+        pending: 10
+      },
+      'agent.admission.closed': {
+        capacity: 6,
+        active: 0,
+        pending: 0,
+        activeHighWater: 6,
+        pendingHighWater: 1,
+        granted: 1,
+        rejected: 1,
+        observationsDropped: 0,
+        waitMs: { samples: 1, p50: 10, p95: 10, max: 10 },
+        holdMs: { samples: 1, p50: 10, p95: 10, max: 10 }
+      },
+      'orchestration.delegation.turn.queued': {
+        parentSessionId: delegation.parentSessionId,
+        delegationId: delegation.delegationId,
+        turnId: delegation.turnId,
+        turnKind: 'initial'
+      },
+      'orchestration.delegation.child.bound': delegation,
+      'orchestration.delegation.turn.started': { ...delegation, turnKind: 'initial' },
+      'orchestration.delegation.turn.suspended': { ...delegation, reason: 'permission' },
+      'orchestration.delegation.turn.resumed': delegation,
+      'orchestration.delegation.turn.terminal': {
+        ...delegation,
+        status: 'completed',
+        durationMs: 10
+      },
+      'orchestration.delegation.reconciliation.terminal': {
+        ...delegation,
+        outcome: 'settled'
+      },
+      'orchestration.delegation.stale_result.rejected': {
+        ...delegation,
+        reason: 'recovered_result_predates_turn'
+      },
+      'orchestration.delegation.observations.dropped': { droppedCount: 1 }
+    } satisfies { [TEvent in MainLogEventName]: MainLogEventInputMap[TEvent] }
+
+    for (const event of Object.keys(inputs) as MainLogEventName[]) {
+      const projected = projectMainLogEvent(event, inputs[event] as never)
+      const serializedContext: unknown = JSON.parse(JSON.stringify(projected.context))
+      expect(isProjectedMainLogEvent(event, projected.level, serializedContext), event).toBe(true)
+    }
+  })
+
   it('normalizes unknown durable stop reasons without persisting their text', () => {
     expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'completed')).toBe('unknown')
     expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'paused')).toBe('unknown')

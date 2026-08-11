@@ -200,6 +200,10 @@ export interface MainLogEventInputMap {
   'logging.startup_buffer.dropped': {
     droppedCount: number
   }
+  'logging.record.dropped': {
+    recordSeq: number
+    reason: 'record_oversized' | 'record_rejected'
+  }
   'process.uncaught_exception': {
     error: unknown
   }
@@ -435,6 +439,7 @@ const UPDATE_OPERATIONS = [
 const UPDATE_OPERATION_ERROR_CATEGORIES = ['persistence', 'provider', 'unknown'] as const
 const RELEASE_REASONS = ['permit_released', 'lease_suspended', 'lease_released'] as const
 const REJECTION_REASONS = ['queue_full', 'aborted', 'closed'] as const
+const RECORD_DROP_REASONS = ['record_oversized', 'record_rejected'] as const
 const TURN_KINDS = ['initial', 'follow_up'] as const
 const DELEGATION_SUSPEND_REASONS = ['permission', 'question'] as const
 const DELEGATION_TERMINAL_STATUSES = ['completed', 'failed', 'cancelled', 'interrupted'] as const
@@ -682,6 +687,14 @@ const EVENT_DEFINITIONS: MainLogEventDefinitions = {
     inputFields: ['droppedCount'],
     level: 'warn',
     project: (input) => ({ droppedCount: positiveCount('droppedCount', input.droppedCount) })
+  },
+  'logging.record.dropped': {
+    inputFields: ['recordSeq', 'reason'],
+    level: 'warn',
+    project: (input) => ({
+      recordSeq: positiveCount('recordSeq', input.recordSeq),
+      reason: oneOf('reason', input.reason, RECORD_DROP_REASONS)
+    })
   },
   'process.uncaught_exception': {
     inputFields: ['error'],

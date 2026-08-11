@@ -133,7 +133,6 @@
     "cron-parser": "^5.6.1",
     "cross-spawn": "^7.0.6",
     "diff": "^8.0.4",
-    "electron-log": "^5.4.4",
     "electron-store": "^8.2.0",
     "electron-updater": "6.8.9",
     "electron-window-state": "^5.0.3",

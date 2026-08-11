@@ -9,7 +9,7 @@ function createPersistence(overrides: Partial<MainLogPersistence> = {}) {
   return {
     enable: vi.fn(() => true),
     disable: vi.fn(),
-    write: vi.fn(() => true),
+    write: vi.fn(() => 'written' as const),
     ...overrides
   }
 }
@@ -43,7 +43,9 @@ function emitShutdown(logger: MainLogger, durationMs: number): void {
 }
 
 function parseWrittenLines(persistence: ReturnType<typeof createPersistence>) {
-  return persistence.write.mock.calls.map(([, line]) => JSON.parse(line))
+  return persistence.write.mock.calls.flatMap(([, line], index) =>
+    persistence.write.mock.results[index]?.value === 'written' ? [JSON.parse(line)] : []
+  )
 }
 
 describe('MainLogger', () => {
@@ -166,7 +168,7 @@ describe('MainLogger', () => {
     })
   })
 
-  it('drops oversized records without writing partial JSON', () => {
+  it('contains recursive loss reporting when every envelope is oversized', () => {
     const warn = vi.fn<(warning: MainLogInternalWarning) => void>()
     const { logger, persistence } = createLogger({ appVersion: 'v'.repeat(20 * 1024), warn })
     logger.setPersistenceEnabled(true)
@@ -179,8 +181,30 @@ describe('MainLogger', () => {
     expect(warn).toHaveBeenCalledWith('record_oversized')
   })
 
+  it('persists an explainable sequence marker when only the source record is oversized', () => {
+    const { logger, persistence } = createLogger({ appVersion: `1.${'v'.repeat(15_500)}` })
+    logger.setPersistenceEnabled(true)
+
+    logger.emit('orchestration.delegation.turn.terminal', {
+      parentSessionId: 'p'.repeat(256),
+      childSessionId: 'c'.repeat(256),
+      delegationId: 'd'.repeat(256),
+      turnId: 't'.repeat(256),
+      status: 'completed',
+      durationMs: 1
+    })
+
+    expect(parseWrittenLines(persistence)).toEqual([
+      expect.objectContaining({
+        seq: 2,
+        event: 'logging.record.dropped',
+        context: { recordSeq: 1, reason: 'record_oversized' }
+      })
+    ])
+  })
+
   it('contains projection and persistence failures', () => {
-    const persistence = createPersistence({ write: vi.fn(() => false) })
+    const persistence = createPersistence({ write: vi.fn(() => 'failed' as const) })
     const { logger, warn } = createLogger({ persistence })
     logger.setPersistenceEnabled(true)
 
@@ -199,6 +223,67 @@ describe('MainLogger', () => {
       'event_rejected',
       'persistence_failed'
     ])
+  })
+
+  it('drops one rejected record, explains its sequence gap, and keeps persistence enabled', () => {
+    const write = vi
+      .fn<MainLogPersistence['write']>()
+      .mockReturnValueOnce('rejected')
+      .mockReturnValue('written')
+    const persistence = createPersistence({ write })
+    const { logger, warn } = createLogger({ persistence })
+    logger.setPersistenceEnabled(true)
+
+    emitShutdown(logger, 1)
+    emitShutdown(logger, 2)
+
+    expect(parseWrittenLines(persistence)).toEqual([
+      expect.objectContaining({
+        seq: 2,
+        event: 'logging.record.dropped',
+        context: { recordSeq: 1, reason: 'record_rejected' }
+      }),
+      expect.objectContaining({ seq: 3, event: 'app.shutdown.terminal' })
+    ])
+    expect(persistence.disable).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn).toHaveBeenCalledWith('record_rejected')
+  })
+
+  it('flushes later startup records after one buffered record is rejected', () => {
+    const write = vi
+      .fn<MainLogPersistence['write']>()
+      .mockReturnValueOnce('rejected')
+      .mockReturnValue('written')
+    const persistence = createPersistence({ write })
+    const { logger } = createLogger({ persistence })
+    emitShutdown(logger, 1)
+    emitShutdown(logger, 2)
+
+    logger.setPersistenceEnabled(true)
+
+    expect(parseWrittenLines(persistence)).toEqual([
+      expect.objectContaining({ seq: 2, event: 'app.shutdown.terminal' }),
+      expect.objectContaining({
+        seq: 3,
+        event: 'logging.record.dropped',
+        context: { recordSeq: 1, reason: 'record_rejected' }
+      })
+    ])
+    expect(persistence.disable).not.toHaveBeenCalled()
+  })
+
+  it('contains recursive loss reporting when persistence rejects every record', () => {
+    const persistence = createPersistence({ write: vi.fn(() => 'rejected' as const) })
+    const { logger, warn } = createLogger({ persistence })
+    logger.setPersistenceEnabled(true)
+
+    emitShutdown(logger, 1)
+
+    expect(persistence.write).toHaveBeenCalledTimes(2)
+    expect(persistence.disable).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn).toHaveBeenCalledWith('record_rejected')
   })
 
   it('fails closed when persistence cannot be enabled', () => {
