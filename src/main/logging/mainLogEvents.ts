@@ -488,16 +488,17 @@ function positiveCount(field: string, value: unknown): number {
   return normalized
 }
 
-function duration(field: string, value: unknown): number {
-  if (
-    typeof value !== 'number' ||
-    !Number.isFinite(value) ||
-    value < 0 ||
-    value > MAX_MAIN_LOG_DURATION_MS
-  ) {
+function validatedDuration(field: string, value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw new MainLogEventProjectionError(field)
   }
-  return Math.round(value * 1000) / 1000
+  return value
+}
+
+function duration(field: string, value: unknown): number {
+  return (
+    Math.round(Math.min(validatedDuration(field, value), MAX_MAIN_LOG_DURATION_MS) * 1000) / 1000
+  )
 }
 
 function booleanValue(field: string, value: unknown): boolean {
@@ -631,19 +632,30 @@ function projectDistribution(field: string, value: MainLogDistribution): MainLog
   const percentile = (name: 'p50' | 'p95' | 'max'): number | null => {
     const candidate = snapshot[name]
     if (candidate === null) return null
-    return duration(`${field}.${name}`, candidate)
+    return validatedDuration(`${field}.${name}`, candidate)
   }
-  const p50 = percentile('p50')
-  const p95 = percentile('p95')
-  const max = percentile('max')
+  const rawP50 = percentile('p50')
+  const rawP95 = percentile('p95')
+  const rawMax = percentile('max')
   if (samples === 0) {
-    if (p50 !== null || p95 !== null || max !== null) {
+    if (rawP50 !== null || rawP95 !== null || rawMax !== null) {
       throw new MainLogEventProjectionError(field)
     }
-  } else if (p50 === null || p95 === null || max === null || p50 > p95 || p95 > max) {
+  } else if (
+    rawP50 === null ||
+    rawP95 === null ||
+    rawMax === null ||
+    rawP50 > rawP95 ||
+    rawP95 > rawMax
+  ) {
     throw new MainLogEventProjectionError(field)
   }
-  return { samples, p50, p95, max }
+  return {
+    samples,
+    p50: rawP50 === null ? null : duration(`${field}.p50`, rawP50),
+    p95: rawP95 === null ? null : duration(`${field}.p95`, rawP95),
+    max: rawMax === null ? null : duration(`${field}.max`, rawMax)
+  }
 }
 
 function projectAdmissionCorrelation(input: MainLogAdmissionCorrelation): MainLogContext {

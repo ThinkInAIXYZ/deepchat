@@ -643,13 +643,13 @@ describe('Main log event projection', () => {
     expect(projected.context).toEqual({ outcome: 'completed', durationMs: 10 })
   })
 
-  it('bounds durations and rejects invalid retryability', () => {
-    expect(() =>
+  it('clamps long durations and rejects invalid retryability', () => {
+    expect(
       projectMainLogEvent('app.shutdown.terminal', {
         outcome: 'completed',
-        durationMs: 30 * 24 * 60 * 60 * 1000 + 1
-      })
-    ).toThrow(MainLogEventProjectionError)
+        durationMs: 31 * 24 * 60 * 60 * 1000
+      }).context.durationMs
+    ).toBe(30 * 24 * 60 * 60 * 1000)
     expect(() =>
       projectMainLogEvent('app.shutdown.terminal', {
         outcome: 'failed',
@@ -714,6 +714,34 @@ describe('Main log event projection', () => {
       p95: 800,
       max: 1200
     })
+  })
+
+  it('clamps ordered long distributions without hiding raw ordering violations', () => {
+    const day = 24 * 60 * 60 * 1000
+    const base = {
+      capacity: 6,
+      active: 0,
+      pending: 0,
+      activeHighWater: 0,
+      pendingHighWater: 0,
+      granted: 1,
+      rejected: 0,
+      observationsDropped: 0,
+      holdMs: { samples: 0, p50: null, p95: null, max: null }
+    }
+
+    expect(
+      projectMainLogEvent('agent.admission.closed', {
+        ...base,
+        waitMs: { samples: 1, p50: 31 * day, p95: 35 * day, max: Number.MAX_VALUE }
+      }).context.waitMs
+    ).toEqual({ samples: 1, p50: 30 * day, p95: 30 * day, max: 30 * day })
+    expect(() =>
+      projectMainLogEvent('agent.admission.closed', {
+        ...base,
+        waitMs: { samples: 1, p50: 40 * day, p95: 35 * day, max: 31 * day }
+      })
+    ).toThrow(MainLogEventProjectionError)
   })
 
   it('rejects inconsistent or unordered admission distributions', () => {

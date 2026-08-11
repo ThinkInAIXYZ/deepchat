@@ -29,12 +29,14 @@ export interface MainJsonlPersistenceOptions {
 const MAX_MAIN_LOG_FILE_BYTES = 10 * 1024 * 1024
 const TAIL_SCAN_CHUNK_BYTES = 64 * 1024
 const MAX_SAFE_FILE_SIZE = BigInt(Number.MAX_SAFE_INTEGER)
+const MAIN_LOG_IDENTITY_RECHECK_INTERVAL = 64
 
 export class MainJsonlPersistence implements MainLogPersistence {
   private readonly fs: MainLogFs
   private logPath: string | undefined
   private descriptor: number | undefined
   private activeSize = 0
+  private writesSinceIdentityCheck = 0
   private enabled = false
   private failed = false
 
@@ -49,7 +51,7 @@ export class MainJsonlPersistence implements MainLogPersistence {
     try {
       const logDirectory = path.join(this.options.getUserDataPath(), 'logs')
       this.logPath = path.join(logDirectory, 'main.jsonl')
-      this.fs.mkdirSync(logDirectory, { recursive: true })
+      this.fs.mkdirSync(logDirectory, { recursive: true, mode: 0o700 })
       const directoryStat = this.fs.lstatSync(logDirectory)
       if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
         throw new Error('Main JSONL directory is not a regular directory')
@@ -91,6 +93,11 @@ export class MainJsonlPersistence implements MainLogPersistence {
     if (!this.logPath) throw new Error('Main JSONL path is unavailable')
     const encoded = Buffer.from(`${line}\n`, 'utf8')
     this.openActiveFile()
+    if (this.descriptor === undefined) throw new Error('Main JSONL descriptor is unavailable')
+    if (this.writesSinceIdentityCheck >= MAIN_LOG_IDENTITY_RECHECK_INTERVAL) {
+      this.activeSize = this.validateFileIdentity(this.logPath, this.descriptor)
+      this.writesSinceIdentityCheck = 0
+    }
     if (this.activeSize > 0 && this.activeSize + encoded.length > MAX_MAIN_LOG_FILE_BYTES) {
       this.rotate()
       this.openActiveFile()
@@ -107,6 +114,7 @@ export class MainJsonlPersistence implements MainLogPersistence {
       offset += written
     }
     this.activeSize += encoded.length
+    this.writesSinceIdentityCheck += 1
   }
 
   private openActiveFile(): void {
@@ -135,6 +143,7 @@ export class MainJsonlPersistence implements MainLogPersistence {
       const descriptorSize = this.validateFileIdentity(this.logPath, descriptor)
       this.descriptor = descriptor
       this.activeSize = descriptorSize
+      this.writesSinceIdentityCheck = 0
     } catch (error) {
       try {
         this.fs.closeSync(descriptor)
@@ -150,7 +159,7 @@ export class MainJsonlPersistence implements MainLogPersistence {
     if (this.descriptor === undefined) throw new Error('Main JSONL descriptor is unavailable')
     this.validateFileIdentity(this.logPath, this.descriptor)
     const archivePath = path.join(path.dirname(this.logPath), 'main.old.jsonl')
-    this.fs.renameSync(this.logPath, archivePath)
+    this.renameArchive(this.logPath, archivePath, this.descriptor)
     this.validateFileIdentity(archivePath, this.descriptor)
     this.closeActiveFile()
   }
@@ -159,6 +168,7 @@ export class MainJsonlPersistence implements MainLogPersistence {
     const descriptor = this.descriptor
     this.descriptor = undefined
     this.activeSize = 0
+    this.writesSinceIdentityCheck = 0
     if (descriptor !== undefined) this.fs.closeSync(descriptor)
   }
 
@@ -217,10 +227,21 @@ export class MainJsonlPersistence implements MainLogPersistence {
     try {
       this.validateFileIdentity(filePath, descriptor)
       const archivePath = path.join(path.dirname(filePath), 'main.old.jsonl')
-      this.fs.renameSync(filePath, archivePath)
+      this.renameArchive(filePath, archivePath, descriptor)
       this.validateFileIdentity(archivePath, descriptor)
     } finally {
       this.fs.closeSync(descriptor)
+    }
+  }
+
+  private renameArchive(sourcePath: string, archivePath: string, descriptor: number): void {
+    try {
+      this.fs.renameSync(sourcePath, archivePath)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'EACCES' && code !== 'EBUSY' && code !== 'EPERM') throw error
+      this.validateFileIdentity(sourcePath, descriptor)
+      this.fs.renameSync(sourcePath, archivePath)
     }
   }
 

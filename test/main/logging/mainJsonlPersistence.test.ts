@@ -8,6 +8,7 @@ const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const temporaryDirectories: string[] = []
 const persistenceInstances: MainJsonlPersistence[] = []
 const MAX_FILE_BYTES = 10 * 1024 * 1024
+const IDENTITY_RECHECK_INTERVAL = 64
 
 afterEach(() => {
   for (const persistence of persistenceInstances.splice(0)) persistence.disable()
@@ -90,6 +91,18 @@ describe('MainJsonlPersistence', () => {
     expect(persistence.write('info', validLine())).toBe('written')
 
     expect(fs.readFileSync(path.join(userData, 'logs/main.jsonl'), 'utf8')).toBe(`${validLine()}\n`)
+  })
+
+  it('requests owner-only permissions when creating the log directory', () => {
+    const userData = createUserData()
+    const mkdirSync = vi.fn((...args: Parameters<typeof fs.mkdirSync>) => fs.mkdirSync(...args))
+    const persistence = createPersistence(userData, { mkdirSync })
+
+    expect(persistence.enable()).toBe(true)
+    expect(mkdirSync).toHaveBeenCalledWith(path.join(userData, 'logs'), {
+      recursive: true,
+      mode: 0o700
+    })
   })
 
   it('reuses one validated append descriptor until persistence is disabled', () => {
@@ -251,6 +264,54 @@ describe('MainJsonlPersistence', () => {
     expect(operations.slice(0, 2)).toEqual(['rename', 'close'])
   })
 
+  it('retries one transient archive rename failure', () => {
+    const userData = createUserData()
+    const activePath = path.join(userData, 'logs/main.jsonl')
+    fs.mkdirSync(path.dirname(activePath), { recursive: true })
+    writeCompleteFileAtLimit(activePath)
+    const renameSync = vi
+      .fn<typeof fs.renameSync>()
+      .mockImplementationOnce(() => {
+        throw Object.assign(new Error('temporarily busy'), { code: 'EPERM' })
+      })
+      .mockImplementation((oldPath, newPath) => fs.renameSync(oldPath, newPath))
+    const persistence = createPersistence(userData, { renameSync })
+    expect(persistence.enable()).toBe(true)
+
+    expect(persistence.write('info', validLine())).toBe('written')
+    expect(renameSync).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry an archive rename after the active path is replaced', () => {
+    const userData = createUserData()
+    const logDirectory = path.join(userData, 'logs')
+    const activePath = path.join(logDirectory, 'main.jsonl')
+    const parkedPath = path.join(logDirectory, 'parked.jsonl')
+    const archivePath = path.join(logDirectory, 'main.old.jsonl')
+    const archiveContents = `${validLine(998)}\n`
+    const replacementContents = `${validLine(999)}\n`
+    fs.mkdirSync(logDirectory, { recursive: true })
+    writeCompleteFileAtLimit(activePath)
+    fs.writeFileSync(archivePath, archiveContents)
+    const closeSync = vi.fn((descriptor: number) => fs.closeSync(descriptor))
+    const renameSync = vi.fn((oldPath: fs.PathLike) => {
+      fs.renameSync(oldPath, parkedPath)
+      fs.writeFileSync(activePath, replacementContents)
+      throw Object.assign(new Error('temporarily busy'), { code: 'EPERM' })
+    })
+    const persistence = createPersistence(userData, { closeSync, renameSync })
+    expect(persistence.enable()).toBe(true)
+    closeSync.mockClear()
+
+    expect(persistence.write('info', validLine())).toBe('failed')
+
+    expect(renameSync).toHaveBeenCalledOnce()
+    expect(closeSync).toHaveBeenCalledOnce()
+    expect(fs.readFileSync(activePath, 'utf8')).toBe(replacementContents)
+    expect(fs.readFileSync(archivePath, 'utf8')).toBe(archiveContents)
+    expect(fs.statSync(parkedPath).size).toBe(MAX_FILE_BYTES)
+  })
+
   it('completes legal short writes without leaving a partial JSONL record', () => {
     const userData = createUserData()
     let firstWrite = true
@@ -306,6 +367,52 @@ describe('MainJsonlPersistence', () => {
     expect(renameSync).not.toHaveBeenCalled()
     expect(fs.statSync(activePath).size).toBe(MAX_FILE_BYTES)
     expect(fs.readFileSync(replacementPath, 'utf8')).toBe(replacementContents)
+  })
+
+  it('stops writing an orphan descriptor after a bounded identity recheck', () => {
+    const userData = createUserData()
+    const logDirectory = path.join(userData, 'logs')
+    const activePath = path.join(logDirectory, 'main.jsonl')
+    const parkedPath = path.join(logDirectory, 'parked.jsonl')
+    const replacementContents = `${validLine(999)}\n`
+    const persistence = createPersistence(userData)
+    expect(persistence.enable()).toBe(true)
+    expect(persistence.write('info', validLine())).toBe('written')
+    fs.renameSync(activePath, parkedPath)
+    fs.writeFileSync(activePath, replacementContents)
+
+    for (let seq = 2; seq <= IDENTITY_RECHECK_INTERVAL; seq += 1) {
+      expect(persistence.write('info', validLine(seq))).toBe('written')
+    }
+    expect(persistence.write('info', validLine(IDENTITY_RECHECK_INTERVAL + 1))).toBe('failed')
+
+    expect(fs.readFileSync(activePath, 'utf8')).toBe(replacementContents)
+    expect(fs.readFileSync(parkedPath, 'utf8').trim().split('\n')).toHaveLength(
+      IDENTITY_RECHECK_INTERVAL
+    )
+  })
+
+  it('refreshes the active size before making the periodic rotation decision', () => {
+    const userData = createUserData()
+    const activePath = path.join(userData, 'logs/main.jsonl')
+    const archivePath = path.join(userData, 'logs/main.old.jsonl')
+    const persistence = createPersistence(userData)
+    expect(persistence.enable()).toBe(true)
+
+    for (let seq = 1; seq <= IDENTITY_RECHECK_INTERVAL; seq += 1) {
+      expect(persistence.write('info', validLine(seq))).toBe('written')
+    }
+    const externalDescriptor = fs.openSync(activePath, 'r+')
+    try {
+      fs.ftruncateSync(externalDescriptor, MAX_FILE_BYTES)
+    } finally {
+      fs.closeSync(externalDescriptor)
+    }
+
+    const line = validLine(IDENTITY_RECHECK_INTERVAL + 1)
+    expect(persistence.write('info', line)).toBe('written')
+    expect(fs.statSync(archivePath).size).toBe(MAX_FILE_BYTES)
+    expect(fs.readFileSync(activePath, 'utf8')).toBe(`${line}\n`)
   })
 
   it('disables persistence permanently after rotation or write failure', () => {

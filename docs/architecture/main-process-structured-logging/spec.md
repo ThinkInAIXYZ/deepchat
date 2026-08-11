@@ -126,6 +126,9 @@ PTY chunks, window focus changes, normal queue mutations, or normal refresh loop
 Persisted event contexts use allowlisted primitives, enums, bounded counts, durations, and explicit
 correlation identifiers. They never accept arbitrary objects.
 
+Finite non-negative durations are rounded to microsecond precision and clamped at 30 days. The cap
+keeps the V1 numeric contract bounded without dropping long-lived process or permit diagnostics.
+
 The following content is prohibited from every persisted event, including error and debug paths:
 
 - user, system, assistant, task, delegation, or handoff text;
@@ -253,22 +256,24 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
 - Writes remain synchronous after event selection keeps volume low. This preserves ordering and
   crash-tail reliability without an async flush lifecycle.
 - The adapter reuses one validated append descriptor and its observed file size between records.
-  Disablement, transport failure, and rotation close that descriptor; rotation validates and opens
-  the new active file before its first append. This keeps the steady-state path to one write syscall
-  without weakening the regular-file check.
-- Before any read, append, or tail truncation, the adapter revalidates the log directory and active
-  path after open and requires its exact 64-bit filesystem identity to match the opened descriptor.
-  A symlink or file replacement race disables persistence without mutating the opened target.
-  Rotation repeats the identity check before closing the retained descriptor. This also preserves
-  the boundary on platforms where `O_NOFOLLOW` is unavailable.
+  Disablement, adapter failure, and rotation close that descriptor; rotation validates and opens the
+  new active file before its first append. Ordinary writes use one syscall; a legal short write is
+  completed with bounded forward-progress checks.
+- Before any read or tail truncation, and after opening an append descriptor, the adapter revalidates
+  the log directory and active path and requires its exact 64-bit filesystem identity to match the
+  opened descriptor with exactly one hard link. Long-lived append descriptors repeat that identity
+  check every 64 records, bounding writes to an unlinked or replaced file without adding a metadata
+  syscall to every low-volume event. A mismatch disables persistence without mutating the new path.
+  Rotation validates before rename and validates the archive against the same retained descriptor
+  afterward. This also preserves the boundary on platforms where `O_NOFOLLOW` is unavailable.
 - Rotation asks the filesystem to replace the previous archive by renaming the complete active file
   over it, without an application-level pre-delete. It never crops a byte range, truncates the active
   file to satisfy the cap, appends a human-readable crop marker, adds a suffix or writes a non-JSON
   marker.
 - An ordinary replacement failure before mutation leaves the active file and existing archive
-  intact. A storage-level I/O failure may leave filesystem state indeterminate. In either case,
-  persistence is disabled for the rest of the process and one payload-free native console warning
-  is emitted.
+  intact. One immediate retry handles a transient `EACCES`, `EBUSY`, or `EPERM`; a second failure or
+  storage-level I/O failure may leave filesystem state indeterminate. In either case, persistence is
+  disabled for the rest of the process and one payload-free native console warning is emitted.
 - Before the first enabled append, an incomplete final line from an interrupted prior write is
   removed without changing complete preceding records. Tail repair scans at most one maximum-sized
   record plus its delimiter. Because the physical limit includes LF, an unterminated tail of 16 KiB
@@ -279,7 +284,7 @@ Persistence has three states: `unknown`, `enabled`, and `disabled`.
   later records and emits one payload-free `logging.record.dropped` event identifying the rejected
   sequence and fixed reason. Only storage, descriptor, or file-identity failures disable persistence
   for the rest of the process.
-- Transport, projection, serialization, repair, and rotation failures never affect application
+- Adapter, projection, serialization, repair, and rotation failures never affect application
   behavior.
 - JSONL is best-effort local diagnostics, not an audit log, transaction journal, or power-loss-safe
   store.
