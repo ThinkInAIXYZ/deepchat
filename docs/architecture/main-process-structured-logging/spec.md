@@ -186,12 +186,14 @@ creation. A generic `sessionId` must not be used when parent and child ownership
 `agent.run.started` and `agent.run.terminal` are emitted only after the matching Execution Journal
 commit returns a newly-created receipt. A failed or conflicting Journal commit produces no matching
 diagnostic event. Loop terminal events include monotonic duration, logical-round count, and tool-call
-count; deferred-tool terminal events include monotonic duration only.
+count for that Run; resumed Runs subtract the message-level accounting present before the Run.
+Deferred-tool terminal events include monotonic duration only.
 
 The internal observer receives identities, kind, outcome, the durable stop reason, duration, and
 counts. It never receives Journal payloads, prompts, tool input/output, or terminal error text. The
-Main logging adapter maps unknown durable stop reasons to an outcome-specific safe fallback before
-persistence. Observation failures cannot change the durable Run lifecycle.
+Main logging adapter maps unknown durable stop reasons to the explicit `unknown` diagnostic value
+before persistence rather than attributing them to a known subsystem. Observation failures cannot
+change the durable Run lifecycle.
 
 ## Admission Diagnostics
 

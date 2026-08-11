@@ -10807,6 +10807,45 @@ describe('DeepChatAgentHarness', () => {
       }
     )
 
+    it('observes resume counters relative to the current Run', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        params.run.logicalRound = 5
+        params.run.streamState.toolCallCount = 7
+        return { status: 'completed', stopReason: 'complete' }
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const assistantRow = installPendingQuestion()
+      assistantRow.metadata = JSON.stringify({ providerRounds: 3, toolCalls: 4 })
+
+      await expect(answerPendingQuestion()).resolves.toEqual({ resumed: true })
+
+      expect(runJournalObserver).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          type: 'terminal',
+          runKind: 'loop',
+          logicalRounds: 2,
+          toolCalls: 3
+        })
+      )
+    })
+
+    it('subtracts the finite tool-call baseline accepted by stream accounting', async () => {
+      const historicalToolCalls = Number.MAX_SAFE_INTEGER + 1
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        params.run.streamState.toolCallCount = historicalToolCalls
+        return { status: 'completed', stopReason: 'complete' }
+      })
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const assistantRow = installPendingQuestion()
+      assistantRow.metadata = JSON.stringify({ providerRounds: 0, toolCalls: historicalToolCalls })
+
+      await expect(answerPendingQuestion()).resolves.toEqual({ resumed: true })
+
+      expect(runJournalObserver).toHaveBeenLastCalledWith(
+        expect.objectContaining({ type: 'terminal', runKind: 'loop', toolCalls: 0 })
+      )
+    })
+
     it('preserves a resume Journal failure when rejected-turn observation also fails', async () => {
       const journalError = new ExecutionJournalError(
         'run terminal unavailable',

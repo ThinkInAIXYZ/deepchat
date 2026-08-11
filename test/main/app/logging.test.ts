@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { originalConsole } from '@shared/logger'
 import { LoggingService } from '@/app/logging'
+import { mainLogger, reportMainProcessFatal } from '@/logging'
 
 describe('LoggingService', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -28,4 +30,32 @@ describe('LoggingService', () => {
       expect(restart).toHaveBeenCalledOnce()
     }
   )
+})
+
+describe('Main process fatal diagnostics', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each(['process.uncaught_exception', 'process.unhandled_rejection'] as const)(
+    'keeps a native console fallback for %s',
+    (event) => {
+      const error = new Error('fatal detail')
+      const emit = vi.spyOn(mainLogger, 'emit').mockImplementation(() => undefined)
+
+      reportMainProcessFatal(event, error)
+
+      expect(originalConsole.error).toHaveBeenCalledWith(`[main] ${event}`, error)
+      expect(emit).toHaveBeenCalledWith(event, { error })
+    }
+  )
+
+  it('still emits the structured diagnostic when the native console throws', () => {
+    const error = new Error('fatal detail')
+    vi.mocked(originalConsole.error).mockImplementationOnce(() => {
+      throw new Error('console unavailable')
+    })
+    const emit = vi.spyOn(mainLogger, 'emit').mockImplementation(() => undefined)
+
+    expect(() => reportMainProcessFatal('process.uncaught_exception', error)).not.toThrow()
+    expect(emit).toHaveBeenCalledWith('process.uncaught_exception', { error })
+  })
 })

@@ -301,6 +301,18 @@ function isFirstProviderContextOverflowEvent(event: LLMCoreStreamEvent): boolean
   return event.type === 'error' && isContextWindowErrorLike(event.error_message)
 }
 
+function normalizeObservedLogicalRound(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return 0
+  const normalized = Math.floor(value)
+  return Number.isSafeInteger(normalized) ? normalized : 0
+}
+
+function normalizeObservedToolCalls(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : 0
+}
+
 function buildProviderContextOverflowAfterRecoveryErrorMessage(
   preflight: ReturnType<typeof preflightRequestContext>
 ): string {
@@ -560,6 +572,10 @@ export class DeepChatLoopRunner {
       )
     }
     const observedRunStartedAt = performance.now()
+    const observedLogicalRoundBaseline = normalizeObservedLogicalRound(
+      initialAccounting?.providerRounds
+    )
+    const observedToolCallBaseline = normalizeObservedToolCalls(initialAccounting?.toolCalls)
     notifyRunJournalObserver(this.ports.runJournalObserver, {
       type: 'started',
       runKind: 'loop',
@@ -617,8 +633,8 @@ export class DeepChatLoopRunner {
         outcome: selection.outcome,
         stopReason: selection.stopReason,
         durationMs: Math.max(0, performance.now() - observedRunStartedAt),
-        logicalRounds: loopRun.logicalRound,
-        toolCalls: loopRun.streamState.toolCallCount
+        logicalRounds: Math.max(0, loopRun.logicalRound - observedLogicalRoundBaseline),
+        toolCalls: Math.max(0, loopRun.streamState.toolCallCount - observedToolCallBaseline)
       })
     }
 

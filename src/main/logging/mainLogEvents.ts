@@ -112,6 +112,7 @@ export type MainLogRunStopReason =
   | 'provider_error'
   | 'tool_error'
   | 'tool_result'
+  | 'unknown'
   | 'user_follow_up'
   | 'user_stop'
 
@@ -347,6 +348,10 @@ const MAX_IDENTIFIER_LENGTH = 256
 const MAX_ERROR_NAME_LENGTH = 128
 const MAX_DISTRIBUTION_SAMPLES = 256
 export const MAX_MAIN_LOG_DURATION_MS = 30 * 24 * 60 * 60 * 1000
+const DOM_EXCEPTION_NAME_GETTER =
+  typeof DOMException === 'undefined'
+    ? undefined
+    : Object.getOwnPropertyDescriptor(DOMException.prototype, 'name')?.get
 
 const RUN_KIND_VALUES = {
   loop: 'loop',
@@ -378,6 +383,7 @@ const RUN_STOP_REASONS = [
   'provider_error',
   'tool_error',
   'tool_result',
+  'unknown',
   'user_follow_up',
   'user_stop'
 ] as const satisfies readonly MainLogRunStopReason[]
@@ -430,21 +436,12 @@ const STALE_RESULT_REASONS = ['recovered_result_predates_turn'] as const
 
 export function normalizeMainLogRunStopReason(
   value: string,
-  outcome: ExecutionRunOutcome
+  _outcome: ExecutionRunOutcome
 ): MainLogRunStopReason {
   if ((RUN_STOP_REASONS as readonly string[]).includes(value)) {
     return value as MainLogRunStopReason
   }
-  switch (outcome) {
-    case 'completed':
-      return 'complete'
-    case 'paused':
-      return 'interaction'
-    case 'aborted':
-      return 'user_stop'
-    case 'error':
-      return 'provider_error'
-  }
+  return 'unknown'
 }
 
 export class MainLogEventProjectionError extends Error {
@@ -590,9 +587,19 @@ function ownDataString(value: unknown, key: string): string | undefined {
   return undefined
 }
 
+function nativeErrorName(value: unknown): string | undefined {
+  if (!DOM_EXCEPTION_NAME_GETTER) return undefined
+  try {
+    const name = Reflect.apply(DOM_EXCEPTION_NAME_GETTER, value, [])
+    return typeof name === 'string' ? name : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function projectFatalError(value: unknown): MainLogContext {
   if (utilTypes.isProxy(value)) return { category: 'unknown' }
-  const errorName = ownDataString(value, 'name')
+  const errorName = nativeErrorName(value) ?? ownDataString(value, 'name')
   const name = errorName && errorName.length <= MAX_ERROR_NAME_LENGTH ? errorName : undefined
   const category: MainLogErrorCategory =
     name === 'AbortError'

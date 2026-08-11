@@ -7,11 +7,12 @@ import {
 
 describe('Main log event projection', () => {
   it('normalizes unknown durable stop reasons without persisting their text', () => {
-    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'completed')).toBe('complete')
-    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'paused')).toBe('interaction')
-    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'aborted')).toBe('user_stop')
-    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'error')).toBe('provider_error')
+    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'completed')).toBe('unknown')
+    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'paused')).toBe('unknown')
+    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'aborted')).toBe('unknown')
+    expect(normalizeMainLogRunStopReason('SECRET_PROVIDER_DETAIL', 'error')).toBe('unknown')
     expect(normalizeMainLogRunStopReason('journal_error', 'error')).toBe('journal_error')
+    expect(normalizeMainLogRunStopReason('provider_error', 'error')).toBe('provider_error')
   })
 
   it('projects an Agent terminal event with fixed severity and strict fields', () => {
@@ -302,6 +303,40 @@ describe('Main log event projection', () => {
     const projected = projectMainLogEvent('process.unhandled_rejection', { error })
 
     expect(projected.context).toEqual({ error: { category: 'unknown' } })
+    expect(getterCalls).toBe(0)
+  })
+
+  it('classifies native AbortError and TimeoutError DOMExceptions without persisting content', () => {
+    const abort = projectMainLogEvent('process.unhandled_rejection', {
+      error: new DOMException('SECRET_ABORT_REASON', 'AbortError')
+    })
+    const timeout = projectMainLogEvent('process.unhandled_rejection', {
+      error: new DOMException('SECRET_TIMEOUT_REASON', 'TimeoutError')
+    })
+
+    expect(abort.context).toEqual({ error: { category: 'aborted' } })
+    expect(timeout.context).toEqual({ error: { category: 'timeout' } })
+    expect(JSON.stringify([abort, timeout])).not.toContain('SECRET_')
+  })
+
+  it('uses the native DOMException name without invoking shadowing properties', () => {
+    let getterCalls = 0
+    const accessorShadow = new DOMException('SECRET_ABORT_REASON', 'AbortError')
+    Object.defineProperty(accessorShadow, 'name', {
+      get() {
+        getterCalls += 1
+        return 'TimeoutError'
+      }
+    })
+    const dataShadow = new DOMException('SECRET_TIMEOUT_REASON', 'TimeoutError')
+    Object.defineProperty(dataShadow, 'name', { value: 'AbortError' })
+
+    expect(
+      projectMainLogEvent('process.unhandled_rejection', { error: accessorShadow }).context
+    ).toEqual({ error: { category: 'aborted' } })
+    expect(
+      projectMainLogEvent('process.unhandled_rejection', { error: dataShadow }).context
+    ).toEqual({ error: { category: 'timeout' } })
     expect(getterCalls).toBe(0)
   })
 

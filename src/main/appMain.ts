@@ -12,7 +12,7 @@ import { isInsecureTlsAllowed } from './lib/insecureTls'
 import { ensureRegularAppOnMac } from './lib/activateApp'
 import { startMainProcess, type MainProcessControl } from './app/mainProcess'
 import type { MainShutdownActionClaim } from './app/mainShutdownCoordinator'
-import { mainLogger } from './logging'
+import { mainLogger, reportMainProcessFatal } from './logging'
 import type { MainLogShutdownReason } from './logging/mainLogEvents'
 
 let appStarted = false
@@ -50,11 +50,11 @@ export function startApp(): void {
 
   // Handle unhandled exceptions to prevent app crash or error dialogs
   process.on('uncaughtException', (error) => {
-    mainLogger.emit('process.uncaught_exception', { error })
+    reportMainProcessFatal('process.uncaught_exception', error)
   })
 
   process.on('unhandledRejection', (reason) => {
-    mainLogger.emit('process.unhandled_rejection', { error: reason })
+    reportMainProcessFatal('process.unhandled_rejection', reason)
   })
 
   // Set application command line arguments
