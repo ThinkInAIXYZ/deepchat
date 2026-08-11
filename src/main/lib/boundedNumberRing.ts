@@ -5,6 +5,8 @@ export interface NumberDistribution {
   max: number | null
 }
 
+export const MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES = 256
+
 export class BoundedNumberRing {
   private readonly values: number[]
   private nextIndex = 0

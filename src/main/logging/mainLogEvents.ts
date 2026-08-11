@@ -1,5 +1,6 @@
 import { types as utilTypes } from 'node:util'
 import type { ExecutionRunKind, ExecutionRunOutcome } from '@/tape/domain/executionJournal'
+import { MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES } from '@/lib/boundedNumberRing'
 
 export const MAIN_LOG_ERROR_CATEGORIES = [
   'aborted',
@@ -352,7 +353,6 @@ type MainLogEventDefinitions = {
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9._:-]+$/
 const MAX_IDENTIFIER_LENGTH = 256
 const MAX_ERROR_NAME_LENGTH = 128
-const MAX_DISTRIBUTION_SAMPLES = 256
 export const MAX_MAIN_LOG_DURATION_MS = 30 * 24 * 60 * 60 * 1000
 const DOM_EXCEPTION_NAME_GETTER =
   typeof DOMException === 'undefined'
@@ -626,7 +626,7 @@ function projectFatalError(value: unknown): MainLogContext {
 function projectDistribution(field: string, value: MainLogDistribution): MainLogContext {
   const snapshot = snapshotDataObject(field, value, ['samples', 'p50', 'p95', 'max'])
   const samples = count(`${field}.samples`, snapshot.samples)
-  if (samples > MAX_DISTRIBUTION_SAMPLES) {
+  if (samples > MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES) {
     throw new MainLogEventProjectionError(`${field}.samples`)
   }
   const percentile = (name: 'p50' | 'p95' | 'max'): number | null => {

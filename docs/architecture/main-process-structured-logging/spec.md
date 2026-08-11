@@ -214,9 +214,11 @@ distributions:
 
 Timing uses a monotonic clock. Each resume starts a new wait interval; each grant starts a new hold
 interval; suspend/release ends the current hold interval. Suspended time is not hold time. Observer
-and metric failures are swallowed and cannot change admission accounting. Observations leave the
-permit critical path through a bounded, ordered queue; teardown drains that queue before later
-infrastructure is closed.
+and metric failures are swallowed and cannot change admission accounting. Wait summaries include
+both granted waits and queued waits abandoned by abort or close, so long rejected waits do not
+artificially lower the distribution. The `closed` event is a close-time snapshot; active permits may
+release afterward. Observations leave the permit critical path through a bounded, ordered queue;
+teardown drains that queue before later infrastructure is closed.
 
 Recent wait and hold distributions retain at most 256 samples. They are process-local diagnostics,
 reset on restart, and are not recovery or accounting facts. The admission implementation owns its

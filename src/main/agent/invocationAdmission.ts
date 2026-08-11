@@ -1,13 +1,13 @@
 import { types as utilTypes } from 'node:util'
 import {
   BoundedNumberRing,
+  MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES,
   summarizeNumberDistribution,
   type NumberDistribution
 } from '@/lib/boundedNumberRing'
 
 export const DEFAULT_AGENT_INVOCATION_CAPACITY = 6
 export const DEFAULT_AGENT_INVOCATION_MAX_PENDING = 256
-const AGENT_INVOCATION_DIAGNOSTIC_SAMPLES = 256
 const MAX_PENDING_OBSERVATIONS = 512
 const OBSERVATION_DRAIN_BATCH_SIZE = 16
 
@@ -154,8 +154,8 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
   private readonly pendingObservations: AgentInvocationAdmissionObservation[] = []
   private observationDrain: NodeJS.Immediate | undefined
   private readonly observationFlushWaiters = new Set<() => void>()
-  private readonly waitSamples = new BoundedNumberRing(AGENT_INVOCATION_DIAGNOSTIC_SAMPLES)
-  private readonly holdSamples = new BoundedNumberRing(AGENT_INVOCATION_DIAGNOSTIC_SAMPLES)
+  private readonly waitSamples = new BoundedNumberRing(MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES)
+  private readonly holdSamples = new BoundedNumberRing(MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES)
   private readonly observe: (observation: AgentInvocationAdmissionObservation) => void
   private readonly now: () => number
 
@@ -283,9 +283,7 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
       pendingHighWater: snapshot.pendingHighWater,
       granted: snapshot.granted,
       rejected: snapshot.rejected,
-      observationsDropped:
-        snapshot.observationsDropped +
-        (this.pendingObservations.length >= MAX_PENDING_OBSERVATIONS ? 1 : 0),
+      observationsDropped: snapshot.observationsDropped,
       waitMs: snapshot.waitMs,
       holdMs: snapshot.holdMs
     })
@@ -396,12 +394,14 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
     waiter.settled = true
     this.detachAbort(waiter)
     this.rejected += 1
+    const waitDuration = this.elapsedSince(waiter.queuedAt)
+    if (waitDuration.valid) this.waitSamples.push(waitDuration.value)
     if (waiter.correlation) {
       this.emit({
         type: 'rejected',
         ...waiter.correlation,
         acquisitionSeq: waiter.acquisitionSeq,
-        waitMs: this.elapsedSince(waiter.queuedAt).value,
+        waitMs: waitDuration.value,
         reason,
         ...this.currentState()
       })
@@ -446,7 +446,6 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
       if (released) {
         return
       }
-      released = true
       if (this.active <= 0) {
         throw new Error('Agent invocation permit accounting underflow.')
       }
@@ -454,6 +453,7 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
       if (ownerActive <= 0) {
         throw new Error(`Agent invocation owner permit accounting underflow: ${ownerId}`)
       }
+      released = true
       this.active -= 1
       if (ownerActive === 1) {
         this.activeByOwner.delete(ownerId)
@@ -573,7 +573,11 @@ export class AgentInvocationAdmission implements AgentInvocationAdmissionPort {
       this.pendingObservations.shift()
       this.observationsDropped += 1
     }
-    this.pendingObservations.push(observation)
+    this.pendingObservations.push(
+      observation.type === 'closed'
+        ? { ...observation, observationsDropped: this.observationsDropped }
+        : observation
+    )
     this.scheduleObservationDrain()
   }
 
@@ -665,18 +669,32 @@ class StatefulAgentInvocationLease implements AgentInvocationLease {
 
   suspend(): void {
     if (this.currentState === 'released' || this.currentState === 'suspended') return
+    if (this.currentState === 'active') {
+      this.releaseActivePermit('lease_suspended', 'suspended')
+      return
+    }
     this.currentState = 'suspended'
     this.acquisition?.controller.abort('Agent invocation lease suspended.')
-    this.permit?.releaseWithReason('lease_suspended')
-    this.permit = null
   }
 
   release(): void {
     if (this.currentState === 'released') return
+    if (this.currentState === 'active') {
+      this.releaseActivePermit('lease_released', 'released')
+      return
+    }
     this.currentState = 'released'
     this.acquisition?.controller.abort('Agent invocation lease released.')
-    this.permit?.releaseWithReason('lease_released')
+  }
+
+  private releaseActivePermit(
+    reason: 'lease_suspended' | 'lease_released',
+    nextState: 'suspended' | 'released'
+  ): void {
+    if (!this.permit) throw new Error('Active Agent invocation lease has no permit.')
+    this.permit.releaseWithReason(reason)
     this.permit = null
+    this.currentState = nextState
   }
 }
 

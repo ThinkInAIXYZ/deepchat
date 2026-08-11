@@ -6,6 +6,7 @@ import {
   AgentInvocationAdmissionQueueFullError,
   type AgentInvocationAdmissionObservation
 } from '@/agent/invocationAdmission'
+import { BoundedNumberRing } from '@/lib/boundedNumberRing'
 
 const CORRELATION = {
   kind: 'live_delegation' as const,
@@ -15,6 +16,13 @@ const CORRELATION = {
 }
 
 describe('AgentInvocationAdmission', () => {
+  it('retains recent diagnostic samples in insertion order after wrap-around', () => {
+    const samples = new BoundedNumberRing(3)
+    for (const value of [1, 2, 3, 4]) samples.push(value)
+
+    expect(samples.snapshot()).toEqual([2, 3, 4])
+  })
+
   it('reserves process-wide headroom beyond one workflow owner', () => {
     expect(new AgentInvocationAdmission().snapshot()).toMatchObject({
       capacity: 6,
@@ -187,6 +195,32 @@ describe('AgentInvocationAdmission', () => {
     expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
   })
 
+  it('keeps an active lease retryable when an accounting invariant rejects release', async () => {
+    const admission = new AgentInvocationAdmission(1, 1)
+    const lease = admission.createLease({ ownerId: 'owner' })
+    await lease.resume()
+    const accounting = admission as unknown as {
+      active: number
+      activeByOwner: Map<string, number>
+    }
+
+    accounting.active = 0
+    expect(() => lease.suspend()).toThrow('permit accounting underflow')
+    expect(lease.state).toBe('active')
+    accounting.active = 1
+    lease.suspend()
+    expect(lease.state).toBe('suspended')
+
+    await lease.resume()
+    accounting.activeByOwner.delete('owner')
+    expect(() => lease.release()).toThrow('owner permit accounting underflow')
+    expect(lease.state).toBe('active')
+    accounting.activeByOwner.set('owner', 1)
+    lease.release()
+    expect(lease.state).toBe('released')
+    expect(admission.snapshot().active).toBe(0)
+  })
+
   it('cancels a queued lease when it is suspended or its owner is aborted', async () => {
     const admission = new AgentInvocationAdmission(1, 10)
     const active = await admission.acquire({ ownerId: 'active' })
@@ -324,6 +358,22 @@ describe('AgentInvocationAdmission', () => {
     expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0, rejected: 2 })
   })
 
+  it('includes an abandoned queued interval in wait diagnostics', async () => {
+    let now = 0
+    const admission = new AgentInvocationAdmission(1, 1, { now: () => now })
+    const active = await admission.acquire({ ownerId: 'active' })
+    const controller = new AbortController()
+    now = 5
+    const queued = admission.acquire({ ownerId: 'queued', signal: controller.signal })
+
+    now = 105
+    controller.abort()
+    await expect(queued).rejects.toBeInstanceOf(AgentInvocationAdmissionAbortedError)
+
+    expect(admission.snapshot().waitMs).toEqual({ samples: 2, p50: 0, p95: 100, max: 100 })
+    active.release()
+  })
+
   it('does not run hostile correlation accessors or Proxy traps', async () => {
     const observe = vi.fn()
     const admission = new AgentInvocationAdmission(1, 1, { observe })
@@ -459,6 +509,10 @@ describe('AgentInvocationAdmission', () => {
 
     expect(observations).toHaveLength(512)
     expect(admission.snapshot().observationsDropped).toBe(89)
+    expect(admission.snapshot()).toMatchObject({
+      waitMs: { samples: 256 },
+      holdMs: { samples: 256 }
+    })
     expect(observations.at(-1)).toMatchObject({ type: 'closed', observationsDropped: 89 })
   })
 })
