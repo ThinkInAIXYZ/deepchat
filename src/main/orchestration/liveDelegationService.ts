@@ -216,6 +216,7 @@ type ActiveTurn = {
   runtimeStatus: 'idle' | 'generating' | 'error' | null
   started: boolean
   settling: boolean
+  settlement: LiveDelegationWithTurn | null
 }
 
 type AcquiredChild = {
@@ -988,7 +989,8 @@ export class LiveDelegationService {
       childMessageId: null,
       runtimeStatus: null,
       started: false,
-      settling: false
+      settling: false,
+      settlement: null
     }
     this.activeTurns.set(turn.id, active)
     if (active.childSessionId) this.childToTurn.set(active.childSessionId, turn.id)
@@ -1352,7 +1354,7 @@ export class LiveDelegationService {
   ): Promise<LiveDelegationWithTurn | null> {
     if (active.settling) {
       await active.completion.promise
-      return null
+      return active.settlement
     }
     active.settling = true
     active.admissionLease.release()
@@ -1415,6 +1417,7 @@ export class LiveDelegationService {
         tapeReceipt,
         candidateResult: persistedResult?.answerMarkdown.trim() || null
       })
+      active.settlement = terminalSettlement
       const settled = terminalSettlement
       this.observeTerminalTurn(settled, failureCategory)
       this.publishChanged(settled.delegation)
@@ -1450,6 +1453,7 @@ export class LiveDelegationService {
             ),
             tapeReceipt: fallbackTapeReceipt
           })
+          active.settlement = terminalSettlement
           const settled = terminalSettlement
           this.observeTerminalTurn(settled, 'persistence')
           this.publishChanged(settled.delegation)
@@ -1475,6 +1479,7 @@ export class LiveDelegationService {
                 LIVE_DELEGATION_MAX_HANDOFF_BYTES
               )
             })
+            active.settlement = terminalSettlement
             const settled = terminalSettlement
             this.observeTerminalTurn(settled, 'persistence')
             this.publishChanged(settled.delegation)
