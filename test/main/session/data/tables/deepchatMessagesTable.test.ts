@@ -208,26 +208,6 @@ describeIfNativeSqlite('DeepChatMessagesTable runtime projection', () => {
     }
   })
 
-  it('installs the pending assistant index for an existing message table', () => {
-    const { db, table } = createTable()
-    try {
-      db.exec('DROP INDEX idx_deepchat_messages_pending_assistant')
-
-      table.createTable()
-
-      expect(
-        db
-          .prepare(
-            `SELECT name FROM sqlite_master
-             WHERE type = 'index' AND name = 'idx_deepchat_messages_pending_assistant'`
-          )
-          .get()
-      ).toEqual({ name: 'idx_deepchat_messages_pending_assistant' })
-    } finally {
-      db.close()
-    }
-  })
-
   it('projects only assistant identity and result text for delegated result reads', () => {
     const { db, table } = createTable()
     try {
@@ -346,11 +326,13 @@ describeIfNativeSqlite('DeepChatMessagesTable runtime projection', () => {
   })
 
   it('uses the existing session index', () => {
-    const { db, table } = createTable()
+    const { db } = createTable()
     try {
       const plan = db
         .prepare(
-          'EXPLAIN QUERY PLAN SELECT * FROM deepchat_messages WHERE session_id = ? ORDER BY order_seq'
+          `EXPLAIN QUERY PLAN SELECT * FROM deepchat_messages
+           WHERE session_id = ? AND role = 'assistant' AND status = 'pending'
+           ORDER BY order_seq, id`
         )
         .all('s1') as Array<{ detail: string }>
 
@@ -359,18 +341,6 @@ describeIfNativeSqlite('DeepChatMessagesTable runtime projection', () => {
       expect(plan.some((row) => /deepchat_message_traces|materialize/i.test(row.detail))).toBe(
         false
       )
-
-      const pendingPlan = db
-        .prepare(
-          `EXPLAIN QUERY PLAN SELECT * FROM deepchat_messages
-           WHERE session_id = ? AND role = 'assistant' AND status = 'pending'
-           ORDER BY order_seq, id`
-        )
-        .all('s1') as Array<{ detail: string }>
-      expect(
-        pendingPlan.some((row) => /idx_deepchat_messages_pending_assistant/i.test(row.detail))
-      ).toBe(true)
-      expect(table.getPendingAssistantBySession('s1')).toEqual([])
     } finally {
       db.close()
     }
